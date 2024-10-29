@@ -41,7 +41,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 /**
  * Tests for {@link TreeStatistics}
  */
-public class TreeStatisticsTest {
+public class TreeStatisticsBTest {
 
 	private final double precision = 0.0001;
 	private Tree tree;

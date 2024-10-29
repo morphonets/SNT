@@ -116,12 +116,12 @@ def getFilteredBranchPoints(loader) {
 
 		println(" Id matches soma location requirements!")
 
-		// Retrieve the axonal arbor as a Tree object. Instantiate a TreeAnalyzer
+		// Retrieve the axonal arbor as a Tree object. Instantiate TreeStatistics
 		// so that we can conveniently 1) access all of the axonal branch points,
 		// and 2) filter them by annotated compartment
 		axonalTree = loader.getTree("axon")
-		analyzer = new TreeAnalyzer(axonalTree)
-		branchPoints = analyzer.getBranchPoints(projCompartment)
+		axonalStats = new TreeStatistics(axonalTree)
+		branchPoints = axonalStats.getBranchPoints(projCompartment)
 		println(" Found ${branchPoints.size()} match(es)")
 
 		return branchPoints

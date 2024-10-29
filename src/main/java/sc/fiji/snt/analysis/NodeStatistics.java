@@ -48,10 +48,10 @@ import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
 
 /**
- * Computes summary and descriptive statistics from a Collection of nodes.
+ * Computes summary and descriptive statistics from a Collection of nodes, including convenience methods to plot
+ * distributions of such data.
  * 
  * @author Tiago Ferreira
- * @param <T>
  */
 public class NodeStatistics <T extends PointInImage> {
 
@@ -614,7 +614,7 @@ public class NodeStatistics <T extends PointInImage> {
 		hist.annotate("Free text");
 		hist.show();
 		final MouseLightLoader loader = new MouseLightLoader("AA0001");
-		final TreeAnalyzer analyzer = new TreeAnalyzer(loader.getTree("axon"));
+		final TreeStatistics analyzer = new TreeStatistics(loader.getTree("axon"));
 		final NodeStatistics<?> nStats = new NodeStatistics<>(analyzer.getTips());
 		final SNTChart plot = nStats.getAnnotatedFrequencyHistogram(6, "ratio", analyzer.tree);
 		plot.annotateCategory("CA1", "Not showing");

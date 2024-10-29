@@ -33,15 +33,15 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.TreeProperties;
 
 /*
- * A flavor of TreeStatistics that does not do graph conversions, ensuring paths
- * can be measured independently of their connectivity.
+ * A flavor of TreeStatistics that does not do graph conversions, ensuring paths can be measured independently of
+ * their connectivity.
  */
-public class PathAnalyzer extends TreeStatistics {
+public class PathStatistics extends TreeStatistics {
 
 	/** Flag for {@value #N_CHILDREN} analysis. */
 	public static final String N_CHILDREN = "No. of children";
 
-	public PathAnalyzer(Collection<Path> paths, String label) {
+	public PathStatistics(Collection<Path> paths, String label) {
 		super(new Tree(paths));
 		tree.setLabel(label);
 		final String unit = paths.iterator().next().getCalibration().getUnit();
@@ -49,7 +49,7 @@ public class PathAnalyzer extends TreeStatistics {
 			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
 	}
 
-	public PathAnalyzer(final Path path) {
+	public PathStatistics(final Path path) {
 		this(Collections.singleton(path), path.getName());
 	}
 
@@ -64,10 +64,10 @@ public class PathAnalyzer extends TreeStatistics {
 	}
 
 	@Override
-	public Number getMetric(final String metric) throws IllegalArgumentException {
+	public Number getMetric(final String metric) throws UnknownMetricException {
 		if ("Path ID".equalsIgnoreCase(metric))
 			return (tree.size() == 1) ? tree.list().get(0).getID() : Double.NaN;
-		return getMetricInternal(getNormalizedMeasurement(metric));
+		return super.getMetric(metric);
 	}
 
 	@Override
@@ -185,7 +185,7 @@ public class PathAnalyzer extends TreeStatistics {
 				// we can recycle the logic behind #assembleStats(). Since, all
 				// getBranches() related code has been (hopefully) overridden, this will
 				// effectively retrieve the single-value metric for this path.
-				final PathAnalyzer analyzer = new PathAnalyzer(path);
+				final PathStatistics analyzer = new PathStatistics(path);
 				final SummaryStatistics dummy = new SummaryStatistics();
 				analyzer.assembleStats(new StatisticsInstance(dummy), metric);
 				return dummy.getMax(); // since N=1, same as the value itself
@@ -199,7 +199,7 @@ public class PathAnalyzer extends TreeStatistics {
 			final int row = getNextRow(path.getName());
 			table.set(getCol("SWC Type(s)"), row, Path.getSWCtypeName(path.getSWCType(), true)); // plural heading for consistency with other commands
 			measuringMetrics.forEach(metric -> {
-				table.set(getCol(metric), row, new PathAnalyzer(path).getMetric(metric, path));
+				table.set(getCol(metric), row, new PathStatistics(path).getMetric(metric, path));
 			});
 		});
 		if (summarize && table instanceof SNTTable) {

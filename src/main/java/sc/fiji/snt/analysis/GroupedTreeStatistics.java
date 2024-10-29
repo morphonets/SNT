@@ -832,7 +832,7 @@ public class GroupedTreeStatistics {
 				for (final Tree tree : trees) {
 					if (tree == null)
 						continue;
-					final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+					final TreeStatistics analyzer = new TreeStatistics(tree);
 					final boolean includeChildren = annotation.getOntologyDepth() > 0;
 					double value;
 					switch (normFeature) {
@@ -841,12 +841,12 @@ public class GroupedTreeStatistics {
 								: analyzer.getCableLength(annotation, includeChildren);
 						break;
 					case N_BRANCH_POINTS:
-						value = (normalize) ? analyzer.getNbranchPointsNorm(annotation, includeChildren)
-								: analyzer.getNbranchPoints(annotation, includeChildren);
+						value = (normalize) ? analyzer.getNBranchPointsNorm(annotation, includeChildren)
+								: analyzer.getNBranchPoints(annotation, includeChildren);
 						break;
 					case N_TIPS:
-						value = (normalize) ? analyzer.getNtipsNorm(annotation, includeChildren)
-								: analyzer.getNtips(annotation, includeChildren);
+						value = (normalize) ? analyzer.getNTipsNorm(annotation, includeChildren)
+								: analyzer.getNTips(annotation, includeChildren);
 						break;
 					default:
 						throw new IllegalArgumentException("Unrecognized feature");

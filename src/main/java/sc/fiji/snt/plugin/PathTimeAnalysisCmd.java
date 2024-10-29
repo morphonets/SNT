@@ -51,7 +51,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
-import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -140,7 +140,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		ArrayList<Double> upperStdDevValues = (includeSDevSeries) ?  new ArrayList<>(map.size()) : null;
 		final String metric = getMasurementChoiceMetric();
 		map.forEach((frame, list) -> {
-			final PathAnalyzer pa = new PathAnalyzer(list, String.valueOf(frame));
+			final PathStatistics pa = new PathStatistics(list, String.valueOf(frame));
 			xValues.add((double) frame);
 			if (includeSDevSeries) {
 				SummaryStatistics stats = pa.getSummaryStats(metric);
@@ -241,7 +241,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				final ArrayList<Double> xValues = new ArrayList<>(groupMap.size());
 				final ArrayList<Double> yValues = new ArrayList<>(groupMap.size());
 				groupMap.forEach((frame, path) -> {
-					final PathAnalyzer pa = new PathAnalyzer(Collections.singletonList(path), String.valueOf(frame));
+					final PathStatistics pa = new PathStatistics(Collections.singletonList(path), String.valueOf(frame));
 					yValues.add(pa.getMetric(metric).doubleValue());
 					xValues.add((double) frame);
 				});

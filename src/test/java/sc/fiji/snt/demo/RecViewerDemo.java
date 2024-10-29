@@ -28,8 +28,8 @@ import net.imagej.ImageJ;
 import net.imagej.display.ColorTables;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.SNTPoint;
@@ -69,7 +69,7 @@ public class RecViewerDemo {
 		final Tree aa1044 = loader.getTree("axon");
 		if (aa1044 != null) { // server is online and reachable
 			viewer.addTree(aa1044);
-			viewer.annotateSurface(new TreeAnalyzer(aa1044).getTips(), "Convex Hull Tips", true);
+			viewer.annotateSurface(new TreeStatistics(aa1044).getTips(), "Convex Hull Tips", true);
 			final TreeColorMapper mapper = new TreeColorMapper();
 			mapper.map(aa1044, TreeColorMapper.PATH_ORDER, ColorTables.ICE);
 			viewer.rebuild(aa1044);

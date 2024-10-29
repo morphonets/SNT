@@ -33,6 +33,7 @@ import sc.fiji.snt.util.SNTPoint;
 import java.util.Collection;
 
 /**
+ * Convex hull analysis in 3D.
  * @author Cameron Arshadi
  */
 public class ConvexHull3D extends AbstractConvexHull {

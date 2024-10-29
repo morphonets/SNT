@@ -66,7 +66,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  */
 public class TreeColorMapper extends ColorMapper {
 
-	/* For convenience keep references to TreeAnalyzer fields */
+	/* For convenience keep references to TreeStatistics fields */
 	/** Mapping property: Internode angle */
 	public static final String INTER_NODE_ANGLE = MultiTreeStatistics.INTER_NODE_ANGLE;
 	/** Mapping property: Internode distance */

@@ -30,7 +30,7 @@ import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
-import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 
 import java.util.*;
@@ -116,11 +116,11 @@ public class FilterOrTagPathsByAngleCmd extends CommonDynamicCmd {
     private String getMetric(final boolean relative) {
         switch (planeChoice) {
             case "XZ":
-                return (relative) ? PathAnalyzer.PATH_EXT_ANGLE_REL_XZ : PathAnalyzer.PATH_EXT_ANGLE_XZ;
+                return (relative) ? PathStatistics.PATH_EXT_ANGLE_REL_XZ : PathStatistics.PATH_EXT_ANGLE_XZ;
             case "ZY":
-                return (relative) ? PathAnalyzer.PATH_EXT_ANGLE_REL_ZY : PathAnalyzer.PATH_EXT_ANGLE_ZY;
+                return (relative) ? PathStatistics.PATH_EXT_ANGLE_REL_ZY : PathStatistics.PATH_EXT_ANGLE_ZY;
             default:
-                return (relative) ? PathAnalyzer.PATH_EXT_ANGLE_REL_XY : PathAnalyzer.PATH_EXT_ANGLE_XY;
+                return (relative) ? PathStatistics.PATH_EXT_ANGLE_REL_XY : PathStatistics.PATH_EXT_ANGLE_XY;
         }
     }
 

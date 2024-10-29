@@ -28,11 +28,11 @@ import static org.junit.Assume.assumeTrue;
 import org.junit.Before;
 import org.junit.Test;
 
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.io.MouseLightLoader;
 
 /**
- * Tests for {@link TreeAnalyzer} and geometric transformations of {@link Tree}s
+ * Tests for {@link TreeStatistics} and geometric transformations of {@link Tree}s
  *
  * @author Tiago Ferreira
  */

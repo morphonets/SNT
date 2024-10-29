@@ -49,7 +49,6 @@ import org.scijava.util.FileUtils;
 import ij.ImagePlus;
 import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
@@ -340,15 +339,15 @@ public class SNTService extends AbstractService {
 	}
 
 	/**
-	 * Returns a {@link TreeAnalyzer} instance constructed from current Paths.
+	 * Returns a {@link TreeStatistics} instance constructed from current Paths.
 	 *
 	 * @param selectedPathsOnly If true only selected paths will be considered
-	 * @return the TreeAnalyzer instance
+	 * @return the TreeStatistics instance
 	 * @throws UnsupportedOperationException if SNT is not running
 	 */
-	public TreeAnalyzer getAnalyzer(final boolean selectedPathsOnly) {
+	public TreeStatistics getAnalyzer(final boolean selectedPathsOnly) {
 		accessActiveInstance(false);
-		final TreeAnalyzer tAnalyzer = new TreeAnalyzer(getTree(selectedPathsOnly));
+		final TreeStatistics tAnalyzer = new TreeStatistics(getTree(selectedPathsOnly));
 		tAnalyzer.setContext(getContext());
 		tAnalyzer.setTable(getTable(), PathManagerUI.TABLE_TITLE);
 		return tAnalyzer;

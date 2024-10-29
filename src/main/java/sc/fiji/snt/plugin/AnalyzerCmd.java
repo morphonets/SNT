@@ -42,10 +42,7 @@ import org.scijava.widget.FileWidget;
 import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.MultiTreeStatistics;
-import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.ShollAnalyzer;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 
@@ -424,7 +421,7 @@ public class AnalyzerCmd extends CommonDynamicCmd {
 			while (it.hasNext()) {
 				final Tree tree = it.next();
 				statusService.showStatus(index++, n, tree.getLabel());
-				final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+				final TreeStatistics analyzer = new TreeStatistics(tree);
 				analyzer.setContext(getContext());
 				analyzer.setTable(table, TABLE_TITLE);
 				analyzer.measure(metrics, splitByType); // will display table

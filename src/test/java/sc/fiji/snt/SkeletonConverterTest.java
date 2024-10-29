@@ -26,7 +26,7 @@ import ij.ImagePlus;
 import org.junit.Before;
 import org.junit.Test;
 import sc.fiji.snt.analysis.SkeletonConverter;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 
 import java.util.List;
 
@@ -59,8 +59,8 @@ public class SkeletonConverterTest {
         final SkeletonConverter converter = new SkeletonConverter(imp, false);
         final List<Tree> skelTrees = converter.getTrees();
         final Tree tree = skelTrees.get(0);
-        final TreeAnalyzer skelAnalyzer = new TreeAnalyzer(tree);
-        final TreeAnalyzer demoAnalyzer = new TreeAnalyzer(demoTree);
+        final TreeStatistics skelAnalyzer = new TreeStatistics(tree);
+        final TreeStatistics demoAnalyzer = new TreeStatistics(demoTree);
         assertEquals("# Trees", 1, skelTrees.size());
         assertEquals("# Paths", demoAnalyzer.getNPaths(), skelAnalyzer.getNPaths());
         assertEquals("# Branch points", demoAnalyzer.getBranchPoints().size(), skelAnalyzer.getBranchPoints().size());

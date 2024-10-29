@@ -34,7 +34,7 @@ import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -179,44 +179,44 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 
 		final List<String> metrics = new ArrayList<>();
 		if (ct) {
-			metrics.add(PathAnalyzer.PATH_CHANNEL);
-			metrics.add(PathAnalyzer.PATH_FRAME);
+			metrics.add(PathStatistics.PATH_CHANNEL);
+			metrics.add(PathStatistics.PATH_FRAME);
 		}
 		if (convexHull) {
-			metrics.add(PathAnalyzer.CONVEX_HULL_SIZE);
-			metrics.add(PathAnalyzer.CONVEX_HULL_ELONGATION);
-			metrics.add(PathAnalyzer.CONVEX_HULL_ROUNDNESS);
+			metrics.add(PathStatistics.CONVEX_HULL_SIZE);
+			metrics.add(PathStatistics.CONVEX_HULL_ELONGATION);
+			metrics.add(PathStatistics.CONVEX_HULL_ROUNDNESS);
 		}
-		if (fractalDimension) metrics.add(PathAnalyzer.PATH_FRACTAL_DIMENSION);
-		if (nBranchPoints) metrics.add(PathAnalyzer.N_BRANCH_POINTS);
-		if (nChildren) metrics.add(PathAnalyzer.N_CHILDREN);
-		if (pathContraction) metrics.add(PathAnalyzer.PATH_CONTRACTION);
-		if (pathFragmentation) metrics.add(PathAnalyzer.N_PATH_NODES);
+		if (fractalDimension) metrics.add(PathStatistics.PATH_FRACTAL_DIMENSION);
+		if (nBranchPoints) metrics.add(PathStatistics.N_BRANCH_POINTS);
+		if (nChildren) metrics.add(PathStatistics.N_CHILDREN);
+		if (pathContraction) metrics.add(PathStatistics.PATH_CONTRACTION);
+		if (pathFragmentation) metrics.add(PathStatistics.N_PATH_NODES);
 		if (extensionAngles) {
-			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_XY);
-			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_XZ);
-			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_ZY);
-			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_REL_XY);
-			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_REL_XZ);
-			metrics.add(PathAnalyzer.PATH_EXT_ANGLE_REL_ZY);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_XY);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_XZ);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_ZY);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL_XY);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL_XZ);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL_ZY);
 		}
-		if (pathLength) metrics.add(PathAnalyzer.PATH_LENGTH);
-		if (pathMeanRadius) metrics.add(PathAnalyzer.PATH_MEAN_RADIUS);
-		if (pathOrder) metrics.add(PathAnalyzer.PATH_ORDER);
-		if (pathNSpines) metrics.add(PathAnalyzer.PATH_N_SPINES);
-		if (pathSpineDensity) metrics.add(PathAnalyzer.PATH_SPINE_DENSITY);
-		if (pathSurfaceArea) metrics.add(PathAnalyzer.SURFACE_AREA);
-		if (pathVolume) metrics.add(PathAnalyzer.VOLUME);
+		if (pathLength) metrics.add(PathStatistics.PATH_LENGTH);
+		if (pathMeanRadius) metrics.add(PathStatistics.PATH_MEAN_RADIUS);
+		if (pathOrder) metrics.add(PathStatistics.PATH_ORDER);
+		if (pathNSpines) metrics.add(PathStatistics.PATH_N_SPINES);
+		if (pathSpineDensity) metrics.add(PathStatistics.PATH_SPINE_DENSITY);
+		if (pathSurfaceArea) metrics.add(PathStatistics.SURFACE_AREA);
+		if (pathVolume) metrics.add(PathStatistics.VOLUME);
 		if (widthHeightDepth) {
-			metrics.add(PathAnalyzer.WIDTH);
-			metrics.add(PathAnalyzer.DEPTH);
-			metrics.add(PathAnalyzer.HEIGHT);
+			metrics.add(PathStatistics.WIDTH);
+			metrics.add(PathStatistics.DEPTH);
+			metrics.add(PathStatistics.HEIGHT);
 		}
 		if (metrics.isEmpty()) {
 			error("No metrics chosen.");
 			return;
 		}
-		final PathAnalyzer analyzer = new PathAnalyzer(paths, "");
+		final PathStatistics analyzer = new PathStatistics(paths, "");
 		analyzer.setContext(getContext());
 		analyzer.setTable(table, TABLE_TITLE);
 		Collections.sort(metrics);

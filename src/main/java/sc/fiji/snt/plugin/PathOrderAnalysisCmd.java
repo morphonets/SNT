@@ -44,9 +44,9 @@ import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.TreeStatistics;
 
 /**
  * Command to perform {@link Path#getOrder() Path Ordering} analysis on a
@@ -58,7 +58,7 @@ import sc.fiji.snt.Tree;
  * 
  * @author Tiago Ferreira
  */
-public class PathOrderAnalysisCmd extends TreeAnalyzer {
+public class PathOrderAnalysisCmd extends TreeStatistics {
 
 	@Parameter
 	private PlotService plotService;
@@ -106,7 +106,7 @@ public class PathOrderAnalysisCmd extends TreeAnalyzer {
 																														// in a new list
 
 			// now measure the group
-			final TreeAnalyzer analyzer = new TreeAnalyzer(new Tree(groupedPaths));
+			final TreeStatistics analyzer = new TreeStatistics(new Tree(groupedPaths));
 			if (!analyzer.getParsedTree().isEmpty()) {
 				tLengthMap.put(order, analyzer.getCableLength());
 				final int nPaths = analyzer.getNPaths();

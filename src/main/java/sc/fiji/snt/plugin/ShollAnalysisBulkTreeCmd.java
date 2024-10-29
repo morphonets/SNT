@@ -43,7 +43,7 @@ import org.scijava.widget.NumberWidget;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
@@ -424,10 +424,10 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			int primaryBranches;
 			try {
 				logger.info(TREE_LABEL + " Retrieving primary branches...");
-				primaryBranches = new TreeAnalyzer(tree).getPrimaryBranches().size();
+				primaryBranches = new TreeStatistics(tree).getPrimaryBranches().size();
 			} catch (IllegalArgumentException exc) {
 				logger.info(TREE_LABEL + " Failed. Defaulting to primary paths.");
-				primaryBranches = new TreeAnalyzer(tree).getPrimaryPaths().size();
+				primaryBranches = new TreeStatistics(tree).getPrimaryPaths().size();
 			}
 			lStats.setPrimaryBranches(primaryBranches);
 

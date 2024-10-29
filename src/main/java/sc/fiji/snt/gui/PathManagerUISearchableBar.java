@@ -38,7 +38,7 @@ import org.scijava.command.CommandService;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
-import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.gui.cmds.FilterOrTagPathsByAngleCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeFilterCmd;
 import sc.fiji.snt.util.SNTColor;
@@ -200,14 +200,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		});
 		morphoFilteringMenu.add(mi1);
 		morphoFilteringMenu.add(angleFilterMenuItem());
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_CHILDREN, ""));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_NODES, ""));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.N_SPINES, ""));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_CONTRACTION, ""));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_LENGTH,
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.N_CHILDREN, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.N_NODES, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.N_SPINES, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.PATH_CONTRACTION, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.PATH_LENGTH,
 				pmui.getPathAndFillManager().getBoundingBox(false).getUnit()));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_MEAN_RADIUS, ""));
-		morphoFilteringMenu.add(morphoFilterMenuItem(PathAnalyzer.PATH_ORDER, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.PATH_MEAN_RADIUS, ""));
+		morphoFilteringMenu.add(morphoFilterMenuItem(PathStatistics.PATH_ORDER, ""));
 		return morphoFilteringMenu;
 	}
 
@@ -232,25 +232,25 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final JMenuItem mi = new JMenuItem(pathAnalyzerMetric + "...");
 		mi.addActionListener(e -> doMorphoFiltering(pathAnalyzerMetric, unit));
 		switch (pathAnalyzerMetric) {
-			case PathAnalyzer.N_CHILDREN:
+			case PathStatistics.N_CHILDREN:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILDREN));
 				break;
-			case PathAnalyzer.N_NODES:
+			case PathStatistics.N_NODES:
 				mi.setIcon(IconFactory.getMenuIcon('#', true));
 				break;
-			case PathAnalyzer.N_SPINES:
+			case PathStatistics.N_SPINES:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
 				break;
-			case PathAnalyzer.PATH_CONTRACTION:
+			case PathStatistics.PATH_CONTRACTION:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.STAIRS));
 				break;
-			case PathAnalyzer.PATH_LENGTH:
+			case PathStatistics.PATH_LENGTH:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER_VERTICAL));
 				break;
-			case PathAnalyzer.PATH_MEAN_RADIUS:
+			case PathStatistics.PATH_MEAN_RADIUS:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
 				break;
-			case PathAnalyzer.PATH_ORDER:
+			case PathStatistics.PATH_ORDER:
 				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
 				break;
 			default:
@@ -371,7 +371,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		double min = Double.MIN_VALUE;
 		double max = Double.MAX_VALUE;
 		if (s.contains("min") || s.contains("max")) {
-			final PathAnalyzer stats = new PathAnalyzer(filteredPaths, null);
+			final PathStatistics stats = new PathStatistics(filteredPaths, null);
 			final SummaryStatistics summary = stats.getSummaryStats(property);
 			min = summary.getMin();
 			max = summary.getMax();
@@ -409,38 +409,38 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			final Path p = iterator.next();
 			double value;
 			switch (property) {
-				case PathAnalyzer.PATH_EXT_ANGLE_XY:
-				case PathAnalyzer.PATH_EXT_ANGLE_REL_XY:
-					value = p.getExtensionAngleXY(PathAnalyzer.PATH_EXT_ANGLE_REL_XY.equals(property));
+				case PathStatistics.PATH_EXT_ANGLE_XY:
+				case PathStatistics.PATH_EXT_ANGLE_REL_XY:
+					value = p.getExtensionAngleXY(PathStatistics.PATH_EXT_ANGLE_REL_XY.equals(property));
 					break;
-				case PathAnalyzer.PATH_EXT_ANGLE_XZ:
-				case PathAnalyzer.PATH_EXT_ANGLE_REL_XZ:
-					value = p.getExtensionAngleXZ(PathAnalyzer.PATH_EXT_ANGLE_REL_XZ.equals(property));
+				case PathStatistics.PATH_EXT_ANGLE_XZ:
+				case PathStatistics.PATH_EXT_ANGLE_REL_XZ:
+					value = p.getExtensionAngleXZ(PathStatistics.PATH_EXT_ANGLE_REL_XZ.equals(property));
 					break;
-				case PathAnalyzer.PATH_EXT_ANGLE_ZY:
-				case PathAnalyzer.PATH_EXT_ANGLE_REL_ZY:
-					value = p.getExtensionAngleZY(PathAnalyzer.PATH_EXT_ANGLE_REL_ZY.equals(property));
+				case PathStatistics.PATH_EXT_ANGLE_ZY:
+				case PathStatistics.PATH_EXT_ANGLE_REL_ZY:
+					value = p.getExtensionAngleZY(PathStatistics.PATH_EXT_ANGLE_REL_ZY.equals(property));
 					break;
-				case PathAnalyzer.PATH_LENGTH:
+				case PathStatistics.PATH_LENGTH:
 				case "Length":
 					value = p.getLength();
 					break;
-				case PathAnalyzer.N_NODES:
+				case PathStatistics.N_NODES:
 					value = p.size();
 					break;
-				case PathAnalyzer.PATH_MEAN_RADIUS:
+				case PathStatistics.PATH_MEAN_RADIUS:
 					value = p.getMeanRadius();
 					break;
-				case PathAnalyzer.PATH_ORDER:
+				case PathStatistics.PATH_ORDER:
 					value = p.getOrder();
 					break;
-				case PathAnalyzer.N_SPINES:
+				case PathStatistics.N_SPINES:
 					value = p.getSpineOrVaricosityCount();
 					break;
-				case PathAnalyzer.PATH_CONTRACTION:
+				case PathStatistics.PATH_CONTRACTION:
 					value = p.getContraction();
 					break;
-				case PathAnalyzer.N_CHILDREN:
+				case PathStatistics.N_CHILDREN:
 					value = p.getChildren().size();
 					break;
 				default:

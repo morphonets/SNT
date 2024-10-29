@@ -42,7 +42,7 @@ import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.*;
@@ -2669,7 +2669,7 @@ public class SNTUI extends JDialog {
 			final Tree tree = getPathManager().getSingleTree();
 			if (tree == null) return;
 			try {
-				final TreeAnalyzer ta = new TreeAnalyzer(tree);
+				final TreeStatistics ta = new TreeStatistics(tree);
 				ta.setContext(plugin.getContext());
 				if (ta.getParsedTree().isEmpty()) {
 					guiUtils.error("None of the selected paths could be measured.");

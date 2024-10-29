@@ -33,6 +33,7 @@ import sc.fiji.snt.util.SNTPoint;
 import java.util.Collection;
 
 /**
+ * Parent class for convex hull analysis
  * @author Cameron Arshadi
  */
 public abstract class AbstractConvexHull {

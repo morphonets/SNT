@@ -39,7 +39,7 @@ import org.jgrapht.Graphs;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 
@@ -53,14 +53,14 @@ public class DirectedWeightedGraphTest {
 
 	private final double precision = 1e-6;
 	private Tree tree;
-	private TreeAnalyzer analyzer;
+	private TreeStatistics analyzer;
 	private DirectedWeightedGraph graph;
 
 	@Before
 	public void setUp() throws Exception {
 //		tree = new MouseLightLoader("AA0103").getTree();
 		tree = new SNTService().demoTrees().get(0);
-		analyzer = new TreeAnalyzer(tree);
+		analyzer = new TreeStatistics(tree);
 		graph = tree.getGraph();
 	}
 
@@ -82,7 +82,7 @@ public class DirectedWeightedGraphTest {
 	@Test
 	public void testGraphProperties() {
 		final int numRoots = (int) graph.vertexSet().stream().filter(v -> graph.inDegreeOf(v) == 0).count();
-		// Compare measurements against TreeAnalyzer since TreeAnalyzer is compared
+		// Compare measurements against TreeStatistics since TreeStatistics is compared
 		// against the hard-coded correct values
 		assertEquals(tree.getNodes().size(), graph.vertexSet().size());
 		assertEquals(1, numRoots);
@@ -269,7 +269,7 @@ public class DirectedWeightedGraphTest {
 		final PointInImage root = tree.getRoot();
 		final DirectedWeightedGraph simplifiedGraph = tree.getGraph(true);
 		final Tree simplifiedTree = simplifiedGraph.getTree(true);
-		final TreeAnalyzer simplifiedAnalyzer = new TreeAnalyzer(simplifiedTree);
+		final TreeStatistics simplifiedAnalyzer = new TreeStatistics(simplifiedTree);
 		// The demo tree root is also a branch point, so exclude it from the count
 		assertEquals(numBranchPoints + numTips, simplifiedGraph.vertexSet().size());
 		assertEquals(numBranchPoints, simplifiedGraph.getBPs().size());
@@ -286,7 +286,7 @@ public class DirectedWeightedGraphTest {
 	@Test
 	public void testGraphToTree() {
 		final Tree newTree = graph.getTree(true);
-		final TreeAnalyzer newAnalyzer = new TreeAnalyzer(newTree);
+		final TreeStatistics newAnalyzer = new TreeStatistics(newTree);
 		assertEquals(tree.getNodes().size(), newTree.getNodes().size());
 		assertEquals(analyzer.getCableLength(), newAnalyzer.getCableLength(), precision);
 		assertEquals(analyzer.getNBranches(), newAnalyzer.getNBranches());
@@ -332,7 +332,7 @@ public class DirectedWeightedGraphTest {
 		graph.addVertex(newRoot);
 		graph.addEdge(newRoot, oldRoot);
 		final Tree changedTree = graph.getTree(true);
-		final TreeAnalyzer changedAnalyzer = new TreeAnalyzer(changedTree);
+		final TreeStatistics changedAnalyzer = new TreeStatistics(changedTree);
 		final PointInImage newTreeRoot = changedTree.getRoot();
 		assertTrue(newTreeRoot.getX() == 0.5 &&
 				newTreeRoot.getY() == 0.5 && newTreeRoot.getZ() == 0.5);

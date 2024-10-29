@@ -129,9 +129,9 @@ public class ShollAnalyzer {
 		nPrimaryBranches = -1; //infer from intersections at starting radius
 	}
 
-	public ShollAnalyzer(final Tree tree, final TreeAnalyzer analyzer) {
+	public ShollAnalyzer(final Tree tree, final TreeStatistics statistics) {
 		this(tree);
-		nPrimaryBranches = analyzer.getPrimaryPaths().size();
+		nPrimaryBranches = statistics.getPrimaryPaths().size();
 	}
 
 	/**

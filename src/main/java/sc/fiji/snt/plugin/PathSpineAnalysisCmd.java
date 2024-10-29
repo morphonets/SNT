@@ -45,7 +45,7 @@ import org.scijava.plot.XYSeries;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.PathAnalyzer;
+import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -64,22 +64,22 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	private PlotService plotService;
 
 	@Parameter(label = "X-Axis Metric", choices = { "Path ID", //
-			PathAnalyzer.PATH_CHANNEL, PathAnalyzer.PATH_FRAME, //
-			PathAnalyzer.N_BRANCH_POINTS, PathAnalyzer.PATH_CONTRACTION, //
-			PathAnalyzer.PATH_EXT_ANGLE_XY, PathAnalyzer.PATH_EXT_ANGLE_XZ, PathAnalyzer.PATH_EXT_ANGLE_ZY,//
-			PathAnalyzer.PATH_EXT_ANGLE_REL_XY, PathAnalyzer.PATH_EXT_ANGLE_REL_XZ, PathAnalyzer.PATH_EXT_ANGLE_REL_ZY,//
-			PathAnalyzer.PATH_LENGTH, PathAnalyzer.PATH_MEAN_RADIUS, //
-			PathAnalyzer.PATH_ORDER, PathAnalyzer.PATH_SURFACE_AREA, //
-			PathAnalyzer.N_PATH_NODES, PathAnalyzer.PATH_VOLUME })
+			PathStatistics.PATH_CHANNEL, PathStatistics.PATH_FRAME, //
+			PathStatistics.N_BRANCH_POINTS, PathStatistics.PATH_CONTRACTION, //
+			PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_ZY,//
+			PathStatistics.PATH_EXT_ANGLE_REL_XY, PathStatistics.PATH_EXT_ANGLE_REL_XZ, PathStatistics.PATH_EXT_ANGLE_REL_ZY,//
+			PathStatistics.PATH_LENGTH, PathStatistics.PATH_MEAN_RADIUS, //
+			PathStatistics.PATH_ORDER, PathStatistics.PATH_SURFACE_AREA, //
+			PathStatistics.N_PATH_NODES, PathStatistics.PATH_VOLUME })
 	private String xAxisMetric;
 
 	@Parameter(label = "Y-Axis Metric 1", choices = { //
-			PathAnalyzer.PATH_SPINE_DENSITY, PathAnalyzer.N_SPINES //
+			PathStatistics.PATH_SPINE_DENSITY, PathStatistics.N_SPINES //
 	})
 	private String yAxisMetric1;
 
 	@Parameter(label = "Y-axis Metric 2", required = false, choices = { NONE_OPTION, //
-			PathAnalyzer.PATH_SPINE_DENSITY, PathAnalyzer.N_SPINES //
+			PathStatistics.PATH_SPINE_DENSITY, PathStatistics.N_SPINES //
 	})
 	private String yAxisMetric2;
 
@@ -104,13 +104,13 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 		getInfo().setLabel("Multimetric Plot...");
 		if (anyMetric) {
 			final List<String> metrics = Arrays.asList(NONE_OPTION, "Path ID", //
-					PathAnalyzer.PATH_CHANNEL, PathAnalyzer.PATH_FRAME, //
-					PathAnalyzer.PATH_CONTRACTION, PathAnalyzer.PATH_LENGTH,
-					PathAnalyzer.PATH_EXT_ANGLE_XY, PathAnalyzer.PATH_EXT_ANGLE_XZ, PathAnalyzer.PATH_EXT_ANGLE_ZY,//
-					PathAnalyzer.PATH_EXT_ANGLE_REL_XY, PathAnalyzer.PATH_EXT_ANGLE_REL_XZ, PathAnalyzer.PATH_EXT_ANGLE_REL_ZY,//
-					PathAnalyzer.PATH_ORDER, PathAnalyzer.PATH_N_SPINES, PathAnalyzer.PATH_SPINE_DENSITY, //
-					PathAnalyzer.N_BRANCH_POINTS, PathAnalyzer.PATH_MEAN_RADIUS, //
-					PathAnalyzer.PATH_SURFACE_AREA, PathAnalyzer.N_PATH_NODES, PathAnalyzer.PATH_VOLUME);
+					PathStatistics.PATH_CHANNEL, PathStatistics.PATH_FRAME, //
+					PathStatistics.PATH_CONTRACTION, PathStatistics.PATH_LENGTH,
+					PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_ZY,//
+					PathStatistics.PATH_EXT_ANGLE_REL_XY, PathStatistics.PATH_EXT_ANGLE_REL_XZ, PathStatistics.PATH_EXT_ANGLE_REL_ZY,//
+					PathStatistics.PATH_ORDER, PathStatistics.PATH_N_SPINES, PathStatistics.PATH_SPINE_DENSITY, //
+					PathStatistics.N_BRANCH_POINTS, PathStatistics.PATH_MEAN_RADIUS, //
+					PathStatistics.PATH_SURFACE_AREA, PathStatistics.N_PATH_NODES, PathStatistics.PATH_VOLUME);
 			Collections.sort(metrics);
 			Arrays.asList("xAxisMetric", "yAxisMetric1", "yAxisMetric2", "yAxisMetric3", "yAxisMetric4").forEach(m -> {
 				getInfo().getMutableInput(m, String.class).setChoices(metrics);
@@ -136,7 +136,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			return;
 		}
 		paths.forEach(p -> {
-			final PathAnalyzer pa = new PathAnalyzer(p);
+			final PathStatistics pa = new PathStatistics(p);
 			xValues.add(pa.getMetric(xAxisMetric, p).doubleValue());
 			if (y1Values != null)
 				y1Values.add(pa.getMetric(yAxisMetric1, p).doubleValue());

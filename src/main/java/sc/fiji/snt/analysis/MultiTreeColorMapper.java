@@ -149,7 +149,7 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 		super.map(measurement, colorTable);
 		if (Arrays.asList(MULTI_TREE_FLAGS).contains(measurement)) {
 			for (final MappedTree mt : mappedTrees) {
-				final TreeAnalyzer analyzer = new TreeAnalyzer(mt.tree);
+				final TreeStatistics analyzer = new TreeStatistics(mt.tree);
 				switch (measurement) {
 					case ASSIGNED_VALUE:
 						integerScale = false;

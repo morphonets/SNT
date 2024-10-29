@@ -37,7 +37,7 @@ import org.scijava.util.ColorRGBA;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -1773,7 +1773,7 @@ public class Tree implements TreeProperties {
 					if (centroid) {
 						refPath = tree.get(0).createPath();
 						refPath.addNode(tree.getRoot());
-						final Set<PointInImage> tips = new TreeAnalyzer(tree).getTips();
+						final Set<PointInImage> tips = new TreeStatistics(tree).getTips();
 						tips.remove(tree.getRoot());
 						if (!tips.isEmpty()) refPath.addNode(SNTPoint.average(tips));
 					} else {
@@ -1814,7 +1814,7 @@ public class Tree implements TreeProperties {
 		//final Tree tree = new Tree("/home/tferr/Downloads/test_swc.swc");
 		final Tree tree = new SNTService().demoTree("fractal");
 		tree.swapAxes(Z_AXIS, Y_AXIS);
-		TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+		TreeStatistics analyzer = new TreeStatistics(tree);
 		System.out.println("Creating graph...");
 
 		DirectedWeightedGraph graph = tree.getGraph();
@@ -1831,7 +1831,7 @@ public class Tree implements TreeProperties {
 		MouseLightLoader loader = new MouseLightLoader("AA0174");
 		Tree refSubTree = loader.getTree("axon");
 		DirectedWeightedGraph refGraph = refSubTree.getGraph();
-		TreeAnalyzer refAnalyzer = new TreeAnalyzer(refSubTree);
+		TreeStatistics refAnalyzer = new TreeStatistics(refSubTree);
 
 		System.out.println("Creating Subtree...");
 		Tree aTree = tree.subTree("axon");
@@ -1846,7 +1846,7 @@ public class Tree implements TreeProperties {
 		System.out.println("Avg time (all runs): " + SNTUtils.formatDouble(total % 1000 /nTimes, 4));
 
 		graph = aTree.getGraph();
-		analyzer = new TreeAnalyzer(aTree);
+		analyzer = new TreeStatistics(aTree);
 		System.out.println("Subtree properties:");
 		System.out.println("Label:     \t\t" + aTree.getLabel());
 		System.out.println("nPaths:    \t\t" + analyzer.getNPaths() + "/" + refAnalyzer.getNPaths());
@@ -1858,7 +1858,7 @@ public class Tree implements TreeProperties {
 		System.out.println("Branches:  \t\t" + analyzer.getBranches().size() + "/" + refAnalyzer.getBranches().size());
 
 		// Did the filtering affect original tree?
-		analyzer = new TreeAnalyzer(tree);
+		analyzer = new TreeStatistics(tree);
 		graph = tree.getGraph();
 		System.out.println("\nOriginal Tree Before/After Filtering:");
 		System.out.println("Label:      \t\t" + tree.getLabel());

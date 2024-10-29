@@ -23,39 +23,40 @@
 package sc.fiji.snt;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeNotNull;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 
 /**
- * Tests for {@link TreeAnalyzer} and geometric transformations of {@link Tree}s
+ * Tests for {@link TreeStatistics} and geometric transformations of {@link Tree}s
  *
  * @author Tiago Ferreira
  */
-public class TreeAnalyzerTest {
+public class TreeStatisticsATest {
 
 	private final double precision = 0.0001;
 	private Tree tree;
-	private TreeAnalyzer analyzer;
+	private TreeStatistics analyzer;
 
 	@Before
 	public void setUp() throws Exception {
 		tree = new SNTService().demoTree("fractal");
-		analyzer = new TreeAnalyzer(tree);
+		analyzer = new TreeStatistics(tree);
 		assumeNotNull(tree);
 	}
 
 	@Test
 	public void testAnalyzer() {
-		assertTrue("# Paths = 16", analyzer.getNPaths() == 16);
-		assertTrue("# Branch points = 15", analyzer.getBranchPoints().size() == 15);
-		assertTrue("# Tips = 16", analyzer.getTips().size() == 16);
-		assertTrue("# I paths = 1", analyzer.getPrimaryPaths().size() == 1);
-		assertTrue("# Highest path order = 5", analyzer.getHighestPathOrder() == 5);
+        assertEquals("# Paths = 16", 16, analyzer.getNPaths());
+        assertEquals("# Branch points (tree) = 15", 15, analyzer.getBranchPoints().size());
+		assertEquals("# Branch points (graph) = 15", 15, tree.getGraph().getBPs().size());
+		assertEquals("# Tips (tree) = 16", 16, analyzer.getTips().size());
+		assertEquals("# Tips (graph) = 16", 16, tree.getGraph().getTips().size());
+		assertEquals("# I paths = 1", 1, analyzer.getPrimaryPaths().size());
+        assertEquals("# Highest path order = 5", 5, analyzer.getHighestPathOrder());
 		final double cableLength =  analyzer.getCableLength();
 		final double primaryLength =  analyzer.getPrimaryLength();
 		final double terminalLength =  analyzer.getTerminalLength();
@@ -68,12 +69,12 @@ public class TreeAnalyzerTest {
 		assertEquals("Sum length of I branches", 51.0000, primaryLength, precision);
 		assertEquals("Sum length of terminal paths", 153.2965, terminalLength, precision);
 		assertEquals("Avg branch length", 18.3659, avgBranchLength, precision);
-		assertTrue("Strahler number: 5", analyzer.getStrahlerNumber() == 5);
-		assertTrue("Strahler bif. ratio: 2", analyzer.getStrahlerBifurcationRatio() == 2);
-		assertTrue("N Branches: 31", analyzer.getNBranches() == 31);
-		assertTrue("Width = 116.0", analyzer.getWidth() == 116d);
-		assertTrue("Height = 145.0", analyzer.getHeight() == 145d);
-		assertTrue("Depth = 0.0", analyzer.getDepth() == 0d);
+        assertEquals("Strahler number: 5", 5, analyzer.getStrahlerNumber());
+        assertEquals("Strahler bif. ratio: 2", 2, analyzer.getStrahlerBifurcationRatio(), 0.0);
+        assertEquals("N Branches: 31", 31, analyzer.getNBranches());
+        assertEquals("Width = 116.0", 116d, analyzer.getWidth(), 0.0);
+        assertEquals("Height = 145.0", 145d, analyzer.getHeight(), 0.0);
+        assertEquals("Depth = 0.0", 0d, analyzer.getDepth(), 0.0);
 		final double avgContraction = analyzer.getAvgContraction();
 		assertEquals("Avg contraction", 0.9628, avgContraction, precision);
 		final double avgRemoteBifAngle = analyzer.getAvgRemoteBifAngle();
@@ -86,10 +87,10 @@ public class TreeAnalyzerTest {
 		// Scaling tests
 		for (double scaleFactor : new double[] { .25d, 1d, 2d}) {
 			tree.scale(scaleFactor, scaleFactor, scaleFactor);
-			final TreeAnalyzer scaledAnalyzer = new TreeAnalyzer(tree);
-			assertTrue("Scaling: Equal # Tips", nTips == scaledAnalyzer.getTips().size());
-			assertTrue("Scaling: Equal # Branch points", nBPs == scaledAnalyzer.getBranchPoints().size());
-			assertTrue("Scaling: Equal # Branches", nBranches == scaledAnalyzer.getNBranches());
+			final TreeStatistics scaledAnalyzer = new TreeStatistics(tree);
+            assertEquals("Scaling: Equal # Tips", nTips, scaledAnalyzer.getTips().size());
+            assertEquals("Scaling: Equal # Branch points", nBPs, scaledAnalyzer.getBranchPoints().size());
+            assertEquals("Scaling: Equal # Branches", nBranches, scaledAnalyzer.getNBranches());
 			assertEquals("Scaling: Cable length", cableLength * scaleFactor, scaledAnalyzer.getCableLength(), precision);
 			tree.scale(1 / scaleFactor, 1 / scaleFactor, 1 / scaleFactor);
 		}
@@ -98,9 +99,9 @@ public class TreeAnalyzerTest {
 		final double angle = 33.3;
 		for (final int axis : new int[] {Tree.X_AXIS, Tree.Y_AXIS, Tree.Z_AXIS}) {
 			tree.rotate(axis, angle);
-			final TreeAnalyzer rotatedAnalyzer = new TreeAnalyzer(tree);
-			assertTrue("Rotation: Equal # Tips", analyzer.getTips().size() == rotatedAnalyzer.getTips().size());
-			assertTrue("Rotation: Equal # Branch points", analyzer.getBranchPoints().size() == rotatedAnalyzer.getBranchPoints().size());
+			final TreeStatistics rotatedAnalyzer = new TreeStatistics(tree);
+            assertEquals("Rotation: Equal # Tips", analyzer.getTips().size(), rotatedAnalyzer.getTips().size());
+            assertEquals("Rotation: Equal # Branch points", analyzer.getBranchPoints().size(), rotatedAnalyzer.getBranchPoints().size());
 			assertEquals("Rotation: Cable length", cableLength, rotatedAnalyzer.getCableLength(), precision);
 			tree.rotate(axis, -angle);
 		}

@@ -62,8 +62,8 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Overlay;
 import sc.fiji.snt.SNT;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -731,10 +731,10 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			int primaryBranches;
 			try {
 				logger.debug("Retriving primary branches...");
-				primaryBranches = new TreeAnalyzer(tree).getPrimaryBranches().size();
+				primaryBranches = new TreeStatistics(tree).getPrimaryBranches().size();
 			} catch (IllegalArgumentException exc) {
 				logger.debug("Failure... Structure is not a graph. Defaulting to primary paths");
-				primaryBranches = new TreeAnalyzer(tree).getPrimaryPaths().size();
+				primaryBranches = new TreeStatistics(tree).getPrimaryPaths().size();
 			}
 			lStats.setPrimaryBranches(primaryBranches);
 

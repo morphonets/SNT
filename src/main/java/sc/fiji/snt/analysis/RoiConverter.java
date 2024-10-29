@@ -56,7 +56,7 @@ import sc.fiji.snt.util.PointInImage;
  * @see ROIExporterCmd
  * @author Tiago Ferreira
  */
-public class RoiConverter extends TreeAnalyzer {
+public class RoiConverter {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -73,6 +73,7 @@ public class RoiConverter extends TreeAnalyzer {
 	private final ImagePlus imp;
 	private final boolean hyperstack;
 	private final boolean twoD;
+	private final TreeStatistics tStats;
 
 	/**
 	 * Instantiates a new Converter. Since an image has not been specified, C,Z,T
@@ -81,7 +82,7 @@ public class RoiConverter extends TreeAnalyzer {
 	 * @param tree the Tree to be converted
 	 */
 	public RoiConverter(final Tree tree) {
-		super(tree);
+		tStats = new TreeStatistics(tree);
 		imp = null;
 		hyperstack = false;
 		twoD = !tree.is3D();
@@ -117,7 +118,7 @@ public class RoiConverter extends TreeAnalyzer {
 	 *          positions of converted nodes
 	 */
 	public RoiConverter(final Tree tree, final ImagePlus imp) {
-		super(tree);
+		tStats = new TreeStatistics(tree);
 		this.imp = imp;
 		hyperstack = imp.getNChannels() > 1 || imp.getNFrames() > 1;
 		twoD = imp.getNSlices() == 1;
@@ -131,7 +132,7 @@ public class RoiConverter extends TreeAnalyzer {
 	 */
 	public Overlay convertPaths(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		return convertPaths(overlay, tree.list(), null);
+		return convertPaths(overlay, tStats.tree.list(), null);
 	}
 
 	/**
@@ -226,12 +227,12 @@ public class RoiConverter extends TreeAnalyzer {
 	 * Converts all the tips associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s
 	 *
-	 * @see TreeAnalyzer#getTips()
+	 * @see TreeStatistics#getTips()
 	 * @param overlay the target overlay to hold converted point
 	 */
 	public void convertTips(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getTips(), overlay, Color.PINK, "EndPoint");
+		convertPoints(tStats.getTips(), overlay, Color.PINK, "EndPoint");
 	}
 
 	/**
@@ -243,7 +244,7 @@ public class RoiConverter extends TreeAnalyzer {
 	public void convertRoots(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		final Set<PointInImage> roots = new HashSet<>();
-		for (final Path p : tree.list()) {
+		for (final Path p : tStats.tree.list()) {
 			if (p.isPrimary())
 				roots.add(p.getNode(0));
 		}
@@ -265,21 +266,21 @@ public class RoiConverter extends TreeAnalyzer {
 	public void convertInnerBranches(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		int lastIdx = overlay.size();
-		convertPaths(overlay, getInnerBranches(), "InnerBranch");
+		convertPaths(overlay, tStats.getInnerBranches(), "InnerBranch");
 		appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
 	}
 
 	public void convertPrimaryBranches(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		int lastIdx = overlay.size();
-		convertPaths(overlay, getPrimaryBranches(), "Prim.Branch");
+		convertPaths(overlay, tStats.getPrimaryBranches(), "Prim.Branch");
 		appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
 	}
 
 	public void convertTerminalBranches(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		int lastIdx = overlay.size();
-		convertPaths(overlay, getTerminalBranches(), "Term.Branch");
+		convertPaths(overlay, tStats.getTerminalBranches(), "Term.Branch");
 		appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
 	}
 
@@ -355,12 +356,12 @@ public class RoiConverter extends TreeAnalyzer {
 	 * Converts all the branch points associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s
 	 *
-	 * @see TreeAnalyzer#getBranchPoints()
+	 * @see TreeStatistics#getBranchPoints()
 	 * @param overlay the target overlay to hold converted point
 	 */
 	public void convertBranchPoints(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
-		convertPoints(getBranchPoints(), overlay, Color.ORANGE, "BranchPoint");
+		convertPoints(tStats.getBranchPoints(), overlay, Color.ORANGE, "BranchPoint");
 	}
 
 	/**
@@ -497,7 +498,7 @@ public class RoiConverter extends TreeAnalyzer {
 				// to points. It is an overhead and not required for 2D images
 				// We should change the IJ1 API so that position can be assigned
 				// without an image
-				imp = tree.getImpContainer(exportPlane, 8);
+				imp = tStats.tree.getImpContainer(exportPlane, 8);
 			}
 		}
 

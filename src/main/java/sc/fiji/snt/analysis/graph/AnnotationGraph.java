@@ -26,7 +26,6 @@ import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -160,7 +159,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
             if (!containsVertex(rootAnnotation)) {
                 addVertex(rootAnnotation);
             }
-            final Set<PointInImage> tips = new TreeAnalyzer(tree).getTips();
+            final Set<PointInImage> tips = new TreeStatistics(tree).getTips();
             Map<Integer, Integer> countMap = new HashMap<>();
             for (final PointInImage tip : tips) {
                 BrainAnnotation tipAnnotation = tip.getAnnotation();
@@ -213,7 +212,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
             if (!containsVertex(rootAnnotation)) {
                 addVertex(rootAnnotation);
             }
-            final Set<PointInImage> branches = new TreeAnalyzer(tree).getBranchPoints();
+            final Set<PointInImage> branches = new TreeStatistics(tree).getBranchPoints();
             Map<Integer, Integer> countMap = new HashMap<>();
             for (final PointInImage branch : branches) {
                 BrainAnnotation branchAnnotation = branch.getAnnotation();
@@ -347,13 +346,13 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 		return query;
 	}
 
-	private double getNodeCount(final TreeAnalyzer ta, BrainAnnotation annot, final String nodeType) {
+	private double getNodeCount(final TreeStatistics ts, BrainAnnotation annot, final String nodeType) {
 		if (TIPS.equals(nodeType)) {
-			return ta.getTips(annot).size();
+			return ts.getTips(annot).size();
 		} else if (BRANCH_POINTS.equals(nodeType)) {
-			return ta.getBranchPoints(annot).size();
+			return ts.getBranchPoints(annot).size();
 		} else if (LENGTH.equals(nodeType)) {
-			return ta.getCableLength(annot);
+			return ts.getCableLength(annot);
 		}
 		throw new IllegalArgumentException("Unknown nodeType: " + nodeType);
 	}
@@ -372,7 +371,7 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 			}
 			if (!containsVertex(rootAnnotation))
 				addVertex(rootAnnotation);
-			final TreeAnalyzer ta = new TreeAnalyzer(tree);
+			final TreeStatistics ta = new TreeStatistics(tree);
 			final Map<Integer, Double> countMap = new HashMap<>();
 			for (final BrainAnnotation annot : annotations) {
 				if (annot != null)

@@ -32,7 +32,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import sc.fiji.snt.analysis.PersistenceAnalyzer;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.util.SWCPoint;
 
 /**
@@ -44,13 +44,13 @@ public class PersistenceAnalyzerTest {
 	private Tree tree;
 	private PersistenceAnalyzer pAnalyzer;
 	private final List<String> allDescriptors = PersistenceAnalyzer.getDescriptors();
-	private TreeAnalyzer tAnalyzer;
+	private TreeStatistics tAnalyzer;
 
 	@Before
 	public void setUp() throws Exception {
 		tree = new SNTService().demoTrees().get(0);
 		pAnalyzer = new PersistenceAnalyzer(tree);
-		tAnalyzer = new TreeAnalyzer(tree);
+		tAnalyzer = new TreeStatistics(tree);
 		assumeNotNull(tree);
 	}
 

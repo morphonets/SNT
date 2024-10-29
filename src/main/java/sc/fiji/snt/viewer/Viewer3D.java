@@ -161,7 +161,6 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeAnalyzer;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
@@ -5398,10 +5397,10 @@ public class Viewer3D {
 					}
 					Annotation3D annot;
 					if (choice.startsWith("Branch"))
-						annot = annotateSurface(new TreeAnalyzer(tree).getBranchPoints(),
+						annot = annotateSurface(new TreeStatistics(tree).getBranchPoints(),
 								tree.getLabel() + " [BPs surface]", false);
 					else
-						annot = annotateSurface(new TreeAnalyzer(tree).getTips(),
+						annot = annotateSurface(new TreeStatistics(tree).getTips(),
 								tree.getLabel() + " [Tips surface]", false);
 					final ColorRGB color = tree.getColor();
 					if (color != null)

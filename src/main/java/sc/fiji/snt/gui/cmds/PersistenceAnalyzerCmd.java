@@ -37,7 +37,7 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- *
+ * GUI command persistence homology analyses.
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false, label = "Persistence Homology")

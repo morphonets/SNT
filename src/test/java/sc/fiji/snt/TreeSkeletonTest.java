@@ -35,7 +35,7 @@ import org.junit.Test;
 import ij.ImagePlus;
 import sc.fiji.analyzeSkeleton.AnalyzeSkeleton_;
 import sc.fiji.analyzeSkeleton.SkeletonResult;
-import sc.fiji.snt.analysis.TreeAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.util.BoundingBox;
 
 /**
@@ -80,7 +80,7 @@ public class TreeSkeletonTest {
 			final AnalyzeSkeleton_ skAnalyzer = new AnalyzeSkeleton_();
 			skAnalyzer.setup("", imp);
 			final SkeletonResult skResult = skAnalyzer.run();
-			final TreeAnalyzer analyzer = new TreeAnalyzer(tree);
+			final TreeStatistics analyzer = new TreeStatistics(tree);
 			assertTrue("Match # Trees", 1 == skResult.getNumOfTrees());
 			if (!"AA0002".equals(tree.getLabel())) {
 				// TODO: Assess failure for AA0002.swc

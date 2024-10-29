@@ -3087,7 +3087,7 @@ public class Path implements Comparable<Path> {
 		return changeListeners.remove(listener);
 	}
 
-// FIXME: Implementing hasCode() and equals() breaks current TreeAnalyzer tests
+// FIXME: Implementing hasCode() and equals() breaks current TreeStatistics tests
 //	@Override
 //	public int hashCode() {
 //		return Objects.hash(id, points, name, order, swcType, treeLabel);
