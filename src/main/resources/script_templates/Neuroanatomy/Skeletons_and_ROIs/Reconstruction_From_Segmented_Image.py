@@ -21,7 +21,7 @@ Exemplifies how to convert a binarized skeleton image into a SNT Tree
 import os
 from ij import IJ
 from sc.fiji.snt import Tree
-from sc.fiji.snt.analysis import SkeletonConverter, TreeAnalyzer
+from sc.fiji.snt.analysis import SkeletonConverter
 from sc.fiji.snt.viewer import Viewer3D
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting

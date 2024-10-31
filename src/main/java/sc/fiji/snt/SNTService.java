@@ -339,18 +339,11 @@ public class SNTService extends AbstractService {
 	}
 
 	/**
-	 * Returns a {@link TreeStatistics} instance constructed from current Paths.
-	 *
-	 * @param selectedPathsOnly If true only selected paths will be considered
-	 * @return the TreeStatistics instance
-	 * @throws UnsupportedOperationException if SNT is not running
+	 * @deprecated Use {@link #getStatistics(boolean)} instead
 	 */
+	@Deprecated
 	public TreeStatistics getAnalyzer(final boolean selectedPathsOnly) {
-		accessActiveInstance(false);
-		final TreeStatistics tAnalyzer = new TreeStatistics(getTree(selectedPathsOnly));
-		tAnalyzer.setContext(getContext());
-		tAnalyzer.setTable(getTable(), PathManagerUI.TABLE_TITLE);
-		return tAnalyzer;
+		return getStatistics(selectedPathsOnly);
 	}
 
 	/**
@@ -361,9 +354,10 @@ public class SNTService extends AbstractService {
 	 * @throws UnsupportedOperationException if SNT is not running
 	 */
 	public TreeStatistics getStatistics(final boolean selectedPathsOnly) {
-		final TreeStatistics tStats = new TreeStatistics(getTree(
-			selectedPathsOnly));
+		accessActiveInstance(false);
+		final TreeStatistics tStats = new TreeStatistics(getTree(selectedPathsOnly));
 		tStats.setContext(getContext());
+		tStats.setTable(getTable(), PathManagerUI.TABLE_TITLE);
 		return tStats;
 	}
 

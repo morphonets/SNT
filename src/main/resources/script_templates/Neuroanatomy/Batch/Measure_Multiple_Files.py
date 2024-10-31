@@ -19,7 +19,7 @@ info:      Bulk measurements of reconstruction files using SNT
 
 import os, sys
 from sc.fiji.snt import Tree
-from sc.fiji.snt.analysis import (TreeAnalyzer, SNTTable)
+from sc.fiji.snt.analysis import (TreeStatistics, SNTTable)
 
 
 def get_trees(directory, filtering_string):
@@ -50,9 +50,9 @@ def run():
 
     # Define the metrics to be considered
     if 'Complete' in chosen_metrics:
-        metrics = TreeAnalyzer.getAllMetrics()
+        metrics = TreeStatistics.getAllMetrics()
     else:
-        metrics = TreeAnalyzer.getMetrics()
+        metrics = TreeStatistics.getMetrics()
 
     for (counter, tree) in enumerate(trees):
 
@@ -61,16 +61,16 @@ def run():
         status.showStatus(msg)
         print(msg)
 
-        # Prepare analysis. We'll make TreeAnalyzer aware of current context
+        # Prepare analysis. We'll make TreeStatistics aware of current context
         # so that we don't need to worry about displaying/updating the table
-        analyzer = TreeAnalyzer(tree)
-        analyzer.setContext(context)
-        analyzer.setTable(table, 'SWC Measurements: %s' % input_dir)
+        stats = TreeStatistics(tree)
+        stats.setContext(context)
+        stats.setTable(table, 'SWC Measurements: %s' % input_dir)
 
         # Analyze the data grouping measurements by compartment (e.g., axon,
         # dendrite). See the analysis API for more sophisticated operations:
         # https://javadoc.scijava.org/SNT/
-        analyzer.measure(metrics, True)  # Split results by compartment?
+        stats.measure(metrics, True)  # Split results by compartment?
 
     msg = 'Done. %s file(s) analyzed...' % (counter + 1)
     print(msg)

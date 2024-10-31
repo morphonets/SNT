@@ -14,7 +14,7 @@ info:       Exemplifies how to programmatically interact with a running
 import math
 from sc.fiji.snt import (Path, PathAndFillManager, SNT, SNTUI, Tree)
 from sc.fiji.snt.util import PointInImage
-from sc.fiji.snt.analysis import (TreeAnalyzer, TreeStatistics)
+from sc.fiji.snt.analysis import TreeStatistics
 from sc.fiji.snt.viewer import (Viewer2D, Viewer3D)
 
 def run():
@@ -109,8 +109,7 @@ def run():
     # calculate its node diameters ("fit it" in SNT lingo), or use it to
     # generate a mask ("fill it" in SNT's lingo). For simplicity, let's just
     # get some measurements out of the paths computed so far. The class to
-    # script is TreeAnalyzer, or its subclass TreeStatistics
-    # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeAnalyzer.html
+    # script is TreeStatistics
     # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
     tree_stats = TreeStatistics(tree)
     tree_stats.setContext(context)

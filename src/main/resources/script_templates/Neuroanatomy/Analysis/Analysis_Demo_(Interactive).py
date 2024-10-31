@@ -4,7 +4,7 @@
 """
 file:       Analysis_Demo_(Interactive).py
 author:     Tiago Ferreira
-version:    20190610
+version:    20241031
 info:       Exemplifies how to programmatically interact with a running instance
             of SNT to analyze traced data. Because of all the GUI updates, this
             approach is _significantly slower_ than analyzing reconstructions
@@ -12,7 +12,7 @@ info:       Exemplifies how to programmatically interact with a running instance
 """
 
 from sc.fiji.snt import (SNTUI, Tree)
-from sc.fiji.snt.analysis import (TreeAnalyzer, TreeStatistics)
+from sc.fiji.snt.analysis import TreeStatistics
 
 
 def run():
@@ -37,22 +37,18 @@ def run():
     snt.loadTree(demo_tree)
 
     # Almost all SNT analyses are performed on a Tree, i.e., a collection of
-    # Paths. To do so we can use TreeAnalyzer or TreeStatistics (the latter
-    # features all of TreeAnalyzer's capabilities plus advanced functionality
-    # for detailed statistics. We can instantiate both from SNTService using
-    # 1) all the Paths currently loaded, or 2) just the current subset of
-    # selected Paths in the Path Manager dialog.
+    # Paths. To do so we can use the TreeStatistics class. We can instantiate
+    # it from SNTService using 1) all the Paths currently loaded, or 2) just
+    # the current subset of selected Paths in the Path Manager dialog.
     # This is useful when one only wants to analyze the group(s) of Paths
     # selected through Path Manager's filtering toolbar.
-    # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeAnalyzer.html
     # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
-    analyzer = snt.getAnalyzer(False)  # Include only selected paths?
     stats = snt.getStatistics(False)   # Include only selected paths?
 
-    # Beacause TreeAnalyzer was initiated from SNTService, measurements can be
+    # Beacause TreeStatistics was initiated from SNTService, measurements can be
     # displayed in SNT's UI:
-    analyzer.summarize("TreeV Demo", True) # Split summary by compartment?
-    analyzer.updateAndDisplayTable()
+    stats.summarize("TreeV Demo", True) # Split summary by compartment?
+    stats.updateAndDisplayTable()
 
     # It is also possible to build the above instances from a Tree. This is
     # useful for post-hoc analysis and if, e.g, one needs to manipulate Paths
@@ -72,8 +68,8 @@ def run():
     stats = TreeStatistics(tree)
     summary_stats = stats.getSummaryStats(metric)
     stats.getHistogram(metric).show()
-    analyzer.summarize("TreeV Demo (Downsampled)", True)
-    analyzer.updateAndDisplayTable()
+    stats.summarize("TreeV Demo (Downsampled)", True)
+    stats.updateAndDisplayTable()
     print("After downsampling: %d" % summary_stats.getMin())
 
     # To render both the downsampled tree and the original:
