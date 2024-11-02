@@ -1798,9 +1798,9 @@ public class SNTUI extends JDialog {
 						final int defResFactor = Content.getDefaultResamplingFactor(plugin.getImagePlus(),
 								ContentConstants.VOLUME);
 						final Double userResFactor = guiUtils.getDouble(
-								"Please specify the image resampling factor. The default factor for current image is "
-										+ defResFactor + ".",
-								"Image Resampling Factor", defResFactor);
+								"Please specify the downsampling factor to render the image volume. The default " +
+										"factor for current image is " + defResFactor + "×.",
+								"Volume Downsampling Factor", defResFactor);
 
 						if (userResFactor == null) { // user pressed cancel
 							plugin.set3DUniverse(null);
@@ -1857,8 +1857,8 @@ public class SNTUI extends JDialog {
 		});
 
 		// Build widget for rendering choices
-		displayChoice.addItem("Lines and discs");
 		displayChoice.addItem("Lines");
+		displayChoice.addItem("Lines and discs");
 		displayChoice.addItem("Surface reconstructions");
 		applyDisplayChoice.addActionListener(e -> {
 
@@ -1996,6 +1996,18 @@ public class SNTUI extends JDialog {
 		c.gridx++;
 		c.fill = GridBagConstraints.NONE;
 		p.add(applyActionChoice, c);
+
+		// row 5
+		c.gridy++;
+		c.gridx = 0;
+		c.gridwidth = 3;
+		final JCheckBox jcbx = new JCheckBox("Disable pop-up errors", ij.IJ.redirectingErrorMessages());
+		jcbx.addActionListener( e -> ij.IJ.redirectErrorMessages(jcbx.isSelected()));
+		jcbx.setToolTipText("Interactions with the Viewer's canvas may trigger warnings\n" +
+				"and errors that are displayed in pop-up dialogs. Activate\n" +
+				"this option to have such messages displayed discretely in\n" +
+				"a Log window instead.");
+		p.add(jcbx, c);
 		return p;
 	}
 

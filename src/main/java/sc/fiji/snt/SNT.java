@@ -683,8 +683,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void addListener(final InteractiveTracerCanvas canvas) {
-		final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this,
-			canvas);
+		final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this, canvas);
 		setAsFirstKeyListener(canvas, listener);
 	}
 

@@ -40,7 +40,6 @@ import ij3d.DefaultUniverse;
 import ij3d.Image3DUniverse;
 import ij3d.behaviors.InteractiveBehavior;
 import ij3d.behaviors.Picker;
-import sc.fiji.snt.gui.GuiUtils;
 
 class QueueJumpingKeyListener implements KeyListener {
 
@@ -50,9 +49,7 @@ class QueueJumpingKeyListener implements KeyListener {
 	private final SNT tracerPlugin;
 	private final InteractiveTracerCanvas canvas;
 	private final Image3DUniverse univ;
-
 	private final ArrayList<KeyListener> listeners = new ArrayList<>();
-
 	private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
 	private long timeKeyDown = 0; // last time key was pressed
 	private int lastKeyPressedCode;
@@ -66,19 +63,16 @@ class QueueJumpingKeyListener implements KeyListener {
 			// Extra navigation/zoom keys
 			KeyEvent.VK_PLUS, KeyEvent.VK_LESS, KeyEvent.VK_GREATER, KeyEvent.VK_TAB };
 
-	public QueueJumpingKeyListener(final SNT tracerPlugin,
-		final InteractiveTracerCanvas canvas)
-	{
+
+	public QueueJumpingKeyListener(final SNT tracerPlugin, final InteractiveTracerCanvas canvas) {
 		this.tracerPlugin = tracerPlugin;
 		this.canvas = canvas;
 		univ = null;
 	}
 
-	public QueueJumpingKeyListener(final SNT tracerPlugin,
-		final Image3DUniverse univ)
-	{
+	public QueueJumpingKeyListener(final SNT tracerPlugin, final Image3DUniverse univ) {
 		this.tracerPlugin = tracerPlugin;
-		this.canvas = null;
+		this.canvas = tracerPlugin.getTracingCanvas();
 		this.univ = univ;
 		univ.addInteractiveBehavior(new PointSelectionBehavior(univ));
 	}
@@ -86,13 +80,13 @@ class QueueJumpingKeyListener implements KeyListener {
 	@Override
 	public void keyPressed(final KeyEvent e) {
 
-		if (!tracerPlugin.isUIready() || (canvas != null && canvas
+		// KEY_PRESSED, KEY_RELEASED, and KEY_TYPED all trigger actions in the Legacy 3D viewer
+		if (KeyEvent.KEY_PRESSED != e.getID() || !tracerPlugin.isUIready() || (canvas != null && canvas
 			.isEventsDisabled()))
 		{
 			waiveKeyPress(e);
 			return;
 		}
-
 		final int keyCode = e.getKeyCode();
 		if (keyCode == KeyEvent.VK_SPACE) {// IJ's pan tool shortcut
 			if (canvas != null) tracerPlugin.panMode = true;
@@ -108,8 +102,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		final boolean ctrl_down = (e.getModifiersEx() & CTRL_CMD_MASK) != 0;
 		final boolean shift_down = e.isShiftDown();
 
-		if (keyCode == KeyEvent.VK_ESCAPE && canvas != null) {
-			// Esc is the documented wand>hand tool toggle for the Legacy 3D viewer
+		if (keyCode == KeyEvent.VK_ESCAPE) {
 			if (doublePress) tracerPlugin.getUI().reset();
 			else tracerPlugin.getUI().abortCurrentOperation();
 			e.consume();
@@ -121,12 +114,14 @@ class QueueJumpingKeyListener implements KeyListener {
 			return;
 		}
 		else if (keyCode == KeyEvent.VK_4) {
-			tracerPlugin.unzoomAllPanes();
+			if (!calledFromUniv(true))
+				tracerPlugin.unzoomAllPanes(); // ignore if called from 3D legacy viewer
 			e.consume();
 			return;
 		}
 		else if (keyCode == KeyEvent.VK_5) {
-			tracerPlugin.zoom100PercentAllPanes();
+			if (!calledFromUniv(true))
+				tracerPlugin.zoom100PercentAllPanes();
 			e.consume();
 			return;
 		}
@@ -175,17 +170,20 @@ class QueueJumpingKeyListener implements KeyListener {
 		}
 		else if (shift_down && (keyChar == 'b' || keyChar == 'B')) {
 			// IJ1 built-in: Shift+B Blobs Sample Image
-			canvas.bookmarkCursorLocation();
+			System.out.println(e);
+			bookmarkCursorLocation();
 			e.consume();
 		}
 		else if (shift_down && (keyChar == 'e' || keyChar == 'E')) {
 			// IJ1 built-in: Shift+E Restore Selection
-			canvas.toggleEditMode();
+			if (canvas != null && !calledFromUniv(true))
+				canvas.toggleEditMode();
 			e.consume();
 		}
 		else if (shift_down && (keyChar == 'p' || keyChar == 'P')) {
 			// IJ1 built-in: Shift+P Image Properties
-			canvas.togglePauseTracing();
+			if (canvas != null && !calledFromUniv(true))
+				canvas.togglePauseTracing();
 			e.consume();
 		}
 		else if (keyChar == 'g' || keyChar == 'G') {
@@ -200,7 +198,6 @@ class QueueJumpingKeyListener implements KeyListener {
 			tracerPlugin.getUI().togglePathsChoice();
 			e.consume();
 		}
-
 		else if (keyChar == '2') {
 			// IJ1 built-in: Select Next Lane
 			tracerPlugin.getUI().togglePartsChoice();
@@ -216,7 +213,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		// with InteractiveCanvas). We'll skip hasty keystrokes to avoid
 		// mis-editing
 		else if (canvas != null && canvas.isEditMode()) {
-			if (doublePress) {
+			if (doublePress || calledFromUniv(true)) {
 				e.consume();
 				return;
 			}
@@ -251,7 +248,6 @@ class QueueJumpingKeyListener implements KeyListener {
 				canvas.clickAtMaxPoint(false);
 			}
 			e.consume();
-			return;
 		}
 
 		// Keystrokes exclusive to tracing mode
@@ -290,12 +286,12 @@ class QueueJumpingKeyListener implements KeyListener {
 				tracerPlugin.getUI().toggleSecondaryLayerTracing();
 				e.consume();
 			}
-			else if (keyChar == 'v' || keyChar == 'V') {
+			else if ((keyChar == 'v' || keyChar == 'V') && !calledFromUniv(true)) {
 				// IJ1 built-in: Measure
 				canvas.clickAtMaxPoint(join_modifier_down);
 				e.consume();
 			}
-			else if (keyChar == 's' || keyChar == 'S') {
+			else if ((keyChar == 's' || keyChar == 'S') && !calledFromUniv(true)) {
 				// IJ1 built-in: Save
 				tracerPlugin.toggleSnapCursor();
 				e.consume();
@@ -307,48 +303,69 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	}
 
-	private void startShollAnalysis() {
-		if (canvas != null) {
-			canvas.startShollAnalysis();
-			return;
+	private void bookmarkCursorLocation() {
+		System.out.println("bookmarkCursorLocation called");
+		if (calledFromUniv(false)) {
+			final Point3d p = getNearestPickedPoint();
+			if (p != null) {
+				tracerPlugin.getUI().getBookmarkManager().add((int)p.x, (int)p.y, (int)p.z,
+						tracerPlugin.getChannel(), tracerPlugin.getFrame());
+				if (!tracerPlugin.getUI().getBookmarkManager().isShowing())
+					showStatus("Bookmark added");
+			}
+		} else if (canvas != null) {
+			canvas.bookmarkCursorLocation();
 		}
-		new Thread(() -> {
-			final NearPoint np = getNearestPickedPoint();
-			if (np != null) tracerPlugin.startSholl(np.getNode());
-		}).start();
 	}
 
-	private NearPoint getNearestPickedPoint() {
+	private void startShollAnalysis() {
+		if (calledFromUniv(false)) {
+			new Thread(() -> {
+				final NearPoint np = getNearestPickedPointOnAnyPath();
+				if (np != null) tracerPlugin.startSholl(np.getNode());
+			}).start();
+		} else if (canvas != null) {
+			canvas.startShollAnalysis();
+		}
+	}
+
+	private Point3d getNearestPickedPoint() {
 		final Point p = univ.getCanvas().getMousePosition();
 		if (p == null) return null;
 		final Picker picker = univ.getPicker();
 		final Content c = picker.getPickedContent(p.x, p.y);
-		if (null == c) return null;
-		final Point3d point = picker.getPickPointGeometry(c, p.x, p.y);
-		final double diagonalLength = tracerPlugin.getImpDiagonalLength(true,
-			false);
+		if (null == c) {
+			showStatus("No content available at cursor location");
+			return null;
+		}
+		return picker.getPickPointGeometry(c, p.x, p.y);
+	}
+
+	private NearPoint getNearestPickedPointOnAnyPath() {
+		final Point3d point = getNearestPickedPoint();
+		if (null == point) return null;
+		final double diagonalLength = tracerPlugin.getImpDiagonalLength(true, false);
 		final NearPoint np = tracerPlugin.getPathAndFillManager()
-			.nearestPointOnAnyPath(point.x, point.y, point.z, diagonalLength);
+				.nearestPointOnAnyPath(point.x, point.y, point.z, diagonalLength);
 		if (np == null) {
 			SNTUtils.error("BUG: No nearby path was found within " + diagonalLength +
-				" of the pointer");
+					" of the pointer");
 		}
 		return np;
 	}
 
 	private void selectNearestPathToMousePointer(final boolean shift_down) {
-		if (canvas != null) {
+		if (calledFromUniv(false)) {
+			new Thread(() -> {
+				final NearPoint np = getNearestPickedPointOnAnyPath();
+				if (np != null) {
+					final Path path = np.getPath();
+					tracerPlugin.selectPath(path, shift_down);
+				}
+			}).start();
+		} else if (canvas != null) {
 			canvas.selectNearestPathToMousePointer(shift_down);
-			return;
 		}
-		new Thread(() -> {
-			final NearPoint np = getNearestPickedPoint();
-			if (np == null) {
-				return;
-			}
-			final Path path = np.getPath();
-			tracerPlugin.selectPath(path, shift_down);
-		}).start();
 	}
 
 	private void waiveKeyPress(final KeyEvent e) {
@@ -360,9 +377,7 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	@Override
 	public void keyReleased(final KeyEvent e) {
-		if (e.getKeyCode() == KeyEvent.VK_SPACE && canvas != null) { // IJ's pan
-																																	// tool
-																																	// shortcut
+		if (e.getKeyCode() == KeyEvent.VK_SPACE && canvas != null) { // IJ's pan tool shortcut
 			tracerPlugin.panMode = false;
 		}
 		for (final KeyListener kl : listeners) {
@@ -402,11 +417,9 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	private class PointSelectionBehavior extends InteractiveBehavior {
 
-		private final GuiUtils gUtils;
 
 		public PointSelectionBehavior(final DefaultUniverse univ) {
 			super(univ);
-			this.gUtils = new GuiUtils(univ.getCanvas());
 		}
 
 		@Override
@@ -415,11 +428,11 @@ class QueueJumpingKeyListener implements KeyListener {
 				final char keyChar = e.getKeyChar();
 				if (keyChar == 'w' || keyChar == 'W') {
 					Toolbar.getInstance().setTool(Toolbar.WAND);
-					gUtils.tempMsg("Wand Tool selected");
+					showStatus("Wand Tool selected");
 				}
 				else if (keyChar == 'h' || keyChar == 'H') {
 					Toolbar.getInstance().setTool(Toolbar.HAND);
-					gUtils.tempMsg("Hand Tool selected");
+					showStatus("Hand Tool selected");
 				}
 				else {
 					keyPressed(e);
@@ -440,18 +453,29 @@ class QueueJumpingKeyListener implements KeyListener {
 			final Picker picker = univ.getPicker();
 			final Content c = picker.getPickedContent(me.getX(), me.getY());
 			if (null == c) {
-				gUtils.tempMsg("No content picked!");
+				showStatus("No content picked!");
 				return;
 			}
 
-			gUtils.tempMsg("Retrieving content...");
+			showStatus("Retrieving content...");
 			final Point3d point = picker.getPickPointGeometry(c, me.getX(), me
 				.getY());
-			gUtils.tempMsg(SNTUtils.formatDouble(point.x, 3) + ", " + SNTUtils.formatDouble(
+			showStatus(SNTUtils.formatDouble(point.x, 3) + ", " + SNTUtils.formatDouble(
 				point.y, 3) + ", " + SNTUtils.formatDouble(point.z, 3));
 			final boolean joiner_modifier_down = me.isAltDown();
 			SwingUtilities.invokeLater(() -> tracerPlugin.clickForTrace(point,
 				joiner_modifier_down));
 		}
+	}
+
+	void showStatus(final String msg) {
+		//NB: using new GuiUtils(univ.getWindow()).tempMsg(msg) steals focus from viewer canvas and thus this listener
+		tracerPlugin.getUI().showStatus(msg, true);
+	}
+
+	boolean calledFromUniv(final boolean warnIfNonApplicableKey) {
+		if (univ != null && warnIfNonApplicableKey)
+			showStatus("Shortcut does not apply to Leg. 3D Viewer...");
+		return univ != null;
 	}
 }
