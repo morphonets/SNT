@@ -426,9 +426,7 @@ public class SNTSearchableBar extends SearchableBar {
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		if (button instanceof JToggleButton) {
-			Color selectionColor = UIManager.getColor("Tree.selectionBackground");
-			if (selectionColor == null) selectionColor = Color.RED;
-			final Icon selectIcon = IconFactory.getIcon(glyph, iconHeight, selectionColor);
+			final Icon selectIcon = IconFactory.getIcon(glyph, iconHeight, GuiUtils.getSelectionColor());
 			button.setSelectedIcon(selectIcon);
 			button.setRolloverSelectedIcon(selectIcon);
 		}

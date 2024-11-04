@@ -60,7 +60,6 @@ import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.Timer;
 import javax.swing.*;
-import javax.swing.border.BevelBorder;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
 import java.awt.*;
@@ -2228,8 +2227,7 @@ public class SNTUI extends JDialog {
 		final JPanel statusPanel = new JPanel();
 		statusPanel.setLayout(new BorderLayout());
 		statusText = new JLabel("Loading SNT...");
-		statusText.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED),
-				BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN)));
+		statusText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN * 2, InternalUtils.MARGIN * 2, InternalUtils.MARGIN * 2, 0));
 		statusPanel.add(statusText, BorderLayout.CENTER);
 		statusPanel.add(statusButtonPanel(), BorderLayout.SOUTH);
 		statusPanel.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN * InternalUtils.MARGIN, InternalUtils.MARGIN));

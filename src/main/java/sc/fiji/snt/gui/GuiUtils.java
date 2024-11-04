@@ -1755,6 +1755,15 @@ public class GuiUtils {
 		}
 	}
 
+	public static Color getSelectionColor() {
+		try {
+			return UIManager.getColor("Tree.selectionBackground");
+		}
+		catch (final Exception ignored) {
+			return new Color(75, 110, 175);
+		}
+	}
+
 	public static Color getDisabledComponentColor() {
 		try {
 			return UIManager.getColor("MenuItem.disabledForeground");

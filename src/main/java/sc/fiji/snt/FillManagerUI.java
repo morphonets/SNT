@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import javax.swing.*;
-import javax.swing.border.BevelBorder;
 
 import ij.ImagePlus;
 import net.imagej.ImageJ;
@@ -308,8 +307,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		statusPanel.setLayout(new BorderLayout());
 		statusPanel.setBorder(BorderFactory.createEmptyBorder(STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN));
 		statusText = new JLabel("Loading Fill Manager...");
-		statusText.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createBevelBorder(BevelBorder.LOWERED),
-				BorderFactory.createEmptyBorder(STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN)));
+		statusText.setBorder(BorderFactory.createEmptyBorder(SNTUI.InternalUtils.MARGIN * 3,
+				SNTUI.InternalUtils.MARGIN * 2, SNTUI.InternalUtils.MARGIN * 2, 0));
 		statusPanel.add(statusText, BorderLayout.CENTER);
 		startFill = GuiUtils.smallButton("Start");
 		startFill.addActionListener(this);
