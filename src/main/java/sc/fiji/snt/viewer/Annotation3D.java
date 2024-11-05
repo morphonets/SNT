@@ -619,10 +619,9 @@ public class Annotation3D {
 	}
 
 	private Color colorFromColorRGB(final ColorRGB boundingBoxColor) {
-		final Color c = (boundingBoxColor == null) ? null
-				: new Color(boundingBoxColor.getRed(), boundingBoxColor.getGreen(), boundingBoxColor.getBlue(),
-						boundingBoxColor.getAlpha());
-		return c;
+        return (boundingBoxColor == null) ? null
+                : new Color(boundingBoxColor.getRed(), boundingBoxColor.getGreen(), boundingBoxColor.getBlue(),
+                        boundingBoxColor.getAlpha());
 	}
 
 	private static class Parallelepiped extends ParallelepipedComposite {

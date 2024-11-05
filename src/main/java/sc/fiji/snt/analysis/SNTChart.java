@@ -1038,8 +1038,8 @@ public class SNTChart extends ChartPanel {
 		annotatePoint(coordinates[0], coordinates[1], label, color);
 	}
 
-	@Override
 	/** {@inheritDoc} */
+	@Override
 	public File getDefaultDirectoryForSaveAs() {
 		return (super.getDefaultDirectoryForSaveAs() == null) ? SNTPrefs.lastknownDir()
 				: super.getDefaultDirectoryForSaveAs();

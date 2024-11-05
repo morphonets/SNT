@@ -454,60 +454,51 @@ public class OBJMesh {
 		@Override
 		public boolean loadModelFromURL(final URL fileURL) {
 			if (fileURL != null) {
-				BufferedReader input = null;
-				try {
+                try (BufferedReader input = new BufferedReader(new InputStreamReader(fileURL.openStream()))) {
 
-					input = new BufferedReader(new InputStreamReader(fileURL.openStream()));
-					String line = null;
-					final float[] val = new float[4];
-					final int[][] idx = new int[3][3];
-					boolean hasNormals = false;
+                    String line = null;
+                    final float[] val = new float[4];
+                    final int[][] idx = new int[3][3];
+                    boolean hasNormals = false;
 
-					while ((line = input.readLine()) != null) {
-						line = line.trim();
-						if (line.isEmpty()) {
-							continue;
-						}
-						switch (line.charAt(0)) {
-							case 'v':
-							parseObjVertex(line, val);
-							break;
-						case 'f':
-							hasNormals = parseObjFace(line, idx, hasNormals);
-							break;
-						case '#':
-						default:
-							break;
-						}
-					}
-					// post-process data
-					// free anything that ended up being unused
-					if (!hasNormals) {
-						normals_.clear();
-						nIndex_.clear();
-					}
+                    while ((line = input.readLine()) != null) {
+                        line = line.trim();
+                        if (line.isEmpty()) {
+                            continue;
+                        }
+                        switch (line.charAt(0)) {
+                            case 'v':
+                                parseObjVertex(line, val);
+                                break;
+                            case 'f':
+                                hasNormals = parseObjFace(line, idx, hasNormals);
+                                break;
+                            case '#':
+                            default:
+                                break;
+                        }
+                    }
+                    // post-process data
+                    // free anything that ended up being unused
+                    if (!hasNormals) {
+                        normals_.clear();
+                        nIndex_.clear();
+                    }
 
-					posSize_ = 3;
-					return true;
+                    posSize_ = 3;
+                    return true;
 
-				} catch (final FileNotFoundException kFNF) {
-					SNTUtils.log("Unable to find the shader file " + fileURL + " : FileNotFoundException : "
-							+ kFNF.getMessage());
-				} catch (final IOException kIO) {
-					SNTUtils.log("Problem reading the shader file " + fileURL + " : IOException : " + kIO.getMessage());
-				} catch (final NumberFormatException kIO) {
-					SNTUtils.log("Problem reading the shader file " + fileURL + " : NumberFormatException : "
-							+ kIO.getMessage());
-				} finally {
-					try {
-						if (input != null) {
-							input.close();
-						}
-					} catch (final IOException closee) {
-						// ignore
-					}
-				}
-			} else {
+                } catch (final FileNotFoundException kFNF) {
+                    SNTUtils.log("Unable to find the shader file " + fileURL + " : FileNotFoundException : "
+                            + kFNF.getMessage());
+                } catch (final IOException kIO) {
+                    SNTUtils.log("Problem reading the shader file " + fileURL + " : IOException : " + kIO.getMessage());
+                } catch (final NumberFormatException kIO) {
+                    SNTUtils.log("Problem reading the shader file " + fileURL + " : NumberFormatException : "
+                            + kIO.getMessage());
+                }
+                // ignore
+            } else {
 				SNTUtils.log("URL was null");
 			}
 

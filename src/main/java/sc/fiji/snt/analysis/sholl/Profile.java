@@ -97,11 +97,11 @@ public class Profile implements ProfileProperties {
 		if (sampledData == null)
 			throw new IllegalArgumentException("Matrix cannot be null");
 		initialize();
-		for (int i = 0; i < sampledData.length; i++) {
-			final double r = sampledData[i][0];
-			final double c = sampledData[i][1];
-			profile.add(new ProfileEntry(r, c));
-		}
+        for (double[] sampledDatum : sampledData) {
+            final double r = sampledDatum[0];
+            final double c = sampledDatum[1];
+            profile.add(new ProfileEntry(r, c));
+        }
 	}
 
 	private void initialize() {
@@ -233,11 +233,11 @@ public class Profile implements ProfileProperties {
 	}
 
 	public boolean hasPoints() {
-		for (final Iterator<ProfileEntry> it = profile.iterator(); it.hasNext();) {
-			final Set<ShollPoint> entryPoints = it.next().points;
-			if (entryPoints != null && entryPoints.size() > 0)
-				return true;
-		}
+        for (ProfileEntry profileEntry : profile) {
+            final Set<ShollPoint> entryPoints = profileEntry.points;
+            if (entryPoints != null && entryPoints.size() > 0)
+                return true;
+        }
 		return false;
 	}
 
@@ -279,12 +279,11 @@ public class Profile implements ProfileProperties {
 	private double calculateStepRadius() {
 		double stepSize = 0;
 		ProfileEntry previousEntry = null;
-		for (final Iterator<ProfileEntry> it = profile.iterator(); it.hasNext();) {
-			final ProfileEntry currentEntry = it.next();
-			if (previousEntry != null)
-				stepSize += currentEntry.radius - previousEntry.radius;
-			previousEntry = currentEntry;
-		}
+        for (final ProfileEntry currentEntry : profile) {
+            if (previousEntry != null)
+                stepSize += currentEntry.radius - previousEntry.radius;
+            previousEntry = currentEntry;
+        }
 		return stepSize / profile.size();
 	}
 

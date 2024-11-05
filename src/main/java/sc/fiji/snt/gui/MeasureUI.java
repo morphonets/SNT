@@ -609,12 +609,12 @@ public class MeasureUI extends JFrame {
 				return;
 			}
 			metricList.setValueIsAdjusting(true);
-			for (int i = 0; i < indices.length; i++) {
-				if (select)
-					metricList.addCheckBoxListSelectedIndex(indices[i]);
-				else
-					metricList.removeCheckBoxListSelectedIndex(indices[i]);
-			}
+            for (int index : indices) {
+                if (select)
+                    metricList.addCheckBoxListSelectedIndex(index);
+                else
+                    metricList.removeCheckBoxListSelectedIndex(index);
+            }
 			metricList.setValueIsAdjusting(false);
 		}
 
@@ -810,10 +810,10 @@ public class MeasureUI extends JFrame {
 	}
 
 	/**
-	 * A TableCellRenderer that selects all or none of a Boolean column.
-	 * <p>
-	 * Adapted from https://stackoverflow.com/a/7137801
-	 */
+     * A TableCellRenderer that selects all or none of a Boolean column.
+     * <p>
+     * Adapted from <a href="https://stackoverflow.com/a/7137801">stackoverflow</a>
+     */
 	static class SelectAllHeader extends JToggleButton implements TableCellRenderer {
 
 		private static final long serialVersionUID = 1L;
@@ -988,12 +988,11 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void setSelectedRowsState(final boolean state) {
-			final int[] selectedIndices = table.getSelectedRows();
-			for (int idx = 0; idx < selectedIndices.length; idx++) {
-				for (int col = 1; col < table.getColumnCount(); col++) { // Skip metric String column
-					table.setValueAt(state, selectedIndices[idx], col);
-				}
-			}
+            for (int selectedIndex : table.getSelectedRows()) {
+                for (int col = 1; col < table.getColumnCount(); col++) { // Skip metric String column
+                    table.setValueAt(state, selectedIndex, col);
+                }
+            }
 		}
 
 	}

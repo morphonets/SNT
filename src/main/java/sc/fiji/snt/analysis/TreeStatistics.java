@@ -2489,7 +2489,7 @@ public class TreeStatistics extends ContextCommand {
      * {@code annot} and the total number of branch points in the tree.
      */
     public double getNBranchPointsNorm(final BrainAnnotation annot, final boolean includeChildren) {
-        return (double) (getNBranchPointsNorm(annot, includeChildren)) / (double) (joints.size());
+        return (double) (getNBranchPoints(annot, includeChildren)) / (double) (joints.size());
     }
 
     /**

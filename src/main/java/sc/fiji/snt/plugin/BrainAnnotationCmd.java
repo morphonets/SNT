@@ -135,7 +135,6 @@ public class BrainAnnotationCmd extends CommonDynamicCmd {
 		if (histogramType.toLowerCase().contains("tips")) {
 			final Set<PointInImage> tips = tStats.getTips();
 			final NodeStatistics<?> nStats = new NodeStatistics<>(tips);
-			hist = nStats.getAnnotatedHistogram(ajustedOntologyDepth());
 			hist = (splitByHemisphere) ?
 					nStats.getAnnotatedFrequencyHistogram(ajustedOntologyDepth(), "ratio", tree)
 					: nStats.getAnnotatedHistogram(ajustedOntologyDepth());

@@ -156,8 +156,6 @@ public class MultiViewer2D {
         double legendMin = Double.MAX_VALUE;
         double legendMax = Double.MIN_VALUE;
         if (min >=max) {
-			legendMin = Double.MAX_VALUE;
-			legendMax = Double.MIN_VALUE;
 			for (Viewer2D viewer: viewers) {
 				final double[] minMax = viewer.getMinMax();
 				legendMin = Math.min(minMax[0], legendMin);
@@ -226,8 +224,7 @@ public class MultiViewer2D {
 		final GridLayout gridLayout = new GridLayout(rows.size(), 1);
 		frame.setLayout(gridLayout);
 		for (final List<Viewer2D> row : rows) {
-			final SNTChart rowChart = getMergedChart(row, "col");
-			final ChartPanel cPanel = rowChart;
+            final ChartPanel cPanel = getMergedChart(row, "col");
 			frame.add(cPanel);
 			rowPanels.add(cPanel);
 		}

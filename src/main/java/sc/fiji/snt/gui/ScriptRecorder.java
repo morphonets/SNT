@@ -28,6 +28,7 @@ import java.awt.GridBagLayout;
 import java.awt.Rectangle;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.Objects;
 
 import javax.swing.AbstractButton;
 import javax.swing.JButton;
@@ -311,10 +312,7 @@ public class ScriptRecorder extends JDialog {
 	}
 
 	public static void setRecordingCall(final AbstractButton button, final String recordingString) {
-		if (recordingString == null)
-			button.putClientProperty(REC_PROPERTY_KEY, IGNORED_CMD);
-		else
-			button.putClientProperty(REC_PROPERTY_KEY, recordingString);
+        button.putClientProperty(REC_PROPERTY_KEY, Objects.requireNonNullElse(recordingString, IGNORED_CMD));
 	}
 
 	public static String getRecordingCall(final AbstractButton button) {

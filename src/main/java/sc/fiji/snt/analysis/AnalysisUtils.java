@@ -617,7 +617,7 @@ class AnalysisUtils {
 			if (n == 0 || max == min || Double.isNaN(max) || Double.isNaN(min)) {
 				nBins = 1;
 			}
-			{
+			else {
 				final double binWidth = 2 * (q3 - q1) / Math.cbrt(n); // Freedman-Diaconis rule
 				if (binWidth == 0) {
 					nBins = (int) Math.round(Math.sqrt(n));

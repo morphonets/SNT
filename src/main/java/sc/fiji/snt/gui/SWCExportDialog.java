@@ -300,7 +300,7 @@ public class SWCExportDialog extends JDialog {
 
 	private DefaultTableModel getModel() {
 		final HashMap<String, String> props = getMapProperties();
-		final Vector<Vector<String>> dataVector = new Vector<Vector<String>>(props.size());
+		final Vector<Vector<String>> dataVector = new Vector<>(props.size());
 		props.forEach((k, v) -> {
 			final Vector<String> data = new Vector<>();
 			data.add((String) k);

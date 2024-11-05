@@ -1960,7 +1960,6 @@ public class SNTUI extends JDialog {
 		c.gridx++;
 		c.weightx = 0;
 		p.add(applyUnivChoice, c);
-		c.gridx++;
 
 		// row 2
 		c.gridy++;
@@ -1982,7 +1981,6 @@ public class SNTUI extends JDialog {
 		c.gridx++;
 		c.fill = GridBagConstraints.NONE;
 		p.add(applyDisplayChoice, c);
-		c.gridx++;
 
 		// row 4
 		c.gridy++;
@@ -4716,7 +4714,7 @@ public class SNTUI extends JDialog {
 
 	private boolean loadSWCFile(final File file) {
 		final SWCImportDialog importDialog = new SWCImportDialog(this, file);
-		boolean success = false;
+		boolean success;
 		if (importDialog.succeeded()) {
 			final File f = importDialog.getFile();
 			final double[] offsets = importDialog.getOffsets();

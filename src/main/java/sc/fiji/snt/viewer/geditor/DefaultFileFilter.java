@@ -149,13 +149,11 @@ class DefaultFileFilter extends FileFilter
 
 			String filename = file.toString().toLowerCase();
 
-			for (int j = 0; j < imageFormats.length; j++)
-			{
-				if (filename.endsWith("." + imageFormats[j].toLowerCase()))
-				{
-					return true;
-				}
-			}
+            for (String imageFormat : imageFormats) {
+                if (filename.endsWith("." + imageFormat.toLowerCase())) {
+                    return true;
+                }
+            }
 
 			return false;
 		}

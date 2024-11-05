@@ -491,13 +491,13 @@ public class Strahler implements PlugIn, DialogListener {
 		final ArrayList<Integer> validIds = new ArrayList<>();
 		final ArrayList<String> validTitles = new ArrayList<>();
 		final int[] ids = WindowManager.getIDList();
-		for (int i = 0; i < ids.length; ++i) {
-			final ImagePlus imp = WindowManager.getImage(ids[i]);
-			if (imp.getBitDepth() == 8) { // TODO: ignore composites?
-				validIds.add(ids[i]);
-				validTitles.add(imp.getTitle());
-			}
-		}
+        for (int id : ids) {
+            final ImagePlus imp = WindowManager.getImage(id);
+            if (imp.getBitDepth() == 8) { // TODO: ignore composites?
+                validIds.add(id);
+                validTitles.add(imp.getTitle());
+            }
+        }
 		gd.addChoice("8-bit grayscale image:", validTitles.toArray(new String[0]), title);
 
 		// Part 3: Output
@@ -618,10 +618,9 @@ public class Strahler implements PlugIn, DialogListener {
 		if (points != null) {
 			final ImageProcessor ipp = stack.getProcessor(1).createProcessor(stack.getWidth(), stack.getHeight());
 					//ip.createProcessor(stack.getWidth(), stack.getHeight());
-			for (int j = 0; j < points.size(); j++) {
-				final Point point = points.get(j);
-				ipp.putPixel(point.x, point.y, value);
-			}
+            for (final Point point : points) {
+                ipp.putPixel(point.x, point.y, value);
+            }
 			stack.addSlice(sliceLabel, ipp);
 		}
 	}
@@ -629,10 +628,9 @@ public class Strahler implements PlugIn, DialogListener {
 	/* Clears point positions */
 	private void clearPoints(final ImageProcessor processor, final ArrayList<Point> points) {
 		if (points != null) {
-			for (int j = 0; j < points.size(); j++) {
-				final Point point = points.get(j);
-				processor.putPixel(point.x, point.y, 0);
-			}
+            for (final Point point : points) {
+                processor.putPixel(point.x, point.y, 0);
+            }
 		}
 	}
 

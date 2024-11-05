@@ -403,12 +403,12 @@ public class SNTUtils {
 	 *         retrieved.
 	 */
 	public static String buildDate() {
-		String BUILD_DATE = "";
+		String BUILD_DATE;
 		final Class<ShollUtils> clazz = ShollUtils.class;
 		final String className = clazz.getSimpleName() + ".class";
-		final String classPath = clazz.getResource(className).toString();
-		final String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
 		try {
+			final String classPath = clazz.getResource(className).toString();
+			final String manifestPath = classPath.substring(0, classPath.lastIndexOf("!") + 1) + "/META-INF/MANIFEST.MF";
 			final Manifest manifest = new Manifest(new URI(manifestPath).toURL().openStream());
 			final Attributes attr = manifest.getMainAttributes();
 			BUILD_DATE = attr.getValue("Implementation-Date");

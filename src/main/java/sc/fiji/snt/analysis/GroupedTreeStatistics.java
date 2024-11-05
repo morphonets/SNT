@@ -751,13 +751,13 @@ public class GroupedTreeStatistics {
 				final java.util.List<?> yOutliers = bawDataset.getOutliers(row, column);
 				final double xCenter = xx + state.getBarWidth() / 2.0;
 				if (yOutliers != null) {
-					for (int i = 0; i < yOutliers.size(); i++) {
-						final Number outlierValue = ((Number) yOutliers.get(i));
-						final double yyOutlier = rangeAxis.valueToJava2D(outlierValue.doubleValue(), dataArea,
-								location);
-						final Outlier outlier = new Outlier(xCenter, yyOutlier, pointSize);
-						outliers.put(outlier, outliers.getOrDefault(outlier, 1));
-					}
+                    for (Object yOutlier : yOutliers) {
+                        final Number outlierValue = ((Number) yOutlier);
+                        final double yyOutlier = rangeAxis.valueToJava2D(outlierValue.doubleValue(), dataArea,
+                                location);
+                        final Outlier outlier = new Outlier(xCenter, yyOutlier, pointSize);
+                        outliers.put(outlier, outliers.getOrDefault(outlier, 1));
+                    }
 
 					outliers.forEach((outlier, count) -> {
 

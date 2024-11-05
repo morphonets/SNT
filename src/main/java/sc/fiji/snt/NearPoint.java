@@ -96,9 +96,7 @@ public class NearPoint implements Comparable<NearPoint> {
 
 	@Override
 	public int compareTo(final NearPoint other) {
-		final double d = distanceSquared;
-		final double od = other.distanceSquared;
-		return Double.compare(d, od);
+		return Double.compare(distanceSquared, other.distanceSquared);
 	}
 
 	@Override

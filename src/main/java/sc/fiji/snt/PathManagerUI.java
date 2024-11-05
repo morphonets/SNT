@@ -3296,25 +3296,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			switch (choice) {
 			case "Cell ID":
-				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getTreeID(), p2.getTreeID()));
+				primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
 				break;
 			case "Cell label":
-				primaryPaths.sort((p1, p2) -> p1.getTreeLabel().compareTo(p2.getTreeLabel()));
+				primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
 				break;
 			case "Path name":
-				primaryPaths.sort((p1, p2) -> p1.getName().compareTo(p2.getName()));
+				primaryPaths.sort(Comparator.comparing(Path::getName));
 				break;
 			case "Path length":
-				primaryPaths.sort((p1, p2) -> Double.compare(p1.getLength(), p2.getLength()));
+				primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
 				break;
 			case "Path mean radius":
-				primaryPaths.sort((p1, p2) -> Double.compare(p1.getMeanRadius(), p2.getMeanRadius()));
+				primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
 				break;
 			case "Traced channel":
-				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getChannel(), p2.getChannel()));
+				primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
 				break;
 			case "Traced frame":
-				primaryPaths.sort((p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
+				primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
 				break;
 			default:
 				guiUtils.error("Not a recognized sorting option.");

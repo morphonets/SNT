@@ -120,7 +120,7 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			lutChoice)) lutChoice = luTChoices.get(0);
 		lutChoiceChanged();
 
-		List<String> mChoices = null;
+		List<String> mChoices;
 		final MutableModuleItem<String> mInput = getInfo().getMutableInput(
 			"measurementChoice", String.class);
 

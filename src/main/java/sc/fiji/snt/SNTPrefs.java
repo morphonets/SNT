@@ -220,9 +220,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	private int whithinBoundaries(final int value, final int min, final int max) {
 		if (value < min) return min;
-		if (value > max) return max;
-		return value;
-	}
+        return Math.min(value, max);
+    }
 
 	@Deprecated
 	protected void loadStartupPrefs() {

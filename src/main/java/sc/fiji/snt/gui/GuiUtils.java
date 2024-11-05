@@ -56,18 +56,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.Stack;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -639,7 +628,7 @@ public class GuiUtils {
 		return null;
 	}
 
-	public String[] getStrings(final String message, final String promptTitle, final Map<String, List<String>> choicesMap,
+	public String[] getStrings(final String promptTitle, final Map<String, List<String>> choicesMap,
 			final String... defaultChoices) {
 		final List<JComboBox<String>> fields = new ArrayList<>(choicesMap.size());
 		final JPanel panel = new JPanel(new GridBagLayout());
@@ -1008,12 +997,8 @@ public class GuiUtils {
 		fileChooser.setDialogTitle("Choose Reconstruction File(s)");
 		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
-		if (filter == null) {
-			fileChooser.addChoosableFileFilter(new FileNameExtensionFilter(
-					"Reconstruction files (.traces, .swc, .json, .ndf)", "traces", "swc", "json", "ndf"));
-		} else {
-			fileChooser.addChoosableFileFilter(filter);
-		}
+        fileChooser.addChoosableFileFilter(Objects.requireNonNullElseGet(filter, () -> new FileNameExtensionFilter(
+                "Reconstruction files (.traces, .swc, .json, .ndf)", "traces", "swc", "json", "ndf")));
 		fileChooser.setMultiSelectionEnabled(true);
 		return fileChooser;
 	}
@@ -2044,10 +2029,7 @@ public class GuiUtils {
 				final Window window = (component instanceof Window) ? (Window) component
 						: SwingUtilities.windowForComponent(component);
 				try {
-					if (window == null)
-						SwingUtilities.updateComponentTreeUI(component);
-					else
-						SwingUtilities.updateComponentTreeUI(window);
+                    SwingUtilities.updateComponentTreeUI(Objects.requireNonNullElse(window, component));
 				} catch (final Exception ex) {
 						SNTUtils.error("", ex);
 					}

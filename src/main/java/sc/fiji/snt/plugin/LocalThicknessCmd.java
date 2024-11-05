@@ -195,10 +195,9 @@ public class LocalThicknessCmd extends CommonDynamicCmd {
 	private void displayHistogram(final ImagePlus imp) { // it is assumed imp is always 32-bit
 		final float[] pixels = (float[]) imp.getProcessor().getPixels();
 		final DescriptiveStatistics da = new DescriptiveStatistics(pixels.length);
-		for (int i = 0; i < pixels.length; i++) {
-			final float value = pixels[i];
-			if (value > 0) da.addValue(value);
-		}
+        for (final float value : pixels) {
+            if (value > 0) da.addValue(value);
+        }
 
 		final long n = da.getN();
 		if (n == 0) return;

@@ -241,11 +241,11 @@ public class ShollAnalyzer {
 		}
 		final int[] allPeakIndices = MaximumFinder.findMaxima(dataToUse, Math.sqrt(variance), false);
 		final ArrayList<Integer> filteredIndices = new ArrayList<>();
-		for (int i = 0; i < allPeakIndices.length; i++) {
-			if (dataToUse[allPeakIndices[i]] < absoluteMax) {
-				filteredIndices.add(allPeakIndices[i]);
-			}
-		}
+        for (int allPeakIndex : allPeakIndices) {
+            if (dataToUse[allPeakIndex] < absoluteMax) {
+                filteredIndices.add(allPeakIndex);
+            }
+        }
 		final double[] sMaximaRadii = getValues(lStats.getXvalues(), filteredIndices);
 		final double[] sMaxima = getValues(dataToUse, filteredIndices);
 		for (int i = 0; i < filteredIndices.size(); i++) {

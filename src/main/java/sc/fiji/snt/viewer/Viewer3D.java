@@ -22,47 +22,13 @@
 
 package sc.fiji.snt.viewer;
 
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.DisplayMode;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.GraphicsConfiguration;
-import java.awt.GraphicsDevice;
-import java.awt.GraphicsEnvironment;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.RenderingHints;
-import java.awt.Toolkit;
-import java.awt.event.*;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.*;
-import java.util.Map.Entry;
-import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
-import javax.swing.*;
-import javax.swing.Timer;
-import javax.swing.border.Border;
-import javax.swing.event.PopupMenuEvent;
-import javax.swing.event.PopupMenuListener;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
-
+import com.jidesoft.swing.*;
+import com.jogamp.opengl.GLCapabilities;
+import com.jogamp.opengl.GLException;
+import com.jogamp.opengl.GLProfile;
+import ij.ImagePlus;
+import net.imagej.display.ColorTables;
+import net.imglib2.display.ColorTable;
 import org.jzy3d.bridge.awt.FrameAWT;
 import org.jzy3d.chart.AWTNativeChart;
 import org.jzy3d.chart.Chart;
@@ -72,12 +38,7 @@ import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.mouse.AWTMouseUtilities;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
-import org.jzy3d.chart.factories.AWTChartFactory;
-import org.jzy3d.chart.factories.ChartFactory;
-import org.jzy3d.chart.factories.EmulGLChartFactory;
-import org.jzy3d.chart.factories.IChartFactory;
-import org.jzy3d.chart.factories.IFrame;
-import org.jzy3d.chart.factories.OffscreenChartFactory;
+import org.jzy3d.chart.factories.*;
 import org.jzy3d.colors.Color;
 import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
@@ -89,13 +50,9 @@ import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Rectangle;
 import org.jzy3d.plot2d.primitive.AWTColorbarImageGenerator;
 import org.jzy3d.plot3d.primitives.Composite;
-import org.jzy3d.plot3d.primitives.Drawable;
-import org.jzy3d.plot3d.primitives.LineStrip;
 import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Shape;
-import org.jzy3d.plot3d.primitives.Sphere;
-import org.jzy3d.plot3d.primitives.Tube;
-import org.jzy3d.plot3d.primitives.Wireframeable;
+import org.jzy3d.plot3d.primitives.*;
 import org.jzy3d.plot3d.primitives.axis.layout.fonts.HiDPITwoFontSizesPolicy;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.ITickProvider;
 import org.jzy3d.plot3d.primitives.axis.layout.providers.RegularTickProvider;
@@ -113,12 +70,7 @@ import org.jzy3d.plot3d.rendering.legends.colorbars.AWTColorbarLegend;
 import org.jzy3d.plot3d.rendering.lights.Light;
 import org.jzy3d.plot3d.rendering.lights.LightSet;
 import org.jzy3d.plot3d.rendering.scene.Scene;
-import org.jzy3d.plot3d.rendering.view.AWTRenderer3d;
-import org.jzy3d.plot3d.rendering.view.AWTView;
-import org.jzy3d.plot3d.rendering.view.HiDPI;
-import org.jzy3d.plot3d.rendering.view.Renderer3d;
-import org.jzy3d.plot3d.rendering.view.View;
-import org.jzy3d.plot3d.rendering.view.ViewportMode;
+import org.jzy3d.plot3d.rendering.view.*;
 import org.jzy3d.plot3d.rendering.view.annotation.CameraEyeOverlayAnnotation;
 import org.jzy3d.plot3d.rendering.view.modes.CameraMode;
 import org.jzy3d.plot3d.rendering.view.modes.ViewBoundMode;
@@ -137,28 +89,11 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import org.scijava.ui.awt.AWTWindows;
-import org.scijava.util.*;
-
-import com.jidesoft.swing.CheckBoxList;
-import com.jidesoft.swing.CheckBoxListCellRenderer;
-import com.jidesoft.swing.CheckBoxListSelectionModel;
-import com.jidesoft.swing.CheckBoxTree;
-import com.jidesoft.swing.ListSearchable;
-import com.jidesoft.swing.SearchableBar;
-import com.jidesoft.swing.TreeSearchable;
-import com.jogamp.opengl.GLCapabilities;
-import com.jogamp.opengl.GLException;
-import com.jogamp.opengl.GLProfile;
-import com.jogamp.opengl.util.FPSAnimator;
-
-import ij.ImagePlus;
-import net.imagej.display.ColorTables;
-import net.imglib2.display.ColorTable;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.TreeProperties;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.ColorRGBA;
+import org.scijava.util.FileUtils;
+import org.scijava.util.PlatformUtils;
+import sc.fiji.snt.*;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeColorMapper;
@@ -168,32 +103,37 @@ import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.VFBUtils;
 import sc.fiji.snt.annotation.ZBAtlasUtils;
-import sc.fiji.snt.gui.SNTCommandFinder;
-import sc.fiji.snt.gui.DemoRunner;
-import sc.fiji.snt.gui.FileDrop;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.gui.MeasureUI;
-import sc.fiji.snt.gui.IconFactory.GLYPH;
-import sc.fiji.snt.gui.SNTSearchableBar;
-import sc.fiji.snt.gui.SaveMeasurementsCmd;
-import sc.fiji.snt.gui.ScriptRecorder;
+import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.DemoRunner.Demo;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
-import sc.fiji.snt.plugin.BrainAnnotationCmd;
-import sc.fiji.snt.plugin.ConvexHullCmd;
-import sc.fiji.snt.plugin.GroupAnalyzerCmd;
-import sc.fiji.snt.plugin.ShollAnalysisBulkTreeCmd;
-import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
-import sc.fiji.snt.plugin.StrahlerCmd;
-import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
+
+import javax.swing.Timer;
+import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
+import javax.swing.tree.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Implements SNT's Reconstruction Viewer. Relies heavily on the
@@ -496,19 +436,19 @@ public class Viewer3D {
 		case "xy":
 			view.setSquarifier(new XYSquarifier());
 			view.setSquared(true);
-			return;
+			break;
 		case "zy":
 			view.setSquarifier(new ZYSquarifier());
 			view.setSquared(true);
-			return;
+			break;
 		case "xz":
 			view.setSquarifier(new XZSquarifier());
 			view.setSquared(true);
-			return;
+			break;
 		default:
 			view.setSquarifier(null);
 			view.setSquared(false);
-			return;
+			break;
 		}
 	}
 
@@ -1341,7 +1281,7 @@ public class Viewer3D {
 			plottedTrees.get(obj).rebuildShape();
 		} else if (obj instanceof Tree) {
 			plottedTrees.values().forEach(shapeTree -> {
-				if (((Tree) obj) == shapeTree.tree) {
+				if (obj == shapeTree.tree) {
 					shapeTree.rebuildShape();
 					return;
 				}
@@ -1562,12 +1502,12 @@ public class Viewer3D {
 			});
 		}
 		if (width == 0 || height == 0) {
-			frame = new ViewerFrame((AChart)chart, managerList != null, gConfiguration);
+			frame = new ViewerFrame(chart, managerList != null, gConfiguration);
 		} else {
 			final DisplayMode dm = gConfiguration.getDevice().getDisplayMode();
 			final int w = (width < 0) ? dm.getWidth() : width;
 			final int h = (height < 0) ? dm.getHeight() : height;
-			frame = new ViewerFrame((AChart)chart, w, h, managerList != null, gConfiguration);
+			frame = new ViewerFrame(chart, w, h, managerList != null, gConfiguration);
 		}
 		updateView();
 		frame.canvas.requestFocusInWindow();
@@ -2228,7 +2168,7 @@ public class Viewer3D {
 		if (!chartExists()) {
 			throw new IllegalArgumentException("View was not initialized?");
 		}
-		((AChart) chart).setViewMode(viewMode);
+		chart.setViewMode(viewMode);
 	}
 
 	/**
@@ -2240,6 +2180,7 @@ public class Viewer3D {
 	public void setViewMode(final String viewMode) {
 		if (viewMode == null || viewMode.trim().isEmpty()) {
 			setViewMode(ViewMode.DEFAULT);
+			return;
 		}
 		final String vMode = viewMode.toLowerCase();
 		if (vMode.contains("xz") || vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
@@ -2290,7 +2231,7 @@ public class Viewer3D {
 	 * @see #setLabelLocation(float, float)
 	 */
 	public void addLabel(final String label) {
-		((AChart)chart).overlayAnnotation.label = label;
+		chart.overlayAnnotation.label = label;
 	}
 
 	/**
@@ -2300,8 +2241,8 @@ public class Viewer3D {
 	 * @param y the y position of the label
 	 */
 	public void setLabelLocation(final float x, final float y) {
-		((AChart)chart).overlayAnnotation.labelX = x;
-		((AChart)chart).overlayAnnotation.labelY = y;
+		chart.overlayAnnotation.labelX = x;
+		chart.overlayAnnotation.labelY = y;
 	}
 
 	/**
@@ -2313,8 +2254,8 @@ public class Viewer3D {
 	 * @param color the font color, e.g., {@code org.scijava.util.Colors.ORANGE}
 	 */
 	public void setFont(final Font font, final float angle, final ColorRGB color) {
-		((AChart)chart).overlayAnnotation.setFont(font, angle);
-		((AChart)chart).overlayAnnotation.setLabelColor(new java.awt.Color(color.getRed(), color
+		chart.overlayAnnotation.setFont(font, angle);
+		chart.overlayAnnotation.setLabelColor(new java.awt.Color(color.getRed(), color
 			.getGreen(), color.getBlue(), color.getAlpha()));
 	}
 
@@ -3516,11 +3457,11 @@ public class Viewer3D {
 			return res;
 		}
 		
-		String[] getPromptGradient(final String title) {
+		String[] getPromptGradient() {
 			final Map<String, List<String>> map = new LinkedHashMap<>();
 			map.put("Color gradient ", Annotation3D.COLORMAPS);
 			map.put("Gradient axis  ", List.of("X", "Y", "Z"));
-			final String[] res = getManagerPanel().guiUtils.getStrings("", "Color Gradient", map,
+			final String[] res = getManagerPanel().guiUtils.getStrings("Color Gradient", map,
 					prefs.getGuiPref("aGradient", "hotcold"), prefs.getGuiPref("aAxis", "Z"));
 			if (res != null) {
 				prefs.setGuiPref("aGradient", res[0]);
@@ -4389,12 +4330,12 @@ public class Viewer3D {
 			final int[] indices = managerList.getSelectedIndices();
 			SwingUtilities.invokeLater(() -> {
 				managerList.setValueIsAdjusting(true);
-				for (int i = 0; i < indices.length; i++) {
-					if (display)
-						managerList.addCheckBoxListSelectedIndex(indices[i]);
-					else
-						managerList.removeCheckBoxListSelectedIndex(indices[i]);
-				}
+                for (int index : indices) {
+                    if (display)
+                        managerList.addCheckBoxListSelectedIndex(index);
+                    else
+                        managerList.removeCheckBoxListSelectedIndex(index);
+                }
 				managerList.setValueIsAdjusting(false);
 			});
 
@@ -4806,7 +4747,8 @@ public class Viewer3D {
 						if (cmdModule != null && cmdModule.isCanceled()) {
 							return; // user pressed cancel or chose nothing
 						}
-						@SuppressWarnings("unchecked")
+                        assert cmdModule != null;
+                        @SuppressWarnings("unchecked")
 						final HashMap<String, ColorRGBA> colorMap = (HashMap<String, ColorRGBA>) cmdModule.getInput("colorMap");
 						@SuppressWarnings("unchecked")
 						final HashMap<String, Double> sizeMap = (HashMap<String, Double>) cmdModule.getInput("sizeMap");
@@ -5508,7 +5450,7 @@ public class Viewer3D {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
 					return;
-				final String[] res = new AnnotPrompt().getPromptGradient("Color Gradient..");
+				final String[] res = new AnnotPrompt().getPromptGradient();
 				if (res == null)
 					return;
 				final List <String> failures = new ArrayList<>();
@@ -5549,7 +5491,7 @@ public class Viewer3D {
 				}
 				final String item = TagUtils.removeAllTags((String) selectedKeys.get(0));
 				final Drawable d = getDrawableFromObject(item);
-				if (d != null && d instanceof AbstractEnlightable)
+				if (d instanceof AbstractEnlightable)
 					frame.displayLightController((AbstractEnlightable) d);
 				else {
 					guiUtils.error("Selected item does not support surface texture adjustments. "
@@ -5712,7 +5654,7 @@ public class Viewer3D {
 									String.format("Cartesian axes relabeled to %s", Arrays.toString(getAxesLabels())),
 									"Mapping of Cartesian Axes Changed");
 							if (prompt != null) // do nothing if user dismissed the dialog
-								prefs.nagUserOnAxesChanges = !prompt.booleanValue();
+								prefs.nagUserOnAxesChanges = !prompt;
 						}
 					}
 				}
@@ -6776,11 +6718,7 @@ public class Viewer3D {
 
 		Collection<Tree> trees;
 
-		public MultiTreeShapeTree(final Tree unused) {
-			super(unused);
-		}
-
-		public MultiTreeShapeTree(final Collection<Tree> trees) {
+		MultiTreeShapeTree(final Collection<Tree> trees) {
 			super(new Tree());
 			this.trees = trees;
 			trees.forEach(t -> tree.list().addAll(t.list()));
@@ -6795,12 +6733,12 @@ public class Viewer3D {
 		private static final int AXON = Path.SWC_AXON;
 		private static final int ANY = -1;
 
-		protected final Tree tree;
+		final Tree tree;
 		private Shape treeSubShape;
 		private Wireframeable somaSubShape;
 		private Coord3d translationReset;
 
-		public ShapeTree(final Tree tree) {
+		ShapeTree(final Tree tree) {
 			super();
 			this.tree = tree;
 			translationReset = new Coord3d(0f,0f,0f);
@@ -6818,26 +6756,26 @@ public class Viewer3D {
 			super.setDisplayed(displayed);
 		}
 
-		public void setSomaDisplayed(final boolean displayed) {
+		void setSomaDisplayed(final boolean displayed) {
 			if (somaSubShape != null) somaSubShape.setDisplayed(displayed);
 		}
 
-		public void setArborDisplayed(final boolean displayed) {
+		void setArborDisplayed(final boolean displayed) {
 			if (treeSubShape != null) treeSubShape.setDisplayed(displayed);
 		}
 
-		public Shape get() {
+		Shape get() {
 			if (components == null || components.isEmpty()) assembleShape();
 			return this;
 		}
 
-		public void translateTo(final Coord3d destination) {
+		void translateTo(final Coord3d destination) {
 			final Transform tTransform = new Transform(new Translate(destination));
 			get().applyGeometryTransform(tTransform);
 			translationReset.subSelf(destination);
 		}
 
-		public void resetTranslation() {
+		void resetTranslation() {
 			translateTo(translationReset);
 			translationReset = new Coord3d(0f, 0f, 0f);
 		}
@@ -6967,14 +6905,14 @@ public class Viewer3D {
 			return s;
 		}
 
-		public void rebuildShape() {
+		void rebuildShape() {
 			if (isDisplayed()) {
 				clear();
 				assembleShape();
 			}
 		}
 
-		public void setSomaRadius(final float radius) {
+		void setSomaRadius(final float radius) {
 			if (somaSubShape != null && somaSubShape instanceof Sphere)
 				((Sphere)somaSubShape).setVolume(radius);
 		}
@@ -7032,11 +6970,11 @@ public class Viewer3D {
 			if (somaSubShape != null) somaSubShape.setWireframeColor(color);
 		}
 
-		public void setSomaColor(final ColorRGB color) {
+		void setSomaColor(final ColorRGB color) {
 			setSomaColor(fromColorRGB(color));
 		}
 
-		public double[] colorize(final String measurement,
+		double[] colorize(final String measurement,
 			final ColorTable colorTable)
 		{
 			final TreeColorMapper colorizer = new TreeColorMapper();
@@ -7122,7 +7060,7 @@ public class Viewer3D {
 
 		@Override
 		protected void done() {
-			boolean status = false;
+			boolean status;
 			try {
 				status = get();
 				if (status) {
@@ -7720,26 +7658,14 @@ public class Viewer3D {
 
 	private class OverlayAnnotation extends CameraEyeOverlayAnnotation {
 
-		private FPSAnimator joglAnimator;
 		private String label;
 		private Font labelFont;
 		private java.awt.Color labelColor;
 		private float labelX = 2;
 		private float labelY = 0;
-//		private CubeComposite axisBox;
 
 		private OverlayAnnotation(final View view) {
 			super(view);
-			if (ENGINE == Engine.JOGL) {
-				try {
-					// this requires requires jzy v2.0.1
-					// FIXME: joglAnimator = (FPSAnimator) chart.getCanvas().getAnimation().getAnimator();
-				} catch (final Exception ignored) {
-					// do nothing
-				}
-			}
-//			axisBox = new CubeComposite(view.getSpaceTransformer().compute(view.getBounds()),
-//					view.getAxis().getLayout().getGridColor(), view.getAxis().getLayout().getMainColor());
 		}
 
 		private void setFont(final Font font, final float angle) {
@@ -7777,9 +7703,6 @@ public class Viewer3D {
 //				g2d.drawString("Up Z: " + view.getCamera().getUp().z, 20, lineHeight * lineNo++);
 //				g2d.drawString("Axe:" + view.getAxis().getBounds().toString(), 20, lineHeight * lineNo++);
 //				g2d.drawString("Transformed axe: " + axisBox.getBounds().toString(), 20, lineHeight * lineNo++);
-				if (joglAnimator != null) {
-					g2d.drawString(joglAnimator.getLastFPS() + " FPS", 20, lineHeight * lineNo);
-				}
 
 			}
 			if (label == null || label.isEmpty()) return;
@@ -7869,7 +7792,7 @@ public class Viewer3D {
 			// HACK: the scene does not seem to update when light is removed,
 			// so we'll try our best to restore things to pre-prompt state
 			try {
-				Light light = chart.getScene().getLightSet().get(0);
+				final Light light = chart.getScene().getLightSet().get(0);
 				light.setSpecularColor(existingSpecularColor);
 				chart.getView().setBackgroundColor(existingSpecularColor);
 				light.setEnabled(false);
@@ -7878,7 +7801,6 @@ public class Viewer3D {
 				light.setSpecularColor(null);
 				chart.render();
 				chart.getScene().remove(light);
-				light = null;
 				chart.getScene().setLightSet(new LightSet());
 				chart.render();
 			} catch (final IndexOutOfBoundsException | NullPointerException ignored) {

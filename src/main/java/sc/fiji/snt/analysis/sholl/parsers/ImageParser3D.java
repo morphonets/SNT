@@ -207,18 +207,17 @@ public class ImageParser3D extends ImageParser {
 		neighbors[4] = new int[] { x, y, z + 1 };
 		neighbors[5] = new int[] { x, y, z - 1 };
 
-		for (int i = 0; i < neighbors.length; i++) {
-			try {
-				if (!withinBounds(neighbors[i][0], neighbors[i][1], neighbors[i][2]))
-					return false;
-				if (withinThreshold(stack.getVoxel(neighbors[i][0], neighbors[i][1], neighbors[i][2])))
-					return true;
-			} catch (final IndexOutOfBoundsException ignored) { // Edge voxel?
-																// Neighborhood
-																// unknown.
-				return false;
-			}
-		}
+        for (int[] neighbor : neighbors) {
+            try {
+                if (!withinBounds(neighbor[0], neighbor[1], neighbor[2]))
+                    return false;
+                if (withinThreshold(stack.getVoxel(neighbor[0], neighbor[1], neighbor[2])))
+                    return true;
+            } catch (final IndexOutOfBoundsException ignored) { // Edge voxel?
+                // Neighborhood unknown.
+                return false;
+            }
+        }
 		return false;
 
 	}

@@ -314,11 +314,11 @@ public class TreeParser implements Parser {
 			}
 		}
 		else { // Continuous sampling
-			for (int i = 0; i < squaredRangeStarts.length; ++i) {
-				final double x = Math.sqrt(squaredRangeStarts[i]);
-				final double y = crossingsAtDistanceSquared(squaredRangeStarts[i]);
-				profile.add(new ProfileEntry(x, y, null));
-			}
+            for (double squaredRangeStart : squaredRangeStarts) {
+                final double x = Math.sqrt(squaredRangeStart);
+                final double y = crossingsAtDistanceSquared(squaredRangeStart);
+                profile.add(new ProfileEntry(x, y, null));
+            }
 		}
 
 	}

@@ -21,7 +21,6 @@
  */
 package sc.fiji.snt.util;
 
-import java.util.Iterator;
 import java.util.Set;
 
 import ij.measure.Calibration;
@@ -69,12 +68,11 @@ public class ShollPoint extends PointInImage {
 	}
 
 	public static void scale(final Set<ShollPoint> set, final Calibration cal) {
-		for (final Iterator<ShollPoint> it = set.iterator(); it.hasNext();) {
-			final ShollPoint point = it.next();
-			point.x = cal.getX(point.x);
-			point.y = cal.getY(point.y);
-			point.z = cal.getZ(point.z);
-		}
+        for (final ShollPoint point : set) {
+            point.x = cal.getX(point.x);
+            point.y = cal.getY(point.y);
+            point.z = cal.getZ(point.z);
+        }
 	}
 
 	public static ShollPoint fromString(final String string) {

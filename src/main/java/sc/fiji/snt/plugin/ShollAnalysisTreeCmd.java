@@ -926,11 +926,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				helper.error("Image is not available. Cannot preview overlays.",
 					"Image Not Available");
 				previewShells = false;
+				return;
 			}
 			if (centerUnscaled == null) {
 				helper.error("Center position unknown. Cannot preview overlays.",
 					"Center Not Available");
 				previewShells = false;
+				return;
 			}
 			try {
 				final double unscaledStepSize = adjustedStepSize() / snt

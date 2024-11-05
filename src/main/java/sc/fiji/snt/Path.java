@@ -1655,7 +1655,7 @@ public class Path implements Comparable<Path> {
 	 * @see PointInImage#v
 	 */
 	public double getNodeValue(final int pos) {
-		return (nodeValues == null) ? null : nodeValues[pos];
+		return (nodeValues == null) ? Double.NaN : nodeValues[pos];
 	}
 
 	/**

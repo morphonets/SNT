@@ -108,7 +108,7 @@ public class ShollPlot extends Plot {
 	public ShollPlot(final Profile... profiles) {
 		super("Combined Sholl Plot", "Distance", "No. Intersections");
 		final Color[] colors = uniqueColors(profiles.length);
-		final StringBuffer legend = new StringBuffer();
+		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < profiles.length; i++) {
 			final Profile p = profiles[i];
 			setColor(colors[i]);
@@ -188,7 +188,7 @@ public class ShollPlot extends Plot {
 
 		// Append finalized legend
 		final int flagPos = (annotate) ? AUTO_POSITION | LEGEND_TRANSPARENT : 0;
-		final StringBuffer finalLegend = new StringBuffer("Sampled data\n");
+		final StringBuilder finalLegend = new StringBuilder("Sampled data\n");
 		finalLegend.append(tempLegend);
 		setLineWidth(1);
 		setColor(Color.WHITE);
@@ -455,13 +455,13 @@ public class ShollPlot extends Plot {
 		int maxLength = 0;
 		String maxLine = "";
 		final String[] lines = Tools.split(label, "\n");
-		for (int i = 0; i < lines.length; i++) {
-			final int length = lines[i].length();
-			if (length > maxLength) {
-				maxLength = length;
-				maxLine = lines[i];
-			}
-		}
+        for (final String line : lines) {
+            final int length = line.length();
+            if (length > maxLength) {
+                maxLength = length;
+                maxLine = line;
+            }
+        }
 
 		final Font font = new Font("Helvetica", Font.PLAIN, PlotWindow.fontSize);
 		ip.setFont(font);
