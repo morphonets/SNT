@@ -106,13 +106,13 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * Paths can be tagged, searched, grouped and filtered by morphometric properties (length, radius, etc.)
 
-* Paths can be edited, i.e., a path can be linked or merged together, or split into two. Nodes can be moved, deleted, or inserted
+* Paths can be edited, i.e., linked, merged, or split. Nodes can be moved, deleted, or inserted
 
 * Post-hoc refinement of node positioning and radii by 'fitting' traces to the fluorescent signal associated with a path
   
 ### Analysis
 
-* Extensive repertoire of metrics, namely those provided by [L-measure](http://cng.gmu.edu:8080/Lm/help/index.htm) and [NeuroM](https://github.com/BlueBrain/NeuroM). Metrics can be collected from groups of cells, single cells, or parts thereof
+* Extensive repertoire of [metrics](https://imagej.net/plugins/snt/metrics). Metrics can be collected from groups of cells, single cells, or parts thereof
 
 * Analysis based on neuropil annotations for whole-brain data such as [MouseLight](https://ml-neuronbrowser.janelia.org/)
 
@@ -129,6 +129,8 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 * [Sholl](./NOTES.md) and Horton-Strahler analyses
 
 * Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around (or across) traced paths
+
+* Labkit and TWS integration ([Semantic Segmentation](https://imagej.net/plugins/snt/machine-learning))
   
 ### Visualization
 
@@ -207,11 +209,13 @@ Use this button to open the project on the cloud using [Gitpod](https://gitpod.i
 
 3. Wait for all the dependencies to be downloaded, and locate the [StartImageJAndSNTDemo](./src/test/java/sc/fiji/snt/demo/StartImageJAndSNTDemo.java) class in the tests folder.
 
-4. Java 21 is recommended to run SNT, so you should specify it as the project JDK. However using Java17+ or newer requires the following VM arguments to be specified: `--add-opens java.base/java.lang=ALL-UNNAMED`. To do so:
+4. Java 21 is recommended to run SNT, so you should specify it as the project JDK. However using Java17+ or newer **requires the following VM arguments to be specified:** `--add-opens java.base/java.lang=ALL-UNNAMED`. To do so:
    - In Eclipse: Run -> Run Configurations..., Arguments tab
    - In IntelliJ: Run -> Edit Configurations..., Add VM Options (Alt+V)
 
-5. Run `SciviewSNTDemo.main()`
+![image](https://github.com/user-attachments/assets/1679e954-dc89-4061-bfa2-b4a10da4f0da)
+
+5. Run [StartImageJAndSNTDemo.main()](./src/test/java/sc/fiji/snt/demo/StartImageJAndSNTDemo.java)
 
 ### Useful Resources to Start Hacking SNT
 
