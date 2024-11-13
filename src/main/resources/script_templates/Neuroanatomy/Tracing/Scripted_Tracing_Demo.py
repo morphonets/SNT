@@ -50,7 +50,7 @@ def run():
             new_tree.add(child)
 
         # The demo tree is tiny: Add a delay to better monitor progress
-        time.sleep(0.1)
+        time.sleep(0.2)
 
 
     #snt.dispose()

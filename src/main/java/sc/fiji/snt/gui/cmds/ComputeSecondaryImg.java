@@ -510,7 +510,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		filteredImg = out;
 		if (ui != null && ui.getRecorder(false) != null) {
 			ui.getRecorder(false).recordCmd(
-					"snt.getUI().runSecondaryLayerWizard(\"" + filter + "\", \"" + Arrays.toString(sigmas) + "\")");
+					"snt.getUI().runSecondaryLayerWizard(\"" + filter + "\", " + Arrays.toString(sigmas) + ")");
 		}
 		apply();
 	}

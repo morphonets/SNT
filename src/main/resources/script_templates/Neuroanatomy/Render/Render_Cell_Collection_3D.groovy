@@ -41,7 +41,7 @@ colorMapper = new MultiTreeColorMapper(trees)
 colorMapper.map(mapMetric, colorTable)
 
 // Initialize a non-interactive Reconstruction Viewer
-viewer = (trees.size > 100) ? new Viewer3D() : new Viewer3D(ij.context())
+viewer = (trees.size() > 100) ? new Viewer3D() : new Viewer3D(ij.context())
 
 // Add all trees to scene
 println("Adding all reconstructions to viewer...")

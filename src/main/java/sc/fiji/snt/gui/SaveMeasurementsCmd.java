@@ -201,7 +201,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		// set SciJavaTables
 		for (int i = 0; i < nSciTables; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("sciTable" + (i + 1), Boolean.class);
-			input.setLabel(getTableLabel(sciTables.get(i)));
+			input.setLabel(truncateLabel(getTableLabel(sciTables.get(i))));
 			input.setDescription("SciJava table. Will be saved with a .CSV extension independently of chosen delimiter");
 			input.setValue(this, true);
 		}
@@ -213,7 +213,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		// set IJ1 tables
 		for (int i = 0; i < nIJ1Tables; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("ij1Table" + (i + 1), Boolean.class);
-			input.setLabel(ij1Tables.get(i).title);
+			input.setLabel(truncateLabel(ij1Tables.get(i).title));
 			input.setDescription("ImageJ1 table. Will be saved with a .CSV or .TSV extension");
 			input.setValue(this, true);
 		}
@@ -225,7 +225,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		// set SNTCharts
 		for (int i = 0; i < nSNTCharts; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("sntChart" + (i + 1), Boolean.class);
-			input.setLabel(sntCharts.get(i).getTitle());
+			input.setLabel(truncateLabel(sntCharts.get(i).getTitle()));
 			input.setDescription("SNTChart: Will be saved as PNG. Right-click on chart for other saving options");
 			input.setValue(this, true);
 		}
@@ -237,7 +237,7 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 		// set PlotWindows
 		for (int i = 0; i < nIJ1Plots; i++) {
 			final MutableModuleItem<Boolean> input = getInfo().getMutableInput("plotWin" + (i + 1), Boolean.class);
-			input.setLabel(ij1Plots.get(i).getTitle());
+			input.setLabel(truncateLabel(ij1Plots.get(i).getTitle()));
 			input.setDescription("ImageJ Plot: Will be saved as TIFF");
 			input.setValue(this, true);
 		}
@@ -276,6 +276,12 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
 			outputFile = snt.getPrefs().getRecentDir();
 		if (outputFile.isFile())
 			outputFile = outputFile.getParentFile();
+	}
+
+	private String truncateLabel(final String label) {
+		if (label != null && label.length() > 80)
+			return label.substring(0, 78) + "...";
+		return label;
 	}
 
 	private List<IJ1Table> getIJ1Tables() {

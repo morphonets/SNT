@@ -76,7 +76,7 @@ def run():
     plugin.enableAstar(False)
     sx = imp.getCalibration().getX(imp.getWidth()) / 2
     sy = imp.getCalibration().getY(imp.getHeight()) / 2
-    z = imp.getCalibration().getZ(imp.getZ() - 1)  # 1-based index
+    z = 1 if imp.getNSlices() == 1 else imp.getCalibration().getZ(imp.getZ() - 1)  # 1-based index
 
     # Define a Tree (a collection of Paths) to hold all the paths we'll create
     tree = Tree()
@@ -114,8 +114,8 @@ def run():
     tree_stats = TreeStatistics(tree)
     tree_stats.setContext(context)
     s_stats = tree_stats.getSummaryStats("length")
+    print("The mean length is: %s" % s_stats.getMean())
     print("The length variance is: %s" % s_stats.getVariance())
-    print("... The sum of logs is: %s" % s_stats.getSumOfLogs())
 
     # Let's also append some data to SNT's table
     table = snt.getTable()

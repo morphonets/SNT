@@ -39,7 +39,7 @@ def run():
 
     try:
         # Retrieve 'snapshot'
-        snap = snt.captureView(view, mip)
+        snap = snt.getInstance().captureView(view, mip)
  
         # Restore offsets, display 'snapshot' and add a scale bar to it
         if offset != 0:

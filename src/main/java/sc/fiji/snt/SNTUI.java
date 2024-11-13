@@ -3469,7 +3469,7 @@ public class SNTUI extends JDialog {
 		if (plugin.getPrefs().getTemp("autotracing-prompt-armed", true)) {
 			final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
 			boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
-			if (plugin.accessToValidImageData() && plugin.getImagePlus().getProcessor().isBinary()) {
+			if (plugin.accessToValidImageData() && plugin.getImagePlus().isVisible() && plugin.getImagePlus().getProcessor().isBinary()) {
 				if (nag) {
 					final boolean[] options = guiUtils.getPersistentConfirmation(
 							"Image is eligible for fully automated reconstruction. Would you like to attempt it now?",

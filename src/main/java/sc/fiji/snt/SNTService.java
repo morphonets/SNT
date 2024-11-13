@@ -27,6 +27,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -152,7 +153,7 @@ public class SNTService extends AbstractService {
 	 * @param startUI   Whether SNT's UI should also be initialized;
 	 * @return the SNT instance.
 	 */
-	public SNT initialize(final String imagePath, final boolean startUI) {
+	public SNT initialize(final String imagePath, final boolean startUI) throws InterruptedException, InvocationTargetException {
 		if ("demo".equalsIgnoreCase(imagePath)) { // legacy
 			return initialize(demoImage("fractal"), startUI);
 		}
@@ -172,7 +173,7 @@ public class SNTService extends AbstractService {
 	 * @param startUI Whether SNT's UI should also be initialized;
 	 * @return the SNT instance.
 	 */
-	public SNT initialize(final ImagePlus imp, final boolean startUI) {
+	public SNT initialize(final ImagePlus imp, final boolean startUI) throws InterruptedException, InvocationTargetException {
 		final boolean noInstance = plugin == null;
 		if (noInstance)
 			plugin = new SNT(getContext(), imp);
@@ -186,7 +187,8 @@ public class SNTService extends AbstractService {
 		} else {
 			plugin.initialize(imp);
 		}
-		if (startUI && plugin.getUI() == null) plugin.startUI();
+		if (startUI && plugin.getUI() == null)
+			javax.swing.SwingUtilities.invokeAndWait(() -> plugin.startUI());
 		return plugin;
 	}
 

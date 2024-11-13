@@ -88,6 +88,15 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 	}
 
 	/**
+	 * Gets the list of all supported mapping metrics.
+	 *
+	 * @return the list of mapping metrics.
+	 */
+	public static List<String> getMetrics() {
+		return getMetrics("all");
+	}
+
+	/**
 	 * Gets the list of supported mapping metrics.
 	 * @param type Either 'all' (MultiTreeColorMapper and TreeColorMapper metrics) or 'default' (MultiTreeColorMapper only)
 	 * @return the list of mapping metrics.

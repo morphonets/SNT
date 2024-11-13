@@ -5,12 +5,13 @@
 """
 file:       Fully_Automated_Tracing_Demo_(Interactive).py
 author:     Tiago Ferreira
-version:    20231214
+version:    20241115
 info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform automated (unsupervised) tracing
 """
 
 from sc.fiji.snt.analysis import SkeletonConverter
+from ij.gui import Roi
 
 def run():
 
@@ -36,7 +37,7 @@ def run():
     # dataset using File > Load Demo Dataset... and obtain the histogram of all its
     # radii. Here we'll use Q1, Q2, and Q3 of the distribution (NB. We could also
     # use the Estimate Radii (Local Thickness).. command directly on the image)
-    snt.getUI().runSecondaryLayerWizard("Frangi Vesselness", [0.56, 0.74, 0.98])
+    snt.getUI().runSecondaryLayerWizard("Frangi Vesselness (Multi-scale filter)", [0.56, 0.74, 0.98])
 
     # the SkeletonConverter class is the workhorse class for the conversion. We'll
     # use it to skeletonize the Frangi image, thresholding out the voxels with
@@ -46,24 +47,25 @@ def run():
     filtered_img = snt.getPlugin().getSecondaryDataAsImp()
     #filtered_img.duplicate().show() # display copy
     SkeletonConverter.skeletonize(filtered_img, 0.005, 1, True)
-
-    # Now we place a rectangle over the base of the OP neuron, to inform the
-    # algorithm that that area contains the root of the arbor
-    filtered_img.setRoi(10, 410, 45, 45)
     #filtered_img.show() # display skeletonized image
 
     # We can now initialize the converter and specify some tweaks:
     converter = SkeletonConverter(filtered_img)
     converter.setPruneByLength(False) # Discard smaller disconnected branches?
-    #converter.setLengthThreshold(10) # 10um
+    converter.setLengthThreshold(1) # Discard only branches smaller than 1um
     converter.setConnectComponents(True) # Attempt to bridge gaps in the structure?
-    converter.setMaxConnectDist(20) # Attempt only if gap is smaller than 20um
+    converter.setMaxConnectDist(10) # Attempt only if gap is smaller than 10um
+
+    # We now need to specify the root of the cell using an ROI. We'll use a
+    # rectangle at the base of the OP neuron:
+    roi = Roi(10, 410, 45, 45)
+    roi.setPosition(1) # assign ROI to first Z-slice
+    converter.setRootRoi(roi, converter.ROI_CONTAINED)
 
     # Lastly, extract the result and add it to SNT. Since 1) the image may not be
     # contiguous, and 2) loops may exist, the result may not be a single Tree, but
     # a list of Trees (some may have only a single branch or even a single node)
-    trees = converter.getTrees(filtered_img.getRoi(), False) # Root roi, 2D ROI?
-    for tree in trees:
+    for tree in converter.getTrees():
         snt.loadTree(tree)
     snt.getUI().getPathManager().runCommand("Assign Distinct Colors")
     snt.updateViewers()

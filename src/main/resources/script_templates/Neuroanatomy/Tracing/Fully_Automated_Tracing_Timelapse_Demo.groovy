@@ -55,9 +55,6 @@ imp = snt.getImagePlus()
 
 }
 
-// Path extraction concluded. Let's animate the timelapse..
-IJ.doCommand(imp, "Start Animation [\\]")
-
 // .. Ensuring only frame-relevant tracings are displayed during the animation.
 // We can also increase the display thickeness of paths for better contrast.
 // We can use direct calls from SNT's Script Recorder to toggle the visibility
@@ -73,3 +70,5 @@ snt.getUI().getPathManager().applyDefaultTags("Traced Frame")
 snt.getUI().getPathManager().runCommand("Match Paths Across Time...")
 
 println("Done. You should now be able to obtain time profiles for common metrics.")
+// Path extraction concluded. Let's animate the timelapse..
+IJ.run(imp, "Animation Options...", "speed=6 first=1 last=4 loop start")

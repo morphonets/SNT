@@ -23,9 +23,7 @@
 package sc.fiji.snt.plugin;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import javax.swing.SwingUtilities;
 
@@ -47,7 +45,6 @@ import net.imagej.display.ColorTables;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.GroupedTreeStatistics;
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
-import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
@@ -134,6 +131,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 	@SuppressWarnings("unused")
 	private void init() {
 		final List<String> mChoices = TreeStatistics.getMetrics("common");
+		mChoices.sort(Comparator.naturalOrder());
 		mChoices.add(0, "None. Skip measurements");
 		final MutableModuleItem<String> mInput = getInfo().getMutableInput("metric", String.class);
 		mInput.setChoices(mChoices);
@@ -160,7 +158,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		noMetrics = metric != null && metric.startsWith("None");
 		if (noMetrics || !isMetricMappable(metric)) {
 			GuiUtils.errorPrompt("This option is only available when a mappable metric is specified (e.g., '"
-					+ MultiTreeStatistics.LENGTH + "').");
+					+ MultiTreeColorMapper.N_BRANCHES + "').");
 			displayInMultiViewer = false;
 		}
 	}
