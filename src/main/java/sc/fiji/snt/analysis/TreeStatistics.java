@@ -410,25 +410,10 @@ public class TreeStatistics extends ContextCommand {
                         SURFACE_AREA, STRAHLER_NUMBER, TERMINAL_LENGTH, VALUES, VOLUME, X_COORDINATES, Y_COORDINATES, Z_COORDINATES};
                 break;
             case "quick":
-                /* NB: This list can only include metrics supported by #getMetricWithoutChecks() */
-                metrics = new String[]{ //
-                        LENGTH, MultiTreeStatistics.AVG_BRANCH_LENGTH, N_BRANCH_POINTS, N_TIPS, N_BRANCHES, //
-                        N_PRIMARY_BRANCHES, N_TERMINAL_BRANCHES, //
-                        PATH_MEAN_RADIUS, //
-                        AVG_SPINE_DENSITY, //
-                        STRAHLER_NUMBER, MultiTreeStatistics.HIGHEST_PATH_ORDER,
-                        /* Disabled metrics (likely too specific or uncommon for most users) */
-                        // MultiTreeStatistics.ASSIGNED_VALUE, MultiTreeStatistics.AVG_CONTRACTION,
-                        // MultiTreeStatistics.AVG_FRACTAL_DIMENSION,
-                        // MultiTreeStatistics.AVG_FRAGMENTATION,
-                        // MultiTreeStatistics.AVG_REMOTE_ANGLE,
-                        // MultiTreeStatistics.AVG_PARTITION_ASYMMETRY,
-                        // PRIMARY_LENGTH, INNER_LENGTH, TERMINAL_LENGTH,
-                        // N_INNER_BRANCHES,
-                        // N_FITTED_PATHS, N_PATHS, N_NODES,
-                        // WIDTH, HEIGHT, DEPTH,
-                        // SHOLL_DECAY, SHOLL_MAX_VALUE,
-                };
+                metrics = new String[] { // Excludes metrics expected to be too specific or uncommon for most users
+                        LENGTH, BRANCH_LENGTH, N_BRANCH_POINTS, N_TIPS, N_BRANCHES, //
+                        N_PRIMARY_BRANCHES, N_TERMINAL_BRANCHES, PATH_MEAN_RADIUS, //
+                        PATH_SPINE_DENSITY, STRAHLER_NUMBER, PATH_ORDER};
                 break;
             default:
                 throw new IllegalArgumentException("Unrecognized type");
@@ -667,17 +652,12 @@ public class TreeStatistics extends ContextCommand {
      * @see #setExactMetricMatch(boolean)
      */
     public Number getMetric(final String metric) throws UnknownMetricException {
-        return getMetricWithoutChecks(getNormalizedMeasurement(metric));
-    }
-
-    protected Number getMetricWithoutChecks(final String metric) throws UnknownMetricException {
         switch (metric) {
             case MultiTreeStatistics.ASSIGNED_VALUE:
                 return tree.getAssignedValue();
             case MultiTreeStatistics.AVG_BRANCH_LENGTH:
                 return getAvgBranchLength();
             case MultiTreeStatistics.AVG_CONTRACTION:
-            case BRANCH_CONTRACTION:
                 return getAvgContraction();
             case MultiTreeStatistics.AVG_FRAGMENTATION:
                 return getAvgFragmentation();
@@ -688,18 +668,14 @@ public class TreeStatistics extends ContextCommand {
             case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
                 return getAvgFractalDimension();
             case MultiTreeStatistics.PRIMARY_LENGTH:
-            case PRIMARY_LENGTH:
                 return getPrimaryLength();
             case MultiTreeStatistics.TERMINAL_LENGTH:
-            case TERMINAL_LENGTH:
                 return getTerminalLength();
             case MultiTreeStatistics.INNER_LENGTH:
-            case INNER_LENGTH:
                 return getInnerLength();
             case MultiTreeStatistics.HIGHEST_PATH_ORDER:
                 return getHighestPathOrder();
             case AVG_SPINE_DENSITY:
-            case PATH_SPINE_DENSITY:
                 return getSpineOrVaricosityDensity();
             case DEPTH:
                 return getDepth();
@@ -1246,28 +1222,28 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(p.getContraction());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_EXTENSION_ANGLE_XY:
                 try {
                     getBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_EXTENSION_ANGLE_XZ:
                 try {
                     getBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_EXTENSION_ANGLE_ZY:
                 try {
                     getBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_FRACTAL_DIMENSION:
@@ -1275,7 +1251,7 @@ public class TreeStatistics extends ContextCommand {
                     getFractalDimension().forEach(stat::addValue);
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_LENGTH:
@@ -1284,7 +1260,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(p.getLength());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_MEAN_RADIUS:
@@ -1293,7 +1269,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(p.getMeanRadius());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_SURFACE_AREA:
@@ -1302,7 +1278,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(p.getApproximatedSurface());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case BRANCH_VOLUME:
@@ -1311,7 +1287,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(p.getApproximatedVolume());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case COMPLEXITY_INDEX_ACI:
@@ -1339,7 +1315,7 @@ public class TreeStatistics extends ContextCommand {
                     stat.addValue((sumBranchTipOrders + graphTips.size()) * getCableLength() / getPrimaryBranches().size());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case CONVEX_HULL_BOUNDARY_SIZE:
@@ -1351,7 +1327,7 @@ public class TreeStatistics extends ContextCommand {
                 break;
             case CONVEX_HULL_CENTROID_ROOT_DISTANCE:
                 final PointInImage root = tree.getRoot();
-                if (root == null) stat.addValue(Double.NaN);
+                if (root == null) stat.addNaN();
                 else stat.addValue(getConvexAnalyzer().getCentroid().distanceTo(root));
                 break;
             case DEPTH:
@@ -1361,28 +1337,28 @@ public class TreeStatistics extends ContextCommand {
                 try {
                     stat.addValue(tree.getGraph().getLongestPath(true).getLength());
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case GRAPH_DIAMETER_ANGLE_XY:
                 try {
                     stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXY(false));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case GRAPH_DIAMETER_ANGLE_XZ:
                 try {
                     stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXZ(false));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case GRAPH_DIAMETER_ANGLE_ZY:
                 try {
                     stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleZY(false));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case HEIGHT:
@@ -1392,28 +1368,28 @@ public class TreeStatistics extends ContextCommand {
                 try {
                     getInnerBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case INNER_EXTENSION_ANGLE_XZ:
                 try {
                     getInnerBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case INNER_EXTENSION_ANGLE_ZY:
                 try {
                     getInnerBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case INNER_LENGTH:
                 try {
                     getInnerBranches().forEach(b -> stat.addValue(b.getLength()));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case INTER_NODE_ANGLE:
@@ -1447,7 +1423,7 @@ public class TreeStatistics extends ContextCommand {
                 try {
                     getBranches().forEach(b -> stat.addValue(b.size()));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case N_BRANCH_POINTS:
@@ -1496,7 +1472,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(asymmetry);
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case PATH_CHANNEL:
@@ -1510,7 +1486,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(p.getContraction());
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case PATH_EXT_ANGLE_XY:
@@ -1572,21 +1548,21 @@ public class TreeStatistics extends ContextCommand {
                 try {
                     getPrimaryBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case PRIMARY_EXTENSION_ANGLE_XZ:
                 try {
                     getPrimaryBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case PRIMARY_EXTENSION_ANGLE_ZY:
                 try {
                     getPrimaryBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case PRIMARY_LENGTH:
@@ -1599,7 +1575,7 @@ public class TreeStatistics extends ContextCommand {
                         stat.addValue(angle);
                 } catch (final IllegalArgumentException iae) {
                     SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case SHOLL_DECAY:
@@ -1629,21 +1605,21 @@ public class TreeStatistics extends ContextCommand {
                 try {
                     getTerminalBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case TERMINAL_EXTENSION_ANGLE_XZ:
                 try {
                     getTerminalBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case TERMINAL_EXTENSION_ANGLE_ZY:
                 try {
                     getTerminalBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
                 } catch (final IllegalArgumentException ignored) {
-                    stat.addValue(Double.NaN);
+                    stat.addNaN();
                 }
                 break;
             case TERMINAL_LENGTH:
@@ -2582,7 +2558,13 @@ public class TreeStatistics extends ContextCommand {
             this.dStatistics = dStatistics;
         }
 
+        void addNaN() {
+            if (sStatistics != null) sStatistics.addValue(Double.NaN);
+            else dStatistics.addValue(Double.NaN);
+        }
+    
         void addValue(final double value) {
+            if (Double.isNaN(value)) return;
             if (sStatistics != null) sStatistics.addValue(value);
             else dStatistics.addValue(value);
         }
