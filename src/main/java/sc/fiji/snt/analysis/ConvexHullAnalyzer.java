@@ -103,7 +103,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		if (isComputable()) {
 			initHull();
 			metrics.put(BOUNDARY_SIZE, hull.boundarySize());
-			metrics.put(BOXIVITY, (tree.is3D()) ? Double.NaN : computeBoxivity(hull));
+			metrics.put(BOXIVITY, computeBoxivity(hull));
 			metrics.put(ELONGATION, computeElongation(hull));
 			metrics.put(ROUNDNESS, computeRoundness(hull));
 			metrics.put(SIZE, hull.size());
@@ -185,13 +185,18 @@ public class ConvexHullAnalyzer extends ContextCommand {
 			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}
 
-	protected double computeBoxivity(final AbstractConvexHull hull) { // FIXME this does not work in 3D??
-		if (hull instanceof ConvexHull3D)
-			return opService.geom().boxivity(((ConvexHull3D) hull).getMesh()).getRealDouble();
-		else if (hull instanceof ConvexHull2D)
-			return opService.geom().boxivity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
-		else
-			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
+	protected double computeBoxivity(final AbstractConvexHull hull) {
+		try {
+			if (hull instanceof ConvexHull3D)
+				return opService.geom().boxivity(((ConvexHull3D) hull).getMesh()).getRealDouble();
+			else if (hull instanceof ConvexHull2D)
+				return opService.geom().boxivity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
+		} catch (final IllegalArgumentException iae) {
+			// BUG:  No matching 'net.imagej.ops.Ops$Geometric$SmallestEnclosingBoundingBox/net.imagej.ops.special.function.UnaryFunctionOp' op
+			iae.printStackTrace();
+			return Double.NaN;
+		}
+		throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}
 
 	protected RealLocalizable computeCentroid(final AbstractConvexHull hull) {
@@ -241,6 +246,16 @@ public class ConvexHullAnalyzer extends ContextCommand {
 
 	public Tree getTree() {
 		return tree;
+	}
+
+	/**
+	 * Returns the physical unit associated with the specified metric.
+	 * @param metric the supported metric to be queried (case-sensitive)
+	 * @return physical unit
+	 * @see #supportedMetrics()
+	 */
+	public String getUnit(final String metric) {
+		return new TreeStatistics(tree).getUnit(metric);
 	}
 
 	public static void main(final String[] args) throws InterruptedException {

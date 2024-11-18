@@ -720,6 +720,10 @@ public class MeasureUI extends JFrame {
 				}
 				final String unit = tStats.getUnit(metric);
 				final String metricHeader = (unit.length() > 1) ? metric + " (" + unit + ")" : metric;
+				if (summaryStatistics.getN() < 1) {
+					table.set(metricHeader, tree.getLabel(), "Err");
+					continue;
+				}
 				if (summaryStatistics.getN() == 1 ) {
 					table.set(metricHeader + " [Single value]", tree.getLabel(), summaryStatistics.getSum());
 					continue;

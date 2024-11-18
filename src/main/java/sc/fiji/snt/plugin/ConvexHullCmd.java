@@ -57,6 +57,7 @@ import sc.fiji.snt.viewer.Viewer3D;
 @Plugin(type = Command.class, visible = false, label = "Convex Hull Analysis...")
 public class ConvexHullCmd extends ContextCommand {
 
+	private static final String TOOLTIP = "<HTML>See <a href=\"https://imagej.net/plugins/snt/metrics/\">imagej.net/plugins/snt/metrics/</a>";
 	@Parameter
 	private SNTService sntService;
 
@@ -88,16 +89,19 @@ public class ConvexHullCmd extends ContextCommand {
 	@Parameter(label = "<HTML><b>Measurements:", required = false, visibility = ItemVisibility.MESSAGE)
 	private String HEADER2;
 
-	@Parameter(label = "Boundary Size")
+	@Parameter(label = "Boundary Size", description = TOOLTIP)
 	private boolean doBoundarySize;
 
-	@Parameter(label = "Main Elongation")
+	@Parameter(label = "Boxivity", description = TOOLTIP)
+	private boolean doBoxivity;
+
+	@Parameter(label = "Main Elongation", description = TOOLTIP)
 	private boolean doMainElongation;
 
-	@Parameter(label = "Roundness")
+	@Parameter(label = "Roundness", description = TOOLTIP)
 	private boolean doRoundness;
 
-	@Parameter(label = "Size")
+	@Parameter(label = "Size", description = TOOLTIP)
 	private boolean doSize;
 
 	@Override
@@ -132,7 +136,7 @@ public class ConvexHullCmd extends ContextCommand {
 		if (splitByType) {
 			axon = tree.subTree("axon");
 			dendrite = tree.subTree("dendrite");
-			if (axon.isEmpty() && dendrite.isEmpty()) {
+			if ( (axon == null || axon.isEmpty()) && (dendrite == null || dendrite.isEmpty()) ) {
 				splitByType = false;
 				axon = tree;
 			}
@@ -191,7 +195,7 @@ public class ConvexHullCmd extends ContextCommand {
 		if (!table.isEmpty()) {
 			final List<Display<?>> displays = displayService.getDisplays(table);
 			if (displays != null && !displays.isEmpty()) {
-				displays.forEach(d -> d.update());
+				displays.forEach(Display::update);
 			} else {
 				displayService.createDisplay("SNT Measurements", table);
 			}
@@ -215,19 +219,19 @@ public class ConvexHullCmd extends ContextCommand {
 	private void measure(final ConvexHullAnalyzer analyzer, final SNTTable table, final String rowLabel) {
 		try {
 			table.insertRow(rowLabel);
-			final String unit = (String) analyzer.getTree().getProperties().getOrDefault(Tree.KEY_SPATIAL_UNIT,
-					"? units");
-			final boolean is3D = analyzer.getHull() instanceof ConvexHull3D;
 			if (doSize)
-				table.appendToLastRow("Convex hull: Size (" + unit + ((is3D) ? "^3" : "^2") + ")", analyzer.getSize());
+				table.appendToLastRow(String.format("Convex hull: Size (%s)", analyzer.getUnit("Convex hull: Size")),
+						analyzer.getSize());
 			if (doBoundarySize)
-				table.appendToLastRow("Convex hull: Boundary size (" + unit + ((is3D) ? "^2" : "") + ")",
-						analyzer.getBoundarySize());
+				table.appendToLastRow(String.format("Convex hull: Boundary size (%s)", analyzer.getUnit("Convex hull: Boundary size")),
+					analyzer.getBoundarySize());
+			if (doBoxivity)
+				table.appendToLastRow("Convex hull: Boxivity", analyzer.getBoxivity());
 			if (doRoundness)
 				table.appendToLastRow("Convex hull: Roundness", analyzer.getRoundness());
 			if (doMainElongation)
-				table.appendToLastRow("Convex hull: Boundary size (" + unit + ")",
-						analyzer.getElongation());
+				table.appendToLastRow(String.format("Convex hull: Elongation (%s)", analyzer.getUnit("Convex hull: Elongation")),
+					analyzer.getElongation());
 		} catch (final IndexOutOfBoundsException | IllegalArgumentException ex) {
 			ex.printStackTrace();
 		}
