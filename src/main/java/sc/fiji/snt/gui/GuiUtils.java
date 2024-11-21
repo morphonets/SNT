@@ -22,27 +22,42 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.BasicStroke;
-import java.awt.BorderLayout;
-import java.awt.Canvas;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Container;
-import java.awt.Cursor;
-import java.awt.Desktop;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.awt.Insets;
-import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.RenderingHints;
-import java.awt.Toolkit;
-import java.awt.Window;
+import com.formdev.flatlaf.*;
+import com.formdev.flatlaf.icons.FlatClearIcon;
+import com.jidesoft.plaf.LookAndFeelFactory;
+import com.jidesoft.popup.JidePopup;
+import com.jidesoft.swing.ListSearchable;
+import com.jidesoft.utils.ProductNames;
+import org.scijava.command.CommandService;
+import org.scijava.ui.DialogPrompt.Result;
+import org.scijava.ui.awt.AWTWindows;
+import org.scijava.ui.swing.SwingDialog;
+import org.scijava.ui.swing.widget.SwingColorWidget;
+import org.scijava.util.ColorRGB;
+import org.scijava.util.PlatformUtils;
+import org.scijava.util.Types;
+import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTChart;
+import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.util.SNTColor;
+
+import javax.swing.*;
+import javax.swing.Timer;
+import javax.swing.JSpinner.DefaultEditor;
+import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
+import javax.swing.colorchooser.AbstractColorChooserPanel;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.HyperlinkEvent;
+import javax.swing.event.HyperlinkListener;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.text.NumberFormatter;
+import javax.swing.text.Position;
+import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.StyleSheet;
+import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
@@ -56,95 +71,11 @@ import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
+import java.util.List;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.swing.AbstractAction;
-import javax.swing.AbstractButton;
-import javax.swing.Action;
-import javax.swing.BorderFactory;
-import javax.swing.BoxLayout;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultListCellRenderer;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JColorChooser;
-import javax.swing.JComboBox;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JEditorPane;
-import javax.swing.JFileChooser;
-import javax.swing.JFormattedTextField;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JList;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JSpinner;
-import javax.swing.JSpinner.DefaultEditor;
-import javax.swing.JTabbedPane;
-import javax.swing.JTextArea;
-import javax.swing.JTextField;
-import javax.swing.JTextPane;
-import javax.swing.JTree;
-import javax.swing.KeyStroke;
-import javax.swing.ListSelectionModel;
-import javax.swing.LookAndFeel;
-import javax.swing.MenuElement;
-import javax.swing.SpinnerModel;
-import javax.swing.SpinnerNumberModel;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
-import javax.swing.UIManager;
-import javax.swing.WindowConstants;
-import javax.swing.border.Border;
-import javax.swing.border.EmptyBorder;
-import javax.swing.colorchooser.AbstractColorChooserPanel;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.event.HyperlinkEvent;
-import javax.swing.event.HyperlinkListener;
-import javax.swing.filechooser.FileNameExtensionFilter;
-import javax.swing.text.*;
-import javax.swing.text.html.HTMLEditorKit;
-import javax.swing.text.html.StyleSheet;
-
-import org.scijava.command.CommandService;
-import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.awt.AWTWindows;
-import org.scijava.ui.swing.SwingDialog;
-import org.scijava.ui.swing.widget.SwingColorWidget;
-import org.scijava.util.ColorRGB;
-import org.scijava.util.PlatformUtils;
-import org.scijava.util.Types;
-
-import com.formdev.flatlaf.FlatClientProperties;
-import com.formdev.flatlaf.FlatDarculaLaf;
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatIntelliJLaf;
-import com.formdev.flatlaf.FlatLaf;
-import com.formdev.flatlaf.FlatLightLaf;
-import com.formdev.flatlaf.icons.FlatClearIcon;
-import com.jidesoft.plaf.LookAndFeelFactory;
-import com.jidesoft.popup.JidePopup;
-import com.jidesoft.utils.ProductNames;
-
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.SNTChart;
-import sc.fiji.snt.gui.IconFactory.GLYPH;
-import sc.fiji.snt.util.SNTColor;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
@@ -262,8 +193,13 @@ public class GuiUtils {
 				}
 			});
 		}
-		SwingUtilities.invokeLater(() -> popup
-				.showPopup((parent == null) ? SwingConstants.NORTH_EAST : SwingConstants.SOUTH_EAST, parent));
+		popup.DISTANCE_TO_SCREEN_BORDER = 100; // workaround dock on the left side on macOS
+		SwingUtilities.invokeLater(() -> {
+			if (parent == null)
+				popup.showPopup(SwingConstants.NORTH_EAST);
+			else
+				popup.showPopup(SwingConstants.SOUTH_WEST, parent);
+		});
 	}
 
 	private static void applyRoundCorners(final JComponent component) {
@@ -451,14 +387,13 @@ public class GuiUtils {
 				return new Object[] { result[0], Double.NaN };
 			}
 		}
-		return result;
+		return null;
 	}
 
 	public String getChoice(final String message, final String title, final String[] choices,
 			final String[] descriptions, final String defaultChoice) {
 		final JTextArea ta = new JTextArea();
-		final JScrollPane sp = getScrollPane(ta);
-		ta.setRows(5);
+		ta.setRows(6);
 		ta.setWrapStyleWord(true);
 		ta.setLineWrap(true);
 		ta.setEditable(false);
@@ -466,15 +401,24 @@ public class GuiUtils {
 		int defIdx = Arrays.asList(choices).indexOf(defaultChoice);
 		if (defIdx < 0)
 			defIdx = 0;
-		final JList<String> list = getJList(choices, defaultChoice);
-		if (choices.length < 11)
-			list.setVisibleRowCount(choices.length);
+
+		final DefaultListModel<String> listModel = new DefaultListModel<>();
+		listModel.addAll(List.of(choices));
+		final JList<String> list = new JList<>(listModel) {
+				@Override // see ListSearchable.java
+				public int getNextMatch(final String prefix, final int startIndex, final Position.Bias bias) {
+					return -1;
+			}
+		};
 		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		if (choices.length < 15)
+			list.setVisibleRowCount(choices.length);
 		list.addListSelectionListener(e -> {
 			ta.setText(descriptions[list.getSelectedIndex()]);
 			ta.setCaretPosition(0);
 		});
 		list.setSelectedIndex(defIdx);
+		list.ensureIndexIsVisible(defIdx);
 		list.setCellRenderer(new DefaultListCellRenderer() {
 
 			private static final long serialVersionUID = -810009340376431810L;
@@ -486,20 +430,46 @@ public class GuiUtils {
 				if (isSelected)
 					c.setFont(c.getFont().deriveFont(Font.BOLD));
 				return c;
-
 			}
 		} );
 
 		ta.setText(descriptions[defIdx]);
 		ta.setCaretPosition(0);
 		ta.setBackground(list.getBackground());
-		final JPanel panel = new JPanel(new BorderLayout());
-		panel.add(getLabel(message), BorderLayout.NORTH);
-		panel.add(getScrollPane(list), BorderLayout.CENTER);
-		final JPanel bottomPanel =  new JPanel(new BorderLayout());
-		bottomPanel.add(new JLabel(" "), BorderLayout.NORTH); // spacer
-		bottomPanel.add(sp, BorderLayout.CENTER);
-		panel.add(bottomPanel, BorderLayout.SOUTH);
+
+		final GridBagLayout layout = new GridBagLayout();
+		final GridBagConstraints gbc = defaultGbc();
+		final JPanel panel = new JPanel(layout);
+		panel.add(getLabel(message),gbc);
+		gbc.gridy++;
+		panel.add(getScrollPane(list), gbc);
+		gbc.gridy++;
+		panel.add(new JLabel("<HTML>&nbsp;"), gbc); // spacer
+		gbc.gridy++;
+		panel.add(getScrollPane(ta), gbc);
+		if (choices.length >  4) {
+			final ListSearchable searchable = new ListSearchable(list) {
+				@Override
+				protected String convertElementToString(Object object) {
+					final int idx = listModel.indexOf(object);
+					return choices[idx] + " " + descriptions[idx];
+				}
+			};
+			searchable.setCaseSensitive(false);
+			searchable.setCountMatch(true);
+			searchable.setRepeats(true);
+			final SNTSearchableBar searchableBar = new SNTSearchableBar(searchable);
+			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_STATUS);
+			searchableBar.setShowMatchCount(true);
+			searchableBar.setHighlightAll(false); // only one item can be selected in the choice list
+			searchableBar.setStatusLabelPlaceholder(" "); // cannot be empty
+			searchableBar.setGuiUtils(this);
+			gbc.gridy++;
+			panel.add(new JLabel("<HTML>&nbsp;"), gbc); // spacer
+			gbc.gridy++;
+			panel.add(searchableBar, gbc);
+		}
+
 		final int promptResult = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION,
 				(choices.length < 6) ? JOptionPane.QUESTION_MESSAGE : JOptionPane.PLAIN_MESSAGE, null,
 				new String[] { "OK", "Cancel" }, list);
@@ -1455,7 +1425,7 @@ public class GuiUtils {
 		final Color fg = (enabled) ? label.getForeground() : getDisabledComponentColor(); // required
 		label.setForeground(fg);														// for MACOS!?
 		if (uri != null && Desktop.isDesktopSupported()) {
-			//label.setIcon(IconFactory.getIcon(GLYPH.EXTERNAL_LINK, label.getFont().getSize2D() *.75f, label.getForeground()));
+			//label.setIcon(IconFactory.getIcon(GLYPH.INFO, label.getFont().getSize2D() *.85f, fg));
 			label.addMouseListener(new MouseAdapter() {
 				final int w = label.getFontMetrics(label.getFont()).stringWidth(label.getText());
 
@@ -1885,13 +1855,13 @@ public class GuiUtils {
 			length = umLength / 10000;
 			symbol = "cm";
 		}
-		else if (umLength > 1000000) {
-			length = umLength / 1000000;
-			symbol = "m";
-		}
 		else if (umLength > 1000000000) {
 			length = umLength / 1000000000;
 			symbol = "km";
+		}
+		else if (umLength > 1000000) {
+			length = umLength / 1000000;
+			symbol = "m";
 		}
 		return SNTUtils.formatDouble(length, digits) + symbol;
 	}
@@ -2072,9 +2042,9 @@ public class GuiUtils {
 	}
 
 	public static void tile(final List<? extends Window> windowList) {
+		if (windowList == null || windowList.isEmpty()) return;
 		// make list immutable in case windowList is being modified programmatically (e.g., in a script)
 		final List<? extends Window> wList = Collections.unmodifiableList(windowList);
-		if (wList == null || wList.isEmpty()) return;
 		// FIXME: This is all taken from ij1.
 		final Rectangle screen = ij.gui.GUI.getMaxWindowBounds(ij.IJ.getApplet());
 		final int XSTART = 4, YSTART = 94, GAP = 2;
@@ -2238,11 +2208,11 @@ public class GuiUtils {
 					n = charts.size();
 				if (e.getDocument() == rowField.getDocument()) { // rows is being set: Adjust cols
 					nRows = parseInt(rowField);
-					nCols = Math.max(1, (int) Math.ceil(n / nRows));
+					nCols = Math.max(1, (int) Math.ceil((double) n / nRows));
 					colField.setText("" + nCols);
 				} else { // cols is being set: Adjust rows
 					nCols = parseInt(colField);
-					nRows = Math.max(1, (int) Math.ceil(n / nCols));
+					nRows = Math.max(1, (int) Math.ceil((double) n / nCols));
 					rowField.setText("" + nRows);
 				}
 				pauseSyncFields = false;
@@ -2250,7 +2220,7 @@ public class GuiUtils {
 
 			void prompt() {
 				nCols = Math.max(1, (int) Math.floor(Math.sqrt(charts.size())));
-				nRows = Math.max(1, (int) Math.ceil(charts.size() / nCols));
+				nRows = Math.max(1, (int) Math.ceil((double) charts.size() / nCols));
 				colField.setText("" + nCols);
 				rowField.setText("" + nRows);
 				final int result = JOptionPane.showConfirmDialog(parent, panel(), "Make SNTChart Montage",
@@ -2461,7 +2431,7 @@ public class GuiUtils {
 		public void keyPressed(final KeyEvent e) {
 			final int keyCode = e.getKeyCode();
 			if (keyCode == KeyEvent.VK_C) {
-				if (editorPane.getSelectedText() == null || editorPane.getSelectedText().length() == 0)
+				if (editorPane.getSelectedText() == null || editorPane.getSelectedText().isEmpty())
 					editorPane.selectAll();
 				editorPane.copy();
 				editorPane.select(0, 0);

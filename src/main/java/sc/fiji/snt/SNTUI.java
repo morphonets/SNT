@@ -2719,9 +2719,10 @@ public class SNTUI extends JDialog {
 		analysisMenu.add(tmdMenuItem);
 		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
+			if (noPathsShollError()) return;
 			final Tree tree = getPathManager().getMultipleTreesInASingleContainer();
 			if (tree == null) return;
+			softWarningOnShollPreview();
 			final HashMap<String, Object> inputs = new HashMap<>();
 			inputs.put("tree", tree);
 			inputs.put("snt", plugin);
@@ -2884,6 +2885,15 @@ public class SNTUI extends JDialog {
 		});
 		viewMenu.add(consoleJMI);
 		return menuBar;
+	}
+
+	private void softWarningOnShollPreview() {
+		if (plugin.getPrefs().getTemp("sholl-prev-nag", true)) {
+			final Boolean skipNag = guiUtils.getPersistentWarning("This command does not preview sampling radii. " +
+					"Please use <i>Sholl Analysis (by Focal Point)...</i> if you would like to preview them.",
+					"Preview of Radii Disabled");
+			if (skipNag != null) plugin.getPrefs().setTemp("sholl-prev-nag", !skipNag);
+		}
 	}
 
 	private JMenuItem getRecPlotterMenuItem() {
@@ -3634,11 +3644,20 @@ public class SNTUI extends JDialog {
 		imp.getWindow().setVisible(!mItem.isSelected());
 	}
 
-	protected boolean noPathsError() {
+	private boolean noPathsShollError() {
+		return noPathsError("<br>If you are trying to obtain Sholl profiles directly from images, have " +
+				"a look at the <i>Sholl</i> commands in the Neuroanatomy Shortcuts window.");
+	}
+
+	private boolean noPathsError(final String extraMsg) {
 		final boolean noPaths = pathAndFillManager.size() == 0;
 		if (noPaths)
-			guiUtils.error("There are no traced paths.");
+			guiUtils.error("There are no traced paths." + extraMsg);
 		return noPaths;
+	}
+
+	protected boolean noPathsError() {
+		return noPathsError("");
 	}
 
 	private boolean notReadyToSaveError() {
@@ -3683,8 +3702,7 @@ public class SNTUI extends JDialog {
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
 		mi.addActionListener(e -> {
 			final Thread newThread = new Thread(() -> {
-				if (noPathsError())
-					return;
+				if (noPathsShollError()) return;
 				final String modKey = "Alt+Shift";
 				final String url1 = ShollUtils.URL + "#Analysis_of_Traced_Cells";
 				final String url2 = "https://imagej.net/plugins/snt/analysis#Sholl_Analysis";

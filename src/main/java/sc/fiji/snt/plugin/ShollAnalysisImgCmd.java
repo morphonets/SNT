@@ -264,7 +264,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 					"Abort current analysis", "Change image...", "Options & Preferences"})
 	private String analysisAction;
 
-	@Parameter(label = "<html><b>Analyze Image</html>", callback = "runAnalysis")
+	@Parameter(label = "Analyze Image", callback = "runAnalysis")
 	private Button analyzeButton;
 
 	@Parameter(persist = false, required = false, visibility = ItemVisibility.MESSAGE, //
@@ -714,7 +714,7 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 			label = "Options Prompt...";
 		} else
 			label = analysisAction;
-		aButton.setLabel(String.format("<html><b>%s</html>", label));
+		aButton.setLabel(label); // setting font to bold no longer works!? String.format("<html><b>%s</html>", label));
 	}
 
 	private void setNormalizerChoices() {

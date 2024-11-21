@@ -35,6 +35,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.plaf.basic.BasicComboBoxEditor;
 
+import com.jidesoft.plaf.UIDefaultsLookup;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.WholeWordsSupport;
@@ -79,7 +80,7 @@ public class SNTSearchableBar extends SearchableBar {
 		setShowMatchCount(false); // for performance reasons
 		setBorderPainted(false);
 		setBorder(BorderFactory.createEmptyBorder());
-		setMismatchForeground(Color.RED);
+		setMismatchForeground(new Color(255, 171, 162));
 		setMaxHistoryLength(10);
 		setHighlightAll(true);
 		updatePlaceholderText();
@@ -112,6 +113,17 @@ public class SNTSearchableBar extends SearchableBar {
 			return _comboBox.getEditor().getEditorComponent();
 		}
 		return null;
+	}
+
+	@Override
+	protected void select(int index, String searchingText, boolean incremental) {
+		super.select(index, searchingText, incremental);
+		if (index != -1 || searchingText.isBlank()) {
+			// fix jide-oss not setting background color of comboBox: A BUG!?
+			_comboBox.setBackground(UIDefaultsLookup.getColor("TextField.background"));
+		} else {
+			_comboBox.setBackground(getMismatchBackground());
+		}
 	}
 
 	@SuppressWarnings({ "rawtypes" })
