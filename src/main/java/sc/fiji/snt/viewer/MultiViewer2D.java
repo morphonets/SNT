@@ -138,6 +138,28 @@ public class MultiViewer2D {
 		outlineVisible = visible;
 	}
 
+	/**
+	 * Sets a manual range for the viewers' X-axis. Calling {@code setXrange(-1, -1)} enables auto-range (the default).
+	 * Must be called before Viewer is fully assembled.
+	 *
+	 * @param xMin the lower-limit for the X-axis
+	 * @param xMax the upper-limit for the X-axis
+	 */
+	public void setXrange(final double xMin, final double xMax) {
+		viewers.forEach( v -> v.setXrange(xMin, xMax));
+	}
+
+	/**
+	 * Sets a manual range for the viewers' Y-axis. Calling {@code setYrange(-1, -1)} enables auto-range (the default).
+	 * Must be called before Viewer is fully assembled.
+	 *
+	 * @param yMin the lower-limit for the Y-axis
+	 * @param yMax the upper-limit for the Y-axis
+	 */
+	public void setYrange(final double yMin, final double yMax) {
+		viewers.forEach( v -> v.setYrange(yMin, yMax));
+	}
+
 	public <T extends sc.fiji.snt.analysis.ColorMapper> void setColorBarLegend(final T colorMapper) {
 		final double[] minMax = colorMapper.getMinMax();
 		setColorBarLegend(colorMapper.getColorTable(), minMax[0], minMax[1], (colorMapper.isIntegerScale()) ? 0 : 2);
@@ -239,8 +261,32 @@ public class MultiViewer2D {
 		return null;
 	}
 
-	private SNTChart getMergedChart(final List<Viewer2D> viewers, final String style) {
+	private double[] getFixedXRange(final List<Viewer2D> viewers) {
+		final double min = viewers.get(0).getPlot().xAxis().getMin();
+		final double max = viewers.get(0).getPlot().xAxis().getMax();
+		if (min == max) return null;
+		for (int i = 1; i < viewers.size(); i++) {
+			if (min != viewers.get(i).getPlot().xAxis().getMin() && max != viewers.get(i).getPlot().xAxis().getMax())
+				return null;
+		}
+		return new double[]{min, max};
+    }
+
+	private double[] getFixedYRange(final List<Viewer2D> viewers) {
+		final double min = viewers.get(0).getPlot().yAxis().getMin();
+		final double max = viewers.get(0).getPlot().yAxis().getMax();
+		if (min == max) return null;
+		for (int i = 1; i < viewers.size(); i++) {
+			if (min != viewers.get(i).getPlot().yAxis().getMin() && max != viewers.get(i).getPlot().yAxis().getMax())
+				return null;
+		}
+		return new double[]{min, max};
+	}
+
+ 	private SNTChart getMergedChart(final List<Viewer2D> viewers, final String style) {
 		JFreeChart result;
+		final double[] fixedXrange = getFixedXRange(viewers);
+		final double[] fixedYrange = getFixedYRange(viewers);
 		if (style != null && style.toLowerCase().startsWith("c")) { // column
 			final CombinedRangeXYPlot mergedPlot = new CombinedRangeXYPlot();
 			for (final Viewer2D viewer : viewers) {
@@ -250,18 +296,43 @@ public class MultiViewer2D {
 				plot.setDomainGridlinesVisible(gridVisible);
 				plot.setRangeGridlinesVisible(gridVisible);
 				plot.setOutlineVisible(outlineVisible);
+				if (fixedXrange != null) {
+					plot.getDomainAxis().setRange(fixedXrange[0], fixedXrange[1]);
+					plot.getDomainAxis().setAutoRange(false);
+				}
+				if (fixedYrange != null) {
+					plot.getRangeAxis().setRange(fixedYrange[0], fixedYrange[1]);
+					plot.getRangeAxis().setAutoRange(false);
+				}
 				mergedPlot.add(plot, 1);
+				if (fixedYrange != null) {
+					mergedPlot.getRangeAxis().setRange(fixedYrange[0], fixedYrange[1]);
+					mergedPlot.getRangeAxis().setAutoRange(false);
+				}
 			}
 			result = new JFreeChart(null, mergedPlot);
 		} else {
 			final CombinedDomainXYPlot mergedPlot = new CombinedDomainXYPlot();
 			for (final Viewer2D viewer : viewers) {
-				mergedPlot.add(viewer.getChart().getChart().getXYPlot(), 1);
+				final XYPlot plot = viewer.getJFreeChart().getXYPlot();
+				if (fixedXrange != null) {
+					plot.getDomainAxis().setRange(fixedXrange[0], fixedXrange[1]);
+					plot.getDomainAxis().setAutoRange(false);
+				}
+				if (fixedYrange != null) {
+					plot.getRangeAxis().setRange(fixedYrange[0], fixedYrange[1]);
+					plot.getRangeAxis().setAutoRange(false);
+				}
+				mergedPlot.add(plot, 1);
+				if (fixedXrange != null) {
+					mergedPlot.getDomainAxis().setRange(fixedXrange[0], fixedXrange[1]);
+					mergedPlot.getDomainAxis().setAutoRange(false);
+				}
 			}
 			result = new JFreeChart(null, mergedPlot);
 		}
 		if (legend != null && viewers.contains(colorLegendViewer)) {
-			if (gridCols >= this.viewers.size()) {
+			if (gridCols >= viewers.size()) {
 				legend.setPosition(RectangleEdge.RIGHT);
 				legend.setMargin(50, 5, 50, 5);
 			} else {
@@ -290,7 +361,7 @@ public class MultiViewer2D {
 
 		// Color code each cell and assign a hue ramp to the group
 		final MultiTreeColorMapper mapper = new MultiTreeColorMapper(trees);
-		mapper.map("tips", ColorTables.ICE);
+		mapper.map("no. of tips", ColorTables.ICE);
 
 		// Assemble a multi-panel Viewer2D from the color mapper
 		final MultiViewer2D viewer1 = mapper.getMultiViewer();
@@ -300,8 +371,7 @@ public class MultiViewer2D {
 		viewer1.setAxesVisible(false);
 		viewer1.show();
 
-		// Sholl mapping //TODO: The API for this feels clunky
-		// and everything is really slow. Optimization needed!
+		// Sholl mapping
 		final List<Viewer2D> viewers = new ArrayList<>();
 		double min = Double.MAX_VALUE;
 		double max = Double.MIN_VALUE;
@@ -325,9 +395,10 @@ public class MultiViewer2D {
 		viewer2.setLayoutColumns(0);
 		viewer2.setGridlinesVisible(false);
 		viewer2.setOutlineVisible(false);
-		viewer2.setAxesVisible(false);
+		viewer2.setAxesVisible(true);
+		viewer2.setXrange(-100, 100);
+		viewer2.setYrange(-200, 200);
 		viewer2.show();
-
 	}
 
 }

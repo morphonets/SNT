@@ -218,7 +218,7 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
 		if (!measurement.equals(normMeasurement)) {
 			SNTUtils.log("\"" + normMeasurement + "\" assumed");
-			if ("unknonwn".equals(normMeasurement)) {
+			if ("unknown".equals(normMeasurement)) {
 				throw new IllegalArgumentException("Unrecognizable measurement! "
 						+ "Maybe you meant one of the following?: " + Arrays.toString(MULTI_TREE_FLAGS));
 			}

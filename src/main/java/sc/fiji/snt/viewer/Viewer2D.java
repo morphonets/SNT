@@ -514,6 +514,34 @@ public class Viewer2D extends TreeColorMapper {
 	}
 
 	/**
+	 * Sets a manual range for the viewers' X-axis. Calling {@code setXrange(-1, -1)} enables auto-range (the default).
+	 * Must be called before Viewer is fully assembled.
+	 *
+	 * @param xMin the lower-limit for the X-axis
+	 * @param xMax the upper-limit for the X-axis
+	 */
+	public void setXrange(final double xMin, final double xMax) {
+		if (xMin == xMax && xMin == -1)
+			plot.xAxis().setAutoRange();
+		else
+			plot.xAxis().setManualRange(xMin, xMax);
+	}
+
+	/**
+	 * Sets a manual range for the viewers' Y-axis. Calling {@code setYrange(-1, -1)} enables auto-range (the default).
+	 * Must be called before Viewer is fully assembled.
+	 *
+	 * @param yMin the lower-limit for the Y-axis
+	 * @param yMax the upper-limit for the Y-axis
+	 */
+	public void setYrange(final double yMin, final double yMax) {
+		if (yMin == yMax && yMin == -1)
+			plot.yAxis().setAutoRange();
+		else
+			plot.yAxis().setManualRange(yMin, yMax);
+	}
+
+	/**
 	 * @deprecated Use {@link #show()} instead.
 	 */
 	@Deprecated
