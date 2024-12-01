@@ -22,16 +22,11 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.datatransfer.DataFlavor;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.Reader;
-
-import javax.swing.UIManager;
-
 import sc.fiji.snt.SNTUtils;
+
+import javax.swing.*;
+import java.awt.datatransfer.DataFlavor;
+import java.io.*;
 
 
 /**

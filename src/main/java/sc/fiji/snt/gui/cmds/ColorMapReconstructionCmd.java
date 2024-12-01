@@ -22,28 +22,26 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
-
 import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Implements Reconstruction Viewer's 'Color coding' commands.

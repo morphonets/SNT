@@ -22,7 +22,6 @@
 package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;

@@ -23,16 +23,15 @@
 package sc.fiji.snt.plugin.ij1;
 
 import net.imagej.ImageJ;
-import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.gui.GuiUtils;
-
-import java.util.HashMap;
-
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
+import sc.fiji.snt.analysis.sholl.ShollUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.LSystemsTree;
+
+import java.util.HashMap;
 
 /**
  * Command to invoke legacy neuroanatomy-related plugins

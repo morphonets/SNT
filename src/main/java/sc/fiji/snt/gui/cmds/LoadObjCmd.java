@@ -22,12 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-
 import net.imagej.ImageJ;
-
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.log.LogService;
@@ -35,11 +30,14 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.widget.NumberWidget;
-
-import sc.fiji.snt.viewer.OBJMesh;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.viewer.OBJMesh;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Command for loading an OBJ file in Reconstruction Viewer

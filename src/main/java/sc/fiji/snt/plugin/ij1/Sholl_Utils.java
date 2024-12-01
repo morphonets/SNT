@@ -21,13 +21,6 @@
  */
 package sc.fiji.snt.plugin.ij1;
 
-import java.awt.Color;
-import java.awt.Frame;
-import java.awt.Toolkit;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.image.IndexColorModel;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
@@ -39,6 +32,11 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.util.ShollPoint;
+
+import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.image.IndexColorModel;
 
 /**
  * Utilities for {@link Sholl_Analysis}

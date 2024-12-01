@@ -22,19 +22,18 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-import java.util.Collection;
-import java.util.stream.IntStream;
-
+import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.io.NDFImporter;
+
+import java.io.File;
+import java.util.Collection;
+import java.util.stream.IntStream;
 
 /**
  * Command for importing a NeuronJ NDF file.

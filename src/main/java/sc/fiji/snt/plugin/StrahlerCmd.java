@@ -22,42 +22,26 @@
 
 package sc.fiji.snt.plugin;
 
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.TreeMap;
-import java.util.stream.Collectors;
-
+import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
+import org.scijava.plot.*;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-
-import net.imagej.ImageJ;
-import org.scijava.plot.CategoryChart;
-import org.scijava.plot.LineSeries;
-import org.scijava.plot.LineStyle;
-import org.scijava.plot.MarkerStyle;
-import org.scijava.plot.PlotService;
-
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.GroupedTreeStatistics;
-import sc.fiji.snt.analysis.SNTChart;
-import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.StrahlerAnalyzer;
-import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.util.SNTColor;
+
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.Map.Entry;
+import java.util.stream.Collectors;
 
 /**
  * Command to perform Horton-Strahler analysis on a collection of {@link Tree}s

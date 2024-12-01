@@ -22,28 +22,21 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
-
-import sc.fiji.snt.analysis.PathProfiler;
-import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
+
+import java.util.*;
 
 /**
  * Command for plotting distributions of morphometric properties

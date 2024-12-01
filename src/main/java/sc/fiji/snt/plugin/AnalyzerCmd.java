@@ -22,15 +22,7 @@
 
 package sc.fiji.snt.plugin;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
@@ -38,13 +30,17 @@ import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultGenericTable;
 import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.*;
+import sc.fiji.snt.analysis.MultiTreeStatistics;
+import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.ShollAnalyzer;
+import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+
+import java.io.File;
+import java.util.*;
 
 /**
  * Command for measuring Tree(s).

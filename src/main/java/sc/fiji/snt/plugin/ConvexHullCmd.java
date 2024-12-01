@@ -22,12 +22,7 @@
 
 package sc.fiji.snt.plugin;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -38,18 +33,14 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.AbstractConvexHull;
-import sc.fiji.snt.analysis.ConvexHullAnalyzer;
-import sc.fiji.snt.analysis.ConvexHull2D;
-import sc.fiji.snt.analysis.ConvexHull3D;
-import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.viewer.Annotation3D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
+
+import java.util.*;
 
 /**
  * @author Cameron Arshadi

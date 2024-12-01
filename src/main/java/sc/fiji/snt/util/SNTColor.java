@@ -22,12 +22,12 @@
 
 package sc.fiji.snt.util;
 
-import java.awt.Color;
-import java.util.Arrays;
-import java.util.Collection;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
+
+import java.awt.*;
+import java.util.Arrays;
+import java.util.Collection;
 
 /**
  * A simple class for handling Colors including the ability to map an AWT Color

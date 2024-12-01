@@ -22,18 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -41,14 +30,17 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.widget.Button;
-
-import sc.fiji.snt.util.SWCPoint;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Command for importing MouseLight reconstructions

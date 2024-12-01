@@ -22,15 +22,12 @@
 
 package sc.fiji.snt.plugin;
 
-import java.util.*;
-
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultGenericTable;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -38,6 +35,8 @@ import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+
+import java.util.*;
 
 /**
  * Command for measuring Paths in isolation.

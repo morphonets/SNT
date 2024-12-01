@@ -22,36 +22,21 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon;
+import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.Arrays;
-
-import javax.swing.JButton;
-import javax.swing.JCheckBox;
-import javax.swing.JDialog;
-import javax.swing.JFormattedTextField;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-
-import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon;
-
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.SNTUtils;
 
 /**
  * Implements a dialog for importing SWC files.

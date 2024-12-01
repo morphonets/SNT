@@ -22,29 +22,6 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Component;
-import java.awt.HeadlessException;
-import java.awt.datatransfer.UnsupportedFlavorException;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.util.*;
-import java.util.concurrent.Future;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
-import javax.swing.Icon;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.MenuElement;
-import javax.swing.MenuSelectionManager;
-import javax.swing.SwingUtilities;
-import javax.swing.event.MenuKeyEvent;
-import javax.swing.event.MenuKeyListener;
-
 import org.scijava.Context;
 import org.scijava.plugin.Parameter;
 import org.scijava.script.ScriptInfo;
@@ -53,10 +30,22 @@ import org.scijava.script.ScriptModule;
 import org.scijava.script.ScriptService;
 import org.scijava.ui.swing.script.TextEditor;
 import org.scijava.util.FileUtils;
-
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+
+import javax.swing.*;
+import javax.swing.event.MenuKeyEvent;
+import javax.swing.event.MenuKeyListener;
+import java.awt.*;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.io.*;
+import java.net.URL;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.Future;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Utility class for discovery of SNT scripts

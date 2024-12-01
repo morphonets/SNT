@@ -22,30 +22,25 @@
 
 package sc.fiji.snt.util;
 
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.gui.ImageCanvas;
+import ij.io.Opener;
+import ij.plugin.*;
+import ij.process.*;
+import net.imagej.Dataset;
+import net.imglib2.display.ColorTable;
+import org.scijava.convert.ConvertService;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+
 import java.awt.image.IndexColorModel;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-
-import ij.gui.ImageCanvas;
-import ij.plugin.*;
-import org.scijava.convert.ConvertService;
-
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.io.Opener;
-import ij.process.ByteProcessor;
-import ij.process.ImageConverter;
-import ij.process.ImageStatistics;
-import ij.process.LUT;
-import ij.process.StackConverter;
-import net.imagej.Dataset;
-import net.imglib2.display.ColorTable;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
 
 /**
  * Static utilities for handling and manipulation of {@link ImagePlus}s

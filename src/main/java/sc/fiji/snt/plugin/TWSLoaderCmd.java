@@ -22,6 +22,20 @@
 
 package sc.fiji.snt.plugin;
 
+import ij.ImagePlus;
+import ij.gui.Overlay;
+import ij.gui.Roi;
+import ij.gui.StackWindow;
+import org.scijava.command.Command;
+import org.scijava.plugin.Parameter;
+import org.scijava.plugin.Plugin;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.analysis.RoiConverter;
+import sc.fiji.snt.gui.GuiUtils;
+import trainableSegmentation.Weka_Segmentation;
+
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
@@ -29,21 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-
-import org.scijava.command.Command;
-import org.scijava.plugin.Parameter;
-import org.scijava.plugin.Plugin;
-
-import ij.ImagePlus;
-import ij.gui.Overlay;
-import ij.gui.Roi;
-import ij.gui.StackWindow;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.analysis.RoiConverter;
-import sc.fiji.snt.gui.GuiUtils;
-import trainableSegmentation.Weka_Segmentation;
 
 /**
  * Command for sending Path-converted ROIs to a new TWS instance.

@@ -22,41 +22,15 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.BorderLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
-import java.awt.Point;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.image.IndexColorModel;
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-
-import javax.swing.ButtonGroup;
-import javax.swing.JButton;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JRadioButton;
-import javax.swing.JSpinner;
-import javax.swing.SwingConstants;
-import javax.swing.WindowConstants;
-
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.io.FileInfo;
+import ij.io.SaveDialog;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ij.plugin.filter.Analyzer;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.LogAxis;
@@ -70,16 +44,6 @@ import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
-
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.io.FileInfo;
-import ij.io.SaveDialog;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ij.plugin.filter.Analyzer;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
@@ -89,6 +53,21 @@ import sc.fiji.snt.plugin.ij1.Sholl_Analysis;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import util.FindConnectedRegions;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.image.IndexColorModel;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.*;
 
 @Deprecated
 public class ShollAnalysisDialog extends JDialog implements ActionListener {

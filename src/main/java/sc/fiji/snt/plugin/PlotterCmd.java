@@ -22,14 +22,7 @@
 
 package sc.fiji.snt.plugin;
 
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.io.File;
-import java.util.HashMap;
-import java.util.Map;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
@@ -41,17 +34,22 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.NumberWidget;
-
-import sc.fiji.snt.analysis.ColorMapper;
-import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.ConvexHull2D;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.viewer.Viewer2D;
+
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Implements Reconstruction Plotter, a command wrapper for interactively

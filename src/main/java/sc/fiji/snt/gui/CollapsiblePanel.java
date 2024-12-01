@@ -22,17 +22,11 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Component;
-import java.awt.Window;
-import java.awt.event.ItemEvent;
-
-import javax.swing.Box;
-import javax.swing.BoxLayout;
-import javax.swing.JCheckBox;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-
 import com.formdev.flatlaf.icons.FlatCheckBoxIcon;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ItemEvent;
 
 /**
  * A user-triggered collapsible panel.

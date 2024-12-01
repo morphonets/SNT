@@ -22,8 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.awt.Font;
-
+import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.command.InteractiveCommand;
 import org.scijava.plugin.Parameter;
@@ -32,10 +31,10 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.Button;
 import org.scijava.widget.NumberWidget;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.Viewer3D;
+
+import java.awt.*;
 
 /**
  * Implements Reconstruction Viewer's 'Add Annotation Label...' commands.

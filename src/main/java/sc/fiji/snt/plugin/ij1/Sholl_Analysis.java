@@ -21,44 +21,8 @@
  */
 package sc.fiji.snt.plugin.ij1;
 
-import java.awt.AWTEvent;
-import java.awt.Checkbox;
-import java.awt.Choice;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.Label;
-import java.awt.Panel;
-import java.awt.Rectangle;
-import java.awt.TextField;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.image.IndexColorModel;
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map.Entry;
-import java.util.Vector;
-
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-
-import ij.IJ;
-import ij.ImageJ;
-import ij.ImagePlus;
-import ij.Prefs;
-import ij.WindowManager;
-import ij.gui.DialogListener;
-import ij.gui.GenericDialog;
-import ij.gui.HTMLDialog;
-import ij.gui.Line;
-import ij.gui.Plot;
-import ij.gui.PointRoi;
-import ij.gui.Roi;
-import ij.gui.Toolbar;
+import ij.*;
+import ij.gui.*;
 import ij.io.OpenDialog;
 import ij.macro.Interpreter;
 import ij.measure.Calibration;
@@ -85,6 +49,20 @@ import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
 import sc.fiji.snt.gui.EnhancedGenericDialog;
 import sc.fiji.snt.gui.EnhancedWaitForUserDialog;
 import sc.fiji.snt.util.ShollPoint;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.awt.image.IndexColorModel;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map.Entry;
+import java.util.Vector;
 
 
 /**

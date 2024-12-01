@@ -23,8 +23,7 @@
 package sc.fiji.snt.gui.cmds;
 
 
-import java.util.HashMap;
-
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -33,9 +32,9 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 import org.scijava.widget.NumberWidget;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.gui.GuiUtils;
+
+import java.util.HashMap;
 
 /**
  * Command for customizing selected Trees in Reconstruction Viewer.

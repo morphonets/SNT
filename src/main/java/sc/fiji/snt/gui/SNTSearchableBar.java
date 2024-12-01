@@ -22,28 +22,21 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.GridLayout;
-import java.util.List;
-
-import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
-import javax.swing.plaf.basic.BasicComboBoxEditor;
-
 import com.jidesoft.plaf.UIDefaultsLookup;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.WholeWordsSupport;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
-
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils.TextFieldWithPlaceholder;
+
+import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.plaf.basic.BasicComboBoxEditor;
+import java.awt.*;
+import java.util.List;
 
 /**
  * Implements a SearchableBar following SNT's UI.

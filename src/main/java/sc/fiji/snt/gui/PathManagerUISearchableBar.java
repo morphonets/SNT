@@ -22,26 +22,23 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
-import javax.swing.*;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
-
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.gui.cmds.FilterOrTagPathsByAngleCmd;
 import sc.fiji.snt.gui.cmds.SWCTypeFilterCmd;
 import sc.fiji.snt.util.SNTColor;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Implements the customized SearchableBar used by {@link PathManagerUI},

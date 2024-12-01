@@ -22,16 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -40,8 +31,6 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.Button;
-
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -49,6 +38,11 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.io.RemoteSWCLoader;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Command for importing SWC reconstructions from remote databases

@@ -22,21 +22,19 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.List;
-
 import net.imagej.ImageJ;
-
 import org.scijava.command.Command;
 import org.scijava.command.Interactive;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
-
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import java.util.List;
 
 /**
  * Implements Reconstruction Viewer's 'Translate...' command.

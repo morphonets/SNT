@@ -22,12 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-
-import javax.swing.JOptionPane;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -35,10 +30,12 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
 import org.scijava.widget.NumberWidget;
-
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.Viewer3D;
+
+import javax.swing.*;
+import java.io.File;
 
 /**
  * Command implementing Reconstruction Viewer 'Preferences...' command.

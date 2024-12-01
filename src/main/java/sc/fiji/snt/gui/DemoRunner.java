@@ -22,22 +22,17 @@
 
 package sc.fiji.snt.gui;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-
+import ij.ImagePlus;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
-
-import ij.ImagePlus;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
 import sc.fiji.snt.util.ImpUtils;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 
 public class DemoRunner {
 

@@ -22,12 +22,8 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
-import java.awt.Insets;
-
-import javax.swing.JButton;
-import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
+import java.awt.*;
 
 /**
  * Creates a JButton holding a color chooser. It is based on

@@ -22,27 +22,16 @@
 
 package sc.fiji.snt.plugin;
 
-import java.awt.Color;
-import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-
-import javax.swing.JFrame;
-import javax.swing.SwingUtilities;
-
-import org.scijava.command.Command;
-import org.scijava.plugin.Parameter;
-import org.scijava.plugin.Plugin;
-import org.scijava.util.ColorRGB;
-
 import net.imagej.Dataset;
 import net.imagej.axis.Axes;
 import net.imglib2.Interval;
 import net.imglib2.RandomAccess;
 import net.imglib2.roi.labeling.LabelingType;
 import net.imglib2.type.numeric.ARGBType;
+import org.scijava.command.Command;
+import org.scijava.plugin.Parameter;
+import org.scijava.plugin.Plugin;
+import org.scijava.util.ColorRGB;
 import sc.fiji.labkit.ui.InitialLabeling;
 import sc.fiji.labkit.ui.LabkitFrame;
 import sc.fiji.labkit.ui.inputimage.DatasetInputImage;
@@ -56,6 +45,14 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTColor;
+
+import javax.swing.*;
+import java.awt.*;
+import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Command for sending Path-converted ROIs to a new Labkit instance.

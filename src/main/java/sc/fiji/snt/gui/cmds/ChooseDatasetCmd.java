@@ -22,18 +22,9 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-
+import ij.ImagePlus;
+import ij.WindowManager;
 import net.imagej.ImageJ;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.util.ImpUtils;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -42,9 +33,12 @@ import org.scijava.plugin.Plugin;
 import org.scijava.ui.DialogPrompt.MessageType;
 import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.widget.ChoiceWidget;
+import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.ImpUtils;
 
-import ij.ImagePlus;
-import ij.WindowManager;
+import java.util.*;
 
 /**
  * Implements the 'Choose Tracing Image (From Open Image)...' command.

@@ -21,10 +21,10 @@
  */
 package sc.fiji.snt.util;
 
-import java.util.Set;
-
 import ij.measure.Calibration;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
+
+import java.util.Set;
 
 /**
  * Convenience flavor of {@link PointInImage} defining 2D/3D points for Sholll Analysis.

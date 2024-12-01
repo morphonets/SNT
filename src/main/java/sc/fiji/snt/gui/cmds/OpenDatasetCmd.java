@@ -22,17 +22,15 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-
+import ij.ImagePlus;
 import net.imagej.ImageJ;
-import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.util.ImpUtils;
-
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.ImpUtils;
 
-import ij.ImagePlus;
+import java.io.File;
 
 /**
  * Implements the 'Choose Tracing Image (From File)...' command.

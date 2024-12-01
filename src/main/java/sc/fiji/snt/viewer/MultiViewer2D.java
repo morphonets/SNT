@@ -22,7 +22,30 @@
 
 package sc.fiji.snt.viewer;
 
-import java.awt.GridLayout;
+import net.imagej.ImageJ;
+import net.imagej.display.ColorTables;
+import net.imglib2.display.ColorTable;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.ChartUtils;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.CombinedDomainXYPlot;
+import org.jfree.chart.plot.CombinedRangeXYPlot;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.title.PaintScaleLegend;
+import org.jfree.chart.ui.RectangleEdge;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.MultiTreeColorMapper;
+import sc.fiji.snt.analysis.SNTChart;
+import sc.fiji.snt.analysis.TreeColorMapper;
+import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
+import sc.fiji.snt.util.PointInImage;
+
+import javax.swing.*;
+import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -32,31 +55,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import javax.swing.JFrame;
-
-import org.jfree.chart.ChartPanel;
-import org.jfree.chart.ChartUtils;
-import org.jfree.chart.JFreeChart;
-import org.jfree.chart.plot.CombinedDomainXYPlot;
-import org.jfree.chart.plot.CombinedRangeXYPlot;
-import org.jfree.chart.plot.XYPlot;
-import org.jfree.chart.title.PaintScaleLegend;
-import org.jfree.chart.ui.RectangleEdge;
-
-import net.imagej.ImageJ;
-import net.imagej.display.ColorTables;
-import net.imglib2.display.ColorTable;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.MultiTreeColorMapper;
-import sc.fiji.snt.analysis.SNTChart;
-import sc.fiji.snt.analysis.TreeColorMapper;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
-import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 
 /**
  * Class for rendering montages of {@link Tree}s as 2D plots that can be exported as SVG,

@@ -22,18 +22,6 @@
 
 package sc.fiji.snt.plugin.ij1;
 
-import java.awt.AWTEvent;
-import java.awt.Checkbox;
-import java.awt.Label;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Vector;
-import java.util.regex.Matcher;
-
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.DialogListener;
@@ -53,6 +41,14 @@ import sc.fiji.snt.gui.ShollAnalysisDialog.ShollPoint;
 import sc.fiji.snt.gui.ShollAnalysisDialog.ShollResults;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Vector;
+import java.util.regex.Matcher;
 
 /**
  * Implements the IJ1 "Sholl Analysis" (deprecated) command.

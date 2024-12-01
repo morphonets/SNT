@@ -22,30 +22,20 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.awt.Component;
-import java.awt.Container;
-import java.awt.Window;
-import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.text.DecimalFormat;
-import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.DoubleStream;
-
-import javax.swing.AbstractButton;
-import javax.swing.JComponent;
-import javax.swing.JDialog;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
-
 import ij.ImagePlus;
+import ij.measure.Calibration;
+import net.imagej.ImageJ;
+import net.imagej.ops.OpService;
+import net.imagej.util.Images;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.neighborhood.DiamondShape;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.img.cell.CellImgFactory;
+import net.imglib2.type.NativeType;
+import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.DoubleType;
+import net.imglib2.type.numeric.real.FloatType;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -56,17 +46,10 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
-
-import ij.measure.Calibration;
-import net.imagej.ImageJ;
-import net.imagej.ops.OpService;
-import net.imagej.util.Images;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.cell.CellImgFactory;
-import net.imglib2.type.NativeType;
-import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.real.FloatType;
-import sc.fiji.snt.*;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
@@ -75,6 +58,19 @@ import sc.fiji.snt.gui.SigmaPaletteListener;
 import sc.fiji.snt.plugin.LocalThicknessCmd;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SigmaUtils;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.text.DecimalFormat;
+import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 /**
  * Implements the "Generate Secondary Layer" command.

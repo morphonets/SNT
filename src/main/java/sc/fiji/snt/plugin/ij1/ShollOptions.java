@@ -22,13 +22,6 @@
 package sc.fiji.snt.plugin.ij1;
 
 
-import java.awt.Font;
-import java.util.HashMap;
-import java.util.Map.Entry;
-
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-
 import ij.IJ;
 import ij.Prefs;
 import ij.measure.Measurements;
@@ -37,6 +30,11 @@ import ij.plugin.filter.Analyzer;
 import ij.plugin.frame.Recorder;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.EnhancedGenericDialog;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.HashMap;
+import java.util.Map.Entry;
 
 /**
  * Implements the IJ1 "Sholl Options and Metrics" command.

@@ -22,35 +22,18 @@
 
 package sc.fiji.snt.analysis;
 
-import java.awt.Color;
-import java.io.IOException;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 import net.imagej.ImageJ;
 import net.imglib2.display.ColorTable;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.apache.commons.text.WordUtils;
 import org.scijava.Context;
-
-import sc.fiji.snt.analysis.sholl.ProfileEntry;
-import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
-import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.sholl.ProfileEntry;
+import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SWCPoint;
@@ -58,6 +41,15 @@ import sc.fiji.snt.util.ShollPoint;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
+
+import java.awt.*;
+import java.io.IOException;
+import java.net.URL;
+import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Class for color coding {@link Tree}s.
@@ -657,7 +649,7 @@ public class TreeColorMapper extends ColorMapper {
 		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
 		if (!measurement.equals(normMeasurement)) {
 			SNTUtils.log("\"" + normMeasurement + "\" assumed");
-			if ("unknonwn".equals(normMeasurement)) {
+			if ("unknown".equals(normMeasurement)) {
 				throw new IllegalArgumentException("Unrecognizable measurement! "
 						+ "Maybe you meant one of the following?: " + Arrays.toString(ALL_FLAGS));
 			}

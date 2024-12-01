@@ -22,15 +22,10 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Frame;
-import java.awt.Window;
-import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.IntStream;
-
+import ij.WindowManager;
+import ij.gui.ImageWindow;
+import ij.gui.PlotWindow;
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.display.DisplayService;
@@ -43,17 +38,20 @@ import org.scijava.table.io.TableIOOptions;
 import org.scijava.table.io.TableIOService;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
-
-import ij.WindowManager;
-import ij.gui.ImageWindow;
-import ij.gui.PlotWindow;
-import net.imagej.ImageJ;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
+
+import java.awt.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
 /**
  * Implements the 'Save Tables and Analysis Plots...' command: A single prompt for saving all

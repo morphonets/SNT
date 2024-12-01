@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.util;
 
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.annotation.BrainAnnotation;
+
 import java.awt.*;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -31,10 +35,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.annotation.BrainAnnotation;
 
 /**
  * Defines a node in an SWC reconstruction. The SWC file format is detailed

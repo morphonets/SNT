@@ -22,24 +22,22 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.*;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
-
 import org.scijava.widget.ChoiceWidget;
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.GroupedTreeStatistics;
 import sc.fiji.snt.analysis.MultiTreeStatistics;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.Tree;
+
+import java.util.*;
 
 /**
  * Command for plotting distributions of whole-cell morphometric properties of

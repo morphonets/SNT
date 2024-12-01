@@ -22,22 +22,13 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Component;
-import java.awt.Font;
-import java.awt.FontFormatException;
-import java.awt.FontMetrics;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Paint;
-import java.awt.RenderingHints;
+import sc.fiji.snt.SNTUtils;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-
-import javax.swing.Icon;
-import javax.swing.UIManager;
-
-import sc.fiji.snt.SNTUtils;
 
 /**
  * Creates icons from Font Awesome Glyphs: High-quality icons that render well

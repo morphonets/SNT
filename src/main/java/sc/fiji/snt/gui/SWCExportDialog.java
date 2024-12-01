@@ -22,11 +22,16 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Component;
-import java.awt.FlowLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Insets;
+import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon;
+import ij.ImagePlus;
+import sc.fiji.snt.SNTPrefs;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
+
+import javax.swing.*;
+import javax.swing.RowSorter.SortKey;
+import javax.swing.table.*;
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -34,37 +39,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Vector;
+import java.util.*;
 import java.util.stream.IntStream;
-
-import javax.swing.JButton;
-import javax.swing.JDialog;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.RowSorter;
-import javax.swing.RowSorter.SortKey;
-import javax.swing.SortOrder;
-import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableColumnModel;
-import javax.swing.table.TableRowSorter;
-
-import com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon;
-
-import ij.ImagePlus;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.SNTUtils;
 
 /**
  * Implements a dialog for exporting SWC files.

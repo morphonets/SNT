@@ -22,14 +22,14 @@
 
 package sc.fiji.snt.util;
 
-import java.util.Objects;
-
 import ij.measure.Calibration;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathTransformer;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+
+import java.util.Objects;
 
 /**
  * Defines a Point in an image, a node of a traced {@link Path}. Coordinates are

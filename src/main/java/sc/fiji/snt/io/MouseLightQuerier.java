@@ -22,25 +22,20 @@
 
 package sc.fiji.snt.io;
 
+import okhttp3.*;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.annotation.AllenCompartment;
+import sc.fiji.snt.annotation.AllenUtils;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.annotation.AllenCompartment;
-import sc.fiji.snt.annotation.AllenUtils;
 
 /**
  * Importer for retrieving reconstructions from MouseLight's online database at

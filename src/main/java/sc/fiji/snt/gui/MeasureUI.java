@@ -22,27 +22,14 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
-import java.util.List;
-
-import javax.swing.*;
-import javax.swing.event.*;
-import javax.swing.table.*;
-
+import com.jidesoft.swing.CheckBoxList;
+import com.jidesoft.swing.ListSearchable;
+import net.imagej.ImageJ;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
 import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
-
-import com.jidesoft.swing.CheckBoxList;
-import com.jidesoft.swing.ListSearchable;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
@@ -51,6 +38,17 @@ import sc.fiji.snt.analysis.PathProfiler;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
+
+import javax.swing.*;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
+import javax.swing.table.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.*;
 
 
 /**

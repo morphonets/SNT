@@ -23,16 +23,14 @@
 package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImageJ;
-
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.menu.MenuConstants;
 import org.scijava.plugin.Menu;
 import org.scijava.plugin.Plugin;
-
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * Command for starting Reconstruction Viewer as a 'stand-alone' program

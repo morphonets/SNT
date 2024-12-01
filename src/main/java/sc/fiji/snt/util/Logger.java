@@ -25,7 +25,6 @@ import org.scijava.Context;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
-
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 

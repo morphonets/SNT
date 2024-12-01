@@ -33,7 +33,9 @@ import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.gui.GuiUtils;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
 
 /**
  * Implements {@link PathManagerUI}'s "Extension Angle(s)" prompt.

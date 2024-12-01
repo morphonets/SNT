@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
+import java.awt.*;
 
 /** Interface for monitoring changes in {@link ColorChooserButton}. */
 public interface ColorChangedListener {

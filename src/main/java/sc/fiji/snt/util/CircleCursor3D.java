@@ -22,7 +22,10 @@
 
 package sc.fiji.snt.util;
 
-import net.imglib2.*;
+import net.imglib2.Cursor;
+import net.imglib2.Localizable;
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessible;
 import net.imglib2.util.LinAlgHelpers;
 
 /**

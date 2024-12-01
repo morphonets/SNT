@@ -22,14 +22,8 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
-import java.awt.FlowLayout;
-
-import javax.swing.JCheckBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
+import javax.swing.*;
+import java.awt.*;
 
 public class CheckboxSpinner extends JPanel {
 

@@ -22,6 +22,16 @@
 
 package sc.fiji.snt.io;
 
+import net.imagej.ImageJ;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+import org.json.JSONObject;
+import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,18 +39,6 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-
-import net.imagej.ImageJ;
-
-import org.json.JSONObject;
-
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
 
 /**
  * Importer for retrieving SWC data from neuromorpho.org.

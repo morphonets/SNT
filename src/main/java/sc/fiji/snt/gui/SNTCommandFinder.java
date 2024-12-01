@@ -22,41 +22,25 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.geom.Area;
-import java.awt.geom.Ellipse2D;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.icons.FlatSearchIcon;
+import com.formdev.flatlaf.ui.FlatButtonUI;
+import org.scijava.ui.awt.AWTWindows;
+import org.scijava.util.PlatformUtils;
+import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-
-import org.scijava.ui.awt.AWTWindows;
-import org.scijava.util.PlatformUtils;
-
-import com.formdev.flatlaf.FlatClientProperties;
-import com.formdev.flatlaf.icons.FlatSearchIcon;
-import com.formdev.flatlaf.ui.FlatButtonUI;
-
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.viewer.Viewer3D;
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
+import java.util.List;
+import java.util.*;
 
 /**
  * Implements SNT's Command Palette. This is the same code that is used by the

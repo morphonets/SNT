@@ -22,14 +22,8 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Graphics;
-
-import javax.swing.AbstractButton;
-import javax.swing.Icon;
-import javax.swing.JButton;
-import javax.swing.UIManager;
+import javax.swing.*;
+import java.awt.*;
 
 /**
  * A factory for {@link FADerivedIcon}s presets.

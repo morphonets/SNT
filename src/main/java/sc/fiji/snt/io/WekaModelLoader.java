@@ -22,14 +22,6 @@
 
 package sc.fiji.snt.io;
 
-import java.io.File;
-import java.util.List;
-
-import org.scijava.ItemVisibility;
-import org.scijava.command.Command;
-import org.scijava.plugin.Parameter;
-import org.scijava.plugin.Plugin;
-
 import ij.IJ;
 import ij.ImagePlus;
 import net.imagej.ImgPlus;
@@ -38,6 +30,10 @@ import net.imagej.ops.OpService;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
+import org.scijava.ItemVisibility;
+import org.scijava.command.Command;
+import org.scijava.plugin.Parameter;
+import org.scijava.plugin.Plugin;
 import sc.fiji.labkit.ui.segmentation.SegmentationTool;
 import sc.fiji.labkit.ui.segmentation.Segmenter;
 import sc.fiji.labkit.ui.segmentation.weka.TrainableSegmentationSegmenter;
@@ -46,6 +42,9 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImpUtils;
 import trainableSegmentation.WekaSegmentation;
+
+import java.io.File;
+import java.util.List;
 
 /**
  * GUI command for Loading pre-trained models from Labkit/TWS as secondary image

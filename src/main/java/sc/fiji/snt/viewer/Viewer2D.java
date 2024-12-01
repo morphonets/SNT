@@ -22,36 +22,31 @@
 
 package sc.fiji.snt.viewer;
 
-import java.awt.Color;
-import java.util.*;
-
+import net.imagej.ImageJ;
 import net.imglib2.RealLocalizable;
+import net.imglib2.display.ColorTable;
 import net.imglib2.roi.geom.real.Polygon2D;
 import org.jfree.chart.JFreeChart;
 import org.scijava.Context;
+import org.scijava.plot.*;
+import org.scijava.plot.defaultplot.DefaultPlotService;
 import org.scijava.plugin.Parameter;
+import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
-
-import net.imagej.ImageJ;
-import org.scijava.plot.LineStyle;
-import org.scijava.plot.MarkerStyle;
-import org.scijava.plot.PlotService;
-import org.scijava.plot.XYPlot;
-import org.scijava.plot.XYSeries;
-import org.scijava.plot.defaultplot.DefaultPlotService;
-import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
-
-import org.scijava.ui.swing.viewer.plot.jfreechart.XYPlotConverter;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
+
+import java.awt.*;
+import java.util.List;
+import java.util.*;
 
 /**
  * Class for rendering {@link Tree}s as 2D plots that can be exported as SVG,

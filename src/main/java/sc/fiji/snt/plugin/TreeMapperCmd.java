@@ -22,17 +22,10 @@
 
 package sc.fiji.snt.plugin;
 
-import java.awt.*;
-import java.io.IOException;
-import java.net.URL;
-import java.util.*;
-import java.util.List;
-
 import net.imagej.Dataset;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -43,13 +36,18 @@ import org.scijava.prefs.PrefService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.Button;
-
+import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.Tree;
+
+import java.awt.*;
+import java.io.IOException;
+import java.net.URL;
+import java.util.List;
+import java.util.*;
 
 /**
  * Command for color coding trees according to their properties using

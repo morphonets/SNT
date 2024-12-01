@@ -21,35 +21,16 @@
  */
 package sc.fiji.snt.gui;
 
-import java.awt.BorderLayout;
-import java.awt.Button;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Frame;
-import java.awt.GraphicsEnvironment;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Panel;
-import java.awt.ScrollPane;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowEvent;
-
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-import javax.swing.UIManager;
-
 import fiji.util.gui.GenericDialogPlus;
 import ij.IJ;
 import ij.plugin.BrowserLauncher;
 import ij.plugin.frame.Recorder;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.plugin.ij1.Sholl_Utils;
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
 
 
 /**

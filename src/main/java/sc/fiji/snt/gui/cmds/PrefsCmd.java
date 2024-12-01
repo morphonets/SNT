@@ -22,14 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import javax.swing.JOptionPane;
-
+import net.imagej.ImageJ;
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -37,13 +30,18 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
+
+import javax.swing.*;
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Command for (re)setting SNT Preferences.

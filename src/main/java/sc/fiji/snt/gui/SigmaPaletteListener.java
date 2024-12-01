@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.Window;
+import java.awt.*;
 import java.util.List;
 
 public interface SigmaPaletteListener {

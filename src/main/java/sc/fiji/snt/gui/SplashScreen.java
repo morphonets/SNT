@@ -22,22 +22,11 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.BorderLayout;
-import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.Font;
-import java.awt.Image;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
 import java.awt.event.ActionListener;
 import java.net.URL;
-
-import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JProgressBar;
-import javax.swing.JWindow;
-import javax.swing.Timer;
-import javax.swing.border.EmptyBorder;
 
 /* Large multichannel/timelapse images can take a while to load into SNT. This helps to maintain the GUI functional
  * Recycled code from https://stackoverflow.com/a/11935045 and net.imagej.launcher.SplashScreen

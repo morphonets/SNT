@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.io;
 
+import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.GuiUtils;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,10 +34,6 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Absurdly simple importer for retrieving SWC data from

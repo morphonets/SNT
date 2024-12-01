@@ -23,7 +23,6 @@
 package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.ModuleItem;

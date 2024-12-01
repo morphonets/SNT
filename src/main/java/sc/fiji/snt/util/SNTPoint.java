@@ -23,10 +23,10 @@
 package sc.fiji.snt.util;
 
 
+import sc.fiji.snt.annotation.BrainAnnotation;
+
 import java.util.Collection;
 import java.util.Iterator;
-
-import sc.fiji.snt.annotation.BrainAnnotation;
 
 /**
  * Classes extend this interface implement a point in a 3D space, always using

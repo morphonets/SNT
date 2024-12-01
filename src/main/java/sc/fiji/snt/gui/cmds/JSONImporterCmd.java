@@ -22,25 +22,24 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.Map;
-import java.util.TreeSet;
-import java.util.stream.IntStream;
-
+import net.imagej.ImageJ;
 import org.json.JSONException;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
-
-import net.imagej.ImageJ;
-import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import sc.fiji.snt.util.SWCPoint;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.Map;
+import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 /**
  * Command for importing a (MouseLight) JSON file

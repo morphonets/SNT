@@ -28,12 +28,11 @@ import org.scijava.command.DynamicCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
-
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.viewer.Viewer3D;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTPrefs;
 
 /**
  * Command class for GUI commands extending DynamicCommand

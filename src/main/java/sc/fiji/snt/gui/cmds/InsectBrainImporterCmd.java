@@ -21,11 +21,7 @@
  */
 package sc.fiji.snt.gui.cmds;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -33,8 +29,6 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import org.scijava.widget.Button;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
@@ -43,6 +37,11 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.InsectBrainLoader;
 import sc.fiji.snt.viewer.OBJMesh;
 import sc.fiji.snt.viewer.Viewer3D;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Command for importing InsectBrain reconstructions

@@ -21,17 +21,16 @@
  */
 package sc.fiji.snt.plugin.ij1;
 
-import java.util.stream.IntStream;
-
-import org.apache.commons.math3.stat.StatUtils;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.ResultsTable;
 import ij.plugin.filter.PlugInFilter;
 import ij.process.ImageProcessor;
+import org.apache.commons.math3.stat.StatUtils;
 import sc.fiji.analyzeSkeleton.AnalyzeSkeleton_;
 import sc.fiji.analyzeSkeleton.SkeletonResult;
+
+import java.util.stream.IntStream;
 
 /**
  * This class implements the ImageJ {@code Summarize Skeleton} plugin. For more

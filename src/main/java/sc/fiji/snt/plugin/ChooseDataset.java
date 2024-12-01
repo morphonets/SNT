@@ -21,13 +21,8 @@
  */
 package sc.fiji.snt.plugin;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
 import net.imagej.Dataset;
 import net.imagej.DatasetService;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
@@ -35,6 +30,10 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 
 /**

@@ -22,20 +22,15 @@
 
 package sc.fiji.snt.io;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import org.apache.commons.io.IOUtils;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-
-import org.apache.commons.io.IOUtils;
-
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
 
 /**
  * Importers downloading remote SWC files should extend this interface.

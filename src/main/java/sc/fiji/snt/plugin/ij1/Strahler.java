@@ -21,20 +21,7 @@
  */
 package sc.fiji.snt.plugin.ij1;
 
-import java.awt.Checkbox;
-import java.awt.Choice;
-import java.awt.Font;
-import java.awt.Rectangle;
-import java.awt.Window;
-import java.util.ArrayList;
-import java.util.ListIterator;
-import java.util.Vector;
-
-import ij.IJ;
-import ij.ImageJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.WindowManager;
+import ij.*;
 import ij.gui.DialogListener;
 import ij.gui.GenericDialog;
 import ij.gui.ImageCanvas;
@@ -50,9 +37,14 @@ import sc.fiji.analyzeSkeleton.Point;
 import sc.fiji.analyzeSkeleton.SkeletonResult;
 import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.gui.EnhancedGenericDialog;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.LSystemsTree;
-import sc.fiji.snt.util.ColorMaps;
+
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.ListIterator;
+import java.util.Vector;
 
 
 /**

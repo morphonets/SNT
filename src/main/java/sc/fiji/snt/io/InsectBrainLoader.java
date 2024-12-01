@@ -38,7 +38,10 @@ import sc.fiji.snt.viewer.OBJMesh;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**

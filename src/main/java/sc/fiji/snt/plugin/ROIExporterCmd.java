@@ -22,11 +22,11 @@
 
 package sc.fiji.snt.plugin;
 
-import java.util.HashMap;
-import java.util.Map;
-
+import ij.ImagePlus;
+import ij.gui.Overlay;
+import ij.gui.Roi;
+import ij.plugin.frame.RoiManager;
 import net.imagej.ImageJ;
-
 import org.scijava.app.StatusService;
 import org.scijava.command.Command;
 import org.scijava.log.LogService;
@@ -34,14 +34,12 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.DialogPrompt;
 import org.scijava.ui.UIService;
-
-import ij.ImagePlus;
-import ij.gui.Overlay;
-import ij.gui.Roi;
-import ij.plugin.frame.RoiManager;
-import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.RoiConverter;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Command providing a GUI for {@link RoiConverter} and allowing export of

@@ -23,13 +23,11 @@
 package sc.fiji.snt.gui.cmds;
 
 import com.mxgraph.model.mxCell;
-
+import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.command.DynamicCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.annotation.BrainAnnotation;

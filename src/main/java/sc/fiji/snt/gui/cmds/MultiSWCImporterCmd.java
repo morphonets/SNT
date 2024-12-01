@@ -22,27 +22,20 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.IntStream;
-
 import net.imagej.ImageJ;
-
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
-
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUI;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.IntStream;
 
 /**
  * Command for importing a folder of SWC files.

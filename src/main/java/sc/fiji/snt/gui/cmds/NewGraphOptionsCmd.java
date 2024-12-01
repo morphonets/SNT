@@ -22,12 +22,11 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-
-import net.imagej.ImageJ;
 import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.gui.GuiUtils;
 

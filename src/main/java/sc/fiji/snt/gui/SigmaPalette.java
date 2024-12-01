@@ -22,26 +22,11 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.awt.image.IndexColorModel;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
-import ij.gui.GUI;
-import ij.gui.ImageCanvas;
-import ij.gui.ImageRoi;
-import ij.gui.Overlay;
-import ij.gui.Roi;
-import ij.gui.ScrollbarWithLabel;
-import ij.gui.StackWindow;
-import ij.gui.TextRoi;
+import ij.gui.*;
 import ij.measure.Calibration;
 import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
@@ -55,11 +40,22 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.scijava.plugin.Parameter;
 import org.scijava.ui.awt.AWTWindows;
-
-import sc.fiji.snt.*;
+import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.util.ImpUtils;
+
+import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowEvent;
+import java.awt.image.IndexColorModel;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Implements SNT 'Sigma wizard'. It relies heavily on java.awt because it

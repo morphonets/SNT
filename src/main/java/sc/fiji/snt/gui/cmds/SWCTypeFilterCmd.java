@@ -22,12 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.util.HashSet;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-
 import net.imagej.ImageJ;
-
 import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -35,10 +30,13 @@ import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
-
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.gui.GuiUtils;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 /**
  * Implements {@link PathManagerUI}'s SWC-type filtering Command.

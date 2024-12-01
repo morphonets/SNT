@@ -22,29 +22,18 @@
 
 package sc.fiji.snt.gui;
 
-import java.awt.BorderLayout;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
-import java.awt.Rectangle;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.util.Objects;
-
-import javax.swing.AbstractButton;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JDialog;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-import javax.swing.Timer;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultCaret;
-
+import com.formdev.flatlaf.FlatLaf;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.scijava.ui.swing.script.EditorPane;
 
-import com.formdev.flatlaf.FlatLaf;
+import javax.swing.*;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultCaret;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.Objects;
 
 public class ScriptRecorder extends JDialog {
 

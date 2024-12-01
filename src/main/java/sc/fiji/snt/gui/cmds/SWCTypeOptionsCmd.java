@@ -22,14 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.awt.Color;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.TreeMap;
-
 import net.imagej.ImageJ;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
@@ -38,10 +31,15 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.util.ColorRGB;
 import org.scijava.widget.Button;
-
-import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.gui.GuiUtils;
+
+import java.awt.*;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Implements {@link PathManagerUI}'s SWC-SWC-type tagging Options

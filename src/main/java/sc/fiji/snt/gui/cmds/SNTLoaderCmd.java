@@ -22,15 +22,10 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import ij.ImagePlus;
+import ij.plugin.CompositeConverter;
 import io.scif.services.DatasetIOService;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
 import net.imagej.display.ImageDisplayService;
-
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
@@ -42,15 +37,17 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
 import org.scijava.widget.FileWidget;
-
-import ij.ImagePlus;
-import ij.plugin.CompositeConverter;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.SNTUtils;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Command for Launching SNT

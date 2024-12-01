@@ -22,45 +22,23 @@
 
 package sc.fiji.snt.io;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeSet;
-
+import okhttp3.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.JSONTokener;
 import org.scijava.util.ColorRGB;
-
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import sc.fiji.snt.util.SWCPoint;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.TreeProperties;
+import sc.fiji.snt.*;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.util.SWCPoint;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.*;
 
 /**
  * Methods for retrieving reconstructions from MouseLight's online database at

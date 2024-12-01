@@ -22,15 +22,14 @@
 
 package sc.fiji.snt.util;
 
+import ij.measure.Calibration;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.jzy3d.maths.BoundingBox3d;
+import sc.fiji.snt.gui.GuiUtils;
+
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
-
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.jzy3d.maths.BoundingBox3d;
-
-import ij.measure.Calibration;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * A BoundingBox contains information (including spatial calibration) of a

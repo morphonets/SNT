@@ -22,11 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
-import java.io.File;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-
+import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -36,11 +32,14 @@ import org.scijava.prefs.PrefService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import org.scijava.widget.FileWidget;
-
-import net.imagej.ImageJ;
-import sc.fiji.snt.viewer.Viewer3D;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.viewer.Viewer3D;
+
+import java.io.File;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Command for loading Reconstruction files in Reconstruction Viewer. Loaded
