@@ -1207,7 +1207,7 @@ public class SNTChart extends ChartPanel {
 		popup.add(grids);
 		GuiUtils.addSeparator(grids, "Generic:");
 		JMenuItem jmi = new JMenuItem("Grid Lines");
-		jmi.setEnabled(!isFlowPlot());
+		jmi.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
 		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
 		grids.add(jmi);
 		jmi = new JMenuItem("Legend");
@@ -1401,6 +1401,10 @@ public class SNTChart extends ChartPanel {
 
 	private boolean isFlowPlot() {
 		return getChart().getPlot() instanceof FlowPlot;
+	}
+
+	private boolean isCombinedPlot() {
+		return getChart().getPlot() instanceof CombinedRangeXYPlot ||  getChart().getPlot() instanceof CombinedDomainXYPlot;
 	}
 
 	/**

@@ -401,6 +401,20 @@ public class SNTTable extends DefaultGenericTable {
 //		return toString(this, 0, getRowCount() - 1);
 //	}
 
+	/**
+	 * Script-friendly method for creating a table from a file.
+	 *
+	 * @param filePath the absolute path to the (csv) file to be imported
+	 * @return the SNTTable or null if file could not be imported
+	 */
+	public static SNTTable fromFile(final String filePath) {
+		try {
+			return new SNTTable(filePath);
+		} catch (final IOException e) {
+			return null;
+		}
+	}
+
 	public static String toString(final GenericTable table) {
 		return toString(table, 0, table.getRowCount() - 1);
 	}

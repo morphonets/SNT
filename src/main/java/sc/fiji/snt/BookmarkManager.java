@@ -314,7 +314,7 @@ public class BookmarkManager {
     private JPanel assembleZoomPanel() {
         final JSpinner spinner = GuiUtils.integerSpinner(visitingZoomPercentage, 100, 3200, 100, true);
         spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
-        final JButton autoButton = new JButton("Auto");
+        final JButton autoButton = new JButton("Reset");
         autoButton.addActionListener(e -> {
             if (null == sntui.plugin.getImagePlus()) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
@@ -336,7 +336,7 @@ public class BookmarkManager {
         c.gridx = 2;
         p.add(autoButton);
         GuiUtils.addTooltip(p, "The preferred zoom level (between 100 and 3200%) for visiting a bookmarked location.<br>"
-                + "<i>Auto</i> increases the level by two <i>Zoom In [+]</i> operations.");
+                + "<i>Reset</i> applies two <i>Zoom In [+]</i> operations above the current zoom level");
         return p;
     }
 

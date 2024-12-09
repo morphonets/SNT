@@ -1138,7 +1138,7 @@ public class GuiUtils {
 		final String tooltipText = "<html>" + ((length > 500) ? "<body><div style='width:500;'>" : "") + text;
 		if (c instanceof JPanel) {
 			for (final Component cc : c.getComponents()) {
-				if (cc instanceof JComponent && !(cc instanceof JButton))
+				if (cc instanceof JComponent)
 					((JComponent) cc).setToolTipText(tooltipText);
 			}
 		} else {
