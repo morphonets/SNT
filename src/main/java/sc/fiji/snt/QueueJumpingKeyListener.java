@@ -170,7 +170,6 @@ class QueueJumpingKeyListener implements KeyListener {
 		}
 		else if (shift_down && (keyChar == 'b' || keyChar == 'B')) {
 			// IJ1 built-in: Shift+B Blobs Sample Image
-			System.out.println(e);
 			bookmarkCursorLocation();
 			e.consume();
 		}
@@ -304,7 +303,6 @@ class QueueJumpingKeyListener implements KeyListener {
 	}
 
 	private void bookmarkCursorLocation() {
-		System.out.println("bookmarkCursorLocation called");
 		if (calledFromUniv(false)) {
 			final Point3d p = getNearestPickedPoint();
 			if (p != null) {

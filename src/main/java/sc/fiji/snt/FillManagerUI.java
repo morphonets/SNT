@@ -520,8 +520,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 					plugin.startFilling();
 				} else  {
 					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
-							+ "fill all paths? Alternatively, you can dismiss this prompt, select subsets in the Path "
-							+ "Manager list, and rerun. ", "Fill All Paths?", "Yes. Fill all.", "No. Let me select subsets.");
+							+ "fill all paths? Alternatively, you can dismiss this prompt, select a subset in the Path "
+							+ "Manager list, and rerun. ", "Fill All Paths?", "Yes. Fill All", "No. I'll Select A Subset");
 					if (ans == JOptionPane.YES_OPTION) {
 						plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
 						applyCheckboxSelections();

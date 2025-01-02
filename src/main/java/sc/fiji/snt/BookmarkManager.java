@@ -125,8 +125,8 @@ public class BookmarkManager {
 
     private void resizeColumns() {
         // https://stackoverflow.com/a/26046778
-        float[] columnWidthPercentage = {0.675f, 0.075f, 0.075f, 0.075f, 0.05f, 0.05f};
-        int tW = table.getColumnModel().getTotalColumnWidth();
+        final  float[] columnWidthPercentage = {0.63f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
+        final int tW = table.getColumnModel().getTotalColumnWidth();
         TableColumn column;
         final TableColumnModel jTableColumnModel = table.getColumnModel();
         int cantCols = jTableColumnModel.getColumnCount();
@@ -176,7 +176,7 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
-        mi = new JMenuItem("Reset Columns");
+        mi = new JMenuItem("Reset Column Widths");
         mi.addActionListener(e -> {
             resizeColumns();
             recordComment("Bookmark Manager: resizeColumns()");
@@ -538,6 +538,8 @@ class BookmarkTable extends JTable {
         setRowSelectionAllowed(true);
         setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         setDefaultEditor(String.class, new CellEditor());
+        GuiUtils.setAlternatingRowColors(this, true); // will affect all tables
+        GuiUtils.setRoundedSelection(this);
     }
 
     JScrollPane getContainer() {

@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.icons.FlatClearIcon;
+import com.formdev.flatlaf.util.ColorFunctions;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.swing.ListSearchable;
@@ -2347,6 +2348,46 @@ public class GuiUtils {
 		return tabbedPane;
 	}
 
+	public static void setAlternatingRowColors(final JComponent tableListOrTree, final boolean alternatingRowColors) {
+		UIDefaults.ActiveValue alternateRowColor = null;
+		if (alternatingRowColors) {
+			alternateRowColor = uiDefaults -> {
+				final Color background = tableListOrTree.getBackground();
+				return FlatLaf.isLafDark()
+						? ColorFunctions.lighten(background, 0.05f)
+						: ColorFunctions.darken(background, 0.05f);
+			};
+		}
+        switch (tableListOrTree) {
+            case JTable ignored1 -> {
+                UIManager.put("Table.alternateRowColor", alternateRowColor);
+                tableListOrTree.repaint();
+            }
+            case JTree ignored2 -> {
+                UIManager.put("Tree.alternateRowColor", alternateRowColor);
+                tableListOrTree.updateUI();
+            }
+            case JList<?> ignored3 -> {
+                UIManager.put("List.alternateRowColor", alternateRowColor);
+                tableListOrTree.updateUI();
+            }
+            case null, default ->
+                    throw new IllegalArgumentException("Unsupported component. Only JList, JTable, or JTree supported");
+        }
+	}
+
+	public static JButton badgeButton(final String badgeName) {
+		final JButton badgeButton = new JButton(badgeName);
+		badgeButton.setFocusPainted(false);
+		badgeButton.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
+		badgeButton.setFont(badgeButton.getFont().deriveFont(badgeButton.getFont().getSize2D()*.85f));
+		return badgeButton;
+	}
+
+	public static void setRoundedSelection(final JComponent tableListOrTree) {
+		tableListOrTree.putClientProperty(FlatClientProperties.STYLE, "selectionArc: 6; selectionInsets: 0,1,0,1");
+	}
+
 	private static String releaseNotesURL() {
 		return "https://github.com/morphonets/SNT/releases";
 	}
@@ -2464,7 +2505,6 @@ public class GuiUtils {
 		}
 
 	}
-
 
 	private class FloatingDialog extends JDialog implements ComponentListener,
 		WindowListener

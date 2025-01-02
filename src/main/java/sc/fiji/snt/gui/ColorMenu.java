@@ -41,7 +41,7 @@ import java.util.Map;
 /**
  * Generates a simplified color widget holding both predetermined colors and
  * user-defined ones. It is based on Gerald Bauer's code released under GPL2
- * (http://www.java2s.com/Code/Java/Swing-JFC/ColorMenu.htm)
+ * (<a href="http://www.java2s.com/Code/Java/Swing-JFC/ColorMenu.htm">...</a>)
  */
 public class ColorMenu extends JMenu {
 
@@ -68,9 +68,7 @@ public class ColorMenu extends JMenu {
 		final Color[] hues = new Color[] { Color.RED, Color.GREEN, Color.BLUE,
 			Color.MAGENTA, Color.CYAN, Color.YELLOW, Color.ORANGE }; // 7 elements
 		final float[] colorRamp = new float[] { .75f, .5f, .3f };
-		final float[] grayRamp = new float[] { 1, .8f, .6f, .4f, .2f, .0f }; // 6
-																																					// elements
-
+		final float[] grayRamp = new float[] { 1, .8f, .6f, .4f, .2f, .0f }; // 6 elements
 		final JPanel defaultPanel = getGridPanel(8, 7);
 		_colorPanes = new HashMap<>();
 
@@ -102,25 +100,26 @@ public class ColorMenu extends JMenu {
 			defaultPanel.add(colorPane);
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
-		addSeparator("Default:", false);
+		GuiUtils.addSeparator(this, "Default Hues");
+
 		add(defaultPanel);
 
 		// Build the custom color row
-		final JPanel customPanel = getGridPanel(1, 7);
-		for (int i = 0; i < 7; i++) {
-			final Color uniquePlaceHolderColor = new Color(getBackground().getRed(),
-				getBackground().getGreen(), getBackground().getBlue(), 255 - i - 1);
-			final ColorPane customColorPane = new ColorPane(new SNTColor(
-				uniquePlaceHolderColor), true);
-			customPanel.add(customColorPane);
-			_colorPanes.put(new SNTColor(uniquePlaceHolderColor), customColorPane);
-		}
-		addSeparator("Custom (Right-click to Change):  ", true);
-		add(customPanel);
+//		final JPanel customPanel = getGridPanel(1, 7);
+//		for (int i = 0; i < 7; i++) {
+//			final Color uniquePlaceHolderColor = new Color(getBackground().getRed(),
+//				getBackground().getGreen(), getBackground().getBlue(), 255 - i - 1);
+//			final ColorPane customColorPane = new ColorPane(new SNTColor(
+//				uniquePlaceHolderColor), true);
+//			customPanel.add(customColorPane);
+//			_colorPanes.put(new SNTColor(uniquePlaceHolderColor), customColorPane);
+//		}
+//		GuiUtils.addSeparator(this, "Custom (Right-click to Change)");
+//		add(customPanel);
 
 		// Add Kelly distinct colors
 		addSeparator();
-		addSeparator("Contrast Hues:", true);
+		GuiUtils.addSeparator(this, "Contrast Hues");
 		final JPanel kellyPanel = getGridPanel(3, 7);
 		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(20);
 		for (final Color color : kellyColors) {
@@ -129,19 +128,6 @@ public class ColorMenu extends JMenu {
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
 		add(kellyPanel);
-	}
-
-	private void addSeparator(final String title, final boolean gap) {
-		final JPanel panelLabel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-		panelLabel.setBackground(getBackground());
-		final JLabel label = new JLabel(title);
-		label.setForeground(getForeground());
-		final double h = getFont().getSize() * .80; 
-		final int vgap = (gap) ? (int)h : 0;
-		label.setBorder(BorderFactory.createEmptyBorder(vgap, 4, 0, 4));
-		label.setFont(getFont().deriveFont((float) h));
-		panelLabel.add(label);
-		add(panelLabel);
 	}
 
 	private JPanel getGridPanel(final int rows, final int cols) {
@@ -157,13 +143,13 @@ public class ColorMenu extends JMenu {
 	}
 
 	public void selectSWCColor(final SNTColor c) {
-		final Object obj = _colorPanes.get(c);
-		if (obj == null) {
+		final ColorPane cp = _colorPanes.get(c);
+		if (cp == null) {
 			selectNone();
 			return;
 		}
 		if (_selectedColorPane != null) _selectedColorPane.setSelected(false);
-		_selectedColorPane = (ColorPane) obj;
+		_selectedColorPane = cp;
 		_selectedColorPane.setSelected(true);
 	}
 

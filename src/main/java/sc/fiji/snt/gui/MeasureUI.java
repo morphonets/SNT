@@ -67,7 +67,6 @@ public class MeasureUI extends JFrame {
 	private static final String[] allFlags = new String[] { MIN, MAX, MEAN, STDDEV, SUM, N };
 	private static final Class<?>[] columnClasses = new Class<?>[] { String.class, Boolean.class, Boolean.class,
 			Boolean.class, Boolean.class, Boolean.class, Boolean.class };
-	public static final List<MeasureUI> instances = new ArrayList<>();
 	private final MeasurePanel panel;
 
 	@Parameter
@@ -102,7 +101,6 @@ public class MeasureUI extends JFrame {
 		panel = new MeasurePanel(trees);
 		add(panel);
 		pack();
-		instances.add(this);
 		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 			@Override
@@ -117,7 +115,6 @@ public class MeasureUI extends JFrame {
 	@Override
 	public void dispose() {
 		panel.savePreferences();
-		instances.remove(MeasureUI.this);
 		if (backgroundTask != null && !backgroundTask.isDone()) {
 			backgroundTask.cancel(true);
 			backgroundTask.done();

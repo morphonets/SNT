@@ -22,6 +22,31 @@
 
 package sc.fiji.snt;
 
+import com.jidesoft.swing.Searchable;
+import com.jidesoft.swing.TreeSearchable;
+import ij.ImagePlus;
+import net.imagej.ImageJ;
+import net.imagej.lut.LUTService;
+import org.scijava.command.CommandModule;
+import org.scijava.command.CommandService;
+import org.scijava.display.DisplayService;
+import org.scijava.prefs.PrefService;
+import org.scijava.table.TableDisplay;
+import org.scijava.util.ColorRGB;
+import sc.fiji.snt.analysis.*;
+import sc.fiji.snt.gui.*;
+import sc.fiji.snt.gui.cmds.*;
+import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.SWCPoint;
+
+import javax.swing.Timer;
+import javax.swing.*;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
+import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
@@ -33,57 +58,14 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
-import javax.swing.*;
-import javax.swing.Timer;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.MutableTreeNode;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
-import javax.swing.tree.TreeSelectionModel;
-
-import org.scijava.command.CommandModule;
-import org.scijava.command.CommandService;
-import org.scijava.display.DisplayService;
-import org.scijava.prefs.PrefService;
-import org.scijava.table.TableDisplay;
-import org.scijava.util.ColorRGB;
-
-import com.jidesoft.swing.Searchable;
-import com.jidesoft.swing.TreeSearchable;
-
-import ij.ImagePlus;
-import net.imagej.ImageJ;
-import net.imagej.lut.LUTService;
-import sc.fiji.snt.analysis.*;
-import sc.fiji.snt.gui.*;
-import sc.fiji.snt.gui.cmds.*;
-import sc.fiji.snt.plugin.InterpolateRadiiCmd;
-import sc.fiji.snt.plugin.LabkitLoaderCmd;
-import sc.fiji.snt.plugin.PathAnalyzerCmd;
-import sc.fiji.snt.plugin.PathMatcherCmd;
-import sc.fiji.snt.plugin.PathSpineAnalysisCmd;
-import sc.fiji.snt.plugin.PathTimeAnalysisCmd;
-import sc.fiji.snt.plugin.ROIExporterCmd;
-import sc.fiji.snt.plugin.SkeletonizerCmd;
-import sc.fiji.snt.plugin.SpineExtractorCmd;
-import sc.fiji.snt.plugin.TWSLoaderCmd;
-import sc.fiji.snt.plugin.TreeMapperCmd;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
 
 /**
  * Implements the <i>Path Manager</i> Dialog.
@@ -110,6 +92,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private final SNT plugin;
 	private final PathAndFillManager pathAndFillManager;
 	private SNTTable table;
+	private MeasureUI measureUI;
 
 	protected static final String TABLE_TITLE = "SNT Measurements";
 	protected final GuiUtils guiUtils;
@@ -259,10 +242,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.COUNT_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.ORDER_TAG_CMD));
 		tagsMenu.add(morphoTagsMenu);
+		tagsMenu.add(new ProofReadingTagsMenu());
+		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.PLUS));
 		jmi.addActionListener(multiPathListener);
 		tagsMenu.add(jmi);
-		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.REPLACE_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH_ARROW));
 		jmi.addActionListener(multiPathListener);
 		tagsMenu.add(jmi);
@@ -420,6 +404,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SORT));
 		pjmi.addActionListener(multiPathListener);
 		popup.addSeparator();
+//		final JMenuItem alternate = new JMenuItem("Alternating row colors", IconFactory.getMenuIcon(IconFactory.GLYPH.TABLE));
+//		alternate.addActionListener(e -> {
+//			GuiUtils.setAlternatingRowColors(tree, alternate.isSelected());
+//		});
+//		popup.add(alternate);
 		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
 		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD));
 		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
@@ -818,9 +807,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 		for (final Component component : swcTypeMenu.getMenuComponents()) {
-			if (!(component instanceof JRadioButtonMenuItem)) continue;
-			final JRadioButtonMenuItem mi = (JRadioButtonMenuItem) component;
-			if (Integer.parseInt(mi.getName()) == index) {
+			if (!(component instanceof JRadioButtonMenuItem mi)) continue;
+            if (Integer.parseInt(mi.getName()) == index) {
 				mi.setSelected(true);
 				break;
 			}
@@ -862,6 +850,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return false;
 		}
 		return true;
+	}
+
+	@Override
+	public void dispose() {
+		closeTable();
+		if (measureUI != null) measureUI.dispose();
+		super.dispose();
 	}
 
 	/* (non-Javadoc)
@@ -992,7 +987,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
 		Collections.sort(treeLabels);
-		final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.get(0));
+		final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.getFirst());
 		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
 				"Which Structure?", treeLabels.toArray(new String[trees.size()]), defChoice);
 		if (choice != null) {
@@ -1011,7 +1006,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		trees.forEach(t -> treeLabels.add(t.getLabel()));
 		Collections.sort(treeLabels);
 		if (includeAll)
-			treeLabels.add(0, "   -- All --  ");
+			treeLabels.addFirst("   -- All --  ");
 		final List<String> choices = guiUtils.getMultipleChoices("Which Structure(s)?",
 				treeLabels.toArray(new String[trees.size()]), (includeAll) ? "   -- All --  " : null);
 		if (choices == null)
@@ -1231,6 +1226,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		public HelpfulJTree() {
 			super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
+			//putClientProperty(com.formdev.flatlaf.FlatClientProperties.TREE_WIDE_SELECTION, true );
 			setLargeModel(true);
 			setCellRenderer(new NodeRender());
 			getSelectionModel().setSelectionMode(
@@ -1748,7 +1744,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		setPathList(pathAndFillManager.getPaths(), null, true);
 	}
 
-	protected void closeTable() {
+	private void closeTable() {
 		final TableDisplay tableDisplay = getTableDisplay();
 		if (tableDisplay != null) tableDisplay.close();
 		table = null;
@@ -2256,20 +2252,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	protected void measureCells() {
-		final Collection<Tree> trees = getMultipleTrees();
-		if (trees == null) return;
-		boolean newInstance = true;
-		if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+		if (measureUI != null) {
 			if (guiUtils.getConfirmation("A Measurements prompt seems to be already open. Close it?",
 					"Measurements Prompt Already Open")) {
-				MeasureUI.instances.get(MeasureUI.instances.size() - 1).dispose();
+				measureUI.dispose();
+				measureUI = null;
 			} else {
-				newInstance = false;
-				MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
+				measureUI.toFront();
 			}
 		}
-		if (newInstance) {
-			new MeasureUI(plugin, trees).setVisible(true);
+		if (measureUI == null) {
+			final Collection<Tree> trees = getMultipleTrees();
+			if (trees == null) return;
+			measureUI = new MeasureUI(plugin, trees);
+			measureUI.setVisible(true);
 		}
 	}
 
@@ -2421,9 +2417,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						final PathFitter fitter = new PathFitter(plugin, p);
 						fitter.setShowAnnotatedView(true);
 						fitter.readPreferences();
-						final ExecutorService executor = Executors.newSingleThreadExecutor();
-						final Future<Path> future = executor.submit(fitter);
-						future.get();
+                        final Future<Path> future;
+                        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+                            future = executor.submit(fitter);
+                        }
+                        future.get();
 
 					} catch (InterruptedException | ExecutionException
 							 | RuntimeException e) {
@@ -3389,12 +3387,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				guiUtils.error("Selected Paths must form a single, un-branched segment!");
 				return;
 			}
-			final List<Path> sortedPaths = map.keySet().stream().sorted(Comparator.comparingInt(Path::getOrder))
-					.collect(Collectors.toList());
-			final Path mergedPath = sortedPaths.get(0).createPath();
-			mergedPath.setName(sortedPaths.get(0).getName());
-			final Path firstStartJoin = sortedPaths.get(0).getStartJoins();
-			final PointInImage firstStartJoinPoint = sortedPaths.get(0).getStartJoinsPoint();
+			final List<Path> sortedPaths = map.keySet().stream().sorted(Comparator.comparingInt(Path::getOrder)).toList();
+			final Path mergedPath = sortedPaths.getFirst().createPath();
+			mergedPath.setName(sortedPaths.getFirst().getName());
+			final Path firstStartJoin = sortedPaths.getFirst().getStartJoins();
+			final PointInImage firstStartJoinPoint = sortedPaths.getFirst().getStartJoinsPoint();
 			for (final Path p : sortedPaths) {
 				mergedPath.add(p);
 				// avoid CME
@@ -3411,7 +3408,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				p.disconnectFromAll();
 				pathAndFillManager.deletePath(p);
 			}
-			final Path lastChild = map.get(sortedPaths.get(sortedPaths.size() - 1)).get(0);
+			final Path lastChild = map.get(sortedPaths.getLast()).getFirst();
 			mergedPath.add(lastChild);
 			// avoid CME
 			for (final Path join : new ArrayList<>(lastChild.somehowJoins)) {
@@ -3431,7 +3428,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			pathAndFillManager.addPath(mergedPath, false, false);
 			// treeID is always overridden when adding a Path, so re-set it after adding
-			mergedPath.setIDs(sortedPaths.get(0).getID(), sortedPaths.get(0).getTreeID());
+			mergedPath.setIDs(sortedPaths.getFirst().getID(), sortedPaths.getFirst().getTreeID());
 		}
 
 		private void reverse(final List<Path> selectedPaths) {
@@ -3601,17 +3598,77 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (delimiterIdx == -1) {
 			return name;
 		} else {
-			return name.substring(0, delimiterIdx);
+			return name.substring(0, delimiterIdx).trim();
 		}
 	}
 
-	static Set<String> extractTagsFromPaths(final List<Path> paths) {
+	static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
 		final TreeSet<String> uniqueTags = new TreeSet<>(); // sorted entries
 		paths.forEach( p-> {
 			uniqueTags.addAll(Arrays.asList(extractTagsFromPath(p).split(",\\s*")));
 		});
 		uniqueTags.remove("");
 		return uniqueTags;
+	}
+
+	private class ProofReadingTagsMenu extends JMenu {
+
+		final Map<String, int[]> tagsMap;
+
+		ProofReadingTagsMenu() {
+			super("Proofreading");
+			setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.GLASSES));
+			tagsMap = new TreeMap<>();
+			tagsMap.put("active", new int[]{0xb7e3f2, 0x135b76});
+			tagsMap.put("checked", new int[]{0XC1E561, 0x2B5D00});
+			tagsMap.put("done", new int[]{-1, -1});
+			tagsMap.put("incomplete", new int[]{0XFFF8BF, 0xA06106});
+			tagsMap.put("unsure", new int[]{0XFFDF9E, 0XED5B00});
+			tagsMap.put("wrong", new int[]{0xEBB8BC, 0xE53E4D});
+			final JPanel panel = new JPanel();
+			panel.setLayout(new GridLayout(3, 2, 8, 8));
+			panel.setBackground(getBackground());
+			add(panel);
+			tagsMap.forEach((name, colors) -> panel.add(tagButton(name, colors[0], colors[1])));
+		}
+
+		JButton tagButton(final String tagName, final int background, final int foreground) {
+			final JButton tagButton = GuiUtils.badgeButton(tagName);
+			final Color bkgrdColor = (-1 == background) ? null : new Color(background);
+			final Color frgrdColor = (-1 == foreground) ? null : new Color(foreground);
+			tagButton.setBackground(bkgrdColor);
+			tagButton.setForeground(frgrdColor);
+			tagButton.addActionListener(e -> {
+				javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath();
+				final Collection<Path> selectedPaths = getSelectedPaths(true);
+				if (selectedPaths.isEmpty()) {
+					guiUtils.error("There are no traced paths.");
+					return;
+				}
+				selectedPaths.forEach(p -> {
+					String tags = extractTagsFromPath(p);
+					String oldTag = extractPreviousTag(tags);
+					if (oldTag == null) {
+						p.setName(String.format("%s {%s}", removeTags(p), (tags.isEmpty()) ? tagName : tags + ", " + tagName));
+					} else {
+						p.setName(String.format("%s {%s}", removeTags(p), tags.replace(oldTag, tagName)));
+					}
+					p.setColor(bkgrdColor);
+				});
+				refreshManager(true, true, selectedPaths);
+				plugin.setUnsavedChanges(true);
+				if (plugin.getUI().getRecorder(false) != null)
+					plugin.getUI().getRecorder(false)
+							.recordComment(String.format("Proofreading tag '%s' applied to %d path(s)", tagName, selectedPaths.size()));
+			});
+			return tagButton;
+		}
+
+		String extractPreviousTag(final String pathTags) {
+			for (final String tag : tagsMap.keySet())
+				if (pathTags.contains(tag)) return tag;
+			return null;
+		}
 	}
 
 	/* IDE debug method */

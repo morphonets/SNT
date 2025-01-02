@@ -3039,9 +3039,7 @@ public class SNT extends MultiDThreePanes implements
 	@Deprecated
 	private void update3DViewerContents() {
 		if (use3DViewer && univ != null) {
-			new Thread(() -> {
-				pathAndFillManager.update3DViewerContents();
-			}).start();
+			new Thread(pathAndFillManager::update3DViewerContents).start();
 		}
 	}
 

@@ -320,7 +320,6 @@ public class SNTUI extends JDialog {
 			c3.gridy++;
 			tab3.add(reconstructionViewerPanel(), c3);
 			c3.gridy++;
-			addSpacer(tab3, c3);
 			InternalUtils.addSeparatorWithURL(tab3, "sciview:", true, c3);
 			++c3.gridy;
 			final String msg3 =
@@ -332,7 +331,6 @@ public class SNTUI extends JDialog {
 			c3.gridy++;
 			tab3.add(sciViewerPanel(), c3);
 			c3.gridy++;
-			addSpacer(tab3, c3);
 			InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
 			++c3.gridy;
 			final String msg2 =
@@ -816,10 +814,12 @@ public class SNTUI extends JDialog {
 
 	protected void exitRequested() {
 		assert SwingUtilities.isEventDispatchThread();
-		String msg = "Exit SNT?";
-		if (plugin.isUnsavedChanges())
+		String msg = "Quit SNT?";
+		if (plugin.isUnsavedChanges() && pmUI.measurementsUnsaved())
+			msg = "There are unsaved paths and unsaved measurements. Do you really want to quit?";
+		else if (plugin.isUnsavedChanges())
 			msg = "There are unsaved paths. Do you really want to quit?";
-		if (pmUI.measurementsUnsaved())
+		else if (pmUI.measurementsUnsaved())
 			msg = "There are unsaved measurements. Do you really want to quit?";
 		if (!guiUtils.getConfirmation(msg, "Really Quit?"))
 			return;
@@ -829,7 +829,6 @@ public class SNTUI extends JDialog {
 		setAutosaveFile(null); // forget last saved file
 		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
-		pmUI.closeTable();
 		fmUI.dispose();
 		if (recViewer != null)
 			recViewer.dispose();
@@ -2008,14 +2007,6 @@ public class SNTUI extends JDialog {
 		return p;
 	}
 
-	private void addSpacer(final JPanel panel, final GridBagConstraints c) {
-		// extremely lazy implementation of a vertical spacer
-		IntStream.rangeClosed(1, 4).forEach(i -> {
-			panel.add(new JPanel(), c);
-			c.gridy++;
-		});
-	}
-
 	JPanel largeMsg(final String msg) {
 		final JTextArea ta = new JTextArea();
 		final Font defFont = new JLabel().getFont();
@@ -2043,7 +2034,7 @@ public class SNTUI extends JDialog {
 		openRecViewer = new JButton("Open Reconstruction Viewer");
 		registerInCommandFinder(openRecViewer, null, "3D Tab");
 		openRecViewer.addActionListener(e -> {
-			// if (noPathsError()) return;
+			if (noPathsError()) return; // otherwise list in RV controls won't update once paths are added
 			class RecWorker extends SwingWorker<Boolean, Object> {
 
 				@Override

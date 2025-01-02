@@ -271,6 +271,7 @@ public class Viewer3D {
 	private final Engine ENGINE;
 	private SNTCommandFinder cmdFinder;
 	private ScriptRecorder recorder;
+	private MeasureUI measureUI;
 
 	@Parameter
 	private CommandService cmdService;
@@ -4267,6 +4268,11 @@ public class Viewer3D {
 			pMenu.add(assignSceneColorTags);
 			pMenu.add(wipeTags);
 			pMenu.addSeparator();
+//			final JMenuItem alternate = new JMenuItem("Alternating row colors", IconFactory.getMenuIcon(GLYPH.TABLE));
+//			alternate.addActionListener(e -> {
+//				if (!noLoadedItemsGuiError())  GuiUtils.setAlternatingRowColors(managerList, alternate.isSelected());
+//			});
+//			pMenu.add(alternate);
 			pMenu.add(renderIcons);
 			pMenu.add(sort);
 			pMenu.addSeparator();
@@ -4499,20 +4505,18 @@ public class Viewer3D {
 			GuiUtils.addSeparator(measureMenu, "Tabular Results:");
 			JMenuItem mi = GuiUtils.MenuItems.measureOptions();
 			mi.addActionListener(e -> {
-				List<Tree> trees = getSelectedTrees();
-				if (trees == null || trees.isEmpty()) return;
-				boolean newInstance = true;
-				if (MeasureUI.instances != null && !MeasureUI.instances.isEmpty()) {
+				if (measureUI != null) {
 					if (guiUtils.getConfirmation("A Measurements prompt seems to be already open. Close it?",
 							"Measurements Prompt Already Open")) {
-						MeasureUI.instances.get(MeasureUI.instances.size() - 1).dispose();
+						measureUI.dispose();
+						measureUI = null;
 					} else {
-						newInstance = false;
-						MeasureUI.instances.get(MeasureUI.instances.size()-1).toFront();
-						trees = null;
+						measureUI.toFront();
 					}
 				}
-				if (newInstance) {
+				if (measureUI == null) {
+					final List<Tree> trees = getSelectedTrees();
+					if (trees == null || trees.isEmpty()) return;
 					final MeasureUI measureUI = new MeasureUI(trees);
 					initTable();
 					measureUI.setTable(table);
@@ -6668,6 +6672,10 @@ public class Viewer3D {
 		if (cmdFinder != null) {
 			cmdFinder.dispose();
 			cmdFinder = null;
+		}
+		if (measureUI != null) {
+			measureUI.dispose();
+			measureUI = null;
 		}
 		keyController = null;
 		mouseController = null;

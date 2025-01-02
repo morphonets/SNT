@@ -92,6 +92,7 @@ public class IconFactory {
 			CUBES('\uf1b3', true), //
 			//COMPASS('\uf14e', false), //
 			//COMPRESS('\uf422', true), //
+			GLASSES('\uf530', true), //
 			RESIZE('\uf424', true), //
 			COPY('\uf0c5', false), //
 			CROSSHAIR('\uf05b', true), //
