@@ -538,8 +538,8 @@ class BookmarkTable extends JTable {
         setRowSelectionAllowed(true);
         setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         setDefaultEditor(String.class, new CellEditor());
-        GuiUtils.setAlternatingRowColors(this, true); // will affect all tables
-        GuiUtils.setRoundedSelection(this);
+        //GuiUtils.setAlternatingRowColors(this, true); // will affect all tables
+        //GuiUtils.setRoundedSelection(this);
     }
 
     JScrollPane getContainer() {

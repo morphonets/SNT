@@ -99,6 +99,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private final JMenuBar menuBar;
     private final JMenu swcTypeMenu;
 	private final JMenu tagsMenu;
+	private final ProofReadingTagsToolBar proofReadingToolBar;
 	private ButtonGroup swcTypeButtonGroup;
 	private final ColorMenu colorMenu;
 	private final JMenuItem fitVolumeMenuItem;
@@ -126,7 +127,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tree.setVisibleRowCount(30);
 		tree.setDoubleBuffered(true);
 		tree.addTreeSelectionListener(this);
-        final JScrollPane scrollPane = new JScrollPane();
+		proofReadingToolBar = new ProofReadingTagsToolBar();
+		add(proofReadingToolBar, BorderLayout.PAGE_START);
+
+		final JScrollPane scrollPane = new JScrollPane();
 		scrollPane.getViewport().add(tree);
 		add(scrollPane, BorderLayout.CENTER);
 
@@ -242,7 +246,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.COUNT_TAG_CMD));
 		morphoTagsMenu.add(new TagMenuItem(MultiPathActionListener.ORDER_TAG_CMD));
 		tagsMenu.add(morphoTagsMenu);
-		tagsMenu.add(new ProofReadingTagsMenu());
+		tagsMenu.add(proofReadingToolBar.getToggleMenuItem());
 		tagsMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD, IconFactory.getMenuIcon(IconFactory.GLYPH.PLUS));
 		jmi.addActionListener(multiPathListener);
@@ -3611,35 +3615,90 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return uniqueTags;
 	}
 
-	private class ProofReadingTagsMenu extends JMenu {
+	private class ProofReadingTagsToolBar extends JToolBar {
 
 		final Map<String, int[]> tagsMap;
+		final JCheckBoxMenuItem toggleMenuItem;
 
-		ProofReadingTagsMenu() {
-			super("Proofreading");
-			setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.GLASSES));
+		ProofReadingTagsToolBar() {
+			super("Proofreading Tags", HORIZONTAL);
+			setFocusable(false);
+			setFloatable(true);
+			toggleMenuItem = new JCheckBoxMenuItem("Proofreading Toolbar");
+			toggleMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.GLASSES));
+			toggleMenuItem.setSelected(isVisible());
+			toggleMenuItem.addItemListener(e -> super.setVisible(toggleMenuItem.isSelected()));
 			tagsMap = new TreeMap<>();
 			tagsMap.put("active", new int[]{0xb7e3f2, 0x135b76});
-			tagsMap.put("checked", new int[]{0XC1E561, 0x2B5D00});
-			tagsMap.put("done", new int[]{-1, -1});
-			tagsMap.put("incomplete", new int[]{0XFFF8BF, 0xA06106});
+			tagsMap.put("complete", new int[]{0XC1E561, 0x2B5D00});
+			tagsMap.put("partial", new int[]{0XFFF8BF, 0xA06106});
 			tagsMap.put("unsure", new int[]{0XFFDF9E, 0XED5B00});
-			tagsMap.put("wrong", new int[]{0xEBB8BC, 0xE53E4D});
-			final JPanel panel = new JPanel();
-			panel.setLayout(new GridLayout(3, 2, 8, 8));
-			panel.setBackground(getBackground());
-			add(panel);
-			tagsMap.forEach((name, colors) -> panel.add(tagButton(name, colors[0], colors[1])));
+			tagsMap.put("wrong", new int[]{0xEBB8BC, 0xE51C2B}); //0xE53E4D
+			tagsMap.forEach((name, colors) -> add(tagButton(name, colors[0], colors[1])));
+			add(clearButton());
+			addExtras();
+			setVisible(false); // hidden by default
+		}
+
+		@Override
+		public void setVisible(boolean aFlag) {
+			toggleMenuItem.setSelected(aFlag);
+			super.setVisible(aFlag);
+		}
+
+		JCheckBoxMenuItem getToggleMenuItem() {
+			return toggleMenuItem;
+		}
+
+		void addExtras() {
+			final JPopupMenu popupMenu = new JPopupMenu();
+			final JMenuItem item = new JMenuItem("Hide " + getName());
+			item.addActionListener(e -> setVisible(false));
+			popupMenu.add(item);
+			setComponentPopupMenu(popupMenu);
+			final JButton help = GuiUtils.helpButton();
+			help.addActionListener(e -> ij.IJ.runPlugIn("ij.plugin.BrowserLauncher",
+					"https://imagej.net/plugins/snt/manual#tag-"));
+			add(Box.createHorizontalGlue());
+			add(help);
+		}
+
+		JButton clearButton() {
+			final JButton clearButton = GuiUtils.toolbarButton(" None ");
+			clearButton.setBackground(new Color(0x5D5D5D));
+			clearButton.setForeground(Color.WHITE);
+			clearButton.addActionListener(e -> {
+				final Collection<Path> selectedPaths = getSelectedPaths(true);
+				if (selectedPaths.isEmpty()) {
+					guiUtils.error("There are no traced paths.");
+					return;
+				}
+				selectedPaths.forEach(p -> {
+					final String tags = extractTagsFromPath(p);
+					if (tags.isEmpty()) return;
+					final String cleansedTags = removePreviousTag(tags);
+					if (cleansedTags.isEmpty())
+						p.setName(removeTags(p));
+					else
+						p.setName(String.format("%s {%s}", removeTags(p), cleansedTags));
+					p.setColor((Color) null);
+				});
+				refreshManager(true, true, selectedPaths);
+				plugin.setUnsavedChanges(true);
+				if (plugin.getUI().getRecorder(false) != null)
+					plugin.getUI().getRecorder(false)
+							.recordComment(String.format("Proofreading tags removed from %d path(s)", selectedPaths.size()));
+			});
+			return clearButton;
 		}
 
 		JButton tagButton(final String tagName, final int background, final int foreground) {
-			final JButton tagButton = GuiUtils.badgeButton(tagName);
-			final Color bkgrdColor = (-1 == background) ? null : new Color(background);
-			final Color frgrdColor = (-1 == foreground) ? null : new Color(foreground);
+			final JButton tagButton = GuiUtils.toolbarButton(" " +
+					tagName.substring(0, 1).toUpperCase() + tagName.substring(1) + " ");
+			final Color bkgrdColor = new Color(background);
 			tagButton.setBackground(bkgrdColor);
-			tagButton.setForeground(frgrdColor);
+			tagButton.setForeground(new Color(foreground));
 			tagButton.addActionListener(e -> {
-				javax.swing.MenuSelectionManager.defaultManager().clearSelectedPath();
 				final Collection<Path> selectedPaths = getSelectedPaths(true);
 				if (selectedPaths.isEmpty()) {
 					guiUtils.error("There are no traced paths.");
@@ -3668,6 +3727,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			for (final String tag : tagsMap.keySet())
 				if (pathTags.contains(tag)) return tag;
 			return null;
+		}
+
+		String removePreviousTag(final String pathTags) {
+			for (final String tag : tagsMap.keySet())
+				if (pathTags.contains(tag)) {
+					String cleanedPathTags = pathTags.replace(tag, "");
+					cleanedPathTags = Arrays.stream(cleanedPathTags.split(","))
+							.filter(s -> !s.isEmpty() && !s.isBlank())
+							.collect(Collectors.joining(","));
+					return cleanedPathTags;
+				}
+			return pathTags;
 		}
 	}
 

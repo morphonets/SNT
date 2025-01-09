@@ -2376,12 +2376,18 @@ public class GuiUtils {
         }
 	}
 
-	public static JButton badgeButton(final String badgeName) {
-		final JButton badgeButton = new JButton(badgeName);
-		badgeButton.setFocusPainted(false);
-		badgeButton.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
-		badgeButton.setFont(badgeButton.getFont().deriveFont(badgeButton.getFont().getSize2D()*.85f));
-		return badgeButton;
+	public static JButton toolbarButton(final String badgeName) {
+		final JButton button = new JButton(badgeName);
+		button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+		button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
+		return button;
+	}
+
+	public static JButton helpButton() {
+		final JButton button = new JButton();
+		button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);
+		button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
+		return button;
 	}
 
 	public static void setRoundedSelection(final JComponent tableListOrTree) {
