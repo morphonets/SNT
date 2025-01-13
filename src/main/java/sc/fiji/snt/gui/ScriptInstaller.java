@@ -69,6 +69,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	private static TextEditor editor;
 
 	private boolean openInsteadOfRun;
+	private Icon icon;
 
 	public ScriptInstaller(final Context context, final Component parent){
 		context.inject(this);
@@ -78,6 +79,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			ui = null;
 		guiUtils = new GuiUtils(parent);
 		init();
+		icon = UIManager.getIcon("Tree.openIcon");
 	}
 
 	private void init() {
@@ -242,7 +244,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	private void updateMenuItemIcon(final JMenuItem item) {
 		if (openInsteadOfRun && (item.isSelected() || item.isArmed())) {
-			item.setIcon(IconFactory.getMenuIcon(GLYPH.EYE));
+			item.setIcon(icon);
 		} else {
 			item.setIcon(null);
 		}

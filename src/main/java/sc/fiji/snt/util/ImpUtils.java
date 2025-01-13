@@ -35,6 +35,11 @@ import org.scijava.convert.ConvertService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 
+import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.io.File;
 import java.io.InputStream;
@@ -273,6 +278,47 @@ public class ImpUtils {
 		imp = new MontageMaker().makeMontage2(imp, gridCols, gridRows, 1, 1, trees.size(), 1, 0, true);
 		imp.setTitle("Skeletonized Trees");
 		return imp;
+	}
+
+	/**
+	 * Retrieves an ImagePlus from the system clipboard
+	 *
+	 * @param asMultiChannel if true and clipboard contains RGB data image is returned as composite (RGB/8-bit grayscale otherwise)
+	 * @return the image stored in the system clipboard or null if no image found
+	 */
+	public static ImagePlus getSystemClipboard(final boolean asMultiChannel) {
+		try {
+			final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+			final Transferable transferable = clipboard.getContents(null);
+			if (transferable != null && transferable.isDataFlavorSupported(DataFlavor.imageFlavor)) {
+				final Image img = (Image) transferable.getTransferData(DataFlavor.imageFlavor);
+				final int width = img.getWidth(null);
+				final int height = img.getHeight(null);
+				final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+				final Graphics g = bi.createGraphics();
+				g.drawImage(img, 0, 0, null);
+				g.dispose();
+				final ImagePlus result = new ImagePlus("Clipboard", bi);
+				final boolean isGray = isGrayscale(bi, width, height);
+				if (isGray) convertTo8bit(result);
+				return (asMultiChannel && !isGray) ? convertRGBtoComposite(result) : result;
+			}
+		} catch (final Throwable e) {
+			SNTUtils.error("No image in clipboard", e);
+		}
+		return null;
+	}
+
+	private static boolean isGrayscale(final BufferedImage image, final int width, final int height) {
+		for (int i = 0; i < width; i++) { // https://stackoverflow.com/a/36173328
+			for (int j = 0; j < height; j++) {
+				final int pixel = image.getRGB(i, j);
+				final int red = (pixel >> 16) & 0xff;
+				final int green = (pixel >> 8) & 0xff;
+				if (red != green || green != ((pixel) & 0xff)) return false;
+			}
+		}
+		return true;
 	}
 
 	/**

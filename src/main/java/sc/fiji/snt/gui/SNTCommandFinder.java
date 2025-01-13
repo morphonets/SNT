@@ -28,6 +28,7 @@ import com.formdev.flatlaf.ui.FlatButtonUI;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
@@ -258,7 +259,7 @@ public class SNTCommandFinder {
 		}
 		if (promptCmd) {
 			switch (cmdAction.id) {
-			// FIXME: This should be move to the executing command
+			// FIXME: This should be moved to the executing command
 			case "Path-based Distributions...":
 			case "Branch-based Distributions...":
 				sb.append("\", \"metric 1 chosen in prompt\", \"[true or false (default) for polar histogram]\", \"[metric 2]\", \"[...]\")");
@@ -332,6 +333,7 @@ public class SNTCommandFinder {
 	public void toggleVisibility() {
 		if (frame == null || table == null) {
 			assemblePalette();
+			SNTUtils.log(String.format("Command Finder: %d commands indexed", (cmdScrapper.cmdMap.size()+cmdScrapper.otherMap.size())));
 		}
 		if (frame.isVisible()) {
 			hideWindow();

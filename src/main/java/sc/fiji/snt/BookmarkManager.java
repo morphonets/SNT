@@ -595,7 +595,7 @@ class BookmarkModel extends AbstractTableModel {
         final int tIdx = table.getColumnIndex(getHeader()[5]);
 
         if (lIdx == -1 || xIdx == -1 || yIdx == -1 || zIdx == -1)
-            throw new IOException("Unexpected column header(s) in CSV file");
+            throw new IOException("Unexpected column header(s) in CSV file.");
         final List<Bookmark> dataList = new ArrayList<>();
         for (int i = 0; i < table.getRowCount(); i++) {
             dataList.add(new Bookmark((String) table.get(lIdx, i), // label

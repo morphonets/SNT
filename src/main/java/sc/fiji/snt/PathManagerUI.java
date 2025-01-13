@@ -477,7 +477,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		menu.add(jmi);
 		menu.addSeparator();
 		jmi = GuiUtils.menuItemTriggeringHelpURL("Spine/Varicosity Utilities Help",
-				"https://imagej.net/plugins/snt/step-by-step-instructions#spinevaricosity-analysis");
+				"https://imagej.net/plugins/snt/walkthroughs#spinevaricosity-analysis");
 		menu.add(jmi);
 		return menu;
 	}
@@ -501,7 +501,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		menu.add(jmi);
 		menu.addSeparator();
 		jmi = GuiUtils.menuItemTriggeringHelpURL("Time-lapse Utilities Help",
-				"https://imagej.net/plugins/snt/step-by-step-instructions#time-lapse-analysis");
+				"https://imagej.net/plugins/snt/walkthroughs#time-lapse-analysis");
 		menu.add(jmi);
 		return menu;
 	}

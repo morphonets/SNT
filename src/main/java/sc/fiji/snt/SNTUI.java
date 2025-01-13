@@ -94,7 +94,6 @@ public class SNTUI extends JDialog {
 	private JButton showOrHideFillList = new JButton(); // must be initialized
 	private JMenuItem saveMenuItem;
 	private JMenuItem quitMenuItem;
-	private JMenuItem sendToTrakEM2;
 	private JLabel statusText;
 	private JLabel statusBarText;
 	private JButton keepSegment;
@@ -859,7 +858,6 @@ public class SNTUI extends JDialog {
 	private void disableEverything() {
 		assert SwingUtilities.isEventDispatchThread();
 		disableImageDependentComponents();
-		sendToTrakEM2.setEnabled(false);
 		saveMenuItem.setEnabled(false);
 		quitMenuItem.setEnabled(false);
 	}
@@ -896,7 +894,6 @@ public class SNTUI extends JDialog {
 				fmUI.setEnabledWhileNotFilling();
 				saveMenuItem.setEnabled(true);
 
-				sendToTrakEM2.setEnabled(plugin.anyListeners());
 				quitMenuItem.setEnabled(true);
 				showPathsSelected.setEnabled(true);
 				updateStatusText("Click somewhere to start a new path...");
@@ -917,7 +914,6 @@ public class SNTUI extends JDialog {
 				// setFillListVisible(false);
 				saveMenuItem.setEnabled(true);
 
-				sendToTrakEM2.setEnabled(plugin.anyListeners());
 				quitMenuItem.setEnabled(true);
 				showPathsSelected.setEnabled(true);
 				updateRebuildCanvasButton();
@@ -2521,6 +2517,9 @@ public class SNTUI extends JDialog {
 		});
 		changeImpMenu.add(getImportActionMenuItem(ImportAction.IMAGE));
 		changeImpMenu.add(fromList);
+		final JMenuItem fromClipboard = getImportActionMenuItem(ImportAction.IMAGE_CLIPBOARD);
+		fromClipboard.setIcon(IconFactory.getMenuIcon(GLYPH.CLIPBOARD));
+		changeImpMenu.add(fromClipboard);
 		fileMenu.add(changeImpMenu);
 		fileMenu.addSeparator();
 		final JMenuItem autoTrace = getImportActionMenuItem(ImportAction.AUTO_TRACE_IMAGE);
@@ -2561,8 +2560,13 @@ public class SNTUI extends JDialog {
 		fileMenu.add(restoreMenuItem);
 
 		fileMenu.addSeparator();
-		sendToTrakEM2 = new JMenuItem("Send to TrakEM2");
-		sendToTrakEM2.addActionListener(e -> plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2)));
+		final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2", IconFactory.getMenuIcon('T', false));
+		sendToTrakEM2.addActionListener(e -> {
+			if (!plugin.anyListeners())
+				error("TrakEM2 is either not running or not listening to SNT events.");
+			else
+				plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2));
+		});
 		fileMenu.add(sendToTrakEM2);
 		fileMenu.add(showFolderMenu(installer));
 
@@ -4343,6 +4347,8 @@ public class SNTUI extends JDialog {
 				return "NDF...";
 			case ImportAction.TRACES:
 				return "TRACES...";
+			case ImportAction.IMAGE_CLIPBOARD:
+				return "From System Clipboard";
 			default:
 				throw new IllegalArgumentException("Unknown type '" + type + "'");
 			}
@@ -4619,6 +4625,7 @@ public class SNTUI extends JDialog {
 		private static final int DEMO = 6;
 		private static final int AUTO_TRACE_IMAGE = 7;
 		private static final int NDF = 8;
+		private static final int IMAGE_CLIPBOARD = 9;
 
 		private final int type;
 		private File file;
@@ -4669,10 +4676,12 @@ public class SNTUI extends JDialog {
 				choice.load(); // will reset UI
 				break;
 			case IMAGE:
+			case IMAGE_CLIPBOARD:
 				if (plugin.isSecondaryDataAvailable()) {
 					flushSecondaryDataPrompt();
 				}
-				inputs.put("file", file);
+				inputs.put("file", (IMAGE==type) ? file : null);
+				inputs.put("clipboard", IMAGE_CLIPBOARD==type);
 				(new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
 				break;
 			case JSON:

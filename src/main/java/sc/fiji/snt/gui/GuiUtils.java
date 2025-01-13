@@ -1601,7 +1601,7 @@ public class GuiUtils {
 		mi = menuItemTriggeringURL("Screencasts", URL + "screencasts");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.VIDEO));
 		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Step-by-step Instructions", URL + "step-by-step-instructions");
+		mi = menuItemTriggeringURL("Walkthroughs", URL + "walkthroughs");
 		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FOOTPRINTS));
 		helpMenu.add(mi);
 

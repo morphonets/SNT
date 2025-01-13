@@ -49,10 +49,15 @@ public class OpenDatasetCmd extends CommonDynamicCmd {
 	@Parameter(required=false, persist = false)
 	private File file;
 
+	@Parameter(required=false, persist = false)
+	private boolean clipboard;
+
 	@SuppressWarnings("unused")
 	private void init() {
 		init(true);
-		if (file == null || !file.exists()) {
+		if (clipboard)
+			resolveInput("file");
+		else if (file == null || !file.exists()) {
 			file = new GuiUtils(ui).getImageFile(file);
 			resolveInput("file");
 		}
@@ -66,24 +71,32 @@ public class OpenDatasetCmd extends CommonDynamicCmd {
 //			final Dataset ds = ioService.open(file.getAbsolutePath());
 //			final ImagePlus imp = convertService.convert(ds, ImagePlus.class);
 //			snt.initialize(imp);
-			if (file != null) {
-				ImagePlus imp = ImpUtils.open(file);
-				imp = ChooseDatasetCmd.convertInPlaceToCompositeAsNeeded(ui, imp);
-				if (imp.getType() != ImagePlus.COLOR_RGB) {
-					snt.initialize(imp);
-				}
+			if (clipboard) {
+				final ImagePlus imp = ImpUtils.getSystemClipboard(true);
+				if (imp == null)
+					error("No (valid) image found on system clipboard.");
+				else
+					initializeSNT(imp);
+			} else if (file != null) {
+				initializeSNT(ImpUtils.open(file));
 			}
 		}
 		catch (final NullPointerException ex) {
 			error("Loading of image failed (see Console for details)... "
 					+ "File may not be valid or may encode a proprietary format "
 					+ "not immediately recognized. Please open the image using "
-					+ "IJ/Bioformats (if not yet open). Then, load it in SNT using "
+					+ "Bioformats (if not yet open). Then, load it in SNT using "
 					+ "'Choose Tracing Image -> From Open Image...'.");
 			ex.printStackTrace();
 		} finally {
 			resetUI();
 		}
+	}
+
+	void initializeSNT(ImagePlus imp) {
+		imp = ChooseDatasetCmd.convertInPlaceToCompositeAsNeeded(ui, imp);
+		if (imp.getType() != ImagePlus.COLOR_RGB)
+			snt.initialize(imp);
 	}
 
 	public static void main(final String... args) {
