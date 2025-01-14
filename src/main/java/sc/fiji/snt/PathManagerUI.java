@@ -413,13 +413,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 //			GuiUtils.setAlternatingRowColors(tree, alternate.isSelected());
 //		});
 //		popup.add(alternate);
-		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
-		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD));
-		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD, IconFactory.GLYPH.ARROWS_DLUR));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD,  IconFactory.GLYPH.RESIZE));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD,  IconFactory.GLYPH.CHECK_DOUBLE));
 		popup.addSeparator();
 		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
+		pjmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILDREN));
 		pjmi.addActionListener(multiPathListener);
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
+		pjmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILD));
 		pjmi.addActionListener(multiPathListener);
 		tree.setComponentPopupMenu(popup);
 		tree.addMouseListener(new MouseAdapter() {
@@ -540,11 +542,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		final SWCTypeOptionsCmd optionsCmd = new SWCTypeOptionsCmd();
 		optionsCmd.setContext(plugin.getContext());
 		final TreeMap<Integer, Color> map = optionsCmd.getColorMap();
+		map.put(-1, null);
 		final boolean assignColors = optionsCmd.isColorPairingEnabled();
 		map.forEach((key, value) -> {
 
 			final Color color = (assignColors) ? value : null;
-			final ImageIcon icon = GuiUtils.createIcon(color, iconSize, iconSize);
+			final ImageIcon icon = GuiUtils.createIcon(color, iconSize-4, iconSize-4);
 			final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(Path
 				.getSWCtypeName(key, true), icon);
 			rbmi.setName(String.valueOf(key)); // store SWC type flag as name
@@ -647,7 +650,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		if (all) {
 			pathAndFillManager.resetIDs();
-			setSelectAllTagsMenu(false);
+			deselectAllTagsMenu();
 		} else if (rebuild) {
 			pathAndFillManager.rebuildRelationships();
 		}
@@ -1119,7 +1122,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					final FittingProgress progress = new FittingProgress(plugin.getUI(),
 							plugin.statusService, numberOfPathsToFit);
 					try {
-						final PathFitter refFitter = pathsToFit.get(0);
+						final PathFitter refFitter = pathsToFit.getFirst();
 						refFitter.readPreferences();
 						for (int i = 0; i < numberOfPathsToFit; ++i) {
 							final PathFitter pf = pathsToFit.get(i);
@@ -2117,44 +2120,49 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			runCommand(cmd);
 			return;
 		}
-		if (MultiPathActionListener.HISTOGRAM_TREES_CMD.equals(cmd)) {
-			if (args.length == 1) {
-				runDistributionAnalysisCmd("All", args[0], false);
-			} else {
-				runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.parseBoolean(args[2]));
-			}
-		} else if (MultiPathActionListener.HISTOGRAM_PATHS_CMD.equals(cmd)) {
-			runHistogramPathsCmd(getSelectedPaths(true), args[0], //
-					(args.length > 1) && Boolean.parseBoolean(args[1]), //
-					(args.length > 2) ? args[2] : null, //
-					(args.length > 3) && Boolean.parseBoolean(args[3]));
-		} else if (MultiPathActionListener.COLORIZE_TREES_CMD.equals(cmd)) {
-			if (args.length == 2) {
-				runColorCodingCmd("All", args[0], args[1]);
-			} else if (args.length > 2) {
-				runColorCodingCmd(args[0], args[1], args[2]);
-			} else {
-				throw new IllegalArgumentException("Not enough arguments...");
-			}
-		} else if (MultiPathActionListener.COLORIZE_PATHS_CMD.equals(cmd)) {
-			if (args.length > 1) {
-				runColorCodingCmd(geSelectedPathsAsTree(), true, args[0], args[1]);
-			} else {
-				throw new IllegalArgumentException("Not enough arguments...");
-			}
-			return;
-		} else if (MultiPathActionListener.CONVERT_TO_ROI_CMD.equals(cmd)) {
-			if (args.length == 1) {
-				runRoiConverterCmd(args[0], null);
-			} else {
-				runRoiConverterCmd(args[0], args[1]);
-			}
-		} else if (MultiPathActionListener.COLORIZE_REMOVE_CMD.equals(cmd)) {
-			ColorMapper.unMap(getSelectedPaths(true));
-			plugin.updateAllViewers();
-		} else {
-			throw new IllegalArgumentException("Unsupported command or invalid options for '" + cmd + "'");
-		}
+        switch (cmd) {
+            case MultiPathActionListener.HISTOGRAM_TREES_CMD -> {
+                if (args.length == 1) {
+                    runDistributionAnalysisCmd("All", args[0], false);
+                } else {
+                    runDistributionAnalysisCmd(args[0], args[1], (args.length > 2) && Boolean.parseBoolean(args[2]));
+                }
+            }
+            case MultiPathActionListener.HISTOGRAM_PATHS_CMD -> runHistogramPathsCmd(getSelectedPaths(true), args[0], //
+                    (args.length > 1) && Boolean.parseBoolean(args[1]), //
+                    (args.length > 2) ? args[2] : null, //
+                    (args.length > 3) && Boolean.parseBoolean(args[3]));
+            case MultiPathActionListener.COLORIZE_TREES_CMD -> {
+                if (args.length == 2) {
+                    runColorCodingCmd("All", args[0], args[1]);
+                } else if (args.length > 2) {
+                    runColorCodingCmd(args[0], args[1], args[2]);
+                } else {
+                    throw new IllegalArgumentException("Not enough arguments...");
+                }
+            }
+            case MultiPathActionListener.COLORIZE_PATHS_CMD -> {
+                if (args.length > 1) {
+                    runColorCodingCmd(geSelectedPathsAsTree(), true, args[0], args[1]);
+                } else {
+                    throw new IllegalArgumentException("Not enough arguments...");
+                }
+                return;
+            }
+            case MultiPathActionListener.CONVERT_TO_ROI_CMD -> {
+                if (args.length == 1) {
+                    runRoiConverterCmd(args[0], null);
+                } else {
+                    runRoiConverterCmd(args[0], args[1]);
+                }
+            }
+            case MultiPathActionListener.COLORIZE_REMOVE_CMD -> {
+                ColorMapper.unMap(getSelectedPaths(true));
+                plugin.updateAllViewers();
+            }
+            case null, default ->
+                    throw new IllegalArgumentException("Unsupported command or invalid options for '" + cmd + "'");
+        }
 	}
 
 	private void runRoiConverterCmd(final String type, final String view) throws IllegalArgumentException {
@@ -2280,8 +2288,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String COLLAPSE_ALL_CMD = "Collapse All";
 		private static final String SELECT_NONE_CMD = "Deselect / Select All";
 
-		private JTreeMenuItem(final String tag) {
+		private JTreeMenuItem(final String tag, final IconFactory.GLYPH iconGlyph) {
 			super(tag);
+			if (iconGlyph != null) setIcon(IconFactory.getMenuIcon(iconGlyph));
 			addActionListener(this);
 			if (SELECT_NONE_CMD.equals(tag)) {
 				setToolTipText("Commands processing multiple paths will\n"
@@ -2531,21 +2540,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					if (c2 instanceof JCheckBoxMenuItem && ((JCheckBoxMenuItem) c2).isSelected())
 						selected.add(((JCheckBoxMenuItem) c2).getActionCommand());
 				}
-			} else if (c1 instanceof JCheckBoxMenuItem && ((JCheckBoxMenuItem) c1).isSelected())
+			} else if (c1 instanceof JCheckBoxMenuItem && c1 != proofReadingToolBar.toggleMenuItem && ((JCheckBoxMenuItem) c1).isSelected())
 				selected.add(((JCheckBoxMenuItem) c1).getActionCommand());
 		}
 		return selected;
 	}
 
-	private void setSelectAllTagsMenu(final boolean select) {
+	private void deselectAllTagsMenu() {
 		for (final Component c1 : tagsMenu.getMenuComponents()) {
 			if ((c1 instanceof JMenu)) {
 				for (final Component c2 : ((JMenu) c1).getMenuComponents()) {
 					if (c2 instanceof JCheckBoxMenuItem)
-						((JCheckBoxMenuItem) c2).setSelected(select);
+						((JCheckBoxMenuItem) c2).setSelected(false);
 				}
-			} else if (c1 instanceof JCheckBoxMenuItem)
-				((JCheckBoxMenuItem) c1).setSelected(select);
+			} else if (c1 instanceof JCheckBoxMenuItem && c1 != proofReadingToolBar.toggleMenuItem )
+				((JCheckBoxMenuItem) c1).setSelected(false);
 		}
 	}
 
@@ -3119,7 +3128,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				// create a new empty Path with the same properties (i.e., spatial calibration)
 				// of the first path found in the list (In SNT, scaling is set on a per-Path basis).
 				// Assign unique IDs to avoid conflicts with existing IDs
-				final Path newSoma = primaryPaths.get(0).createPath();
+				final Path newSoma = primaryPaths.getFirst().createPath();
 				newSoma.setIsPrimary(true);
 				newSoma.setName("Root centroid");
 				// Add a node to the newly defined path, corresponding to the centroid of
@@ -3482,8 +3491,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				selectedPaths.forEach(p -> {
 					p.setName(p.getName().replaceAll(TAG_DEFAULT_PATTERN, ""));
 				});
-				if (selectedPaths.size() == pathAndFillManager.size())
-					setSelectAllTagsMenu(false);
+				if (selectedPaths.size() == pathAndFillManager.size()) deselectAllTagsMenu();
 				refreshManager(false, false, selectedPaths);
 			}
 		}
@@ -3494,7 +3502,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final String[] findReplace = guiUtils.getStrings("Replace Tag(s)...", labels, defaults);
 			if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty() || findReplace[1] == null)
 				return; // nothing to replace
-			findReplace[1].replace("[", "(").replace("]", ")").replace("{", "").replace("}", "");
+			findReplace[1] = findReplace[1].replace("[", "(").replace("]", ")")
+					.replace("{", "").replace("}", "");
 			int counter = 0;
 			for (final Path p : selectedPaths) {
 				final String existingTags = extractTagsFromPath(p);

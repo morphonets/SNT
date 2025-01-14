@@ -316,7 +316,7 @@ public class SNT extends MultiDThreePanes implements
 	ExecutorService tracerThreadPool;
 
 	/* Colors */
-	private static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
+	protected static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
 	protected static final Color DEFAULT_DESELECTED_COLOR = Color.MAGENTA;
 	protected static final Color3f DEFAULT_SELECTED_COLOR3F = Utils.toColor3f(Color.GREEN);
 	protected static final Color3f DEFAULT_DESELECTED_COLOR3F = Utils.toColor3f(Color.MAGENTA);

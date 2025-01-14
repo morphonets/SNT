@@ -373,6 +373,7 @@ public class SNTUI extends JDialog {
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
 		//registerCommandFinder(menuBar); // spurious addition if added here!?
+		registerBookmarkManagerInCmdFInder();
 		pack();
 		toFront();
 
@@ -422,6 +423,12 @@ public class SNTUI extends JDialog {
 			this.fmUI = fmUI;
 		}
 
+	}
+
+	private void registerBookmarkManagerInCmdFInder() {
+		final JButton b = new JButton("Bookmarks");
+		b.addActionListener( e-> selectTab("Bookmarks"));
+		commandFinder.register(b, "Bookmark Manager");
 	}
 
 	private JTabbedPane getTabbedPane() {
@@ -536,6 +543,9 @@ public class SNTUI extends JDialog {
 					break;
 				case "3d":
 					tp.setSelectedIndex(2);
+					break;
+				case "bookmarks":
+					tp.setSelectedIndex(3);
 					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized tab");
@@ -1443,7 +1453,7 @@ public class SNTUI extends JDialog {
 		nodeSpinner.addChangeListener(e -> {
 			setRenderingScale((double) nodeSpinner.getValue());
 		});
-		final JButton defaultsButton = new JButton("Reset");
+		final JButton defaultsButton = resetButton("Node scale");
 		defaultsButton.addActionListener(e -> {
 			setRenderingScale(-1);
 			nodeSpinner.setValue(plugin.getXYCanvas().nodeDiameter());
@@ -1475,7 +1485,7 @@ public class SNTUI extends JDialog {
 		defTransparencySpinner.addChangeListener(e -> {
 			setDefaultTransparency((int)(defTransparencySpinner.getValue()));
 		});
-		final JButton defTransparencyButton = new JButton("Reset");
+		final JButton defTransparencyButton = resetButton("Default transparency");
 		defTransparencyButton.addActionListener(e -> {
 			setDefaultTransparency(100);
 			defTransparencySpinner.setValue(100);
@@ -1507,7 +1517,7 @@ public class SNTUI extends JDialog {
 		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
 			setOutOfBoundsTransparency((int)(transparencyOutOfBoundsSpinner.getValue()));
 		});
-		final JButton defaultOutOfBoundsButton = new JButton("Reset");
+		final JButton defaultOutOfBoundsButton = resetButton("Default transparency");
 		defaultOutOfBoundsButton.addActionListener(e -> {
 			setOutOfBoundsTransparency(50);
 			transparencyOutOfBoundsSpinner.setValue(50);
@@ -2627,7 +2637,7 @@ public class SNTUI extends JDialog {
 		saveMenuItem.addActionListener(e -> saveToXML(false));
 		exportSubmenu.add(saveMenuItem);
 		final JMenuItem saveCopyMenuItem = new JMenuItem("Save Snapshot Backup");
-		saveCopyMenuItem.setToolTipText("Saves data to a timecoded backup TRACES file on main file's directory");
+		saveCopyMenuItem.setToolTipText("Saves data to a timestamped backup file on main file's directory");
 		saveCopyMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
 				java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
 		exportSubmenu.add(saveCopyMenuItem);
@@ -2810,8 +2820,8 @@ public class SNTUI extends JDialog {
 		final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
 				IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS2));
 		arrangeDialogsMenuItem.addActionListener(e -> {
-			final int w = Integer.valueOf(getPrefs().get("def-gui-width", "-1"));
-			final int h = Integer.valueOf(getPrefs().get("def-gui-height", "-1"));
+			final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
+			final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
 			if (w == -1 || h == -1) {
 				error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
 				return;
@@ -3093,20 +3103,13 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel colorOptionsPanel() {
-		final JPanel colorOptionsPanel = new JPanel(new GridBagLayout());
-		final GridBagConstraints cop_f = GuiUtils.defaultGbc();
-		final JPanel colorButtonPanel = new JPanel(new GridLayout(1, 2));
+
 		final ColorChooserButton colorChooser1 = new ColorChooserButton(plugin.selectedColor, "Selected");
 		colorChooser1.setName("Color for Selected Paths");
 		colorChooser1.addColorChangedListener(newColor -> plugin.setSelectedColor(newColor));
 		final ColorChooserButton colorChooser2 = new ColorChooserButton(plugin.deselectedColor, "Deselected");
 		colorChooser2.setName("Color for Deselected Paths");
 		colorChooser2.addColorChangedListener(newColor -> plugin.setDeselectedColor(newColor));
-		colorButtonPanel.add(colorChooser1);
-		colorButtonPanel.add(colorChooser2);
-		++cop_f.gridy;
-		colorOptionsPanel.add(colorButtonPanel, cop_f);
-		++cop_f.gridy;
 		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)");
 		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
@@ -3116,9 +3119,20 @@ public class SNTUI extends JDialog {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
 			plugin.updateTracingViewers(true);
 		});
-		colorOptionsPanel.add(jcheckbox, cop_f);
+		final JButton optionsButton = resetButton("Default path colors");
+		optionsButton.addActionListener( e-> {
+			colorChooser1.setSelectedColor(SNT.DEFAULT_SELECTED_COLOR, true);
+			colorChooser2.setSelectedColor(SNT.DEFAULT_DESELECTED_COLOR, true);
+			showStatus("Default path colors reset", true);
+		});
 
-		return colorOptionsPanel;
+		final JPanel colorsPanel = new JPanel(new GridLayout(1,2));
+		colorsPanel.add(colorChooser1);
+		colorsPanel.add(colorChooser2);
+		final JPanel panel = new JPanel(new BorderLayout());
+		panel.add(colorsPanel, BorderLayout.CENTER);
+		panel.add(optionsButton, BorderLayout.EAST);
+		return panel;
 	}
 
 	private JPanel snappingPanel() {
@@ -3512,6 +3526,12 @@ public class SNTUI extends JDialog {
 			return null;
 		}
 		return fudge;
+	}
+
+	private JButton resetButton(final String description) {
+		final JButton b = IconFactory.getButton(GLYPH.UNDO);
+		b.setToolTipText("Reset " + description);
+		return b;
 	}
 
 	/* returns true if min/max successfully set by user */

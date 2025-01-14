@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -100,8 +101,9 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		imp = snt.getImagePlus();
 		rm = RoiManager.getInstance();
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("roiSource", String.class);
-		final ArrayList<String> choices = new ArrayList<>(3);
+		final ArrayList<String> choices = new ArrayList<>(4);
 		if (imp != null && imp.getRoi() != null) choices.add("Active ROI");
+		if (ui.getBookmarkManager().getCount() > 0) choices.add("Bookmarked locations");
 		if (imp != null && imp.getOverlay() != null) choices.add("Image overlay");
 		if (rm != null) choices.add("ROI Manager");
 		if (choices.isEmpty()) {
@@ -128,7 +130,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		resolveInput("wipeCounts");
 		resolveInput("paths");
 		resolveInput("colorChoice");
-		error("No ROIs are available for extraction." + MSG);
+		error("No ROIs/Bookmarks are available for extraction." + MSG);
 	}
 
 	@Override
@@ -252,6 +254,14 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 				return null;
 			}
 			return assemblePointRoiList(rm.iterator(), "Roi Manager");
+		}  else if (roiSource.toLowerCase().contains("bookmark")) {
+			if (ui.getBookmarkManager().getCount() < 1) {
+				//ui.selectTab("Bookmarks");
+				error("The list of bookmarked coordinates is empty. " + MSG);
+				return null;
+			}
+			return ui.getBookmarkManager().getROIs(false).stream().map(r -> (PointRoi) r)
+					.collect(Collectors.toList());
 		}
 		return null;
 	}

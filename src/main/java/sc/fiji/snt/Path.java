@@ -2025,6 +2025,8 @@ public class Path implements Comparable<Path> {
 	{
 		String typeName;
 		switch (type) {
+			case -1:
+				return (capitalized) ? "None" : "none";
 			case SWC_SOMA:
 				typeName = SWC_SOMA_LABEL;
 				break;

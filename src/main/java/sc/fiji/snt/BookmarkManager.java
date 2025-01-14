@@ -31,6 +31,7 @@ import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTPoint;
@@ -208,7 +209,6 @@ public class BookmarkManager {
             }
         });
         jmi = new JMenuItem("From Image Overlay");
-        jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final ImagePlus imp = sntui.plugin.getImagePlus();
@@ -314,7 +314,8 @@ public class BookmarkManager {
     private JPanel assembleZoomPanel() {
         final JSpinner spinner = GuiUtils.integerSpinner(visitingZoomPercentage, 100, 3200, 100, true);
         spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
-        final JButton autoButton = new JButton("Reset");
+        final JButton autoButton = IconFactory.getButton(IconFactory.GLYPH.UNDO);
+        autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         autoButton.addActionListener(e -> {
             if (null == sntui.plugin.getImagePlus()) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
@@ -335,8 +336,7 @@ public class BookmarkManager {
         p.add(spinner, c);
         c.gridx = 2;
         p.add(autoButton);
-        GuiUtils.addTooltip(p, "The preferred zoom level (between 100 and 3200%) for visiting a bookmarked location.<br>"
-                + "<i>Reset</i> applies two <i>Zoom In [+]</i> operations above the current zoom level");
+        spinner.setToolTipText("The preferred zoom level (between 100 and 3200%) for visiting a bookmarked location");
         return p;
     }
 
@@ -450,12 +450,15 @@ public class BookmarkManager {
     }
 
     public boolean save(final File file) {
-        loadBookmarksFromFile(file);
-        return !model.getDataList().isEmpty();
+        return saveBookMarksToFile(file);
     }
 
     public boolean save(final String filePath) {
         return save(new File(filePath));
+    }
+
+    public int getCount() {
+       return model.getRowCount();
     }
 
     public List<Roi> getROIs(final boolean onlySelectedRows) {
@@ -499,22 +502,15 @@ class Bookmark extends PointInCanvas {
     }
 
     Object get(final int entry) {
-        switch (entry) {
-            case 0:
-                return label;
-            case 1:
-                return x;
-            case 2:
-                return y;
-            case 3:
-                return z;
-            case 4:
-                return c;
-            case 5:
-                return t;
-            default:
-                return null;
-        }
+        return switch (entry) {
+            case 0 -> label;
+            case 1 -> x;
+            case 2 -> y;
+            case 3 -> z;
+            case 4 -> c;
+            case 5 -> t;
+            default -> null;
+        };
     }
 }
 

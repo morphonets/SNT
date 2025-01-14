@@ -89,6 +89,7 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
+		if (isCanceled()) return;
 		try {
 
 			// Retrieve training image and training image properties

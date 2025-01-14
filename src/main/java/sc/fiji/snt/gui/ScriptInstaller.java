@@ -69,7 +69,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	private static TextEditor editor;
 
 	private boolean openInsteadOfRun;
-	private Icon icon;
+	private final Icon icon;
 
 	public ScriptInstaller(final Context context, final Component parent){
 		context.inject(this);
@@ -203,28 +203,18 @@ public class ScriptInstaller implements MenuKeyListener {
 	}
 
 	private Icon getIcon(final String menuName) {
-		switch(menuName) {
-		case "Analysis":
-			return IconFactory.getMenuIcon(GLYPH.CHART);
-		case "Batch":
-			return IconFactory.getMenuIcon(GLYPH.COG);
-		case "Demos":
-			return IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP);
-		case "Full List":
-			return IconFactory.getMenuIcon(GLYPH.LIST);
-		case "Misc":
-			return IconFactory.getMenuIcon(GLYPH.ELLIPSIS);
-		case "Render":
-			return IconFactory.getMenuIcon(GLYPH.CUBE);
-		case "Skeletons and ROIs":
-			return IconFactory.getMenuIcon(GLYPH.BEZIER_CURVE);
-		case "Tracing":
-			return IconFactory.getMenuIcon(GLYPH.ROUTE);
-		case "Time-lapses":
-			return IconFactory.getMenuIcon(GLYPH.VIDEO);
-		default:
-			return null;
-		}
+        return switch (menuName) {
+            case "Analysis" -> IconFactory.getMenuIcon(GLYPH.CHART);
+            case "Batch" -> IconFactory.getMenuIcon(GLYPH.COG);
+            case "Demos" -> IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP);
+            case "Full List" -> IconFactory.getMenuIcon(GLYPH.LIST);
+            case "Misc" -> IconFactory.getMenuIcon(GLYPH.ELLIPSIS);
+            case "Render" -> IconFactory.getMenuIcon(GLYPH.CUBE);
+            case "Skeletons and ROIs" -> IconFactory.getMenuIcon(GLYPH.BEZIER_CURVE);
+            case "Tracing" -> IconFactory.getMenuIcon(GLYPH.ROUTE);
+            case "Time-lapses" -> IconFactory.getMenuIcon(GLYPH.VIDEO);
+            default -> null;
+        };
 	}
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
 		final JMenuItem mItem = new JMenuItem(getScriptLabel(si, trimExtension));
@@ -446,7 +436,8 @@ public class ScriptInstaller implements MenuKeyListener {
 			final String data = (String) java.awt.Toolkit.getDefaultToolkit().getSystemClipboard()
 					.getData(java.awt.datatransfer.DataFlavor.stringFlavor);
 			final String ext = guessScriptingLanguage(data);
-			getTextEditor().newTab(data, ext);
+			final String title = (".py".equals(ext)) ? "clipboard_code" : "ClipboardCode";
+			getTextEditor().createNewDocument(title + ext, data);
 			getTextEditor().setVisible(true);
 			if (ext.isEmpty())
 				new GuiUtils(getTextEditor()).centeredMsg(
@@ -520,7 +511,8 @@ public class ScriptInstaller implements MenuKeyListener {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream("script_templates/Neuroanatomy/Boilerplate/"
 				+ getBoilerPlateFile(extension));
-		return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
+        assert is != null;
+        return  new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
 	}
 
 	public static boolean runScript(final String dir, final String file, final Map<String, Object> inputMap) {

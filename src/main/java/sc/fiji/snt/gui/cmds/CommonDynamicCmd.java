@@ -79,6 +79,11 @@ public class CommonDynamicCmd extends DynamicCommand {
 	}
 
 	@Override
+	public boolean isCanceled() {
+		return super.isCanceled() || (ui != null && SNTUI.READY == ui.getState());
+	}
+
+	@Override
 	public void cancel() {
 		resetUI();
 		super.cancel();

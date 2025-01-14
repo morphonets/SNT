@@ -1479,16 +1479,15 @@ public class GuiUtils {
 		}
 	}
 
-	public static ImageIcon createIcon(final Color color, final int width,
-		final int height)
-	{
-		if (color == null) return null;
+	public static ImageIcon createIcon(final Color color, final int width, final int height) {
 		final BufferedImage image = new BufferedImage(width, height,
 			java.awt.image.BufferedImage.TYPE_INT_ARGB);
 		final Graphics2D graphics = image.createGraphics();
+		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 		graphics.setColor(color);
 		graphics.fillRect(0, 0, width, height);
 		graphics.setXORMode(getEnabledComponentColor());
+		if (color == null) graphics.drawLine(0, 0, width, height);
 		graphics.drawRect(0, 0, width - 1, height - 1);
 		image.flush();
 		return new ImageIcon(image);

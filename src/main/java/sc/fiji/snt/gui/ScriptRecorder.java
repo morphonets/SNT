@@ -26,6 +26,7 @@ import com.formdev.flatlaf.FlatLaf;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.scijava.ui.swing.script.EditorPane;
+import sc.fiji.snt.SNTUtils;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -33,6 +34,7 @@ import javax.swing.text.DefaultCaret;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class ScriptRecorder extends JDialog {
@@ -45,6 +47,7 @@ public class ScriptRecorder extends JDialog {
 	private EditorPane editor;
 	private JComboBox<LANG> combo;
 	private LANG currentLang;
+	private static boolean[] createOptions = {true, true};
 
 	enum LANG {
 		BEANSHELL(".bsh", "//", true), GROOVY(".groovy", "//", false), PYTHON(".py", "#", false);
@@ -61,16 +64,11 @@ public class ScriptRecorder extends JDialog {
 
 		@Override
 		public String toString() {
-			switch (this) {
-				case BEANSHELL:
-					return "BeanShell [.bsh]";
-				case GROOVY:
-					return "Groovy [.groovy]";
-				case PYTHON:
-					return "Python (Jython) [.py]";
-				default:
-					throw new IllegalArgumentException("Unrecognized value");
-			}
+            return switch (this) {
+                case BEANSHELL -> "BeanShell [.bsh]";
+                case GROOVY -> "Groovy [.groovy]";
+                case PYTHON -> "Python (Jython) [.py]";
+            };
 		}
 
 		public static LANG[] list() {
@@ -125,12 +123,34 @@ public class ScriptRecorder extends JDialog {
 	private JButton createButton() {
 		final JButton button = new JButton("Create");
 		button.addActionListener(e -> {
-			final boolean close = new GuiUtils(ScriptRecorder.this).getConfirmation("Close Script Recorder?",
-					"Close Recorder?", "Close", "Leave Open");
-			ScriptInstaller.newScript(editor.getText(), "SNT_Recorded_Script" + currentLang.ext);
-			if (close)
-				dispose();
+			if (createOptions[1]) {
+				final boolean[] closeAndNag = new GuiUtils(ScriptRecorder.this)
+						.getPersistentConfirmation("Close Script Recorder?", "Close Recorder?");
+				createOptions[0] = closeAndNag[0];
+				createOptions[1] = !closeAndNag[1];
+			}
+			final String title = (LANG.PYTHON.ext.equals(currentLang.ext)) ? "snt_recorded_script" : "SNTRecordedScript";
+			ScriptInstaller.newScript(editor.getText(), title + currentLang.ext);
+			if (createOptions[0]) dispose();
 		});
+		return button;
+	}
+
+	private JButton optionsButton() {
+		final JPopupMenu menu = new JPopupMenu();
+		GuiUtils.addSeparator(menu, "Actions:");
+		final JMenuItem mi1 = new JMenuItem("Insert Timestamp");
+		mi1.addActionListener(e -> recordComment("TIMESTAMP"+SNTUtils.getTimeStamp()));
+		menu.add(mi1);
+		GuiUtils.addSeparator(menu, "Preferences:");
+		final JCheckBoxMenuItem mi2 = new JCheckBoxMenuItem("Float above all windows", isAlwaysOnTop());
+		mi2.addItemListener(e -> setAlwaysOnTop(mi2.isSelected()));
+		menu.add(mi2);
+		final JMenuItem mi3 = new JMenuItem("Reset Prompts");
+		mi3.addActionListener(e -> Arrays.fill(createOptions, true));
+		menu.add(mi3);
+		final JButton button = IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
+		button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}
 
@@ -140,7 +160,7 @@ public class ScriptRecorder extends JDialog {
 		c.gridx = 0;
 		c.gridy = 0;
 		c.ipadx = 0;
-		c.gridwidth = 3;
+		c.gridwidth = 4;
 		c.fill = GridBagConstraints.NONE;
 		p.add(GuiUtils.leftAlignedLabel("Language: ", true));
 		c.gridx = 1;
@@ -149,6 +169,8 @@ public class ScriptRecorder extends JDialog {
 		c.gridx = 2;
 		c.fill = GridBagConstraints.NONE;
 		p.add(createButton());
+		c.gridx = 3;
+		p.add(optionsButton());
 		return p;
 	}
 
