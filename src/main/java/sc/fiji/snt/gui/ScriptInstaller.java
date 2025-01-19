@@ -334,22 +334,34 @@ public class ScriptInstaller implements MenuKeyListener {
 		nMenu.setIcon(IconFactory.getMenuIcon(GLYPH.PLUS));
 		nMenu.add(mi1);
 		nMenu.add(mi2);
+
+		final JMenuItem mi3 = new JMenuItem("REPL", IconFactory.getMenuIcon(GLYPH.CODE));
+		mi3.addActionListener(e -> {
+			final SNTREPL repl = new SNTREPL(SNTUtils.getContext());
+			repl.setLocationRelativeTo(ui);
+			SwingUtilities.invokeLater(() -> repl.setVisible(true));
+		});
+		nMenu.addSeparator();
+		nMenu.add(mi3);
+
+		sMenu.add(listMenu);
+		sMenu.addSeparator();
+		sMenu.add(nMenu);
+		sMenu.add(reloadMI);
+
 		if (ui != null) {
-			final JMenuItem mi3 = new JMenuItem("Record... (Experimental)", IconFactory.getMenuIcon(GLYPH.CIRCLE));
-			mi3.addActionListener(e -> {
+			final JMenuItem mi4 = new JMenuItem("Record... (Experimental)", IconFactory.getMenuIcon(GLYPH.CIRCLE));
+			mi4.addActionListener(e -> {
 				if (ui.getRecorder(false) == null) {
 					ui.getRecorder(true).setVisible(true);
 				} else {
 					ui.error("Script Recorder is already open.");
 				}
 			});
-			nMenu.addSeparator();
-			nMenu.add(mi3);
+			sMenu.addSeparator();
+			sMenu.add(mi4);
 		}
-		sMenu.add(listMenu);
-		sMenu.addSeparator();
-		sMenu.add(nMenu);
-		sMenu.add(reloadMI);
+
 		sMenu.addSeparator();
 		sMenu.add(about());
 		return sMenu;
