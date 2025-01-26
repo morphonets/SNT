@@ -70,7 +70,7 @@ public class ColorChooserButton extends JButton {
 		setIconTextGap(getFontMetrics(getFont()).stringWidth("  "));
 		addActionListener(arg0 -> {
 			if (arg0 == null) return;
-			final String title = (thisButton.getName() == null) ? "Choose new color"
+			final String title = (thisButton.getName() == null) ? "Choose New Color"
 				: "New " + thisButton.getName();
 			final Color newColor = new GuiUtils(SwingUtilities.getRoot(thisButton))
 				.getColor(title, getSelectedColor(), (String[])null);

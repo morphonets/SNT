@@ -626,7 +626,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 				+ "<ul><li>A segmented (thresholded) image (8-bit)</li>"
 				+ "<li>A filtered image, as created by the <i>Secondary Layer Creation Wizard</i> in the <i>Auto-tracing</i> widget</li>"
 				+ "</ul>" + "<p>" + "<p>Related Scripts:</p>" + "<ul>" + "<li>Batch &rarr Filter Multiple Images</li>"
-				+ "<li>Skeletons and ROIs &rarr Reconstruction From Segmented Image</li>" + "</ul>" + "<p>To Rerun:</p>"
+				+ "<li>Skeletons and ROIs &rarr Reconstruction From Segmented Image</li>" + "</ul>" + "<p>To rerun:</p>"
 				+ "<ul>" + "<li>Utilities &rarr Autotrace Segmented Image... (opened images)</li>"
 				+ "<li>File &rarr AutoTrace Segmented Image File... (unopened files)</li>");
 	}

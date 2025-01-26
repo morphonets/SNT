@@ -692,15 +692,22 @@ public class Viewer3D {
 
 	private void logVideoInstructions(final File destinationDirectory) {
 		final StringBuilder sb = new StringBuilder("The image sequence can be converted into a video using ffmpeg (www.ffmpeg.org):");
-		sb.append("\n===========================================\n");
-		sb.append("cd \"").append(destinationDirectory).append("\"\n");
-		sb.append("ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"");
-		sb.append("scale=-1:-1,format=yuv420p\" video.mp4");
-		sb.append("\n-------------------------------------------\n");
-		sb.append("NB: hflip/vflip can be included in the comma-separated list of filter options to\n");
-		sb.append("flip sequence horizontally/vertically, e.g.: hflip,vflip,scale=-1:-1,format=yuv420p");
-		sb.append("\n===========================================\n");
-		sb.append("\nAlternatively, IJ built-in commands can also be used, e.g.:\n");
+		sb.append("\n");
+		sb.append("  cd \"").append(destinationDirectory).append("\"\n");
+		sb.append("  ffmpeg -framerate ").append(prefs.getFPS()).append(" -i %5d.png -vf \"scale=-1:-1,format=yuv420p\" video.mp4");
+		sb.append("\n\n");
+		sb.append("- Parameters that can be included in the comma-separated list of -vf \"\" options:\n");
+		sb.append("  hflip		flip sequence horizontally\n");
+		sb.append("  vflip		flip sequence vertically\n");
+		sb.append("  transpose=0	90° counterclockwise and vertical flip (default)\n");
+		sb.append("  transpose=1	90° clockwise\n");
+		sb.append("  transpose=2	90° counterclockwise\n");
+		sb.append("  transpose=3	90° clockwise and vertical flip\n");
+		sb.append("\n");
+		sb.append("- To use all images in a folder use e.g.:\n");
+		sb.append("  ffmpeg -framerate ").append(prefs.getFPS()).append(" -pattern_type glob -i \"*.png\" -vf \"(...)\" video.mp4");
+		sb.append("\n\n");
+		sb.append("\nAlternatively, ImageJ built-in commands can also be used, e.g.:\n");
 		sb.append("\"File>Import>Image Sequence...\", followed by \"File>Save As>AVI...\"");
 		try {
 			Files.write(Paths.get(new File(destinationDirectory, "-build-video.txt").getAbsolutePath()),

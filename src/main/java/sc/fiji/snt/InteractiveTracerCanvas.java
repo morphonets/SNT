@@ -793,11 +793,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	public void setFillColor(final Color color) {
-		this.fillColor = color;
+		fillColor = color;
 		for (SearchArtist artist : searchArtists) {
 			if (artist instanceof FillerThreadArtist) {
-				((FillerThreadArtist) artist).setOpenColor(color);
-				((FillerThreadArtist) artist).setClosedColor(color);
+				((FillerThreadArtist) artist).setOpenColor(getFillColor());
+				((FillerThreadArtist) artist).setClosedColor(getFillColor());
 			}
 		}
 	}

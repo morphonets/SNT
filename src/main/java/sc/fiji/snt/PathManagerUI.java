@@ -2457,12 +2457,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 								ui.togglePathsChoice();
 							plugin.enableEditMode(true);
 							plugin.setEditingPath(p);
+							promptForExploreFitManual();
 						}
 					} catch (final InterruptedException | ExecutionException e) {
 						e.printStackTrace();
 					} finally {
 						setEnabledCommands(true);
-						promptForExploreFitManual();
 					}
 				}
 			};
@@ -2475,9 +2475,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		final boolean[] options = guiUtils.getConfirmationAndOption(
 				"You can peruse the fit by navigating the <i>Cross-section View</i> stack. " //
-				+ "Edit mode is now activated and cross section planes will automatically " //
-				+ "synchronize with tracing canvas(es).<br>Would you like to open the online " //
-				+ "manual for further details?", //
+				+ "Cross section planes will automatically synchronize with tracing canvas(es).<br>"
+				+ "Would you like to open the online manual for further details?", //
 				"Fly-through Animation Usage", "Do not remind me again about this",
 				true, new String[] {"Yes. Open Manual", "Dismiss"});
 		if (options != null && options[0])

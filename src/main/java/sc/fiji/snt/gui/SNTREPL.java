@@ -76,12 +76,15 @@ public class SNTREPL extends InterpreterWindow {
                 def api(obj, keyword="") {
                 	if (obj == null) { println("api: obj is null"); return }
                 	def list = obj.class.declaredMethods.findAll { !it.name.contains("\\$") }
-                    if ("" != keyword) list = list.findAll{ it.name.toLowerCase().contains(keyword) }
+                    if ("" != keyword) list = list.findAll{ it.name.toLowerCase().contains(keyword.toLowerCase()) }
                 	println("${list.size()} method(s) available in ${obj.class.getName()}:")
                 	list.sort{ it.name }.each {
                 		def params = it.parameters.collect { it.toString().split("\\\\.").last() }
                 		def name = it.name + "(" + params.join(", ") + ")"
-                		def returnType = it.returnType.toString().split("\\s|\\\\.").last()
+                		def returnType = it.returnType.toString()
+                		def array = returnType.contains("[")
+                		returnType = returnType.split("\\s|\\\\.").last().replace(";","")
+                		if (array) returnType += "[]"
                     	println("  ${name.padRight(45)} -> ${returnType}")
                 	}
                 	return ""

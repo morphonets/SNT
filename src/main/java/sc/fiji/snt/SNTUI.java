@@ -71,7 +71,6 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.IntStream;
 
 /**
  * Implements SNT's main dialog.
@@ -471,20 +470,11 @@ public class SNTUI extends JDialog {
 	}
 
 	private boolean userInteractionConstrained() {
-		switch (getState()) {
-		case PARTIAL_PATH:
-		case SEARCHING:
-		case QUERY_KEEP:
-		case RUNNING_CMD:
-		case CALCULATING_HESSIAN_I:
-		case CALCULATING_HESSIAN_II:
-		case WAITING_FOR_SIGMA_POINT_I:
-		case WAITING_FOR_SIGMA_CHOICE:
-		case LOADING:
-			return true;
-		default:
-			return false;
-		}
+        return switch (getState()) {
+            case PARTIAL_PATH, SEARCHING, QUERY_KEEP, RUNNING_CMD, CALCULATING_HESSIAN_I, CALCULATING_HESSIAN_II,
+                 WAITING_FOR_SIGMA_POINT_I, WAITING_FOR_SIGMA_CHOICE, LOADING -> true;
+            default -> false;
+        };
 	}
 
 	/**
@@ -1357,7 +1347,7 @@ public class SNTUI extends JDialog {
 				sb.append("<li>Replace the current ").append(type).append(" using File&rarr;Choose Tracing Image...</li>");
 				final Boolean userPrompt = guiUtils.getPersistentWarning(sb.toString(), "Image Needs Resizing");
 				if (userPrompt != null) // do nothing if user dismissed the dialog
-					plugin.getPrefs().setTemp("canvasResize-nag", !userPrompt.booleanValue());
+					plugin.getPrefs().setTemp("canvasResize-nag", !userPrompt);
 			} else {
 				showStatus("Some nodes rendered outside image!", false);
 			}
@@ -1453,7 +1443,7 @@ public class SNTUI extends JDialog {
 		nodeSpinner.addChangeListener(e -> {
 			setRenderingScale((double) nodeSpinner.getValue());
 		});
-		final JButton defaultsButton = resetButton("Node scale");
+		final JButton defaultsButton = resetButton("node scale");
 		defaultsButton.addActionListener(e -> {
 			setRenderingScale(-1);
 			nodeSpinner.setValue(plugin.getXYCanvas().nodeDiameter());
@@ -1485,7 +1475,7 @@ public class SNTUI extends JDialog {
 		defTransparencySpinner.addChangeListener(e -> {
 			setDefaultTransparency((int)(defTransparencySpinner.getValue()));
 		});
-		final JButton defTransparencyButton = resetButton("Default transparency");
+		final JButton defTransparencyButton = resetButton("default transparency");
 		defTransparencyButton.addActionListener(e -> {
 			setDefaultTransparency(100);
 			defTransparencySpinner.setValue(100);
@@ -1517,7 +1507,7 @@ public class SNTUI extends JDialog {
 		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
 			setOutOfBoundsTransparency((int)(transparencyOutOfBoundsSpinner.getValue()));
 		});
-		final JButton defaultOutOfBoundsButton = resetButton("Default transparency");
+		final JButton defaultOutOfBoundsButton = resetButton("default transparency");
 		defaultOutOfBoundsButton.addActionListener(e -> {
 			setOutOfBoundsTransparency(50);
 			transparencyOutOfBoundsSpinner.setValue(50);
@@ -1564,30 +1554,61 @@ public class SNTUI extends JDialog {
 
 	private JPanel extraColorsPanel() {
 
-		final LinkedHashMap<String, Color> hm = new LinkedHashMap<>();
 		final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
+
+		// map for JComboBox
+		final LinkedHashMap<String, Color> hm = new LinkedHashMap<>();
 		hm.put("Canvas annotations", (canvas == null) ? null : canvas.getAnnotationsColor());
 		hm.put("Fills", (canvas == null) ? null : canvas.getFillColor());
 		hm.put("Temporary paths", (canvas == null) ? null : canvas.getTemporaryPathColor());
 		hm.put("Unconfirmed paths", (canvas == null) ? null : canvas.getUnconfirmedPathColor());
-
+		// make a copy of map to hold default colors (i.e., before user changes them)
+        final HashMap<String, Color> hmDef = new HashMap<>(hm);
+		// assemble JComboBox, color chooser button, and reset button
 		final JComboBox<String> colorChoice = new JComboBox<>();
 		for (final Entry<String, Color> entry : hm.entrySet())
 			colorChoice.addItem(entry.getKey());
-
 		final String selectedKey = String.valueOf(colorChoice.getSelectedItem());
 		final ColorChooserButton cChooser = new ColorChooserButton(hm.get(selectedKey), "Change", 1,
 				SwingConstants.RIGHT);
 		cChooser.setPreferredSize(new Dimension(cChooser.getPreferredSize().width, colorChoice.getPreferredSize().height));
 		cChooser.setMinimumSize(new Dimension(cChooser.getMinimumSize().width, colorChoice.getMinimumSize().height));
 		cChooser.setMaximumSize(new Dimension(cChooser.getMaximumSize().width, colorChoice.getMaximumSize().height));
-
-		colorChoice.addActionListener(
-				e -> cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false));
-
+		colorChoice.addActionListener(e -> {
+			cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false);
+		});
 		cChooser.addColorChangedListener(newColor -> {
-			final String selectedKey1 = String.valueOf(colorChoice.getSelectedItem());
-			switch (selectedKey1) {
+			final String key = String.valueOf(colorChoice.getSelectedItem());
+			setColor(key, newColor);
+			hm.put(key, newColor);
+		});
+		final JButton reset = resetButton("default colors");
+		reset.addActionListener( e -> {
+			final String key = String.valueOf(colorChoice.getSelectedItem());;
+			final Color color = hmDef.get(key);
+			setColor(key, color);
+			cChooser.setSelectedColor(color, true);
+		});
+		final JPanel p = new JPanel();
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints gbcLabel = new GridBagConstraints();
+		p.add(GuiUtils.leftAlignedLabel("Colors: ", true), gbcLabel);
+		final GridBagConstraints gbcComboBox = new GridBagConstraints();
+		gbcComboBox.gridx = 1;
+		gbcComboBox.fill = GridBagConstraints.HORIZONTAL; // ComboBox should resize horizontally
+		gbcComboBox.weightx = 1.0; // Allow the combo box to take up available space
+		p.add(colorChoice, gbcComboBox);
+		final GridBagConstraints gbcButton1 = new GridBagConstraints();
+		gbcButton1.gridx = 2;
+		p.add(cChooser, gbcButton1);
+		final GridBagConstraints gbcButton2 = new GridBagConstraints();
+		gbcButton2.gridx = 3;
+		p.add(reset, gbcButton2);
+		return p;
+	}
+
+	private void setColor(final String selectedKey, final Color newColor) {
+		switch (selectedKey) {
 			case "Canvas annotations":
 				plugin.setAnnotationsColorAllPanes(newColor);
 				plugin.updateTracingViewers(false);
@@ -1618,26 +1639,8 @@ public class SNTUI extends JDialog {
 				break;
 			default:
 				throw new IllegalArgumentException("Unrecognized option");
-			}
-		});
-
-		final JPanel p = new JPanel();
-		p.setLayout(new GridBagLayout());
-		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.fill = GridBagConstraints.HORIZONTAL;
-		c.gridx = 0;
-		c.gridy = 0;
-		c.gridwidth = 3;
-		c.ipadx = 0;
-		p.add(GuiUtils.leftAlignedLabel("Colors: ", true));
-		c.gridx = 1;
-		p.add(colorChoice, c);
-		c.fill = GridBagConstraints.NONE;
-		c.gridx = 2;
-		p.add(cChooser);
-		return p;
+		}
 	}
-
 	private JPanel miscPanel() {
 		final JPanel miscPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
@@ -3119,7 +3122,7 @@ public class SNTUI extends JDialog {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
 			plugin.updateTracingViewers(true);
 		});
-		final JButton optionsButton = resetButton("Default path colors");
+		final JButton optionsButton = resetButton("default path colors");
 		optionsButton.addActionListener( e-> {
 			colorChooser1.setSelectedColor(SNT.DEFAULT_SELECTED_COLOR, true);
 			colorChooser2.setSelectedColor(SNT.DEFAULT_DESELECTED_COLOR, true);
@@ -3974,44 +3977,26 @@ public class SNTUI extends JDialog {
 	}
 
 	private String getState(final int state) {
-		switch (state) {
-		case READY:
-			return "READY";
-		case PARTIAL_PATH:
-			return "PARTIAL_PATH";
-		case SEARCHING:
-			return "SEARCHING";
-		case QUERY_KEEP:
-			return "QUERY_KEEP";
-		case CACHING_DATA:
-			return "CACHING_DATA";
-		case RUNNING_CMD:
-			return "RUNNING_CMD";
-		case FILLING_PATHS:
-			return "FILLING_PATHS";
-		case CALCULATING_HESSIAN_I:
-			return "CALCULATING_HESSIAN_I";
-		case CALCULATING_HESSIAN_II:
-			return "CALCULATING_HESSIAN_II";
-		case WAITING_FOR_SIGMA_POINT_I:
-			return "WAITING_FOR_SIGMA_POINT_I";
-		case WAITING_FOR_SIGMA_CHOICE:
-			return "WAITING_FOR_SIGMA_CHOICE";
-		case SAVING:
-			return "SAVING";
-		case LOADING:
-			return "LOADING";
-		case FITTING_PATHS:
-			return "FITTING_PATHS";
-		case EDITING:
-			return "EDITING_MODE";
-		case SNT_PAUSED:
-			return "PAUSED";
-		case TRACING_PAUSED:
-			return "ANALYSIS_MODE";
-		default:
-			return "UNKNOWN";
-		}
+        return switch (state) {
+            case READY -> "READY";
+            case PARTIAL_PATH -> "PARTIAL_PATH";
+            case SEARCHING -> "SEARCHING";
+            case QUERY_KEEP -> "QUERY_KEEP";
+            case CACHING_DATA -> "CACHING_DATA";
+            case RUNNING_CMD -> "RUNNING_CMD";
+            case FILLING_PATHS -> "FILLING_PATHS";
+            case CALCULATING_HESSIAN_I -> "CALCULATING_HESSIAN_I";
+            case CALCULATING_HESSIAN_II -> "CALCULATING_HESSIAN_II";
+            case WAITING_FOR_SIGMA_POINT_I -> "WAITING_FOR_SIGMA_POINT_I";
+            case WAITING_FOR_SIGMA_CHOICE -> "WAITING_FOR_SIGMA_CHOICE";
+            case SAVING -> "SAVING";
+            case LOADING -> "LOADING";
+            case FITTING_PATHS -> "FITTING_PATHS";
+            case EDITING -> "EDITING_MODE";
+            case SNT_PAUSED -> "PAUSED";
+            case TRACING_PAUSED -> "ANALYSIS_MODE";
+            default -> "UNKNOWN";
+        };
 	}
 
 	protected void togglePathsChoice() {
@@ -4325,7 +4310,7 @@ public class SNTUI extends JDialog {
 
 		@Override
 		protected void process(final List<Object> chunks) {
-			final String msg = (String) chunks.get(0);
+			final String msg = (String) chunks.getFirst();
 			guiUtils.error(msg);
 		}
 	
@@ -4348,56 +4333,34 @@ public class SNTUI extends JDialog {
 		static final int MARGIN = 2;
 
 		static String getImportActionName(final int type) {
-			switch (type) {
-			case ImportAction.AUTO_TRACE_IMAGE:
-				return "Autotrace Segmented Image File...";
-			case ImportAction.SWC_DIR:
-				return "Directory of SWCs...";
-			case ImportAction.SWC:
-				return "SWC...";
-			case ImportAction.IMAGE:
-				return "From File...";
-			case ImportAction.ANY_RECONSTRUCTION:
-				return "Guess File Type...";
-			case ImportAction.JSON:
-				return "JSON...";
-			case ImportAction.DEMO:
-				return "Load Demo Dataset...";
-			case ImportAction.NDF:
-				return "NDF...";
-			case ImportAction.TRACES:
-				return "TRACES...";
-			case ImportAction.IMAGE_CLIPBOARD:
-				return "From System Clipboard";
-			default:
-				throw new IllegalArgumentException("Unknown type '" + type + "'");
-			}
+            return switch (type) {
+                case ImportAction.AUTO_TRACE_IMAGE -> "Autotrace Segmented Image File...";
+                case ImportAction.SWC_DIR -> "Directory of SWCs...";
+                case ImportAction.SWC -> "SWC...";
+                case ImportAction.IMAGE -> "From File...";
+                case ImportAction.ANY_RECONSTRUCTION -> "Guess File Type...";
+                case ImportAction.JSON -> "JSON...";
+                case ImportAction.DEMO -> "Load Demo Dataset...";
+                case ImportAction.NDF -> "NDF...";
+                case ImportAction.TRACES -> "TRACES...";
+                case ImportAction.IMAGE_CLIPBOARD -> "From System Clipboard";
+                default -> throw new IllegalArgumentException("Unknown type '" + type + "'");
+            };
 		}
 
 		static int getImportActionType(final String name) {
-			switch (name) {
-			case "Autotrace Segmented Image File...":
-				return ImportAction.AUTO_TRACE_IMAGE;
-			case "Directory of SWCs...":
-				return ImportAction.SWC_DIR;
-			case "e(SWC)...": // backwards compatibility
-			case "SWC...":
-				return ImportAction.SWC;
-			case "From File...":
-				return ImportAction.IMAGE;
-			case "Guess File Type...":
-				return ImportAction.ANY_RECONSTRUCTION;
-			case "JSON...":
-				return ImportAction.JSON;
-			case "Load Demo Dataset...":
-				return ImportAction.DEMO;
-			case "NDF...":
-				return ImportAction.NDF;
-			case "TRACES...":
-				return ImportAction.TRACES;
-			default:
-				return -1;
-			}
+            return switch (name) {
+                case "Autotrace Segmented Image File..." -> ImportAction.AUTO_TRACE_IMAGE;
+                case "Directory of SWCs..." -> ImportAction.SWC_DIR; // backwards compatibility
+                case "e(SWC)...", "SWC..." -> ImportAction.SWC;
+                case "From File..." -> ImportAction.IMAGE;
+                case "Guess File Type..." -> ImportAction.ANY_RECONSTRUCTION;
+                case "JSON..." -> ImportAction.JSON;
+                case "Load Demo Dataset..." -> ImportAction.DEMO;
+                case "NDF..." -> ImportAction.NDF;
+                case "TRACES..." -> ImportAction.TRACES;
+                default -> -1;
+            };
 		}
 
 		static int getImportActionType(final File file) {
@@ -4606,7 +4569,7 @@ public class SNTUI extends JDialog {
 							+ "<li>Using ROI Manager's <i>Save</i> command</li></ul>",
 					"Possible Loss of ROI Markers");
 			if (prompt != null) // do nothing if user dismissed the dialog
-				plugin.getPrefs().setTemp("markerLoss-nag", !prompt.booleanValue());
+				plugin.getPrefs().setTemp("markerLoss-nag", !prompt);
 		}
 	}
 

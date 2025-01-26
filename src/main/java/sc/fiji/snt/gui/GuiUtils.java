@@ -97,6 +97,7 @@ public class GuiUtils {
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
 	private int timeOut = 2500;
+	private static JColorChooser colorChooser;
 
 	public GuiUtils(final Component parent) {
 		setParent(parent);
@@ -679,19 +680,18 @@ public class GuiUtils {
 
 		assert SwingUtilities.isEventDispatchThread();
 
-		final JColorChooser chooser = new JColorChooser(defaultValue != null
-			? defaultValue : Color.WHITE);
-
-		// remove preview pane
-		chooser.setPreviewPanel(new JPanel());
+		if (colorChooser == null) {
+			colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
+			colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
+		}
 
 		// remove spurious panes
 		List<String> allowedPanels;
 		if (panes != null) {
 			allowedPanels = Arrays.asList(panes);
-			for (final AbstractColorChooserPanel accp : chooser.getChooserPanels()) {
-				if (!allowedPanels.contains(accp.getDisplayName()) && chooser
-					.getChooserPanels().length > 1) chooser.removeChooserPanel(accp);
+			for (final AbstractColorChooserPanel accp : colorChooser.getChooserPanels()) {
+				if (!allowedPanels.contains(accp.getDisplayName()) && colorChooser
+					.getChooserPanels().length > 1) colorChooser.removeChooserPanel(accp);
 			}
 		}
 
@@ -714,9 +714,9 @@ public class GuiUtils {
 			}
 		}
 
-		final ColorTracker ok = new ColorTracker(chooser);
+		final ColorTracker ok = new ColorTracker(colorChooser);
 		final JDialog dialog = JColorChooser.createDialog(parent, title, true,
-			chooser, ok, null);
+				colorChooser, ok, null);
 		makeVisible(dialog, true);
 		return ok.getColor();
 	}

@@ -178,7 +178,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo7() {
-		final Demo entry = new Demo(7, "L-systems fractal (Toy neuron)") {
+		final Demo entry = new Demo(7, "L-systems fractal (2D toy neuron)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("fractal");

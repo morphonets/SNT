@@ -137,29 +137,22 @@ public class SNT extends MultiDThreePanes implements
 		RECIPROCAL, DIFFERENCE, DIFFERENCE_SQUARED, PROBABILITY;
 
 		public String getDescription() {
-			switch (this) {
-				case RECIPROCAL:
-					return "Robust under a wide range of image conditions";
-				case DIFFERENCE:
-					return "Faster on images with right-shifted intensity distributions (i.e., mean >> 0)";
-				case DIFFERENCE_SQUARED:
-					return "Similar to Difference, usually faster";
-				case PROBABILITY:
-					return "Fast, especially on noisy or distribution-offset images. Use with real-time statistics";
-				default:
-					return "";
-			}
+            return switch (this) {
+                case RECIPROCAL -> "Robust under a wide range of image conditions";
+                case DIFFERENCE -> "Faster on images with right-shifted intensity distributions (i.e., mean >> 0)";
+                case DIFFERENCE_SQUARED -> "Similar to Difference, usually faster";
+                case PROBABILITY ->
+                        "Fast, especially on noisy or distribution-offset images. Use with real-time statistics";
+            };
 		}
 
 		@Override
 		public String toString() {
-			switch (this) {
-			case DIFFERENCE_SQUARED:
-				return "Difference Sq."; // OtherWise too wide for FillManagerUI type label!?
-			default:
-				return StringUtils.capitalize(super.toString().toLowerCase());
-			}
-		}
+            if (this == CostType.DIFFERENCE_SQUARED) {
+                return "Difference Sq."; // OtherWise too wide for FillManagerUI type label!?
+            }
+            return StringUtils.capitalize(super.toString().toLowerCase());
+        }
 	}
 	public enum HeuristicType {
 		EUCLIDEAN, DIJKSTRA;
@@ -586,8 +579,8 @@ public class SNT extends MultiDThreePanes implements
 		depth += Z_PADDING;
 		final PointInImage unscaledOrigin = box.unscaledOrigin();
 		final PointInCanvas canvasOffset = new PointInCanvas(-unscaledOrigin.x +
-			XY_PADDING / 2, -unscaledOrigin.y + XY_PADDING / 2, -unscaledOrigin.z +
-				Z_PADDING / 2);
+			(double) XY_PADDING / 2, -unscaledOrigin.y + (double) XY_PADDING / 2, -unscaledOrigin.z +
+				(double) Z_PADDING / 2);
 		for (final Path p : pathAndFillManager.getPaths()) {
 			p.setCanvasOffset(canvasOffset);
 		}
@@ -1315,6 +1308,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
+	@SuppressWarnings("unused")
 	protected synchronized boolean loadSWCFile(File file) {
 		if (getUI() != null) {
 			// backwards compatibility
@@ -1752,53 +1746,37 @@ public class SNT extends MultiDThreePanes implements
 				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
 		}
 
-		Heuristic heuristic;
-		switch (heuristicType)
-		{
-			case EUCLIDEAN:
-				heuristic = new Euclidean(xy.getCalibration());
-				break;
-			case DIJKSTRA:
-				heuristic = new Dijkstra();
-				break;
-			default:
-				throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
-		}
+		Heuristic heuristic = switch (heuristicType) {
+            case EUCLIDEAN -> new Euclidean(xy.getCalibration());
+            case DIJKSTRA -> new Dijkstra();
+            default -> throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
+        };
 
-		AbstractSearch search;
-		switch (searchType)
-		{
-			case ASTAR:
-				search = new TracerThread(
-						this,
-						img,
-						x_start,
-						y_start,
-						z_start,
-						x_end,
-						y_end,
-						z_end,
-						costFunction,
-						heuristic);
-				break;
-			case NBASTAR:
-				search = new BiSearch(
-						this,
-						img,
-						x_start,
-						y_start,
-						z_start,
-						x_end,
-						y_end,
-						z_end,
-						costFunction,
-						heuristic);
-				break;
-			default:
-				throw new IllegalArgumentException("BUG: Unknown search class");
-		}
-
-		return search;
+        return switch (searchType) {
+            case ASTAR -> new TracerThread(
+                    this,
+                    img,
+                    x_start,
+                    y_start,
+                    z_start,
+                    x_end,
+                    y_end,
+                    z_end,
+                    costFunction,
+                    heuristic);
+            case NBASTAR -> new BiSearch(
+                    this,
+                    img,
+                    x_start,
+                    y_start,
+                    z_start,
+                    x_end,
+                    y_end,
+                    z_end,
+                    costFunction,
+                    heuristic);
+            default -> throw new IllegalArgumentException("BUG: Unknown search class");
+        };
 	}
 
 	public synchronized void confirmTemporary(final boolean updateTracingViewers) {
@@ -2050,7 +2028,7 @@ public class SNT extends MultiDThreePanes implements
 		ui = null;
 
 		// Start path from first point in list
-		final SNTPoint start = pointList.get(0);
+		final SNTPoint start = pointList.getFirst();
 		startPath(start.getX(), start.getY(), start.getZ(), forkPoint);
 
 		final int secondNodeIdx = (pointList.size() == 1) ? 0 : 1;
@@ -2783,14 +2761,12 @@ public class SNT extends MultiDThreePanes implements
 
 	public void flushSecondaryData() {
 		// TODO: Is this all we need to do, and is it in the correct order?
-		if (secondaryData instanceof DiskCachedCellImg) {
-			DiskCachedCellImg<?, ?> img = (DiskCachedCellImg<?, ?>)secondaryData;
-			SNTUtils.log("Shutting down IoSync...");
+		if (secondaryData instanceof DiskCachedCellImg<?, ?> img) {
+            SNTUtils.log("Shutting down IoSync...");
 			img.shutdown();
 		}
-		if (secondaryData instanceof CachedCellImg) {
-			CachedCellImg<?, ?> img = (CachedCellImg<?, ?>)secondaryData;
-			SNTUtils.log("Invalidating cache...");
+		if (secondaryData instanceof CachedCellImg<?, ?> img) {
+            SNTUtils.log("Invalidating cache...");
 			if (img.getCache() != null)
 				img.getCache().invalidateAll();
 		}
@@ -3730,17 +3706,12 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private static int getView(final String view) {
-		switch (view.toLowerCase()) {
-			case "xy":
-			case "main":
-				return MultiDThreePanes.XY_PLANE;
-			case "xz":
-				return MultiDThreePanes.XZ_PLANE;
-			case "zy":
-				return MultiDThreePanes.ZY_PLANE;
-			default:
-				throw new IllegalArgumentException("Unrecognized view");
-		}
+        return switch (view.toLowerCase()) {
+            case "xy", "main" -> MultiDThreePanes.XY_PLANE;
+            case "xz" -> MultiDThreePanes.XZ_PLANE;
+            case "zy" -> MultiDThreePanes.ZY_PLANE;
+            default -> throw new IllegalArgumentException("Unrecognized view");
+        };
 	}
 
 }

@@ -50,7 +50,7 @@ import java.util.*;
  */
 public class SNTCommandFinder {
 
-	private static final String NAME = "Command Palette...";
+	private static final String NAME = "Command Palette";
 
 	/** Settings. Ought to become adjustable some day */
 	private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
@@ -560,17 +560,18 @@ public class SNTCommandFinder {
 		}
 	}
 
-	private class Palette extends JFrame {
+	private class Palette extends JDialog {
 		private static final long serialVersionUID = 1L;
 
 		Palette() {
-			super("Command Palette");
+			super();
 			setUndecorated(true);
 			setAlwaysOnTop(true);
+			setModal(false);
 			setOpacity(OPACITY);
 			getRootPane().setWindowDecorationStyle(JRootPane.NONE);
-			// it should NOT be possible to minimize this frame, but just to
-			// be safe, we'll ensure the frame is never in an awkward state
+			// it should NOT be possible to minimize this component, but just to
+			// be safe, we'll ensure the component is never in an awkward state
 			addWindowListener(new WindowAdapter() {
 				@Override
 				public void windowClosing(final WindowEvent e) {
@@ -999,9 +1000,8 @@ public class SNTCommandFinder {
 			for (final AnnotatedComponent ac : getComponents()) {
 				if (ac == null)
 					continue;
-				if (ac.component instanceof JMenuBar) {
-					final JMenuBar menuBar = (JMenuBar) ac.component;
-					final int topLevelMenus = menuBar.getMenuCount();
+				if (ac.component instanceof JMenuBar menuBar) {
+                    final int topLevelMenus = menuBar.getMenuCount();
 					for (int i = 0; i < topLevelMenus; ++i) {
 						final JMenu topLevelMenu = menuBar.getMenu(i);
 						if (topLevelMenu != null && topLevelMenu.getText() != null) {
@@ -1009,14 +1009,11 @@ public class SNTCommandFinder {
 						}
 					}
 				}
-				if (ac.component instanceof JPopupMenu) {
-					final JPopupMenu popup = (JPopupMenu) ac.component;
-					if (popup != null) {
-						getMenuItems(popup).forEach(mi -> {
-							registerMenuItem(mi, new ArrayList<>(Collections.singletonList(ac.annotation)));
-						});
-					}
-				}
+				if (ac.component instanceof JPopupMenu popup) {
+                    getMenuItems(popup).forEach(mi -> {
+                        registerMenuItem(mi, new ArrayList<>(Collections.singletonList(ac.annotation)));
+                    });
+                }
 			}
 
 		}
