@@ -2938,7 +2938,7 @@ public class Viewer3D {
 			final String title = (chart.viewer.isSNTInstance()) ? "RV Controls" : "RV Controls ("+ chart.viewer.getID() + ")";
 			final JDialog dialog = new JDialog(this, title);
 			GuiUtils.removeIcon(dialog);
-			managerPanel = new ManagerPanel(new GuiUtils(dialog));
+			managerPanel = new ManagerPanel(dialog);
 			dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 			dialog.addWindowListener(new WindowAdapter() {
 				@Override
@@ -3570,11 +3570,12 @@ public class Viewer3D {
 		private final ProgressBar progressBar;
 		private Debugger debugger;
 		private boolean disableActions;
+		private final Window parentWindow;
 
-
-		private ManagerPanel(final GuiUtils guiUtils) {
+		private ManagerPanel(final Window parentWindow) {
 			super();
-			this.guiUtils = guiUtils;
+			this.parentWindow = parentWindow;
+			this.guiUtils = new GuiUtils(parentWindow);
 			setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
 			searchableBar.setGuiUtils(guiUtils);
@@ -3680,6 +3681,10 @@ public class Viewer3D {
 					progressBar.addToGlobalValue(value);
 				}
 			});
+		}
+
+		public Window getWindow() {
+			return parentWindow;
 		}
 
 		class ProgressBar extends JProgressBar {

@@ -394,7 +394,7 @@ public class SNTUI extends JDialog {
 				});
 			}
 			this.pmUI.getJMenuBar().add(Box.createHorizontalGlue());
-			this.pmUI.getJMenuBar().add(commandFinder.getMenuItem(this.pmUI.getJMenuBar(), true));
+			this.pmUI.getJMenuBar().add(commandFinder.getMenuItem(true));
 			addFileDrop(this.pmUI, this.pmUI.guiUtils);
 			commandFinder.attach(this.pmUI);
 		} else {
@@ -1212,7 +1212,7 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
 				!plugin.isZoomAllPanesDisabled());
-		registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views'",
+		registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views",
 				"Options Tab");
 		zoomAllPanesCheckBox
 				.addItemListener(e -> plugin.disableZoomAllPanes(e.getStateChange() == ItemEvent.DESELECTED));
@@ -2760,7 +2760,7 @@ public class SNTUI extends JDialog {
 		analysisMenu.add(measureMenuItem);
 
 		// Utilities
-		utilitiesMenu.add(commandFinder.getMenuItem(menuBar, false));
+		utilitiesMenu.add(commandFinder.getMenuItem(false));
 		utilitiesMenu.addSeparator();
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
 		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
@@ -3084,9 +3084,6 @@ public class SNTUI extends JDialog {
 		partsNearbyCSpinner.getCheckBox().addItemListener(e -> {
 			plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
 					(int) partsNearbyCSpinner.getValue());
-			if (recorder != null)
-				recorder.recordCmd("snt.getUI().setVisibilityFilter(\"Z-slices\", "
-						+ partsNearbyCSpinner.isSelected() + ")");
 		});
 		partsNearbyCSpinner.getSpinner().addChangeListener(e -> {
 			plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue());
@@ -3096,6 +3093,13 @@ public class SNTUI extends JDialog {
 		onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel("3. Only paths from active channel/frame", "3"));
 		row3.add(onlyActiveCTposition);
 		onlyActiveCTposition.addItemListener(listener);
+
+		registerInCommandFinder(showPathsSelected, "Path Visibility Filter: 1. Only Selected Paths", "Main Tab");
+		ScriptRecorder.setRecordingCall(showPathsSelected, "snt.getUI().setVisibilityFilter(\"selected\", {STATE})");
+		registerInCommandFinder(partsNearbyCSpinner.getCheckBox(), "Path Visibility Filter: 2. Only Nodes in Nearby Z", "Main Tab");
+		ScriptRecorder.setRecordingCall(partsNearbyCSpinner.getCheckBox(), "snt.getUI().setVisibilityFilter(\"z-slices\", {STATE})");
+		registerInCommandFinder(onlyActiveCTposition, "Path Visibility Filter: 3. Only Active Channel/Frame", "Main Tab");
+		ScriptRecorder.setRecordingCall(onlyActiveCTposition, "snt.getUI().setVisibilityFilter(\"channel/frame\", {STATE})");
 
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
@@ -4123,14 +4127,8 @@ public class SNTUI extends JDialog {
 				plugin.enableSnapCursor(useSnapWindow.isSelected());
 			} else if (source == showPathsSelected) {
 				plugin.setShowOnlySelectedPaths(showPathsSelected.isSelected());
-				if (recorder != null)
-					recorder.recordCmd("snt.getUI().setVisibilityFilter(\"selected\", "
-						+ showPathsSelected.isSelected() + ")");
 			} else if (source == onlyActiveCTposition) {
 				plugin.setShowOnlyActiveCTposPaths(onlyActiveCTposition.isSelected(), true);
-				if (recorder != null)
-					recorder.recordCmd("snt.getUI().setVisibilityFilter(\"channel/frame\", "
-							+ onlyActiveCTposition.isSelected() + ")");
 			}
 		}
 

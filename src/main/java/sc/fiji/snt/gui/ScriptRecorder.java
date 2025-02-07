@@ -43,6 +43,7 @@ public class ScriptRecorder extends JDialog {
 
 	private static final long serialVersionUID = -5275540638446494067L;
 	private static final String REC_PROPERTY_KEY = "rec-key";
+	private static final String REC_BOOL_PROPERTY_KEY = "rec-bool-key";
 	private static final LANG DEF_LANG = LANG.PYTHON;
 	private EditorPane editor;
 	private JComboBox<LANG> combo;
@@ -79,7 +80,6 @@ public class ScriptRecorder extends JDialog {
 
 	public ScriptRecorder() {
 		setTitle("SNT Script Recorder (Experimental)");
-		setAlwaysOnTop(true);
 		editor = getEditor();
 		combo = getComboBox();
 		setLanguage(DEF_LANG);
@@ -323,10 +323,17 @@ public class ScriptRecorder extends JDialog {
 	}
 
 	public static void setRecordingCall(final AbstractButton button, final String recordingString) {
-        button.putClientProperty(REC_PROPERTY_KEY, Objects.requireNonNullElse(recordingString, IGNORED_CMD));
+		if (button instanceof JCheckBox)
+			button.putClientProperty(REC_BOOL_PROPERTY_KEY, Objects.requireNonNullElse(recordingString, IGNORED_CMD));
+		else
+			button.putClientProperty(REC_PROPERTY_KEY, Objects.requireNonNullElse(recordingString, IGNORED_CMD));
 	}
 
 	public static String getRecordingCall(final AbstractButton button) {
+		if (button instanceof JCheckBox) {
+			final Object rec = button.getClientProperty(REC_BOOL_PROPERTY_KEY);
+			return (rec == null) ? null : rec.toString().replace("{STATE}", String.valueOf(((JCheckBox)button).isSelected()));
+		}
 		final Object rec = button.getClientProperty(REC_PROPERTY_KEY);
 		return (rec == null) ? null : rec.toString();
 	}

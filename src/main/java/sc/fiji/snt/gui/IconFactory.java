@@ -147,6 +147,8 @@ public class IconFactory {
 			LINK('\uf0c1', true), //
 			LIST('\uf03a', true), //
 			LIST_ALT('\uf022', true), //
+			LOCK('\uf023', true), //
+			LOCK_OPEN('\uf3c1', true), //
 			MAGIC('\uf0d0', true), //
 			MAP_PIN('\uf276', true), //
 			MARKER('\uf3c5', true), //

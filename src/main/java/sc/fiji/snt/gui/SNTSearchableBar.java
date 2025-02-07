@@ -142,11 +142,11 @@ public class SNTSearchableBar extends SearchableBar {
 		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
 		_comboBox.getEditor().getEditorComponent().requestFocus(); // or painting does not occur properly!?
 		if (getSearchable().isWildcardEnabled() && getSearchable().isCaseSensitive())
-			editorField.changePlaceholder("Active filters: [Aa]  [?*]", false);
+			editorField.changePlaceholder("Active filters: [Cc]  [?*]", false);
 		else if (getSearchable().isWildcardEnabled())
 			editorField.changePlaceholder("Active filter: [?*]", false);
 		else if (getSearchable().isCaseSensitive())
-			editorField.changePlaceholder("Active filter: [Aa]", false);
+			editorField.changePlaceholder("Active filter: [Cc]", false);
 		else
 			editorField.resetPlaceholder();
 		_comboBox.getEditor().getEditorComponent().transferFocusBackward();
@@ -284,7 +284,7 @@ public class SNTSearchableBar extends SearchableBar {
 		button.addActionListener( e -> popup.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		formatButton(button, IconFactory.GLYPH.LIST_ALT);
 
-		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Case Sensitive Matching", getSearchable().isCaseSensitive());
+		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Match Case", getSearchable().isCaseSensitive());
 		jcbmi1.addItemListener(e -> {
 			getSearchable().setCaseSensitive(jcbmi1.isSelected());
 			updatePlaceholderText();

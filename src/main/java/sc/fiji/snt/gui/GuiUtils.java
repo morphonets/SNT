@@ -2393,6 +2393,22 @@ public class GuiUtils {
 		tableListOrTree.putClientProperty(FlatClientProperties.STYLE, "selectionArc: 6; selectionInsets: 0,1,0,1");
 	}
 
+	public static void centerWindow(final Window dialogToCenter, final Window... windows) {
+		if (dialogToCenter == null) {
+			throw new IllegalArgumentException("dialogToCenter must not be null");
+		}
+		if (windows == null || windows.length == 0) {
+			AWTWindows.centerWindow(dialogToCenter);
+			return;
+		}
+		// the bounding rectangle that encompasses all windows
+		Rectangle boundingRect = new Rectangle(windows[0].getBounds());
+		for (final Window w : windows) {
+			if (w != null) boundingRect = boundingRect.union(w.getBounds());
+		}
+		AWTWindows.centerWindow(boundingRect, dialogToCenter);
+	}
+
 	private static String releaseNotesURL() {
 		return "https://github.com/morphonets/SNT/releases";
 	}
