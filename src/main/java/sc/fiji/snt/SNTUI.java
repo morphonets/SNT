@@ -3014,7 +3014,7 @@ public class SNTUI extends JDialog {
 	private JMenu showFolderMenu(final ScriptInstaller installer) {
 		final JMenu menu = new JMenu("Reveal Directory");
 		menu.setIcon(IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
-		final String[] labels = { "Current TRACES file", "Image Being Traced", "Fiji Scripts", "Last Accessed Folder",
+		final String[] labels = { "Current TRACES File", "Image Being Traced", "Fiji Scripts", "Last Accessed Folder",
 				"Secondary Layer Image", "Snapshot Backup(s)" };
 		Arrays.stream(labels).forEach(label -> {
 			final JMenuItem jmi = new JMenuItem(label);
@@ -3051,7 +3051,7 @@ public class SNTUI extends JDialog {
 					f = plugin.getFilteredImageFile();
 					proceed = !noSecondaryDataAvailableError();
 					break;
-				case "Current TRACES file":
+				case "Current TRACES File":
 					f = getAutosaveFile();
 					if (f == null) {
 						guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");

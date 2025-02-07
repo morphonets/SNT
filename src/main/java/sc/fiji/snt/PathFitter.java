@@ -324,7 +324,7 @@ public class PathFitter implements Callable<Path> {
 	 *                     is kept as a separated Path linked to the input as per
 	 *                     {@link Path#getFitted()}. Note that in the latter case,
 	 *                     some topological operations (e.g., forking) performed on
-	 *                     the fitted result may not percolate to the unfitted Path.
+	 *                     the fitted result may not percolate to the non-fitted Path.
 	 */
 	public void setReplaceNodes(final boolean replaceNodes) {
 		fitInPlace = replaceNodes;

@@ -2705,7 +2705,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
 		private static final String SPINE_PROFILE_CMD = "Density Profiles...";
 		private static final String MULTI_METRIC_PLOT_CMD = "Multimetric Plot...";
-		private static final String SPINE_EXTRACT_CMD = "Extract Counts from Multi-point ROIs...";
+		private static final String SPINE_EXTRACT_CMD = "Extract Counts from Multipoint ROIs...";
 		private static final String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
 
 		// Custom tag definition: anything flanked by curly braces

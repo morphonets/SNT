@@ -1122,7 +1122,7 @@ public class SNT extends MultiDThreePanes implements
 		final boolean validPath = pathExists && !editingPath.getUseFitted();
 		if (warnUserIfNot && !validPath) {
 			discreteMsg(
-				"Only unfitted paths can be edited.<br>Run \"Un-fit volume\" to proceed");
+				"Only non-fitted paths can be edited.<br>Run \"Refine›Un-fit Path\" to proceed");
 			return false;
 		}
 		return uiReady && pathExists && validPath;

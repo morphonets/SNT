@@ -65,7 +65,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 
 	private static final String MSG = "<br>To initiate counts, right-click on image and run \"Count Spine/Varicosities...\"";
 
-	@Parameter(required = false, label = "Source of Multi-point ROI(s):") // choices set by #init()
+	@Parameter(required = false, label = "Source of Multipoint ROI(s):") // choices set by #init()
 	private String roiSource;
 
 	@Parameter(label = "Max. association distance", min = "-1", //
@@ -238,7 +238,7 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 			return null; // error already occurred
 		} else if (roiSource.toLowerCase().contains("active")) {
 			if (imp == null || imp.getRoi() == null || !(imp.getRoi() instanceof PointRoi)) {
-				error("No active multi-point ROI(s) exist." + MSG);
+				error("No active multipoint ROI(s) exist." + MSG);
 				return null;
 			}
 			return Collections.singletonList((PointRoi) imp.getRoi());

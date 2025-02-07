@@ -105,7 +105,7 @@ public class StrahlerCmd extends ContextCommand {
 		if (!validInput()) {
 			if (sntService.isActive() && mixedPaths()) {
 				cancel("None of the reconstruction(s) could be parsed. This is likely caused by\n"
-						+ "mixing fitted and un-fitted paths which may mask original connectivity.\n"
+						+ "mixing fitted and non-fitted paths which may mask original connectivity.\n"
 						+ "You may need to apply (or discard) fits more coherently.");
 			} else {
 				cancel("None of the reconstruction(s) could be parsed. Invalid topologies?");

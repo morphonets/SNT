@@ -844,19 +844,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 				+ "but w/ 3D images it should reflect the features' Z-plane</li>" //
 				+ "<li> Once you have performed the count, select the Path(s) associated with the features " //
 				+ "(or select none, if all Paths are to be considered) and run Path Manager's " //
-				+ "<i>Analyze&rarr; Spine/Varicosity Utilities&rarr; Extract Counts from Multi-point ROIs...</i></li>" //
-				+ "<li> Note that SNT only keeps a tally of the features, so you may want to save the multi-point ROis " //
+				+ "<i>Analyze&rarr; Spine/Varicosity Utilities&rarr; Extract Counts from Multipoint ROIs...</i></li>" //
+				+ "<li> Note that SNT only keeps a tally of the features, so you may want to save the multipoint ROis " //
 				+ "in the ROI Manager during extraction</li>" //
 				+ "</ul>" //
 				+ "<br>" //
-				+ "<b>Multi-point Tool Usage:</b>" //
+				+ "<b>Multipoint Tool Usage:</b>" //
 				+ "<ul>" //
 				+ "<li> Click on a point and drag to move it</li>" //
 				+ "<li> Alt-click on a point to delete it</li>" //
 				+ "<li> To delete multiple points, create an area selection while holding down the Alt key</li>" //
-				+ "<li> Use <i>Edit&rarr; Selection&rarr; Select None</i> to delete a multi-point selection</li>" //
-				+ "<li> Use <i>Edit&rarr; Selection&rarr; Restore Selection</i> to restore a deleted multi-point selection</li>" //
-				+ "<li> Double-click on the Multi-point tool for further options and help</li>" //
+				+ "<li> Use <i>Edit&rarr; Selection&rarr; Select None</i> to delete a multipoint selection</li>" //
+				+ "<li> Use <i>Edit&rarr; Selection&rarr; Restore Selection</i> to restore a deleted multipoint selection</li>" //
+				+ "<li> Double-click on the Multipoint tool for further options and help</li>" //
 				+ "</ul>" //
 				+ " <br>";
 		getGuiUtils().showHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities", false);

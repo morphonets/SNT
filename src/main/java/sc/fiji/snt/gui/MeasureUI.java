@@ -470,7 +470,7 @@ public class MeasureUI extends JFrame {
 					+ "</ul>"//
 					+ "<p><b>Note on Fitted Paths:</b></p>"//
 					+ "<p>Some branch-based metrics may not be available when mixing fitted and "//
-					+ "un-fitted paths because paths are fitted independently from one another and "//
+					+ "non-fitted paths because paths are fitted independently from one another and "//
 					+ "may not be aware of the original connectivity. "//
 					+ "When this happens, metrics may be reported as <em>NaN</em> and related errors "//
 					+ "reported to the Console (when running in <em>Debug</em> mode).</p>"//

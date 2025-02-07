@@ -194,7 +194,7 @@ public class DemoRunner {
 				return List.of(getTree());
 			}
 		};
-		entry.summary = "An L-systems fractal image and respective reconstruction. Multi-point ROIs have been added to emulate markers for dendritic spines.";
+		entry.summary = "An L-systems fractal image and respective reconstruction. Multipoint ROIs have been added to emulate markers for dendritic spines.";
 		entry.data = "Image (2D; mask, 23KB), tracings, and ROIs (25KB)";
 		entry.source = "SNT script";
 		entry.online = false;

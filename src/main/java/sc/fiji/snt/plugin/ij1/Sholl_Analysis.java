@@ -344,7 +344,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 				x = rect.x;
 				y = rect.y;
 
-				// If multi-point, use point count to specify # Primary branches
+				// If multipoint, use point count to specify # Primary branches
 				multipointCount = point.getCount(point.getCounter());
 				if (multipointCount > 1) {
 					primaryBranches = multipointCount - 1;
@@ -354,7 +354,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 
 				// Not a proper ROI type
 			} else {
-				sError("Straight Line, Point or Multi-point selection required.");
+				sError("Straight Line, Point or Multipoint selection required.");
 				return;
 			}
 
@@ -774,7 +774,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 							+ "a straight line starting at the center of analysis.\n"
 							+ "(Hold down \"Shift\" to draw an orthogonal radius)\n \n"
 							+ "Alternatively, define the focus of the arbor using\n"
-							+ "the Point/Multi-point Selection Tool.");
+							+ "the Point/Multipoint Selection Tool.");
 			wd.addHyperlink(URL + "#Startup_ROI");
 			wd.show();
 			if (wd.escPressed())
@@ -1113,13 +1113,13 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		gd.addNumericField(" Enclosing radius cutoff", enclosingCutOff, 0, 4, "intersection(s)");
 
 		// We'll use the "units" label of the GenericDialog's numeric field to
-		// provide some feedback on the usage of multi-point counters
+		// provide some feedback on the usage of multipoint counters
 		// (http://imagej.net/Sholl_Analysis#Startup_ROI). This is obviously
 		// extremely hacky, but we are already at the limit of customization
 		// allowed by GenericDialogs
 		final String mpTip = (primaryFromPointRoi)
-				? "Multi-point [2-" + multipointCount + "] count: " + String.valueOf((int) primaryBranches)
-				: "(Multi-point counter absent)";
+				? "Multipoint [2-" + multipointCount + "] count: " + String.valueOf((int) primaryBranches)
+				: "(Multipoint counter absent)";
 		gd.addNumericField("#_Primary branches", primaryBranches, 0, 4, mpTip);
 		if (!IJ.macroRunning()) {
 			try { // Access "units" label
@@ -1277,7 +1277,7 @@ public class Sholl_Analysis implements PlugIn, DialogListener {
 		sb.append("&emsp;Repetead measures allowed?&ensp<tt>").append(String.valueOf(!is3D)).append("</tt><br>");
 		sb.append("&emsp;Noise supression allowed?&ensp<tt>").append(String.valueOf(is3D)).append("</tt><br>");
 		sb.append("&emsp;Saving options available?&ensp<tt>").append(String.valueOf(validPath)).append("</tt><br>");
-		sb.append("&emsp;Multi-point ROIs marking primary branches:&ensp<tt>")
+		sb.append("&emsp;Multipoint ROIs marking primary branches:&ensp<tt>")
 				.append(String.valueOf(Math.max(0, multipointCount - 1))).append("</tt>");
 		sb.append("<br><br>");
 		sb.append("<b>Other settings:</b><br>");
