@@ -35,12 +35,12 @@ public class SearchField extends JTextField {
     public static final int CASE_BUTTON = 0x2;
     public static final int WORD_BUTTON = 0x4;
     public static final int REGEX_BUTTON = 0x8;
-    private static final Color COLOR = defColor();
 
     private JButton optionsButton;
     private JToggleButton caseButton;
     private JToggleButton wordButton;
     private JToggleButton regexButton;
+    private Color iconColor;
 
     public SearchField(final String placeholder, final int visibleButtons) {
         super();
@@ -68,12 +68,6 @@ public class SearchField extends JTextField {
         }
         if (buttons.getComponentCount() > 0)
             putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, buttons);
-    }
-
-    public void enlarge() {
-        final int PADDING = 4;
-        setMargin(new Insets((int) (PADDING * 1.5), PADDING, (int) (PADDING * 1.5), PADDING));
-        setFont(getFont().deriveFont(getFont().getSize() * 1.1f));
     }
 
     public void setWarningOutlineEnabled(final boolean b) {
@@ -105,14 +99,8 @@ public class SearchField extends JTextField {
 
     private void adjustButton(final AbstractButton button) {
         button.setFont(button.getFont().deriveFont((float) (button.getFont().getSize() * .85)));
-        button.setForeground(COLOR);
+        button.setForeground(iconColor());
         //button.setFont(button.getFont().deriveFont(Font.BOLD));
-    }
-
-    private static Color defColor() {
-        Color c  = UIManager.getColor("SearchField.searchIconColor");
-        if (c == null)  c = Color.DARK_GRAY;
-        return c;
     }
 
     public JPopupMenu getOptionsMenu() {
@@ -138,4 +126,23 @@ public class SearchField extends JTextField {
     public JToggleButton regexButton() {
         return regexButton;
     }
+
+    public void enlarge() {
+        final int PADDING = 4;
+        setMargin(new Insets((int) (PADDING * 1.5), PADDING, (int) (PADDING * 1.5), PADDING));
+        setFont(getFont().deriveFont(getFont().getSize() * 1.1f));
+    }
+
+    public static float enlargedHeight() {
+        return UIManager.getFont("TextField.font").getSize() * 1.1f;
+    }
+
+    public Color iconColor() {
+         if (iconColor == null) {
+             iconColor = UIManager.getColor("SearchField.searchIconColor");
+             if (iconColor == null)  iconColor = Color.DARK_GRAY;
+         }
+         return iconColor;
+    }
+
 }

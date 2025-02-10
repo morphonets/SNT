@@ -47,6 +47,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.io.Serial;
 import java.util.List;
 import java.util.*;
 
@@ -169,6 +170,7 @@ public class MeasureUI extends JFrame {
 
 	class MeasurePanel extends JPanel {
 
+		@Serial
 		private static final long serialVersionUID = 1L;
 		private final CheckBoxList metricList;
 		private final DefaultTableModel statsTableModel;
@@ -180,6 +182,7 @@ public class MeasureUI extends JFrame {
 			// Stats table
 			final JTable statsTable = new JTable(new DefaultTableModel() {
 
+				@Serial
 				private static final long serialVersionUID = 1L;
 
 				@Override
@@ -245,9 +248,8 @@ public class MeasureUI extends JFrame {
 
 			// searchable
 			final SNTSearchableBar searchableBar = new SNTSearchableBar(new ListSearchable(metricList),
-					" Find... (" + allMetrics.size() + " metrics)");
-			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_HIGHLIGHTS
-					| SNTSearchableBar.SHOW_NAVIGATION);
+					"Search " + allMetrics.size() + " metrics");
+			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
 			searchableBar.setGuiUtils(guiUtils);
@@ -285,18 +287,21 @@ public class MeasureUI extends JFrame {
 			TablePopupMenu.install(statsTable, statsTableScrollPane);
 			add(statsTableScrollPane, c);
 
-			runButton = new JButton("Measure 100 Comp. Reconstruction(s)");
+			runButton = new JButton("Measure 100 Reconstruction(s)");
+			GuiUtils.equalizeHeight(runButton, searchableBar.getSearchField());
 			updateRunButtonLabel(trees.size());
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
 			final JButton optionsButton = optionsButton(trees);
-			GuiUtils.equalizeHeight(runButton, optionsButton);
+			GuiUtils.equalizeHeight(optionsButton, searchableBar.getSearchField());
+			final JToggleButton splitButton = splitButton(trees);
+			GuiUtils.equalizeHeight(splitButton, searchableBar.getSearchField());
 			final JPanel buttonPanel = new JPanel();
 			buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
-			//bar.getPreferredSize().height = runButton.getPreferredSize().height;
 			buttonPanel.add(Box.createHorizontalGlue());
 			buttonPanel.add(bar);
 			buttonPanel.add(Box.createHorizontalGlue());
 			buttonPanel.add(optionsButton);
+			buttonPanel.add(splitButton);
 			buttonPanel.add(runButton);
 			c.gridx = 1;
 			c.gridy = 1;
@@ -308,27 +313,32 @@ public class MeasureUI extends JFrame {
 		private void updateRunButtonLabel(final int nTrees) {
 			SwingUtilities.invokeLater(() -> {
 				runButton.setText(
-						String.format("Measure %d %s Reconstruction(s)", nTrees, (distinguishCompartments) ? "Comp. " : ""));
+						String.format("Measure %d Reconstruction(s)", nTrees));
 				runButton.setToolTipText((distinguishCompartments)
 						? "Measurements will be split into known compartments\n(axon, dendrites, etc.)"
 						: "Measurements will be retrieved for the whole cell\nwithout compartment (axon, dendrites, etc.) distinction");
 			});
 		}
 
-		private JButton optionsButton(final Collection<Tree> trees) {
-			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.3f));
-			optionsButton.setToolTipText("Options & Utilities");
-			final JPopupMenu optionsMenu = new JPopupMenu();
-			GuiUtils.addSeparator(optionsMenu, "Options:");
-			final JCheckBoxMenuItem jcmi1 = new JCheckBoxMenuItem("Distinguish Compartments",
-					distinguishCompartments);
-			jcmi1.addActionListener(e -> {
-				distinguishCompartments = jcmi1.isSelected();
+		private JToggleButton splitButton(final Collection<Tree> trees) {
+			final Icon unselectedIcon = IconFactory.getButtonIcon(IconFactory.GLYPH.SCALE_BALANCED, 1.1f);
+			final Icon selectedIcon = IconFactory.getButtonIcon(IconFactory.GLYPH.SCALE_UNBALANCED, 1.1f);
+			final JToggleButton button = new JToggleButton(unselectedIcon, distinguishCompartments);
+			button.setSelectedIcon(selectedIcon);
+			button.setToolTipText("Whether measurements should be slip into cellular\n"
+					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
+			button.addItemListener(e -> {
+				distinguishCompartments = button.isSelected();
 				updateRunButtonLabel(trees.size());
 			});
-			jcmi1.setToolTipText("Whether measurements should be slip into cellular\n"
-					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
-			optionsMenu.add(jcmi1);
+			return button;
+		}
+
+		private JButton optionsButton(final Collection<Tree> trees) {
+			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.1f));
+			optionsButton.setToolTipText("Options & Utilities");
+			final JPopupMenu optionsMenu = new JPopupMenu();
+			GuiUtils.addSeparator(optionsMenu, "General:");
 			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
 			jcmi4.addActionListener(e -> {
 				SNTUtils.setDebugMode(jcmi4.isSelected());
@@ -432,7 +442,7 @@ public class MeasureUI extends JFrame {
 				sb.append("</tr>");
 			});
 			sb.append("</tbody></table>");
-			GuiUtils.showHTMLDialog(sb.toString(), "" + trees.size() + " Tree(s) Being Measured");
+			GuiUtils.showHTMLDialog(sb.toString(), trees.size() + " Tree(s) Being Measured");
 		}
 
 		private void showHelp() {
@@ -620,19 +630,15 @@ public class MeasureUI extends JFrame {
 				return;
 			}
 			String metric = metricList.getModel().getElementAt(idx).toString();
-			switch (metric) {
-			case TreeStatistics.X_COORDINATES:
-			case TreeStatistics.Y_COORDINATES:
-			case TreeStatistics.Z_COORDINATES:
-				metric = "xyz-coordinates";
-				break;
-			default:
-				metric = metric.replace(".", "").replace(":", "")//
-						.replace("(", "").replace(")", "") //
-						.replace("[", "").replace("]", "") //
-						.replace("/", "").replace("\\", "") //
-						.replace(" ", "-");
-			}
+            metric = switch (metric) {
+                case TreeStatistics.X_COORDINATES, TreeStatistics.Y_COORDINATES, TreeStatistics.Z_COORDINATES ->
+                        "xyz-coordinates";
+                default -> metric.replace(".", "").replace(":", "")//
+                        .replace("(", "").replace(")", "") //
+                        .replace("[", "").replace("]", "") //
+                        .replace("/", "").replace("\\", "") //
+                        .replace(" ", "-");
+            };
 			GuiUtils.openURL("https://imagej.net/plugins/snt/metrics#" + metric.toLowerCase());
 		}
 
@@ -640,6 +646,7 @@ public class MeasureUI extends JFrame {
 
 	private class GenerateTableAction extends AbstractAction {
 
+		@Serial
 		private static final long serialVersionUID = 1L;
 		final Collection<Tree> trees;
 		final DefaultTableModel tableModel;
@@ -728,30 +735,16 @@ public class MeasureUI extends JFrame {
 					if (cell == null || !(boolean) cell)
 						continue;
 					final String measurement = tableModel.getColumnName(column);
-					final double value;
-					switch (measurement) {
-					case MIN:
-						value = summaryStatistics.getMin();
-						break;
-					case MAX:
-						value = summaryStatistics.getMax();
-						break;
-					case MEAN:
-						value = summaryStatistics.getMean();
-						break;
-					case STDDEV:
-						value = summaryStatistics.getStandardDeviation();
-						break;
-					case SUM:
-						value = summaryStatistics.getSum();
-						break;
-					case N:
-						value = summaryStatistics.getN();
-						break;
-					default:
-						throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
-					}
-					table.set(metricHeader + " [" + measurement + "]", tree.getLabel(), value);
+					final double value = switch (measurement) {
+                        case MIN -> summaryStatistics.getMin();
+                        case MAX -> summaryStatistics.getMax();
+                        case MEAN -> summaryStatistics.getMean();
+                        case STDDEV -> summaryStatistics.getStandardDeviation();
+                        case SUM -> summaryStatistics.getSum();
+                        case N -> summaryStatistics.getN();
+                        default -> throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
+                    };
+                    table.set(metricHeader + " [" + measurement + "]", tree.getLabel(), value);
 				}
 			}
 		}
@@ -789,7 +782,7 @@ public class MeasureUI extends JFrame {
 
 			@Override
 			protected void process(final List<Integer> chunks) {
-				final int i = chunks.get(chunks.size() - 1);
+				final int i = chunks.getLast();
 				bar.setValue(i); // The last value is all we care about
 			}
 
@@ -815,6 +808,7 @@ public class MeasureUI extends JFrame {
      */
 	static class SelectAllHeader extends JToggleButton implements TableCellRenderer {
 
+		@Serial
 		private static final long serialVersionUID = 1L;
 		private static final String ALL_SELECTED = "✓ ";
 		private final String label;
@@ -893,6 +887,7 @@ public class MeasureUI extends JFrame {
 
 	/* see https://stackoverflow.com/questions/16743427/ */
 	static class TablePopupMenu extends JPopupMenu {
+		@Serial
 		private static final long serialVersionUID = 1L;
 		private int rowAtClickPoint;
 		private int columnAtClickPoint;

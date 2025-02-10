@@ -33,6 +33,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.io.Serial;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.Map;
  */
 public class ColorMenu extends JMenu {
 
+	@Serial
 	private static final long serialVersionUID = 1L;
 	private final Map<SNTColor, ColorPane> _colorPanes;
 	private ColorPane _selectedColorPane;
@@ -92,15 +94,14 @@ public class ColorMenu extends JMenu {
 			final Color color = Color.getHSBColor(0, 0, s);
 			colors.add(color);
 		}
-		// add the null color to the end of grayRamp row
-		colors.add(null);
+		colors.add(null); // add the null color to the end of grayRamp row
 
 		for (final Color color : colors) {
 			final ColorPane colorPane = new ColorPane(new SNTColor(color), false);
 			defaultPanel.add(colorPane);
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
-		GuiUtils.addSeparator(this, "Default Hues");
+		addSeparator("Default Hues", GuiUtils.getDisabledComponentColor());
 
 		add(defaultPanel);
 
@@ -119,15 +120,24 @@ public class ColorMenu extends JMenu {
 
 		// Add Kelly distinct colors
 		addSeparator();
-		GuiUtils.addSeparator(this, "Contrast Hues");
+		addSeparator("Contrast Hues", GuiUtils.getSelectionColor());
 		final JPanel kellyPanel = getGridPanel(3, 7);
-		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(20);
+		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(21);
+		kellyColors[20] = null; // add the null color to the end of the row
 		for (final Color color : kellyColors) {
 			final ColorPane colorPane = new ColorPane(new SNTColor(color), false);
 			kellyPanel.add(colorPane);
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
 		add(kellyPanel);
+	}
+
+	private void addSeparator(final String header, final Color color) {
+		final JLabel sep =  new JLabel(header);
+		sep.setPreferredSize(new JMenuItem(" DUMMY ").getPreferredSize());
+		sep.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR, color));
+		sep.setForeground(color);
+		add(sep);
 	}
 
 	private JPanel getGridPanel(final int rows, final int cols) {
@@ -179,6 +189,7 @@ public class ColorMenu extends JMenu {
 
 	private class ColorPane extends JPanel implements MouseListener {
 
+		@Serial
 		private static final long serialVersionUID = 1L;
 		private SNTColor swcColor;
 		private boolean isSelected;

@@ -22,20 +22,19 @@
 
 package sc.fiji.snt.gui;
 
-import com.jidesoft.plaf.UIDefaultsLookup;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.WholeWordsSupport;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.gui.GuiUtils.TextFieldWithPlaceholder;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.plaf.basic.BasicComboBoxEditor;
 import java.awt.*;
+import java.io.Serial;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,11 +44,9 @@ import java.util.List;
  */
 public class SNTSearchableBar extends SearchableBar {
 
+	@Serial
 	private static final long serialVersionUID = 1L;
-	private static final float FONT_SCALING_FACTOR = 1.15f;
-	public static final int SHOW_SEARCH_OPTIONS = 0x80;
 	protected List<AbstractButton> _extraButtons;
-	protected boolean containsCheckboxes;
 	private float iconHeight;
 	private int buttonCount;
 
@@ -57,99 +54,65 @@ public class SNTSearchableBar extends SearchableBar {
 	private String objectDescription;
 	private GuiUtils guiUtils;
 	private JMenuItem findAndReplaceMenuItem;
+	private JMenu historyMenu;
+	private Icon subFilteringStatusIcon;
+	private final List<String> builtinSearchHistory;
 	protected boolean subFilteringEnabled;
 
 	public SNTSearchableBar(final Searchable searchable) {
-		this(searchable, "Find:");
+		this(searchable, "Search");
 	}
 
 	public SNTSearchableBar(final Searchable searchable, final String placeholder) {
-		super(searchable, true); // will create _comboBox
-		init(placeholder);
-		searchable.setCaseSensitive(false);
-		searchable.setWildcardEnabled(false);
-		searchable.setFromStart(false);
-		searchable.setRepeats(true);
-		setShowMatchCount(false); // for performance reasons
-		setBorderPainted(false);
-		setBorder(BorderFactory.createEmptyBorder());
+		super(searchable, true);
+		builtinSearchHistory = new ArrayList<>(10);
+		getSearchable().setCaseSensitive(false);
+		getSearchable().setWildcardEnabled(false);
+		getSearchable().setFromStart(false);
+		getSearchable().setRepeats(true);
+		setShowMatchCount(true); // false improves performance
 		setMismatchForeground(new Color(255, 171, 162));
-		setMaxHistoryLength(10);
+		setMaxHistoryLength(0); // disable default history. We'll use builtinSearchHistory
 		setHighlightAll(true);
-		updatePlaceholderText();
+		init(placeholder); // should be the last call in the constructor
+	}
+
+	@Override
+	public int getMaxHistoryLength() {
+		return 0; // disabled. We'll use builtinSearchHistory
 	}
 
 	private void init(final String placeholder) {
-		_leadingLabel = new JLabel();
-		if (getMaxHistoryLength() == 0) {
-			_leadingLabel.setLabelFor(_textField);
-			_textField.setVisible(true);
-			_comboBox.setVisible(false);
-		}
-		else {
-			_leadingLabel.setLabelFor(_comboBox);
-			_comboBox.setVisible(true);
-			_textField.setVisible(false);
-		}
-		// _comboBox has been initialized by the parent constructor. Now adjust its placeholder text
-		_comboBox.setPreferredSize(new Dimension (_comboBox.getPreferredSize().width, (int) (_comboBox.getPreferredSize().height * FONT_SCALING_FACTOR)));
-		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
-		editorField.changePlaceholder(placeholder, true);
-		setStatusLabelPlaceholder(SNTUtils.getReadableVersion());
+		_textField = getModifiedTextField(placeholder);
+		_textField.setVisible(true);
+		setStatusLabelPlaceholder((placeholder==null)?SNTUtils.getReadableVersion():placeholder);
 	}
 
-	public Component getSearchField() {
-		if (_textField != null && _textField.isVisible()) {
-			return _textField;
-		}
-		if (_comboBox != null && _comboBox.isVisible()) {
-			return _comboBox.getEditor().getEditorComponent();
-		}
-		return null;
+	public SearchField getSearchField() {
+		return (SearchField)_textField;
 	}
 
-	@Override
-	protected void select(int index, String searchingText, boolean incremental) {
-		super.select(index, searchingText, incremental);
-		if (index != -1 || searchingText.isBlank()) {
-			// fix jide-oss not setting background color of comboBox: A BUG!?
-			_comboBox.setBackground(UIDefaultsLookup.getColor("TextField.background"));
-		} else {
-			_comboBox.setBackground(getMismatchBackground());
+	private void updateHistoryMenu() {
+		if (builtinSearchHistory == null || builtinSearchHistory.isEmpty()) {
+			return;
 		}
-	}
-
-	@SuppressWarnings({ "rawtypes" })
-	@Override
-	protected JComboBox createComboBox() {
-		final JComboBox comboBox = super.createComboBox();
-		comboBox.setEditor(new BoxEditorWithPrompt("Find:"));
-		comboBox.setFont(comboBox.getFont().deriveFont(comboBox.getFont().getSize2D() * FONT_SCALING_FACTOR));
-		return comboBox;
-	}
-
-	private static class BoxEditorWithPrompt extends BasicComboBoxEditor {
-		BoxEditorWithPrompt(final String prompt) {
-			super();
-			final int cols = editor.getColumns();
-			editor = new GuiUtils.TextFieldWithPlaceholder(prompt);
-			editor.setColumns(cols);
-			editor.setFont(editor.getFont().deriveFont(editor.getFont().getSize2D() * FONT_SCALING_FACTOR));
+		historyMenu.removeAll();
+		historyMenu.setEnabled(true);
+		historyMenu.setToolTipText(null);
+		for (int i = builtinSearchHistory.size() - 1; i >= 0; i--) {
+			final String h = builtinSearchHistory.get(i);
+			final JMenuItem mi = new JMenuItem(h);
+			mi.addActionListener(e -> getSearchField().setText(h));
+			historyMenu.add(mi);
 		}
-	}
-
-	private void updatePlaceholderText() {
-		final TextFieldWithPlaceholder editorField = ((GuiUtils.TextFieldWithPlaceholder)_comboBox.getEditor().getEditorComponent());
-		_comboBox.getEditor().getEditorComponent().requestFocus(); // or painting does not occur properly!?
-		if (getSearchable().isWildcardEnabled() && getSearchable().isCaseSensitive())
-			editorField.changePlaceholder("Active filters: [Cc]  [?*]", false);
-		else if (getSearchable().isWildcardEnabled())
-			editorField.changePlaceholder("Active filter: [?*]", false);
-		else if (getSearchable().isCaseSensitive())
-			editorField.changePlaceholder("Active filter: [Cc]", false);
-		else
-			editorField.resetPlaceholder();
-		_comboBox.getEditor().getEditorComponent().transferFocusBackward();
+		historyMenu.addSeparator();
+		final JMenuItem mi = new JMenuItem("Clear History");
+		mi.addActionListener(e -> {
+			builtinSearchHistory.clear();
+			historyMenu.removeAll();
+			historyMenu.setEnabled(false);
+		});
+		historyMenu.add(mi);
 	}
 
 	JToggleButton createSubFilteringButton() {
@@ -162,8 +125,7 @@ public class SNTSearchableBar extends SearchableBar {
 			setSubFilteringEnabled(button.isSelected());
 			setStatusLabelPlaceholder(statusLabelPlaceholder); // update label
 		});
-		((GuiUtils.TextFieldWithPlaceholder) _comboBox.getEditor().getEditorComponent()).getDocument()
-				.addDocumentListener(new DocumentListener() {
+		getSearchField().getDocument().addDocumentListener(new DocumentListener() {
 					@Override
 					public void changedUpdate(final DocumentEvent e) {
 						disable();
@@ -188,8 +150,17 @@ public class SNTSearchableBar extends SearchableBar {
 	public void setStatusLabelPlaceholder(final String placeholder) {
 		statusLabelPlaceholder = placeholder;
 		if (_statusLabel != null) {
-			_statusLabel.setText( (subFilteringEnabled) ? "⫧ " + statusLabelPlaceholder : statusLabelPlaceholder);
+			_statusLabel.setText(statusLabelPlaceholder);
+			_statusLabel.setIcon((subFilteringEnabled) ? getSubFilteringStatusIcon() : null);
 		}
+	}
+
+	private Icon getSubFilteringStatusIcon() {
+		if (subFilteringStatusIcon == null) {
+			subFilteringStatusIcon = IconFactory.getIcon(IconFactory.GLYPH.FILTER, _statusLabel.getFont().getSize(),
+					getSearchField().iconColor()); // SearchField is initialized by the time this is called
+		}
+		return subFilteringStatusIcon;
 	}
 
 	@Override
@@ -212,25 +183,16 @@ public class SNTSearchableBar extends SearchableBar {
 		gbc.weightx = 1.0;
 		gbc.anchor = GridBagConstraints.WEST;
 		gbc.fill = GridBagConstraints.HORIZONTAL;
-		add((getMaxHistoryLength() == 0) ? _textField : _comboBox, gbc);
+		add(_textField, gbc);
 
 		// button panel
 		final JPanel buttonPanel = new JPanel();
-		if ((getVisibleButtons() & SHOW_SEARCH_OPTIONS) != 0) {
-			addButton(buttonPanel, createSearchOptionsButton());
-		}
 		if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
 			addButton(buttonPanel, _highlightsButton);
 		}
 		if ((getVisibleButtons() & SHOW_NAVIGATION) != 0) {
 			addButton(buttonPanel, _findNextButton);
 			addButton(buttonPanel, _findPrevButton);
-		}
-		if ((getVisibleButtons() & SHOW_MATCHCASE) != 0) {
-			addButton(buttonPanel, _matchCaseCheckBox);
-		}
-		if ((getVisibleButtons() & SHOW_WHOLE_WORDS) != 0 && getSearchable() instanceof WholeWordsSupport) {
-			addButton(buttonPanel, _wholeWordsCheckBox);
 		}
 		if ((getVisibleButtons() & SHOW_REPEATS) != 0) {
 			addButton(buttonPanel, _repeatCheckBox);
@@ -260,7 +222,107 @@ public class SNTSearchableBar extends SearchableBar {
 
 	}
 
-	protected void setSearcheableObjectDescription(final String objectDescription) {
+	private void addSearchingTextToHistory(String searchingText) {
+		if (searchingText == null || searchingText.isEmpty()) {
+			return;
+		}
+		if (builtinSearchHistory.isEmpty()) {
+			builtinSearchHistory.add(searchingText);
+			return;
+		}
+		if (searchingText.equals(builtinSearchHistory.getLast())) {
+			return;
+		}
+		builtinSearchHistory.add(searchingText);
+		if (builtinSearchHistory.size() > 10) {
+			builtinSearchHistory.removeFirst();
+		}
+	}
+
+	private SearchField getModifiedTextField(final String placeholder) {
+		final boolean wholeWordsSupport = getSearchable() instanceof WholeWordsSupport;
+		int options = SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON;
+		if (wholeWordsSupport) options += SearchField.WORD_BUTTON;
+		final SearchField sf = new SearchField(placeholder, options);
+		final Color optionsButtonOriginalColor = sf.optionsButton().getBackground();
+		final Timer blinkingTimer = new Timer(200, evt -> sf.optionsButton().setBackground(optionsButtonOriginalColor));
+		blinkingTimer.setRepeats(false);
+		sf.addActionListener(e -> {  // triggered by pressing Enter
+			if (sf.getText().isBlank()) {
+				//Toolkit.getDefaultToolkit().beep();
+				return;
+			}
+			addSearchingTextToHistory(sf.getText());
+			if (!blinkingTimer.isRunning()) {
+				sf.optionsButton().setBackground(GuiUtils.getSelectionColor());
+				blinkingTimer.start();
+			}
+		});
+		sf.enlarge();
+		// assign search functionalities of original text field
+		sf.setAction(_textField.getAction());
+		sf.setDocument(_textField.getDocument());
+		// case button
+		sf.caseButton().setSelected(getSearchable().isCaseSensitive());
+		sf.caseButton().addItemListener(e -> {
+			getSearchable().setCaseSensitive(sf.caseButton().isSelected());
+			updateSearch();
+		});
+		// word button
+		if (wholeWordsSupport) {
+			sf.wordButton().setSelected(((WholeWordsSupport) getSearchable()).isWholeWords());
+			sf.wordButton().addItemListener(e -> {
+				((WholeWordsSupport) getSearchable()).setWholeWords(sf.wordButton().isSelected());
+				updateSearch();
+			});
+		}
+		// regex button
+		sf.regexButton().setSelected(getSearchable().isWildcardEnabled());
+		sf.regexButton().setToolTipText("<HTML>Enable Wildcards<br>" +
+				"<b>?</b> (any character) and <b>*</b> (any string) supported");
+		sf.regexButton().addItemListener(e -> {
+			getSearchable().setWildcardEnabled(sf.regexButton().isSelected());
+			updateSearch();
+		});
+		// options button
+		final JPopupMenu popup = createOptionsMenu();
+		sf.optionsButton().addActionListener(e -> {
+			updateHistoryMenu();
+			popup.show(sf.optionsButton(), 0, sf.optionsButton().getHeight());
+		});
+		return sf;
+	}
+
+	private JPopupMenu createOptionsMenu() {
+		final JPopupMenu popup = new JPopupMenu();
+		historyMenu = new JMenu("Search History");
+		historyMenu.setEnabled(false); // will be enabled once history is updated
+		historyMenu.setToolTipText("Press enter on a typed term to store it in this menu");
+		popup.add(historyMenu);
+		popup.addSeparator();
+		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
+			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
+			jcbmi4.setToolTipText("May adversely affect performance if selected");
+			jcbmi4.addItemListener(e -> {
+				setShowMatchCount(jcbmi4.isSelected());
+				updateSearch();
+			});
+			popup.add(jcbmi4);
+		}
+		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
+		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
+		jcbmi3.setToolTipText("Affects selection of previous/next hit using arrow keys");
+		popup.add(jcbmi3);
+		if (findAndReplaceMenuItem != null) {
+			popup.addSeparator();
+			popup.add(findAndReplaceMenuItem);
+		}
+		popup.addSeparator();
+		popup.add(getTipsAndShortcutsMenuItem());
+		return popup;
+	}
+
+	protected void setSearchableObjectDescription(final String objectDescription) {
 		this.objectDescription = objectDescription;
 	}
 
@@ -277,52 +339,6 @@ public class SNTSearchableBar extends SearchableBar {
 		this.findAndReplaceMenuItem = findAndReplaceMenuItem;
 	}
 
-	private JButton createSearchOptionsButton() {
-		final JPopupMenu popup = new JPopupMenu();
-		final JButton button = new JButton();
-		button.setToolTipText("Options for text-based filtering");
-		button.addActionListener( e -> popup.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		formatButton(button, IconFactory.GLYPH.LIST_ALT);
-
-		final JMenuItem jcbmi1 = new JCheckBoxMenuItem("Match Case", getSearchable().isCaseSensitive());
-		jcbmi1.addItemListener(e -> {
-			getSearchable().setCaseSensitive(jcbmi1.isSelected());
-			updatePlaceholderText();
-			updateSearch();
-		});
-		popup.add(jcbmi1);
-		final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Wildcards (?*)", getSearchable().isWildcardEnabled());
-		jcbmi2.setToolTipText("<HTML><b>?</b> (any character) and <b>*</b> (any string) supported");
-		jcbmi2.addItemListener(e -> {
-			getSearchable().setWildcardEnabled(jcbmi2.isSelected());
-			updatePlaceholderText();
-			updateSearch();
-		});
-		popup.add(jcbmi2);
-		popup.addSeparator();
-		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
-			jcbmi4.setToolTipText("May adversely affect performance if selected");
-			jcbmi4.addItemListener(e -> {
-				setShowMatchCount(jcbmi4.isSelected());
-				updateSearch();
-			});
-			popup.add(jcbmi4);
-		}
-		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
-		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
-		jcbmi3.setToolTipText("Affects selection of previous/next hit using arrow keys");
-		popup.add(jcbmi3);
-		popup.addSeparator();
-		if (findAndReplaceMenuItem != null) popup.add(findAndReplaceMenuItem);
-		final JMenuItem mi = new JMenuItem("Clear History");
-		mi.addActionListener(e -> setSearchHistory(null));
-		popup.add(mi);
-		popup.addSeparator();
-		popup.add(getTipsAndShortcutsMenuItem());
-		return button;
-	}
-
 	private JMenuItem getTipsAndShortcutsMenuItem() {
 		final JMenuItem mi2 = new JMenuItem("Tips & Shortcuts...");
 		mi2.addActionListener(e -> {
@@ -330,31 +346,27 @@ public class SNTSearchableBar extends SearchableBar {
 			final String key = GuiUtils.ctrlKey();
 			String msg = "<HTML><body><div style='width:500;'><ol>"
 					+ "<li>Press the up/down keys to find the next/previous occurrence of the filtering string</li>"
-					+ "<li>Hold " + key + " while pressing the up/down keys to select multiple filtered "
-					+ objectDescription + "</li>";
+					+ "<li>Hold " + key + " while pressing the up/down keys to select multiple filtered " + objectDescription + "</li>" //
+					+ "<li>Press enter to store text in the search history</li>";
 			if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
-					msg += "<li>Press the <i>Highlight All</i> button to select all the "
-					+ objectDescription + " filtered by the search string</li>";
+				msg += "<li>Press the <i>Highlight All</i> button to select all the "
+						+ objectDescription + " filtered by the search term</li>";
 			}
 			if (isShowMatchCount()) {
-					msg += "<li>Uncheck <i>Display No. of Matches</i> to improve search performance</li>";
+				msg += "<li>Uncheck <i>Display No. of Matches</i> to improve search performance</li>";
 			}
-					msg += "</ol></div></html>";
+			msg += "</ol></div></html>";
 			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
 		});
 		return mi2;
 	}
 
 	private void updateSearch() {
-		final SearchableListener[] listeners = getSearchable()
-			.getSearchableListeners();
-		for (final SearchableListener l : listeners)
-			l.searchableEventFired(new SearchableEvent(getSearchable(),
-				SearchableEvent.SEARCHABLE_MODEL_CHANGE));
+		for (final SearchableListener l : getSearchable().getSearchableListeners())
+			l.searchableEventFired(new SearchableEvent(getSearchable(), SearchableEvent.SEARCHABLE_MODEL_CHANGE));
 	}
 
 	private void addButton(final JPanel panel, final AbstractButton button) {
-		containsCheckboxes = button instanceof JCheckBox;
 		panel.add(button);
 		buttonCount++;
 	}
@@ -364,8 +376,7 @@ public class SNTSearchableBar extends SearchableBar {
 		_statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 0));
 		_statusLabel.addPropertyChangeListener("text", evt -> {
 			final String text = _statusLabel.getText();
-			if (text == null || text.isEmpty()) _statusLabel.setText(
-				statusLabelPlaceholder);
+			if (text == null || text.isEmpty()) _statusLabel.setText(statusLabelPlaceholder);
 		});
 		return _statusLabel;
 	}
@@ -379,27 +390,14 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	@Override
-	protected AbstractButton createFindPrevButton(
-		final AbstractAction findPrevAction)
-	{
+	protected AbstractButton createFindPrevButton(final AbstractAction findPrevAction) {
 		final AbstractButton button = super.createFindPrevButton(findPrevAction);
 		formatButton(button, IconFactory.GLYPH.PREVIOUS);
 		return button;
 	}
 
 	@Override
-	protected AbstractButton createMatchCaseButton() {
-		final AbstractButton button = super.createMatchCaseButton();
-		button.setText("Aa");
-		button.setMnemonic('a');
-		button.setToolTipText("Match case");
-		return button;
-	}
-
-	@Override
-	protected AbstractButton createFindNextButton(
-		final AbstractAction findNextAction)
-	{
+	protected AbstractButton createFindNextButton(final AbstractAction findNextAction) {
 		final AbstractButton button = super.createFindNextButton(findNextAction);
 		formatButton(button, IconFactory.GLYPH.NEXT);
 		return button;
@@ -409,8 +407,6 @@ public class SNTSearchableBar extends SearchableBar {
 	protected AbstractButton createCloseButton(final AbstractAction closeAction) {
 		final AbstractButton button = new JButton();
 		button.addActionListener(closeAction);
-		// button.setBorder(BorderFactory.createEmptyBorder());
-		// button.setOpaque(false);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		formatButton(button, IconFactory.GLYPH.TIMES);
@@ -426,7 +422,7 @@ public class SNTSearchableBar extends SearchableBar {
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
 		if (iconHeight == 0)
-			iconHeight = FONT_SCALING_FACTOR * UIManager.getFont("Label.font").getSize();
+			iconHeight = SearchField.enlargedHeight();
 		IconFactory.applyIcon(button, iconHeight, glyph);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);

@@ -3580,8 +3580,7 @@ public class Viewer3D {
 			searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
 			searchableBar.setGuiUtils(guiUtils);
 			searchableBar.setVisibleButtons(//SNTSearchableBar.SHOW_CLOSE |
-				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
-				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
+				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
 			setFixedHeight(searchableBar);
 			searchableBar.setVisible(false);
 			searchableBar.setInstaller(new SearchableBar.Installer() {
@@ -5909,8 +5908,7 @@ public class Viewer3D {
 			searchableBar.setHighlightAll(false);
 			searchableBar.setShowMatchCount(true);
 			searchableBar.setVisibleButtons(
-				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
-				SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_STATUS);
+				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
 			refreshTree(false);
 		}
 
@@ -6345,7 +6343,9 @@ public class Viewer3D {
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private void createEditPopup() {
 			// Use a text field as the editor
-			editTextField = GuiUtils.textField("Tags:");
+			editTextField = new JTextField();
+			GuiUtils.addClearButton(editTextField);
+			GuiUtils.addCPlaceholder(editTextField, "Tags:");
 			final Border border = javax.swing.UIManager.getBorder("List.focusCellHighlightBorder");
 			editTextField.setBorder(border);
 			// Add an Action to the text field to save the new value to the model

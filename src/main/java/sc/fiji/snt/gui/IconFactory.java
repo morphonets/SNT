@@ -179,6 +179,8 @@ public class IconFactory {
 			RULER('\uf546', true), //
 			RULER_VERTICAL('\uf548', true), //
 			SAVE('\uf0c7', false), //
+			SCALE_BALANCED('\uf24e', true), //
+			SCALE_UNBALANCED('\uf515', true), //
 			SCISSORS('\uf0c4', true), //
 			SCROLL('\uf70e', true), //
 			SEARCH('\uf002', true), //
@@ -300,12 +302,15 @@ public class IconFactory {
 	}
 
 	public static Icon getMenuIcon(final GLYPH entry) {
+		return getMenuIcon(entry, UIManager.getColor("MenuItem.foreground"));
+	}
+
+	public static Icon getMenuIcon(final GLYPH entry, final Color color) {
 		if (GLYPH.EMPTY.equals(entry)) {
 			return new EmptyIcon(UIManager.getFont("MenuItem.font").getSize() * 0.9f);
 		}
 		return new FADerivedIcon(entry.id, UIManager.getFont("MenuItem.font")
-			.getSize() * 0.9f, UIManager.getColor("MenuItem.foreground"),
-			entry.solid);
+				.getSize() * 0.9f, color, entry.solid);
 	}
 
 	public static Icon getMenuIcon(final char symbol, final boolean solid) {

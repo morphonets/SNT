@@ -84,23 +84,19 @@ public class FADerivedIcon implements Icon {
 	{
 
 		if (buffer == null) {
-			buffer = new BufferedImage(getIconWidth(), getIconHeight(),
-				BufferedImage.TYPE_INT_ARGB);
+			buffer = new BufferedImage(getIconWidth(), getIconHeight(), BufferedImage.TYPE_INT_ARGB);
 
 			final Graphics2D graphics = (Graphics2D) buffer.getGraphics();
-			graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-				RenderingHints.VALUE_ANTIALIAS_ON);
-			graphics.setRenderingHint(RenderingHints.KEY_RENDERING,
-				RenderingHints.VALUE_RENDER_QUALITY);
-
+			graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 			graphics.setFont(font);
 			graphics.setPaint(color);
 
 			final String str = String.valueOf(iconID);
 			final FontMetrics metrics = graphics.getFontMetrics(font);
 			// Calculate position of the icon NB: In Java2D 0 is top of
-			final float xx = (size - metrics.stringWidth(str)) / 2;
-			final float yy = ((size - metrics.getHeight()) / 2) + metrics.getAscent();
+			final float xx = (float) (getIconWidth() - metrics.stringWidth(str)) / 2;
+			final float yy = ((float) (getIconHeight() - metrics.getHeight()) / 2) + metrics.getAscent();
 			graphics.drawString(str, xx, yy);
 			graphics.dispose();
 		}
@@ -115,7 +111,7 @@ public class FADerivedIcon implements Icon {
 	 */
 	@Override
 	public int getIconHeight() {
-		return (int) size;
+		return (int) size + 2;
 	}
 
 	/*
@@ -125,6 +121,6 @@ public class FADerivedIcon implements Icon {
 	 */
 	@Override
 	public int getIconWidth() {
-		return (int) size;
+		return (int) size + 2;
 	}
 }

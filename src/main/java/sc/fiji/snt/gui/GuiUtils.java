@@ -60,7 +60,6 @@ import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.Rectangle2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -293,16 +292,12 @@ public class GuiUtils {
 
 	public Result yesNoPrompt(final String message, final String title) {
 		final int result = yesNoDialog(message, (title == null) ? SNTUtils.getReadableVersion() : title);
-		switch (result) {
-		case JOptionPane.YES_OPTION:
-			return Result.YES_OPTION;
-		case JOptionPane.NO_OPTION:
-			return Result.NO_OPTION;
-		case JOptionPane.CANCEL_OPTION:
-			return Result.CANCEL_OPTION;
-		default:
-			return Result.CLOSED_OPTION;
-		}
+        return switch (result) {
+            case JOptionPane.YES_OPTION -> Result.YES_OPTION;
+            case JOptionPane.NO_OPTION -> Result.NO_OPTION;
+            case JOptionPane.CANCEL_OPTION -> Result.CANCEL_OPTION;
+            default -> Result.CLOSED_OPTION;
+        };
 	}
 
 	private int yesNoDialog(final Object[] components, final String title, final String[] buttonLabels) {
@@ -367,6 +362,7 @@ public class GuiUtils {
 		final JComboBox<String> combo = new JComboBox<>(choices);
 		combo.setSelectedItem(defaultChoice);
 		final JTextField input = new JTextField(defaultInput);
+		addClearButton(input);
 		final JComponent[] inputs = new JComponent[] { new JLabel(message), combo, input };
 		final int result = JOptionPane.showConfirmDialog(null, inputs, title, JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.QUESTION_MESSAGE);
@@ -464,7 +460,7 @@ public class GuiUtils {
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_STATUS);
 			searchableBar.setShowMatchCount(true);
 			searchableBar.setHighlightAll(false); // only one item can be selected in the choice list
-			searchableBar.setStatusLabelPlaceholder(" "); // cannot be empty
+			searchableBar.setStatusLabelPlaceholder(String.format("%d choice(s) available...", listModel.size())); // cannot be empty
 			searchableBar.setGuiUtils(this);
 			gbc.gridy++;
 			panel.add(new JLabel("<HTML>&nbsp;"), gbc); // spacer
@@ -586,6 +582,7 @@ public class GuiUtils {
 			c.fill = 1;
 			c.anchor = GridBagConstraints.WEST;
 			fields[i] = new JTextField(20);
+			addClearButton(fields[i]);
 			fields[i].setText(defaultValues[i]);
 			panel.add(fields[i], c);
 		}
@@ -938,20 +935,15 @@ public class GuiUtils {
 	}
 
 	public File getReconstructionFile(final File file, final String extension) {
-		FileNameExtensionFilter filter;
-		if ("swc".equals(extension))
-			filter = new FileNameExtensionFilter("SWC files (.swc)", "swc");
-		else if ("traces".equals(extension))
-			filter = new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
-		else if ("json".equals(extension))
-			filter = new FileNameExtensionFilter("JSON files (.json)", "json");
-		else if ("ndf".equals(extension))
-			filter = new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
-		else if ("labels".equals(extension))
-			filter = new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
-		else
-			filter = null;
-		final JFileChooser fileChooser = getReconstructionFileChooser(filter);
+		FileNameExtensionFilter filter = switch (extension) {
+            case "swc" -> new FileNameExtensionFilter("SWC files (.swc)", "swc");
+            case "traces" -> new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
+            case "json" -> new FileNameExtensionFilter("JSON files (.json)", "json");
+            case "ndf" -> new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
+            case "labels" -> new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
+            case null, default -> null;
+        };
+        final JFileChooser fileChooser = getReconstructionFileChooser(filter);
 		fileChooser.setSelectedFile(file);
 		if (extension == null)
 			fileChooser.setDialogTitle("Choose Reconstruction File");
@@ -1401,7 +1393,7 @@ public class GuiUtils {
 		}
 	}
 
-	public static void equalizeHeight(final AbstractButton b1, final AbstractButton b2) {
+	public static void equalizeHeight(final Component b1, final Component b2) {
 		b1.setSize(new Dimension(b1.getSize().width, b2.getSize().height));
 		b1.setMinimumSize(new Dimension(b1.getMinimumSize().width, b2.getMinimumSize().height));
 		b1.setPreferredSize(new Dimension(b1.getPreferredSize().width, b2.getPreferredSize().height));
@@ -1579,8 +1571,12 @@ public class GuiUtils {
 		}
 	}
 
-	public static JTextField textField(final String placeholder) {
-		return new TextFieldWithPlaceholder(placeholder);
+	public static void addClearButton(final JTextField textField) {
+		textField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+	}
+
+	public static void addCPlaceholder(final JTextField textField, final String placeholder) {
+		textField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
 	}
 
 	public static void removeIcon(final Window window) {
@@ -1663,51 +1659,6 @@ public class GuiUtils {
 		final JMenuItem mi = menuItemTriggeringURL(label, URL);
 		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
 		return mi;
-	}
-
-	static class TextFieldWithPlaceholder extends JTextField {
-
-		private static final long serialVersionUID = 1L;
-		private String initialPlaceholder;
-		private String placeholder;
-
-		TextFieldWithPlaceholder(final String placeholder) {
-			changePlaceholder(placeholder, true);
-		}
-
-		Font getPlaceholderFont() {
-			return getFont().deriveFont(Font.ITALIC);
-		}
-
-		String getPlaceholder() {
-			return placeholder;
-		}
-
-		void changePlaceholder(final String placeholder, final boolean overrideInitialPlaceholder) {
-			this.placeholder = placeholder;
-			if (overrideInitialPlaceholder) initialPlaceholder = placeholder;
-			update(getGraphics());
-		}
-
-		void resetPlaceholder() {
-			changePlaceholder(initialPlaceholder, false);
-		}
-
-		@Override
-		protected void paintComponent(final java.awt.Graphics g) {
-			super.paintComponent(g);
-			if (getText().isEmpty()) {
-				final Graphics2D g2 = (Graphics2D) g.create();
-				g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-				g2.setColor(getDisabledTextColor());
-				g2.setFont(getPlaceholderFont());
-				final FontMetrics fm = g2.getFontMetrics();
-				final Rectangle2D r = fm.getStringBounds(getPlaceholder(), g2);
-				final int y = (getHeight() - (int) r.getHeight()) / 2 + fm.getAscent();
-				g2.drawString(getPlaceholder(), getInsets().left, y);
-				g2.dispose();
-			}
-		}
 	}
 
 	public static Color getSelectionColor() {
