@@ -42,11 +42,7 @@ import org.scijava.display.DisplayService;
 import org.scijava.io.IOService;
 import org.scijava.io.location.FileLocation;
 import org.scijava.plugin.Parameter;
-import org.scijava.table.Column;
-import org.scijava.table.DefaultGenericTable;
-import org.scijava.table.DoubleColumn;
-import org.scijava.table.GenericTable;
-import org.scijava.table.Table;
+import org.scijava.table.*;
 import org.scijava.table.io.DefaultTableIOPlugin;
 import org.scijava.table.io.TableIOOptions;
 
@@ -184,6 +180,12 @@ public class SNTTable extends DefaultGenericTable {
 	public void addColumn(final String colHeader, final Collection<Double> array) {
 		final DoubleColumn col = new DoubleColumn(colHeader);
 		col.addAll(array);
+		add(col);
+	}
+
+	public void addGenericColumn(final String colHeader, final Collection<?> collection) {
+		final Column<Object> col = new GenericColumn(colHeader);
+		col.addAll(collection);
 		add(col);
 	}
 

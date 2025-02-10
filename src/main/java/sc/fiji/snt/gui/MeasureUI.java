@@ -35,6 +35,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.PathProfiler;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
@@ -58,6 +59,7 @@ import java.util.*;
  */
 public class MeasureUI extends JFrame {
 
+	@Serial
 	private static final long serialVersionUID = 6565638887510865592L;
 	private static final String MIN = "Min";
 	private static final String MAX = "Max";
@@ -372,24 +374,28 @@ public class MeasureUI extends JFrame {
 			});
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
-//			jmi = new JMenuItem("Histogram of Existing Measurements...");
-//			jmi.addActionListener(e -> {
-//				if (table == null || table.isEmpty()) {
-//					guiUtils.error("Measurements table is empty.");
-//					return;
-//				}
-//				final boolean isSummarized = table.isSummarized();
-//				table.removeSummary();
-//				final List<String> choices = new GuiUtils(this).getMultipleChoices("Which metrics",
-//						table.geColumnHeaders().toArray(new String[0]), null);
-//				if (choices == null) return;
-//				SNTChart.getHistogram(table, choices.toArray(new String[0])).show();
-//				if (isSummarized) {
-//					table.summarize();
-//					updateTable(false);
-//				}
-//			});
-//			optionsMenu.add(jmi);
+			jmi = new JMenuItem("Histogram of Existing Measurements...");
+			jmi.addActionListener(e -> {
+				if (table == null || table.getRowCount() == 0) {
+					guiUtils.error("Measurements table is empty.");
+					return;
+				}
+				if (table.getRowCount() < 2) {
+					guiUtils.error("Data in measurements table is not sufficient to render a histogram.");
+					return;
+				}
+				final boolean isSummarized = table.isSummarized();
+				table.removeSummary();
+				final List<String> choices = new GuiUtils(this).getMultipleChoices("Which metrics",
+						table.geColumnHeaders().toArray(new String[0]), null);
+				if (choices == null || choices.isEmpty()) return;
+				SNTChart.getHistogram(table, choices).show();
+				if (isSummarized) {
+					table.summarize();
+					updateTable(false);
+				}
+			});
+			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Utilities:");
 			jmi = GuiUtils.MenuItems.renderQuick();
 			jmi.addActionListener(e -> {
@@ -833,12 +839,6 @@ public class MeasureUI extends JFrame {
 			this.addItemListener(new ItemHandler());
 			header.addMouseListener(new MouseHandler());
 			setToolTipText("Click to toggle entire column");
-
-			// FIXME: This does not appear to work when the table
-			// has multiple of these listeners. Multiple columns get
-			// selected.
-
-			// tableModel.addTableModelListener(new ModelHandler());
 		}
 
 		@Override
