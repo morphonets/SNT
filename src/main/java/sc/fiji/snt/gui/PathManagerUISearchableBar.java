@@ -34,6 +34,7 @@ import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
 import java.awt.*;
+import java.io.Serial;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
@@ -48,6 +49,7 @@ import java.util.stream.IntStream;
  */
 public class PathManagerUISearchableBar extends SNTSearchableBar {
 
+	@Serial
 	private static final long serialVersionUID = 1L;
 	private final PathManagerUI pmui;
 	private final GuiUtils guiUtils;
@@ -58,18 +60,18 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	 * @param pmui the PathManagerUI instance
 	 */
 	public PathManagerUISearchableBar(final PathManagerUI pmui) {
-		super(pmui.getSearchable(), "Text filtering:");
+		super(pmui.getSearchable(), "Text filtering");
 		this.pmui = pmui;
 		guiUtils = new GuiUtils(pmui);
 		setGuiUtils(guiUtils);
-		setSearcheableObjectDescription("Paths");
+		setSearchableObjectDescription("Paths");
 		setFindAndReplaceMenuItem(createFindAndReplaceMenuItem());
 		_extraButtons = new ArrayList<>();
 		_extraButtons.add(createSWCTypeFilteringButton());
 		_extraButtons.add(createColorFilteringButton());
 		_extraButtons.add(createMorphoFilteringButton());
 		_extraButtons.add(createSubFilteringButton());
-		setVisibleButtons(SHOW_STATUS | SHOW_SEARCH_OPTIONS | SHOW_HIGHLIGHTS);
+		setVisibleButtons(SHOW_STATUS | SHOW_HIGHLIGHTS);
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
 			.getPathAndFillManager().size()));
 		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");
@@ -95,9 +97,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		mi.addActionListener(e -> {
 			final String[] labels = { "<HTML>Find", "<HTML>Replace&nbsp;" };
 			if (getSearchable().isCaseSensitive())
-				labels[0] += " <i>[Aa]</i> ";
+				labels[0] += " <i>[Cc]</i> ";
 			if (getSearchable().isWildcardEnabled())
-				labels[0] += " <i>[?*]</i> ";
+				labels[0] += " <i>[.*]</i> ";
 			labels[0] += "&nbsp;";
 			final String[] defaults = { getSearchingText(), "" };
 			final String[] findReplace = guiUtils.getStrings("Replace by Pattern...", labels, defaults);
@@ -289,11 +291,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private void doImageFiltering(final String property) {
-//		final boolean invalidImage = !pmui.getSNT().accessToValidImageData();
-//		if (invalidImage) {
-//			guiUtils.error("There is currently no valid image data to process.");
-//			return;
-//		}
 		final Collection<Path> filteredPaths = getPaths();
 		if (filteredPaths.isEmpty()) {
 			guiUtils.error("There are no traced paths.");
@@ -323,24 +320,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		}
 		for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator.hasNext();) {
 			final Path p = iterator.next();
-			int value;
-			switch (property.toLowerCase()) {
-			case "z-slice of first node":
-				value = p.getZUnscaled(0) + 1;
-				break;
-			case "z-slice of last node":
-				value = p.getZUnscaled(p.size()-1) + 1;
-				break;
-			case "traced channel":
-				value = p.getChannel();
-				break;
-			case "traced frame":
-				value = p.getFrame();
-				break;
-			default:
-				throw new IllegalArgumentException("Unrecognized parameter");
-			}
-			if (!set.contains(value))
+			int value = switch (property.toLowerCase()) {
+                case "z-slice of first node" -> p.getZUnscaled(0) + 1;
+                case "z-slice of last node" -> p.getZUnscaled(p.size() - 1) + 1;
+                case "traced channel" -> p.getChannel();
+                case "traced frame" -> p.getFrame();
+                default -> throw new IllegalArgumentException("Unrecognized parameter");
+            };
+            if (!set.contains(value))
 				iterator.remove();
 		}
 		if (filteredPaths.isEmpty()) {
@@ -404,46 +391,23 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			.hasNext();)
 		{
 			final Path p = iterator.next();
-			double value;
-			switch (property) {
-				case PathStatistics.PATH_EXT_ANGLE_XY:
-				case PathStatistics.PATH_EXT_ANGLE_REL_XY:
-					value = p.getExtensionAngleXY(PathStatistics.PATH_EXT_ANGLE_REL_XY.equals(property));
-					break;
-				case PathStatistics.PATH_EXT_ANGLE_XZ:
-				case PathStatistics.PATH_EXT_ANGLE_REL_XZ:
-					value = p.getExtensionAngleXZ(PathStatistics.PATH_EXT_ANGLE_REL_XZ.equals(property));
-					break;
-				case PathStatistics.PATH_EXT_ANGLE_ZY:
-				case PathStatistics.PATH_EXT_ANGLE_REL_ZY:
-					value = p.getExtensionAngleZY(PathStatistics.PATH_EXT_ANGLE_REL_ZY.equals(property));
-					break;
-				case PathStatistics.PATH_LENGTH:
-				case "Length":
-					value = p.getLength();
-					break;
-				case PathStatistics.N_NODES:
-					value = p.size();
-					break;
-				case PathStatistics.PATH_MEAN_RADIUS:
-					value = p.getMeanRadius();
-					break;
-				case PathStatistics.PATH_ORDER:
-					value = p.getOrder();
-					break;
-				case PathStatistics.N_SPINES:
-					value = p.getSpineOrVaricosityCount();
-					break;
-				case PathStatistics.PATH_CONTRACTION:
-					value = p.getContraction();
-					break;
-				case PathStatistics.N_CHILDREN:
-					value = p.getChildren().size();
-					break;
-				default:
-					throw new IllegalArgumentException("Unrecognized parameter");
-			}
-			if (value < min.doubleValue() || value > max.doubleValue()) iterator.remove();
+			double value = switch (property) {
+                case PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_REL_XY ->
+                        p.getExtensionAngleXY(PathStatistics.PATH_EXT_ANGLE_REL_XY.equals(property));
+                case PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_REL_XZ ->
+                        p.getExtensionAngleXZ(PathStatistics.PATH_EXT_ANGLE_REL_XZ.equals(property));
+                case PathStatistics.PATH_EXT_ANGLE_ZY, PathStatistics.PATH_EXT_ANGLE_REL_ZY ->
+                        p.getExtensionAngleZY(PathStatistics.PATH_EXT_ANGLE_REL_ZY.equals(property));
+                case PathStatistics.PATH_LENGTH, "Length" -> p.getLength();
+                case PathStatistics.N_NODES -> p.size();
+                case PathStatistics.PATH_MEAN_RADIUS -> p.getMeanRadius();
+                case PathStatistics.PATH_ORDER -> p.getOrder();
+                case PathStatistics.N_SPINES -> p.getSpineOrVaricosityCount();
+                case PathStatistics.PATH_CONTRACTION -> p.getContraction();
+                case PathStatistics.N_CHILDREN -> p.getChildren().size();
+                default -> throw new IllegalArgumentException("Unrecognized parameter");
+            };
+            if (value < min.doubleValue() || value > max.doubleValue()) iterator.remove();
 		}
 		if (paths.isEmpty()) {
 			guiUtils.error("No Path matches the specified range.");
@@ -484,7 +448,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			final SNTColor color = colorFilterMenu.getSelectedSWCColor();
 			if (color != null && pmui.getSNT().getUI().getRecorder(false) != null) {
 				pmui.getSNT().getUI().getRecorder(false).recordCmd(
-						String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")", color.toString()));
+						String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")", color));
 			}
 		});
 		return button;

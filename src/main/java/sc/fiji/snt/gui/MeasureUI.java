@@ -245,9 +245,8 @@ public class MeasureUI extends JFrame {
 
 			// searchable
 			final SNTSearchableBar searchableBar = new SNTSearchableBar(new ListSearchable(metricList),
-					" Find... (" + allMetrics.size() + " metrics)");
-			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_SEARCH_OPTIONS | SNTSearchableBar.SHOW_HIGHLIGHTS
-					| SNTSearchableBar.SHOW_NAVIGATION);
+					"Search " + allMetrics.size() + " metrics");
+			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
 			searchableBar.setGuiUtils(guiUtils);
@@ -285,18 +284,21 @@ public class MeasureUI extends JFrame {
 			TablePopupMenu.install(statsTable, statsTableScrollPane);
 			add(statsTableScrollPane, c);
 
-			runButton = new JButton("Measure 100 Comp. Reconstruction(s)");
+			runButton = new JButton("Measure 100 Reconstruction(s)");
+			GuiUtils.equalizeHeight(runButton, searchableBar.getSearchField());
 			updateRunButtonLabel(trees.size());
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
 			final JButton optionsButton = optionsButton(trees);
-			GuiUtils.equalizeHeight(runButton, optionsButton);
+			GuiUtils.equalizeHeight(optionsButton, searchableBar.getSearchField());
+			final JToggleButton splitButton = splitButton(trees);
+			GuiUtils.equalizeHeight(splitButton, searchableBar.getSearchField());
 			final JPanel buttonPanel = new JPanel();
 			buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
-			//bar.getPreferredSize().height = runButton.getPreferredSize().height;
 			buttonPanel.add(Box.createHorizontalGlue());
 			buttonPanel.add(bar);
 			buttonPanel.add(Box.createHorizontalGlue());
 			buttonPanel.add(optionsButton);
+			buttonPanel.add(splitButton);
 			buttonPanel.add(runButton);
 			c.gridx = 1;
 			c.gridy = 1;
@@ -308,27 +310,29 @@ public class MeasureUI extends JFrame {
 		private void updateRunButtonLabel(final int nTrees) {
 			SwingUtilities.invokeLater(() -> {
 				runButton.setText(
-						String.format("Measure %d %s Reconstruction(s)", nTrees, (distinguishCompartments) ? "Comp. " : ""));
+						String.format("Measure %d Reconstruction(s)", nTrees));
 				runButton.setToolTipText((distinguishCompartments)
 						? "Measurements will be split into known compartments\n(axon, dendrites, etc.)"
 						: "Measurements will be retrieved for the whole cell\nwithout compartment (axon, dendrites, etc.) distinction");
 			});
 		}
 
+		private JToggleButton splitButton(final Collection<Tree> trees) {
+			final JToggleButton splitButton = new JToggleButton("Split", distinguishCompartments);
+			splitButton.setToolTipText("Whether measurements should be slip into cellular\n"
+					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
+			splitButton.addItemListener(e -> {
+				distinguishCompartments = splitButton.isSelected();
+				updateRunButtonLabel(trees.size());
+			});
+			return splitButton;
+		}
+
 		private JButton optionsButton(final Collection<Tree> trees) {
 			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.3f));
 			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
-			GuiUtils.addSeparator(optionsMenu, "Options:");
-			final JCheckBoxMenuItem jcmi1 = new JCheckBoxMenuItem("Distinguish Compartments",
-					distinguishCompartments);
-			jcmi1.addActionListener(e -> {
-				distinguishCompartments = jcmi1.isSelected();
-				updateRunButtonLabel(trees.size());
-			});
-			jcmi1.setToolTipText("Whether measurements should be slip into cellular\n"
-					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
-			optionsMenu.add(jcmi1);
+			GuiUtils.addSeparator(optionsMenu, "General:");
 			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
 			jcmi4.addActionListener(e -> {
 				SNTUtils.setDebugMode(jcmi4.isSelected());
