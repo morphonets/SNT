@@ -831,12 +831,12 @@ public class SkeletonConverter {
             // Query the ball around the reference vertex
             kdtree.search(coordinates[i], maxConnectDist, neighbors);
             for (final Neighbor<double[], SWCPoint> neighbor : neighbors) {
-                final SWCPoint neighborVertex = neighbor.value;
+                final SWCPoint neighborVertex = neighbor.value();
                 if (neighborVertex.v == referenceVertex.v) {
                     // Skip neighbors that occur within the same component
                     continue;
                 }
-                final double distance = neighbor.distance;
+                final double distance = neighbor.distance();
                 //System.out.println(distance);
                 pairList.add(new VertexPair(referenceVertex, neighborVertex, distance));
                 break; // Stop after finding closest neighbor in a different component

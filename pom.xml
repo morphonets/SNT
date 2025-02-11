@@ -144,18 +144,19 @@
 		<maven.test.skip>true</maven.test.skip>
 
 		<!-- Dependency versions -->
-		<annotations.version>24.1.0</annotations.version>
-		<fastutil-core.version>8.5.13</fastutil-core.version>
+		<flatlaf.version>3.5.4</flatlaf.version> <!-- upstream 3.5.1 -->
+		<rsyntaxtextarea.version>3.5.4</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
+		<annotations.version>26.0.2</annotations.version>
+		<fastutil-core.version>8.5.15</fastutil-core.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
-		<font-awesome.version>6.5.2</font-awesome.version>
+		<font-awesome.version>6.6.0</font-awesome.version> <!-- v6.7.x triggers IOException: Problem reading font data -->
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
-		<log4j.version>2.21.1</log4j.version>
 		<orsonpdf.version>1.9.1</orsonpdf.version>
 		<scenery.version>0.11.2</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
-		<smile.version>3.1.1</smile.version>
+		<smile.version>4.2.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
 
