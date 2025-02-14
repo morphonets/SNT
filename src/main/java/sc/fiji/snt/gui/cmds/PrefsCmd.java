@@ -25,10 +25,12 @@ package sc.fiji.snt.gui.cmds;
 import net.imagej.ImageJ;
 import org.scijava.Context;
 import org.scijava.command.Command;
-import org.scijava.command.ContextCommand;
+import org.scijava.module.MutableModuleItem;
+import org.scijava.options.OptionsPlugin;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
+import org.scijava.ui.swing.laf.SwingLookAndFeelService;
 import org.scijava.widget.Button;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
@@ -40,6 +42,9 @@ import javax.swing.*;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -49,7 +54,7 @@ import java.util.stream.Collectors;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, initializer = "init", label = "SNT Preferences")
-public class PrefsCmd extends ContextCommand {
+public class PrefsCmd extends OptionsPlugin {
 
 	@Parameter
 	private PrefService prefService;
@@ -57,10 +62,13 @@ public class PrefsCmd extends ContextCommand {
 	@Parameter
 	protected SNTService sntService;
 
+	@Parameter(required = false)
+	private SwingLookAndFeelService lafService;
+
 	@Parameter(label = "Look and feel (L&F)", required = false, persist = false,
-			description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.", choices = {
-			GuiUtils.LAF_LIGHT, GuiUtils.LAF_LIGHT_INTJ, GuiUtils.LAF_DARK, GuiUtils.LAF_DARCULA })
-	private String laf;
+			description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.",
+			initializer = "initLookAndFeel")
+	private String lookAndFeel;
 
 	@Parameter(label="Managing Themes...", callback="lafHelp")
 	private Button lafHelpButton;
@@ -90,18 +98,24 @@ public class PrefsCmd extends ContextCommand {
 	 * @see java.lang.Runnable#run()
 	 */
 	public void run() {
+		super.run();
 		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
 		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
+		if (lafService == null) return;
 		final String existingLaf = SNTPrefs.getLookAndFeel();
-		SNTPrefs.setLookAndFeel(laf);
-		if (!existingLaf.equals(laf) && snt.getUI() != null) {
+		SNTPrefs.setLookAndFeel(lookAndFeel);
+		if (!existingLaf.equals(lookAndFeel) && snt.getUI() != null) {
 			final int ans = new GuiUtils(snt.getUI()).yesNoDialog("It is recommended that you restart SNT for changes to take effect. "
-							+ "Alternatively, you can attempt to apply the new Look and Feel now, but some widgets/icons may not display properly. "
-							+ "Do you want to try nevertheless?", "Restart Suggested", "Yes. Apply now.", "No. I will restart.");
-			if (ans == JOptionPane.YES_OPTION)
-				snt.getUI().setLookAndFeel(laf);
+					+ "Alternatively, you can attempt to apply the new Look and Feel now, but some widgets/icons may not display properly. "
+					+ "Do you want to try nevertheless?", "Restart Suggested", "Yes. Apply now.", "No. I will restart.");
+			if (ans == JOptionPane.YES_OPTION) {
+				SwingUtilities.invokeLater( () -> snt.getUI().setLookAndFeel(lookAndFeel));
+			}
+		}
+		if (lafService != null) {
+			SwingUtilities.invokeLater( () -> lafService.setLookAndFeel(lookAndFeel));
 		}
 	}
 
@@ -112,14 +126,30 @@ public class PrefsCmd extends ContextCommand {
 			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
-			laf = GuiUtils.LAF_DEFAULT;
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}
 	}
 
+	protected void initLookAndFeel() {
+		// NB: 'lookAndFeel' is also the parameter in org.scijava.ui.swing.laf.OptionsLookAndFeel
+		final MutableModuleItem<String> lafItem = getInfo().getMutableInput("lookAndFeel", String.class);
+		final LookAndFeel activeLaf = UIManager.getLookAndFeel();
+		lookAndFeel = activeLaf == null ? "<None>" : activeLaf.getName();
+		if (lafService == null) {
+			lafItem.setChoices(Collections.singletonList(lookAndFeel));
+		}
+		else {
+			final UIManager.LookAndFeelInfo[] infos = lafService.getLookAndFeels();
+			final List<String> choices = Arrays.stream(infos).map(UIManager.LookAndFeelInfo::getName)
+					    .filter(name -> name.contains("Flat")).collect(Collectors.toList());
+			lafItem.setChoices(choices);
+		}
+	}
+
 	@SuppressWarnings("unused")
-	private void reset() {
+	public void reset() {
+		super.reset();
 		final boolean confirm = new GuiUtils().getConfirmation(
 			"Reset preferences to defaults? (a restart may be required)", "Reset?");
 		if (confirm) {
@@ -132,13 +162,12 @@ public class PrefsCmd extends ContextCommand {
 
 	@SuppressWarnings("unused")
 	private void lafHelp() {
-		laf = GuiUtils.LAF_DEFAULT;
 		new GuiUtils().showHTMLDialog("<HTML>"
-				+ "This option is now outdated. SNT's <i>Look and Feel</i> (L&F) preference has been integrated into Fiji. "
-				+ "Please set SNT's L&F to 'Default' and use Fiji's <i>Edit>Look and Feel...</i> prompt instead.<br><br>"
+				+ "SNT's <i>Look and Feel</i> (L&F) preference has been integrated into Fiji. "
+				+ "It is advised to use Fiji's <i>Edit>Look and Feel...</i> prompt instead.<br><br>"
 				+ "Note that setting a L&F does not affect AWT widgets. Thus, while a dark theme can be applied "
 				+ "to SNT (and other Fiji components like the Script Editor), it is currently not possible to "
-				+ "apply a dark theme to ImageJ's built-in dialogs, macro prompts, and dialogs of certain legacy plugins.",
+				+ "apply a dark theme to ImageJ's built-in dialogs, macro prompts, and dialogs of many other plugins.",
 				"Managing Themes", true);
 	}
 

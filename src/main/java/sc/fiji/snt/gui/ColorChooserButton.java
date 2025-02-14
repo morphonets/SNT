@@ -35,10 +35,6 @@ public class ColorChooserButton extends JButton {
 	private Color current;
 	private ColorChangedListener listener;
 
-	public ColorChooserButton(final Color c) {
-		this(c, null);
-	}
-
 	public ColorChooserButton(final Color c, final String label) {
 		this(c, label, 1d);
 	}
@@ -90,8 +86,8 @@ public class ColorChooserButton extends JButton {
 	public void setSelectedColor(final Color newColor, final boolean notify) {
 		if (newColor == null) return;
 		current = newColor;
-		final int h = getFontMetrics(getFont()).getAscent();
-		setIcon(GuiUtils.createIcon(current, h * 2, h));
+		final int height = (int) (getFontMetrics(getFont()).getAscent() *.5f);
+        setIcon(IconFactory.accentIcon(current, height * 2, height));
 		repaint();
 		if (notify && listener != null) listener.colorChanged(newColor);
 	}

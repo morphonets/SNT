@@ -1252,7 +1252,10 @@ public class SNTChart extends ChartPanel {
 		popup.add(grids);
 
 		final JMenu utils = new JMenu("Utilities");
-		utils.add(new GuiUtils(frame).combineChartsMenuItem());
+		jmi = GuiUtils.MenuItems.combineCharts();
+		jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
+		utils.add(jmi);
+
 		utils.addSeparator();
 		GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
 		jmi = new JMenuItem("Close...");
@@ -1712,7 +1715,7 @@ public class SNTChart extends ChartPanel {
 				final Column<?> col = table.get(colIdx);
 				final DescriptiveStatistics stats = new DescriptiveStatistics();
 				col.forEach(row -> {
-					if (!Double.isNaN((double) row))
+					if (row != null && !Double.isNaN((double) row))
 						stats.addValue((Double) row);
 				});
 				final double max = stats.getMax();

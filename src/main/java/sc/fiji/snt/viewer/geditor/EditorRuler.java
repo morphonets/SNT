@@ -28,7 +28,6 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
 import java.awt.dnd.DropTarget;
 import java.awt.dnd.DropTargetDragEvent;
 import java.awt.dnd.DropTargetDropEvent;
@@ -49,6 +48,7 @@ import com.mxgraph.util.mxEvent;
 import com.mxgraph.util.mxPoint;
 import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.view.mxGraph;
+import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Component that displays a ruler for a JGraph component.
@@ -483,8 +483,7 @@ class EditorRuler extends JComponent implements MouseMotionListener,
 
 		// Creates a set of strokes with individual dash offsets
 		// for each direction
-		((Graphics2D) g).setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-				RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		GuiUtils.setRenderingHints(((Graphics2D) g));
 		g.setFont(labelFont);
 		g.setColor(Color.black);
 

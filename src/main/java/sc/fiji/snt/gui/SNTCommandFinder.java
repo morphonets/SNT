@@ -117,10 +117,13 @@ public class SNTCommandFinder {
         final Action action = new AbstractAction(NAME) {
 
             private static final long serialVersionUID = -7030359886427866104L;
-
+            @SuppressWarnings("deprecation")
             @Override
             public void actionPerformed(final ActionEvent e) {
-                if (!autoHide && frame.isVisible()) {
+                if (frame != null && (e.getModifiers() & InputEvent.SHIFT_MASK) != 0) { //InputEvent.SHIFT_DOWN_MASK never triggered!?
+                    frame.setLocationRelativeTo(null); // fallback if frame is lost on a second screen
+                }
+                if (!autoHide && frame != null && frame.isVisible()) {
                     frame.toFront();
                     searchField.requestFocus();
                 } else
@@ -410,20 +413,19 @@ public class SNTCommandFinder {
 
     public JButton getButton() {
         final JButton button = new JButton(getAction());
-        button.setText(null);
-        button.setIcon(IconFactory.getButtonIcon(IconFactory.GLYPH.SEARCH));
+        IconFactory.assignIcon(button, IconFactory.GLYPH.SEARCH);
         button.getInputMap().put(ACCELERATOR, NAME);
         button.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
         return button;
     }
 
     public AbstractButton getMenuItem(final boolean asButton) {
-        final AbstractButton jmi = (asButton) ? GuiUtils.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
+        final AbstractButton jmi = (asButton) ? GuiUtils.Buttons.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
                 : new JMenuItem(getAction());
         if (asButton) {
             jmi.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
         } else {
-            jmi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.SEARCH));
+            jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
         }
         return jmi;
     }
@@ -494,17 +496,13 @@ public class SNTCommandFinder {
         static final float SIZE = UIManager.getFont("Button.font").getSize() * .9f;
         static final Color COLOR = UIManager.getColor("SearchField.searchIconColor");
 
-        static Icon lockClosed() {
-            return IconFactory.getIcon(IconFactory.GLYPH.LOCK, SIZE, COLOR);
-        }
+        static Icon lockClosed() { return IconFactory.get(IconFactory.GLYPH.LOCK, SIZE, COLOR); }
 
         static Icon lockOpen() {
-            return IconFactory.getIcon(IconFactory.GLYPH.LOCK_OPEN, SIZE, COLOR);
+            return IconFactory.get(IconFactory.GLYPH.LOCK_OPEN, SIZE, COLOR);
         }
 
-        static Icon pin() {
-            return IconFactory.getIcon(IconFactory.GLYPH.MAP_PIN, SIZE, COLOR);
-        }
+        static Icon pin() { return IconFactory.get(IconFactory.GLYPH.MAP_PIN, SIZE, COLOR); }
 
         static Icon record() {
             return new RecordIcon();

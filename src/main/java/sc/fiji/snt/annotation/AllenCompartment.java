@@ -193,10 +193,9 @@ public class AllenCompartment implements BrainAnnotation {
 	}
 
 	public boolean includes(final BrainAnnotation other) {
-		if (!(other instanceof AllenCompartment))
+		if (!(other instanceof AllenCompartment compartment))
 			return false;
-		final AllenCompartment compartment = (AllenCompartment) other;
-		return (id() == compartment.id()) || this.isChildOfWithoutChecks(compartment) || compartment.isParentOf(this);
+        return (id() == compartment.id()) || this.isChildOfWithoutChecks(compartment) || compartment.isParentOf(this);
 	}
 
 	/**
@@ -374,7 +373,10 @@ public class AllenCompartment implements BrainAnnotation {
 
 	@Override
 	public String toString() {
-		return (name().equalsIgnoreCase(acronym())) ? name() : name() + " [" + acronym() + "]";
+		final StringBuilder sb = new StringBuilder(acronym());
+		if (!acronym.equalsIgnoreCase(name())) sb.append(": ").append(name);
+		sb.append("  (").append(id()).append(")");
+		return sb.toString();
 	}
 
 	@Override
@@ -387,11 +389,10 @@ public class AllenCompartment implements BrainAnnotation {
 		if (this == obj) {
 			return true;
 		}
-		if (!(obj instanceof AllenCompartment)) {
+		if (!(obj instanceof AllenCompartment other)) {
 			return false;
 		}
-		AllenCompartment other = (AllenCompartment) obj;
-		return Objects.equals(uuid, other.uuid);
+        return Objects.equals(uuid, other.uuid);
 	}
 
 	/* IDE Debug method */

@@ -157,7 +157,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		manualThresholdChoice = new JRadioButton("Specify manually:");
 		manualThresholdInputField = new JTextField("", 6);
-		manualThresholdApplyButton = GuiUtils.smallButton("Apply");
+		manualThresholdApplyButton = GuiUtils.Buttons.smallButton("Apply");
 		manualThresholdApplyButton.addActionListener(this);
 		final JPanel t2Panel = leftAlignedPanel();
 		t2Panel.add(manualThresholdChoice);
@@ -167,7 +167,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		++gdb.gridy;
 
 		exploredThresholdChoice = new JRadioButton("Use explored maximum");
-		exploredThresholdApplyButton = GuiUtils.smallButton("Apply");
+		exploredThresholdApplyButton = GuiUtils.Buttons.smallButton("Apply");
 		exploredThresholdApplyButton.addActionListener(this);
 		final JPanel t3Panel = leftAlignedPanel();
 		t3Panel.add(exploredThresholdChoice);
@@ -175,7 +175,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		distancePanel.add(t3Panel, gdb);
 		++gdb.gridy;
 
-		final JButton defaults = GuiUtils.smallButton("Defaults");
+		final JButton defaults = GuiUtils.Buttons.smallButton("Defaults");
 		defaults.addActionListener( e -> {
 			plugin.setFillThreshold(-1);
 			cursorThresholdChoice.setSelected(true);
@@ -310,13 +310,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		statusText.setBorder(BorderFactory.createEmptyBorder(SNTUI.InternalUtils.MARGIN * 3,
 				SNTUI.InternalUtils.MARGIN * 2, SNTUI.InternalUtils.MARGIN * 2, 0));
 		statusPanel.add(statusText, BorderLayout.CENTER);
-		startFill = GuiUtils.smallButton("Start");
+		startFill = GuiUtils.Buttons.smallButton("Start");
 		startFill.addActionListener(this);
-		stopFill = GuiUtils.smallButton("Stop");
+		stopFill = GuiUtils.Buttons.smallButton("Stop");
 		stopFill.addActionListener(this);
-		saveFill = GuiUtils.smallButton("Store");
+		saveFill = GuiUtils.Buttons.smallButton("Store");
 		saveFill.addActionListener(this);
-		final JButton discardFill = GuiUtils.smallButton("Cancel/Discard");
+		final JButton discardFill = GuiUtils.Buttons.smallButton("Cancel/Discard");
 		discardFill.addActionListener( e -> {
 			plugin.stopFilling();
 			plugin.discardFill(); // will change state

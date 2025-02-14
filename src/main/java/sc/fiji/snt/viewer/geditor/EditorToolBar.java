@@ -57,24 +57,24 @@ class EditorToolBar extends JToolBar
 		//setFloatable(true);
 		setFocusable(false);
 
-		add(editor.bind("Open", new EditorActions.OpenAction(), IconFactory.getButtonIcon(GLYPH.OPEN_FOLDER, 1f)))
+		add(editor.bind("Open", new EditorActions.OpenAction(), IconFactory.buttonIcon(GLYPH.OPEN_FOLDER, 1f)))
 				.setToolTipText("Open");
-		add(editor.bind("Save", new EditorActions.SaveAction(false), IconFactory.getButtonIcon(GLYPH.SAVE, 1f)))
+		add(editor.bind("Save", new EditorActions.SaveAction(false), IconFactory.buttonIcon(GLYPH.SAVE, 1f)))
 				.setToolTipText("Save");
 		addSeparator();
 		add(Box.createHorizontalGlue());
 
 		add(editor.bind("Cut", TransferHandler.getCutAction(),
-				IconFactory.getButtonIcon(GLYPH.CUT, 1f))).setToolTipText("Cut");
+				IconFactory.buttonIcon(GLYPH.CUT, 1f))).setToolTipText("Cut");
 		add(editor.bind("Copy", TransferHandler.getCopyAction(),
-				IconFactory.getButtonIcon(GLYPH.COPY, 1f))).setToolTipText("Copy");
+				IconFactory.buttonIcon(GLYPH.COPY, 1f))).setToolTipText("Copy");
 		add(editor.bind("Paste", TransferHandler.getPasteAction(),
-				IconFactory.getButtonIcon(GLYPH.PASTE, 1f))).setToolTipText("Paste");
+				IconFactory.buttonIcon(GLYPH.PASTE, 1f))).setToolTipText("Paste");
 		addSeparator();
 
-		add(editor.bind("Undo", new EditorActions.HistoryAction(true), IconFactory.getButtonIcon(GLYPH.UNDO, 1f)))
+		add(editor.bind("Undo", new EditorActions.HistoryAction(true), IconFactory.buttonIcon(GLYPH.UNDO, 1f)))
 				.setToolTipText("Undo");
-		add(editor.bind("Redo", new EditorActions.HistoryAction(false), IconFactory.getButtonIcon(GLYPH.REDO, 1f)))
+		add(editor.bind("Redo", new EditorActions.HistoryAction(false), IconFactory.buttonIcon(GLYPH.REDO, 1f)))
 				.setToolTipText("Redo");
 		addSeparator();
 		add(Box.createHorizontalGlue());
@@ -115,11 +115,11 @@ class EditorToolBar extends JToolBar
 			}
 		});
 
-		final JButton zoomOutButton = new JButton(IconFactory.getButtonIcon(GLYPH.SEARCH_MINUS, 1f));
+		final JButton zoomOutButton = new JButton(IconFactory.buttonIcon(GLYPH.SEARCH_MINUS, 1f));
 		zoomOutButton.setToolTipText("Zoom out");
 		zoomOutButton.addActionListener(e -> getGraphComponent().zoomOut());
 		add(zoomOutButton);
-		final JButton zoomInButton = new JButton(IconFactory.getButtonIcon(GLYPH.SEARCH_PLUS, 1f));
+		final JButton zoomInButton = new JButton(IconFactory.buttonIcon(GLYPH.SEARCH_PLUS, 1f));
 		zoomInButton.setToolTipText("Zoom in");
 		zoomInButton.addActionListener(e -> getGraphComponent().zoomIn());
 		add(zoomInButton);
@@ -128,20 +128,20 @@ class EditorToolBar extends JToolBar
 
 		// Style controls
 		add(editor.bind("Delete", mxGraphActions.getDeleteAction(),
-				IconFactory.getButtonIcon(GLYPH.TRASH, 1f))).setToolTipText("Delete Selected cell(s)");
+				IconFactory.buttonIcon(GLYPH.TRASH, 1f))).setToolTipText("Delete Selected cell(s)");
 		add(editor.bind("Font", new EditorActions.ColorAction("Font",
 				mxConstants.STYLE_FONTCOLOR),
-				IconFactory.getButtonIcon(GLYPH.FONT, 1f))).setToolTipText("Font Color");
+				IconFactory.buttonIcon(GLYPH.FONT, 1f))).setToolTipText("Font Color");
 		add(editor.bind("Stroke", new EditorActions.ColorAction("Stroke",
 				mxConstants.STYLE_STROKECOLOR),
-				IconFactory.getButtonIcon(GLYPH.PEN, 1f))).setToolTipText("Stroke Color");
+				IconFactory.buttonIcon(GLYPH.PEN, 1f))).setToolTipText("Stroke Color");
 		add(editor.bind("Fill", new EditorActions.ColorAction("Fill",
 				mxConstants.STYLE_FILLCOLOR),
-				IconFactory.getButtonIcon(GLYPH.FILL, 1f))).setToolTipText("Fill Color");
+				IconFactory.buttonIcon(GLYPH.FILL, 1f))).setToolTipText("Fill Color");
 		addSeparator();
 
 		// Vertices size controls
-		final JButton minusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.MINUS, 1f));
+		final JButton minusShapeSizeButton = new JButton(IconFactory.buttonIcon(GLYPH.MINUS, 1f));
 		minusShapeSizeButton.setToolTipText("Decrease size of selected vertices");
 		minusShapeSizeButton.addActionListener(e -> {
 			final mxGraph graph = getGraphComponent().getGraph();
@@ -166,7 +166,7 @@ class EditorToolBar extends JToolBar
 			graph.getModel().endUpdate();
 		});
 		add(minusShapeSizeButton);
-		final JButton plusShapeSizeButton = new JButton(IconFactory.getButtonIcon(GLYPH.PLUS, 1f));
+		final JButton plusShapeSizeButton = new JButton(IconFactory.buttonIcon(GLYPH.PLUS, 1f));
 		plusShapeSizeButton.setToolTipText("Increase size of selected vertices");
 		plusShapeSizeButton.addActionListener(e -> {
 			final mxGraph graph = getGraphComponent().getGraph();
@@ -232,20 +232,20 @@ class EditorToolBar extends JToolBar
 		});
 
 		add(editor.bind("Bold", new EditorActions.FontStyleAction(true),
-				IconFactory.getButtonIcon(GLYPH.BOLD, 1f))).setToolTipText("Bold");
+				IconFactory.buttonIcon(GLYPH.BOLD, 1f))).setToolTipText("Bold");
 		add(editor.bind("Italic", new EditorActions.FontStyleAction(false),
-				IconFactory.getButtonIcon(GLYPH.ITALIC, 1f))).setToolTipText("Italic");
+				IconFactory.buttonIcon(GLYPH.ITALIC, 1f))).setToolTipText("Italic");
 		addSeparator();
 
 		add(editor.bind("Left", new EditorActions.KeyValueAction(mxConstants.STYLE_ALIGN,
 				mxConstants.ALIGN_LEFT),
-				IconFactory.getButtonIcon(GLYPH.ALIGN_LEFT, 1f))).setToolTipText("Align Left");
+				IconFactory.buttonIcon(GLYPH.ALIGN_LEFT, 1f))).setToolTipText("Align Left");
 		add(editor.bind("Center", new EditorActions.KeyValueAction(mxConstants.STYLE_ALIGN,
 				mxConstants.ALIGN_CENTER),
-				IconFactory.getButtonIcon(GLYPH.ALIGN_CENTER, 1f))).setToolTipText("Align Center");
+				IconFactory.buttonIcon(GLYPH.ALIGN_CENTER, 1f))).setToolTipText("Align Center");
 		add(editor.bind("Right", new EditorActions.KeyValueAction(mxConstants.STYLE_ALIGN,
 				mxConstants.ALIGN_RIGHT),
-				IconFactory.getButtonIcon(GLYPH.ALIGN_RIGHT, 1f))).setToolTipText("Align Right");
+				IconFactory.buttonIcon(GLYPH.ALIGN_RIGHT, 1f))).setToolTipText("Align Right");
 
 	}
 

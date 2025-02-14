@@ -141,32 +141,32 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	private JMenu getImageFilterMenu() {
 		final JMenu imgFilteringMenu = new JMenu("Select by Image Property");
-		imgFilteringMenu.setIcon(IconFactory.getMenuIcon(
+		imgFilteringMenu.setIcon(IconFactory.menuIcon(
 			IconFactory.GLYPH.IMAGE));
 		JMenuItem mi1 = new JMenuItem("Traced channel...");
 		mi1.addActionListener(e -> doImageFiltering("Traced channel"));
-		mi1.setIcon(IconFactory.getMenuIcon('C', false));
+		mi1.setIcon(IconFactory.menuIcon('C', false));
 		imgFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("Traced frame...");
 		mi1.addActionListener(e -> doImageFiltering("Traced frame"));
-		mi1.setIcon(IconFactory.getMenuIcon('T', false));
+		mi1.setIcon(IconFactory.menuIcon('T', false));
 		imgFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("Z-slice of first node...");
 		mi1.addActionListener(e -> doImageFiltering("Z-slice of first node"));
-		mi1.setIcon(IconFactory.getMenuIcon('Z', false));
+		mi1.setIcon(IconFactory.menuIcon('Z', false));
 		imgFilteringMenu.add(mi1);
 		mi1 = new JMenuItem("Z-slice of last node...");
 		mi1.addActionListener(e -> doImageFiltering("Z-slice of last node"));
-		mi1.setIcon(IconFactory.getMenuIcon('Z', true));
+		mi1.setIcon(IconFactory.menuIcon('Z', true));
 		imgFilteringMenu.add(mi1);
 		return imgFilteringMenu;
 	}
 
 	private JMenu getMorphoFilterMenu() {
 		final JMenu morphoFilteringMenu = new JMenu("Select by Morphological Trait");
-		morphoFilteringMenu.setIcon(IconFactory.getMenuIcon( IconFactory.GLYPH.RULER));
+		morphoFilteringMenu.setIcon(IconFactory.menuIcon( IconFactory.GLYPH.RULER));
 		JMenuItem mi1 = new JMenuItem("Cell ID...");
-		mi1.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ID_ALT));
+		mi1.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ID_ALT));
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
 			if (paths.isEmpty()) {
@@ -212,7 +212,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	private JMenuItem angleFilterMenuItem() {
 		final JMenuItem mi = new JMenuItem("Extension Angle...");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
+		mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
 		mi.addActionListener(e -> {
 			final Collection<Path> filteredPaths = getPaths();
 			if (filteredPaths.isEmpty()) {
@@ -232,25 +232,25 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		mi.addActionListener(e -> doMorphoFiltering(pathAnalyzerMetric, unit));
 		switch (pathAnalyzerMetric) {
 			case PathStatistics.N_CHILDREN:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CHILDREN));
+				mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHILDREN));
 				break;
 			case PathStatistics.N_NODES:
-				mi.setIcon(IconFactory.getMenuIcon('#', true));
+				mi.setIcon(IconFactory.menuIcon('#', true));
 				break;
 			case PathStatistics.N_SPINES:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.MAP_PIN));
+				mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
 				break;
 			case PathStatistics.PATH_CONTRACTION:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.STAIRS));
+				mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.STAIRS));
 				break;
 			case PathStatistics.PATH_LENGTH:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.RULER_VERTICAL));
+				mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.RULER_VERTICAL));
 				break;
 			case PathStatistics.PATH_MEAN_RADIUS:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.CIRCLE));
+				mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
 				break;
 			case PathStatistics.PATH_ORDER:
-				mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+				mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BRANCH_CODE));
 				break;
 			default:
 				break;
@@ -260,7 +260,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	private ColorMenu getColorFilterMenu() {
 		final ColorMenu colorFilterMenu = new ColorMenu("Filter by color tag");
-		colorFilterMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR));
+		colorFilterMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR));
 		colorFilterMenu.addActionListener(e -> {
 			final Collection<Path> filteredPaths = getPaths();
 			if (filteredPaths.isEmpty()) {

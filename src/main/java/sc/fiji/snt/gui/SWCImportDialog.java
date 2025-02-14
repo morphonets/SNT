@@ -264,7 +264,7 @@ public class SWCImportDialog extends JDialog {
 			if (isVisible() && lastPreviewedFile == file && getText().startsWith("#"))
 				return;
 			if (file == null || !file.getAbsolutePath().toLowerCase().endsWith("swc")) {
-				setForeground(Color.RED);
+				setForeground(GuiUtils.errorColor());
 				setText("File path does not contain a valid SWC extension...");
 				return;
 			}
@@ -287,7 +287,7 @@ public class SWCImportDialog extends JDialog {
 				else
 					setCaretPosition(0); // scroll to top
 			} catch (final NullPointerException | IOException ex) {
-				setForeground(Color.RED);
+				setForeground(GuiUtils.errorColor());
 				if (SNTUtils.fileAvailable(file))
 					setText(ex.getMessage());
 				else

@@ -90,10 +90,7 @@ public class FileDrop {
 	private static Boolean supportsDnD;
 
 	// Default border color
-	private static java.awt.Color defaultBorderColor = UIManager.getColor("Tree.selectionBackground");
-	static {
-		if (defaultBorderColor == null) defaultBorderColor = new java.awt.Color(0f,0f, 1f, 0.25f);
-	}
+	private static final java.awt.Color defaultBorderColor = GuiUtils.getSelectionColor();
 
 	/**
 	 * Constructs a {@link FileDrop} with a default light-blue border and, if

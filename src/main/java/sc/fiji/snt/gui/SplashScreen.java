@@ -25,7 +25,6 @@ package sc.fiji.snt.gui;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.ActionListener;
 import java.net.URL;
 
 /* Large multichannel/timelapse images can take a while to load into SNT. This helps to maintain the GUI functional
@@ -34,25 +33,10 @@ import java.net.URL;
 class SplashScreen extends JWindow {
 
 	private static final long serialVersionUID = 1L;
-	private static final int fontSizeRef = GuiUtils.getMenuItemHeight();
-	private static final JProgressBar progressBar = new JProgressBar();
-	private static int count = 1;
-    private static final int PROGBAR_MAX = 100;
-	private static Timer progressBarTimer;
-	private final ActionListener al = evt -> {
-		progressBar.setValue(count);
-		if (PROGBAR_MAX == count)
-			count = 0; // reset progress
-		count++;
-	};
+	private static final int fontSizeRef = GuiUtils.MenuItems.defaultHeight();
 
 	SplashScreen() {
 		initAndDisplay();
-	}
-
-	void close() {
-		progressBarTimer.stop();
-		dispose();
 	}
 
 	static JLabel getIconAsLabel() {
@@ -75,8 +59,8 @@ class SplashScreen extends JWindow {
 		return new JLabel(new com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon()); // non-null fallback
 	}
 
-	static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {
-		final double ref = fontSizeRef * 8; // as tall as 8 lines of text
+	private static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {
+		final double ref = fontSizeRef * 10; // as tall as 10 lines of text
 		final Dimension dim = new Dimension();
 		if (originalIconHeight / ref < 1) {
 			dim.setSize(originalIconWidth, originalIconHeight);
@@ -92,30 +76,20 @@ class SplashScreen extends JWindow {
 	}
 
 	private void initAndDisplay() {
-		final Container container = getContentPane();
-		final JPanel panel = new JPanel();
-		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-		panel.setOpaque(false);
-		container.add(panel, BorderLayout.CENTER);
+		final JProgressBar progressBar = new JProgressBar();
+		progressBar.setIndeterminate(true);
+		progressBar.setStringPainted(true);
+		progressBar.setString("Initializing...");
+		progressBar.setBackground(getContentPane().getBackground());
+		setLayout(new BorderLayout(4,4));
 		final JLabel logo = getIconAsLabel();
-		if (logo != null) {
-			logo.setBorder(new EmptyBorder(fontSizeRef, fontSizeRef, fontSizeRef / 2, fontSizeRef));
-			panel.add(logo);
-		}
-		final JLabel label = new JLabel((logo == null) ? "Initializing SNT..." : "Initializing...");
-		// set font size reasonably for hiDPI displays
-		//FIXME: With jdk11 this should no longer be needed
-		assignStyle(label, ((logo == null) ? 4 : 1) );
-		panel.add(label);
-		progressBar.setMaximum(PROGBAR_MAX);
-		container.add(progressBar, BorderLayout.SOUTH);
+        logo.setBorder(new EmptyBorder(fontSizeRef, fontSizeRef, fontSizeRef / 2, fontSizeRef));
+        add(logo, BorderLayout.CENTER);
+		add(progressBar, BorderLayout.SOUTH);
 		pack();
 		setLocationRelativeTo(null);
 		setAlwaysOnTop(true);
-        int TIMER_PAUSE = 25;
-        progressBarTimer = new Timer(TIMER_PAUSE, al);
-		setVisible(true);
-		progressBarTimer.start();
+		SwingUtilities.invokeLater(() -> setVisible(true));
 	}
 
 	/* IDE Debug method */

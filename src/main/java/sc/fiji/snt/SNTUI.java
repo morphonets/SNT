@@ -265,7 +265,7 @@ public class SNTUI extends JDialog {
 				GuiUtils.addSeparator(tab1, "", true, c1); // empty separator
 				++c1.gridy;
 				c1.fill = GridBagConstraints.HORIZONTAL;
-				c1.insets.bottom = InternalUtils.MARGIN * 2;
+				c1.insets.bottom = 0;
 				tab1.add(hideWindowsPanel(), c1);
 				tabbedPane.addTab("Main", tab1);
 			}
@@ -275,19 +275,16 @@ public class SNTUI extends JDialog {
 			final JPanel tab2 = InternalUtils.getTab();
 			tab2.setLayout(new GridBagLayout());
 			final GridBagConstraints c2 = GuiUtils.defaultGbc();
-			// c2.insets.left = MARGIN * 2;
 			c2.anchor = GridBagConstraints.NORTHEAST;
 			c2.gridwidth = GridBagConstraints.REMAINDER;
 			InternalUtils.addSeparatorWithURL(tab2, "Views:", true, c2);
 			++c2.gridy;
 			tab2.add(viewsPanel(), c2);
 			++c2.gridy;
-			{
-				InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
-				++c2.gridy;
-				tab2.add(tracingPanel(), c2);
-				++c2.gridy;
-			}
+			InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
+			++c2.gridy;
+			tab2.add(tracingPanel(), c2);
+			++c2.gridy;
 			InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
 			++c2.gridy;
 			tab2.add(pathOptionsPanel(), c2);
@@ -349,20 +346,21 @@ public class SNTUI extends JDialog {
             }
 
             {
-                tabbedPane.setIconAt(0, IconFactory.getTabbedPaneIcon(GLYPH.HOME));
-                tabbedPane.setIconAt(1, IconFactory.getTabbedPaneIcon(GLYPH.TOOL));
-                tabbedPane.setIconAt(2, IconFactory.getTabbedPaneIcon(GLYPH.CUBE));
-                tabbedPane.setIconAt(3, IconFactory.getTabbedPaneIcon(GLYPH.BOOKMARK));
+                tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
+                tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
+                tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
+                tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
             }
 		}
 
 		setJMenuBar(createMenuBar());
 		setLayout(new GridBagLayout());
 		final GridBagConstraints dialogGbc = GuiUtils.defaultGbc();
+		dialogGbc.insets.top = InternalUtils.MARGIN;
 		add(statusPanel(), dialogGbc);
 		dialogGbc.gridy++;
 		dialogGbc.weighty = 1;
-		dialogGbc.insets.top = new JLabel().getFont().getSize();
+		dialogGbc.insets.top = InternalUtils.TEXT_MARGIN * 2;
 		add(tabbedPane, dialogGbc);
 		dialogGbc.gridy++;
 		dialogGbc.weighty = 0;
@@ -371,7 +369,6 @@ public class SNTUI extends JDialog {
 		dialogGbc.insets.top = 0;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
-		//registerCommandFinder(menuBar); // spurious addition if added here!?
 		registerBookmarkManagerInCmdFInder();
 		pack();
 		toFront();
@@ -1440,9 +1437,7 @@ public class SNTUI extends JDialog {
 			}
 
 		});
-		nodeSpinner.addChangeListener(e -> {
-			setRenderingScale((double) nodeSpinner.getValue());
-		});
+		nodeSpinner.addChangeListener(e -> setRenderingScale((double) nodeSpinner.getValue()));
 		final JButton defaultsButton = resetButton("node scale");
 		defaultsButton.addActionListener(e -> {
 			setRenderingScale(-1);
@@ -1472,9 +1467,7 @@ public class SNTUI extends JDialog {
 	private JPanel transparencyDefPanel() {
 		final JSpinner defTransparencySpinner = GuiUtils.integerSpinner(
 				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getDefaultTransparency(), 0, 100, 1, true);
-		defTransparencySpinner.addChangeListener(e -> {
-			setDefaultTransparency((int)(defTransparencySpinner.getValue()));
-		});
+		defTransparencySpinner.addChangeListener(e -> setDefaultTransparency((int)(defTransparencySpinner.getValue())));
 		final JButton defTransparencyButton = resetButton("default transparency");
 		defTransparencyButton.addActionListener(e -> {
 			setDefaultTransparency(100);
@@ -1504,9 +1497,7 @@ public class SNTUI extends JDialog {
 		final JSpinner transparencyOutOfBoundsSpinner = GuiUtils.integerSpinner(
 				(plugin.getXYCanvas() == null) ? 100 : plugin.getXYCanvas().getOutOfBoundsTransparency(), 0, 100, 1,
 				true);
-		transparencyOutOfBoundsSpinner.addChangeListener(e -> {
-			setOutOfBoundsTransparency((int)(transparencyOutOfBoundsSpinner.getValue()));
-		});
+		transparencyOutOfBoundsSpinner.addChangeListener(e -> setOutOfBoundsTransparency((int)(transparencyOutOfBoundsSpinner.getValue())));
 		final JButton defaultOutOfBoundsButton = resetButton("default transparency");
 		defaultOutOfBoundsButton.addActionListener(e -> {
 			setOutOfBoundsTransparency(50);
@@ -1574,9 +1565,7 @@ public class SNTUI extends JDialog {
 		cChooser.setPreferredSize(new Dimension(cChooser.getPreferredSize().width, colorChoice.getPreferredSize().height));
 		cChooser.setMinimumSize(new Dimension(cChooser.getMinimumSize().width, colorChoice.getMinimumSize().height));
 		cChooser.setMaximumSize(new Dimension(cChooser.getMaximumSize().width, colorChoice.getMaximumSize().height));
-		colorChoice.addActionListener(e -> {
-			cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false);
-		});
+		colorChoice.addActionListener(e -> cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false));
 		cChooser.addColorChangedListener(newColor -> {
 			final String key = String.valueOf(colorChoice.getSelectedItem());
 			setColor(key, newColor);
@@ -1584,7 +1573,7 @@ public class SNTUI extends JDialog {
 		});
 		final JButton reset = resetButton("default colors");
 		reset.addActionListener( e -> {
-			final String key = String.valueOf(colorChoice.getSelectedItem());;
+			final String key = String.valueOf(colorChoice.getSelectedItem());
 			final Color color = hmDef.get(key);
 			setColor(key, color);
 			cChooser.setSelectedColor(color, true);
@@ -1675,9 +1664,7 @@ public class SNTUI extends JDialog {
 		miscPanel.add(debugCheckBox, gdb);
 		++gdb.gridy;
 		final JButton prefsButton = new JButton("Preferences...");
-		prefsButton.addActionListener(e -> {
-			(new CmdRunner(PrefsCmd.class)).execute();
-		});
+		prefsButton.addActionListener(e -> (new CmdRunner(PrefsCmd.class)).execute());
 		gdb.fill = GridBagConstraints.NONE;
 		miscPanel.add(prefsButton, gdb);
 		commandFinder.register(prefsButton, "Options tab");
@@ -1710,7 +1697,7 @@ public class SNTUI extends JDialog {
 		final JButton applyUnivChoice = new JButton("Apply");
 		final JComboBox<String> displayChoice = new JComboBox<>();
 		final JButton applyDisplayChoice = new JButton("Apply");
-		final JButton refreshList = GuiUtils.smallButton("Refresh List");
+		final JButton refreshList = GuiUtils.Buttons.smallButton("Refresh List");
 		final JComboBox<String> actionChoice = new JComboBox<>();
 		final JButton applyActionChoice = new JButton("Apply");
 
@@ -1718,20 +1705,7 @@ public class SNTUI extends JDialog {
 		hm.put(VIEWER_NONE, null);
 		hm.put(VIEWER_WITH_IMAGE, null);
 		hm.put(VIEWER_EMPTY, null);
-
-		/*
-		// TF: We'll suppress this chunk as it triggers a GLException when using X11 forwarding.
-		// The same functionality can be obtained by pressing the refresh button
-		try {
-			for (final Image3DUniverse univ : Image3DUniverse.universes) {
-				hm.put(univ.allContentsString(), univ);
-			}
-		} catch (final Exception ex) {
-			SNTUtils.error("Legacy Image3DUniverse unavailable?", ex);
-			hm.put("Initialization Error...", null);
-		}
-		 */
-
+		
 		// Build choices widget for viewers
 		univChoice.setPrototypeDisplayValue(VIEWER_WITH_IMAGE);
 		for (final Entry<String, Image3DUniverse> entry : hm.entrySet()) {
@@ -2018,8 +1992,7 @@ public class SNTUI extends JDialog {
 
 	JPanel largeMsg(final String msg) {
 		final JTextArea ta = new JTextArea();
-		final Font defFont = new JLabel().getFont();
-		final Font font = defFont.deriveFont(defFont.getSize() * .85f);
+		final Font font = ta.getFont().deriveFont(GuiUtils.uiFontSize() * .85f);
 		ta.setBackground(getBackground());
 		ta.setEditable(false);
 		ta.setMargin(null);
@@ -2146,15 +2119,14 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel statusButtonPanel() {
-		keepSegment = GuiUtils.smallButton(InternalUtils.hotKeyLabel("Yes", "Y"));
+		keepSegment = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("Yes", "Y"));
 		keepSegment.addActionListener(listener);
-		junkSegment = GuiUtils.smallButton(InternalUtils.hotKeyLabel("No", "N"));
+		junkSegment = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("No", "N"));
 		junkSegment.addActionListener(listener);
-		completePath = GuiUtils.smallButton(InternalUtils.hotKeyLabel("Finish", "F"));
+		completePath = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("Finish", "F"));
 		completePath.addActionListener(listener);
-		final JButton abortButton = GuiUtils.smallButton(InternalUtils.hotKeyLabel(InternalUtils.hotKeyLabel("Cancel/Esc", "C"), "Esc"));
+		final JButton abortButton = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel(InternalUtils.hotKeyLabel("Cancel/Esc", "C"), "Esc"));
 		abortButton.addActionListener(e -> abortCurrentOperation());
-
 		// Build panel
 		return buttonPanel(keepSegment, junkSegment, completePath, abortButton);
 	}
@@ -2170,6 +2142,7 @@ public class SNTUI extends JDialog {
 
 	protected static JPanel buttonPanel(final JButton... buttons) {
 		final JPanel p = new JPanel();
+		p.setBackground(null); // transparent. Parent may be darker/lighter
 		p.setLayout(new GridBagLayout());
 		final GridBagConstraints c = new GridBagConstraints();
 		c.ipadx = 0;
@@ -2188,25 +2161,31 @@ public class SNTUI extends JDialog {
 
 	private JComponent settingsPanel() {
 		settingsArea = new JTextArea();
-		final JScrollPane sp = new JScrollPane(settingsArea);
-		sp.setViewportView(settingsArea);
 		settingsArea.setRows(4);
 		settingsArea.setEditable(false);
 		settingsArea.setFont(settingsArea.getFont().deriveFont((float) (settingsArea.getFont().getSize() * .85)));
 		settingsArea.setFocusable(false);
+		// Calculate the preferred height based on the row height and number of rows
+		final JScrollPane sp = new JScrollPane(settingsArea);
+		sp.setViewportView(settingsArea);
+		final int height = settingsArea.getFontMetrics(settingsArea.getFont()).getHeight() * settingsArea.getRows();
+		sp.setMinimumSize(new Dimension(sp.getMinimumSize().width, height));
 		final JPopupMenu pMenu = new JPopupMenu();
-		JMenuItem mi = new JMenuItem("Copy", IconFactory.getMenuIcon(GLYPH.COPY));
+		JMenuItem mi = new JMenuItem("Copy", IconFactory.menuIcon(GLYPH.COPY));
 		mi.addActionListener(e -> {
 			settingsArea.selectAll();
 			settingsArea.copy();
 			settingsArea.setCaretPosition(0);
 		});
 		pMenu.add(mi);
-		mi = new JMenuItem("Refresh", IconFactory.getMenuIcon(GLYPH.REDO));
-		mi.addActionListener(e -> refresh());
+		mi = new JMenuItem("Refresh", IconFactory.menuIcon(GLYPH.REDO));
+		mi.addActionListener(e -> {
+			refresh();
+			settingsArea.setCaretPosition(settingsArea.getDocument().getLength());
+			new Timer(100, e1 -> settingsArea.setCaretPosition(0)).start(); // visually acknowledge refresh
+		});
 		pMenu.add(mi);
-		pMenu.addSeparator();
-		mi = new JMenuItem("Log to Script Recorder", IconFactory.getMenuIcon(GLYPH.CODE));
+		mi = new JMenuItem("Log to Script Recorder", IconFactory.menuIcon(GLYPH.CODE));
 		mi.addActionListener(e -> {
 			updateSettingsString();
 			getRecorder(true).recordComment("Current Computation Settings:");
@@ -2217,23 +2196,29 @@ public class SNTUI extends JDialog {
 			SwingUtilities.invokeLater(() -> recorder.setVisible(true));
 		});
 		pMenu.add(mi);
+		pMenu.addSeparator();
+		final JMenu cMenu = new JMenu("Contrast Options");
+		GuiUtils.MenuItems.contrastOptions(cMenu, settingsArea, false);
+		pMenu.add(cMenu);
 		settingsArea.setComponentPopupMenu(pMenu);
 		return sp;
 	}
 
 	private JPanel statusPanel() {
-		final JPanel statusPanel = new JPanel();
-		statusPanel.setLayout(new BorderLayout());
+		final JPanel statusPanel = new JPanel(new BorderLayout());
 		statusText = new JLabel("Loading SNT...");
-		statusText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN * 2, InternalUtils.MARGIN * 2, InternalUtils.MARGIN * 2, 0));
+		statusText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.TEXT_MARGIN , InternalUtils.MARGIN,
+				InternalUtils.TEXT_MARGIN, 0));
 		statusPanel.add(statusText, BorderLayout.CENTER);
 		statusPanel.add(statusButtonPanel(), BorderLayout.SOUTH);
-		statusPanel.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN * InternalUtils.MARGIN, InternalUtils.MARGIN));
+		statusPanel.setBorder(IconFactory.titledBorder('\uf51c', true));
+		final JPopupMenu pMenu = new JPopupMenu();
+		statusPanel.setComponentPopupMenu(pMenu);
+		GuiUtils.MenuItems.contrastOptions(pMenu, statusPanel, true);
 		return statusPanel;
 	}
 
 	private JPanel secondaryDataPanel() {
-
 		secLayerActivateCheckbox = new JCheckBox(InternalUtils.hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
 		GuiUtils.addTooltip(secLayerActivateCheckbox,
 				"Whether auto-tracing should be computed on a filtered flavor of current image");
@@ -2244,7 +2229,7 @@ public class SNTUI extends JDialog {
 		final JButton secLayerActionButton = optionsButton(IconFactory.GLYPH.LAYERS, secLayerMenu);
 		GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
 		final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.WIZARD));
+				IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
 		ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
 		commandFinder.register(mi1, "Main tab", "Auto-tracing (II Layer)");
 		mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
@@ -2255,7 +2240,7 @@ public class SNTUI extends JDialog {
 		final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
 		mi3.addActionListener(e -> loadSecondaryImage(false));
 		commandFinder.register(mi3, "Main tab", "Auto-tracing (II Layer)");
-		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.getMenuIcon(IconFactory.GLYPH.TOILET));
+		final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
 		registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Auto-tracing");
 		mi4.addActionListener(e -> {
 			if (!noSecondaryDataAvailableError()
@@ -2265,7 +2250,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		commandFinder.register(mi4, "Main tab", "Auto-tracing (II Layer)");
-		final JMenuItem mi5 = new JMenuItem("From Labkit/TWS Model...", IconFactory.getMenuIcon(IconFactory.GLYPH.KIWI_BIRD));
+		final JMenuItem mi5 = new JMenuItem("From Labkit/TWS Model...", IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
 		mi5.addActionListener(e -> {
 			if (!okToReplaceSecLayer())
 				return;
@@ -2287,16 +2272,14 @@ public class SNTUI extends JDialog {
 		GuiUtils.addSeparator(secLayerMenu, "Dispose/Disable:");
 		secLayerMenu.add(mi4);
 		secLayerMenu.addSeparator();
-		final JMenuItem mi6 = GuiUtils.menuItemTriggeringHelpURL("Help on Secondary Layers",
+		final JMenuItem mi6 = GuiUtils.MenuItems.openHelpURL("Help on Secondary Layers",
 				"https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
 		commandFinder.register(mi6, "Main tab", "Auto-tracing (II Layer)");
 		secLayerMenu.add(mi6);
 
 		// Assemble panel
-		JPanel secLayerPanel = new JPanel();
-		secLayerPanel.setLayout(new GridBagLayout());
+		JPanel secLayerPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.insets.top = InternalUtils.MARGIN * 2; // separator
 		c.ipadx = 0;
 
 		// row 1
@@ -2313,9 +2296,7 @@ public class SNTUI extends JDialog {
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
 		registerInCommandFinder(secLayerImgOverlayCSpinner.getCheckBox(), "Toggle Secondary Layer Overlay",
 				"Main Tab");
-		secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> {
-			secLayerImgOverlayCSpinner.setSelected(false);
-		});
+		secLayerImgOverlayCSpinner.getSpinner().addChangeListener(e -> secLayerImgOverlayCSpinner.setSelected(false));
 		secLayerImgOverlayCSpinner.getCheckBox().addActionListener(e -> {
 			if (!noSecondaryDataAvailableError()) {
 				plugin.showMIPOverlays(true,
@@ -2363,10 +2344,9 @@ public class SNTUI extends JDialog {
 	}
 
 	private JButton optionsButton(final IconFactory.GLYPH glyph, final JPopupMenu optionsMenu) {
-		final JButton optionsButton =  IconFactory.getButton(glyph);
-		optionsButton.addActionListener(e -> {
-			optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2);
-		});
+		final JButton optionsButton =  new JButton();
+		IconFactory.assignIcon(optionsButton, glyph);
+		optionsButton.addActionListener(e -> optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2));
 		return optionsButton;
 	}
 
@@ -2504,10 +2484,10 @@ public class SNTUI extends JDialog {
 		menuBar.add(fileMenu);
 		final JMenu importSubmenu = new JMenu("Load Tracings");
 		importSubmenu.setToolTipText("Import reconstruction file(s");
-		importSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMPORT));
+		importSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMPORT));
 		final JMenu exportSubmenu = new JMenu("Save Tracings");
 		exportSubmenu.setToolTipText("Save reconstruction(s)");
-		exportSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EXPORT));
+		exportSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
 		final JMenu analysisMenu = new JMenu("Analysis");
 		menuBar.add(analysisMenu);
 		final JMenu utilitiesMenu = new JMenu("Utilities");
@@ -2516,11 +2496,11 @@ public class SNTUI extends JDialog {
 		menuBar.add(installer.getScriptsMenu());
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
-		menuBar.add(GuiUtils.helpMenu());
+		menuBar.add(GuiUtils.MenuItems.helpMenu());
 
 		// Options to replace image data
 		final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
-		changeImpMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.IMAGE));
+		changeImpMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
 		final JMenuItem fromList = GuiUtils.MenuItems.fromOpenImage();
 		fromList.addActionListener(e -> {
 			if (plugin.isSecondaryDataAvailable()) {
@@ -2531,24 +2511,24 @@ public class SNTUI extends JDialog {
 		changeImpMenu.add(getImportActionMenuItem(ImportAction.IMAGE));
 		changeImpMenu.add(fromList);
 		final JMenuItem fromClipboard = getImportActionMenuItem(ImportAction.IMAGE_CLIPBOARD);
-		fromClipboard.setIcon(IconFactory.getMenuIcon(GLYPH.CLIPBOARD));
+		fromClipboard.setIcon(IconFactory.menuIcon(GLYPH.CLIPBOARD));
 		changeImpMenu.add(fromClipboard);
 		fileMenu.add(changeImpMenu);
 		fileMenu.addSeparator();
 		final JMenuItem autoTrace = getImportActionMenuItem(ImportAction.AUTO_TRACE_IMAGE);
-		autoTrace.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
+		autoTrace.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
 		autoTrace.setToolTipText("Runs automated tracing by specifying the path to a thresholded/binary image");
 		fileMenu.add(autoTrace);
 		fileMenu.addSeparator();
 		fileMenu.add(importSubmenu);
 
 		final JMenuItem fromDemo = getImportActionMenuItem(ImportAction.DEMO);
-		fromDemo.setIcon(IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP));
+		fromDemo.setIcon(IconFactory.menuIcon(GLYPH.GRADUATION_CAP));
 		fromDemo.setToolTipText("Load sample images and/or reconstructions");
 
 		final JMenuItem loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
 		loadLabelsMenuItem.setToolTipText("Load neuropil labels from an AmiraMesh file");
-		loadLabelsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.TAG));
+		loadLabelsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
 		loadLabelsMenuItem.addActionListener( e -> {
 			final File openFile = openReconstructionFile("labels");
 			if (openFile != null) { // null if user pressed cancel;
@@ -2562,18 +2542,16 @@ public class SNTUI extends JDialog {
 
 		fileMenu.add(exportSubmenu);
 		final JMenuItem saveTable = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.TABLE);
-		saveTable.addActionListener(e -> {
-			(new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run();
-		});
+		saveTable.addActionListener(e -> (new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run());
 		fileMenu.add(saveTable);
 		final JMenuItem restoreMenuItem = new JMenuItem("Restore Snapshot Backup...");
 		restoreMenuItem.setToolTipText("Restores data from existing timecoded backups stored on disk");
-		restoreMenuItem.setIcon(IconFactory.getMenuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+		restoreMenuItem.setIcon(IconFactory.menuIcon(GLYPH.CLOCK_ROTATE_LEFT));
 		restoreMenuItem.addActionListener(e -> revertFromBackup());
 		fileMenu.add(restoreMenuItem);
 
 		fileMenu.addSeparator();
-		final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2", IconFactory.getMenuIcon('T', false));
+		final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2", IconFactory.menuIcon('T', false));
 		sendToTrakEM2.addActionListener(e -> {
 			if (!plugin.anyListeners())
 				error("TrakEM2 is either not running or not listening to SNT events.");
@@ -2584,7 +2562,7 @@ public class SNTUI extends JDialog {
 		fileMenu.add(showFolderMenu(installer));
 
 		final JMenuItem importGuessingType = getImportActionMenuItem(ImportAction.ANY_RECONSTRUCTION);
-		importGuessingType.setIcon(IconFactory.getMenuIcon(GLYPH.MAGIC));
+		importGuessingType.setIcon(IconFactory.menuIcon(GLYPH.MAGIC));
 		importSubmenu.add(importGuessingType);
 
 		importSubmenu.add(getImportActionMenuItem(ImportAction.JSON));
@@ -2595,11 +2573,11 @@ public class SNTUI extends JDialog {
 		importSubmenu.add(getImportActionMenuItem(ImportAction.TRACES));
 
 		final JMenuItem importDirectory = getImportActionMenuItem(ImportAction.SWC_DIR);
-		importDirectory.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.FOLDER));
+		importDirectory.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FOLDER));
 		importSubmenu.add(importDirectory);
 		importSubmenu.addSeparator();
 		final JMenu remoteSubmenu = new JMenu("Remote Databases");
-		remoteSubmenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DATABASE));
+		remoteSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.DATABASE));
 		final JMenuItem importFlyCircuit = new JMenuItem("FlyCircuit...");
 		remoteSubmenu.add(importFlyCircuit);
 		importFlyCircuit.addActionListener(e -> {
@@ -2658,7 +2636,7 @@ public class SNTUI extends JDialog {
 		exportSubmenu.addSeparator();
 		exportSubmenu.add(exportAllSWCMenuItem);
 
-		final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...", IconFactory.getMenuIcon(IconFactory.GLYPH.RECYCLE));
+		final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
 		restartMenuItem.setToolTipText("Reset all preferences and restart SNT");
 		restartMenuItem.addActionListener( e -> {
 			CommandService cmdService = plugin.getContext().getService(CommandService.class);
@@ -2675,7 +2653,7 @@ public class SNTUI extends JDialog {
 		fileMenu.addSeparator();
 		fileMenu.add(restartMenuItem);
 		fileMenu.addSeparator();
-		quitMenuItem = new JMenuItem("Quit", IconFactory.getMenuIcon(IconFactory.GLYPH.QUIT));
+		quitMenuItem = new JMenuItem("Quit", IconFactory.menuIcon(IconFactory.GLYPH.QUIT));
 		quitMenuItem.addActionListener(listener);
 		fileMenu.add(quitMenuItem);
 
@@ -2764,7 +2742,7 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.addSeparator();
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
 		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
-		compareFiles.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.BINOCULARS));
+		compareFiles.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BINOCULARS));
 		utilitiesMenu.add(compareFiles);
 		compareFiles.addActionListener(e -> {
 			final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
@@ -2814,14 +2792,14 @@ public class SNTUI extends JDialog {
 		// which does not require file validations etc.
 		utilitiesMenu.addSeparator();
 		final JMenuItem autotraceJMI = new JMenuItem("Autotrace Segmented Image...",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.ROBOT));
+				IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
 		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
 		utilitiesMenu.add(autotraceJMI);
 		ScriptRecorder.setRecordingCall(autotraceJMI, "snt.getUI().runAutotracingWizard(false)");
 		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
 		// View menu
 		final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
-				IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS2));
+				IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS2));
 		arrangeDialogsMenuItem.addActionListener(e -> {
 			final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
 			final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
@@ -2839,11 +2817,11 @@ public class SNTUI extends JDialog {
 		});
 		viewMenu.add(arrangeDialogsMenuItem);
 		final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
-		arrangeWindowsMenuItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.WINDOWS));
+		arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
 		arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
 		viewMenu.add(arrangeWindowsMenuItem);
 		final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
-		hideViewsMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.EYE_SLASH));
+		hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
 		final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
 		xyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XY_PLANE, xyCanvasMenuItem));
 		hideViewsMenu.add(xyCanvasMenuItem);
@@ -2863,7 +2841,7 @@ public class SNTUI extends JDialog {
 		});
 		hideViewsMenu.add(threeDViewerMenuItem);
 		viewMenu.add(hideViewsMenu);
-		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.getMenuIcon(GLYPH.LAYERS));
+		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
 		showImpMenuItem.addActionListener(e -> {
 			if (noSecondaryDataAvailableError())
 				return;
@@ -2877,7 +2855,7 @@ public class SNTUI extends JDialog {
 		viewMenu.add(showImpMenuItem);
 		viewMenu.addSeparator();
 
-		final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.getMenuIcon(GLYPH.CODE));
+		final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.menuIcon(GLYPH.CODE));
 		consoleJMI.addActionListener(e -> {
 			try {
 				final Window console = GuiUtils.getConsole();
@@ -2905,7 +2883,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JMenuItem getRecPlotterMenuItem() {
-		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.getMenuIcon(IconFactory.GLYPH.DRAFT));
+		final JMenuItem plotMenuItem = new JMenuItem("Reconstruction Plotter...", IconFactory.menuIcon(IconFactory.GLYPH.DRAFT));
 		plotMenuItem.setToolTipText("Renders traced paths as vector graphics (2D)");
 		plotMenuItem.addActionListener( e -> {
 			if (noPathsError()) return;
@@ -2921,8 +2899,8 @@ public class SNTUI extends JDialog {
 
 	private JMenu getBrainAnnotationMenu() {
 		final JMenu menu = new JMenu("Atlas-based");
-		menu.setIcon(IconFactory.getMenuIcon(GLYPH.ATLAS));
-		JMenuItem mi = GuiUtils.MenuItems.createAnnotionGraph();
+		menu.setIcon(IconFactory.menuIcon(GLYPH.ATLAS));
+		JMenuItem mi = GuiUtils.MenuItems.createAnnotationGraph();
 		mi.addActionListener(e -> {
 			if (noPathsError()) return;
 			final Collection<Tree> trees = getPathManager().getMultipleTrees();
@@ -2947,8 +2925,8 @@ public class SNTUI extends JDialog {
 
 	private JMenu getPathAnalysisMenu() {
 		final JMenu menu = new JMenu("Path-based");
-		menu.setIcon(IconFactory.getMenuIcon(GLYPH.ROUTE));
-		JMenuItem mi = new JMenuItem("Path Order Analysis", IconFactory.getMenuIcon(IconFactory.GLYPH.BRANCH_CODE));
+		menu.setIcon(IconFactory.menuIcon(GLYPH.ROUTE));
+		JMenuItem mi = new JMenuItem("Path Order Analysis", IconFactory.menuIcon(IconFactory.GLYPH.BRANCH_CODE));
 		mi.setToolTipText("Horton-Strahler-like analysis based on paths rather than branches");
 		mi.addActionListener(e -> {
 			if (noPathsError()) return;
@@ -2960,7 +2938,7 @@ public class SNTUI extends JDialog {
 			pa.run();
 		});
 		menu.add(mi);
-		mi = new JMenuItem("Path Properties: Export CSV...", IconFactory.getMenuIcon(IconFactory.GLYPH.CSV));
+		mi = new JMenuItem("Path Properties: Export CSV...", IconFactory.menuIcon(IconFactory.GLYPH.CSV));
 		mi.setToolTipText("Export details (metrics, relationships, ...) of existing paths as tabular data");
 		mi.addActionListener(e -> {
 			final File saveFile = saveFile("Export All Paths as CSV...", "CSV_Properties.csv", "csv");
@@ -3013,7 +2991,7 @@ public class SNTUI extends JDialog {
 
 	private JMenu showFolderMenu(final ScriptInstaller installer) {
 		final JMenu menu = new JMenu("Reveal Directory");
-		menu.setIcon(IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
+		menu.setIcon(IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
 		final String[] labels = { "Current TRACES File", "Image Being Traced", "Fiji Scripts", "Last Accessed Folder",
 				"Secondary Layer Image", "Snapshot Backup(s)" };
 		Arrays.stream(labels).forEach(label -> {
@@ -3081,13 +3059,9 @@ public class SNTUI extends JDialog {
 				GuiUtils.integerSpinner(1, 1, 80, 1, true));
 		partsNearbyCSpinner.appendLabel("nearby Z-slices");
 		partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
-		partsNearbyCSpinner.getCheckBox().addItemListener(e -> {
-			plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
-					(int) partsNearbyCSpinner.getValue());
-		});
-		partsNearbyCSpinner.getSpinner().addChangeListener(e -> {
-			plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue());
-		});
+		partsNearbyCSpinner.getCheckBox().addItemListener(e -> plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
+                (int) partsNearbyCSpinner.getValue()));
+		partsNearbyCSpinner.getSpinner().addChangeListener(e -> plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue()));
 
 		final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
 		onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel("3. Only paths from active channel/frame", "3"));
@@ -3117,7 +3091,7 @@ public class SNTUI extends JDialog {
 		final ColorChooserButton colorChooser2 = new ColorChooserButton(plugin.deselectedColor, "Deselected");
 		colorChooser2.setName("Color for Deselected Paths");
 		colorChooser2.addColorChangedListener(newColor -> plugin.setDeselectedColor(newColor));
-		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)");
+		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)", !plugin.displayCustomPathColors);
 		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
 						"NB: This option does not affect color-coded paths, or paths with multi-color nodes");
@@ -3139,6 +3113,7 @@ public class SNTUI extends JDialog {
 		final JPanel panel = new JPanel(new BorderLayout());
 		panel.add(colorsPanel, BorderLayout.CENTER);
 		panel.add(optionsButton, BorderLayout.EAST);
+		panel.add(jcheckbox, BorderLayout.SOUTH);
 		return panel;
 	}
 
@@ -3323,7 +3298,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		optionsMenu.addSeparator();
-		optionsMenu.add(GuiUtils.menuItemTriggeringHelpURL("Help on Algorithm Settings",
+		optionsMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Algorithm Settings",
 				"https://imagej.net/plugins/snt/manual#auto-tracing"));
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
@@ -3357,16 +3332,16 @@ public class SNTUI extends JDialog {
 	}
 
 	private JLabel statusBar() {
-		statusBarText = GuiUtils.leftAlignedLabel("Ready to trace...", true);
-		statusBarText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN, InternalUtils.MARGIN, 0));
+		statusBarText = new JLabel("Ready to trace...");
+		statusBarText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN,
+				InternalUtils.MARGIN, 0));
 		refreshStatus();
-		statusBarText.addMouseListener( new MouseAdapter() {
+		statusBarText.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
 				if (e.getClickCount() == 2) {
 					refreshStatus();
-					if (recorder != null)
-						recorder.recordCmd("snt.getUI().showStatus(\"\", true)");
+					if (recorder != null) recorder.recordCmd("snt.getUI().showStatus(\"\", true)");
 				}
 			}
 		});
@@ -3536,7 +3511,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JButton resetButton(final String description) {
-		final JButton b = IconFactory.getButton(GLYPH.UNDO);
+		final JButton b = GuiUtils.Buttons.undo();
 		b.setToolTipText("Reset " + description);
 		return b;
 	}
@@ -3721,7 +3696,7 @@ public class SNTUI extends JDialog {
 	private JMenuItem shollAnalysisHelpMenuItem() {
 		final JMenuItem mi = new JMenuItem("Sholl Analysis (by Focal Point)...");
 		mi.setToolTipText("Instructions on how to perform Sholl from a specific node");
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.DOTCIRCLE));
+		mi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.DOTCIRCLE));
 		mi.addActionListener(e -> {
 			final Thread newThread = new Thread(() -> {
 				if (noPathsShollError()) return;
@@ -3977,7 +3952,7 @@ public class SNTUI extends JDialog {
 		sigmaPalette.makePalette(x_min, x_max, y_min, y_max, z_min, z_max, sigmas, 4, 4, z);
 		sigmaPalette.addListener(sigmaPaletteListener);
 		if (sigmaPaletteListener != null) sigmaPalette.setParent(sigmaPaletteListener.getParent());
-		updateStatusText("Adjusting \u03C3 and max visually...");
+		updateStatusText("Adjusting σ and max visually...");
 	}
 
 	private String getState(final int state) {
@@ -4090,7 +4065,7 @@ public class SNTUI extends JDialog {
 				plugin.ctSlice3d = null;
 			} else if (imp == plugin.getImagePlus() && !plugin.isDisplayCanvas(imp)) {
 				plugin.pauseTracing(true, false);
-				SwingUtilities.invokeLater(() -> updateRebuildCanvasButton());
+				SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
 			}
 		}
 
@@ -4295,15 +4270,18 @@ public class SNTUI extends JDialog {
 				return "";
 			}
 			try {
-				SNTUtils.log("Running "+ cmd.getName());
+				SNTUtils.log("Running " + cmd.getName());
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 				final CommandModule cmdModule = cmdService.run(cmd, true, inputs).get();
 				return (cmdModule.isCanceled()) ? cmdModule.getCancelReason() : "Command completed";
-			} catch (final NullPointerException | IllegalArgumentException | CancellationException | InterruptedException | ExecutionException e2) {
+			} catch (final NullPointerException e1) {
 				// NB: A NPE seems to happen if command is DynamicCommand
+				return ""; // do nothing
+			} catch (final IllegalArgumentException | CancellationException | InterruptedException | ExecutionException e2) {
 				e2.printStackTrace();
 				return "Unfortunately an error occurred. See console for details.";
 			}
+
 		}
 
 		@Override
@@ -4328,7 +4306,8 @@ public class SNTUI extends JDialog {
 
 	static class InternalUtils {
 
-		static final int MARGIN = 2;
+		static final int MARGIN = 4;
+		static final int TEXT_MARGIN = (int) (GuiUtils.uiFontSize() / 2);
 
 		static String getImportActionName(final int type) {
             return switch (type) {
@@ -4585,7 +4564,7 @@ public class SNTUI extends JDialog {
 			if (swcFile.exists())
 				errorMessage.append(swcFile.getAbsolutePath()).append("<br>");
 		}
-		if (errorMessage.length() > 0) {
+		if (!errorMessage.isEmpty()) {
 			errorMessage.insert(0, "The following file(s) would be overwritten:<br>");
 			errorMessage.append("<b>Overwrite?</b>");
 			if (!guiUtils.getConfirmation(errorMessage.toString(), "Overwrite SWC files?"))
@@ -4739,9 +4718,7 @@ public class SNTUI extends JDialog {
 	private JMenuItem getImportActionMenuItem(final int type) {
 		final JMenuItem jmi = (type == ImportAction.IMAGE) ? GuiUtils.MenuItems.fromFileImage()
 				: new JMenuItem(InternalUtils.getImportActionName(type));
-		jmi.addActionListener(e -> {
-			new ImportAction(type, null).run();
-		});
+		jmi.addActionListener(e -> new ImportAction(type, null).run());
 		return jmi;
 	}
 

@@ -24,7 +24,6 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.icons.FlatClearIcon;
-import com.formdev.flatlaf.util.ColorFunctions;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.swing.ListSearchable;
@@ -33,7 +32,6 @@ import org.scijava.command.CommandService;
 import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.SwingDialog;
-import org.scijava.ui.swing.widget.SwingColorWidget;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
@@ -46,7 +44,6 @@ import sc.fiji.snt.util.SNTColor;
 import javax.swing.*;
 import javax.swing.Timer;
 import javax.swing.JSpinner.DefaultEditor;
-import javax.swing.border.Border;
 import javax.swing.border.EmptyBorder;
 import javax.swing.colorchooser.AbstractColorChooserPanel;
 import javax.swing.event.DocumentEvent;
@@ -95,8 +92,8 @@ public class GuiUtils {
 	private Component parent;
 	private JidePopup popup;
 	private boolean popupExceptionTriggered;
-	private int timeOut = 2500;
 	private static JColorChooser colorChooser;
+	private static Color disabledColor;
 
 	public GuiUtils(final Component parent) {
 		setParent(parent);
@@ -131,7 +128,7 @@ public class GuiUtils {
 					sb.append("<br>&nbsp;<b>This is the last version supporting java 8!</b>");
 					sb.append("<br>&nbsp;To run newer SNT versions you will need a Fiji release supporting at least Java 11.");
 				}
-				showNotification(leftAlignedLabel(sb.toString(), releaseNotesURL(), true), true);
+				showNotification(leftAlignedLabel(sb.toString(), MenuItems.releaseNotesURL(), true), true);
 			}
 		});
 		timer.setRepeats(false);
@@ -270,16 +267,12 @@ public class GuiUtils {
 		}
 		popup.setFocusable(false);
 		popup.setReturnFocusToOwner(true);
-		popup.setTransient(timeOut > 0);
+		popup.setTransient(true);
 		popup.setMovable(false);
 		popup.setDefaultMoveOperation(JidePopup.HIDE_ON_MOVED);
 		popup.setEnsureInOneScreen(true);
-		popup.setTimeout(timeOut);
+		popup.setTimeout(2500);
 		return popup;
-	}
-
-	public void setTmpMsgTimeOut(final int mseconds) { // 0: no timeout, always visible
-		timeOut = mseconds;
 	}
 
 	public int yesNoDialog(final String msg, final String title, final String yesButtonLabel, final String noButtonLabel) {
@@ -450,15 +443,11 @@ public class GuiUtils {
 				@Override
 				protected String convertElementToString(Object object) {
 					final int idx = listModel.indexOf(object);
-					return choices[idx] + " " + descriptions[idx];
+					return (choices[idx] + " " + descriptions[idx]).replaceAll("\\r?\\n", " ");
 				}
 			};
-			searchable.setCaseSensitive(false);
-			searchable.setCountMatch(true);
-			searchable.setRepeats(true);
 			final SNTSearchableBar searchableBar = new SNTSearchableBar(searchable);
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_STATUS);
-			searchableBar.setShowMatchCount(true);
 			searchableBar.setHighlightAll(false); // only one item can be selected in the choice list
 			searchableBar.setStatusLabelPlaceholder(String.format("%d choice(s) available...", listModel.size())); // cannot be empty
 			searchableBar.setGuiUtils(this);
@@ -471,9 +460,7 @@ public class GuiUtils {
 		final int promptResult = JOptionPane.showOptionDialog(parent, panel, title, JOptionPane.OK_CANCEL_OPTION,
 				(choices.length < 6) ? JOptionPane.QUESTION_MESSAGE : JOptionPane.PLAIN_MESSAGE, null,
 				new String[] { "OK", "Cancel" }, list);
-		if (promptResult == JOptionPane.OK_OPTION || promptResult == 0)
-			return list.getSelectedValue();
-		return null;
+		return (promptResult == JOptionPane.OK_OPTION) ? list.getSelectedValue() : null;
 	}
 
 	private JList<String> getJList(final String[] choices, final String defaultChoice) {
@@ -640,10 +627,6 @@ public class GuiUtils {
 		return uniqueWords;
 	}
 
-	public Color getColor(final String title, final Color defaultValue) {
-		return SwingColorWidget.showColorDialog(parent, title, defaultValue);
-	}
-
 	/**
 	 * Simplified color chooser for ColorRGB.
 	 *
@@ -671,12 +654,8 @@ public class GuiUtils {
 	 *          panes.
 	 * @return the color
 	 */
-	public Color getColor(final String title, final Color defaultValue,
-		final String... panes)
-	{
-
+	public Color getColor(final String title, final Color defaultValue, final String... panes) {
 		assert SwingUtilities.isEventDispatchThread();
-
 		if (colorChooser == null) {
 			colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
 			colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
@@ -712,8 +691,7 @@ public class GuiUtils {
 		}
 
 		final ColorTracker ok = new ColorTracker(colorChooser);
-		final JDialog dialog = JColorChooser.createDialog(parent, title, true,
-				colorChooser, ok, null);
+		final JDialog dialog = JColorChooser.createDialog(parent, title, true, colorChooser, ok, null);
 		makeVisible(dialog, true);
 		return ok.getColor();
 	}
@@ -740,19 +718,18 @@ public class GuiUtils {
 				+ SNTUtils.formatDouble(defaultRange[1], 3));
 		if (s == null)
 			return null; // user pressed cancel
-		final float[] values = new float[2];
+		final float[] values = { Float.NaN,Float.NaN };
 		try {
 			// see https://stackoverflow.com/a/51283413
 			final String regex = "([-+]?\\d*\\.?\\d*)\\s*-\\s*([-+]?\\d*\\.?\\d*)";
 			final Pattern pattern = Pattern.compile(regex);
 			final Matcher matcher = pattern.matcher(s);
-			matcher.find();
-			values[0] = Float.parseFloat(matcher.group(1));
-			values[1] = Float.parseFloat(matcher.group(2));
-			return values;
+			if (matcher.find()) {
+				values[0] = Float.parseFloat(matcher.group(1));
+				values[1] = Float.parseFloat(matcher.group(2));
+			}
 		} catch (final Exception ignored) {
-			values[0] = Float.NaN;
-			values[1] = Float.NaN;
+			// do nothing
 		}
 		return values;
 	}
@@ -1037,43 +1014,15 @@ public class GuiUtils {
 		return dialog;
 	}
 
-	public boolean[] getOptions(final String msg, final String[] options,
-		final boolean[] defaults, final String title)
-	{
-		final JPanel panel = new JPanel(new GridLayout(options.length, 1));
-		final JCheckBox[] checkboxes = new JCheckBox[options.length];
-		for (int i = 0; i < options.length; i++) {
-			panel.add(checkboxes[i] = new JCheckBox(options[i], defaults[i]));
-		}
-		final int result = JOptionPane.showConfirmDialog(parent, new Object[] { msg,
-			panel }, title, JOptionPane.OK_CANCEL_OPTION);
-		if (result == JOptionPane.CANCEL_OPTION) return null;
-		final boolean[] answers = new boolean[options.length];
-		for (int i = 0; i < options.length; i++) {
-			answers[i] = checkboxes[i].isSelected();
-		}
-		return answers;
-	}
-
-	private int centeredDialog(final String msg, final String title,
-		final int type)
-	{
-		/* if SwingDialogs could be centered, we could simply use */
-		// final SwingDialog d = new SwingDialog(getLabel(msg), type, false);
-		// if (parent != null) d.setParent(parent);
-		// return d.show();
-		final JOptionPane optionPane = new JOptionPane(getLabel(msg), type,
-			JOptionPane.DEFAULT_OPTION);
+	private int centeredDialog(final String msg, final String title, final int type) {
+		final JOptionPane optionPane = new JOptionPane(getLabel(msg), type, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = optionPane.createDialog(title);
 		if (parent != null) {
-			AWTWindows.centerWindow(parent.getBounds(), d);
-			// we could also use d.setLocationRelativeTo(parent);
+			AWTWindows.centerWindow(parent.getBounds(), d); // we could also use d.setLocationRelativeTo(parent);
 		}
 		makeVisible(d, true);
 		final Object result = optionPane.getValue();
-		if ((!(result instanceof Integer)))
-			return SwingDialog.UNKNOWN_OPTION;
-		return (Integer) result;
+		return (result instanceof Integer) ? (Integer) result : SwingDialog.UNKNOWN_OPTION;
 	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {
@@ -1152,7 +1101,7 @@ public class GuiUtils {
 
 	private String getWrappedText(final JComponent c, final String text) {
 		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
-		final int max = (parent == null) ? 500 : parent.getWidth();
+		final int max = (parent == null) ? 600 : parent.getWidth();
 		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" +
 			text;
 	}
@@ -1161,7 +1110,7 @@ public class GuiUtils {
 		final String msg)
 	{
 		final Color prevColor = blinkingComponent.getForeground();
-		final Color flashColor = Color.RED;
+		final Color flashColor = errorColor();
 		final Timer blinkTimer = new Timer(400, new ActionListener() {
 
 			private int count = 0;
@@ -1191,6 +1140,14 @@ public class GuiUtils {
 		blinkingComponent.setForeground(prevColor);
 	}
 
+	public static Color errorColor() {
+		return new Color(229,62,77);
+	}
+
+	public static Color warningColor() {
+		return new Color(254, 210, 132);
+	}
+
 	public static JDialog showAboutDialog() {
 		final JPanel main = new JPanel();
 		main.add(SplashScreen.getIconAsLabel());
@@ -1212,7 +1169,7 @@ public class GuiUtils {
 		side.add(new JLabel(" ")); // spacer
 		final JPanel urls = new JPanel();
 		side.add(urls);
-		JLabel url = leftAlignedLabel("Release Notes   ", releaseNotesURL(), true);
+		JLabel url = leftAlignedLabel("Release Notes   ", MenuItems.releaseNotesURL(), true);
 		urls.add(url);
 		url = leftAlignedLabel("Documentation   ", "https://imagej.net/plugins/snt/", true);
 		urls.add(url);
@@ -1272,8 +1229,7 @@ public class GuiUtils {
 	}
 
 	public static float uiFontSize() {
-		// under FlatFlaf UI elements scale on HiDPI screens
-		return new JLabel(" ").getFont().getSize2D();
+		return UIManager.getFont("defaultFont").getSize2D();
 	}
 
 	public static void initSplashScreen() {
@@ -1287,7 +1243,7 @@ public class GuiUtils {
 	}
 
 	public static void closeSplashScreen() {
-		if (splashScreen != null) splashScreen.close();
+		if (splashScreen != null) splashScreen.dispose();
 		splashScreen = null;
 	}
 
@@ -1331,75 +1287,6 @@ public class GuiUtils {
 		menu.add(label);
 	}
 
-	public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
-		return new JButton(action) {
-			private static final long serialVersionUID = 406126659895081426L;
-
-			@Override
-			public Dimension getMaximumSize() {
-				final Dimension d1 = super.getMaximumSize();
-				final Dimension d2 = super.getPreferredSize();
-				d1.width = d2.width;
-				return d1;
-			}
-			@Override
-			public Icon getIcon() {
-				return IconFactory.getMenuIcon(glyphIcon);
-			}
-			@Override
-			public String getText() {
-				return null;
-			}
-			@Override
-			public Border getBorder() {
-				return null;
-			}
-			@Override
-			public boolean isBorderPainted() {
-				return false;
-			}
-			@Override
-			public boolean isBackgroundSet() {
-				return false;
-			}
-			@Override
-			public Color getBackground() {
-				return null;
-			}
-			@Override
-			public boolean isOpaque() {
-				return false;
-			}
-			@Override
-			public boolean isContentAreaFilled() {
-				return false;
-			}
-
-		};
-	}
-
-	public static void equalize(final AbstractButton b1, final AbstractButton b2) {
-		if (b1.getWidth() > b2.getWidth() || b1.getHeight() > b2.getHeight()) {
-			b2.setSize(b1.getSize());
-			b2.setMinimumSize(b1.getMinimumSize());
-			b2.setPreferredSize(b1.getPreferredSize());
-			b2.setMaximumSize(b1.getMaximumSize());
-		}
-		else if (b1.getWidth() < b2.getWidth() || b1.getHeight() < b2.getHeight()) {
-			b1.setSize(b2.getSize());
-			b1.setMinimumSize(b2.getMinimumSize());
-			b1.setPreferredSize(b2.getPreferredSize());
-			b1.setMaximumSize(b2.getMaximumSize());
-		}
-	}
-
-	public static void equalizeHeight(final Component b1, final Component b2) {
-		b1.setSize(new Dimension(b1.getSize().width, b2.getSize().height));
-		b1.setMinimumSize(new Dimension(b1.getMinimumSize().width, b2.getMinimumSize().height));
-		b1.setPreferredSize(new Dimension(b1.getPreferredSize().width, b2.getPreferredSize().height));
-		b1.setMaximumSize(new Dimension(b1.getMaximumSize().width, b2.getMaximumSize().height));
-	}
-
 	public static int renderedWidth(final String text) {
 		final JLabel l = new JLabel();
 		return l.getFontMetrics(l.getFont()).stringWidth(text);
@@ -1415,30 +1302,23 @@ public class GuiUtils {
 		final JLabel label = new JLabel(text);
 		label.setHorizontalAlignment(SwingConstants.LEFT);
 		label.setEnabled(enabled);
-		final Color fg = (enabled) ? label.getForeground() : getDisabledComponentColor(); // required
-		label.setForeground(fg);														// for MACOS!?
 		if (uri != null && Desktop.isDesktopSupported()) {
-			//label.setIcon(IconFactory.getIcon(GLYPH.INFO, label.getFont().getSize2D() *.85f, fg));
 			label.addMouseListener(new MouseAdapter() {
-				final int w = label.getFontMetrics(label.getFont()).stringWidth(label.getText());
-
 				@Override
 				public void mouseEntered(final MouseEvent e) {
-					if (e.getX() <= w) {
-						label.setForeground(new Color(0, 128, 255));
-						label.setCursor(new Cursor(Cursor.HAND_CURSOR));
-					}
+					label.setForeground(new Color(0, 128, 255));
+					label.setCursor(new Cursor(Cursor.HAND_CURSOR));
 				}
 
 				@Override
 				public void mouseExited(final MouseEvent e) {
-					label.setForeground(fg);
+					label.setForeground(UIManager.getColor("Label.foreground")); // same effect as null?
 					label.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
 				}
 
 				@Override
 				public void mouseClicked(final MouseEvent e) {
-					if (label.isEnabled() && e.getX() <= w) openURL(uri);
+					if (label.isEnabled()) openURL(uri);
 				}
 			});
 		}
@@ -1459,7 +1339,7 @@ public class GuiUtils {
 		try {
 			Desktop.getDesktop().browse(new URI(uri));
 		} catch (IOException | URISyntaxException ex) {
-			if (uri != null && !uri.isEmpty()) {
+			if (!uri.isEmpty()) {
 				final JTextPane f = new JTextPane(); // Error message with selectable text
 				f.setContentType("text/html");
 				f.setText("<HTML>Web page could not be open. Please visit<br>" + uri + "<br>using your web browser.");
@@ -1471,47 +1351,8 @@ public class GuiUtils {
 		}
 	}
 
-	public static ImageIcon createIcon(final Color color, final int width, final int height) {
-		final BufferedImage image = new BufferedImage(width, height,
-			java.awt.image.BufferedImage.TYPE_INT_ARGB);
-		final Graphics2D graphics = image.createGraphics();
-		graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-		graphics.setColor(color);
-		graphics.fillRect(0, 0, width, height);
-		graphics.setXORMode(getEnabledComponentColor());
-		if (color == null) graphics.drawLine(0, 0, width, height);
-		graphics.drawRect(0, 0, width - 1, height - 1);
-		image.flush();
-		return new ImageIcon(image);
-	}
-
-	public static int getMenuItemHeight() {
-		Font font = UIManager.getDefaults().getFont("CheckBoxMenuItem.font");
-		if (font == null) font = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
-		final Canvas c = new Canvas();
-		return c.getFontMetrics(font).getHeight();
-	}
-
-	public static JMenuItem menuItemWithoutAccelerator() {
-		class JMenuItemAcc extends JMenuItem {
-			// https://stackoverflow.com/a/1719250
-			private static final long serialVersionUID = 1L;
-
-			@Override
-			public void setAccelerator(final KeyStroke keyStroke) {
-				super.setAccelerator(keyStroke);
-				getInputMap(WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "none");
-			}
-		}
-		return new JMenuItemAcc();
-	}
-
 	public static String ctrlKey() {
 		return (PlatformUtils.isMac()) ? "Cmd" : "Ctrl";
-	}
-
-	public static String modKey() {
-		return (PlatformUtils.isMac()) ? "Alt" : "Ctrl";
 	}
 
 	public static Window getConsole() {
@@ -1523,7 +1364,13 @@ public class GuiUtils {
 		return null;
 	}
 
-	public static GridBagConstraints defaultGbc() {
+	public static void setRenderingHints(final Graphics2D g2 ) {
+		g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON );
+		g2.setRenderingHint( RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE );
+		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+	}
+
+		public static GridBagConstraints defaultGbc() {
 		final GridBagConstraints cp = new GridBagConstraints();
 		cp.anchor = GridBagConstraints.LINE_START;
 		cp.gridwidth = GridBagConstraints.REMAINDER;
@@ -1535,130 +1382,16 @@ public class GuiUtils {
 		return cp;
 	}
 
-	public static List<JMenuItem> getMenuItems(final JMenuBar menuBar) {
-		final List<JMenuItem> list = new ArrayList<>();
-		for (int i = 0; i < menuBar.getMenuCount(); i++) {
-			final JMenu menu = menuBar.getMenu(i);
-			if (menu != null) getMenuItems(menu, list);
-		}
-		return list;
-	}
-
-	public static List<JMenuItem> getMenuItems(final JPopupMenu popupMenu) {
-		final List<JMenuItem> list = new ArrayList<>();
-		for (final MenuElement me : popupMenu.getSubElements()) {
-			if (me == null) {
-				continue;
-			} else if (me instanceof JMenuItem) {
-				list.add((JMenuItem) me);
-			} else if (me instanceof JMenu) {
-				getMenuItems((JMenu) me, list);
-			}
-		}
-		return list;
-	}
-
-	private static void getMenuItems(final JMenu menu, final List<JMenuItem> holdingList) {
-		for (int j = 0; j < menu.getItemCount(); j++) {
-			final JMenuItem jmi = menu.getItem(j);
-			if (jmi == null)
-				continue;
-			if (jmi instanceof JMenu) {
-				getMenuItems((JMenu) jmi, holdingList);
-			} else {
-				holdingList.add(jmi);
-			}
-		}
-	}
-
 	public static void addClearButton(final JTextField textField) {
 		textField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
 	}
 
-	public static void addCPlaceholder(final JTextField textField, final String placeholder) {
+	public static void addPlaceholder(final JTextField textField, final String placeholder) {
 		textField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
 	}
 
 	public static void removeIcon(final Window window) {
 		window.setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
-	}
-
-	public static JMenu helpMenu() {
-		final JMenu helpMenu = new JMenu("Help");
-		final String URL = "https://imagej.net/plugins/snt/";
-		JMenuItem mi = menuItemTriggeringURL("Main Documentation Page", URL);
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.HOME));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("User Manual", URL + "manual");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.BOOK_READER));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Screencasts", URL + "screencasts");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.VIDEO));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Walkthroughs", URL + "walkthroughs");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FOOTPRINTS));
-		helpMenu.add(mi);
-
-		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("Analysis", URL + "analysis");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CHART));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Reconstruction Viewer", URL + "reconstruction-viewer");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.CUBE));
-		helpMenu.add(mi);
-
-		helpMenu.addSeparator();
-		mi = menuItemTriggeringURL("List of Shortcuts", URL + "key-shortcuts");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.KEYBOARD));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
-		mi = menuItemTriggeringURL("Ask a Question", "https://forum.image.sc/tag/snt");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.COMMENTS));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("FAQs", URL + "faq");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.QUESTION));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Known Issues", "https://github.com/morphonets/SNT/issues");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.BUG));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("Release Notes", releaseNotesURL());
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.NEWSPAPER));
-		helpMenu.add(mi);
-
-		helpMenu.addSeparator();
-		helpMenu.add(MenuItems.devResourceMain());
-		helpMenu.add(MenuItems.devResourceNotebooks());
-		helpMenu.add(MenuItems.devResourceAPI());
-		helpMenu.addSeparator();
-
-		mi = menuItemTriggeringURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.MATH));
-		helpMenu.add(mi);
-		mi = menuItemTriggeringURL("SNT Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7");
-		mi.setIcon(IconFactory.getMenuIcon(GLYPH.FILE));
-		helpMenu.add(mi);
-		helpMenu.addSeparator();
-
-		final JMenuItem about = new JMenuItem("About...");
-		about.setIcon(IconFactory.getMenuIcon(GLYPH.INFO));
-		about.addActionListener(e -> showAboutDialog());
-		helpMenu.add(about);
-
-		return helpMenu;
-	}
-
-	public static JMenuItem menuItemTriggeringURL(final String label, final String URL) {
-		final JMenuItem mi = new JMenuItem(label);
-		mi.addActionListener(e -> ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
-		return mi;
-	}
-
-	public static JMenuItem menuItemTriggeringHelpURL(final String label, final String URL) {
-		final JMenuItem mi = menuItemTriggeringURL(label, URL);
-		mi.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
-		return mi;
 	}
 
 	public static Color getSelectionColor() {
@@ -1671,32 +1404,14 @@ public class GuiUtils {
 	}
 
 	public static Color getDisabledComponentColor() {
-		try {
-			return UIManager.getColor("MenuItem.disabledForeground");
+		if (disabledColor == null) {
+			try {
+				disabledColor = UIManager.getColor("MenuItem.disabledForeground");
+			} catch (final Exception ignored) {
+				disabledColor = Color.GRAY; // e.g. headless moce
+			}
 		}
-		catch (final Exception ignored) {
-			return Color.GRAY;
-		}
-	}
-
-	private static Color getEnabledComponentColor() {
-		try {
-			return UIManager.getColor("MenuItem.foreground");
-		}
-		catch (final Exception ignored) {
-			return Color.GRAY;
-		}
-	}
-
-	public static JButton smallButton(final String text) {
-		final double SCALE = .85;
-		final JButton button = new JButton(text);
-		final Font font = button.getFont();
-		button.setFont(font.deriveFont((float) (font.getSize() * SCALE)));
-		final Insets insets = button.getMargin();
-		button.setMargin(new Insets((int) (insets.top * SCALE), (int) (insets.left *
-			SCALE), (int) (insets.bottom * SCALE), (int) (insets.right * SCALE)));
-		return button;
+		return disabledColor;
 	}
 
 	public static JSpinner integerSpinner(final int value, final int min,
@@ -1713,7 +1428,7 @@ public class GuiUtils {
 			final Color c = textField.getForeground();
 			textField.addPropertyChangeListener(evt -> {
 				if ("editValid".equals(evt.getPropertyName())) {
-					textField.setForeground((Boolean.FALSE.equals(evt.getNewValue())) ? Color.RED : c);
+					textField.setForeground((Boolean.FALSE.equals(evt.getNewValue())) ? errorColor() : c);
 				}
 			});
 		}
@@ -1781,9 +1496,8 @@ public class GuiUtils {
 	 * @param digits the number of output decimals
 	 * @return the scaled unit
 	 */
-	public static String scaledMicrometer(final double umLength,
-		final int digits)
-	{
+	@SuppressWarnings("unused")
+	public static String scaledMicrometer(final double umLength, final int digits) {
 		String symbol = "";
 		double length = 0;
 		if (umLength < 0.0001) {
@@ -1836,23 +1550,7 @@ public class GuiUtils {
 			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
 	}
 
-	public static AbstractButton getButton(final Container parent, final String label) {
-		final Stack<Component> stack = new Stack<>();
-		stack.push(parent);
-		while (!stack.isEmpty()) {
-			final Component current = stack.pop();
-			if (current instanceof AbstractButton && label.equals(((AbstractButton) current).getText())) {
-				return (AbstractButton) current;
-			}
-			else if (current instanceof Container) {
-				stack.addAll(Arrays.asList(((Container) current).getComponents()));
-			}
-		}
-		return null;
-	}
-
 	public static JFileChooser getDnDFileChooser() {
-		@SuppressWarnings("serial")
 		final JFileChooser fileChooser = new FileChooser() {
 			@Override
 			public File getCurrentDirectory() {
@@ -1960,7 +1658,7 @@ public class GuiUtils {
 		if (persistentChoice) {
 			SNTPrefs.setLookAndFeel(lookAndFeelName);
 		}
-		return success;
+		return true;
 	}
 
 	public static void setAutoDismiss(final JDialog dialog) {
@@ -2067,14 +1765,7 @@ public class GuiUtils {
 		return dialog;
 	}
 
-	public JMenuItem combineChartsMenuItem() {
-		final JMenuItem jmi = new JMenuItem("Combine Charts Into Montage...", IconFactory.getMenuIcon(GLYPH.GRID));
-		jmi.setToolTipText("Combines isolated SNT charts (plots, histograms, etc.) into a grid layout");
-		jmi.addActionListener(e -> combineSNTChartPrompt());
-		return jmi;
-	}
-
-	private void combineSNTChartPrompt() {
+	public void combineSNTChartPrompt() {
 
 		class CombineGUI implements DocumentListener {
 
@@ -2161,7 +1852,7 @@ public class GuiUtils {
 					nRows = parseInt(rowField);
 					nCols = Math.max(1, (int) Math.ceil((double) n / nRows));
 					colField.setText("" + nCols);
-				} else { // cols is being set: Adjust rows
+				} else { // cols are being set: Adjust rows
 					nCols = parseInt(colField);
 					nRows = Math.max(1, (int) Math.ceil((double) n / nCols));
 					rowField.setText("" + nRows);
@@ -2187,7 +1878,7 @@ public class GuiUtils {
 							: charts.entrySet().stream()
 									.filter(entry -> titles.getSelectedValuesList().contains(entry.getKey()))
 									.map(Map.Entry::getValue).collect(Collectors.toList());
-					if (selection == null || selection.isEmpty()) {
+					if (selection.isEmpty()) {
 						error("No charts selected from list.");
 						return;
 					}
@@ -2246,102 +1937,40 @@ public class GuiUtils {
 	}
 
 	public static JTabbedPane getTabbedPane() {
-		/*
-		 * TF: This is an effort at improving the tabbed interface. JIDE provides such
-		 * functionality by default, but causes some weird looking L&F overrides (at
-		 * least on macOS). Since I have no idea on how to stop JIDE from injecting such
-		 * weirdness, we'll implement the customization ourselves.
-		 */
-		// final JideTabbedPane tabbedPane = new JideTabbedPane(JTabbedPane.TOP);
-		// tabbedPane.setBoldActiveTab(true);
-		// tabbedPane.setScrollSelectedTabOnWheel(true);
-		// tabbedPane.setTabResizeMode(JideTabbedPane.RESIZE_MODE_NONE);
 		final JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
-		tabbedPane.putClientProperty( "JTabbedPane.tabRotation", "auto" ); // flatlaf v3.3
-		tabbedPane.addMouseWheelListener(e -> {
-			// https://stackoverflow.com/a/38463104
-			final JTabbedPane pane = (JTabbedPane) e.getSource();
-			final int units = e.getWheelRotation();
-			final int oldIndex = pane.getSelectedIndex();
-			final int newIndex = oldIndex + units;
-			if (newIndex < 0)
-				pane.setSelectedIndex(0);
-			else if (newIndex >= pane.getTabCount())
-				pane.setSelectedIndex(pane.getTabCount() - 1);
-			else
-				pane.setSelectedIndex(newIndex);
-		});
+		tabbedPane.putClientProperty("JTabbedPane.tabRotation", "auto");
+		tabbedPane.putClientProperty("JTabbedPane.tabAreaAlignment", "fill");
 		final JPopupMenu popup = new JPopupMenu();
 		tabbedPane.setComponentPopupMenu(popup);
+		JCheckBoxMenuItem jcbmi1 = new JCheckBoxMenuItem("Compact Layout", true); // default is compact
+		jcbmi1.addItemListener(e ->
+				tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", (jcbmi1.isSelected()) ? SwingConstants.LEFT
+						: SwingConstants.TOP));
+		popup.add(jcbmi1);
+		popup.addSeparator();
 		final ButtonGroup group = new ButtonGroup();
-		for (final String pos : new String[] { "Top", "Bottom", "Left", "Right" }) {
-			final JMenuItem jcbmi = new JCheckBoxMenuItem("Place on " + pos, "Top".equals(pos));
-			jcbmi.addItemListener(e -> {
+		for (final String pos : new String[]{"Top", "Left", "Bottom", "Right"}) {
+			final JCheckBoxMenuItem jcbmi2 = new JCheckBoxMenuItem("Display on " + pos, "Top".equals(pos));
+			jcbmi2.addItemListener(e -> {
 				switch (pos) {
-				case "Bottom":
-					tabbedPane.setTabPlacement(JTabbedPane.BOTTOM);
-					break;
-				case "Left":
-					tabbedPane.setTabPlacement(JTabbedPane.LEFT);
-					break;
-				case "Right":
-					tabbedPane.setTabPlacement(JTabbedPane.RIGHT);
-					break;
-				default:
-					tabbedPane.setTabPlacement(JTabbedPane.TOP);
-					break;
+					case "Left":
+						tabbedPane.setTabPlacement(JTabbedPane.LEFT);
+						break;
+					case "Bottom":
+						tabbedPane.setTabPlacement(JTabbedPane.BOTTOM);
+						break;
+					case "Right":
+						tabbedPane.setTabPlacement(JTabbedPane.RIGHT);
+						break;
+					default:
+						tabbedPane.setTabPlacement(JTabbedPane.TOP);
+						break;
 				}
 			});
-			group.add(jcbmi);
-			popup.add(jcbmi);
+			group.add(jcbmi2);
+			popup.add(jcbmi2);
 		}
 		return tabbedPane;
-	}
-
-	public static void setAlternatingRowColors(final JComponent tableListOrTree, final boolean alternatingRowColors) {
-		UIDefaults.ActiveValue alternateRowColor = null;
-		if (alternatingRowColors) {
-			alternateRowColor = uiDefaults -> {
-				final Color background = tableListOrTree.getBackground();
-				return FlatLaf.isLafDark()
-						? ColorFunctions.lighten(background, 0.05f)
-						: ColorFunctions.darken(background, 0.05f);
-			};
-		}
-        switch (tableListOrTree) {
-            case JTable ignored1 -> {
-                UIManager.put("Table.alternateRowColor", alternateRowColor);
-                tableListOrTree.repaint();
-            }
-            case JTree ignored2 -> {
-                UIManager.put("Tree.alternateRowColor", alternateRowColor);
-                tableListOrTree.updateUI();
-            }
-            case JList<?> ignored3 -> {
-                UIManager.put("List.alternateRowColor", alternateRowColor);
-                tableListOrTree.updateUI();
-            }
-            case null, default ->
-                    throw new IllegalArgumentException("Unsupported component. Only JList, JTable, or JTree supported");
-        }
-	}
-
-	public static JButton toolbarButton(final String badgeName) {
-		final JButton button = new JButton(badgeName);
-		button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
-		button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
-		return button;
-	}
-
-	public static JButton helpButton() {
-		final JButton button = new JButton();
-		button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);
-		button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
-		return button;
-	}
-
-	public static void setRoundedSelection(final JComponent tableListOrTree) {
-		tableListOrTree.putClientProperty(FlatClientProperties.STYLE, "selectionArc: 6; selectionInsets: 0,1,0,1");
 	}
 
 	public static void centerWindow(final Window dialogToCenter, final Window... windows) {
@@ -2358,10 +1987,6 @@ public class GuiUtils {
 			if (w != null) boundingRect = boundingRect.union(w.getBounds());
 		}
 		AWTWindows.centerWindow(boundingRect, dialogToCenter);
-	}
-
-	private static String releaseNotesURL() {
-		return "https://github.com/morphonets/SNT/releases";
 	}
 
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
@@ -2586,99 +2211,308 @@ public class GuiUtils {
 
 		private MenuItems() {}
 
+		public static JMenuItem combineCharts() {
+			final JMenuItem jmi = new JMenuItem("Combine Charts Into Montage...", IconFactory.menuIcon(GLYPH.GRID));
+			jmi.setToolTipText("Combines isolated SNT charts (plots, histograms, etc.) into a grid layout");
+			return jmi;
+		}
+
 		public static JMenuItem persistenceAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Persistence Homology...", IconFactory.getMenuIcon(GLYPH.BARCODE));
+			final JMenuItem jmi = new JMenuItem("Persistence Homology...", IconFactory.menuIcon(GLYPH.BARCODE));
 			jmi.setToolTipText("TMD, TMD variants, and Persistence landscapes");
 			return jmi;
 		}
 
 		public static JMenuItem brainAreaAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Brain Area Frequencies...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+			final JMenuItem jmi = new JMenuItem("Brain Area Frequencies...", IconFactory.menuIcon(GLYPH.BRAIN));
 			jmi.setToolTipText("Distribution analysis of projection patterns across brain areas");
 			return jmi;
 		}
 
 		public static JMenuItem devResourceMain() {
-			final JMenuItem jmi = menuItemTriggeringURL("Scripting Documentation", "https://imagej.net/plugins/snt/scripting");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
+			final JMenuItem jmi = openURL("Scripting Documentation", "https://imagej.net/plugins/snt/scripting");
+			jmi.setIcon(IconFactory.menuIcon(GLYPH.CODE));
 			return jmi;
 		}
 
 		public static JMenuItem devResourceAPI() {
-			final JMenuItem jmi = menuItemTriggeringURL("API", "https://javadoc.scijava.org/SNT/");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE2));
+			final JMenuItem jmi = openURL("API", "https://javadoc.scijava.org/SNT/");
+			jmi.setIcon(IconFactory.menuIcon(GLYPH.CODE2));
 			return jmi;
 		}
 
 		public static JMenuItem devResourceNotebooks() {
-			final JMenuItem jmi = menuItemTriggeringURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.SCROLL));
+			final JMenuItem jmi = openURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
+			jmi.setIcon(IconFactory.menuIcon(GLYPH.SCROLL));
 			return jmi;
 		}
 
 		public static JMenuItem convexHull() {
-			final JMenuItem jmi = new JMenuItem("Convex Hull...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			final JMenuItem jmi = new JMenuItem("Convex Hull...", IconFactory.menuIcon(GLYPH.DICE_20));
 			jmi.setToolTipText(
 					"2D/3D convex hull measurement(s).\nMetrics for estimation of dendritic or pre-synaptic fields");
 			return jmi;
 		}
 
 		public static JMenuItem createDendrogram() {
-			final JMenuItem jmi = new JMenuItem("Create Dendrogram", IconFactory.getMenuIcon(GLYPH.DIAGRAM));
+			final JMenuItem jmi = new JMenuItem("Create Dendrogram", IconFactory.menuIcon(GLYPH.DIAGRAM));
 			jmi.setToolTipText("Display reconstructions in Graph Viewer");
 			return jmi;
 		}
 
-		public static JMenuItem createAnnotionGraph() {
-			final JMenuItem jmi = new JMenuItem("Annotation Graph...", IconFactory.getMenuIcon(GLYPH.BRAIN));
+		public static JMenuItem createAnnotationGraph() {
+			final JMenuItem jmi = new JMenuItem("Annotation Graph...", IconFactory.menuIcon(GLYPH.BRAIN));
 			jmi.setToolTipText("Flow Plots and Ferris-Wheel diagrams from annotated trees");
 			return jmi;
 		}
 
 		public static JMenuItem measureOptions() {
-			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.getMenuIcon(GLYPH.TABLE));
+			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.menuIcon(GLYPH.TABLE));
 			jmi.setToolTipText("Compute detailed metrics from single cells");
 			return jmi;
 		}
 
 		public static JMenuItem measureQuick() {
-			final JMenuItem jmi = new JMenuItem("Quick Measurements", IconFactory.getMenuIcon(GLYPH.ROCKET));
+			final JMenuItem jmi = new JMenuItem("Quick Measurements", IconFactory.menuIcon(GLYPH.ROCKET));
 			jmi.setToolTipText("Run simplified \"Measure...\" calls using commonly used metrics");
 			return jmi;
 		}
 
 		public static JMenuItem renderQuick() {
-			final JMenuItem jmi = new JMenuItem("Create Figure...", IconFactory.getMenuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
+			final JMenuItem jmi = new JMenuItem("Create Figure...", IconFactory.menuIcon(IconFactory.GLYPH.PERSON_CHALKBOARD));
 			jmi.setToolTipText("Creates multi-panel figures and illustrations of selected reconstructions");
 			return jmi;
 		}
 
 		public static JMenuItem saveTablesAndPlots(final GLYPH glyph) {
-			final JMenuItem jmi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.getMenuIcon(glyph));
+			final JMenuItem jmi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.menuIcon(glyph));
 			jmi.setToolTipText("Save all tables, plots, and charts currently open");
 			return jmi;
 		}
 
 		public static JMenuItem shollAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Sholl Analysis...", IconFactory.getMenuIcon(GLYPH.BULLSEYE));
+			final JMenuItem jmi = new JMenuItem("Sholl Analysis...", IconFactory.menuIcon(GLYPH.BULLSEYE));
 			jmi.setToolTipText("Sholl analysis using pre-defined focal points");
 			return jmi;
 		}
 
 		public static JMenuItem strahlerAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Strahler Analysis...", IconFactory.getMenuIcon(GLYPH.BRANCH_CODE));
+			final JMenuItem jmi = new JMenuItem("Strahler Analysis...", IconFactory.menuIcon(GLYPH.BRANCH_CODE));
 			jmi.setToolTipText("Horton–Strahler measures of branching complexity");
 			return jmi;
 		}
 
 		public static JMenuItem fromOpenImage() {
-			return new JMenuItem("From Open Image...", IconFactory.getMenuIcon(GLYPH.IMAGE));
+			return new JMenuItem("From Open Image...", IconFactory.menuIcon(GLYPH.IMAGE));
 		}
 
 		public static JMenuItem fromFileImage() {
-			return new JMenuItem("From File...", IconFactory.getMenuIcon(GLYPH.FILE_IMAGE));
+			return new JMenuItem("From File...", IconFactory.menuIcon(GLYPH.FILE_IMAGE));
 		}
 
+		public static int defaultHeight() {
+			Font font = UIManager.getDefaults().getFont("CheckBoxMenuItem.font");
+			if (font == null) font = new Font(Font.SANS_SERIF, Font.PLAIN, 12);
+			final Canvas c = new Canvas();
+			return c.getFontMetrics(font).getHeight();
+		}
+
+		public static void contrastOptions(final JComponent menuOrPopupMenu, final JComponent component, final boolean includeSeparator) {
+			if (includeSeparator)
+				menuOrPopupMenu.add(GuiUtils.leftAlignedLabel(" Contrast Options:", false));
+			final ButtonGroup bGroup = new ButtonGroup();
+			final List<String> options = List.of("None", "Lighter", "Darker");
+			options.forEach( option -> {
+				final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(option, "None".equals(option));
+				bGroup.add(rbmi);
+				menuOrPopupMenu.add(rbmi);
+				rbmi.addActionListener(e -> {
+					switch (option) {
+						case "Lighter":
+							component.putClientProperty(FlatClientProperties.STYLE, "background: lighten($Panel.background,5%)");
+							break;
+						case "Darker":
+							component.putClientProperty(FlatClientProperties.STYLE, "background: darken($Panel.background,5%)");
+							break;
+						default:
+							component.putClientProperty(FlatClientProperties.STYLE, null);
+							break;
+					}
+				});
+			});
+		}
+
+		public static JMenuItem itemWithoutAccelerator() {
+			class JMenuItemAcc extends JMenuItem {
+				// https://stackoverflow.com/a/1719250
+				private static final long serialVersionUID = 1L;
+
+				@Override
+				public void setAccelerator(final KeyStroke keyStroke) {
+					super.setAccelerator(keyStroke);
+					getInputMap(WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "none");
+				}
+			}
+			return new JMenuItemAcc();
+		}
+
+		public static JMenu helpMenu() {
+			final JMenu helpMenu = new JMenu("Help");
+			final String URL = "https://imagej.net/plugins/snt/";
+			JMenuItem mi = openURL("Main Documentation Page", URL);
+			mi.setIcon(IconFactory.menuIcon(GLYPH.HOME));
+			helpMenu.add(mi);
+			helpMenu.addSeparator();
+			mi = openURL("User Manual", URL + "manual");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.BOOK_READER));
+			helpMenu.add(mi);
+			mi = openURL("Screencasts", URL + "screencasts");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.VIDEO));
+			helpMenu.add(mi);
+			mi = openURL("Walkthroughs", URL + "walkthroughs");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.FOOTPRINTS));
+			helpMenu.add(mi);
+
+			helpMenu.addSeparator();
+			mi = openURL("Analysis", URL + "analysis");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.CHART));
+			helpMenu.add(mi);
+			mi = openURL("Reconstruction Viewer", URL + "reconstruction-viewer");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
+			helpMenu.add(mi);
+
+			helpMenu.addSeparator();
+			mi = openURL("List of Shortcuts", URL + "key-shortcuts");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.KEYBOARD));
+			helpMenu.add(mi);
+			helpMenu.addSeparator();
+
+			mi = openURL("Ask a Question", "https://forum.image.sc/tag/snt");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.COMMENTS));
+			helpMenu.add(mi);
+			mi = openURL("FAQs", URL + "faq");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
+			helpMenu.add(mi);
+			mi = openURL("Known Issues", "https://github.com/morphonets/SNT/issues");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.BUG));
+			helpMenu.add(mi);
+			mi = openURL("Release Notes", releaseNotesURL());
+			mi.setIcon(IconFactory.menuIcon(GLYPH.NEWSPAPER));
+			helpMenu.add(mi);
+
+			helpMenu.addSeparator();
+			helpMenu.add(devResourceMain());
+			helpMenu.add(devResourceNotebooks());
+			helpMenu.add(devResourceAPI());
+			helpMenu.addSeparator();
+
+			mi = openURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.MATH));
+			helpMenu.add(mi);
+			mi = openURL("SNT Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.FILE));
+			helpMenu.add(mi);
+			helpMenu.addSeparator();
+
+			final JMenuItem about = new JMenuItem("About...");
+			about.setIcon(IconFactory.menuIcon(GLYPH.INFO));
+			about.addActionListener(e -> showAboutDialog());
+			helpMenu.add(about);
+
+			return helpMenu;
+		}
+
+		public static JMenuItem openURL(final String label, final String URL) {
+			final JMenuItem mi = new JMenuItem(label);
+			mi.addActionListener(e -> ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
+			return mi;
+		}
+
+		public static JMenuItem openHelpURL(final String label, final String URL) {
+			final JMenuItem mi = openURL(label, URL);
+			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
+			return mi;
+		}
+
+		private static String releaseNotesURL() {
+			return "https://github.com/morphonets/SNT/releases";
+		}
 	}
 
+	public static class Buttons {
+
+		private Buttons() {}
+
+		public static JButton help() {
+			final JButton button = new JButton();
+			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);
+			button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
+			return button;
+		}
+
+		public static JButton undo() {
+			return smallBorderless(IconFactory.GLYPH.UNDO);
+		}
+
+		public static JButton options() {
+			final JButton button = new JButton();
+			IconFactory.assignIcon(button, IconFactory.GLYPH.OPTIONS);
+			return button;
+		}
+
+		private static JButton smallBorderless(final IconFactory.GLYPH glyph) {
+			final JButton b = new JButton();
+			IconFactory.assignIcon(b, glyph);
+			b.setFont(b.getFont().deriveFont(b.getFont().getSize2D()*.8f));
+			b.setFocusable(false);
+			makeBorderless(b);
+			return  b;
+		}
+
+		public static void makeBorderless(final AbstractButton... buttons) {
+			for (final AbstractButton button: buttons) {
+				if (button != null) button.putClientProperty("JButton.buttonType", "borderless");
+			}
+		}
+
+		public static JButton smallButton(final String text) {
+			final double SCALE = .85;
+			final JButton button = new JButton(text);
+			final Font font = button.getFont();
+			button.setFont(font.deriveFont((float) (font.getSize() * SCALE)));
+			final Insets insets = button.getMargin();
+			button.setMargin(new Insets((int) (insets.top * SCALE), (int) (insets.left *
+					SCALE), (int) (insets.bottom * SCALE), (int) (insets.right * SCALE)));
+			return button;
+		}
+
+		public static JButton toolbarButton(final String badgeName) {
+			final JButton button = new JButton(badgeName);
+			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+			button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
+			return button;
+		}
+
+		public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
+			final JButton button = new JButton(action);
+			IconFactory.assignIcon(button, glyphIcon);
+			makeBorderless(button);
+			return button;
+		}
+
+		public static AbstractButton get(final Container parent, final String label) {
+			final Stack<Component> stack = new Stack<>();
+			stack.push(parent);
+			while (!stack.isEmpty()) {
+				final Component current = stack.pop();
+				if (current instanceof AbstractButton && label.equals(((AbstractButton) current).getText())) {
+					return (AbstractButton) current;
+				}
+				else if (current instanceof Container) {
+					stack.addAll(Arrays.asList(((Container) current).getComponents()));
+				}
+			}
+			return null;
+		}
+	}
 }

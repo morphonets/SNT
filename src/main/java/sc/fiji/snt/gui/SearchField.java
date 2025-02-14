@@ -130,11 +130,11 @@ public class SearchField extends JTextField {
     public void enlarge() {
         final int PADDING = 4;
         setMargin(new Insets((int) (PADDING * 1.5), PADDING, (int) (PADDING * 1.5), PADDING));
-        setFont(getFont().deriveFont(getFont().getSize() * 1.1f));
+        setFont(getFont().deriveFont(getFont().getSize() * enlargeFactor()));
     }
 
-    public static float enlargedHeight() {
-        return UIManager.getFont("TextField.font").getSize() * 1.1f;
+    public static float enlargeFactor() {
+        return 1.1f;
     }
 
     public Color iconColor() {

@@ -70,8 +70,9 @@ public class SNTSearchableBar extends SearchableBar {
 		getSearchable().setWildcardEnabled(false);
 		getSearchable().setFromStart(false);
 		getSearchable().setRepeats(true);
+		getSearchable().setSearchingDelay(50);
 		setShowMatchCount(true); // false improves performance
-		setMismatchForeground(new Color(255, 171, 162));
+		setMismatchForeground(GuiUtils.warningColor());
 		setMaxHistoryLength(0); // disable default history. We'll use builtinSearchHistory
 		setHighlightAll(true);
 		init(placeholder); // should be the last call in the constructor
@@ -157,7 +158,7 @@ public class SNTSearchableBar extends SearchableBar {
 
 	private Icon getSubFilteringStatusIcon() {
 		if (subFilteringStatusIcon == null) {
-			subFilteringStatusIcon = IconFactory.getIcon(IconFactory.GLYPH.FILTER, _statusLabel.getFont().getSize(),
+			subFilteringStatusIcon = IconFactory.get(IconFactory.GLYPH.FILTER, _statusLabel.getFont().getSize(),
 					getSearchField().iconColor()); // SearchField is initialized by the time this is called
 		}
 		return subFilteringStatusIcon;
@@ -219,7 +220,6 @@ public class SNTSearchableBar extends SearchableBar {
 			gbc.anchor = GridBagConstraints.WEST;
 			add(statusLabel(), gbc);
 		}
-
 	}
 
 	private void addSearchingTextToHistory(String searchingText) {
@@ -249,7 +249,7 @@ public class SNTSearchableBar extends SearchableBar {
 		blinkingTimer.setRepeats(false);
 		sf.addActionListener(e -> {  // triggered by pressing Enter
 			if (sf.getText().isBlank()) {
-				//Toolkit.getDefaultToolkit().beep();
+				updateSearch();
 				return;
 			}
 			addSearchingTextToHistory(sf.getText());
@@ -389,6 +389,12 @@ public class SNTSearchableBar extends SearchableBar {
 		super._statusLabel.setText(text);
 	}
 
+	public void setBorderless(final boolean enable) {
+		GuiUtils.Buttons.makeBorderless(_closeButton, _findPrevButton, _findNextButton, _highlightsButton);
+		if (_extraButtons != null)
+			GuiUtils.Buttons.makeBorderless(_extraButtons.toArray(new AbstractButton[0]));
+	}
+
 	@Override
 	protected AbstractButton createFindPrevButton(final AbstractAction findPrevAction) {
 		final AbstractButton button = super.createFindPrevButton(findPrevAction);
@@ -421,15 +427,16 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
-		if (iconHeight == 0)
-			iconHeight = SearchField.enlargedHeight();
-		IconFactory.applyIcon(button, iconHeight, glyph);
+		// wipe all jide customizations
+		button.setText(null);
+		button.setDisabledIcon(null);
+		button.setIcon(null);
+		button.setPressedIcon(null);
+		button.setRolloverIcon(null);
+		button.setRolloverSelectedIcon(null);
+		button.setSelectedIcon(null);
+		IconFactory.assignIcon(button, glyph,SearchField.enlargeFactor());
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
-		if (button instanceof JToggleButton) {
-			final Icon selectIcon = IconFactory.getIcon(glyph, iconHeight, GuiUtils.getSelectionColor());
-			button.setSelectedIcon(selectIcon);
-			button.setRolloverSelectedIcon(selectIcon);
-		}
 	}
 }

@@ -63,13 +63,13 @@ public class ScriptInstaller implements MenuKeyListener {
 	public static final Pattern DEMO_SCRIPT = Pattern.compile(".*demo.*", Pattern.CASE_INSENSITIVE);
 	public static final Pattern NON_DEMO_SCRIPT = Pattern.compile("^(?!.*demo).*$", Pattern.CASE_INSENSITIVE);
 
+	private static final Icon revealIcon = UIManager.getIcon("Tree.openIcon");
 	private final SNTUI ui;
 	private final GuiUtils guiUtils;
 	private TreeSet<ScriptInfo> scripts;
 	private static TextEditor editor;
 
 	private boolean openInsteadOfRun;
-	private final Icon icon;
 
 	public ScriptInstaller(final Context context, final Component parent){
 		context.inject(this);
@@ -79,7 +79,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			ui = null;
 		guiUtils = new GuiUtils(parent);
 		init();
-		icon = UIManager.getIcon("Tree.openIcon");
+
 	}
 
 	private void init() {
@@ -204,15 +204,15 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	private Icon getIcon(final String menuName) {
         return switch (menuName) {
-            case "Analysis" -> IconFactory.getMenuIcon(GLYPH.CHART);
-            case "Batch" -> IconFactory.getMenuIcon(GLYPH.COG);
-            case "Demos" -> IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP);
-            case "Full List" -> IconFactory.getMenuIcon(GLYPH.LIST);
-            case "Misc" -> IconFactory.getMenuIcon(GLYPH.ELLIPSIS);
-            case "Render" -> IconFactory.getMenuIcon(GLYPH.CUBE);
-            case "Skeletons and ROIs" -> IconFactory.getMenuIcon(GLYPH.BEZIER_CURVE);
-            case "Tracing" -> IconFactory.getMenuIcon(GLYPH.ROUTE);
-            case "Time-lapses" -> IconFactory.getMenuIcon(GLYPH.VIDEO);
+            case "Analysis" -> IconFactory.menuIcon(GLYPH.CHART);
+            case "Batch" -> IconFactory.menuIcon(GLYPH.COG);
+            case "Demos" -> IconFactory.menuIcon(GLYPH.GRADUATION_CAP);
+            case "Full List" -> IconFactory.menuIcon(GLYPH.LIST);
+            case "Misc" -> IconFactory.menuIcon(GLYPH.ELLIPSIS);
+            case "Render" -> IconFactory.menuIcon(GLYPH.CUBE);
+            case "Skeletons and ROIs" -> IconFactory.menuIcon(GLYPH.BEZIER_CURVE);
+            case "Tracing" -> IconFactory.menuIcon(GLYPH.ROUTE);
+            case "Time-lapses" -> IconFactory.menuIcon(GLYPH.VIDEO);
             default -> null;
         };
 	}
@@ -234,7 +234,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	private void updateMenuItemIcon(final JMenuItem item) {
 		if (openInsteadOfRun && (item.isSelected() || item.isArmed())) {
-			item.setIcon(icon);
+			item.setIcon(revealIcon);
 		} else {
 			item.setIcon(null);
 		}
@@ -289,7 +289,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 		final JMenu listMenu = getFullListMenu();
 		final int listMenuPosition = sMenu.getItemCount();
-		final JMenuItem reloadMI = new JMenuItem("Reload Scripts...", IconFactory.getMenuIcon(GLYPH.REDO));
+		final JMenuItem reloadMI = new JMenuItem("Reload Scripts...", IconFactory.menuIcon(GLYPH.REDO));
 		reloadMI.addActionListener(e -> {
 			final int oldCount = scripts.size();
 			addLocalScripts();
@@ -303,7 +303,7 @@ public class ScriptInstaller implements MenuKeyListener {
 			sMenu.revalidate();
 			guiUtils.centeredMsg(""+ (newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
-		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.getMenuIcon(GLYPH.FILE));
+		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.menuIcon(GLYPH.FILE));
 		mi1.addActionListener(e -> {
 			final HashMap<String, String> map = new HashMap<>();
 			map.put("BeanShell", "BSH.bsh");
@@ -328,14 +328,14 @@ public class ScriptInstaller implements MenuKeyListener {
 							getScriptsDir() + File.separator + "_SNT_script." + FileUtils.getExtension(map.get(choice)));
 			}
 		});
-		final JMenuItem mi2 = new JMenuItem("From Clipboard...", IconFactory.getMenuIcon(GLYPH.CLIPBOARD));
+		final JMenuItem mi2 = new JMenuItem("From Clipboard...", IconFactory.menuIcon(GLYPH.CLIPBOARD));
 		mi2.addActionListener(e -> newScriptFromClipboard());
 		final JMenu nMenu = new JMenu("New");
-		nMenu.setIcon(IconFactory.getMenuIcon(GLYPH.PLUS));
+		nMenu.setIcon(IconFactory.menuIcon(GLYPH.PLUS));
 		nMenu.add(mi1);
 		nMenu.add(mi2);
 
-		final JMenuItem mi3 = new JMenuItem("REPL", IconFactory.getMenuIcon(GLYPH.CODE));
+		final JMenuItem mi3 = new JMenuItem("REPL", IconFactory.menuIcon(GLYPH.CODE));
 		mi3.addActionListener(e -> {
 			final SNTREPL repl = new SNTREPL(SNTUtils.getContext());
 			repl.setLocationRelativeTo(ui);
@@ -350,7 +350,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		sMenu.add(reloadMI);
 
 		if (ui != null) {
-			final JMenuItem mi4 = new JMenuItem("Record... (Experimental)", IconFactory.getMenuIcon(GLYPH.CIRCLE));
+			final JMenuItem mi4 = new JMenuItem("Record... (Experimental)", IconFactory.menuIcon(GLYPH.CIRCLE));
 			mi4.addActionListener(e -> {
 				if (ui.getRecorder(false) == null) {
 					ui.getRecorder(true).setVisible(true);
@@ -396,13 +396,13 @@ public class ScriptInstaller implements MenuKeyListener {
 		final JMenu demoMenu = getMenu(null, NON_DEMO_SCRIPT, true);
 		demoMenu.setText("Demos");
 		demoMenu.setToolTipText("Demo scripts. Please save your work before running a demo mid-tracing");
-		demoMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.GRADUATION_CAP));
+		demoMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.GRADUATION_CAP));
 		return demoMenu;
 	}
 
 	private JMenu getFullListMenu() { // Will include _ALL_ scripts (no exclusions)
 		final JMenu listMenu = getMenu(null, null, false);
-		listMenu.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.LIST));
+		listMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.LIST));
 		return listMenu;
 	}
 
@@ -424,7 +424,7 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	private JMenuItem about() {
 		final JMenuItem mItem = new JMenuItem("About SNT Scripts...");
-		mItem.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+		mItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
 		mItem.addActionListener(e -> {
 			guiUtils.showHTMLDialog(
 				"<HTML><div WIDTH=500>This menu lists scripting routines that " //

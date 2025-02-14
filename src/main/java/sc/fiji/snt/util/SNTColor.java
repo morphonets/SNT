@@ -160,8 +160,7 @@ public class SNTColor {
 	 * @return the converted string
 	 */
 	public static String colorToString(final Color color) {
-		if (color == null) throw new IllegalArgumentException(
-			"Cannot convert null object");
+		if (color == null) return "null color";
 		return String.format("#%02x%02x%02x%02x", color.getRed(), color.getGreen(),
 			color.getBlue(), color.getAlpha());
 	}

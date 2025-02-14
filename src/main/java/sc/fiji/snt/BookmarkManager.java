@@ -31,7 +31,6 @@ import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTPoint;
@@ -98,7 +97,7 @@ public class BookmarkManager {
         gbc.anchor = GridBagConstraints.NORTHWEST;
         gbc.fill = GridBagConstraints.NONE;
         container.add(assembleButtonPanel(), gbc);
-        resizeColumns();
+        resetOrResizeColumns(false, true);
         return container;
     }
 
@@ -124,17 +123,27 @@ public class BookmarkManager {
         return table;
     }
 
-    private void resizeColumns() {
-        // https://stackoverflow.com/a/26046778
-        final  float[] columnWidthPercentage = {0.63f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
-        final int tW = table.getColumnModel().getTotalColumnWidth();
-        TableColumn column;
-        final TableColumnModel jTableColumnModel = table.getColumnModel();
-        int cantCols = jTableColumnModel.getColumnCount();
-        for (int i = 0; i < cantCols; i++) {
-            column = jTableColumnModel.getColumn(i);
-            int pWidth = Math.round(columnWidthPercentage[i] * tW);
-            column.setPreferredWidth(pWidth);
+    private void resetOrResizeColumns(final boolean reset, final boolean resize) {
+       assert table != null;
+       assert model != null;
+        if (reset) { // https://stackoverflow.com/q/63420045
+            final TableColumnModel tcm = table.getColumnModel();
+            for (int i = 0; i < model.getColumnCount() - 1; i++) {
+                int location = tcm.getColumnIndex(model.getColumnName(i));
+                tcm.moveColumn(location, i);
+            }
+        }
+        if (resize) { // https://stackoverflow.com/a/26046778
+            final float[] columnWidthPercentage = {0.63f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
+            final int tW = table.getColumnModel().getTotalColumnWidth();
+            TableColumn column;
+            final TableColumnModel jTableColumnModel = table.getColumnModel();
+            int cantCols = jTableColumnModel.getColumnCount();
+            for (int i = 0; i < cantCols; i++) {
+                column = jTableColumnModel.getColumn(i);
+                int pWidth = Math.round(columnWidthPercentage[i] * tW);
+                column.setPreferredWidth(pWidth);
+            }
         }
     }
 
@@ -177,9 +186,10 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
-        mi = new JMenuItem("Reset Column Widths");
+        pMenu.addSeparator();
+        mi = new JMenuItem("Reset Columns");
         mi.addActionListener(e -> {
-            resizeColumns();
+            resetOrResizeColumns(true, true);
             recordComment("Bookmark Manager: resizeColumns()");
         });
         pMenu.add(mi);
@@ -314,7 +324,7 @@ public class BookmarkManager {
     private JPanel assembleZoomPanel() {
         final JSpinner spinner = GuiUtils.integerSpinner(visitingZoomPercentage, 100, 3200, 100, true);
         spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
-        final JButton autoButton = IconFactory.getButton(IconFactory.GLYPH.UNDO);
+        final JButton autoButton = GuiUtils.Buttons.undo();
         autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         autoButton.addActionListener(e -> {
             if (null == sntui.plugin.getImagePlus()) {
@@ -649,16 +659,11 @@ class BookmarkModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int column) {
-        switch (column) {
-            case 0:
-                return String.class;
-            case 1:
-            case 2:
-            case 3:
-                return Double.class;
-            default:
-                return Integer.class;
-        }
+        return switch (column) {
+            case 0 -> String.class;
+            case 1, 2, 3 -> Double.class;
+            default -> Integer.class;
+        };
     }
 
 }

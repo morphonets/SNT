@@ -116,8 +116,11 @@ import sc.fiji.snt.viewer.OBJMesh.RemountableDrawableVBO;
 import javax.swing.Timer;
 import javax.swing.*;
 import javax.swing.border.Border;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
+import javax.swing.text.Position;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -125,7 +128,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
@@ -192,20 +194,13 @@ public class Viewer3D {
 		private Coord3d coord;
 
 		private ViewMode next() {
-			switch (this) {
-			case DEFAULT:
-				return XY;
-			case XY:
-			case TOP:
-				return XZ;
-			case XZ:
-			case SIDE:
-				return YZ;
-			case YZ:
-				return PERSPECTIVE;
-			default:
-				return DEFAULT;
-			}
+            return switch (this) {
+                case DEFAULT -> XY;
+                case XY, TOP -> XZ;
+                case XZ, SIDE -> YZ;
+                case YZ -> PERSPECTIVE;
+                default -> DEFAULT;
+            };
 		}
 
 		ViewMode(final String description, final Coord3d coord) {
@@ -710,10 +705,10 @@ public class Viewer3D {
 		sb.append("\nAlternatively, ImageJ built-in commands can also be used, e.g.:\n");
 		sb.append("\"File>Import>Image Sequence...\", followed by \"File>Save As>AVI...\"");
 		try {
-			Files.write(Paths.get(new File(destinationDirectory, "-build-video.txt").getAbsolutePath()),
-					sb.toString().getBytes(StandardCharsets.UTF_8));
+			Files.writeString(Paths.get(new File(destinationDirectory, "-build-video.txt").getAbsolutePath()),
+                    sb.toString());
 		} catch (final IOException e) {
-			System.out.println(sb.toString());
+			System.out.println(sb);
 		}
 	}
 
@@ -1888,21 +1883,21 @@ public class Viewer3D {
 	 * @throws IllegalArgumentException if object is not supported
 	 */
 	public void remove(final Object object) {
-		if (object instanceof Tree) {
-			removeTree((Tree) object);
-		} else if (object instanceof OBJMesh) {
-			removeMesh((OBJMesh) object);
-		} else if (object instanceof String) {
-			final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels((String)object);
-			removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
-		} else if (object instanceof Drawable && chart != null) {
-			chart.getScene().getGraph().remove((Drawable) object, viewUpdatesEnabled);
-		} else if (object instanceof Collection) {
-			removeCollection(((Collection<?>) object));
-		} else {
-			validate();
-			throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
-		}
+        switch (object) {
+            case Tree tree -> removeTree(tree);
+            case OBJMesh objMesh -> removeMesh(objMesh);
+            case String s -> {
+                final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(s);
+                removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
+            }
+            case Drawable drawable when chart != null ->
+                    chart.getScene().getGraph().remove(drawable, viewUpdatesEnabled);
+            case Collection<?> collection -> removeCollection(collection);
+            case null, default -> {
+                validate();
+                throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
+            }
+        }
 	}
 
 	private void removeCollection(final Collection<?> collection) {
@@ -2469,40 +2464,18 @@ public class Viewer3D {
 	}
 
 	private static String getNormalizedBrainLabel(final String input) {
-		switch (input.toLowerCase()) {
-		case "jrc2018":
-		case "jfrc2018":
-		case "jfrc 2018":
-		case "jfrctemplate2018":
-			return MESH_LABEL_JFRC2018;
-		case "jfrc2":
-		case "jfrc2010":
-		case "jfrctemplate2010":
-		case "vfb":
-			return MESH_LABEL_JFRC2;
-		case "jfrc3":
-		case "jfrc2013":
-		case "jfrctemplate2013":
-			return MESH_LABEL_JFRC3;
-		case "fcwb":
-		case "flycircuit":
-			return MESH_LABEL_FCWB;
-		case "l1":
-			return MESH_LABEL_L1;
-		case "l3":
-			return MESH_LABEL_L3;
-		case "vns":
-			return MESH_LABEL_VNS;
-		case "allen":
-		case "ccf":
-		case "allen ccf":
-		case "mouse":
-			return MESH_LABEL_ALLEN;
-		case "zebrafish":
-			return MESH_LABEL_ZEBRAFISH;
-		default:
-			return null;
-		}
+        return switch (input.toLowerCase()) {
+            case "jrc2018", "jfrc2018", "jfrc 2018", "jfrctemplate2018" -> MESH_LABEL_JFRC2018;
+            case "jfrc2", "jfrc2010", "jfrctemplate2010", "vfb" -> MESH_LABEL_JFRC2;
+            case "jfrc3", "jfrc2013", "jfrctemplate2013" -> MESH_LABEL_JFRC3;
+            case "fcwb", "flycircuit" -> MESH_LABEL_FCWB;
+            case "l1" -> MESH_LABEL_L1;
+            case "l3" -> MESH_LABEL_L3;
+            case "vns" -> MESH_LABEL_VNS;
+            case "allen", "ccf", "allen ccf", "mouse" -> MESH_LABEL_ALLEN;
+            case "zebrafish" -> MESH_LABEL_ZEBRAFISH;
+            default -> null;
+        };
 	}
 
 	private Color getNonUserDefColor() {
@@ -2576,20 +2549,20 @@ public class Viewer3D {
 		sb.append("\n");
 		if (recorder == null) {
 			if (!visibleActors.isEmpty()) {
-				sb.append("Visible objects: ").append(visibleActors.toString());
+				sb.append("Visible objects: ").append(visibleActors);
 				sb.append("\n");
 			}
 			if (!hiddenActors.isEmpty()) {
-				sb.append("Hidden  objects: ").append(hiddenActors.toString());
+				sb.append("Hidden  objects: ").append(hiddenActors);
 				sb.append("\n");
 			}
-			System.out.println(sb.toString());
+			System.out.println(sb);
 			displayMsg("Scene details output to Console");
 		} else {
 			if (!visibleActors.isEmpty())
-				recorder.recordComment("Visible objects: " + visibleActors.toString());
+				recorder.recordComment("Visible objects: " + visibleActors);
 			if (!hiddenActors.isEmpty())
-				recorder.recordComment("Hidden objects: " + hiddenActors.toString());
+				recorder.recordComment("Hidden objects: " + hiddenActors);
 			recorder.recordCmd(sb.toString());
 		}
 	}
@@ -2838,10 +2811,7 @@ public class Viewer3D {
 				graphic = image.createGraphics();
 				configureText(graphic);
 			}
-			graphic.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-				RenderingHints.VALUE_ANTIALIAS_ON);
-			graphic.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-				RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+			GuiUtils.setRenderingHints(graphic);
 			drawBackground(width, height, graphic);
 			drawBarColors(height, barWidth, graphic);
 			drawBarContour(height, barWidth, graphic);
@@ -3321,48 +3291,33 @@ public class Viewer3D {
 		}
 
 		private float getPanStep() {
-			switch (getControlsSensitivity()) {
-				case "Highest":
-					return PAN.HIGHEST.step;
-				case "Hight":
-					return PAN.HIGH.step;
-				case "Medium":
-					return PAN.MEDIUM.step;
-				case "Low":
-					return PAN.LOW.step;
-				default:
-					return PAN.DEF_PAN_STEP;
-			}
+            return switch (getControlsSensitivity()) {
+                case "Highest" -> PAN.HIGHEST.step;
+                case "Hight" -> PAN.HIGH.step;
+                case "Medium" -> PAN.MEDIUM.step;
+                case "Low" -> PAN.LOW.step;
+                default -> PAN.DEF_PAN_STEP;
+            };
 		}
 
 		private float getZoomStep() {
-			switch (getControlsSensitivity()) {
-				case "Highest":
-					return ZOOM_STEPS[0];
-				case "Hight":
-					return ZOOM_STEPS[1];
-				case "Medium":
-					return ZOOM_STEPS[2];
-				case "Low":
-					return ZOOM_STEPS[3];
-				default:
-					return DEF_ZOOM_STEP;
-			}
+            return switch (getControlsSensitivity()) {
+                case "Highest" -> ZOOM_STEPS[0];
+                case "Hight" -> ZOOM_STEPS[1];
+                case "Medium" -> ZOOM_STEPS[2];
+                case "Low" -> ZOOM_STEPS[3];
+                default -> DEF_ZOOM_STEP;
+            };
 		}
 
 		private double getRotationStep() {
-			switch (getControlsSensitivity()) {
-				case "Highest":
-					return ROTATION_STEPS[0];
-				case "Hight":
-					return ROTATION_STEPS[1];
-				case "Medium":
-					return ROTATION_STEPS[2];
-				case "Low":
-					return ROTATION_STEPS[3];
-				default:
-					return DEF_ROTATION_STEP;
-			}
+            return switch (getControlsSensitivity()) {
+                case "Highest" -> ROTATION_STEPS[0];
+                case "Hight" -> ROTATION_STEPS[1];
+                case "Medium" -> ROTATION_STEPS[2];
+                case "Low" -> ROTATION_STEPS[3];
+                default -> DEF_ROTATION_STEP;
+            };
 		}
 
 		void setGuiPref(final String key, final String value) {
@@ -3514,20 +3469,20 @@ public class Viewer3D {
 			PointInImage p1;
 			PointInImage p2;
 			final PointInImage root = tree.getRoot();
-			switch (axis.split(" ")[0].toLowerCase()) {
-			case "x":
-				p1 = new PointInImage(root.x, bounds.getYmin(), bounds.getZmin());
-				p2 = new PointInImage(root.x, bounds.getYmax(), bounds.getZmax());
-				break;
-			case "y":
-				p1 = new PointInImage(bounds.getXmin(), root.y, bounds.getZmin());
-				p2 = new PointInImage(bounds.getXmax(), root.y, bounds.getZmax());
-				break;
-			default: // "z"
-				p1 = new PointInImage(bounds.getXmin(), bounds.getYmin(), root.z);
-				p2 = new PointInImage(bounds.getXmax(), bounds.getYmax(), root.z);
-				break;
-			}
+            p2 = switch (axis.split(" ")[0].toLowerCase()) {
+                case "x" -> {
+                    p1 = new PointInImage(root.x, bounds.getYmin(), bounds.getZmin());
+                    yield new PointInImage(root.x, bounds.getYmax(), bounds.getZmax());
+                }
+                case "y" -> {
+                    p1 = new PointInImage(bounds.getXmin(), root.y, bounds.getZmin());
+                    yield new PointInImage(bounds.getXmax(), root.y, bounds.getZmax());
+                }
+                default -> {
+                    p1 = new PointInImage(bounds.getXmin(), bounds.getYmin(), root.z);
+                    yield new PointInImage(bounds.getXmax(), bounds.getYmax(), root.z);
+                }
+            };
 			return new PointInImage[] { p1, p2 };
 		}
 
@@ -3630,7 +3585,7 @@ public class Viewer3D {
 		private JCheckBoxMenuItem getDebugCheckBox() {
 			debugCheckBox = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode() && debugger != null);
 			debugCheckBox.setEnabled(!isSNTInstance());
-			debugCheckBox.setIcon(IconFactory.getMenuIcon(GLYPH.STETHOSCOPE));
+			debugCheckBox.setIcon(IconFactory.menuIcon(GLYPH.STETHOSCOPE));
 			debugCheckBox.setMnemonic('d');
 			debugCheckBox.addItemListener(e -> {
 				final boolean debug = debugCheckBox.isSelected();
@@ -3981,9 +3936,10 @@ public class Viewer3D {
 		}
 
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
-			final JButton button = new JButton(IconFactory.getButtonIcon(glyph, 1.8f));
-			button.setToolTipText(tooltipMsg);
 			cmdFinder.register(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
+			final JButton button = new JButton();
+			IconFactory.assignIcon(button, glyph, 1.8f);
+			button.setToolTipText(tooltipMsg);
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 			return button;
 		}
@@ -3991,18 +3947,18 @@ public class Viewer3D {
 		private JPopupMenu sceneMenu() {
 			final JPopupMenu sceneMenu = new JPopupMenu();
 			final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
-			dark.setIcon(IconFactory.getMenuIcon(GLYPH.SUN));
+			dark.setIcon(IconFactory.menuIcon(GLYPH.SUN));
 			sceneMenu.add(dark);
 			sceneMenu.addSeparator();
 			final JMenuItem fit = new JMenuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false));
-			fit.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND));
+			fit.setIcon(IconFactory.menuIcon(GLYPH.EXPAND));
 			sceneMenu.add(fit);
 			sceneMenu.add(zoomToSelectionMenuItem());
 			// Aspect-ratio controls
 			sceneMenu.add(squarifyMenu());
 			sceneMenu.add(axesMenu());
 			final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
-			jcbmiFill.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND_ARROWS1));
+			jcbmiFill.setIcon(IconFactory.menuIcon(GLYPH.EXPAND_ARROWS1));
 			jcbmiFill.addItemListener(e -> {
 				final ViewportMode mode = (jcbmiFill.isSelected()) ? ViewportMode.STRETCH_TO_FILL
 						: ViewportMode.RECTANGLE_NO_STRETCH;
@@ -4010,33 +3966,33 @@ public class Viewer3D {
 			});
 			sceneMenu.add(jcbmiFill);
 			final JMenuItem resize = new JMenuItem(new Action(Action.RESIZE));
-			resize.setIcon(IconFactory.getMenuIcon(GLYPH.RESIZE));
+			resize.setIcon(IconFactory.menuIcon(GLYPH.RESIZE));
 			sceneMenu.add(resize);
 			final JMenuItem fullScreen = new JMenuItem(new Action(Action.ENTER_FULL_SCREEN, KeyEvent.VK_F, false, true));
-			fullScreen.setIcon(IconFactory.getMenuIcon(GLYPH.EXPAND_ARROWS2));
+			fullScreen.setIcon(IconFactory.menuIcon(GLYPH.EXPAND_ARROWS2));
 			sceneMenu.add(fullScreen);
 			sceneMenu.addSeparator();
 
 			final JMenuItem reset = new JMenuItem(new Action(Action.RESET_VIEW, KeyEvent.VK_R, false, false));
-			reset.setIcon(IconFactory.getMenuIcon(GLYPH.BROOM));
+			reset.setIcon(IconFactory.menuIcon(GLYPH.BROOM));
 			sceneMenu.add(reset);
 			final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true));
-			reload.setIcon(IconFactory.getMenuIcon(GLYPH.REDO));
+			reload.setIcon(IconFactory.menuIcon(GLYPH.REDO));
 			sceneMenu.add(reload);
 			final JMenuItem rebuild = new JMenuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true));
-			rebuild.setIcon(IconFactory.getMenuIcon(GLYPH.RECYCLE));
+			rebuild.setIcon(IconFactory.menuIcon(GLYPH.RECYCLE));
 			sceneMenu.add(rebuild);
-			final JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.getMenuIcon(GLYPH.DANGER));
+			final JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.menuIcon(GLYPH.DANGER));
 			wipe.addActionListener(e -> wipeWithPrompt());
 			sceneMenu.add(wipe);
 			sceneMenu.addSeparator();
 
 			final JMenuItem help = new JMenuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false));
 			new Action(Action.SCENE_SHORTCUTS_NOTIFICATION, KeyEvent.VK_H, false, false); // register alternative shortcut
-			help.setIcon(IconFactory.getMenuIcon(GLYPH.KEYBOARD));
+			help.setIcon(IconFactory.menuIcon(GLYPH.KEYBOARD));
 			sceneMenu.add(help);
 			sceneMenu.addSeparator();
-			final JMenuItem sup = new JMenuItem("Duplicate Scene", IconFactory.getMenuIcon(GLYPH.COPY));
+			final JMenuItem sup = new JMenuItem("Duplicate Scene", IconFactory.menuIcon(GLYPH.COPY));
 			sup.addActionListener(e -> {
 				class DupWorker extends SwingWorker<Viewer3D, Object> {
 
@@ -4067,14 +4023,14 @@ public class Viewer3D {
 			});
 			sceneMenu.add(sup);
 			final JMenuItem sync = new JMenuItem(new Action(Action.SYNC, KeyEvent.VK_S, true, true));
-			sync.setIcon(IconFactory.getMenuIcon(GLYPH.SYNC));
+			sync.setIcon(IconFactory.menuIcon(GLYPH.SYNC));
 			sync.setEnabled(isSNTInstance());
 			sceneMenu.add(sync);
 			return sceneMenu;
 		}
 
 		private JMenuItem zoomToSelectionMenuItem() {
-			final JMenuItem fitToSelection = new JMenuItem("Fit To Selection", IconFactory.getMenuIcon(GLYPH.CROSSHAIR));
+			final JMenuItem fitToSelection = new JMenuItem("Fit To Selection", IconFactory.menuIcon(GLYPH.CROSSHAIR));
 			fitToSelection.addActionListener(e -> {
 				List<?> selection = managerList.getSelectedValuesList();
 				if (managerList.getSelectedIndex() == -1 || selection.isEmpty()) {
@@ -4093,7 +4049,7 @@ public class Viewer3D {
 
 		private JMenu squarifyMenu() {
 			final JMenu menu = new JMenu("Impose Isotropic Scale");
-			menu.setIcon(IconFactory.getMenuIcon(GLYPH.EQUALS));
+			menu.setIcon(IconFactory.menuIcon(GLYPH.EQUALS));
 			final ButtonGroup cGroup = new ButtonGroup();
 			final String[] axes = new String[] { "XY", "ZY", "XZ", "None"};
 			for (final String axis : axes) {
@@ -4117,7 +4073,7 @@ public class Viewer3D {
 					setAxesLabels(labels);
 			});
 			menu.add(jmi);
-			menu.setIcon(IconFactory.getMenuIcon(GLYPH.CHART_LINE));
+			menu.setIcon(IconFactory.menuIcon(GLYPH.CHART_LINE));
 			final JCheckBoxMenuItem jcbm = new JCheckBoxMenuItem("Display Frame", view.isDisplayAxisWholeBounds());
 			jcbm.addActionListener(e -> {
 				if (jcbm.isSelected()) chart.setAxeDisplayed(true);
@@ -4142,11 +4098,11 @@ public class Viewer3D {
 
 		private JPopupMenu popupMenu() {
 			final JMenuItem renderIcons = new JCheckBoxMenuItem("Label Categories",
-					IconFactory.getMenuIcon(GLYPH.MARKER), managerList.renderer.iconVisible);
+					IconFactory.menuIcon(GLYPH.MARKER), managerList.renderer.iconVisible);
 			renderIcons.addItemListener(e -> {
 				managerList.setIconsVisible((renderIcons.isSelected()));
 			});
-			final JMenuItem sort = new JMenuItem("Sort List", IconFactory.getMenuIcon(GLYPH.SORT));
+			final JMenuItem sort = new JMenuItem("Sort List", IconFactory.menuIcon(GLYPH.SORT));
 			sort.addActionListener(e -> {
 				if (noLoadedItemsGuiError()) {
 					return;
@@ -4154,8 +4110,8 @@ public class Viewer3D {
 				managerList.model.sort();
 			});
 			final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
-			addTag.setIcon(IconFactory.getMenuIcon(GLYPH.TAG));
-			final JMenuItem wipeTags = new JMenuItem("Remove Tags...", IconFactory.getMenuIcon(GLYPH.BROOM));
+			addTag.setIcon(IconFactory.menuIcon(GLYPH.TAG));
+			final JMenuItem wipeTags = new JMenuItem("Remove Tags...", IconFactory.menuIcon(GLYPH.BROOM));
 			wipeTags.addActionListener(e -> {
 				if (noLoadedItemsGuiError())
 					return;
@@ -4166,7 +4122,7 @@ public class Viewer3D {
 					managerList.removeTagsFromSelectedItems(all);
 				}
 			});
-			final JMenuItem assignSceneColorTags = new JMenuItem("Apply Scene-based Tags", IconFactory.getMenuIcon(GLYPH.COLOR));
+			final JMenuItem assignSceneColorTags = new JMenuItem("Apply Scene-based Tags", IconFactory.menuIcon(GLYPH.COLOR));
 			assignSceneColorTags.addActionListener(e -> {
 				if (noLoadedItemsGuiError())
 					return;
@@ -4176,7 +4132,7 @@ public class Viewer3D {
 			
 			// Select menu
 			final JMenu selectMenu = new JMenu("Select");
-			selectMenu.setIcon(IconFactory.getMenuIcon(GLYPH.POINTER));
+			selectMenu.setIcon(IconFactory.menuIcon(GLYPH.POINTER));
 			final JMenuItem selectAnnotations = new JMenuItem("Annotations");
 			selectAnnotations.addActionListener(e -> selectRows(plottedAnnotations));
 			final JMenuItem selectMeshes = new JMenuItem("Meshes");
@@ -4194,7 +4150,7 @@ public class Viewer3D {
 
 			// Hide menu
 			final JMenu hideMenu = new JMenu("Hide");
-			hideMenu.setIcon(IconFactory.getMenuIcon(GLYPH.EYE_SLASH));
+			hideMenu.setIcon(IconFactory.menuIcon(GLYPH.EYE_SLASH));
 			final JMenuItem hideMeshes = new JMenuItem("Meshes");
 			hideMeshes.addActionListener(e -> hide(plottedTrees));
 			final JMenuItem hideTrees = new JMenuItem("Trees");
@@ -4221,7 +4177,7 @@ public class Viewer3D {
 
 			// Show Menu
 			final JMenu showMenu = new JMenu("Show");
-			showMenu.setIcon(IconFactory.getMenuIcon(GLYPH.EYE));
+			showMenu.setIcon(IconFactory.menuIcon(GLYPH.EYE));
 			final JMenuItem showMeshes = new JMenuItem("Only Meshes");
 			showMeshes.addActionListener(e -> show(plottedObjs));
 			final JMenuItem showTrees = new JMenuItem("Only Trees");
@@ -4246,7 +4202,7 @@ public class Viewer3D {
 //			showMenu.add(showAll);
 			showMenu.add(showSelected);
 
-			final JMenuItem remove = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(GLYPH.TRASH));
+			final JMenuItem remove = new JMenuItem("Remove Selected...", IconFactory.menuIcon(GLYPH.TRASH));
 			remove.addActionListener(e -> {
 				if (managerList.getSelectedIndex() == managerList.getCheckBoxListSelectionModel().getAllEntryIndex()) {
 					wipeWithPrompt();
@@ -4279,19 +4235,14 @@ public class Viewer3D {
 			pMenu.add(assignSceneColorTags);
 			pMenu.add(wipeTags);
 			pMenu.addSeparator();
-//			final JMenuItem alternate = new JMenuItem("Alternating row colors", IconFactory.getMenuIcon(GLYPH.TABLE));
-//			alternate.addActionListener(e -> {
-//				if (!noLoadedItemsGuiError())  GuiUtils.setAlternatingRowColors(managerList, alternate.isSelected());
-//			});
-//			pMenu.add(alternate);
 			pMenu.add(renderIcons);
 			pMenu.add(sort);
 			pMenu.addSeparator();
 			JMenuItem jmi = new JMenuItem(new Action(Action.PROGRESS));
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.SPINNER));
+			jmi.setIcon(IconFactory.menuIcon(GLYPH.SPINNER));
 			pMenu.add(jmi);
 			jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
-			jmi.setIcon(IconFactory.getMenuIcon(GLYPH.BINOCULARS));
+			jmi.setIcon(IconFactory.menuIcon(GLYPH.BINOCULARS));
 			pMenu.add(jmi);
 			pMenu.addSeparator();
 			pMenu.add(remove);
@@ -4549,7 +4500,7 @@ public class Viewer3D {
 			});
 			measureMenu.add(mi);
 			GuiUtils.addSeparator(measureMenu, "Distribution Analyses:");
-			mi = new JMenuItem("Branch Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
+			mi = new JMenuItem("Branch Properties...", IconFactory.menuIcon(GLYPH.CHART));
 			mi.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4560,7 +4511,7 @@ public class Viewer3D {
 				runCmd(DistributionBPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
-			mi = new JMenuItem("Cell Properties...", IconFactory.getMenuIcon(GLYPH.CHART));
+			mi = new JMenuItem("Cell Properties...", IconFactory.menuIcon(GLYPH.CHART));
 			mi.setToolTipText("Computes distributions of metrics from individual cells");
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
@@ -4627,7 +4578,7 @@ public class Viewer3D {
 			});
 			measureMenu.add(mi);
 			GuiUtils.addSeparator(measureMenu, "Atlas-based Analyses:");
-			mi = GuiUtils.MenuItems.createAnnotionGraph();
+			mi = GuiUtils.MenuItems.createAnnotationGraph();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();
 				if (trees == null || trees.isEmpty()) return;
@@ -4661,7 +4612,7 @@ public class Viewer3D {
 
 		private void addCustomizeMeshCommands(final JPopupMenu menu) {
 			GuiUtils.addSeparator(menu, "Customize:");
-			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
+			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.menuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null) return;
@@ -4701,7 +4652,7 @@ public class Viewer3D {
 			menu.add(mi);
 
 			// Mesh customizations
-			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
+			mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedMeshLabels();
 				if (keys == null) return;
@@ -4717,7 +4668,7 @@ public class Viewer3D {
 				}
 			});
 			menu.add(mi);
-			mi = new JMenuItem("Transparency...", IconFactory.getMenuIcon(
+			mi = new JMenuItem("Transparency...", IconFactory.menuIcon(
 				GLYPH.ADJUST));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedMeshLabels();
@@ -4736,7 +4687,7 @@ public class Viewer3D {
 
 		private void addCustomizeTreeCommands(final JPopupMenu menu) {
 
-			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
+			JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.menuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
@@ -4803,7 +4754,7 @@ public class Viewer3D {
 			});
 			menu.add(mi);
 
-			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
+			mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null || !okToApplyColor(keys)) return;
@@ -4813,7 +4764,7 @@ public class Viewer3D {
 			});
 			menu.add(mi);
 			final JMenu ccMenu = new JMenu("Color Mapping");
-			ccMenu.setIcon(IconFactory.getMenuIcon(GLYPH.COLOR2));
+			ccMenu.setIcon(IconFactory.menuIcon(GLYPH.COLOR2));
 			menu.add(ccMenu);
 			mi = new JMenuItem("Apply Color Mapping...");
 			mi.addActionListener(e -> {
@@ -4849,7 +4800,7 @@ public class Viewer3D {
 			});
 			ccMenu.add(mi);
 
-			mi = new JMenuItem("Thickness...", IconFactory.getMenuIcon(GLYPH.DOTCIRCLE));
+			mi = new JMenuItem("Thickness...", IconFactory.menuIcon(GLYPH.DOTCIRCLE));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
@@ -4872,7 +4823,7 @@ public class Viewer3D {
 				setTreeThickness(keys, thickness.floatValue(), null);
 			});
 			menu.add(mi);
-			mi = new JMenuItem("Soma radius...", IconFactory.getMenuIcon(GLYPH.CIRCLE));
+			mi = new JMenuItem("Soma radius...", IconFactory.menuIcon(GLYPH.CIRCLE));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
@@ -4893,7 +4844,7 @@ public class Viewer3D {
 				setSomaRadius(keys, radius.floatValue());
 			});
 			menu.add(mi);
-			mi = new JMenuItem("Translate...", IconFactory.getMenuIcon(GLYPH.MOVE));
+			mi = new JMenuItem("Translate...", IconFactory.menuIcon(GLYPH.MOVE));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
 				if (keys == null) return;
@@ -4907,7 +4858,7 @@ public class Viewer3D {
 		private JPopupMenu utilsMenu() {
 			final JPopupMenu utilsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(utilsMenu, "Utilities:");
-			JMenuItem mi = new JMenuItem("Annotation Label...", IconFactory.getMenuIcon(GLYPH.PEN));
+			JMenuItem mi = new JMenuItem("Annotation Label...", IconFactory.menuIcon(GLYPH.PEN));
 			mi.addActionListener(e -> {
 				runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, true, false);
 			});
@@ -4924,10 +4875,10 @@ public class Viewer3D {
 				});
 				utilsMenu.add(jmi);
 			}
-			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.getMenuIcon(GLYPH.BULB));
+			final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.menuIcon(GLYPH.BULB));
 			light.addActionListener(e -> frame.displayLightController(null));
 			utilsMenu.add(light);
-			mi = new JMenuItem("Record Rotation", IconFactory.getMenuIcon(GLYPH.VIDEO));
+			mi = new JMenuItem("Record Rotation", IconFactory.menuIcon(GLYPH.VIDEO));
 			mi.addActionListener(e -> {
 				SwingUtilities.invokeLater(() -> {
 					displayMsg("Recording rotation...", 0);
@@ -4937,12 +4888,12 @@ public class Viewer3D {
 			utilsMenu.add(mi);
 			GuiUtils.addSeparator(utilsMenu, "Screenshots:");
 			final JMenuItem snapshot2 = new JMenuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false));
-			snapshot2.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
+			snapshot2.setIcon(IconFactory.menuIcon(GLYPH.CAMERA));
 			utilsMenu.add(snapshot2);
 			final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false));
-			snapshot.setIcon(IconFactory.getMenuIcon(GLYPH.CAMERA));
+			snapshot.setIcon(IconFactory.menuIcon(GLYPH.CAMERA));
 			utilsMenu.add(snapshot);
-			final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.getMenuIcon(GLYPH.OPEN_FOLDER));
+			final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
 			reveal.addActionListener(e -> {
 				try {
 					guiUtils.showDirectory(prefs.getSnapshotDir());
@@ -4953,8 +4904,8 @@ public class Viewer3D {
 			utilsMenu.add(reveal);
 
 			GuiUtils.addSeparator(utilsMenu, "Resources:");
-			final JMenu helpMenu = GuiUtils.helpMenu();
-			helpMenu.setIcon( IconFactory.getMenuIcon(GLYPH.QUESTION));
+			final JMenu helpMenu = GuiUtils.MenuItems.helpMenu();
+			helpMenu.setIcon( IconFactory.menuIcon(GLYPH.QUESTION));
 			utilsMenu.add(helpMenu);
 			return utilsMenu;
 		}
@@ -4963,10 +4914,10 @@ public class Viewer3D {
 			final JPopupMenu scriptMenu = new JPopupMenu();
 			GuiUtils.addSeparator(scriptMenu, "New Script:");
 			JMenuItem mi = new JMenuItem(new Action(Action.RECORDER, KeyEvent.VK_OPEN_BRACKET, false, false));
-			mi.setIcon(IconFactory.getMenuIcon(GLYPH.CODE));
+			mi.setIcon(IconFactory.menuIcon(GLYPH.CODE));
 			scriptMenu.add(mi);
 			final JMenuItem log = new JMenuItem(new Action(Action.LOG_TO_RECORDER, KeyEvent.VK_L, false, false));
-			log.setIcon(IconFactory.getMenuIcon(GLYPH.STREAM));
+			log.setIcon(IconFactory.menuIcon(GLYPH.STREAM));
 			scriptMenu.add(log);
 			GuiUtils.addSeparator(scriptMenu, "Resources:");
 			scriptMenu.add(GuiUtils.MenuItems.devResourceMain());
@@ -4979,7 +4930,7 @@ public class Viewer3D {
 			final JPopupMenu prefsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(prefsMenu, "Layout:");
 			final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
-			hide.setIcon(IconFactory.getMenuIcon(GLYPH.WINDOWS2));
+			hide.setIcon(IconFactory.menuIcon(GLYPH.WINDOWS2));
 			prefsMenu.add(hide);
 			GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
 			prefsMenu.add(panMenu());
@@ -4992,7 +4943,7 @@ public class Viewer3D {
 			if (ENGINE == Engine.JOGL) {
 				final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
 				//jcbmi2.setEnabled(!isSNTInstance());
-				jcbmi2.setIcon(IconFactory.getMenuIcon(GLYPH.MICROCHIP));
+				jcbmi2.setIcon(IconFactory.menuIcon(GLYPH.MICROCHIP));
 				jcbmi2.setMnemonic('h');
 				jcbmi2.addItemListener(e -> {
 					Settings.getInstance().setHardwareAccelerated(jcbmi2.isSelected());
@@ -5001,7 +4952,7 @@ public class Viewer3D {
 				prefsMenu.add(jcbmi2);
 			}
 			GuiUtils.addSeparator(prefsMenu, "Other:");
-			final JMenuItem mi = new JMenuItem("Preferences...", IconFactory.getMenuIcon(GLYPH.COGS));
+			final JMenuItem mi = new JMenuItem("Preferences...", IconFactory.menuIcon(GLYPH.COGS));
 			mi.addActionListener(e -> {
 				runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false);
 			});
@@ -5011,7 +4962,7 @@ public class Viewer3D {
 
 		private JMenu panMenu() {
 			final JMenu panMenu = new JMenu("Pan Accuracy");
-			panMenu.setIcon(IconFactory.getMenuIcon(GLYPH.HAND));
+			panMenu.setIcon(IconFactory.menuIcon(GLYPH.HAND));
 			final ButtonGroup pGroup = new ButtonGroup();
 			for (final Prefs.PAN pan : Prefs.PAN.values()) {
 				final JMenuItem jcbmi = new JCheckBoxMenuItem(pan.description);
@@ -5025,7 +4976,7 @@ public class Viewer3D {
 
 		private JMenu rotationMenu() {
 			final JMenu rotationMenu = new JMenu("Rotation Steps (Arrow Keys)");
-			rotationMenu.setIcon(IconFactory.getMenuIcon(GLYPH.UNDO));
+			rotationMenu.setIcon(IconFactory.menuIcon(GLYPH.UNDO));
 			final ButtonGroup rGroup = new ButtonGroup();
 			for (final double step : Prefs.ROTATION_STEPS) {
 				final JMenuItem jcbmi = new JCheckBoxMenuItem(String.format("%.1f", Math
@@ -5040,7 +4991,7 @@ public class Viewer3D {
 
 		private JMenu zoomMenu() {
 			final JMenu zoomMenu = new JMenu("Zoom Steps (+/- Keys)");
-			zoomMenu.setIcon(IconFactory.getMenuIcon(GLYPH.SEARCH));
+			zoomMenu.setIcon(IconFactory.menuIcon(GLYPH.SEARCH));
 			final ButtonGroup zGroup = new ButtonGroup();
 			for (final float step : Prefs.ZOOM_STEPS) {
 				final JMenuItem jcbmi = new JCheckBoxMenuItem(String.format("%.0f",
@@ -5106,7 +5057,7 @@ public class Viewer3D {
 		private JPopupMenu treesMenu() {
 			final JPopupMenu tracesMenu = new JPopupMenu();
 			GuiUtils.addSeparator(tracesMenu, "Add:");
-			JMenuItem mi = new JMenuItem("Load File...", IconFactory.getMenuIcon(
+			JMenuItem mi = new JMenuItem("Load File...", IconFactory.menuIcon(
 				GLYPH.IMPORT));
 			mi.setMnemonic('f');
 			mi.addActionListener(e -> {
@@ -5115,7 +5066,7 @@ public class Viewer3D {
 				runImportCmd(LoadReconstructionCmd.class, inputs);
 			});
 			tracesMenu.add(mi);
-			mi = new JMenuItem("Load Directory...", IconFactory.getMenuIcon(
+			mi = new JMenuItem("Load Directory...", IconFactory.menuIcon(
 				GLYPH.FOLDER));
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
@@ -5124,7 +5075,7 @@ public class Viewer3D {
 			});
 			tracesMenu.add(mi);
 
-			mi = new JMenuItem("Load & Compare Groups...", IconFactory.getMenuIcon(GLYPH.MAGIC));
+			mi = new JMenuItem("Load & Compare Groups...", IconFactory.menuIcon(GLYPH.MAGIC));
 			mi.addActionListener(e -> runImportCmd(GroupAnalyzerCmd.class, null));
 			tracesMenu.add(mi);
 
@@ -5133,7 +5084,7 @@ public class Viewer3D {
 			final JMenu remoteMenu = new JMenu("Load from Database");
 			remoteMenu.setMnemonic('d');
 			remoteMenu.setDisplayedMnemonicIndex(10);
-			remoteMenu.setIcon(IconFactory.getMenuIcon(GLYPH.DATABASE));
+			remoteMenu.setIcon(IconFactory.menuIcon(GLYPH.DATABASE));
 			tracesMenu.add(remoteMenu);
 			mi = new JMenuItem("FlyCircuit...", 'f');
 			mi.addActionListener(e -> {
@@ -5160,7 +5111,7 @@ public class Viewer3D {
 			addCustomizeTreeCommands(tracesMenu);
 
 			GuiUtils.addSeparator(tracesMenu, "Remove:");
-			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(
+			mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(
 				GLYPH.DELETE));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedTreeLabels();
@@ -5179,7 +5130,7 @@ public class Viewer3D {
 				updateView();
 			});
 			tracesMenu.add(mi);
-			mi = new JMenuItem("Remove All...", IconFactory.getMenuIcon(GLYPH.TRASH));
+			mi = new JMenuItem("Remove All...", IconFactory.menuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
 				if (guiUtils.getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
 					removeAllTrees();
@@ -5189,7 +5140,7 @@ public class Viewer3D {
 		}
 
 		private JMenuItem loadDemoMenuItem() {
-			final JMenuItem mi = new JMenuItem("Load Demo(s)...", IconFactory.getMenuIcon(GLYPH.GRADUATION_CAP));
+			final JMenuItem mi = new JMenuItem("Load Demo(s)...", IconFactory.menuIcon(GLYPH.GRADUATION_CAP));
 			mi.addActionListener(e -> {
 				try {
 					final DemoRunner demoRunner = new DemoRunner(SNTUtils.getContext());
@@ -5207,15 +5158,15 @@ public class Viewer3D {
 		private JMenu legendMenu() {
 			// Legend Menu
 			final JMenu legendMenu = new JMenu("Color Mapping Legends");
-			legendMenu.setIcon(IconFactory.getMenuIcon(GLYPH.COLOR2));
-			JMenuItem mi = new JMenuItem("Add...", IconFactory.getMenuIcon(GLYPH.PLUS));
+			legendMenu.setIcon(IconFactory.menuIcon(GLYPH.COLOR2));
+			JMenuItem mi = new JMenuItem("Add...", IconFactory.menuIcon(GLYPH.PLUS));
 			mi.addActionListener(e -> {
 				final Map<String, Object> inputs = new HashMap<>();
 				inputs.put("treeLabels", null);
 				runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
 			});
 			legendMenu.add(mi);
-			mi = new JMenuItem("Edit Last...", IconFactory.getMenuIcon(GLYPH.SLIDERS));
+			mi = new JMenuItem("Edit Last...", IconFactory.menuIcon(GLYPH.SLIDERS));
 			mi.addActionListener(e -> {
 				if (cBar == null) {
 					guiUtils.error("No Legend currently exists.");
@@ -5257,10 +5208,10 @@ public class Viewer3D {
 			legendMenu.add(mi);
 
 			legendMenu.addSeparator();
-			mi = new JMenuItem("Remove Last", IconFactory.getMenuIcon(GLYPH.DELETE));
+			mi = new JMenuItem("Remove Last", IconFactory.menuIcon(GLYPH.DELETE));
 			mi.addActionListener(e -> removeColorLegends(true));
 			legendMenu.add(mi);
-			mi = new JMenuItem("Remove All...", IconFactory.getMenuIcon(GLYPH.TRASH));
+			mi = new JMenuItem("Remove All...", IconFactory.menuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
 				if (guiUtils.getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
 					removeColorLegends(false);
@@ -5273,13 +5224,13 @@ public class Viewer3D {
 			final JPopupMenu meshMenu = new JPopupMenu();
 			GuiUtils.addSeparator(meshMenu, "Add:");
 			JMenuItem mi = new JMenuItem("Load OBJ File(s)...", IconFactory
-				.getMenuIcon(GLYPH.IMPORT));
+				.menuIcon(GLYPH.IMPORT));
 			mi.addActionListener(e -> runImportCmd(LoadObjCmd.class, null)); // LoadObjCmd will call validate()
 			meshMenu.add(mi);
 			addCustomizeMeshCommands(meshMenu);
 
 			GuiUtils.addSeparator(meshMenu, "Remove:");
-			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(
+			mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(
 				GLYPH.DELETE));
 			mi.addActionListener(e -> {
 				final List<String> keys = getSelectedMeshLabels();
@@ -5299,7 +5250,7 @@ public class Viewer3D {
 			});
 			meshMenu.add(mi);
 			mi = new JMenuItem("Remove All...");
-			mi.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
+			mi.setIcon(IconFactory.menuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
 				if (guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
 					removeAllMeshes();
@@ -5312,7 +5263,7 @@ public class Viewer3D {
 
 			final JPopupMenu annotMenu = new JPopupMenu();
 			GuiUtils.addSeparator(annotMenu, "Add:");
-			JMenuItem mi = new JMenuItem("Cell-based Cross-section Plane...", IconFactory.getMenuIcon(GLYPH.SCISSORS));
+			JMenuItem mi = new JMenuItem("Cell-based Cross-section Plane...", IconFactory.menuIcon(GLYPH.SCISSORS));
 			mi.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees(true);
@@ -5334,7 +5285,7 @@ public class Viewer3D {
 				setSceneUpdatesEnabled(true);
 			});
 			annotMenu.add(mi);
-			mi = new JMenuItem("Cell-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			mi = new JMenuItem("Cell-based Surface...", IconFactory.menuIcon(GLYPH.DICE_20));
 			mi.setToolTipText("Adds convex-hull tesselations to neuronal arbors");
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees(true);
@@ -5370,7 +5321,7 @@ public class Viewer3D {
 				}
 			});
 			annotMenu.add(mi);
-			mi = new JMenuItem("Mesh-based Cross-section Plane...", IconFactory.getMenuIcon(GLYPH.SCISSORS));
+			mi = new JMenuItem("Mesh-based Cross-section Plane...", IconFactory.menuIcon(GLYPH.SCISSORS));
 			mi.setToolTipText("Adds cross-section plane(s) to selected meshes");
 			mi.addActionListener(e -> {
 				final List<String> meshLabels = getSelectedMeshLabels();
@@ -5392,7 +5343,7 @@ public class Viewer3D {
 				setSceneUpdatesEnabled(true);
 			});
 			annotMenu.add(mi);
-			mi = new JMenuItem("Mesh-based Surface...", IconFactory.getMenuIcon(GLYPH.DICE_20));
+			mi = new JMenuItem("Mesh-based Surface...", IconFactory.menuIcon(GLYPH.DICE_20));
 			mi.setToolTipText("Adds convex-hull tesselations to selected meshes");
 			mi.addActionListener(e -> {
 				final List<String> meshLabels = getSelectedMeshLabels();
@@ -5417,9 +5368,9 @@ public class Viewer3D {
 			annotMenu.add(mi);
 			final JMenu primitives = new JMenu("Misc");
 			primitives.setToolTipText("Adds basic geometry objects to the scene");
-			primitives.setIcon(IconFactory.getMenuIcon(GLYPH.ELLIPSIS));
+			primitives.setIcon(IconFactory.menuIcon(GLYPH.ELLIPSIS));
 			annotMenu.add(primitives);
-			mi = new JMenuItem("Sphere...", IconFactory.getMenuIcon(GLYPH.GLOBE));
+			mi = new JMenuItem("Sphere...", IconFactory.menuIcon(GLYPH.GLOBE));
 			mi.addActionListener(e -> {
 				final AnnotPrompt ap = new AnnotPrompt();
 				if (ap.validPrompt("Sphere Properties...", new String[] { "Center X ", "Center Y ", "Center Z "}, null, true)) {
@@ -5428,7 +5379,7 @@ public class Viewer3D {
 				}
 			});
 			primitives.add(mi);
-			mi = new JMenuItem("Vector...", IconFactory.getMenuIcon(GLYPH.ARROWS_LR));
+			mi = new JMenuItem("Vector...", IconFactory.menuIcon(GLYPH.ARROWS_LR));
 			mi.addActionListener(e -> {
 				final AnnotPrompt ap = new AnnotPrompt();
 				if (ap.validPrompt("Vector Properties...", new String[] { "X1 ", "Y1 ", "Z1 " },
@@ -5439,7 +5390,7 @@ public class Viewer3D {
 				}
 			});
 			primitives.add(mi);
-			mi = new JMenuItem("Plane/Parallelepiped...", IconFactory.getMenuIcon(GLYPH.SQUARE));
+			mi = new JMenuItem("Plane/Parallelepiped...", IconFactory.menuIcon(GLYPH.SQUARE));
 			mi.addActionListener(e -> {
 				final AnnotPrompt ap = new AnnotPrompt();
 				if (ap.validPrompt("Plane/Parallelepiped Properties...", new String[] { "Origin X ", "Origin Y ", "Origin Z " },
@@ -5450,7 +5401,7 @@ public class Viewer3D {
 			});
 			primitives.add(mi);
 			GuiUtils.addSeparator(annotMenu, "Customize:");
-			mi = new JMenuItem("Color...", IconFactory.getMenuIcon(GLYPH.COLOR));
+			mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
 			mi.addActionListener(e -> {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
@@ -5460,7 +5411,7 @@ public class Viewer3D {
 					annots.forEach(annot -> annot.setColor(c, -1));
 			});
 			annotMenu.add(mi);
-			mi = new JMenuItem("Color Gradient...", IconFactory.getMenuIcon(GLYPH.COLOR2));
+			mi = new JMenuItem("Color Gradient...", IconFactory.menuIcon(GLYPH.COLOR2));
 			mi.addActionListener(e -> {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
@@ -5479,7 +5430,7 @@ public class Viewer3D {
 					guiUtils.error(("The following annotations do not support color gradients: " + failures.toString()));
 			});
 			annotMenu.add(mi);
-			mi = new JMenuItem("Transparency...", IconFactory.getMenuIcon(GLYPH.ADJUST));
+			mi = new JMenuItem("Transparency...", IconFactory.menuIcon(GLYPH.ADJUST));
 			mi.addActionListener(e -> {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null)
@@ -5489,12 +5440,12 @@ public class Viewer3D {
 					annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
 			});
 			annotMenu.add(mi);
-			final JMenuItem material = new JMenuItem("Surface Rendering...", IconFactory.getMenuIcon(GLYPH.CUBES));
+			final JMenuItem material = new JMenuItem("Surface Rendering...", IconFactory.menuIcon(GLYPH.CUBES));
 			material.addActionListener(e -> {
 				if (noLoadedItemsGuiError()) {
 					return;
 				}
-				if (!chart.getScene().getGraph().getAll().stream().anyMatch( g -> g instanceof AbstractEnlightable)) {
+				if (chart.getScene().getGraph().getAll().stream().noneMatch(g -> g instanceof AbstractEnlightable)) {
 					guiUtils.error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
 							+ "Current scene contains no such objects.");
 					return;
@@ -5515,7 +5466,7 @@ public class Viewer3D {
 			});
 			annotMenu.add(material);
 			GuiUtils.addSeparator(annotMenu, "Remove:");
-			mi = new JMenuItem("Remove Selected...", IconFactory.getMenuIcon(GLYPH.DELETE));
+			mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(GLYPH.DELETE));
 			mi.addActionListener(e -> {
 				final List<Annotation3D> annots = getSelectedAnnotations();
 				if (annots == null || annots.isEmpty()) {
@@ -5532,7 +5483,7 @@ public class Viewer3D {
 			});
 			annotMenu.add(mi);
 			mi = new JMenuItem("Remove All...");
-			mi.setIcon(IconFactory.getMenuIcon(GLYPH.TRASH));
+			mi.setIcon(IconFactory.menuIcon(GLYPH.TRASH));
 			mi.addActionListener(e -> {
 				if (guiUtils.getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
 					removeAllAnnotations();
@@ -5545,7 +5496,7 @@ public class Viewer3D {
 			final JPopupMenu refMenu = new JPopupMenu("Reference Brains");
 			GuiUtils.addSeparator(refMenu, "Mouse:");
 			JMenuItem mi = new JMenuItem("Allen CCF Navigator", IconFactory
-					.getMenuIcon(GLYPH.NAVIGATE));
+					.menuIcon(GLYPH.NAVIGATE));
 			mi.addActionListener(e -> {
 				assert SwingUtilities.isEventDispatchThread();
 				if (frame.allenNavigator != null) {
@@ -5580,35 +5531,35 @@ public class Viewer3D {
 			refMenu.add(mi);
 			
 			GuiUtils.addSeparator(refMenu, "Zebrafish:");
-			mi = new JMenuItem("Max Planck ZBA", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Max Planck ZBA", IconFactory.menuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_ZEBRAFISH));
 			refMenu.add(mi);
 
 			GuiUtils.addSeparator(refMenu, "Drosophila:");
-			mi = new JMenuItem("Adult Brain: FlyCircuit", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Adult Brain: FlyCircuit", IconFactory.menuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_FCWB));
 			refMenu.add(mi);
-			mi = new JMenuItem("Adult Brain: JRC 2018 (Unisex)", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Adult Brain: JRC 2018 (Unisex)", IconFactory.menuIcon(GLYPH.ARCHIVE));
 			mi.setToolTipText("<HTML>AKA <i>The Bogovic brain</i>");
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC2018));
 			refMenu.add(mi);
-			mi = new JMenuItem("Adult Brain: JFRC2", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Adult Brain: JFRC2", IconFactory.menuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC2));
 			refMenu.add(mi);
-			mi = new JMenuItem("Adult Brain: JFRC3", IconFactory.getMenuIcon(GLYPH.ARCHIVE));
+			mi = new JMenuItem("Adult Brain: JFRC3", IconFactory.menuIcon(GLYPH.ARCHIVE));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC3));
 			refMenu.add(mi);
-			mi = new JMenuItem("Adult VNS", IconFactory.getMenuIcon(GLYPH.CLOUD));
+			mi = new JMenuItem("Adult VNS", IconFactory.menuIcon(GLYPH.CLOUD));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_VNS));
 			refMenu.add(mi);
-			mi = new JMenuItem("L1 Larva", IconFactory.getMenuIcon(GLYPH.CLOUD));
+			mi = new JMenuItem("L1 Larva", IconFactory.menuIcon(GLYPH.CLOUD));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_L1));
 			refMenu.add(mi);
-			mi = new JMenuItem("L3 Larva", IconFactory.getMenuIcon(GLYPH.CLOUD));
+			mi = new JMenuItem("L3 Larva", IconFactory.menuIcon(GLYPH.CLOUD));
 			mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_L3));
 			refMenu.add(mi);
 			refMenu.addSeparator();
-			mi = GuiUtils.menuItemTriggeringHelpURL("Reference Brains Help",
+			mi = GuiUtils.MenuItems.openHelpURL("Reference Brains Help",
 					"https://imagej.net/plugins/snt/reconstruction-viewer#reference-brains");
 			refMenu.add(mi);
 			return refMenu;
@@ -5889,26 +5840,15 @@ public class Viewer3D {
 		public AllenCCFNavigator() {
 			treeModel = AllenUtils.getTreeModel(true);
 			tree = new NavigatorTree(treeModel);
-			tree.setVisibleRowCount(10);
-			tree.setEditable(false);
-			tree.getCheckBoxTreeSelectionModel().setDigIn(false);
-			tree.setExpandsSelectedPaths(true);
-			tree.setRootVisible(true);
-
-			// Remove default folder/file icons on Windows L&F
-			final DefaultTreeCellRenderer renderer = (DefaultTreeCellRenderer) tree.getActualCellRenderer();
-			renderer.setLeafIcon(null);
-			renderer.setClosedIcon(null);
-			renderer.setOpenIcon(null);
-
-			GuiUtils.expandAllTreeNodes(tree);
-			tree.setClickInCheckBoxOnly(false);
 			searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
+			//searchableBar.getSearchable().setRepeats(false);
 			searchableBar.setStatusLabelPlaceholder("CCF v"+ AllenUtils.VERSION);
-			searchableBar.setHighlightAll(false);
+			searchableBar.setHighlightAll(true);
 			searchableBar.setShowMatchCount(true);
 			searchableBar.setVisibleButtons(
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
+			tree.setCellRenderer(new CustomRenderer(tree, searchableBar));
+			GuiUtils.expandAllTreeNodes(tree);
 			refreshTree(false);
 		}
 
@@ -6123,13 +6063,13 @@ public class Viewer3D {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1,2));
 			buttonPanel.setBorder(null);
 			frame.managerPanel.setFixedHeight(buttonPanel);
-			JButton button = new JButton(IconFactory.getButtonIcon(GLYPH.INFO));
+			JButton button = new JButton();
+			IconFactory.assignIcon(button, GLYPH.INFO);
 			button.addActionListener(e -> showSelectionInfo());
 			buttonPanel.add(button);
-			button = new JButton(IconFactory.getButtonIcon(GLYPH.IMPORT));
-			button.addActionListener(e -> {
-				downloadMeshes();
-			});
+			button = new JButton();
+			IconFactory.assignIcon(button, GLYPH.IMPORT);
+			button.addActionListener(e -> downloadMeshes());
 			buttonPanel.add(button);
 			return buttonPanel;
 		}
@@ -6143,11 +6083,19 @@ public class Viewer3D {
 			jmi.addActionListener(e -> GuiUtils.collapseAllTreeNodes(tree));
 			pMenu.add(jmi);
 			jmi = new JMenuItem("Expand All");
-			jmi.addActionListener(e -> GuiUtils.expandAllTreeNodes(tree));
+			jmi.addActionListener(e -> {
+				GuiUtils.expandAllTreeNodes(tree);
+				if (!searchableBar.getSearchField().getText().isEmpty())
+					searchableBar.getSearchField().setText(searchableBar.getSearchField().getText());
+			});
 			pMenu.add(jmi);
 			pMenu.addSeparator();
-			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 2D Atlas Viewer", "https://atlas.brain-map.org/atlas?atlas=602630314"));
-			pMenu.add(GuiUtils.menuItemTriggeringHelpURL("Online 3D Atlas Viewer", "https://connectivity.brain-map.org/3d-viewer"));
+			final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Apply Checkbox Selection to Children", tree.getCheckBoxTreeSelectionModel().isDigIn());
+			jcmi.addItemListener(e -> tree.getCheckBoxTreeSelectionModel().setDigIn(jcmi.isSelected()));
+			pMenu.add(jcmi);
+			pMenu.addSeparator();
+			pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 2D Atlas Viewer", "https://atlas.brain-map.org/atlas?atlas=602630314"));
+			pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 3D Atlas Viewer", "https://connectivity.brain-map.org/3d-viewer"));
 			return pMenu;
 		}
 		private class NavigatorTree extends CheckBoxTree {
@@ -6155,10 +6103,17 @@ public class Viewer3D {
 
 			public NavigatorTree(final DefaultTreeModel treeModel) {
 				super(treeModel);
-				setCellRenderer(new CustomRenderer());
-				super.setLargeModel(true);
+				setLargeModel(true);
+				setDigIn(false);
+				setClickInCheckBoxOnly(false);
+				setEditable(false);
+				setExpandsSelectedPaths(true);
+				setRootVisible(true);
 			}
-
+			@Override
+			public TreePath getNextMatch(String prefix, int startingRow, Position. Bias bias) {
+				return null; // avoid conflict with search bar
+			}
 			@Override
 			public boolean isCheckBoxEnabled(final TreePath treePath) {
 				final DefaultMutableTreeNode selectedElement = (DefaultMutableTreeNode) treePath.getLastPathComponent();
@@ -6167,16 +6122,49 @@ public class Viewer3D {
 			}
 		}
 
-		class CustomRenderer extends DefaultTreeCellRenderer {
+		static class CustomRenderer extends DefaultTreeCellRenderer {
 			private static final long serialVersionUID = 1L;
+			private final SNTSearchableBar searchableBar;
+
+			CustomRenderer(NavigatorTree tree, final SNTSearchableBar searchableBar) {
+				super();
+				this.searchableBar = searchableBar;
+				searchableBar.getSearchField().getDocument().addDocumentListener(new DocumentListener() {
+					@Override
+					public void changedUpdate(DocumentEvent e) {
+						repaintWhenEmpty();
+					}
+					@Override
+					public void removeUpdate(DocumentEvent e) {
+						repaintWhenEmpty();
+					}
+					@Override
+					public void insertUpdate(DocumentEvent e) {
+						repaintWhenEmpty();
+					}
+					void repaintWhenEmpty() {
+						if (searchableBar.getSearchField().getText().isEmpty()) {
+							tree.repaint();
+						}
+					}
+				});
+			}
 
 			@Override
 			public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean sel,
-					final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+														  final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
 				final AllenCompartment ac = (AllenCompartment) ((DefaultMutableTreeNode) value).getUserObject();
 				final Component treeCellRendererComponent = super.getTreeCellRendererComponent(tree, value, sel,
 						expanded, leaf, row, hasFocus);
-				treeCellRendererComponent.setEnabled(ac.isMeshAvailable());
+				if (!searchableBar.getSearchingText().isEmpty() && !sel) {
+					treeCellRendererComponent.setEnabled(false);
+				} else {
+					treeCellRendererComponent.setEnabled(ac.isMeshAvailable());
+				}
+				if (ac.isMeshAvailable()) {
+					final ColorRGB color = ac.color();
+					if (color != null) setIcon(IconFactory.nodeIcon(new java.awt.Color(color.getARGB())));
+				}
 				return treeCellRendererComponent;
 			}
 		}
@@ -6196,7 +6184,7 @@ public class Viewer3D {
 			super(model);
 			this.model = model;
 			this.model.addElement(CheckBoxList.ALL_ENTRY);
-			renderer = new CustomListRenderer((DefaultListCellRenderer) getActualCellRenderer());
+			renderer = new CustomListRenderer(this, (DefaultListCellRenderer) getActualCellRenderer());
 			setCellRenderer(renderer);
 			setVisibleRowCount(20);
 			addMouseListener(new java.awt.event.MouseAdapter() {
@@ -6345,7 +6333,7 @@ public class Viewer3D {
 			// Use a text field as the editor
 			editTextField = new JTextField();
 			GuiUtils.addClearButton(editTextField);
-			GuiUtils.addCPlaceholder(editTextField, "Tags:");
+			GuiUtils.addPlaceholder(editTextField, "Tags:");
 			final Border border = javax.swing.UIManager.getBorder("List.focusCellHighlightBorder");
 			editTextField.setBorder(border);
 			// Add an Action to the text field to save the new value to the model
@@ -6376,6 +6364,10 @@ public class Viewer3D {
 
 				@Override
 				public void focusLost(final FocusEvent e) {
+					if (editTextField.getText().isEmpty()) {
+						// clear button pressed without triggering actionlistener!?
+						removeTagsFromSelectedItems(false);
+					}
 					getManagerPanel().disableActions = false;
 				}
 
@@ -6464,15 +6456,19 @@ public class Viewer3D {
 
 		class CustomListRenderer extends DefaultListCellRenderer {
 			private static final long serialVersionUID = 1L;
-			private final Icon treeIcon = IconFactory.getListIcon(GLYPH.TREE);
-			private final Icon meshIcon = IconFactory.getListIcon(GLYPH.CUBE);
-			private final Icon annotationIcon = IconFactory.getListIcon(GLYPH.MARKER);
+			private final Icon treeIcon;
+			private final Icon meshIcon;
+			private final Icon annotationIcon;
 			private boolean iconVisible;
 
-			CustomListRenderer(final DefaultListCellRenderer templateInstance) {
+			CustomListRenderer(final CheckboxListEditable checkboxListEditable,
+							   final DefaultListCellRenderer templateInstance) {
 				super();
 				// Apply properties from templateInstance
 				setBorder(templateInstance.getBorder());
+				treeIcon = IconFactory.listIcon(checkboxListEditable, GLYPH.TREE);
+				meshIcon = IconFactory.listIcon(checkboxListEditable, GLYPH.CUBE);
+				annotationIcon = IconFactory.listIcon(checkboxListEditable, GLYPH.MARKER);
 				setIconsVisible(true); // label categories by default
 			}
 
@@ -6736,7 +6732,7 @@ public class Viewer3D {
 
 	private class MultiTreeShapeTree extends ShapeTree {
 
-		Collection<Tree> trees;
+		final Collection<Tree> trees;
 
 		MultiTreeShapeTree(final Collection<Tree> trees) {
 			super(new Tree());
@@ -7707,10 +7703,7 @@ public class Viewer3D {
 			final int canvasHeight)
 		{
 			final Graphics2D g2d = (Graphics2D) g;
-			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-				RenderingHints.VALUE_ANTIALIAS_ON);
-			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-				RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+			GuiUtils.setRenderingHints(g2d);
 			if (SNTUtils.isDebugMode()) {
 				g2d.setColor(toAWTColor(view.getAxisLayout().getMainColor()));
 				g2d.setFont(g2d.getFont().deriveFont((float)view.getAxisLayout().getFont().getHeight()));

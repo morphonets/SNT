@@ -254,12 +254,18 @@ public class MeasureUI extends JFrame {
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
+			searchableBar.setBorderless(true);
 			searchableBar.setGuiUtils(guiUtils);
 
 			// progress bar
 			bar = new JProgressBar();
-			bar.setVisible(false);
+			bar.setVisible(true);
 			bar.setFocusable(false);
+			bar.setMinimum(0);
+			bar.setMaximum(trees.size());
+			bar.setVisible(true);
+			bar.setStringPainted(true);
+			bar.setString(String.format("Measuring %d reconstruction(s)", trees.size()));
 
 			// remember previous state
 			loadPreferences();
@@ -289,55 +295,47 @@ public class MeasureUI extends JFrame {
 			TablePopupMenu.install(statsTable, statsTableScrollPane);
 			add(statsTableScrollPane, c);
 
-			runButton = new JButton("Measure 100 Reconstruction(s)");
-			GuiUtils.equalizeHeight(runButton, searchableBar.getSearchField());
-			updateRunButtonLabel(trees.size());
+			runButton = new JButton("Measure", IconFactory.buttonIcon(IconFactory.GLYPH.TABLE, 1.1f));
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
 			final JButton optionsButton = optionsButton(trees);
-			GuiUtils.equalizeHeight(optionsButton, searchableBar.getSearchField());
-			final JToggleButton splitButton = splitButton(trees);
-			GuiUtils.equalizeHeight(splitButton, searchableBar.getSearchField());
-			final JPanel buttonPanel = new JPanel();
-			buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
-			buttonPanel.add(Box.createHorizontalGlue());
-			buttonPanel.add(bar);
-			buttonPanel.add(Box.createHorizontalGlue());
-			buttonPanel.add(optionsButton);
-			buttonPanel.add(splitButton);
-			buttonPanel.add(runButton);
+			final JToggleButton splitButton = splitButton();
+			GuiUtils.Buttons.makeBorderless(runButton, optionsButton, splitButton);
+			final JToolBar toolbar = new JToolBar();
+			toolbar.setBorder(searchableBar.getBorder()); // top, left, bottom, right margins
+			toolbar.add(Box.createHorizontalGlue());
+			toolbar.add(bar);
+			toolbar.add(Box.createHorizontalGlue());
+			toolbar.addSeparator();
+			toolbar.add(optionsButton);
+			toolbar.add(splitButton);
+			toolbar.add(runButton);
 			c.gridx = 1;
 			c.gridy = 1;
 			c.gridwidth = 1;
 			c.weighty = 0.0; // do not allow panel to fill height when resizing pane
-			add(buttonPanel, c);
+			add(toolbar, c);
 		}
 
-		private void updateRunButtonLabel(final int nTrees) {
-			SwingUtilities.invokeLater(() -> {
-				runButton.setText(
-						String.format("Measure %d Reconstruction(s)", nTrees));
-				runButton.setToolTipText((distinguishCompartments)
-						? "Measurements will be split into known compartments\n(axon, dendrites, etc.)"
-						: "Measurements will be retrieved for the whole cell\nwithout compartment (axon, dendrites, etc.) distinction");
-			});
-		}
-
-		private JToggleButton splitButton(final Collection<Tree> trees) {
-			final Icon unselectedIcon = IconFactory.getButtonIcon(IconFactory.GLYPH.SCALE_BALANCED, 1.1f);
-			final Icon selectedIcon = IconFactory.getButtonIcon(IconFactory.GLYPH.SCALE_UNBALANCED, 1.1f);
-			final JToggleButton button = new JToggleButton(unselectedIcon, distinguishCompartments);
-			button.setSelectedIcon(selectedIcon);
-			button.setToolTipText("Whether measurements should be slip into cellular\n"
+		private JToggleButton splitButton() {
+			final JToggleButton button = new JToggleButton();
+			button.setSelected(distinguishCompartments);
+			IconFactory.assignIcon(button, IconFactory.GLYPH.SCALE_BALANCED, IconFactory.GLYPH.SCALE_UNBALANCED);
+			button.setToolTipText("Whether measurements should be split into cellular\n"
 					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");
 			button.addItemListener(e -> {
 				distinguishCompartments = button.isSelected();
-				updateRunButtonLabel(trees.size());
+				runButton.setToolTipText((distinguishCompartments)
+						? "Measurements will be split into known compartments\n(axon, dendrites, etc.)"
+						: "Measurements will be retrieved for the whole cell\nwithout compartment (axon, dendrites, etc.) distinction");
 			});
 			return button;
 		}
 
 		private JButton optionsButton(final Collection<Tree> trees) {
-			final JButton optionsButton = new JButton(IconFactory.getButtonIcon(IconFactory.GLYPH.OPTIONS, 1.1f));
+			final JButton optionsButton = GuiUtils.Buttons.options();
+			GuiUtils.Buttons.makeBorderless(optionsButton);
+			optionsButton.setFont(
+					optionsButton.getFont().deriveFont(optionsButton.getFont().getSize2D()*1.1f)); // scale icon (font-based)
 			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(optionsMenu, "General:");
@@ -404,7 +402,7 @@ public class MeasureUI extends JFrame {
 				SNTUtils.getContext().getService(CommandService.class).run(FigCreatorCmd.class, true, inputs);
 			});
 			optionsMenu.add(jmi);
-			jmi = new JMenuItem("List Cell(s) Being Measured...", IconFactory.getMenuIcon(IconFactory.GLYPH.LIST));
+			jmi = new JMenuItem("List Cell(s) Being Measured...", IconFactory.menuIcon(IconFactory.GLYPH.LIST));
 			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
@@ -412,7 +410,7 @@ public class MeasureUI extends JFrame {
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
 			optionsMenu.add(
-					GuiUtils.menuItemTriggeringURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics"));
+					GuiUtils.MenuItems.openURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics"));
 			optionsButton.addMouseListener(new MouseAdapter() {
 
 				@Override
@@ -459,6 +457,7 @@ public class MeasureUI extends JFrame {
 					+ "<li>Select statistics on the right panel (NB: clicking on a column header selects "//
 					+ "all of its rows)</li>"//
 					+ "<li>Adjust options in the gear menu</li>"//
+					+ "<li>Toggle the option 'Split by Compartment' as needed</li>"//
 					+ "<li>Press 'Measure'</li>"//
 					+ "</ol>"//
 					+ "<p><b>Notes on Metrics:</b></p>"//
@@ -596,7 +595,7 @@ public class MeasureUI extends JFrame {
 			mi.addActionListener(e -> invertSelection());
 			pMenu.add(mi);
 			pMenu.addSeparator();
-			mi = new JMenuItem("Define Highlighted Metric...", IconFactory.getMenuIcon(IconFactory.GLYPH.QUESTION));
+			mi = new JMenuItem("Define Highlighted Metric...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
 			mi.addActionListener(e -> getHelpOnHighlightedMetric());
 			pMenu.add(mi);
 			return pMenu;
@@ -763,9 +762,6 @@ public class MeasureUI extends JFrame {
 			BackgroundTask(final AbstractButton button) {
 				this.button = button;
 				button.setEnabled(false);
-				bar.setMinimum(0);
-				bar.setMaximum(trees.size());
-				bar.setVisible(true);
 			}
 
 			@Override
@@ -790,16 +786,18 @@ public class MeasureUI extends JFrame {
 			protected void process(final List<Integer> chunks) {
 				final int i = chunks.getLast();
 				bar.setValue(i); // The last value is all we care about
+				bar.setString(String.format("Measuring %d/%d reconstruction(s)", i+1, trees.size()));
 			}
 
 			@Override
 			protected void done() {
 				button.setEnabled(true);
-				bar.setVisible(false);
 				if (table.isEmpty() || (!distinguishCompartments && table.getColumnCount() < 2)) {
 					guiUtils.error("Measurements table is empty. Please make sure your choices are valid.");
 					return;
 				}
+				bar.setValue(0);
+				bar.setString(String.format("Measuring %d reconstruction(s)", trees.size()));
 				updateTable(true);
 			}
 

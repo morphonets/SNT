@@ -37,6 +37,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.Prefs;
 import ij.gui.ImageCanvas;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 
@@ -129,12 +130,10 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		else throw new IllegalArgumentException("Unknow pane");
 		return new PointInCanvas(x, y, 0);
 	}
+
 	public Graphics2D getGraphics2D(final Graphics g) {
 		final Graphics2D g2 = (Graphics2D) g;
-		g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-			RenderingHints.VALUE_ANTIALIAS_ON);
-		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-			RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+		GuiUtils.setRenderingHints(g2);
 		return g2;
 	}
 
@@ -374,7 +373,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	public Color getAnnotationsColor() {
-		return (annotationsColor == null) ? Color.RED : annotationsColor;
+		return (annotationsColor == null) ? GuiUtils.warningColor(): annotationsColor;
 	}
 
 	public BoundingBox getViewPort() {

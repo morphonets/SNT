@@ -266,7 +266,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	private void addHelpButton() {
 		final JButton button = new JButton("<HTML>Help & Resources &#9657;");
-		final JPopupMenu hMenu = GuiUtils.helpMenu().getPopupMenu();
+		final JPopupMenu hMenu = GuiUtils.MenuItems.helpMenu().getPopupMenu();
 		button.addActionListener(e -> hMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		buttons.add(button);
 	}

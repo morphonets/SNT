@@ -149,7 +149,7 @@ public class ScriptRecorder extends JDialog {
 		final JMenuItem mi3 = new JMenuItem("Reset Prompts");
 		mi3.addActionListener(e -> Arrays.fill(createOptions, true));
 		menu.add(mi3);
-		final JButton button = IconFactory.getButton(IconFactory.GLYPH.OPTIONS);
+		final JButton button = GuiUtils.Buttons.options();
 		button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}

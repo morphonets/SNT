@@ -359,7 +359,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	}
 
 	private JMenuItem menuItem(final String cmdName) {
-		final JMenuItem mi = GuiUtils.menuItemWithoutAccelerator();
+		final JMenuItem mi = GuiUtils.MenuItems.itemWithoutAccelerator();
 		mi.setText(cmdName);
 		return mi;
 	}

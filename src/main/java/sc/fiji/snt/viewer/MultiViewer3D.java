@@ -258,7 +258,7 @@ public class MultiViewer3D {
 		// If needed, add an extra space at the bottom to facilitate interaction w/ all viewers
 		if (gridRows * gridCols <= viewers.size())
 			((JComponent)frame.getContentPane()).setBorder(BorderFactory.createEmptyBorder(0, 0,
-					(gap>0) ? gap : GuiUtils.getMenuItemHeight(), 0));
+					(gap>0) ? gap : GuiUtils.MenuItems.defaultHeight(), 0));
 		return frame;
 	}
 

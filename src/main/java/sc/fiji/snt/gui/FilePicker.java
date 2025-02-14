@@ -213,7 +213,7 @@ public class FilePicker extends JPanel {
 				setForeground(defaultColor);
 				setToolTipText(null);
 			} else {
-				setForeground(Color.RED);
+				setForeground(GuiUtils.errorColor());
 				setToolTipText("Invalid path");
 			}
 		}

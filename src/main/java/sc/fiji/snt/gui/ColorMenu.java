@@ -135,14 +135,13 @@ public class ColorMenu extends JMenu {
 	private void addSeparator(final String header, final Color color) {
 		final JLabel sep =  new JLabel(header);
 		sep.setPreferredSize(new JMenuItem(" DUMMY ").getPreferredSize());
-		sep.setIcon(IconFactory.getMenuIcon(IconFactory.GLYPH.COLOR, color));
-		sep.setForeground(color);
+		sep.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, color));
+		sep.setForeground(GuiUtils.getDisabledComponentColor());
 		add(sep);
 	}
 
 	private JPanel getGridPanel(final int rows, final int cols) {
 		final JPanel panel = new JPanel();
-		panel.setBackground(getBackground());
 		panel.setBorder(BorderFactory.createEmptyBorder());
 		panel.setLayout(new GridLayout(rows, cols));
 		return panel;
@@ -201,7 +200,7 @@ public class ColorMenu extends JMenu {
 			setPanelSWCColor(swcColor);
 			setBorder(_unselectedBorder);
 			addMouseListener(this);
-			final int size = GuiUtils.getMenuItemHeight();
+			final int size = GuiUtils.MenuItems.defaultHeight();
 			setPreferredSize(new Dimension(size, size));
 		}
 
@@ -235,8 +234,7 @@ public class ColorMenu extends JMenu {
 			super.paint(g);
 			if (swcColor.color() == null) {
 				final Graphics2D g2 = (Graphics2D) g;
-				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-					RenderingHints.VALUE_ANTIALIAS_ON);
+				GuiUtils.setRenderingHints(g2);
 				g2.setColor(Color.RED); // SNTColor.contrastColor(getBackground()));
 				g2.setStroke(new BasicStroke(2));
 				g2.drawLine(3, 3, getWidth() - 4, getHeight() - 4);
