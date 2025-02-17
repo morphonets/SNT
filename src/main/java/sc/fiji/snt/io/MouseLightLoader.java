@@ -192,6 +192,7 @@ public class MouseLightLoader {
 		pafm.setHeadless(true);
 		final Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
 		applyMetadata(result.values(), compartment);
+		pafm.dispose();
 		return result;
 	}
 
@@ -201,6 +202,7 @@ public class MouseLightLoader {
 		pafm.setHeadless(true);
 		Map<String, Tree> result = pafm.importNeurons(nodesMap, null, null);
 		applyMetadata(result.values(), compartment);
+		pafm.dispose();
 		return result;
 	}
 
@@ -489,6 +491,7 @@ public class MouseLightLoader {
 		inMap.put(id, getNodes(compartment));
 		final Map<String, Tree> outMap = pafm.importNeurons(inMap, color, GuiUtils.micrometer());
 		final Tree tree = outMap.get(id);
+		pafm.dispose();
 		if (tree == null) {
 			throw new IllegalArgumentException("Data could not be retrieved. Is the database online?");
 		}
@@ -496,8 +499,7 @@ public class MouseLightLoader {
 			tree.setLabel(""+ id + " ("+ compartment + ")");
 		else
 			tree.setLabel(""+ id);
-		tree.getProperties().setProperty(Tree.KEY_COMPARTMENT,
-				TreeProperties.getStandardizedCompartment(compartment));
+		tree.getProperties().setProperty(Tree.KEY_COMPARTMENT, TreeProperties.getStandardizedCompartment(compartment));
 		tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 		tree.getProperties().setProperty(Tree.KEY_ID, getID());
 		tree.getProperties().setProperty(Tree.KEY_SOURCE, "MouseLight " + getDOI());

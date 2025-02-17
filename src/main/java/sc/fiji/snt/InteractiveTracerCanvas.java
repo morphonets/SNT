@@ -224,9 +224,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		// Disable editing commands
 		for (final MenuElement me : pMenu.getSubElements()) {
-			if (me instanceof JMenuItem) {
-				final JMenuItem mItem = ((JMenuItem) me);
-				final String cmd = mItem.getActionCommand();
+			if (me instanceof JMenuItem mItem) {
+                final String cmd = mItem.getActionCommand();
 
 				if (cmd.startsWith(AListener.FORK_NEAREST)) {
 					updateForkPointMenuItem(mItem);
@@ -406,10 +405,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		return tracerPlugin.tracingHalted || tracerPlugin
 			.getUIState() == SNTUI.WAITING_TO_START_PATH || tracerPlugin
 				.getUIState() == mode;
-	}
-
-	public void toggleJustNearSlices() {
-		just_near_slices = !just_near_slices;
 	}
 
 	protected void fakeMouseMoved(final boolean shift_pressed,
@@ -1120,7 +1115,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final String proposedChoice = Integer.toString(Color.RED.getRGB());
 		final String prevChoice = tracerPlugin.getPrefs().getTemp("editNodeColor", proposedChoice);
 		final Color chosen = guiUtils.getColor("New Color for Node #" + edNode + "?",
-				new Color(Integer.parseInt(prevChoice)), "RGB");
+				new Color(Integer.parseInt(prevChoice)), (String[]) null);
 		if (chosen != null) {
 			Color[] nodeColors = edPath.getNodeColors();
 			if (nodeColors == null) {
@@ -1231,22 +1226,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final int editingNode = editingPath.getEditableNodeIndex();
 		final PointInCanvas offset = editingPath.getCanvasOffset();
-		double newZ;
-		switch (plane) {
-			case MultiDThreePanes.XY_PLANE:
-				newZ = (imp.getZ() - 1 - offset.z) * tracerPlugin.z_spacing;
-				break;
-			case MultiDThreePanes.XZ_PLANE:
-				newZ = (last_y_in_pane_precise - offset.y) * tracerPlugin.y_spacing;
-				break;
-			case MultiDThreePanes.ZY_PLANE:
-				newZ = (last_x_in_pane_precise - offset.x) * tracerPlugin.x_spacing;
-				break;
-			default:
-				newZ = editingPath.precise_z_positions[editingNode];
-				break;
-		}
-		try {
+		double newZ = switch (plane) {
+            case MultiDThreePanes.XY_PLANE -> (imp.getZ() - 1 - offset.z) * tracerPlugin.z_spacing;
+            case MultiDThreePanes.XZ_PLANE -> (last_y_in_pane_precise - offset.y) * tracerPlugin.y_spacing;
+            case MultiDThreePanes.ZY_PLANE -> (last_x_in_pane_precise - offset.x) * tracerPlugin.x_spacing;
+            default -> editingPath.precise_z_positions[editingNode];
+        };
+        try {
 			editingPath.moveNode(editingNode, new PointInImage(
 				editingPath.precise_x_positions[editingNode],
 				editingPath.precise_y_positions[editingNode], newZ));
@@ -1257,9 +1243,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 	}
 
-	protected void assignTreeRootToEditingNode(
-			final boolean warnOnFailure)
-	{
+	protected void assignTreeRootToEditingNode(final boolean warnOnFailure) {
 		if (impossibleEdit(warnOnFailure)) return;
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final int treeID = editingPath.getTreeID();

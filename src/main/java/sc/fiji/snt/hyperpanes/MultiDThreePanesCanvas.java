@@ -28,7 +28,6 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
 import java.awt.event.MouseEvent;
 import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
@@ -64,20 +63,6 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 		super(imagePlus);
 		this.owner = owner;
 		this.plane = plane;
-	}
-
-	protected MultiDThreePanesCanvas(final ImagePlus imagePlus, final int plane) {
-		this(imagePlus, null, plane);
-	}
-
-	public static Object newThreePanesCanvas(final ImagePlus imagePlus,
-		final PaneOwner owner, final int plane)
-	{
-		return new MultiDThreePanesCanvas(imagePlus, owner, plane);
-	}
-
-	public void setPaneOwner(final PaneOwner owner) {
-		this.owner = owner;
 	}
 
 	protected void setZoom(final double zoomFactor) {

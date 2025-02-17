@@ -809,16 +809,32 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void dispose() {
+		getPrefs().savePluginPrefs(true);
 		// dispose data structures
-		cancelSearch(true);
-		ui = null;
-		flushSecondaryData();
-		ctSlice3d = null;
-		//searchArtists.clear(); fillerSet.clear();
-		searchArtists = null;
-		fillerSet = null;
+		cancelSearch(true); // will discard tracerThreadPool, fillerThreadPool, currentSearchThread, manualSearchThread, tubularGeodesicsThread
+		flushSecondaryData(); // will discard secondaryData
+		if (searchArtists != null) searchArtists.clear();
+		if (fillerSet != null) fillerSet.clear();
+		if (pathAndFillManager != null) pathAndFillManager.dispose();
+		if (univ != null && univ.getWindow() != null) univ.getWindow().dispose();
+		if (ui != null) ui.dispose();
 		notifyListeners(new SNTEvent(SNTEvent.QUIT));
 		closeAndResetAllPanes();
+		colorImage = null;
+		ctSlice3d = null;
+		currentPath = null;
+		editingPath = null;
+		fillerSet = null;
+		imageContent = null;
+		labelData = null;
+		materialList = null;
+		previousEditingPath = null;
+		searchArtists = null;
+		selectedColor = deselectedColor = null;
+		selectedColor3f = deselectedColor3f = null;
+		temporaryPath = null;
+		ui = null;
+		univ = null;
 		xy_tracer_canvas = null;
 		xz_tracer_canvas = null;
 		zy_tracer_canvas = null;

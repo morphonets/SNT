@@ -100,8 +100,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	protected static final int TRACES_FILE_TYPE_ML_JSON = 4;
 	protected static final int TRACES_FILE_TYPE_NDF = 5;
 
-	private static final DecimalFormat fileIndexFormatter = new DecimalFormat(
-		"000");
+	private static final DecimalFormat fileIndexFormatter = new DecimalFormat("000");
 
 	protected SNT plugin;
 	private boolean headless = false;
@@ -2489,10 +2488,37 @@ public class PathAndFillManager extends DefaultHandler implements
 		pathIdMap.clear();
 		pathNameMap.clear();
 		pathNameLowercaseMap.clear();
+		selectedPathsSet.clear();
 		allFills.clear();
+		loadedFills.clear();
+		current_fill = null;
+		current_path = null;
+		if (startJoins != null) startJoins.clear();
+		if (startJoinsIndices != null) startJoinsIndices.clear();
+		if (startJoinsPoints != null) startJoinsPoints.clear();
+		if (foundIDs != null) foundIDs.clear();
+		if (endJoins != null) endJoins.clear();
+		if (endJoinsIndices != null) endJoinsIndices.clear();
 		if (plugin == null || !plugin.accessToValidImageData())
 			resetSpatialSettings(false);
 		resetListenersAfterDataChangingOperation(null);
+	}
+
+	public void dispose() {
+		clear();
+		boundingBox = null;
+		endJoins = null;
+		endJoinsIndices = null;
+		endJoinsPoints = null;
+		fittedFields = null;
+		fittedVersionOfFields = null;
+		foundIDs = null;
+		listeners.clear();
+		plugin = null;
+		sourcePathIDForFills = null;
+		startJoins = null;
+		startJoinsPoints = null;
+		useFittedFields = null;
 	}
 
 	protected void resetIDs() {
@@ -3679,8 +3705,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			units = templateCalibration.getUnits();
 		}
 
-		final PathAndFillManager pafmResult = new PathAndFillManager(pixelWidth,
-			pixelHeight, pixelDepth, units);
+		final PathAndFillManager pafmResult = new PathAndFillManager(pixelWidth, pixelHeight, pixelDepth, units);
 
 		final int[] startJoinsIndices = new int[size()];
 		final PointInImage[] startJoinsPoints = new PointInImage[size()];

@@ -553,6 +553,8 @@ public class SNTService extends AbstractService {
 		} catch (final IOException e) {
 			tree = null;
 			SNTUtils.error("UnsupportedEncodingException", e);
+		} finally {
+			pafm.dispose();
 		}
 		return tree;
 	}
@@ -614,16 +616,14 @@ public class SNTService extends AbstractService {
 	 */
 	@Override
 	public void dispose() {
+		if (getInstanceViewer() != null) getInstanceViewer().dispose();
 		if (plugin == null) return;
 		if (getUI() == null) {
 			try {
-			plugin.getPrefs().savePluginPrefs(true);
-			SNTUtils.log("Disposing resources..");
-			plugin.dispose();
-			if (getInstanceViewer() != null) getRecViewer().dispose();
-			if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
-			SNTUtils.setContext(null);
-			plugin = null;
+				SNTUtils.log("Disposing resources..");
+				plugin.dispose();
+				if (plugin.getImagePlus() != null) plugin.getImagePlus().close();
+				plugin = null;
 			} catch (final NullPointerException ignored) {
 				// do nothing
 			}

@@ -147,8 +147,8 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			error("This option requires valid image data to be loaded.");
 			return;
 		}
-		if (!PLUGIN_VERSION.equals("v3.3.4")) {
-			warn("This command has only been tested with TWS v3.3.4 (you are running " + PLUGIN_VERSION
+		if (!PLUGIN_VERSION.equals("v4.0.0")) {
+			warn("This command has only been tested with TWS v4.0.0 (you are running " + PLUGIN_VERSION
 					+ "). Unexpected issues may occur.", "tws-version");
 		}
 		if (paths.stream().allMatch(p -> p.size() == 1)) {

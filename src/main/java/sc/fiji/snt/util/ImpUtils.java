@@ -374,6 +374,17 @@ public class ImpUtils {
 		}
 	}
 
+	public static String imageTypeToString(final int type) {
+		return switch (type) {
+			case ImagePlus.GRAY8 -> "GRAY8 (8-bit grayscale (unsigned))";
+			case ImagePlus.GRAY16 -> "GRAY16 (16-bit grayscale (unsigned))";
+			case ImagePlus.GRAY32 -> "GRAY32 (32-bit floating-point grayscale)";
+			case ImagePlus.COLOR_256 -> "COLOR_256 (8-bit indexed color)";
+			case ImagePlus.COLOR_RGB -> "COLOR_RGB (32-bit RGB color)";
+			default -> "Unknown (value: " + type + ")";
+		};
+	}
+
 	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {
 		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 		final InputStream is = classloader.getResourceAsStream(path);

@@ -276,8 +276,7 @@ public abstract class SearchThread extends AbstractSearch {
 
 			final int[] imgPosition = new int[3];
 
-			while ((!open_from_start.isEmpty()) || (bidirectional && (!open_from_goal.isEmpty())))
-			{
+			while ((!open_from_start.isEmpty()) || (bidirectional && (!open_from_goal.isEmpty()))) {
 
 				if (Thread.currentThread().isInterrupted()) {
 					setExitReason(CANCELLED);
@@ -309,9 +308,12 @@ public abstract class SearchThread extends AbstractSearch {
 				final SearchImageStack<DefaultSearchNode> nodes_as_image_other_search = fromStart
 					? nodes_as_image_from_goal : nodes_as_image_from_start;
 
-				DefaultSearchNode p;
-
 				if (open_queue.isEmpty()) continue;
+
+				DefaultSearchNode p;
+				DefaultSearchNode newNode;
+				DefaultSearchNode alreadyThereInThisSearch;
+				DefaultSearchNode alreadyThereInOtherSearch;
 
 				p = open_queue.deleteMin().getKey();
 				if (p == null) continue;
@@ -382,11 +384,11 @@ public abstract class SearchThread extends AbstractSearch {
 
 							final double f_for_new_point = h_for_new_point + g_for_new_point;
 
-							DefaultSearchNode newNode = createNewNode(new_x, new_y, new_z, g_for_new_point,
+							newNode = createNewNode(new_x, new_y, new_z, g_for_new_point,
 									h_for_new_point, p, FREE);
 
 							// Is this newNode really new?
-							DefaultSearchNode alreadyThereInThisSearch =
+							alreadyThereInThisSearch =
 								nodes_as_image_this_search.getSlice(new_z).getValue(newNode.x, newNode.y);
 
 							if (alreadyThereInThisSearch == null) {
@@ -426,7 +428,7 @@ public abstract class SearchThread extends AbstractSearch {
 
 							if (bidirectional && nodes_as_image_other_search.getSlice(new_z) != null) {
 
-								final DefaultSearchNode alreadyThereInOtherSearch =
+								alreadyThereInOtherSearch =
 									nodes_as_image_other_search.getSlice(new_z).getValue(newNode.x, newNode.y);
 								if (alreadyThereInOtherSearch != null) {
 
@@ -464,13 +466,14 @@ public abstract class SearchThread extends AbstractSearch {
 										foundGoal(result);
 										setExitReason(SUCCESS);
 										reportFinished(true);
+										p = newNode = alreadyThereInThisSearch = alreadyThereInOtherSearch = null; // Clean up (profiled w/ Visual VM)
 										return;
 									}
 								}
 							}
 						}
 				}
-
+				p = newNode = alreadyThereInThisSearch = alreadyThereInOtherSearch = null; // Clean up (profiled w/ Visual VM)
 			}
 
 			/*

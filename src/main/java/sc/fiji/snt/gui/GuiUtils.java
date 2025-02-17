@@ -1254,8 +1254,7 @@ public class GuiUtils {
 	}
 
 	public static void expandAllTreeNodes(final JTree tree) {
-		for (int i = 0; i < tree.getRowCount(); i++)
-			tree.expandRow(i);
+		for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
 	}
 
 	public static void addSeparator(final JComponent component,

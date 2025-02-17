@@ -119,14 +119,15 @@ public class FlyCircuitLoader implements RemoteSWCLoader {
 	public Tree getTree(final String cellId) {
 		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
+		Tree tree = null;
 		if (pafm.importSWC(cellId, getReconstructionURL(cellId))) {
-			final Tree tree = new Tree(pafm.getPaths());
+			tree = new Tree(pafm.getPaths());
 			tree.setLabel(cellId);
 			tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, GuiUtils.micrometer());
 			tree.getProperties().setProperty(Tree.KEY_SOURCE, "FlyCircuit"+VERSION);
-			return tree;
 		}
-		return null;
+		pafm.dispose();
+		return tree;
 	}
 
 	/*

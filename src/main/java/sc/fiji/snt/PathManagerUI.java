@@ -863,6 +863,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	public void dispose() {
 		closeTable();
 		if (measureUI != null) measureUI.dispose();
+		if (tree != null) tree.removeAll();
+		if (plugin != null) plugin.dispose(); // will dispose pathAndFillManager
+		fittingHelper = null;
+		measureUI = null;
+		swcTypeButtonGroup = null;
 		super.dispose();
 	}
 

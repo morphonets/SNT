@@ -821,21 +821,20 @@ public class SNTUI extends JDialog {
 			return;
 		commandFinder.dispose();
 		abortCurrentOperation();
-		plugin.dispose();
 		setAutosaveFile(null); // forget last saved file
-		plugin.getPrefs().savePluginPrefs(true);
 		pmUI.dispose();
 		fmUI.dispose();
-		if (recViewer != null)
-			recViewer.dispose();
-		if (recorder != null)
-			recorder.dispose();
+		if (recViewer != null) recViewer.dispose();
+		if (recorder != null) recorder.dispose();
 		dispose();
+		plugin.dispose(); // will save prefs, dispose pathAndFillManager, etc.
 		// NB: If visible Reconstruction Plotter will remain open
 		ImagePlus.removeImageListener(listener);
 		plugin = null;
 		pathAndFillManager = null;
 		guiUtils = null;
+		recViewerFrame = null;
+		sciViewSNT = null;
 		GuiUtils.restoreLookAndFeel();
 	}
 
@@ -2471,10 +2470,9 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void updateSecLayerWidgets() {
-		SwingUtilities.invokeLater(() -> {
-			secLayerActivateCheckbox.setEnabled(plugin.isAstarEnabled() && plugin.isSecondaryDataAvailable());
-			secLayerImgOverlayCSpinner.setEnabled(plugin.isAstarEnabled() && plugin.isTracingOnSecondaryImageAvailable());
-		});
+		secLayerActivateCheckbox.setEnabled(plugin.isAstarEnabled() && plugin.isSecondaryDataAvailable());
+		secLayerImgOverlayCSpinner.setEnabled(plugin.isAstarEnabled() && plugin.isTracingOnSecondaryImageAvailable());
+
 	}
 
 	@SuppressWarnings("deprecation")
@@ -4708,11 +4706,17 @@ public class SNTUI extends JDialog {
 	}
 
 	private void flushSecondaryDataPrompt() {
-		final String[] choices = new String[] { "Flush. I'll load new data manually", "Do nothing. Leave as is" };
-		final String choice = guiUtils.getChoice("What should be done with the secondary image currently cached?",
-				"Flush Filtered Data?", choices, choices[0]);
-		if (choice != null && choice.startsWith("Flush"))
+		if (!plugin.getUI().askUserConfirmation || !plugin.getPrefs().getTemp("flushsec", true))
+			return;
+		final boolean[] options = guiUtils.getConfirmationAndOption(
+				"A secondary image is currently cached. Reloading a changed image or a different CT position " +
+						"may force the secondary image to be out-of-sync. Would you like to flush the secondary image now?",
+				"Flush Secondary Layer?",
+				"Do not remind me again about this",
+				true, new String[] { "Yes. Flush", "No. Leave As Is"});
+		if (options != null && options[0])
 			plugin.flushSecondaryData();
+		plugin.getPrefs().setTemp("flushsec", options !=null && !options[1]);
 	}
 
 	private JMenuItem getImportActionMenuItem(final int type) {

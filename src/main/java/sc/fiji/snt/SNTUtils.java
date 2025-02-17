@@ -114,13 +114,14 @@ public class SNTUtils {
 	/**
 	 * Retrieves SNT's version
 	 *
-	 * @return the version or a non-empty place holder string if version could
+	 * @return the version or a non-empty placeholder string if version could
 	 *         not be retrieved.
 	 *
 	 */
 	private static String getVersion() {
 		try {
-			return VersionUtils.getVersion(SNT.class);
+			final String version = VersionUtils.getVersion(SNT.class, "org.morphonets", "SNT");
+			return (version == null) ? "N/A" : version;
 		} catch (final Throwable ignored) {
 			return "N/A";
 		}
@@ -153,9 +154,10 @@ public class SNTUtils {
 
 	protected static void setPlugin(final SNT plugin) {
 		SNTUtils.plugin = plugin;
-		if (plugin == null)
+		if (plugin == null) { // dispose resources
 			context = null;
-		else if (context == null)
+			logService = null;
+		} else if (context == null)
 			setContext(plugin.getContext());
 	}
 

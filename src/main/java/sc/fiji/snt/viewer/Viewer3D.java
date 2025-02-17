@@ -6702,17 +6702,11 @@ public class Viewer3D {
 
 	private int getSubTreeCompartment(final String compartment) {
 		if (compartment == null || compartment.length() < 2) return -1;
-		switch (compartment.toLowerCase().substring(0, 2)) {
-		case "ax":
-			return ShapeTree.AXON;
-		case "ap":
-		case "ba":
-		case "(b":
-		case "de":
-			return ShapeTree.DENDRITE;
-		default:
-			return ShapeTree.ANY;
-		}
+        return switch (compartment.toLowerCase().substring(0, 2)) {
+            case "ax" -> ShapeTree.AXON;
+            case "ap", "ba", "(b", "de" -> ShapeTree.DENDRITE;
+            default -> ShapeTree.ANY;
+        };
 	}
 
 	private void toggleControlPanel() {

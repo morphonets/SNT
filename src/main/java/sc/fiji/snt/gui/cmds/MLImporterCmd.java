@@ -171,6 +171,7 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		else {
 			status("Successful imported " + result.size() + " reconstruction(s)...", true);
 		}
+		if (pafm != null) pafm.dispose();
 	}
 
 	/**

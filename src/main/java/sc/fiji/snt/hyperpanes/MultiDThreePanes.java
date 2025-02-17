@@ -280,7 +280,9 @@ public class MultiDThreePanes implements PaneOwner {
 
 	public void closeAndResetAllPanes() {
 		if (!single_pane) {
+			zy.flush();
 			zy.close();
+			xz.flush();
 			xz.close();
 		}
 		if (xy != null && xy.getImage() != null) {
@@ -288,34 +290,8 @@ public class MultiDThreePanes implements PaneOwner {
 		}
 	}
 
-	public static String imageTypeToString(final int type) {
-		String result;
-		switch (type) {
-			case ImagePlus.GRAY8:
-				result = "GRAY8 (8-bit grayscale (unsigned))";
-				break;
-			case ImagePlus.GRAY16:
-				result = "GRAY16 (16-bit grayscale (unsigned))";
-				break;
-			case ImagePlus.GRAY32:
-				result = "GRAY32 (32-bit floating-point grayscale)";
-				break;
-			case ImagePlus.COLOR_256:
-				result = "COLOR_256 (8-bit indexed color)";
-				break;
-			case ImagePlus.COLOR_RGB:
-				result = "COLOR_RGB (32-bit RGB color)";
-				break;
-			default:
-				result = "Unknown (value: " + type + ")";
-				break;
-		}
-		return result;
-	}
-
 	public synchronized void reloadZYXZpanes(final int frame) {
-		if (xy == null) throw new IllegalArgumentException(
-			"reload() called without initialization");
+		if (xy == null) throw new IllegalArgumentException("reload() called without initialization");
 		if (xy.getNSlices() == 1) return;
 		single_pane = false;
 		initialize(frame);
