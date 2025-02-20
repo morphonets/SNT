@@ -27,6 +27,7 @@ import java.net.URL;
 import java.util.*;
 import java.util.concurrent.Future;
 
+import ij.plugin.frame.Recorder;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
@@ -249,7 +250,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	@Override
 	public void run() {
-		// Do nothing. Actually analysis is performed by runAnalysis();
+		if (ij.IJ.isMacro()) { // see ShollAnalyisImgCmd#run
+			try {
+				runAnalysis();
+			} catch (final InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+		}
 	}
 
 	/*
@@ -268,6 +275,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	@SuppressWarnings("unused")
 	private void runAnalysis() throws InterruptedException {
+		if (Recorder.record) {
+			Recorder.recordString("// Please have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
+					+ "// robust ways to automate Sholl. E.g., Sholl_Extensive_Stats_Demo.groovy\n"//
+					+ "// exemplifies how to obtain and analyze profiles in a programmatic way");
+		}
 		if (analysisFuture != null && !analysisFuture.isDone()) {
 			threadService.queue(() -> {
 				final boolean killExisting = helper.getConfirmation("An analysis is already running. Abort it?",

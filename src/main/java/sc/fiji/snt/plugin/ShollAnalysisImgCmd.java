@@ -316,9 +316,16 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	@Override
 	public void run() {
-		// the code here gets called once the prompt is displayed.
-		// There is no "OK" button in the prompt, so we don't need anything here
-		// All the code is run from callbacks
+		// There is no "OK" button in the prompt, so we don't need anything here. All functionality is run from callbacks
+		// The code here gets called once the prompt is displayed and when CommandService.run() is called, so we'll only
+		// run analysis if called from a (pre-recorded) macro
+		if (ij.IJ.isMacro()) {
+			try {
+				runAnalysis();
+			} catch (final InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+		}
 	}
 
 	/*
@@ -361,14 +368,9 @@ public class ShollAnalysisImgCmd extends DynamicCommand implements Interactive, 
 
 	protected void runAnalysis() throws InterruptedException {
 		if (Recorder.record) {
-			Recorder.recordString(
-					  "// N.B.: Currently,recorded instances of the Sholl Analysis prompt may not allow for \n" //
-					+ "// fully automated macros(see e.g., https://github.com/imagej/imagej-legacy/pull/239.)\n" //
-					+ "// Please have a look at the example scripts in Templates>Neuroanatomy>\n"//
-					+ "// for more robust ways to automate Sholl. E.g., the script\n"//
-					+ "// 'Sholl_Extract_Profile_From_Image_Demo.py' exemplifies how to parse\n"//
-					+ "// an image programmatically. Alternatively, the Legacy IJ1 command remains\n"//
-					+ "// available with historical support for recorded calls.\n");
+			Recorder.recordString("// Please have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
+					+ "// robust ways to automate Sholl. E.g., Sholl_Extract_Profile_From_Image_Demo.py\n"//
+					+ "// exemplifies how to parse an image programmatically using API calls");
 		}
 		switch (scope) {
 		case SCOPE_IMP:
