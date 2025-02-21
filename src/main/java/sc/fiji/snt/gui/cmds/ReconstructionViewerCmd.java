@@ -39,8 +39,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  */
 @Plugin(type = Command.class, menu = {
 		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
-		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
-		@Menu(label = "Reconstruction Viewer") })
+		@Menu(label = "Neuroanatomy"), @Menu(label = "Reconstruction Viewer") })
 public class ReconstructionViewerCmd extends ContextCommand {
 
 	/*

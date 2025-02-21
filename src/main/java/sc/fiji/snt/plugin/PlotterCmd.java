@@ -59,9 +59,7 @@ import java.util.Map;
  */
 @Plugin(type = Command.class, menu = {
 		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
-		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
-		@Menu(label = "Reconstruction Plotter...") }, //
-		initializer = "init")
+		@Menu(label = "Neuroanatomy"), @Menu(label = "Reconstruction Plotter...") }, initializer = "init")
 public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 
 	@Parameter

@@ -22,24 +22,19 @@
 
 package sc.fiji.snt.plugin;
 
-import java.io.File;
-import java.net.URL;
-import java.util.*;
-import java.util.concurrent.Future;
-
+import ij.IJ;
+import ij.ImagePlus;
+import ij.gui.Overlay;
 import ij.plugin.frame.Recorder;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import net.imglib2.display.ColorTable;
-
-import org.scijava.Cancelable;
 import org.scijava.ItemIO;
 import org.scijava.ItemVisibility;
 import org.scijava.app.StatusService;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.command.DynamicCommand;
-import org.scijava.command.Interactive;
 import org.scijava.display.Display;
 import org.scijava.display.DisplayService;
 import org.scijava.menu.MenuConstants;
@@ -52,11 +47,10 @@ import org.scijava.thread.ThreadService;
 import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
-
-import ij.IJ;
-import ij.ImagePlus;
-import ij.gui.Overlay;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.Profile;
@@ -69,15 +63,15 @@ import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.util.Logger;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.ShollPoint;
+import sc.fiji.snt.util.*;
+
+import java.io.File;
+import java.net.URL;
+import java.util.*;
+import java.util.concurrent.Future;
+
+import static sc.fiji.snt.plugin.ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE;
 
 /**
  * Implements SNT's commands for Sholl Analysis of {@link Tree}s.
@@ -86,11 +80,11 @@ import sc.fiji.snt.util.ShollPoint;
  */
 @Plugin(type = Command.class, menu = {
 		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
-		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
+		@Menu(label = "Neuroanatomy"), //
 		@Menu(label = "Sholl"), //
 		@Menu(label = "Sholl Analysis (From Tracings)...") }, //
-		initializer = "init", headless = false)
-public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive, Cancelable {
+		initializer = "init")
+public class ShollAnalysisTreeCmd extends DynamicCommand {
 
 	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
 
@@ -113,7 +107,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private File file;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "Sampling:")
+		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "Sampling:")
 	private String HEADER1;
 
 	@Parameter(label = "Path filtering", required = false, choices = { "None",
@@ -144,7 +138,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private boolean previewShells;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Metrics:")
+		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Metrics:")
 	private String HEADER2;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -156,8 +150,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			"None. Skip curve fitting", "Use degree specified below:" })
 	private String polynomialChoice;
 
-	@Parameter(label = "<html>&nbsp;", callback = "polynomialDegreeChanged",
-		style = NumberWidget.SLIDER_STYLE) //FIXME: Class cast exception on linux with scroll bar widget
+	@Parameter(label = "<html>&nbsp;", callback = "polynomialDegreeChanged", stepSize="1",
+			min = "0", max = "" + ALLOWED_MAX_DEGREE, style = NumberWidget.SLIDER_STYLE)
 	private int polynomialDegree;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -174,7 +168,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private String normalizerDescription;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Output:")
+		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Output:")
 	private String HEADER3;
 
 	@Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot",
@@ -197,24 +191,19 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private ColorTable lutTable;
 
 	@Parameter(required = false, callback = "saveChoiceChanged", label = "Save files", //
-			description = ShollAnalysisImgCmd.HEADER_TOOLTIP
-					+ "Wheter output files (tables, plots, mask) should be saved once displayed.")
+			description = ShollAnalysisImgCommonCmd.HEADER_TOOLTIP
+					+ "Whether output files (tables, plots, mask) should be saved once displayed.")
 	private boolean save;
 
 	@Parameter(required = false, label = "Destination", type = ItemIO.INPUT, style = FileWidget.DIRECTORY_STYLE, //
-			description = ShollAnalysisImgCmd.HEADER_TOOLTIP
+			description = ShollAnalysisImgCommonCmd.HEADER_TOOLTIP
 					+ "Destination directory. Ignored if \"Save files\" is deselected, or outputs are not savable.")
 	private File saveDir;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>&nbsp;")
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = ShollAnalysisImgCommonCmd.HEADER_HTML)
 	private String HEADER4;
 
-	@Parameter(label = "Run Analysis", callback = "runAnalysis")
-	private Button analyzeButton;
-
-	@Parameter(label = " Options, Preferences and Resources... ",
-		callback = "runOptions")
+	@Parameter(label = "Further Options...", callback = "runOptions")
 	private Button optionsButton;
 
 	/* Parameters for SNT interaction */
@@ -234,8 +223,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	private Map<String, URL> luts;
 	private Future<?> analysisFuture;
 	private PreviewOverlay previewOverlay;
-	private Profile profile;
-	private ShollTable commonSummaryTable;
+    private ShollTable commonSummaryTable;
 	private Display<?> detailedTableDisplay;
 	private boolean multipleTreesExist;
 	private boolean noFocalPointSpecified;
@@ -250,12 +238,16 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	@Override
 	public void run() {
-		if (ij.IJ.isMacro()) { // see ShollAnalyisImgCmd#run
-			try {
-				runAnalysis();
-			} catch (final InterruptedException e) {
-				throw new RuntimeException(e);
-			}
+		System.out.println("ShollAnalysisTreeCmd.run()");
+		if (Recorder.record && !IJ.macroRunning()) {
+			Recorder.recordString("// Please have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
+					+ "// robust ways to automate Sholl. E.g., Sholl_Extensive_Stats_Demo.groovy\n"//
+					+ "// exemplifies how to obtain and analyze profiles in a programmatic way");
+		}
+		try {
+			runAnalysis();
+		} catch (final InterruptedException e) {
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -274,12 +266,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	}
 
 	@SuppressWarnings("unused")
-	private void runAnalysis() throws InterruptedException {
-		if (Recorder.record) {
-			Recorder.recordString("// Please have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
-					+ "// robust ways to automate Sholl. E.g., Sholl_Extensive_Stats_Demo.groovy\n"//
-					+ "// exemplifies how to obtain and analyze profiles in a programmatic way");
-		}
+	void runAnalysis() throws InterruptedException {
 		if (analysisFuture != null && !analysisFuture.isDone()) {
 			threadService.queue(() -> {
 				final boolean killExisting = helper.getConfirmation("An analysis is already running. Abort it?",
@@ -309,7 +296,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 						"Invalid Center");
 				return;
 			}
-			logger.info("Center:  " + center.toString());
+			logger.info("Center:  " + center);
 			filteredTree.setBoundingBox(snt.getPathAndFillManager().getBoundingBox(false));
 			logger.info("Considering " + filteredTree.size() + " paths out of " + tree
 				.size());
@@ -324,7 +311,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				return;
 			}
 			analysisRunner = new AnalysisRunner(tree);
-			boolean invalidCenter = false;
+			boolean invalidCenter;
 			try {
 				analysisRunner.parser.setCenter(getCenterFromChoice(centerChoice));
 				invalidCenter = analysisRunner.parser.getCenter() == null;
@@ -348,7 +335,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 	}
 
 	private PointInImage guessCenter(final Tree paths) {
-		if (paths.list().size() > 1 && paths.list().stream().allMatch(p -> p.isPrimary())) {
+		if (paths.list().size() > 1 && paths.list().stream().allMatch(Path::isPrimary)) {
 			// See https://forum.image.sc/t/51707/5
 			final List<PointInImage> startingNodes = new ArrayList<>();
 			paths.list().forEach( p -> startingNodes.add(p.getNode(0)));
@@ -469,13 +456,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	private void readPreferences() {
 		logger.debug("Reading preferences");
-
-		minDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "minDegree",
-			ShollAnalysisPrefsCmd.DEF_MIN_DEGREE);
-		maxDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "maxDegree",
-			ShollAnalysisPrefsCmd.DEF_MAX_DEGREE);
-
+		minDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "minDegree", ShollAnalysisPrefsCmd.DEF_MIN_DEGREE);
+		maxDegree = prefService.getInt(ShollAnalysisPrefsCmd.class, "maxDegree", ShollAnalysisPrefsCmd.DEF_MAX_DEGREE);
 		// FIXME: Somehow values for these parameters are not persisting. We'll load them manually
+		final String filePath = prefService.get(ShollAnalysisTreeCmd.class, "file", null);
+		if (filePath != null) file = new File(filePath);
 		filterChoice = prefService.get(ShollAnalysisTreeCmd.class, "filterChoice", "None");
 		stepSize = prefService.getDouble(ShollAnalysisTreeCmd.class, "stepSize", 0d);
 		centerChoice = prefService.get(ShollAnalysisTreeCmd.class, "centerChoice", "Root node(s)");
@@ -499,8 +484,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 	private void savePreferences() {
 		logger.debug("Saving preferences");
-
 		// FIXME: Somehow values for these parameters are not persisting. We'll load them manually
+		if (file != null) prefService.put(ShollAnalysisTreeCmd.class, "file", file.getAbsolutePath());
 		prefService.put(ShollAnalysisTreeCmd.class, "filterChoice", filterChoice);
 		prefService.put(ShollAnalysisTreeCmd.class, "stepSize", stepSize);
 		prefService.put(ShollAnalysisTreeCmd.class, "centerChoice", centerChoice);
@@ -651,7 +636,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			polynomialDegree = 0;
 		}
 		else if (polynomialDegree == 0) {
-			polynomialDegree = (int)(minDegree + maxDegree) / 2;
+			polynomialDegree = (minDegree + maxDegree) / 2;
 		}
 	}
 
@@ -687,11 +672,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 
 		private final Tree tree;
 		private final TreeParser parser;
-		private LinearProfileStats lStats;
-		private NormalizedProfileStats nStats;
-		private ArrayList<Object> outputs = new ArrayList<>();
 
-		public AnalysisRunner(final Tree tree) {
+        public AnalysisRunner(final Tree tree) {
 			this.tree = tree;
 			parser = new TreeParser(tree);
 			parser.setStepSize(adjustedStepSize());
@@ -723,7 +705,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				ex.printStackTrace();
 				return;
 			}
-			profile = parser.getProfile();
+            final Profile profile = parser.getProfile();
 
 			if (!parser.successful()) {
 				cancelAndFreezeUI("No valid profile retrieved.", "Invalid Profile");
@@ -732,7 +714,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 
 			// Linear profile stats
-			lStats = new LinearProfileStats(profile);
+            final LinearProfileStats lStats = new LinearProfileStats(profile);
 			lStats.setLogger(logger);
 			int primaryBranches;
 			try {
@@ -771,11 +753,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			}
 
 			/// Normalized profile stats
-			nStats = getNormalizedProfileStats(profile, tree.is3D());
+            final NormalizedProfileStats nStats = getNormalizedProfileStats(profile, tree.is3D());
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
 
 			// Set Plots
-			outputs = new ArrayList<>();
+            final ArrayList<Object> outputs = new ArrayList<>();
 			showStatus("Preparing outputs...");
 			if (plotOutputDescription.toLowerCase().contains("linear")) {
 				lPlot = showOrRebuildPlot(lPlot, lStats);
@@ -800,7 +782,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 			if (tableOutputDescription.contains("Summary")) {
 				final ShollTable sTable = new ShollTable(lStats, nStats);
 				if (commonSummaryTable == null) commonSummaryTable = new ShollTable();
-				String header = "";
+				String header;
 				if (snt == null) {
 					header = file.getName();
 				}
@@ -958,7 +940,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand implements Interactive,
 				imp.setOverlay(so.getOverlay());
 			}
 			catch (final IllegalArgumentException ignored) {
-				return; // invalid parameters: do nothing
+				// invalid parameters: do nothing
 			}
 		}
 

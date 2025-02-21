@@ -61,8 +61,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, label = "Bulk Sholl Analysis (Tracings)", initializer = "init")
-public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
-{
+public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 
 	@Parameter
 	private CommandService cmdService;
@@ -75,11 +74,11 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 
 	/* Parameters */
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			label = ShollAnalysisImgCmd.HEADER_HTML + "Input:")
+			label = ShollAnalysisImgCommonCmd.HEADER_HTML + "Input:")
 	private String HEADER0;
 
 	@Parameter(required = false, label = "Directory", type = ItemIO.INPUT, style = FileWidget.DIRECTORY_STYLE, //
-			description = ShollAnalysisImgCmd.HEADER_TOOLTIP + "Input folder containing reconstruction files.")
+			description = ShollAnalysisImgCommonCmd.HEADER_TOOLTIP + "Input folder containing reconstruction files.")
 	private File directory;
 
 	@Parameter(required = false, label = "Filename filter",
@@ -88,7 +87,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 	private String filenamePattern;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Sampling:")
+		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Sampling:")
 	private String HEADER1;
 
 	@Parameter(label = "Path filtering", required = false, choices = { "None",
@@ -116,7 +115,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 	private double stepSize;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Metrics:")
+		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Metrics:")
 	private String HEADER2;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -147,7 +146,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 	private String normalizerDescription;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-		label = ShollAnalysisImgCmd.HEADER_HTML + "<br>Output:")
+		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Output:")
 	private String HEADER3;
 
 	@Parameter(label = "Plots",  required = false, choices = { "Linear plot", "Normalized plot",
@@ -158,19 +157,19 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 	private String tableOutputDescription;
 
 	@Parameter(required = false, label = "Destination", type = ItemIO.INPUT, style = FileWidget.DIRECTORY_STYLE, //
-			description = ShollAnalysisImgCmd.HEADER_TOOLTIP
+			description = ShollAnalysisImgCommonCmd.HEADER_TOOLTIP
 					+ "Destination directory. NB: Files will be overwritten on re-runs.")
 	private File saveDir;
 
 	@Parameter(required = false, label = "Display outputs",//
-			description = ShollAnalysisImgCmd.HEADER_TOOLTIP
+			description = ShollAnalysisImgCommonCmd.HEADER_TOOLTIP
 					+ "Whether plots and tables should be displayed after being saved")
 	private boolean showAnalysis;
 	
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = "<HTML>&nbsp;") // empty label
 	private String HEADER4;
 
-	@Parameter(label = " Options, Preferences and Resources... ", callback = "runOptions")
+	@Parameter(label = "Further Options...", callback = "runOptions")
 	private Button optionsButton;
 
 	@Parameter(required = false)
@@ -219,8 +218,6 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			tableOutputDescription = "Summary table";
 		if (plotOutputDescription == null || plotOutputDescription.isEmpty())
 			plotOutputDescription = "Linear plot";
-		if (plotOutputDescription == null || plotOutputDescription.isEmpty())
-			plotOutputDescription = "Linear plot";
 		if (normalizerDescription == null || normalizerDescription.isEmpty())
 			normalizerDescription = "Default";
 		if (normalizationMethodDescription == null || normalizationMethodDescription.isEmpty())
@@ -232,9 +229,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 		logger.info("Running multithreaded analysis...");
 		readPreferences();
 		commonSummaryTable = new ShollTable();
-		treeList.parallelStream().forEach(tree -> {
-			new AnalysisRunner(tree).run();
-		});
+		treeList.parallelStream().forEach(tree -> new AnalysisRunner(tree).run());
 		logger.info("Done.");
 		if (commonSummaryTable == null || commonSummaryTable.isEmpty() || commonSummaryTable.getRowCount() < 1) {
 			cancel("Options were likely invalid and no files were parsed. See Console for details.");
@@ -321,7 +316,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			polynomialDegree = 0;
 		}
 		else if (polynomialDegree == 0) {
-			polynomialDegree = (int)(minDegree + maxDegree) / 2;
+			polynomialDegree = (minDegree + maxDegree) / 2;
 		}
 	}
 
@@ -491,7 +486,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd
 			if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 			if (!sTable.hasContext()) sTable.setContext(getContext());
 			sTable.summarize(commonSummaryTable, header);
-			threadService.queue(() -> updateDisplayAndSaveCommonSummaryTable());
+			threadService.queue(ShollAnalysisBulkTreeCmd.this::updateDisplayAndSaveCommonSummaryTable);
 		}
 
 	}

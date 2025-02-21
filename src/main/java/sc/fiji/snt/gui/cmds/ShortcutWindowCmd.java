@@ -37,9 +37,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
-import sc.fiji.snt.plugin.PlotterCmd;
-import sc.fiji.snt.plugin.ShollAnalysisImgCmd;
-import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
+import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.plugin.ij1.CallLegacyCmd;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -63,9 +61,8 @@ import java.util.Collections;
  */
 @Plugin(type = Command.class, menu = {
 		@Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
-		@Menu(label = "Neuroanatomy", weight = GuiUtils.DEFAULT_MENU_WEIGHT), //
-		@Menu(label = "Neuroanatomy Shortcut Window") }, //
-		headless = false)
+		@Menu(label = "Neuroanatomy"), // default weights work fine
+		@Menu(label = "Neuroanatomy Shortcut Window") })
 public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
@@ -162,25 +159,20 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		final JPopupMenu popup = new JPopupMenu();
 		final JButton button = getPopupButton(popup, "Sholl Analysis",
 				"Tools for thresholded images and reconstructions");
-		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
+		ArrayList<Shortcut> shortcuts = new ArrayList<>();
+		shortcuts.add(new Shortcut("Sholl Analysis (Image)...", ShollAnalysisImgInteractiveCmd.class,
+				"Performs Sholl Analysis directly from a 2D/3D image.<br>Interactive version for single images."));
+		shortcuts.add(new Shortcut("Sholl Analysis (Tracings)...", ShollAnalysisTreeInteractiveCmd.class,
+				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc).<br>Interactive version."));
+		addSeparator("Interactive:", popup);
+		getMenuItems(shortcuts).forEach(popup::add);
+		shortcuts = new ArrayList<>();
 		shortcuts.add(new Shortcut("Sholl Analysis (Image)...", ShollAnalysisImgCmd.class,
-				"Performs Sholl Analysis directly from a 2D/3D image"));
+				"Performs Sholl Analysis directly from a 2D/3D image.<br>Macro recordable prompt."));
 		shortcuts.add(new Shortcut("Sholl Analysis (Tracings)...", ShollAnalysisTreeCmd.class,
-				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc)"));
-		getMenuItems(shortcuts).forEach(mi -> popup.add(mi));
-		addSeparator("Legacy Commands:", popup);
-		for (final String cmd : new String[]{"Legacy: Sholl Analysis (From Image)...", "Legacy: Sholl Metrics & Options..."}) {
-			final JMenuItem jmi = new JMenuItem(cmd);
-			jmi.setToolTipText("IJ1 command now deprecated but fully macro recordable");
-			jmi.addActionListener(e -> {
-				try {
-					ij.IJ.doCommand(cmd);
-				} catch (final Exception ex){
-					new GuiUtils(getFrame()).error(ex.getMessage());
-				}
-			});
-			popup.add(jmi);
-		}
+				"Performs Sholl Analysis on reconstruction file(s) (traces/json/swc).<br>Macro recordable prompt."));
+		addSeparator("Macro Recordable:", popup);
+		getMenuItems(shortcuts).forEach(popup::add);
 		addScriptsSeparator(popup);
 		popup.add(getScriptMenuItem(si, "Batch", "Sholl_Bulk_Analysis_(From_Reconstructions).groovy"));
 		popup.add(getScriptMenuItem(si, "Analysis", "Sholl_Convex_Hull_As_Center.groovy"));
@@ -226,9 +218,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		shortcuts.forEach(shrtct -> {
 			final JButton b = new JButton(shrtct.label);
 				b.setToolTipText(HTML_TOOLTIP + shrtct.description);
-				b.addActionListener(e -> {
-					threadService.queue(() -> cmdService.run(shrtct.cmd, true));
-				});
+				b.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
 				buttons.add(b);
 		});
 	}
@@ -236,9 +226,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private JButton getPopupButton(final JPopupMenu popup, final String label, final String tooltip) {
 		final JButton button = new JButton("<HTML>" + label + " &#9657;");
 		button.setToolTipText(HTML_TOOLTIP + tooltip);
-		button.addActionListener( e -> {
-			popup.show(button, button.getWidth() / 2, button.getHeight() / 2);
-		});
+		button.addActionListener( e -> popup.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}
 
@@ -247,9 +235,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		shortcuts.forEach(shrtct -> {
 			final JMenuItem jmi = new JMenuItem(shrtct.label);
 			jmi.setToolTipText(HTML_TOOLTIP + shrtct.description);
-			jmi.addActionListener(e -> {
-				threadService.queue(() -> cmdService.run(shrtct.cmd, true));
-			});
+			jmi.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
 			menuItems.add(jmi);
 		});
 		return menuItems;
@@ -308,9 +294,9 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		SwingUtilities.invokeLater(() -> frame.setVisible(true));
 	}
 
-	// convenience methods for macro access
+	@SuppressWarnings("unused")
 	public static void resetFrameLocation() {
-		ij.Prefs.saveLocation(WIN_LOC, null);
+		ij.Prefs.saveLocation(WIN_LOC, null); // convenience methods for macro access
 		if (frame != null) AWTWindows.centerWindow(frame);
 	}
 
@@ -318,6 +304,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		return frame != null && frame.isVisible() && frame.getState() != Frame.ICONIFIED;
 	}
 
+	@SuppressWarnings("unused")
 	public static void toggleVisibility() {
 		if (frame == null) {
 			final ShortcutWindowCmd swc = new ShortcutWindowCmd();
@@ -381,7 +368,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 					@Override
 					public Object doInBackground() {
-						if (trees.stream().anyMatch(tree -> tree.is3D())) {
+						if (trees.stream().anyMatch(Tree::is3D)) {
 							final Viewer3D v3d = new Viewer3D(true);
 							Tree.assignUniqueColors(trees);
 							v3d.add(trees);
@@ -399,9 +386,9 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 					protected void done() {
 						try {
 							final Object viewer = get();
-							if (viewer != null && viewer instanceof Viewer2D)
+							if (viewer instanceof Viewer2D)
 								((Viewer2D)viewer).show();
-							else if (viewer != null && viewer instanceof Viewer3D)
+							else if (viewer instanceof Viewer3D)
 								((Viewer3D)viewer).show();
 						} catch (final Exception e) {
 							// TODO Auto-generated catch block

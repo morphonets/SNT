@@ -48,8 +48,7 @@ import sc.fiji.snt.util.Logger;
  * 
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Sholl Options", visible = false,
-	initializer = "init")
+@Plugin(type = Command.class, label = "Sholl Options", visible = false, initializer = "init")
 public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@Parameter
@@ -63,21 +62,19 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	public final static boolean DEF_SKIP_SOMATIC_SEGMENTS = true;
 	public final static int DEF_ENCLOSING_RADIUS_CUTOFF = 1;
 	public final static int DEF_MIN_DEGREE = 2;
-	public final static int DEF_MAX_DEGREE = 20;
-	public final static double DEF_RSQUARED = 0.80;
+	public final static int DEF_MAX_DEGREE = 30;
+	public final static int ALLOWED_MAX_DEGREE = 60;
+	public final static int ALLOWED_MIN_DEGREE = 2;
+	public final static double DEF_RSQUARED = 0.70;
 	public final static boolean DEF_KS_TESTING = false;
 	public final static boolean DEF_DEBUG_MODE = false;
 	public final static boolean DEF_DETAILED_METRICS = false;
 	public final static String DEF_ROI_SIZE= "Medium";
 
-
-	//public final static boolean DEF_AUTO_CLOSE = false;
-
 	/* Fields */
 	private final static String PLACEHOLDER_CHOICE = "Choose...";
 	private GuiUtils helper;
 	private Logger logger;
-	private boolean restartRequired;
 
 	/* Prompt */
 	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
@@ -102,17 +99,13 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		label = HEADER_HTML + "<br>'Best Fit' Polynomial:")
 	private String HEADER2;
 
-	@Parameter(label = "Min. degree", min = "2", max = "60",
-		callback = "flagRestart", description = "The lowest order to be considered")
+	@Parameter(label = "Min. degree", min = ""+ALLOWED_MIN_DEGREE, max = ""+ALLOWED_MAX_DEGREE,
+		description = "The lowest order to be considered")
 	private int minDegree;
 
-	@Parameter(label = "Max. degree", min = "2", max = "60",
-		callback = "flagRestart", description = "The highest order to be considered")
+	@Parameter(label = "Max. degree", min = ""+ALLOWED_MIN_DEGREE, max = ""+ALLOWED_MAX_DEGREE,
+		description = "The highest order to be considered")
 	private int maxDegree;
-
-//	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-//		label = HEADER_HTML + "Goodness of Fit Criteria:")
-//	private String HEADER1C;
 
 	@Parameter(label = "R-squared cutoff", min = "0.5", stepSize = "0.01", max = "1",
 			description = DESCRIPTION_HTML + "The Coefficient of determination "
@@ -168,10 +161,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 					+ "detailed information to the Console")
 	private boolean debugMode = DEF_DEBUG_MODE;
 
-//	@Parameter(label = "Auto-close dialog", callback = "flagRestart")
-//	private boolean autoClose = DEF_AUTO_CLOSE;
-
-	@Parameter(label = "Reset Options & Preferences...", callback = "reset")
+	@Parameter(label = "Reset to Defaults...", callback = "reset")
 	private Button resetPrefs;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
@@ -214,7 +204,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			GuiUtils.showAboutDialog();
 			return;
 		}
-		String url = "";
+		String url;
 		if (choice.contains("forum") && choice.contains("sholl"))
 			url = "https://forum.image.sc/search?q=sholl";
 		else if (choice.contains("snt"))
@@ -232,20 +222,12 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		}
 	}
 
-	@SuppressWarnings("unused")
-	private void flagRestart() {
-		restartRequired = true;
-		if (minDegree > maxDegree) maxDegree = minDegree;
-		if (maxDegree < minDegree) minDegree = maxDegree;
-	}
-
 	@Override
 	public void run() {
 		super.run();
 		SNTPrefs.setThreads(Math.max(0, nThreads));
-		if (restartRequired)
-			helper.centeredMsg("You may need to restart the Sholl Analysis plugin for changes to take effect.",
-					"New Preferences Set");
+		minDegree = Math.min(maxDegree, Math.max(minDegree, ALLOWED_MIN_DEGREE));
+		maxDegree = Math.max(minDegree, Math.min(maxDegree, ALLOWED_MAX_DEGREE));
 	}
 
 	@Override
@@ -257,8 +239,11 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 		// Reset preferences
 		super.reset();
+		pService.clear(ShollAnalysisImgCommonCmd.class);
 		pService.clear(ShollAnalysisImgCmd.class);
+		pService.clear(ShollAnalysisImgInteractiveCmd.class);
 		pService.clear(ShollAnalysisTreeCmd.class);
+		pService.clear(ShollAnalysisTreeInteractiveCmd.class);
 		pService.clear(ShollAnalysisBulkTreeCmd.class);
 		pService.clear(ChooseDataset.class);
 
@@ -275,11 +260,6 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		detailedMetrics = DEF_DETAILED_METRICS;
 		roiSize = DEF_ROI_SIZE;
 		SNTPrefs.setThreads(0);
-//		autoClose = DEF_AUTO_CLOSE;
-
-		helper.centeredMsg("Preferences were successfully reset.", SNTUtils.getReadableVersion());
-		restartRequired = true;
-
 	}
 
 }

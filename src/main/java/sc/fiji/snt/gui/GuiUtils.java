@@ -83,10 +83,6 @@ public class GuiUtils {
 	public static final String LAF_DARCULA = FlatDarculaLaf.NAME;
 	public static final String LAF_DEFAULT  = LAF_LIGHT;
 
-	/** The default sorting weight for the Plugins>Neuroanatomy> submenu */
-	// define it here in case we need to change sorting priority again later on
-	public static final double DEFAULT_MENU_WEIGHT = org.scijava.MenuEntry.DEFAULT_WEIGHT;
-
 	private static SplashScreen splashScreen;
 	private static LookAndFeel existingLaf;
 	private Component parent;
@@ -99,8 +95,11 @@ public class GuiUtils {
 		setParent(parent);
 	}
 
+	/**
+	 * Create a new GuiUtils instance using active (focused) window as parent.
+	 */
 	public GuiUtils() {
-		this(null);
+		this(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
 	}
 
 	public void setParent(final Component parent) {
