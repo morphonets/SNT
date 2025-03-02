@@ -416,9 +416,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SORT));
 		pjmi.addActionListener(multiPathListener);
 		popup.addSeparator();
-		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD, IconFactory.GLYPH.ARROWS_DLUR));
-		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD,  IconFactory.GLYPH.RESIZE));
-		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD,  IconFactory.GLYPH.CHECK_DOUBLE));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_SELECTED_LEVEL));
+		popup.addSeparator();
+		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD));
+		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_SELECTED_LEVEL));
 		popup.addSeparator();
 		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
 		pjmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHILDREN));
@@ -426,6 +428,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
 		pjmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHILD));
 		pjmi.addActionListener(multiPathListener);
+		popup.addSeparator();
+		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
 		tree.setComponentPopupMenu(popup);
 		tree.addMouseListener(new MouseAdapter() {
 
@@ -950,7 +954,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			tree.reload();
 			// Set back the expanded state:
 			if (expandAll)
-				GuiUtils.expandAllTreeNodes(tree);
+				GuiUtils.JTrees.expandAllNodes(tree);
 			else {
 				expandedPathsBefore.add(justAdded);
 				tree.setExpandedPaths(expandedPathsBefore);
@@ -2206,19 +2210,33 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private class JTreeMenuItem extends JMenuItem implements ActionListener {
 
 		private static final long serialVersionUID = 1L;
-		private static final String EXPAND_ALL_CMD = "Expand All";
 		private static final String COLLAPSE_ALL_CMD = "Collapse All";
+		private static final String COLLAPSE_SELECTED_LEVEL= "Collapse Selected Level";
+		private static final String EXPAND_ALL_CMD = "Expand All";
+		private static final String EXPAND_SELECTED_LEVEL = "Expand Selected Level";
 		private static final String SELECT_NONE_CMD = "Deselect / Select All";
 
-		private JTreeMenuItem(final String tag, final IconFactory.GLYPH iconGlyph) {
+		private JTreeMenuItem(final String tag) {
 			super(tag);
-			if (iconGlyph != null) setIcon(IconFactory.menuIcon(iconGlyph));
+			setIcon(tag);
 			addActionListener(this);
 			if (SELECT_NONE_CMD.equals(tag)) {
 				setToolTipText("Commands processing multiple paths will\n"
 						+ "process the entire list when no selection exists");
 				ScriptRecorder.setRecordingCall(this, "snt.getUI().getPathManager().clearSelection()");
 			}
+		}
+
+		void setIcon(final String tag) {
+			final IconFactory.GLYPH iconGlyph = switch (tag) {
+                case COLLAPSE_ALL_CMD -> IconFactory.GLYPH.ARROWS_DLUR;
+                case COLLAPSE_SELECTED_LEVEL -> IconFactory.GLYPH.CARET_DOWN;
+                case EXPAND_ALL_CMD -> IconFactory.GLYPH.RESIZE;
+                case EXPAND_SELECTED_LEVEL -> IconFactory.GLYPH.CARET_UP;
+				case SELECT_NONE_CMD -> IconFactory.GLYPH.CHECK_DOUBLE;
+				default -> null;
+            };
+            if (iconGlyph != null) setIcon(IconFactory.menuIcon(iconGlyph));
 		}
 
 		@Override
@@ -2228,10 +2246,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				tree.clearSelection();
 				return;
 			case EXPAND_ALL_CMD:
-				GuiUtils.expandAllTreeNodes(tree);
+				GuiUtils.JTrees.expandAllNodes(tree);
 				return;
 			case COLLAPSE_ALL_CMD:
-				GuiUtils.collapseAllTreeNodes(tree);
+				GuiUtils.JTrees.collapseAllNodes(tree);
+				return;
+			case COLLAPSE_SELECTED_LEVEL:
+			case EXPAND_SELECTED_LEVEL:
+				final TreePath selectedPath = tree.getSelectionPath();
+				if (selectedPath == null) {
+					guiUtils.error("No path selected.");
+					return;
+				}
+				if (EXPAND_SELECTED_LEVEL.equals(e.getActionCommand()))
+					GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
+				else
+					GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
 				return;
 			default:
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);

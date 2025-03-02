@@ -46,8 +46,8 @@ public class SNTSearchableBar extends SearchableBar {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
+	private static final int DELAY_MS = 100;
 	protected List<AbstractButton> _extraButtons;
-	private float iconHeight;
 	private int buttonCount;
 
 	private String statusLabelPlaceholder;
@@ -70,7 +70,7 @@ public class SNTSearchableBar extends SearchableBar {
 		getSearchable().setWildcardEnabled(false);
 		getSearchable().setFromStart(false);
 		getSearchable().setRepeats(true);
-		getSearchable().setSearchingDelay(50);
+		getSearchable().setSearchingDelay(DELAY_MS);
 		setShowMatchCount(true); // false improves performance
 		setMismatchForeground(GuiUtils.warningColor());
 		setMaxHistoryLength(0); // disable default history. We'll use builtinSearchHistory
@@ -103,7 +103,10 @@ public class SNTSearchableBar extends SearchableBar {
 		for (int i = builtinSearchHistory.size() - 1; i >= 0; i--) {
 			final String h = builtinSearchHistory.get(i);
 			final JMenuItem mi = new JMenuItem(h);
-			mi.addActionListener(e -> getSearchField().setText(h));
+			mi.addActionListener(e -> {
+				getSearchField().setText(h);
+				searchOnDemandAsNeeded();
+			});
 			historyMenu.add(mi);
 		}
 		historyMenu.addSeparator();
@@ -239,6 +242,12 @@ public class SNTSearchableBar extends SearchableBar {
 		}
 	}
 
+	private void searchOnDemandAsNeeded() {
+		if (getSearchable().getSearchingDelay()==-1) {
+			updateSearch();
+		}
+	}
+
 	private SearchField getModifiedTextField(final String placeholder) {
 		final boolean wholeWordsSupport = getSearchable() instanceof WholeWordsSupport;
 		int options = SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON;
@@ -252,6 +261,7 @@ public class SNTSearchableBar extends SearchableBar {
 				updateSearch();
 				return;
 			}
+			searchOnDemandAsNeeded();
 			addSearchingTextToHistory(sf.getText());
 			if (!blinkingTimer.isRunning()) {
 				sf.optionsButton().setBackground(GuiUtils.getSelectionColor());
@@ -301,18 +311,22 @@ public class SNTSearchableBar extends SearchableBar {
 		popup.add(historyMenu);
 		popup.addSeparator();
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
-			jcbmi4.setToolTipText("May adversely affect performance if selected");
-			jcbmi4.addItemListener(e -> {
-				setShowMatchCount(jcbmi4.isSelected());
+			final JMenuItem jcbmi = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
+			jcbmi.setToolTipText("May adversely affect performance if selected");
+			jcbmi.addItemListener(e -> {
+				setShowMatchCount(jcbmi.isSelected());
 				updateSearch();
 			});
-			popup.add(jcbmi4);
+			popup.add(jcbmi);
 		}
 		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
 		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
 		jcbmi3.setToolTipText("Affects selection of previous/next hit using arrow keys");
 		popup.add(jcbmi3);
+		final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Non-interactive Search", getSearchable().getSearchingDelay()==-1);
+		jcbmi4.addItemListener(e -> getSearchable().setSearchingDelay((jcbmi4.isSelected())?-1:DELAY_MS));
+		jcbmi4.setToolTipText("Search only after Enter is pressed");
+		popup.add(jcbmi4);
 		if (findAndReplaceMenuItem != null) {
 			popup.addSeparator();
 			popup.add(findAndReplaceMenuItem);
@@ -340,7 +354,7 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	private JMenuItem getTipsAndShortcutsMenuItem() {
-		final JMenuItem mi2 = new JMenuItem("Tips & Shortcuts...");
+		final JMenuItem mi2 = new JMenuItem("Search Tips...");
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
 			final String key = GuiUtils.ctrlKey();
@@ -353,7 +367,9 @@ public class SNTSearchableBar extends SearchableBar {
 						+ objectDescription + " filtered by the search term</li>";
 			}
 			if (isShowMatchCount()) {
-				msg += "<li>Uncheck <i>Display No. of Matches</i> to improve search performance</li>";
+				msg += "<li>To improve search performance:</li><ul>" +
+						"<li>Disable <i>Display No. of Matches</i></li>" +
+						"<li>Enable <i>Non-interactive Search</i> (search starts only after Enter is pressed)</li></ul>";
 			}
 			msg += "</ol></div></html>";
 			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
@@ -389,7 +405,7 @@ public class SNTSearchableBar extends SearchableBar {
 		super._statusLabel.setText(text);
 	}
 
-	public void setBorderless(final boolean enable) {
+	public void setBorderless() {
 		GuiUtils.Buttons.makeBorderless(_closeButton, _findPrevButton, _findNextButton, _highlightsButton);
 		if (_extraButtons != null)
 			GuiUtils.Buttons.makeBorderless(_extraButtons.toArray(new AbstractButton[0]));

@@ -58,7 +58,7 @@ public class AllenUtils {
 	private static final String V3 = "3";
 	public static final String VERSION = V3;
 	private static final Map<String, String> brainAreasByCCFVersion = createBrainAreasResourcePathsMap();
-	protected static final int BRAIN_ROOT_ID = 997;
+	public static final int BRAIN_ROOT_ID = 997;
 
 	private static JSONArray areaList;
 	private static JSONObject areaObjectFromStructureId;

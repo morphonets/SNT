@@ -64,8 +64,10 @@ public class IconFactory {
 			BUG('\uf188', true), //
 			BULB('\uf0eb', true), //
 			BULLSEYE('\uf140', true), //
-			CAMERA('\uf030', true), //
 			CALCULATOR('\uf1ec', true), //
+			CAMERA('\uf030', true), //
+			CARET_DOWN('\uf0d7', true), //
+			CARET_UP('\uf0d8', true), //
 			CHART('\ue0e3', true), //
 			CHART_LINE('\uf201', true), //
 			CHART_AREA('\uf1fe', true), //

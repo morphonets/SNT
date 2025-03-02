@@ -55,6 +55,9 @@ import javax.swing.text.NumberFormatter;
 import javax.swing.text.Position;
 import javax.swing.text.html.HTMLEditorKit;
 import javax.swing.text.html.StyleSheet;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreeNode;
+import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
@@ -1246,16 +1249,6 @@ public class GuiUtils {
 		splashScreen = null;
 	}
 
-	public static void collapseAllTreeNodes(final JTree tree) {
-		final int row1 = (tree.isRootVisible()) ? 1 : 0;
-		for (int i = row1; i < tree.getRowCount(); i++)
-			tree.collapseRow(i);
-	}
-
-	public static void expandAllTreeNodes(final JTree tree) {
-		for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
-	}
-
 	public static void addSeparator(final JComponent component,
 			final String heading, final boolean vgap, final GridBagConstraints c)
 		{
@@ -2435,6 +2428,62 @@ public class GuiUtils {
 		private static String releaseNotesURL() {
 			return "https://github.com/morphonets/SNT/releases";
 		}
+	}
+
+	public static class JTrees {
+
+		private JTrees() {}
+
+		public static void collapseAllNodes(final javax.swing.JTree tree) {
+			final int row1 = (tree.isRootVisible()) ? 1 : 0;
+			for (int i = row1; i < tree.getRowCount(); i++)
+				tree.collapseRow(i);
+		}
+
+		public static void expandAllNodes(final javax.swing.JTree tree) {
+			for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
+		}
+
+		public static void collapseNodesOfSameLevel(final javax.swing.JTree tree, final TreePath path) {
+			final DefaultMutableTreeNode root = (DefaultMutableTreeNode)tree.getModel().getRoot();
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+			collapseNodesByLevel(tree, new TreePath(root), node.getLevel());
+		}
+
+		public static void expandNodesOfSameLevel(final javax.swing.JTree tree, final TreePath path) {
+			final DefaultMutableTreeNode root = (DefaultMutableTreeNode)tree.getModel().getRoot();
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+			expandNodesByLevel(tree, new TreePath(root), node.getLevel());
+		}
+
+		private static void collapseNodesByLevel(final JTree tree, final TreePath path, int level) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+			if (node.getLevel() == level) {
+				tree.collapsePath(path);
+			}
+			if (node.getChildCount() >= 0) {
+				final Enumeration<? extends TreeNode> e = node.children();
+				while (e.hasMoreElements()) {
+					final DefaultMutableTreeNode childNode = (DefaultMutableTreeNode) e.nextElement();
+					collapseNodesByLevel(tree, path.pathByAddingChild(childNode), level);
+				}
+			}
+		}
+
+		private static void expandNodesByLevel(final JTree tree, final TreePath path, int level) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
+			if (node.getDepth() == level) {
+				tree.expandPath(path);
+			}
+			if (node.getChildCount() >= 0) {
+				final Enumeration<? extends TreeNode> e = node.children();
+				while (e.hasMoreElements()) {
+					final DefaultMutableTreeNode childNode = (DefaultMutableTreeNode) e.nextElement();
+					expandNodesByLevel(tree, path.pathByAddingChild(childNode), level);
+				}
+			}
+		}
+
 	}
 
 	public static class Buttons {

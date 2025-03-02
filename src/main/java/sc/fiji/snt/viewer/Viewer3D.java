@@ -5848,7 +5848,7 @@ public class Viewer3D {
 			searchableBar.setVisibleButtons(
 				SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
 			tree.setCellRenderer(new CustomRenderer(tree, searchableBar));
-			GuiUtils.expandAllTreeNodes(tree);
+			GuiUtils.JTrees.expandAllNodes(tree);
 			refreshTree(false);
 		}
 
@@ -6025,13 +6025,13 @@ public class Viewer3D {
 				}
 			});
 			dialog.setContentPane(getContentPane());
-			GuiUtils.collapseAllTreeNodes(tree); // compute sizes based on collapsed tree
+			GuiUtils.JTrees.collapseAllNodes(tree); // compute sizes based on collapsed tree
 			if (frame.manager != null) {
 				dialog.setPreferredSize(frame.manager.getPreferredSize());
 				dialog.setLocationRelativeTo(frame.manager);
 			}
 			dialog.pack();
-			GuiUtils.expandAllTreeNodes(tree);
+			GuiUtils.JTrees.expandAllNodes(tree);
 			cmdFinder.attach(dialog);
 			dialog.setVisible(true);
 			return dialog;
@@ -6079,18 +6079,32 @@ public class Viewer3D {
 			JMenuItem jmi = new JMenuItem("Clear Selection");
 			jmi.addActionListener(e -> tree.clearSelection());
 			pMenu.add(jmi);
+			pMenu.addSeparator();
 			jmi = new JMenuItem("Collapse All");
-			jmi.addActionListener(e -> GuiUtils.collapseAllTreeNodes(tree));
+			jmi.addActionListener(e -> GuiUtils.JTrees.collapseAllNodes(tree));
 			pMenu.add(jmi);
+			jmi = new JMenuItem("Collapse Selected Level");
+			jmi.addActionListener(e -> {
+				final TreePath selectedPath = tree.getSelectionPath();
+				if (selectedPath != null) GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
+			});
+			pMenu.add(jmi);
+			pMenu.addSeparator();
 			jmi = new JMenuItem("Expand All");
 			jmi.addActionListener(e -> {
-				GuiUtils.expandAllTreeNodes(tree);
+				GuiUtils.JTrees.expandAllNodes(tree);
 				if (!searchableBar.getSearchField().getText().isEmpty())
 					searchableBar.getSearchField().setText(searchableBar.getSearchField().getText());
 			});
 			pMenu.add(jmi);
+			jmi = new JMenuItem("Expand Selected Level");
+			jmi.addActionListener(e -> {
+				final TreePath selectedPath = tree.getSelectionPath();
+				if (selectedPath != null) GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
+			});
+			pMenu.add(jmi);
 			pMenu.addSeparator();
-			final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Apply Checkbox Selection to Children", tree.getCheckBoxTreeSelectionModel().isDigIn());
+			final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Auto-select Children", tree.getCheckBoxTreeSelectionModel().isDigIn());
 			jcmi.addItemListener(e -> tree.getCheckBoxTreeSelectionModel().setDigIn(jcmi.isSelected()));
 			pMenu.add(jcmi);
 			pMenu.addSeparator();
@@ -6098,6 +6112,7 @@ public class Viewer3D {
 			pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 3D Atlas Viewer", "https://connectivity.brain-map.org/3d-viewer"));
 			return pMenu;
 		}
+
 		private class NavigatorTree extends CheckBoxTree {
 			private static final long serialVersionUID = 1L;
 
@@ -6105,7 +6120,7 @@ public class Viewer3D {
 				super(treeModel);
 				setLargeModel(true);
 				setDigIn(false);
-				setClickInCheckBoxOnly(false);
+				setClickInCheckBoxOnly(true);
 				setEditable(false);
 				setExpandsSelectedPaths(true);
 				setRootVisible(true);
@@ -6161,7 +6176,9 @@ public class Viewer3D {
 				} else {
 					treeCellRendererComponent.setEnabled(ac.isMeshAvailable());
 				}
-				if (ac.isMeshAvailable()) {
+				if (ac.id() == AllenUtils.BRAIN_ROOT_ID) { // mesh color has no ontological meaning
+					setIcon(null);
+				} else if (ac.isMeshAvailable()) {
 					final ColorRGB color = ac.color();
 					if (color != null) setIcon(IconFactory.nodeIcon(new java.awt.Color(color.getARGB())));
 				}
