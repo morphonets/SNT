@@ -293,11 +293,12 @@ public class FileDrop {
 						// If it's a Swing component, set its border
 						if (c instanceof javax.swing.JComponent) {
 							final javax.swing.JComponent jc = (javax.swing.JComponent) c;
-							if (normalBorder == null) {
+							if (dragBorder != null && normalBorder == null) {
 								normalBorder = jc.getBorder();
 							} // end if: border not yet saved
 							log(out, "FileDrop: normal border saved.");
-							jc.setBorder(dragBorder);
+							if (dragBorder != null)
+								jc.setBorder(dragBorder);
 							log(out, "FileDrop: drag border set.");
 						} // end if: JComponent
 
@@ -422,7 +423,7 @@ public class FileDrop {
 						// If it's a Swing component, reset its border
 						if (c instanceof javax.swing.JComponent) {
 							final javax.swing.JComponent jc = (javax.swing.JComponent) c;
-							jc.setBorder(normalBorder);
+							if (dragBorder != null) jc.setBorder(normalBorder);
 							log(out, "FileDrop: normal border restored.");
 						} // end if: JComponent
 					} // end finally
@@ -434,7 +435,7 @@ public class FileDrop {
 					// If it's a Swing component, reset its border
 					if (c instanceof javax.swing.JComponent) {
 						final javax.swing.JComponent jc = (javax.swing.JComponent) c;
-						jc.setBorder(normalBorder);
+						if (dragBorder != null) jc.setBorder(normalBorder);
 						log(out, "FileDrop: normal border restored.");
 					} // end if: JComponent
 				} // end dragExit

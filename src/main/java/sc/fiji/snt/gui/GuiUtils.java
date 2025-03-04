@@ -1207,7 +1207,11 @@ public class GuiUtils {
 	}
 
 	public void showDirectory(final File file) {
-		new FileChooser().reveal(file);
+		try {
+			FileChooser.reveal(file);
+		} catch (final Exception ignored) {
+			error((file == null || file.getAbsolutePath().isEmpty()) ? "Directory does not seem to be accessible." : "Could not access\n" + file.getAbsolutePath());
+		}
 	}
 
 	/* Static methods */
@@ -1542,20 +1546,12 @@ public class GuiUtils {
 	}
 
 	public static JFileChooser getDnDFileChooser() {
-		final JFileChooser fileChooser = new FileChooser() {
-			@Override
-			public File getCurrentDirectory() {
-				// Workaround Linux bug where somehow directory always becomes root
-				if (super.getCurrentDirectory() == null || super.getCurrentDirectory().toPath().getNameCount() == 0) {
-					return SNTPrefs.lastknownDir();
-				}
-				return super.getCurrentDirectory();
-			}
-		};
+		final FileChooser fileChooser = new FileChooser();
+		fileChooser.setAcceptAllFileFilterUsed(true);
 		fileChooser.setCurrentDirectory(SNTPrefs.lastknownDir());
-		new FileDrop(fileChooser, files -> {
+		new FileDrop(fileChooser.getComponent(0), files -> {
 			if (files.length == 0) { // Is this even possible?
-				new GuiUtils(fileChooser).error("Dropped file(s) not recognized.");
+				fileChooser.error("Dropped file(s) not recognized.");
 				return;
 			}
 			// see ij.io.DragAndDropHandler

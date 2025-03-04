@@ -4894,13 +4894,7 @@ public class Viewer3D {
 			snapshot.setIcon(IconFactory.menuIcon(GLYPH.CAMERA));
 			utilsMenu.add(snapshot);
 			final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
-			reveal.addActionListener(e -> {
-				try {
-					guiUtils.showDirectory(prefs.getSnapshotDir());
-				} catch (final Exception ignored) {
-					guiUtils.error("Snapshot directory does not seem to be accessible.");
-				}
-			});
+			reveal.addActionListener(e -> guiUtils.showDirectory(prefs.getSnapshotDir()));
 			utilsMenu.add(reveal);
 
 			GuiUtils.addSeparator(utilsMenu, "Resources:");

@@ -36,6 +36,7 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 
 import javax.swing.*;
@@ -206,6 +207,8 @@ public class PrefsCmd extends OptionsPlugin {
 		}
 		// Legacy (IJ1-based) preferences
 		SNTPrefs.clearAll();
+		// Others
+		FileChooser.reset();
 	}
 
 	private Set<Class<?>> findClasses(final String packageName) {

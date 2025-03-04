@@ -3037,8 +3037,7 @@ public class SNTUI extends JDialog {
 				default:
 					break;
 				}
-				if (proceed)
-					guiUtils.showDirectory(f);
+				if (proceed) guiUtils.showDirectory(f);
 			});
 		});
 		return menu;
