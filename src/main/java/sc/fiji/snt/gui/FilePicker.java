@@ -142,7 +142,7 @@ public class FilePicker extends JPanel {
 
     public File getFile() {
         // the 'final' file choice is always defined by the textfield path, unless it has never been set
-        return (textField.getText() == null || textField.getText().isBlank()) ? fallbackFile : new File(textField.getText());
+        return (textField.getText() == null || textField.getText().isBlank()) ? fallbackFile : new File(textField.getText().trim());
     }
 
     /**

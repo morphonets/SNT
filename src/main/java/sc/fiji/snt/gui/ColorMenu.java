@@ -101,7 +101,7 @@ public class ColorMenu extends JMenu {
 			defaultPanel.add(colorPane);
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
-		addSeparator("Default Hues", GuiUtils.getDisabledComponentColor());
+		addSeparator("Default Hues");
 
 		add(defaultPanel);
 
@@ -120,7 +120,7 @@ public class ColorMenu extends JMenu {
 
 		// Add Kelly distinct colors
 		addSeparator();
-		addSeparator("Contrast Hues", GuiUtils.getSelectionColor());
+		addSeparator("Contrast Hues");
 		final JPanel kellyPanel = getGridPanel(3, 7);
 		final Color[] kellyColors = SNTColor.getDistinctColorsAWT(21);
 		kellyColors[20] = null; // add the null color to the end of the row
@@ -132,11 +132,9 @@ public class ColorMenu extends JMenu {
 		add(kellyPanel);
 	}
 
-	private void addSeparator(final String header, final Color color) {
-		final JLabel sep =  new JLabel(header);
-		sep.setPreferredSize(new JMenuItem(" DUMMY ").getPreferredSize());
-		sep.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, color));
-		sep.setForeground(GuiUtils.getDisabledComponentColor());
+	private void addSeparator(final String header) {
+		final JLabel sep = GuiUtils.leftAlignedLabel(header, false);
+		sep.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, GuiUtils.getDisabledComponentColor()));
 		add(sep);
 	}
 

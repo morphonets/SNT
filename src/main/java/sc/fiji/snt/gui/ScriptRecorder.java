@@ -121,7 +121,10 @@ public class ScriptRecorder extends JDialog {
 	}
 
 	private JButton createButton() {
-		final JButton button = new JButton("Create");
+		final JButton button = new JButton();
+		button.setToolTipText("Create Script");
+		IconFactory.assignIcon(button, IconFactory.GLYPH.PLUS, 1.3f);
+		GuiUtils.Buttons.makeBorderless(button);
 		button.addActionListener(e -> {
 			if (createOptions[1]) {
 				final boolean[] closeAndNag = new GuiUtils(ScriptRecorder.this)
@@ -149,29 +152,35 @@ public class ScriptRecorder extends JDialog {
 		final JMenuItem mi3 = new JMenuItem("Reset Prompts");
 		mi3.addActionListener(e -> Arrays.fill(createOptions, true));
 		menu.add(mi3);
-		final JButton button = GuiUtils.Buttons.options();
+		final JButton button = new JButton();
+		IconFactory.assignIcon(button, IconFactory.GLYPH.OPTIONS, 1.3f);
+		GuiUtils.Buttons.makeBorderless(button);
 		button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 		return button;
 	}
 
-	private JPanel getToolbar() {
-		final JPanel p = new JPanel(new GridBagLayout());
-		final GridBagConstraints c = GuiUtils.defaultGbc();
-		c.gridx = 0;
-		c.gridy = 0;
-		c.ipadx = 0;
-		c.gridwidth = 4;
-		c.fill = GridBagConstraints.NONE;
-		p.add(GuiUtils.leftAlignedLabel("Language: ", true));
-		c.gridx = 1;
-		c.fill = GridBagConstraints.HORIZONTAL;
-		p.add(combo, c);
-		c.gridx = 2;
-		c.fill = GridBagConstraints.NONE;
-		p.add(createButton());
-		c.gridx = 3;
-		p.add(optionsButton());
-		return p;
+	private JToolBar getToolbar() {
+		final JToolBar tb = new JToolBar();
+		tb.setFloatable(false);
+		tb.setLayout(new GridBagLayout());
+		final GridBagConstraints gbc = new GridBagConstraints();
+		gbc.gridx = 0;
+		gbc.gridy = 0;
+		gbc.anchor = GridBagConstraints.WEST;
+		tb.add(GuiUtils.leftAlignedLabel("Language: ", true), gbc);
+		gbc.gridx++;
+		gbc.weightx = 1.0;
+		gbc.fill = GridBagConstraints.HORIZONTAL;
+		tb.add(combo, gbc);
+		gbc.gridx++;
+		gbc.weightx = 0;
+		gbc.fill = GridBagConstraints.NONE;
+		tb.addSeparator();
+		gbc.gridx++;
+		tb.add(createButton(), gbc);
+		gbc.gridx++;
+		tb.add(optionsButton(), gbc);
+		return tb;
 	}
 
 	private void setLanguage(final LANG lang) {
@@ -332,7 +341,7 @@ public class ScriptRecorder extends JDialog {
 	public static String getRecordingCall(final AbstractButton button) {
 		if (button instanceof JCheckBox) {
 			final Object rec = button.getClientProperty(REC_BOOL_PROPERTY_KEY);
-			return (rec == null) ? null : rec.toString().replace("{STATE}", String.valueOf(((JCheckBox)button).isSelected()));
+			return (rec == null) ? null : rec.toString().replace("{STATE}", String.valueOf(button.isSelected()));
 		}
 		final Object rec = button.getClientProperty(REC_PROPERTY_KEY);
 		return (rec == null) ? null : rec.toString();

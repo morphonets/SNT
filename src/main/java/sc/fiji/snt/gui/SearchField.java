@@ -52,22 +52,23 @@ public class SearchField extends JTextField {
         } else {
             putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, new JButton(new FlatSearchIcon(true)));
         }
-        final JToolBar buttons = new JToolBar();
+        final JToolBar rightToolbar = new JToolBar();
+        rightToolbar.setMargin(new Insets(0, 0, 0, 2));
         if ((visibleButtons & CASE_BUTTON) != 0) {
             initCaseButton();
-            buttons.add(caseButton);
+            rightToolbar.add(caseButton);
         }
         if ((visibleButtons & WORD_BUTTON) != 0) {
             initWordButton();
-            buttons.add(wordButton);
+            rightToolbar.add(wordButton);
         }
         if ((visibleButtons & REGEX_BUTTON) != 0) {
             initRegexButton();
-            if (buttons.getComponentCount() > 1) buttons.addSeparator();
-            buttons.add(regexButton);
+            if (rightToolbar.getComponentCount() > 1) rightToolbar.addSeparator();
+            rightToolbar.add(regexButton);
         }
-        if (buttons.getComponentCount() > 0)
-            putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, buttons);
+        if (rightToolbar.getComponentCount() > 0)
+            putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, rightToolbar);
     }
 
     public void setWarningOutlineEnabled(final boolean b) {

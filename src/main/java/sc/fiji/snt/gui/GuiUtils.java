@@ -61,7 +61,6 @@ import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.RoundRectangle2D;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -1235,7 +1234,11 @@ public class GuiUtils {
 	}
 
 	public static float uiFontSize() {
-		return UIManager.getFont("defaultFont").getSize2D();
+		try {
+			return UIManager.getFont("defaultFont").getSize2D();
+		} catch (final Exception e) {
+			return 16;
+		}
 	}
 
 	public static void initSplashScreen() {
@@ -1550,7 +1553,7 @@ public class GuiUtils {
 		final FileChooser fileChooser = new FileChooser();
 		fileChooser.setAcceptAllFileFilterUsed(true);
 		fileChooser.setCurrentDirectory(SNTPrefs.lastknownDir());
-		new FileDrop(fileChooser.getComponent(0), files -> {
+		new FileDrop(fileChooser, files -> {
 			if (files.length == 0) { // Is this even possible?
 				fileChooser.error("Dropped file(s) not recognized.");
 				return;
@@ -1905,18 +1908,18 @@ public class GuiUtils {
 	}
 
 	public static void drawDragAndDropPlaceHolder(final Component component, final Graphics2D g) {
-		final int GAP = 20;
-		final int HEIGHT = 200;
+		final Font font = g.getFont().deriveFont(g.getFont().getSize2D() * 1.2f);
+		final int HEIGHT = component.getFontMetrics(font).getHeight() * 5; // 5 lines
+		final int GAP = component.getFontMetrics(font).stringWidth("W");
 		if (component.getHeight() < HEIGHT || component.getWidth() < HEIGHT) return;
 		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 		g.setColor(getDisabledComponentColor());
-		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[] { 10.0f },
+		g.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, GAP/2.5f, new float[] { GAP/2.5f },
 				0.0f));
 		final RoundRectangle2D.Double rect = new RoundRectangle2D.Double(GAP, component.getHeight() - GAP * 4 - HEIGHT,
 				component.getWidth() - 1 - GAP * 2, HEIGHT, GAP * 2, GAP * 2);
 		g.draw(rect);
 		final String text = "Drag Files Here";
-		final Font font = g.getFont().deriveFont(g.getFont().getSize2D() * 1.2f).deriveFont(Font.ITALIC);
 		final FontMetrics metrics = g.getFontMetrics(font);
 		final double x = rect.getX() + (rect.getWidth() - metrics.stringWidth(text)) / 2;
 		final double y = rect.getY() + ((rect.getHeight() - metrics.getHeight()) / 2) + metrics.getAscent();
@@ -2521,7 +2524,10 @@ public class GuiUtils {
 
 		public static void makeBorderless(final AbstractButton... buttons) {
 			for (final AbstractButton button: buttons) {
-				if (button != null) button.putClientProperty("JButton.buttonType", "borderless");
+				if (button != null) {
+					button.putClientProperty("JButton.buttonType", "borderless");
+					button.setContentAreaFilled(false); // required in Windows!?
+				}
 			}
 		}
 

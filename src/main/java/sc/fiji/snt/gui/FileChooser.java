@@ -151,7 +151,7 @@ public class FileChooser extends JFileChooser {
 
             @Override
             public void columnMarginChanged(ChangeEvent e) {
-                for (int i = 0; i < columnModel.getColumnCount(); i++) {
+                for (int i = 0; i < Math.min(columnModel.getColumnCount(), rowWidths.size()); i++) {
                     rowWidths.set(i, columnModel.getColumn(i).getPreferredWidth());
                 }
             }
@@ -221,9 +221,15 @@ public class FileChooser extends JFileChooser {
     private void initializeColumnWidths(int nCols) {
         assert detailsTable != null;
         final FontMetrics fontMetrics = detailsTable.getFontMetrics(detailsTable.getFont());
-        if (nCols > 0) rowWidths.add(fontMetrics.stringWidth(" A_REALLY_LONG_FILENAME_INCLUDING_EXTENSION.EXT"));
-        if (nCols > 1) rowWidths.add(fontMetrics.stringWidth(" 999.99 MB"));
-        if (nCols > 2) rowWidths.add(fontMetrics.stringWidth(" 99/99/99, 99:99 PM"));
+        for (int i = 0; i < nCols; i++) {
+            if (i == 0) {
+                rowWidths.add(fontMetrics.stringWidth(" A_REALLY_LONG_FILENAME_INCLUDING_EXTENSION.EXT")); // file name
+            } else if (i == 1) {
+                rowWidths.add(fontMetrics.stringWidth(" 999.99 MB")); // file size
+            } else {
+                rowWidths.add(fontMetrics.stringWidth(" 99/99/99, 99:99 PM")); // last modified (or file type on windows)
+            }
+        }
     }
 
     private void savePrefs() {
@@ -507,7 +513,7 @@ public class FileChooser extends JFileChooser {
     public static void resetPreferences() {
         clearPrefs();
         filterPattern = null;
-        rowWidths.clear();
+        if (rowWidths != null) rowWidths.clear();
     }
 
     /**

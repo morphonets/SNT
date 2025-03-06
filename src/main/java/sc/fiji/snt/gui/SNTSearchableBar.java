@@ -451,7 +451,7 @@ public class SNTSearchableBar extends SearchableBar {
 		button.setRolloverIcon(null);
 		button.setRolloverSelectedIcon(null);
 		button.setSelectedIcon(null);
-		IconFactory.assignIcon(button, glyph,SearchField.enlargeFactor());
+		IconFactory.assignIcon(button, glyph, 1.2f);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 	}

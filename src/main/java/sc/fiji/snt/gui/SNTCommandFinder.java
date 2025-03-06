@@ -411,9 +411,9 @@ public class SNTCommandFinder {
         actionMap.put(NAME, getAction());
     }
 
-    public JButton getButton() {
+    public JButton getButton(final float scaleFactor) {
         final JButton button = new JButton(getAction());
-        IconFactory.assignIcon(button, IconFactory.GLYPH.SEARCH);
+        IconFactory.assignIcon(button, IconFactory.GLYPH.SEARCH, scaleFactor);
         button.getInputMap().put(ACCELERATOR, NAME);
         button.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
         return button;

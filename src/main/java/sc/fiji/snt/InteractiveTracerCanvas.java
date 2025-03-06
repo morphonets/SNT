@@ -607,11 +607,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		if (isPopupTrigger(me)) {
 			showPopupMenu(me.getX(), me.getY());
 			me.consume();
-			return;
-		}
-		if (tracerPlugin.panMode || isEventsDisabled() || !tracerPlugin
-			.isUIready())
-		{
+		} else if (tracerPlugin.panMode || isEventsDisabled() || !tracerPlugin.isUIready()) {
 			super.mousePressed(me);
 		}
 	}
@@ -623,6 +619,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 		if (waitingForRoiDrawing && getImage().getRoi() != null && getImage().getRoi().getState() != Roi.CONSTRUCTING) { // ROI has been completed
 			selectPathsByRoi();
+			me.consume();
+		} else if (isPopupTrigger(me)) { // somehow on windows (Java 21, IJ 1.44p) MouseEvent#isPopupTrigger() occurs on mouse release!?
+			showPopupMenu(me.getX(), me.getY());
 			me.consume();
 		}
 	}

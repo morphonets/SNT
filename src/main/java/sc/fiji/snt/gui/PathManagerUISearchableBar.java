@@ -75,6 +75,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
 			.getPathAndFillManager().size()));
 		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");
+		//setBorderless();
 	}
 
 	@Override

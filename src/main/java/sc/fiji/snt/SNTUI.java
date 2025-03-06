@@ -226,133 +226,131 @@ public class SNTUI extends JDialog {
 
 		assert SwingUtilities.isEventDispatchThread();
 		final JTabbedPane tabbedPane = getTabbedPane();
+		final GridBagConstraints c1 = GuiUtils.defaultGbc();
 
-		{ // Main tab
-			final GridBagConstraints c1 = GuiUtils.defaultGbc();
-			{
-				final JPanel tab1 = InternalUtils.getTab();
-				c1.insets.top = InternalUtils.MARGIN * 2;
-				c1.anchor = GridBagConstraints.NORTHEAST;
-				InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, c1);
-				c1.insets.top = 0;
-				++c1.gridy;
-				tab1.add(sourcePanel = sourcePanel(plugin.getImagePlus()), c1);
-				++c1.gridy;
-				InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", true, c1);
-				++c1.gridy;
-				tab1.add(snappingPanel(), c1);
-				++c1.gridy;
-				InternalUtils.addSeparatorWithURL(tab1, "Auto-tracing:", true, c1);
-				++c1.gridy;
-				tab1.add(aStarPanel(), c1);
-				++c1.gridy;
-				tab1.add(secondaryDataPanel(), c1);
-				++c1.gridy;
-				InternalUtils.addSeparatorWithURL(tab1, "Computation Settings:", true, c1);
-				++c1.gridy;
-				c1.fill = GridBagConstraints.BOTH;
-				c1.weighty = 0.9;
-				tab1.add(settingsPanel(), c1);
-				c1.weighty = 0;
-				++c1.gridy;
-				InternalUtils.addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
-				++c1.gridy;
-				tab1.add(renderingPanel(), c1);
-				++c1.gridy;
-				InternalUtils.addSeparatorWithURL(tab1, "Default Path Colors:", true, c1);
-				++c1.gridy;
-				tab1.add(colorOptionsPanel(), c1);
-				++c1.gridy;
-				GuiUtils.addSeparator(tab1, "", true, c1); // empty separator
-				++c1.gridy;
-				c1.fill = GridBagConstraints.HORIZONTAL;
-				c1.insets.bottom = 0;
-				tab1.add(hideWindowsPanel(), c1);
-				tabbedPane.addTab("Main", tab1);
-			}
-		}
+		// Main tab
+		final JPanel tab1 = InternalUtils.getTab();
+		c1.insets.top = InternalUtils.MARGIN * 2;
+		c1.anchor = GridBagConstraints.NORTHEAST;
+		InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, c1);
+		c1.insets.top = 0;
+		++c1.gridy;
+		tab1.add(sourcePanel = sourcePanel(plugin.getImagePlus()), c1);
+		++c1.gridy;
+		InternalUtils.addSeparatorWithURL(tab1, "Cursor Auto-snapping:", true, c1);
+		++c1.gridy;
+		tab1.add(snappingPanel(), c1);
+		++c1.gridy;
+		InternalUtils.addSeparatorWithURL(tab1, "Auto-tracing:", true, c1);
+		++c1.gridy;
+		tab1.add(aStarPanel(), c1);
+		++c1.gridy;
+		tab1.add(secondaryDataPanel(), c1);
+		++c1.gridy;
+		InternalUtils.addSeparatorWithURL(tab1, "Computation Settings:", true, c1);
+		++c1.gridy;
+		c1.fill = GridBagConstraints.BOTH;
+		c1.weighty = 1;
+		tab1.add(settingsPanel(), c1);
+		c1.weighty = 0;
+		++c1.gridy;
+		InternalUtils.addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
+		++c1.gridy;
+		tab1.add(renderingPanel(), c1);
+		++c1.gridy;
+		InternalUtils.addSeparatorWithURL(tab1, "Default Path Colors:", true, c1);
+		++c1.gridy;
+		tab1.add(colorOptionsPanel(), c1);
+		++c1.gridy;
+		GuiUtils.addSeparator(tab1, "", true, c1); // empty separator
+		++c1.gridy;
+		c1.fill = GridBagConstraints.HORIZONTAL;
+		c1.insets.bottom = 0;
+		tab1.add(hideWindowsPanel(), c1);
+		tabbedPane.addTab("Main", tab1);
 
-		{ // Options Tab
-			final JPanel tab2 = InternalUtils.getTab();
-			tab2.setLayout(new GridBagLayout());
-			final GridBagConstraints c2 = GuiUtils.defaultGbc();
-			c2.anchor = GridBagConstraints.NORTHEAST;
-			c2.gridwidth = GridBagConstraints.REMAINDER;
-			InternalUtils.addSeparatorWithURL(tab2, "Views:", true, c2);
-			++c2.gridy;
-			tab2.add(viewsPanel(), c2);
-			++c2.gridy;
-			InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
-			++c2.gridy;
-			tab2.add(tracingPanel(), c2);
-			++c2.gridy;
-			InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
-			++c2.gridy;
-			tab2.add(pathOptionsPanel(), c2);
-			++c2.gridy;
-			InternalUtils.addSeparatorWithURL(tab2, "Misc:", true, c2);
-			++c2.gridy;
-			c2.weighty = 1;
-			tab2.add(miscPanel(), c2);
-			tabbedPane.addTab("Options", tab2);
-		}
 
-		{ // 3D tab
-			final JPanel tab3 = InternalUtils.getTab();
-			tab3.setLayout(new GridBagLayout());
-			final GridBagConstraints c3 = GuiUtils.defaultGbc();
-			// c3.insets.left = MARGIN * 2;
-			c3.anchor = GridBagConstraints.NORTHEAST;
-			c3.gridwidth = GridBagConstraints.REMAINDER;
 
-			tabbedPane.addTab("3D", tab3);
-			InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
-			c3.gridy++;
-			final String msg = "A dedicated OpenGL visualization tool specialized in Neuroanatomy, " +
+		// Options Tab
+		final JPanel tab2 = InternalUtils.getTab();
+		tab2.setLayout(new GridBagLayout());
+		final GridBagConstraints c2 = GuiUtils.defaultGbc();
+		c2.anchor = GridBagConstraints.NORTHEAST;
+		c2.gridwidth = GridBagConstraints.REMAINDER;
+		InternalUtils.addSeparatorWithURL(tab2, "Views:", true, c2);
+		++c2.gridy;
+		tab2.add(viewsPanel(), c2);
+		++c2.gridy;
+		InternalUtils.addSeparatorWithURL(tab2, "Temporary Paths:", true, c2);
+		++c2.gridy;
+		tab2.add(tracingPanel(), c2);
+		++c2.gridy;
+		InternalUtils.addSeparatorWithURL(tab2, "Path Rendering:", true, c2);
+		++c2.gridy;
+		tab2.add(pathOptionsPanel(), c2);
+		++c2.gridy;
+		InternalUtils.addSeparatorWithURL(tab2, "Misc:", true, c2);
+		++c2.gridy;
+		c2.weighty = 1;
+		tab2.add(miscPanel(), c2);
+		tabbedPane.addTab("Options", tab2);
+
+
+		// 3D tab
+		final JPanel tab3 = InternalUtils.getTab();
+		tab3.setLayout(new GridBagLayout());
+		final GridBagConstraints c3 = GuiUtils.defaultGbc();
+		// c3.insets.left = MARGIN * 2;
+		c3.anchor = GridBagConstraints.NORTHEAST;
+		c3.gridwidth = GridBagConstraints.REMAINDER;
+
+		tabbedPane.addTab("3D", tab3);
+		InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
+		c3.gridy++;
+		final String msg = "A dedicated OpenGL visualization tool specialized in Neuroanatomy, " +
 				"supporting morphometric annotations, reconstructions and meshes. For " +
 				"performance reasons, some Path Manager changes may need to be synchronized " +
 				"manually from the \"Scene Controls\" menu.";
-			tab3.add(largeMsg(msg), c3);
-			c3.gridy++;
-			tab3.add(reconstructionViewerPanel(), c3);
-			c3.gridy++;
-			InternalUtils.addSeparatorWithURL(tab3, "sciview:", true, c3);
-			++c3.gridy;
-			final String msg3 =
+		tab3.add(largeMsg(msg), c3);
+		c3.gridy++;
+		tab3.add(reconstructionViewerPanel(), c3);
+		c3.gridy++;
+		InternalUtils.addSeparatorWithURL(tab3, "sciview:", true, c3);
+		++c3.gridy;
+		final String msg3 =
 				"Modern 3D visualization framework supporting large image volumes, " +
-				"reconstructions, meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended. " +
-				"For performance reasons, some Path Manager changes may need to be synchronized " +
-				"manually using \"Sync Changes\".";
-			tab3.add(largeMsg(msg3), c3);
-			c3.gridy++;
-			tab3.add(sciViewerPanel(), c3);
-			c3.gridy++;
-			InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
-			++c3.gridy;
-			final String msg2 =
+						"reconstructions, meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended. " +
+						"For performance reasons, some Path Manager changes may need to be synchronized " +
+						"manually using \"Sync Changes\".";
+		tab3.add(largeMsg(msg3), c3);
+		c3.gridy++;
+		tab3.add(sciViewerPanel(), c3);
+		c3.gridy++;
+		InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
+		++c3.gridy;
+		final String msg2 =
 				"The Legacy 3D Viewer is a functional tracing canvas but it depends on " +
 						"stalled services that may not function reliably during complex tasks.";
-			tab3.add(largeMsg(msg2), c3);
-			c3.gridy++;
-			try {
-				tab3.add(legacy3DViewerPanel(), c3);
-			} catch (final NoClassDefFoundError ignored) {
-				tab3.add(largeMsg("Error: Legacy 3D Viewer could not be initialized!"), c3);
-			}
-			c3.gridy++;
-			tab3.add(largeMsg(""), c3); // add bottom spacer
-
-            { // Bookmarks Tab
-                tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
-            }
-
-            {
-                tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
-                tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
-                tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
-                tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
-            }
+		tab3.add(largeMsg(msg2), c3);
+		c3.gridy++;
+		try {
+			tab3.add(legacy3DViewerPanel(), c3);
+		} catch (final NoClassDefFoundError ignored) {
+			tab3.add(largeMsg("Error: Legacy 3D Viewer could not be initialized!"), c3);
 		}
+		c3.gridy++;
+		tab3.add(largeMsg(""), c3); // add bottom spacer
+
+		// Bookmarks Tab: On macOS and Windows 11 the tabbed pane becomes too wide after
+		// the bookmarks tab is added, so we'll discard it from preferred width calculation
+		final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 2 + 2;
+		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
+
+		// set icons
+		tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
+		tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
+		tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
+		tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
 
 		setJMenuBar(createMenuBar());
 		setLayout(new GridBagLayout());
@@ -365,12 +363,12 @@ public class SNTUI extends JDialog {
 		add(tabbedPane, dialogGbc);
 		dialogGbc.gridy++;
 		dialogGbc.weighty = 0;
-		add(new JSeparator(SwingConstants.HORIZONTAL), dialogGbc);
-		dialogGbc.gridy++;
-		dialogGbc.insets.top = 0;
+		dialogGbc.insets.top = InternalUtils.TEXT_MARGIN;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
 		registerBookmarkManagerInCmdFInder();
+		pack();
+		setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
 		pack();
 		toFront();
 
@@ -2168,8 +2166,9 @@ public class SNTUI extends JDialog {
 		// Calculate the preferred height based on the row height and number of rows
 		final JScrollPane sp = new JScrollPane(settingsArea);
 		sp.setViewportView(settingsArea);
-		final int height = settingsArea.getFontMetrics(settingsArea.getFont()).getHeight() * settingsArea.getRows();
-		sp.setMinimumSize(new Dimension(sp.getMinimumSize().width, height));
+		final int rowHeight = settingsArea.getFontMetrics(settingsArea.getFont()).getHeight();
+		final int preferredHeight = rowHeight * settingsArea.getRows();
+		sp.setMinimumSize(new Dimension(sp.getMinimumSize().width, preferredHeight));
 		final JPopupMenu pMenu = new JPopupMenu();
 		JMenuItem mi = new JMenuItem("Copy", IconFactory.menuIcon(GLYPH.COPY));
 		mi.addActionListener(e -> {
@@ -3461,13 +3460,8 @@ public class SNTUI extends JDialog {
 			pathAndFillManager.resetListeners(null, true); // update Path lists
 			setPathListVisible(true, false);
 			setFillListVisible(false);
-			// Somehow in macOS & Java 21 the window is displayed with exaggerated width.
-			// We'll set to its minimum as long as it is minimum is not absurdly small.
-			if (PlatformUtils.isMac() && getMinimumSize().width > 100) {
-				setPreferredSize(new Dimension(getMinimumSize().width, getPreferredSize().height));
-			}
 			pack();
-			pmUI.setMinimumSize(getMinimumSize()); // set the Path Manager to similar dimensions
+			pmUI.setSize(getSize()); // set the Path Manager to similar dimensions
 			setVisible(true);
 			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();

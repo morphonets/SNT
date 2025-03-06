@@ -23,6 +23,7 @@
 package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.icons.FlatAbstractIcon;
+import org.scijava.util.PlatformUtils;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -360,8 +361,9 @@ public class IconFactory {
 			return new NodeIcon(null, true, false, false);
 	}
 
-	public static Icon accentIcon(final Color color, final int w, final int h) {
-		return new AccentIcon(color, w, h);
+	public static Icon accentIcon(final Color color, final boolean squarify) {
+		final int size = (int) (FADerivedIcon.defSize() * (PlatformUtils.isLinux() ? .5f : .9f));
+		return new AccentIcon(color, (squarify) ? size : size *2, size);
 	}
 
 	/* Creation of colorful JTree node icons */
@@ -370,8 +372,9 @@ public class IconFactory {
         private static final int SIZE = preferredIconSize();
         private static final Color FOREGROUND_COLOR = UIManager.getColor("Tree.foreground");
         private final static Color[] Q_COLORS = new Color[]{
-                new Color(0xF2C926), new Color(0x42C0F0), //
-                new Color(0xD924A3), new Color(0xD5D4D3)};
+				new Color(0xFE646F), new Color(0x60B7FF), //
+				new Color(0x44C4A1), new Color(0xFED402), //
+				new Color(0x80FFFFFF, true)};
         final Color fillColor;
         final Color typeColor;
         final boolean multiColor;
@@ -407,34 +410,35 @@ public class IconFactory {
 
         @Override
         public void paintIcon(final Component c, final Graphics g, final int x, final int y) { //http://stackoverflow.com/a/7984734
-            final Graphics2D g2 = (Graphics2D) g;
-
-            // fill rectangle
-            if (multiColor) { // Path has multiple node colors
-                final int cellWidth = SIZE / 2;
-                final int cellHeight = SIZE / 2;
+			final Graphics2D g2 = (Graphics2D) g;
+			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+			g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+			if (multiColor) { // Path has multiple node colors
+                final int qSize = SIZE / 2;
                 g2.setColor(Q_COLORS[0]);
-                g2.fillRect(x + 1, y + 1, cellWidth, cellHeight); // top-left
+				g2.fillRect(x, y, qSize, qSize); // top-left
                 g2.setColor(Q_COLORS[1]);
-                g2.fillRect(x + cellWidth + 1, y + 1, cellWidth, cellHeight); // top-right
+				g2.fillRect(x + qSize, y, qSize, qSize); // top-right
                 g2.setColor(Q_COLORS[2]);
-                g2.fillRect(x + 1, y + cellHeight + 1, cellWidth, cellHeight); // bottom-left
+				g2.fillRect(x, y + qSize, qSize, qSize); // bottom-left
                 g2.setColor(Q_COLORS[3]);
-                g2.fillRect(x + cellWidth + 1, y + cellHeight + 1, cellWidth, cellHeight); // bottom-right
-            } else if (fillColor != null) { // monochrome path
+				g2.fillRect(x + qSize, y + qSize, qSize, qSize); // bottom-right
+				g2.setColor(Q_COLORS[4]);
+				g2.fillRect(x + (SIZE - qSize) / 2, y + (SIZE - qSize) / 2, qSize, qSize); // center
+			} else if (fillColor != null) { // monochrome path
                 g2.setColor(fillColor);
-                g2.fillRect(x + 1, y, SIZE - 1, SIZE - 1);
+                g2.fillRect(x, y, SIZE-1, SIZE-1);
             }
             // draw contour
             g2.setColor(FOREGROUND_COLOR);
-            g2.drawRect(x, y, SIZE - 1, SIZE - 1);
+            g2.drawRect(x, y, SIZE-1, SIZE-1);
             if (isLeaf) return;
             // draw 'minus' or 'plus'
-            g2.setColor(typeColor);
-            g2.fillRect(x + 1, y + SIZE / 2, SIZE - 2, 2);
-            if (!isExpanded) {
-                g2.fillRect(x + SIZE / 2, y + 1, 2, SIZE - 2);
-            }
+			g2.setStroke(new BasicStroke(1.5f));
+			g2.setColor(typeColor);
+			g2.drawLine(x + 2, y + SIZE / 2, x + SIZE - 3, y + SIZE / 2);
+			if (!isExpanded)
+				g2.drawLine(x + SIZE / 2, y + 2, x + SIZE / 2, y + SIZE - 3);
         }
 
         @Override

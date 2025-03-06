@@ -2923,7 +2923,8 @@ public class Viewer3D {
 				}
 			});
 			// dialog.setLocationRelativeTo(this);
-			dialog.setMinimumSize(new Dimension(dialog.getMinimumSize().width, getHeight()/2));
+			final int paddingForRoundCorners = 16; // required for Windows 11!?
+			dialog.setMinimumSize(new Dimension(managerPanel.getMinimumSize().width + paddingForRoundCorners, getHeight()/2));
 			dialog.setPreferredSize(new Dimension(managerPanel.getPreferredSize().width, getHeight() + status.getFont().getSize()));
 			dialog.setContentPane(managerPanel);
 			managerList.addKeyListener(getCmdFinderKeyAdapter());
@@ -3927,7 +3928,9 @@ public class Viewer3D {
 			buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities & Actions"));
 			buttonPanel.add(menuButton(GLYPH.CODE, scriptingMenu(), "Scripting"));
 			buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
-			buttonPanel.add(cmdFinder.getButton());
+			buttonPanel.add(cmdFinder.getButton(1.8f));
+			// panel should not collapse buttons otherwise their icons gets scrambled
+			setMinimumSize(new Dimension(buttonPanel.getPreferredSize().width, getMinimumSize().height));
 			return buttonPanel;
 		}
 
@@ -6046,6 +6049,7 @@ public class Viewer3D {
 			tree.setVisibleRowCount(20);
 			scrollPane.setWheelScrollingEnabled(true);
 			final JPanel contentPane = new JPanel();
+			contentPane.setBorder(null);
 			contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
 			contentPane.add(searchableBar);
 			contentPane.add(scrollPane);
