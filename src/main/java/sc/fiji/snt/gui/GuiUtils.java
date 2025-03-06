@@ -248,7 +248,7 @@ public class GuiUtils {
 	}
 
 	public static void showHTMLDialog(final String msg, final String title) {
-		final HTMLDialog dialog = new GuiUtils().new HTMLDialog(msg, title, false);
+		final HTMLDialog dialog = new GuiUtils(null).new HTMLDialog(msg, title, false);
 		SwingUtilities.invokeLater(() -> dialog.setVisible(true));
 	}
 
@@ -964,7 +964,7 @@ public class GuiUtils {
 		return null;
 	}
 
-	private JFileChooser fileChooser(final String title, final File file, final int type, final int selectionMode) {
+	public static JFileChooser fileChooser(final String title, final File file, final int type, final int selectionMode) {
 		final JFileChooser chooser = getDnDFileChooser();
 		chooser.setDialogTitle(title);
 		chooser.setFileSelectionMode(selectionMode);
@@ -1385,8 +1385,9 @@ public class GuiUtils {
 		textField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
 	}
 
-	public static void removeIcon(final Window window) {
-		window.setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
+	public static void removeIcon(final RootPaneContainer window) {
+		window.getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
+		//window.setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
 	}
 
 	public static Color getSelectionColor() {
@@ -2494,7 +2495,7 @@ public class GuiUtils {
 		}
 
 		public static JButton undo() {
-			return smallBorderless(IconFactory.GLYPH.UNDO);
+			return smallBorderless(IconFactory.GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
 		}
 
 		public static JButton options() {
@@ -2503,9 +2504,9 @@ public class GuiUtils {
 			return button;
 		}
 
-		private static JButton smallBorderless(final IconFactory.GLYPH glyph) {
+		private static JButton smallBorderless(final IconFactory.GLYPH glyph, final Color color) {
 			final JButton b = new JButton();
-			IconFactory.assignIcon(b, glyph);
+			IconFactory.assignIcon(b, glyph, color);
 			b.setFont(b.getFont().deriveFont(b.getFont().getSize2D()*.8f));
 			b.setFocusable(false);
 			makeBorderless(b);

@@ -35,12 +35,12 @@ public class SearchField extends JTextField {
     public static final int CASE_BUTTON = 0x2;
     public static final int WORD_BUTTON = 0x4;
     public static final int REGEX_BUTTON = 0x8;
+    private static Color iconColor;
 
     private JButton optionsButton;
     private JToggleButton caseButton;
     private JToggleButton wordButton;
     private JToggleButton regexButton;
-    private Color iconColor;
 
     public SearchField(final String placeholder, final int visibleButtons) {
         super();
@@ -63,7 +63,7 @@ public class SearchField extends JTextField {
         }
         if ((visibleButtons & REGEX_BUTTON) != 0) {
             initRegexButton();
-            buttons.addSeparator();
+            if (buttons.getComponentCount() > 1) buttons.addSeparator();
             buttons.add(regexButton);
         }
         if (buttons.getComponentCount() > 0)
@@ -92,7 +92,7 @@ public class SearchField extends JTextField {
     }
 
     private void initRegexButton() {
-        regexButton = new JToggleButton(" .* ");
+        regexButton = new JToggleButton(" .* "); // too narrow on macOS only!?
         adjustButton(regexButton);
         regexButton.setToolTipText("Enable Wildcards");
     }
@@ -137,12 +137,17 @@ public class SearchField extends JTextField {
         return 1.1f;
     }
 
-    public Color iconColor() {
+    public static Color iconColor() {
          if (iconColor == null) {
              iconColor = UIManager.getColor("SearchField.searchIconColor");
-             if (iconColor == null)  iconColor = Color.DARK_GRAY;
+             if (iconColor == null) {
+                 iconColor = Color.DARK_GRAY;
+             } else {
+                 // somehow transparency is not being set(!?), so we'll get it here
+                 iconColor = new Color(iconColor.getRed(), iconColor.getGreen(), iconColor.getBlue(), iconColor.getAlpha());
+             }
          }
-         return iconColor;
+        return iconColor;
     }
 
 }
