@@ -272,14 +272,20 @@ public class IconFactory {
 	}
 
 	public static void assignIcon(final AbstractButton button, final GLYPH glyph) {
+		assignIcon(button, glyph, null);
+	}
+
+	public static void assignIcon(final AbstractButton button, final GLYPH glyph, final Color color) {
 		button.setText(String.valueOf(glyph.id));
 		button.setFont(FADerivedIcon.getFont(glyph.solid));
+		final Color defColor = (color == null) ? defaultColor() : color;
+		button.setForeground(defColor);
 		if (button instanceof JToggleButton) {
 			button.addItemListener(e -> {
 				if (button.isSelected()) {
 					button.setForeground(selectedColor());
 				} else {
-					button.setForeground(defaultColor());
+					button.setForeground(defColor);
 				}
 			});
 		} else {
@@ -287,7 +293,7 @@ public class IconFactory {
 				@Override
 				public void mousePressed(MouseEvent e) { button.setForeground(pressedColor()); }
 				@Override
-				public void mouseReleased(MouseEvent e) {  button.setForeground(defaultColor()); }
+				public void mouseReleased(MouseEvent e) {  button.setForeground(defColor); }
 			});
 		}
 	}

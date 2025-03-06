@@ -205,10 +205,8 @@ public class PrefsCmd extends OptionsPlugin {
 			SNTUtils.log("Deleting prefs for " + pkg + ".*");
 			findClasses(pkg).forEach(c -> prefService.clear(c));
 		}
-		// Legacy (IJ1-based) preferences
-		SNTPrefs.clearAll();
-		// Others
-		FileChooser.reset();
+		SNTPrefs.clearAll(); // Legacy (IJ1-based) preferences
+		FileChooser.resetPreferences(); // Others
 	}
 
 	private Set<Class<?>> findClasses(final String packageName) {

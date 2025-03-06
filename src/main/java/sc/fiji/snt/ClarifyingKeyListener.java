@@ -59,11 +59,9 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 	 */
 	public void addKeyAndContainerListenerRecursively(final Component c) {
 		c.addKeyListener(this);
-		if (c instanceof Container) {
-			final Container container = (Container) c;
-			container.addContainerListener(this);
-			final Component[] children = container.getComponents();
-			for (Component child : children) {
+		if (c instanceof Container container) {
+            container.addContainerListener(this);
+			for (final Component child : container.getComponents()) {
 				addKeyAndContainerListenerRecursively(child);
 			}
 		}
@@ -71,11 +69,9 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 
 	private void removeKeyAndContainerListenerRecursively(final Component c) {
 		c.removeKeyListener(this);
-		if (c instanceof Container) {
-			final Container container = (Container) c;
-			container.removeContainerListener(this);
-			final Component[] children = container.getComponents();
-			for (Component child : children) {
+		if (c instanceof Container container) {
+            container.removeContainerListener(this);
+			for (final Component child : container.getComponents()) {
 				removeKeyAndContainerListenerRecursively(child);
 			}
 		}

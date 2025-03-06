@@ -95,12 +95,11 @@ public class FileChooser extends JFileChooser {
     }
 
     /**
-     * Resets preferences and list of recent locations.
+     * Resets preferences, column widths (detailed view), list of recent locations, and pattern filters.
      */
-    public static void reset() {
-        clearPrefs();
-        filterPattern = null;
-        rowWidths.clear();
+    public void reset() {
+        resetPreferences();
+        Arrays.stream(getPatternFileFilters()).forEach(this::removeChoosableFileFilter);
     }
 
     private static void clearPrefs() {
@@ -479,6 +478,17 @@ public class FileChooser extends JFileChooser {
     }
 
     /**
+     * Gets the user 'pattern' file filters (created using the filter by pattern button)
+     *
+     * @return a FileFilter array containing the pattern file filters
+     */
+    @SuppressWarnings("unused")
+    public FileFilter[] getPatternFileFilters() {
+        return Arrays.stream(super.getChoosableFileFilters()).filter(FileNamePatternFilter.class::isInstance)
+                .toArray(FileFilter[]::new);
+    }
+
+    /**
      * Displays an error message dialog.
      *
      * @param msg the error message to display.
@@ -488,8 +498,16 @@ public class FileChooser extends JFileChooser {
     }
 
     private void fileNotAccessibleError(final File dir) {
-        if (dir == null) error("Directory does not seem to be accessible.");
-        else error("Could not access\n" + dir.getAbsolutePath());
+        error((dir==null) ? "Directory does not seem to be accessible." : "Could not access\n" + dir.getAbsolutePath());
+    }
+
+    /**
+     * Resets persisting preferences, including list of recent locations.
+     */
+    public static void resetPreferences() {
+        clearPrefs();
+        filterPattern = null;
+        rowWidths.clear();
     }
 
     /**

@@ -2866,7 +2866,8 @@ public class Viewer3D {
 				final GraphicsConfiguration gConfiguration) {
 			super();
 			GuiUtils.setLookAndFeel();
-			GuiUtils.removeIcon(this);
+			if (ViewerFrame.this instanceof RootPaneContainer)
+				GuiUtils.removeIcon((RootPaneContainer) this);
 			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
 			statusPlaceHolder = (includeManager)
 					? "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette..."
@@ -4468,23 +4469,22 @@ public class Viewer3D {
 			JMenuItem mi = GuiUtils.MenuItems.measureOptions();
 			mi.addActionListener(e -> {
 				if (measureUI != null) {
-					if (guiUtils.getConfirmation("A Measurements prompt seems to be already open. Close it?",
-							"Measurements Prompt Already Open")) {
-						measureUI.dispose();
-						measureUI = null;
-					} else {
-						measureUI.toFront();
-					}
+					measureUI.dispose();
+					measureUI = null;
 				}
-				if (measureUI == null) {
-					final List<Tree> trees = getSelectedTrees();
-					if (trees == null || trees.isEmpty()) return;
-					final MeasureUI measureUI = new MeasureUI(trees);
-					initTable();
-					measureUI.setTable(table);
-					measureUI.setVisible(true);
-				}
-			});
+                final List<Tree> trees = getSelectedTrees();
+                if (trees == null || trees.isEmpty()) return;
+                measureUI = new MeasureUI(trees);
+                initTable();
+                measureUI.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosing(final WindowEvent e) {
+                        measureUI = null;
+                    }
+                });
+                measureUI.setTable(table);
+                measureUI.setVisible(true);
+            });
 			measureMenu.add(mi);
 			mi = GuiUtils.MenuItems.measureQuick();
 			mi.addActionListener(e -> {

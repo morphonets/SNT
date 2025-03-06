@@ -54,6 +54,10 @@ import java.util.*;
 
 
 /**
+ * The MeasureUI class is a graphical user interface for measuring and analyzing {@link Tree}s.
+ * It provides a panel for selecting metrics and statistics, displaying results in a dedicated table.
+ * It also includes options for saving and summarizing the measurements.
+ *
  * @author Cameron Arshadi
  * @author Tiago Ferreira
  */

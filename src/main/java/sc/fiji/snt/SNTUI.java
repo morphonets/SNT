@@ -40,6 +40,7 @@ import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
+import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -3447,11 +3448,16 @@ public class SNTUI extends JDialog {
 			arrangeCanvases(false);
 			resetState();
 			updateSettingsString();
-			pack();
-			pmUI.setSize(getWidth(), pmUI.getHeight());
 			pathAndFillManager.resetListeners(null, true); // update Path lists
 			setPathListVisible(true, false);
 			setFillListVisible(false);
+			// Somehow in macOS & Java 21 the window is displayed with exaggerated width.
+			// We'll set to its minimum as long as it is minimum is not absurdly small.
+			if (PlatformUtils.isMac() && getMinimumSize().width > 100) {
+				setPreferredSize(new Dimension(getMinimumSize().width, getPreferredSize().height));
+			}
+			pack();
+			pmUI.setMinimumSize(getMinimumSize()); // set the Path Manager to similar dimensions
 			setVisible(true);
 			SNTUtils.setIsLoading(false);
 			if (plugin.getImagePlus()!=null) plugin.getImagePlus().getWindow().toFront();

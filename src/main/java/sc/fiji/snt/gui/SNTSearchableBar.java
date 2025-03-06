@@ -358,7 +358,7 @@ public class SNTSearchableBar extends SearchableBar {
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
 			final String key = GuiUtils.ctrlKey();
-			String msg = "<HTML><body><div style='width:500;'><ol>"
+			String msg = "<HTML><body><div><ol>"
 					+ "<li>Press the up/down keys to find the next/previous occurrence of the filtering string</li>"
 					+ "<li>Hold " + key + " while pressing the up/down keys to select multiple filtered " + objectDescription + "</li>" //
 					+ "<li>Press enter to store text in the search history</li>";
