@@ -26,11 +26,7 @@ import java.awt.geom.Arc2D;
 import java.io.IOException;
 import java.net.URL;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 
 import net.imagej.lut.DefaultLUTService;
 import net.imagej.lut.LUTService;
@@ -208,33 +204,29 @@ public class ShollOverlay implements ProfileProperties {
 		points = new ArrayList<>();
 		final Color baseColor = alphaColor(this.baseColor, pointsAlpha);
 		final DecimalFormat formatter = new DecimalFormat("#000.##");
+		final boolean twoD = profile.is2D();
 		for (final ProfileEntry entry : profile.entries()) {
 			final Set<ShollPoint> ePoints = entry.points;
 			if (ePoints == null || ePoints.isEmpty())
 				continue;
-			PointRoi multipointRoi = null;
-			double currentRawZ = -1;
+			final Map<Integer, List<ShollPoint>> pointsByZ = new HashMap<>();
 			for (final ShollPoint point : ePoints) {
-				final double rawX = point.rawX(cal);
-				final double rawY = point.rawY(cal);
-				final double rawZ = point.rawZ(cal);
-				if (currentRawZ == -1 || currentRawZ != rawZ) {
-					multipointRoi = new PointRoi(rawX, rawY);
-					currentRawZ = rawZ;
-					multipointRoi.setProperty(TYPE, POINTS);
-					multipointRoi.setProperty(COUNT, String.valueOf(entry.count));
-					multipointRoi.setProperty(RADIUS, String.valueOf(entry.radius));
-					multipointRoi.setPointType(2);
-					multipointRoi.setStrokeColor(baseColor);
-					multipointRoi.setSize(pointRoiSize);
-					multipointRoi.setName(
-							"ShollPoints r=" + formatter.format(entry.radius) + " z=" + formatter.format(point.z));
-					setROIposition(multipointRoi, channel, rawZ, frame, hyperStack);
-					points.add(multipointRoi);
-				} else if (currentRawZ == rawZ && multipointRoi != null) { // same plane
-					multipointRoi.addPoint(rawX, rawY);
-				}
+				final int z = (int) point.rawZ(cal);
+				pointsByZ.computeIfAbsent(z, k -> new ArrayList<>()).add(point);
 			}
+			pointsByZ.forEach((z, shollPoints) -> {
+				final PointRoi multipointRoi = new PointRoi();
+				multipointRoi.setProperty(TYPE, POINTS);
+				multipointRoi.setProperty(COUNT, (twoD) ? String.valueOf(entry.count) : shollPoints.size() +"/"+entry.count);
+				multipointRoi.setProperty(RADIUS, String.valueOf(entry.radius));
+				multipointRoi.setPointType(2);
+				multipointRoi.setStrokeColor(baseColor);
+				multipointRoi.setSize(pointRoiSize);
+				multipointRoi.setName(String.format("ShollPoints r=%s z=%s", formatter.format(entry.radius), formatter.format(z+1))); //1-based index
+				setROIposition(multipointRoi, channel, z, frame, hyperStack);
+				shollPoints.forEach(point -> multipointRoi.addPoint(point.rawX(cal), point.rawY(cal)));
+				points.add(multipointRoi);
+			});
 		}
 	}
 
