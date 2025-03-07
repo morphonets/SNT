@@ -184,7 +184,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
 	@Parameter(label = EMPTY_LABEL, callback = "primaryBranchesChanged", min = "0", max = "100",
 			stepSize = "1", style = NumberWidget.SCROLL_BAR_STYLE)
-	private double primaryBranches; // FIXME: ClassCastException triggered if int??
+	private int primaryBranches;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = "<html><i>Polynomial Fit:")
 	private String HEADER3B;
@@ -231,7 +231,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private ColorTable lutTable;
 
 	@Parameter(required = false, callback = "saveChoiceChanged", label = "Save files", //
-			description = HEADER_TOOLTIP + "Wheter output files (tables, plots, mask) should be saved once displayed."
+			description = HEADER_TOOLTIP + "Whether output files (tables, plots, mask) should be saved once displayed."
 					+ "Note that the analyzed image itself is not saved.")
 	private boolean save;
 
@@ -553,7 +553,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		nSpans = prefService.getInt(getClass(), "nSpans", nSpans);
 		nSpansIntChoice = prefService.get(getClass(), "nSpansIntChoice", nSpansIntChoice);
 		primaryBranchesChoice = prefService.get(getClass(), "primaryBranchesChoice", primaryBranchesChoice);
-		primaryBranches = prefService.getDouble(getClass(), "primaryBranches", primaryBranches);
+		primaryBranches = prefService.getInt(getClass(), "primaryBranches", primaryBranches);
 		polynomialChoice = prefService.get(getClass(), "polynomialChoice", polynomialChoice);
 		polynomialDegree = prefService.getInt(getClass(), "polynomialDegree", polynomialDegree);
 		normalizationMethodDescription = prefService.get(getClass(), "normalizationMethodDescription", "Automatically choose");
@@ -570,15 +570,22 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		prefService.put(getClass(), "endRadius", endRadius);
 		prefService.put(getClass(), "stepSize", stepSize);
 		prefService.put(getClass(), "nSpans", nSpans);
-		prefService.put(getClass(), "nSpansIntChoice", nSpansIntChoice);
-		prefService.put(getClass(), "primaryBranchesChoice", primaryBranchesChoice);
+		if (nSpansIntChoice != null)
+			prefService.put(getClass(), "nSpansIntChoice", nSpansIntChoice);
+		if (primaryBranchesChoice != null)
+			prefService.put(getClass(), "primaryBranchesChoice", primaryBranchesChoice);
 		prefService.put(getClass(), "primaryBranches", primaryBranches);
-		prefService.put(getClass(), "polynomialChoice", polynomialChoice);
+		if (polynomialChoice != null)
+			prefService.put(getClass(), "polynomialChoice", polynomialChoice);
 		prefService.put(getClass(), "polynomialDegree", polynomialDegree);
-		prefService.put(getClass(), "normalizationMethodDescription", normalizationMethodDescription);
-		prefService.put(getClass(), "annotationsDescription", annotationsDescription);
-		prefService.put(getClass(), "plotOutputDescription", plotOutputDescription);
-		prefService.put(getClass(), "lutChoice", lutChoice);
+		if (normalizationMethodDescription != null)
+			prefService.put(getClass(), "normalizationMethodDescription", normalizationMethodDescription);
+		if (annotationsDescription != null)
+			prefService.put(getClass(), "annotationsDescription", annotationsDescription);
+		if (plotOutputDescription != null)
+			prefService.put(getClass(), "plotOutputDescription", plotOutputDescription);
+		if (lutChoice != null)
+			prefService.put(getClass(), "lutChoice", lutChoice);
 	}
 
 
@@ -620,7 +627,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			if (!twoD) {
 				final ModuleItem<String> ignoreIsolatedVoxelsInput = getInfo().getInput("HEADER2", String.class);
 				removeInput(ignoreIsolatedVoxelsInput);
-				final MutableModuleItem<Double> nSpansInput = getInfo().getMutableInput("nSpans", Double.class);
+				final MutableModuleItem<Integer> nSpansInput = getInfo().getMutableInput("nSpans", Integer.class);
 				removeInput(nSpansInput);
 				final MutableModuleItem<String> nSpansIntChoiceInput = getInfo().getMutableInput("nSpansIntChoice",
 						String.class);
