@@ -2702,6 +2702,16 @@ public class SNTUI extends JDialog {
 			new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
 		});
 		analysisMenu.add(tmdMenuItem);
+		final JMenuItem rootAnalysisMenuItem = GuiUtils.MenuItems.rootAngleAnalysis();
+		rootAnalysisMenuItem.addActionListener(e -> {
+			if (noPathsError()) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null || trees.isEmpty()) return;
+			final HashMap<String, Object> inputs = new HashMap<>();
+			inputs.put("trees", trees);
+			(new CmdRunner(RootAngleAnalyzerCmd.class, inputs, getState())).execute();
+		});
+		analysisMenu.add(rootAnalysisMenuItem);
 		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsShollError()) return;

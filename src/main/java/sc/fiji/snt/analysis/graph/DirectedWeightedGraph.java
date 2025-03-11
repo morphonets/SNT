@@ -117,7 +117,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			if (node.parent == -1)
 				continue;
 			final SWCPoint previousPoint = map.get(node.parent);
-			node.setPreviousPoint(previousPoint);
+			node.setPrevious(previousPoint);
 			final SWCWeightedEdge edge = new SWCWeightedEdge();
 			addEdge(previousPoint, node, edge);
 			if (assignDistancesToWeights) {
@@ -510,10 +510,10 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 			final List<SWCPoint> parentList = Graphs.predecessorListOf(this, v);
 			if (!parentList.isEmpty()) {
 				v.parent = parentList.get(0).id;
-				v.setPreviousPoint(parentList.get(0));
+				v.setPrevious(parentList.get(0));
 			} else {
 				v.parent = -1;
-				v.setPreviousPoint(null);
+				v.setPrevious(null);
 			}
 		}
 	}
@@ -615,7 +615,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	public Tree getTree(final boolean createNewTree) {
 		if (createNewTree) {
 			updateVertexProperties();
-			return new Tree(this, "");
+			return new Tree(this, tree.getLabel());
 		} else {
 			return tree;
 		}
@@ -709,6 +709,34 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 				stack.push(newTarget);
 			}
 		}
+	}
+
+	public List<SWCPoint> getNodesFromLeavesToRoot() {
+		final List<SWCPoint> result = getNodesFromRootToLeaves();
+		Collections.reverse(result); // Reverse the result to get nodes from leaves to root
+		return result;
+	}
+
+	public List<SWCPoint> getNodesFromRootToLeaves() {
+		final List<SWCPoint> result = new ArrayList<>();
+		final Set<SWCPoint> visited = new HashSet<>();
+		final Stack<SWCPoint> stack = new Stack<>();
+		for (final SWCPoint node : vertexSet()) { // Identify all leaf nodes
+			if (outDegreeOf(node) == 0) {
+				stack.push(node);
+			}
+		}
+		while (!stack.isEmpty()) { // Perform DFS
+			final SWCPoint node = stack.pop();
+			if (!visited.contains(node)) {
+				visited.add(node);
+				result.add(node);
+				for (final SWCPoint predecessor : Graphs.predecessorListOf(this, node)) {
+					stack.push(predecessor);
+				}
+			}
+		}
+		return result;
 	}
 
 	/**

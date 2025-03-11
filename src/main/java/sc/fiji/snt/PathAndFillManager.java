@@ -2729,7 +2729,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		for (final SWCPoint point : points) {
 			final SWCPoint previousPoint = idToSWCPoint.get(point.parent);
 			if (previousPoint != null) {
-				point.setPreviousPoint(previousPoint);
+				point.setPrevious(previousPoint);
 				previousPoint.getNextPoints().add(point);
 			}
 		}
@@ -2772,7 +2772,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		while ((start = backtrackTo.poll()) != null) {
 			currentPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
 			currentPath.createCircles();
-			final SWCPoint beforeStart = start.getPreviousPoint();
+			final SWCPoint beforeStart = start.previous();
 			if (beforeStart != null) {
 				pathStartsOnSWCPoint.put(currentPath, beforeStart);
 			}

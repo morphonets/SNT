@@ -41,7 +41,6 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.AnalysisUtils.HistogramDatasetPlus;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -229,9 +228,7 @@ public class NodeStatistics <T extends PointInImage> {
 	 */
 	public SNTChart getHistogram(final String metric) {
 		getDescriptiveStatistics(metric);
-		final HistogramDatasetPlus datasetPlus = new HistogramDatasetPlus(currentStats, true);
-		final JFreeChart chart = AnalysisUtils.createHistogram(currentMetric, "", currentStats, datasetPlus);
-		return new SNTChart("Hist. " + currentMetric, chart);
+		return AnalysisUtils.createHistogram(currentMetric, "", currentStats);
 	}
 
 	/**

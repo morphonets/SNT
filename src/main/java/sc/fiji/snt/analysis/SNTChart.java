@@ -151,12 +151,10 @@ public class SNTChart extends ChartPanel {
 			frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
 			frame.setLocationByPlatform(true);
 			if (isCombined()) {
-				SwingUtilities.invokeLater(() -> {
-					otherCombinedCharts.forEach(chart -> {
-						if (chart.frame != null)
-							chart.frame.setVisible(false);
-					});
-				});
+				SwingUtilities.invokeLater(() -> otherCombinedCharts.forEach(chart -> {
+                    if (chart.frame != null)
+                        chart.frame.setVisible(false);
+                }));
 			}
 			frame.setContentPane(this);
 			frame.setBackground(SNTChart.BACKGROUND_COLOR); // provided contrast to otherwise transparent background
@@ -281,9 +279,8 @@ public class SNTChart extends ChartPanel {
 		} else if (getChart().getPlot() instanceof CategoryPlot) {
 			final CategoryPlot plot = (getChart().getCategoryPlot());
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
-		} else if (getChart().getPlot() instanceof PolarPlot) {
-			final PolarPlot plot = (PolarPlot)getChart().getPlot();
-			return plot.isRadiusGridlinesVisible();
+		} else if (getChart().getPlot() instanceof PolarPlot plot) {
+            return plot.isRadiusGridlinesVisible();
 		}
 		return false;
 	}
@@ -398,6 +395,25 @@ public class SNTChart extends ChartPanel {
 		}
 	}
 
+	/**
+	 * Changes the line width of all series in a XY plot
+	 *
+	 * @param width the stroke width
+	 * @throws IllegalArgumentException if this SNChart is not an XYPlot
+	 */
+	public void setLineWidth(final int width) {
+		final Plot plot = getChart().getPlot();
+		if (! (plot instanceof XYPlot)) {
+			throw new IllegalArgumentException("Only XYPlots support line width changes");
+		}
+		final XYItemRenderer renderer = ((XYPlot) plot).getRenderer();
+		final int nSeries = ((XYPlot) plot).getDataset().getSeriesCount();
+		for (int series = 0; series < nSeries; series++) {
+			renderer.setSeriesStroke(series, new BasicStroke(width), series==nSeries-1);
+		}
+
+	}
+
 	public void setChartTitle(final String title) {
 		try {
 			super.getChart().setTitle(title);
@@ -502,9 +518,8 @@ public class SNTChart extends ChartPanel {
 				getCategoryPlot().getDomainAxis().setLabelFont(font);
 				getCategoryPlot().getRangeAxis().setLabelFont(font);
 			}
-			else if (getChart().getPlot() instanceof PolarPlot) {
-				final PolarPlot plot = (PolarPlot)getChart().getPlot();
-				for (int i = 0; i < plot.getAxisCount(); i++) {
+			else if (getChart().getPlot() instanceof PolarPlot plot) {
+                for (int i = 0; i < plot.getAxisCount(); i++) {
 					final Font font = plot.getAxis(i).getTickLabelFont().deriveFont(size);
 					plot.getAxis(i).setTickLabelFont(font);
 				}
@@ -525,12 +540,10 @@ public class SNTChart extends ChartPanel {
 					lt.getAxis().setLabelFont(lt.getAxis().getLabelFont().deriveFont(size));
 					lt.getAxis().setTickLabelFont(lt.getAxis().getTickLabelFont().deriveFont(size));
 				}
-				else if (title instanceof TextTitle) {
-					final TextTitle tt = (TextTitle) title;
-					tt.setFont(tt.getFont().deriveFont(size));
-				} else if (title instanceof LegendTitle) {
-					final LegendTitle lt = (LegendTitle) title;
-					lt.setItemFont(lt.getItemFont().deriveFont(size));
+				else if (title instanceof TextTitle tt) {
+                    tt.setFont(tt.getFont().deriveFont(size));
+				} else if (title instanceof LegendTitle lt) {
+                    lt.setItemFont(lt.getItemFont().deriveFont(size));
 				}
 			}
 			break;
@@ -615,7 +628,7 @@ public class SNTChart extends ChartPanel {
 	}
 
 	public ImagePlus getImage() {
-		return getImages(1f).iterator().next();
+		return getImages(1f).getFirst();
 	}
 
 	public List<ImagePlus> getImages(final float scalingFactor) {
@@ -681,9 +694,7 @@ public class SNTChart extends ChartPanel {
 
 	private void adjustMarkersFont(final Collection<?> markers, final float size) {
 		if (markers != null) {
-			markers.forEach(marker -> {
-				((Marker) marker).setLabelFont(((Marker) marker).getLabelFont().deriveFont(size));
-			});
+			markers.forEach(marker -> ((Marker) marker).setLabelFont(((Marker) marker).getLabelFont().deriveFont(size)));
 		}
 	}
 
@@ -700,13 +711,11 @@ public class SNTChart extends ChartPanel {
 		}
 		for (int i = 0; i < getChart().getSubtitleCount(); i++) {
 			final Title title = getChart().getSubtitle(i);
-			if (title instanceof TextTitle) {
-				final TextTitle tt = (TextTitle) title;
-				if (tt.getBackgroundPaint() == oldColor)
+			if (title instanceof TextTitle tt) {
+                if (tt.getBackgroundPaint() == oldColor)
 					tt.setBackgroundPaint(newColor);
-			} else if (title instanceof LegendTitle) {
-				final LegendTitle lt = (LegendTitle) title;
-				if (lt.getBackgroundPaint() == oldColor)
+			} else if (title instanceof LegendTitle lt) {
+                if (lt.getBackgroundPaint() == oldColor)
 					lt.setBackgroundPaint(newColor);
 			}
 		}
@@ -1151,7 +1160,7 @@ public class SNTChart extends ChartPanel {
 			if (openInstances.isEmpty())
 				AWTWindows.centerWindow(this.getFrame());
 			else
-				getFrame().setLocationRelativeTo(openInstances.get(openInstances.size()-1));
+				getFrame().setLocationRelativeTo(openInstances.getLast());
 		}
 		SwingUtilities.invokeLater(() -> getFrame().show());
 	}
@@ -1296,7 +1305,7 @@ public class SNTChart extends ChartPanel {
 		final ButtonGroup buttonGroup = new ButtonGroup();
 		boolean matched = false;
 		for (final float size : new float[] { .5f, 1f, 1.5f, 2f, 2.5f, 3f, 3.5f, 4f }) {
-			final JRadioButtonMenuItem item = new JRadioButtonMenuItem("" + size + "×");
+			final JRadioButtonMenuItem item = new JRadioButtonMenuItem(size + "×");
 			if (!matched) {
 				matched = Math.abs(size - scalingFactor) < 0.05;
 				item.setSelected(matched);
@@ -1524,10 +1533,9 @@ public class SNTChart extends ChartPanel {
 	}
 
 	public static void closeAll() {
-		final Iterator<SNTChart> iterator = openInstances.iterator();
-		while (iterator.hasNext()) {
-			iterator.next().disposeInternal();
-		}
+        for (SNTChart openInstance : openInstances) {
+            openInstance.disposeInternal();
+        }
 		openInstances.clear();
 	}
 
@@ -1736,9 +1744,7 @@ public class SNTChart extends ChartPanel {
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
 		int finalNBins = nBins;
-		hdpMap.forEach((label, hdp) -> {
-			dataset.addSeries(label, hdp.valuesAsArray(), finalNBins, limits[0], limits[1]);
-		});
+		hdpMap.forEach((label, hdp) -> dataset.addSeries(label, hdp.valuesAsArray(), finalNBins, limits[0], limits[1]));
 		final String title = table.getTitle();
 		final String axisLabel = (columnIndices.length == 1) ? table.getColumnHeader(columnIndices[0]) : "";
 		final SNTChart chart = (polar) ?
@@ -1752,7 +1758,7 @@ public class SNTChart extends ChartPanel {
 	/* IDE debug method */
 	public static void main(final String[] args) {
 		GuiUtils.setLookAndFeel();
-		final Tree tree = new SNTService().demoTrees().get(0);
+		final Tree tree = new SNTService().demoTrees().getFirst();
 		final TreeStatistics treeStats = new TreeStatistics(tree);
 		final SNTChart chart = treeStats.getHistogram("contraction");
 		chart.annotatePoint(0.75, 0.15, "No data here", "green");

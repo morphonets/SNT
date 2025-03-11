@@ -463,10 +463,8 @@ public class Path implements Comparable<Path> {
 		final PointInImage a = getNode(nodeIndex - 1);
 		final PointInImage b = getNode(nodeIndex - 2);
 		final PointInImage c = getNode(nodeIndex);
-		final Vector3d v1 = new Vector3d(
-				new double[]{a.getX() - b.getX(), a.getY() - b.getY(), a.getZ() - b.getZ()}); // BA
-		final Vector3d v2 = new Vector3d(
-				new double[]{c.getX() - b.getX(), c.getY() - b.getY(), c.getZ() - b.getZ()}); // BC
+		final Vector3d v1 = new Vector3d(a.getX() - b.getX(), a.getY() - b.getY(), a.getZ() - b.getZ()); // BA
+		final Vector3d v2 = new Vector3d(c.getX() - b.getX(), c.getY() - b.getY(), c.getZ() - b.getZ()); // BC
 		v1.normalize();
 		v2.normalize();
 		double angle = Math.acos(v1.dot(v2));

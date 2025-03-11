@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 import org.jfree.chart.ChartFactory;
@@ -108,40 +109,22 @@ class AnalysisUtils {
 	public static String getMetricLabel(final String standardMetric, final String unit) {
 		if (unit == null || unit.isEmpty())
 			return standardMetric;
-		switch (standardMetric) {
-		case TreeStatistics.BRANCH_LENGTH:
-		case TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE:
-		case TreeStatistics.DEPTH:
-		case TreeStatistics.HEIGHT:
-		case TreeStatistics.INNER_LENGTH:
-		case TreeStatistics.INTER_NODE_DISTANCE:
-		case TreeStatistics.LENGTH:
-		case TreeStatistics.NODE_RADIUS:
-		case TreeStatistics.BRANCH_MEAN_RADIUS:
-		case TreeStatistics.PATH_MEAN_RADIUS:
-		case TreeStatistics.PATH_LENGTH:
-		case TreeStatistics.PRIMARY_LENGTH:
-		case TreeStatistics.TERMINAL_LENGTH:
-		case TreeStatistics.WIDTH:
-		case MultiTreeStatistics.AVG_BRANCH_LENGTH:
-		case MultiTreeStatistics.INNER_LENGTH:
-		case MultiTreeStatistics.PRIMARY_LENGTH:
-		case MultiTreeStatistics.TERMINAL_LENGTH:
-		case ShollAnalyzer.CENTROID_RADIUS:
-		case ShollAnalyzer.ENCLOSING_RADIUS:
-		case ShollAnalyzer.MAX_FITTED_RADIUS:
-		case TreeStatistics.SHOLL_MAX_FITTED_RADIUS:
-			return String.format("%s (%s)", standardMetric, unit);
-		case TreeStatistics.INTER_NODE_DISTANCE_SQUARED:
-		case TreeStatistics.SURFACE_AREA:
-			return String.format("%s (%s²)", standardMetric, unit);
-		case TreeStatistics.BRANCH_VOLUME:
-		case TreeStatistics.PATH_VOLUME:
-		case TreeStatistics.VOLUME:
-			return String.format("%s (%s³)", standardMetric, unit);
-		default:
-			return standardMetric;
-		}
+        return switch (standardMetric) {
+            case TreeStatistics.BRANCH_LENGTH, TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE, TreeStatistics.DEPTH,
+                 TreeStatistics.HEIGHT, TreeStatistics.INNER_LENGTH, TreeStatistics.INTER_NODE_DISTANCE,
+                 TreeStatistics.LENGTH, TreeStatistics.NODE_RADIUS, TreeStatistics.BRANCH_MEAN_RADIUS,
+                 TreeStatistics.PATH_MEAN_RADIUS, TreeStatistics.PATH_LENGTH, TreeStatistics.PRIMARY_LENGTH,
+                 TreeStatistics.TERMINAL_LENGTH, TreeStatistics.WIDTH, MultiTreeStatistics.AVG_BRANCH_LENGTH,
+                 MultiTreeStatistics.INNER_LENGTH, MultiTreeStatistics.PRIMARY_LENGTH,
+                 MultiTreeStatistics.TERMINAL_LENGTH, ShollAnalyzer.CENTROID_RADIUS, ShollAnalyzer.ENCLOSING_RADIUS,
+                 ShollAnalyzer.MAX_FITTED_RADIUS, TreeStatistics.SHOLL_MAX_FITTED_RADIUS ->
+                    String.format("%s (%s)", standardMetric, unit);
+            case TreeStatistics.INTER_NODE_DISTANCE_SQUARED, TreeStatistics.SURFACE_AREA ->
+                    String.format("%s (%s²)", standardMetric, unit);
+            case TreeStatistics.BRANCH_VOLUME, TreeStatistics.PATH_VOLUME, TreeStatistics.VOLUME ->
+                    String.format("%s (%s³)", standardMetric, unit);
+            default -> standardMetric + " (" + unit + ")";
+        };
 	}
 
 	/* Converts nodes to single point paths: useful to allow Tree-based classes to parse isolated nodes */
@@ -169,6 +152,7 @@ class AnalysisUtils {
 		final StringBuilder sb = new StringBuilder();
 		final double mean = stats.getMean();
 		final int nDecimals = (mean < 0.51) ? 3 : 2;
+		if (datasetPlus.n ==0) datasetPlus.compute();
 		sb.append("Q1: ").append(SNTUtils.formatDouble(datasetPlus.q1, nDecimals));
 		if (stats instanceof DescriptiveStatistics)
 			sb.append("  Median: ").append(SNTUtils.formatDouble(//
@@ -185,8 +169,25 @@ class AnalysisUtils {
 		return sb.toString();
 	}
 
+	static SNTChart createPolarHistogram(final String title, final String unit, final DescriptiveStatistics stats) {
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final JFreeChart chart = createPolarHistogram(title, unit, stats, datasetPlus);
+		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+	}
+
+	static SNTChart createPolarHistogram(final String title, final String unit, final DescriptiveStatistics stats, final String description) {
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final JFreeChart chart = createPolarHistogram(title, unit, stats, datasetPlus, description);
+		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+	}
+
 	static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
-			final HistogramDatasetPlus datasetPlus) {
+										   final HistogramDatasetPlus datasetPlus) {
+		return createPolarHistogram(xAxisTitle, unit, stats, datasetPlus, getSummaryDescription(stats, datasetPlus));
+
+	}
+	static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
+			final HistogramDatasetPlus datasetPlus, final String description) {
 
 		final PolarPlot polarPlot = new PolarPlot();
 		polarPlot.setDataset(histoDatasetToSingleXYDataset(datasetPlus.getDataset(xAxisTitle), 1, datasetPlus.nBins));
@@ -204,8 +205,7 @@ class AnalysisUtils {
 		}
 		final JFreeChart chart = assemblePolarPlotChart(polarPlot, false);
 		chart.removeLegend();
-		final String desc = getSummaryDescription(stats, datasetPlus);
-		final TextTitle label = new TextTitle(getMetricLabel(xAxisTitle, unit) + "\n" + desc);
+		final TextTitle label = new TextTitle(getMetricLabel(xAxisTitle, unit) + "\n" + description);
 		label.setFont(polarPlot.getAngleLabelFont().deriveFont(Font.PLAIN));
 		label.setPosition(RectangleEdge.BOTTOM);
 		chart.addSubtitle(label);
@@ -407,8 +407,25 @@ class AnalysisUtils {
 		return series;
 	}
 
+	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats, final String description) {
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final JFreeChart chart = createHistogram(title, unit, stats, datasetPlus, description);
+		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+	}
+
+	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats) {
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final JFreeChart chart = createHistogram(title, unit, stats, datasetPlus, getSummaryDescription(stats, datasetPlus));
+		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+	}
+
 	static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
-			final HistogramDatasetPlus datasetPlus) {
+									  final HistogramDatasetPlus datasetPlus) {
+		return createHistogram(xAxisTitle, unit, stats, datasetPlus,  getSummaryDescription(stats, datasetPlus));
+	}
+
+	static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
+			final HistogramDatasetPlus datasetPlus, final String summaryDescription) {
 
 		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(xAxisTitle, unit),
 			"Rel. Frequency", datasetPlus.getDataset(xAxisTitle));
@@ -425,8 +442,7 @@ class AnalysisUtils {
 
 		// Append descriptive label
 		chart.removeLegend();
-		final String desc = getSummaryDescription(stats, datasetPlus);
-		final TextTitle label = new TextTitle(desc);
+		final TextTitle label = new TextTitle(summaryDescription);
 		label.setFont(plot.getRangeAxis().getLabelFont().deriveFont(Font.PLAIN));
 		label.setPosition(RectangleEdge.BOTTOM);
 		chart.addSubtitle(label);

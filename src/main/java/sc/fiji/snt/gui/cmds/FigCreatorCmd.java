@@ -23,9 +23,7 @@
 package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
-import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
-import org.scijava.module.ModuleItem;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
@@ -56,11 +54,11 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String view;
 
-	@Parameter(label = "Positioning:", choices = { "Absolute (original coordinates)",
+	@Parameter(required = false, label = "Positioning:", choices = { "Absolute (original coordinates)",
 			"Relative (translate soma(s) to common origin)" }, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String rootTranslation;
 
-	@Parameter(label = "Rotation:", choices = { "None", "Rotate to upright orientation (longest geodesic)",
+	@Parameter(required = false, label = "Rotation:", choices = { "None", "Rotate to upright orientation (longest geodesic)",
 			"Rotate to upright orientation (tips)"},
 			description = "<HTML>Tries to rotate the arbor to a 'vertical' position." +
 					"<dl>" +
@@ -73,9 +71,6 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 					"arbor reflects its overall orientation</dd></dl>",
 			style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
 	private String uprightRotation;
-
-	@Parameter(persist = false, visibility = ItemVisibility.MESSAGE)
-	private String msg;
 
 	@Parameter(required = true)
 	Collection<Tree> trees;
@@ -97,16 +92,19 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			return;
 		}
 		if (trees.size() == 1) {
-			final ModuleItem<String> mi = getInfo().getInput("style", String.class);
-			mi.setValue(this, mi.getChoices().get(0));
-			msg = "NB: Only 1 reconstruction available. Montage options will be ignored...";
-		} else {
-			removeInput(getInfo().getInput("msg", String.class));
+			style = "Single-pane";
+			resolveInput("style");
+			rootTranslation = "Absolute (original coordinates)";
+			resolveInput("rootTranslation");
+			if (!trees.iterator().next().is3D()) {
+				view = "XY (default)";
+				resolveInput("view");
+			}
 		}
 		if (noRasterOutput) {
 			final MutableModuleItem<String> mi = (MutableModuleItem<String>) getInfo().getInput("type", String.class);
 			final ArrayList<String> choices = new ArrayList<>(mi.getChoices());
-			choices.remove(0);
+			choices.removeFirst();
 			mi.setChoices(choices);
 		} else {
 			resolveInput("noRasterOutput");
@@ -153,26 +151,34 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			result = montage(renderingTrees, type + " " + view, false);
 		else
 			result = singleScene(renderingTrees, type + " " + view, false);
-		if (result instanceof ImagePlus) {
-			((ImagePlus) result).show();
-			final int minSize = (montage) ? 200 / trees.size() : 200;
-			if (((ImagePlus) result).getWidth() < minSize || ((ImagePlus) result).getHeight() < minSize) {
-			msg("Created figure may not have enough detail (paths were digitized at 1µm/pixel). It " +
-					"may be preferable to use scalable vector graphics instead.", "Coarse Result?");
-			}
-		} else if (result instanceof Viewer2D) {
-			if (mapper != null) ((Viewer2D) result).addColorBarLegend(mapper);
-			((Viewer2D) result).show();
-		} else if (result instanceof MultiViewer2D) {
-			if (mapper != null) ((MultiViewer2D) result).setColorBarLegend(mapper);
-			((MultiViewer2D) result).show();
-		} else if (result instanceof Viewer3D) {
-			if (mapper != null) ((Viewer3D) result).addColorBarLegend(mapper);
-			((Viewer3D) result).show();
-		} else if (result instanceof MultiViewer3D) {
-			if (mapper != null) ((MultiViewer3D) result).addColorBarLegend(mapper);
-			((MultiViewer3D) result).show();
-		}
+        switch (result) {
+            case ImagePlus imagePlus -> {
+                imagePlus.show();
+                final int minSize = (montage) ? 200 / trees.size() : 200;
+                if (imagePlus.getWidth() < minSize || imagePlus.getHeight() < minSize) {
+                    msg("Created figure may not have enough detail (paths were digitized at 1µm/pixel). It " +
+                            "may be preferable to use scalable vector graphics instead.", "Coarse Result?");
+                }
+            }
+            case Viewer2D viewer2D -> {
+                if (mapper != null) ((Viewer2D) result).addColorBarLegend(mapper);
+                viewer2D.show();
+            }
+            case MultiViewer2D multiViewer2D -> {
+                if (mapper != null) ((MultiViewer2D) result).setColorBarLegend(mapper);
+                multiViewer2D.show();
+            }
+            case Viewer3D viewer3D -> {
+                if (mapper != null) ((Viewer3D) result).addColorBarLegend(mapper);
+                viewer3D.show();
+            }
+            case MultiViewer3D multiViewer3D -> {
+                if (mapper != null) ((MultiViewer3D) result).addColorBarLegend(mapper);
+                multiViewer3D.show();
+            }
+            default -> {
+            }
+        }
 		resetUI();
 	}
 

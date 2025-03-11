@@ -218,20 +218,19 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	/**
 	 * Returns the preceding node (if any)
 	 * 
-	 * @return the previous node or null if set by
-	 *         {@link #setPreviousPoint(SWCPoint)} has not been called
+	 * @return the previous node or null if set by {@link #setPrevious(SWCPoint)} has not been called
 	 */
-	public SWCPoint getPreviousPoint() {
+	public SWCPoint previous() {
 		return previousPoint;
 	}
 
 	/**
 	 * Sets the preceding node in the reconstruction
 	 * 
-	 * @param previousPoint the previous node preceding this one
+	 * @param previousNode the previous node preceding this one
 	 */
-	public void setPreviousPoint(final SWCPoint previousPoint) {
-		this.previousPoint = previousPoint;
+	public void setPrevious(final SWCPoint previousNode) {
+		this.previousPoint = previousNode;
 	}
 
 	/**

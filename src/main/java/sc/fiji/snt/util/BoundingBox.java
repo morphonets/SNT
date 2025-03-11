@@ -146,10 +146,10 @@ public class BoundingBox {
 		final SummaryStatistics xyStats = new SummaryStatistics();
 		final SummaryStatistics zStats = new SummaryStatistics();
 		for (final SWCPoint p : points) {
-			if (p.getPreviousPoint() == null) continue;
-			xyStats.addValue(Math.abs(p.x - p.getPreviousPoint().x));
-			xyStats.addValue(Math.abs(p.y - p.getPreviousPoint().y));
-			zStats.addValue(Math.abs(p.z - p.getPreviousPoint().z));
+			if (p.previous() == null) continue;
+			xyStats.addValue(Math.abs(p.x - p.previous().x));
+			xyStats.addValue(Math.abs(p.y - p.previous().y));
+			zStats.addValue(Math.abs(p.z - p.previous().z));
 		}
 		final double xyMean = xyStats.getMean();
 		xSpacing = xyMean;

@@ -2272,6 +2272,12 @@ public class GuiUtils {
 			return jmi;
 		}
 
+		public static JMenuItem rootAngleAnalysis() {
+			final JMenuItem jmi = new JMenuItem("Root Angle Analysis...", IconFactory.menuIcon(GLYPH.ANGLE_RIGHT));
+			jmi.setToolTipText("Root angle, mean direction, and centripetal bias analyses");
+			return jmi;
+		}
+
 		public static JMenuItem saveTablesAndPlots(final GLYPH glyph) {
 			final JMenuItem jmi = new JMenuItem("Save Tables & Analysis Plots...", IconFactory.menuIcon(glyph));
 			jmi.setToolTipText("Save all tables, plots, and charts currently open");
