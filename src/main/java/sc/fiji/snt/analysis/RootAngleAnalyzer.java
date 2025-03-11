@@ -49,6 +49,11 @@ import java.util.stream.Collectors;
  */
 public class RootAngleAnalyzer {
 
+    public static final String BALANCING_FACTOR = "Balancing factor";
+    public static final String CENTRIPETAL_BIAS = "Centripetal bias";
+    public static final String MEAN_DIRECTION = "Mean direction";
+    private Map<String, Double> metrics;
+
     @Parameter
     private PlotService plotService;
 
@@ -189,6 +194,17 @@ public class RootAngleAnalyzer {
             getAngles().forEach(angle -> stats.addValue(angle));
         }
         return stats;
+    }
+
+    public Map<String, Double> getAnalysis() {
+        if (metrics != null) {
+            return metrics;
+        }
+        metrics = new LinkedHashMap<>();
+        metrics.put(BALANCING_FACTOR, balancingFactor());
+        metrics.put(CENTRIPETAL_BIAS, centripetalBias());
+        metrics.put(MEAN_DIRECTION, meanDirection());
+        return metrics;
     }
 
     /**
@@ -409,6 +425,17 @@ public class RootAngleAnalyzer {
                 stats.getN(), stats.getMin(), stats.getMax(), stats.getMean(), stats.getStandardDeviation());
     }
 
+    public static List<String> supportedMetrics() {
+        return Arrays.asList(CENTRIPETAL_BIAS, BALANCING_FACTOR, MEAN_DIRECTION);
+    }
+
+    /**
+     * A Von Mises distribution is a continuous probability distribution on the unit circle.
+     * It is used to model the distribution of angles in a circular dataset.
+     * The distribution is characterized by two parameters: the mean direction and the concentration.
+     * The mean direction is the average angle of the distribution, and the concentration measures how tightly
+     * values are clustered around the mean direction.
+     */
     private static class VonMisesDistribution {
         final double meanDirection;
         final double concentration;

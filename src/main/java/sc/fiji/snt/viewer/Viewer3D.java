@@ -4556,6 +4556,16 @@ public class Viewer3D {
 				runCmd(PersistenceAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
 			});
 			measureMenu.add(mi);
+			mi = GuiUtils.MenuItems.rootAngleAnalysis();
+			mi.addActionListener(e -> {
+				final List<Tree> trees = getSelectedTrees();
+				if (trees == null || trees.isEmpty()) return;
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("trees", trees);
+				runCmd(RootAngleAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+			});
+			measureMenu.add(mi);
+
 			mi = GuiUtils.MenuItems.shollAnalysis();
 			mi.addActionListener(e -> {
 				final List<Tree> trees = getSelectedTrees();

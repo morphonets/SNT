@@ -257,6 +257,13 @@ public class TreeStatistics extends ContextCommand {
     /** Flag specifying "Convex hull: Centroid-root distance" statistics */
     public static final String CONVEX_HULL_CENTROID_ROOT_DISTANCE = "Convex hull: Centroid-root distance";
 
+    /** Flag specifying "Root angles: Balancing factor */
+    public static final String ROOT_ANGLE_B_FACTOR = "Root angles: " + RootAngleAnalyzer.BALANCING_FACTOR;
+    /** Flag specifying "Root angles: Centripetal bias */
+    public static final String ROOT_ANGLE_C_BIAS = "Root angles: " + RootAngleAnalyzer.CENTRIPETAL_BIAS;
+    /** Flag specifying "Root angles: Mean direction */
+    public static final String ROOT_ANGLE_M_DIRECTION = "Root angles: " + RootAngleAnalyzer.MEAN_DIRECTION;
+
     /**
      * Flag for analysis of Node intensity values, an optional numeric property that can
      * be assigned to Path nodes (e.g., voxel intensities), assigned via
@@ -297,8 +304,9 @@ public class TreeStatistics extends ContextCommand {
             N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL, //
             PATH_CONTRACTION, PATH_FRACTAL_DIMENSION, PATH_FRAME, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, //
             PATH_EXT_ANGLE_REL_XY, PATH_EXT_ANGLE_REL_XZ, PATH_EXT_ANGLE_REL_ZY, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, //
-            PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, SHOLL_DECAY, //
-            SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX, //
+            PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, //
+            ROOT_ANGLE_B_FACTOR, ROOT_ANGLE_C_BIAS, ROOT_ANGLE_M_DIRECTION, //
+            SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX, //
             SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX, SHOLL_SKEWNESS, SHOLL_SUM_VALUE, //
             STRAHLER_NUMBER, STRAHLER_RATIO, SURFACE_AREA, TERMINAL_LENGTH, VALUES, VOLUME, WIDTH, X_COORDINATES, //
             Y_COORDINATES, Z_COORDINATES//
@@ -324,6 +332,7 @@ public class TreeStatistics extends ContextCommand {
     private int fittedPathsCounter = 0;
     private final int unfilteredPathsFittedPathsCounter;
     private ConvexHullAnalyzer convexAnalyzer;
+    private RootAngleAnalyzer rootAngleAnalyzer;
 
 
     /**
@@ -500,7 +509,7 @@ public class TreeStatistics extends ContextCommand {
         for (final Tree tree : trees) {
             if (tree.getLabel() != null) sb.append(tree.getLabel()).append(" ");
         }
-        return (sb.length() == 0) ? "Grouped Cells" : sb.toString().trim();
+        return (sb.isEmpty()) ? "Grouped Cells" : sb.toString().trim();
     }
 
     protected static String tryReallyHardToGuessMetric(final String guess) {
@@ -652,68 +661,41 @@ public class TreeStatistics extends ContextCommand {
      * @see #setExactMetricMatch(boolean)
      */
     public Number getMetric(final String metric) throws UnknownMetricException {
-        switch (metric) {
-            case MultiTreeStatistics.ASSIGNED_VALUE:
-                return tree.getAssignedValue();
-            case MultiTreeStatistics.AVG_BRANCH_LENGTH:
-                return getAvgBranchLength();
-            case MultiTreeStatistics.AVG_CONTRACTION:
-                return getAvgContraction();
-            case MultiTreeStatistics.AVG_FRAGMENTATION:
-                return getAvgFragmentation();
-            case MultiTreeStatistics.AVG_REMOTE_ANGLE:
-                return getAvgRemoteBifAngle();
-            case MultiTreeStatistics.AVG_PARTITION_ASYMMETRY:
-                return getAvgPartitionAsymmetry();
-            case MultiTreeStatistics.AVG_FRACTAL_DIMENSION:
-                return getAvgFractalDimension();
-            case MultiTreeStatistics.PRIMARY_LENGTH:
-                return getPrimaryLength();
-            case MultiTreeStatistics.TERMINAL_LENGTH:
-                return getTerminalLength();
-            case MultiTreeStatistics.INNER_LENGTH:
-                return getInnerLength();
-            case MultiTreeStatistics.HIGHEST_PATH_ORDER:
-                return getHighestPathOrder();
-            case AVG_SPINE_DENSITY:
-                return getSpineOrVaricosityDensity();
-            case DEPTH:
-                return getDepth();
-            case HEIGHT:
-                return getHeight();
-            case LENGTH:
-                return getCableLength();
-            case N_BRANCH_POINTS:
-                return getBranchPoints().size();
-            case N_BRANCHES:
-                return getNBranches();
-            case N_FITTED_PATHS:
-                return getNFittedPaths();
-            case N_NODES:
-                return getNNodes();
-            case N_PATHS:
-                return getNPaths();
-            case N_PRIMARY_BRANCHES:
-                return getPrimaryBranches().size();
-            case N_INNER_BRANCHES:
-                return getInnerBranches().size();
-            case N_TERMINAL_BRANCHES:
-                return getTerminalBranches().size();
-            case N_TIPS:
-                return getTips().size();
-            case N_SPINES:
-                return getNoSpinesOrVaricosities();
-            case STRAHLER_NUMBER:
-                return getStrahlerNumber();
-            case STRAHLER_RATIO:
-                return getStrahlerBifurcationRatio();
-            case WIDTH:
-                return getWidth();
-            default:
+        return switch (metric) {
+            case MultiTreeStatistics.ASSIGNED_VALUE -> tree.getAssignedValue();
+            case MultiTreeStatistics.AVG_BRANCH_LENGTH -> getAvgBranchLength();
+            case MultiTreeStatistics.AVG_CONTRACTION -> getAvgContraction();
+            case MultiTreeStatistics.AVG_FRAGMENTATION -> getAvgFragmentation();
+            case MultiTreeStatistics.AVG_REMOTE_ANGLE -> getAvgRemoteBifAngle();
+            case MultiTreeStatistics.AVG_PARTITION_ASYMMETRY -> getAvgPartitionAsymmetry();
+            case MultiTreeStatistics.AVG_FRACTAL_DIMENSION -> getAvgFractalDimension();
+            case MultiTreeStatistics.PRIMARY_LENGTH -> getPrimaryLength();
+            case MultiTreeStatistics.TERMINAL_LENGTH -> getTerminalLength();
+            case MultiTreeStatistics.INNER_LENGTH -> getInnerLength();
+            case MultiTreeStatistics.HIGHEST_PATH_ORDER -> getHighestPathOrder();
+            case AVG_SPINE_DENSITY -> getSpineOrVaricosityDensity();
+            case DEPTH -> getDepth();
+            case HEIGHT -> getHeight();
+            case LENGTH -> getCableLength();
+            case N_BRANCH_POINTS -> getBranchPoints().size();
+            case N_BRANCHES -> getNBranches();
+            case N_FITTED_PATHS -> getNFittedPaths();
+            case N_NODES -> getNNodes();
+            case N_PATHS -> getNPaths();
+            case N_PRIMARY_BRANCHES -> getPrimaryBranches().size();
+            case N_INNER_BRANCHES -> getInnerBranches().size();
+            case N_TERMINAL_BRANCHES -> getTerminalBranches().size();
+            case N_TIPS -> getTips().size();
+            case N_SPINES -> getNoSpinesOrVaricosities();
+            case STRAHLER_NUMBER -> getStrahlerNumber();
+            case STRAHLER_RATIO -> getStrahlerBifurcationRatio();
+            case WIDTH -> getWidth();
+            default -> {
                 if (metric.startsWith("Sholl: "))
-                    return getShollMetric(metric);
-                return new TreeStatistics(tree).getSummaryStats(metric).getMean();
-        }
+                    yield getShollMetric(metric);
+                yield new TreeStatistics(tree).getSummaryStats(metric).getMean();
+            }
+        };
     }
 
     /**
@@ -1325,6 +1307,11 @@ public class TreeStatistics extends ContextCommand {
             case CONVEX_HULL_SIZE:
                 stat.addValue(getConvexHullMetric(m));
                 break;
+            case ROOT_ANGLE_B_FACTOR:
+            case ROOT_ANGLE_C_BIAS:
+            case ROOT_ANGLE_M_DIRECTION:
+                stat.addValue(getRootAngleMetric(m));
+                break;
             case CONVEX_HULL_CENTROID_ROOT_DISTANCE:
                 final PointInImage root = tree.getRoot();
                 if (root == null) stat.addNaN();
@@ -1713,14 +1700,14 @@ public class TreeStatistics extends ContextCommand {
     }
 
     /**
-     * Convenience method to obtain a single-value metric from {@link ConvexHullAnalyzer} init
-     * @param metric
+     * Convenience method to obtain a single-value metric from {@link ConvexHullAnalyzer}
+     * @param metric the metric to be retrieved, one of {@link ConvexHullAnalyzer#supportedMetrics()}
      * @return the convex hull metric
      * @see #getConvexAnalyzer()
      * @see ConvexHullAnalyzer#get(String)
      */
     public double getConvexHullMetric(final String metric) {
-        final String fMetric = metric.substring(metric.indexOf("Convex Hull: ") + 13).trim();
+        final String fMetric = metric.substring(metric.indexOf("Convex Hull: ") + 14).trim();
         return getConvexAnalyzer().get(fMetric);
     }
 
@@ -1735,6 +1722,33 @@ public class TreeStatistics extends ContextCommand {
             convexAnalyzer.setContext((getContext() == null) ? SNTUtils.getContext() : getContext());
         }
         return convexAnalyzer;
+    }
+
+    /**
+     * Convenience method to obtain a single-value metric from {@link RootAngleAnalyzer}.
+     * @param metric the metric to be retrieved, one of {@link RootAngleAnalyzer#supportedMetrics()}
+     * @return the root angle metric
+     * @see #getRootAngleAnalyzer()
+     */
+    public double getRootAngleMetric(final String metric) {
+        final String fMetric = metric.substring(metric.indexOf("Root Angle: ") + 14).trim();
+        try {
+            return getRootAngleAnalyzer().getAnalysis().get(fMetric);
+        } catch (final IllegalArgumentException ignored){
+            return Double.NaN;
+        }
+    }
+
+    /**
+     * Gets the {@link RootAngleAnalyzer} instance associated with this TreeStatistics instance.
+     *
+     * @return the RootAngleAnalyzer instance
+     */
+    public RootAngleAnalyzer getRootAngleAnalyzer() throws IllegalArgumentException {
+        if (rootAngleAnalyzer == null) {
+            rootAngleAnalyzer = new RootAngleAnalyzer(tree);
+        }
+        return rootAngleAnalyzer;
     }
 
     /**
