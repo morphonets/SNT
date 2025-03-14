@@ -1015,16 +1015,11 @@ public class TreeStatistics extends ContextCommand {
 
         String label;
         final char hemiFlag = BrainAnnotation.getHemisphereFlag(hemisphere);
-        switch (hemiFlag) {
-            case BrainAnnotation.LEFT_HEMISPHERE:
-                label = "Left hemi.";
-                break;
-            case BrainAnnotation.RIGHT_HEMISPHERE:
-                label = "Right hemi.";
-                break;
-            default:
-                label = "";
-        }
+        label = switch (hemiFlag) {
+            case BrainAnnotation.LEFT_HEMISPHERE -> "Left hemi.";
+            case BrainAnnotation.RIGHT_HEMISPHERE -> "Right hemi.";
+            default -> "";
+        };
         return getAnnotatedLengthHistogram(map, depth, label);
     }
 
@@ -1051,7 +1046,7 @@ public class TreeStatistics extends ContextCommand {
         final String axisTitle = (depth == Integer.MAX_VALUE) ? "no filtering" : "depth ≤" + depth;
         final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
                 "Brain areas (N=" + (seriesMap.size() - undefinedLengthMap.size()) + ", " + axisTitle + ")", // domain axis title
-                String.format("Cable length (%s)", getUnit()), // range axis title
+                String.format("Cable length (%s)", getSpatialUnit()), // range axis title
                 "", // axis unit (already applied)
                 dataset, 2);
         final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
@@ -1073,7 +1068,7 @@ public class TreeStatistics extends ContextCommand {
         }
         final JFreeChart chart = AnalysisUtils.createCategoryPlot( //
                 "Brain areas (N=" + (map.size() - undefinedLengthMap.size()) + ", " + seriesLabel + ")", // domain axis title
-                String.format("Cable length (%s)", getUnit()), // range axis title
+                String.format("Cable length (%s)", getSpatialUnit()), // range axis title
                 "", // unit: already specified
                 dataset);
         final String tLabel = (tree.getLabel() == null) ? "" : tree.getLabel();
@@ -1099,7 +1094,7 @@ public class TreeStatistics extends ContextCommand {
     public SNTChart getPolarHistogram(final String metric) {
         final String normMeasurement = getNormalizedMeasurement(metric);
         final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement, true);
-        final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(), lastDstats.dStats, datasetPlus);
+        final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
         return new SNTChart("Polar Hist. " + tree.getLabel(), chart);
     }
 
@@ -1191,7 +1186,7 @@ public class TreeStatistics extends ContextCommand {
     }
 
     protected SNTChart getHistogram(final String normMeasurement, final HistogramDatasetPlus datasetPlus) {
-        final JFreeChart chart = AnalysisUtils.createHistogram(normMeasurement, getUnit(), lastDstats.dStats, datasetPlus);
+        final JFreeChart chart = AnalysisUtils.createHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
         return new SNTChart("Hist. " + tree.getLabel(), chart);
     }
 
@@ -2164,20 +2159,21 @@ public class TreeStatistics extends ContextCommand {
         final String m = metric.toLowerCase();
         if (TreeStatistics.WIDTH.equals(metric) || TreeStatistics.HEIGHT.equals(metric) || TreeStatistics.DEPTH.equals(metric)
                 || m.contains("length") || m.contains("radius") || m.contains("distance") || TreeStatistics.CONVEX_HULL_ELONGATION.equals(metric)) {
-            return getUnit();
+            return getSpatialUnit();
         } else if (m.contains("volume")) {
-            return getUnit() + "³";
+            return getSpatialUnit() + "³";
         } else if (m.contains("surface area")) {
-            return getUnit() + "²";
+            return getSpatialUnit() + "²";
         } else if (TreeStatistics.CONVEX_HULL_SIZE.equals(metric)) {
-            return getUnit() + ((tree.is3D()) ? "³" : "²");
+            return getSpatialUnit() + ((tree.is3D()) ? "³" : "²");
         } else if (TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE.equals(metric)) {
-            return getUnit() + ((tree.is3D()) ? "²" : "");
-        }
+            return getSpatialUnit() + ((tree.is3D()) ? "²" : "");
+        } else if (RootAngleAnalyzer.MEAN_DIRECTION.equals(metric) || REMOTE_BIF_ANGLES.equals(metric) || m.contains("extension angle"))
+            return "°";
         return "";
     }
 
-    protected String getUnit() {
+    protected String getSpatialUnit() {
         return (String) tree.getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "? units");
     }
 

@@ -313,7 +313,7 @@ public class RootAngleAnalyzer {
         plot.xAxis().setLabel("Root angle (°)");
         plot.yAxis().setLabel("Density");
         final XYSeries series = addDensityPlotSeries(plot);
-        series.setStyle(plotService.newSeriesStyle(Colors.BLACK, LineStyle.SOLID, MarkerStyle.NONE));
+        series.setStyle(plotService.newSeriesStyle(Colors.DARKGRAY, LineStyle.SOLID, MarkerStyle.NONE));
         series.setLabel(String.format("Von Mises fit: μ=%.2f°; κ=%.3f", meanDirection(), centripetalBias()));
         series.setLegendVisible(false);
         final SNTChart chart = new SNTChart(String.format("Root Angle Density (%s)", analysisLabel), plot);

@@ -39,6 +39,7 @@ import java.awt.event.MouseEvent;
 public class IconFactory {
 
 	public enum GLYPH {
+			ANGLE_DOWN('\uF107', true),
 			ANGLE_RIGHT('\uf105', true),
 			ARCHIVE('\uf1c6', false), //
 			ADJUST('\uf042', true), //

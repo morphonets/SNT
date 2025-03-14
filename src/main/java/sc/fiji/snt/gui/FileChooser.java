@@ -104,7 +104,7 @@ public class FileChooser extends JFileChooser {
 
     private static void clearPrefs() {
         try {
-            prefs.clear();
+            if (prefs != null) prefs.clear();
         } catch (final Exception e) {
             LOGGER.log(Level.WARNING, "Failed to clear preferences", e);
         } finally {

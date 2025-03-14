@@ -730,7 +730,7 @@ public class MeasureUI extends JFrame {
 					SNTUtils.log(e.getMessage());
 				}
 				final String unit = tStats.getUnit(metric);
-				final String metricHeader = (unit.length() > 1) ? metric + " (" + unit + ")" : metric;
+				final String metricHeader = (unit.isEmpty()) ? metric : metric + " (" + unit + ")";
 				if (summaryStatistics.getN() < 1) {
 					table.set(metricHeader, tree.getLabel(), "Err");
 					continue;

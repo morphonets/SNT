@@ -1119,7 +1119,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			final LinearProfileStats lStats = new LinearProfileStats(profile);
 			lStats.setLogger(logger);
 			if (primaryBranches > 0 ) {
-				lStats.setPrimaryBranches((int)primaryBranches);
+				lStats.setPrimaryBranches(primaryBranches);
 			}
 
 			if (polynomialChoice.contains("Best")) {

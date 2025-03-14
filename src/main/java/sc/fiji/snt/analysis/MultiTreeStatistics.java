@@ -198,7 +198,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	}
 
 	@Override
-	protected String getUnit() {
+	protected String getSpatialUnit() {
 		final String u1 = (String) groupOfTrees.get(0).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");
 		for (int i = 1; i < groupOfTrees.size(); i++) {
 			final String u2 = (String) groupOfTrees.get(i).getProperties().getOrDefault(TreeProperties.KEY_SPATIAL_UNIT, "");

@@ -1990,7 +1990,7 @@ public class SNTUI extends JDialog {
 
 	JPanel largeMsg(final String msg) {
 		final JTextArea ta = new JTextArea();
-		final Font font = ta.getFont().deriveFont(GuiUtils.uiFontSize() * .85f);
+		final Font font = ta.getFont().deriveFont(GuiUtils.uiFontSize() * .9f);
 		ta.setBackground(getBackground());
 		ta.setEditable(false);
 		ta.setMargin(null);

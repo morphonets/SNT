@@ -4379,7 +4379,7 @@ public class Viewer3D {
 		}
 
 		private List<Tree> getSelectedTrees() {
-			return getSelectedTrees(managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
+			return getSelectedTrees(!plottedTrees.isEmpty() && managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 	
 		private List<Tree> getSelectedTrees(final boolean promptForAllIfNone) {
@@ -4403,7 +4403,7 @@ public class Viewer3D {
 		}
 
 		private List<Annotation3D> getSelectedAnnotations() {
-			return getSelectedAnnotations(managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
+			return getSelectedAnnotations(!plottedAnnotations.isEmpty() && managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 	
 		private List<Annotation3D> getSelectedAnnotations(final boolean allowAllIfNone) {
@@ -4423,11 +4423,11 @@ public class Viewer3D {
 		}
 
 		private List<String> getSelectedTreeLabels() {
-			return getSelectedKeys(plottedTrees, "reconstructions", managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
+			return getSelectedKeys(plottedTrees, "reconstructions", !plottedTrees.isEmpty() && managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 
 		private List<String> getSelectedMeshLabels() {
-			return getSelectedKeys(plottedObjs, "meshes", managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
+			return getSelectedKeys(plottedObjs, "meshes", !plottedObjs.isEmpty() && managerList.isSelectionEmpty() && isSelectAllIfNoneSelected());
 		}
 
 		private List<String> getSelectedKeys(final Map<String, ?> map,
@@ -4562,7 +4562,7 @@ public class Viewer3D {
 				if (trees == null || trees.isEmpty()) return;
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("trees", trees);
-				runCmd(RootAngleAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+				runCmd(RootAngleAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
 			});
 			measureMenu.add(mi);
 

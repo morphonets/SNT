@@ -2276,7 +2276,7 @@ public class GuiUtils {
 		}
 
 		public static JMenuItem rootAngleAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Root Angle Analysis...", IconFactory.menuIcon(GLYPH.ANGLE_RIGHT));
+			final JMenuItem jmi = new JMenuItem("Root Angle Analysis...", IconFactory.menuIcon(GLYPH.ANGLE_DOWN));
 			jmi.setToolTipText("Root angle, mean direction, and centripetal bias analyses");
 			return jmi;
 		}
