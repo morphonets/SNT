@@ -380,7 +380,8 @@ public class ShollOverlay implements ProfileProperties {
 		final double min = StatUtils.min(mappingValues);
 		final double max = StatUtils.max(mappingValues);
 		for (final Roi roi : rois) {
-			final double value = Double.parseDouble(roi.getProperty(fProperty));
+			final String[] valueString = roi.getProperty(fProperty).split("/"); // multipoint ROIs sharing the same Z coordinate
+			final double value = Double.parseDouble(valueString[valueString.length-1]);
 			final int idx = (int) Math.round((ct.getLength() - 1) * (value - min) / (max - min));
 			final Color color = new Color(ct.get(ColorTable.RED, idx), ct.get(ColorTable.GREEN, idx),
 					ct.get(ColorTable.BLUE, idx), alpha);
