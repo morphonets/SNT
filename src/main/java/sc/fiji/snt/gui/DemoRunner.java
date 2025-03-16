@@ -56,7 +56,7 @@ public class DemoRunner {
 		priorUIState = ui.getState();
 		ui.changeState(SNTUI.LOADING);
 		ui.showStatus("Retrieving Demo data. Please wait...", false);
-		entries = List.of(demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10(),
+		entries = List.of(demo0(), demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10(),
 				demo11(), demo12());
 	}
 
@@ -66,11 +66,55 @@ public class DemoRunner {
 		prefs = null;
 		context.inject(this);
 		priorUIState = -1;
-		entries = List.of(demo3(), demo7(), demo8());
+		entries = List.of(demo0(), demo3(), demo7(), demo8());
+	}
+
+	private Demo demo0() {
+		final Demo entry = new Demo(1, "DG Granule Cell (Reconstruction only)") {
+			@Override
+			public ImagePlus getImage() {
+				return null;
+			}
+
+			@Override
+			public void load() {
+				if (!prepNonImgLoading())
+					exit();
+				try {
+					assert snt != null;
+					snt.getPathAndFillManager().addTree(getTree());
+					snt.setSinglePane(true);
+					snt.rebuildDisplayCanvases();
+					snt.updateAllViewers();
+				} catch (final Throwable ex) {
+					error(ex);
+				} finally {
+					exit();
+				}
+			}
+
+			@Override
+			public Tree getTree() {
+				return sntService.demoTree("DG");
+			}
+
+			@Override
+			public List<Tree> getTrees() {
+				return List.of(getTree());
+			}
+
+		};
+		entry.summary = "Reconstructed dendrites of an adult born dentate granule cell in the hippocampal dentate gyrus (rat).";
+		entry.data = "SWC (92KB)";
+		entry.source = """
+				Beining et al. 2017 (PMID 27514866),
+				NeuroMorpho.org ID: 21dpi_contra_infra_01, Source version (Beining archive)""";
+		entry.online = false;
+		return entry;
 	}
 
 	private Demo demo1() {
-		final Demo entry = new Demo(1, "Drosophila ddaC neuron (Autotrace demo)") {
+		final Demo entry = new Demo(2, "Drosophila ddaC neuron (Autotrace demo)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("ddaC");
@@ -94,7 +138,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo2() {
-		final Demo entry = new Demo(2, "Drosophila ddaC neuron (Image only)") {
+		final Demo entry = new Demo(3, "Drosophila ddaC neuron (Image only)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("ddaC");
@@ -108,7 +152,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo3() {
-		final Demo entry = new Demo(3, "Drosophila OP neuron (Complete 3D reconstruction)") {
+		final Demo entry = new Demo(4, "Drosophila OP neuron (Complete 3D reconstruction)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("OP_1");
@@ -135,7 +179,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo4() {
-		final Demo entry = new Demo(4, "Hippocampal neuron (DIC timelapse)") {
+		final Demo entry = new Demo(5, "Hippocampal neuron (DIC timelapse)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("cil701");
@@ -150,7 +194,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo5() {
-		final Demo entry = new Demo(5, "Hippocampal neuron (Neuronal receptors)") {
+		final Demo entry = new Demo(6, "Hippocampal neuron (Neuronal receptors)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("Rat_Hippocampal_Neuron");
@@ -164,7 +208,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo6() {
-		final Demo entry = new Demo(6, "Hippocampal neuron (Synaptic labeling)") {
+		final Demo entry = new Demo(7, "Hippocampal neuron (Synaptic labeling)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("cil810");
@@ -178,7 +222,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo7() {
-		final Demo entry = new Demo(7, "L-systems fractal (2D toy neuron)") {
+		final Demo entry = new Demo(8, "L-systems fractal (2D toy neuron)") {
 			@Override
 			public ImagePlus getImage() {
 				return sntService.demoImage("fractal");
@@ -202,7 +246,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo8() {
-		final Demo entry = new Demo(8, "MouseLight dendrites (Reconstructions only)") {
+		final Demo entry = new Demo(9, "MouseLight dendrites (Reconstructions only)") {
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -239,7 +283,7 @@ public class DemoRunner {
 	}
 
 	private Demo demo9() {
-		final Demo entry = new Demo(9, "Non-neuronal dividing cell (5D image)") {
+		final Demo entry = new Demo(10, "Non-neuronal dividing cell (5D image)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.open("http://wsr.imagej.net/images/mitosis.tif");
@@ -267,38 +311,6 @@ public class DemoRunner {
 	}
 
 	private Demo demo10() {
-		final Demo entry = new Demo(10, "Segmented video (2D timelapse)") {
-			@Override
-			public ImagePlus getImage() {
-				return null;
-			}
-
-			@Override
-			public void load() {
-				if (!prepNonImgLoading())
-					exit();
-				try {
-					final ScriptInstaller si = new ScriptInstaller(snt.getContext(), ui);
-					final String scriptFileName = "Fully_Automated_Tracing_Timelapse_Demo.groovy";
-					final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf(".")).replace("_", " ");
-					si.runScript("Tracing", scriptName);
-					si.openScript("Tracing", scriptName);
-				} catch (final Throwable ex) {
-					error(ex);
-				} finally {
-					exit();
-				}
-			}
-		};
-		entry.summary = "Downloads a small video of segmented neurites extending in culture, and runs automated "
-				+ "tracing on each frame through a script.";
-		entry.data = "Image (2D timelapse, 0.9MB)";
-		entry.source = "https://forum.image.sc/t/snt-time-lapse-utilites/47974";
-		entry.online = true;
-		return entry;
-	}
-
-	private Demo demo11() {
 		final Demo entry = new Demo(11, "NeuronJ dataset (2D neurites)") {
 			@Override
 			public ImagePlus getImage() {
@@ -322,8 +334,41 @@ public class DemoRunner {
 		return entry;
 	}
 
+	private Demo demo11() {
+		final Demo entry = new Demo(12, "Segmented video (2D timelapse)") {
+			@Override
+			public ImagePlus getImage() {
+				return null;
+			}
+
+			@Override
+			public void load() {
+				if (!prepNonImgLoading())
+					exit();
+				try {
+                    assert snt != null;
+                    final ScriptInstaller si = new ScriptInstaller(snt.getContext(), ui);
+					final String scriptFileName = "Fully_Automated_Tracing_Timelapse_Demo.groovy";
+					final String scriptName = scriptFileName.substring(0, scriptFileName.indexOf(".")).replace("_", " ");
+					si.runScript("Tracing", scriptName);
+					si.openScript("Tracing", scriptName);
+				} catch (final Throwable ex) {
+					error(ex);
+				} finally {
+					exit();
+				}
+			}
+		};
+		entry.summary = "Downloads a small video of segmented neurites extending in culture, and runs automated "
+				+ "tracing on each frame through a script.";
+		entry.data = "Image (2D timelapse, 0.9MB)";
+		entry.source = "https://forum.image.sc/t/snt-time-lapse-utilites/47974";
+		entry.online = true;
+		return entry;
+	}
+
 	private Demo demo12() {
-		final Demo entry = new Demo(12, "Spot Spine dataset (spine decorated dendrite)") {
+		final Demo entry = new Demo(13, "Spot Spine dataset (spine decorated dendrite)") {
 			@Override
 			public ImagePlus getImage() {
 				return  ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
@@ -443,7 +488,8 @@ public class DemoRunner {
 		}
 
 		protected boolean prepNonImgLoading() {
-			if ((snt.getPathAndFillManager().size() > 0 || snt.getImagePlus() != null)
+            assert snt != null;
+            if ((snt.getPathAndFillManager().size() > 0 || snt.getImagePlus() != null)
 					&& !directLoading && !new GuiUtils(ui).getConfirmation(
 							"Any loaded image will be disposed and any existing paths will be deleted. Proceed?",
 							"Dispose Existing Data?"))
