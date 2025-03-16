@@ -294,7 +294,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 
 		// Delete any rogue stand-alone paths that may still exist
-		while (allPaths.remove(null));
+		allPaths.removeIf(Objects::isNull);
 		enableUIupdates = true;
 		resetListenersAfterDataChangingOperation(null);
 	}
@@ -435,7 +435,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return true, if successful
 	 */
 	public boolean anySelected() {
-		return selectedPathsSet.size() > 0;
+		return !selectedPathsSet.isEmpty();
 	}
 
 	protected File getSWCFileForIndex(final String prefix, final int index) {
@@ -1061,6 +1061,15 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 	}
 
+	private void setSpacingUnitIfNoneExists(final String unit) {
+		if (allPaths.isEmpty() && (plugin == null || !plugin.accessToValidImageData())) {
+			final String sUnit = SNTUtils.getSanitizedUnit(unit);
+			getBoundingBox(false).setUnit(sUnit);
+			spacing_units = sUnit;
+			if (plugin != null) plugin.spacing_units = sUnit;
+		}
+	}
+
 	/**
 	 * Adds a {@link Tree}. If an image is currently being traced, it is assumed it
 	 * is large enough to contain the tree.
@@ -1068,7 +1077,9 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param tree the collection of paths to be added
 	 */
 	public void addTree(final Tree tree) {
+		setSpacingUnitIfNoneExists(tree.getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT));
 		tree.list().forEach(p -> addPath(p, true, true));
+		updateBoundingBox();
 	}
 
 	/**
@@ -1081,6 +1092,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	public void addTree(final Tree tree, final String commonTag) {
 		final boolean enableUIstatus = enableUIupdates;
 		enableUIupdates = false;
+		setSpacingUnitIfNoneExists(tree.getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT));
 		tree.list().forEach(p -> {
 			prepPathForAdding(p, true, true, true);
 			String tags = PathManagerUI.extractTagsFromPath(p);
@@ -1092,6 +1104,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			addPathInternal(p);
 		});
 		enableUIupdates = enableUIstatus;
+		updateBoundingBox();
 		if (enableUIupdates)
 			resetListenersAfterDataChangingOperation(tree.list().get(0));
 	}
@@ -1102,33 +1115,22 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param trees             the collection of trees to be added
 	 */
 	public void addTrees(final Collection<Tree> trees) {
-		if (boundingBox == null)
-			boundingBox = new BoundingBox();
-		final boolean noExistingPaths = allPaths.isEmpty();
+		setSpacingUnitIfNoneExists(getCommonUnit(trees));
 		trees.forEach(tree -> {
 			if (tree != null && !tree.isEmpty()) {
 				addTree(tree, tree.getLabel());
-				boundingBox.append(tree.getNodes().iterator());
 			}
 		});
-		final String unit = getCommonUnit(trees);
-		if (unit != null && noExistingPaths && (plugin == null || !plugin.accessToValidImageData())) {
-			boundingBox.setUnit(unit);
-			spacing_units = unit;
-			if (plugin != null) plugin.spacing_units = unit;
-		}
+		updateBoundingBox();
 		checkForAppropriateImageDimensions();
 	}
 
 	private String getCommonUnit(final Collection<Tree> trees) {
-		final Iterator<Tree> it = trees.iterator();
-		final String ref = it.next().getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT,
-				SNTUtils.getSanitizedUnit(null));
-		while (it.hasNext()) {
-			if (!ref.equals(it.next().getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT)))
-				return null;
-		}
-		return ref;
+		return trees.stream()
+				.map(tree -> tree.getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT))
+				.distinct()
+				.reduce((a, b) -> null)
+				.orElse(null);
 	}
 
 	/**
@@ -3774,11 +3776,10 @@ public class PathAndFillManager extends DefaultHandler implements
 	@Override
 	public synchronized void pathChanged(final PathChangeEvent event)
 	{
-		if (!(event.getSource() instanceof Path))
+		if (!(event.getSource() instanceof Path path))
 			return;
 
-		final Path path = (Path) event.getSource();
-		switch (event.getEventType())
+        switch (event.getEventType())
 		{
 			case NAME_CHANGED:
 			{

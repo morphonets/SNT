@@ -1284,6 +1284,8 @@ public class SNTUI extends JDialog {
 				changeState(LOADING);
 				showStatus("Resizing Canvas...", false);
 				updateSinglePaneFlag();
+				if (plugin.isUnsavedChanges())
+					plugin.getPathAndFillManager().getBoundingBox(true);
 				plugin.rebuildDisplayCanvases(); // will change UI state
 				arrangeCanvases(false);
 				showStatus("Canvas rebuilt...", true);
@@ -4070,8 +4072,10 @@ public class SNTUI extends JDialog {
 		public void imageClosed(final ImagePlus imp) {
 			if (plugin.isCachedData(imp)) {
 				plugin.ctSlice3d = null;
-			} else if (imp == plugin.getImagePlus() && !plugin.isDisplayCanvas(imp)) {
-				plugin.pauseTracing(true, false);
+			} else if (imp == plugin.getImagePlus() || plugin.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
+				// HACK: somehow with some IJ versions plugin.isDisplayCanvas(imp) is not enough because image
+				// properties of the closed image get lost!? so we need to check the title as well (as fragile as it is)
+				plugin.pauseTracing(imp == plugin.getImagePlus(), false);
 				SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
 			}
 		}
