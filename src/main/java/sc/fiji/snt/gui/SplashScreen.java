@@ -39,7 +39,7 @@ class SplashScreen extends JWindow {
 		initAndDisplay();
 	}
 
-	static JLabel getIconAsLabel() {
+	static Icon getIcon() {
 		try {
 			final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
 			URL logoURL = classLoader.getResource("misc/SNTLogo512x528.png");
@@ -49,14 +49,18 @@ class SplashScreen extends JWindow {
 				final Dimension dim = getScaledIconDimensions(512, 528);
 				final Image newimg = image.getScaledInstance(dim.width, dim.height, Image.SCALE_AREA_AVERAGING);
 				imageIcon = new ImageIcon(newimg);
-				final JLabel logoImage = new JLabel(imageIcon);
-				logoImage.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-				return logoImage;
+				return imageIcon;
 			}
 		} catch (final Exception ignored) {
 			// do nothing
 		}
-		return new JLabel(new com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon()); // non-null fallback
+		return new com.formdev.flatlaf.icons.FlatOptionPaneWarningIcon(); // non-null fallback
+	}
+
+	static JLabel getIconAsLabel() {
+		final JLabel logoImage = new JLabel(getIcon());
+		logoImage.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+		return logoImage;
 	}
 
 	private static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {

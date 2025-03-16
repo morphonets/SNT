@@ -60,6 +60,7 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
 import java.io.File;
 import java.io.IOException;
@@ -1149,9 +1150,66 @@ public class GuiUtils {
 		return new Color(254, 210, 132);
 	}
 
+	private static class SpinningIconLabel extends JLabel {
+		double angle = 0;
+		double scale = 1.0;
+		final Timer timer;
+
+		SpinningIconLabel(final Icon icon) {
+			super(icon);
+			timer = new Timer(16, new ActionListener() {
+				@Override
+				public void actionPerformed(ActionEvent e) {
+					angle += 0.1;
+					scale -= 0.01;
+					if (scale <= 0) {
+						angle = 0;
+						scale = 1.0;
+					}
+					repaint();
+				}
+			});
+			addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(final MouseEvent e) {
+					if (timer.isRunning()) {
+						timer.stop();
+						angle = 0;
+						scale = 1.0;
+						repaint();
+					} else {
+						timer.start();
+					}
+				}
+			});
+		}
+
+		@Override
+		protected void paintComponent(final Graphics g) {
+			final Graphics2D g2d = (Graphics2D) g;
+			final AffineTransform originalTransform = g2d.getTransform();
+			final int x = getWidth() / 2;
+			final int y = getHeight() / 2;
+			g2d.translate(x, y);
+			g2d.rotate(angle);
+			g2d.scale(scale, scale);
+			g2d.translate(-x, -y);
+			super.paintComponent(g);
+			g2d.setTransform(originalTransform);
+		}
+	}
+
+	private static String getImageJVersion() {
+		try {
+			return "ImageJ " + SNTUtils.getContext().getService(org.scijava.app.AppService.class).getApp().getVersion();
+		} catch (final Throwable ignored) {
+			return "ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD;
+		}
+	}
+
 	public static JDialog showAboutDialog() {
 		final JPanel main = new JPanel();
-		main.add(SplashScreen.getIconAsLabel());
+		main.add(new SpinningIconLabel(SplashScreen.getIcon()));
 		final JPanel side = new JPanel();
 		main.add(side);
 		side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
@@ -1162,7 +1220,7 @@ public class GuiUtils {
 		SplashScreen.assignStyle(subTitle, 1);
 		side.add(subTitle);
 		side.add(new JLabel(" ")); // spacer
-		final String details = "ImageJ " + ij.ImageJ.VERSION + ij.ImageJ.BUILD + "  |  Java " + System.getProperty("java.version");
+		final String details = getImageJVersion() + "  |  Java " + System.getProperty("java.version");
 		final JLabel ijDetails = leftAlignedLabel(details, "", true);
 		ijDetails.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 		ijDetails.setToolTipText("Displays detailed System Information");
