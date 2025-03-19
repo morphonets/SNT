@@ -27,6 +27,7 @@ import java.awt.FontMetrics;
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.commons.math3.stat.StatUtils;
@@ -48,6 +49,7 @@ import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
@@ -107,8 +109,9 @@ public class ShollPlot extends Plot {
 
 	public ShollPlot(final Profile... profiles) {
 		super("Combined Sholl Plot", "Distance", "No. Intersections");
-		final Color[] colors = uniqueColors(profiles.length);
+		final Color[] colors = SNTColor.getDistinctColorsAWT(profiles.length);
 		final StringBuilder legend = new StringBuilder();
+		setLineWidth(1.75f);
 		for (int i = 0; i < profiles.length; i++) {
 			final Profile p = profiles[i];
 			setColor(colors[i]);
@@ -129,20 +132,20 @@ public class ShollPlot extends Plot {
 		// custom shape, otherwise the default Plot.Line would be used
 		super(title, xLabel, (useCumulativeFrequencies) ? "Cumulative Frequency" : yLabel, DUMMY_VALUES, DUMMY_VALUES, DEF_FLAGS);
 		this.stats = stats;
-		if (stats == null)
-			throw new IllegalArgumentException("Stats instance cannot be null");
+        switch (stats) {
+            case null -> throw new IllegalArgumentException("Stats instance cannot be null");
+            case LinearProfileStats linearProfileStats -> {
+                linearStats = linearProfileStats;
+                normStats = null;
+            }
+            case NormalizedProfileStats normalizedProfileStats -> {
+                normStats = normalizedProfileStats;
+                linearStats = null;
+            }
+            default -> throw new IllegalArgumentException("Unrecognized ShollStats implementation");
+        }
 
-		if (stats instanceof LinearProfileStats) {
-			linearStats = (LinearProfileStats) stats;
-			normStats = null;
-		} else if (stats instanceof NormalizedProfileStats) {
-			normStats = (NormalizedProfileStats) stats;
-			linearStats = null;
-		} else {
-			throw new IllegalArgumentException("Unrecognized ShollStats implementation");
-		}
-
-		this.annotate = annotate;
+        this.annotate = annotate;
 		preferCumulativeFrequencies = useCumulativeFrequencies;
 		tempLegend = new StringBuffer();
 
@@ -278,22 +281,17 @@ public class ShollPlot extends Plot {
 		final boolean intensities = stats.getProfile().isIntDensityProfile();
 		if (stats instanceof NormalizedProfileStats) {
 			final int normMethod = (((NormalizedProfileStats) stats)).getMethod();
-			switch (normMethod) {
-			case ShollStats.ANNULUS:
-				return (intensities) ? "log(N. Int. Dens./Annulus)" : "log(No. Inters./Annulus)";
-			case ShollStats.AREA:
-				return (intensities) ? "log(N. Int. Dens./Area)" : "log(No. Inters./Area)";
-			case ShollStats.PERIMETER:
-				return (intensities) ? "log(N. Int. Dens./Perimeter)" : "log(No. Inters./Perimeter)";
-			case ShollStats.S_SHELL:
-				return (intensities) ? "log(N. Int. Dens./Spherical Shell)" : "log(No. Inters./Spherical Shell)";
-			case ShollStats.SURFACE:
-				return (intensities) ? "log(N. Int. Dens./Surface)" : "log(No. Inters./Surface)";
-			case ShollStats.VOLUME:
-				return (intensities) ? "log(N. Int. Dens./Volume)" : "log(No. Inters./Volume)";
-			default:
-				return "Normalized Inters.";
-			}
+            return switch (normMethod) {
+                case ShollStats.ANNULUS -> (intensities) ? "log(N. Int. Dens./Annulus)" : "log(No. Inters./Annulus)";
+                case ShollStats.AREA -> (intensities) ? "log(N. Int. Dens./Area)" : "log(No. Inters./Area)";
+                case ShollStats.PERIMETER ->
+                        (intensities) ? "log(N. Int. Dens./Perimeter)" : "log(No. Inters./Perimeter)";
+                case ShollStats.S_SHELL ->
+                        (intensities) ? "log(N. Int. Dens./Spherical Shell)" : "log(No. Inters./Spherical Shell)";
+                case ShollStats.SURFACE -> (intensities) ? "log(N. Int. Dens./Surface)" : "log(No. Inters./Surface)";
+                case ShollStats.VOLUME -> (intensities) ? "log(N. Int. Dens./Volume)" : "log(No. Inters./Volume)";
+                default -> "Normalized Inters.";
+            };
 		}
 		return (stats.getProfile().isIntDensityProfile()) ? "Norm. Integrated Density" : "No. Intersections";
 	}
@@ -598,28 +596,20 @@ public class ShollPlot extends Plot {
 		setColor(Color.BLACK);
 	}
 
-	private Color[] uniqueColors(final int n) {
-		final Color[] defaults = new Color[] { Color.BLUE, Color.RED, Color.MAGENTA, Color.GREEN.darker(),
-				Color.DARK_GRAY, Color.CYAN.darker(), Color.ORANGE.darker(), Color.BLACK };
-		final Color[] colors = new Color[n];
-		for (int j = 0, i = 0; i < n; i++) {
-			colors[i] = defaults[j++];
-			if (j == defaults.length - 1)
-				j = 0;
-		}
-		return colors;
-	}
-
 	public static void show(final List<ShollPlot> plots, final String title) {
 		if (plots == null || plots.isEmpty())
 			return;
 		if (plots.size() == 1) {
-			plots.get(0).show();
+			plots.getFirst().show();
 		} else {
-			plots.sort((p1, p2) -> (p1.getTitle().compareTo(p2.getTitle())));
+			ShollPlot ref = plots.getFirst();
+			for (int i = 1; i < plots.size() ; i++) {
+				ref.addObjectFromPlot(plots.get(i), i);
+			}
+		//	plots.sort(Comparator.comparing(Plot::getTitle));
 			final List<ImagePlus> imps = new ArrayList<>();
 			plots.forEach(p -> imps.add(p.getImagePlus()));
-			final ImagePlus res = ImpUtils.toStack(imps);
+			ImagePlus res = ImpUtils.toStack(imps);
 			res.setTitle(title);
 			res.show();
 		}

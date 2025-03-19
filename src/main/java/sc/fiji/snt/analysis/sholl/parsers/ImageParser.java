@@ -151,7 +151,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	 */
 	public void setCenterPx(final int x, final int y, final int z) throws IndexOutOfBoundsException {
 		if (x > imp.getWidth() - 1 || y > imp.getHeight() || z > imp.getNSlices())
-			throw new IndexOutOfBoundsException("specified coordinates cannot be aplied to image");
+			throw new IndexOutOfBoundsException("specified coordinates cannot be applied to image");
 		center = new ShollPoint(x, y, z, cal);
 		profile.setCenter(center);
 		xc = x;

@@ -31,6 +31,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
@@ -461,6 +462,18 @@ public class TreeColorMapper extends ColorMapper {
 		nodeMapping = true;
 	}
 
+
+	/**
+	 * Colorizes a tree using Sholl data.
+	 *
+	 * @param tree the tree to be colorized
+	 * @param profile the mapping Sholl profile
+	 * @param colorTable the color table specifying the color mapping. Null not allowed.
+	 */
+	public void map(final Tree tree, final Profile profile, final ColorTable colorTable) {
+		map(tree, new LinearProfileStats(profile), colorTable);
+	}
+
 	/**
 	 * Colorizes a tree using Sholl data.
 	 *
@@ -475,8 +488,8 @@ public class TreeColorMapper extends ColorMapper {
 	public void map(final Tree tree, final LinearProfileStats stats,
 		final ColorTable colorTable)
 	{
-		final ShollPoint ucenter = stats.getProfile().center();
-		if (ucenter == null) {
+		final ShollPoint uCenter = stats.getProfile().center();
+		if (uCenter == null) {
 			throw new IllegalArgumentException("Center unknown");
 		}
 		paths = tree.list();
@@ -484,16 +497,12 @@ public class TreeColorMapper extends ColorMapper {
 		final boolean useFitted = stats.validFit();
 		SNTUtils.log("Mapping to fitted values: " + useFitted);
 		setMinMax(stats.getMin(useFitted), stats.getMax(useFitted));
-		final PointInImage center = new PointInImage(ucenter.x, ucenter.y,
-			ucenter.z);
 		final double stepSize = stats.getProfile().stepSize();
-		final double stepSizeSq = stepSize * stepSize;
 		for (final ProfileEntry entry : stats.getProfile().entries()) {
-			final double entryRadiusSqed = entry.radiusSquared();
 			for (final Path p : tree.list()) {
 				for (int node = 0; node < p.size(); node++) {
-					final double dx = center.distanceSquaredTo(p.getNode(node));
-					if (dx >= entryRadiusSqed && dx < entryRadiusSqed + stepSizeSq) {
+					final double dx = uCenter.distanceTo(p.getNode(node));
+					if (dx >= entry.radius && dx < entry.radius + stepSize) {
 						p.setNodeColor(getColor(entry.count), node);
 					}
 				}

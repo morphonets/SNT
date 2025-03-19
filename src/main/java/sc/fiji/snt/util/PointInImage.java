@@ -125,7 +125,9 @@ public class PointInImage implements SNTPoint {
 	}
 
 	public boolean isSameLocation(final PointInImage pim) {
-		return (this.x == pim.x) && (this.y == pim.y) && (this.z == pim.z);
+		return Double.compare(this.x, pim.x) == 0 &&
+				Double.compare(this.y, pim.y) == 0 &&
+				Double.compare(this.z, pim.z) == 0;
 	}
 
 	/**
@@ -261,16 +263,12 @@ public class PointInImage implements SNTPoint {
 	 */
 	@Override
 	public double getCoordinateOnAxis(final int axis) {
-		switch (axis) {
-		case Tree.X_AXIS:
-			return getX();
-		case Tree.Y_AXIS:
-			return getY();
-		case Tree.Z_AXIS:
-			return getZ();
-		default:
-			throw new IllegalArgumentException("Unrecognized axis " + axis);
-		}
+        return switch (axis) {
+            case Tree.X_AXIS -> getX();
+            case Tree.Y_AXIS -> getY();
+            case Tree.Z_AXIS -> getZ();
+            default -> throw new IllegalArgumentException("Unrecognized axis " + axis);
+        };
 	}
 
 	@Override

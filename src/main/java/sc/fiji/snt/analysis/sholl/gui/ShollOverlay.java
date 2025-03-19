@@ -70,7 +70,7 @@ public class ShollOverlay implements ProfileProperties {
 
 	private Color baseColor;
 	private ArrayList<Roi> shells;
-	private ArrayList<Roi> points;
+	private ArrayList<PointRoi> points;
 	private final LUTService ls;
 	private int shellsAlpha = 100;
 	private int pointsAlpha = 255;
@@ -126,12 +126,14 @@ public class ShollOverlay implements ProfileProperties {
 	}
 
 	public void updateDisplay() {
-		if (imp != null)
+		if (imp != null) {
+			imp.setHideOverlay(false);
 			imp.setOverlay(overlay);
+		}
 	}
 
 	public void assignProperty(String property) {
-		for (int i =0; i < overlay.size(); i++)
+		for (int i = 0; i < overlay.size(); i++)
 			overlay.get(i).setProperty(PROP, property);
 	}
 
@@ -217,13 +219,13 @@ public class ShollOverlay implements ProfileProperties {
 			pointsByZ.forEach((z, shollPoints) -> {
 				final PointRoi multipointRoi = new PointRoi();
 				multipointRoi.setProperty(TYPE, POINTS);
-				multipointRoi.setProperty(COUNT, (twoD) ? String.valueOf(entry.count) : shollPoints.size() +"/"+entry.count);
+				multipointRoi.setProperty(COUNT, (twoD) ? String.valueOf(entry.count) : shollPoints.size() + "/" + entry.count);
 				multipointRoi.setProperty(RADIUS, String.valueOf(entry.radius));
 				multipointRoi.setPointType(2);
 				multipointRoi.setStrokeColor(baseColor);
 				multipointRoi.setSize(pointRoiSize);
-				multipointRoi.setName(String.format("ShollPoints r=%s z=%s", formatter.format(entry.radius), formatter.format(z+1))); //1-based index
-				setROIposition(multipointRoi, channel, z, frame, hyperStack);
+				multipointRoi.setName(String.format("ShollPoints r=%s z=%s", formatter.format(entry.radius), formatter.format(z + 1))); //1-based index
+				setROIPosition(multipointRoi, channel, z, frame);
 				shollPoints.forEach(point -> multipointRoi.addPoint(point.rawX(cal), point.rawY(cal)));
 				points.add(multipointRoi);
 			});
@@ -348,7 +350,7 @@ public class ShollOverlay implements ProfileProperties {
 		}
 	}
 
-	private void setLUT(final ArrayList<Roi> rois, final String property, final String lutName, final int alpha)
+	private void setLUT(final ArrayList<? extends Roi> rois, final String property, final String lutName, final int alpha)
 			throws IllegalArgumentException, IOException {
 		setLUT(rois, property, getColorTable(lutName), alpha);
 	}
@@ -371,7 +373,7 @@ public class ShollOverlay implements ProfileProperties {
 		}
 	}
 
-	private void setLUT(final ArrayList<Roi> rois, final String property, final ColorTable ct, final int alpha)
+	private void setLUT(final ArrayList<? extends Roi> rois, final String property, final ColorTable ct, final int alpha)
 			throws IllegalArgumentException {
 		String fProperty = COUNT;
 		if (property != null && property.toLowerCase().contains("radi")) // radi[i|us]
@@ -381,7 +383,7 @@ public class ShollOverlay implements ProfileProperties {
 		final double max = StatUtils.max(mappingValues);
 		for (final Roi roi : rois) {
 			final String[] valueString = roi.getProperty(fProperty).split("/"); // multipoint ROIs sharing the same Z coordinate
-			final double value = Double.parseDouble(valueString[valueString.length-1]);
+			final double value = Double.parseDouble(valueString[valueString.length - 1]);
 			final int idx = (int) Math.round((ct.getLength() - 1) * (value - min) / (max - min));
 			final Color color = new Color(ct.get(ColorTable.RED, idx), ct.get(ColorTable.GREEN, idx),
 					ct.get(ColorTable.BLUE, idx), alpha);
@@ -390,8 +392,9 @@ public class ShollOverlay implements ProfileProperties {
 	}
 
 	private ColorTable getColorTable(final String lutName) throws IllegalArgumentException, IOException {
+		final String lName = (lutName.endsWith(".lut")) ? lutName : lutName + ".lut";
 		final Map<String, URL> map = ls.findLUTs();
-		if (!map.containsKey(lutName)) {
+		if (!map.containsKey(lName)) {
 			throw new IllegalArgumentException(
 					"Specified LUT could not be found: " + lutName + ". Use getLUTs() for available options");
 		}
@@ -420,7 +423,7 @@ public class ShollOverlay implements ProfileProperties {
 		setROIsAlpha(points, pointsAlpha);
 	}
 
-	private void setROIsAlpha(final ArrayList<Roi> rois, final int alpha) {
+	private void setROIsAlpha(final ArrayList<? extends Roi> rois, final int alpha) {
 		for (final Roi roi : rois) {
 			final Color c = roi.getStrokeColor();
 			roi.setStrokeColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha));
@@ -471,6 +474,10 @@ public class ShollOverlay implements ProfileProperties {
 			default:
 				this.pointRoiSize = PointRoi.getDefaultSize();
 				break;
+		}
+		if (points != null) {
+			for (final PointRoi point : points)
+				point.setSize(pointRoiSize);
 		}
 	}
 

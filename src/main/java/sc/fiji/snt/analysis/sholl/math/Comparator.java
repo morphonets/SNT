@@ -58,7 +58,7 @@ public class Comparator extends ContextCommand {
 	public void run() throws NullContextException {
 		final Logger logger = new Logger(context(), "Sholl");
 		logger.info("\n*** Comparing " + profile1.identifier() + "vs" + profile2.identifier() + "***");
-		logger.info("KS-test: " + getKStest());
+		logger.info("KS-test: " + getKSTest());
 		logger.info("Reg R: " + regression.getR());
 		logger.info("Reg R^2: " + regression.getRSquare());
 	}
@@ -67,7 +67,14 @@ public class Comparator extends ContextCommand {
 		return regression;
 	}
 
-	public double getKStest() {
+	/**
+	 * Computes the p-value, or observed significance level, of a two-sample Kolmogorov-Smirnov test
+	 * evaluating the null hypothesis that x and y are samples drawn from the same probability distribution.
+	 *
+	 * @return the p-value associated with the null hypothesis that the two profiles represent samples from
+	 * the same distribution
+	 */
+	public double getKSTest() {
 		final KolmogorovSmirnovTest test = new KolmogorovSmirnovTest();
 		return test.kolmogorovSmirnovTest(p1Counts, p2Counts);
 	}

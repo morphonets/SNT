@@ -22,12 +22,12 @@
 
 package sc.fiji.snt.util;
 
-import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.util.ColorRGB;
 
 import java.awt.*;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * A simple class for handling Colors including the ability to map an AWT Color
@@ -133,11 +133,10 @@ public class SNTColor {
 		if (obj == null) {
 			return false;
 		}
-		if (!(obj instanceof SNTColor)) {
+		if (!(obj instanceof SNTColor other)) {
 			return false;
 		}
-		final SNTColor other = (SNTColor) obj;
-		if (color == null) {
+        if (color == null) {
 			if (other.color != null) {
 				return false;
 			}
@@ -195,31 +194,23 @@ public class SNTColor {
 	 *         colors in input collection are null;
 	 */
 	public static Color average(final Collection<Color> colors) {
-		if (colors == null)
-			return null;
-		final SummaryStatistics rs = new SummaryStatistics();
-		final SummaryStatistics gs = new SummaryStatistics();
-		final SummaryStatistics bs = new SummaryStatistics();
-		final SummaryStatistics as = new SummaryStatistics();
-		for (final Color c : colors) {
-			if (c != null) {
-				rs.addValue(c.getRed());
-				gs.addValue(c.getGreen());
-				bs.addValue(c.getBlue());
-				as.addValue(c.getAlpha());
-			}
+		if (colors == null || colors.isEmpty()) {
+			return Color.BLACK;
 		}
-		// this will return 0 if all colors were null, i.e., means are Double.NaN;
-		return new Color((int) rs.getMean(), (int) gs.getMean(), (int) bs.getMean(), (int) as.getMean());
+		return new Color(
+				(int) colors.stream().filter(Objects::nonNull).mapToInt(Color::getRed).average().orElse(0),
+				(int) colors.stream().filter(Objects::nonNull).mapToInt(Color::getGreen).average().orElse(0),
+				(int) colors.stream().filter(Objects::nonNull).mapToInt(Color::getBlue).average().orElse(0),
+				(int) colors.stream().filter(Objects::nonNull).mapToInt(Color::getAlpha).average().orElse(0)
+		);
 	}
-
 
 	private static Color average(final Color... colors) {
 		return average(Arrays.asList(colors));
 	}
 
 	private static Color previousNonNull(Color[] array, int index) {
-		for (int i = index - 1; i > 0; i--) {
+		for (int i = index - 1; i >= 0; i--) {
 			if (array[i] != null)
 				return array[i];
 		}
@@ -308,24 +299,14 @@ public class SNTColor {
 	 * @return the maximum contrast colors
 	 */
 	public static ColorRGB[] getDistinctColors(final int nColors, final String excludedHue) {
-		ColorRGB[] kColors;
-		switch(excludedHue.toLowerCase()) {
-			case "red":
-				kColors = KELLY_COLORS_NO_RED;
-				break;
-			case "green":
-				kColors = KELLY_COLORS_NO_GREEN;
-				break;
-			case "blue":
-				kColors = KELLY_COLORS_NO_BLUE;
-				break;
-			case "dim":
-				kColors = KELLY_COLORS_NO_DIM;
-				break;
-			default:
-				kColors = KELLY_COLORS;
-		}
-		final ColorRGB[] colors = Arrays.copyOf(kColors, nColors);
+		ColorRGB[] kColors = switch (excludedHue.toLowerCase()) {
+            case "red" -> KELLY_COLORS_NO_RED;
+            case "green" -> KELLY_COLORS_NO_GREEN;
+            case "blue" -> KELLY_COLORS_NO_BLUE;
+            case "dim" -> KELLY_COLORS_NO_DIM;
+            default -> KELLY_COLORS;
+        };
+        final ColorRGB[] colors = Arrays.copyOf(kColors, nColors);
 		for (int last = kColors.length; last != 0 && last < nColors; last <<= 1) {
 			System.arraycopy(colors, 0, colors, last, Math.min(last << 1, nColors) -
 					last);
@@ -342,7 +323,7 @@ public class SNTColor {
 		return colors;
 	}
 
-	private static ColorRGB[] KELLY_COLORS = {
+	private static final ColorRGB[] KELLY_COLORS = {
 		// See https://stackoverflow.com/a/4382138
 		ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
 		ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
@@ -366,7 +347,7 @@ public class SNTColor {
 		ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
 	};
 
-	private static ColorRGB[] KELLY_COLORS_NO_DIM = {
+	private static final ColorRGB[] KELLY_COLORS_NO_DIM = {
 			// See https://stackoverflow.com/a/4382138
 			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
 			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
@@ -387,7 +368,7 @@ public class SNTColor {
 			ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
 	};
 
-	private static ColorRGB[] KELLY_COLORS_NO_BLUE = {
+	private static final ColorRGB[] KELLY_COLORS_NO_BLUE = {
 			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
 			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
 			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange
@@ -407,7 +388,7 @@ public class SNTColor {
 			ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
 			ColorRGB.fromHTMLColor("#232C16") // Dark Olive Green
 	};
-	private static ColorRGB[] KELLY_COLORS_NO_GREEN = {
+	private static final ColorRGB[] KELLY_COLORS_NO_GREEN = {
 			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
 			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
 			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange
@@ -426,7 +407,7 @@ public class SNTColor {
 			ColorRGB.fromHTMLColor("#593315"), // Deep Yellowish Brown
 			ColorRGB.fromHTMLColor("#F13A13"), // Vivid Reddish Orange
 	};
-	private static ColorRGB[] KELLY_COLORS_NO_RED = {
+	private static final ColorRGB[] KELLY_COLORS_NO_RED = {
 			ColorRGB.fromHTMLColor("#FFB300"), // Vivid Yellow
 			ColorRGB.fromHTMLColor("#803E75"), // Strong Purple
 			ColorRGB.fromHTMLColor("#FF6800"), // Vivid Orange

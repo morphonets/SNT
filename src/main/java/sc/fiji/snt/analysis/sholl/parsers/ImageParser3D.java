@@ -21,8 +21,7 @@
  */
 package sc.fiji.snt.analysis.sholl.parsers;
 
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.scijava.Context;
@@ -47,14 +46,12 @@ public class ImageParser3D extends ImageParser {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private double vxW, vxH, vxD;
-	private int progressCounter;
 	private boolean skipSingleVoxels;
 	private ImageStack stack;
 	private final int nCPUs;
 	private final ThreadService threadService;
 	private int nSamples;
 
-	@Deprecated
 	public ImageParser3D(final ImagePlus imp) {
 		this(imp, SNTUtils.getContext());
 	}
@@ -75,22 +72,23 @@ public class ImageParser3D extends ImageParser {
 		vxW = cal.pixelWidth;
 		vxH = cal.pixelHeight;
 		vxD = cal.pixelDepth;
-
+		// ensure all voxels to be parsed are within image bounds
+		minX = Math.max(minX, 0);
+		minY = Math.max(minY, 0);
+		minZ = Math.max(minZ, 0); // voxel query uses 0-based indices
+		maxX = Math.min(maxX, stack.getWidth());
+		maxY = Math.min(maxY, stack.getHeight());
+		maxZ = Math.min(maxZ, stack.getSize());
 		// Split processing across the number of available CPUs
 		final Thread[] threads = new Thread[nCPUs];
-		setThreadedCounter(0);
-
+		final AtomicInteger progressCounter = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
-			final int chunkSize = (nSamples + nCPUs - 1) / nCPUs; // divide by
-																	// threads
-																	// rounded
-																	// up.
+			final int chunkSize = (nSamples + nCPUs - 1) / nCPUs; // divide by threads rounded up
 			final int start = ithread * chunkSize;
 			final int end = Math.min(start + chunkSize, nSamples);
-			threads[ithread] = threadService.newThread(new ChunkParser(start, end));
+			threads[ithread] = threadService.newThread(new ChunkParser(start, end, progressCounter));
 		}
 		ThreadUtil.startAndJoin(threads);
-
 	}
 
 	public void setPosition(final int channel, final int frame) {
@@ -101,86 +99,73 @@ public class ImageParser3D extends ImageParser {
 
 		private final int start;
 		private final int end;
+		private final AtomicInteger progressCounter;
 
-		public ChunkParser(final int start, final int end) {
+		public ChunkParser(final int start, final int end, final AtomicInteger progressCounter) {
 			this.start = start;
 			this.end = end;
+			this.progressCounter = progressCounter;
 		}
 
 		@Override
 		public void run() {
-			final AtomicInteger ai = new AtomicInteger(0);
-			for (int k = ai.getAndIncrement(); k < nCPUs; k = ai.getAndIncrement()) {
-				for (int s = start; s < end; s++) {
 
-					final int counter = getThreadedCounter();
-					statusService.showStatus(counter, nSamples, "Sampling shell " +
-						counter + "/" + nSamples + " (" + nCPUs + " threads)");
-					setThreadedCounter(counter + 1);
-
-					// Initialize ArrayLists to hold surface points
-					final ArrayList<ShollPoint> pixelPoints = new ArrayList<>();
-
-					// Restrain analysis to the smallest volume for this
-					// sphere
-					final double r = radii.get(s);
-					final double upperR = r + voxelSize;
-					final double lowerR = r - voxelSize;
-					final int xr = (int) Math.round(r / vxW);
-					final int yr = (int) Math.round(r / vxH);
-					final int zr = (int) Math.round(r / vxD);
-					final int xmin = Math.max(xc - xr, minX);
-					final int ymin = Math.max(yc - yr, minY);
-					final int zmin = Math.max(zc - zr, minZ);
-					final int xmax = Math.min(xc + xr, maxX);
-					final int ymax = Math.min(yc + yr, maxY);
-					final int zmax = Math.min(zc + zr, maxZ);
-
-					for (int z = zmin; z <= zmax; z++) {
-						for (int y = ymin; y <= ymax; y++) {
-							for (int x = xmin; x <= xmax; x++) {
-								if (!running)
-									return;
-								final ShollPoint p = new ShollPoint(x, y, z, cal);
-								final double dxSq = p.distanceSquaredTo(center);
-								if (dxSq > lowerR * lowerR && dxSq < upperR * upperR) {
-									final double vxValue = stack.getVoxel(x, y, z);
-									if ( !withinThreshold(vxValue) || (skipSingleVoxels && !hasNeighbors(x, y, z)) )
-										continue;
-									final ShollPoint point = new ShollPoint(x, y, z, ShollPoint.NONE);
-									if (isRetrieveIntDensitiesSet()) point.v = vxValue;
-									pixelPoints.add(point);
-								}
+			for (int s = start; s < end; s++) {
+				final int counter = progressCounter.getAndIncrement();
+				statusService.showStatus(counter, nSamples, "Sampling shell " + counter + "/" + nSamples + " (" + nCPUs + " threads)");
+				// Initialize List to hold surface points
+				final ArrayList<ShollPoint> pixelPoints = new ArrayList<>();
+				// Restrain analysis to the smallest volume for this sphere
+				final double r = radii.get(s);
+				final double upperR = r + voxelSize;
+				final double lowerR = r - voxelSize;
+				final int xr = (int) Math.round(r / vxW);
+				final int yr = (int) Math.round(r / vxH);
+				final int zr = (int) Math.round(r / vxD);
+				int xMin = Math.max(xc - xr, minX);
+				int yMin = Math.max(yc - yr, minY);
+				int zMin = Math.max(zc - zr, minZ);
+				int xMax = Math.min(xc + xr, maxX);
+				int yMax = Math.min(yc + yr, maxY);
+				int zMax = Math.min(zc + zr, maxZ);
+				// Iterate over the volume of the sphere
+				for (int z = zMin; z <= zMax; z++) {
+					for (int y = yMin; y <= yMax; y++) {
+						for (int x = xMin; x <= xMax; x++) {
+							if (!running)
+								return;
+							final ShollPoint p = new ShollPoint(x, y, z, cal);
+							final double dxSq = p.distanceSquaredTo(center);
+							if (dxSq > lowerR * lowerR && dxSq < upperR * upperR) {
+								final double vxValue = stack.getVoxel(x, y, z); // all 0-based indices
+								if ( !withinThreshold(vxValue) || (isSkipSingleVoxels() && !hasNeighbors(x, y, z)) )
+									continue;
+								final ShollPoint point = new ShollPoint(x, y, z, ShollPoint.NONE);
+								if (isRetrieveIntDensitiesSet()) point.v = vxValue;
+								pixelPoints.add(point);
 							}
 						}
 					}
-
-					// We now have the points intercepting the
-					// surface of this shell: Check if they are
-					// clustered and add them in world coordinates
-					// to profile
-					if (isRetrieveIntDensitiesSet()) {
-						final double sum = pixelPoints.stream().filter(o -> o.v > 10).mapToDouble(o -> o.v).sum();
-						profile.add(new ProfileEntry(r, sum/pixelPoints.size()));
-					} else {
-						final HashSet<ShollPoint> points = getUnique3Dgroups(pixelPoints);
-						ShollPoint.scale(points, cal);
-						profile.add(new ProfileEntry(r, points));
-					}
-
+				}
+				// We now have the points intercepting the surface of this shell: Check
+				// if they are clustered and add them in world coordinates to profile
+				if (isRetrieveIntDensitiesSet()) {
+					final double sum = pixelPoints.stream().mapToDouble(o -> o.v).sum();
+					profile.add(new ProfileEntry(r, sum / pixelPoints.size()));
+				} else {
+					cullTotUnique3DGroups(pixelPoints);
+					ShollPoint.scale(pixelPoints, cal);
+					profile.add(new ProfileEntry(r, new HashSet<>(pixelPoints)));
 				}
 			}
 		}
-
 	}
 
-	protected HashSet<ShollPoint> getUnique3Dgroups(final ArrayList<ShollPoint> points) {
-
-		for (int i = 0; i < points.size(); i++) {
-			for (int j = i + 1; j < points.size(); j++) {
-
-				final ShollPoint pi = points.get(i);
-				final ShollPoint pj = points.get(j);
+	void cullTotUnique3DGroups(final List<ShollPoint> points) {
+		for (ListIterator<ShollPoint> it1 = points.listIterator(); it1.hasNext(); ) {
+			ShollPoint pi = it1.next();
+			for (ListIterator<ShollPoint> it2 = points.listIterator(it1.nextIndex()); it2.hasNext(); ) {
+				ShollPoint pj = it2.next();
 				// Compute the chessboard (Chebyshev) distance for this point. A
 				// chessboard distance of 1 in xy (lateral) underlies
 				// 8-connectivity within the plane. A distance of 1 in z (axial)
@@ -190,44 +175,27 @@ public class ImageParser3D extends ImageParser {
 				}
 			}
 		}
-
 		points.removeIf(shollPoint -> shollPoint.flag == ShollPoint.DELETE);
-
-		return new HashSet<>(points);
-
 	}
 
 	private boolean hasNeighbors(final int x, final int y, final int z) {
-
-		final int[][] neighbors = new int[6][3];
-		neighbors[0] = new int[] { x - 1, y, z };
-		neighbors[1] = new int[] { x + 1, y, z };
-		neighbors[2] = new int[] { x, y - 1, z };
-		neighbors[3] = new int[] { x, y + 1, z };
-		neighbors[4] = new int[] { x, y, z + 1 };
-		neighbors[5] = new int[] { x, y, z - 1 };
-
-        for (int[] neighbor : neighbors) {
-            try {
-                if (!withinBounds(neighbor[0], neighbor[1], neighbor[2]))
-                    return false;
-                if (withinThreshold(stack.getVoxel(neighbor[0], neighbor[1], neighbor[2])))
-                    return true;
-            } catch (final IndexOutOfBoundsException ignored) { // Edge voxel?
-                // Neighborhood unknown.
-                return false;
-            }
-        }
+		final int[][] neighbors = {
+				{x - 1, y, z},
+				{x + 1, y, z},
+				{x, y - 1, z},
+				{x, y + 1, z},
+				{x, y, z + 1},
+				{x, y, z - 1}
+		};
+		for (final int[] neighbor : neighbors) {
+			int nx = neighbor[0];
+			int ny = neighbor[1];
+			int nz = neighbor[2];
+			if (withinBounds(nx, ny, nz) && withinThreshold(stack.getVoxel(nx, ny, nz))) {
+				return true;
+			}
+		}
 		return false;
-
-	}
-
-	private int getThreadedCounter() {
-		return progressCounter;
-	}
-
-	private void setThreadedCounter(final int updatedCounter) {
-		progressCounter = updatedCounter;
 	}
 
 	public void setSkipSingleVoxels(final boolean skip) {
