@@ -144,7 +144,6 @@ public class LabkitLoaderCmd extends CommonDynamicCmd {
 					if (tLen > 1)
 						randomAccess.setPosition(path.getFrame() - 1, (zLen > 1) ? 3 : 2); // set T
 					randomAccess.get().set(lt);
-					lt.clear();
 				}
 				labeledChannels.add(path.getChannel());
 			});
