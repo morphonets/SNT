@@ -343,7 +343,7 @@ public class SNTUI extends JDialog {
 
 		// Bookmarks Tab: On macOS and Windows 11 the tabbed pane becomes too wide after
 		// the bookmarks tab is added, so we'll discard it from preferred width calculation
-		final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 2 + 2;
+		final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
 		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
 
 		// set icons

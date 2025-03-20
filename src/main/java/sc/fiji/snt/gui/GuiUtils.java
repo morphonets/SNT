@@ -62,6 +62,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
@@ -1446,9 +1447,11 @@ public class GuiUtils {
 		textField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
 	}
 
-	public static void removeIcon(final RootPaneContainer window) {
-		window.getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
-		//window.setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
+	public static void removeIcon(final Object rootPaneContainerOrWindow) {
+		if (rootPaneContainerOrWindow instanceof RootPaneContainer)
+			((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
+		else if (rootPaneContainerOrWindow instanceof Window)
+			((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
 	}
 
 	public static Color getSelectionColor() {

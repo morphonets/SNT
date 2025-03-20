@@ -417,29 +417,31 @@ public class ScriptInstaller implements MenuKeyListener {
 		label = si.getName();
 		if (label != null) return label;
 		label = si.getPath();
-		if (label != null) return label.substring(label.lastIndexOf(
-			File.separator) + 1);
+		if (label != null) {
+			int idx = label.lastIndexOf("/"); // "/" seems to be used in all OSes!?
+			if (idx > 0) return label.substring(idx + 1);
+			idx = label.lastIndexOf(File.separator); // In case Windows uses it
+			if (idx > 0) return label.substring(idx + 1);
+		}
 		return si.getIdentifier(); // never null
 	}
 
 	private JMenuItem about() {
 		final JMenuItem mItem = new JMenuItem("About SNT Scripts...");
 		mItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
-		mItem.addActionListener(e -> {
-			guiUtils.showHTMLDialog(
-				"<HTML><div WIDTH=500>This menu lists scripting routines that " //
-				+ "<a href='https://imagej.net/plugins/snt/scripting'>enhance SNT functionality</a>. " //
-				+ "The list is automatically populated at startup.<br><br>" //
-				+ "To have your own scripts listed here, save them in the <tt>scripts</tt> " //
-				+ "directory while including <i>SNT</i> in the filename (e.g., <tt>" //
-				+ getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
-				+ "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
-				+ "Many other programming examples are available through the Script Editor's " //
-				+ "<i>Templates> Neuroanatomy></i> menu.<br>Please submit a pull request to " //
-				+ "<a href='https://github.com/morphonets/SNT/'>SNT's repository</a> if " //
-				+ "you would like to have your scripts distributed with SNT.",
-				"About SNT Scripts...", true);
-		});
+		mItem.addActionListener(e -> guiUtils.showHTMLDialog(
+            "<HTML><div WIDTH=500>This menu lists scripting routines that " //
+            + "<a href='https://imagej.net/plugins/snt/scripting'>enhance SNT functionality</a>. " //
+            + "The list is automatically populated at startup.<br><br>" //
+            + "To have your own scripts listed here, save them in the <tt>scripts</tt> " //
+            + "directory while including <i>SNT</i> in the filename (e.g., <tt>" //
+            + getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
+            + "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
+            + "Many other programming examples are available through the Script Editor's " //
+            + "<i>Templates> Neuroanatomy></i> menu.<br>Please submit a pull request to " //
+            + "<a href='https://github.com/morphonets/SNT/'>SNT's repository</a> if " //
+            + "you would like to have your scripts distributed with SNT.",
+            "About SNT Scripts...", true));
 		return mItem;
 	}
 

@@ -2866,8 +2866,7 @@ public class Viewer3D {
 				final GraphicsConfiguration gConfiguration) {
 			super();
 			GuiUtils.setLookAndFeel();
-			if (ViewerFrame.this instanceof RootPaneContainer)
-				GuiUtils.removeIcon((RootPaneContainer) this);
+			GuiUtils.removeIcon(this);
 			final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
 			statusPlaceHolder = (includeManager)
 					? "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette..."

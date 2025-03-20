@@ -526,7 +526,7 @@ public class SNTService extends AbstractService {
 		else if (nTree.contains("op") || nTree.contains("olfactory projection") || nTree.contains("diadem"))
 			return getResourceSWCTree("OP_1", "tests/OP_1-gs.swc");
 		else if (nTree.contains("dg") || nTree.contains("dentate") || nTree.contains("granule"))
-			return getResourceSWCTree("21dpi_contra_infra_01", "tests/21dpi_contra_infra_01.CNG.swc");
+			return getResourceSWCTree("21dpi_contra_infra_01", "tests/21dpi_contra_infra_01.swc");
 		else
 			return getResourceSWCTree("AA0001", "ml/demo-trees/AA0001.swc");
 	}

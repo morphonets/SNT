@@ -27,18 +27,17 @@ import com.formdev.flatlaf.icons.FlatAbstractIcon;
 import com.formdev.flatlaf.util.SystemInfo;
 
 import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ListSelectionEvent;
-import javax.swing.event.TableColumnModelEvent;
-import javax.swing.event.TableColumnModelListener;
+import javax.swing.event.*;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
+import java.awt.event.InputEvent;
 import java.awt.geom.*;
 import java.io.File;
+import java.io.IOException;
 import java.io.Serial;
 import java.util.List;
 import java.util.*;
@@ -359,19 +358,7 @@ public class FileChooser extends JFileChooser {
             popupMenu.add(jmi);
         } else {
             for (final File location : recentLocations) {
-                String path = location.getAbsolutePath();
-                if (path.length() > 50) {
-                    path = "..." + path.substring(path.length() - 47);
-                }
-                final JMenuItem menuItem = new JMenuItem(path);
-                menuItem.setEnabled(!location.equals(getCurrentDirectory()));
-                menuItem.addActionListener(e -> {
-                    if (!location.exists()) {
-                        error("Directory does not exist.");
-                    } else {
-                        setCurrentDirectory(location);
-                    }
-                });
+                final JMenuItem menuItem = recentLocMenuItem(location);
                 popupMenu.add(menuItem);
             }
             popupMenu.addSeparator();
@@ -380,6 +367,41 @@ public class FileChooser extends JFileChooser {
             popupMenu.add(cItem);
         }
         popupMenu.show(button, 0, button.getHeight());
+    }
+
+    private JMenuItem recentLocMenuItem(final File location) {
+        String path = location.getAbsolutePath();
+        if (path.length() > 50)
+            path = "..." + path.substring(path.length() - 47);
+        final JMenuItem menuItem = new JMenuItem(path);
+        menuItem.setEnabled(!location.equals(getCurrentDirectory()));
+        menuItem.setToolTipText(location.getAbsolutePath()+"\nPress Shift/Alt to reveal in native file explorer.");
+        final boolean[] revealInsteadOfOpen = new boolean[1];
+        menuItem.addActionListener(e -> {
+            if (!location.exists())
+                error("Directory does not exist.");
+            else if (revealInsteadOfOpen[0])
+                revealFile(location);
+            else
+                setCurrentDirectory(location);
+        });
+        menuItem.addMenuKeyListener(new MenuKeyListener() {
+            @Override
+            public void menuKeyTyped(final MenuKeyEvent e) {
+                // No action needed for key typed
+            }
+
+            @Override
+            public void menuKeyPressed(MenuKeyEvent e) {
+                revealInsteadOfOpen[0] = (e.getModifiersEx() & (InputEvent.SHIFT_DOWN_MASK | InputEvent.ALT_DOWN_MASK)) != 0;
+            }
+
+            @Override
+            public void menuKeyReleased(MenuKeyEvent e) {
+                // No action needed for key released
+            }
+        });
+        return menuItem;
     }
 
     @Override
@@ -426,12 +448,7 @@ public class FileChooser extends JFileChooser {
         revealButton.setToolTipText("Show current directory in native file explorer");
         revealButton.addActionListener(e -> {
             final File f = (getSelectedFile() == null || isMultiSelectionEnabled()) ? getCurrentDirectory() : getSelectedFile();
-            try {
-                reveal(f);
-            } catch (final Exception ex) {
-                fileNotAccessibleError(f);
-                LOGGER.log(Level.WARNING, "Failed to reveal file: " + f, e);
-            }
+            revealFile(f);
         });
         final JButton recentLocationsButton = new JButton(new RecentLocationsIcon());
         recentLocationsButton.setToolTipText("Recent locations");
@@ -455,6 +472,15 @@ public class FileChooser extends JFileChooser {
         for (final AbstractButton b : buttons) { // as per FlatFileChooser.* icons
             b.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
             b.setFocusable(false);
+        }
+    }
+
+    private void revealFile(final File f) {
+        try {
+            reveal(f);
+        } catch (final Exception ex) {
+            fileNotAccessibleError(f);
+            LOGGER.log(Level.WARNING, "Failed to reveal file: " + f, ex);
         }
     }
 
@@ -520,22 +546,27 @@ public class FileChooser extends JFileChooser {
      * Reveals the specified file in the native file explorer.
      *
      * @param file the file to be revealed. If the file is not a directory, its parent directory is used
+     * @throws IllegalArgumentException if file is null or does not exist.
+     * @throws IOException if an I/O error occurs.
      * @throws SecurityException if a security manager exists and its checkRead method denies read access to the file.
      * @throws UnsupportedOperationException if the current platform does not support desktop browsing.
-     * @throws IllegalArgumentException if file is null or does not exist.
      */
-    public static void reveal(final File file) throws SecurityException, UnsupportedOperationException, IllegalArgumentException {
-        if (file == null) {
-            throw new IllegalArgumentException("File is null");
+    public static void reveal(final File file) throws SecurityException, UnsupportedOperationException, IllegalArgumentException, IOException {
+        if (file == null || !file.exists()) {
+            throw new IllegalArgumentException("File is null or it does not exist.");
         }
         final File dir = (file.isDirectory()) ? file : file.getParentFile();
         try {
-            Desktop.getDesktop().browseFileDirectory(file);
+            Desktop.getDesktop().browseFileDirectory(dir);
         } catch (final UnsupportedOperationException ue) {
-            if (SystemInfo.isLinux) try {
-                Runtime.getRuntime().exec(new String[]{"xdg-open", dir.getAbsolutePath()});
-            } catch (final Exception ignored) {
-                throw ue;
+            if (SystemInfo.isLinux) {
+                try {
+                    Runtime.getRuntime().exec(new String[]{"xdg-open", dir.getAbsolutePath()});
+                } catch (final Exception ignored) {
+                    throw ue;
+                }
+            } else {
+                Desktop.getDesktop().open(dir);
             }
         }
     }
