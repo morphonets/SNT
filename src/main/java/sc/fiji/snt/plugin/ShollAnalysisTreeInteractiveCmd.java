@@ -50,7 +50,7 @@ public class ShollAnalysisTreeInteractiveCmd extends ShollAnalysisTreeCmd implem
 
 	@Override
 	protected void runAnalysis() throws InterruptedException {
-		if (Recorder.record && !ij.IJ.macroRunning()) {
+		if (ij.IJ.recording() && !ij.IJ.macroRunning()) {
 			Recorder.recordString("// Sholl Analysis (From Tracings) [Interactive] is not amenable to macro recording\n" +
 					"// Please use the macro recordable version of the same prompt for reliable macros.\n");
 		}
@@ -68,7 +68,7 @@ public class ShollAnalysisTreeInteractiveCmd extends ShollAnalysisTreeCmd implem
 			} catch (final InterruptedException e) {
 				throw new RuntimeException(e);
 			}
-		} else if (Recorder.record) {
+		} else if (ij.IJ.recording()) {
 			Recorder.disableCommandRecording();
 		}
 	}

@@ -58,7 +58,7 @@ public class ShollAnalysisImgInteractiveCmd extends ShollAnalysisImgCommonCmd im
 
     @Override
     protected void runAnalysis() throws InterruptedException {
-        if (Recorder.record && !ij.IJ.macroRunning()) {
+        if (ij.IJ.recording() && !ij.IJ.macroRunning()) {
             Recorder.recordString("// Sholl Analysis (From Image) [Interactive] is not amenable to macro recording\n" +
                     "// Please use the macro recordable version of the same prompt for reliable macros.\n");
         }

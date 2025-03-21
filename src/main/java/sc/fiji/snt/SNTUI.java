@@ -4389,7 +4389,7 @@ public class SNTUI extends JDialog {
 		}
 
 		static void ijmLogMessage() {
-			if (Recorder.record) {
+			if (ij.IJ.recording()) {
 				final String recordString = "// NB: This recorder may not capture SNT's internal commands. Those are\n"
 						+ "// better captured using SNT's own Script Recorder (Scripts -> New -> Record...)\n";
 				Recorder.recordString(recordString);

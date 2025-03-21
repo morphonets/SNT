@@ -62,7 +62,6 @@ public class ShollOverlay implements ProfileProperties {
 	private final ShollPoint center;
 	private final int channel;
 	private final int frame;
-	private final boolean hyperStack;
 	private final double centerRawX;
 	private final double centerRawY;
 	private final double centerRawZ;
@@ -103,7 +102,6 @@ public class ShollOverlay implements ProfileProperties {
 		properties = profile.getProperties();
 		channel = Integer.parseInt(properties.getProperty(KEY_CHANNEL_POS, "1"));
 		frame = Integer.parseInt(properties.getProperty(KEY_FRAME_POS, "1"));
-		hyperStack = (channel != 1 && frame != 1);
 		cal = profile.spatialCalibration();
 		centerRawX = center.rawX(cal);
 		centerRawY = center.rawY(cal);
@@ -287,15 +285,15 @@ public class ShollOverlay implements ProfileProperties {
 		cRoi.setPointType(1);
 		cRoi.setStrokeColor(baseColor);
 		cRoi.setProperty(TYPE, CENTER);
-		setROIposition(cRoi, channel, centerRawZ, frame, hyperStack);
+		setROIPosition(cRoi, channel, centerRawZ, frame);
 		overlay.add(cRoi, CENTER);
 	}
 
-	private void setROIposition(final Roi roi, final int c, final double z, final int t, final boolean hyperStack) {
-		if (hyperStack) // NB: ROI position uses 1-based indices
-			roi.setPosition(c, (int) z + 1, t);
-		else
-			roi.setPosition((int) z + 1);
+	private void setROIPosition(final Roi roi, final int c, final double z, final int t) {
+		roi.setPosition(c, (int) z + 1, t); // NB: ROI CZT positions use 1-based indices
+		// TODO: calling roi.setPosition(z+1) causes an ArrayIndexOutOfBoundsException: Index 0 out of bounds for length
+		//  0 w/ IJ1.54p. It seems newer IJ versions support multiple Z positions within the same MultiPointROI, so this
+		//  should probably be revised
 	}
 
 	public void setShellsColor(final Color color) {

@@ -333,7 +333,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	}
 
 	protected void runAnalysis() throws InterruptedException {
-		if (Recorder.record && !ij.IJ.macroRunning()) {
+		if (ij.IJ.recording() && !ij.IJ.macroRunning()) {
 			Recorder.recordString("// NB: have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
 					+ "// robust ways to automate Sholl. E.g., Sholl_Extract_Profile_From_Image_Demo.py\n"//
 					+ "// exemplifies how to parse an image programmatically using API calls\n");
