@@ -496,6 +496,9 @@ public class Viewer2D extends TreeColorMapper {
 	 * @param title the new title
 	 */
 	public void setTitle(final String title) {
+		if (chart != null && chart.getFrame() != null) {
+			chart.getFrame().setTitle(title);
+		}
 		this.title = title;
 	}
 

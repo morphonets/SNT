@@ -248,7 +248,6 @@ public class TreeColorMapper extends ColorMapper {
 					for (int i = 0; i < p.size(); i++) {
 						if (node.isSameLocation(p.getNode(i))) {
 							p.setNodeValue(order, i);
-							continue;
 						}
 					}
 				}

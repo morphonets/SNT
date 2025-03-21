@@ -48,8 +48,9 @@ public class MultiViewer3D {
 	private final List<Viewer3D> viewers;
 	private int gridCols;
 	private int gridRows;
-	private String label;
+	private String title;
 	private int gap;
+	private JFrame frame;
 
 	/**
 	 * Assembles a multi-panel viewer from a list of viewers (1 per panel)
@@ -138,10 +139,19 @@ public class MultiViewer3D {
 	}
 
 	public JFrame show() {
-		final JFrame frame = getJFrame();
-		frame.setTitle((label == null) ? "Multi-Pane Reconstruction Viewer" : label);
+		frame = getJFrame();
+		frame.setTitle((title == null) ? "Multi-Pane Reconstruction Viewer" : title);
 		frame.setVisible(true);
 		return frame;
+	}
+
+	/**
+	 * Sets the title of the Viewer's frame.
+	 * @param title the viewer's title.
+	 */
+	public void setTitle(final String title) {
+		this.title = title;
+		if (frame != null) frame.setTitle(title);
 	}
 
 	private int initialViewerSize() {

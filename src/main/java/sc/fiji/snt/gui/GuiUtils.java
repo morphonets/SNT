@@ -1601,11 +1601,11 @@ public class GuiUtils {
 
 	public static void setLookAndFeel() {
 		storeExistingLookAndFeel();
-		final String lafName = SNTPrefs.getLookAndFeel(); // never null
 		// If SNT is not using FlatLaf but Fiji is, prefer Fiji choice
-		if (existingLaf instanceof FlatLaf && !lafName.contains("FlatLaf"))
+		if (existingLaf instanceof FlatLaf)
 			return;
 		// Otherwise apply SNT's L&F preference as long as it is valid
+		final String lafName = SNTPrefs.getLookAndFeel(); // never null
 		if (existingLaf == null || !lafName.equals(existingLaf.getName()))
 			setLookAndFeel(SNTPrefs.getLookAndFeel(), false);
 	}

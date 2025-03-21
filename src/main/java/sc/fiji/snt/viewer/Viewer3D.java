@@ -2175,6 +2175,14 @@ public class Viewer3D {
 	}
 
 	/**
+	 * Sets the title of the Viewer's frame.
+	 * @param title the viewer's title. Ignored if Viewer's frame does not exist
+	 */
+	public void setTitle(final String title) {
+		if (frame != null) frame.setTitle(title);
+	}
+
+	/**
 	 * Renders the scene from a specified camera angle (script-friendly).
 	 *
 	 * @param viewMode the view mode (case-insensitive): "xy"; "xz"; "yz";

@@ -36,13 +36,18 @@ println("===== Group 2 analysis ====")
 group2Analyzers = getAnalyzers(group2Cells)
 
 // display root angle distributions and von Mises fits
-[group1Analyzers, group2Analyzers].eachWithIndex { analyzer, index ->
-	chart1 = RootAngleAnalyzer.getHistogram(analyzer, true)
-	chart2 = RootAngleAnalyzer.getDensityPlot(analyzer)
+[group1Analyzers, group2Analyzers].eachWithIndex { analyzers, index ->
+	chart1 = RootAngleAnalyzer.getHistogram(analyzers, true)
+	chart2 = RootAngleAnalyzer.getDensityPlot(analyzers)
 	chartCombo = SNTChart.combine([chart1, chart2])
 	chartCombo.setTitle("Group " + (index+1))
 	chartCombo.show()
+	taggedTrees = []
+	analyzers.each { taggedTrees.add(it.getTaggedTree("Ice.lut")) }
+	multiviewer = FigCreatorCmd.render(taggedTrees, "2d vector, montage, zero-origin")
+	multiviewer.setTitle("Group " + (index+1))
 }
+return null // avoid ignoring unsupported RootAngleAnalyzer output
 
 
 /** Downloads reconstructions from NeuroMorpho.org from a list of cell ids */
@@ -82,3 +87,4 @@ def detailStats(cell, analyzer) {
 // imports below
 import sc.fiji.snt.io.*
 import sc.fiji.snt.analysis.*
+import sc.fiji.snt.gui.cmds.FigCreatorCmd

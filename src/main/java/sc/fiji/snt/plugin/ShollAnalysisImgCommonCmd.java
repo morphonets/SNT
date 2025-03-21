@@ -140,15 +140,15 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private String HEADER1;
 
 	@Parameter(label = "Starting radius", required = false, callback = "startRadiusStepSizeChanged", min = "0",
-			style = NumberWidget.SCROLL_BAR_STYLE)
+			style="scroll bar,format:0.000")
 	private double startRadius;
 
 	@Parameter(label = "Radius step size", required = false, callback = "startRadiusStepSizeChanged", min = "0",
-			style = NumberWidget.SCROLL_BAR_STYLE)
+			style="scroll bar,format:0.000")
 	private double stepSize;
 
 	@Parameter(label = "Ending radius", persist = false, required = false, callback = "endRadiusChanged", min = "0",
-			style = NumberWidget.SCROLL_BAR_STYLE)
+			style="scroll bar,format:0.000")
 	private double endRadius;
 
 	@Parameter(label = "Hemishells", required = false, callback = "overlayShells", choices = { "None. Use full shells",

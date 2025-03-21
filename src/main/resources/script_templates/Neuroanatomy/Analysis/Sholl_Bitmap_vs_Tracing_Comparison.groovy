@@ -12,7 +12,7 @@
 #@String(choices={"0 (continuous)","5","10","15","20"},value="10",style="radioButtonHorizontal",label="Radius step size (µm):") stepChoice
 #@String(choices={"2D Reconstruction vs 2D Bitmap (Fast)","3D Reconstruction vs 3D Bitmap (May take a while w/ small step size)", "3D Reconstruction vs 2D Reconstruction (Fast)"},style="radioButtonVertical",label="Type of Comparison") comparisonChoice
 #@String(choices={"Simple skeleton (Ground truth segmentation)","Dilated skeleton (More realistic segmentation)"},style="radioButtonVertical",label="Bitmap rasterization") skelChoice
-#@String(choices={"Only plots", "Plots and annotated images","Plots, annotated images, and statistics"},style="radioButtonVertical",label="Output") outputChoice
+#@String(choices={"Only plots", "Plots and annotated images","Plots, annotated images, and statistics (printed to console)"},style="radioButtonVertical",label="Output") outputChoice
 #@SNTService snt
 
 // extract booleans etc. from the dialog prompt

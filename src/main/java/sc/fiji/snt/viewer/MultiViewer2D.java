@@ -54,7 +54,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Class for rendering montages of {@link Tree}s as 2D plots that can be exported as SVG,
@@ -73,7 +72,7 @@ public class MultiViewer2D {
 	private boolean gridVisible;
 	private boolean axesVisible;
 	private boolean outlineVisible;
-    private String label;
+    private String title;
 
 	public MultiViewer2D(final List<Viewer2D> viewers) {
 		if (viewers == null)
@@ -186,7 +185,7 @@ public class MultiViewer2D {
 			legendMin = min;
 			legendMax = max;
 		}
-		colorLegendViewer = viewers.get(viewers.size() - 1);
+		colorLegendViewer = viewers.getLast();
 		legend = SNTChart.getPaintScaleLegend(colorTable, legendMin, legendMax, nDecimalPlaces);
 	}
 
@@ -209,13 +208,23 @@ public class MultiViewer2D {
 		}
 	}
 
+	@Deprecated
 	public void setLabel(final String label) {
-		this.label = label;
+		setTitle(label);
+	}
+
+	/**
+	 * Sets the title of this Viewer's frame.
+	 * @param title the viewer's title.
+	 */
+	public void setTitle(final String title) {
+		this.title = title;
+		if (frame != null) frame.setTitle(this.title);
 	}
 
 	public JFrame show() {
 		frame = getJFrame();
-		frame.setTitle((label==null)?"Multi-Pane Reconstruction Plotter":label);
+		frame.setTitle( (title ==null) ? "Multi-Pane Reconstruction Plotter" : title);
 		frame.setVisible(true);
 		return frame;
 	}
@@ -254,14 +263,14 @@ public class MultiViewer2D {
 
 	private String getTitlesAsString(final List<Viewer2D> viewers) {
 		if (viewers.stream().allMatch(v -> v.getTitle() != null)) {
-			return viewers.stream().map(Viewer2D::getTitle).collect(Collectors.toList()).toString();
+			return viewers.stream().map(Viewer2D::getTitle).toList().toString();
 		}
 		return null;
 	}
 
 	private double[] getFixedXRange(final List<Viewer2D> viewers) {
-		final double min = viewers.get(0).getPlot().xAxis().getMin();
-		final double max = viewers.get(0).getPlot().xAxis().getMax();
+		final double min = viewers.getFirst().getPlot().xAxis().getMin();
+		final double max = viewers.getFirst().getPlot().xAxis().getMax();
 		if (min == max) return null;
 		for (int i = 1; i < viewers.size(); i++) {
 			if (min != viewers.get(i).getPlot().xAxis().getMin() && max != viewers.get(i).getPlot().xAxis().getMax())
@@ -271,8 +280,8 @@ public class MultiViewer2D {
     }
 
 	private double[] getFixedYRange(final List<Viewer2D> viewers) {
-		final double min = viewers.get(0).getPlot().yAxis().getMin();
-		final double max = viewers.get(0).getPlot().yAxis().getMax();
+		final double min = viewers.getFirst().getPlot().yAxis().getMin();
+		final double max = viewers.getFirst().getPlot().yAxis().getMax();
 		if (min == max) return null;
 		for (int i = 1; i < viewers.size(); i++) {
 			if (min != viewers.get(i).getPlot().yAxis().getMin() && max != viewers.get(i).getPlot().yAxis().getMax())
