@@ -25,6 +25,9 @@ package sc.fiji.snt.tracing;
 import org.jheaps.AddressableHeap;
 import sc.fiji.snt.Path;
 
+/**
+ * A {@link SearchNode} which can maintain both a from-start and from-goal search state.
+ */
 public class DefaultSearchNode implements SearchNode, Comparable<DefaultSearchNode> {
 
 	public int x;

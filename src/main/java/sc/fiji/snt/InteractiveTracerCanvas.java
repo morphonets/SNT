@@ -51,6 +51,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * A canvas that allows interactive tracing of paths.
+ */
 class InteractiveTracerCanvas extends TracerCanvas {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
@@ -289,6 +292,14 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		connectToSecondaryEditingPath.setText(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX + label);
 	}
 
+	/**
+	 * Connects two paths by merging the source path into the destination path,
+	 * ensuring that no loops are created and the graph structure is properly updated.
+	 * Deletes the original paths after merging and incorporates the new path in the UI.
+	 *
+	 * @param source The source path to be merged into the destination path.
+	 * @param destination The destination path where the source path will be merged.
+	 */
 	private void connectToEditingPath(final Path source, final Path destination) {
 		if (source.getTreeID() == destination.getTreeID()) {
 			getGuiUtils().error("Cannot connect selected nodes: A loop would be created!",

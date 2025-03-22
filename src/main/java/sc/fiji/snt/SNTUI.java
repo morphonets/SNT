@@ -40,7 +40,6 @@ import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
-import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;

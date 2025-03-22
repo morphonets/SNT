@@ -27,7 +27,7 @@ import java.util.*;
 
 /**
  * Defines a filled structure.
- * 
+ *
  * @author Mark Longair
  * @author Tiago Ferreira
  * @author Cameron Arshadi
@@ -35,6 +35,15 @@ import java.util.*;
 public class Fill {
 
 	public double distanceThreshold;
+	public SNT.CostType metric;
+	public double x_spacing, y_spacing, z_spacing;
+	public String spacing_units;
+	private final ArrayList<Node> nodeList;
+	Set<Path> sourcePaths;
+
+	public Fill() {
+		nodeList = new ArrayList<>();
+	}
 
 	/**
 	 * Defines a node in a filled structure.
@@ -51,16 +60,25 @@ public class Fill {
 		public boolean open;
 	}
 
-	ArrayList<Node> nodeList;
-
+	/**
+	 * Returns the list of nodes in the filled structure.
+	 *
+	 * @return the list of nodes
+	 */
 	public List<Node> getNodeList() {
 		return nodeList;
 	}
 
-	public Fill() {
-		nodeList = new ArrayList<>();
-	}
-
+	/**
+	 * Adds a node to the filled structure.
+	 *
+	 * @param x the x-coordinate of the node
+	 * @param y the y-coordinate of the node
+	 * @param z the z-coordinate of the node
+	 * @param distance the distance value of the node
+	 * @param previous the index of the previous node
+	 * @param open the status of the node (open or closed)
+	 */
 	public void add(final int x, final int y, final int z, final double distance,
 		final int previous, final boolean open)
 	{
@@ -74,24 +92,40 @@ public class Fill {
 		nodeList.add(n);
 	}
 
-	Set<Path> sourcePaths;
-
+	/**
+	 * Returns the set of source paths for the filled structure.
+	 *
+	 * @return the set of source paths
+	 */
 	public Set<Path> getSourcePaths() {
 		return sourcePaths;
 	}
 
+	/**
+	 * Sets the source paths for the filled structure using an array of paths.
+	 *
+	 * @param newSourcePaths the array of new source paths
+	 */
 	public void setSourcePaths(final Path[] newSourcePaths) {
 		sourcePaths = new HashSet<>();
 		Collections.addAll(sourcePaths, newSourcePaths);
 	}
 
+	/**
+	 * Sets the source paths for the filled structure using a set of paths.
+	 *
+	 * @param newSourcePaths the set of new source paths
+	 */
 	public void setSourcePaths(final Set<Path> newSourcePaths) {
 		sourcePaths = new HashSet<>();
 		sourcePaths.addAll(newSourcePaths);
 	}
 
-	public SNT.CostType metric;
-
+	/**
+	 * Sets the cost metric for the filled structure.
+	 *
+	 * @param cost the cost type to set
+	 */
 	public void setMetric(final SNT.CostType cost) {
 		this.metric = cost;
 	}
@@ -100,8 +134,6 @@ public class Fill {
 		return metric;
 	}
 
-	public double x_spacing, y_spacing, z_spacing;
-	public String spacing_units;
 
 	public void setSpacing(final double x_spacing, final double y_spacing,
 		final double z_spacing, final String units)
@@ -112,6 +144,11 @@ public class Fill {
 		this.spacing_units = SNTUtils.getSanitizedUnit(units);
 	}
 
+	/**
+	 * Sets the distance threshold for the filled structure.
+	 *
+	 * @param threshold the threshold value to set
+	 */
 	public void setThreshold(final double threshold) {
 		this.distanceThreshold = threshold;
 	}
@@ -121,7 +158,6 @@ public class Fill {
 	}
 
 	public void writeNodesXML(final PrintWriter pw) {
-
 		int i = 0;
 		for (final Node n : nodeList) {
 			pw.println("    <node id=\"" + i + "\" " + "x=\"" + n.x + "\" " + "y=\"" +

@@ -33,11 +33,9 @@ import ij.ImagePlus;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
- * There have been problems on macOS with people trying to start the Sholl
- * analysis interface, but while the focus isn't on the image window. This is
- * just a key listener to detect such attempts and suggest to people what might
- * be wrong if they type Shift with Control-A or Alt-A in the wrong window.
- * (This will be added to all the Wrong Windows.)
+ * This class listens for key presses in the SNT windows and their children.
+ * It is used to capture special keys and to prevent the user from starting operations on the wrong window.
+ * It has no scripting value.
  */
 class ClarifyingKeyListener implements KeyListener, ContainerListener {
 
@@ -52,11 +50,6 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 		this.plugin = plugin;
 	}
 
-	/*
-	 * Grabbing all key presses in a dialog window isn't trivial, but the
-	 * technique suggested here works fine:
-	 * http://www.javaworld.com/javaworld/javatips/jw-javatip69.html
-	 */
 	public void addKeyAndContainerListenerRecursively(final Component c) {
 		c.addKeyListener(this);
 		if (c instanceof Container container) {

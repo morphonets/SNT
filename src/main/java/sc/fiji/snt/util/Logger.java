@@ -28,6 +28,13 @@ import org.scijava.prefs.PrefService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 
+/**
+ * The Logger class provides functionality for logging messages with different levels such as
+ * info, debug, and warn.
+ *
+ * Relies on external services, such as LogService and PrefService, injected via
+ * the provided context.
+ */
 public class Logger {
 
 	@Parameter

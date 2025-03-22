@@ -27,7 +27,7 @@ import ij.plugin.PlugIn;
 import ij.process.ImageProcessor;
 
 /**
- * Lindenmayer systems utilities
+ * Lindenmayer systems utilities for rendering fractal trees.
  */
  // See http://fractalfoundation.org/OFC/OFC-2-4.html
 public class LSystemsTree implements PlugIn {

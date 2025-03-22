@@ -43,9 +43,11 @@ group2Analyzers = getAnalyzers(group2Cells)
 	chartCombo.setTitle("Group " + (index+1))
 	chartCombo.show()
 	taggedTrees = []
-	analyzers.each { taggedTrees.add(it.getTaggedTree("Ice.lut")) }
-	multiviewer = FigCreatorCmd.render(taggedTrees, "2d vector, montage, zero-origin")
+	analyzers.each { taggedTrees.add(it.getTaggedTree("Ice.lut", 0, 80)) }
+	multiviewer = FigCreatorCmd.render(taggedTrees, "2d-vector, montage, zero-origin, in-place")
+	multiviewer.setColorBarLegend("Ice.lut", 0, 80)
 	multiviewer.setTitle("Group " + (index+1))
+	multiviewer.show()
 }
 return null // avoid ignoring unsupported RootAngleAnalyzer output
 

@@ -154,34 +154,51 @@ public class RootAngleAnalyzer {
     }
 
     /**
-     * Returns analyzed tree with the root angles assigned to its nodes.
-     *
-     * @param colorTable the color table specifying the color mapping. Null allowed.
-     * @return a copy of the tree with the root angles assigned to its nodes.
+     * @return the tree with the root angles assigned to its node values (@see {@link SWCPoint#v}).
      */
-    @SuppressWarnings("unused")
-    public Tree getTaggedTree(final ColorTable colorTable) {
+    public Tree getTaggedTree() {
         if (taggedTree == null) taggedTree = getTaggedGraph().getTree();
-        if (colorTable != null) {
-            final TreeColorMapper mapper = new TreeColorMapper();
-            mapper.map(taggedTree, TreeColorMapper.VALUES, colorTable);
-        }
         return taggedTree;
     }
 
     /**
-     * Returns analyzed tree with the root angles assigned to its nodes.
+     * Returns a recolored copy of the analyzed tree with the root angles assigned to its node values.
      *
-     * @param lutName the LUT name specifying the color mapping. Null allowed.
+     * @param colorTable the color table specifying the color mapping. Null not allowed.
+     * @return a copy of the tree with the root angles assigned to its nodes under default min/max mapping.
+     */
+    @SuppressWarnings("unused")
+    public Tree getTaggedTree(final ColorTable colorTable) {
+        return getTaggedTree(colorTable, Double.NaN, Double.NaN);
+    }
+
+    /**
+     * Returns a recolored copy of the analyzed tree with the root angles assigned to its node values.
+     * @param colorTable the color table specifying the color mapping. Null not allowed.
+     * @param min the mapping lower bound (i.e., the smallest angle to be mapped to the first color on the LUT scale)
+     * @param max the mapping upper bound (i.e., the largest angle to be mapped to the last color on the LUT scale)
+     * @return a copy of the tree with the root angles assigned to its nodes.
+     */
+    public Tree getTaggedTree(final ColorTable colorTable, final double min, final double max) {
+        final TreeColorMapper mapper = new TreeColorMapper();
+        mapper.setMinMax(min, max);
+        mapper.map(getTaggedTree(), TreeColorMapper.VALUES, colorTable);
+        return taggedTree;
+    }
+
+    /**
+     * Returns a recolored copy of the analyzed tree with the root angles assigned to its node values.
+     *
+     * @param lutName the LUT name specifying the color mapping. Null not allowed.
+     * @param min the mapping lower bound (i.e., the smallest angle to be mapped to the first color on the LUT scale)
+     * @param max the mapping upper bound (i.e., the largest angle to be mapped to the last color on the LUT scale)
      * @return a copy of the tree with the root angles assigned to its nodes.
      */
     @SuppressWarnings("unused")
-    public Tree getTaggedTree(final String lutName) {
-        if (taggedTree == null) taggedTree = getTaggedGraph().getTree();
-        if (lutName != null) {
-            final TreeColorMapper mapper = new TreeColorMapper();
-            mapper.map(taggedTree, TreeColorMapper.VALUES, lutName);
-        }
+    public Tree getTaggedTree(final String lutName, final double min, final double max) {
+        final TreeColorMapper mapper = new TreeColorMapper();
+        mapper.setMinMax(min, max);
+        mapper.map(getTaggedTree(), TreeColorMapper.VALUES, lutName);
         return taggedTree;
     }
 
@@ -229,7 +246,7 @@ public class RootAngleAnalyzer {
     }
 
     /**
-     * Returns the mean direction of the fitted Von Mises distribution.
+     * Returns the mean direction of the fitted von Mises distribution.
      *
      * @return the mean direction (in degrees).
      */
@@ -240,7 +257,7 @@ public class RootAngleAnalyzer {
 
     /**
      * Returns the strength of the centripetal bias, also known as κ.
-     * κ is defined as the concentration of the Von Mises fit of the root angle distribution.
+     * κ is defined as the concentration of the von Mises fit of the root angle distribution.
      * κ= 0 indicate no bias (root angles are distributed uniformly).
      * K->∞ indicate that all neurites point directly toward the root of the tree
      *
@@ -300,7 +317,7 @@ public class RootAngleAnalyzer {
     }
 
     /**
-     * Generates a density plot of the root angles using the fitted Von Mises distribution.
+     * Generates a density plot of the root angles using the fitted von Mises distribution.
      * The plot displays the density of root angles in degrees.
      *
      * @return an SNTChart object representing the density plot of the root angles.
@@ -314,12 +331,12 @@ public class RootAngleAnalyzer {
         plot.yAxis().setLabel("Density");
         final XYSeries series = addDensityPlotSeries(plot);
         series.setStyle(plotService.newSeriesStyle(Colors.DARKGRAY, LineStyle.SOLID, MarkerStyle.NONE));
-        series.setLabel(String.format("Von Mises fit: μ=%.2f°; κ=%.3f", meanDirection(), centripetalBias()));
+        series.setLabel(String.format("von Mises fit: μ=%.2f°; κ=%.3f", meanDirection(), centripetalBias()));
         series.setLegendVisible(false);
         final SNTChart chart = new SNTChart(String.format("Root Angle Density (%s)", analysisLabel), plot);
         chart.annotate(
-                String.format("Von Mises fit: μ=%.2f°; κ=%.3f", meanDirection(), centripetalBias()),
-                String.format("Balancing factor: %.3f\nCramér-Von Mises statistic: %.3f", balancingFactor(), getCramerVonMisesStatistic()),
+                String.format("von Mises fit: μ=%.2f°; κ=%.3f", meanDirection(), centripetalBias()),
+                String.format("Balancing factor: %.3f\nCramér-von Mises statistic: %.3f", balancingFactor(), getCramerVonMisesStatistic()),
                 "center");
         chart.setGridlinesVisible(false);
         chart.setLineWidth(2);
@@ -342,7 +359,7 @@ public class RootAngleAnalyzer {
     }
 
     /**
-     * Computes the Cramér-von Mises statistic between computed root angles and fitted Von Mises distribution.
+     * Computes the Cramér-von Mises statistic between computed root angles and fitted von Mises distribution.
      * A value of 0 indicates a perfect fit between the empirical distribution and the theoretical distribution,
      * and larger values indicate a greater discrepancy between the two distributions.
      *
@@ -430,7 +447,7 @@ public class RootAngleAnalyzer {
     }
 
     /**
-     * A Von Mises distribution is a continuous probability distribution on the unit circle.
+     * A von Mises distribution is a continuous probability distribution on the unit circle.
      * It is used to model the distribution of angles in a circular dataset.
      * The distribution is characterized by two parameters: the mean direction and the concentration.
      * The mean direction is the average angle of the distribution, and the concentration measures how tightly
@@ -508,7 +525,7 @@ public class RootAngleAnalyzer {
         }
 
         /**
-         * Calculates the cumulative distribution function (CDF) of the Von Mises distribution at a given angle.
+         * Calculates the cumulative distribution function (CDF) of the von Mises distribution at a given angle.
          *
          * @param min the lower bound of the interval in radians.
          * @param max the upper bound of the interval in radians.
@@ -521,7 +538,7 @@ public class RootAngleAnalyzer {
         }
 
         /**
-         * Generates a list of angles sampled from the Von Mises distribution.
+         * Generates a list of angles sampled from the von Mises distribution.
          *
          * @param numSamples the number of samples to generate.
          * @param min        the minimum value for the angles in radians.
@@ -537,7 +554,7 @@ public class RootAngleAnalyzer {
         }
 
         /**
-         * Generates a single sample from the Von Mises distribution for a sub-interval of [0, π].
+         * Generates a single sample from the von Mises distribution for a sub-interval of [0, π].
          *
          * @param min the minimum value for the angle in radians.
          * @param max the maximum value for the angle in radians.
