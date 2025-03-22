@@ -317,7 +317,7 @@ public class RootAngleAnalyzerCmd extends CommonDynamicCmd {
 		}
 
 		Tree taggedTree() {
-			return analyzer.getTaggedTree((String)null);
+			return analyzer.getTaggedTree();
 		}
 	}
 }

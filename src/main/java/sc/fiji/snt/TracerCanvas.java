@@ -34,6 +34,10 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanesCanvas;
 import sc.fiji.snt.hyperpanes.PaneOwner;
 import sc.fiji.snt.tracing.artist.SearchArtist;
 
+/**
+ * Provides rendering capabilities for visualizing paths, overlays, and additional interactive elements
+ * in an ImageJ canvas.
+ */
 public class TracerCanvas extends MultiDThreePanesCanvas {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes

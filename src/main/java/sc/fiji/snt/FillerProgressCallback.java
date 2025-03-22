@@ -24,6 +24,12 @@ package sc.fiji.snt;
 
 import sc.fiji.snt.tracing.FillerThread;
 
+/**
+ * The {@code FillerProgressCallback} interface extends {@code SearchProgressCallback}
+ * and provides additional methods specific to monitoring the progress of filler algorithms.
+ * It is intended to be implemented by classes that need updates about the filler thread's progress
+ * and state during its operation.
+ */
 public interface FillerProgressCallback extends SearchProgressCallback {
 
 	void maximumDistanceCompletelyExplored(FillerThread source, double f);

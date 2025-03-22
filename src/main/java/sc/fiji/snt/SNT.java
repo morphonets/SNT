@@ -119,6 +119,7 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	private OpService opService;
 
+
 	public enum SearchType {
 		ASTAR, NBASTAR;
 		@Override
@@ -126,6 +127,7 @@ public class SNT extends MultiDThreePanes implements
 			return StringUtils.capitalize(super.toString().toLowerCase());
 		}
 	}
+
 	public enum SearchImageType {
 		ARRAY, MAP;
 		@Override

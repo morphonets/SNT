@@ -22,6 +22,11 @@
 
 package sc.fiji.snt;
 
+/**
+ * Represents a callback interface for monitoring the progress of Hessian filtering.
+ * Implementations of this interface are intended to provide feedback about
+ * the proportion of work completed during the generation process.
+ */
 public interface HessianGenerationCallback {
 
     void proportionDone(double proportion);

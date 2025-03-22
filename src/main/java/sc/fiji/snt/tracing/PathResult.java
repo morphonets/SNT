@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.tracing;
 
+/**
+ * This class encapsulates the basic information about a computed path, including
+ * the number of points, success status, and any associated error messages.
+ */
 class PathResult {
 
 	protected float[] pathPoints;

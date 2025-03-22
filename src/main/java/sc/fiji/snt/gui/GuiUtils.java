@@ -2464,6 +2464,9 @@ public class GuiUtils {
 			helpMenu.add(devResourceAPI());
 			helpMenu.addSeparator();
 
+			mi = openURL("Complementary Tools",  URL + "comp-tools");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.COGS));
+			helpMenu.add(mi);
 			mi = openURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.MATH));
 			helpMenu.add(mi);

@@ -41,6 +41,12 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Provides a graphical user interface for visualizing
+ * and interacting with graphs using SNT's "Graph Viewer". It allows the
+ * display of various graph types, including directed weighted graphs,
+ * annotation graphs w/ options for interactive exploration and export.
+ */
 public class GraphViewer {
     @Parameter
     private Context context;

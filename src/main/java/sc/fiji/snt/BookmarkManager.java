@@ -66,6 +66,14 @@ public class BookmarkManager {
     private int visitingZoomPercentage;
 
 
+    /**
+     * Implements the <i>Bookmark Manager</i> pane.
+     * This class manages bookmarks for image locations, allowing users to quickly revisit specific locations.
+     * Bookmarks can be imported/exported and do not persist across sessions.
+     *
+     * @see SNTUI
+     * @see Bookmark
+     */
     public BookmarkManager(final SNTUI sntui) {
         this.sntui = sntui;
         model = new BookmarkModel();
@@ -404,21 +412,44 @@ public class BookmarkManager {
         recordCmd("add(" + x + ", " + y + ", " + z  + ", " + imp.getC() + ", " + imp.getT() +")");
     }
 
+    /**
+     * Adds a bookmark at the specified coordinates and time/channel positions.
+     *
+     * @param x the x-coordinate of the bookmark
+     * @param y the y-coordinate of the bookmark
+     * @param z the z-coordinate of the bookmark
+     * @param c the channel position of the bookmark
+     * @param t the time position of the bookmark
+     */
     public void add(final int x, final int y, final int z, final int c, final int t) {
         model.getDataList().add(new Bookmark(model.getUniqueLabel(""), x, y, z, c, t));
         model.fireTableDataChanged();
     }
 
+    /**
+     * Adds multiple bookmarks with the specified label and locations.
+     *
+     * @param label     the label for the bookmarks
+     * @param locations the list of SNTPoint locations for the bookmarks
+     * @param channel   the channel position for the bookmarks
+     * @param frame     the time position for the bookmarks
+     */
     public void add(final String label, final List<SNTPoint> locations, final int channel, final int frame) {
         locations.forEach(loc -> model.getDataList().add(new Bookmark(model.getUniqueLabel(label), //
                 (int) loc.getX(), (int) loc.getY(), (int) loc.getZ(), channel, frame)));
         model.fireTableDataChanged();
     }
 
+    /**
+     * Clears the selection of bookmarks in the table. Does nothing if no selection exists.
+     */
     public void clearSelection() {
         table.clearSelection();
     }
 
+    /**
+     * Clears all bookmarks.
+     */
     public void reset() {
         model.setDataList(new ArrayList<>());
     }
@@ -427,15 +458,31 @@ public class BookmarkManager {
         return table.isShowing();
     }
 
+    /**
+     * Loads bookmarks from the specified file.
+     *
+     * @param file the file to load bookmarks from. File is expected to be a CSV file with 6 columns in the
+     *             following order: Label, X, Y, Z, C, T.
+     * @return true if bookmarks were loaded successfully, false otherwise
+     */
     public boolean load(final File file) {
         loadBookmarksFromFile(file);
         return !model.getDataList().isEmpty();
     }
 
+    /**
+     * @see #load(File)
+     */
     public boolean load(final String filePath) {
         return load(new File(filePath));
     }
 
+    /**
+     * Loads bookmarks from the specified list of ROIs. ROIs can be of any type. If area ROIs are provided, their
+     * centroids are used as bookmark locations.
+     *
+     * @param rois the list of ROIs to load bookmarks from
+     */
     public void load(final List<Roi> rois) {
         for (final Roi roi : rois) {
             if (roi instanceof PointRoi) {
@@ -455,22 +502,44 @@ public class BookmarkManager {
         model.fireTableDataChanged();
     }
 
+    /**
+     * @see #load(List)
+     */
     public void load(final Roi[] rois) {
         load(List.of(rois)); // script friendly version
     }
 
+    /**
+     * Saves bookmarks to the specified file.
+     *
+     * @param file the file to save bookmarks to
+     * @return true if bookmarks were saved successfully, false otherwise
+     */
     public boolean save(final File file) {
         return saveBookMarksToFile(file);
     }
 
+    /**
+     * @see #save(File)
+     */
     public boolean save(final String filePath) {
         return save(new File(filePath));
     }
 
+    /**
+     * Returns the number of bookmarks.
+     * @return the number of bookmarks currently stored in the manager.
+     */
     public int getCount() {
        return model.getRowCount();
     }
 
+    /**
+     * Returns a list of ROIs representing the bookmarks.
+     *
+     * @param onlySelectedRows if true, only selected rows are included; otherwise, all ROIs in the manager are included
+     * @return the list of ROIs (PointRoi) representing the bookmarks
+     */
     public List<Roi> getROIs(final boolean onlySelectedRows) {
         final List<Roi> rois = new ArrayList<>();
         int[] rows = (onlySelectedRows) ? table.getSelectedRows() : IntStream.range(0, model.getRowCount()).toArray();
@@ -486,11 +555,21 @@ public class BookmarkManager {
         return rois;
     }
 
+    /**
+     * Adds the bookmark ROIs to the specified overlay. If no bookmarks are selected, all bookmarks are added,
+     * otherwise only the selected bookmarks are added.
+     *
+     * @param overlay the overlay to add the bookmarks to. Null not allowed
+     */
     public void toOverlay(final Overlay overlay) {
         for (final Roi roi : getROIs(table.getSelectedRows().length>0))
             overlay.add(roi);
     }
 
+    /**
+     * Adds the bookmarks to the ROI Manager. If no bookmarks are selected, all bookmarks are added,
+     * otherwise only the selected bookmarks are added.
+     */
     public void toRoiManager() {
         RoiManager rm = RoiManager.getInstance2();
         if (rm == null) rm = new RoiManager();

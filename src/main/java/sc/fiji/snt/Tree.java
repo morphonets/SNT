@@ -1735,8 +1735,8 @@ public class Tree implements TreeProperties {
 	 *                         translation flags:
 	 *                         - "zero-origin": each tree is translated so that its root has (0,0,0) coordinates
 	 *                         rotation flags:
-	 *                         - "upright:geodesic": each tree is rotated to vertically align its graph geodesic
-	 *                         - "upright:tips": each tree is rotated to vertically align its [root, tips centroid] vector
+	 *                         - "upright-geodesic": each tree is rotated to vertically align its graph geodesic
+	 *                         - "upright-tips": each tree is rotated to vertically align its [root, tips centroid] vector
 	 *                         - "r#": With # specifying a positive integer (e.g., r90): each tree is rotated by the
 	 *                         specified angle (in degrees)
 	 *                         </code>

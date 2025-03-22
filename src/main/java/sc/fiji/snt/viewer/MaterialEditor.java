@@ -32,7 +32,7 @@ import org.jzy3d.ui.editors.ColorEditor;
 
 /**
  * Copy of org.jzy3d.ui.editors.MaterialEditor that does not interfere with
- * LookandFee
+ * LookandFeel
  */
 class MaterialEditor extends JPanel {
 

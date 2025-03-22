@@ -56,8 +56,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Class for rendering montages of {@link Tree}s as 2D plots that can be exported as SVG,
- * PNG or PDF.
+ * Class for rendering montages of {@link Tree}s as 2D plots that can be exported as SVG, PNG or PDF.
  *
  * @author Tiago Ferreira
  */
