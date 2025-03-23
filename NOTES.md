@@ -83,7 +83,7 @@ Demo datasets (images and/or reconstructions) are either bundled in SNT (and thu
 
 | Dataset                                                                      | Source                                                                           |
 |:---------------------------------------------------------------------------- |:-------------------------------------------------------------------------------- |
-| DG Granule Cell                                                              | Bundled. [NeuroMorpho.org](http://cng.gmu.edu:8080/neuroMorpho/MetaDataResult.jsp?count=240&summary={%22neuron%22:{%22archive%22:[%22Beining%22]},%22ageWeightOperators%22:{},%22ageWeightOperations%22:{}} cell ([Beining archive](https://europepmc.org/article/med/27514866))|
+| DG Granule Cell                                                              | Bundled. [NeuroMorpho.org cell](http://cng.gmu.edu:8080/neuroMorpho/MetaDataResult.jsp?count=240&summary={%22neuron%22:{%22archive%22:[%22Beining%22]},%22ageWeightOperators%22:{},%22ageWeightOperations%22:{}}) ([Beining archive](https://europepmc.org/article/med/27514866))|
 | Drosophila ddaC neuron (2D binary image)                                     | Bundled. Sample image for _Sholl Analysis_/Auto tracing                          |
 | Drosophila OP neuron (3D grayscale image and 'gold standard' reconstruction) | Bundled/Downloaded. [DIADEM dataset](https://diadem.janelia.org/)                |
 | Hippocampal neuron (2D multichannel image)                                   | Downloaded. Part of ImageJ's _samples_ archive                                   |
