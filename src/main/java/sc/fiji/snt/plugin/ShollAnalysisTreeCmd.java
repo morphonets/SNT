@@ -179,12 +179,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		"Detailed & Summary tables", "None. Show no tables" })
 	private String tableOutputDescription;
 
-	@Parameter(required = false, callback = "annotationsDescriptionChanged",
+	@Parameter(required = false,
 			label = "Annotations", choices = { "None", "Color coded nodes", "3D viewer labels image" })
 	private String annotationsDescription;
 
-	@Parameter(required = false, label = "Annotations LUT",
-		callback = "lutChoiceChanged")
+	@Parameter(required = false, label = "Annotations LUT", callback = "lutChoiceChanged")
 	private String lutChoice;
 
 	@Parameter(required = false, label = "<html>&nbsp;")
@@ -370,8 +369,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		multipleTreesExist = false;
 		// Adjust Path filtering choices
 		final MutableModuleItem<String> mlitm =
-			(MutableModuleItem<String>) getInfo().getInput("filterChoice",
-				String.class);
+			(MutableModuleItem<String>) getInfo().getInput("filterChoice", String.class);
 
 		noFocalPointSpecified = center == null; // we'll use pre-determined centers;
 		if (snt != null) {
@@ -383,10 +381,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 			setLUTs();
 			resolveInput("file");
 			resolveInput("centerChoice");
-			final ArrayList<String> filteredchoices = new ArrayList<>(mlitm
-				.getChoices());
-			if (!filteredchoices.contains("Selected paths")) filteredchoices.add(1,
-				"Selected paths");
+			final ArrayList<String> filteredchoices = new ArrayList<>(mlitm.getChoices());
+			if (!filteredchoices.contains("Selected paths")) filteredchoices.add(1, "Selected paths");
 			mlitm.setChoices(filteredchoices);
 		} else {
 			resolveInput("previewShells");
@@ -431,20 +427,12 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 
 	protected void lutChoiceChanged() {
 		try {
-			lutTable = lutService.loadLUT(luts.get(lutChoice));
-		}
-		catch (final Exception ignored) {
+			final URL url = luts.get(lutChoice);
+			if (url != null) lutTable = lutService.loadLUT(url);
+		} catch (final Exception ignored) {
 			// this should never happen?
 		}
 		overlayShells();
-	}
-
-	private void annotationsDescriptionChanged() {
-		if (!annotationsDescription.contains("None") && stepSize > 0) {
-			helper.error("Annotations can only be generated when 'Radius step size' is zero (continuous sampling).",
-					"Non-contiguos Annotations");
-			annotationsDescription = "None";
-		}
 	}
 
 	@SuppressWarnings("unused")
@@ -795,23 +783,21 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 			}
 
 			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {
-				if (stepSize > 0) {
-					annotationsDescriptionChanged(); // display error
-				} else {
-					if (annotationsDescription.contains("labels image")) {
-						showStatus("Creating labels image...");
-						final ImagePlus labelsImage = parser.getLabelsImage(snt.getImagePlus(), lutTable);
-						outputs.add(labelsImage);
-						labelsImage.show();
-					}
-					if (annotationsDescription.contains("coded")) {
-						showStatus("Color coding nodes...");
-						final TreeColorMapper treeColorizer = new TreeColorMapper(snt
-							.getContext());
-						treeColorizer.map(parser.getTree(), lStats, lutTable);
-						if (snt != null) snt.updateAllViewers();
-					}
+
+				if (annotationsDescription.contains("labels image")) {
+					showStatus("Creating labels image...");
+					final ImagePlus labelsImage = parser.getLabelsImage(snt.getImagePlus(), lutTable);
+					outputs.add(labelsImage);
+					labelsImage.show();
 				}
+				if (annotationsDescription.contains("coded")) {
+					showStatus("Color coding nodes...");
+					final TreeColorMapper treeColorizer = new TreeColorMapper(snt
+						.getContext());
+					treeColorizer.map(parser.getTree(), lStats, lutTable);
+					if (snt != null) snt.updateAllViewers();
+				}
+
 			}
 
 			// Now save everything
@@ -824,14 +810,12 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 					if (output instanceof ShollPlot) {
 						if (!((ShollPlot)output).save(saveDir)) ++failures;
 					}
-					else if (output instanceof ShollTable) {
-						final ShollTable table = (ShollTable)output;
-						if (!table.hasContext()) table.setContext(getContext());
+					else if (output instanceof ShollTable table) {
+                        if (!table.hasContext()) table.setContext(getContext());
 						if (!table.saveSilently(saveDir)) ++failures;
 					}
-					else if (output instanceof ImagePlus) {
-						final ImagePlus imp = (ImagePlus)output;
-						final File outFile = SNTUtils.getUniquelySuffixedTifFile(new File(saveDir, imp.getTitle()));
+					else if (output instanceof ImagePlus imp) {
+                        final File outFile = SNTUtils.getUniquelySuffixedTifFile(new File(saveDir, imp.getTitle()));
 						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
 					}
 				}
