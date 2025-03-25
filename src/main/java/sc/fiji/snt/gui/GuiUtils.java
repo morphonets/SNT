@@ -103,7 +103,11 @@ public class GuiUtils {
 	 * Create a new GuiUtils instance using active (focused) window as parent.
 	 */
 	public GuiUtils() {
-		this(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
+		setParentToActiveWindow();
+	}
+
+	public void setParentToActiveWindow() {
+		setParent(KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow());
 	}
 
 	public void setParent(final Component parent) {

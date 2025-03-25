@@ -742,11 +742,13 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			return;
 		}
 		if (center != null && center.equals(newCenter)) {
+			helper.setParentToActiveWindow();
 			helper.error("ROI already defines the same center currently in use (" + centerDescription()
 					+ "). No changes were made.", "Center Already Defined");
 			return;
 		}
 		if (center != null && newCenter.z != center.z) {
+			helper.setParentToActiveWindow();
 			final Result result = helper.yesNoPrompt(
 					String.format("Current center was set at Z-position %s. Move center to active Z-position %s?",
 							ShollUtils.d2s(center.z), ShollUtils.d2s(newCenter.z)),
@@ -814,6 +816,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		}
 		cancel(cancelReason);
 		// previewShells = false;
+		helper.setParentToActiveWindow();
 		helper.error(uiMsg + ".", null);
 	}
 
@@ -913,6 +916,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private void normalizerDescriptionChanged() {
 		if (stepSize < voxelSize
 				&& (normalizerDescription.contains("Annulus") || normalizerDescription.contains("shell"))) {
+			helper.setParentToActiveWindow();
 			helper.error(normalizerDescription + " normalization requires radius step size to be ≥ "
 					+ ShollUtils.d2s(voxelSize) + cal.getUnit(), null);
 			normalizerDescription = (twoD) ? NORM2D_CHOICES.get(0) : NORM3D_CHOICES.get(0);
@@ -943,6 +947,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		} else if (primaryBranchesChoice.contains("multipoint") && imp != null) {
 			final Roi roi = imp.getRoi();
 			if (roi == null || roi.getType() != Roi.POINT) {
+				helper.setParentToActiveWindow();
 				helper.error("Please activate a multipoint ROI marking primary branches.", "No Multipoint ROI Exists");
 				primaryBranchesChoice = "Infer from starting radius";
 				primaryBranches = 0;
@@ -1245,6 +1250,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 					&& annotationsDescription.contains("None");
 			if (noOutput) {
 				cancel("Invalid output");
+				helper.setParentToActiveWindow();
 				helper.error("Analysis can only proceed if at least one type " +
 					"of output (plot, table, annotation) is chosen.", "Invalid Output");
 			}

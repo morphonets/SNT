@@ -267,6 +267,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 	void runAnalysis() throws InterruptedException {
 		if (analysisFuture != null && !analysisFuture.isDone()) {
 			threadService.queue(() -> {
+				helper.setParentToActiveWindow();
 				final boolean killExisting = helper.getConfirmation("An analysis is already running. Abort it?",
 						"Ongoing Analysis");
 				if (killExisting) {
@@ -497,6 +498,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 
 	private void cancelAndFreezeUI(final String msg, final String title) {
 		cancel(title);
+		helper.setParentToActiveWindow();
 		helper.error(msg, title);
 	}
 
@@ -534,6 +536,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 	private void errorIfSaveDirInvalid() {
 		if (save && (saveDir == null || !saveDir.exists() || !saveDir.canWrite())) {
 			save = false;
+			helper.setParentToActiveWindow();
 			helper.error("No files saved: Output directory is not valid or writable.", "Please Change Output Directory");
 		}
 	}
@@ -717,6 +720,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				showStatus("Computing 'Best Fit' Polynomial...");
 				final int deg = lStats.findBestFit(minDegree, maxDegree, prefService);
 				if (deg == -1) {
+					helper.setParentToActiveWindow();
 					helper.error(
 						"Please adjust the options for 'best fit' polynomial using Options, Preferences & Resources...\n"
 						+ "Tip: Enabling 'Debug mode' will allow you to monitor the fitting progress.",
@@ -729,6 +733,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 					lStats.fitPolynomial(polynomialDegree);
 				}
 				catch (final Exception ignored) {
+					helper.setParentToActiveWindow();
 					helper.error("Polynomial regression failed. Unsuitable degree?",
 						null);
 				}
@@ -819,9 +824,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
 					}
 				}
-				if (failures > 0)
-					helper.error("Some file(s) (" + failures + "/"+ outputs.size() +") could not be saved. \n"
+				if (failures > 0) {
+					helper.setParentToActiveWindow();
+					helper.error("Some file(s) (" + failures + "/" + outputs.size() + ") could not be saved. \n"
 							+ "Please ensure \"Destination\" directory is valid.", "IO Failure");
+				}
 			}
 
 			showStatus("Sholl Analysis concluded...");

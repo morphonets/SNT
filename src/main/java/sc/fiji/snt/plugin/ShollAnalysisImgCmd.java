@@ -81,6 +81,7 @@ public class ShollAnalysisImgCmd extends ShollAnalysisImgCommonCmd {
                 break;
         }
         cancel(cancelReason);
+        helper.setParentToActiveWindow();
         helper.error(uiMsg + ".", null);
     }
 

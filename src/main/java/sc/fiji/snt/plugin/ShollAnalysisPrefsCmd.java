@@ -232,7 +232,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@Override
 	public void reset() {
-
+		helper.setParentToActiveWindow();
 		final Result result = helper.yesNoPrompt(
 			"Reset all preferences to defaults?", "Confirm Reset");
 		if (result == Result.NO_OPTION || result == Result.CANCEL_OPTION) return;
