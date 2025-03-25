@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.stream.Collectors;
 
 /**
+ * Computes the convex hull of a set of 2D points.
  * @author Cameron Arshadi
  */
 public class ConvexHull2D extends AbstractConvexHull {

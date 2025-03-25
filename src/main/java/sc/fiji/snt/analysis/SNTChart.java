@@ -1606,7 +1606,8 @@ public class SNTChart extends ChartPanel {
 	 * @param data the matrix holding the two distributions to be plotted
 	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException, InvocationTargetException if the histogram cannot be displayed
+	 * @throws InterruptedException if the histogram cannot be displayed
+	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
 	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final int nBins1 = getNumberOfBins(new DescriptiveStatistics(data[0]));
@@ -1621,7 +1622,8 @@ public class SNTChart extends ChartPanel {
 	 * @param values2 the values of the second distribution to be plotted
 	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException, InvocationTargetException if the histogram cannot be displayed
+	 * @throws InterruptedException if the histogram cannot be displayed
+	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
 	public static void showHistogram3D(final Collection<Double> values1, final Collection<Double> values2,
 									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
@@ -1641,7 +1643,8 @@ public class SNTChart extends ChartPanel {
 	 * @param stats2 DescriptiveStatistics for the second distribution
 	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException, InvocationTargetException if the histogram cannot be displayed
+	 * @throws InterruptedException if the histogram cannot be displayed
+	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
 	public static void showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
 									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {

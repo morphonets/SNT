@@ -31,7 +31,7 @@ import sc.fiji.snt.analysis.graph.AnnotationGraph;
 import sc.fiji.snt.gui.GuiUtils;
 
 /**
- *
+ * GUI for "New Graph Options" Command
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false, label = "New Graph Options")

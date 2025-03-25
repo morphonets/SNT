@@ -42,7 +42,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Class to perform Root angle analysis on a {@link Tree} according to Bird & Cuntz 2019,
+ * Class to perform Root angle analysis on a {@link Tree} according to Bird and Cuntz 2019,
  * <a href="https://pubmed.ncbi.nlm.nih.gov/31167149/">PMID 31167149</a>.
  *
  * @author Tiago Ferreira
