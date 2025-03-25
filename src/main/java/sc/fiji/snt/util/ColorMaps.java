@@ -25,6 +25,7 @@ package sc.fiji.snt.util;
 import ij.CompositeImage;
 import ij.ImagePlus;
 import net.imagej.display.ColorTables;
+import net.imglib2.display.ColorTable;
 import net.imglib2.display.ColorTable8;
 
 import java.awt.image.IndexColorModel;
@@ -34,9 +35,9 @@ import java.awt.image.IndexColorModel;
  */
 public class ColorMaps {
 
-    public static final ColorTable8 ICE = ColorTables.ICE; // convenience
-    public static final ColorTable8 VIRIDIS = viridisColorTable();
-    public static final ColorTable8 PLASMA = plasmaColorTable();
+    public static final ColorTable ICE = ColorTables.ICE; // convenience
+    public static final ColorTable VIRIDIS = viridisColorTable();
+    public static final ColorTable PLASMA = plasmaColorTable();
 
     static {
         net.imagej.patcher.LegacyInjector.preinit();
@@ -84,11 +85,37 @@ public class ColorMaps {
         applyLut(imp, plasma(backgroundGray, inverted));
     }
 
-    private static ColorTable8 viridisColorTable() {
+    /**
+     * Returns a 'core' color table from its title
+     * @param name the color table name (e.g., "fire", "viridis", etc)
+     * @return the color table
+     */
+    public static ColorTable get(final String name) {
+        if (name == null || name.isBlank())
+            return null;
+        return switch (name.split("\\.")[0].toLowerCase()) {
+            case "blue" -> ColorTables.BLUE;
+            case "cyan" -> ColorTables.CYAN;
+            case "grays" -> ColorTables.GRAYS;
+            case "green" -> ColorTables.GREEN;
+            case "magenta" -> ColorTables.MAGENTA;
+            case "red" -> ColorTables.RED;
+            case "yellow" -> ColorTables.YELLOW;
+            case "fire" -> ColorTables.FIRE;
+            case "ice" -> ICE;
+            case "plasma" -> PLASMA;
+            case "red-green", "red green", "redgreen" -> ColorTables.REDGREEN;
+            case "spectrum" -> ColorTables.SPECTRUM;
+            case "viridis" -> VIRIDIS;
+            default -> null;
+        };
+    }
+
+    private static ColorTable viridisColorTable() {
         return custom(viridis());
     }
 
-    private static ColorTable8 plasmaColorTable() {
+    private static ColorTable plasmaColorTable() {
         return custom(plasma());
     }
 
@@ -209,7 +236,7 @@ public class ColorMaps {
         return new int[][]{r, g, b};
     }
 
-    private static ColorTable8 custom(final int[][] v) {
+    private static ColorTable custom(final int[][] v) {
         // from net.imagej.display.ColorTables
         final byte[][] values = new byte[v.length][];
         for (int j = 0; j < v.length; j++) {

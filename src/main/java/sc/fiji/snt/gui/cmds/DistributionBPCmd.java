@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import net.imagej.Dataset;
 import net.imagej.ImageJ;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -72,7 +73,6 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			description = "Creates a polar histogram. Assumes a data range between 0 and 360")
 	private boolean polar2;
 
-
 	// Allowed inputs are a single Tree, or a Collection of Trees
 	@Parameter(required = false)
 	private Tree tree;
@@ -80,14 +80,14 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 	@Parameter(required = false)
 	private Collection<Tree> trees;
 
+	@Parameter(required = false)
+	private Dataset dataset;
+
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean calledFromPathManagerUI;
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
 	private boolean onlyConnectivitySafeMetrics = false;
-
-	private boolean imgDataAvailable;
-
 
 	protected void init() {
 		super.init(false);
@@ -100,8 +100,7 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 			resolveInput("onlyConnectivitySafeMetrics");
 			getInfo().setLabel("Distribution Analysis (Branch Properties)");
 		}
-		imgDataAvailable = calledFromPathManagerUI && sntService.getInstance().accessToValidImageData();
-		if (!imgDataAvailable) choices.remove(TreeStatistics.VALUES);
+		if (dataset == null) choices.remove(TreeStatistics.VALUES);
 
 		Collections.sort(choices);
 		final MutableModuleItem<String> measurementChoiceInput1 = getInfo()
@@ -135,14 +134,10 @@ public class DistributionBPCmd extends CommonDynamicCmd {
 
 	@Override
 	public void run() {
-		if (imgDataAvailable && (TreeStatistics.VALUES.equals(measurementChoice1)
+		if (dataset != null && (TreeStatistics.VALUES.equals(measurementChoice1)
 				|| TreeStatistics.VALUES.equals(measurementChoice2))) {
 			SNTUtils.log("Assigning values...");
-			trees.forEach( tree -> {
-				final PathProfiler profiler = new PathProfiler(tree, sntService
-						.getInstance().getDataset());
-					profiler.assignValues();
-			});
+			trees.forEach(tree -> new PathProfiler(tree,dataset).assignValues());
 		}
 		final List<SNTChart> charts = new ArrayList<>();
 		final String[] measurementChoices = new String[] { measurementChoice1, measurementChoice2 };

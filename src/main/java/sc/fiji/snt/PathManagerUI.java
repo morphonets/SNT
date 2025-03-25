@@ -363,11 +363,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		distributionMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHART));
 		advanced.add(distributionMenu);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_TREES_CMD);
-		jmi.setToolTipText("Computes distributions of metrics for complete arbors");
+		jmi.setToolTipText("Computes frequency histograms for measurements of complete arbors");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_PATHS_CMD);
-		jmi.setToolTipText("Computes distributions of metrics for selected path(s), independently of their connectivity");
+		jmi.setToolTipText("Computes frequency histograms for selected path(s), independently of their connectivity");
+		jmi.addActionListener(multiPathListener);
+		distributionMenu.add(jmi);
+		distributionMenu.addSeparator();
+		jmi = new JMenuItem(MultiPathActionListener.HISTOGRAM_2D_CMD);
+		jmi.setToolTipText("Computes distributions of 2-dimensional data (3D histograms)");
 		jmi.addActionListener(multiPathListener);
 		distributionMenu.add(jmi);
 
@@ -2067,6 +2072,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     throw new IllegalArgumentException("Not enough arguments...");
                 }
             }
+			case (MultiPathActionListener.HISTOGRAM_2D_CMD) -> {
+				final Map<String, Object> input = new HashMap<>();
+				input.put("tree", new Tree(getSelectedPaths(true)));
+				if (plugin.accessToValidImageData()) input.put("dataset", plugin.getDataset());
+                input.put("measurementChoice1", args[0]);
+				if (args.length > 1) input.put("measurementChoice2", args[1]);
+				if (args.length > 2) input.put("colorMapChoice", args[2]);
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+				cmdService.run(TwoDHistCmd.class, true, input);
+			}
             case MultiPathActionListener.COLORIZE_PATHS_CMD -> {
                 if (args.length > 1) {
                     runColorCodingCmd(geSelectedPathsAsTree(), true, args[0], args[1]);
@@ -2138,8 +2153,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (polar1 != null) input.put("polar1", polar1);
 		if (metric2 != null) input.put("measurementChoice2", metric2);
 		if (polar2 != null) input.put("polar2", polar2);
-		final CommandService cmdService = plugin.getContext().getService(
-			CommandService.class);
+		if (plugin.accessToValidImageData()) input.put("dataset", plugin.getDataset());
+		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 		cmdService.run(DistributionBPCmd.class, true, input);
 	}
 
@@ -2658,6 +2673,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		// distribution commands
 		private static final String HISTOGRAM_PATHS_CMD = "Path-based Distributions...";
 		private static final String HISTOGRAM_TREES_CMD = "Cell-based Distributions...";
+		private static final String HISTOGRAM_2D_CMD = "Two-Dimensional Histograms...";
+
 		// timelapse analysis
 		private static final String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private static final String TIME_PROFILE_CMD = "Time Profile...";
@@ -2864,6 +2881,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				ColorMapper.unMap(selectedPaths);
 				plugin.updateAllViewers();
 				return;
+			}
+			else if (HISTOGRAM_2D_CMD.equals(cmd)) {
+				final Map<String, Object> input = new HashMap<>();
+				input.put("tree", new Tree(selectedPaths));
+				input.put("onlyConnectivitySafeMetrics", true);
+				if (plugin.accessToValidImageData()) input.put("dataset", plugin.getDataset());
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+				cmdService.run(TwoDHistCmd.class, true, input);
 			}
 			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);

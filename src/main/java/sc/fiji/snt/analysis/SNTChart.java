@@ -29,9 +29,11 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBoxMenuItem;
@@ -304,9 +306,8 @@ public class SNTChart extends ChartPanel {
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
 			//plot.setRangeMinorGridlinesVisible(visible);
-		} else if (getChart().getPlot() instanceof PolarPlot) {
-			final PolarPlot plot = (PolarPlot)getChart().getPlot();
-			plot.setRadiusGridlinesVisible(visible);
+		} else if (getChart().getPlot() instanceof PolarPlot plot) {
+            plot.setRadiusGridlinesVisible(visible);
 			plot.setRadiusMinorGridlinesVisible(visible);
 			plot.setAngleGridlinesVisible(visible);
 		}
@@ -466,7 +467,7 @@ public class SNTChart extends ChartPanel {
 	private Color[] getColors(final int n, final ColorTable colortable) {
 		final Color[] colors = new Color[n];
 		for (int i = 0; i < n; i++) {
-			final int idx = (int) Math.round((float) ((colortable.getLength() - 1) * i) / n);
+			final int idx = Math.round((float) ((colortable.getLength() - 1) * i) / n);
 			colors[i] = new Color(colortable.get(ColorTable.RED, idx), colortable.get(ColorTable.GREEN, idx),
 					colortable.get(ColorTable.BLUE, idx));
 		}
@@ -831,18 +832,16 @@ public class SNTChart extends ChartPanel {
 			if (item.getOutlinePaint() == oldColor)
 				item.setOutlinePaint(newColor);
 		}
-		if (render instanceof AbstractRenderer) {
-			final AbstractRenderer rndr = ((AbstractRenderer)render);
-			rndr.setDefaultItemLabelPaint(newColor);
+		if (render instanceof AbstractRenderer rndr) {
+            rndr.setDefaultItemLabelPaint(newColor);
 			rndr.setDefaultLegendTextPaint(newColor);
 			if (rndr.getDefaultFillPaint()  == oldColor)
 				rndr.setDefaultFillPaint(newColor);
 			if (rndr.getDefaultOutlinePaint()  == oldColor)
 				rndr.setDefaultOutlinePaint(newColor);
 		}
-		if (render instanceof AbstractCategoryItemRenderer) {
-			final AbstractCategoryItemRenderer rndr = ((AbstractCategoryItemRenderer)render);
-			for (int series = 0; series < rndr.getRowCount(); series++) {
+		if (render instanceof AbstractCategoryItemRenderer rndr) {
+            for (int series = 0; series < rndr.getRowCount(); series++) {
 				if (rndr.getSeriesFillPaint(series) == oldColor)
 					rndr.setSeriesFillPaint(series, newColor);
 				if (rndr.getSeriesOutlinePaint(series) == oldColor)
@@ -1528,10 +1527,14 @@ public class SNTChart extends ChartPanel {
 		return psl;
 	}
 
+	/**
+	 * @return a list of all opened charts
+	 */
 	public static List<SNTChart> openCharts() {
 		return openInstances;
 	}
 
+	/** Closes all open charts */
 	public static void closeAll() {
         for (SNTChart openInstance : openInstances) {
             openInstance.disposeInternal();
@@ -1539,6 +1542,7 @@ public class SNTChart extends ChartPanel {
 		openInstances.clear();
 	}
 
+	/** Tiles all open charts. displaying them on a grid) */
 	public static void tileAll() {
 		final List<JFrame> frames = new ArrayList<>();
 		openInstances.forEach( oi -> frames.add(oi.getFrame()));
@@ -1595,6 +1599,87 @@ public class SNTChart extends ChartPanel {
 			final boolean labelPanels) {
 		return new MultiSNTChart(charts, rows, cols, labelPanels).getChart();
 	}
+
+	/**
+	 * Shows a bivariate histogram (two-dimensional histogram) from a matrix. The number of
+	 * bins is automatically determined using the Freedman-Diaconis rule.
+	 * @param data the matrix holding the two distributions to be plotted
+	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @throws InterruptedException, InvocationTargetException if the histogram cannot be displayed
+	 */
+	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		final int nBins1 = getNumberOfBins(new DescriptiveStatistics(data[0]));
+		final int nBins2 = getNumberOfBins(new DescriptiveStatistics(data[1]));
+		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
+	}
+
+	/**
+	 * Shows a bivariate histogram (two-dimensional histogram) from two collections of values. The number of
+	 * bins is automatically determined using the Freedman-Diaconis rule.
+	 * @param values1 the values of the first distribution to be plotted
+	 * @param values2 the values of the second distribution to be plotted
+	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @throws InterruptedException, InvocationTargetException if the histogram cannot be displayed
+	 */
+	public static void showHistogram3D(final Collection<Double> values1, final Collection<Double> values2,
+									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		final double[] v1 = values1.stream().mapToDouble(Double::doubleValue).toArray();
+		final double[] v2 = values2.stream().mapToDouble(Double::doubleValue).toArray();
+		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
+				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
+		final int nBins1 = getNumberOfBins(new DescriptiveStatistics(v1));
+		final int nBins2 = getNumberOfBins(new DescriptiveStatistics(v2));
+		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
+	}
+
+	/**
+	 * Shows a bivariate histogram (two-dimensional histogram) from two DescriptiveStatistics objects. The number of
+	 * bins is automatically determined using the Freedman-Diaconis rule.
+	 * @param stats1 DescriptiveStatistics for the first distribution
+	 * @param stats2 DescriptiveStatistics for the second distribution
+	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @throws InterruptedException, InvocationTargetException if the histogram cannot be displayed
+	 */
+	public static void showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
+									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		final double[] v1 = stats1.getValues();
+		final double[] v2 = stats2.getValues();
+		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
+				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
+		final int nBins1 = getNumberOfBins(stats1);
+		final int nBins2 = getNumberOfBins(stats2);
+		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
+	}
+
+	private static void showHist3D(final double[][] data, final int nBins1, final int nBins2, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		final Color[] palette = alphaColorsFromColorTable(colorTable);
+		final smile.plot.swing.Canvas canvas = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, false, palette).canvas();
+		if (axisLabels != null && axisLabels.length > 0) canvas.setAxisLabels(axisLabels);
+		final JFrame window = canvas.window();
+		window.setTitle("Two-Dimensional Histogram");
+		window.setVisible(true);
+	}
+
+	private static Color[] alphaColorsFromColorTable(final ColorTable colorTable) {
+		if (colorTable == null)
+			return new Color[]{SNTColor.alphaColor(Color.LIGHT_GRAY, 75)};
+		final Color[] palette = new Color[colorTable.getLength()];
+		for (int i = 0; i < colorTable.getLength(); i++) {
+			palette[i] = SNTColor.alphaColor(new Color(colorTable.get(ColorTable.RED, i), colorTable.get(ColorTable.GREEN, i),
+					colorTable.get(ColorTable.BLUE, i)), 75);
+		}
+		return palette;
+	}
+
+	private static int getNumberOfBins(final DescriptiveStatistics stats) {
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, false);
+		datasetPlus.compute();
+		return datasetPlus.nBins;
+	}
+
 
 	private static class MultiSNTChart {
 

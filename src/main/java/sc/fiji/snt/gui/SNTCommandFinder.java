@@ -337,7 +337,7 @@ public class SNTCommandFinder {
                     break;
                 default:
                     noOptionsRecorderComment();
-                    sb.append("\", \"[optional prompt options here...]\")");
+                    sb.append("\", \"comma-separated\", \"options\", \"here\", \"(if any)\")");
                     break;
             }
         } else {

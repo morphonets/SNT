@@ -156,9 +156,10 @@
 		<orsonpdf.version>1.9.1</orsonpdf.version>
 		<scenery.version>0.11.2</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
-		<smile.version>4.2.0</smile.version>
+		<smile.version>4.3.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
+		<smile-plot.version>${smile.version}</smile-plot.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
@@ -412,6 +413,11 @@
 		<dependency>
 			<groupId>com.github.haifengl</groupId>
 			<artifactId>smile-core</artifactId>
+			<version>${smile-core.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.github.haifengl</groupId>
+			<artifactId>smile-plot</artifactId>
 			<version>${smile-core.version}</version>
 		</dependency>
 		<dependency>
