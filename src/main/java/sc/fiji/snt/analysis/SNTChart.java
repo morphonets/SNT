@@ -66,6 +66,7 @@ import org.jfree.chart.title.*;
 import org.jfree.chart.ui.*;
 import org.jfree.data.Range;
 import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.general.PieDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.XYDataset;
@@ -585,6 +586,9 @@ public class SNTChart extends ChartPanel {
 				final FlowPlot plot = (FlowPlot)(getChart().getPlot());
 				plot.setDefaultNodeLabelFont(plot.getDefaultNodeLabelFont().deriveFont(Font.PLAIN, size));
 			}
+			else if (getChart().getPlot() instanceof RingPlot ringPlot) {
+				ringPlot.setLabelFont(ringPlot.getLabelFont().deriveFont(size));
+			}
 			break;
 		}
 	}
@@ -772,30 +776,26 @@ public class SNTChart extends ChartPanel {
 				((PaintScaleLegend) title).getAxis().setTickLabelPaint(newColor);
 			}
 		}
-		if (getChart().getPlot() instanceof CombinedRangeXYPlot) {
-			final CombinedRangeXYPlot comb = (CombinedRangeXYPlot) (getChart().getPlot());
+		if (getChart().getPlot() instanceof CombinedRangeXYPlot comb) {
 			comb.getSubplots().forEach( plot -> replaceForegroundColorOfXYPlot(plot, oldColor, newColor));
-		} else if (getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChart().getPlot());
-			replaceForegroundColorOfXYPlot(plot, oldColor, newColor);
-		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (getChart().getCategoryPlot());
-			for (int i = 0; i < plot.getDomainAxisCount() ; i++)
-				setForegroundColor(plot.getDomainAxis(i), newColor);
-			for (int i = 0; i < plot.getRangeAxisCount() ; i++)
-				setForegroundColor(plot.getRangeAxis(i), newColor);
-			for (int i = 0; i < plot.getRendererCount(); i++) {
-				replaceForegroundColor(plot.getRenderer(i), oldColor, newColor);
-				replaceSeriesColor(plot.getRenderer(i), oldColor, newColor);
+		} else if (getChart().getPlot() instanceof XYPlot xyPlot) {
+			replaceForegroundColorOfXYPlot(xyPlot, oldColor, newColor);
+		} else if (getChart().getPlot() instanceof CategoryPlot catPlot) {
+			for (int i = 0; i < catPlot.getDomainAxisCount() ; i++)
+				setForegroundColor(catPlot.getDomainAxis(i), newColor);
+			for (int i = 0; i < catPlot.getRangeAxisCount() ; i++)
+				setForegroundColor(catPlot.getRangeAxis(i), newColor);
+			for (int i = 0; i < catPlot.getRendererCount(); i++) {
+				replaceForegroundColor(catPlot.getRenderer(i), oldColor, newColor);
+				replaceSeriesColor(catPlot.getRenderer(i), oldColor, newColor);
 			}
-		} else if (getChart().getPlot() instanceof PolarPlot) {
-			final PolarPlot plot = (PolarPlot)(getChart().getPlot());
-			for (int i = 0; i < plot.getAxisCount(); i++)
-				setForegroundColor(plot.getAxis(i), newColor);
-			plot.setAngleGridlinePaint(newColor);
-			plot.setAngleLabelPaint(newColor);
-			final DefaultPolarItemRenderer render = (DefaultPolarItemRenderer) plot.getRenderer();
-			for (int series = 0; series < plot.getDatasetCount(); series++) {
+		} else if (getChart().getPlot() instanceof PolarPlot polarPlot) {
+			for (int i = 0; i < polarPlot.getAxisCount(); i++)
+				setForegroundColor(polarPlot.getAxis(i), newColor);
+			polarPlot.setAngleGridlinePaint(newColor);
+			polarPlot.setAngleLabelPaint(newColor);
+			final DefaultPolarItemRenderer render = (DefaultPolarItemRenderer) polarPlot.getRenderer();
+			for (int series = 0; series < polarPlot.getDatasetCount(); series++) {
 				if (render.getSeriesOutlinePaint(series) == oldColor)
 					render.setSeriesOutlinePaint(series, newColor);
 				if (render.getSeriesPaint(series) == oldColor)
@@ -805,6 +805,9 @@ public class SNTChart extends ChartPanel {
 			final FlowPlot plot = (FlowPlot)(getChart().getPlot());
 			plot.setOutlinePaint(newColor);
 			plot.setDefaultNodeLabelPaint(newColor);
+		} else if (getChart().getPlot() instanceof RingPlot ringPlot) {
+			ringPlot.setLabelPaint(newColor);
+			ringPlot.setLabelLinkPaint(newColor);
 		}
 
 	}
@@ -1397,6 +1400,11 @@ public class SNTChart extends ChartPanel {
 					}
 				}
 			}
+		} else if (getChart().getPlot() instanceof RingPlot ringPlot) {
+			final PieDataset<?> dataset = ringPlot.getDataset();
+			for (int i = 0; i < dataset.getItemCount(); i++) {
+				csv.add(String.format("%s,%s", dataset.getKey(i), dataset.getValue(i)));
+			}
 		} else {
 			throw new IllegalStateException("Export of this type of dataset is not supported.");
 		}
@@ -1610,8 +1618,8 @@ public class SNTChart extends ChartPanel {
 	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
 	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
-		final int nBins1 = getNumberOfBins(new DescriptiveStatistics(data[0]));
-		final int nBins2 = getNumberOfBins(new DescriptiveStatistics(data[1]));
+		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[0]));
+		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[1]));
 		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
 	}
 
@@ -1631,8 +1639,8 @@ public class SNTChart extends ChartPanel {
 		final double[] v2 = values2.stream().mapToDouble(Double::doubleValue).toArray();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
-		final int nBins1 = getNumberOfBins(new DescriptiveStatistics(v1));
-		final int nBins2 = getNumberOfBins(new DescriptiveStatistics(v2));
+		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v1));
+		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v2));
 		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
 	}
 
@@ -1652,8 +1660,8 @@ public class SNTChart extends ChartPanel {
 		final double[] v2 = stats2.getValues();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
-		final int nBins1 = getNumberOfBins(stats1);
-		final int nBins2 = getNumberOfBins(stats2);
+		final int nBins1 = AnalysisUtils.computeNBins(stats1);
+		final int nBins2 = AnalysisUtils.computeNBins(stats2);
 		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
 	}
 
@@ -1676,13 +1684,6 @@ public class SNTChart extends ChartPanel {
 		}
 		return palette;
 	}
-
-	private static int getNumberOfBins(final DescriptiveStatistics stats) {
-		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, false);
-		datasetPlus.compute();
-		return datasetPlus.nBins;
-	}
-
 
 	private static class MultiSNTChart {
 

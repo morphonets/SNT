@@ -74,6 +74,7 @@ public class IconFactory {
 			CHART_LINE('\uf201', true), //
 			CHART_AREA('\uf1fe', true), //
 			CHART_MAGNIFIED('\ue522', true), //
+			CHART_PIE('\uf200', true), //
 			CHECK_DOUBLE('\uf560', true), //
 			CHILD('\uf1ae', true), //
 			CHILDREN('\ue4e1', true), //

@@ -2617,6 +2617,12 @@ public class GuiUtils {
 			return button;
 		}
 
+		public static JButton toolbarButton(final IconFactory.GLYPH glyph, final Color color) {
+			final JButton button = toolbarButton("");
+			IconFactory.assignIcon(button, glyph, color);
+			return button;
+		}
+
 		public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
 			final JButton button = new JButton(action);
 			IconFactory.assignIcon(button, glyphIcon);

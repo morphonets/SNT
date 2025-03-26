@@ -23,13 +23,9 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
@@ -40,6 +36,7 @@ import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.SubCategoryAxis;
+import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.labels.XYToolTipGenerator;
 import org.jfree.chart.plot.*;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
@@ -49,7 +46,9 @@ import org.jfree.chart.renderer.xy.*;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
+import org.jfree.chart.util.SortOrder;
 import org.jfree.data.category.DefaultCategoryDataset;
+import org.jfree.data.general.DefaultPieDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.*;
@@ -65,7 +64,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @author Tiago Ferreira
  */
-class AnalysisUtils {
+public class AnalysisUtils {
 
 	private AnalysisUtils() {
 	}
@@ -83,13 +82,13 @@ class AnalysisUtils {
 		switch (standardMetric) {
 		case TreeStatistics.CONVEX_HULL_SIZE:
 			if (tree.is3D()) {
-				return String.format("%s (%s\u00B3)", standardMetric, unit);
+				return String.format("%s (%s³)", standardMetric, unit);
 			} else {
-				return String.format("%s (%s\u00B2)", standardMetric, unit);
+				return String.format("%s (%s²)", standardMetric, unit);
 			}
 		case TreeStatistics.CONVEX_HULL_BOUNDARY_SIZE:
 			if (tree.is3D()) {
-				return String.format("%s (%s\u00B2)", standardMetric, unit);
+				return String.format("%s (%s²)", standardMetric, unit);
 			} else {
 				return String.format("%s (%s)", standardMetric, unit);
 			}
@@ -163,8 +162,8 @@ class AnalysisUtils {
 		sb.append("\nN: ").append(datasetPlus.n);
 		sb.append("  Min: ").append(SNTUtils.formatDouble(datasetPlus.min, nDecimals));
 		sb.append("  Max: ").append(SNTUtils.formatDouble(datasetPlus.max, nDecimals));
-		sb.append("  Mean\u00B1").append("SD: ").append(SNTUtils.formatDouble(
-			mean, nDecimals)).append("\u00B1").append(SNTUtils.formatDouble(
+		sb.append("  Mean±").append("SD: ").append(SNTUtils.formatDouble(
+			mean, nDecimals)).append("±").append(SNTUtils.formatDouble(
 				stats.getStandardDeviation(), nDecimals));
 		return sb.toString();
 	}
@@ -591,6 +590,90 @@ class AnalysisUtils {
 		return chart;
 	}
 
+	/**
+	 * Computes the "optimal" number of bins for a histogram dataset using Freedman-Diaconis rule.
+	 *
+	 * @param stats the descriptive statistics used to calculate the number of bins
+	 * @return the computed number of bins for the histogram
+	 */
+	public static int computeNBins(final DescriptiveStatistics stats) {
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, false);
+		datasetPlus.compute();
+		return datasetPlus.nBins;
+	}
+
+	/**
+	 * Generates a ring plot (aka donut plot).
+	 *
+	 * @param title  the title of the chart. Null allowed
+	 * @param data   a map of data values where the key is a String label and the value is a Number
+	 *               representing the data associated with the label
+	 * @param colors a map of colors corresponding to the sections of the plot; if null, distinct
+	 *               colors will be automatically generated
+	 * @return an instance of SNTChart containing the generated ring plot
+	 */
+	public static SNTChart ringPlot(final String title, final HashMap<String, Double> data,
+									final HashMap<String, Color> colors)  {
+		final DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
+		data.forEach((k,v) -> dataset.setValue(capitalized(k), v));
+		dataset.sortByValues(SortOrder.DESCENDING);
+		final RingPlot ringPlot = getRingPlot(dataset);
+		if (colors == null) {
+			final Color[] c = SNTColor.getDistinctColorsAWT(data.size());
+			int idx = 0;
+			for (final String key : data.keySet())
+				ringPlot.setSectionPaint(key, c[idx++]);
+		} else {
+			colors.forEach((k,v) -> ringPlot.setSectionPaint(capitalized(k), v));
+		}
+		return new SNTChart(title, new JFreeChart(null, null, ringPlot, false));
+	}
+
+	private static String capitalized(final String string) {
+		return string.substring(0, 1).toUpperCase() + string.substring(1);
+	}
+
+	private static RingPlot getRingPlot(final DefaultPieDataset<String> dataset) {
+		final RingPlot ringPlot = new RingPlot(dataset);
+		ringPlot.setSectionDepth(0.33); //  width of the donut
+		ringPlot.setIgnoreZeroValues(true);
+		ringPlot.setIgnoreNullValues(true);
+		// adjust sections
+		ringPlot.setSectionOutlinesVisible(false);
+		ringPlot.setOutlineVisible(false);
+		ringPlot.setSeparatorsVisible(false);
+		ringPlot.setBackgroundPaint(null);
+		ringPlot.setShadowPaint(null);
+		// adjust labels
+		ringPlot.setLabelOutlinePaint(null);
+		ringPlot.setLabelBackgroundPaint(null);
+		ringPlot.setLabelShadowPaint(null);
+		ringPlot.setLabelGenerator(new StandardPieSectionLabelGenerator("{0} ({2})")); // label (%)
+		final boolean likelyDenseLabels = atLeastOneSmallFraction(dataset) && countValidSections(dataset) > 2;
+		ringPlot.setSimpleLabels(!likelyDenseLabels);
+		ringPlot.setLabelLinksVisible(likelyDenseLabels);
+		ringPlot.setLabelLinkStyle(PieLabelLinkStyle.STANDARD);
+		return ringPlot;
+	}
+
+	private static long countValidSections(final DefaultPieDataset<String> dataset) {
+		return dataset.getKeys().stream().filter(key -> {
+					final Number value = dataset.getValue(key);
+					return value != null && value.doubleValue() > 0 && !Double.isNaN(value.doubleValue());
+				}).count();
+	}
+
+	private static boolean atLeastOneSmallFraction(final DefaultPieDataset<String> dataset) {
+		// Calculate the sum of all dataset values
+		final double total = dataset.getKeys().stream().mapToDouble(key -> dataset.getValue(key).doubleValue()).sum();
+		for (final String key : dataset.getKeys()) { // Check if any section is less than 5% of the total
+			final double value = dataset.getValue(key).doubleValue();
+			if (value > 0 && value / total < 0.05)
+				return true;
+		}
+		return false;
+	}
+
 	static class HistogramDatasetPlus {
 		final List<Double> values;
 		int nBins;
@@ -652,30 +735,5 @@ class AnalysisUtils {
 			return dataset;
 		}
 
-	}
-
-	/* IDE debug method */
-	public static void main(final String[] args) {
-		sc.fiji.snt.gui.GuiUtils.setLookAndFeel();
-		final SNTService sntService = new sc.fiji.snt.SNTService();
-		final List<Tree> trees1 = sntService.demoTrees();
-		final List<Tree> trees2 = sntService.demoTrees();
-		trees2.forEach( tree -> tree.scale(1.5, 1.5, 1.5));
-		GroupedTreeStatistics groupedStats = new GroupedTreeStatistics();
-		groupedStats.addGroup(trees1, "Group 1");
-		groupedStats.addGroup(trees2, "Group 2");
-		SNTChart hist = groupedStats.getHistogram(TreeStatistics.INTER_NODE_DISTANCE);
-		hist.setNormDistributionVisible(true);
-		hist.show();
-		MultiTreeStatistics multiStats = new MultiTreeStatistics(Stream.concat(trees1.stream(), trees2.stream())
-				.collect(Collectors.toList()));
-		hist = multiStats.getHistogram(TreeStatistics.BRANCH_LENGTH);
-		hist.setTitle("Group Hist.");
-		hist.setQuartilesVisible(true);
-		hist.show();
-		hist = multiStats.getPolarHistogram(TreeStatistics.REMOTE_BIF_ANGLES);
-		hist.setTitle("Group Hist.");
-		hist.setQuartilesVisible(true);
-		hist.show();
 	}
 }

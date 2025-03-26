@@ -485,9 +485,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		menu.add(jmi);
 		menu.addSeparator();
 		jmi = new JMenuItem("Start Spot Spine...");
-		jmi.addActionListener(e -> {
-			plugin.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>());
-		});
+		jmi.addActionListener(e -> plugin.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>()));
 		menu.add(jmi);
 		menu.addSeparator();
 		jmi = GuiUtils.MenuItems.openHelpURL("Spine/Varicosity Utilities Help",
@@ -550,7 +548,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void assembleSWCtypeMenu(final boolean applyPromptOptions) {
 		swcTypeMenu.removeAll();
 		swcTypeButtonGroup = new ButtonGroup();
-		final int iconSize = GuiUtils.MenuItems.defaultHeight();
 		final SWCTypeOptionsCmd optionsCmd = new SWCTypeOptionsCmd();
 		optionsCmd.setContext(plugin.getContext());
 		final TreeMap<Integer, Color> map = optionsCmd.getColorMap();
@@ -3619,6 +3616,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final Map<String, int[]> tagsMap;
 		final JCheckBoxMenuItem toggleMenuItem;
+		SNTChart ringChart;
 
 		ProofReadingTagsToolBar() {
 			super("Proofreading Tags", HORIZONTAL);
@@ -3634,6 +3632,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			tagsMap.put("partial", new int[]{0XFFF8BF, 0xA06106});
 			tagsMap.put("unsure", new int[]{0XFFDF9E, 0XED5B00});
 			tagsMap.put("wrong", new int[]{0xEBB8BC, 0xE51C2B}); //0xE53E4D
+			add(summaryButton());
+			addSeparator();
 			tagsMap.forEach((name, colors) -> add(tagButton(name, colors[0], colors[1])));
 			add(clearButton());
 			addExtras();
@@ -3652,7 +3652,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		void addExtras() {
 			final JPopupMenu popupMenu = new JPopupMenu();
-			final JMenuItem item = new JMenuItem("Hide " + getName());
+			final JMenuItem item = new JMenuItem("Hide " + getName(), IconFactory.menuIcon('\uf070', true));
 			item.addActionListener(e -> setVisible(false));
 			popupMenu.add(item);
 			setComponentPopupMenu(popupMenu);
@@ -3661,6 +3661,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					"https://imagej.net/plugins/snt/manual#tag-"));
 			add(Box.createHorizontalGlue());
 			add(help);
+		}
+
+		JButton summaryButton() {
+			final JButton sButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CHART_PIE, new Color(0xF8F8F8));
+			sButton.setToolTipText("Summarizes applied tags in a donut chart.");
+			sButton.setBackground(new Color(0x8F8F8F));
+			sButton.addActionListener(e -> summarizeTags());
+			return sButton;
 		}
 
 		JButton clearButton() {
@@ -3692,9 +3700,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return clearButton;
 		}
 
+		String capitalized(final String string) {
+			return string.substring(0, 1).toUpperCase() + string.substring(1);
+		}
+
 		JButton tagButton(final String tagName, final int background, final int foreground) {
-			final JButton tagButton = GuiUtils.Buttons.toolbarButton(" " +
-					tagName.substring(0, 1).toUpperCase() + tagName.substring(1) + " ");
+			final JButton tagButton = GuiUtils.Buttons.toolbarButton(capitalized(tagName));
 			final Color bkgrdColor = new Color(background);
 			tagButton.setBackground(bkgrdColor);
 			tagButton.setForeground(new Color(foreground));
@@ -3723,6 +3734,39 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return tagButton;
 		}
 
+		void summarizeTags() {
+			final Collection<Path> paths = pathAndFillManager.getPathsFiltered();
+			if (paths.isEmpty()) {
+				guiUtils.error("There are no traced paths.");
+				return;
+			}
+			final HashMap<String, Double> dataset = new HashMap<>();
+			final HashMap<String, Color> colors = new HashMap<>();
+			tagsMap.forEach( (tag, intColors) -> {
+				dataset.put(tag, 0d);
+				colors.put(tag, new Color(intColors[0]));
+			});
+			dataset.put("none", 0d);
+			colors.put("none", Color.LIGHT_GRAY);
+			paths.forEach(p -> {
+				final String tag = getFirstTag(p);
+				if (tag != null)
+					dataset.put(tag, dataset.get(tag)+1);
+				else
+					dataset.put("none", dataset.get("none")+1);
+			});
+			final SNTChart chart = AnalysisUtils.ringPlot(String.format("Tags (All %d Paths)", paths.size()), dataset, colors);
+			if (ringChart != null && ringChart.isVisible()) {
+				ringChart.replace(chart);
+				ringChart.getFrame().setTitle(String.format("Tags (All %d Paths)", paths.size()));
+				ringChart.show();
+			} else {
+				chart.getFrame().setLocationRelativeTo(ProofReadingTagsToolBar.this);
+				chart.show();
+				ringChart = chart;
+			}
+		}
+
 		String extractPreviousTag(final String pathTags) {
 			for (final String tag : tagsMap.keySet())
 				if (pathTags.contains(tag)) return tag;
@@ -3739,6 +3783,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return cleanedPathTags;
 				}
 			return pathTags;
+		}
+
+		String getFirstTag(final Path path) {
+			final String tags = extractTagsFromPath(path);
+			if (tags.isEmpty())
+				return null;
+			for (final String tag : tagsMap.keySet())
+				if (tags.contains(tag)) return tag;
+			return null;
 		}
 	}
 
