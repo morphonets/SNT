@@ -22,11 +22,6 @@
 
 package sc.fiji.snt.analysis;
 
-import java.awt.*;
-import java.util.*;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
@@ -51,13 +46,24 @@ import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.general.DefaultPieDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
-import org.jfree.data.xy.*;
+import org.jfree.data.xy.DefaultXYDataset;
+import org.jfree.data.xy.XYDataset;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
 import org.scijava.util.ColorRGB;
-
 import org.scijava.util.Colors;
-import sc.fiji.snt.*;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
+
+import java.awt.*;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.DoubleStream;
 
 /**
  * Static utilities for sc.fiji.analysis.
@@ -102,7 +108,7 @@ public class AnalysisUtils {
 	 * 
 	 * @param standardMetric SNT's supported metric, e.g.,
 	 *                       {@link TreeStatistics#BRANCH_VOLUME}
-	 * @param unit,          the associated spatial uni (e.g., "µm")
+	 * @param unit          the associated spatial uni (e.g., "µm")
 	 * @return the metric label, e.g., "Branch volume (µm³)"
 	 */
 	public static String getMetricLabel(final String standardMetric, final String unit) {
@@ -154,7 +160,7 @@ public class AnalysisUtils {
 		if (datasetPlus.n ==0) datasetPlus.compute();
 		sb.append("Q1: ").append(SNTUtils.formatDouble(datasetPlus.q1, nDecimals));
 		if (stats instanceof DescriptiveStatistics)
-			sb.append("  Median: ").append(SNTUtils.formatDouble(//
+			sb.append("  Med.: ").append(SNTUtils.formatDouble(//
 					((DescriptiveStatistics) stats).getPercentile(50), nDecimals));
 		sb.append("  Q3: ").append(SNTUtils.formatDouble(datasetPlus.q3, nDecimals));
 		sb.append("  IQR: ").append(SNTUtils.formatDouble(datasetPlus.q3 - datasetPlus.q1, nDecimals));
@@ -168,28 +174,25 @@ public class AnalysisUtils {
 		return sb.toString();
 	}
 
-	static SNTChart createPolarHistogram(final String title, final String unit, final DescriptiveStatistics stats) {
-		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
-		final JFreeChart chart = createPolarHistogram(title, unit, stats, datasetPlus);
-		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+	static SNTChart createPolarHistogram(final String title, final String unit, final DescriptiveStatistics stats, final HistogramDatasetPlus datasetPlus) {
+		return createPolarHistogram(title, unit, stats, getSummaryDescription(stats, datasetPlus), datasetPlus);
 	}
 
 	static SNTChart createPolarHistogram(final String title, final String unit, final DescriptiveStatistics stats, final String description) {
-		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, title);
+		return createPolarHistogram(title, unit, stats, description, datasetPlus);
+	}
+
+	static SNTChart createPolarHistogram(final String title, final String unit, final DescriptiveStatistics stats, final String description, final HistogramDatasetPlus datasetPlus) {
 		final JFreeChart chart = createPolarHistogram(title, unit, stats, datasetPlus, description);
-		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
+		return new SNTChart("Polar Hist. " + StringUtils.capitalize(title), chart);
 	}
 
-	static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
-										   final HistogramDatasetPlus datasetPlus) {
-		return createPolarHistogram(xAxisTitle, unit, stats, datasetPlus, getSummaryDescription(stats, datasetPlus));
-
-	}
-	static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
+	private static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
 			final HistogramDatasetPlus datasetPlus, final String description) {
 
 		final PolarPlot polarPlot = new PolarPlot();
-		polarPlot.setDataset(histoDatasetToSingleXYDataset(datasetPlus.getDataset(xAxisTitle), 1, datasetPlus.nBins));
+		polarPlot.setDataset(histoDatasetToSingleXYDataset(datasetPlus.getDataset(), 1, datasetPlus.nBins));
 
 		// Customize series
 		final DefaultPolarItemRenderer render = new DefaultPolarItemRenderer();
@@ -257,16 +260,25 @@ public class AnalysisUtils {
 		return chart;
 	}
 
-	static XYItemRenderer getNormalCurveRenderer(final XYPlot histogram) {
+	static List<XYItemRenderer> getNormalCurveRenderers(final XYPlot histogram) {
+		return getCurveRenderers(histogram, "Norm. dist.");
+	}
+
+	static List<XYItemRenderer> getGMMCurveRenderers(final XYPlot histogram) {
+		return getCurveRenderers(histogram, "GMM");
+	}
+
+	private static List<XYItemRenderer> getCurveRenderers(final XYPlot histogram, final String pattern) {
+		final List<XYItemRenderer> list = new ArrayList<>();
 		for (int i = 0; i < histogram.getDatasetCount(); i++) {
 			final XYDataset dataset = histogram.getDataset(i);
 			for (int j = 0; j < dataset.getSeriesCount(); j++) {
-				if (dataset.getSeriesKey(j) != null && dataset.getSeriesKey(j).toString().startsWith("Norm. distribution")) {
-					return histogram.getRendererForDataset(dataset);
+				if (dataset.getSeriesKey(j) != null && dataset.getSeriesKey(j).toString().contains(pattern)) {
+					list.add(histogram.getRendererForDataset(dataset));
 				}
 			}
 		}
-		return null;
+		return list;
 	}
 
 	static XYItemRenderer getQuartileMarkersRenderer(final XYPlot histogram) {
@@ -341,42 +353,32 @@ public class AnalysisUtils {
 		}
 	}
 
-	static void addNormalCurve(final XYPlot histogram, final XYSeriesCollection normalDataset,
-							   final boolean visibility) {
+	private static void addSecondaryCurveToHist(final XYPlot histogram, final XYSeriesCollection curveDataset, final boolean visibility) {
 
-		assert normalDataset.getSeriesCount() == histogram.getDatasetCount();
+		assert curveDataset.getSeriesCount() == histogram.getDatasetCount();
 
 		// create the series;
-		final int normalCurveIdx = histogram.getDatasetCount();
-		histogram.setDataset(normalCurveIdx, normalDataset);
-
-		// assign normalCurve to a second non-visible Y axis
-		final NumberAxis axis = new NumberAxis("Norm. distribution");
-		axis.setVisible(false);
-		histogram.setRangeAxis(1, axis);
-		histogram.mapDatasetToRangeAxis(normalCurveIdx, 1);
-		histogram.mapDatasetToDomainAxis(normalCurveIdx, 0);
+		final int curveIdx = histogram.getDatasetCount();
+		histogram.setDataset(curveIdx, curveDataset);
 
 		// Customize series
 		final XYSplineRenderer renderer = new XYSplineRenderer();
 		renderer.setDefaultShapesVisible(false);
 		renderer.setDrawSeriesLineAsPath(true);
-		renderer.setDefaultStroke(new BasicStroke(1.5f));
+		renderer.setDefaultStroke(new BasicStroke(2f));
 		renderer.setAutoPopulateSeriesStroke(false); // otherwise stroke is not applied
 		renderer.setDefaultSeriesVisible(visibility);
 		renderer.setDefaultSeriesVisibleInLegend(false);
-		final Color[] colors = (normalDataset.getSeriesCount() == 1) ?
-				new Color[]{Color.DARK_GRAY} : SNTColor.getDistinctColorsAWT(normalDataset.getSeriesCount());
-		for (int j = 0; j < normalDataset.getSeriesCount(); j++) {
+		final Color[] colors = (curveDataset.getSeriesCount() == 1) ?
+				new Color[]{Color.DARK_GRAY} : SNTColor.getDistinctColorsAWT(curveDataset.getSeriesCount());
+		for (int j = 0; j < curveDataset.getSeriesCount(); j++) {
 			renderer.setSeriesPaint(j, colors[j]);
 			renderer.setSeriesOutlinePaint(j, colors[j]);
 		}
-		final XYToolTipGenerator xyToolTipGenerator = (dataset, series, item) -> {
-			return String.format("%s (%.3f, %.3f)", dataset.getSeriesKey(series),
-					dataset.getX(series, item).doubleValue(), dataset.getY(series, item).doubleValue());
-		};
+		final XYToolTipGenerator xyToolTipGenerator = (dataset, series, item) -> String.format("%s (%.3f, %.3f)", dataset.getSeriesKey(series),
+                dataset.getX(series, item).doubleValue(), dataset.getY(series, item).doubleValue());
 		renderer.setDefaultToolTipGenerator(xyToolTipGenerator);
-		histogram.setRenderer(normalCurveIdx, renderer);
+		histogram.setRenderer(curveIdx, renderer);
 	}
 
 	static XYSeriesCollection getNormalDataset(final HistogramDatasetPlus hdp, final double fromX, final double toX) {
@@ -386,48 +388,94 @@ public class AnalysisUtils {
 	static XYSeriesCollection getNormalDataset(final List<HistogramDatasetPlus> hdps, final double fromX, final double toX) {
 		final XYSeriesCollection dataset = new XYSeriesCollection();
 		final AtomicInteger counter = new AtomicInteger(1);
-		hdps.forEach( hdp -> dataset.addSeries(getNormalCurve(hdp, fromX, toX, String.valueOf(counter.getAndIncrement()))));
+		hdps.forEach( hdp -> {
+			if (hdp.dStats.getStandardDeviation() > 0)
+				dataset.addSeries(getNormalCurve(hdp, fromX, toX, String.valueOf(counter.getAndIncrement())));
+		});
 		return dataset;
 	}
 
-	static XYSeries getNormalCurve(final HistogramDatasetPlus hdp, final double fromX, final double toX, final String label) {
-		return getNormalCurve(hdp.dStats.getMean(), hdp.dStats.getStandardDeviation(), fromX, toX, label);
-	}
-
-	static XYSeries getNormalCurve(final double mu, final double sigma, final double fromX, final double toX, final String label) {
+	private static XYSeries getNormalCurve(final HistogramDatasetPlus hdp, final double fromX, final double toX, final String label) {
+		final smile.stat.distribution.GaussianDistribution gaussian = new smile.stat.distribution.GaussianDistribution(hdp.mean(), hdp.std());
 		final int nSteps = 500;
 		final double step = (toX - fromX) / nSteps;
-		final XYSeries series = new XYSeries("Norm. distribution " + label);
+		final XYSeries series = new XYSeries("Norm. dist. " + label);
+		final double histArea = hdp.histogramArea();
+		// Calculate the total area under the Gaussian curve withing the [fromX-toX] range
+		double totalGaussianArea = 0;
 		for (int i = 0; i < nSteps; i++) {
 			final double x = fromX + (i * step);
-			final double y = ((1 / (sigma * Math.sqrt(2 * Math.PI))) * (Math.exp(-(((x - mu) * (x - mu)) / ((2 * sigma * sigma))))));
+			final double y = gaussian.p(x);
+			totalGaussianArea += y * step;
+		}
+		// Generate the scaled Gaussian curve
+		final double scaleFactor = histArea / totalGaussianArea;
+		for (int i = 0; i < nSteps; i++) {
+			final double x = fromX + (i * step);
+			final double y = gaussian.p(x) * scaleFactor;
+			series.add(x, y);
+		}
+		return series;
+	}
+
+	private static XYSeriesCollection getGMMDataset(final HistogramDatasetPlus hdp, final double fromX, final double toX) {
+		return getGMMDataset(List.of(hdp), fromX, toX);
+	}
+
+	private static XYSeriesCollection getGMMDataset(final List<HistogramDatasetPlus> hdps, final double fromX, final double toX) {
+		final XYSeriesCollection dataset = new XYSeriesCollection();
+		final AtomicInteger counter = new AtomicInteger(1);
+		hdps.forEach( hdp -> {
+			if (hdp.n > 20) // at least 20 points to fit a GMM
+				dataset.addSeries(getGMMCurve(hdp, fromX, toX, String.valueOf(counter.getAndIncrement())));
+		});
+		return dataset;
+	}
+
+	private static XYSeries getGMMCurve(final HistogramDatasetPlus hdp, final double fromMin, final double toMax, final String label) {
+		final smile.stat.distribution.GaussianMixture mixture = smile.stat.distribution.GaussianMixture.fit(hdp.values());
+		final int nSteps = 500;
+		final double step = (toMax - fromMin) / nSteps;
+		final XYSeries series = new XYSeries("GMM " + label);
+		final double histArea = hdp.histogramArea();
+		// Calculate the total area under the curve withing the [fromX-toX] range
+		double totalArea = 0;
+		for (int i = 0; i < nSteps; i++) {
+			final double x = fromMin + (i * step);
+			final double y = mixture.p(x);
+			totalArea += y * step;
+		}
+		// Generate the scaled curve
+		final double scaleFactor = histArea / totalArea;
+		for (int i = 0; i < nSteps; i++) {
+			final double x = fromMin + (i * step);
+			final double y = mixture.p(x) * scaleFactor;
 			series.add(x, y);
 		}
 		return series;
 	}
 
 	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats, final String description) {
-		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, title);
 		final JFreeChart chart = createHistogram(title, unit, stats, datasetPlus, description);
 		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
 	}
 
 	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats) {
-		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, title);
+		return createHistogram(title, unit, stats, datasetPlus);
+	}
+
+	static SNTChart createHistogram(final String title, final String unit, final DescriptiveStatistics stats, final HistogramDatasetPlus datasetPlus) {
 		final JFreeChart chart = createHistogram(title, unit, stats, datasetPlus, getSummaryDescription(stats, datasetPlus));
 		return new SNTChart("Hist. " + StringUtils.capitalize(title), chart);
 	}
 
-	static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
-									  final HistogramDatasetPlus datasetPlus) {
-		return createHistogram(xAxisTitle, unit, stats, datasetPlus,  getSummaryDescription(stats, datasetPlus));
-	}
-
-	static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
+	private static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
 			final HistogramDatasetPlus datasetPlus, final String summaryDescription) {
 
 		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(xAxisTitle, unit),
-			"Rel. Frequency", datasetPlus.getDataset(xAxisTitle));
+			"Rel. Frequency", datasetPlus.getDataset());
 
 		// Customize plot
 		final XYPlot plot = chart.getXYPlot();
@@ -447,7 +495,8 @@ public class AnalysisUtils {
 		chart.addSubtitle(label);
 		final double minX = plot.getDomainAxis().getRange().getLowerBound();
 		final double maxX = plot.getDomainAxis().getRange().getUpperBound();
-		addNormalCurve(plot, getNormalDataset(datasetPlus, minX, maxX), false);
+		addSecondaryCurveToHist(plot, getNormalDataset(datasetPlus, minX, maxX), false);
+		addSecondaryCurveToHist(plot, getGMMDataset(datasetPlus, minX, maxX), false);
 		addQuartileMarkers(plot, datasetPlus, false);
 		return chart;
 	}
@@ -460,9 +509,8 @@ public class AnalysisUtils {
 			((XYPlot) plot).setRangeGridlinesVisible(false);
 			((XYPlot) plot).setAxisOffset(new RectangleInsets(0,0, 0, 0));
 		}
-		if (plot instanceof CategoryPlot) {
-			final CategoryPlot cPlot = (CategoryPlot) plot;
-			cPlot.setDomainGridlinesVisible(false);
+		if (plot instanceof CategoryPlot cPlot) {
+            cPlot.setDomainGridlinesVisible(false);
 			cPlot.setRangeGridlinesVisible(true);
 			cPlot.getDomainAxis().setCategoryMargin(0);
 			cPlot.getDomainAxis().setLowerMargin(0.01);
@@ -487,26 +535,21 @@ public class AnalysisUtils {
 		bar_renderer.setBarPainter(new StandardXYBarPainter());
 		bar_renderer.setDrawBarOutline(true);
 		bar_renderer.setSeriesOutlinePaint(0, Color.DARK_GRAY);
-		final ColorRGB[] colors = (nSeries==1) ? new ColorRGB[]{Colors.LIGHTGRAY} : SNTColor.getDistinctColors(nSeries);
+		final Color[] colors = (nSeries==1) ? new Color[]{ Color.LIGHT_GRAY} : SNTColor.getDistinctColorsAWT(nSeries);
 		for (int i = 0; i < nSeries; i++) {
-			final Color awtColor = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue(), 128);
+			final Color awtColor = SNTColor.alphaColor(colors[i], 50);
 			bar_renderer.setSeriesPaint(i, awtColor);
 		}
 		bar_renderer.setShadowVisible(false);
+		if (nSeries==1) chart.removeLegend();
 		if (hdps != null) {
 			final double minX = plot.getDomainAxis(0).getRange().getLowerBound();
 			final double maxX = plot.getDomainAxis(0).getRange().getUpperBound();
-			addNormalCurve(plot, getNormalDataset(hdps, minX, maxX), false);
+			addSecondaryCurveToHist(plot, getNormalDataset(hdps, minX, maxX), false);
+			addSecondaryCurveToHist(plot, getGMMDataset(hdps, minX, maxX), false);
 			addQuartileMarkers(plot, hdps, false);
 		}
-		if (nSeries==1) chart.removeLegend();
 		return new SNTChart("Grouped Hist.", chart);
-	}
-
-
-	static SNTChart createHistogram(final String normMeasurement, final String unit, final int nSeries,
-									final HistogramDataset dataset) {
-		return createHistogram(normMeasurement, unit, nSeries, dataset, null);
 	}
 
 	static SNTChart createPolarHistogram(final String normMeasurement, final String unit, final HistogramDataset dataset, final int nSeries,
@@ -597,7 +640,7 @@ public class AnalysisUtils {
 	 * @return the computed number of bins for the histogram
 	 */
 	public static int computeNBins(final DescriptiveStatistics stats) {
-		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, false);
+		final AnalysisUtils.HistogramDatasetPlus datasetPlus = new AnalysisUtils.HistogramDatasetPlus(stats, "");
 		datasetPlus.compute();
 		return datasetPlus.nBins;
 	}
@@ -615,7 +658,7 @@ public class AnalysisUtils {
 	public static SNTChart ringPlot(final String title, final HashMap<String, Double> data,
 									final HashMap<String, Color> colors)  {
 		final DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
-		data.forEach((k,v) -> dataset.setValue(capitalized(k), v));
+		data.forEach((k,v) -> dataset.setValue(StringUtils.capitalize(k), v));
 		dataset.sortByValues(SortOrder.DESCENDING);
 		final RingPlot ringPlot = getRingPlot(dataset);
 		if (colors == null) {
@@ -624,13 +667,9 @@ public class AnalysisUtils {
 			for (final String key : data.keySet())
 				ringPlot.setSectionPaint(key, c[idx++]);
 		} else {
-			colors.forEach((k,v) -> ringPlot.setSectionPaint(capitalized(k), v));
+			colors.forEach((k,v) -> ringPlot.setSectionPaint(StringUtils.capitalize(k), v));
 		}
 		return new SNTChart(title, new JFreeChart(null, null, ringPlot, false));
-	}
-
-	private static String capitalized(final String string) {
-		return string.substring(0, 1).toUpperCase() + string.substring(1);
 	}
 
 	private static RingPlot getRingPlot(final DefaultPieDataset<String> dataset) {
@@ -675,38 +714,43 @@ public class AnalysisUtils {
 	}
 
 	static class HistogramDatasetPlus {
-		final List<Double> values;
 		int nBins;
 		long n;
 		double q1, q3, min, max;
-		private DescriptiveStatistics dStats;
+		HistogramDataset dataset;
+		double histArea;
+		final String label;
+		final DescriptiveStatistics dStats;
 
-		HistogramDatasetPlus() {
-			values = new ArrayList<>();
+		HistogramDatasetPlus(final String label) {
+			dStats = new DescriptiveStatistics();
+			this.label = label;
 		}
 
-		HistogramDatasetPlus(final DescriptiveStatistics stats, final boolean retrieveValues) {
-			this();
+		HistogramDatasetPlus(final DescriptiveStatistics stats, final String label) {
 			dStats = stats;
-			if (retrieveValues) {
-				for (final double v : stats.getValues()) {
-					values.add(v);
-				}
-			}
+			this.label = label;
 		}
 
-		double[] valuesAsArray() {
-			final double[] doubles = new double[values.size()];
-			for (int i = 0; i < doubles.length; i++) {
-				doubles[i] = values.get(i);
-			}
-			return doubles;
+		List<Double> valuesAsList() {
+			return DoubleStream.of(values()).boxed().toList();
+		}
+
+		double[] values() {
+			return dStats.getValues();
+		}
+
+		double mean() {
+			return dStats.getMean();
+		}
+
+		double std() {
+			return dStats.getStandardDeviation();
 		}
 
 		void compute() {
-			if (dStats == null) {
-				dStats = new DescriptiveStatistics();
-				values.forEach(v -> dStats.addValue(v));
+			if (nBins > 0) {
+				return; // already computed
 			}
 			n = dStats.getN();
 			q1 = dStats.getPercentile(25);
@@ -727,13 +771,27 @@ public class AnalysisUtils {
 			}
 		}
 
-		HistogramDataset getDataset(final String label) {
+		HistogramDataset getDataset() {
+			if (dataset != null) return dataset;
 			compute();
-			final HistogramDataset dataset = new HistogramDataset();
+			dataset = new HistogramDataset();
 			dataset.setType(HistogramType.RELATIVE_FREQUENCY);
-			dataset.addSeries(label, valuesAsArray(), nBins);
+			dataset.addSeries(label, values(), nBins);
 			return dataset;
 		}
 
+		double histogramArea() {
+			if (histArea > 0) return histArea;
+			histArea = 0;
+			dataset = getDataset();
+			for (int i = 0; i < dataset.getSeriesCount(); i++) {
+				for (int j = 0; j < dataset.getItemCount(i); j++) {
+					final double w = dataset.getEndX(i, j).doubleValue() - dataset.getStartX(i, j).doubleValue();
+					final double h = dataset.getY(i, j).doubleValue();
+					histArea += w * h;
+				}
+			}
+			return histArea;
+		}
 	}
 }

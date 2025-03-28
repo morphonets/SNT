@@ -22,18 +22,6 @@
 
 package sc.fiji.snt.analysis;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.stream.IntStream;
-
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.Context;
 import org.scijava.NoSuchServiceException;
@@ -45,8 +33,17 @@ import org.scijava.plugin.Parameter;
 import org.scijava.table.*;
 import org.scijava.table.io.DefaultTableIOPlugin;
 import org.scijava.table.io.TableIOOptions;
-
 import sc.fiji.snt.SNTUtils;
+
+import java.io.*;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.IntStream;
 
 /**
  * Extension of {@code DefaultGenericTable} with (minor) scripting conveniences.
@@ -70,6 +67,10 @@ public class SNTTable extends DefaultGenericTable {
 	}
 
 	public SNTTable(final String filePath) throws IOException {
+		this(filePath, ',');
+	}
+
+	public SNTTable(final String filePath, final char columDelimiter) throws IOException {
 		super();
 		if (tableIO == null) {
 			try { // Failure if new Context(IOservice.class); !?
@@ -82,7 +83,7 @@ public class SNTTable extends DefaultGenericTable {
 			throw new NoSuchServiceException("Failed to initialize IOService");
 		}
 		final FileLocation loc = new FileLocation(filePath);
-		final Table<?, ?> openedTable = loadTable(loc, tableIO);
+		final Table<?, ?> openedTable = loadTable(loc, tableIO, columDelimiter);
 		for (int col = 0; col < openedTable.getColumnCount(); ++col) {
 			add(openedTable.get(col));
 		}
@@ -90,8 +91,9 @@ public class SNTTable extends DefaultGenericTable {
 		hasUnsavedData = false;
 	}
 
-	private Table<?, ?> loadTable(final FileLocation fileLocation, final DefaultTableIOPlugin tableIO) throws IOException {
+	private Table<?, ?> loadTable(final FileLocation fileLocation, final DefaultTableIOPlugin tableIO, final char colDelimiter) throws IOException {
 		final TableIOOptions options = new TableIOOptions();
+		options.columnDelimiter(colDelimiter);
 		Table<?, ?> table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
 		if (table.isEmpty())
 			table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
@@ -242,7 +244,7 @@ public class SNTTable extends DefaultGenericTable {
 	}
 
 	public List<String> geColumnHeaders() {
-		return geColumnHeaders("");
+		return geColumnHeaders(null);
 	}
 
 	public List<String> geColumnHeaders(final String pattern) {
@@ -398,24 +400,48 @@ public class SNTTable extends DefaultGenericTable {
 		return (title == null) ? "SNT Measurements" : title;
 	}
 
-//	@Override
-//	public String toString() {
-//		return toString(this, 0, getRowCount() - 1);
-//	}
-
 	/**
-	 * Script-friendly method for creating a table from a file.
+	 * Script-friendly method for loading CSV data from a file/URL.
 	 *
-	 * @param filePath the absolute path to the (csv) file to be imported
+	 * @param filePathOrURL the absolute path or URL to the CSV file to be imported
 	 * @return the SNTTable or null if file could not be imported
 	 */
-	public static SNTTable fromFile(final String filePath) {
+	public static SNTTable fromFile(final String filePathOrURL) {
+		return fromFile(filePathOrURL, ",");
+	}
+
+	/**
+	 * Script-friendly method for loading tabular data from a file/URL.
+	 *
+	 * @param filePathOrURL the absolute path or URL to the tabular file to be imported
+	 * @param delimiter the column delimiter (comma, tab, etc.). A single character expected.
+	 * @return the SNTTable or null if file could not be imported
+	 */
+	public static SNTTable fromFile(final String filePathOrURL, final String delimiter) {
 		try {
-			return new SNTTable(filePath);
-		} catch (final IOException e) {
+			if (isRemoteURL(filePathOrURL)) {
+				final String name = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
+				final File file = SNTUtils.downloadToTempFile(filePathOrURL);
+				final SNTTable table = new SNTTable(file.getAbsolutePath(), delimiter.charAt(0));
+				table.title = name;
+				return table;
+			} else {
+				return new SNTTable( new File(filePathOrURL).getAbsolutePath(), delimiter.charAt(0));
+			}
+		} catch (final IOException | URISyntaxException e) {
+			SNTUtils.error(e.getMessage(), e);
 			return null;
 		}
-	}
+    }
+
+	private static boolean isRemoteURL(String filePathOrURL) {
+		try {
+			final URL url = new URI(filePathOrURL).toURL();
+			return "http".equals(url.getProtocol()) || "https".equals(url.getProtocol()) || "ftp".equals(url.getProtocol());
+		} catch (final Exception ignored) {
+			return false;
+		}
+    }
 
 	public static String toString(final GenericTable table) {
 		return toString(table, 0, table.getRowCount() - 1);

@@ -1344,7 +1344,7 @@ public class GuiUtils {
 
 	public static void addSeparator(final JMenu menu, final String header) {
 		final JLabel label = leftAlignedLabel(header, false);
-		if (menu.getComponentCount() > 1) menu.addSeparator();
+		if (menu.getMenuComponents().length > 1) menu.addSeparator();
 		menu.add(label);
 	}
 
@@ -2620,6 +2620,7 @@ public class GuiUtils {
 		public static JButton toolbarButton(final IconFactory.GLYPH glyph, final Color color) {
 			final JButton button = toolbarButton("");
 			IconFactory.assignIcon(button, glyph, color);
+			button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.9f));
 			return button;
 		}
 

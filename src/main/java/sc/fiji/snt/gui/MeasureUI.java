@@ -391,7 +391,7 @@ public class MeasureUI extends JFrame {
 				final List<String> choices = new GuiUtils(this).getMultipleChoices("Which metrics",
 						table.geColumnHeaders().toArray(new String[0]), null);
 				if (choices == null || choices.isEmpty()) return;
-				SNTChart.getHistogram(table, choices).show();
+				SNTChart.getHistogram(table, choices, false).show();
 				if (isSummarized) {
 					table.summarize();
 					updateTable(false);

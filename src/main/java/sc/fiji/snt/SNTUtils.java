@@ -22,29 +22,12 @@
 
 package sc.fiji.snt;
 
-import java.awt.GraphicsEnvironment;
-import java.io.File;
-import java.io.FileFilter;
-import java.io.PrintWriter;
-import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
-import java.nio.file.Paths;
-import java.text.DecimalFormat;
-import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Random;
-import java.util.concurrent.TimeUnit;
-import java.util.jar.Attributes;
-import java.util.jar.Manifest;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+import fiji.util.Levenshtein;
+import io.scif.services.DatasetIOService;
+import net.imagej.ImageJ;
+import net.imagej.display.ImageDisplayService;
+import net.imagej.lut.LUTService;
+import net.imagej.ops.OpService;
 import org.scijava.Context;
 import org.scijava.app.StatusService;
 import org.scijava.batch.BatchService;
@@ -67,17 +50,29 @@ import org.scijava.ui.console.ConsolePane;
 import org.scijava.ui.swing.script.LanguageSupportService;
 import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
-
-import fiji.util.Levenshtein;
-import io.scif.services.DatasetIOService;
-import net.imagej.ImageJ;
-import net.imagej.display.ImageDisplayService;
-import net.imagej.lut.LUTService;
-import net.imagej.ops.OpService;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.viewer.Viewer3D;
+
+import java.awt.*;
+import java.io.*;
+import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.text.DecimalFormat;
+import java.text.NumberFormat;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Static utilities for SNT **/
 public class SNTUtils {
@@ -503,6 +498,29 @@ public class SNTUtils {
 		else
 			GuiUtils.closeSplashScreen();
 	}
+
+	/**
+	 * Downloads a file from the specified URL to a temporary file
+	 *
+	 * @param fileUrl the URL of the file to download
+	 * @return the downloaded file
+	 * @throws IOException        if an I/O error occurs
+	 * @throws URISyntaxException if the URL is malformed
+	 */
+	public static File downloadToTempFile(final String fileUrl) throws IOException, URISyntaxException {
+		final URL url = new URI(fileUrl).toURL();
+		java.nio.file.Path tempFile = Files.createTempFile(null, null);
+		tempFile.toFile().deleteOnExit();
+		try (final InputStream in = url.openStream(); final OutputStream out = Files.newOutputStream(tempFile)) {
+			final byte[] buffer = new byte[1024];
+			int bytesRead;
+			while ((bytesRead = in.read(buffer)) != -1) {
+				out.write(buffer, 0, bytesRead);
+			}
+		}
+		return tempFile.toFile();
+	}
+
 
 	/**
 	 * Convenience method to access the context of the running Fiji instance

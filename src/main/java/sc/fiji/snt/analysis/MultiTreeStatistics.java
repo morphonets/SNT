@@ -36,7 +36,6 @@ import java.util.stream.Collectors;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
-import org.jfree.chart.JFreeChart;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.Path;
@@ -284,7 +283,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 	@Override
 	public SNTChart getHistogram(final String metric) {
 		final String normMeasurement = getNormalizedMeasurement(metric);
-		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
+		final HDPlus datasetPlus = new HDPlus(normMeasurement);
 		try {
 			return getHistogram(normMeasurement, datasetPlus);
 		} catch (final IllegalArgumentException ex) {
@@ -296,11 +295,11 @@ public class MultiTreeStatistics extends TreeStatistics {
 	@Override
 	public SNTChart getPolarHistogram(final String metric) {
 		final String normMeasurement = getNormalizedMeasurement(metric);
-		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
+		final HDPlus datasetPlus = new HDPlus(normMeasurement);
 		try {
-			final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, "", lastDstats.dStats,
-					datasetPlus);
-			return new SNTChart("Polar Hist. " + tree.getLabel(), chart);
+			final SNTChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
+			chart.setTitle("Polar Hist. " + tree.getLabel());
+			return chart;
 		} catch (final IllegalArgumentException ex) {
 			throw new IllegalArgumentException("TreeStatistics metric is likely not supported by MultiTreeStatistics",
 					ex);
@@ -309,7 +308,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 
 	public SNTTable getRawValues(final String metric) {
 		final String normMeasurement = getNormalizedMeasurement(metric);
-		final HistogramDatasetPlusMulti datasetPlus = new HistogramDatasetPlusMulti(normMeasurement);
+		final HDPlus datasetPlus = new HDPlus(normMeasurement);
 		try {
 			return datasetPlus.getTable();
 		} catch (final IllegalArgumentException ex) {
@@ -404,21 +403,6 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final SNTChart chart = gts.getFlowPlot(feature, annotations, statistic, cutoff, normalize);
 		chart.setTitle("Flow Plot [Group of Cells]");
 		return chart;
-	}
-
-	class HistogramDatasetPlusMulti extends HDPlus {
-		HistogramDatasetPlusMulti(final String measurement) {
-			super(measurement, false);
-			getDescriptiveStats(measurement);
-			for (final double v : lastDstats.dStats.getValues()) {
-				values.add(v);
-			}
-		}
-		SNTTable getTable() {
-			final SNTTable table = new SNTTable();
-			table.addColumn(measurement, lastDstats.dStats.getValues());
-			return table;
-		}
 	}
 
 	public static List<String> getMetrics() {

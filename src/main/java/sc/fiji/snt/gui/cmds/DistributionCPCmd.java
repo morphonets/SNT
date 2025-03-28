@@ -98,7 +98,7 @@ public class DistributionCPCmd extends CommonDynamicCmd {
 	}
 
 	private void runSingleSeriesStats() {
-		if ("All".equals(compartment)) {
+		if (!"all".equalsIgnoreCase(compartment)) {
 			failureExplanation = " Perhaps branches have not been tagged as dendrites/axons? If this is the case, "
 					+ "you can re-run the analysis using 'All' as compartment choice.";
 		}

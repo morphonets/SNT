@@ -252,12 +252,10 @@ public class SNTChart extends ChartPanel {
 	}
 
 	public void setAxesVisible(final boolean visible) {
-		if (getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChart().getPlot());
+		if (getChart().getPlot() instanceof XYPlot plot) {
 			plot.getDomainAxis().setVisible(visible);
 			plot.getRangeAxis().setVisible(visible);
-		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (CategoryPlot)(getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot plot) {
 			plot.getDomainAxis().setVisible(visible);
 			plot.getRangeAxis().setVisible(visible);
 		}
@@ -276,11 +274,9 @@ public class SNTChart extends ChartPanel {
 	}
 
 	public boolean isGridlinesVisible() {
-		if (getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChart().getPlot());
+		if (getChart().getPlot() instanceof XYPlot plot) {
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
-		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot plot) {
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
 		} else if (getChart().getPlot() instanceof PolarPlot plot) {
             return plot.isRadiusGridlinesVisible();
@@ -296,14 +292,16 @@ public class SNTChart extends ChartPanel {
 				plot.setRangeGridlinesVisible(visible);
 				plot.setRangeMinorGridlinesVisible(visible);
 			}
-		} else if (getChart().getPlot() instanceof XYPlot) {
-			final XYPlot plot = (XYPlot)(getChart().getPlot());
+		} else if (getChart().getPlot() instanceof XYPlot plot) {
+			if (plot.getDomainGridlinePaint()==BACKGROUND_COLOR) plot.setDomainGridlinePaint(Color.LIGHT_GRAY);
+			if (plot.getRangeGridlinePaint()==BACKGROUND_COLOR) plot.setRangeGridlinePaint(Color.LIGHT_GRAY);
 			plot.setDomainGridlinesVisible(visible);
 			//plot.setDomainMinorGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
 			//plot.setRangeMinorGridlinesVisible(visible);
-		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			final CategoryPlot plot = (getChart().getCategoryPlot());
+		} else if (getChart().getPlot() instanceof CategoryPlot plot) {
+			if (plot.getDomainGridlinePaint()==plot.getBackgroundPaint())
+				plot.setDomainGridlinePaint(Color.LIGHT_GRAY);
 			plot.setDomainGridlinesVisible(visible);
 			plot.setRangeGridlinesVisible(visible);
 			//plot.setRangeMinorGridlinesVisible(visible);
@@ -682,7 +680,7 @@ public class SNTChart extends ChartPanel {
 			for (Component c : getFrame().getContentPane().getComponents()) {
 				if (c instanceof ChartPanel) {
 					ChartUtils.saveChartAsPNG(SNTUtils.getUniquelySuffixedFile(file), ((ChartPanel) c).getChart(),
-							((ChartPanel) c).getWidth() * SCALE, ((ChartPanel) c).getHeight() * SCALE);
+							c.getWidth() * SCALE, c.getHeight() * SCALE);
 				}
 			}
 		} else {
@@ -1092,9 +1090,22 @@ public class SNTChart extends ChartPanel {
 	 *
 	 * @param visible whether curve should be displayed. Ignored if current chart is not a histogram
 	 */
-	public void setNormDistributionVisible(final boolean visible) {
+	public void setGaussianFitVisible(final boolean visible) {
 		try {
-			AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).setDefaultSeriesVisible(visible);
+			AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot()).forEach( r-> r.setDefaultSeriesVisible(visible));
+		} catch (final NullPointerException | ClassCastException ignored) {
+			// ignored
+		}
+	}
+
+	/**
+	 * Sets whether a GMM distribution curve should be overlaid over histogram frequencies.
+	 *
+	 * @param visible whether curve should be displayed. Ignored if current chart is not a histogram
+	 */
+	public void setGMMFitVisible(final boolean visible) {
+		try {
+			AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot()).forEach( r-> r.setDefaultSeriesVisible(visible));
 		} catch (final NullPointerException | ClassCastException ignored) {
 			// ignored
 		}
@@ -1130,11 +1141,27 @@ public class SNTChart extends ChartPanel {
 	/**
 	 * Gets whether a normal distribution curve is being overlaid over histogram frequencies
 	 *
-	 * @return true if current chart is a histogram with overlaid quartile markers
+	 * @return true if current chart is a histogram with overlaid normal curve
 	 */
 	public boolean isNormDistributionVisible() {
 		try {
-			return AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).getDefaultSeriesVisible();
+			for (final XYItemRenderer renderer : AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot()))
+				if (renderer.getDefaultSeriesVisible()) return true;
+		} catch (final NullPointerException | ClassCastException ignored) {
+			// do nothing
+		}
+		return false;
+	}
+
+	/**
+	 * Gets whether the GMM distribution curve is being overlaid over histogram frequencies
+	 *
+	 * @return true if current chart is a histogram with overlaid GMM curve
+	 */
+	public boolean isGMMDistributionVisible() {
+		try {
+			for (final XYItemRenderer renderer : AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot()))
+				if (renderer.getDefaultSeriesVisible()) return true;
 		} catch (final NullPointerException | ClassCastException ignored) {
 			// do nothing
 		}
@@ -1145,10 +1172,6 @@ public class SNTChart extends ChartPanel {
 	@Deprecated
 	public void setVisible(final boolean b) { // for backwards compatibility
 		getFrame().setVisible(b);
-	}
-
-	public void setVisibleAsComponent(final boolean b) {
-		super.setVisible(b);
 	}
 
 	@Override
@@ -1214,43 +1237,72 @@ public class SNTChart extends ChartPanel {
 		});
 		popup.addSeparator();
 
-		final JMenu grids = new JMenu("Toggle Components");
-		popup.add(grids);
-		GuiUtils.addSeparator(grids, "Generic:");
-		JMenuItem jmi = new JMenuItem("Grid Lines");
-		jmi.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
-		jmi.addActionListener( e -> setGridlinesVisible(!isGridlinesVisible()));
-		grids.add(jmi);
-		jmi = new JMenuItem("Legend");
-		jmi.addActionListener( e -> setLegendVisible(!isLegendVisible()));
-		jmi.setEnabled(getChart().getLegend() != null);
-		grids.add(jmi);
-		jmi = new JMenuItem("Outline");
-		jmi.addActionListener( e -> setOutlineVisible(!isOutlineVisible()));
-		grids.add(jmi);
-		GuiUtils.addSeparator(grids, "Histograms:");
-		jmi = new JMenuItem("Normal Distribution Overlay");
-		jmi.addActionListener( e -> {
+		final JMenu cMenu = new JMenu("Contents & Curve Fitting");
+		popup.add(cMenu);
+		GuiUtils.addSeparator(cMenu, "General:");
+		final JCheckBoxMenuItem grid = new JCheckBoxMenuItem("Grid Lines", isGridlinesVisible());
+		grid.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
+		grid.addItemListener( e -> setGridlinesVisible(grid.isSelected()));
+		cMenu.add(grid);
+		final JCheckBoxMenuItem legend = new JCheckBoxMenuItem("Legend", isLegendVisible());
+		legend.addItemListener( e -> setLegendVisible(legend.isSelected()));
+		legend.setEnabled(getChart().getLegend() != null);
+		cMenu.add(legend);
+		final JCheckBoxMenuItem outline = new JCheckBoxMenuItem("Outline", isOutlineVisible());
+		outline.addItemListener( e -> setOutlineVisible(outline.isSelected()));
+		cMenu.add(outline);
+		GuiUtils.addSeparator(cMenu, "Histograms:");
+		final JCheckBoxMenuItem fit1 = new JCheckBoxMenuItem("Gaussian");
+		fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
+		fit1.addActionListener(e -> {
 			try {
-				final XYItemRenderer r = AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot());
-                r.setDefaultSeriesVisible(!r.getDefaultSeriesVisible());
-			} catch (final NullPointerException | ClassCastException ignored) {
-				new GuiUtils(frame).error("This option requires a histogram.", "Option Not Available");
+				final List<XYItemRenderer> renders = AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot());
+				if (renders.isEmpty()) {
+					new GuiUtils(frame).error("Fitting to Normal distribution is not available.", "Option Not Available");
+					fit1.setSelected(false);
+				} else {
+					//AnalysisUtils.getGMMCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
+					renders.forEach(r -> r.setDefaultSeriesVisible(fit1.isSelected()));
+				}
+			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+				fit1.setSelected(false);
 			}
 		});
-		grids.add(jmi);
-		jmi = new JMenuItem("Quartile Overlays");
-		jmi.addActionListener( e -> {
+		cMenu.add(fit1);
+		final JCheckBoxMenuItem fit2 = new JCheckBoxMenuItem("Gaussian Mixture Model");
+		fit2.setEnabled(getChart().getPlot() instanceof XYPlot);
+		fit2.addActionListener( e -> {
+			try {
+				final List<XYItemRenderer> gmmRenders = AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot());
+				if (gmmRenders.isEmpty()) {
+					new GuiUtils(frame).error("Gaussian mixture model is not available. Note that at least 20 data"
+							+ " points are required for GMM computation.", "Option Not Available");
+					fit2.setSelected(false);
+				} else {
+					//AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
+					gmmRenders.forEach(r -> r.setDefaultSeriesVisible(fit2.isSelected()));
+				}
+			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+				fit2.setSelected(false);
+			}
+		});
+		cMenu.add(fit2);
+		final JCheckBoxMenuItem fit3 = new JCheckBoxMenuItem("Quartile Marks");
+		fit3.setEnabled(getChart().getPlot() instanceof XYPlot);
+		fit3.addActionListener(e -> {
 			try {
 				final XYItemRenderer r = AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot());
-				r.setDefaultSeriesVisible(!r.getDefaultSeriesVisible());
+				r.setDefaultSeriesVisible(fit3.isSelected());
 			} catch (final NullPointerException | ClassCastException ignored) {
-				new GuiUtils(frame).error("This option requires a histogram.", "Option Not Available");
+				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+				fit3.setSelected(false);
 			}
 		});
-		grids.add(jmi);
-		GuiUtils.addSeparator(grids, "Polar Plots:");
-		jmi = new JMenuItem("Clockwise/Counterclockwise");
+		cMenu.add(fit3);
+		GuiUtils.addSeparator(cMenu, "Polar Plots:");
+		JMenuItem jmi = new JMenuItem("Clockwise/Counterclockwise");
 		jmi.addActionListener( e -> {
 			if (getChart().getPlot() instanceof PolarPlot) {
 				((PolarPlot) getChart().getPlot()).setCounterClockwise(!((PolarPlot) getChart().getPlot()).isCounterClockwise());
@@ -1259,15 +1311,13 @@ public class SNTChart extends ChartPanel {
 				new GuiUtils(frame).error("This option requires a polar plot.", "Option Not Available");
 			}
 		});
-		grids.add(jmi);
-		popup.add(grids);
+		cMenu.add(jmi);
+		popup.add(cMenu);
 
 		final JMenu utils = new JMenu("Utilities");
 		jmi = GuiUtils.MenuItems.combineCharts();
 		jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
 		utils.add(jmi);
-
-		utils.addSeparator();
 		GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
 		jmi = new JMenuItem("Close...");
 		utils.add(jmi);
@@ -1628,7 +1678,7 @@ public class SNTChart extends ChartPanel {
 	 * bins is automatically determined using the Freedman-Diaconis rule.
 	 * @param values1 the values of the first distribution to be plotted
 	 * @param values2 the values of the second distribution to be plotted
-	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
+	 * @param colorTable the color table (LUT) used to color histogram bars (null allowed)
 	 * @param axisLabels Labels for the axes (optional)
 	 * @throws InterruptedException if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
@@ -1777,31 +1827,35 @@ public class SNTChart extends ChartPanel {
 		SNTChart.scalingFactor = scalingFactor;
 	}
 
-	public static SNTChart getPolarHistogram(final SNTTable table, final Collection<String> columnHeaders) throws IOException {
-		return getHistogram(table, true, columnHeaders);
+	/**
+	 * Creates a histogram from the given table. The number of bins is automatically determined using the
+	 * Freedman-Diaconis rule.
+	 *
+	 * @param table the table holding the data to be plotted
+	 * @param columnHeaders the headers of the columns to be plotted (case-sensitive)
+	 * @param polar whether the histogram should be polar. Data expected in degrees ]0, 360]
+	 * @return the histogram chart
+	 */
+	public static SNTChart getHistogram(final SNTTable table, final Collection<String> columnHeaders, final boolean polar) {
+		final List<Integer> columnIndices = new ArrayList<>();
+		final List<String> allHeaders = table.geColumnHeaders();
+		for (final String columnHeader : columnHeaders) {
+			columnIndices.add(allHeaders.indexOf(columnHeader));
+		}
+		final int[] columnIndicesArray = columnIndices.stream().mapToInt(Integer::intValue).toArray();
+		return getHistogram(table, columnIndicesArray, polar);
 	}
 
-	public static SNTChart getHistogram(final SNTTable table, final Collection<String> columnHeaders) {
-		return getHistogram(table, false, columnHeaders);
-	}
-
-	public static SNTChart getPolarHistogram(final SNTTable table, final int... columnIndices) {
-		return getHistogram(table, true, columnIndices);
-	}
-
-	public static SNTChart getHistogram(final SNTTable table, final int... columnIndices) {
-		return getHistogram(table, false, columnIndices);
-	}
-
-	private static SNTChart getHistogram(final SNTTable table, final boolean polar, final Collection<String> columnHeaders) {
-		final int[] columnIndices = new int[columnHeaders.size()];
-		int idx = 0;
-		for (final String columnHeader : columnHeaders)
-			columnIndices[idx++] = table.getColumnIndex(columnHeader);
-		return getHistogram(table, polar, columnIndices);
-	}
-
-	private static SNTChart getHistogram(final SNTTable table, final boolean polar, final int... columnIndices ) {
+	/**
+	 * Creates a histogram from the given table. The number of bins is automatically determined using the
+	 * Freedman-Diaconis rule.
+	 *
+	 * @param table the table holding the data to be plotted
+	 * @param columnIndices the indices (0-based) of the columns to be plotted
+	 * @param polar whether the histogram should be polar. Data expected in degrees ]0, 360]
+	 * @return the histogram chart
+	 */
+	public static SNTChart getHistogram(final SNTTable table, final int[] columnIndices, final boolean polar) {
 		final LinkedHashMap<String, AnalysisUtils.HistogramDatasetPlus> hdpMap = new LinkedHashMap<>();
 		int nBins = 2;
 		final boolean isSummarized = table.isSummarized();
@@ -1819,12 +1873,12 @@ public class SNTChart extends ChartPanel {
 				final double min = stats.getMin();
 				if (min < limits[0]) limits[0] = min;
 				if (max > limits[1]) limits[1] = max;
-				final AnalysisUtils.HistogramDatasetPlus hdp = new AnalysisUtils.HistogramDatasetPlus(stats, true);
+				final AnalysisUtils.HistogramDatasetPlus hdp = new AnalysisUtils.HistogramDatasetPlus(stats, table.getColumnHeader(colIdx));
 				hdp.compute();
 				nBins = Math.max(nBins, hdp.nBins);
 				hdpMap.put(table.getColumnHeader(colIdx), hdp);
 			} catch (final IndexOutOfBoundsException ex) {
-				throw new IndexOutOfBoundsException("Invalid column header. Available headers: "
+				throw new IllegalArgumentException("Invalid column header. Available headers: "
 						+ table.geColumnHeaders().toString());
 			} finally {
 				if (isSummarized) table.summarize();
@@ -1833,7 +1887,7 @@ public class SNTChart extends ChartPanel {
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
 		int finalNBins = nBins;
-		hdpMap.forEach((label, hdp) -> dataset.addSeries(label, hdp.valuesAsArray(), finalNBins, limits[0], limits[1]));
+		hdpMap.forEach((label, hdp) -> dataset.addSeries(label, hdp.values(), finalNBins, limits[0], limits[1]));
 		final String title = table.getTitle();
 		final String axisLabel = (columnIndices.length == 1) ? table.getColumnHeader(columnIndices[0]) : "";
 		final SNTChart chart = (polar) ?

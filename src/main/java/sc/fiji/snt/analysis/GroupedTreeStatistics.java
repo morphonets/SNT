@@ -263,7 +263,7 @@ public class GroupedTreeStatistics {
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
 		hdpMap.forEach((label, hdp) -> {
-			dataset.addSeries(label, hdp.valuesAsArray(), finalBinCount, limits[0], limits[1]);
+			dataset.addSeries(label, hdp.values(), finalBinCount, limits[0], limits[1]);
 		});
 		return (polar) ?
 				AnalysisUtils.createPolarHistogram(normMeasurement, "", dataset, hdpMap.size(), finalBinCount)
@@ -287,7 +287,7 @@ public class GroupedTreeStatistics {
 		final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
 		groups.forEach((label, mstats) -> {
 			final HDPlus hdp = mstats.new HDPlus(normMeasurement);
-			dataset.add(hdp.values, normMeasurement, label);
+			dataset.add(hdp.valuesAsList(), normMeasurement, label);
 		});
 		final JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(null, null, normMeasurement, dataset, false);
 		assignRenderer((CategoryPlot) chart.getPlot(), true);

@@ -1087,15 +1087,16 @@ public class TreeStatistics extends ContextCommand {
      */
     public SNTChart getHistogram(final String metric) {
         final String normMeasurement = getNormalizedMeasurement(metric);
-        final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement, true);
+        final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement);
         return getHistogram(normMeasurement, datasetPlus);
     }
 
     public SNTChart getPolarHistogram(final String metric) {
         final String normMeasurement = getNormalizedMeasurement(metric);
-        final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement, true);
-        final JFreeChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
-        return new SNTChart("Polar Hist. " + tree.getLabel(), chart);
+        final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement);
+        final SNTChart chart = AnalysisUtils.createPolarHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
+        chart.setTitle("Polar Hist. " + tree.getLabel());
+        return chart;
     }
 
     /**
@@ -1186,8 +1187,9 @@ public class TreeStatistics extends ContextCommand {
     }
 
     protected SNTChart getHistogram(final String normMeasurement, final HistogramDatasetPlus datasetPlus) {
-        final JFreeChart chart = AnalysisUtils.createHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
-        return new SNTChart("Hist. " + tree.getLabel(), chart);
+        final SNTChart chart = AnalysisUtils.createHistogram(normMeasurement, getUnit(normMeasurement), lastDstats.dStats, datasetPlus);
+        chart.setTitle("Hist. " + tree.getLabel());
+        return chart;
     }
 
     protected void assembleStats(final StatisticsInstance stat, final String measurement) {
@@ -2599,21 +2601,19 @@ public class TreeStatistics extends ContextCommand {
     }
 
     class HDPlus extends HistogramDatasetPlus {
-        final String measurement;
 
         HDPlus(final String measurement) {
-            this(measurement, true);
+            super(measurement);
+            getDescriptiveStats(measurement);
+            for (final double v : lastDstats.dStats.getValues()) {
+                dStats.addValue(v);
+            }
         }
 
-        HDPlus(final String measurement, final boolean retrieveValues) {
-            super();
-            this.measurement = measurement;
-            if (retrieveValues) {
-                getDescriptiveStats(measurement);
-                for (final double v : lastDstats.dStats.getValues()) {
-                    values.add(v);
-                }
-            }
+        SNTTable getTable() {
+            final SNTTable table = new SNTTable();
+            table.addColumn(label, dStats.getValues());
+            return table;
         }
     }
 

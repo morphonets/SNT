@@ -185,7 +185,7 @@
 			</plugin>
 		</plugins>
 	</build>
-	
+
 	<dependencies>
 		<!-- Fiji dependencies -->
 		<dependency>
@@ -331,12 +331,6 @@
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-text</artifactId>
-		</dependency>
-		<dependency>
-			<!-- no longer needed!? -->
-			<groupId>org.apache.xmlgraphics</groupId>
-			<artifactId>batik-svggen</artifactId>
-			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.jetbrains.kotlin</groupId>
@@ -504,28 +498,39 @@
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
+			<!-- LAF patches for JIDE-OSS -->
 			<groupId>com.formdev</groupId>
 			<artifactId>flatlaf-jide-oss</artifactId>
 			<version>${flatlaf-jide-oss.version}</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-api</artifactId>
+			<!-- Change verbose logging of smile.stat.distribution.* -->
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.5.18</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.logging.log4j</groupId>
-			<artifactId>log4j-core</artifactId>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-core</artifactId>
+			<version>1.5.18</version>
 			<scope>runtime</scope>
-			<optional>true</optional>
 		</dependency>
 		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>2.0.17</version>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<!-- EMULGL Supoort -->
 			<groupId>org.jzy3d</groupId>
 			<artifactId>jzy3d-jGL-awt</artifactId>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
+			<!-- Font icons -->
 			<groupId>org.webjars</groupId>
 			<artifactId>font-awesome</artifactId>
 			<version>${font-awesome.version}</version>
