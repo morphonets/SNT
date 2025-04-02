@@ -3709,11 +3709,11 @@ public class SNTUI extends JDialog {
 			final Thread newThread = new Thread(() -> {
 				if (noPathsShollError()) return;
 				final String modKey = "Alt+Shift";
-				final String url1 = ShollUtils.URL + "#Analysis_of_Traced_Cells";
-				final String url2 = "https://imagej.net/plugins/snt/analysis#Sholl_Analysis";
+				final String url1 = ShollUtils.URL + "#analysis-of-traced-cells";
+				final String url2 = "https://imagej.net/plugins/snt/analysis#sholl-analysis";
 				final StringBuilder sb = new StringBuilder();
 				sb.append("<html>");
-				sb.append("<div WIDTH=500>");
+				sb.append("<div>");
 				sb.append("To initiate <a href='").append(ShollUtils.URL).append("'>Sholl Analysis</a>, ");
 				sb.append("you must select a focal point. You can do it coarsely by ");
 				sb.append("right-clicking near a node and choosing <i>Sholl Analysis at Nearest ");

@@ -256,6 +256,10 @@ public class TreeStatistics extends ContextCommand {
     public static final String CONVEX_HULL_ROUNDNESS = "Convex hull: " + ConvexHullAnalyzer.ROUNDNESS;
     /** Flag specifying "Convex hull: Centroid-root distance" statistics */
     public static final String CONVEX_HULL_CENTROID_ROOT_DISTANCE = "Convex hull: Centroid-root distance";
+    /** Flag specifying "Convex hull: Compactness" statistics */
+    public static final String CONVEX_HULL_COMPACTNESS_3D = "Convex hull: " + ConvexHullAnalyzer.COMPACTNESS_3D;
+    /** Flag specifying "Convex hull: Eccentricity" statistics */
+    public static final String CONVEX_HULL_ECCENTRICITY_2D = "Convex hull: " + ConvexHullAnalyzer.ECCENTRICITY_2D;
 
     /** Flag specifying "Root angles: Balancing factor */
     public static final String ROOT_ANGLE_B_FACTOR = "Root angles: " + RootAngleAnalyzer.BALANCING_FACTOR;
@@ -293,7 +297,7 @@ public class TreeStatistics extends ContextCommand {
             BRANCH_CONTRACTION, BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, //
             BRANCH_VOLUME, COMPLEXITY_INDEX_ACI, COMPLEXITY_INDEX_DCI, //
             CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION, //
-            CONVEX_HULL_ROUNDNESS, CONVEX_HULL_SIZE, //
+            CONVEX_HULL_ROUNDNESS, CONVEX_HULL_SIZE, CONVEX_HULL_COMPACTNESS_3D, CONVEX_HULL_ECCENTRICITY_2D, //
             DEPTH, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY, //
             INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, //
             PRIMARY_EXTENSION_ANGLE_XY, PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, //
@@ -1302,6 +1306,8 @@ public class TreeStatistics extends ContextCommand {
             case CONVEX_HULL_ELONGATION:
             case CONVEX_HULL_ROUNDNESS:
             case CONVEX_HULL_SIZE:
+            case CONVEX_HULL_ECCENTRICITY_2D:
+            case CONVEX_HULL_COMPACTNESS_3D:
                 stat.addValue(getConvexHullMetric(m));
                 break;
             case ROOT_ANGLE_B_FACTOR:

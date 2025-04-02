@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.analysis;
 
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +55,8 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	public static final String ELONGATION = "Elongation";
 	public static final String ROUNDNESS = "Roundness";
 	public static final String SIZE = "Size";
+	public static final String COMPACTNESS_3D = "Compactness";
+	public static final String ECCENTRICITY_2D = "Eccentricity";
 
 	@Parameter
 	private OpService opService;
@@ -92,7 +93,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	}
 
 	public static List<String> supportedMetrics() {
-		return Arrays.asList(BOUNDARY_SIZE, BOXIVITY, ELONGATION, ROUNDNESS, SIZE);
+		return List.of(BOUNDARY_SIZE, BOXIVITY, ELONGATION, ROUNDNESS, SIZE, COMPACTNESS_3D, ECCENTRICITY_2D);
 	}
 
 	public Map<String, Double> getAnalysis() {
@@ -107,12 +108,16 @@ public class ConvexHullAnalyzer extends ContextCommand {
 			metrics.put(ELONGATION, computeElongation(hull));
 			metrics.put(ROUNDNESS, computeRoundness(hull));
 			metrics.put(SIZE, hull.size());
+			metrics.put(COMPACTNESS_3D, getCompactness());
+			metrics.put(ECCENTRICITY_2D, getEccentricity());
 		} else {
 			metrics.put(BOUNDARY_SIZE, Double.NaN);
 			metrics.put(BOXIVITY, Double.NaN);
 			metrics.put(ELONGATION, Double.NaN);
 			metrics.put(ROUNDNESS, Double.NaN);
 			metrics.put(SIZE, Double.NaN);
+			metrics.put(COMPACTNESS_3D, Double.NaN);
+			metrics.put(ECCENTRICITY_2D, Double.NaN);
 		}
 		return metrics;
 	}
@@ -120,9 +125,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	public void dump(final SNTTable table) {
 		if (table.getRowIndex(tree.getLabel()) < 0)
 			table.insertRow(tree.getLabel());
-		getAnalysis().forEach((k, v) -> {
-			table.appendToLastRow("Convex hull: " + k, v);
-		});
+		getAnalysis().forEach((k, v) -> table.appendToLastRow("Convex hull: " + k, v));
 	}
 
 	public AbstractConvexHull getHull() {
@@ -166,6 +169,20 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		return hull.boundarySize();
 	}
 
+	public double getCompactness() {
+		initHull();
+		if (hull instanceof ConvexHull3D hull3D)
+			return opService.geom().compactness(hull3D.getMesh()).getRealDouble();
+		return Double.NaN;
+	}
+
+	public double getEccentricity() {
+		initHull();
+		if (hull instanceof ConvexHull2D hull2D)
+			return opService.geom().eccentricity(hull2D.getPolygon()).getRealDouble();
+		return Double.NaN;
+	}
+
 	private void initContext() {
 		if (super.getContext() == null)
 			setContext(SNTUtils.getContext());
@@ -177,20 +194,20 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	}
 
 	protected double computeRoundness(final AbstractConvexHull hull) {
-		if (hull instanceof ConvexHull3D)
-			return opService.geom().sphericity(((ConvexHull3D) hull).getMesh()).getRealDouble();
-		else if (hull instanceof ConvexHull2D)
-			return opService.geom().circularity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
+		if (hull instanceof ConvexHull3D hull3D)
+			return opService.geom().sphericity(hull3D.getMesh()).getRealDouble();
+		else if (hull instanceof ConvexHull2D hull2D)
+			return opService.geom().circularity(hull2D.getPolygon()).getRealDouble();
 		else
 			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}
 
 	protected double computeBoxivity(final AbstractConvexHull hull) {
 		try {
-			if (hull instanceof ConvexHull3D)
-				return opService.geom().boxivity(((ConvexHull3D) hull).getMesh()).getRealDouble();
-			else if (hull instanceof ConvexHull2D)
-				return opService.geom().boxivity(((ConvexHull2D) hull).getPolygon()).getRealDouble();
+			if (hull instanceof ConvexHull3D hull3D)
+				return opService.geom().boxivity(hull3D.getMesh()).getRealDouble();
+			else if (hull instanceof ConvexHull2D hull2D)
+				return opService.geom().boxivity(hull2D.getPolygon()).getRealDouble();
 		} catch (final IllegalArgumentException iae) {
 			// BUG:  No matching 'net.imagej.ops.Ops$Geometric$SmallestEnclosingBoundingBox/net.imagej.ops.special.function.UnaryFunctionOp' op
 			iae.printStackTrace();
@@ -200,19 +217,19 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	}
 
 	protected RealLocalizable computeCentroid(final AbstractConvexHull hull) {
-		if (hull instanceof ConvexHull3D)
-			return opService.geom().centroid(((ConvexHull3D) hull).getMesh());
-		else if (hull instanceof ConvexHull2D)
-			return opService.geom().centroid(((ConvexHull2D) hull).getPolygon());
+		if (hull instanceof ConvexHull3D hull3D)
+			return opService.geom().centroid(hull3D.getMesh());
+		else if (hull instanceof ConvexHull2D hull2D)
+			return opService.geom().centroid(hull2D.getPolygon());
 		else
 			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}
 
 	protected double computeElongation(final AbstractConvexHull hull) {
-		if (hull instanceof ConvexHull3D)
-			return opService.geom().mainElongation(((ConvexHull3D) hull).getMesh()).getRealDouble();
-		else if (hull instanceof ConvexHull2D)
-			return opService.geom().mainElongation(((ConvexHull2D) hull).getPolygon()).getRealDouble();
+		if (hull instanceof ConvexHull3D hull3D)
+			return opService.geom().mainElongation(hull3D.getMesh()).getRealDouble();
+		else if (hull instanceof ConvexHull2D hull2D)
+			return opService.geom().mainElongation(hull2D.getPolygon()).getRealDouble();
 		else
 			throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
 	}

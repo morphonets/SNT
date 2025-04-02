@@ -95,6 +95,9 @@ public class ConvexHullCmd extends ContextCommand {
 	@Parameter(label = "Size", description = TOOLTIP)
 	private boolean doSize;
 
+	@Parameter(label = "Other", description = TOOLTIP)
+	private boolean doOther;
+
 	@Override
 	public void run() {
 		if (trees == null || trees.isEmpty()) {
@@ -223,6 +226,11 @@ public class ConvexHullCmd extends ContextCommand {
 			if (doMainElongation)
 				table.appendToLastRow(String.format("Convex hull: Elongation (%s)", analyzer.getUnit("Convex hull: Elongation")),
 					analyzer.getElongation());
+			if (doOther) {
+				table.appendToLastRow("Convex hull: Eccentricity", analyzer.getEccentricity());
+				table.appendToLastRow("Convex hull: Compactness", analyzer.getCompactness());
+			}
+
 		} catch (final IndexOutOfBoundsException | IllegalArgumentException ex) {
 			ex.printStackTrace();
 		}
