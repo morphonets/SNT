@@ -1952,7 +1952,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	public void applySelectionFilter(final String query) throws IllegalArgumentException {
 		if (query != null && query.startsWith("[") && query.endsWith("]")) {
 			final String q =  query.substring( 1, query.length() - 1);
-			final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).collect(Collectors.toList());
+			final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).toList();
 			if (!types.isEmpty()) {
 				final Collection<Path> paths = searchableBar.getPaths();
 				paths.removeIf(path -> !types.contains(path.getSWCType()));
@@ -2806,7 +2806,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			} else if (TIME_COLOR_CODING_CMD.equals(cmd)) {
 				final Tree tree = new Tree(selectedPaths);
-				if (tree.isEmpty()) return;
+				if (tree.isEmpty() || delineationsExistError(List.of(tree))) return;
 				final Map<String, Object> input = new HashMap<>();
 				input.put("trees", List.of(tree));
 				input.put("onlyConnectivitySafeMetrics", true);
@@ -2818,7 +2818,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			} else if (SPINE_COLOR_CODING_CMD.equals(cmd)) {
 				final Tree tree = new Tree(selectedPaths);
-				if (tree.isEmpty()) return;
+				if (tree.isEmpty() || delineationsExistError(List.of(tree))) return;
 				final Map<String, Object> input = new HashMap<>();
 				input.put("trees", List.of(tree));
 				input.put("onlyConnectivitySafeMetrics", true);
@@ -2860,7 +2860,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			else if (COLORIZE_TREES_CMD.equals(cmd)) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				final Collection<Tree> trees = getMultipleTrees();
-				if (trees == null || trees.isEmpty())
+				if (trees == null || trees.isEmpty() || delineationsExistError(trees))
 					return;
 				final Map<String, Object> input = new HashMap<>();
 				input.put("trees", trees);
@@ -2869,7 +2869,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (COLORIZE_PATHS_CMD.equals(cmd)) {
-				runColorMapper(new Tree(selectedPaths), true);
+				final Tree tree = new Tree(selectedPaths);
+				if (!delineationsExistError(List.of(tree))) runColorMapper(tree, true);
 				return;
 			}
 			else if (COLORIZE_REMOVE_CMD.equals(cmd) && guiUtils.getConfirmation(
@@ -3261,6 +3262,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			if (reset)
 				selectedPaths.forEach( p-> p.setNodeColors(null));
 		}
+
+		boolean delineationsExistError(final Collection<Tree> trees) {
+            return DelineationsManager.hasDelineationLabels(trees) && !new GuiUtils().getConfirmation(
+                    "Some paths have assigned delineations that may be lost. Proceed nevertheless?",
+                    "Ignore Delineations?");
+        }
 
 		void runColorMapper(final Tree tree, final boolean safeMetricsOnly) {
 			if (tree == null || tree.isEmpty()) return;
@@ -3656,11 +3663,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			item.addActionListener(e -> setVisible(false));
 			popupMenu.add(item);
 			setComponentPopupMenu(popupMenu);
-			final JButton help = GuiUtils.Buttons.help();
-			help.addActionListener(e -> ij.IJ.runPlugIn("ij.plugin.BrowserLauncher",
-					"https://imagej.net/plugins/snt/manual#tag-"));
 			add(Box.createHorizontalGlue());
-			add(help);
+			add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/manual#tag-"));
 		}
 
 		JButton summaryButton() {

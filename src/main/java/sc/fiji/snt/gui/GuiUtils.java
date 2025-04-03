@@ -1155,7 +1155,28 @@ public class GuiUtils {
 		return new Color(254, 210, 132);
 	}
 
-	private static class SpinningIconLabel extends JLabel {
+	public static JLabel shortSmallMsg(final String msg) {
+		final JLabel label = new JLabel(msg);
+		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+		return label;
+	}
+
+    public static JTextArea longSmallMsg(final String msg, final Component parent) {
+        final JTextArea ta = new JTextArea();
+        ta.setBackground(parent.getBackground());
+        ta.setEditable(false);
+        ta.setMargin(null);
+        ta.setBorder(null);
+        ta.setLineWrap(true);
+        ta.setWrapStyleWord(true);
+        ta.setFocusable(false);
+        ta.setEnabled(false);
+        ta.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+        ta.setText(msg);
+        return ta;
+    }
+
+    private static class SpinningIconLabel extends JLabel {
 		double angle = 0;
 		double scale = 1.0;
 		final Timer timer;
@@ -1329,9 +1350,8 @@ public class GuiUtils {
 		final JLabel label, final boolean vgap, final GridBagConstraints c)
 	{
 		final int previousTopGap = c.insets.top;
-		final Font font = label.getFont();
-		label.setFont(font.deriveFont((float) (font.getSize() * .85)));
-		if (vgap) c.insets.top = component.getFontMetrics(font).getHeight();
+		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+		if (vgap) c.insets.top = component.getFontMetrics(label.getFont()).getHeight();
 		component.add(label, c);
 		if (vgap) c.insets.top = previousTopGap;
 	}
@@ -1995,10 +2015,11 @@ public class GuiUtils {
 	public static JTabbedPane getTabbedPane() {
 		final JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
 		tabbedPane.putClientProperty("JTabbedPane.tabRotation", "auto");
+		tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "compact");
 		tabbedPane.putClientProperty("JTabbedPane.tabAreaAlignment", "fill");
 		final JPopupMenu popup = new JPopupMenu();
 		tabbedPane.setComponentPopupMenu(popup);
-		JCheckBoxMenuItem jcbmi1 = new JCheckBoxMenuItem("Compact Layout", true); // default is compact
+		final JCheckBoxMenuItem jcbmi1 = new JCheckBoxMenuItem("Compact Layout", true); // default is compact
 		jcbmi1.addItemListener(e ->
 				tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", (jcbmi1.isSelected()) ? SwingConstants.LEFT
 						: SwingConstants.TOP));
@@ -2011,14 +2032,18 @@ public class GuiUtils {
 				switch (pos) {
 					case "Left":
 						tabbedPane.setTabPlacement(JTabbedPane.LEFT);
+						tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "preferred");
 						break;
 					case "Bottom":
+						tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "compact");
 						tabbedPane.setTabPlacement(JTabbedPane.BOTTOM);
 						break;
 					case "Right":
 						tabbedPane.setTabPlacement(JTabbedPane.RIGHT);
+						tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "preferred");
 						break;
 					default:
+						tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "compact");
 						tabbedPane.setTabPlacement(JTabbedPane.TOP);
 						break;
 				}
@@ -2564,15 +2589,35 @@ public class GuiUtils {
 
 		private Buttons() {}
 
-		public static JButton help() {
+		public static JButton help(final String url) {
 			final JButton button = new JButton();
 			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);
-			button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.85f));
+			button.addActionListener(e -> GuiUtils.openURL(url));
 			return button;
 		}
 
 		public static JButton undo() {
-			return smallBorderless(IconFactory.GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
+			final JButton button = new JButton();
+			makeSmallBorderless(button, GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
+			return button;
+		}
+
+		public static JButton show(final Color color) {
+			final JButton button = new JButton();
+			makeSmallBorderless(button, GLYPH.EYE, color);
+			return button;
+		}
+
+		public static JButton delete() {
+			final JButton button = new JButton();
+			makeSmallBorderless(button, GLYPH.TRASH, UIManager.getColor("Spinner.buttonArrowColor"));
+			return button;
+		}
+
+		public static JToggleButton edit() {
+			final JToggleButton button = new JToggleButton();
+			makeSmallBorderless(button, GLYPH.PEN, UIManager.getColor("Spinner.buttonArrowColor"));
+			return button;
 		}
 
 		public static JButton options() {
@@ -2581,13 +2626,11 @@ public class GuiUtils {
 			return button;
 		}
 
-		private static JButton smallBorderless(final IconFactory.GLYPH glyph, final Color color) {
-			final JButton b = new JButton();
+		private static void makeSmallBorderless(final AbstractButton b, final IconFactory.GLYPH glyph, final Color color) {
 			IconFactory.assignIcon(b, glyph, color);
 			b.setFont(b.getFont().deriveFont(b.getFont().getSize2D()*.8f));
 			b.setFocusable(false);
 			makeBorderless(b);
-			return  b;
 		}
 
 		public static void makeBorderless(final AbstractButton... buttons) {
@@ -2600,7 +2643,7 @@ public class GuiUtils {
 		}
 
 		public static JButton smallButton(final String text) {
-			final double SCALE = .85;
+			final float SCALE = .85f;
 			final JButton button = new JButton(text);
 			final Font font = button.getFont();
 			button.setFont(font.deriveFont((float) (font.getSize() * SCALE)));

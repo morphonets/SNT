@@ -1792,6 +1792,7 @@ public class SNTChart extends ChartPanel {
 		}
 
 		int[] splitIntoParts(final int whole, final int parts) {
+			if (whole < 4) return new int[] { 1,  whole };
 			// https://stackoverflow.com/a/32543184
 			final int[] arr = new int[parts];
 			int remain = whole;

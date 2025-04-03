@@ -52,8 +52,6 @@ public class IconFactory {
 			ARROWS_TO_CIRCLE('\ue4bd', true), //
 			ARROWS_DLUR('\uf422', true), //
 			ARROWS_SPLIT('\ue4bc', true), //
-			//ARROWS_V('\uf338', true), //
-			//ATOM('\uf5d2', true), //
 			BARCODE('\uf02a', true), //
 			BEZIER_CURVE('\uf55b', true),//
 			BINOCULARS('\uf1e5', true), //
@@ -91,8 +89,6 @@ public class IconFactory {
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
 			CUBES('\uf1b3', true), //
-			//COMPASS('\uf14e', false), //
-			//COMPRESS('\uf422', true), //
 			EYE_DROPPER('\uf1fb', true), //
 			GLASSES('\uf530', true), //
 			RESIZE('\uf424', true), //
@@ -107,7 +103,6 @@ public class IconFactory {
 			DIAGRAM('\uf542', true), //
 			DICE_20('\uf6cf', true), //
 			DOTCIRCLE('\uf192', true), //
-			//DOWNLOAD('\uf019', true), //
 			DRAFT('\uf568', true), //
 			ELLIPSIS('\uf141', true), //
 			ELLIPSIS_VERTICAL('\uf142', true), //
@@ -140,10 +135,10 @@ public class IconFactory {
 			IMAGE('\uf03e', false), //
 			IMPORT('\uf56f', true), //
 			ITALIC('\uf033', true), //
-			//JET('\uf0fb', true), //
 			KEYBOARD('\uf11c', false), //
 			KIWI_BIRD('\uf535', true), //
 			LAYERS('\uf5fd', true), //
+			LINES_LEANING('\ue51e', true), //
 			LINK('\uf0c1', true), //
 			LIST('\uf03a', true), //
 			LIST_ALT('\uf022', true), //
@@ -155,7 +150,6 @@ public class IconFactory {
 			MASKS('\uf630', true), //
 			MATH('\uf698', true), //
 			MICROCHIP('\uf2db', true), //
-			//MINIMIZE('\uf78c', true), //
 			MINUS('\uf146', false), //
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //
@@ -198,7 +192,6 @@ public class IconFactory {
 			STREAM('\uf550', true), //
 			SUN('\uf185', true), //
 			SYNC('\uf2f1', true), //
-			//TACHOMETER('\uf3fd', true), //
 			TABLE('\uf0ce', true), //
 			TAG('\uf02b', true), //
 			TAPE('\uf4db', true), //
@@ -244,6 +237,10 @@ public class IconFactory {
 
 	public static Icon buttonIcon(final GLYPH entry, final float scalingFactor) {
 		return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, defaultColor(), entry.solid);
+	}
+
+	public static Icon buttonIcon(final char symbol, final boolean solid, final Color color) {
+		return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
 	}
 
 	public static Icon menuIcon(final GLYPH entry) {
@@ -364,7 +361,7 @@ public class IconFactory {
 	}
 
 	public static Icon accentIcon(final Color color, final boolean squarify) {
-		final int size = (int) (FADerivedIcon.defSize() * (PlatformUtils.isLinux() ? .5f : .9f));
+		final int size = (int) (FADerivedIcon.defSize() * (PlatformUtils.isLinux() ? .6f : .9f));
 		return new AccentIcon(color, (squarify) ? size : size *2, size);
 	}
 
@@ -464,10 +461,6 @@ public class IconFactory {
 
 		@Override
 		protected void paintIcon(Component c, Graphics2D g ) {
-//			if( !c.isEnabled() ) {
-//				color = FlatLaf.isLafDark()  ? ColorFunctions.shade( color, 0.5f )
-//						: ColorFunctions.tint( color, 0.6f );
-//			}
 			g.setColor( color );
 			g.fillRoundRect( 1, 1, width - 2, height - 2, 5, 5 );
 		}

@@ -77,7 +77,6 @@ import java.util.concurrent.ExecutionException;
  *
  * @author Tiago Ferreira
  */
-@SuppressWarnings("serial")
 public class SNTUI extends JDialog {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
@@ -310,7 +309,7 @@ public class SNTUI extends JDialog {
 				"supporting morphometric annotations, reconstructions and meshes. For " +
 				"performance reasons, some Path Manager changes may need to be synchronized " +
 				"manually from the \"Scene Controls\" menu.";
-		tab3.add(largeMsg(msg), c3);
+		tab3.add(GuiUtils.longSmallMsg(msg, tab3), c3);
 		c3.gridy++;
 		tab3.add(reconstructionViewerPanel(), c3);
 		c3.gridy++;
@@ -321,7 +320,7 @@ public class SNTUI extends JDialog {
 						"reconstructions, meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended. " +
 						"For performance reasons, some Path Manager changes may need to be synchronized " +
 						"manually using \"Sync Changes\".";
-		tab3.add(largeMsg(msg3), c3);
+		tab3.add(GuiUtils.longSmallMsg(msg3, tab3), c3);
 		c3.gridy++;
 		tab3.add(sciViewerPanel(), c3);
 		c3.gridy++;
@@ -330,26 +329,30 @@ public class SNTUI extends JDialog {
 		final String msg2 =
 				"The Legacy 3D Viewer is a functional tracing canvas but it depends on " +
 						"stalled services that may not function reliably during complex tasks.";
-		tab3.add(largeMsg(msg2), c3);
+		tab3.add(GuiUtils.longSmallMsg(msg2, tab3), c3);
 		c3.gridy++;
 		try {
 			tab3.add(legacy3DViewerPanel(), c3);
 		} catch (final NoClassDefFoundError ignored) {
-			tab3.add(largeMsg("Error: Legacy 3D Viewer could not be initialized!"), c3);
+			tab3.add(GuiUtils.longSmallMsg("Error: Legacy 3D Viewer could not be initialized!", tab3), c3);
 		}
 		c3.gridy++;
-		tab3.add(largeMsg(""), c3); // add bottom spacer
+		tab3.add(GuiUtils.longSmallMsg("", tab3), c3); // add bottom spacer
 
 		// Bookmarks Tab: On macOS and Windows 11 the tabbed pane becomes too wide after
 		// the bookmarks tab is added, so we'll discard it from preferred width calculation
 		final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
 		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
 
+		final DelineationsManager delineationManager = new DelineationsManager(this);
+		tabbedPane.addTab("Delineations", delineationManager.getPanel());
+
 		// set icons
 		tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
 		tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
 		tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
 		tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
+		tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
 
 		setJMenuBar(createMenuBar());
 		setLayout(new GridBagLayout());
@@ -365,7 +368,8 @@ public class SNTUI extends JDialog {
 		dialogGbc.insets.top = InternalUtils.TEXT_MARGIN;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
-		registerBookmarkManagerInCmdFInder();
+		registerTabInCmdFInder("Bookmarks", "Bookmark Manager");
+		registerTabInCmdFInder("Delineations", "Delineation Manager");
 		pack();
 		setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
 		pack();
@@ -419,10 +423,10 @@ public class SNTUI extends JDialog {
 
 	}
 
-	private void registerBookmarkManagerInCmdFInder() {
-		final JButton b = new JButton("Bookmarks");
-		b.addActionListener( e-> selectTab("Bookmarks"));
-		commandFinder.register(b, "Bookmark Manager");
+	private void registerTabInCmdFInder(final String tabName, final String descriptions) {
+		final JButton b = new JButton(tabName);
+		b.addActionListener( e-> selectTab(tabName));
+		commandFinder.register(b, descriptions);
 	}
 
 	private JTabbedPane getTabbedPane() {
@@ -531,6 +535,9 @@ public class SNTUI extends JDialog {
 					break;
 				case "bookmarks":
 					tp.setSelectedIndex(3);
+					break;
+				case "delineations":
+					tp.setSelectedIndex(4);
 					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized tab");
@@ -1986,27 +1993,6 @@ public class SNTUI extends JDialog {
 				"this option to have such messages displayed discretely in\n" +
 				"a Log window instead.");
 		p.add(jcbx, c);
-		return p;
-	}
-
-	JPanel largeMsg(final String msg) {
-		final JTextArea ta = new JTextArea();
-		final Font font = ta.getFont().deriveFont(GuiUtils.uiFontSize() * .9f);
-		ta.setBackground(getBackground());
-		ta.setEditable(false);
-		ta.setMargin(null);
-		ta.setColumns(20);
-		ta.setBorder(null);
-		ta.setAutoscrolls(true);
-		ta.setLineWrap(true);
-		ta.setWrapStyleWord(true);
-		ta.setFocusable(false);
-		ta.setText(msg);
-		ta.setEnabled(false);
-		ta.setFont(font);
-		final JPanel p = new JPanel(new BorderLayout());
-		p.setBackground(getBackground());
-		p.add(ta, BorderLayout.NORTH);
 		return p;
 	}
 

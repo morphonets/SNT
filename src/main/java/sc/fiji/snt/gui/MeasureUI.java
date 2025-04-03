@@ -303,15 +303,16 @@ public class MeasureUI extends JFrame {
 			runButton.addActionListener(new GenerateTableAction(trees, statsTableModel));
 			final JButton optionsButton = optionsButton(trees);
 			final JToggleButton splitButton = splitButton();
-			GuiUtils.Buttons.makeBorderless(runButton, optionsButton, splitButton);
 			final JToolBar toolbar = new JToolBar();
 			toolbar.setBorder(searchableBar.getBorder()); // top, left, bottom, right margins
 			toolbar.add(Box.createHorizontalGlue());
 			toolbar.add(bar);
 			toolbar.add(Box.createHorizontalGlue());
-			toolbar.addSeparator();
 			toolbar.add(optionsButton);
+			toolbar.addSeparator();
+			toolbar.add(GuiUtils.shortSmallMsg("Compartments:"));
 			toolbar.add(splitButton);
+			toolbar.addSeparator();
 			toolbar.add(runButton);
 			c.gridx = 1;
 			c.gridy = 1;
@@ -337,7 +338,6 @@ public class MeasureUI extends JFrame {
 
 		private JButton optionsButton(final Collection<Tree> trees) {
 			final JButton optionsButton = GuiUtils.Buttons.options();
-			GuiUtils.Buttons.makeBorderless(optionsButton);
 			optionsButton.setFont(
 					optionsButton.getFont().deriveFont(optionsButton.getFont().getSize2D()*1.1f)); // scale icon (font-based)
 			optionsButton.setToolTipText("Options & Utilities");

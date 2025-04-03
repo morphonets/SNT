@@ -27,7 +27,9 @@ import ij.ImagePlus;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
 import net.imglib2.display.ColorTable8;
+import org.scijava.util.ColorRGB;
 
+import java.awt.*;
 import java.awt.image.IndexColorModel;
 
 /**
@@ -107,9 +109,46 @@ public class ColorMaps {
             case "red-green", "red green", "redgreen" -> ColorTables.REDGREEN;
             case "spectrum" -> ColorTables.SPECTRUM;
             case "viridis" -> VIRIDIS;
+            case "glasbey", "glasbey-no-grays", "distinct" -> glasbeyNoGrays();
             default -> null;
         };
     }
+
+    public static ColorRGB[] discreteColors(final ColorTable colorTable, final int n) {
+        if (n > colorTable.getLength()) {
+            throw new IllegalArgumentException("n must be less than or equal to the number of colors in the color table");
+        }
+        final ColorRGB[] rgb = new ColorRGB[n];
+        for (int i = 0; i < n; i++) {
+            final int idx = Math.round((float) ((colorTable.getLength() - 1) * i) / n);
+            rgb[i] = new ColorRGB(colorTable.get(ColorTable.RED, idx), colorTable.get(
+                    ColorTable.GREEN, idx), colorTable.get(ColorTable.BLUE, idx));
+        }
+        return rgb;
+    }
+
+    public static Color[] discreteColorsAWT(final ColorTable colorTable, final int n) {
+        final ColorRGB[] cRGB = discreteColors(colorTable, n);
+        final Color[] cAWT = new Color[n];
+        for (int i = 0; i < n; i++)  cAWT[i] = new Color(cRGB[i].getRed(), cRGB[i].getGreen(), cRGB[i].getBlue());
+        return cAWT;
+    }
+
+    public static Color[] glasbeyColorsAWT(final int n) {
+        final ColorTable colorTable = glasbeyNoGrays();
+        if (n > colorTable.getLength()) {
+            throw new IllegalArgumentException("n must be less than or equal to " + colorTable.getLength());
+        }
+        final Color[] cAWT = new Color[n];
+        for (int i = 0; i < n; i++)
+            cAWT[i] = new Color(colorTable.get(ColorTable.RED, i), colorTable.get(ColorTable.GREEN, i), colorTable.get(ColorTable.BLUE, i));
+        return cAWT;
+    }
+
+    private static ColorTable glasbeyNoGrays() {
+        return custom(glasbey_bw_minc_20());
+    }
+
 
     private static ColorTable viridisColorTable() {
         return custom(viridis());
@@ -156,6 +195,46 @@ public class ColorMaps {
     private static IndexColorModel plasma(final int backgroundGray, final boolean inverted) {
         return getICM(plasma(), backgroundGray, inverted);
 
+    }
+
+    private static int[][] glasbey_bw_minc_20() { // from holoviz colorcet
+        final int[] r = {215, 140, 2, 0, 152, 255, 108, 255, 88, 0, 0, 0, 161, 188, 149, 192, 100, 121, 7, 254, 0, 143,
+                255, 238, 94, 155, 236, 166, 90, 4, 158, 156, 203, 113, 0, 131, 93, 57, 253, 190, 219, 147, 228, 47,
+                196, 85, 197, 4, 105, 128, 109, 78, 134, 254, 194, 197, 118, 1, 0, 218, 249, 106, 195, 225, 218, 187,
+                146, 160, 87, 211, 55, 151, 142, 255, 200, 174, 110, 191, 140, 120, 255, 169, 255, 95, 103, 255, 76, 83,
+                170, 2, 0, 97, 144, 191, 81, 78, 124, 255, 131, 77, 137, 123, 0, 170, 129, 98, 195, 205, 255, 195, 33,
+                0, 99, 137, 152, 206, 210, 97, 153, 176, 242, 0, 205, 69, 122, 114, 147, 0, 173, 63, 95, 0, 124, 152,
+                57, 184, 255, 255, 128, 33, 161, 79, 159, 51, 194, 199, 108, 118, 165, 218, 216, 251, 75, 214, 122, 76,
+                70, 163, 234, 255, 71, 162, 145, 79, 231, 159, 88, 176, 134, 193, 228, 185, 57, 227, 173, 169, 105, 148,
+                176, 7, 0, 90, 91, 48, 229, 95, 115, 75, 201, 156, 200, 5, 167, 231, 96, 242, 119, 96, 104, 121, 13,
+                157, 132, 142, 227, 185, 122, 255, 76, 226, 255, 214, 191, 215, 189, 136, 255, 255, 51, 184, 108, 188,
+                27, 161, 163, 109, 137, 90, 249, 231, 112, 25, 23, 0, 248, 122, 177, 126, 0, 122, 218, 219, 243, 163,
+                138, 102, 232, 216, 224, 254, 117, 152, 228, 140, 119, 47};
+        final int[] g = {0, 60, 136, 172, 255, 127, 0, 165, 59, 87, 0, 253, 117, 183, 181, 4, 84, 0, 116, 245, 75, 122,
+                114, 185, 126, 228, 0, 123, 0, 198, 75, 59, 196, 130, 175, 136, 55, 0, 192, 231, 109, 184, 82, 83, 102,
+                98, 159, 130, 231, 39, 180, 51, 163, 3, 166, 87, 88, 104, 214, 224, 255, 104, 152, 205, 150, 3, 82, 0,
+                155, 140, 69, 165, 141, 70, 255, 109, 208, 255, 84, 54, 160, 0, 28, 17, 151, 95, 103, 146, 113, 207,
+                196, 53, 212, 213, 69, 35, 90, 206, 2, 253, 0, 82, 116, 131, 113, 101, 52, 41, 154, 93, 104, 142, 128,
+                135, 221, 127, 183, 0, 84, 199, 255, 236, 134, 0, 157, 113, 255, 84, 148, 164, 58, 76, 184, 42, 110, 0,
+                128, 210, 48, 52, 94, 181, 159, 124, 65, 232, 5, 188, 197, 84, 143, 124, 100, 195, 46, 143, 136, 0, 163,
+                188, 72, 199, 162, 105, 94, 145, 81, 94, 109, 110, 0, 183, 46, 126, 59, 187, 181, 210, 141, 95, 152, 15,
+                125, 88, 101, 64, 74, 83, 122, 50, 230, 171, 107, 176, 255, 222, 68, 37, 127, 159, 233, 248, 0, 109, 65,
+                73, 74, 208, 93, 179, 76, 240, 96, 163, 125, 111, 48, 233, 88, 140, 135, 148, 230, 60, 81, 0, 101, 88,
+                143, 215, 108, 89, 38, 216, 161, 150, 167, 208, 203, 71, 255, 5, 221, 228, 19, 104, 253, 171, 186, 83,
+                174, 51, 115, 89, 71, 62};
+        final int[] b = {0, 255, 0, 199, 0, 209, 79, 48, 0, 89, 221, 207, 106, 255, 120, 185, 116, 0, 216, 144, 0, 0,
+                102, 185, 102, 255, 119, 185, 164, 0, 0, 80, 0, 152, 138, 255, 59, 0, 255, 192, 1, 182, 255, 130, 144,
+                32, 114, 135, 128, 144, 255, 255, 2, 203, 197, 70, 61, 66, 213, 255, 0, 176, 0, 156, 255, 253, 130, 115,
+                85, 143, 39, 195, 95, 0, 250, 255, 167, 140, 177, 25, 121, 31, 69, 35, 148, 148, 116, 204, 49, 254, 108,
+                93, 47, 124, 162, 12, 0, 68, 207, 255, 61, 92, 157, 152, 143, 254, 137, 71, 181, 187, 2, 101, 35, 191,
+                213, 88, 91, 110, 68, 219, 210, 2, 189, 197, 127, 71, 186, 193, 236, 22, 128, 51, 211, 0, 100, 91, 61,
+                233, 90, 0, 111, 176, 70, 61, 0, 62, 232, 80, 169, 110, 56, 255, 73, 235, 54, 165, 255, 196, 213, 120,
+                0, 255, 234, 147, 178, 176, 43, 212, 225, 114, 227, 139, 0, 164, 48, 76, 131, 144, 70, 120, 137, 2, 128,
+                38, 59, 41, 188, 107, 221, 145, 242, 235, 154, 0, 99, 0, 1, 65, 203, 176, 162, 219, 118, 73, 48, 108,
+                134, 182, 199, 146, 238, 165, 38, 181, 0, 178, 161, 176, 76, 122, 82, 210, 254, 114, 168, 152, 123, 139,
+                139, 124, 1, 255, 255, 86, 253, 60, 213, 221, 176, 60, 230, 177, 255, 111, 35, 131, 112, 232, 213, 105,
+                155, 224, 126, 38, 105, 168};
+        return new int[][]{r, g, b};
     }
 
     private static int[][] viridis() {

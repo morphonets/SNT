@@ -93,7 +93,7 @@ public class BookmarkManager {
                 + "contextual menu (or press Shift+B).\n"//
                 + "To visit a bookmarked location: Double-click on its entry.";
         gbc.weighty = 0.1;
-        container.add(sntui.largeMsg(msg), gbc);
+        container.add(GuiUtils.longSmallMsg(msg, container), gbc);
         gbc.gridy++;
         gbc.weighty = 0.95;
         container.add(table.getContainer(), gbc);
