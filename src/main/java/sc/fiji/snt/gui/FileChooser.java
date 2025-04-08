@@ -234,7 +234,7 @@ public class FileChooser extends JFileChooser {
     private void savePrefs() {
         final StringBuilder recentLocationsString = new StringBuilder();
         for (final File dir : recentLocations) {
-            recentLocationsString.append(dir.getAbsolutePath()).append(";");
+            if (dir != null) recentLocationsString.append(dir.getAbsolutePath()).append(";");
         }
         try {
             prefs.put(RECENT_LOCATIONS_KEY, recentLocationsString.toString());

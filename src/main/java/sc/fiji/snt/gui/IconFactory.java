@@ -263,10 +263,12 @@ public class IconFactory {
 		return new FADerivedIcon(entry.id, tabbedPane.getFont().getSize(), tabbedPane.getForeground(), entry.solid);
 	}
 
-	public static TitledBorder titledBorder(final char symbol, final boolean solid) {
-		final TitledBorder border = new TitledBorder(String.valueOf(symbol));
+	public static TitledBorder bottomBorder(final char symbol, final boolean solid) {
+		final Color color = UIManager.getColor("TitlePane.embeddedForeground");
+		final TitledBorder border = new TitledBorder(BorderFactory.createMatteBorder(0, 0, 1, 0,
+				color), String.valueOf(symbol));
 		border.setTitleFont(FADerivedIcon.getFont(solid));
-		border.setTitleColor(UIManager.getColor("TitlePane.embeddedForeground"));
+		border.setTitleColor(color);
 		border.setTitlePosition(TitledBorder.BOTTOM);
 		return border;
 	}

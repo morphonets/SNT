@@ -357,6 +357,22 @@ public class GuiUtils {
 				(defaultChoice == null) ? choices[0] : defaultChoice);
 	}
 
+	public String[] getTwoChoices(final String title,
+								  final String choice1Label, final String[] choices1, final String defaultChoice1,
+								  final String choice2Label, final String[] choices2,  final String defaultChoice2) {
+		final JComboBox<String> combo1 = new JComboBox<>(choices1);
+		final JComboBox<String> combo2 = new JComboBox<>(choices2);
+		combo1.setSelectedItem(defaultChoice1);
+		combo2.setSelectedItem(defaultChoice2);
+		final JComponent[] inputs = new JComponent[] { new JLabel(choice1Label), combo1, new JLabel(choice2Label), combo2 };
+		final int result = JOptionPane.showConfirmDialog(null, inputs, title, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.QUESTION_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			return new String[] { (String) combo1.getSelectedItem(),  (String) combo2.getSelectedItem() };
+		}
+		return null;
+	}
+
 	public String[] getChoiceWithInput(final String message, final String title, final String[] choices,
 			final String defaultChoice, final String defaultInput) {
 		final JComboBox<String> combo = new JComboBox<>(choices);
@@ -2635,10 +2651,7 @@ public class GuiUtils {
 
 		public static void makeBorderless(final AbstractButton... buttons) {
 			for (final AbstractButton button: buttons) {
-				if (button != null) {
-					button.putClientProperty("JButton.buttonType", "borderless");
-					button.setContentAreaFilled(false); // required in Windows!?
-				}
+				if (button != null) button.putClientProperty("JButton.buttonType", "borderless");
 			}
 		}
 

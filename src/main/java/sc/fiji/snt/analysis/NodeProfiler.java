@@ -312,7 +312,6 @@ public class NodeProfiler extends CommonDynamicCmd {
 		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
 		StringBuilder legend = new StringBuilder();
 		for (int ch = 0; ch < dataset.getChannels(); ch++) {
-			System.out.println("Processing " + ch);
 			final SNTTable table = getTable(path, ch);
 			final ArrayList<Double> ymeans = new ArrayList<>();
 			final ArrayList<Double> ystds = new ArrayList<>();

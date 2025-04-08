@@ -144,8 +144,8 @@
 		<maven.test.skip>true</maven.test.skip>
 
 		<!-- Dependency versions -->
-		<flatlaf.version>3.5.4</flatlaf.version> <!-- upstream 3.5.1 -->
-		<rsyntaxtextarea.version>3.5.4</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
+		<flatlaf.version>3.6</flatlaf.version> <!-- upstream 3.5.1 -->
+		<rsyntaxtextarea.version>3.6.0</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
 		<annotations.version>26.0.2</annotations.version>
 		<fastutil-core.version>8.5.15</fastutil-core.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>

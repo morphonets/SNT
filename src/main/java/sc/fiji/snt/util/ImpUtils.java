@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.util;
 
+import ij.CompositeImage;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -383,6 +384,22 @@ public class ImpUtils {
 			case ImagePlus.COLOR_RGB -> "COLOR_RGB (32-bit RGB color)";
 			default -> "Unknown (value: " + type + ")";
 		};
+	}
+
+	public static void invertLut(final ImagePlus imp) {
+		if (imp.getType() == ImagePlus.COLOR_RGB) {
+			return;
+		}
+		if (imp.isComposite()) {
+			final CompositeImage ci = (CompositeImage)imp;
+			final LUT lut = ci.getChannelLut();
+			if (lut!=null) ci.setChannelLut(lut.createInvertedLut());
+		} else {
+			final ImageProcessor ip = imp.getProcessor();
+			ip.invertLut();
+			if (imp.getStackSize()>1) imp.getStack().setColorModel(ip.getColorModel());
+		}
+		imp.updateAndRepaintWindow();
 	}
 
 	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {

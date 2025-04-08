@@ -252,7 +252,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			}
 		});
 
-		add(SNTUI.buttonPanel(deleteFills, reloadFill, exportFills), c);
+		add(SNTUI.InternalUtils.buttonPanel(deleteFills, reloadFill, exportFills), c);
 		++c.gridy;
 
 		pack();
@@ -303,13 +303,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private JPanel statusPanel() {
-		final JPanel statusPanel = new JPanel();
-		statusPanel.setLayout(new BorderLayout());
-		statusPanel.setBorder(BorderFactory.createEmptyBorder(STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN, STATUS_MARGIN));
 		statusText = new JLabel("Loading Fill Manager...");
-		statusText.setBorder(BorderFactory.createEmptyBorder(SNTUI.InternalUtils.MARGIN * 3,
-				SNTUI.InternalUtils.MARGIN * 2, SNTUI.InternalUtils.MARGIN * 2, 0));
-		statusPanel.add(statusText, BorderLayout.CENTER);
 		startFill = GuiUtils.Buttons.smallButton("Start");
 		startFill.addActionListener(this);
 		stopFill = GuiUtils.Buttons.smallButton("Stop");
@@ -321,10 +315,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			plugin.stopFilling();
 			plugin.discardFill(); // will change state
 		});
-		final JPanel fillControlPanel = SNTUI.buttonPanel(startFill, stopFill, saveFill, discardFill);
-		statusPanel.add(fillControlPanel, BorderLayout.SOUTH);
-		fillControlPanel.doLayout(); // otherwise dialog becomes too wide
-		return statusPanel;
+		return SNTUI.InternalUtils.statusPanel(statusText, startFill, stopFill, saveFill, discardFill);
 	}
 
 	private void setPlaceholderStatusLabels() {

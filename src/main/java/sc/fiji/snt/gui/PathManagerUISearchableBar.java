@@ -90,7 +90,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private void logSelectionCount(final int count) {
-		_statusLabel.setText( (subFilteringEnabled) ? "⫧ " + count + " Match(es)" : count + " Match(es)");
+		_statusLabel.setText(count + " Match(es)");
 	}
 
 	private JMenuItem createFindAndReplaceMenuItem() {

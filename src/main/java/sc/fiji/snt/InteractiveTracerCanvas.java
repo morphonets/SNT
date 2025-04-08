@@ -900,11 +900,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		public void itemStateChanged(final ItemEvent e) {
 			if (e.getSource().equals(toggleEditModeMenuItem)) {
 				enableEditMode(toggleEditModeMenuItem.getState());
-			}
-			else if (e.getSource().equals(togglePauseSNTMenuItem)) {
-				tracerPlugin.pause(togglePauseSNTMenuItem.isSelected(), false);
-			}
-			else if (e.getSource().equals(togglePauseTracingMenuItem)) {
+			} else if (e.getSource().equals(togglePauseSNTMenuItem)) {
+				final boolean pause = togglePauseSNTMenuItem.isSelected();
+				if (pause) panMenuItem.setSelected(false);
+				tracerPlugin.pause(pause, false);
+			} else if (e.getSource().equals(togglePauseTracingMenuItem)) {
 				tracerPlugin.pauseTracing(togglePauseTracingMenuItem.isSelected(), true);
 			}
 		}
@@ -914,16 +914,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			if (e.getSource() == extendPathMenuItem) {
 
 				if (tracerPlugin.tracingHalted) {
-					getGuiUtils().tempMsg(
-						"Tracing functions currently disabled");
+					getGuiUtils().tempMsg("Tracing functions currently disabled");
 					return;
-				}
-				else if (pathAndFillManager.size() == 0) {
-					getGuiUtils().tempMsg(
-						"There are no finished paths to extend");
+				} else if (pathAndFillManager.size() == 0) {
+					getGuiUtils().tempMsg("There are no finished paths to extend");
 					return;
-				}
-				else if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
+				} else if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
 					getGuiUtils().tempMsg(
 						"Please finish current operation before extending path");
 					return;

@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import ij.ImagePlus;
 import ij.gui.Roi;
+import ij.gui.ShapeRoi;
 import ij.plugin.frame.RoiManager;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -49,7 +50,8 @@ public class DelineationsManager {
 
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-    private static final Color DEF_COLOR = Color.LIGHT_GRAY;
+    private static final int DEF_N = 10;
+    private static final Color DEF_COLOR = Color.GRAY;
     private static final String UNAFFECTED_LABEL = "Unaffected paths";
     private static final String NON_DELINEATED_LABEL = "Non-delineated";
     private final SNTUI sntui;
@@ -63,10 +65,13 @@ public class DelineationsManager {
         this.sntui = sntui;
         pafm = sntui.plugin.getPathAndFillManager();
         fallbackColor = DEF_COLOR;
-        final int n = 10;
-        delineations = new ArrayList<>(n);
         delineationsPanel = new JPanel();
         delineationsPanel.setLayout(new BoxLayout(delineationsPanel, BoxLayout.Y_AXIS));
+        delineations = new ArrayList<>(DEF_N);
+        initializeDefaultPanel(DEF_N);
+    }
+
+    private void initializeDefaultPanel(final int n) {
         final Color[] colors = defaultDelineationColors(n);
         for (int i = 1; i <= n; i++) {
             final Delineation delineation = new Delineation(i, colors[i - 1]);
@@ -74,7 +79,6 @@ public class DelineationsManager {
             delineationsPanel.add(delineation.getWidget());
         }
     }
-
     private Color[] defaultDelineationColors(final int n) {
         return ColorMaps.glasbeyColorsAWT(n);
     }
@@ -113,21 +117,99 @@ public class DelineationsManager {
         final JToolBar toolbar = new JToolBar();
         final JButton addButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.PLUS, 1.1f));
         addButton.setToolTipText("Add new entries");
+        toolbar.add(addButton);
+        toolbar.add(Box.createHorizontalStrut(5));
         addButton.addActionListener(e -> {
-            final Double n = sntui.guiUtils.getDouble("Add how many new entries?",
-                    "Add Delineation Entries", 1);
+            final Double n = sntui.guiUtils.getDouble(
+                    String.format("Currently there are %d categories. How many new entries should be added?", delineations.size()),
+                    "Add Entries", 1);
             if (n == null) return;
-            if (Double.isNaN(n) || n < 1 || n > 2000) // arbitrary limit to avoid overloading the GUI
-                sntui.guiUtils.error("Invalid number of entries. A value between 1 and 2000 is expected.");
+            if (Double.isNaN(n) || n < 1 || n > 1000) // arbitrary limit to avoid overloading the GUI
+                sntui.guiUtils.error("Invalid number of entries. A value between 1 and 1000 is expected.");
             else
                 addToCapacity(n.intValue());
         });
-        toolbar.add(addButton);
+        final JButton sortButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SORT, 1.1f));
+        sortButton.setToolTipText("Sort entries");
+        toolbar.add(sortButton);
+        toolbar.add(Box.createHorizontalStrut(5));
+
+        final JButton mergeButton = new JButton(IconFactory.buttonIcon('\uf247', true, IconFactory.defaultColor()));
+        mergeButton.setToolTipText("Merge two or more delineations into one");
+        toolbar.add(mergeButton);
+        mergeButton.addActionListener(e -> {
+            if (noAssignmentsExistError()) return;
+            final String[] choices = delineations.stream().filter(d -> d.roi != null).map(d -> d.name).toArray(String[]::new);
+            final List<String> chosenChoices = sntui.guiUtils.getMultipleChoices("Select categories to merge", choices, null);
+            if (chosenChoices == null || chosenChoices.isEmpty()) return;
+            final Delineation template = getDelineation(chosenChoices.getFirst());
+            final List<Delineation> toDelete = chosenChoices.stream().skip(1).map(this::getDelineation).toList();
+            template.rename(chosenChoices.toString());
+            mergeDelineations(template, toDelete);
+        });
+        toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
+
+        final JButton colorSchemeButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.COLOR2, 1.1f));
+        colorSchemeButton.setToolTipText("Change color scheme");
+        toolbar.add(colorSchemeButton);
+        colorSchemeButton.addActionListener(e -> {
+            final String[] choices = new String[]{"Distinct", "Fire", "Ice", "Plasma", "Spectrum", "Viridis"};
+            final String lastChoice = sntui.getPrefs().get("snt.dmColorScheme", "Distinct");
+            final String choice = sntui.guiUtils.getChoice("", "Color Scheme...", choices, lastChoice);
+            if (choice == null) return;
+            sntui.getPrefs().set("snt.dmColorScheme", choice);
+            final Color[] colors = (choices[0].equals(choice))
+                    ? defaultDelineationColors(Math.min(256, delineations.size()))
+                    : ColorMaps.discreteColorsAWT(ColorMaps.get(choice), Math.min(256, delineations.size()));
+           applyColorScheme(colors);
+        });
+        final JButton colorSchemeUndoButton = GuiUtils.Buttons.undo();
+        colorSchemeUndoButton.setToolTipText("Reset color scheme");
+        colorSchemeUndoButton.addActionListener(e -> applyColorScheme(defaultDelineationColors(Math.min(256, delineations.size()))));
+        toolbar.add(colorSchemeUndoButton);
+
+        final JToggleButton directEditingButton = new JToggleButton();
+        IconFactory.assignIcon(directEditingButton, IconFactory.GLYPH.PEN, 1.1f);
+        directEditingButton.setToolTipText("Enable directly editing of labels");
+        toolbar.add(directEditingButton);
+        directEditingButton.addItemListener(e -> delineations.forEach(d -> d.field.editButton.setSelected(directEditingButton.isSelected())));
+        final JButton labelsUndoButton = GuiUtils.Buttons.undo();
+        labelsUndoButton.setToolTipText("Reset all labels");
+        labelsUndoButton.addActionListener(e -> {
+            if (!sntui.guiUtils.getConfirmation("Reset all labels?", "Reset?")) return;
+            for (final Delineation delineation : delineations) {
+                delineation.rename(delineation.field.defaultLabel());
+                delineation.field.editButton.setSelected(false);
+            }
+            directEditingButton.setSelected(false);
+        });
+        toolbar.add(labelsUndoButton);
+        toolbar.addSeparator();
+        toolbar.add(Box.createHorizontalGlue());
+
+        sortButton.addActionListener(e -> {
+            delineations.sort((d1, d2) -> {
+                final boolean def1 = d1.name.toLowerCase().startsWith("delineation");
+                final boolean def2 = d2.name.toLowerCase().startsWith("delineation");
+                if (def1 && def2) return Long.compare(d1.label, d2.label);
+                return d1.name.compareToIgnoreCase(d2.name);
+            });
+            directEditingButton.setSelected(false);
+            delineationsPanel.removeAll();
+            delineations.forEach( del -> {
+                del.field.editButton.setSelected(false);
+                delineationsPanel.add(del.getWidget());
+            });
+            delineationsPanel.revalidate();
+            delineationsPanel.repaint();
+        });
+
         final JLabel label = new JLabel(" Outside color:");
         label.setToolTipText("Fallback color for non-delineated sections");
         toolbar.add(label);
         final JButton fColorButton = new JButton(IconFactory.accentIcon(fallbackColor, true));
+        fColorButton.setToolTipText(label.getToolTipText());
         fColorButton.addActionListener(e -> {
             final Color newColor = sntui.guiUtils.getColor("Non-delineated Color", fallbackColor, (String[]) null);
             if (newColor == null || newColor.equals(fallbackColor)) return;
@@ -146,6 +228,16 @@ public class DelineationsManager {
         });
         toolbar.add(fColorUndoButton);
         return toolbar;
+    }
+
+    private void applyColorScheme(final Color[] colors256) {
+        int colorIdx = 0;
+        for (final Delineation d : delineations) {
+            if (colorIdx > 255) colorIdx = 0;
+            d.color = colors256[colorIdx++];
+            d.colorChanged(true, false);
+        }
+        sntui.plugin.updateAllViewers();
     }
 
     private void expandCapacityTo(final int n) {
@@ -175,7 +267,7 @@ public class DelineationsManager {
     }
 
     private List<Roi> getValidDelineationROIs() {
-        return delineations.stream().map(d -> d.roi).filter(Objects::nonNull).toList();
+        return delineations.stream().map(d -> d.roi).filter(roi -> roi !=null && roi != Delineation.DUMMY_ROI).toList();
     }
 
     private Map<String, List<Path>> getLabeledGroups(final List<Path> paths) {
@@ -213,7 +305,7 @@ public class DelineationsManager {
     }
 
     private void measure() {
-        if (noAssignmentsExistError() || sntui.noPathsError()) return;
+        if (sntui.noPathsError() || noAssignmentsExistError()) return;
         final List<Path> paths = pafm.getPaths();
         final boolean newTableNeeded = table == null;
         if (newTableNeeded)
@@ -244,7 +336,51 @@ public class DelineationsManager {
         nonDelineationMappingWarning();
     }
 
-    private void plot(final String metric, final Map<String, List<Path>> pathGroups) {
+    private void plotDistributionFromPrompt() {
+        if (sntui.noPathsError() || noAssignmentsExistError()) return;
+        final List<Path> paths = pafm.getPaths();
+        final String[] lastChoices = sntui.getPrefs().get("snt.delineationMetric", "Path length,Boxplot").split(",");
+        final String[] choices = sntui.guiUtils.getTwoChoices("Plot Distribution...",
+                "Metric:", getApplicableMetrics(), lastChoices[0],
+                "Plot type:", new String[]{"Boxplot", "Histogram (multi-series)", "Histogram (single-series montage)"}, lastChoices[1]);
+        if (choices == null) return;
+        try {
+            sntui.getPrefs().set("snt.delineationMetric", choices[0] + "," + choices[1]);
+            plotDistribution(choices[0], "Boxplot".equals(choices[1]), choices[1].contains("montage"), getLabeledGroups(paths));
+        } catch (final IllegalArgumentException ex) {
+            sntui.guiUtils.error("It was not possible to retrieve valid histogram data. It is likely that '"
+                    + choices[0] + "' cannot be not be computed for current paths/delineations.");
+            SNTUtils.error("Plotting error", ex);
+        }
+        nonDelineationMappingWarning();
+    }
+
+    private void plotDistribution(final String metric, final boolean boxplot, final boolean montage, final Map<String, List<Path>> pathGroups) {
+        if (montage) {
+            plotMontage(metric, pathGroups);
+            return;
+        }
+        final GroupedTreeStatistics gStats = new GroupedTreeStatistics();
+        pathGroups.forEach((label, sections) -> {
+            if (PathStatistics.VALUES.equals(metric) && sntui.plugin.accessToValidImageData())
+                new PathProfiler(new Tree(sections), sntui.plugin.getDataset()).assignValues();
+            gStats.addGroup(List.of(new Tree(sections)), label);
+        });
+        try {
+            if (boxplot) {
+                gStats.getBoxPlot(metric).show();
+            } else if (metric.toLowerCase().contains("angle")) {
+                gStats.getPolarHistogram(metric).show();
+            } else {
+                gStats.getHistogram(metric).show();
+            }
+        } catch (final Exception ex) {
+            SNTUtils.error("Error computing distributions", ex);
+            sntui.guiUtils.error("Some data could not be computed. With debug mode active, check Console for details.");
+        }
+    }
+
+    private void plotMontage(final String metric, final Map<String, List<Path>> pathGroups) {
         final boolean polar = metric.toLowerCase().contains("angle");
         final List<SNTChart> charts = new ArrayList<>();
         pathGroups.forEach((label, sections) -> {
@@ -280,22 +416,7 @@ public class DelineationsManager {
         toolbar.add(optionsButton());
         toolbar.addSeparator();
         final JButton button2 = new JButton("Plot", IconFactory.buttonIcon(IconFactory.GLYPH.CHART, 1.1f));
-        button2.addActionListener(e -> {
-            if (noAssignmentsExistError() || sntui.noPathsError()) return;
-            final List<Path> paths = pafm.getPaths();
-            final String lastChoice = sntui.getPrefs().get("snt.delineationMetric", "Path length");
-            final String choice = sntui.guiUtils.getChoice("", "Plot Distribution...", getApplicableMetrics(), lastChoice);
-            if (choice == null) return;
-            try {
-                sntui.getPrefs().set("snt.delineationMetric", choice);
-                plot(choice, getLabeledGroups(paths));
-            } catch (final IllegalArgumentException ex) {
-                sntui.guiUtils.error("It was not possible to retrieve valid histogram data. It is likely that '"
-                        + choice + "' cannot be not be computed to current paths/delineations.");
-                SNTUtils.error("Plotting error", ex);
-            }
-            nonDelineationMappingWarning();
-        });
+        button2.addActionListener(e -> plotDistributionFromPrompt());
         toolbar.add(button2);
         toolbar.addSeparator();
         final JButton button3 = new JButton("Measure", IconFactory.buttonIcon(IconFactory.GLYPH.TABLE, 1.1f));
@@ -347,6 +468,12 @@ public class DelineationsManager {
             if (color.equals(d.color)) return d;
         return null;
     }
+    private Delineation getDelineation(final String name) {
+        if (name == null) return null;
+        for (final Delineation d : delineations)
+            if (name.equals(d.name)) return d;
+        return null;
+    }
 
     JButton optionsButton() {
         final JButton optionsButton = GuiUtils.Buttons.options();
@@ -360,6 +487,7 @@ public class DelineationsManager {
         optionsMenu.add(jmi);
         optionsMenu.addSeparator();
         jmi = new JMenuItem("Import Assignments from ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT));
+        optionsMenu.add(jmi);
         jmi.addActionListener(e -> {
             final RoiManager rm = RoiManager.getInstance2();
             if (rm == null || rm.getCount() == 0) {
@@ -371,7 +499,7 @@ public class DelineationsManager {
                 sntui.guiUtils.error("The ROI Manager does not contain area ROIs.");
                 return;
             }
-            if (!resetAutorizedByUser()) return;
+            if (!resetAuthorizedByUser()) return;
             expandCapacityTo(rois.size());
             int outCounter = 0;
             for (int i = 0; i < rois.size(); i++) {
@@ -403,45 +531,18 @@ public class DelineationsManager {
                         "Delineations Imported");
             }
         });
-        optionsMenu.add(jmi);
         jmi = new JMenuItem("Export Assignments to ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
-        jmi.addActionListener(e -> toRoiManager());
-        optionsMenu.add(jmi);
-        GuiUtils.addSeparator(optionsMenu, "Edit");
-        jmi = new JMenuItem("Color Scheme...", IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
         jmi.addActionListener(e -> {
-            final String[] choices = new String[]{"Distinct", "Fire", "Ice", "Plasma", "Spectrum", "Viridis"};
-            final String lastChoice = sntui.getPrefs().get("snt.dmColorScheme", "Distinct");
-            final String choice = sntui.guiUtils.getChoice("", "Color Scheme...", choices, lastChoice);
-            if (choice == null) return;
-            final Color[] colors = (choices[0].equals(choice))
-                    ? defaultDelineationColors(Math.min(256, delineations.size()))
-                    : ColorMaps.discreteColorsAWT(ColorMaps.get(choice), Math.min(256, delineations.size()));
-            int colorIdx = 0;
-            for (final Delineation d : delineations) {
-                if (colorIdx > 255) colorIdx = 0;
-                d.color = colors[colorIdx++];
-                d.colorChanged(true, false);
-            }
-            sntui.plugin.updateAllViewers();
-            sntui.getPrefs().set("snt.dmColorScheme", choice);
-        });
-        optionsMenu.add(jmi);
-        final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Direct Editing of Labels", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
-        jcmi.addItemListener(e -> delineations.forEach(d -> d.field.editButton.setSelected(jcmi.isSelected())));
-        optionsMenu.add(jcmi);
-        jmi = new JMenuItem("Reset Labels", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
-        jmi.addActionListener(e -> {
-            for (final Delineation delineation : delineations) {
-                delineation.rename(delineation.field.defaultLabel());
-                delineation.field.editButton.setSelected(false);
-            }
-            jcmi.setSelected(false);
+            final List<Roi> rois = getValidDelineationROIs();
+            if (rois.isEmpty())
+                sntui.guiUtils.error("No ROI-based delineations to export.");
+            else
+                toRoiManager(rois);
         });
         optionsMenu.add(jmi);
         GuiUtils.addSeparator(optionsMenu, "Rendering of Delineated Paths");
         jmi = new JMenuItem("Restore Pre-Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
-        jmi.addActionListener(e -> removeDelineationLabelsFromAllPaths(false, true));
+        jmi.addActionListener(e -> removeDelineationColorsFromAllPaths(false));
         optionsMenu.add(jmi);
         jmi = new JMenuItem("(Re)Apply Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.REDO));
         jmi.addActionListener(e -> {
@@ -469,10 +570,20 @@ public class DelineationsManager {
         optionsMenu.add(jmi);
         jmi = new JMenuItem("Delete All Assignments...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         jmi.addActionListener(e -> {
-            if (noAssignmentsExistError()) return;
-            // Unless, e.g. the user deleted all assignments one by one, we'll only reset things after user confirmation
-            if (sntui.guiUtils.getConfirmation("Are you sure you want to remove all delineations?", "Remove All?"))
+            final List<Path> fallbackColorPaths = getFallbackColorPaths();
+            if (fallbackColorPaths.isEmpty() && noAssignmentsExistError()) return;
+            if (sntui.guiUtils.getConfirmation("Are you sure you want to remove all delineations?", "Remove All?")) {
+                fallbackColorPaths.forEach(p -> p.setNodeColors(null));
                 reset();
+            }
+        });
+        optionsMenu.add(jmi);
+        jmi = new JMenuItem("Delete All Assignments And Reset List...", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
+        jmi.addActionListener(e -> {
+            if (sntui.guiUtils.getConfirmation("Delete all delineations and reset list?", "Full Reset?")) {
+                getFallbackColorPaths().forEach(p -> p.setNodeColors(null));
+                resetGUI();
+            }
         });
         optionsMenu.add(jmi);
         optionsButton.addMouseListener(new MouseAdapter() {
@@ -485,7 +596,43 @@ public class DelineationsManager {
         return optionsButton;
     }
 
-    private boolean resetAutorizedByUser() {
+    private void mergeDelineations(final Delineation receiver, final List<Delineation> toBeMergedAndDeleted) {
+        final Set<Long> labelsToMerge = toBeMergedAndDeleted.stream().map(d -> d.label).collect(Collectors.toSet());
+        final Roi templateInitialRoi = receiver.roi;
+        toBeMergedAndDeleted.forEach(d -> {
+            if (receiver.roi != null && receiver.roi != Delineation.DUMMY_ROI && d.roi != null) {
+                receiver.roi = new ShapeRoi(d.roi).or(new ShapeRoi(receiver.roi));
+            }
+            delineations.remove(d);
+            delineations.add(new Delineation(d.label, d.color));
+        });
+        if (templateInitialRoi != null && !templateInitialRoi.equals(receiver.roi)) {
+            receiver.assignRoi(receiver.roi, pafm.getPathsInROI(receiver.roi));
+        } else {
+            pafm.getPaths().forEach(p -> {
+                for (int n = 0; n < p.size(); n++) {
+                    if (labelsToMerge.contains(-(long)p.getNodeValue(n))) {
+                        p.setNodeValue(-receiver.label, n);
+                        p.setNodeColor(receiver.color, n);
+                    }
+                }
+            });
+        }
+        delineationsPanel.removeAll();
+        delineations.forEach(d-> delineationsPanel.add(d.getWidget()));
+        delineationsPanel.validate();
+        delineationsPanel.repaint();
+        sntui.plugin.updateAllViewers();
+    }
+
+    private List<Path> getFallbackColorPaths() {
+        return pafm.getPaths().stream().filter(p -> {
+                    for (int i = 0; i < p.size(); i++) if (fallbackColor.equals(p.getNodeColor(i))) return true;
+                    return false;
+                }).toList();
+    }
+
+    private boolean resetAuthorizedByUser() {
         final boolean needed = delineations.stream().anyMatch(d -> d.roi != null);
         if (!needed) return true;
         if (sntui.guiUtils.getConfirmation("Existing assignments will be cleared. Proceed?",
@@ -496,20 +643,28 @@ public class DelineationsManager {
         return false;
     }
 
+    private void resetGUI() {
+        delineations.clear();
+        delineationsPanel.removeAll();
+        initializeDefaultPanel(10);
+        reset();
+        delineationsPanel.validate();
+        delineationsPanel.repaint();
+    }
+
     /**
      * Deletes all delineations.
      */
     public void reset() {
-        removeDelineationLabelsFromAllPaths(true, true);
+        removeDelineationColorsFromAllPaths(true);
         delineations.forEach(d -> {
             d.roi = null;
             d.updateWidget();
         });
     }
 
-    private void toRoiManager() {
+    private void toRoiManager(final List<Roi> rois) {
         if (noAssignmentsExistError()) return;
-        final List<Roi> rois = getValidDelineationROIs();
         if (!rois.isEmpty()) {
             RoiManager rm = RoiManager.getInstance2();
             if (rm == null) rm = new RoiManager();
@@ -517,11 +672,11 @@ public class DelineationsManager {
         }
     }
 
-    private void removeDelineationLabelsFromAllPaths(final boolean removeLabels, final boolean removeColors) {
+    private void removeDelineationColorsFromAllPaths(final boolean removeLabelsToo) {
         for (final Path p : pafm.getPaths()) {
             if (pathHasDelineationLabels(p)) {
-                if (removeLabels) p.setNodeValues(null);
-                if (removeColors) p.setNodeColors(null);
+                p.setNodeColors(null);
+                if (removeLabelsToo) p.setNodeValues(null);
             }
         }
         sntui.plugin.updateAllViewers();
@@ -556,8 +711,9 @@ public class DelineationsManager {
     }
 
     private boolean noAssignmentsExistError() {
+        final List<Path> paths = pafm.getPaths();
         final boolean noROIs = delineations.stream().noneMatch(d -> d.roi != null);
-        final boolean noLabels = !hasDelineationLabels(pafm.getTrees());
+        final boolean noLabels = paths.stream().noneMatch(DelineationsManager::pathHasDelineationLabels);
         if (noLabels && noROIs) {
             sntui.guiUtils.error("No assignments exist.");
             return true;
@@ -615,7 +771,7 @@ public class DelineationsManager {
         final String[] uniqueAnnotationsArray = uniqueAnnotations.stream().map(BrainAnnotation::toString).toArray(String[]::new);
         final List<String> choices = sntui.guiUtils.getMultipleChoices("Select annotations to delineate",
                 uniqueAnnotationsArray, null);
-        if (choices == null || choices.isEmpty() || !resetAutorizedByUser()) return;
+        if (choices == null || choices.isEmpty() || !resetAuthorizedByUser()) return;
         final Set<BrainAnnotation> chosenAnnotations = uniqueAnnotations.stream().filter(a -> choices.contains(a.toString())).collect(Collectors.toSet());
         delineate(trees, chosenAnnotations);
     }
@@ -648,7 +804,7 @@ public class DelineationsManager {
     }
 
     private class Delineation {
-        static final int UNDEFINED_LABEL = -9999;
+        static final int UNDEFINED_LABEL = 9999;
         static final Roi DUMMY_ROI = new Roi(0,0,0,0); // delineations that are not based in ROIs
         Color color;
         Roi roi;
@@ -661,9 +817,9 @@ public class DelineationsManager {
         final AbstractButton assignButton;
 
         Delineation(final long label, final Color color) {
-            if (label < 1 || label == -UNDEFINED_LABEL) {
+            if (label < 1 || label == UNDEFINED_LABEL) {
                 // labels are applied as negative numbers, so we'll impose positive labels
-                throw new IllegalArgumentException("Label must be greater than 0 and not " + (-UNDEFINED_LABEL));
+                throw new IllegalArgumentException("Label must be greater than 0 and not " + UNDEFINED_LABEL);
             }
             this.color = color;
             this.label = label;
@@ -679,7 +835,7 @@ public class DelineationsManager {
             for (final Path p : paths) {
                 for (int i = 0; i < p.size(); i++) {
                     if (p.getNodeValue(i) == -label) {
-                        p.setNodeValue(UNDEFINED_LABEL, i);
+                        p.setNodeValue(-UNDEFINED_LABEL, i);
                         p.setNodeColor(fallbackColor, i);
                     }
                 }
@@ -766,8 +922,8 @@ public class DelineationsManager {
             final JButton b = GuiUtils.Buttons.delete();
             b.setToolTipText("Deletes current assignment");
             b.addActionListener(e -> {
-                if (roi != null) {
-                    untagNodes(pafm.getPaths());
+                if (roi != null && roi != DUMMY_ROI) {
+                    untagNodes(pafm.getPathsInROI(roi));
                     roi = null;
                     sntui.plugin.updateAllViewers();
                 }

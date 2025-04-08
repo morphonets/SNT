@@ -452,6 +452,7 @@ public class SNTSearchableBar extends SearchableBar {
 		button.setRolloverSelectedIcon(null);
 		button.setSelectedIcon(null);
 		IconFactory.assignIcon(button, glyph, 1.2f);
+		GuiUtils.Buttons.makeBorderless(button);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 	}

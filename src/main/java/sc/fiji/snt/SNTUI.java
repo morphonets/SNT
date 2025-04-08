@@ -71,6 +71,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 /**
  * Implements SNT's main dialog.
@@ -1297,8 +1298,17 @@ public class SNTUI extends JDialog {
 				showStatus("Canvas rebuilt...", true);
 			}
 		});
-
-		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 2, 0));
+		final JButton invertLutButton = new JButton(IconFactory.buttonIcon('\uf042', true, IconFactory.defaultColor()));
+		invertLutButton.setToolTipText("Invert LUT of tracing views");
+		invertLutButton.addActionListener(e -> {
+			if (plugin.getImagePlus() == null)
+				guiUtils.error("No image available.", "No Image Exists");
+			else
+				Stream.of(plugin.getImagePlus(SNT.XY_PLANE), plugin.getImagePlus(SNT.XZ_PLANE), plugin.getImagePlus(SNT.ZY_PLANE))
+						.filter(Objects::nonNull).forEach(ImpUtils::invertLut);
+		});
+		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, InternalUtils.MARGIN, 0));
+		buttonPanel.add(invertLutButton);
 		buttonPanel.add(rebuildCanvasButton);
 		buttonPanel.add(refreshPanesButton);
 		gdb.fill = GridBagConstraints.NONE;
@@ -2103,19 +2113,6 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	private JPanel statusButtonPanel() {
-		keepSegment = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("Yes", "Y"));
-		keepSegment.addActionListener(listener);
-		junkSegment = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("No", "N"));
-		junkSegment.addActionListener(listener);
-		completePath = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("Finish", "F"));
-		completePath.addActionListener(listener);
-		final JButton abortButton = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel(InternalUtils.hotKeyLabel("Cancel/Esc", "C"), "Esc"));
-		abortButton.addActionListener(e -> abortCurrentOperation());
-		// Build panel
-		return buttonPanel(keepSegment, junkSegment, completePath, abortButton);
-	}
-
 	private void registerInCommandFinder(final AbstractButton button, final String recordedString,
 			final String... location) {
 		if (commandFinder != null) {
@@ -2123,25 +2120,6 @@ public class SNTUI extends JDialog {
 				button.setActionCommand(recordedString);
 			commandFinder.register(button, location);
 		}
-	}
-
-	protected static JPanel buttonPanel(final JButton... buttons) {
-		final JPanel p = new JPanel();
-		p.setBackground(null); // transparent. Parent may be darker/lighter
-		p.setLayout(new GridBagLayout());
-		final GridBagConstraints c = new GridBagConstraints();
-		c.ipadx = 0;
-		c.insets = new Insets(0, 0, 0, 0);
-		c.anchor = GridBagConstraints.LINE_START;
-		c.fill = GridBagConstraints.HORIZONTAL;
-		c.gridy = 0;
-		c.gridx = 0;
-		c.weightx = 0.1;
-		for (final JButton button: buttons) {
-			p.add(button, c);
-			c.gridx++;
-		}
-		return p;
 	}
 
 	private JComponent settingsPanel() {
@@ -2191,17 +2169,16 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel statusPanel() {
-		final JPanel statusPanel = new JPanel(new BorderLayout());
 		statusText = new JLabel("Loading SNT...");
-		statusText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.TEXT_MARGIN , InternalUtils.MARGIN,
-				InternalUtils.TEXT_MARGIN, 0));
-		statusPanel.add(statusText, BorderLayout.CENTER);
-		statusPanel.add(statusButtonPanel(), BorderLayout.SOUTH);
-		statusPanel.setBorder(IconFactory.titledBorder('\uf51c', true));
-		final JPopupMenu pMenu = new JPopupMenu();
-		statusPanel.setComponentPopupMenu(pMenu);
-		GuiUtils.MenuItems.contrastOptions(pMenu, statusPanel, true);
-		return statusPanel;
+		keepSegment = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("Yes", "Y"));
+		keepSegment.addActionListener(listener);
+		junkSegment = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("No", "N"));
+		junkSegment.addActionListener(listener);
+		completePath = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel("Finish", "F"));
+		completePath.addActionListener(listener);
+		final JButton abortButton = GuiUtils.Buttons.smallButton(InternalUtils.hotKeyLabel(InternalUtils.hotKeyLabel("Cancel/Esc", "C"), "Esc"));
+		abortButton.addActionListener(e -> abortCurrentOperation());
+		return InternalUtils.statusPanel(statusText, keepSegment, junkSegment, completePath, abortButton);
 	}
 
 	private JPanel secondaryDataPanel() {
@@ -3078,13 +3055,28 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel colorOptionsPanel() {
-
-		final ColorChooserButton colorChooser1 = new ColorChooserButton(plugin.selectedColor, "Selected");
+		final ColorChooserButton colorChooser1 = new ColorChooserButton(plugin.selectedColor, "Selected: ");
 		colorChooser1.setName("Color for Selected Paths");
-		colorChooser1.addColorChangedListener(newColor -> plugin.setSelectedColor(newColor));
-		final ColorChooserButton colorChooser2 = new ColorChooserButton(plugin.deselectedColor, "Deselected");
+		colorChooser1.addColorChangedListener(newColor -> {
+			if (plugin.deselectedColor.equals(newColor)) {
+				guiUtils.error("Selected and deselected colors cannot be the same.");
+				colorChooser1.setSelectedColor(plugin.selectedColor, true);
+			} else {
+				plugin.setSelectedColor(newColor);
+			}
+		});
+		registerInCommandFinder(colorChooser1, "Default color for selected paths", "Main Tab");
+		final ColorChooserButton colorChooser2 = new ColorChooserButton(plugin.deselectedColor, "Deselected: ");
 		colorChooser2.setName("Color for Deselected Paths");
-		colorChooser2.addColorChangedListener(newColor -> plugin.setDeselectedColor(newColor));
+		colorChooser2.addColorChangedListener(newColor -> {
+			if (plugin.selectedColor.equals(newColor)) {
+				guiUtils.error("Selected and deselected colors cannot be the same.");
+				colorChooser2.setSelectedColor(plugin.deselectedColor, true);
+			} else {
+				plugin.setDeselectedColor(newColor);
+			}
+		});
+		registerInCommandFinder(colorChooser1, "Default color for deselected paths", "Main Tab");
 		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)", !plugin.displayCustomPathColors);
 		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
@@ -3094,19 +3086,27 @@ public class SNTUI extends JDialog {
 			plugin.displayCustomPathColors = !jcheckbox.isSelected();
 			plugin.updateTracingViewers(true);
 		});
-		final JButton optionsButton = resetButton("default path colors");
-		optionsButton.addActionListener( e-> {
+		final JButton resetButton1 = resetButton("default path colors");
+		resetButton1.addActionListener( e-> {
 			colorChooser1.setSelectedColor(SNT.DEFAULT_SELECTED_COLOR, true);
+			showStatus("Default path colors reset", true);
+		});
+		final JButton resetButton2 = resetButton("default path colors");
+		resetButton2.addActionListener( e-> {
 			colorChooser2.setSelectedColor(SNT.DEFAULT_DESELECTED_COLOR, true);
 			showStatus("Default path colors reset", true);
 		});
-
-		final JPanel colorsPanel = new JPanel(new GridLayout(1,2));
-		colorsPanel.add(colorChooser1);
-		colorsPanel.add(colorChooser2);
+		final JToolBar toolbar = new JToolBar();
+		toolbar.setBackground(null);
+		toolbar.add(Box.createHorizontalGlue());
+		toolbar.add(colorChooser1);
+		toolbar.add(resetButton1);
+		toolbar.addSeparator();
+		toolbar.add(colorChooser2);
+		toolbar.add(resetButton2);
+		toolbar.add(Box.createHorizontalGlue());
 		final JPanel panel = new JPanel(new BorderLayout());
-		panel.add(colorsPanel, BorderLayout.CENTER);
-		panel.add(optionsButton, BorderLayout.EAST);
+		panel.add(toolbar, BorderLayout.CENTER);
 		panel.add(jcheckbox, BorderLayout.SOUTH);
 		return panel;
 	}
@@ -4380,6 +4380,48 @@ public class SNTUI extends JDialog {
 				Recorder.recordString(recordString);
 			}
 		}
+
+		protected static JPanel statusPanel(final JLabel statusText, final JButton... buttons) {
+			final JPanel statusPanel = new JPanel(new BorderLayout());
+			statusText.setBorder(BorderFactory.createEmptyBorder(TEXT_MARGIN, MARGIN, TEXT_MARGIN, 0));
+			statusPanel.add(statusText, BorderLayout.CENTER);
+			final JToolBar toolbar = new JToolBar();
+			toolbar.setBackground(null); // transparent. Parent may be darker/lighter
+			toolbar.setFloatable(false);
+			toolbar.setRollover(false);
+			toolbar.add(Box.createHorizontalGlue());
+			for (int i = 0; i < buttons.length; i++) {
+				toolbar.add(buttons[i]);
+				if (i < buttons.length - 1) toolbar.addSeparator();
+			}
+			toolbar.add(Box.createHorizontalGlue());
+			statusPanel.add(toolbar, BorderLayout.SOUTH);
+			statusPanel.setBorder(IconFactory.bottomBorder('\uf51c', true));
+			final JPopupMenu pMenu = new JPopupMenu();
+			statusPanel.setComponentPopupMenu(pMenu);
+			GuiUtils.MenuItems.contrastOptions(pMenu, statusPanel, true);
+			return statusPanel;
+		}
+
+		protected static JPanel buttonPanel(final JButton... buttons) {
+			final JPanel p = new JPanel();
+			p.setBackground(null); // transparent. Parent may be darker/lighter
+			p.setLayout(new GridBagLayout());
+			final GridBagConstraints c = new GridBagConstraints();
+			c.ipadx = 0;
+			c.insets = new Insets(0, 0, 0, 0);
+			c.anchor = GridBagConstraints.LINE_START;
+			c.fill = GridBagConstraints.HORIZONTAL;
+			c.gridy = 0;
+			c.gridx = 0;
+			c.weightx = 0.1;
+			for (final JButton button: buttons) {
+				p.add(button, c);
+				c.gridx++;
+			}
+			return p;
+		}
+
 	}
 
 	private class SNTViewer3D extends Viewer3D {
