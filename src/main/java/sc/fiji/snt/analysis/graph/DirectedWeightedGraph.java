@@ -615,7 +615,8 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	public Tree getTree(final boolean createNewTree) {
 		if (createNewTree) {
 			updateVertexProperties();
-			return new Tree(this, tree.getLabel());
+			final String label = tree != null ? tree.getLabel() : "";
+			return new Tree(this, label);
 		} else {
 			return tree;
 		}
