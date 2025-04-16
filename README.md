@@ -120,13 +120,17 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * Built-in commands for immediate retrieval of statistical reports, including summary statistics, tests (two-sample _t_-test/one-way ANOVA), comparison plots and histograms
 
-* Convex hull analyses
+* [Convex hull](https://imagej.net/plugins/snt/analysis#convex-hull-analysis) analyses
 
-* Graph theory-based analyses
+* [Delineation analyses](https://imagej.net/plugins/snt/walkthroughs#delineation-analysis)
 
-* Persistent homology-based analyses
+* [Graph theory-based analyses](https://imagej.net/plugins/snt/analysis#graph-based-analysis)
 
-* [Sholl](./NOTES.md) and Horton-Strahler analyses
+* [Persistent homology-based analyses](https://imagej.net/plugins/snt/analysis#persistence-homology)
+
+* [Root angle analysis](https://imagej.net/plugins/snt/analysis#root-angle-analysis)
+
+* [Sholl](./NOTES.md) and [Horton-Strahler](https://imagej.net/plugins/snt/analysis#strahler-analysis) analyses
 
 * Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around (or across) traced paths
 

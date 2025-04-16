@@ -429,9 +429,12 @@ public class DelineationsManager {
         final List<String> choiceList = PathStatistics.getMetrics("safe");
         choiceList.remove(PathStatistics.INTER_NODE_DISTANCE_SQUARED); // redundant with internode distance
         choiceList.remove(PathStatistics.N_BRANCH_POINTS); // does not apply immediately to Path sections
-        choiceList.remove(PathStatistics.N_SPINES); // does not apply immediately to Path sections
-        choiceList.remove(PathStatistics.PATH_N_SPINES); // does not apply immediately to Path sections
-        choiceList.remove(PathStatistics.PATH_SPINE_DENSITY); // does not apply immediately to Path sections
+        choiceList.remove(PathStatistics.N_SPINES); // Path sections inherit parent No. of Spines
+        choiceList.remove(PathStatistics.PATH_N_SPINES);
+        choiceList.remove(PathStatistics.PATH_SPINE_DENSITY);
+        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL_XY); // Path sections have no parent
+        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL_XZ);
+        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL_ZY);
         if (!sntui.plugin.accessToValidImageData()) choiceList.remove(PathStatistics.VALUES);
         return choiceList.toArray(new String[0]);
     }
@@ -770,7 +773,7 @@ public class DelineationsManager {
         }
         final String[] uniqueAnnotationsArray = uniqueAnnotations.stream().map(BrainAnnotation::toString).toArray(String[]::new);
         final List<String> choices = sntui.guiUtils.getMultipleChoices("Select annotations to delineate",
-                uniqueAnnotationsArray, null);
+                uniqueAnnotationsArray, uniqueAnnotationsArray[0]);
         if (choices == null || choices.isEmpty() || !resetAuthorizedByUser()) return;
         final Set<BrainAnnotation> chosenAnnotations = uniqueAnnotations.stream().filter(a -> choices.contains(a.toString())).collect(Collectors.toSet());
         delineate(trees, chosenAnnotations);
@@ -922,11 +925,10 @@ public class DelineationsManager {
             final JButton b = GuiUtils.Buttons.delete();
             b.setToolTipText("Deletes current assignment");
             b.addActionListener(e -> {
-                if (roi != null && roi != DUMMY_ROI) {
-                    untagNodes(pafm.getPathsInROI(roi));
-                    roi = null;
-                    sntui.plugin.updateAllViewers();
-                }
+                if (roi == null) return;
+                untagNodes((roi == DUMMY_ROI) ? pafm.getPaths() : pafm.getPathsInROI(roi));
+                roi = null;
+                sntui.plugin.updateAllViewers();
                 updateWidget();
             });
             return b;

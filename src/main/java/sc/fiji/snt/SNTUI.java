@@ -1299,11 +1299,19 @@ public class SNTUI extends JDialog {
 			}
 		});
 		final JButton invertLutButton = new JButton(IconFactory.buttonIcon('\uf042', true, IconFactory.defaultColor()));
-		invertLutButton.setToolTipText("Invert LUT of tracing views");
+		invertLutButton.setToolTipText("Invert LUT of tracing views / Change background of Display Canvas");
 		invertLutButton.addActionListener(e -> {
-			if (plugin.getImagePlus() == null)
+			final ImagePlus imp = plugin.getImagePlus();
+			if (imp == null)
 				guiUtils.error("No image available.", "No Image Exists");
-			else
+			else if (plugin.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
+				switch(imp.getProcessor().get(0, 0)) {
+					case 0 -> imp.getProcessor().set(128);
+					case 128 -> imp.getProcessor().set(255);
+					default -> imp.getProcessor().set(0);
+				}
+				imp.updateAndRepaintWindow();
+			} else
 				Stream.of(plugin.getImagePlus(SNT.XY_PLANE), plugin.getImagePlus(SNT.XZ_PLANE), plugin.getImagePlus(SNT.ZY_PLANE))
 						.filter(Objects::nonNull).forEach(ImpUtils::invertLut);
 		});

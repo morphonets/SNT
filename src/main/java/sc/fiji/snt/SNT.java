@@ -520,11 +520,11 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
-		imp.setProperty("Info", "SNT Display Canvas");
+		imp.setProperty("Info", "SNT Display Canvas\n");
 	}
 
 	protected boolean isDisplayCanvas(final ImagePlus imp) {
-		return "SNT Display Canvas".equals(imp.getInfoProperty());
+		return "SNT Display Canvas\n".equals(imp.getInfoProperty());
 	}
 
 	private void setIsCachedData(final ImagePlus imp) {
