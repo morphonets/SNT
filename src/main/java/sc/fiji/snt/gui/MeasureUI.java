@@ -70,10 +70,11 @@ public class MeasureUI extends JFrame {
 	private static final String MEAN = "Mean";
 	private static final String STDDEV = "SD";
 	private static final String SUM = "Sum";
+	private static final String CV = "CV";
 	private static final String N = "N";
-	private static final String[] allFlags = new String[] { MIN, MAX, MEAN, STDDEV, SUM, N };
+	private static final String[] allFlags = new String[] { MIN, MAX, MEAN, STDDEV, CV, SUM, N };
 	private static final Class<?>[] columnClasses = new Class<?>[] { String.class, Boolean.class, Boolean.class,
-			Boolean.class, Boolean.class, Boolean.class, Boolean.class };
+			Boolean.class, Boolean.class, Boolean.class, Boolean.class, Boolean.class };
 	private final MeasurePanel panel;
 
 	@Parameter
@@ -750,7 +751,8 @@ public class MeasureUI extends JFrame {
                         case MEAN -> summaryStatistics.getMean();
                         case STDDEV -> summaryStatistics.getStandardDeviation();
                         case SUM -> summaryStatistics.getSum();
-                        case N -> summaryStatistics.getN();
+						case CV -> summaryStatistics.getStandardDeviation() / summaryStatistics.getMean();
+						case N -> summaryStatistics.getN();
                         default -> throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
                     };
                     table.set(metricHeader + " [" + measurement + "]", tree.getLabel(), value);

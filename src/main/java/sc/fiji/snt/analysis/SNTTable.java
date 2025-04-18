@@ -263,7 +263,7 @@ public class SNTTable extends DefaultGenericTable {
 	}
 
 	public void removeSummary() {
-		if (isSummarized()) removeRows( getRowIndex("Mean")-1, 8);
+		if (isSummarized()) removeRows( getRowIndex("Mean")-1, 9);
 	}
 
 	public int getSummaryRow() {
@@ -317,7 +317,7 @@ public class SNTTable extends DefaultGenericTable {
 	public void summarize() {
 		if (getRowCount() < 2 || getColumnCount() < 1)
 			return;
-		final int indexOfLastSummaryRow = getRowIndex("Sum");
+		final int indexOfLastSummaryRow = getRowIndex("CV");
 		final boolean summaryExists = indexOfLastSummaryRow > -1;
 		// if no summary exists, summarize from first row onwards, otherwise
 		// from two rows below the last "Sum" row (ie, below its spacer row)
@@ -329,7 +329,7 @@ public class SNTTable extends DefaultGenericTable {
 			sStas[col] = geColumnStats(col, firstRowToBeSummarized, getRowCount()-1);
 		}
 		final int lastRowIndex = getRowCount();
-		insertRows(getRowCount(), " ", "Mean", "SD", "N", "Min", "Max", "Sum", " ");
+		insertRows(getRowCount(), " ", "Mean", "SD", "N", "Min", "Max", "Sum", "CV", " ");
 		for (int col = 0; col < getColumnCount(); col++) {
 			final double min = sStas[col].getMin();
 			final double max = sStas[col].getMax();
@@ -340,6 +340,7 @@ public class SNTTable extends DefaultGenericTable {
 			set(col, lastRowIndex + 4, (nonNumericColumn) ? "" : min);
 			set(col, lastRowIndex + 5, (nonNumericColumn) ? "" : max);
 			set(col, lastRowIndex + 6, (nonNumericColumn) ? "" : sStas[col].getSum());
+			set(col, lastRowIndex + 7, (nonNumericColumn) ? "" : sStas[col].getStandardDeviation() / sStas[col].getMean());
 		}
 		hasUnsavedData = true;
 	}

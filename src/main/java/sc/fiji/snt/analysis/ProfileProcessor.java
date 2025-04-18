@@ -74,11 +74,11 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 	private double[] values;
 
 	public enum Metric {
-		SUM, MIN, MAX, MEAN, MEDIAN, VARIANCE, SD;
+		SUM, MIN, MAX, MEAN, MEDIAN, VARIANCE, SD, CV;
 
 		@Override
 		public String toString() {
-			return (equals(SD)) ? super.toString() : StringUtils.capitalize(super.toString().toLowerCase());
+			return (equals(SD) || equals(CV)) ? super.toString() : StringUtils.capitalize(super.toString().toLowerCase());
 		}
 	}
 
@@ -214,33 +214,18 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			if (cursor == null)
 				continue;
 
-			final double value;
-			switch (metric) {
-			case SUM:
-				value = sum(cursor);
-				break;
-			case MIN:
-				value = min(cursor);
-				break;
-			case MAX:
-				value = max(cursor);
-				break;
-			case MEAN:
-				value = mean(cursor);
-				break;
-			case MEDIAN:
-				value = median(cursor);
-				break;
-			case VARIANCE:
-				value = variance(cursor);
-				break;
-			case SD:
-				value = Math.sqrt(variance(cursor));
-				break;
-			default:
-				throw new IllegalArgumentException("Unknown profiler method: " + metric);
-			}
-			values[i] = value;
+			final double value = switch (metric) {
+                case SUM -> sum(cursor);
+                case MIN -> min(cursor);
+                case MAX -> max(cursor);
+                case MEAN -> mean(cursor);
+                case MEDIAN -> median(cursor);
+                case VARIANCE -> variance(cursor);
+                case SD -> Math.sqrt(variance(cursor));
+                case CV -> cv(cursor);
+                default -> throw new IllegalArgumentException("Unknown profiler method: " + metric);
+            };
+            values[i] = value;
 		}
 		return values;
 	}
@@ -441,6 +426,27 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 			vals.add(cursor.get().getRealDouble());
 		}
 		return (vals.size() == 1) ? 0 : MathEx.var(vals.stream().mapToDouble(Double::doubleValue).toArray());
+	}
+
+	private double cv(final Cursor<T> cursor) {
+		double sum = 0;
+		long count = 0;
+		final List<Double> vals = new ArrayList<>();
+		while (cursor.hasNext()) {
+			cursor.fwd();
+			final long[] pos = new long[cursor.numDimensions()];
+			cursor.localize(pos);
+			if (outOfBounds(pos, intervalMin, intervalMax))
+				continue;
+			final double v = cursor.get().getRealDouble();
+			sum += v;
+			count++;
+			vals.add(v);
+		}
+		if (vals.size() == 1 || count == 0) return 0;
+		final double mean = sum / (double) count;
+		final double variance = MathEx.var(vals.stream().mapToDouble(Double::doubleValue).toArray());
+		return Math.sqrt(variance) / mean;
 	}
 
 	@SuppressWarnings("unused")

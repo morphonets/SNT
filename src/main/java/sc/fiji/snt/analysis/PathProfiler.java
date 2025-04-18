@@ -124,7 +124,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	@Parameter(label = "Integration metric:" ,
 			description = "<HTML>Statistic to compute for each neighborhood.<br>"
 					+ "Ignored when shape is '" + NONE + "'",
-			choices = {"Sum", "Min", "Max", "Mean", "Median", "Variance", "Standard deviation", "Mean±SD", "N/A"},
+			choices = {"Sum", "Min", "Max", "Mean", "Mean±SD", "Median", "Variance", "Standard deviation", "CV", "N/A"},
 			callback = "metricStrChanged")
 	private String metricStr;
 
@@ -299,32 +299,16 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	private void evalParameters() {
-		switch (metricStr) {
-			case "Sum":
-				metric = ProfileProcessor.Metric.SUM;
-				break;
-			case "Min":
-				metric = ProfileProcessor.Metric.MIN;
-				break;
-			case "Max":
-				metric = ProfileProcessor.Metric.MAX;
-				break;
-			case "Mean":
-			case "N/A":
-			case "Mean±SD":
-				metric = ProfileProcessor.Metric.MEAN;
-				break;
-			case "Median":
-				metric = ProfileProcessor.Metric.MEDIAN;
-				break;
-			case "Variance":
-				metric = ProfileProcessor.Metric.VARIANCE;
-				break;
-			case "Standard deviation":
-				metric = ProfileProcessor.Metric.SD;
-				break;
-			default:
-				throw new IllegalArgumentException("Unknown metric: " + metricStr);
+		switch (metricStr.toLowerCase()) {
+			case "sum" -> metric = ProfileProcessor.Metric.SUM;
+			case "min" -> metric = ProfileProcessor.Metric.MIN;
+			case "max" -> metric = ProfileProcessor.Metric.MAX;
+			case "mean", "n/a", "mean±sd" -> metric = ProfileProcessor.Metric.MEAN;
+			case "median" -> metric = ProfileProcessor.Metric.MEDIAN;
+			case "variance" -> metric = ProfileProcessor.Metric.VARIANCE;
+			case "standard deviation", "sd" -> metric = ProfileProcessor.Metric.SD;
+			case "cv" -> metric = ProfileProcessor.Metric.CV;
+			default -> throw new IllegalArgumentException("Unknown metric: " + metricStr);
 		}
 		switch (shapeStr) {
 			case SPHERE:
@@ -507,7 +491,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		processor.setRadius(radius);
 		processor.setMetric(metric);
 		p.setNodeValues(processor.call());
-		ImgUtils.getCtSlice3d(dataset, channel, channel);
+		//ImgUtils.getCtSlice3d(dataset, channel, channel);
 	}
 
 	@SuppressWarnings("unused")
