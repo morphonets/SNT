@@ -163,6 +163,37 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		return tree;
 	}
 
+	/**
+	 * Convenience method for retrieving SWC data,
+	 *
+	 * @param cellId the ID of the cell to be retrieved (case-sensitive). It may be the neuron name or its qualified
+	 *               filename. E.g., "cnic_002" or "cnic_002.swc" or "cnic_002.CNG.swc". By default, the standardized
+	 *               (CNG) version is assumed. Examples:
+	 *               <pre>{@code
+	 *               "cnic_002" -> CNG version of neuron cnic_002 is retrieved
+	 *               "cnic_002.CNG.swc" -> CNG version of neuron cnic_002 is retrieved
+	 *               "cnic_002.swc" -> Source version of neuron cnic_002 is retrieved
+	 *               }</pre>
+	 * @return the specified neuron as a {@link Tree} object, or null if data could not be retrieved
+	 * @throws IOException if an error occurs while retrieving the data
+	 */
+	public static Tree get(final String cellId) throws IOException {
+		if (cellId == null) return null;
+		String cellName = cellId;
+		boolean sourceVersion = false;
+		if (cellId.endsWith(".swc")) {
+			sourceVersion = true;
+			cellName = cellName.substring(0, cellId.length() - 4);
+			if (cellId.endsWith(".CNG")) {
+				cellName = cellName.substring(0, cellId.length() - 4);
+				sourceVersion = false;
+			}
+		}
+		final NeuroMorphoLoader loader = new NeuroMorphoLoader();
+		loader.sourceVersion = sourceVersion;
+		return loader.getTree(cellName);
+	}
+
 	/*
 	 * IDE debug method
 	 *

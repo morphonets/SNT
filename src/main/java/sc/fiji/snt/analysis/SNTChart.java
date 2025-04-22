@@ -1600,7 +1600,7 @@ public class SNTChart extends ChartPanel {
 		openInstances.clear();
 	}
 
-	/** Tiles all open charts. displaying them on a grid) */
+	/** Tiles all open charts displaying them on a grid */
 	public static void tileAll() {
 		final List<JFrame> frames = new ArrayList<>();
 		openInstances.forEach( oi -> frames.add(oi.getFrame()));
@@ -1662,15 +1662,28 @@ public class SNTChart extends ChartPanel {
 	 * Shows a bivariate histogram (two-dimensional histogram) from a matrix. The number of
 	 * bins is automatically determined using the Freedman-Diaconis rule.
 	 * @param data the matrix holding the two distributions to be plotted
-	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
+	 * @param colorTable the color table (LUT) used to color histogram bars (null allowed)
+	 * @param prob	Whether frequencies should be normalized to probabilities
 	 * @param axisLabels Labels for the axes (optional)
 	 * @throws InterruptedException if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
-	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final boolean prob, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[0]));
 		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[1]));
-		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
+		showSmilePlot(smile.plot.swing.Histogram3D.class, data, nBins1, nBins2, prob, colorTable, axisLabels);
+	}
+
+	/**
+	 * Shows a two-dimensional heatmap from a two-dimensional data matrix.
+	 * @param data the two-dimensional matrix holding the data to be plotted
+	 * @param colorTable the heatmap color table (LUT) (null not allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @throws InterruptedException if the heatmap cannot be displayed
+	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 */
+	public static void showHeatmap(final double[][] data, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		showSmilePlot(smile.plot.swing.Heatmap.class, data, -1, -1, false, colorTable, axisLabels);
 	}
 
 	/**
@@ -1691,7 +1704,25 @@ public class SNTChart extends ChartPanel {
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v1));
 		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v2));
-		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
+		showSmilePlot(smile.plot.swing.Histogram3D.class, data, nBins1, nBins2, false, colorTable, axisLabels);
+	}
+
+	/**
+	 * Shows a two-dimensional heatmap for a two-dimensional data matrix assembled from two collections
+	 * @param values1 the values of the first matrix column
+	 * @param values2 the values of the second matrix column
+	 * @param colorTable the heatmap color table (LUT) (null not allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @throws InterruptedException if the heatmap cannot be displayed
+	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 */
+	public static void showHeatmap(final Collection<Double> values1, final Collection<Double> values2,
+									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		final double[] v1 = values1.stream().mapToDouble(Double::doubleValue).toArray();
+		final double[] v2 = values2.stream().mapToDouble(Double::doubleValue).toArray();
+		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
+				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
+		showSmilePlot(smile.plot.swing.Heatmap.class, data, -1, -1, false, colorTable, axisLabels);
 	}
 
 	/**
@@ -1706,21 +1737,42 @@ public class SNTChart extends ChartPanel {
 	 */
 	public static void showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
 									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		showSmileHistogram(smile.plot.swing.Histogram3D.class, stats1, stats2, colorTable, axisLabels);
+	}
+
+	private static <T extends smile.plot.swing.Plot> void showSmileHistogram(final Class<T> smilePlotClass, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
+									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final double[] v1 = stats1.getValues();
 		final double[] v2 = stats2.getValues();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
 		final int nBins1 = AnalysisUtils.computeNBins(stats1);
 		final int nBins2 = AnalysisUtils.computeNBins(stats2);
-		showHist3D(data, nBins1, nBins2, colorTable, axisLabels);
+		showSmilePlot(smilePlotClass, data, nBins1, nBins2, false, colorTable, axisLabels);
 	}
 
-	private static void showHist3D(final double[][] data, final int nBins1, final int nBins2, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	private static <T extends smile.plot.swing.Plot> void showSmilePlot(final Class<T> smilePlotClass,
+												final double[][] data, // data to be plotted
+												final int nBins1, final int nBins2, // no. of bins. Ignored if not Histogram3D
+												final boolean prob, // normalize frequencies? Ignored if not Histogram3D
+												final ColorTable colorTable,
+												final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final Color[] palette = alphaColorsFromColorTable(colorTable);
-		final smile.plot.swing.Canvas canvas = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, false, palette).canvas();
-		if (axisLabels != null && axisLabels.length > 0) canvas.setAxisLabels(axisLabels);
+		smile.plot.swing.Canvas canvas;
+		String title;
+		if (smile.plot.swing.Histogram3D.class.equals(smilePlotClass)) {
+			canvas = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).canvas();;
+			title = "Two-Dimensional Histogram";
+		} else if (smile.plot.swing.Heatmap.class.equals(smilePlotClass)) {
+			canvas = smile.plot.swing.Heatmap.of(data, palette).canvas();
+			title = "Heatmap";
+		} else {
+			throw new IllegalArgumentException("Unsupported plot type: " + smilePlotClass);
+		}
+		if (axisLabels != null && axisLabels.length > 0)
+			canvas.setAxisLabels(Arrays.copyOf(axisLabels, canvas.getAxisLabels().length));
 		final JFrame window = canvas.window();
-		window.setTitle("Two-Dimensional Histogram");
+		window.setTitle(title);
 		window.setVisible(true);
 	}
 
