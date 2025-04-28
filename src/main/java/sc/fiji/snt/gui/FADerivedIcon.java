@@ -41,7 +41,7 @@ import java.io.InputStream;
  */
 class FADerivedIcon implements Icon {
 
-	private static final String FA_VERSION = "6.6.0"; // could be read from pom
+	private static final String FA_VERSION = "6.7.2"; // could be read from pom
 	private static final Font fontRegular = loadFont("fa-regular-400.ttf");
 	private static final Font fontSolid = loadFont("fa-solid-900.ttf");
 	private static int DEF_SIZE;

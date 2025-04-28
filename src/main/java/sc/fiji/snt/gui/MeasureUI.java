@@ -522,8 +522,10 @@ public class MeasureUI extends JFrame {
 				for (int column = 0; column < statsTableModel.getColumnCount(); ++column) {
 					if (column == 0)
 						metrics.add((statsTableModel.getValueAt(row, 0)).toString());
-					else
-						stats.add((statsTableModel.getValueAt(row, column)).toString());
+					else {
+						final Object v = statsTableModel.getValueAt(row, column);
+						stats.add( (null == v) ? "false" : v.toString() );
+					}
 				}
 			}
 			prefService.put(getClass(), "metrics", metrics);

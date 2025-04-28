@@ -301,6 +301,10 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setPref(STORE_WIN_LOCATIONS, value);
 	}
 
+	protected static void setFirstRunAfterUpdate(final boolean b) {
+		Prefs.set(VERSION_CHECK, (b) ? null : SNTUtils.VERSION);
+	}
+
 	public static boolean firstRunAfterUpdate() {
 		final String lastVersion = Prefs.get(VERSION_CHECK, null);
 		Prefs.set(VERSION_CHECK, SNTUtils.VERSION);

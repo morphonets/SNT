@@ -129,13 +129,12 @@ public class GuiUtils {
 	public void notifyIfNewVersion(final int delay) {
 		final Timer timer = new Timer(delay, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
-				final StringBuilder sb = new StringBuilder("<HTML>");
-				sb.append("&nbsp;<b>SNT was updated!</b> Click here to browse release notes.");
-				if (SNTUtils.VERSION.startsWith("4.2.")) {
-					sb.append("<br>&nbsp;<b>This is the last version supporting java 8!</b>");
-					sb.append("<br>&nbsp;To run newer SNT versions you will need a Fiji release supporting at least Java 11.");
-				}
-				showNotification(leftAlignedLabel(sb.toString(), MenuItems.releaseNotesURL(), true), true);
+				final String s = """
+						<HTML>
+						&nbsp;<b>SNT was updated: Click this notification to find out what is new!</b>
+						<br>&nbsp;Tip: You may want to run <i>File › Reset and Restart...</i> to clear outdated settings.
+						""";
+				showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true);
 			}
 		});
 		timer.setRepeats(false);

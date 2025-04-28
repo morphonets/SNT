@@ -2613,6 +2613,7 @@ public class SNTUI extends JDialog {
 			exitRequested();
 			if (SNTUtils.getPluginInstance() == null) { // exit successful
 				PrefsCmd.wipe();
+				SNTPrefs.setFirstRunAfterUpdate(false);
 				cmdService.run(SNTLoaderCmd.class, true);
 			} else {
 				cmdService = null;
