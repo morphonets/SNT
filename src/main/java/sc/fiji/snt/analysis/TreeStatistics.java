@@ -739,10 +739,6 @@ public class TreeStatistics extends ContextCommand {
         convexAnalyzer = null;
     }
 
-    private void updateFittedPathsCounter(final Path filteredPath) {
-        if (fittedPathsCounter > 0 && filteredPath.isFittedVersionOfAnotherPath()) fittedPathsCounter--;
-    }
-
     /**
      * Returns the set of parsed Paths.
      *
@@ -1198,94 +1194,22 @@ public class TreeStatistics extends ContextCommand {
 
     protected void assembleStats(final StatisticsInstance stat, final String measurement) {
         final String m = getNormalizedMeasurement(measurement);
-        switch (m) {
-            case BRANCH_CONTRACTION:
-                try {
-                    for (final Path p : getBranches())
-                        stat.addValue(p.getContraction());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
+        try {
+            switch (m) {
+                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY,
+                     BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME -> {
+                    assembleBranchStats(stat, m);
                 }
-                break;
-            case BRANCH_EXTENSION_ANGLE_XY:
-                try {
-                    getBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case COMPLEXITY_INDEX_ACI -> {
+                    // implementation: doi: 10.1523/JNEUROSCI.4434-06.2007
+                    double sumPathOrders = tree.list().stream().mapToDouble(p -> p.getOrder() - 1).sum();
+                    stat.addValue(sumPathOrders / tree.list().size());
                 }
-                break;
-            case BRANCH_EXTENSION_ANGLE_XZ:
-                try {
-                    getBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
-                }
-                break;
-            case BRANCH_EXTENSION_ANGLE_ZY:
-                try {
-                    getBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
-                }
-                break;
-            case BRANCH_FRACTAL_DIMENSION:
-                try {
-                    getFractalDimension().forEach(stat::addValue);
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
-                }
-                break;
-            case BRANCH_LENGTH:
-                try {
-                    for (final Path p : getBranches())
-                        stat.addValue(p.getLength());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
-                }
-                break;
-            case BRANCH_MEAN_RADIUS:
-                try {
-                    for (final Path p : getBranches())
-                        stat.addValue(p.getMeanRadius());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
-                }
-                break;
-            case BRANCH_SURFACE_AREA:
-                try {
-                    for (final Path p : getBranches())
-                        stat.addValue(p.getApproximatedSurface());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
-                }
-                break;
-            case BRANCH_VOLUME:
-                try {
-                    for (final Path p : getBranches())
-                        stat.addValue(p.getApproximatedVolume());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
-                }
-                break;
-            case COMPLEXITY_INDEX_ACI:
-                // implementation: doi: 10.1523/JNEUROSCI.4434-06.2007
-                double sumPathOrders = 0;
-                for (final Path p : tree.list())
-                    sumPathOrders += p.getOrder() - 1;
-                stat.addValue(sumPathOrders / tree.list().size());
-                break;
-            case COMPLEXITY_INDEX_DCI:
-                try {
-                    // Implementation by chronological order:
-                    // www.jneurosci.org/content/19/22/9928#F6
-                    // https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3373517/
-                    // https://journals.physiology.org/doi/full/10.1152/jn.00829.2011
+                case COMPLEXITY_INDEX_DCI -> {
+                    // Implementations in chronological order:
+                    // 1) www.jneurosci.org/content/19/22/9928#F6
+                    // 2) https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3373517/
+                    // 3) https://journals.physiology.org/doi/full/10.1152/jn.00829.2011
                     final DirectedWeightedGraph graph = tree.getGraph();
                     final List<SWCPoint> graphTips = graph.getTips();
                     final SWCPoint root = graph.getRoot();
@@ -1296,364 +1220,283 @@ public class TreeStatistics extends ContextCommand {
                         }
                     }
                     stat.addValue((sumBranchTipOrders + graphTips.size()) * getCableLength() / getPrimaryBranches().size());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
                 }
-                break;
-            case CONVEX_HULL_BOUNDARY_SIZE:
-            case CONVEX_HULL_BOXIVITY:
-            case CONVEX_HULL_ELONGATION:
-            case CONVEX_HULL_ROUNDNESS:
-            case CONVEX_HULL_SIZE:
-            case CONVEX_HULL_ECCENTRICITY_2D:
-            case CONVEX_HULL_COMPACTNESS_3D:
-                stat.addValue(getConvexHullMetric(m));
-                break;
-            case ROOT_ANGLE_B_FACTOR:
-            case ROOT_ANGLE_C_BIAS:
-            case ROOT_ANGLE_M_DIRECTION:
-                stat.addValue(getRootAngleMetric(m));
-                break;
-            case CONVEX_HULL_CENTROID_ROOT_DISTANCE:
-                final PointInImage root = tree.getRoot();
-                if (root == null) stat.addNaN();
-                else stat.addValue(getConvexAnalyzer().getCentroid().distanceTo(root));
-                break;
-            case DEPTH:
-                stat.addValue(getDepth());
-                break;
-            case GRAPH_DIAMETER:
-                try {
-                    stat.addValue(tree.getGraph().getLongestPath(true).getLength());
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
+                     CONVEX_HULL_SIZE, CONVEX_HULL_ECCENTRICITY_2D, CONVEX_HULL_COMPACTNESS_3D -> {
+                    stat.addValue(getConvexHullMetric(m));
                 }
-                break;
-            case GRAPH_DIAMETER_ANGLE_XY:
-                try {
-                    stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXY(false));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case CONVEX_HULL_CENTROID_ROOT_DISTANCE -> {
+                    final PointInImage root = tree.getRoot();
+                    stat.addValue(root == null ? Double.NaN : getConvexAnalyzer().getCentroid().distanceTo(root));
                 }
-                break;
-            case GRAPH_DIAMETER_ANGLE_XZ:
-                try {
-                    stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleXZ(false));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case ROOT_ANGLE_B_FACTOR, ROOT_ANGLE_C_BIAS, ROOT_ANGLE_M_DIRECTION -> {
+                    stat.addValue(getRootAngleMetric(m));
                 }
-                break;
-            case GRAPH_DIAMETER_ANGLE_ZY:
-                try {
-                    stat.addValue(tree.getGraph().getLongestPath(true).getExtensionAngleZY(false));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case DEPTH -> {
+                    stat.addValue(getDepth());
                 }
-                break;
-            case HEIGHT:
-                stat.addValue(getHeight());
-                break;
-            case INNER_EXTENSION_ANGLE_XY:
-                try {
-                    getInnerBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case GRAPH_DIAMETER, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY -> {
+                    assembleGraphDiameterStats(stat, m);
                 }
-                break;
-            case INNER_EXTENSION_ANGLE_XZ:
-                try {
-                    getInnerBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case HEIGHT -> {
+                    stat.addValue(getHeight());
                 }
-                break;
-            case INNER_EXTENSION_ANGLE_ZY:
-                try {
-                    getInnerBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, INNER_LENGTH,
+                     N_INNER_BRANCHES -> {
+                    assembleInnerBranchStats(stat, m);
                 }
-                break;
-            case INNER_LENGTH:
-                try {
-                    getInnerBranches().forEach(b -> stat.addValue(b.getLength()));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
-                }
-                break;
-            case INTER_NODE_ANGLE:
-                for (final Path p : tree.list()) {
-                    if (p.size() < 3) continue;
-                    for (int i = 2; i < p.size(); i++) {
-                        stat.addValue(p.getAngle(i));
+                case INTER_NODE_ANGLE -> {
+                    for (final Path p : tree.list()) {
+                        if (p.size() < 3) continue;
+                        for (int i = 2; i < p.size(); i++) {
+                            stat.addValue(p.getAngle(i));
+                        }
                     }
                 }
-                break;
-            case INTER_NODE_DISTANCE:
-                for (final Path p : tree.list()) {
-                    if (p.size() < 2) continue;
-                    for (int i = 1; i < p.size(); i += 1) {
-                        stat.addValue(p.getNode(i).distanceTo(p.getNode(i - 1)));
+                case INTER_NODE_DISTANCE -> {
+                    for (final Path p : tree.list()) {
+                        if (p.size() < 2) continue;
+                        for (int i = 1; i < p.size(); i += 1) {
+                            stat.addValue(p.getNode(i).distanceTo(p.getNode(i - 1)));
+                        }
                     }
                 }
-                break;
-            case INTER_NODE_DISTANCE_SQUARED:
-                for (final Path p : tree.list()) {
-                    if (p.size() < 2) continue;
-                    for (int i = 1; i < p.size(); i += 1) {
-                        stat.addValue(p.getNode(i).distanceSquaredTo(p.getNode(i - 1)));
+                case INTER_NODE_DISTANCE_SQUARED -> {
+                    for (final Path p : tree.list()) {
+                        if (p.size() < 2) continue;
+                        for (int i = 1; i < p.size(); i += 1) {
+                            stat.addValue(p.getNode(i).distanceSquaredTo(p.getNode(i - 1)));
+                        }
                     }
                 }
-                break;
-            case LENGTH:
-                stat.addValue(getCableLength());
-                break;
-            case N_BRANCH_NODES:
-                try {
+                case LENGTH -> {
+                    stat.addValue(getCableLength());
+                }
+                case N_BRANCH_NODES -> {
                     getBranches().forEach(b -> stat.addValue(b.size()));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
                 }
-                break;
-            case N_BRANCH_POINTS:
-                stat.addValue(getBranchPoints().size());
-                break;
-            case N_BRANCHES:
-                stat.addValue(getNBranches());
-                break;
-            case N_FITTED_PATHS:
-                stat.addValue(getNFittedPaths());
-                break;
-            case N_INNER_BRANCHES:
-                stat.addValue(getInnerBranches().size());
-                break;
-            case N_NODES:
-                stat.addValue(getNNodes());
-                break;
-            case N_PATH_NODES:
-                tree.list().forEach(path -> stat.addValue(path.size()));
-                break;
-            case N_PATHS:
-                stat.addValue(getNPaths());
-                break;
-            case N_PRIMARY_BRANCHES:
-                stat.addValue(getPrimaryBranches().size());
-                break;
-            case N_SPINES:
-                stat.addValue(getNoSpinesOrVaricosities());
-                break;
-            case N_TERMINAL_BRANCHES:
-                stat.addValue(getTerminalBranches().size());
-                break;
-            case N_TIPS:
-                stat.addValue(getTips().size());
-                break;
-            case NODE_RADIUS:
-                for (final Path p : tree.list()) {
-                    for (int i = 0; i < p.size(); i++) {
-                        stat.addValue(p.getNodeRadius(i));
+                case N_BRANCH_POINTS -> {
+                    stat.addValue(getBranchPoints().size());
+                }
+                case N_BRANCHES -> {
+                    stat.addValue(getNBranches());
+                }
+                case N_FITTED_PATHS -> {
+                    stat.addValue(getNFittedPaths());
+                }
+                case N_NODES -> {
+                    stat.addValue(getNNodes());
+                }
+                case N_PATH_NODES -> {
+                    tree.list().forEach(path -> stat.addValue(path.size()));
+                }
+                case N_PATHS -> {
+                    stat.addValue(getNPaths());
+                }
+                case N_SPINES -> {
+                    stat.addValue(getNoSpinesOrVaricosities());
+                }
+                case N_TIPS -> {
+                    stat.addValue(getTips().size());
+                }
+                case NODE_RADIUS -> {
+                    for (final Path p : tree.list()) {
+                        for (int i = 0; i < p.size(); i++) {
+                            stat.addValue(p.getNodeRadius(i));
+                        }
                     }
                 }
-                break;
-            case PARTITION_ASYMMETRY:
-                try {
+                case PARTITION_ASYMMETRY -> {
                     for (final double asymmetry : getPartitionAsymmetry())
                         stat.addValue(asymmetry);
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
                 }
-                break;
-            case PATH_CHANNEL:
-                for (final Path p : tree.list()) {
-                    stat.addValue(p.getChannel());
+                case PATH_CHANNEL -> {
+                    for (final Path p : tree.list()) {
+                        stat.addValue(p.getChannel());
+                    }
                 }
-                break;
-            case PATH_CONTRACTION:
-                try {
+                case PATH_CONTRACTION -> {
+                    try {
+                        for (final Path p : tree.list())
+                            stat.addValue(p.getContraction());
+                    } catch (final IllegalArgumentException iae) {
+                        SNTUtils.log("Error: " + iae.getMessage());
+                        stat.addNaN();
+                    }
+                }
+                case PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_REL_XY -> {
                     for (final Path p : tree.list())
-                        stat.addValue(p.getContraction());
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
+                        stat.addValue(p.getExtensionAngleXY(PATH_EXT_ANGLE_REL_XY.equals(m)));
                 }
-                break;
-            case PATH_EXT_ANGLE_XY:
-            case PATH_EXT_ANGLE_REL_XY:
-                for (final Path p : tree.list())
-                    stat.addValue(p.getExtensionAngleXY(PATH_EXT_ANGLE_REL_XY.equals(m)));
-                break;
-            case PATH_EXT_ANGLE_XZ:
-            case PATH_EXT_ANGLE_REL_XZ:
-                for (final Path p : tree.list())
-                    stat.addValue(p.getExtensionAngleXZ(PATH_EXT_ANGLE_REL_XZ.equals(m)));
-                break;
-            case PATH_EXT_ANGLE_ZY:
-            case PATH_EXT_ANGLE_REL_ZY:
-                for (final Path p : tree.list())
-                    stat.addValue(p.getExtensionAngleZY(PATH_EXT_ANGLE_REL_ZY.equals(m)));
-                break;
-            case PATH_FRACTAL_DIMENSION:
-                tree.list().forEach(p -> stat.addValue(p.getFractalDimension()));
-                break;
-            case PATH_FRAME:
-                for (final Path p : tree.list()) {
-                    stat.addValue(p.getFrame());
+                case PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_REL_XZ -> {
+                    for (final Path p : tree.list())
+                        stat.addValue(p.getExtensionAngleXZ(PATH_EXT_ANGLE_REL_XZ.equals(m)));
                 }
-                break;
-            case PATH_LENGTH:
-                for (final Path p : tree.list())
-                    stat.addValue(p.getLength());
-                break;
-            case PATH_MEAN_RADIUS:
-                for (final Path p : tree.list()) {
-                    stat.addValue(p.getMeanRadius());
+                case PATH_EXT_ANGLE_ZY, PATH_EXT_ANGLE_REL_ZY -> {
+                    for (final Path p : tree.list())
+                        stat.addValue(p.getExtensionAngleZY(PATH_EXT_ANGLE_REL_ZY.equals(m)));
                 }
-                break;
-            case PATH_N_SPINES:
-                for (final Path p : tree.list()) {
-                    stat.addValue(p.getSpineOrVaricosityCount());
+                case PATH_FRACTAL_DIMENSION -> {
+                    tree.list().forEach(p -> stat.addValue(p.getFractalDimension()));
                 }
-                break;
-            case PATH_ORDER:
-                for (final Path p : tree.list()) {
-                    stat.addValue(p.getOrder());
+                case PATH_FRAME -> {
+                    tree.list().forEach(p -> stat.addValue(p.getFrame()));
                 }
-                break;
-            case PATH_SPINE_DENSITY:
-                for (final Path p : tree.list()) {
-                    stat.addValue(p.getSpineOrVaricosityCount() / p.getLength());
+                case PATH_LENGTH -> {
+                    tree.list().forEach(p -> stat.addValue(p.getLength()));
                 }
-                break;
-            case PATH_SURFACE_AREA:
-                for (final Path p : tree.list())
-                    stat.addValue(p.getApproximatedSurface());
-                break;
-            case PATH_VOLUME:
-                for (final Path p : tree.list())
-                    stat.addValue(p.getApproximatedVolume());
-                break;
-            case PRIMARY_EXTENSION_ANGLE_XY:
-                try {
-                    getPrimaryBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case PATH_MEAN_RADIUS -> {
+                    tree.list().forEach(p -> stat.addValue(p.getMeanRadius()));
                 }
-                break;
-            case PRIMARY_EXTENSION_ANGLE_XZ:
-                try {
-                    getPrimaryBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case PATH_N_SPINES -> {
+                    tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount()));
                 }
-                break;
-            case PRIMARY_EXTENSION_ANGLE_ZY:
-                try {
-                    getPrimaryBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case PATH_ORDER -> {
+                    tree.list().forEach(p -> stat.addValue(p.getOrder()));
                 }
-                break;
-            case PRIMARY_LENGTH:
-                for (final Path p : getPrimaryBranches())
-                    stat.addValue(p.getLength());
-                break;
-            case REMOTE_BIF_ANGLES:
-                try {
+                case PATH_SPINE_DENSITY -> {
+                    tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount() / p.getLength()));
+                }
+                case PATH_SURFACE_AREA -> {
+                    tree.list().forEach(p -> stat.addValue(p.getApproximatedSurface()));
+                }
+                case PATH_VOLUME -> {
+                    tree.list().forEach(p -> stat.addValue(p.getApproximatedVolume()));
+                }
+                case PRIMARY_EXTENSION_ANGLE_XY, PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, PRIMARY_LENGTH,
+                     N_PRIMARY_BRANCHES -> {
+                    assemblePrimaryBranchStats(stat, m);
+                }
+                case REMOTE_BIF_ANGLES -> {
                     for (final double angle : getRemoteBifAngles())
                         stat.addValue(angle);
-                } catch (final IllegalArgumentException iae) {
-                    SNTUtils.log("Error: " + iae.getMessage());
-                    stat.addNaN();
                 }
-                break;
-            case SHOLL_DECAY:
-            case SHOLL_KURTOSIS:
-            case SHOLL_MAX_FITTED:
-            case SHOLL_MAX_FITTED_RADIUS:
-            case SHOLL_MAX_VALUE:
-            case SHOLL_MEAN_VALUE:
-            case SHOLL_N_MAX:
-            case SHOLL_N_SECONDARY_MAX:
-            case SHOLL_POLY_FIT_DEGREE:
-            case SHOLL_RAMIFICATION_INDEX:
-            case SHOLL_SKEWNESS:
-            case SHOLL_SUM_VALUE:
-                stat.addValue(getShollMetric(m).doubleValue());
-                break;
-            case STRAHLER_NUMBER:
-                stat.addValue(getStrahlerNumber());
-                break;
-            case STRAHLER_RATIO:
-                stat.addValue(getStrahlerBifurcationRatio());
-                break;
-            case SURFACE_AREA:
-                stat.addValue(tree.getApproximatedSurface());
-                break;
-            case TERMINAL_EXTENSION_ANGLE_XY:
-                try {
-                    getTerminalBranches().forEach(b -> stat.addValue(b.getExtensionAngleXY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
+                     SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX,
+                     SHOLL_SKEWNESS, SHOLL_SUM_VALUE -> {
+                    stat.addValue(getShollMetric(m).doubleValue());
                 }
-                break;
-            case TERMINAL_EXTENSION_ANGLE_XZ:
-                try {
-                    getTerminalBranches().forEach(b -> stat.addValue(b.getExtensionAngleXZ(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case STRAHLER_NUMBER -> {
+                    stat.addValue(getStrahlerNumber());
                 }
-                break;
-            case TERMINAL_EXTENSION_ANGLE_ZY:
-                try {
-                    getTerminalBranches().forEach(b -> stat.addValue(b.getExtensionAngleZY(false)));
-                } catch (final IllegalArgumentException ignored) {
-                    stat.addNaN();
+                case STRAHLER_RATIO -> {
+                    stat.addValue(getStrahlerBifurcationRatio());
                 }
-                break;
-            case TERMINAL_LENGTH:
-                for (final Path p : getTerminalBranches())
-                    stat.addValue(p.getLength());
-                break;
-            case VALUES:
-                for (final Path p : tree.list()) {
-                    if (!p.hasNodeValues()) continue;
-                    for (int i = 0; i < p.size(); i++) {
-                        stat.addValue(p.getNodeValue(i));
+                case SURFACE_AREA -> {
+                    stat.addValue(tree.getApproximatedSurface());
+                }
+                case TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, TERMINAL_LENGTH,
+                     N_TERMINAL_BRANCHES -> {
+                    assembleTerminalBranchStats(stat, m);
+                }
+                case VALUES -> {
+                    for (final Path p : tree.list()) {
+                        if (!p.hasNodeValues()) continue;
+                        for (int i = 0; i < p.size(); i++) {
+                            stat.addValue(p.getNodeValue(i));
+                        }
+                    }
+                    if (stat.getN() == 0) throw new IllegalArgumentException("Tree has no values assigned");
+                }
+                case VOLUME -> {
+                    stat.addValue(tree.getApproximatedVolume());
+                }
+                case WIDTH -> {
+                    stat.addValue(getWidth());
+                }
+                case X_COORDINATES -> {
+                    for (final Path p : tree.list()) {
+                        for (int i = 0; i < p.size(); i++) {
+                            stat.addValue(p.getNode(i).x);
+                        }
                     }
                 }
-                if (stat.getN() == 0) throw new IllegalArgumentException("Tree has no values assigned");
-                break;
-            case VOLUME:
-                stat.addValue(tree.getApproximatedVolume());
-                break;
-            case WIDTH:
-                stat.addValue(getWidth());
-                break;
-            case X_COORDINATES:
-                for (final Path p : tree.list()) {
-                    for (int i = 0; i < p.size(); i++) {
-                        stat.addValue(p.getNode(i).x);
+                case Y_COORDINATES -> {
+                    for (final Path p : tree.list()) {
+                        for (int i = 0; i < p.size(); i++) {
+                            stat.addValue(p.getNode(i).y);
+                        }
                     }
                 }
-                break;
-            case Y_COORDINATES:
-                for (final Path p : tree.list()) {
-                    for (int i = 0; i < p.size(); i++) {
-                        stat.addValue(p.getNode(i).y);
+                case Z_COORDINATES -> {
+                    for (final Path p : tree.list()) {
+                        for (int i = 0; i < p.size(); i++) {
+                            stat.addValue(p.getNode(i).z);
+                        }
                     }
                 }
-                break;
-            case Z_COORDINATES:
-                for (final Path p : tree.list()) {
-                    for (int i = 0; i < p.size(); i++) {
-                        stat.addValue(p.getNode(i).z);
-                    }
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("Unrecognized parameter " + measurement);
+                default -> throw new IllegalArgumentException("Unrecognized parameter " + measurement);
+            }
+        } catch (final IllegalArgumentException iae) {
+            SNTUtils.log("Error: " + iae.getMessage());
+            stat.addNaN();
+        }
+    }
+
+    private void assembleBranchStats(final StatisticsInstance stat, final String branchMetric) {
+        switch (branchMetric) {
+            case BRANCH_CONTRACTION -> getBranches().forEach(branch -> stat.addValue(branch.getContraction()));
+            case BRANCH_EXTENSION_ANGLE_XY ->
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+            case BRANCH_EXTENSION_ANGLE_XZ ->
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+            case BRANCH_EXTENSION_ANGLE_ZY ->
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+            case BRANCH_FRACTAL_DIMENSION ->
+                    getBranches().forEach(branch -> stat.addValue(branch.getFractalDimension()));
+            case BRANCH_LENGTH -> getBranches().forEach(branch -> stat.addValue(branch.getLength()));
+            case BRANCH_MEAN_RADIUS -> getBranches().forEach(branch -> stat.addValue(branch.getMeanRadius()));
+            case BRANCH_SURFACE_AREA -> getBranches().forEach(branch -> stat.addValue(branch.getApproximatedSurface()));
+            case BRANCH_VOLUME -> getBranches().forEach(branch -> stat.addValue(branch.getApproximatedVolume()));
+        }
+    }
+
+    private void assembleGraphDiameterStats(final StatisticsInstance stat, final String graphDiameterMetric) {
+        final Path graphDiameter = tree.getGraph().getLongestPath(true);
+        switch (graphDiameterMetric) {
+            case GRAPH_DIAMETER -> stat.addValue(graphDiameter.getLength());
+            case GRAPH_DIAMETER_ANGLE_XY -> stat.addValue(graphDiameter.getExtensionAngleXY(false));
+            case GRAPH_DIAMETER_ANGLE_XZ -> stat.addValue(graphDiameter.getExtensionAngleXZ(false));
+            case GRAPH_DIAMETER_ANGLE_ZY -> stat.addValue(graphDiameter.getExtensionAngleZY(false));
+        }
+    }
+
+    private void assembleInnerBranchStats(final StatisticsInstance stat, final String innerBranchMetric) {
+        switch (innerBranchMetric) {
+            case INNER_EXTENSION_ANGLE_XY ->
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+            case INNER_EXTENSION_ANGLE_XZ ->
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+            case INNER_EXTENSION_ANGLE_ZY ->
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+            case INNER_LENGTH -> getInnerBranches().forEach(branch -> stat.addValue(branch.getLength()));
+            case N_INNER_BRANCHES -> stat.addValue(getInnerBranches().size());
+        }
+    }
+
+    private void assembleTerminalBranchStats(final StatisticsInstance stat, final String terminalBranchMetric) {
+        switch (terminalBranchMetric) {
+            case TERMINAL_EXTENSION_ANGLE_XY ->
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+            case TERMINAL_EXTENSION_ANGLE_XZ ->
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+            case TERMINAL_EXTENSION_ANGLE_ZY ->
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+            case TERMINAL_LENGTH -> getTerminalBranches().forEach(branch -> stat.addValue(branch.getLength()));
+            case N_TERMINAL_BRANCHES -> stat.addValue(getTerminalBranches().size());
+        }
+    }
+
+    private void assemblePrimaryBranchStats(final StatisticsInstance stat, final String primaryBranchMetric) {
+        switch (primaryBranchMetric) {
+            case PRIMARY_EXTENSION_ANGLE_XY ->
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+            case PRIMARY_EXTENSION_ANGLE_XZ ->
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+            case PRIMARY_EXTENSION_ANGLE_ZY ->
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+            case PRIMARY_LENGTH -> getPrimaryBranches().forEach(branch -> stat.addValue(branch.getLength()));
+            case N_PRIMARY_BRANCHES -> stat.addValue(getPrimaryBranches().size());
         }
     }
 

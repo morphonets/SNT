@@ -1761,7 +1761,7 @@ public class SNTChart extends ChartPanel {
 		smile.plot.swing.Canvas canvas;
 		String title;
 		if (smile.plot.swing.Histogram3D.class.equals(smilePlotClass)) {
-			canvas = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).canvas();;
+			canvas = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).canvas();
 			title = "Two-Dimensional Histogram";
 		} else if (smile.plot.swing.Heatmap.class.equals(smilePlotClass)) {
 			canvas = smile.plot.swing.Heatmap.of(data, palette).canvas();
