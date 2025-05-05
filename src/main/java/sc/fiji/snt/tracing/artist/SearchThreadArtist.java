@@ -31,6 +31,17 @@ import sc.fiji.snt.tracing.image.SearchImage;
 
 import java.awt.*;
 
+/**
+ * An artist class responsible for visualizing the progress and state of search threads
+ * during path tracing operations.
+ * <ul>
+ *     <li>Rendering the current search frontier</li>
+ *     <li>Displaying explored and unexplored regions</li>
+ *     <li>Highlighting the active search paths</li>
+ *     <li>Visualizing search thread progression in real-time</li>
+ * </ul>
+ * @see BiSearchArtist
+ */
 public class SearchThreadArtist implements SearchArtist {
 
     private final SearchThread search;

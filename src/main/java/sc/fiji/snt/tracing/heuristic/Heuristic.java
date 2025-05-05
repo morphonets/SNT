@@ -26,7 +26,7 @@ import sc.fiji.snt.tracing.SearchInterface;
 
 /**
  * Interface for heuristic estimates to the goal used by classes implementing {@link SearchInterface}.
- * This useful for heuristic-informed searches like A*.
+ * This is useful for heuristic-informed searches like A*.
  *
  * @author Cameron Arshadi
  */

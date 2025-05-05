@@ -33,6 +33,12 @@ import sc.fiji.snt.util.SNTColor;
 
 import java.awt.*;
 
+/**
+ * An artist class that visualizes the progress and behavior of fill operations
+ * performed by filler threads.
+ *
+ * @see SearchThreadArtist
+ */
 public class FillerThreadArtist implements SearchArtist {
 
     private final FillerThread search;

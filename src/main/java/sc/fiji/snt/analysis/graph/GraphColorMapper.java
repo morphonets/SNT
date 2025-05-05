@@ -41,6 +41,39 @@ import java.net.URL;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * A color mapping utility for graph visualization that assigns colors to vertices and edges
+ * based on various graph metrics. This class supports multiple mapping strategies and
+ * color schemes for graph visualization.
+ *
+ * <p>The mapper supports the following metrics:
+ * <ul>
+ *   <li>{@link #BETWEENNESS_CENTRALITY} - Colors vertices based on their betweenness centrality
+ *   <li>{@link #ECCENTRICITY} - Maps colors based on vertex eccentricity
+ *   <li>{@link #CONNECTIVITY} - Colors components based on connectivity
+ *   <li>{@link #EDGE_WEIGHT} - Maps colors based on edge weights
+ *   <li>{@link #PAGE_RANK} - Colors vertices based on PageRank algorithm
+ *   <li>{@link #IN_DEGREE} - Maps colors based on vertex in-degree
+ *   <li>{@link #OUT_DEGREE} - Maps colors based on vertex out-degree
+ *   <li>{@link #INCOMING_WEIGHT} - Colors based on sum of incoming edge weights
+ *   <li>{@link #OUTGOING_WEIGHT} - Colors based on sum of outgoing edge weights
+ *   <li>{@link #HEAVY_PATH_DECOMPOSITION} - Colors edges based on heavy path decomposition
+ * </ul>
+ *
+ * <p>The mapping can be applied to:
+ * <ul>
+ *   <li>Vertices only ({@link #VERTICES})
+ *   <li>Edges only ({@link #EDGES})
+ *   <li>Both vertices and edges ({@link #VERTICES_AND_EDGES})
+ * </ul>
+ *
+ * @param <V> the vertex type
+ * @param <E> the edge type, must extend {@link DefaultWeightedEdge}
+ *
+ * @see ColorMapper
+ * @see SNTGraph
+ */
+
 public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMapper {
     /**
      * Flag for {@value #BETWEENNESS_CENTRALITY} mapping.

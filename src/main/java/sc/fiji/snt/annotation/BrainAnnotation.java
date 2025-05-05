@@ -82,13 +82,10 @@ public interface BrainAnnotation {
 
 	public static char getHemisphereFlag(final String hemisphere) {
 		final char flag = hemisphere.trim().toLowerCase().charAt(0);
-		switch(flag) {
-		case LEFT_HEMISPHERE:
-		case RIGHT_HEMISPHERE:
-			return flag;
-		default:
-			return ANY_HEMISPHERE;
-		}
+        return switch (flag) {
+            case LEFT_HEMISPHERE, RIGHT_HEMISPHERE -> flag;
+            default -> ANY_HEMISPHERE;
+        };
 	}
 
 	public static Comparator<BrainAnnotation> comparator() {

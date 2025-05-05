@@ -33,7 +33,24 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 
 /**
+ * An abstract weighted graph implementation that extends {@link AbstractBaseGraph} with additional
+ * support for vertex/edge coloring and vertex value mapping. This specialized graph implementation
+ * is designed for visualization and analysis purposes in Graph Viewer.
  *
+ * <p>The graph maintains three main mappings:
+ * <ul>
+ *     <li>Vertex colors - Associates vertices with RGB colors
+ *     <li>Edge colors - Associates edges with RGB colors
+ *     <li>Vertex values - Associates vertices with numeric values
+ * </ul>
+ *
+ * <p>This implementation also provides methods for filtering and transforming vertices and edges.
+ *
+ * @param <V> the vertex type
+ * @param <E> the edge type, must extend {@link DefaultWeightedEdge}
+ *
+ * @see AbstractBaseGraph
+ * @see DefaultWeightedEdge
  */
 public abstract class SNTGraph<V, E extends DefaultWeightedEdge>
         extends AbstractBaseGraph<V, E>

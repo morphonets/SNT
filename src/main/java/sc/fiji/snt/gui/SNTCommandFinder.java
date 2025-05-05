@@ -586,6 +586,8 @@ public class SNTCommandFinder {
             add(pinButton());
             add(lockButton());
             add(Box.createHorizontalGlue());
+            add(proTip());
+            add(Box.createHorizontalGlue());
             add(initRecordButton());
             new ComponentMover(frame, this); // make frame draggable through toolbar
         }
@@ -603,6 +605,19 @@ public class SNTCommandFinder {
             button.setToolTipText("Keep " + NAME + " above all other windows");
             button.addItemListener(e -> frame.setAlwaysOnTop(alwaysOnTop = button.isSelected()));
             return button;
+        }
+
+        JLabel proTip() {
+            final JLabel label = new JLabel("TIP: Arrows to navigate, Enter to select, Esc to close");
+            label.setFont(label.getFont().deriveFont((float) (label.getFont().getSize() * .85)));
+            label.setForeground(ToolbarIcons.COLOR);
+            final Timer timer = new Timer(30000, e -> {
+                label.setVisible(false);
+                ((Timer)e.getSource()).stop();
+            });
+            timer.setRepeats(false);
+            timer.start();
+            return label;
         }
 
         JToggleButton initRecordButton() {
@@ -802,7 +817,7 @@ public class SNTCommandFinder {
         }
 
         int rowHeight() {
-            return (int) (col0Font.getSize() * 1.5f);
+            return (int) (col0Font.getSize() * 1.75f);
         }
 
         int maxWidth(final int columnIndex) {
@@ -967,7 +982,7 @@ public class SNTCommandFinder {
                 case KeyEvent.VK_CANCEL -> "Cancel";
                 case KeyEvent.VK_CLEAR -> "Clear";
                 case KeyEvent.VK_PAUSE -> "Pause";
-                case KeyEvent.VK_CAPS_LOCK -> "Caps Lock";
+                case KeyEvent.VK_CAPS_LOCK -> "⇪";
                 case KeyEvent.VK_ESCAPE -> "Esc";
                 case KeyEvent.VK_SPACE -> "Space";
                 case KeyEvent.VK_PAGE_UP -> "⇞";

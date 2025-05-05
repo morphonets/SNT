@@ -706,62 +706,72 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void measureTree(final Tree tree) {
-
 			final TreeStatistics tStats = new TreeStatistics(tree);
 			TreeStatistics.setExactMetricMatch(true);
-
 			for (int row = 0; row < tableModel.getRowCount(); ++row) {
-
-				if (!atLeastOneStatChosen(row))
-					continue;
-
+				if (!atLeastOneStatChosen(row)) continue;
 				final String metric = (String) tableModel.getValueAt(row, 0);
-
-				if (TreeStatistics.VALUES.equals(metric) && plugin != null && plugin.accessToValidImageData()
-						&& !tree.get(0).hasNodeValues()) {
-					SNTUtils.log("Retrieving intensities using the default centerline setting...");
-					new PathProfiler(tree, plugin.getDataset()).assignValues();
-				}
-
-				SummaryStatistics summaryStatistics;
-				try {
-					summaryStatistics  = tStats.getSummaryStats(metric);
-				} catch (final IllegalArgumentException | IndexOutOfBoundsException | NullPointerException e) {
-					// e.g. Node values cannot be assigned or a convex hull of a single-path tree
-					summaryStatistics = new SummaryStatistics();
-					summaryStatistics.addValue(Double.NaN);
-					SNTUtils.log(e.getMessage());
-				}
-				final String unit = tStats.getUnit(metric);
-				final String metricHeader = (unit.isEmpty()) ? metric : metric + " (" + unit + ")";
+				assignNodeValuesAsNeeded(tree, metric);
+				SummaryStatistics summaryStatistics = getSummaryStatistics(tStats, metric);
+				final String metricHeader = getMetricHeader(tStats, metric);
 				if (summaryStatistics.getN() < 1) {
 					table.set(metricHeader, tree.getLabel(), "Err");
-					continue;
-				}
-				if (summaryStatistics.getN() == 1 ) {
+				} else if (summaryStatistics.getN() == 1) {
 					table.set(metricHeader + " [Single value]", tree.getLabel(), summaryStatistics.getSum());
-					continue;
-				}
-				for (int column = 1; column < tableModel.getColumnCount(); ++column) {
-					final Object cell = tableModel.getValueAt(row, column);
-					if (cell == null || !(boolean) cell)
-						continue;
-					final String measurement = tableModel.getColumnName(column);
-					final double value = switch (measurement) {
-                        case MIN -> summaryStatistics.getMin();
-                        case MAX -> summaryStatistics.getMax();
-                        case MEAN -> summaryStatistics.getMean();
-                        case STDDEV -> summaryStatistics.getStandardDeviation();
-                        case SUM -> summaryStatistics.getSum();
-						case CV -> summaryStatistics.getStandardDeviation() / summaryStatistics.getMean();
-						case N -> summaryStatistics.getN();
-                        default -> throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
-                    };
-                    table.set(metricHeader + " [" + measurement + "]", tree.getLabel(), value);
+				} else {
+					processColumnsOfStatChoices(row, summaryStatistics, metricHeader, tree.getLabel());
 				}
 			}
 		}
 
+		private void assignNodeValuesAsNeeded(final Tree tree, final String metric) {
+			if (TreeStatistics.VALUES.equals(metric) && plugin != null && plugin.accessToValidImageData()
+					&& !tree.get(0).hasNodeValues()) {
+				SNTUtils.log("Retrieving intensities using the default centerline setting...");
+				new PathProfiler(tree, plugin.getDataset()).assignValues();
+			}
+		}
+
+		private SummaryStatistics getSummaryStatistics(final TreeStatistics tStats, final String metric) {
+			try {
+				return tStats.getSummaryStats(metric);
+			} catch (final IllegalArgumentException | IndexOutOfBoundsException | NullPointerException e) {
+				SNTUtils.log(e.getMessage());
+				final SummaryStatistics stats = new SummaryStatistics();
+				stats.addValue(Double.NaN);
+				return stats;
+			}
+		}
+
+		private String getMetricHeader(final TreeStatistics tStats, final String metric) {
+			final String unit = tStats.getUnit(metric);
+			return unit.isEmpty() ? metric : metric + " (" + unit + ")";
+		}
+
+		private void processColumnsOfStatChoices(final int row, final SummaryStatistics summaryStatistics,
+									final String metricHeader, final String treeLabel) {
+			for (int column = 1; column < tableModel.getColumnCount(); ++column) {
+				final Object cell = tableModel.getValueAt(row, column);
+				if (cell == null || !(boolean) cell) continue;
+
+				final String measurement = tableModel.getColumnName(column);
+				final double value = calculateStatisticalValue(summaryStatistics, measurement);
+				table.set(metricHeader + " [" + measurement + "]", treeLabel, value);
+			}
+		}
+
+		private double calculateStatisticalValue(final SummaryStatistics summaryStatistics, final String measurement) {
+			return switch (measurement) {
+				case MIN -> summaryStatistics.getMin();
+				case MAX -> summaryStatistics.getMax();
+				case MEAN -> summaryStatistics.getMean();
+				case STDDEV -> summaryStatistics.getStandardDeviation();
+				case SUM -> summaryStatistics.getSum();
+				case CV -> summaryStatistics.getStandardDeviation() / summaryStatistics.getMean();
+				case N -> summaryStatistics.getN();
+				default -> throw new IllegalArgumentException("[BUG] Unknown statistic: " + measurement);
+			};
+		}
 
 		class BackgroundTask extends SwingWorker<Object, Integer> {
 

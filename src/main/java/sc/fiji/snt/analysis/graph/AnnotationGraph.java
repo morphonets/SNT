@@ -37,6 +37,23 @@ import java.util.*;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
+/**
+ * A specialized graph implementation for brain annotations that extends {@link SNTGraph}.
+ * This class provides functionality to create and analyze graphs based on brain annotations
+ * and their relationships, using different metrics for edge weighting.
+ * <p>
+ * The graph can be constructed using various metrics such as:
+ * <ul>
+ *     <li>Number of tips ({@link #TIPS})
+ *     <li>Total length ({@link #LENGTH})
+ *     <li>Number of branch points ({@link #BRANCH_POINTS})
+ *     <li>Edge count ({@link #EDGES})
+ * </ul>
+ * 
+ * @see SNTGraph
+ * @see BrainAnnotation
+ * @see AnnotationWeightedEdge
+ */
 public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeightedEdge> {
 
 	private static final long serialVersionUID = 6826816297520498404L;
@@ -57,6 +74,9 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
 	private double threshold;
 	private int maxOntologyDepth;
 
+    /**
+     * Protected default constructor for internal use.
+     */
     protected AnnotationGraph() {
         super(null, SupplierUtil.createSupplier(AnnotationWeightedEdge.class), new DefaultGraphType.Builder()
                 .directed().allowMultipleEdges(false).allowSelfLoops(true).allowCycles(true).weighted(true)
@@ -64,6 +84,14 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
                 .build());
     }
 
+    /**
+     * Constructs an annotation graph from a collection of trees using specified parameters.
+     *
+     * @param trees The collection of trees to analyze
+     * @param metric The metric to use for graph construction (one of {@link #getMetrics()})
+     * @param threshold The threshold value for filtering connections
+     * @param maxOntologyDepth The maximum depth to consider in the ontology hierarchy
+     */
     public AnnotationGraph(final Collection<Tree> trees, String metric, double threshold, int maxOntologyDepth) {
         this();
         if (trees.isEmpty()) {
@@ -98,8 +126,16 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         }
     }
 
-	public AnnotationGraph(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, String metric,
-			double threshold) {
+    /**
+     * Constructs an annotation graph from trees and annotations with specified parameters.
+     *
+     * @param trees The collection of input trees to analyze
+     * @param annotations The collection of brain annotations. Used as nodes
+     * @param metric The metric to use for graph construction (one of {@link #getMetrics()}). Used as edges
+     * @param threshold The threshold value for filtering connections
+     */
+    public AnnotationGraph(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, 
+            String metric, double threshold) {
         this();
         if (trees.isEmpty()) {
             throw new IllegalArgumentException("Empty Tree collection given");
@@ -136,7 +172,15 @@ public class AnnotationGraph extends SNTGraph<BrainAnnotation, AnnotationWeighte
         }
     }
 
-	public AnnotationGraph(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, String metric) {
+    /**
+     * Constructs an annotation graph from trees and annotations using a specified metric.
+     *
+     * @param trees The collection of trees to analyze
+     * @param annotations The collection of brain annotations to consider
+     * @param metric The metric to use for graph construction (one of {@link #getMetrics()})
+     */
+    public AnnotationGraph(final Collection<Tree> trees, final Collection<BrainAnnotation> annotations, 
+            String metric) {
 		this(trees, annotations, metric, Double.MIN_VALUE);
 	}
 

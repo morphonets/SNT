@@ -317,14 +317,11 @@ public class AllenUtils {
 	 * @return the SNT point defining the (X,Y,Z) center of the ARA
 	 */
 	public static SNTPoint brainCenter() {
-		switch(VERSION) {
-		case V3:
-			return new PointInImage(6587.8352f, 3849.0851f, 5688.1643f); // precomputed
-		case V2_5:
-			return new PointInImage(5687.5435f, 3849.6099f, 6595.3813f); // precomputed
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
+        return switch (VERSION) {
+            case V3 -> new PointInImage(6587.8352f, 3849.0851f, 5688.1643f); // precomputed
+            case V2_5 -> new PointInImage(5687.5435f, 3849.6099f, 6595.3813f); // precomputed
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
 	}
 
 	/**

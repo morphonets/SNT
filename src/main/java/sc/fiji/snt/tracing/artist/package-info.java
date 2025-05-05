@@ -21,10 +21,14 @@
  */
 
 /**
- * SNT add-ons as legacy ("IJ1") plugins.
+ * <i>Artist</i> classes provide visual feedback for tracing algorithm execution.
  * <p>
- * Most classes are now deprecated, kept here for backwards compatibility.
+ * This package contains components responsible for the visual representation and rendering of traced neural structures
+ * within the SNT framework. It includes utilities and classes that handle various aspects of drawing, styling, and
+ * displaying traced paths and structures in both 2D and 3D contexts.
+ * </p>
  *
- * @author Tiago Ferreira
+ * @since SNT 3.0
  */
-package sc.fiji.snt.plugin.ij1;
+
+package sc.fiji.snt.tracing.artist;

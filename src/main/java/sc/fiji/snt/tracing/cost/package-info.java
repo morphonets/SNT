@@ -20,6 +20,5 @@
  * #L%
  */
 
-/** Cost function implementations */
-
+/** Cost function implementations for classes implementing {@link sc.fiji.snt.tracing.SearchInterface} */
 package sc.fiji.snt.tracing.cost;

@@ -25,6 +25,12 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 
+/**
+ * Represents a weighted edge between two {@link BrainAnnotation} vertices in an annotation graph.
+ * This class extends {@link DefaultWeightedEdge} to provide specialized functionality for
+ * brain annotation connections with associated weights.
+ */
+
 public class AnnotationWeightedEdge extends DefaultWeightedEdge {
 
     private static final long serialVersionUID = 1L;

@@ -1196,13 +1196,13 @@ public class TreeStatistics extends ContextCommand {
         final String m = getNormalizedMeasurement(measurement);
         try {
             switch (m) {
-                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY,
-                     BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME -> {
-                    assembleBranchStats(stat, m);
-                }
+                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ,
+                     BRANCH_EXTENSION_ANGLE_ZY,
+                     BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME ->
+                        assembleBranchStats(stat, m);
                 case COMPLEXITY_INDEX_ACI -> {
                     // implementation: doi: 10.1523/JNEUROSCI.4434-06.2007
-                    double sumPathOrders = tree.list().stream().mapToDouble(p -> p.getOrder() - 1).sum();
+                    final double sumPathOrders = tree.list().stream().mapToDouble(p -> p.getOrder() - 1).sum();
                     stat.addValue(sumPathOrders / tree.list().size());
                 }
                 case COMPLEXITY_INDEX_DCI -> {
@@ -1222,29 +1222,20 @@ public class TreeStatistics extends ContextCommand {
                     stat.addValue((sumBranchTipOrders + graphTips.size()) * getCableLength() / getPrimaryBranches().size());
                 }
                 case CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_ELONGATION, CONVEX_HULL_ROUNDNESS,
-                     CONVEX_HULL_SIZE, CONVEX_HULL_ECCENTRICITY_2D, CONVEX_HULL_COMPACTNESS_3D -> {
-                    stat.addValue(getConvexHullMetric(m));
-                }
+                     CONVEX_HULL_SIZE, CONVEX_HULL_ECCENTRICITY_2D, CONVEX_HULL_COMPACTNESS_3D ->
+                        stat.addValue(getConvexHullMetric(m));
                 case CONVEX_HULL_CENTROID_ROOT_DISTANCE -> {
                     final PointInImage root = tree.getRoot();
                     stat.addValue(root == null ? Double.NaN : getConvexAnalyzer().getCentroid().distanceTo(root));
                 }
-                case ROOT_ANGLE_B_FACTOR, ROOT_ANGLE_C_BIAS, ROOT_ANGLE_M_DIRECTION -> {
-                    stat.addValue(getRootAngleMetric(m));
-                }
-                case DEPTH -> {
-                    stat.addValue(getDepth());
-                }
-                case GRAPH_DIAMETER, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY -> {
-                    assembleGraphDiameterStats(stat, m);
-                }
-                case HEIGHT -> {
-                    stat.addValue(getHeight());
-                }
+                case ROOT_ANGLE_B_FACTOR, ROOT_ANGLE_C_BIAS, ROOT_ANGLE_M_DIRECTION ->
+                        stat.addValue(getRootAngleMetric(m));
+                case DEPTH -> stat.addValue(getDepth());
+                case GRAPH_DIAMETER, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY ->
+                        assembleGraphDiameterStats(stat, m);
+                case HEIGHT -> stat.addValue(getHeight());
                 case INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, INNER_LENGTH,
-                     N_INNER_BRANCHES -> {
-                    assembleInnerBranchStats(stat, m);
-                }
+                     N_INNER_BRANCHES -> assembleInnerBranchStats(stat, m);
                 case INTER_NODE_ANGLE -> {
                     for (final Path p : tree.list()) {
                         if (p.size() < 3) continue;
@@ -1269,36 +1260,16 @@ public class TreeStatistics extends ContextCommand {
                         }
                     }
                 }
-                case LENGTH -> {
-                    stat.addValue(getCableLength());
-                }
-                case N_BRANCH_NODES -> {
-                    getBranches().forEach(b -> stat.addValue(b.size()));
-                }
-                case N_BRANCH_POINTS -> {
-                    stat.addValue(getBranchPoints().size());
-                }
-                case N_BRANCHES -> {
-                    stat.addValue(getNBranches());
-                }
-                case N_FITTED_PATHS -> {
-                    stat.addValue(getNFittedPaths());
-                }
-                case N_NODES -> {
-                    stat.addValue(getNNodes());
-                }
-                case N_PATH_NODES -> {
-                    tree.list().forEach(path -> stat.addValue(path.size()));
-                }
-                case N_PATHS -> {
-                    stat.addValue(getNPaths());
-                }
-                case N_SPINES -> {
-                    stat.addValue(getNoSpinesOrVaricosities());
-                }
-                case N_TIPS -> {
-                    stat.addValue(getTips().size());
-                }
+                case LENGTH -> stat.addValue(getCableLength());
+                case N_BRANCH_NODES -> getBranches().forEach(b -> stat.addValue(b.size()));
+                case N_BRANCH_POINTS -> stat.addValue(getBranchPoints().size());
+                case N_BRANCHES -> stat.addValue(getNBranches());
+                case N_FITTED_PATHS -> stat.addValue(getNFittedPaths());
+                case N_NODES -> stat.addValue(getNNodes());
+                case N_PATH_NODES -> tree.list().forEach(path -> stat.addValue(path.size()));
+                case N_PATHS -> stat.addValue(getNPaths());
+                case N_SPINES -> stat.addValue(getNoSpinesOrVaricosities());
+                case N_TIPS -> stat.addValue(getTips().size());
                 case NODE_RADIUS -> {
                     for (final Path p : tree.list()) {
                         for (int i = 0; i < p.size(); i++) {
@@ -1306,24 +1277,9 @@ public class TreeStatistics extends ContextCommand {
                         }
                     }
                 }
-                case PARTITION_ASYMMETRY -> {
-                    for (final double asymmetry : getPartitionAsymmetry())
-                        stat.addValue(asymmetry);
-                }
-                case PATH_CHANNEL -> {
-                    for (final Path p : tree.list()) {
-                        stat.addValue(p.getChannel());
-                    }
-                }
-                case PATH_CONTRACTION -> {
-                    try {
-                        for (final Path p : tree.list())
-                            stat.addValue(p.getContraction());
-                    } catch (final IllegalArgumentException iae) {
-                        SNTUtils.log("Error: " + iae.getMessage());
-                        stat.addNaN();
-                    }
-                }
+                case PARTITION_ASYMMETRY -> getPartitionAsymmetry().forEach(stat::addValue);
+                case PATH_CHANNEL -> tree.list().forEach(path -> stat.addValue(path.getChannel()));
+                case PATH_CONTRACTION -> tree.list().forEach(path -> stat.addValue(path.getContraction()));
                 case PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_REL_XY -> {
                     for (final Path p : tree.list())
                         stat.addValue(p.getExtensionAngleXY(PATH_EXT_ANGLE_REL_XY.equals(m)));
@@ -1336,93 +1292,51 @@ public class TreeStatistics extends ContextCommand {
                     for (final Path p : tree.list())
                         stat.addValue(p.getExtensionAngleZY(PATH_EXT_ANGLE_REL_ZY.equals(m)));
                 }
-                case PATH_FRACTAL_DIMENSION -> {
-                    tree.list().forEach(p -> stat.addValue(p.getFractalDimension()));
-                }
-                case PATH_FRAME -> {
-                    tree.list().forEach(p -> stat.addValue(p.getFrame()));
-                }
-                case PATH_LENGTH -> {
-                    tree.list().forEach(p -> stat.addValue(p.getLength()));
-                }
-                case PATH_MEAN_RADIUS -> {
-                    tree.list().forEach(p -> stat.addValue(p.getMeanRadius()));
-                }
-                case PATH_N_SPINES -> {
-                    tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount()));
-                }
-                case PATH_ORDER -> {
-                    tree.list().forEach(p -> stat.addValue(p.getOrder()));
-                }
-                case PATH_SPINE_DENSITY -> {
-                    tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount() / p.getLength()));
-                }
-                case PATH_SURFACE_AREA -> {
-                    tree.list().forEach(p -> stat.addValue(p.getApproximatedSurface()));
-                }
-                case PATH_VOLUME -> {
-                    tree.list().forEach(p -> stat.addValue(p.getApproximatedVolume()));
-                }
+                case PATH_FRACTAL_DIMENSION -> tree.list().forEach(p -> stat.addValue(p.getFractalDimension()));
+                case PATH_FRAME -> tree.list().forEach(p -> stat.addValue(p.getFrame()));
+                case PATH_LENGTH -> tree.list().forEach(p -> stat.addValue(p.getLength()));
+                case PATH_MEAN_RADIUS -> tree.list().forEach(p -> stat.addValue(p.getMeanRadius()));
+                case PATH_N_SPINES -> tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount()));
+                case PATH_ORDER -> tree.list().forEach(p -> stat.addValue(p.getOrder()));
+                case PATH_SPINE_DENSITY ->
+                        tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount() / p.getLength()));
+                case PATH_SURFACE_AREA -> tree.list().forEach(p -> stat.addValue(p.getApproximatedSurface()));
+                case PATH_VOLUME -> tree.list().forEach(p -> stat.addValue(p.getApproximatedVolume()));
                 case PRIMARY_EXTENSION_ANGLE_XY, PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, PRIMARY_LENGTH,
-                     N_PRIMARY_BRANCHES -> {
-                    assemblePrimaryBranchStats(stat, m);
-                }
-                case REMOTE_BIF_ANGLES -> {
-                    for (final double angle : getRemoteBifAngles())
-                        stat.addValue(angle);
-                }
+                     N_PRIMARY_BRANCHES -> assemblePrimaryBranchStats(stat, m);
+                case REMOTE_BIF_ANGLES -> getRemoteBifAngles().forEach(stat::addValue);
                 case SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
-                     SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE, SHOLL_RAMIFICATION_INDEX,
-                     SHOLL_SKEWNESS, SHOLL_SUM_VALUE -> {
-                    stat.addValue(getShollMetric(m).doubleValue());
-                }
-                case STRAHLER_NUMBER -> {
-                    stat.addValue(getStrahlerNumber());
-                }
-                case STRAHLER_RATIO -> {
-                    stat.addValue(getStrahlerBifurcationRatio());
-                }
-                case SURFACE_AREA -> {
-                    stat.addValue(tree.getApproximatedSurface());
-                }
-                case TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, TERMINAL_LENGTH,
-                     N_TERMINAL_BRANCHES -> {
-                    assembleTerminalBranchStats(stat, m);
-                }
+                     SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE,
+                     SHOLL_RAMIFICATION_INDEX,
+                     SHOLL_SKEWNESS, SHOLL_SUM_VALUE -> stat.addValue(getShollMetric(m).doubleValue());
+                case STRAHLER_NUMBER -> stat.addValue(getStrahlerNumber());
+                case STRAHLER_RATIO -> stat.addValue(getStrahlerBifurcationRatio());
+                case SURFACE_AREA -> stat.addValue(tree.getApproximatedSurface());
+                case TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY,
+                     TERMINAL_LENGTH,
+                     N_TERMINAL_BRANCHES -> assembleTerminalBranchStats(stat, m);
                 case VALUES -> {
                     for (final Path p : tree.list()) {
                         if (!p.hasNodeValues()) continue;
-                        for (int i = 0; i < p.size(); i++) {
-                            stat.addValue(p.getNodeValue(i));
-                        }
+                        for (int i = 0; i < p.size(); i++) stat.addValue(p.getNodeValue(i));
                     }
                     if (stat.getN() == 0) throw new IllegalArgumentException("Tree has no values assigned");
                 }
-                case VOLUME -> {
-                    stat.addValue(tree.getApproximatedVolume());
-                }
-                case WIDTH -> {
-                    stat.addValue(getWidth());
-                }
+                case VOLUME -> stat.addValue(tree.getApproximatedVolume());
+                case WIDTH -> stat.addValue(getWidth());
                 case X_COORDINATES -> {
                     for (final Path p : tree.list()) {
-                        for (int i = 0; i < p.size(); i++) {
-                            stat.addValue(p.getNode(i).x);
-                        }
+                        for (int i = 0; i < p.size(); i++) stat.addValue(p.getNode(i).x);
                     }
                 }
                 case Y_COORDINATES -> {
                     for (final Path p : tree.list()) {
-                        for (int i = 0; i < p.size(); i++) {
-                            stat.addValue(p.getNode(i).y);
-                        }
+                        for (int i = 0; i < p.size(); i++) stat.addValue(p.getNode(i).y);
                     }
                 }
                 case Z_COORDINATES -> {
                     for (final Path p : tree.list()) {
-                        for (int i = 0; i < p.size(); i++) {
-                            stat.addValue(p.getNode(i).z);
-                        }
+                        for (int i = 0; i < p.size(); i++) stat.addValue(p.getNode(i).z);
                     }
                 }
                 default -> throw new IllegalArgumentException("Unrecognized parameter " + measurement);

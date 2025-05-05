@@ -23,8 +23,7 @@
 package sc.fiji.snt.analysis.graph;
 
 import java.awt.Window;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import org.jgrapht.GraphTests;
@@ -58,6 +57,17 @@ public class DirectedWeightedSubgraph extends AsSubgraph<SWCPoint, SWCWeightedEd
 	protected DirectedWeightedSubgraph(final DirectedWeightedGraph graph, final Set<SWCPoint> nodeSubset) {
 		super(graph, nodeSubset);
 		this.graph = graph;
+	}
+
+	/**
+	 * Sets the root of the tree. This modifies the edge directions such that
+	 * all other nodes in the graph have the new root as ancestor.
+	 *
+	 * @param newRoot the new root of the tree, which must be an existing vertex of the graph
+	 * @throws IllegalArgumentException if the graph does not contain newRoot
+	 */
+	public void setRoot(final SWCPoint newRoot) {
+		graph.setRoot(newRoot);
 	}
 
 	/**

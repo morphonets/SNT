@@ -20,11 +20,5 @@
  * #L%
  */
 
-/**
- * SNT add-ons as legacy ("IJ1") plugins.
- * <p>
- * Most classes are now deprecated, kept here for backwards compatibility.
- *
- * @author Tiago Ferreira
- */
-package sc.fiji.snt.plugin.ij1;
+/** Heuristic implementations for classes implementing {@link sc.fiji.snt.tracing.SearchInterface} */
+package sc.fiji.snt.tracing.heuristic;

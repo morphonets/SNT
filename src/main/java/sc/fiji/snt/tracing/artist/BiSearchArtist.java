@@ -31,7 +31,19 @@ import sc.fiji.snt.tracing.image.SearchImage;
 
 import java.awt.*;
 
-
+/**
+ * An artist implementation that visualizes bidirectional search operations.
+ * <p>
+ * This class is responsible for rendering the visual representation of bidirectional
+ * search processes, typically showing:
+ * </p>
+ * <ul>
+ *   <li>Forward search progress from the start point</li>
+ *   <li>Backward search progress from the target point</li>
+ *   <li>Search frontiers and explored regions</li>
+ *   <li>Meeting points when the bidirectional paths connect</li>
+ * </ul>
+ */
 public class BiSearchArtist implements SearchArtist {
 
     private final BiSearch search;

@@ -29,6 +29,7 @@ import org.jgrapht.graph.AsUndirectedGraph;
 import org.jgrapht.graph.DefaultGraphType;
 import org.jgrapht.traverse.BreadthFirstIterator;
 import org.jgrapht.traverse.DepthFirstIterator;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 import org.jgrapht.util.SupplierUtil;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -247,6 +248,15 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 */
 	public BreadthFirstIterator<SWCPoint, SWCWeightedEdge> getBreadthFirstIterator(final SWCPoint startVertex) {
 		return new BreadthFirstIterator<>(this, startVertex);
+	}
+
+	/**
+	 * Gets a {@link TopologicalOrderIterator} for this graph.
+	 *
+	 * @return the TopologicalOrderIterator
+	 */
+	public TopologicalOrderIterator<SWCPoint, SWCWeightedEdge> getTopologicalOrderIterator() {
+		return new TopologicalOrderIterator<>(this);
 	}
 
 	/**
@@ -556,25 +566,14 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @return the NodeStatistics instance
 	 */
 	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
-		switch(type.toLowerCase()) {
-		case "all":
-			return new NodeStatistics<>(vertexSet());
-		case "tips":
-		case "endings":
-		case "end points":
-		case "end-points":
-		case "terminals":
-			return new NodeStatistics<>(getTips());
-		case "bps":
-		case "forks":
-		case "junctions":
-		case "fork points":
-		case "junction points":
-		case "branch points":
-			return new NodeStatistics<>(getBPs());
-		default:
-			throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
-		}
+        return switch (type.toLowerCase()) {
+            case "all" -> new NodeStatistics<>(vertexSet());
+            case "tips", "endings", "end points", "end-points", "terminals" -> new NodeStatistics<>(getTips());
+            case "bps", "forks", "junctions", "fork points", "junction points", "branch points" ->
+                    new NodeStatistics<>(getBPs());
+            default ->
+                    throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
+        };
 	}
 
 	/**
@@ -584,14 +583,14 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @throws IllegalStateException if the graph does not contain exactly one root
 	 */
 	public SWCPoint getRoot() {
-		final List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).collect(Collectors.toList());
+		final List<SWCPoint> roots = vertexSet().stream().filter(v -> inDegreeOf(v) == 0).toList();
 		if (roots.isEmpty()) {
 			throw new IllegalStateException("Graph has no nodes with in-degree 0");
 		}
 		if (roots.size() > 1) {
 			throw new IllegalStateException("Graph has multiple connected components and/or inconsistent edge directions");
 		}
-		return roots.get(0);
+		return roots.getFirst();
 	}
 
 	/**
@@ -712,29 +711,24 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		}
 	}
 
-	public List<SWCPoint> getNodesFromLeavesToRoot() {
-		final List<SWCPoint> result = getNodesFromRootToLeaves();
-		Collections.reverse(result); // Reverse the result to get nodes from leaves to root
+	public List<SWCPoint> getNodesFromRootToLeaves() {
+		final List<SWCPoint> result = getNodesFromLeavesToRoot();
+		Collections.reverse(result); // Reverse the result to get nodes from root to leaves
 		return result;
 	}
 
-	public List<SWCPoint> getNodesFromRootToLeaves() {
+	public List<SWCPoint> getNodesFromLeavesToRoot() {
 		final List<SWCPoint> result = new ArrayList<>();
 		final Set<SWCPoint> visited = new HashSet<>();
-		final Stack<SWCPoint> stack = new Stack<>();
-		for (final SWCPoint node : vertexSet()) { // Identify all leaf nodes
-			if (outDegreeOf(node) == 0) {
-				stack.push(node);
-			}
-		}
-		while (!stack.isEmpty()) { // Perform DFS
-			final SWCPoint node = stack.pop();
-			if (!visited.contains(node)) {
-				visited.add(node);
-				result.add(node);
-				for (final SWCPoint predecessor : Graphs.predecessorListOf(this, node)) {
-					stack.push(predecessor);
-				}
+		final Queue<SWCPoint> leafNodes = new LinkedList<>(getTips()); // collect all leaf nodes
+		// Process each leaf and its ancestors in sequence
+		while (!leafNodes.isEmpty()) {
+            SWCPoint currentNode = leafNodes.poll();
+			// Follow path from this leaf to root
+			while (currentNode != null && !visited.contains(currentNode)) {
+				visited.add(currentNode);
+				result.add(currentNode);
+				currentNode = currentNode.previous();
 			}
 		}
 		return result;
