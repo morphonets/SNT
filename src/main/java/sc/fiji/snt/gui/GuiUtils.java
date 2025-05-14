@@ -206,7 +206,7 @@ public class GuiUtils {
 		});
 	}
 
-	private static void applyRoundCorners(final JComponent component) {
+	public static void applyRoundCorners(final JComponent component) {
 		component.putClientProperty(FlatClientProperties.STYLE, //
 				"[light]background: tint(@background,50%);" //
 						+ "[dark]background: shade(@background,15%);" //

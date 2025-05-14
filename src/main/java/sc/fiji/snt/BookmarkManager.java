@@ -87,11 +87,14 @@ public class BookmarkManager {
         gbc.fill = GridBagConstraints.BOTH;
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Bookmarks:", true, gbc);
         gbc.gridy++;
-        final String msg = "This pane stores image locations that you can use to quickly (re)visit while " //
-                + "tracing. Bookmarks do not persist across sessions and must be imported/exported manually.\n\n" //
-                + "To create a bookmark: Right-click on the image and choose \"Bookmark cursor location\" from the " //
-                + "contextual menu (or press Shift+B).\n"//
-                + "To visit a bookmarked location: Double-click on its entry.";
+        final String msg = """
+                This pane stores image locations that you can use to quickly (re)visit while \
+                tracing. Bookmarks are not saved by default and must be exported manually.
+                
+                To create a bookmark: Right-click on the image and choose "Bookmark Cursor Location" \
+                from the contextual menu (or press Shift+B).
+                To visit a bookmarked location: Double-click on its entry.
+                """;
         gbc.weighty = 0.1;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);
         gbc.gridy++;

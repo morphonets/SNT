@@ -92,10 +92,10 @@ public class DelineationsManager {
         final String msg = """
                 Delineations allow measuring proportions of paths within other structures defined by ROIs \
                 or neuropil annotations (e.g., cortical layers, biomarkers, or counterstaining landmarks). \
-                Delineations do not persist across sessions and must be exported manually.
+                Delineations are not saved by default and must be exported manually.
                 
-                To create a delineation: Pause SNT, select an area ROI, and click on the "Assign" button. \
-                Alternatively, use the import entries in the options menu.
+                To create a delineation: Right-click on the image and pause SNT. Then, create an area ROI \
+                and click on an unset "Assign" button. Alternatively, use the import options in the gear menu.
                 """;
         gbc.weighty = 0.1;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);

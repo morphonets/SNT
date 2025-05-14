@@ -181,7 +181,7 @@ public class SNTCommandFinder {
     private void initSearchField() {
         searchField = new SearchField("Search for commands and actions (e.g., Sholl)",
                 SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON);
-        searchField.enlarge();
+        searchField.enlarge(1.15f);
         // options button
         final JMenuItem rebuildIndex = new JMenuItem("Rebuild Index...");
         rebuildIndex.addActionListener(e1 -> rebuildIndex());
@@ -250,8 +250,7 @@ public class SNTCommandFinder {
         if (cmd != null) {
             if (cmd.hasButton() && (!cmd.button.isEnabled()
                     || (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
-                error("Command is currently disabled. Either execution requirements "
-                        + "are unmet or it cannot run in current state.");
+                error();
                 return;
             }
             if (!scriptCall)
@@ -264,21 +263,67 @@ public class SNTCommandFinder {
         }
     }
 
-    private void error(final String msg) {
+    private void error() {
         assert frame != null;
+        final String MSG = "<HTML>Command is currently disabled. Either execution "
+                + "requirements<br>are unmet or it cannot run in current state.";
         if (autoHide) {
-            frame.setVisible(false);
-            frame.guiUtils.error(msg);
-        } else {
-            searchField.requestFocus();
-            final JDialog d = frame.guiUtils.floatingMsg(msg, true);
-            d.addFocusListener(new FocusAdapter() {
-                @Override
-                public void focusLost(final FocusEvent e) {
-                    d.dispose();
-                }
-            });
+           // frame.setVisible(false);
+            frame.guiUtils.error(MSG);
+            return;
         }
+        class FloatingError extends JDialog {
+            public FloatingError() {
+                super(frame);
+                setUndecorated(true);
+                setModal(true);
+                setResizable(false);
+                final JLabel label = new JLabel(MSG);
+                label.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+                GuiUtils.applyRoundCorners(label);
+                add(label);
+                pack();
+                GuiUtils.centerWindow(this, frame);
+                setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+                setFocusable(true);
+                addKeyListener(new KeyAdapter() {
+                    @Override
+                    public void keyPressed(final KeyEvent e) {
+                        if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE || e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                            dispose();
+                        }
+                    }
+                });
+                addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(final MouseEvent e) {
+                        dispose();
+                    }
+
+                    @Override
+                    public void mousePressed(final MouseEvent e) {
+                        dispose();
+                    }
+                });
+                addFocusListener(new FocusAdapter() {
+                    @Override
+                    public void focusLost(final FocusEvent e) {
+                        dispose();
+                    }
+                });
+        }
+            @Override
+            public void dispose() {
+                super.dispose();
+                frame.setAlwaysOnTop(alwaysOnTop);
+                frame.toFront();
+                searchField.requestFocus();
+            }
+        }
+        frame.setAlwaysOnTop(true);
+        final FloatingError d = new FloatingError();
+        d.setVisible(true);
+        d.toFront();
     }
 
     private void recordCommand(final CmdAction cmdAction) {

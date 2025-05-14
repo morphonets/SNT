@@ -128,14 +128,10 @@ public class SearchField extends JTextField {
         return regexButton;
     }
 
-    public void enlarge() {
-        final int PADDING = 4;
+    public void enlarge(final float enlargeFactor) {
+        final int PADDING = (int) (4 * enlargeFactor);
         setMargin(new Insets((int) (PADDING * 1.5), PADDING, (int) (PADDING * 1.5), PADDING));
-        setFont(getFont().deriveFont(getFont().getSize() * enlargeFactor()));
-    }
-
-    public static float enlargeFactor() {
-        return 1.1f;
+        setFont(getFont().deriveFont(getFont().getSize() * enlargeFactor));
     }
 
     public static Color iconColor() {

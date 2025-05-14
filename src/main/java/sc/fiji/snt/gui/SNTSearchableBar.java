@@ -268,7 +268,7 @@ public class SNTSearchableBar extends SearchableBar {
 				blinkingTimer.start();
 			}
 		});
-		sf.enlarge();
+		sf.enlarge(1.1f);
 		// assign search functionalities of original text field
 		sf.setAction(_textField.getAction());
 		sf.setDocument(_textField.getDocument());
