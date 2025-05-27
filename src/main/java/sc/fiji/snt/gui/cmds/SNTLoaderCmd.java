@@ -37,10 +37,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
 import org.scijava.widget.FileWidget;
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
 
@@ -59,7 +56,7 @@ import java.util.List;
 	initializer = "initialize")
 public class SNTLoaderCmd extends DynamicCommand {
 
-	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+	static { ReflectionUnlocker.unlockAll(); net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	@Parameter
 	private SNTService sntService;
