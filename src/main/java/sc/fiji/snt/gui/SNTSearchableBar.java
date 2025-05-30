@@ -214,11 +214,13 @@ public class SNTSearchableBar extends SearchableBar {
 				gbc.gridx++;
 			});
 		}
-		setLayout(new GridLayout(0, 1));
-		add(tb);
+
+		setLayout(new BorderLayout());
+		setBorder(null);
+		add(tb, BorderLayout.NORTH);
 		// status label
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			add(statusLabel());
+			add(statusLabel(), BorderLayout.CENTER);
 		}
 	}
 
@@ -385,7 +387,7 @@ public class SNTSearchableBar extends SearchableBar {
 
 	private JLabel statusLabel() {
 		_statusLabel = new JLabel(statusLabelPlaceholder);
-		_statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 0));
+		_statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 0));
 		_statusLabel.addPropertyChangeListener("text", evt -> {
 			final String text = _statusLabel.getText();
 			if (text == null || text.isEmpty()) _statusLabel.setText(statusLabelPlaceholder);
