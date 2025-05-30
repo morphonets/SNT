@@ -71,7 +71,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		_extraButtons.add(createColorFilteringButton());
 		_extraButtons.add(createMorphoFilteringButton());
 		_extraButtons.add(createSubFilteringButton());
-		setVisibleButtons(SHOW_STATUS | SHOW_HIGHLIGHTS);
+		setVisibleButtons(SHOW_NAVIGATION | SHOW_STATUS | SHOW_HIGHLIGHTS);
 		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
 			.getPathAndFillManager().size()));
 		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");

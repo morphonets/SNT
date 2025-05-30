@@ -28,6 +28,7 @@ import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.List;
 
 public class SearchField extends JTextField {
 
@@ -129,9 +130,11 @@ public class SearchField extends JTextField {
     }
 
     public void enlarge(final float enlargeFactor) {
-        final int PADDING = (int) (4 * enlargeFactor);
-        setMargin(new Insets((int) (PADDING * 1.5), PADDING, (int) (PADDING * 1.5), PADDING));
         setFont(getFont().deriveFont(getFont().getSize() * enlargeFactor));
+        List.of(optionsButton, caseButton, regexButton).forEach(c -> c.setFont(c.getFont().deriveFont(c.getFont().getSize() * enlargeFactor)));
+        final int PADDING = (int) (getFontMetrics(getFont()).getHeight() / 2f);
+        //setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
+        setBorder(BorderFactory.createEmptyBorder(PADDING, PADDING, PADDING, PADDING));
     }
 
     public static Color iconColor() {
