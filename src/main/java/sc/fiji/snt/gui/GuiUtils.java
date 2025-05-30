@@ -2220,8 +2220,6 @@ public class GuiUtils {
 			pack();
 			centerOnParent();
 			if (parent != null) parent.addComponentListener(this);
-			setVisible(true);
-			toFront();
 		}
 
 		@Override
