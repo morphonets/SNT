@@ -27,6 +27,7 @@ import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.WholeWordsSupport;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
+import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUtils;
 
 import javax.swing.*;
@@ -170,58 +171,56 @@ public class SNTSearchableBar extends SearchableBar {
 	@Override
 	protected void installComponents() {
 
-		setLayout(new GridBagLayout());
+		final JToolBar tb = new JToolBar();
+		//tb.setFloatable(true);
 		final GridBagConstraints gbc = new GridBagConstraints();
+		gbc.gridx = 0;
+		gbc.gridy = 0;
+		gbc.anchor = GridBagConstraints.WEST;
 
 		// close button (if any)
-		gbc.gridx = 0;
-		gbc.gridy = 1;
-		gbc.fill = GridBagConstraints.HORIZONTAL;
 		if ((getVisibleButtons() & SHOW_CLOSE) != 0) {
-			add(_closeButton, gbc);
+			tb.add(_closeButton, gbc);
+			gbc.gridx++;
 		}
-
 		// search field
-		gbc.gridx = 1;
-		gbc.gridy = 1;
 		gbc.weightx = 1.0;
-		gbc.anchor = GridBagConstraints.WEST;
 		gbc.fill = GridBagConstraints.HORIZONTAL;
-		add(_textField, gbc);
+		tb.add(_textField, gbc);
+		gbc.gridx++;
+		gbc.weightx = 0;
+		gbc.fill = GridBagConstraints.NONE;
 
-		// button panel
-		final JPanel buttonPanel = new JPanel();
-		if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
-			addButton(buttonPanel, _highlightsButton);
-		}
+		// buttons
 		if ((getVisibleButtons() & SHOW_NAVIGATION) != 0) {
-			addButton(buttonPanel, _findNextButton);
-			addButton(buttonPanel, _findPrevButton);
+			tb.add(_findNextButton, gbc);
+			gbc.gridx++;
+			tb.add(_findPrevButton, gbc);
+			gbc.gridx++;
+		}
+		if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
+			tb.add(_highlightsButton, gbc);
+			gbc.gridx++;
 		}
 		if ((getVisibleButtons() & SHOW_REPEATS) != 0) {
-			addButton(buttonPanel, _repeatCheckBox);
+			tb.add(_repeatCheckBox, gbc);
+			gbc.gridx++;
 		}
 		if (_extraButtons != null) {
-			buttonPanel.add(Box.createHorizontalGlue());
-			_extraButtons.forEach(b -> addButton(buttonPanel, b));
-		}
-		if (buttonCount > 0) {
-			buttonPanel.setLayout(new GridLayout(1, buttonCount));
-			gbc.gridx = 2;
-			gbc.gridy = 1;
-			gbc.fill = GridBagConstraints.BOTH;
-			gbc.weightx = 0.0;
-			add(buttonPanel, gbc);
+			tb.add(new JToolBar.Separator(), gbc);
+			gbc.gridx++;
+			_extraButtons.forEach(b -> {
+				tb.add(b, gbc);
+				gbc.gridx++;
+			});
 		}
 
+		setLayout(new BorderLayout());
+		setBorder(null);
+		add(tb, BorderLayout.NORTH);
 		// status label
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			gbc.gridx = 0;
-			gbc.gridy = 2;
-			gbc.gridwidth = 3;
-			gbc.weightx = 1;
-			gbc.anchor = GridBagConstraints.WEST;
-			add(statusLabel(), gbc);
+			add(statusLabel(), BorderLayout.CENTER);
 		}
 	}
 
@@ -268,7 +267,7 @@ public class SNTSearchableBar extends SearchableBar {
 				blinkingTimer.start();
 			}
 		});
-		sf.enlarge(1.1f);
+		sf.enlarge(PlatformUtils.isMac() ? 1.05f : 1.1f);
 		// assign search functionalities of original text field
 		sf.setAction(_textField.getAction());
 		sf.setDocument(_textField.getDocument());
@@ -321,7 +320,7 @@ public class SNTSearchableBar extends SearchableBar {
 		}
 		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
 		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
-		jcbmi3.setToolTipText("Affects selection of previous/next hit using arrow keys");
+		jcbmi3.setToolTipText("Return to first hit after last is selected?");
 		popup.add(jcbmi3);
 		final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Non-interactive Search", getSearchable().getSearchingDelay()==-1);
 		jcbmi4.addItemListener(e -> getSearchable().setSearchingDelay((jcbmi4.isSelected())?-1:DELAY_MS));
@@ -358,8 +357,7 @@ public class SNTSearchableBar extends SearchableBar {
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
 			final String key = GuiUtils.ctrlKey();
-			String msg = "<HTML><body><div><ol>"
-					+ "<li>Press the up/down keys to find the next/previous occurrence of the filtering string</li>"
+			String msg = "<HTML><body><div><ul>"
 					+ "<li>Hold " + key + " while pressing the up/down keys to select multiple filtered " + objectDescription + "</li>" //
 					+ "<li>Press enter to store text in the search history</li>";
 			if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
@@ -371,7 +369,7 @@ public class SNTSearchableBar extends SearchableBar {
 						"<li>Disable <i>Display No. of Matches</i></li>" +
 						"<li>Enable <i>Non-interactive Search</i> (search starts only after Enter is pressed)</li></ul>";
 			}
-			msg += "</ol></div></html>";
+			msg += "</ul></div></html>";
 			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
 		});
 		return mi2;
@@ -382,14 +380,14 @@ public class SNTSearchableBar extends SearchableBar {
 			l.searchableEventFired(new SearchableEvent(getSearchable(), SearchableEvent.SEARCHABLE_MODEL_CHANGE));
 	}
 
-	private void addButton(final JPanel panel, final AbstractButton button) {
+	private void addButton(final JToolBar panel, final AbstractButton button) {
 		panel.add(button);
 		buttonCount++;
 	}
 
 	private JLabel statusLabel() {
 		_statusLabel = new JLabel(statusLabelPlaceholder);
-		_statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 0));
+		_statusLabel.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 0));
 		_statusLabel.addPropertyChangeListener("text", evt -> {
 			final String text = _statusLabel.getText();
 			if (text == null || text.isEmpty()) _statusLabel.setText(statusLabelPlaceholder);

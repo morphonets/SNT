@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.icons.FlatSearchIcon;
+import com.formdev.flatlaf.ui.FlatPopupFactory;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -38,6 +39,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.*;
 
@@ -169,6 +171,7 @@ public class SNTCommandFinder {
             }
         });
         populateList("");
+        frame.getContentPane().setBackground(searchField.getBackground());
         frame.add(table.getScrollPane(), BorderLayout.SOUTH);
         frame.pack();
         if (sntui != null) {
@@ -181,7 +184,10 @@ public class SNTCommandFinder {
     private void initSearchField() {
         searchField = new SearchField("Search for commands and actions (e.g., Sholl)",
                 SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON);
-        searchField.enlarge(1.15f);
+        searchField.enlarge(1.2f);
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, GuiUtils.getDisabledComponentColor()),
+                searchField.getBorder()));
         // options button
         final JMenuItem rebuildIndex = new JMenuItem("Rebuild Index...");
         rebuildIndex.addActionListener(e1 -> rebuildIndex());
@@ -656,7 +662,7 @@ public class SNTCommandFinder {
             final JLabel label = new JLabel("TIP: Arrows to navigate, Enter to select, Esc to close");
             label.setFont(label.getFont().deriveFont((float) (label.getFont().getSize() * .85)));
             label.setForeground(ToolbarIcons.COLOR);
-            final Timer timer = new Timer(30000, e -> {
+            final Timer timer = new Timer(10000, e -> {
                 label.setVisible(false);
                 ((Timer)e.getSource()).stop();
             });
@@ -798,6 +804,18 @@ public class SNTCommandFinder {
                 }
             });
         }
+
+        @Override
+        public void addNotify() {
+            super.addNotify();
+            try {
+                final Method method = FlatPopupFactory.class.getDeclaredMethod("setupRoundedBorder", Window.class, Component.class, Component.class);
+                method.setAccessible(true);
+                method.invoke(null, this, this, getRootPane());
+            } catch (final Exception ignored) {
+                // do nothing
+            }
+        }
     }
 
     private class CmdTable extends JTable {
@@ -824,12 +842,19 @@ public class SNTCommandFinder {
                 height *= getRowMargin();
             setPreferredScrollableViewportSize(new Dimension(col0Width + col1Width, height));
             setFillsViewportHeight(true);
+            setBackground(searchField.getBackground());
         }
 
         private JScrollPane getScrollPane() {
             final JScrollPane scrollPane = new JScrollPane(this, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
                     JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
             scrollPane.setWheelScrollingEnabled(true);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder(5,5,0,0));
+            final JScrollBar scrollBar = scrollPane.getVerticalScrollBar();
+            final Map<String, Object> style = new HashMap<>();
+            style.put("track", searchField.getBackground());
+            style.put("hoverTrackColor", searchField.getBackground());
+            scrollBar.putClientProperty(FlatClientProperties.STYLE, style);
             return scrollPane;
         }
 
@@ -862,7 +887,7 @@ public class SNTCommandFinder {
         }
 
         int rowHeight() {
-            return (int) (col0Font.getSize() * 1.75f);
+            return (int) (col0Font.getSize() * 1.8f);
         }
 
         int maxWidth(final int columnIndex) {
