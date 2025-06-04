@@ -262,33 +262,43 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private ColorMenu getColorFilterMenu() {
 		final ColorMenu colorFilterMenu = new ColorMenu("Filter by color tag");
 		colorFilterMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR));
-		colorFilterMenu.addActionListener(e -> {
-			final Collection<Path> filteredPaths = getPaths();
-			if (filteredPaths.isEmpty()) {
-				guiUtils.error("There are no traced paths.");
-				return;
-			}
-			final Color filteredColor = colorFilterMenu.getSelectedSWCColor().color();
-			for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator
-				.hasNext();)
-			{
-				final Color color = iterator.next().getColor();
-				if ((filteredColor != null && color != null && !filteredColor.equals(
-					color)) || (filteredColor == null && color != null) ||
-					(filteredColor != null && color == null))
-				{
-					iterator.remove();
-				}
-			}
-			if (filteredPaths.isEmpty()) {
-				guiUtils.error("No Path matches the specified color tag.");
-				return;
-			}
-			pmui.setSelectedPaths(filteredPaths, this);
-			logSelectionCount(filteredPaths.size());
-			// refreshManager(true, true);
+		colorFilterMenu.addActionListener(e -> doColorFiltering(colorFilterMenu.getSelectedSWCColor()));
+		final JMenuItem jmi = new JMenuItem("Other...              ", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+		jmi.addActionListener( e-> {
+			final Color color = guiUtils.getColor("Other...", null, (String[]) null);
+			if (color != null) doColorFiltering(new SNTColor(color));
 		});
+		colorFilterMenu.addSeparator();
+		colorFilterMenu.add(jmi);
 		return colorFilterMenu;
+	}
+
+	private void doColorFiltering(final SNTColor filteringSNTColor) {
+		final Collection<Path> filteredPaths = getPaths();
+		if (filteredPaths.isEmpty()) {
+			guiUtils.error("There are no traced paths.");
+			return;
+		}
+		final Color filteringColor = filteringSNTColor.color();
+		for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator.hasNext(); ) {
+			final Color color = iterator.next().getColor();
+			if ((filteringColor != null && color != null && !filteringColor.equals(
+					color)) || (filteringColor == null && color != null) ||
+					(filteringColor != null && color == null)) {
+				iterator.remove();
+			}
+		}
+		if (filteringColor != null && pmui.getSNT().getUI().getRecorder(false) != null) {
+			pmui.getSNT().getUI().getRecorder(false).recordCmd(
+					String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")", filteringSNTColor));
+		}
+		if (filteredPaths.isEmpty()) {
+			guiUtils.error("No Path matches the specified color tag.");
+			return;
+		}
+		pmui.setSelectedPaths(filteredPaths, this);
+		logSelectionCount(filteredPaths.size());
+		// refreshManager(true, true);
 	}
 
 	private void doImageFiltering(final String property) {
@@ -445,13 +455,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final JPopupMenu popupMenu = colorFilterMenu.getPopupMenu();
 		popupMenu.setInvoker(colorFilterMenu);
 		button.addActionListener( e -> popupMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		colorFilterMenu.addActionListener( e-> {
-			final SNTColor color = colorFilterMenu.getSelectedSWCColor();
-			if (color != null && pmui.getSNT().getUI().getRecorder(false) != null) {
-				pmui.getSNT().getUI().getRecorder(false).recordCmd(
-						String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")", color));
-			}
-		});
 		return button;
 	}
 

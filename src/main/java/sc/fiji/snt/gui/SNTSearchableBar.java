@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
+import com.jidesoft.swing.SearchableBarIconsFactory;
 import com.jidesoft.swing.WholeWordsSupport;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
@@ -34,6 +35,7 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +51,6 @@ public class SNTSearchableBar extends SearchableBar {
 	private static final long serialVersionUID = 1L;
 	private static final int DELAY_MS = 100;
 	protected List<AbstractButton> _extraButtons;
-	private int buttonCount;
 
 	private String statusLabelPlaceholder;
 	private String objectDescription;
@@ -87,6 +88,11 @@ public class SNTSearchableBar extends SearchableBar {
 	private void init(final String placeholder) {
 		_textField = getModifiedTextField(placeholder);
 		_textField.setVisible(true);
+		if (_findNextButton != null)
+			_textField.registerKeyboardAction(_findNextButton.getActionListeners()[0], KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, 0), JComponent.WHEN_FOCUSED);
+		if (_findPrevButton != null)
+			_textField.registerKeyboardAction(_findPrevButton.getActionListeners()[0], KeyStroke.getKeyStroke(KeyEvent.VK_UP, 0), JComponent.WHEN_FOCUSED);
+
 		setStatusLabelPlaceholder((placeholder==null)?SNTUtils.getReadableVersion():placeholder);
 	}
 
@@ -162,8 +168,9 @@ public class SNTSearchableBar extends SearchableBar {
 
 	private Icon getSubFilteringStatusIcon() {
 		if (subFilteringStatusIcon == null) {
-			subFilteringStatusIcon = IconFactory.get(IconFactory.GLYPH.FILTER, _statusLabel.getFont().getSize(),
-					getSearchField().iconColor()); // SearchField is initialized by the time this is called
+            getSearchField();
+            subFilteringStatusIcon = IconFactory.get(IconFactory.GLYPH.FILTER, _statusLabel.getFont().getSize(),
+					SearchField.iconColor()); // SearchField is initialized by the time this is called
 		}
 		return subFilteringStatusIcon;
 	}
@@ -356,20 +363,17 @@ public class SNTSearchableBar extends SearchableBar {
 		final JMenuItem mi2 = new JMenuItem("Search Tips...");
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
-			final String key = GuiUtils.ctrlKey();
 			String msg = "<HTML><body><div><ul>"
-					+ "<li>Hold " + key + " while pressing the up/down keys to select multiple filtered " + objectDescription + "</li>" //
-					+ "<li>Press enter to store text in the search history</li>";
+					+ "<li>Press the ↓/↑ keys to find the next/previous occurrence of the search term</li>"
+					+ "<li>Press Enter to store terms in the <i>Search History</i> menu</li>";
 			if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
 				msg += "<li>Press the <i>Highlight All</i> button to select all the "
 						+ objectDescription + " filtered by the search term</li>";
 			}
-			if (isShowMatchCount()) {
-				msg += "<li>To improve search performance:</li><ul>" +
-						"<li>Disable <i>Display No. of Matches</i></li>" +
-						"<li>Enable <i>Non-interactive Search</i> (search starts only after Enter is pressed)</li></ul>";
-			}
-			msg += "</ul></div></html>";
+			msg += "<li>To improve search performance:</li><ul>" +
+					"<li>Disable <i>Display No. of Matches</i></li>" +
+					"<li>Enable <i>Non-interactive Search</i> (search starts only after pressing Enter)</li></ul>" +
+					"</ul></div></html>";
 			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
 		});
 		return mi2;
@@ -378,11 +382,6 @@ public class SNTSearchableBar extends SearchableBar {
 	private void updateSearch() {
 		for (final SearchableListener l : getSearchable().getSearchableListeners())
 			l.searchableEventFired(new SearchableEvent(getSearchable(), SearchableEvent.SEARCHABLE_MODEL_CHANGE));
-	}
-
-	private void addButton(final JToolBar panel, final AbstractButton button) {
-		panel.add(button);
-		buttonCount++;
 	}
 
 	private JLabel statusLabel() {
@@ -413,6 +412,7 @@ public class SNTSearchableBar extends SearchableBar {
 	protected AbstractButton createFindPrevButton(final AbstractAction findPrevAction) {
 		final AbstractButton button = super.createFindPrevButton(findPrevAction);
 		formatButton(button, IconFactory.GLYPH.PREVIOUS);
+		button.setToolTipText("Find the previous hit (or press ↑ in search field)");
 		return button;
 	}
 
@@ -420,8 +420,24 @@ public class SNTSearchableBar extends SearchableBar {
 	protected AbstractButton createFindNextButton(final AbstractAction findNextAction) {
 		final AbstractButton button = super.createFindNextButton(findNextAction);
 		formatButton(button, IconFactory.GLYPH.NEXT);
+		button.setToolTipText("Find the next hit (or press ↓ in search field)");
 		return button;
 	}
+
+	@Override
+	protected ImageIcon getImageIcon(final String name) {
+		if (_statusLabel == null)
+			return super.getImageIcon(name);
+        return switch (name) {
+            case SearchableBarIconsFactory.Buttons.REPEAT ->
+                    IconFactory.getAsImage(IconFactory.GLYPH.REPEAT, _statusLabel.getFont().getSize2D(),
+                            _statusLabel.getForeground());
+            case SearchableBarIconsFactory.Buttons.ERROR ->
+                    IconFactory.getAsImage(IconFactory.GLYPH.DANGER, _statusLabel.getFont().getSize2D(),
+                            _statusLabel.getForeground());
+            default -> SearchableBarIconsFactory.getImageIcon(name);
+        };
+    }
 
 	@Override
 	protected AbstractButton createCloseButton(final AbstractAction closeAction) {

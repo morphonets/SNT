@@ -217,8 +217,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		colorMenu.addSeparator();
 		jmi = new JMenuItem(MultiPathActionListener.ASSIGN_CUSTOM_COLOR);
 		ScriptRecorder.setRecordingCall(jmi, null);
-		jmi.setToolTipText("Tags selected paths with unlisted color\n" +
-				"NB: Custom colors are not listed in the 'Filter by Color Tag' menu");
+		jmi.setToolTipText("Tags selected paths with unlisted color");
 		jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
 		jmi.addActionListener(multiPathListener);
 		colorMenu.add(jmi);
@@ -3629,10 +3628,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			super("Proofreading Tags", HORIZONTAL);
 			setFocusable(false);
 			setFloatable(true);
-			toggleMenuItem = new JCheckBoxMenuItem("Proofreading Toolbar");
+			final boolean isVisible = plugin.getPrefs().getBoolean("proofReadBar", false);
+			toggleMenuItem = new JCheckBoxMenuItem("Proofreading Toolbar", isVisible);
 			toggleMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.GLASSES));
-			toggleMenuItem.setSelected(isVisible());
-			toggleMenuItem.addItemListener(e -> super.setVisible(toggleMenuItem.isSelected()));
+			toggleMenuItem.addItemListener(e -> {
+				super.setVisible(toggleMenuItem.isSelected());
+				plugin.getPrefs().set("proofReadBar", toggleMenuItem.isSelected());
+			});
 			tagsMap = new TreeMap<>();
 			tagsMap.put("active", new int[]{0xb7e3f2, 0x135b76});
 			tagsMap.put("complete", new int[]{0XC1E561, 0x2B5D00});
@@ -3644,7 +3646,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			tagsMap.forEach((name, colors) -> add(tagButton(name, colors[0], colors[1])));
 			add(clearButton());
 			addExtras();
-			setVisible(false); // hidden by default
+			setVisible(isVisible);
 		}
 
 		@Override

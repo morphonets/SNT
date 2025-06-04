@@ -48,7 +48,7 @@ public class ScriptRecorder extends JDialog {
 	private EditorPane editor;
 	private JComboBox<LANG> combo;
 	private LANG currentLang;
-	private static boolean[] createOptions = {true, true};
+	private static final boolean[] createOptions = {true, true};
 
 	enum LANG {
 		BEANSHELL(".bsh", "//", true), GROOVY(".groovy", "//", false), PYTHON(".py", "#", false);
@@ -146,10 +146,10 @@ public class ScriptRecorder extends JDialog {
 		mi1.addActionListener(e -> recordComment("TIMESTAMP"+SNTUtils.getTimeStamp()));
 		menu.add(mi1);
 		GuiUtils.addSeparator(menu, "Preferences:");
-		final JCheckBoxMenuItem mi2 = new JCheckBoxMenuItem("Float above all windows", isAlwaysOnTop());
+		final JCheckBoxMenuItem mi2 = new JCheckBoxMenuItem("Float Above All Windows", isAlwaysOnTop());
 		mi2.addItemListener(e -> setAlwaysOnTop(mi2.isSelected()));
 		menu.add(mi2);
-		final JMenuItem mi3 = new JMenuItem("Reset Prompts");
+		final JMenuItem mi3 = new JMenuItem("Reset Script Creation Prompts");
 		mi3.addActionListener(e -> Arrays.fill(createOptions, true));
 		menu.add(mi3);
 		final JButton button = new JButton();
@@ -163,6 +163,7 @@ public class ScriptRecorder extends JDialog {
 		final JToolBar tb = new JToolBar();
 		tb.setFloatable(false);
 		tb.setLayout(new GridBagLayout());
+		tb.setBackground(editor.getBackground());
 		final GridBagConstraints gbc = new GridBagConstraints();
 		gbc.gridx = 0;
 		gbc.gridy = 0;
@@ -281,7 +282,7 @@ public class ScriptRecorder extends JDialog {
 		recordCmd(str, false);
 	}
 
-	public void recordCmd(final String str, final boolean supressNextLine) {
+	public void recordCmd(final String str, final boolean suppressNextLine) {
 		final String sfx = ((currentLang.semiColon) ? ";\n" : "\n");
 		SwingUtilities.invokeLater(() -> {
 			if (currentLang == LANG.PYTHON) {
@@ -289,7 +290,7 @@ public class ScriptRecorder extends JDialog {
 			} else {
 				editor.append(str + sfx);
 			}
-			if (supressNextLine)
+			if (suppressNextLine)
 				editor.append(currentLang.commentSeq );
 		});
 	}

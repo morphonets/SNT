@@ -73,7 +73,7 @@ class FADerivedIcon implements Icon {
 	}
 
 	@Override
-	public synchronized void paintIcon(final Component c, final Graphics g, final int x, final int y) {
+	public synchronized void paintIcon(final Component ignored, final Graphics g, final int x, final int y) {
 		final BufferedImage buffer = new BufferedImage(getIconWidth(), getIconHeight(), BufferedImage.TYPE_INT_ARGB);
 		final Font font = getFont(solid, size);
 		final Graphics2D graphics = (Graphics2D) buffer.getGraphics();
@@ -88,6 +88,17 @@ class FADerivedIcon implements Icon {
 		graphics.drawString(str, xx, yy);
 		graphics.dispose();
 		g.drawImage(buffer, x, y, null);
+	}
+
+	protected ImageIcon asImage() {
+		final BufferedImage image = new BufferedImage(getIconWidth(), getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+		final Graphics g = image.createGraphics();
+		try {
+			paintIcon(null, g, 0, 0);
+			return new ImageIcon(image);
+		} finally {
+			g.dispose();
+		}
 	}
 
 	/*

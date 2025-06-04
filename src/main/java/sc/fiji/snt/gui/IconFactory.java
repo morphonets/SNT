@@ -154,7 +154,7 @@ public class IconFactory {
 			NAVIGATE('\uf14e', false), //
 			MOVE('\uf0b2', true), //
 			NEWSPAPER('\uf1ea', false), //
-			NEXT('\uf35b', false), //
+			NEXT('\uf358', false), //
 			OPEN_FOLDER('\uf07c', false), //
 			OPTIONS('\uf013', true), //
 			PASTE('\uf0ea', true), //
@@ -162,11 +162,12 @@ public class IconFactory {
 			PERSON_CHALKBOARD('\ue53d', true),//
 			POINTER('\uf245', true), //
 			PLUS('\uf0fe', false), //
-			PREVIOUS('\uf358', false), //
+			PREVIOUS('\uf35b', false), //
 			QUESTION('\uf059', false), //
 			QUIT('\uf011', true), //
 			RECYCLE('\uf1b8', true), //
 			REDO('\uf01e', true), //
+			REPEAT('\uf363', true), //
 			ROBOT('\uf544', true), //
 			ROCKET('\uf135', true), //
 			ROUTE('\uf4d7', true), //
@@ -223,8 +224,7 @@ public class IconFactory {
 	private static Color DEF_COLOR;
 
 	/**
-	 * Creates a new icon from a Font Awesome glyph. The icon's size is set from
-	 * the System's default font.
+	 * Creates a new icon from a Font Awesome glyph.
 	 *
 	 * @param entry the glyph defining the icon's Unicode ID
 	 * @param size the icon's size
@@ -233,6 +233,18 @@ public class IconFactory {
 	 */
 	public static Icon get(final GLYPH entry, final float size, final Color color) {
 		return new FADerivedIcon(entry.id, size, color, entry.solid);
+	}
+
+	/**
+	 * Creates a new image icon from a Font Awesome glyph.
+	 *
+	 * @param entry the glyph defining the icon's Unicode ID
+	 * @param size the icon's size
+	 * @param color the icon's color
+	 * @return the icon
+	 */
+	public static ImageIcon getAsImage(final GLYPH entry, final float size, final Color color) {
+		return new FADerivedIcon(entry.id, size, color, entry.solid).asImage();
 	}
 
 	public static Icon buttonIcon(final GLYPH entry, final float scalingFactor) {

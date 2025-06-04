@@ -125,11 +125,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	public boolean getBoolean(final String key, final boolean defaultValue) {
-		return prefService.getBoolean(getClass(), key, defaultValue);
+		return prefService.getBoolean(SNTPrefs.class, key, defaultValue);
 	}
 
 	public String get(final String key, final String defaultValue) {
-		return prefService.get(getClass(), key, defaultValue);
+		return prefService.get(SNTPrefs.class, key, defaultValue);
 	}
 
 	public void set(final String key, final String defaultValue) {
