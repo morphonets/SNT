@@ -36,6 +36,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.io.Serial;
 import java.util.*;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -69,6 +70,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		_extraButtons = new ArrayList<>();
 		_extraButtons.add(createSWCTypeFilteringButton());
 		_extraButtons.add(createColorFilteringButton());
+		_extraButtons.add(createTagFilteringButton());
 		_extraButtons.add(createMorphoFilteringButton());
 		_extraButtons.add(createSubFilteringButton());
 		setVisibleButtons(SHOW_NAVIGATION | SHOW_STATUS | SHOW_HIGHLIGHTS);
@@ -397,6 +399,44 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		}
 	}
 
+	private void doTagFiltering() {
+		final Collection<Path> filteredPaths = getPaths();
+		if (filteredPaths.isEmpty()) {
+			guiUtils.error("There are no traced paths.");
+			return;
+		}
+		final Set<String> existingTags = PathManagerUI.extractTagsFromPaths(filteredPaths);
+		if (existingTags.isEmpty()) {
+			guiUtils.error("None of current paths contains filterable tags. Use <i>Tag › Proofreading Toolbar</i> "
+					+ "or <i>Tag › Other...</i> and rerun.");
+			return;
+		}
+		final String[] matchingScopes = {"Match at least one selected tag", "Match all selected tags"};
+		final Object[] promptChoices = guiUtils.getMultipleChoicesAndChoice(
+				"Tag Filtering...", //
+				existingTags.toArray(String[]::new), null, true,
+				matchingScopes, matchingScopes[0]);
+		if (promptChoices == null) return; // user pressed cancel
+		@SuppressWarnings("unchecked") final Set<String> chosenTags = new TreeSet<>((List<String>) promptChoices[0]);
+		if (chosenTags.isEmpty()) {
+			guiUtils.error("No tags selected from list.");
+			return;
+		}
+		final boolean all = matchingScopes[1].equals(promptChoices[1]);
+		for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator.hasNext(); ) {
+			final Path p = iterator.next();
+			final Set<String> pathTags = PathManagerUI.extractTagsFromPaths(List.of(p));
+			if ((all && !pathTags.containsAll(chosenTags)) || Collections.disjoint(chosenTags, pathTags))
+				iterator.remove();
+		}
+		if (filteredPaths.isEmpty()) {
+			guiUtils.error("No Paths filtered by the matching criteria.");
+			return;
+		}
+		pmui.setSelectedPaths(filteredPaths, this);
+		logSelectionCount(filteredPaths.size());
+	}
+
 	public void doMorphoFiltering(final  Collection<Path> paths, final String property, final Number min, final Number max) {
 		for (final Iterator<Path> iterator = paths.iterator(); iterator
 			.hasNext();)
@@ -444,6 +484,14 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		}
 		button.addActionListener(e -> popup.show(button, button.getWidth() / 2,
 		button.getHeight() / 2));
+		return button;
+	}
+
+	private JButton createTagFilteringButton() {
+		final JButton button = new JButton();
+		formatButton(button, IconFactory.GLYPH.TAG);
+		button.setToolTipText("Filter by custom tags");
+		button.addActionListener(e -> doTagFiltering());
 		return button;
 	}
 

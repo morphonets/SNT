@@ -255,7 +255,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		tagsMenu.add(morphoTagsMenu);
 		tagsMenu.add(proofReadingToolBar.getToggleMenuItem());
 		tagsMenu.addSeparator();
-		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD, IconFactory.menuIcon(IconFactory.GLYPH.PLUS));
+		jmi = new JMenuItem(MultiPathActionListener.CUSTOM_TAG_CMD, IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+		jmi.setToolTipText("Ad hoc tags");
 		jmi.addActionListener(multiPathListener);
 		tagsMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.REPLACE_TAG_CMD, IconFactory.menuIcon(IconFactory.GLYPH.SEARCH_ARROW));
@@ -3609,7 +3610,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
-	static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
+	public static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
 		final TreeSet<String> uniqueTags = new TreeSet<>(); // sorted entries
 		paths.forEach( p-> {
 			uniqueTags.addAll(Arrays.asList(extractTagsFromPath(p).split(",\\s*")));

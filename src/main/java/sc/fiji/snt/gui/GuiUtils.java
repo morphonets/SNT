@@ -531,6 +531,24 @@ public class GuiUtils {
 		return null;
 	}
 
+	public Object[] getMultipleChoicesAndChoice(final String title,
+			final String[] choices1, final String defaultChoice1, final boolean multipleSelectionAllowed1,
+			final String[] choices2, final String defaultChoice2) {
+		final JList<String> list1 = getJList(choices1, defaultChoice1);
+		list1.setSelectionMode((multipleSelectionAllowed1) ? ListSelectionModel.MULTIPLE_INTERVAL_SELECTION : ListSelectionModel.SINGLE_SELECTION);
+		final JComboBox<String> combo = new JComboBox<>(choices2);
+		combo.setSelectedItem(defaultChoice2);
+		final JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.add(getScrollPane(list1));
+		panel.add(combo);
+		if (JOptionPane.showConfirmDialog(parent, panel, title,
+				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE) == JOptionPane.OK_OPTION) {
+			return new Object[] { list1.getSelectedValuesList(), combo.getSelectedItem() };
+		}
+		return null;
+	}
+
 	public boolean[] getPersistentConfirmation(final String msg, final String title) {
 		return getConfirmationAndOption(msg, title, "Remember my choice and do not prompt me again", false);
 	}

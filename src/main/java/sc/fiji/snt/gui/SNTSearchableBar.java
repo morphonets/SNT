@@ -129,7 +129,7 @@ public class SNTSearchableBar extends SearchableBar {
 	JToggleButton createSubFilteringButton() {
 		final JToggleButton button = new JToggleButton();
 		formatButton(button, IconFactory.GLYPH.FILTER);
-		button.setToolTipText("Restricts filtering to current selection.\nCombines filters to restrict matches");
+		button.setToolTipText("Restricts filtering to selected " + objectDescription +".\nCombines filters to restrict matches");
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		button.addActionListener(e -> {
