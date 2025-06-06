@@ -485,7 +485,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			final HashSet<Path> connectedPaths = new HashSet<>();
 			final LinkedList<Path> nextPathsToConsider = new LinkedList<>();
 			nextPathsToConsider.add(primaryPath);
-			while (nextPathsToConsider.size() > 0) {
+			while (!nextPathsToConsider.isEmpty()) {
 				final Path currentPath = nextPathsToConsider.removeFirst();
 				connectedPaths.add(currentPath);
 				for (final Path joinedPath : currentPath.somehowJoins) {
@@ -860,7 +860,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			"The primary path contained no points!");
 		nextPathsToAdd.add(firstPath);
 
-		while (nextPathsToAdd.size() > 0) {
+		while (!nextPathsToAdd.isEmpty()) {
 
 			final Path currentPath = nextPathsToAdd.removeFirst();
 

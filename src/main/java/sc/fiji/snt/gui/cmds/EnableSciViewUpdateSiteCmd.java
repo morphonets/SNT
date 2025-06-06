@@ -75,7 +75,7 @@ public class EnableSciViewUpdateSiteCmd implements Command {
 		// This allows us to call the updater without having to depend on
 		// net.imagej.ui.swing. See net.imagej.updater.CheckForUpdates
 		final List<CommandInfo> updaters = cmdService.getCommandsOfType(UpdaterUI.class);
-		if (updaters.size() > 0) {
+		if (!updaters.isEmpty()) {
 			cmdService.run(updaters.get(0), true);
 		} else {
 			new GuiUtils().error("No updater plugins found! Please check your installation.");

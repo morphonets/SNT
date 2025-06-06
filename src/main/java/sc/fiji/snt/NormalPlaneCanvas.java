@@ -37,7 +37,6 @@ import ij.gui.StackWindow;
 import ij.process.ImageProcessor;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 
-@SuppressWarnings("serial")
 /**
  * A tracing canvas that displays the normal ZY, XZ planes of a 3D image stack.
  */

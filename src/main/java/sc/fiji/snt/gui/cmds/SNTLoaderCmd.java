@@ -24,14 +24,9 @@ package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
 import ij.plugin.CompositeConverter;
-import io.scif.services.DatasetIOService;
-import net.imagej.display.ImageDisplayService;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
-import org.scijava.command.CommandService;
 import org.scijava.command.DynamicCommand;
-import org.scijava.convert.ConvertService;
-import org.scijava.display.DisplayService;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
@@ -63,16 +58,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 
 	@Parameter
 	private SNTService sntService;
-	@Parameter
-	private CommandService cmdService;
-	@Parameter
-	private DatasetIOService datasetIOService;
-	@Parameter
-	private DisplayService displayService;
-	@Parameter
-	private ImageDisplayService imageDisplayService;
-	@Parameter
-	private ConvertService convertService;
+
 	@Parameter
 	private UIService uiService;
 
@@ -193,7 +179,6 @@ public class SNTLoaderCmd extends DynamicCommand {
 					if (sourceImp.getNSlices() == 1) uiChoice = UI_SIMPLE;
 					adjustChannelInput();
 				}
-				return;
 		}
 	}
 

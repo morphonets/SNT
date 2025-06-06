@@ -124,7 +124,7 @@ public class MultiDThreePanes implements PaneOwner {
 		final int in_plane, final boolean shift_down)
 	{
 
-		final double point[] = new double[3];
+		final double[] point = new double[3];
 
 		findPointInStackPrecise(off_screen_x, off_screen_y, in_plane, point);
 
@@ -144,7 +144,7 @@ public class MultiDThreePanes implements PaneOwner {
 	{
 		if (single_pane || isZoomAllPanesDisabled()) return; // do nothing with this
 																													// news
-		final int point[] = new int[3];
+		final int[] point = new int[3];
 		findPointInStack(off_screen_x, off_screen_y, in_plane, point);
 		if (in_plane != ZY_PLANE) {
 			zy_canvas.triggerZoomEvent(in, point[2], point[1]);
@@ -761,7 +761,7 @@ public class MultiDThreePanes implements PaneOwner {
 	@Override
 	public void panEventOccurred(int off_screen_x, int off_screen_y, int in_plane) {
 		if (single_pane) return; // do nothing
-		final int point[] = new int[3];
+		final int[] point = new int[3];
 		findPointInStack(off_screen_x, off_screen_y, in_plane, point);
 		if (in_plane == ZY_PLANE) {
 			zy_canvas.scrollTo(point[2], point[1]);

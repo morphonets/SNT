@@ -58,7 +58,7 @@ public class SNTPseudographComponent extends SNTGraphComponent{
             public Object drawLabel(String text, mxCellState state, boolean html) {
                 Map<String, Object> style = state.getStyle();
                 mxITextShape shape = getTextShape(style, html);
-                if (g != null && shape != null && drawLabels && text != null && text.length() > 0) {
+                if (g != null && shape != null && drawLabels && text != null && !text.isEmpty()) {
                     // Creates a temporary graphics instance for drawing this shape
                     float opacity = mxUtils.getFloat(style, mxConstants.STYLE_TEXT_OPACITY, 100);
                     Graphics2D previousGraphics = g;

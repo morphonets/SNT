@@ -81,7 +81,7 @@ public class Comparator extends ContextCommand {
 
 	private void validateProfile(final Profile... profiles) {
 		for (final Profile p : profiles)
-			if (p == null || p.size() == 0) throw new IllegalArgumentException(
+			if (p == null || p.isEmpty()) throw new IllegalArgumentException(
 				"Cannot compare null or empty profiles");
 	}
 

@@ -466,7 +466,7 @@ public class SNTCommandFinder {
         final JButton button = new JButton(getAction());
         IconFactory.assignIcon(button, IconFactory.GLYPH.SEARCH, scaleFactor);
         button.getInputMap().put(ACCELERATOR, NAME);
-        button.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
+        button.setToolTipText(NAME + "  " + getAcceleratorString());
         return button;
     }
 
@@ -474,7 +474,7 @@ public class SNTCommandFinder {
         final AbstractButton jmi = (asButton) ? GuiUtils.Buttons.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
                 : new JMenuItem(getAction());
         if (asButton) {
-            jmi.setToolTipText(NAME + "  " + GuiUtils.ctrlKey() + "+Shift+P");
+            jmi.setToolTipText(NAME + "  " + getAcceleratorString());
         } else {
             jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
         }
@@ -992,105 +992,6 @@ public class SNTCommandFinder {
             return string.substring(0, 1).toUpperCase() + string.substring(1);
         }
 
-        private String prettifiedKey(final KeyStroke key) {
-            if (key == null)
-                return "";
-            final StringBuilder s = new StringBuilder();
-            final int m = key.getModifiers();
-            if ((m & InputEvent.CTRL_DOWN_MASK) != 0) {
-                s.append((PlatformUtils.isMac()) ? "⌃ " : "Ctrl ");
-            }
-            if ((m & InputEvent.META_DOWN_MASK) != 0) {
-                s.append((PlatformUtils.isMac()) ? "⌘ " : "Ctrl ");
-            }
-            if ((m & InputEvent.ALT_DOWN_MASK) != 0) {
-                s.append((PlatformUtils.isMac()) ? "⎇ " : "Alt ");
-            }
-            if ((m & InputEvent.SHIFT_DOWN_MASK) != 0) {
-                s.append("⇧ ");
-            }
-            if ((m & InputEvent.BUTTON1_DOWN_MASK) != 0) {
-                s.append("L-click ");
-            }
-            if ((m & InputEvent.BUTTON2_DOWN_MASK) != 0) {
-                s.append("R-click ");
-            }
-            if ((m & InputEvent.BUTTON3_DOWN_MASK) != 0) {
-                s.append("M-click ");
-            }
-            switch (key.getKeyEventType()) {
-                case KeyEvent.KEY_TYPED:
-                    s.append(key.getKeyChar()).append(" ");
-                    break;
-                case KeyEvent.KEY_PRESSED:
-                case KeyEvent.KEY_RELEASED:
-                    s.append(getKeyText(key.getKeyCode())).append(" ");
-                    break;
-                default:
-                    break;
-            }
-            return s.toString();
-        }
-
-        String getKeyText(final int keyCode) {
-            if (keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9
-                    || keyCode >= KeyEvent.VK_A && keyCode <= KeyEvent.VK_Z) {
-                return String.valueOf((char) keyCode);
-            }
-            return switch (keyCode) {
-                case KeyEvent.VK_COMMA, KeyEvent.VK_COLON -> ",";
-                case KeyEvent.VK_PERIOD -> ".";
-                case KeyEvent.VK_SLASH -> "/";
-                case KeyEvent.VK_SEMICOLON -> ";";
-                case KeyEvent.VK_EQUALS -> "=";
-                case KeyEvent.VK_OPEN_BRACKET -> "[";
-                case KeyEvent.VK_BACK_SLASH -> "\\";
-                case KeyEvent.VK_CLOSE_BRACKET -> "]";
-                case KeyEvent.VK_ENTER -> "↵";
-                case KeyEvent.VK_BACK_SPACE -> "⌫";
-                case KeyEvent.VK_TAB -> "↹";
-                case KeyEvent.VK_CANCEL -> "Cancel";
-                case KeyEvent.VK_CLEAR -> "Clear";
-                case KeyEvent.VK_PAUSE -> "Pause";
-                case KeyEvent.VK_CAPS_LOCK -> "⇪";
-                case KeyEvent.VK_ESCAPE -> "Esc";
-                case KeyEvent.VK_SPACE -> "Space";
-                case KeyEvent.VK_PAGE_UP -> "⇞";
-                case KeyEvent.VK_PAGE_DOWN -> "⇟";
-                case KeyEvent.VK_END -> "END";
-                case KeyEvent.VK_HOME -> "Home"; // "⌂";
-                case KeyEvent.VK_LEFT -> "←";
-                case KeyEvent.VK_UP -> "↑";
-                case KeyEvent.VK_RIGHT -> "→";
-                case KeyEvent.VK_DOWN -> "↓";
-                case KeyEvent.VK_MULTIPLY -> "[Num ×]";
-                case KeyEvent.VK_ADD -> "[Num +]";
-                case KeyEvent.VK_SUBTRACT -> "[Num −]";
-                case KeyEvent.VK_DIVIDE -> "[Num /]";
-                case KeyEvent.VK_DELETE -> "⌦";
-                case KeyEvent.VK_INSERT -> "Ins";
-                case KeyEvent.VK_BACK_QUOTE -> "`";
-                case KeyEvent.VK_QUOTE -> "'";
-                case KeyEvent.VK_AMPERSAND -> "&";
-                case KeyEvent.VK_ASTERISK -> "*";
-                case KeyEvent.VK_QUOTEDBL -> "\"";
-                case KeyEvent.VK_LESS -> "<";
-                case KeyEvent.VK_GREATER -> ">";
-                case KeyEvent.VK_BRACELEFT -> "{";
-                case KeyEvent.VK_BRACERIGHT -> "}";
-                case KeyEvent.VK_CIRCUMFLEX -> "^";
-                case KeyEvent.VK_DEAD_TILDE -> "~";
-                case KeyEvent.VK_DOLLAR -> "$";
-                case KeyEvent.VK_EXCLAMATION_MARK -> "!";
-                case KeyEvent.VK_LEFT_PARENTHESIS -> "(";
-                case KeyEvent.VK_MINUS -> "-";
-                case KeyEvent.VK_PLUS -> "+";
-                case KeyEvent.VK_RIGHT_PARENTHESIS -> ")";
-                case KeyEvent.VK_UNDERSCORE -> "_";
-                default -> KeyEvent.getKeyText(keyCode);
-            };
-        }
-
     }
 
     private class CmdScrapper {
@@ -1323,5 +1224,109 @@ public class SNTCommandFinder {
         String description() {
             return "|Unmatched action|";
         }
+    }
+
+    public String getAcceleratorString() {
+        return (prettifiedKey(KeyStroke.getKeyStroke(ACCELERATOR.getKeyCode(), ACCELERATOR.getModifiers()))
+                ).replace(" ", "");
+    }
+
+    private String prettifiedKey(final KeyStroke key) {
+        if (key == null)
+            return "";
+        final StringBuilder s = new StringBuilder();
+        final int m = key.getModifiers();
+        if ((m & InputEvent.CTRL_DOWN_MASK) != 0) {
+            s.append((PlatformUtils.isMac()) ? "⌃ " : "Ctrl ");
+        }
+        if ((m & InputEvent.META_DOWN_MASK) != 0) {
+            s.append((PlatformUtils.isMac()) ? "⌘ " : "Ctrl ");
+        }
+        if ((m & InputEvent.ALT_DOWN_MASK) != 0) {
+            s.append((PlatformUtils.isMac()) ? "⎇ " : "Alt ");
+        }
+        if ((m & InputEvent.SHIFT_DOWN_MASK) != 0) {
+            s.append("⇧ ");
+        }
+        if ((m & InputEvent.BUTTON1_DOWN_MASK) != 0) {
+            s.append("L-click ");
+        }
+        if ((m & InputEvent.BUTTON2_DOWN_MASK) != 0) {
+            s.append("R-click ");
+        }
+        if ((m & InputEvent.BUTTON3_DOWN_MASK) != 0) {
+            s.append("M-click ");
+        }
+        switch (key.getKeyEventType()) {
+            case KeyEvent.KEY_TYPED:
+                s.append(key.getKeyChar()).append(" ");
+                break;
+            case KeyEvent.KEY_PRESSED:
+            case KeyEvent.KEY_RELEASED:
+                s.append(getKeyText(key.getKeyCode())).append(" ");
+                break;
+            default:
+                break;
+        }
+        return s.toString();
+    }
+
+    String getKeyText(final int keyCode) {
+        if (keyCode >= KeyEvent.VK_0 && keyCode <= KeyEvent.VK_9
+                || keyCode >= KeyEvent.VK_A && keyCode <= KeyEvent.VK_Z) {
+            return String.valueOf((char) keyCode);
+        }
+        return switch (keyCode) {
+            case KeyEvent.VK_COMMA, KeyEvent.VK_COLON -> ",";
+            case KeyEvent.VK_PERIOD -> ".";
+            case KeyEvent.VK_SLASH -> "/";
+            case KeyEvent.VK_SEMICOLON -> ";";
+            case KeyEvent.VK_EQUALS -> "=";
+            case KeyEvent.VK_OPEN_BRACKET -> "[";
+            case KeyEvent.VK_BACK_SLASH -> "\\";
+            case KeyEvent.VK_CLOSE_BRACKET -> "]";
+            case KeyEvent.VK_ENTER -> "↵";
+            case KeyEvent.VK_BACK_SPACE -> "⌫";
+            case KeyEvent.VK_TAB -> "↹";
+            case KeyEvent.VK_CANCEL -> "Cancel";
+            case KeyEvent.VK_CLEAR -> "Clear";
+            case KeyEvent.VK_PAUSE -> "Pause";
+            case KeyEvent.VK_CAPS_LOCK -> "⇪";
+            case KeyEvent.VK_ESCAPE -> "Esc";
+            case KeyEvent.VK_SPACE -> "Space";
+            case KeyEvent.VK_PAGE_UP -> "⇞";
+            case KeyEvent.VK_PAGE_DOWN -> "⇟";
+            case KeyEvent.VK_END -> "END";
+            case KeyEvent.VK_HOME -> "Home"; // "⌂";
+            case KeyEvent.VK_LEFT -> "←";
+            case KeyEvent.VK_UP -> "↑";
+            case KeyEvent.VK_RIGHT -> "→";
+            case KeyEvent.VK_DOWN -> "↓";
+            case KeyEvent.VK_MULTIPLY -> "[Num ×]";
+            case KeyEvent.VK_ADD -> "[Num +]";
+            case KeyEvent.VK_SUBTRACT -> "[Num −]";
+            case KeyEvent.VK_DIVIDE -> "[Num /]";
+            case KeyEvent.VK_DELETE -> "⌦";
+            case KeyEvent.VK_INSERT -> "Ins";
+            case KeyEvent.VK_BACK_QUOTE -> "`";
+            case KeyEvent.VK_QUOTE -> "'";
+            case KeyEvent.VK_AMPERSAND -> "&";
+            case KeyEvent.VK_ASTERISK -> "*";
+            case KeyEvent.VK_QUOTEDBL -> "\"";
+            case KeyEvent.VK_LESS -> "<";
+            case KeyEvent.VK_GREATER -> ">";
+            case KeyEvent.VK_BRACELEFT -> "{";
+            case KeyEvent.VK_BRACERIGHT -> "}";
+            case KeyEvent.VK_CIRCUMFLEX -> "^";
+            case KeyEvent.VK_DEAD_TILDE -> "~";
+            case KeyEvent.VK_DOLLAR -> "$";
+            case KeyEvent.VK_EXCLAMATION_MARK -> "!";
+            case KeyEvent.VK_LEFT_PARENTHESIS -> "(";
+            case KeyEvent.VK_MINUS -> "-";
+            case KeyEvent.VK_PLUS -> "+";
+            case KeyEvent.VK_RIGHT_PARENTHESIS -> ")";
+            case KeyEvent.VK_UNDERSCORE -> "_";
+            default -> KeyEvent.getKeyText(keyCode);
+        };
     }
 }

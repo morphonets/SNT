@@ -89,7 +89,7 @@ public class SNTColor {
 	}
 
 	/**
-	 * Re-assigns a AWT color.
+	 * Re-assigns an AWT color.
 	 *
 	 * @param color the new color
 	 */
@@ -245,7 +245,7 @@ public class SNTColor {
 	}
 
 	/**
-	 * Adds an alpha component to a AWT color.
+	 * Adds an alpha component to an AWT color.
 	 *
 	 * @param c the input color
 	 * @param percent alpha value in percentage

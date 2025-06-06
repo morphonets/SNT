@@ -239,7 +239,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		if (!fittedData && maxima != null) {
 			return maxima;
 		}
-		final double values[];
+		final double[] values;
 		final double max;
 		final ArrayList<ShollPoint> target = new ArrayList<>();
 		if (fittedData) {

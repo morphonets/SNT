@@ -783,7 +783,7 @@ public class MeasureUI extends JFrame {
 			}
 
 			@Override
-			protected Void doInBackground() throws Exception {
+			protected Void doInBackground() {
 				int counter = 0;
 				for (final Tree tree : trees) {
 					publish(counter++);

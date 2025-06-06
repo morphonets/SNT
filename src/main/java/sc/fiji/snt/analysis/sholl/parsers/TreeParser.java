@@ -246,7 +246,7 @@ public class TreeParser implements Parser {
 	 */
 	@Override
 	public boolean successful() {
-		return profile != null && profile.size() > 0;
+		return profile != null && !profile.isEmpty();
 	}
 
 	/* (non-Javadoc)

@@ -2466,7 +2466,7 @@ public class SNTUI extends JDialog {
 		menuBar.add(installer.getScriptsMenu());
 		final JMenu viewMenu = new JMenu("View");
 		menuBar.add(viewMenu);
-		menuBar.add(GuiUtils.MenuItems.helpMenu());
+		menuBar.add(GuiUtils.MenuItems.helpMenu(commandFinder));
 
 		// Options to replace image data
 		final JMenu changeImpMenu = new JMenu("Choose Tracing Image");

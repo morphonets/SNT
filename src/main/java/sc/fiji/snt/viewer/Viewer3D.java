@@ -4918,7 +4918,7 @@ public class Viewer3D {
 			utilsMenu.add(reveal);
 
 			GuiUtils.addSeparator(utilsMenu, "Resources:");
-			final JMenu helpMenu = GuiUtils.MenuItems.helpMenu();
+			final JMenu helpMenu = GuiUtils.MenuItems.helpMenu(cmdFinder);
 			helpMenu.setIcon( IconFactory.menuIcon(GLYPH.QUESTION));
 			utilsMenu.add(helpMenu);
 			return utilsMenu;
@@ -6255,7 +6255,6 @@ public class Viewer3D {
 
 		@Override
 		protected CheckBoxListCellRenderer createCellRenderer() {
-			@SuppressWarnings("serial")
 			class CheckBoxListCellRendererPlus extends CheckBoxListCellRenderer {
 				public CheckBoxListCellRendererPlus() {
 					super();

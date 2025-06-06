@@ -170,7 +170,7 @@ public class Fill {
 
 	public void writeXML(final PrintWriter pw, final int fillIndex) {
 		pw.print("  <fill id=\"" + fillIndex + "\"");
-		if ((sourcePaths != null) && (sourcePaths.size() > 0)) {
+		if ((sourcePaths != null) && (!sourcePaths.isEmpty())) {
 			pw.print(" frompaths=\"");
 			pw.print(getSourcePathsStringMachine());
 			pw.print("\"");
@@ -245,7 +245,7 @@ public class Fill {
 	@Override
 	public String toString() {
 		String name = "Fill";
-		if ((getSourcePaths() != null) && (getSourcePaths().size() > 0)) {
+		if ((getSourcePaths() != null) && (!getSourcePaths().isEmpty())) {
 			name += " from paths: " + getSourcePathsStringHuman();
 		}
 		return name;

@@ -1216,18 +1216,15 @@ public class GuiUtils {
 
 		SpinningIconLabel(final Icon icon) {
 			super(icon);
-			timer = new Timer(16, new ActionListener() {
-				@Override
-				public void actionPerformed(ActionEvent e) {
-					angle += 0.1;
-					scale -= 0.01;
-					if (scale <= 0) {
-						angle = 0;
-						scale = 1.0;
-					}
-					repaint();
-				}
-			});
+			timer = new Timer(16, e -> {
+                angle += 0.1;
+                scale -= 0.01;
+                if (scale <= 0) {
+                    angle = 0;
+                    scale = 1.0;
+                }
+                repaint();
+            });
 			addMouseListener(new MouseAdapter() {
 				@Override
 				public void mouseClicked(final MouseEvent e) {
@@ -1600,7 +1597,7 @@ public class GuiUtils {
 	}
 
 	public static String micrometer() {
-		return "\u00B5m";
+		return "µm";
 	}
 
 	/**
@@ -1619,7 +1616,7 @@ public class GuiUtils {
 		double length = 0;
 		if (umLength < 0.0001) {
 			length = umLength * 10000;
-			symbol = "\u00C5";
+			symbol = "Å";
 		}
 		if (umLength < 1) {
 			length = umLength * 1000;
@@ -2474,13 +2471,22 @@ public class GuiUtils {
 			return new JMenuItemAcc();
 		}
 
-		public static JMenu helpMenu() {
+		public static JMenu helpMenu(final SNTCommandFinder cmdFinder) {
 			final JMenu helpMenu = new JMenu("Help");
+			if (cmdFinder != null) {
+				final AbstractButton mi = cmdFinder.getMenuItem(false);
+				mi.setText("Find Command/Action...");
+				mi.getAction().putValue(Action.ACCELERATOR_KEY, null);
+				mi.addActionListener(e -> new GuiUtils().centeredMsg("You can search for commands "
+                        + "and actions from the Command Palette, by using the global shortcut "
+						+ cmdFinder.getAcceleratorString() + ".", "Tip: Shortcut to Remember"));
+				helpMenu.add(mi);
+				helpMenu.addSeparator();
+			}
 			final String URL = "https://imagej.net/plugins/snt/";
 			JMenuItem mi = openURL("Main Documentation Page", URL);
 			mi.setIcon(IconFactory.menuIcon(GLYPH.HOME));
 			helpMenu.add(mi);
-			helpMenu.addSeparator();
 			mi = openURL("User Manual", URL + "manual");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.BOOK_READER));
 			helpMenu.add(mi);
@@ -2674,7 +2680,7 @@ public class GuiUtils {
 			final float SCALE = .85f;
 			final JButton button = new JButton(text);
 			final Font font = button.getFont();
-			button.setFont(font.deriveFont((float) (font.getSize() * SCALE)));
+			button.setFont(font.deriveFont(font.getSize() * SCALE));
 			final Insets insets = button.getMargin();
 			button.setMargin(new Insets((int) (insets.top * SCALE), (int) (insets.left *
 					SCALE), (int) (insets.bottom * SCALE), (int) (insets.right * SCALE)));

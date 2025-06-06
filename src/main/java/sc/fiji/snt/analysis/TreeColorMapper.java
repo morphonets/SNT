@@ -46,8 +46,8 @@ import sc.fiji.snt.viewer.Viewer3D;
 import java.awt.*;
 import java.io.IOException;
 import java.net.URL;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -740,13 +740,13 @@ public class TreeColorMapper extends ColorMapper {
 
 	private static class MappedTaggedPath {
 
-		private final Pattern pattern = Pattern.compile("\\{(\\w+)\\b");
-		private final Path path;
+        private final Path path;
 		private final String mappedTag;
 
 		private MappedTaggedPath(final Path path) {
 			this.path = path;
-			final Matcher matcher = pattern.matcher(path.getName());
+            final Pattern pattern = Pattern.compile("\\{(\\w+)\\b");
+            final Matcher matcher = pattern.matcher(path.getName());
 			mappedTag = (matcher.find()) ? matcher.group(1) : "";
 		}
 	}

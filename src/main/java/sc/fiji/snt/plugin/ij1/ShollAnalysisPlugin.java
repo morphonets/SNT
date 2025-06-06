@@ -187,7 +187,7 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 				}
 			}
 
-			if (shollPoints.size() == 0) {
+			if (shollPoints.isEmpty()) {
 				if (!restrictBySWCType) throw new RuntimeException(
 					"BUG: Somehow could not load Sholl Points when loading " +
 						tracesPath);
@@ -455,7 +455,7 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 	}
 
 	private String swcTypeCodesToString() {
-		if (swcTypeCodes == null || swcTypeCodes.size() == 0) return "no-filtering";
+		if (swcTypeCodes == null || swcTypeCodes.isEmpty()) return "no-filtering";
 		final StringBuilder sb = new StringBuilder();
 		for (final int type : swcTypeCodes)
 			sb.append(Path.getSWCtypeName(type, false)).append("+");

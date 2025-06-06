@@ -104,7 +104,7 @@ public class StrahlerAnalyzer {
 		// All vertices should have been visited at this point. Do a 2nd pass
 		// if not (perhaps ordering in graph.vertexSet() got scrambled?),
 		assert unVisitedNodes.isEmpty();
-		while (unVisitedNodes.size() > 0) {
+		while (!unVisitedNodes.isEmpty()) {
 			final ListIterator<SWCPoint> unvisitedIterator = unVisitedNodes.listIterator(unVisitedNodes.size());
 			while (unvisitedIterator.hasPrevious()) {
 				final SWCPoint node = unvisitedIterator.previous();
@@ -242,7 +242,7 @@ public class StrahlerAnalyzer {
 		final Map<Integer, Double> fragMap = new TreeMap<>();
 		getBranches().forEach( (order, branches) -> {
 			final double nNodes = branches.stream().mapToInt(branch -> branch.size()).sum();
-			fragMap.put(order, (branches.size()==0) ? Double.NaN : nNodes/branches.size());
+			fragMap.put(order, (branches.isEmpty()) ? Double.NaN : nNodes/branches.size());
 		});
 		return fragMap;
 	}

@@ -353,7 +353,7 @@ public class GroupAnalyzerCmd extends CommonDynamicCmd {
 		cm.map(metric, ColorTables.ICE);
 		final MultiViewer2D viewer = cm.getMultiViewer();
 		viewer.setGridlinesVisible(false);
-		viewer.setLabel(group);
+		viewer.setTitle(group);
 		SwingUtilities.invokeLater(viewer::show);
 	}
 

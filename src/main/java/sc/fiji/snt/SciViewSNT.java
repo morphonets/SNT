@@ -327,7 +327,7 @@ public class SciViewSNT {
 		}
 
 		public Node get() {
-			if (getChildren().size() == 0) assembleShape();
+			if (getChildren().isEmpty()) assembleShape();
 			return this;
 		}
 

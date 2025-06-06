@@ -41,7 +41,6 @@ import java.util.Arrays;
 /**
  * Implements a dialog for importing SWC files.
  */
-@SuppressWarnings("serial")
 public class SWCImportDialog extends JDialog {
 
 	private boolean succeeded;

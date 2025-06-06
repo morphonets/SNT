@@ -179,7 +179,7 @@ public class TabularParser implements Parser {
 
 	@Override
 	public boolean successful() {
-		return profile != null && profile.size() > 0;
+		return profile != null && !profile.isEmpty();
 	}
 
 	@Override

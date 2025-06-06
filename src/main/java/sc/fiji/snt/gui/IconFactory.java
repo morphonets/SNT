@@ -466,7 +466,7 @@ public class IconFactory {
     }
 
 	private static class AccentIcon extends FlatAbstractIcon {
-		Color color;
+		final Color color;
 
 		AccentIcon(final Color color, final int w, final int h) {
 			super( w, h, color);

@@ -869,7 +869,6 @@ public class GroupedTreeStatistics {
 			metricString = (normalized) ? metric + " (normalized)" : metric;
 		}
 
-		@SuppressWarnings("rawtypes")
 		@Override
 		public String generateLabel(final FlowDataset dataset, final FlowKey key) {
 			try {

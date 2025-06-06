@@ -46,7 +46,6 @@ import java.util.stream.IntStream;
 /**
  * Implements a dialog for exporting SWC files.
  */
-@SuppressWarnings("serial")
 public class SWCExportDialog extends JDialog {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes

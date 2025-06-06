@@ -130,7 +130,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		this.groupOfTrees = new ArrayList<>();
 		group.forEach(inputTree -> {
 			final Tree filteredTree = inputTree.subTree(swcTypes);
-			if (filteredTree != null && filteredTree.size() > 0)
+			if (filteredTree != null && !filteredTree.isEmpty())
 				groupOfTrees.add(filteredTree);
 		});
 		if (groupOfTrees.isEmpty())

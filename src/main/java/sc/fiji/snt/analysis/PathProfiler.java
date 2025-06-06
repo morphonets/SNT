@@ -360,7 +360,7 @@ public class PathProfiler extends CommonDynamicCmd {
 			// since this is a scriptable class, provide feedback in case run() is called out-of-context
 			throw new IllegalArgumentException("No context has been set. Note that this method should only be called from CommandService.");
 		}
-		if (tree.size() == 0) {
+		if (tree.isEmpty()) {
 			super.error("No path(s) to profile");
 			return;
 		}

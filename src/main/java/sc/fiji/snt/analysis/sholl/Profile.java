@@ -235,7 +235,7 @@ public class Profile implements ProfileProperties {
 	public boolean hasPoints() {
         for (ProfileEntry profileEntry : profile) {
             final Set<ShollPoint> entryPoints = profileEntry.points;
-            if (entryPoints != null && entryPoints.size() > 0)
+            if (entryPoints != null && !entryPoints.isEmpty())
                 return true;
         }
 		return false;

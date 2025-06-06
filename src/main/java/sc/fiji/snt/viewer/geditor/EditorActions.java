@@ -116,7 +116,6 @@ class EditorActions
 	/**
 	 *
 	 */
-	@SuppressWarnings("serial")
 	static class ToggleRulersItem extends JCheckBoxMenuItem
 	{
 		ToggleRulersItem(final GraphEditor editor, String name)
@@ -138,7 +137,6 @@ class EditorActions
 		}
 	}
 
-	@SuppressWarnings("serial")
 	static class ToggleBottomPaneItem extends JCheckBoxMenuItem {
 		ToggleBottomPaneItem(final GraphEditor editor, String name) {
 			super(name, editor.getGraphOutline().isVisible());
@@ -860,7 +858,6 @@ class EditorActions
 	/**
 	 *
 	 */
-	@SuppressWarnings("serial")
 	static class ToggleConnectModeAction extends JCheckBoxMenuItem
 	{
 		ToggleConnectModeAction(final String name, final boolean initialState) {
@@ -883,7 +880,6 @@ class EditorActions
 	/**
 	 *
 	 */
-	@SuppressWarnings("serial")
 	static class ToggleCreateTargetItem extends JCheckBoxMenuItem
 	{
 		/**
@@ -999,7 +995,6 @@ class EditorActions
 	/**
 	 *
 	 */
-	@SuppressWarnings("serial")
 	static class TogglePropertyItem extends JCheckBoxMenuItem
 	{
 		/**

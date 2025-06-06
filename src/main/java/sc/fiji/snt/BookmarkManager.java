@@ -583,7 +583,7 @@ public class BookmarkManager {
 
 class Bookmark extends PointInCanvas {
     String label;
-    int c;
+    final int c;
     int t;
 
     Bookmark(final String label, double x, double y, double z, int c, int t) {

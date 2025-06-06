@@ -141,7 +141,7 @@ public class PathStraightener {
 		final RoiConverter converter = new RoiConverter(path, imp);
 		converter.setView(RoiConverter.XY_PLANE);
 		final List<PolygonRoi> polyLines = converter.getROIs(path);
-		if (polyLines.size() == 0) {
+		if (polyLines.isEmpty()) {
 			throw new IllegalArgumentException("Could not extract valid ROIs from path");
 		}
 		final List<ImageProcessor> ips = new ArrayList<>();

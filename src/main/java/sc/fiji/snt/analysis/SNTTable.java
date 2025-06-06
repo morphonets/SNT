@@ -215,7 +215,7 @@ public class SNTTable extends DefaultGenericTable {
 		return idx;
 	}
 
-	public Column<? extends Object> removeColumn(final String header) {
+	public Column<?> removeColumn(final String header) {
 		// do not throw exception if column not found
 		return (getColumnIndex(header) == -1) ? null : super.removeColumn(header);
 	}
