@@ -38,6 +38,7 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.Serial;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -55,7 +56,7 @@ public class SNTSearchableBar extends SearchableBar {
 	private String statusLabelPlaceholder;
 	private String objectDescription;
 	private GuiUtils guiUtils;
-	private JMenuItem findAndReplaceMenuItem;
+	private JPopupMenu optionsMenu;
 	private JMenu historyMenu;
 	private Icon subFilteringStatusIcon;
 	private final List<String> builtinSearchHistory;
@@ -301,10 +302,10 @@ public class SNTSearchableBar extends SearchableBar {
 			updateSearch();
 		});
 		// options button
-		final JPopupMenu popup = createOptionsMenu();
+		optionsMenu = createOptionsMenu();
 		sf.optionsButton().addActionListener(e -> {
 			updateHistoryMenu();
-			popup.show(sf.optionsButton(), 0, sf.optionsButton().getHeight());
+			optionsMenu.show(sf.optionsButton(), 0, sf.optionsButton().getHeight());
 		});
 		return sf;
 	}
@@ -333,10 +334,6 @@ public class SNTSearchableBar extends SearchableBar {
 		jcbmi4.addItemListener(e -> getSearchable().setSearchingDelay((jcbmi4.isSelected())?-1:DELAY_MS));
 		jcbmi4.setToolTipText("Search only after Enter is pressed");
 		popup.add(jcbmi4);
-		if (findAndReplaceMenuItem != null) {
-			popup.addSeparator();
-			popup.add(findAndReplaceMenuItem);
-		}
 		popup.addSeparator();
 		popup.add(getTipsAndShortcutsMenuItem());
 		return popup;
@@ -355,8 +352,13 @@ public class SNTSearchableBar extends SearchableBar {
 		return guiUtils;
 	}
 
-	protected void setFindAndReplaceMenuItem(final JMenuItem findAndReplaceMenuItem) {
-		this.findAndReplaceMenuItem = findAndReplaceMenuItem;
+	protected void appendToOptionsMenu(final Collection<JMenuItem> menuItems) {
+		if (menuItems != null && !menuItems.isEmpty()) {
+			optionsMenu.remove(optionsMenu.getComponentCount() - 1); // remove tipsAndShortcutsMenuItem
+			menuItems.forEach(optionsMenu::add);
+			optionsMenu.addSeparator();
+			optionsMenu.add(getTipsAndShortcutsMenuItem()); // re-add tipsAndShortcutsMenuItem
+		}
 	}
 
 	private JMenuItem getTipsAndShortcutsMenuItem() {

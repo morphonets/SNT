@@ -66,7 +66,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		guiUtils = new GuiUtils(pmui);
 		setGuiUtils(guiUtils);
 		setSearchableObjectDescription("Paths");
-		setFindAndReplaceMenuItem(createFindAndReplaceMenuItem());
+		appendToOptionsMenu(List.of(createFindAndReplaceMenuItem()));
 		_extraButtons = new ArrayList<>();
 		_extraButtons.add(createSWCTypeFilteringButton());
 		_extraButtons.add(createColorFilteringButton());
