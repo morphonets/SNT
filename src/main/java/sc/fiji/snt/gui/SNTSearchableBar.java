@@ -138,24 +138,24 @@ public class SNTSearchableBar extends SearchableBar {
 			setStatusLabelPlaceholder(statusLabelPlaceholder); // update label
 		});
 		getSearchField().getDocument().addDocumentListener(new DocumentListener() {
-					@Override
-					public void changedUpdate(final DocumentEvent e) {
-						disable();
-					}
-					@Override
-					public void removeUpdate(final DocumentEvent e) {
-						disable();
-					}
-					@Override
-					public void insertUpdate(final DocumentEvent e) {
-						disable();
-					}
-					void disable() { // text searches disable subFiltering
-						setSubFilteringEnabled(false);
-						button.setSelected(false);
-						button.setEnabled(getSearchingText().isBlank());
-					}
-				});
+			@Override
+			public void changedUpdate(final DocumentEvent e) {
+				disable();
+			}
+			@Override
+			public void removeUpdate(final DocumentEvent e) {
+				disable();
+			}
+			@Override
+			public void insertUpdate(final DocumentEvent e) {
+				disable();
+			}
+			void disable() { // text searches disable subFiltering
+				setSubFilteringEnabled(false);
+				button.setSelected(false);
+				button.setEnabled(getSearchingText().isBlank());
+			}
+		});
 		return button;
 	}
 

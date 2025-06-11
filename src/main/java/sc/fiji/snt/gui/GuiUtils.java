@@ -1493,6 +1493,19 @@ public class GuiUtils {
 		return cp;
 	}
 
+	public static void recolorTracks(final JScrollPane pane, final Color color) {
+		final JPanel dummy = new JPanel();
+		dummy.setBackground(color);
+		pane.setCorner(JScrollPane.LOWER_LEFT_CORNER, dummy);
+		pane.setCorner(JScrollPane.LOWER_RIGHT_CORNER, dummy);
+		final Map<String, Object> style = new HashMap<>();
+		style.put("track", color);
+		style.put("hoverTrackColor", color);
+		pane.setBackground(color);
+		pane.getHorizontalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
+		pane.getVerticalScrollBar().putClientProperty(FlatClientProperties.STYLE, style);
+	}
+
 	public static void addClearButton(final JTextField textField) {
 		textField.putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
 	}

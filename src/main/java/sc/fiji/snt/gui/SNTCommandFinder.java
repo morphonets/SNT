@@ -850,11 +850,7 @@ public class SNTCommandFinder {
                     JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
             scrollPane.setWheelScrollingEnabled(true);
             scrollPane.setBorder(BorderFactory.createEmptyBorder(5,5,0,0));
-            final JScrollBar scrollBar = scrollPane.getVerticalScrollBar();
-            final Map<String, Object> style = new HashMap<>();
-            style.put("track", searchField.getBackground());
-            style.put("hoverTrackColor", searchField.getBackground());
-            scrollBar.putClientProperty(FlatClientProperties.STYLE, style);
+            GuiUtils.recolorTracks(scrollPane, searchField.getBackground());
             return scrollPane;
         }
 

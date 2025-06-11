@@ -340,20 +340,24 @@ public class SNTUI extends JDialog {
 		c3.gridy++;
 		tab3.add(GuiUtils.longSmallMsg("", tab3), c3); // add bottom spacer
 
-		// Bookmarks Tab: On macOS and Windows 11 the tabbed pane becomes too wide after
-		// the bookmarks tab is added, so we'll discard it from preferred width calculation
+		// On macOS and Windows 11 the tabbed pane becomes too wide after adding
+		// new tabs, so we'll discard it from preferred width calculation
 		final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
-		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
 
 		final DelineationsManager delineationManager = new DelineationsManager(this);
 		tabbedPane.addTab("Delineations", delineationManager.getPanel());
+
+		// Bookmarks and notes
+		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
+		tabbedPane.addTab("Notes", new NotesUI(this).getPanel());
 
 		// set icons
 		tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
 		tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
 		tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
-		tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
-		tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
+		tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
+		tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
+		tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
 
 		setJMenuBar(createMenuBar());
 		setLayout(new GridBagLayout());
@@ -534,11 +538,14 @@ public class SNTUI extends JDialog {
 				case "3d":
 					tp.setSelectedIndex(2);
 					break;
-				case "bookmarks":
+				case "delineations":
 					tp.setSelectedIndex(3);
 					break;
-				case "delineations":
+				case "bookmarks":
 					tp.setSelectedIndex(4);
+					break;
+				case "notes":
+					tp.setSelectedIndex(5);
 					break;
 				default:
 					throw new IllegalArgumentException("Unrecognized tab");
@@ -2335,10 +2342,10 @@ public class SNTUI extends JDialog {
 		updateSecLayerWidgets();
 	}
 
-	protected File openCsvFile() {
+	protected File openFile(final String extensionWithoutPeriod) {
 		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
-		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), "csv");
-		return guiUtils.getFile(suggestedFile, "csv");
+		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extensionWithoutPeriod);
+		return guiUtils.getFile(suggestedFile, extensionWithoutPeriod);
 	}
 
 	protected File openReconstructionFile(final String extension) {

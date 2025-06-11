@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.gui;
 
-import com.formdev.flatlaf.FlatLaf;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.scijava.ui.swing.script.EditorPane;
@@ -45,7 +44,7 @@ public class ScriptRecorder extends JDialog {
 	private static final String REC_PROPERTY_KEY = "rec-key";
 	private static final String REC_BOOL_PROPERTY_KEY = "rec-bool-key";
 	private static final LANG DEF_LANG = LANG.PYTHON;
-	private EditorPane editor;
+	private SNTEditorPane editor;
 	private JComboBox<LANG> combo;
 	private LANG currentLang;
 	private static final boolean[] createOptions = {true, true};
@@ -83,52 +82,38 @@ public class ScriptRecorder extends JDialog {
 		editor = getEditor();
 		combo = getComboBox();
 		setLanguage(DEF_LANG);
-		final RTextScrollPane sp = new RTextScrollPane(editor);
-		sp.setLineNumbersEnabled(true);
-		sp.setAutoscrolls(true);
-		setLayout(new BorderLayout());
 		add(getToolbar(), BorderLayout.NORTH);
-		add(sp, BorderLayout.CENTER);
+		add(editor.getScrollPane(), BorderLayout.CENTER);
 		prepareForDisplay();
 	}
 
-	private EditorPane getEditor() {
-		final EditorPane editor = new EditorPane();
+	private SNTEditorPane getEditor() {
+		final SNTEditorPane editor = new SNTEditorPane(true);
 		editor.setColumns(70);
 		editor.setRows(7);
-		editor.requestFocusInWindow();
-		editor.setMarkOccurrences(true);
 		editor.setClearWhitespaceLinesEnabled(false);
+		editor.requestFocusInWindow();
+		editor.setBorder(null);
+		editor.getScrollPane().setBorder(null);
 		//editor.setEditable(false);
-		editor.setAntiAliasingEnabled(true);
-		editor.setLineWrap(false);
-		editor.setMarginLineEnabled(false);
-		editor.setCodeFoldingEnabled(true);
-		editor.setFont(editor.getFont().deriveFont(GuiUtils.uiFontSize()));
 		((DefaultCaret) editor.getCaret()).setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE); // somehow this does not work!?
-		try {
-			editor.applyTheme((FlatLaf.isLafDark()) ? "dark" : "default");
-		} catch (final IllegalArgumentException ignored) {
-			// do nothing
-		}
 		return editor;
 	}
 
 	private JComboBox<LANG> getComboBox() {
 		final JComboBox<LANG> cb = new JComboBox<>(LANG.list());
 		cb.addActionListener(e -> setLanguage((LANG) cb.getSelectedItem()));
+		cb.setToolTipText("Scripting language of recording");
 		return cb;
 	}
 
 	private JButton createButton() {
-		final JButton button = new JButton();
-		button.setToolTipText("Create Script");
-		IconFactory.assignIcon(button, IconFactory.GLYPH.PLUS, 1.3f);
-		GuiUtils.Buttons.makeBorderless(button);
+		final JButton button = new JButton(IconFactory.buttonIcon('\uf0fe', false, IconFactory.defaultColor()));
+		button.setToolTipText("Create script");
 		button.addActionListener(e -> {
 			if (createOptions[1]) {
 				final boolean[] closeAndNag = new GuiUtils(ScriptRecorder.this)
-						.getPersistentConfirmation("Close Script Recorder?", "Close Recorder?");
+						.getPersistentConfirmation("Close Recorder after creating script?", "Create and Close?");
 				createOptions[0] = closeAndNag[0];
 				createOptions[1] = !closeAndNag[1];
 			}
@@ -139,48 +124,29 @@ public class ScriptRecorder extends JDialog {
 		return button;
 	}
 
-	private JButton optionsButton() {
+	private AbstractButton optionsButton() {
 		final JPopupMenu menu = new JPopupMenu();
-		GuiUtils.addSeparator(menu, "Actions:");
-		final JMenuItem mi1 = new JMenuItem("Insert Timestamp");
-		mi1.addActionListener(e -> recordComment("TIMESTAMP"+SNTUtils.getTimeStamp()));
-		menu.add(mi1);
-		GuiUtils.addSeparator(menu, "Preferences:");
 		final JCheckBoxMenuItem mi2 = new JCheckBoxMenuItem("Float Above All Windows", isAlwaysOnTop());
 		mi2.addItemListener(e -> setAlwaysOnTop(mi2.isSelected()));
 		menu.add(mi2);
 		final JMenuItem mi3 = new JMenuItem("Reset Script Creation Prompts");
 		mi3.addActionListener(e -> Arrays.fill(createOptions, true));
 		menu.add(mi3);
-		final JButton button = new JButton();
-		IconFactory.assignIcon(button, IconFactory.GLYPH.OPTIONS, 1.3f);
-		GuiUtils.Buttons.makeBorderless(button);
-		button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
-		return button;
+		return editor.optionsButton(menu);
 	}
 
 	private JToolBar getToolbar() {
 		final JToolBar tb = new JToolBar();
 		tb.setFloatable(false);
-		tb.setLayout(new GridBagLayout());
-		tb.setBackground(editor.getBackground());
-		final GridBagConstraints gbc = new GridBagConstraints();
-		gbc.gridx = 0;
-		gbc.gridy = 0;
-		gbc.anchor = GridBagConstraints.WEST;
-		tb.add(GuiUtils.leftAlignedLabel("Language: ", true), gbc);
-		gbc.gridx++;
-		gbc.weightx = 1.0;
-		gbc.fill = GridBagConstraints.HORIZONTAL;
-		tb.add(combo, gbc);
-		gbc.gridx++;
-		gbc.weightx = 0;
-		gbc.fill = GridBagConstraints.NONE;
+		tb.add(optionsButton());
+		tb.add(editor.lightDarkToggleButton());
+		tb.add(combo);
+		tb.add(editor.timeStampButton((e -> {
+			editor.appendTimeStamp(currentLang.commentSeq + " ", "\n");
+			requestFocusInWindow();
+		})));
 		tb.addSeparator();
-		gbc.gridx++;
-		tb.add(createButton(), gbc);
-		gbc.gridx++;
-		tb.add(optionsButton(), gbc);
+		tb.add(createButton());
 		return tb;
 	}
 

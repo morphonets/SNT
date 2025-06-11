@@ -222,7 +222,7 @@ public class BookmarkManager {
         JMenuItem jmi = new JMenuItem("From CSV File...");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            final File file = sntui.openCsvFile();
+            final File file = sntui.openFile("csv");
             if (file != null) {
                 recordCmd("load(\"" + file.getAbsolutePath() + "\")");
                 loadBookmarksFromFile(file);
