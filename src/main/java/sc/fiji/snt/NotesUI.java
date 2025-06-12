@@ -117,8 +117,8 @@ public class NotesUI {
             if (editor.getText().contains(cheatsheet)) {
                 editor.setText(editor.getText().replace(cheatsheet, ""));
             } else {
-                if (editor.getDocument().getLength() > 0) editor.append("\n\n");
                 editor.append(cheatsheet);
+                editor.setCaretPosition(editor.getDocument().getLength()-cheatsheet.length());
             }
             editor.requestFocusInWindow();
         });
@@ -187,9 +187,10 @@ public class NotesUI {
 
     private String markDownOverview() {
         return """
+                
                 ------ Markdown Basics
                 # Headings
-                Headings are lines starting with `# `.
+                Headings are lines starting with `# `
                 (i.e., `# h1`, `## h2`, `### h3`, etc.)
                 
                 # Emphasis

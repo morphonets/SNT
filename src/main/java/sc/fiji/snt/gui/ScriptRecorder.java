@@ -93,7 +93,6 @@ public class ScriptRecorder extends JDialog {
 		editor.setRows(7);
 		editor.setClearWhitespaceLinesEnabled(false);
 		editor.requestFocusInWindow();
-		editor.setBorder(null);
 		editor.getScrollPane().setBorder(null);
 		//editor.setEditable(false);
 		((DefaultCaret) editor.getCaret()).setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE); // somehow this does not work!?
@@ -139,6 +138,7 @@ public class ScriptRecorder extends JDialog {
 		final JToolBar tb = new JToolBar();
 		tb.setFloatable(false);
 		tb.add(optionsButton());
+		tb.addSeparator();
 		tb.add(editor.lightDarkToggleButton());
 		tb.add(combo);
 		tb.add(editor.timeStampButton((e -> {

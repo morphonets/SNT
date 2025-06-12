@@ -44,7 +44,6 @@ public class SNTEditorPane extends EditorPane {
     private final RTextScrollPane scrollPane;
 
     public SNTEditorPane(final boolean enableCodingOptions) {
-        setFont(getFont().deriveFont(GuiUtils.uiFontSize()));
         setFractionalFontMetricsEnabled(true);
         setMarginLineEnabled(false);
         setAutoIndentEnabled(true);
@@ -52,13 +51,11 @@ public class SNTEditorPane extends EditorPane {
         setLineWrap(false);
         scrollPane = new RTextScrollPane(this);
         scrollPane.setAutoscrolls(true);
-//        scrollPane.setIconRowHeaderEnabled(false);
-//        scrollPane.getGutter().setIconRowHeaderInheritsGutterBackground(true);
         setCodeFoldingEnabled(enableCodingOptions);
         setHighlightCurrentLine(enableCodingOptions);
         scrollPane.setFoldIndicatorEnabled(enableCodingOptions);
         scrollPane.setLineNumbersEnabled(enableCodingOptions);
-        updateUI();
+        updateUI(); // set theme based on LaF
     }
 
     public RTextScrollPane getScrollPane() {
@@ -125,6 +122,8 @@ public class SNTEditorPane extends EditorPane {
             final Theme th = getTheme(theme);
             th.apply(this);
             GuiUtils.recolorTracks(scrollPane, getBackground());
+            setFont(getFont().deriveFont(GuiUtils.uiFontSize())); // theme may contain hardwired fonts
+            scrollPane.getGutter().setLineNumberFont(scrollPane.getGutter().getLineNumberFont().deriveFont(getFontSize()*.75f)); // theme may contain hardwired fonts
         } catch (final Exception ex) {
             throw new IllegalArgumentException(ex);
         }

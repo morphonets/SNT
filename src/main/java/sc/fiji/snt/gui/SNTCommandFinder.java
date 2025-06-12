@@ -23,8 +23,8 @@
 package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatClientProperties;
-import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.ui.FlatPopupFactory;
+import com.formdev.flatlaf.util.SystemInfo;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -37,8 +37,6 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.*;
-import java.awt.geom.Area;
-import java.awt.geom.Ellipse2D;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.*;
@@ -155,7 +153,11 @@ public class SNTCommandFinder {
         frame = new Palette();
         frame.setLayout(new BorderLayout());
         initSearchField();
-        frame.add(new ToolBar(), BorderLayout.NORTH);
+        final Object menuBarEmbedded = frame.getRootPane().getClientProperty("JRootPane.menuBarEmbedded");
+        if (menuBarEmbedded instanceof Boolean && (boolean) menuBarEmbedded)
+            frame.setJMenuBar(new ToolBarOrMenuBar().getMenuBar());
+        else
+            frame.add(new ToolBarOrMenuBar().getToolBar(), BorderLayout.NORTH);
         frame.add(searchField, BorderLayout.CENTER);
         searchField.getDocument().addDocumentListener(new PromptDocumentListener());
         final InternalKeyListener keyListener = new InternalKeyListener();
@@ -274,7 +276,7 @@ public class SNTCommandFinder {
         final String MSG = "<HTML>Command is currently disabled. Either execution "
                 + "requirements<br>are unmet or it cannot run in current state.";
         if (autoHide) {
-           // frame.setVisible(false);
+            // frame.setVisible(false);
             frame.guiUtils.error(MSG);
             return;
         }
@@ -317,7 +319,7 @@ public class SNTCommandFinder {
                         dispose();
                     }
                 });
-        }
+            }
             @Override
             public void dispose() {
                 super.dispose();
@@ -555,24 +557,9 @@ public class SNTCommandFinder {
 
         static Icon pin() { return IconFactory.get(IconFactory.GLYPH.MAP_PIN, SIZE, COLOR); }
 
-        static Icon record() {
-            return new RecordIcon();
-        }
-
-        static class RecordIcon extends FlatSearchIcon {
-            private Area area;
-
-            @Override
-            protected void paintIcon(final Component c, final Graphics2D g) {
-                if (area == null) {
-                    area = new Area(new Ellipse2D.Float(2.5f, 2.5f, 12, 12));
-                    //area.subtract(new Area(new Ellipse2D.Float(7f, 7f, 3, 3)));
-                }
-                g.setColor(COLOR);
-                g.fill(area);
-            }
-        }
+        static Icon record() { return IconFactory.get(IconFactory.GLYPH.DOTCIRCLE, SIZE, COLOR); }
     }
+
 
     private static class CmdTableModel extends AbstractTableModel {
         private static final long serialVersionUID = 1L;
@@ -628,25 +615,46 @@ public class SNTCommandFinder {
         }
     }
 
-    private class ToolBar extends JToolBar {
+    private class ToolBarOrMenuBar {
 
-        ToolBar() {
-            super();
-            setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-            setFloatable(false);
-            add(pinButton());
-            add(lockButton());
-            add(Box.createHorizontalGlue());
-            add(proTip());
-            add(Box.createHorizontalGlue());
-            add(initRecordButton());
-            new ComponentMover(frame, this); // make frame draggable through toolbar
+        JToolBar getToolBar() {
+            final JToolBar toolbar = new JToolBar();
+            toolbar.setFocusable(false);
+            toolbar.setFloatable(false);
+            toolbar.add(Box.createHorizontalGlue());
+            toolbar.add(proTip());
+            toolbar.add(Box.createHorizontalGlue());
+            toolbar.add(pinButton());
+            toolbar.add(lockButton());
+            toolbar.addSeparator();
+            toolbar.add(initRecordButton());
+            if (frame.isUndecorated())
+                new ComponentMover(frame, toolbar); // make frame draggable through toolbar
+            return toolbar;
+        }
+
+        JMenuBar getMenuBar() {
+            final JMenuBar menuBar = new JMenuBar();
+            menuBar.setFocusable(false);
+            List.of(pinButton(), lockButton(), initRecordButton()).forEach( b-> {
+                if (b == recButton) {
+                    menuBar.add(Box.createHorizontalStrut(10));
+                }
+                GuiUtils.Buttons.makeBorderless(b);
+                menuBar.add(b);
+            });
+            menuBar.add(Box.createHorizontalGlue());
+            menuBar.add(proTip());
+            if (frame.isUndecorated())
+                new ComponentMover(frame, menuBar); // make frame draggable through menuBar
+            return menuBar;
         }
 
         JToggleButton lockButton() {
             final JToggleButton button = new JToggleButton(ToolbarIcons.lockOpen(), !autoHide);
             button.setSelectedIcon(ToolbarIcons.lockClosed());
             button.setToolTipText("Keep " + NAME + " open at all times");
+            button.setFocusable(false);
             button.addItemListener(e -> autoHide = !button.isSelected());
             return button;
         }
@@ -654,6 +662,7 @@ public class SNTCommandFinder {
         JToggleButton pinButton() {
             final JToggleButton button = new JToggleButton(ToolbarIcons.pin(), alwaysOnTop);
             button.setToolTipText("Keep " + NAME + " above all other windows");
+            button.setFocusable(false);
             button.addItemListener(e -> frame.setAlwaysOnTop(alwaysOnTop = button.isSelected()));
             return button;
         }
@@ -662,7 +671,8 @@ public class SNTCommandFinder {
             final JLabel label = new JLabel("TIP: Arrows to navigate, Enter to select, Esc to close");
             label.setFont(label.getFont().deriveFont((float) (label.getFont().getSize() * .85)));
             label.setForeground(ToolbarIcons.COLOR);
-            final Timer timer = new Timer(10000, e -> {
+            label.setFocusable(false);
+            final Timer timer = new Timer(7000, e -> {
                 label.setVisible(false);
                 ((Timer)e.getSource()).stop();
             });
@@ -672,15 +682,22 @@ public class SNTCommandFinder {
         }
 
         JToggleButton initRecordButton() {
-            recButton = new JToggleButton("REC ", ToolbarIcons.record());
-            recButton.setFont(recButton.getFont().deriveFont((float) (recButton.getFont().getSize() * .65)));
-            recButton.setIconTextGap((int) (recButton.getIconTextGap() * .5));
+            recButton = new JToggleButton(ToolbarIcons.record());
             recButton.setToolTipText("Record executed actions in Script Recorder");
+            recButton.setFocusable(false);
             recButton.addItemListener(e -> {
                 if (recButton.isSelected()) {
                     initRecorder();
                     recorder.setVisible(true);
                     frame.setVisible(true);
+                } else if (!autoHide && recorder != null && recorder.isVisible()) {
+                    final boolean currentAlwaysOnTop = alwaysOnTop;
+                    frame.setAlwaysOnTop(false);
+                    if (frame.guiUtils.getConfirmation("Close Recorder?", "Dismiss Recorder")) {
+                        recorder.dispose();
+                        recorder = null;
+                    }
+                    frame.setAlwaysOnTop(currentAlwaysOnTop);
                 }
             });
             return recButton;
@@ -779,11 +796,32 @@ public class SNTCommandFinder {
 
         Palette() {
             super();
-            setUndecorated(true);
-            setAlwaysOnTop(alwaysOnTop);
             setModal(false);
+            setResizable(false);
+            setAlwaysOnTop(alwaysOnTop);
             //setOpacity(OPACITY);
-            getRootPane().setWindowDecorationStyle(JRootPane.NONE);
+            final boolean builtinDecorationSupported = SystemInfo.isWindows_10_orLater || SystemInfo.isMacFullWindowContentSupported;
+            if(builtinDecorationSupported) {
+                getRootPane().putClientProperty("JRootPane.useWindowDecorations", true);
+                getRootPane().putClientProperty("JRootPane.titleBarShowIcon", false);
+                getRootPane().putClientProperty("JRootPane.titleBarShowTitle", false);
+                getRootPane().putClientProperty("JRootPane.titleBarShowIconify", false);
+                getRootPane().putClientProperty("JRootPane.titleBarShowMaximize", false);
+                getRootPane().putClientProperty("JRootPane.titleBarShowClose", false);
+                getRootPane().putClientProperty("FlatLaf.fullWindowContent", true);
+                if (SystemInfo.isWindows) {
+                    getRootPane().putClientProperty("JRootPane.menuBarEmbedded", true);
+                } else if (SystemInfo.isMacOS) {
+                    getRootPane().putClientProperty( "apple.awt.windowTitleVisible", false );
+                    getRootPane().putClientProperty( "apple.awt.fullWindowContent", true );
+                    getRootPane().putClientProperty( "apple.awt.transparentTitleBar", true );
+                }
+            } else {
+                // We are left with linux, or something else not supporting client properties.
+                // We'll remove all decorations provide a custom border and draggable ability
+                setUndecorated(true);
+            }
+
             guiUtils = new GuiUtils(Palette.this);
             // it should NOT be possible to minimize this component, but just to
             // be safe, we'll ensure the component is never in an awkward state
@@ -808,12 +846,14 @@ public class SNTCommandFinder {
         @Override
         public void addNotify() {
             super.addNotify();
-            try {
-                final Method method = FlatPopupFactory.class.getDeclaredMethod("setupRoundedBorder", Window.class, Component.class, Component.class);
-                method.setAccessible(true);
-                method.invoke(null, this, this, getRootPane());
-            } catch (final Exception ignored) {
-                // do nothing
+            if (isUndecorated()) {
+                try {
+                    final Method method = FlatPopupFactory.class.getDeclaredMethod("setupRoundedBorder", Window.class, Component.class, Component.class);
+                    method.setAccessible(true);
+                    method.invoke(null, this, this, getRootPane());
+                } catch (final Exception ignored) {
+                    // do nothing
+                }
             }
         }
     }
