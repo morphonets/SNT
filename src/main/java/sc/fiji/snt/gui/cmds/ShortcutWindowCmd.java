@@ -259,7 +259,11 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	}
 
 	private JFrame getFrame() {
-		return (frame == null) ? new JFrame("Neuroanatomy Commands") : frame;
+		if (frame == null) {
+			frame = new JFrame("Neuroanatomy Commands");
+			frame.getRootPane().putClientProperty("Window.style", "small"); // this may only work on macOS
+		}
+		return frame;
 	}
 
 	@Override

@@ -121,9 +121,9 @@ public class SNTEditorPane extends EditorPane {
         try {
             final Theme th = getTheme(theme);
             th.apply(this);
-            GuiUtils.recolorTracks(scrollPane, getBackground());
             setFont(getFont().deriveFont(GuiUtils.uiFontSize())); // theme may contain hardwired fonts
             scrollPane.getGutter().setLineNumberFont(scrollPane.getGutter().getLineNumberFont().deriveFont(getFontSize()*.75f)); // theme may contain hardwired fonts
+            GuiUtils.recolorTracks(scrollPane, th.bgColor, true);
         } catch (final Exception ex) {
             throw new IllegalArgumentException(ex);
         }

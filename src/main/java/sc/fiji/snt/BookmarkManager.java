@@ -31,12 +31,12 @@ import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
@@ -95,20 +95,14 @@ public class BookmarkManager {
                 from the contextual menu (or press Shift+B).
                 To visit a bookmarked location: Double-click on its entry.
                 """;
-        gbc.weighty = 0.1;
+        gbc.weighty = 0.0;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);
         gbc.gridy++;
         gbc.weighty = 0.95;
         container.add(table.getContainer(), gbc);
         gbc.gridy++;
         gbc.weighty = 0.0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        container.add(assembleZoomPanel(), gbc);
-        gbc.gridy++;
-        gbc.anchor = GridBagConstraints.NORTHWEST;
-        gbc.fill = GridBagConstraints.NONE;
-        container.add(assembleButtonPanel(), gbc);
-        resetOrResizeColumns(false, true);
+        container.add(assembleToolbar(), gbc);
         return container;
     }
 
@@ -305,22 +299,6 @@ public class BookmarkManager {
         return menu;
     }
 
-    private JPanel assembleButtonPanel() {
-        final JButton impButton = new JButton("Import...");
-        final JPopupMenu impMenu = importMenu();
-        impButton.addActionListener(e -> impMenu.show(impButton, impButton.getWidth() / 2, impButton.getHeight() / 2));
-        final JButton expButton = new JButton("Export...");
-        final JPopupMenu expMenu = exportMenu();
-        expButton.addActionListener(e -> {
-            if (!noBookmarksError()) expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2);
-        });
-        final JPanel buttonPanel = new JPanel(new GridLayout(0, 2));
-        buttonPanel.setBorder(new EmptyBorder(SNTUI.InternalUtils.MARGIN, 0, SNTUI.InternalUtils.MARGIN, 0));
-        buttonPanel.add(impButton);
-        buttonPanel.add(expButton);
-        return buttonPanel;
-    }
-
     void resetVisitingZoom() {
         try {
             final double currentMag = sntui.plugin.getImagePlus().getCanvas().getMagnification();
@@ -332,9 +310,20 @@ public class BookmarkManager {
         }
     }
 
-    private JPanel assembleZoomPanel() {
+    private JToolBar assembleToolbar() {
+        final JButton impButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.IMPORT, 1f));
+        impButton.setToolTipText("Import bookmarks");
+        final JPopupMenu impMenu = importMenu();
+        impButton.addActionListener(e -> impMenu.show(impButton, impButton.getWidth() / 2, impButton.getHeight() / 2));
+        final JButton expButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.EXPORT, 1f));
+        expButton.setToolTipText("Export bookmarks");
+        final JPopupMenu expMenu = exportMenu();
+        expButton.addActionListener(e -> {
+            if (!noBookmarksError()) expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2);
+        });
         final JSpinner spinner = GuiUtils.integerSpinner(visitingZoomPercentage, 100, 3200, 100, true);
         spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
+        spinner.setToolTipText("The preferred zoom level (between 100 and 3200%) for visiting a bookmarked location");
         final JButton autoButton = GuiUtils.Buttons.undo();
         autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         autoButton.addActionListener(e -> {
@@ -345,20 +334,16 @@ public class BookmarkManager {
                 spinner.setValue(visitingZoomPercentage);
             }
         });
-        final JPanel p = new JPanel();
-        p.setLayout(new GridBagLayout());
-        final GridBagConstraints c = GuiUtils.defaultGbc();
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.gridwidth = 3;
-        c.weightx = 0.8;
-        p.add(GuiUtils.leftAlignedLabel("Preferred zoom level (%): ", true));
-        c.gridx = 1;
-        c.weightx = 0.2;
-        p.add(spinner, c);
-        c.gridx = 2;
-        p.add(autoButton);
-        spinner.setToolTipText("The preferred zoom level (between 100 and 3200%) for visiting a bookmarked location");
-        return p;
+        final JToolBar tb = new JToolBar();
+        tb.setFloatable(false);
+        tb.add(impButton);
+        tb.add(expButton);
+        tb.addSeparator();
+        tb.add(Box.createHorizontalGlue());
+        tb.add(new JLabel("Preferred zoom level (%): "));
+        tb.add(spinner);
+        tb.add(autoButton);
+        return tb;
     }
 
     private void goTo(final int row, final ImagePlus imp) {
@@ -627,8 +612,6 @@ class BookmarkTable extends JTable {
         setRowSelectionAllowed(true);
         setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         setDefaultEditor(String.class, new CellEditor());
-        //GuiUtils.setAlternatingRowColors(this, true); // will affect all tables
-        //GuiUtils.setRoundedSelection(this);
     }
 
     JScrollPane getContainer() {
@@ -668,7 +651,7 @@ class BookmarkModel extends AbstractTableModel {
     }
 
     String getUniqueLabel(final String candidate) {
-        if (null == candidate || candidate.isEmpty() || candidate.isBlank())
+        if (null == candidate || candidate.isBlank())
             return String.format("Bookmark %02d", 1 + getDataList().size());
         if (getDataList().stream().anyMatch(b -> candidate.equalsIgnoreCase(b.label))) return candidate + " (2)";
         return candidate;

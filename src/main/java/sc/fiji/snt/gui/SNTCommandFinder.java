@@ -887,10 +887,16 @@ public class SNTCommandFinder {
 
         private JScrollPane getScrollPane() {
             final JScrollPane scrollPane = new JScrollPane(this, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                    JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+                    JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED) {
+
+                @Override
+                public void updateUI() {
+                    GuiUtils.recolorTracks(this, searchField.getBackground(), false);
+                    super.updateUI();
+                }
+            };
             scrollPane.setWheelScrollingEnabled(true);
             scrollPane.setBorder(BorderFactory.createEmptyBorder(5,5,0,0));
-            GuiUtils.recolorTracks(scrollPane, searchField.getBackground());
             return scrollPane;
         }
 

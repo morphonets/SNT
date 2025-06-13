@@ -92,7 +92,7 @@ class ClarifyingKeyListener implements KeyListener, ContainerListener {
 			else plugin.getUI().abortCurrentOperation();
 		}
 
-		else if (keyCode == KeyEvent.VK_ENTER) {
+		else if (keyCode == KeyEvent.VK_ENTER && !(e.getSource() instanceof javax.swing.text.JTextComponent)) {
 			final ImagePlus imp = plugin.getImagePlus();
 			if (imp != null && imp.isVisible()) imp.getWindow().toFront();
 		}
