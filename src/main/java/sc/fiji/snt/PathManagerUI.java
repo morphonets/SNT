@@ -1252,11 +1252,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			setScrollsOnExpand(true);
 			setRowHeight(getFontMetrics(getFont()).getHeight()); // otherwise viewport too small!?
 			searchable = new TreeSearchable(this);
-			final Timer timer = new Timer(400, ev -> {
-				getSNT().getUI().getRecorder(false)
-						.recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")",
-								searchable.getSearchingText()));
-			});
+			final Timer timer = new Timer(400, ev -> getSNT().getUI().getRecorder(false)
+                    .recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")",
+                            searchable.getSearchingText())));
 			timer.setRepeats(false);
 			searchable.addSearchableListener(e -> {
 				if (!timer.isRunning() && getSNT().getUI().getRecorder(false) != null && searchable.getSearchingText() != null
@@ -1793,9 +1791,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	void applyActiveTags(final Collection<Path> paths) {
 		final List<String> activeTags = guessTagsCurrentlyActive();
-		activeTags.forEach( tag -> {
-			removeOrReapplyDefaultTag(paths, tag, true, false);
-		});
+		activeTags.forEach( tag -> removeOrReapplyDefaultTag(paths, tag, true, false));
 	}
 
 	String untaggedPathName(final Path p) {
@@ -1806,19 +1802,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private void removeOrReapplyDefaultTag(final Collection<Path> paths, final String cmd, final boolean reapply, final boolean interactiveUI) {
 		switch (cmd) {
 		case MultiPathActionListener.CHANNEL_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Ch:\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Ch:\\d+]", "")));
 			if (reapply) {
 				paths.forEach( p -> p.setName(p.getName() + " [Ch:" + p.getChannel() + "]"));
 			}
 			break;
 		case MultiPathActionListener.FRAME_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[T:\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[T:\\d+]", "")));
 			if (reapply) {
 				paths.forEach( p -> p.setName(p.getName() + " [T:" + p.getFrame() + "]"));
 			}
 			break;
 		case MultiPathActionListener.SLICE_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Z:\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Z:\\d+]", "")));
 			if (reapply) {
 				paths.forEach( p -> {
 					p.setName(p.getName() + " [Z:" + (p.getZUnscaled(0) + 1) + "]"); // 1-based index
@@ -1826,13 +1822,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			break;
 		case MultiPathActionListener.TREE_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_TREE +".*\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_TREE + ".*]", "")));
 			if (reapply) {
 				paths.forEach( p -> p.setName(p.getName() + " [" + SYM_TREE +  p.getTreeLabel() + "]"));
 			}
 			break;
 		case MultiPathActionListener.N_CHILDREN_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_CHILDREN +"\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_CHILDREN + "\\d+]", "")));
 			if (reapply) {
 				paths.forEach(p-> p.setName(p.getName() + " [" + SYM_CHILDREN + p.getChildren().size() + "]"));
 			}
@@ -1860,13 +1856,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			break;
 		case MultiPathActionListener.ORDER_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER +"\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER + "\\d+]", "")));
 			if (reapply) {
 				paths.forEach(p-> p.setName(p.getName() + " [" + SYM_ORDER + p.getOrder() + "]"));
 			}
 			break;
 		case MultiPathActionListener.LENGTH_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_LENGTH +"\\d+\\.?\\d+\\s?.+\\w+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_LENGTH + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
 			if (reapply) {
 				paths.forEach(p -> {
 					final String lengthTag = " [" + SYM_LENGTH + p.getRealLengthString() + p.spacing_units + "]";
@@ -1875,7 +1871,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			break;
 		case MultiPathActionListener.MEAN_RADIUS_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
 			if (reapply) {
 				paths.forEach(p -> {
 					final String radiusTag = " [" + SYM_RADIUS + SNTUtils.formatDouble(p.getMeanRadius(), 3) + p.spacing_units + "]";
@@ -1884,7 +1880,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			break;
 		case MultiPathActionListener.COUNT_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_MARKER +"\\d+\\]", "")));
+			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_MARKER + "\\d+]", "")));
 			if (reapply) {
 				paths.forEach(p -> {
 					final String countTag = " [" + SYM_MARKER + p.getSpineOrVaricosityCount() + "]";
@@ -2651,9 +2647,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
 
 		// Custom tag definition: anything flanked by curly braces
-		private static final String TAG_CUSTOM_PATTERN = " ?\\{.*\\}";
+		private static final String TAG_CUSTOM_PATTERN = " ?\\{.*}";
 		// Built-in tag definition: anything flanked by square braces
-		private static final String TAG_DEFAULT_PATTERN = " ?\\[.*\\]";
+		private static final String TAG_DEFAULT_PATTERN = " ?\\[.*]";
 
 		private void selectChildren(final List<Path> paths, final boolean recursive) {
 			final ListIterator<Path> iter = paths.listIterator();
@@ -2888,9 +2884,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 
 				// remove any existing tags to avoid duplicates. New tags will contain these
-				selectedPaths.forEach(p -> {
-					p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, ""));
-				});
+				selectedPaths.forEach(p -> p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, "")));
 				applyCustomTags(selectedPaths, GuiUtils.toString(tags));
 				refreshManager(false, false, selectedPaths);
 				plugin.setUnsavedChanges(true);
