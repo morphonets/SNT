@@ -170,7 +170,7 @@ public class DelineationsManager {
         toolbar.add(colorSchemeUndoButton);
 
         final JToggleButton directEditingButton = new JToggleButton();
-        IconFactory.assignIcon(directEditingButton, IconFactory.GLYPH.PEN, 1.1f);
+        IconFactory.assignIcon(directEditingButton, IconFactory.GLYPH.PEN, null, 1.1f);
         directEditingButton.setToolTipText("Enable directly editing of labels");
         toolbar.add(directEditingButton);
         directEditingButton.addItemListener(e -> delineations.forEach(d -> d.field.editButton.setSelected(directEditingButton.isSelected())));

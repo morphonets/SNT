@@ -311,7 +311,6 @@ public class MeasureUI extends JFrame {
 			toolbar.add(Box.createHorizontalGlue());
 			toolbar.add(optionsButton);
 			toolbar.addSeparator();
-			toolbar.add(GuiUtils.shortSmallMsg("Compartments:"));
 			toolbar.add(splitButton);
 			toolbar.addSeparator();
 			toolbar.add(runButton);
@@ -323,8 +322,7 @@ public class MeasureUI extends JFrame {
 		}
 
 		private JToggleButton splitButton() {
-			final JToggleButton button = new JToggleButton();
-			button.setSelected(distinguishCompartments);
+			final JToggleButton button = new JToggleButton("Compartments", distinguishCompartments);
 			IconFactory.assignIcon(button, IconFactory.GLYPH.SCALE_BALANCED, IconFactory.GLYPH.SCALE_UNBALANCED);
 			button.setToolTipText("Whether measurements should be split into cellular\n"
 					+ "compartment (e.g., \"axon\", \"dendrites\", etc.)");

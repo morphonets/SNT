@@ -459,15 +459,16 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	protected void formatButton(final AbstractButton button, final IconFactory.GLYPH glyph) {
-		// wipe all jide customizations
+		// wipe jide customizations
 		button.setText(null);
-		button.setDisabledIcon(null);
-		button.setIcon(null);
-		button.setPressedIcon(null);
 		button.setRolloverIcon(null);
 		button.setRolloverSelectedIcon(null);
 		button.setSelectedIcon(null);
-		IconFactory.assignIcon(button, glyph, 1.2f);
+		// customize
+		button.setIcon(IconFactory.buttonIcon(glyph, 1.2f));
+		button.setDisabledIcon(IconFactory.buttonIcon(glyph, GuiUtils.getDisabledComponentColor(), 1.2f));
+		if (button instanceof JToggleButton)
+			button.setSelectedIcon(IconFactory.buttonIcon(glyph, IconFactory.selectedColor(), 1.2f));
 		GuiUtils.Buttons.makeBorderless(button);
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);

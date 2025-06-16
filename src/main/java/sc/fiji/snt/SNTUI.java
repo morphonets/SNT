@@ -373,8 +373,9 @@ public class SNTUI extends JDialog {
 		dialogGbc.insets.top = InternalUtils.TEXT_MARGIN;
 		add(statusBar(), dialogGbc);
 		addFileDrop(this, guiUtils);
-		registerTabInCmdFInder("Bookmarks", "Bookmark Manager");
-		registerTabInCmdFInder("Delineations", "Delineation Manager");
+		registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
+		registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
+		registerTabInCmdFInder("Notes Tab", "Notepad");
 		pack();
 		setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
 		pack();
@@ -528,7 +529,7 @@ public class SNTUI extends JDialog {
 		final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
 		SwingUtilities.invokeLater(() -> {
 			if (tp != null) {
-				switch (tabTitle.trim().toLowerCase()) {
+				switch (tabTitle.trim().split(" ")[0].toLowerCase()) {
 				case "main":
 					tp.setSelectedIndex(0);
 					break;
@@ -2322,8 +2323,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JButton optionsButton(final IconFactory.GLYPH glyph, final JPopupMenu optionsMenu) {
-		final JButton optionsButton =  new JButton();
-		IconFactory.assignIcon(optionsButton, glyph);
+		final JButton optionsButton =  new JButton(IconFactory.dropdownMenuIcon(glyph));
 		optionsButton.addActionListener(e -> optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2));
 		return optionsButton;
 	}

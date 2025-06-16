@@ -311,11 +311,11 @@ public class BookmarkManager {
     }
 
     private JToolBar assembleToolbar() {
-        final JButton impButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.IMPORT, 1f));
+        final JButton impButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.IMPORT));
         impButton.setToolTipText("Import bookmarks");
         final JPopupMenu impMenu = importMenu();
         impButton.addActionListener(e -> impMenu.show(impButton, impButton.getWidth() / 2, impButton.getHeight() / 2));
-        final JButton expButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.EXPORT, 1f));
+        final JButton expButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.EXPORT));
         expButton.setToolTipText("Export bookmarks");
         final JPopupMenu expMenu = exportMenu();
         expButton.addActionListener(e -> {
@@ -337,6 +337,7 @@ public class BookmarkManager {
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.add(impButton);
+        tb.addSeparator();
         tb.add(expButton);
         tb.addSeparator();
         tb.add(Box.createHorizontalGlue());

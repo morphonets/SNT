@@ -110,7 +110,7 @@ public class SNTEditorPane extends EditorPane {
     }
 
     public AbstractButton optionsButton(final JPopupMenu optionsMenu) {
-        final JButton options = new JButton(IconFactory.buttonIcon('\uf7d9', true, IconFactory.defaultColor()));
+        final JButton options = GuiUtils.Buttons.options();
         options.setToolTipText("Options");
         options.addActionListener(e -> optionsMenu.show(options, options.getWidth() / 2, options.getHeight() / 2));
         return options;

@@ -466,20 +466,24 @@ public class SNTCommandFinder {
 
     public JButton getButton(final float scaleFactor) {
         final JButton button = new JButton(getAction());
-        IconFactory.assignIcon(button, IconFactory.GLYPH.SEARCH, scaleFactor);
+        button.setIcon(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH, scaleFactor));
         button.getInputMap().put(ACCELERATOR, NAME);
         button.setToolTipText(NAME + "  " + getAcceleratorString());
+        button.setText(null);
         return button;
     }
 
     public AbstractButton getMenuItem(final boolean asButton) {
-        final AbstractButton jmi = (asButton) ? GuiUtils.Buttons.menubarButton(IconFactory.GLYPH.SEARCH, getAction())
-                : new JMenuItem(getAction());
         if (asButton) {
-            jmi.setToolTipText(NAME + "  " + getAcceleratorString());
-        } else {
-            jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
+            final JButton button = new JButton(getAction());
+            button.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
+            button.setText(null);
+            GuiUtils.Buttons.makeBorderless(button);
+            button.setToolTipText(NAME + "  " + getAcceleratorString());
+            return button;
         }
+        final JMenuItem jmi = new JMenuItem(getAction());
+        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
         return jmi;
     }
 
@@ -637,9 +641,8 @@ public class SNTCommandFinder {
             final JMenuBar menuBar = new JMenuBar();
             menuBar.setFocusable(false);
             List.of(pinButton(), lockButton(), initRecordButton()).forEach( b-> {
-                if (b == recButton) {
-                    menuBar.add(Box.createHorizontalStrut(10));
-                }
+                if (menuBar.getComponentCount() > 0)
+                    menuBar.add(Box.createHorizontalStrut(5));
                 GuiUtils.Buttons.makeBorderless(b);
                 menuBar.add(b);
             });
@@ -672,7 +675,7 @@ public class SNTCommandFinder {
             label.setFont(label.getFont().deriveFont((float) (label.getFont().getSize() * .85)));
             label.setForeground(ToolbarIcons.COLOR);
             label.setFocusable(false);
-            final Timer timer = new Timer(7000, e -> {
+            final Timer timer = new Timer(5000, e -> {
                 label.setVisible(false);
                 ((Timer)e.getSource()).stop();
             });
@@ -909,8 +912,10 @@ public class SNTCommandFinder {
     private class CmdTableRenderer extends DefaultTableCellRenderer {
 
         private static final long serialVersionUID = 1L;
-        final Font col0Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
-        final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * .9f);
+        private static final Font col0Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
+        private static final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * .9f);
+        private static final Color mainColor = IconFactory.defaultColor();
+        private static final Color secColor = IconFactory.secondaryColor();
 
         @Override
         public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
@@ -918,12 +923,12 @@ public class SNTCommandFinder {
             final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             if (column == 1) {
                 setHorizontalAlignment(JLabel.RIGHT);
-                setEnabled(false);
                 setFont(col1Font);
+                setForeground(secColor);
             } else {
                 setHorizontalAlignment(JLabel.LEFT);
-                setEnabled(true);
                 setFont(col0Font);
+                setForeground(mainColor);
             }
             return c;
         }
@@ -975,7 +980,7 @@ public class SNTCommandFinder {
                 if (it.hasNext()) {
                     sb.append(it.next());
                     while (it.hasNext()) {
-                        sb.append('〉').append(it.next());
+                        sb.append(" › ").append(it.next());
                     }
                 }
                 pathDescription = sb.toString();
@@ -998,24 +1003,24 @@ public class SNTCommandFinder {
         }
 
         boolean matches(final String query) {
-            if (ignoreWhiteSpace) {
-                return caseSensitiveId().replaceAll("\\s+", "").contains(query)
-                        || caseSensitivePathDescription().contains(query) || caseSensitiveTooltip().contains(query);
-            }
-            return caseSensitiveId().contains(query) || caseSensitivePathDescription().contains(query)
-                    || caseSensitiveTooltip().contains(query);
+            final String q = (ignoreWhiteSpace) ? query.replaceAll("\\s+","") : query;
+            return caseAndWhitespaceSensitiveId().contains(q) || caseAndWhitespaceSensitivePathDescription().contains(q)
+                    || caseAndWhitespaceSensitiveTooltip().contains(q);
         }
 
-        String caseSensitiveId() {
-            return (caseSensitive) ? id : id.toLowerCase();
+        String caseAndWhitespaceSensitiveId() {
+            final String result = (caseSensitive) ? id : id.toLowerCase();
+            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
         }
 
-        String caseSensitivePathDescription() {
-            return (caseSensitive) ? pathDescription() : pathDescription().toLowerCase();
+        String caseAndWhitespaceSensitivePathDescription() {
+            final String result = (caseSensitive) ? pathDescription() : pathDescription().toLowerCase();
+            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
         }
 
-        String caseSensitiveTooltip() {
-            return (caseSensitive) ? tooltip() : tooltip().toLowerCase();
+        String caseAndWhitespaceSensitiveTooltip() {
+            final String result = (caseSensitive) ? tooltip() : tooltip().toLowerCase();
+            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
         }
 
         void setKeyString(final KeyStroke key) {

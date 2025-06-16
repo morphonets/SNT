@@ -28,6 +28,7 @@ import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.utils.ProductNames;
+import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.CommandService;
 import org.scijava.ui.DialogPrompt.Result;
 import org.scijava.ui.awt.AWTWindows;
@@ -1382,7 +1383,13 @@ public class GuiUtils {
 		final int previousTopGap = c.insets.top;
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
 		if (vgap) c.insets.top = component.getFontMetrics(label.getFont()).getHeight();
+		final int prevAnchor = c.anchor;
+		final int prevFill = c.fill;
+		c.anchor = GridBagConstraints.WEST;
+		c.fill = GridBagConstraints.NONE;
 		component.add(label, c);
+		c.anchor = prevAnchor;
+		c.fill = prevFill;
 		if (vgap) c.insets.top = previousTopGap;
 	}
 
@@ -2064,17 +2071,39 @@ public class GuiUtils {
 		tabbedPane.putClientProperty("JTabbedPane.tabRotation", "auto");
 		tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "compact");
 		tabbedPane.putClientProperty("JTabbedPane.tabAreaAlignment", "fill");
+		tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
 		final JPopupMenu popup = new JPopupMenu();
 		tabbedPane.setComponentPopupMenu(popup);
-		final JCheckBoxMenuItem jcbmi1 = new JCheckBoxMenuItem("Compact Layout", true); // default is compact
-		jcbmi1.addItemListener(e ->
-				tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", (jcbmi1.isSelected()) ? SwingConstants.LEFT
-						: SwingConstants.TOP));
-		popup.add(jcbmi1);
-		popup.addSeparator();
-		final ButtonGroup group = new ButtonGroup();
+
+		// layout
+		addSeparator(popup, "Tab Layout:");
+		ButtonGroup group = new ButtonGroup();
+		for (final String option : new String[]{"Compact", "Relaxed"}) {
+			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem(option, "Compact".equals(option));
+			jcbmi.addItemListener(e -> {
+				if ("Relaxed".equals(option)) {
+                    tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", SwingConstants.TOP);
+                } else {
+                    tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", SwingConstants.LEFT);
+                }
+			});
+			group.add(jcbmi);
+			popup.add(jcbmi);
+		}
+		// Contrast
+		addSeparator(popup, "Tab Style:");
+		group = new ButtonGroup();
+		for (final String option : new String[]{"card", "underlined"}) {
+			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem(StringUtils.capitalize(option), "underlined".equals(option));
+			jcbmi.addItemListener(e -> tabbedPane.putClientProperty("JTabbedPane.tabType", option));
+			group.add(jcbmi);
+			popup.add(jcbmi);
+		}
+		// Placement
+		addSeparator(popup, "Tab Placement:");
+		group = new ButtonGroup();
 		for (final String pos : new String[]{"Top", "Left", "Bottom", "Right"}) {
-			final JCheckBoxMenuItem jcbmi2 = new JCheckBoxMenuItem("Display on " + pos, "Top".equals(pos));
+			final JCheckBoxMenuItem jcbmi2 = new JCheckBoxMenuItem(pos, "Top".equals(pos));
 			jcbmi2.addItemListener(e -> {
 				switch (pos) {
 					case "Left":
@@ -2675,14 +2704,11 @@ public class GuiUtils {
 		}
 
 		public static JButton options() {
-			final JButton button = new JButton();
-			IconFactory.assignIcon(button, IconFactory.GLYPH.OPTIONS);
-			return button;
+			return new JButton(IconFactory.dropdownMenuIcon(GLYPH.OPTIONS));
 		}
 
 		private static void makeSmallBorderless(final AbstractButton b, final IconFactory.GLYPH glyph, final Color color) {
-			IconFactory.assignIcon(b, glyph, color);
-			b.setFont(b.getFont().deriveFont(b.getFont().getSize2D()*.8f));
+			IconFactory.assignIcon(b, glyph, color, .8f);
 			b.setFocusable(false);
 			makeBorderless(b);
 		}
@@ -2713,15 +2739,7 @@ public class GuiUtils {
 
 		public static JButton toolbarButton(final IconFactory.GLYPH glyph, final Color color) {
 			final JButton button = toolbarButton("");
-			IconFactory.assignIcon(button, glyph, color);
-			button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*.9f));
-			return button;
-		}
-
-		public static JButton menubarButton(final IconFactory.GLYPH glyphIcon, final Action action) {
-			final JButton button = new JButton(action);
-			IconFactory.assignIcon(button, glyphIcon);
-			makeBorderless(button);
+			IconFactory.assignIcon(button, glyph, color, .9f);
 			return button;
 		}
 

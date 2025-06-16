@@ -22,14 +22,13 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.icons.FlatAbstractIcon;
 import org.scijava.util.PlatformUtils;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 
 /**
  * A factory for {@link FADerivedIcon}s presets.
@@ -247,6 +246,10 @@ public class IconFactory {
 		return new FADerivedIcon(entry.id, size, color, entry.solid).asImage();
 	}
 
+	public static Icon buttonIcon(final GLYPH entry, final Color color, final float scalingFactor) {
+		return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, color, entry.solid);
+	}
+
 	public static Icon buttonIcon(final GLYPH entry, final float scalingFactor) {
 		return new FADerivedIcon(entry.id, FADerivedIcon.defSize() * scalingFactor, defaultColor(), entry.solid);
 	}
@@ -285,56 +288,51 @@ public class IconFactory {
 		return border;
 	}
 
-	public static void assignIcon(final AbstractButton button, final GLYPH glyph) {
-		assignIcon(button, glyph, null);
-	}
+	public static Icon dropdownMenuIcon(final GLYPH entry) {
+		class DropdownIcon implements Icon {
 
-	public static void assignIcon(final AbstractButton button, final GLYPH glyph, final Color color) {
-		button.setText(String.valueOf(glyph.id));
-		button.setFont(FADerivedIcon.getFont(glyph.solid));
-		final Color defColor = (color == null) ? defaultColor() : color;
-		button.setForeground(defColor);
-		if (button instanceof JToggleButton) {
-			button.addItemListener(e -> {
-				if (button.isSelected()) {
-					button.setForeground(selectedColor());
-				} else {
-					button.setForeground(defColor);
-				}
-			});
-		} else {
-			button.addMouseListener(new MouseAdapter() {
-				@Override
-				public void mousePressed(MouseEvent e) { button.setForeground(pressedColor()); }
-				@Override
-				public void mouseReleased(MouseEvent e) {  button.setForeground(defColor); }
-			});
-		}
-	}
+			static final int ICON_GAP = 2;
+			final Icon leftIcon;
+			final Icon rightIcon;
 
-	public static void assignIcon(final AbstractButton button, final GLYPH glyph, final int iconSize) {
-		assignIcon(button, glyph);
-		button.setFont(button.getFont().deriveFont((float)iconSize));
-	}
-
-	public static void assignIcon(final AbstractButton button, final GLYPH glyph, final float scaleFactor) {
-		assignIcon(button, glyph);
-		button.setFont(button.getFont().deriveFont(button.getFont().getSize2D()*scaleFactor));
-	}
-
-	public static JToggleButton assignIcon(final JToggleButton button, final GLYPH defaulttGlyph, final GLYPH pressedtGlyph) {
-		button.setFont(FADerivedIcon.getFont(defaulttGlyph.solid));
-		button.setText( (button.isSelected()) ? String.valueOf(pressedtGlyph.id) : String.valueOf(defaulttGlyph.id));
-		button.addItemListener( e -> {
-			if (button.isSelected()) {
-				button.setText(String.valueOf(pressedtGlyph.id));
-				button.setFont(FADerivedIcon.getFont(pressedtGlyph.solid));
-			} else {
-				button.setText(String.valueOf(defaulttGlyph.id));
-				button.setFont(FADerivedIcon.getFont(defaulttGlyph.solid));
+			DropdownIcon(final GLYPH entry) {
+				leftIcon = new FADerivedIcon(entry.id, FADerivedIcon.defSize(), defaultColor(), entry.solid);
+				rightIcon = UIManager.getIcon("Tree.expandedIcon");
 			}
-		});
-		return button;
+
+			@Override
+			public void paintIcon(final Component c, final Graphics g, int x, int y) {
+				final Graphics2D g2 = (Graphics2D) g;
+				GuiUtils.setRenderingHints(g2);
+				final int mid = getIconHeight() / 2;
+				final int y1 = y + mid - leftIcon.getIconHeight() / 2;
+				final int y2 = y + mid - rightIcon.getIconHeight() / 2;
+				leftIcon.paintIcon(c, g2, x, y1);
+				rightIcon.paintIcon(c, g2, x + leftIcon.getIconWidth() + ICON_GAP, y2);
+			}
+
+			@Override
+			public int getIconWidth() {
+				return leftIcon.getIconWidth() + rightIcon.getIconWidth() + ICON_GAP;
+			}
+
+			@Override
+			public int getIconHeight() {
+				return Math.max(leftIcon.getIconHeight(), rightIcon.getIconHeight());
+			}
+		}
+		return new DropdownIcon(entry);
+	}
+
+	public static void assignIcon(final AbstractButton button, final GLYPH glyph, final Color color, final float scalingFactor) {
+		final Color defColor = (color == null) ? defaultColor() : color;
+		button.setIcon(buttonIcon(glyph, defColor, scalingFactor));
+		if (button instanceof JToggleButton) button.setSelectedIcon(IconFactory.buttonIcon(glyph, selectedColor(), scalingFactor));
+	}
+
+	public static void assignIcon(final JToggleButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph) {
+		button.setIcon(IconFactory.buttonIcon(defaultGlyph.id, defaultGlyph.solid, defaultColor()));
+		button.setSelectedIcon(IconFactory.buttonIcon(selectedGlyph.id, selectedGlyph.solid, selectedColor()));
 	}
 
 	public static Color defaultColor() {
@@ -343,14 +341,13 @@ public class IconFactory {
 		return DEF_COLOR;
 	}
 
-	public static Color pressedColor() {
-		return UIManager.getColor("Button.highlight");
+	public static Color secondaryColor() {
+		return (FlatLaf.isLafDark()) ? new Color(204, 204, 204) : new Color(51, 51, 51);
 	}
 
 	public static Color selectedColor() {
 		return UIManager.getColor("List.selectionBackground");
 	}
-
 
 	public static Icon nodeIcon(final Color color) {
 		return new NodeIcon(color, false, true, false);
@@ -424,35 +421,34 @@ public class IconFactory {
         @Override
         public void paintIcon(final Component c, final Graphics g, final int x, final int y) { //http://stackoverflow.com/a/7984734
 			final Graphics2D g2 = (Graphics2D) g;
-			g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-			g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+			GuiUtils.setRenderingHints(g2);
 			if (multiColor) { // Path has multiple node colors
-                final int qSize = SIZE / 2;
-                g2.setColor(Q_COLORS[0]);
+				final int qSize = SIZE / 2;
+				g2.setColor(Q_COLORS[0]);
 				g2.fillRect(x, y, qSize, qSize); // top-left
-                g2.setColor(Q_COLORS[1]);
+				g2.setColor(Q_COLORS[1]);
 				g2.fillRect(x + qSize, y, qSize, qSize); // top-right
-                g2.setColor(Q_COLORS[2]);
+				g2.setColor(Q_COLORS[2]);
 				g2.fillRect(x, y + qSize, qSize, qSize); // bottom-left
-                g2.setColor(Q_COLORS[3]);
+				g2.setColor(Q_COLORS[3]);
 				g2.fillRect(x + qSize, y + qSize, qSize, qSize); // bottom-right
 				g2.setColor(Q_COLORS[4]);
 				g2.fillRect(x + (SIZE - qSize) / 2, y + (SIZE - qSize) / 2, qSize, qSize); // center
 			} else if (fillColor != null) { // monochrome path
-                g2.setColor(fillColor);
-                g2.fillRect(x, y, SIZE-1, SIZE-1);
-            }
-            // draw contour
-            g2.setColor(FOREGROUND_COLOR);
-            g2.drawRect(x, y, SIZE-1, SIZE-1);
-            if (isLeaf) return;
-            // draw 'minus' or 'plus'
+				g2.setColor(fillColor);
+				g2.fillRect(x, y, SIZE - 1, SIZE - 1);
+			}
+			// draw contour
+			g2.setColor(FOREGROUND_COLOR);
+			g2.drawRect(x, y, SIZE - 1, SIZE - 1);
+			if (isLeaf) return;
+			// draw 'minus' or 'plus'
 			g2.setStroke(new BasicStroke(1.5f));
 			g2.setColor(typeColor);
 			g2.drawLine(x + 2, y + SIZE / 2, x + SIZE - 3, y + SIZE / 2);
 			if (!isExpanded)
 				g2.drawLine(x + SIZE / 2, y + 2, x + SIZE / 2, y + SIZE - 3);
-        }
+		}
 
         @Override
         public int getIconWidth() {

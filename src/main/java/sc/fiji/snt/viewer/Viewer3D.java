@@ -3948,8 +3948,7 @@ public class Viewer3D {
 
 		private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
 			cmdFinder.register(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
-			final JButton button = new JButton();
-			IconFactory.assignIcon(button, glyph, 1.8f);
+			final JButton button = new JButton(IconFactory.buttonIcon(glyph, 1.8f));
 			button.setToolTipText(tooltipMsg);
 			button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
 			return button;
@@ -6078,12 +6077,10 @@ public class Viewer3D {
 			final JPanel buttonPanel = new JPanel(new GridLayout(1,2));
 			buttonPanel.setBorder(null);
 			frame.managerPanel.setFixedHeight(buttonPanel);
-			JButton button = new JButton();
-			IconFactory.assignIcon(button, GLYPH.INFO);
+			JButton button = new JButton(IconFactory.buttonIcon(GLYPH.INFO, 1f));
 			button.addActionListener(e -> showSelectionInfo());
 			buttonPanel.add(button);
-			button = new JButton();
-			IconFactory.assignIcon(button, GLYPH.IMPORT);
+			button = new JButton(IconFactory.buttonIcon(GLYPH.IMPORT, 1f));
 			button.addActionListener(e -> downloadMeshes());
 			buttonPanel.add(button);
 			return buttonPanel;

@@ -34,8 +34,7 @@ import java.io.InputStream;
  * "http://icedtea.classpath.org/people/neugens/SwingUIPatterns/file/tip/src/main/java/org/icedtea/ui/patterns/swing/images/FontAwesomeIcon.java">Mario
  * Torre</a> (GPL-2) and <a href=
  * "https://github.com/griffon-plugins/griffon-fontawesome-plugin/blob/master/subprojects/griffon-fontawesome-javafx/src/main/java/griffon/javafx/support/fontawesome/FontAwesomeIcon.java">
- * Andres Almiray</a> (Apache-2.0), with tweaks and updates for font awesome
- * 5.0.
+ * Andres Almiray</a> (Apache-2.0)
  *
  * @author Tiago Ferreira
  */
@@ -46,16 +45,15 @@ class FADerivedIcon implements Icon {
 	private static final Font fontSolid = loadFont("fa-solid-900.ttf");
 	private static int DEF_SIZE;
 
-	private final float size;
 	private final Paint color;
-	private final char iconID;
-	private final boolean solid;
+	private final Font font;
+	private final String symbol;
+	private int w;
 
-	 FADerivedIcon(final char iconID, final float size, final Paint color, final boolean solid) {
-		this.iconID = iconID;
-		this.size = size;
+	FADerivedIcon(final char iconID, final float size, final Paint color, final boolean solid) {
 		this.color = color;
-		this.solid = solid;
+		font = getFont(solid, size);
+		symbol = String.valueOf(iconID);
 	}
 
 	private static Font loadFont(final String fontName) {
@@ -74,20 +72,13 @@ class FADerivedIcon implements Icon {
 
 	@Override
 	public synchronized void paintIcon(final Component ignored, final Graphics g, final int x, final int y) {
-		final BufferedImage buffer = new BufferedImage(getIconWidth(), getIconHeight(), BufferedImage.TYPE_INT_ARGB);
-		final Font font = getFont(solid, size);
-		final Graphics2D graphics = (Graphics2D) buffer.getGraphics();
+		final Graphics2D graphics = (Graphics2D) g;
 		GuiUtils.setRenderingHints(graphics);
+		final Font previousFont = graphics.getFont();
 		graphics.setFont(font);
 		graphics.setPaint(color);
-		final String str = String.valueOf(iconID);
-		final FontMetrics metrics = graphics.getFontMetrics(font);
-		// Calculate position of the icon NB: In Java2D 0 is top of
-		final float xx = (float) (getIconWidth() - metrics.stringWidth(str)) / 2;
-		final float yy = ((float) (getIconHeight() - metrics.getHeight()) / 2) + metrics.getAscent();
-		graphics.drawString(str, xx, yy);
-		graphics.dispose();
-		g.drawImage(buffer, x, y, null);
+		graphics.drawString(symbol, x, y + graphics.getFontMetrics(font).getAscent());
+		graphics.setFont(previousFont);
 	}
 
 	protected ImageIcon asImage() {
@@ -108,7 +99,7 @@ class FADerivedIcon implements Icon {
 	 */
 	@Override
 	public int getIconHeight() {
-		return (int) size + 2;
+		return font.getSize() + 1;
 	}
 
 	/*
@@ -118,7 +109,9 @@ class FADerivedIcon implements Icon {
 	 */
 	@Override
 	public int getIconWidth() {
-		return (int) size + 2;
+		if (w == 0)
+			w = new JLabel().getFontMetrics(font).stringWidth(symbol);
+		return w;
 	}
 
 	static Font getFont(final boolean solid) {
