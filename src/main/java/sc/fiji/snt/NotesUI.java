@@ -127,12 +127,47 @@ public class NotesUI {
         toolbar.addSeparator();
         toolbar.add(save);
         toolbar.add(export);
+        toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
         toolbar.add(editor.timeStampButton(e -> {
             editor.appendTimeStamp("*", "*\n");
             editor.requestFocusInWindow();
         }));
+        final JButton settingsStamp = new JButton(IconFactory.buttonIcon('\uf2db', true, IconFactory.defaultColor()));
+        settingsStamp.setToolTipText("Insert computation settings");
+        settingsStamp.addActionListener(e -> {
+            editor.append("**Computation Settings:**");
+            editor.append("\n```\n" + sntui.geSettingsString() +"\n```\n");
+            editor.requestFocusInWindow();
+        });
+        toolbar.add(settingsStamp);
+        final JButton imgTitleStamp = new JButton(IconFactory.buttonIcon('\uf03e', true, IconFactory.defaultColor()));
+        imgTitleStamp.setToolTipText("Insert name of image being traced");
+        imgTitleStamp.addActionListener(e -> {
+            if (!sntui.plugin.accessToValidImageData()) {
+                sntui.noValidImageDataError();
+            } else {
+                editor.append("`" + sntui.plugin.getImagePlus().getTitle() + "`\n");
+                editor.requestFocusInWindow();
+            }
+        });
+        toolbar.add(imgTitleStamp);
+        final JButton filenameStamp = new JButton(IconFactory.buttonIcon('\uf15c', true, IconFactory.defaultColor()));
+        filenameStamp.setToolTipText("Insert filename of .TRACES file");
+        filenameStamp.addActionListener(e -> {
+            final File file = sntui.getAutosaveFile();
+            if (file == null) {
+                sntui.error("Current tracings do not seem to be associated with a TRACES file.");
+            } else {
+                editor.append("`" + file.getName() + "`\n");
+                editor.requestFocusInWindow();
+            }
+        });
+        toolbar.add(filenameStamp);
+        toolbar.addSeparator();
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
         toolbar.add(editor.lightDarkToggleButton());
         toolbar.add(syntax);
         return toolbar;

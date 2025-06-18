@@ -75,12 +75,8 @@ public class SNTEditorPane extends EditorPane {
         setCaretPosition(getDocument().getLength());
     }
 
-    public void toggleDarkLightTheme() {
-        if (Color.WHITE.equals(SNTColor.contrastColor(getBackground()))) { // the current theme is dark
-            applyTheme("default");
-        } else {
-            applyTheme("dark");
-        }
+    private boolean isDarkThemeActive() {
+        return Color.WHITE.equals(SNTColor.contrastColor(getBackground()));
     }
 
     private Theme getTheme(final String theme) throws IllegalArgumentException {
@@ -92,12 +88,19 @@ public class SNTEditorPane extends EditorPane {
     }
 
     public AbstractButton lightDarkToggleButton() {
-        final Icon[] icons = {IconFactory.buttonIcon('\uf186', true, IconFactory.defaultColor()), IconFactory.buttonIcon('\uf185', true, IconFactory.defaultColor())};
-        final JButton lightDark = new JButton(icons[0]);
+        final Icon[] sunMoon = {IconFactory.buttonIcon('\uf185', true, IconFactory.defaultColor()), IconFactory.buttonIcon('\uf186', true, IconFactory.defaultColor())};
+        final JButton lightDark = new JButton();
+        lightDark.setPreferredSize(new JButton(sunMoon[0]).getPreferredSize()); // the widest icon
         lightDark.setToolTipText("Toggle light/dark theme");
+        lightDark.setIcon((isDarkThemeActive()) ? sunMoon[0] : sunMoon[1]);
         lightDark.addActionListener(e -> {
-            lightDark.setIcon((lightDark.getIcon() == icons[0]) ? icons[1] : icons[0]);
-            toggleDarkLightTheme();
+            if (isDarkThemeActive()) {
+                applyTheme("default");
+                lightDark.setIcon(sunMoon[1]);
+            } else {
+                applyTheme("dark");
+                lightDark.setIcon(sunMoon[0]);
+            }
         });
         return lightDark;
     }

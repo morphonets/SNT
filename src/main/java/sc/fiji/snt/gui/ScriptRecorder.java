@@ -140,7 +140,9 @@ public class ScriptRecorder extends JDialog {
 		tb.add(optionsButton());
 		tb.addSeparator();
 		tb.add(editor.lightDarkToggleButton());
+		tb.add(Box.createHorizontalStrut(10));
 		tb.add(combo);
+		tb.add(Box.createHorizontalStrut(10));
 		tb.add(editor.timeStampButton((e -> {
 			editor.appendTimeStamp(currentLang.commentSeq + " ", "\n");
 			requestFocusInWindow();

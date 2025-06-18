@@ -352,6 +352,7 @@ public class FileChooser extends JFileChooser {
 
     private void showRecentLocationsMenu(final JButton button) {
         final JPopupMenu popupMenu = new JPopupMenu();
+        recentLocations.removeIf(Objects::isNull);
         if (recentLocations.isEmpty()) {
             final JMenuItem jmi = new JMenuItem("No recent locations available...");
             jmi.setEnabled(false);

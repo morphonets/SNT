@@ -786,6 +786,11 @@ public class SNTUI extends JDialog {
 		plugin.updateTracingViewers(false);
 	}
 
+	protected String geSettingsString() {
+		updateSettingsString();
+		return settingsArea.getText();
+	}
+
 	protected void updateSettingsString() {
 		final StringBuilder sb = new StringBuilder();
 		sb.append("Data source: ");
@@ -4494,7 +4499,7 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	private File getAutosaveFile() {
+	protected File getAutosaveFile() {
 		final String autosavePath = plugin.getPrefs().getTemp(SNTPrefs.AUTOSAVE_KEY, null);
 		return (autosavePath == null) ? null : new File(autosavePath);
 	}
@@ -4578,8 +4583,7 @@ public class SNTUI extends JDialog {
 			pathAndFillManager.writeXML(file.getAbsolutePath(), plugin.getPrefs().isSaveCompressedTraces());
 		} catch (final IOException ioe) {
 			showStatus("Saving failed.", true);
-			guiUtils.error(
-					"Writing traces to '" + file.getAbsolutePath() + "' failed. See Console for details.");
+			guiUtils.error(String.format("File could not be saved: %s. See Console for details.", ioe.getMessage()));
 			changeState(preSavingState);
 			ioe.printStackTrace();
 			return false;
