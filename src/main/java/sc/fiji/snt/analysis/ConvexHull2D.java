@@ -29,9 +29,12 @@ import net.imglib2.roi.geom.real.Polygon2D;
 import org.scijava.Context;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.SNTPoint;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -40,20 +43,14 @@ import java.util.stream.Collectors;
  */
 public class ConvexHull2D extends AbstractConvexHull {
 
-    private final boolean computeSize;
-
     private Polygon2D hull;
 
-    public <T extends SNTPoint> ConvexHull2D(final Context context, final Collection<T> points,
-            final boolean computeSize)
-    {
+    public <T extends SNTPoint> ConvexHull2D(final Context context, final Collection<T> points) {
         super(context, points);
-        this.computeSize = computeSize;
     }
 
-    public <T extends SNTPoint> ConvexHull2D(final Collection<T> points, final boolean computeSize) {
+    public <T extends SNTPoint> ConvexHull2D(final Collection<T> points) {
         super(points);
-        this.computeSize = computeSize;
     }
 
     @Override
@@ -61,21 +58,46 @@ public class ConvexHull2D extends AbstractConvexHull {
         final Polygon2D pol = new DefaultWritablePolygon2D(
                 points.stream().map(p -> new RealPoint(p.getX(), p.getY())).collect(Collectors.toList()));
         hull = opService.geom().convexHull(pol);
-        if (computeSize) {
-            boundarySize = opService.geom().boundarySize(hull).getRealDouble();
+    }
+
+    @Override
+    public double size() {
+        if (size ==-1) {
+            if (hull == null) compute();
             size = opService.geom().size(hull).getRealDouble();
         }
+        return size;
+    }
+
+    @Override
+    public double boundarySize() {
+        if (boundarySize ==-1) {
+            if (hull == null) compute();
+            boundarySize = opService.geom().boundarySize(hull).getRealDouble();
+        }
+        return boundarySize;
     }
 
     public Polygon2D getPolygon() {
+        if (hull == null) compute();
         return hull;
+    }
+
+    @Override
+    public ConvexHull2D intersection(final AbstractConvexHull... convexHulls) {
+        final List<SNTPoint> allPoints = new ArrayList<>();
+        for (final AbstractConvexHull ch : convexHulls)
+            allPoints.addAll(ch.points);
+        final BoundingBox intersectionBb = intersectionBox(convexHulls);
+        allPoints.removeIf(p-> !(intersectionBb.contains2D(p)));
+        return new ConvexHull2D(allPoints);
     }
 
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
         SNTService snt = ij.get(SNTService.class);
         Tree t = snt.demoTree("fractal");
-        ConvexHull2D hull = new ConvexHull2D(t.getNodes(), true);
+        ConvexHull2D hull = new ConvexHull2D(t.getNodes());
         hull.compute();
         System.out.println(hull.size());
         System.out.println(hull.boundarySize());

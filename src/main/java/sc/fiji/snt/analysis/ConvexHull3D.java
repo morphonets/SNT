@@ -28,9 +28,10 @@ import net.imagej.mesh.naive.NaiveDoubleMesh;
 import org.scijava.Context;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.SNTPoint;
 
-import java.util.Collection;
+import java.util.*;
 
 /**
  * Convex hull analysis in 3D.
@@ -38,43 +39,57 @@ import java.util.Collection;
  */
 public class ConvexHull3D extends AbstractConvexHull {
 
-    private final boolean computeSize;
-
     private Mesh hull;
 
-    public <T extends SNTPoint> ConvexHull3D(final Context context, final Collection<T> points,
-            final boolean computeSize)
-    {
+    public <T extends SNTPoint> ConvexHull3D(final Context context, final Collection<T> points) {
         super(context, points);
-        this.computeSize = computeSize;
     }
 
-    public <T extends SNTPoint> ConvexHull3D(final Collection<T> points, final boolean computeSize) {
+    public <T extends SNTPoint> ConvexHull3D(final Collection<T> points) {
         super(points);
-        this.computeSize = computeSize;
     }
 
     public Mesh getMesh() {
+        if (hull == null) compute();
         return hull;
     }
 
     @Override
-    public void compute()
-    {
+    public void compute() {
         final Mesh mesh = new NaiveDoubleMesh();
         points.forEach(v -> mesh.vertices().add(v.getX(), v.getY(), v.getZ()));
-        hull = (Mesh) opService.geom().convexHull(mesh).get(0);
-        if (computeSize) {
-            boundarySize = opService.geom().boundarySize(hull).getRealDouble();
-            size = opService.geom().size(hull).getRealDouble();
-        }
+        hull = (Mesh) opService.geom().convexHull(mesh).getFirst();
+    }
+
+    @Override
+    public double size() {
+        if (size ==-1)
+            size = opService.geom().size(getMesh()).getRealDouble();
+        return size;
+    }
+
+    @Override
+    public double boundarySize() {
+        if (boundarySize ==-1)
+            boundarySize = opService.geom().boundarySize(getMesh()).getRealDouble();
+        return boundarySize;
+    }
+
+    @Override
+    public ConvexHull3D intersection(final AbstractConvexHull... convexHulls) {
+        final List<SNTPoint> allPoints = new ArrayList<>();
+        for (final AbstractConvexHull ch : convexHulls)
+            allPoints.addAll(ch.points);
+        final BoundingBox intersectionBb = intersectionBox(convexHulls);
+        allPoints.removeIf(p-> !(intersectionBb.contains(p)));
+        return new ConvexHull3D(allPoints);
     }
 
     public static void main(String[] args) {
         ImageJ ij = new ImageJ();
         SNTService snt = ij.get(SNTService.class);
         Tree t = snt.demoTree("OP_1");
-        ConvexHull3D hull = new ConvexHull3D(t.getNodes(), true);
+        ConvexHull3D hull = new ConvexHull3D(t.getNodes());
         hull.compute();
         System.out.println(hull.size());
         System.out.println(hull.boundarySize());

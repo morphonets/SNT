@@ -37,6 +37,9 @@ import org.scijava.util.ColorRGBA;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
+import sc.fiji.snt.analysis.AbstractConvexHull;
+import sc.fiji.snt.analysis.ConvexHull2D;
+import sc.fiji.snt.analysis.ConvexHull3D;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -1806,6 +1809,16 @@ public class Tree implements TreeProperties {
 			renderingTrees = trees;
 		}
 		return renderingTrees;
+	}
+
+	public AbstractConvexHull getConvexHull() {
+		AbstractConvexHull hull;
+		if (is3D()) {
+			hull = new ConvexHull3D(SNTUtils.getContext(), getNodes());
+		} else {
+			hull = new ConvexHull2D(SNTUtils.getContext(), getNodes());
+		}
+		return hull;
 	}
 
 	/* IDE debug method */

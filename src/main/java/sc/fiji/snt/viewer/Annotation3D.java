@@ -59,6 +59,8 @@ import net.imagej.mesh.Triangle;
 import net.imagej.mesh.Triangles;
 import net.imglib2.roi.geom.real.Polygon2D;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.analysis.AbstractConvexHull;
+import sc.fiji.snt.analysis.ConvexHull2D;
 import sc.fiji.snt.analysis.ConvexHull3D;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -110,11 +112,8 @@ public class Annotation3D {
 		case SCATTER:
 			drawable = assembleScatter();
 			break;
-		case SURFACE:
-			drawable = assembleSurface(false);
-			break;
-		case SURFACE_AND_VOLUME:
-			drawable = assembleSurface(true);
+		case SURFACE, SURFACE_AND_VOLUME:
+			drawable = assembleSurface();
 			break;
 		case STRIP:
 			drawable = assembleStrip();
@@ -140,6 +139,21 @@ public class Annotation3D {
 		this.label = label;
 	}
 
+	public Annotation3D(final AbstractConvexHull hull, final ColorRGB color, final String label) {
+		this.viewer = null;
+		this.points = null;
+		type = SURFACE;
+		size = Viewer3D.DEF_NODE_RADIUS;
+		this.label = label;
+		if (hull instanceof ConvexHull3D) {
+			drawable = meshToDrawable(((ConvexHull3D) hull).getMesh(), new Color(color.getRed(), color.getGreen(), color.getBlue()));
+		} else if (hull instanceof ConvexHull2D) {
+			drawable = polygonToDrawable(((ConvexHull2D) hull).getPolygon(), new Color(color.getRed(), color.getGreen(), color.getBlue()));
+		} else {
+			throw new IllegalArgumentException("Unsupported ConvexHull");
+		}
+	}
+
 	public Annotation3D(final Polygon2D polygon, final ColorRGB color, final String label) {
 		this.viewer = null;
 		this.points = null;
@@ -162,8 +176,8 @@ public class Annotation3D {
 		this(viewer, Collections.singleton(point), SCATTER);
 	}
 
-	private Drawable assembleSurface(boolean computeVolume) {
-		ConvexHull3D hull = new ConvexHull3D(points, computeVolume);
+	private Drawable assembleSurface() {
+		ConvexHull3D hull = new ConvexHull3D(points);
 		hull.compute();
 		volume = hull.size();
 		return meshToDrawable(hull.getMesh());
@@ -182,57 +196,33 @@ public class Annotation3D {
 
 	/**
 	 *
-	 * @param colormap
+	 * @param colormap one of {@link #COLORMAPS}, i.e., "grayscale", "hotcold", "rgb", "redgreen", "whiteblue", etc.
+	 * @param axis the range axis: either "x", "y", or "z".
      */
-	public void colorCode(final String colormap, String axis) {
+	public void colorCode(final String colormap, final String axis) {
 		if (!isColorCodeAllowed())
 			throw new IllegalArgumentException("The current " + getType() + "annot. cannot be colorcoded");
-		AbstractColorMap cm;
-		switch (colormap.toLowerCase()) {
-		case "grayscale":
-			cm = new ColorMapGrayscale();
-			break;
-		case "hotcold":
-			cm = new ColorMapHotCold();
-			break;
-		case "rainbow":
-			cm = new ColorMapRainbow();
-			break;
-		case "rbg":
-			cm = new ColorMapRBG();
-			break;
-		case "redgreen":
-		case "redandgreen":
-			cm = new ColorMapRedAndGreen();
-			break;
-		case "whiteblue":
-		case "whiteandblue":
-			cm = new ColorMapWhiteBlue();
-			break;
-		case "whitegreen":
-		case "whiteandgreen":
-			cm = new ColorMapWhiteGreen();
-			break;
-		case "whitered":
-		case "whiteandred":
-			cm = new ColorMapWhiteRed();
-			break;
-		default:
-			throw new IllegalArgumentException( "Invalid colormap. Valid options: " + COLORMAPS.toString());
-		}
-		((IMultiColorable) drawable).setColorMapper(new ColorMapper(cm, getRange(axis.toLowerCase())));
+		AbstractColorMap cm = switch (colormap.toLowerCase()) {
+            case "grayscale" -> new ColorMapGrayscale();
+            case "hotcold" -> new ColorMapHotCold();
+            case "rainbow" -> new ColorMapRainbow();
+            case "rbg" -> new ColorMapRBG();
+            case "redgreen", "redandgreen" -> new ColorMapRedAndGreen();
+            case "whiteblue", "whiteandblue" -> new ColorMapWhiteBlue();
+            case "whitegreen", "whiteandgreen" -> new ColorMapWhiteGreen();
+            case "whitered", "whiteandred" -> new ColorMapWhiteRed();
+            default -> throw new IllegalArgumentException("Invalid colormap. Valid options: " + COLORMAPS.toString());
+        };
+        ((IMultiColorable) drawable).setColorMapper(new ColorMapper(cm, getRange(axis.toLowerCase())));
 	}
 
 
 	Range getRange(final String axis) {
-		switch (axis) {
-		case "x":
-			return drawable.getBounds().getXRange();
-		case "y":
-			return drawable.getBounds().getYRange();
-		default:
-			return drawable.getBounds().getZRange();
-		}
+        return switch (axis) {
+            case "x" -> drawable.getBounds().getXRange();
+            case "y" -> drawable.getBounds().getYRange();
+            default -> drawable.getBounds().getZRange();
+        };
 
 	}
 	private static Drawable polygonToDrawable(final Polygon2D polygon, final Color color) {
@@ -572,22 +562,14 @@ public class Annotation3D {
 	 *         {@code surface}, {@code line}, {@code plane}, or {@code mixed} (composite shape).
 	 */
 	public String getType() {
-		switch (type) {
-		case SCATTER:
-			return "cloud";
-		case SURFACE:
-		case SURFACE_AND_VOLUME:
-			return "surface";
-			case STRIP:
-		case Q_TIP:
-			return "line";
-		case PLANE:
-			return "plane";
-		case MERGE:
-			return "mixed";
-		default:
-			return "unknown";
-		}
+        return switch (type) {
+            case SCATTER -> "cloud";
+            case SURFACE, SURFACE_AND_VOLUME -> "surface";
+            case STRIP, Q_TIP -> "line";
+            case PLANE -> "plane";
+            case MERGE -> "mixed";
+            default -> "unknown";
+        };
 	}
 
 	protected void setLabel(final String label) {

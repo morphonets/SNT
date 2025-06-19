@@ -28,6 +28,7 @@ import java.util.Map;
 
 import org.scijava.Context;
 import org.scijava.command.ContextCommand;
+import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 
 import net.imagej.ImageJ;
@@ -64,6 +65,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	private final Tree tree;
 	private AbstractConvexHull hull;
 	private Map<String, Double> metrics;
+	private String label;
 
 	/**
 	 * Instantiates a new convex hull analyzer.
@@ -72,6 +74,19 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	 */
 	public ConvexHullAnalyzer(final Tree tree) {
 		this.tree = tree;
+		setLabel(tree.getLabel());
+	}
+
+	/**
+	 * Instantiates a new convex hull analyzer.
+	 *
+	 * @param convexHull the Convex hull to be analyzed
+	 */
+	public ConvexHullAnalyzer(final AbstractConvexHull convexHull) {
+		this.tree = null;
+		this.hull = convexHull;
+		setLabel(convexHull.toString());
+		initContext();
 	}
 
 	@Override
@@ -82,13 +97,12 @@ public class ConvexHullAnalyzer extends ContextCommand {
 
 	@Override
 	public Context getContext() {
-		initContext();
-		return super.getContext();
+		return context();
 	}
 
 	@Override
 	public void run() {
-		System.out.println("Convex hull analysis for " + tree.getLabel() + ": ");
+		System.out.println("Convex hull analysis for " + label() + ": ");
 		getAnalysis().forEach((key, value) -> System.out.println("\t" + key + ":\t" + value));
 	}
 
@@ -123,9 +137,12 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	}
 
 	public void dump(final SNTTable table) {
-		if (table.getRowIndex(tree.getLabel()) < 0)
-			table.insertRow(tree.getLabel());
-		getAnalysis().forEach((k, v) -> table.appendToLastRow("Convex hull: " + k, v));
+		if (table.getRowIndex(label()) < 0) table.insertRow(label());
+		try {
+			getAnalysis().forEach((k, v) -> table.appendToLastRow("Convex hull: " + k, v));
+		} catch (final IllegalArgumentException ex) {
+			getContext().getService(LogService.class).warn(ex);
+		}
 	}
 
 	public AbstractConvexHull getHull() {
@@ -141,7 +158,7 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		initHull();
 		final RealLocalizable cntd = computeCentroid(hull);
 		return new PointInImage(cntd.getDoublePosition(0), cntd.getDoublePosition(1),
-				(tree.is3D()) ? cntd.getDoublePosition(2) : 0);
+				(hull instanceof ConvexHull3D) ? cntd.getDoublePosition(2) : 0);
 	}
 
 	public double getBoxivity() {
@@ -237,15 +254,28 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	protected AbstractConvexHull computeHull(final Tree tree) {
 		AbstractConvexHull hull;
 		if (tree.is3D()) {
-			hull = new ConvexHull3D(getContext(), tree.getNodes(), true);
+			hull = new ConvexHull3D(getContext(), tree.getNodes());
 		} else {
-			hull = new ConvexHull2D(getContext(), tree.getNodes(), true);
+			hull = new ConvexHull2D(getContext(), tree.getNodes());
 		}
 		hull.compute();
 		return hull;
 	}
 
+	/**
+	 * Sets the optional description for the analysis
+	 * @param analysisLabel a string describing the analysis
+	 */
+	public void setLabel(final String analysisLabel) {
+		this.label = analysisLabel;
+	}
+
+	private String label() {
+		return label;
+	}
+
 	private boolean isComputable() {
+		if (hull != null) return true;
 		// There are edge cases where the entire computation stalls when parsing
 		// single-path Trees that are 1D or tiny. There is no exception error,
 		// just opService seems to stall!? without any feedback.

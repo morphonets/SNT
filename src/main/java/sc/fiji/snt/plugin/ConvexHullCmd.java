@@ -197,17 +197,7 @@ public class ConvexHullCmd extends ContextCommand {
 	}
 
 	private void addHullToRecViewer(final AbstractConvexHull hull, final String identifier, final String color) {
-		Annotation3D surface;
-		if (hull instanceof ConvexHull3D) {
-			surface = new Annotation3D(((ConvexHull3D) hull).getMesh(), new ColorRGB(color),
-					"Convex Hull " + identifier);
-		} else if (hull instanceof ConvexHull2D) {
-			surface = new Annotation3D(((ConvexHull2D) hull).getPolygon(), new ColorRGB(color),
-					"Convex Hull " + identifier);
-		} else {
-			throw new IllegalArgumentException("Unsupported ConvexHull");
-		}
-		recViewer.add(surface);
+		recViewer.add(new Annotation3D(hull, new ColorRGB(color), "Convex Hull " + identifier));
 	}
 
 	private void measure(final ConvexHullAnalyzer analyzer, final SNTTable table, final String rowLabel) {
