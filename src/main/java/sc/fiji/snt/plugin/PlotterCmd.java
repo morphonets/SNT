@@ -309,7 +309,7 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 				updatePlot(true);
 				break;
 			case ACTION_ADD_CONVEXHULL:
-				hull2D = new ConvexHull2D(plottingTree.getNodes(), true);
+				hull2D = new ConvexHull2D(plottingTree.getNodes());
 				updatePlot(false);
 				break;
 			case ACTION_SHOW_DENDROGRAM:

@@ -73,6 +73,16 @@ public class BoundingBox {
 		reset();
 	}
 
+	/**
+	 * Computes a bounding box from a point cloud.
+	 *
+	 * @param points the point cloud
+	 */
+	public BoundingBox(final Collection<? extends SNTPoint> points) {
+		this();
+		append(points.iterator());
+	}
+
 	protected void reset() {
 		origin = new PointInImage(Double.NaN, Double.NaN, Double.NaN);
 		originOpposite = new PointInImage(Double.NaN, Double.NaN, Double.NaN);
@@ -269,28 +279,49 @@ public class BoundingBox {
 			boundingBox.originOpposite.z <= originOpposite.z);
 	}
 
-	public boolean contains(final SNTPoint point) {
+	public boolean contains2D(final SNTPoint point) {
 		return (point.getX() >= origin.x && //
-			point.getY() >= origin.y && //
-			point.getZ() >= origin.z && //
-			point.getX() <= originOpposite.x && //
-			point.getY() <= originOpposite.y && //
-			point.getZ() <= originOpposite.z);
+				point.getY() >= origin.y && //
+				point.getX() <= originOpposite.x && //
+				point.getY() <= originOpposite.y);
+	}
+
+	public boolean contains(final SNTPoint point) {
+		return contains2D(point) && (point.getZ() >= origin.z && point.getZ() <= originOpposite.z);
 	}
 
 	/**
 	 * Combines this bounding box with another one. It is assumed both boxes
 	 * share the same voxel spacing/Calibration.
 	 *
-	 * @param boundingBox the bounding box to be combined.
+	 * @param other the bounding box to be combined.
 	 */
-	public void combine(final BoundingBox boundingBox) {
-		origin.x = Math.min(origin.x, boundingBox.origin.x);
-		origin.y = Math.min(origin.y, boundingBox.origin.y);
-		origin.z = Math.min(origin.z, boundingBox.origin.z);
-		originOpposite.x = Math.max(originOpposite.x, boundingBox.originOpposite.x);
-		originOpposite.y = Math.max(originOpposite.y, boundingBox.originOpposite.y);
-		originOpposite.z = Math.max(originOpposite.z, boundingBox.originOpposite.z);
+	public void combine(final BoundingBox other) {
+		origin.x = Math.min(origin.x, other.origin.x);
+		origin.y = Math.min(origin.y, other.origin.y);
+		origin.z = Math.min(origin.z, other.origin.z);
+		originOpposite.x = Math.max(originOpposite.x, other.originOpposite.x);
+		originOpposite.y = Math.max(originOpposite.y, other.originOpposite.y);
+		originOpposite.z = Math.max(originOpposite.z, other.originOpposite.z);
+	}
+
+	/**
+	 * Retrieves the intersection cuboid between this bounding with another bounding box.
+	 * It is assumed both boxes share the same voxel spacing/Calibration.
+	 *
+	 * @param other the second bounding box.
+	 * @return The intersection cuboid.
+	 */
+	public BoundingBox intersection(final BoundingBox other) {
+		final BoundingBox result = new BoundingBox();
+		result.setSpacing(xSpacing, ySpacing, zSpacing, spacingUnit);
+		result.origin.x = Math.max(origin.x, other.origin.x);
+		result.origin.y = Math.max(origin.y, other.origin.y);
+		result.origin.z = Math.max(origin.z, other.origin.z);
+		result.originOpposite.x = Math.min(originOpposite.x, other.originOpposite.x);
+		result.originOpposite.y = Math.min(originOpposite.y, other.originOpposite.y);
+		result.originOpposite.z = Math.min(originOpposite.z, other.originOpposite.z);
+		return result;
 	}
 
 	/**

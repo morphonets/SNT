@@ -28,6 +28,7 @@ import org.scijava.NoSuchServiceException;
 import org.scijava.plugin.Parameter;
 
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.SNTPoint;
 
 import java.util.Collection;
@@ -49,30 +50,37 @@ public abstract class AbstractConvexHull {
     protected <T extends SNTPoint> AbstractConvexHull(final Context context, final Collection<T> points) {
         context.inject(this);
         this.points = points;
+        size = -1;
+        boundarySize = -1;
     }
 
 	protected <T extends SNTPoint> AbstractConvexHull(final Collection<T> points) {
-		if (opService == null) {
-			try {
-				SNTUtils.getContext().inject(this);
-			} catch (final Exception e) {
-				e.printStackTrace();
-			}
-		}
-		if (opService == null) {
+        try {
+            SNTUtils.getContext().inject(this);
+        } catch (final Exception e) {
+            e.printStackTrace();
+        }
+        if (opService == null) {
 			throw new NoSuchServiceException("Failed to initialize OpService");
 		}
 		this.points = points;
+        size = -1;
+        boundarySize = -1;
 	}
 
     public abstract void compute();
 
-    public double size() {
-        return size;
-    }
+    public abstract double size();
 
-    public double boundarySize() {
-        return boundarySize;
+    public abstract double boundarySize();
+
+    public abstract AbstractConvexHull intersection(final AbstractConvexHull... convexHull);
+
+    public BoundingBox intersectionBox(final AbstractConvexHull... convexHulls) {
+        BoundingBox intersectionBb = new BoundingBox(points);
+        for (final AbstractConvexHull convexHull : convexHulls)
+            intersectionBb = intersectionBb.intersection(new BoundingBox(convexHull.points));
+        return intersectionBb;
     }
 
 }
