@@ -1076,11 +1076,7 @@ public class SNT extends MultiDThreePanes implements
 		updateTracingViewers(false);
 	}
 
-	public void justDisplayNearSlices(final boolean value, final int eitherSide) {
-		justDisplayNearSlices(value, eitherSide, true);
-	}
-
-	protected void justDisplayNearSlices(final boolean value, final int eitherSide, final boolean updateViewers) {
+	protected void justDisplayNearSlices(final boolean value, final int eitherSide) {
 
 		getXYCanvas().just_near_slices = value;
 		if (!single_pane) {
@@ -1315,15 +1311,16 @@ public class SNT extends MultiDThreePanes implements
 			return false;
 		}
 		final int guessedType = pathAndFillManager.guessTracesFileType(file.getAbsolutePath());
-		switch (guessedType) {
-		case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML:
-			return pathAndFillManager.loadCompressedXML(file.getAbsolutePath());
-		case PathAndFillManager.TRACES_FILE_TYPE_UNCOMPRESSED_XML:
-			return pathAndFillManager.loadUncompressedXML(file.getAbsolutePath());
-		default:
-			guiUtils.error(file.getAbsolutePath() + " is not a valid traces file.");
-			return false;
-		}
+        return switch (guessedType) {
+            case PathAndFillManager.TRACES_FILE_TYPE_COMPRESSED_XML ->
+                    pathAndFillManager.loadCompressedXML(file.getAbsolutePath());
+            case PathAndFillManager.TRACES_FILE_TYPE_UNCOMPRESSED_XML ->
+                    pathAndFillManager.loadUncompressedXML(file.getAbsolutePath());
+            default -> {
+                guiUtils.error(file.getAbsolutePath() + " is not a valid traces file.");
+                yield false;
+            }
+        };
 	}
 
 	@SuppressWarnings("unused")
@@ -1394,10 +1391,6 @@ public class SNT extends MultiDThreePanes implements
 		String statusMessage = "";
 		if (editing && editingPath.getEditableNodeIndex() > -1) {
 			statusMessage = "Node " + editingPath.getEditableNodeIndex() + ", ";
-//			System.out.println("unscaled "+ editingPath.getPointInCanvas(editingPath
-//					.getEditableNodeIndex()));
-//			System.out.println("scaled "+ editingPath.getPointInImage(editingPath
-//					.getEditableNodeIndex()));
 		}
 		statusMessage += "World: (" + SNTUtils.formatDouble(ix * x_spacing, 2) + ", " +
 			SNTUtils.formatDouble(iy * y_spacing, 2) + ", " + SNTUtils.formatDouble(iz *
@@ -1505,16 +1498,11 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
-	int[] selectedPaths = null;
-
-	/*
-	 * Create a new 8-bit ImagePlus of the same dimensions as this image, but with
-	 * values set to either 255 (if there's a point on a path there) or 0
+	/**
+	 * Rasterizes centerline of paths into an ImagePlus
+	 * @param labelsImage If true, each path has a unique intensity; otherwise all nodes are set to 255 (8-bit Binary)
+	 * @return the ImagePlus with embedded centerlines
 	 */
-	public synchronized ImagePlus makePathVolume(final Collection<Path> paths) {
-		return makePathVolume(paths, false);
-	}
-
 	public synchronized ImagePlus makePathVolume(final Collection<Path> paths, final boolean labelsImage) {
 
 		final short[][] snapshot_data = new short[depth][];
@@ -1522,8 +1510,7 @@ public class SNT extends MultiDThreePanes implements
 		for (int i = 0; i < depth; ++i)
 			snapshot_data[i] = new short[width * height];
 
-		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width,
-			height);
+		pathAndFillManager.setPathPointsInVolume(paths, snapshot_data, (labelsImage) ? (short)-1 : (short) 255, width);
 
 		final ImageStack newStack = new ImageStack(width, height);
 
@@ -1537,10 +1524,6 @@ public class SNT extends MultiDThreePanes implements
 			" Rendered Paths", newStack);
 		newImp.setCalibration(xy.getCalibration());
 		return newImp;
-	}
-
-	public synchronized ImagePlus makePathVolume() {
-		return makePathVolume(pathAndFillManager.getPaths(), false);
 	}
 
 	/* Start a search thread looking for the goal in the arguments: */
@@ -1987,6 +1970,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the path a reference to the computed path.
 	 * @see #autoTrace(List, PointInImage)
 	 */
+	@SuppressWarnings("unused") // used for snt scripts
 	public Path autoTrace(final SNTPoint start, final SNTPoint end,
 		final PointInImage forkPoint)
 	{
@@ -1996,13 +1980,24 @@ public class SNT extends MultiDThreePanes implements
 		return autoTrace(list, forkPoint);
 	}
 
+	/**
+	 * Automatically traces a path from a point A to a point B. See
+	 * {@link #autoTrace(List, PointInImage)} for details.
+	 *
+	 * @param start the {@link PointInImage} the starting point of the path
+	 * @param end the {@link PointInImage} the terminal point of the path
+	 * @param forkPoint the {@link PointInImage} fork point of the parent
+	 *          {@link Path} from which the searched path should branch off, or
+	 *          null if the path should not have any parent.
+	 * @param headless  whether search should occur headless
+	 * @return the path a reference to the computed path.
+	 * @see #autoTrace(List, PointInImage)
+	 */
+	@SuppressWarnings("unused") // used for snt scripts
 	public Path autoTrace(final SNTPoint start, final SNTPoint end, final PointInImage forkPoint,
 						  final boolean headless)
 	{
-		final List<SNTPoint> list = new ArrayList<>();
-		list.add(start);
-		list.add(end);
-		return autoTrace(list, forkPoint, headless);
+		return autoTrace(List.of(start, end), forkPoint, headless);
 	}
 
 	/**
@@ -2021,14 +2016,14 @@ public class SNT extends MultiDThreePanes implements
 	 * @param pointList the list of {@link PointInImage} containing the nodes to
 	 *          be used as target goals during the search. If the search cannot
 	 *          converge into a target point, such point is omitted from path, if
-	 *          Successful, target point will be included in the final path. the
+	 *          Successful, target point will be included in the final path. The
 	 *          final path. The first point in the list is the start of the path,
 	 *          the last its terminus. Null objects not allowed.
 	 * @param forkPoint the {@link PointInImage} fork point of the parent
 	 *          {@link Path} from which the searched path should branch off, or
 	 *          null if the path should not have any parent.
 	 * @return the path a reference to the computed path. It is added to the Path
-	 *         Manager list.If a path cannot be fully computed from the specified
+	 *         Manager list. If a path cannot be fully computed from the specified
 	 *         list of points, a single-point path is generated.
 	 */
 	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint)
@@ -2080,6 +2075,23 @@ public class SNT extends MultiDThreePanes implements
 
 	}
 
+	/**
+	 * Automatically traces a path from a point A to a point B. See
+	 * {@link #autoTrace(List, PointInImage)} for details.
+	 *
+	 * @param pointList the list of {@link PointInImage} containing the nodes to
+	 *          be used as target goals during the search. If the search cannot
+	 *          converge into a target point, such point is omitted from path, if
+	 *          Successful, target point will be included in the final path. The
+	 *          final path. The first point in the list is the start of the path,
+	 *          the last its terminus. Null objects not allowed.
+	 * @param forkPoint the {@link PointInImage} fork point of the parent
+	 *          {@link Path} from which the searched path should branch off, or
+	 *          null if the path should not have any parent.
+	 * @param headless  whether search should occur headless
+	 * @return the path a reference to the computed path.
+	 * @see #autoTrace(List, PointInImage)
+	 */
 	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint, final boolean headless) {
 		if (headless) {
 			return autoTraceHeadless(pointList, forkPoint);
@@ -2135,10 +2147,6 @@ public class SNT extends MultiDThreePanes implements
 			discreteMsg("An active temporary path already exists...");
 			return;
 		}
-//		if (getUIState() != SNTUI.WAITING_TO_START_PATH) {
-//			discreteMsg("Please finish current operation before extending "+ path.getName());
-//			return;
-//		}
 		lastStartPointSet = true;
 		selectPath(path, false);
 		setPathUnfinished(true);
@@ -2886,9 +2894,6 @@ public class SNT extends MultiDThreePanes implements
 		int done = 0;
 		for (final NearPoint np : cp) {
 			if (np != null) {
-				// SNT.log("Drawing:");
-				// SNT.log(np.toString());
-
 				linePoints.add(new Point3f((float) np.near.x, (float) np.near.y,
 					(float) np.near.z));
 				linePoints.add(new Point3f((float) np.closestIntersection.x,
@@ -3007,14 +3012,10 @@ public class SNT extends MultiDThreePanes implements
 	protected void updateNonTracingViewers() {
 		if (getUI() == null) return;
 		if (getUI().recViewer != null) {
-			new Thread(() -> {
-				getUI().recViewer.syncPathManagerList();
-			}).start();
+			new Thread(() -> getUI().recViewer.syncPathManagerList()).start();
 		}
 		if (getUI().sciViewSNT != null) {
-			new Thread(() -> {
-				getUI().sciViewSNT.syncPathManagerList();
-			}).start();
+			new Thread(() -> getUI().sciViewSNT.syncPathManagerList()).start();
 		}
 	}
 
@@ -3259,12 +3260,6 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void clickAtMaxPoint(final int x_in_pane, final int y_in_pane,
-			final int plane)
-		{
-		clickAtMaxPoint(x_in_pane, y_in_pane, plane, false);
-		}
-
-	protected void clickAtMaxPoint(final int x_in_pane, final int y_in_pane,
 		final int plane, final boolean join)
 	{
 
@@ -3303,7 +3298,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private ImagePlus[] getXYZYXZDataGray8(final boolean filteredData) {
-		ImagePlus xy8 = null;
+		ImagePlus xy8;
 		if(filteredData) {
 			if (tubularGeodesicsTracingEnabled)
 				try {
@@ -3632,6 +3627,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @throws UnsupportedOperationException if SNT is not running
 	 * @throws IllegalArgumentException if view is not a recognized option
 	 */
+	@SuppressWarnings("unused")
 	public ImagePlus captureView(final String view, final boolean project) {
 		if (view == null || view.trim().isEmpty())
 			throw new IllegalArgumentException("Invalid view");

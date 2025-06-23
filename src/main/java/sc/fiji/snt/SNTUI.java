@@ -3839,8 +3839,7 @@ public class SNTUI extends JDialog {
 	protected void inputImageChanged() {
 		partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
 		partsNearbyCSpinner.setEnabled(!plugin.is2D());
-		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
-				(int) partsNearbyCSpinner.getValue(), false);
+		plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(), (int) partsNearbyCSpinner.getValue());
 		ctPositionChanged();
 		if (autoRbmi != null)
 			autoRbmi.setSelected(plugin.getUseSubVolumeStats());
@@ -4581,10 +4580,12 @@ public class SNTUI extends JDialog {
 		changeState(SAVING);
 		try {
 			pathAndFillManager.writeXML(file.getAbsolutePath(), plugin.getPrefs().isSaveCompressedTraces());
+			plugin.setUnsavedChanges(false);
 		} catch (final IOException ioe) {
 			showStatus("Saving failed.", true);
 			guiUtils.error(String.format("File could not be saved: %s. See Console for details.", ioe.getMessage()));
 			changeState(preSavingState);
+			plugin.setUnsavedChanges(true);
 			ioe.printStackTrace();
 			return false;
 		}

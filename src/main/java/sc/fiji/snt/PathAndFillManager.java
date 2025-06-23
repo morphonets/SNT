@@ -75,6 +75,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -270,9 +271,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		enableUIupdates = false;
 		// Reset tree labels
-		allPaths.forEach( p -> {
-			p.setTreeLabel(null);
-		});
+		allPaths.forEach( p -> p.setTreeLabel(null));
 
 //		resetIDs();
 		maxUsedTreeID = 0;
@@ -499,7 +498,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				swcPoints = getSWCFor(connectedPaths);
 			}
 			catch (final SWCExportException see) {
-				error("" + see.getMessage());
+				error(see.getMessage());
 				return false;
 			}
 
@@ -543,11 +542,6 @@ public class PathAndFillManager extends DefaultHandler implements
 	private void error(final String msg) {
 		if (!headless && plugin != null && plugin.isUIready()) plugin.error(msg);
 		else errorStatic(msg);
-	}
-
-	
-	protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw) {
-		flushSWCPoints(swcPoints, pw, null);
 	}
 
 	protected void flushSWCPoints(final List<SWCPoint> swcPoints, final PrintWriter pw, final String commonFileHeader) {
@@ -609,7 +603,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected boolean allPathsShareSameSpatialCalibration() {
 		if (!getPaths().isEmpty()) {
-			final Calibration ref = getPaths().get(0).getCalibration();
+			final Calibration ref = getPaths().getFirst().getCalibration();
 			for (int i = 1; i < getPaths().size(); i++) {
 				if (!ref.equals(getPaths().get(i).getCalibration()))
 					return false;
@@ -659,7 +653,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	protected boolean multipleTreesExist() {
 		if (allPaths.isEmpty()) return false;
-		final int refID = allPaths.get(0).getTreeID();
+		final int refID = allPaths.getFirst().getTreeID();
 		for (int i = 1; i < allPaths.size(); i++) {
 			final int id = allPaths.get(i).getTreeID();
 			if (id != refID) return true;
@@ -961,13 +955,13 @@ public class PathAndFillManager extends DefaultHandler implements
 				++currentPointID;
 				if (firstSWCPoint == null) firstSWCPoint = swcPoint;
 			}
-
+			assert firstSWCPoint != null;
 			boolean firstOfOtherBranch = true;
 			for (int i = indexToStartAt - 1; i >= 0; --i) {
 				int previousPointID = currentPointID - 1;
 				if (firstOfOtherBranch) {
 					firstOfOtherBranch = false;
-					previousPointID = firstSWCPoint.id;
+                    previousPointID = firstSWCPoint.id;
 				}
 				double radius = 0;
 				if (realRadius) radius = pathToUse.radii[i];
@@ -1008,35 +1002,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (selectedAndNotConnected > 0) throw new SWCExportException(
 			"You must select all the connected paths\n(" + selectedAndNotConnected +
 				" paths (e.g. \"" + disconnectedExample + "\") were not connected.)");
-
-
-		// FIXME: DUP NODES: These should have never occurred in the first place
-//		Iterator<SWCPoint> it = result.iterator();
-//		Set<Integer> idsToRemove = new HashSet<>();
-//		for (int i = 0; i < result.size(); i++) {
-//			final SWCPoint node1 = result.get(i);
-//			for (int j = 1; j < result.size(); j++) {
-//				if (i == j) continue;
-//				final SWCPoint node2 = result.get(j);
-//				if (node2.isSameLocation(node1) && node2.parent == node1.parent) {
-//					idsToRemove.add(node2.id);
-//					System.out.println("Removing #### ");
-//					System.out.println(node2);
-//					System.out.println(node1);
-//				}
-//			}
-//		}
-//
-//		while (it.hasNext()) {
-//			final SWCPoint node = it.next();
-//			if (idsToRemove.contains(node.id)) {
-//				it.remove();
-//			}
-//		}
-//		for (SWCPoint node: result) {
-//			if (idsToRemove.contains(node.parent))
-//				node.parent = -1;
-//		}
 
 		return result;
 	}
@@ -1106,7 +1071,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		enableUIupdates = enableUIstatus;
 		updateBoundingBox();
 		if (enableUIupdates)
-			resetListenersAfterDataChangingOperation(tree.list().get(0));
+			resetListenersAfterDataChangingOperation(tree.list().getFirst());
 	}
 
 	/**
@@ -1140,15 +1105,6 @@ public class PathAndFillManager extends DefaultHandler implements
 	 */
 	public void addPath(final Path p) {
 		addPath(p, false, false);
-	}
-
-	public void addPath(final Path p, final boolean retainTags) {
-		prepPathForAdding(p, true, true, true);
-		if (retainTags) {
-			final String tags = PathManagerUI.extractTagsFromPath(p);
-			p.setName((tags.isEmpty()) ? p.getName() : p.getName() + " {" + tags + "}");
-		}
-		addPathInternal(p);
 	}
 
 	public synchronized void addPath(final Path p,
@@ -1281,8 +1237,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return the path index, or -1 if p was not found
 	 */
 	public synchronized int getPathIndex(final Path p) {
-		int i = 0;
-		for (i = 0; i < allPaths.size(); ++i) {
+		for (int i = 0; i < allPaths.size(); ++i) {
 			if (p == allPaths.get(i)) return i;
 		}
 		return -1;
@@ -1408,9 +1363,10 @@ public class PathAndFillManager extends DefaultHandler implements
 		PrintWriter pw = null;
 
 		try {
+			final java.nio.file.Path path = Paths.get(fileName);
 			if (compress) pw = new PrintWriter(new OutputStreamWriter(
-				new GZIPOutputStream(Files.newOutputStream(Paths.get(fileName))), StandardCharsets.UTF_8));
-			else pw = new PrintWriter(new OutputStreamWriter(Files.newOutputStream(Paths.get(fileName)), StandardCharsets.UTF_8));
+					new GZIPOutputStream(Files.newOutputStream(path)), StandardCharsets.UTF_8));
+			else pw = new PrintWriter(new OutputStreamWriter(Files.newOutputStream(path), StandardCharsets.UTF_8));
 
 			pw.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
 			pw.println("<!DOCTYPE tracings [");
@@ -1699,7 +1655,6 @@ public class PathAndFillManager extends DefaultHandler implements
 			case "path":
 
 				final String idString = attributes.getValue("id");
-
 				final String swcTypeString = attributes.getValue("swctype");
 				final String colorString = attributes.getValue("color");
 				final String channelString = attributes.getValue("channel");
@@ -1707,8 +1662,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				final String spineString = attributes.getValue("spines");
 				final String useFittedString = attributes.getValue("usefitted");
 				final String fittedIDString = attributes.getValue("fitted");
-				final String fittedVersionOfIDString = attributes.getValue(
-						"fittedversionof");
+				final String fittedVersionOfIDString = attributes.getValue("fittedversionof");
 				final String startsonString = attributes.getValue("startson");
 				final String startsindexString = attributes.getValue("startsindex");
 				final String startsxString = attributes.getValue("startsx");
@@ -1722,36 +1676,24 @@ public class PathAndFillManager extends DefaultHandler implements
 				final String nameString = attributes.getValue("name");
 				final String primaryString = attributes.getValue("primary");
 
-				if (startsxString == null && startsyString == null &&
-						startszString == null) {
-					// Do nothing
-				} else if (startsxString != null && startsyString != null &&
-						startszString != null) {
-					// Do nothing
-				} else {
-					throw new TracesFileFormatException(
-							"If one of starts[xyz] is specified, all of them must be.");
+				boolean allNull = Stream.of(startsxString, startsyString, startszString).allMatch(Objects::isNull);
+				boolean noneNull = Stream.of(startsxString, startsyString, startszString).noneMatch(Objects::isNull);
+				if ( !(allNull || noneNull) ) {
+					throw new TracesFileFormatException("If one of starts[xyz] is specified, all of them must be.");
 				}
-
-				if (endsxString == null && endsyString == null && endszString == null) {
-				} else if (endsxString != null && endsyString != null &&
-						endszString != null) {
-				} else {
-					throw new TracesFileFormatException(
-							"If one of ends[xyz] is specified, all of them must be.");
+				allNull = Stream.of(endsxString, endsyString, endszString).allMatch(Objects::isNull);
+				noneNull = Stream.of(endsxString, endsyString, endszString).noneMatch(Objects::isNull);
+				if ( !(allNull || noneNull) ) {
+					throw new TracesFileFormatException("If one of ends[xyz] is specified, all of them must be.");
 				}
 
 				final boolean accurateStartProvided = startsxString != null;
 				final boolean accurateEndProvided = endsxString != null;
-
-				if (startsonString != null && (startsindexString == null &&
-						!accurateStartProvided)) {
+				if (startsonString != null && (startsindexString == null && !accurateStartProvided)) {
 					throw new TracesFileFormatException(
 							"If startson is specified for a path, then startsindex or starts[xyz] must also be specified.");
 				}
-
-				if (endsonString != null && (endsindexString == null &&
-						!accurateEndProvided)) {
+				if (endsonString != null && (endsindexString == null && !accurateEndProvided)) {
 					throw new TracesFileFormatException(
 							"If endson is specified for a path, then endsindex or ends[xyz] must also be specified.");
 				}
@@ -2142,13 +2084,11 @@ public class PathAndFillManager extends DefaultHandler implements
 
 					}
 					if (fittedID != null) {
-						final Path fitted = getPathFromID(fittedID);
-						p.fitted = fitted;
+                        p.fitted = getPathFromID(fittedID);
 						p.setUseFitted(useFitted);
 					}
 					if (fittedVersionOfID != null) {
-						final Path fittedVersionOf = getPathFromID(fittedVersionOfID);
-						p.fittedVersionOf = fittedVersionOf;
+                        p.fittedVersionOf = getPathFromID(fittedVersionOfID);
 					}
 				}
 
@@ -2291,7 +2231,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		while (depthFirstIterator.hasNext()) {
 			final SWCPoint point = depthFirstIterator.next();
 			if (addStartJoin) {
-				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
+				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2342,7 +2282,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		while (!stack.isEmpty()) {
 			final SWCPoint point = stack.pop();
 			if (addStartJoin) {
-				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).get(0);
+				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
 				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
@@ -2738,27 +2678,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		// We'll now iterate (again!) through the points to fix some ill-assembled
 		// files that do exist in the wild defined in pixel coordinates!
-		if (assumeCoordinatesInVoxels) {
-			final double minimumVoxelSpacing = Math.min(Math.abs(x_spacing),
-					Math.min(Math.abs(y_spacing), Math.abs(z_spacing)));
-
-			final Iterator<SWCPoint> it = points.iterator();
-			while (it.hasNext()) {
-				final SWCPoint point = it.next();
-
-				point.x *= x_spacing;
-				point.y *= y_spacing;
-				point.z *= z_spacing;
-				// this just seems to be the convention in the broken files we've came
-				// across
-				point.radius *= minimumVoxelSpacing;
-
-				// If the radius is set to near zero, then artificially set it to half
-				// of the voxel spacing so that something* appears in the 3D Viewer!
-				if (Math.abs(point.radius) < 0.0000001)
-					point.radius = minimumVoxelSpacing / 2;
-			}
-		}
+		if (assumeCoordinatesInVoxels) convertPixelCoordinatesToWorldCoordinates(points);
 
 		// FIXME: This is slow with large SWC files
 		final boolean existingEnableUIupdates = enableUIupdates;
@@ -2841,6 +2761,25 @@ public class PathAndFillManager extends DefaultHandler implements
 			checkForAppropriateImageDimensions();
 		}
 		return true;
+	}
+
+	/**
+	 * Converts point coordinates from voxel space to world space.
+	 */
+	private void convertPixelCoordinatesToWorldCoordinates(final TreeSet<SWCPoint> points) {
+		final double MINIMUM_RADIUS_THRESHOLD = 0.0000001;
+		final double minimumVoxelSpacing = Math.min(Math.abs(x_spacing), Math.min(Math.abs(y_spacing), Math.abs(z_spacing)));
+		for (final SWCPoint point : points) {
+			point.x *= x_spacing;
+			point.y *= y_spacing;
+			point.z *= z_spacing;
+			// this just seems to be the convention in the broken files we've come across
+			point.radius *= minimumVoxelSpacing;
+			// If the radius is set to near zero, then artificially set it to half
+			// of the voxel spacing so that something* appears in the 3D Viewer!
+			if (Math.abs(point.radius) < MINIMUM_RADIUS_THRESHOLD)
+				point.radius = minimumVoxelSpacing / 2;
+		}
 	}
 
 	/**
@@ -2966,12 +2905,9 @@ public class PathAndFillManager extends DefaultHandler implements
 		try {
 
 			is = new BufferedInputStream(Files.newInputStream(Paths.get(filePath)));
-			final BufferedReader br = new BufferedReader(new InputStreamReader(is,
-					StandardCharsets.UTF_8));
-
+			final BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
 			result = importSWC(br, SNTUtils.stripExtension(f.getName()), assumeCoordinatesInVoxels, xOffset, yOffset,
 				zOffset, xScale, yScale, zScale, rScale, replaceAllPaths, swcTypes);
-
 			is.close();
 
 		}
@@ -3040,7 +2976,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 	}
 
-	protected boolean loadUncompressedXML(final String filename, final int...swcTypes) {
+	protected boolean loadUncompressedXML(final String filename) {
 		try {
 			SNTUtils.log("Loading uncompressed file...");
 			return load(new BufferedInputStream(Files.newInputStream(Paths.get(filename))));
@@ -3202,7 +3138,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * stack of this kind.
 	 */
 	synchronized void setPathPointsInVolume(final Collection<Path> paths,
-		final short[][] slices, final int pixelIntensity, final int width, final int height)
+		final short[][] slices, final int pixelIntensity, final int width)
 	{
 		final boolean ignoreDepth = slices.length == 1;
 		short actualPixelIntensity = (short)pixelIntensity;
@@ -3400,25 +3336,6 @@ public class PathAndFillManager extends DefaultHandler implements
 	{
 		return nearestPointOnAnyPath(allPaths, new PointInImage(x, y, z), Math.sqrt(
 			distanceLimit), false);
-	}
-
-	protected List<Path> getAllPathsRenderedInViewPort(
-		final TracerCanvas canvas)
-	{
-		final List<Path> paths = getUnSelectedPathsRenderedInViewPort(canvas);
-		paths.addAll(getSelectedPathsRenderedInViewPort(canvas));
-		return paths;
-	}
-
-	protected List<Path> getSelectedPathsRenderedInViewPort(
-		final TracerCanvas canvas)
-	{
-		final List<Path> paths = new ArrayList<>();
-		for (final Path path : allPaths) {
-			if (path.isSelected() && path.containsUnscaledNodesInViewPort(canvas))
-				paths.add(path);
-		}
-		return paths;
 	}
 
 	protected List<Path> getUnSelectedPathsRenderedInViewPort(
@@ -3684,15 +3601,11 @@ public class PathAndFillManager extends DefaultHandler implements
 		});
 	}
 
-	/*
-	 * A base class for all the methods we might want to use to transform paths.
-	 */
-
+	// A base class for all the methods we might want to use to transform paths.
 	// Note that this will transform fitted Paths but lose the radii
-
+	@SuppressWarnings("unused")
 	public PathAndFillManager transformPaths(final PathTransformer transformation,
-		final ImagePlus templateImage, final ImagePlus modelImage)
-	{
+		final ImagePlus templateImage, final ImagePlus modelImage) {
 
 		double pixelWidth = 1;
 		double pixelHeight = 1;
@@ -3896,7 +3809,6 @@ public class PathAndFillManager extends DefaultHandler implements
 
 }
 
-@SuppressWarnings("serial")
 class TracesFileFormatException extends SAXException {
 
 	public TracesFileFormatException(final String message) {
@@ -3904,8 +3816,7 @@ class TracesFileFormatException extends SAXException {
 	}
 }
 
-@SuppressWarnings("serial")
-class SWCExportException extends Exception {
+class SWCExportException extends IOException {
 
 	public SWCExportException(final String message) {
 		super(message);

@@ -37,10 +37,7 @@ import org.scijava.util.ColorRGBA;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
-import sc.fiji.snt.analysis.AbstractConvexHull;
-import sc.fiji.snt.analysis.ConvexHull2D;
-import sc.fiji.snt.analysis.ConvexHull3D;
-import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
@@ -50,7 +47,7 @@ import sc.fiji.snt.viewer.Viewer3D;
 
 /**
  * Utility class to access a Collection of Paths (typically a complete
- * reconstruction) . A Tree is the preferred way to group, access and manipulate
+ * reconstruction). A Tree is the preferred way to group, access and manipulate
  * {@link Path}s that share something in common, specially when scripting SNT.
  * Note that a "Tree" here is literally a collection of {@link Path}s. Very few
  * restrictions are imposed on its topology, although it is generally assumed
@@ -404,79 +401,6 @@ public class Tree implements TreeProperties {
 		//return subTreePathBased2(swcTypes);
 	}
 
-	Tree subTreePathBased1(final int... swcTypes) {
-		// This fails currently
-		final Tree subtree = new Tree();
-		for (final Path currentPath : list()) {
-			if (currentPath.getName().startsWith("Path 0"))
-				System.out.println(">> Parsing " + currentPath.getName());
-			if (matchesType(currentPath, swcTypes)) {
-
-				final Path p = currentPath.clone();
-				p.somehowJoins.clear();
-				p.children.clear();
-				p.startJoins = null;
-				p.startJoinsPoint = null;
-
-				for (final Path joins : currentPath.somehowJoins) {
-					if (matchesType(joins, swcTypes)) {
-						p.somehowJoins.add(joins);
-					}
-				}
-				for (final Path child : currentPath.children) {
-					if (matchesType(child, swcTypes)) {
-						p.children.add(child);
-					}
-				}
-				if (p.startJoins == null)
-					p.setIsPrimary(true);
-				else if (currentPath.startJoins != null && matchesType(currentPath.startJoins, swcTypes)) {
-					p.startJoins = currentPath.startJoins;
-					p.startJoinsPoint = currentPath.startJoinsPoint;
-				}
-
-				subtree.add(p);
-			}
-		}
-		if (getLabel() != null)
-			subtree.setLabel(getLabel() + " (filtered)");
-		return subtree;
-	}
-
-	Tree subTreePathBased2(final int... swcTypes) {
-		// This alters the # of | branches
-		final Tree subtree = new Tree();
-		ArrayList<Path> pathPool = new ArrayList<>(tree);
-		for (final Path p : pathPool) {
-			if (matchesType(p, swcTypes)) {
-				if (subtree.isEmpty()) {
-					final Path rootPath = p.clone();
-					rootPath.setIsPrimary(true);
-					rootPath.somehowJoins = p.somehowJoins;
-					rootPath.children = p.children;
-					subtree.add(rootPath);
-				} else {
-					subtree.add(p);
-				}
-			}
-		}
-
-		// Now remove all linkages and references to non-filtered paths
-		for (final Path p : subtree.list()) {
-			p.somehowJoins.removeIf(joins -> !matchesType(joins, swcTypes));
-			p.children.removeIf(child -> !matchesType(child, swcTypes));
-			if (p.startJoins == null)
-				p.setIsPrimary(true);
-			else if (!matchesType(p.startJoins, swcTypes)) {
-				p.startJoins = null;
-				p.startJoinsPoint = null;
-			}
-		}
-
-		if (getLabel() != null) subtree.setLabel(getLabel() + " (filtered)");
-		return subtree;
-	}
-
 	/**
 	 * @param swcTypes the swc types
 	 * @return the tree
@@ -526,10 +450,6 @@ public class Tree implements TreeProperties {
 			if (node.type == type) return true;
 		}
 		return false;
-	}
-
-	private boolean matchesType(final Path path, final int... swcTypes) {
-		return Arrays.stream(swcTypes).anyMatch(t -> t == path.getSWCType());
 	}
 
 	public void applyProperties(final Tree tree) {
@@ -668,8 +588,7 @@ public class Tree implements TreeProperties {
 	 * @return Returns true, if soma annotation is valid.
 	 */
 	public boolean validSoma() {
-		final List<Path> somas = tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType())
-				.collect(Collectors.toList());
+		final List<Path> somas = tree.stream().filter(path -> Path.SWC_SOMA == path.getSWCType()).toList();
 		return somas.size() == 1 && somas.stream().allMatch(Path::isPrimary);
 	}
 
@@ -842,7 +761,7 @@ public class Tree implements TreeProperties {
 	public boolean is3D() throws IllegalArgumentException {
 		if (isEmpty())
 			throw new IllegalArgumentException("Tree is empty");
-		final double zRef = tree.get(0).getNodeWithoutChecks(0).getZ();
+		final double zRef = tree.getFirst().getNodeWithoutChecks(0).getZ();
 		for (final Path p : tree) {
 			for (int i = 0; i < p.size(); ++i) {
 				if (p.getNodeWithoutChecks(i).getZ() != zRef) return true;
@@ -903,7 +822,7 @@ public class Tree implements TreeProperties {
 		if (tree.isEmpty()) throw new IllegalArgumentException(
 			"tree contains no paths");
 		final BoundingBox bBox = getBoundingBox(true);
-		final Path referencePath = tree.iterator().next();
+		final Path referencePath = tree.getFirst();
 		bBox.origin().onPath = referencePath;
 		bBox.originOpposite().onPath = referencePath;
 		final PointInCanvas bound1 = bBox.origin().getUnscaledPoint(multiDThreePaneView);
@@ -938,7 +857,6 @@ public class Tree implements TreeProperties {
 			throw new IllegalArgumentException("Only 16-bit images supported");
 		}
 		final int width = destinationImp.getWidth();
-		final int height = destinationImp.getHeight();
 		final int depth = destinationImp.getNSlices();
 		final int channel = destinationImp.getC();
 		final int frame = destinationImp.getT();
@@ -948,7 +866,7 @@ public class Tree implements TreeProperties {
 			slices_data[z] = (short[]) s.getPixels(destinationImp.getStackIndex(channel, z + 1, frame));
 		}
 		initPathAndFillManager();
-		pafm.setPathPointsInVolume(list(), slices_data, value, width, height);
+		pafm.setPathPointsInVolume(list(), slices_data, value, width);
 	}
 
 	/**
@@ -1077,7 +995,7 @@ public class Tree implements TreeProperties {
 		if (color == null)
 			getProperties().remove(TreeProperties.KEY_COLOR);
 		else if (color instanceof ColorRGBA)
-			getProperties().setProperty(TreeProperties.KEY_COLOR, color.toString() + "," + ((ColorRGBA)color).getAlpha());
+			getProperties().setProperty(TreeProperties.KEY_COLOR, color + "," + color.getAlpha());
 		else
 			getProperties().setProperty(TreeProperties.KEY_COLOR, color.toString());
 	}
@@ -1336,9 +1254,7 @@ public class Tree implements TreeProperties {
 				if (swcTypes == null || (swcTypes.length == 1 && "all".equalsIgnoreCase(swcTypes[0]))) {
 					trees.addAll(treesInFile);
 				} else {
-					treesInFile.forEach(t -> {
-						trees.add(t.subTree(swcTypes));
-					});
+					treesInFile.forEach(t -> trees.add(t.subTree(swcTypes)));
 				}
 			}
 		}
@@ -1669,17 +1585,13 @@ public class Tree implements TreeProperties {
 	}
 
 	private PointInImage rotate(final PointInImage pim, final double cos, final double sin, final int untouchedAxis) {
-		switch (untouchedAxis) {
-		// See http://www.petercollingridge.appspot.com/3D-tutorial
-		case Z_AXIS:
-			return new PointInImage(pim.x * cos - pim.y * sin, pim.y * cos + pim.x * sin, pim.z);
-		case Y_AXIS:
-			return new PointInImage(pim.x * cos - pim.z * sin, pim.y, pim.z * cos + pim.x * sin);
-		case X_AXIS:
-			return new PointInImage(pim.x, pim.y * cos - pim.z * sin, pim.z * cos + pim.y * sin);
-		default:
-			throw new IllegalArgumentException("Unrecognized rotation axis" + untouchedAxis);
-		}
+        return switch (untouchedAxis) {
+            // See http://www.petercollingridge.appspot.com/3D-tutorial
+            case Z_AXIS -> new PointInImage(pim.x * cos - pim.y * sin, pim.y * cos + pim.x * sin, pim.z);
+            case Y_AXIS -> new PointInImage(pim.x * cos - pim.z * sin, pim.y, pim.z * cos + pim.x * sin);
+            case X_AXIS -> new PointInImage(pim.x, pim.y * cos - pim.z * sin, pim.z * cos + pim.y * sin);
+            default -> throw new IllegalArgumentException("Unrecognized rotation axis" + untouchedAxis);
+        };
 	}
 
 	private static File getFile(final String filename, final boolean checkIfAvailable) {
@@ -1811,12 +1723,40 @@ public class Tree implements TreeProperties {
 		return renderingTrees;
 	}
 
+	/**
+	 * Retrieves the convex hull defined by all the nodes of this tree.
+	 *
+	 * @return the convex hull. Either {@link ConvexHull2D} (if this tree is two-dimensional) or
+	 * {@link ConvexHull3D} (if this tree is three-dimensional)
+	 */
 	public AbstractConvexHull getConvexHull() {
+		return getConvexHull("all");
+	}
+
+	/**
+	 * Retrieves the convex hull of this tree.
+	 *
+	 * @param type the description of the point cloud defining the convex hull (i.e., "tips"/"end-points",
+	 *             "junctions"/"branch points", or "all" (default))
+	 * @return the convex hull. Either {@link ConvexHull2D} (if this tree is two-dimensional) or
+	 * {@link ConvexHull3D} (if this tree is three-dimensional)
+	 */
+	public AbstractConvexHull getConvexHull(final String type) {
+		return switch (type.toLowerCase().trim()) {
+			case "tips", "endings", "end points", "end-points", "terminals" ->
+					getConvexHull(new TreeStatistics(this).getTips());
+			case "bps", "forks", "junctions", "fork points", "junction points", "branch points" ->
+					getConvexHull(new TreeStatistics(this).getBranchPoints());
+			default -> getConvexHull(getNodes());
+		};
+	}
+
+	private AbstractConvexHull getConvexHull(final Collection<PointInImage> nodes) {
 		AbstractConvexHull hull;
 		if (is3D()) {
-			hull = new ConvexHull3D(SNTUtils.getContext(), getNodes());
+			hull = new ConvexHull3D(SNTUtils.getContext(), nodes);
 		} else {
-			hull = new ConvexHull2D(SNTUtils.getContext(), getNodes());
+			hull = new ConvexHull2D(SNTUtils.getContext(), nodes);
 		}
 		return hull;
 	}

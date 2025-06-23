@@ -511,7 +511,7 @@ public class SNTService extends AbstractService {
 	 *
 	 * @param tree a string describing the type of demo tree. Either 'fractal' for
 	 *             the L-system toy neuron, 'pyramidal' for the dendritic arbor of
-	 *             mouse pyramidal cell (MouseLight's cell AA0001, 'OP1'for the
+	 *             mouse pyramidal cell (MouseLight's cell AA0001), 'OP1'for the
 	 *             DIADEM OP_1 reconstruction, or 'DG' for the dentate gyrus granule cell
 	 *             (Neuromorpho's Beining archive)
 	 * @see #demoImage(String)
