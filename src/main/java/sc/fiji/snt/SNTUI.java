@@ -56,6 +56,7 @@ import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.tracing.cost.OneMinusErf;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.Timer;
@@ -324,6 +325,15 @@ public class SNTUI extends JDialog {
 		tab3.add(GuiUtils.longSmallMsg(msg3, tab3), c3);
 		c3.gridy++;
 		tab3.add(sciViewerPanel(), c3);
+		c3.gridy++;
+		InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", true, c3);
+		++c3.gridy;
+		final String msg4 = "EXPERIMENTAL: Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
+				"capable of GPU volume rendering of images too large to fit into memory. Currently, support " +
+				"for BVV remains limited as only image data is rendered.";
+		tab3.add(GuiUtils.longSmallMsg(msg4, tab3), c3);
+		c3.gridy++;
+		tab3.add(bvvPanel(), c3);
 		c3.gridy++;
 		InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
 		++c3.gridy;
@@ -2124,6 +2134,55 @@ public class SNTUI extends JDialog {
 		panel.add(openSciView, gdb);
 		panel.add(svSyncPathManager, gdb);
 		return panel;
+	}
+
+	private JPanel bvvPanel() {
+		final JButton openBVV = new JButton("Open BigVolumeViewer");
+		registerInCommandFinder(openBVV, null, "3D Tab");
+		openBVV.addActionListener(e -> {
+			if (!plugin.accessToValidImageData()) {
+				noValidImageDataError();
+			} else if (plugin.is2D()) {
+				error("Current image has no depth: BVV can only render three-dimensional images.");
+			} else {
+				initializeBvvFromPrompt();
+			}
+		});
+		// Build panel
+		final JPanel panel = new JPanel(new GridBagLayout());
+		final GridBagConstraints gdb = new GridBagConstraints();
+		gdb.fill = GridBagConstraints.HORIZONTAL;
+		gdb.weightx = 0.5;
+		panel.add(openBVV, gdb);
+		return panel;
+	}
+
+	private void initializeBvvFromPrompt() {
+		final String[] choices = new String[] { "Full image", "Only data being traced", "Secondary layer"};
+		final String defChoice = plugin.getPrefs().getTemp("bvvChoice", choices[0]);
+		final String choice = guiUtils.getChoice("Render which kind of data?", "Which Image?", choices, defChoice);
+		if (choice == null)
+			return;
+		if (choices[2].equals(choice) && !plugin.isSecondaryDataAvailable()) {
+			noSecondaryDataAvailableError();
+			return;
+		}
+		try {
+			if (choices[0].equals(choice)) {
+				new Bvv(plugin).showImagePlus(plugin.getImagePlus());
+			} else if (choices[1].equals(choice)) {
+				new Bvv(plugin).showLoadedData();
+			} else if (plugin.isSecondaryDataAvailable()) {
+				new Bvv(plugin).showSecondaryData();
+			} else {
+				noSecondaryDataAvailableError();
+			}
+		} catch (final Throwable exc) {
+			exc.printStackTrace();
+			error(exc.getMessage());
+		} finally {
+			plugin.getPrefs().setTemp("bvvChoice", choice);
+		}
 	}
 
 	private void no3DcapabilitiesError(final String viewer) {

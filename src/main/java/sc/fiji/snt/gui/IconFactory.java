@@ -258,6 +258,10 @@ public class IconFactory {
 		return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
 	}
 
+	public static Icon buttonIcon(final char symbol, final boolean solid) {
+		return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, defaultColor(), solid);
+	}
+
 	public static Icon menuIcon(final GLYPH entry) {
 		return menuIcon(entry, defaultColor());
 	}

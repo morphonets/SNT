@@ -2675,7 +2675,7 @@ public class GuiUtils {
 		public static JButton help(final String url) {
 			final JButton button = new JButton();
 			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);
-			button.addActionListener(e -> GuiUtils.openURL(url));
+			if (url != null) button.addActionListener(e -> GuiUtils.openURL(url));
 			return button;
 		}
 
