@@ -95,6 +95,7 @@ public class SearchField extends JTextField {
 
     private void initRegexButton() {
         regexButton = new JToggleButton(" .* "); // too narrow on macOS only!?
+        regexButton.setFont(regexButton.getFont().deriveFont(Font.BOLD));
         adjustButton(regexButton);
         regexButton.setToolTipText("Enable Wildcards");
     }

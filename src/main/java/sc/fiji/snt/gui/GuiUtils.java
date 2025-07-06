@@ -2423,7 +2423,7 @@ public class GuiUtils {
 
 		public static JMenuItem measureOptions() {
 			final JMenuItem jmi = new JMenuItem("Measure...", IconFactory.menuIcon(GLYPH.TABLE));
-			jmi.setToolTipText("Compute detailed metrics from single cells");
+			jmi.setToolTipText("Compute detailed metrics & statistics from single cells");
 			return jmi;
 		}
 

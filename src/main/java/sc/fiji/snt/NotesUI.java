@@ -66,7 +66,7 @@ public class NotesUI {
         final String msg = """
                 This pane allows you to jot down notes during a tracing session.
                 Similarly to Bookmarks, notes are not autosaved and must be \
-                saved manually. Markdown syntax is supported.
+                exported manually. Markdown syntax is supported.
                 """;
         gbc.weighty = 0.0;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);

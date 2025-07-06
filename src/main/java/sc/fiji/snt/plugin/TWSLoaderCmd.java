@@ -34,13 +34,11 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.SwingSafeResult;
 import trainableSegmentation.Weka_Segmentation;
 
 import java.lang.reflect.Field;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -101,8 +99,7 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 			ij.IJ.run("Channels Tool...");
 		}
 		run((trainingImage.getNSlices() == 1) ? "" : "3D");
-		twsWin = getTWSgui();
-		ij.IJ.wait(500); // ensure GUI is fully displayed
+		twsWin = SwingSafeResult.getResult(this::getTWSgui);
 	}
 
 	private ImagePlus getTWSdisplayImage() {
@@ -189,9 +186,10 @@ public class TWSLoaderCmd extends Weka_Segmentation implements Command {
 						IntStream.rangeClosed(1, imp.getNFrames()).forEach(t -> {
 							final List<Roi> rois = RoiConverter.getROIs(overlay, ch, z, t);
 							rois.forEach(roi -> {
+								assert twsImp != null;
 								final int stackSlice = imp.getStackIndex(ch, z, t);
 								//twsImp.setPosition(stackSlice);
-								twsImp.killRoi();
+                                twsImp.killRoi();
 								twsImp.setRoi(roi);
 								final int classNum = ch - 1; // 0-based index
 								addTrace("" + classNum, "" + stackSlice);
