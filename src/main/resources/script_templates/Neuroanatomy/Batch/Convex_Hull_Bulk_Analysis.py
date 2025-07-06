@@ -52,9 +52,8 @@ def main():
             # has undefined behavior.
             is_3D = tree.is3D()
             hull_class = ConvexHull3D if is_3D else ConvexHull2D
-            compute_size = False  # We'll use ImageJ Ops to compute metrics on the result
-            # Construct the hull instance (non-computed)
-            hull = hull_class(ij.context(), tree.getNodes(), compute_size)
+            # Construct the hull instance
+            hull = hull_class(ij.context(), tree.getNodes())
             # Carry out the computation
             hull.compute()
             # Get the geometric representation of the hull

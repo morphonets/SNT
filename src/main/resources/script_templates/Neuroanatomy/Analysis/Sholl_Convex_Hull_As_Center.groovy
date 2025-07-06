@@ -38,11 +38,11 @@ parser = new TreeParser(tree)
 // radial arbors, but here we'll proceed with the loaded pyramidal neuron. 
 // We'll compute tne convex hull, i.e., a mesh if a 3D reconstruction, or a
 // polygon if 2D, and set the Sholl center to the centroid of the convex hull
-hull2D = new ConvexHull2D(tree.getNodes(), true)
+hull2D = new ConvexHull2D(tree.getNodes())
 hull2D.compute()
 centroid2D = ops.geom().centroid(hull2D.getPolygon())
 if (tree.is3D()) {
-    hull3D = new ConvexHull3D(tree.getNodes(), true)
+    hull3D = new ConvexHull3D(tree.getNodes())
     hull3D.compute()
     centroid3D = ops.geom().centroid(hull3D.getMesh())
     parser.setCenter(centroid3D.positionAsDoubleArray())
