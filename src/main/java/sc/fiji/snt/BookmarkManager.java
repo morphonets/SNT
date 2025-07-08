@@ -321,9 +321,10 @@ public class BookmarkManager {
         expButton.addActionListener(e -> {
             if (!noBookmarksError()) expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2);
         });
-        final JSpinner spinner = GuiUtils.integerSpinner(visitingZoomPercentage, 100, 3200, 100, true);
+        final JSpinner spinner = GuiUtils.integerSpinner(Math.clamp(visitingZoomPercentage, 25, 3200),
+                25, 3200, 50, true);
         spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
-        spinner.setToolTipText("The preferred zoom level (between 100 and 3200%) for visiting a bookmarked location");
+        spinner.setToolTipText("The preferred zoom level (between 25 and 3200%) for visiting a bookmarked location");
         final JButton autoButton = GuiUtils.Buttons.undo();
         autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         autoButton.addActionListener(e -> {
@@ -331,6 +332,7 @@ public class BookmarkManager {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
             } else {
                 resetVisitingZoom();
+                visitingZoomPercentage = Math.clamp(visitingZoomPercentage, 25, 3200);
                 spinner.setValue(visitingZoomPercentage);
             }
         });
