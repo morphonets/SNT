@@ -107,7 +107,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 
 	@Override
 	public void initialize() {
-		if (sntService.isActive() && sntService.getUI() != null) {
+		if (sntService != null && sntService.isActive() && sntService.getUI() != null) {
 			exit("SNT seems to be already running.");
 			return;
 		}

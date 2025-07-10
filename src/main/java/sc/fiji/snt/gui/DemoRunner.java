@@ -379,12 +379,12 @@ public class DemoRunner {
 				super.load();
 				if (snt.getPathAndFillManager().size() > 1) {
 					snt.getImagePlus().setPosition(1, 20, 1);
-					snt.getUI().setVisibilityFilter("Z-slices", true);
 					snt.enableSnapCursor(false);
 					snt.getUI().runCommand("Display/Rebuild ZY/XZ Views");
 					if (!snt.getDrawDiameters())
 						snt.getUI().runCommand("Draw diameters");
 					snt.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>());
+					snt.getUI().setVisibilityFilter("Z-slices", true);
 				}
 			}
 		};

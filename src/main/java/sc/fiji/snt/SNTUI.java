@@ -509,7 +509,7 @@ public class SNTUI extends JDialog {
 	 * @param enable true to enable debug mode, otherwise false
 	 */
 	public void setEnableDebugMode(final boolean enable) {
-		debugCheckBox.setSelected(enable);
+		SwingUtilities.invokeLater(() -> debugCheckBox.setSelected(enable));
 		if (getReconstructionViewer(false) == null) {
 			SNTUtils.setDebugMode(enable);
 		} else {
@@ -774,13 +774,15 @@ public class SNTUI extends JDialog {
 	public void setVisibilityFilter(final String filter, final boolean state) {
 		assert SwingUtilities.isEventDispatchThread();
 		final String normFilter = filter.toLowerCase();
-		if (normFilter.contains("selected")) {
-			showPathsSelected.setSelected(state);
-		} else if (normFilter.contains("z") || normFilter.contains("slices")) {
-			partsNearbyCSpinner.getCheckBox().setSelected(state);
-		} else if (normFilter.contains("channel") || normFilter.contains("frame")) {
-			onlyActiveCTposition.setSelected(state);
-		}
+		SwingUtilities.invokeLater( () -> {
+			if (normFilter.contains("selected")) {
+				showPathsSelected.setSelected(state);
+			} else if (normFilter.contains("z") || normFilter.contains("slices")) {
+				partsNearbyCSpinner.getCheckBox().setSelected(state);
+			} else if (normFilter.contains("channel") || normFilter.contains("frame")) {
+				onlyActiveCTposition.setSelected(state);
+			}
+		});
 	}
 
 	/**
