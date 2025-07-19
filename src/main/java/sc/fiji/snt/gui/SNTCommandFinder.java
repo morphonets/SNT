@@ -73,6 +73,11 @@ public class SNTCommandFinder {
     private CmdTable table;
     private boolean scriptCall;
 
+    /**
+     * Constructs a new SNTCommandFinder for the specified SNTUI instance.
+     *
+     * @param sntui the SNTUI instance to associate with this command finder
+     */
     public SNTCommandFinder(final SNTUI sntui) {
         this.sntui = sntui;
         this.viewer3D = null;
@@ -83,6 +88,11 @@ public class SNTCommandFinder {
         widestCmd = "Path Visibility Filter: 3. Only Active Channel/Frame  ";
     }
 
+    /**
+     * Constructs a new SNTCommandFinder for the specified Viewer3D instance.
+     *
+     * @param viewer3D the Viewer3D instance to associate with this command finder
+     */
     public SNTCommandFinder(final Viewer3D viewer3D) {
         this.sntui = null;
         this.viewer3D = viewer3D;
@@ -135,6 +145,9 @@ public class SNTCommandFinder {
         return action;
     }
 
+    /**
+     * Disposes of this command finder and its associated resources.
+     */
     public void dispose() {
         if (frame != null)
             frame.dispose();
@@ -409,6 +422,11 @@ public class SNTCommandFinder {
         recorder.recordCmd("viewer.runCommand(\"" + cmdAction.id + "\")");
     }
 
+    /**
+     * Sets the script recorder for this command finder.
+     *
+     * @param recorder the ScriptRecorder instance to use for recording commands
+     */
     public void setRecorder(final ScriptRecorder recorder) {
         this.recorder = recorder;
         if (cmdScrapper.scrapeFailed())
@@ -443,6 +461,9 @@ public class SNTCommandFinder {
             recorder.recordComment(string);
     }
 
+    /**
+     * Toggles the visibility of the command finder window.
+     */
     public void toggleVisibility() {
         if (frame == null || table == null) {
             assemblePalette();

@@ -43,6 +43,12 @@ public class SearchField extends JTextField {
     private JToggleButton wordButton;
     private JToggleButton regexButton;
 
+    /**
+     * Constructs a new SearchField with the specified placeholder text and visible buttons.
+     *
+     * @param placeholder the placeholder text to display when the field is empty
+     * @param visibleButtons the buttons to make visible (use bitwise OR of button constants)
+     */
     public SearchField(final String placeholder, final int visibleButtons) {
         super();
         if (placeholder != null)

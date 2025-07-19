@@ -92,6 +92,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	private final PrefService prefService;
 
+	/**
+	 * Constructs a new SNTPrefs instance for the specified SNT instance.
+	 *
+	 * @param snt the SNT instance to manage preferences for
+	 */
 	public SNTPrefs(final SNT snt) {
 		this.snt = snt;
 		prefService = snt.getContext().getService(PrefService.class);
@@ -124,38 +129,90 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		ij1PointerCursor = Prefs.usePointerCursor;
 	}
 
+	/**
+	 * Gets a boolean preference value.
+	 *
+	 * @param key the preference key
+	 * @param defaultValue the default value if the key is not found
+	 * @return the boolean preference value
+	 */
 	public boolean getBoolean(final String key, final boolean defaultValue) {
 		return prefService.getBoolean(SNTPrefs.class, key, defaultValue);
 	}
 
+	/**
+	 * Gets a string preference value.
+	 *
+	 * @param key the preference key
+	 * @param defaultValue the default value if the key is not found
+	 * @return the string preference value
+	 */
 	public String get(final String key, final String defaultValue) {
 		return prefService.get(SNTPrefs.class, key, defaultValue);
 	}
 
+	/**
+	 * Sets a string preference value.
+	 *
+	 * @param key the preference key
+	 * @param defaultValue the value to set
+	 */
 	public void set(final String key, final String defaultValue) {
 		prefService.put(SNTPrefs.class, key, defaultValue);
 	}
 
+	/**
+	 * Sets a boolean preference value.
+	 *
+	 * @param key the preference key
+	 * @param defaultValue the value to set
+	 */
 	public void set(final String key, final boolean defaultValue) {
 		prefService.put(SNTPrefs.class, key, defaultValue);
 	}
 
+	/**
+	 * Gets a temporary boolean preference value that will be cleared at session end.
+	 *
+	 * @param key the preference key
+	 * @param defaultValue the default value if the key is not found
+	 * @return the boolean preference value
+	 */
 	public boolean getTemp(final String key, final boolean defaultValue) {
 		final String k = "snt." + key;
 		return Prefs.get(k, defaultValue);
 	}
 
+	/**
+	 * Sets a temporary boolean preference value that will be cleared at session end.
+	 *
+	 * @param key the preference key
+	 * @param value the value to set
+	 */
 	public void setTemp(final String key, final boolean value) {
 		final String k = "snt." + key;
 		Prefs.set(k, value);
 		tempKeys.add(k);
 	}
 
+	/**
+	 * Gets a temporary string preference value that will be cleared at session end.
+	 *
+	 * @param key the preference key
+	 * @param defaultValue the default value if the key is not found
+	 * @return the string preference value
+	 */
 	public String getTemp(final String key, final String defaultValue) {
 		final String k = "snt." + key;
 		return Prefs.get(k, defaultValue);
 	}
 
+	/**
+	 * Sets a temporary string preference value that will be cleared at session end.
+	 *
+	 * @param key the preference key
+	 * @param value the value to set
+	 */
 	public void setTemp(final String key, final String value) {
 		final String k = "snt." + key;
 		Prefs.set(k, value);
@@ -277,26 +334,56 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.savePreferences();
 	}
 
+	/**
+	 * Checks if 2D display canvas is forced.
+	 *
+	 * @return true if 2D display canvas is forced, false otherwise
+	 */
 	public boolean is2DDisplayCanvas() {
 		return getPref(FORCE_2D_DISPLAY_CANVAS);
 	}
 
+	/**
+	 * Sets whether to force 2D display canvas.
+	 *
+	 * @param bool true to force 2D display canvas, false otherwise
+	 */
 	public void set2DDisplayCanvas(final boolean bool) {
 		setPref(FORCE_2D_DISPLAY_CANVAS, bool);
 	}
 
+	/**
+	 * Checks if traces should be saved in compressed format.
+	 *
+	 * @return true if compressed traces are enabled, false otherwise
+	 */
 	public boolean isSaveCompressedTraces() {
 		return getPref(COMPRESSED_XML);
 	}
 
+	/**
+	 * Sets whether to save traces in compressed format.
+	 *
+	 * @param bool true to enable compressed traces, false otherwise
+	 */
 	public void setSaveCompressedTraces(final boolean bool) {
 		setPref(COMPRESSED_XML, bool);
 	}
 
+	/**
+	 * Checks if window locations should be saved and restored.
+	 *
+	 * @return true if window locations are saved, false otherwise
+	 */
 	public boolean isSaveWinLocations() {
 		return getPref(STORE_WIN_LOCATIONS);
 	}
 
+	/**
+	 * Sets whether window locations should be saved and restored.
+	 *
+	 * @param value true to save window locations, false otherwise
+	 */
 	public void setSaveWinLocations(final boolean value) {
 		setPref(STORE_WIN_LOCATIONS, value);
 	}
@@ -305,24 +392,49 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(VERSION_CHECK, (b) ? null : SNTUtils.VERSION);
 	}
 
+	/**
+	 * Checks if this is the first run after an SNT update.
+	 *
+	 * @return true if this is the first run after an update, false otherwise
+	 */
 	public static boolean firstRunAfterUpdate() {
 		final String lastVersion = Prefs.get(VERSION_CHECK, null);
 		Prefs.set(VERSION_CHECK, SNTUtils.VERSION);
 		return lastVersion == null || VersionUtils.compare(SNTUtils.VERSION, lastVersion) > 0;
 	}
 
+	/**
+	 * Sets the number of threads to use for multi-threaded operations.
+	 *
+	 * @param n the number of threads (if less than 1, uses available processors)
+	 */
 	public static void setThreads(int n) {
 		Prefs.setThreads((n < 1) ? Runtime.getRuntime().availableProcessors() : n);
 	}
 
+	/**
+	 * Gets the current look and feel preference.
+	 *
+	 * @return the look and feel class name
+	 */
 	public static String getLookAndFeel() {
 		return Prefs.get("snt.laf", getDefaultLookAndFeel());
 	}
 
+	/**
+	 * Sets the look and feel preference.
+	 *
+	 * @param laf the look and feel class name
+	 */
 	public static void setLookAndFeel(final String laf) {
 		Prefs.set("snt.laf", laf);
 	}
 
+	/**
+	 * Gets the current number of threads setting.
+	 *
+	 * @return the number of threads
+	 */
 	public static int getThreads() {
 		return Prefs.getThreads();
 	}

@@ -62,6 +62,12 @@ public interface SNTPoint {
 
 	public char getHemisphere();
 
+	/**
+	 * Computes the average position of a collection of SNTPoints.
+	 *
+	 * @param points the collection of points to average
+	 * @return the average point, or null if the collection is null or empty
+	 */
 	public static PointInImage average(final Collection<? extends SNTPoint> points) {
 		if (points == null || points.isEmpty())
 			return null;

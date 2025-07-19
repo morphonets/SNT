@@ -43,6 +43,12 @@ public class UnaryComputerOpCellLoader<T, S extends NativeType<S>, R extends Ran
 
     private final UnaryComputerOp<R, RandomAccessibleInterval<S>> op;
 
+    /**
+     * Constructs a new UnaryComputerOpCellLoader with the specified source and operation.
+     *
+     * @param source the source data
+     * @param op the unary computer operation to apply
+     */
     public UnaryComputerOpCellLoader(final R source, final UnaryComputerOp<R, RandomAccessibleInterval<S>> op) {
         this.source = source;
         this.op = op;

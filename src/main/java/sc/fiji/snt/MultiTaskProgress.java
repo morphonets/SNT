@@ -24,8 +24,17 @@ package sc.fiji.snt;
 
 interface MultiTaskProgress {
 
+	/**
+	 * Updates the progress of a specific task.
+	 *
+	 * @param proportionDone the proportion of the task completed (0.0 to 1.0)
+	 * @param taskIndex the index of the task being updated
+	 */
 	public void updateProgress(double proportionDone, int taskIndex);
 
+	/**
+	 * Called when all tasks are completed.
+	 */
 	public void done();
 
 }

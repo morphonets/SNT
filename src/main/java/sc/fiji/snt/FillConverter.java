@@ -58,6 +58,11 @@ public class FillConverter {
 		}
 	}
 
+    /**
+     * Constructs a new FillConverter with the specified collection of FillerThread objects.
+     *
+     * @param fillers the collection of FillerThread objects to be used for conversion
+     */
     public FillConverter(final Collection<FillerThread> fillers) {
         this.fillers = fillers;
     }

@@ -34,6 +34,13 @@ public class PointInCanvas extends PointInImage implements SNTPoint {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
+	/**
+	 * Constructs a new PointInCanvas with the specified coordinates.
+	 *
+	 * @param x the x coordinate
+	 * @param y the y coordinate
+	 * @param z the z coordinate
+	 */
 	public PointInCanvas(final double x, final double y, final double z) {
 		super(x, y, z);
 	}

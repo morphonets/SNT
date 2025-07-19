@@ -458,6 +458,13 @@ public class Viewer3D {
 			view.get2DLayout().setBothAxisFlip(enable);
 	}
 
+	/**
+	 * Sets custom labels for the 3D coordinate axes.
+	 *
+	 * @param labels the axis labels in order: X-axis, Y-axis, Z-axis.
+	 *               If null, defaults to "X", "Y", "Z". If fewer than 3 labels
+	 *               are provided, only the available axes are labeled.
+	 */
 	public void setAxesLabels(final String... labels) {
 		if (labels == null) {
 			view.getAxisLayout().setXAxisLabel("X");
@@ -531,6 +538,17 @@ public class Viewer3D {
 		updateView();
 	}
 
+	/**
+	 * Creates a duplicate of this viewer containing only visible objects.
+	 * <p>
+	 * This method creates a new Viewer3D instance and copies all currently visible
+	 * objects (trees, meshes, annotations) from this viewer to the new one. The
+	 * duplicate viewer maintains the same visual settings and object properties
+	 * but operates independently from the original.
+	 * </p>
+	 *
+	 * @return a new Viewer3D instance containing copies of all visible objects
+	 */
 	public Viewer3D duplicate() {
 		SNTUtils.log("Duplicating viewer... (visible objects only)");
 
@@ -1452,6 +1470,19 @@ public class Viewer3D {
 		return frame;
 	}
 
+	/**
+	 * Gets the frame containing this viewer, optionally controlling its visibility.
+	 * <p>
+	 * Returns the AWT Frame that contains this viewer's 3D canvas and UI components.
+	 * If no frame exists, one will be created with the specified visibility setting.
+	 * This method is useful when you need to control whether the viewer window
+	 * appears immediately or remains hidden for programmatic manipulation.
+	 * </p>
+	 *
+	 * @param visible whether the frame should be visible when created
+	 * @return the frame containing the viewer
+	 * @throws IllegalArgumentException if using an offscreen rendering engine
+	 */
 	public Frame getFrame(final boolean visible) {
 		if (frame == null) {
 			if (Engine.OFFSCREEN == ENGINE) {
@@ -1672,11 +1703,25 @@ public class Viewer3D {
 		return removed;
 	}
 
+	/**
+	 * Removes the annotation with the specified label from the viewer.
+	 *
+	 * @param annotLabel the label identifying the annotation to remove
+	 * @return true if the annotation was successfully removed, false if no
+	 *         annotation with the specified label was found
+	 */
 	public boolean removeAnnotation(final String annotLabel) {
 		final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(annotLabel);
 		return removeAnnotation(labelAndManagerEntry[0], labelAndManagerEntry[1]);
 	}
 
+	/**
+	 * Removes the specified annotation from the viewer.
+	 *
+	 * @param annot the Annotation3D object to remove
+	 * @return true if the annotation was successfully removed, false if the
+	 *         annotation was not found in this viewer
+	 */
 	public boolean removeAnnotation(final Annotation3D annot) {
 		if (plottedAnnotations.containsValue(annot)) {
 			chart.remove(annot.getDrawable(), viewUpdatesEnabled);
@@ -1812,6 +1857,13 @@ public class Viewer3D {
 		}
 	}
 
+	/**
+	 * Resets the view to its default position and orientation.
+	 * <p>
+	 * This method restores the camera to its initial position, orientation, and
+	 * zoom level, providing a consistent starting point for viewing the scene.
+	 * </p>
+	 */
 	public void resetView() {
 		keyController.resetView();
 	}
@@ -3507,6 +3559,14 @@ public class Viewer3D {
 		return (frame == null) ? null : frame.managerPanel;
 	}
 
+	/**
+	 * Gets the script recorder for this viewer, optionally creating one if needed.
+	 *
+	 * @param createIfNeeded if true, creates a new recorder if one doesn't exist;
+	 *                      if false, returns null when no recorder exists
+	 * @return the ScriptRecorder instance, or null if none exists and
+	 *         createIfNeeded is false
+	 */
 	public ScriptRecorder getRecorder(final boolean createIfNeeded) {
 		if (recorder == null && createIfNeeded) {
 			recorder = new ScriptRecorder();

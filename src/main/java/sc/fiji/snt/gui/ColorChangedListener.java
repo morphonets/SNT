@@ -27,5 +27,10 @@ import java.awt.*;
 /** Interface for monitoring changes in {@link ColorChooserButton}. */
 public interface ColorChangedListener {
 
+	/**
+	 * Called when a color has been changed.
+	 *
+	 * @param newColor the new color that was selected
+	 */
 	public void colorChanged(Color newColor);
 }

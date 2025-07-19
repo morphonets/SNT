@@ -264,14 +264,29 @@ public class OBJMesh {
 		return (label == null) ? loader.getLabel() : label;
 	}
 
+	/**
+	 * Sets the label for this mesh.
+	 *
+	 * @param label the label to set
+	 */
 	public void setLabel(final String label) {
 		this.label = label;
 	}
 	
+	/**
+	 * Sets the volume of this mesh.
+	 *
+	 * @param volume the volume to set
+	 */
 	public void setVolume(final double volume) {
 		this.volume = volume;
 	}
 	
+	/**
+	 * Gets the volume of this mesh.
+	 *
+	 * @return the mesh volume
+	 */
 	public double getVolume() {
 		return this.volume;
 	}

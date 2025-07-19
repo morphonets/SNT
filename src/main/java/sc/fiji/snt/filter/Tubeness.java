@@ -80,10 +80,24 @@ public class Tubeness<T extends RealType<T>, U extends RealType<U>> extends
         // empty constructor: fix for https://github.com/morphonets/SNT/issues/173
     }
 
+    /**
+     * Constructs a Tubeness filter with the specified scales and spacing.
+     * Uses the default number of threads (available processors).
+     *
+     * @param scales the scales for multi-scale analysis
+     * @param spacing the pixel spacing in each dimension
+     */
     public Tubeness(final double[] scales, final double[] spacing) {
         this(scales, spacing, Runtime.getRuntime().availableProcessors());
     }
 
+    /**
+     * Constructs a Tubeness filter with the specified scales, spacing, and number of threads.
+     *
+     * @param scales the scales for multi-scale analysis
+     * @param spacing the pixel spacing in each dimension
+     * @param numThreads the number of threads to use for computation
+     */
     public Tubeness(final double[] scales, final double[] spacing, final int numThreads) {
         this.scales = scales;
         this.spacing = spacing;

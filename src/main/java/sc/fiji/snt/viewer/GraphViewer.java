@@ -53,10 +53,21 @@ public class GraphViewer {
     private final SNTGraph<?, ? extends DefaultWeightedEdge> graph;
     private GraphEditor editor;
 
+    /**
+     * Constructs a new GraphViewer for the specified graph.
+     *
+     * @param inputGraph the SNTGraph to be visualized
+     */
     public GraphViewer(final SNTGraph<?, ? extends DefaultWeightedEdge> inputGraph) {
         this.graph = inputGraph;
     }
 
+    /**
+     * Sets the SciJava context for this viewer.
+     *
+     * @param context the SciJava context
+     * @throws NullContextException if context is null
+     */
     public void setContext(final Context context) {
         if (context == null) throw new NullContextException("Context cannot be null!");
         context.inject(this);
@@ -68,6 +79,11 @@ public class GraphViewer {
         return context;
     }
 
+    /**
+     * Gets the GraphEditor for this viewer.
+     *
+     * @return the GraphEditor instance
+     */
     public GraphEditor getEditor() {
     	if (editor == null) initEditor();
     	return editor;

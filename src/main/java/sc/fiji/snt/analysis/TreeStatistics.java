@@ -1091,6 +1091,16 @@ public class TreeStatistics extends ContextCommand {
         return getHistogram(normMeasurement, datasetPlus);
     }
 
+    /**
+     * Assembles a polar histogram for the specified metric (assumed to be an angular
+     * measurements (e.g., branch angles, path orientations).
+     *
+     * @param metric the metric to be plotted (e.g., {@link #BRANCH_EXTENSION_ANGLE_XY},
+     *               {@link #PATH_EXT_ANGLE_XY}, etc.)
+     * @return the polar histogram chart
+     * @throws UnknownMetricException if the metric is not recognized
+     * @see #getHistogram(String)
+     */
     public SNTChart getPolarHistogram(final String metric) {
         final String normMeasurement = getNormalizedMeasurement(metric);
         final HistogramDatasetPlus datasetPlus = new HDPlus(normMeasurement);

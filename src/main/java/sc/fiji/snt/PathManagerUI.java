@@ -1711,18 +1711,38 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return table;
 	}
 
+	/**
+	 * Gets the SNT instance associated with this Path Manager.
+	 *
+	 * @return the SNT instance
+	 */
 	public SNT getSNT() {
 		return plugin;
 	}
 
+	/**
+	 * Gets the PathAndFillManager instance.
+	 *
+	 * @return the PathAndFillManager instance
+	 */
 	public PathAndFillManager getPathAndFillManager() {
 		return pathAndFillManager;
 	}
 
+	/**
+	 * Gets the JTree component used to display paths.
+	 *
+	 * @return the JTree component
+	 */
 	public JTree getJTree() {
 		return tree;
 	}
 
+	/**
+	 * Gets the Searchable interface for the JTree.
+	 *
+	 * @return the Searchable interface
+	 */
 	public Searchable getSearchable() {
 		return tree.searchable;
 	}
@@ -1978,10 +1998,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		return new Tree(getSelectedPaths(true));
 	}
 
+	/**
+	 * Clears the current path selection.
+	 */
 	public void clearSelection() {
 		tree.clearSelection();
 	}
 
+	/**
+	 * Selects all paths.
+	 */
 	public void selectAll() {
 		tree.setSelectionInterval(0, tree.getRowCount());
 	}

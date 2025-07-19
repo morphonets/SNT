@@ -43,6 +43,7 @@ import sc.fiji.snt.util.PointInImage;
 public class NearPoint implements Comparable<NearPoint> {
 
 	private final Path path;
+	/** The index of this point within its associated path */
 	public final int indexInPath;
 	private final double distanceSquared;
 	private Double cachedDistanceToPathNearPoint;

@@ -51,20 +51,42 @@ public class BiSearchArtist implements SearchArtist {
     private Color closedColor;
     private double drawingThreshold = -1;
 
+    /**
+     * Constructs a new BiSearchArtist with the specified search and colors.
+     *
+     * @param search the BiSearch instance to visualize
+     * @param openColor the color for open nodes
+     * @param closedColor the color for closed nodes
+     */
     public BiSearchArtist(final BiSearch search, final Color openColor, final Color closedColor) {
         this.search = search;
         this.openColor = openColor;
         this.closedColor = closedColor;
     }
 
+    /**
+     * Sets the color for open nodes.
+     *
+     * @param color the color to set
+     */
     public void setOpenColor(final Color color) {
         this.openColor = color;
     }
 
+    /**
+     * Sets the color for closed nodes.
+     *
+     * @param color the color to set
+     */
     public void setClosedColor(final Color color) {
         this.closedColor = color;
     }
 
+    /**
+     * Sets the drawing threshold for visualization.
+     *
+     * @param threshold the threshold value
+     */
     public void setDrawingThreshold(final double threshold) {
         this.drawingThreshold =  threshold;
     }

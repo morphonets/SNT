@@ -37,8 +37,18 @@ import java.awt.*;
  */
 public class SearchArtistFactory {
 
+    /**
+     * Constructs a new SearchArtistFactory.
+     */
     public SearchArtistFactory() {}
 
+    /**
+     * Creates a SearchArtist for the specified search interface.
+     *
+     * @param search the SearchInterface to create an artist for
+     * @return the appropriate SearchArtist
+     * @throws UnsupportedOperationException if the search type is not supported
+     */
     public SearchArtist create(SearchInterface search) {
         if (search.getClass().equals(FillerThread.class)) {
             return create((FillerThread) search);
@@ -51,15 +61,33 @@ public class SearchArtistFactory {
         }
     }
 
+    /**
+     * Creates a FillerThreadArtist for the specified FillerThread.
+     *
+     * @param search the FillerThread to create an artist for
+     * @return the FillerThreadArtist
+     */
     public FillerThreadArtist create(FillerThread search) {
         Color fillColor = new Color(0, 128, 0);
         return new FillerThreadArtist(search, Color.CYAN, fillColor);
     }
 
+    /**
+     * Creates a SearchThreadArtist for the specified TracerThread.
+     *
+     * @param search the TracerThread to create an artist for
+     * @return the SearchThreadArtist
+     */
     public SearchThreadArtist create(TracerThread search) {
         return new SearchThreadArtist(search, Color.CYAN, null);
     }
 
+    /**
+     * Creates a BiSearchArtist for the specified BiSearch.
+     *
+     * @param search the BiSearch to create an artist for
+     * @return the BiSearchArtist
+     */
     public BiSearchArtist create(BiSearch search) {
         return new BiSearchArtist(search, Color.CYAN, null);
     }

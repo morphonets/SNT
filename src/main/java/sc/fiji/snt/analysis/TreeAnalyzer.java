@@ -28,6 +28,13 @@ import sc.fiji.snt.Tree;
 @Deprecated
 public class TreeAnalyzer extends TreeStatistics {
 
+    /**
+     * Instantiates a TreeAnalyzer from a Tree.
+     *
+     * @param tree the Tree to be analyzed
+     * @deprecated Use {@link TreeStatistics} constructors instead
+     */
+    @Deprecated
     public TreeAnalyzer(final Tree tree) {
         super(tree);
     }

@@ -452,6 +452,11 @@ public class Tree implements TreeProperties {
 		return false;
 	}
 
+	/**
+	 * Applies properties from another Tree to this Tree.
+	 *
+	 * @param tree the Tree whose properties should be copied
+	 */
 	public void applyProperties(final Tree tree) {
 		getProperties().putAll(tree.getProperties());
 	}
@@ -538,6 +543,11 @@ public class Tree implements TreeProperties {
 		return types;
 	}
 
+	/**
+	 * Displays this Tree in Viewer3D.
+	 *
+	 * @return the {@link Viewer3D} instance displaying this Tree
+	 */
 	public Viewer3D show3D() {
 		final Viewer3D viewer = new Viewer3D();
 		viewer.addTree(this);
@@ -548,6 +558,11 @@ public class Tree implements TreeProperties {
 		return viewer;
 	}
 
+	/**
+	 * Displays this Tree in Viewer2D.
+	 *
+	 * @return the {@link Viewer2D} instance displaying this Tree
+	 */
 	public Viewer2D show2D() {
 		final Viewer2D viewer = new Viewer2D();
 		viewer.add(this);
@@ -558,6 +573,9 @@ public class Tree implements TreeProperties {
 		return viewer;
 	}
 
+	/**
+	 * Displays this Tree in an appropriate viewer (3D if the tree has depth, 2D otherwise).
+	 */
 	public void show() {
 		if (is3D())
 			show3D();
@@ -748,6 +766,11 @@ public class Tree implements TreeProperties {
 		return list;
 	}
 
+	/**
+	 * Gets the total number of nodes across all paths in this Tree.
+	 *
+	 * @return the total node count
+	 */
 	public long getNodesCount() {
 		return tree.stream().mapToLong(Path::size).sum();
 	}
@@ -1031,6 +1054,11 @@ public class Tree implements TreeProperties {
 		setColor(finalColor);
 	}
 
+	/**
+	 * Gets the color assigned to this Tree.
+	 *
+	 * @return the Tree color, or null if no color has been assigned
+	 */
 	public ColorRGB getColor() {
 		final String sColor = getProperties().getProperty(Tree.KEY_COLOR);
 		return (sColor == null) ? null : new ColorRGB(sColor);
@@ -1514,6 +1542,11 @@ public class Tree implements TreeProperties {
 		getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
 	}
 
+	/**
+	 * Assigns spatial calibration from a Dataset to this Tree.
+	 *
+	 * @param dataset the Dataset providing the spatial calibration. Null allowed.
+	 */
 	public void assignImage(final Dataset dataset) {
 		initPathAndFillManager();
 		Calibration cal;

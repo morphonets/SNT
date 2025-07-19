@@ -405,6 +405,15 @@ public class MultiTreeStatistics extends TreeStatistics {
 		return chart;
 	}
 
+	/**
+	 * Gets the list of metrics supported by MultiTreeStatistics.
+	 * <p>
+	 * Returns all the metrics that can be computed for groups of trees,
+	 * including aggregate measures and group-specific statistics.
+	 * </p>
+	 *
+	 * @return the list of supported metric names
+	 */
 	public static List<String> getMetrics() {
 		final String[] ALL_FLAGS = { ASSIGNED_VALUE, AVG_BRANCH_LENGTH, AVG_CONTRACTION, AVG_FRACTAL_DIMENSION,
 				AVG_FRAGMENTATION, AVG_PARTITION_ASYMMETRY, AVG_REMOTE_ANGLE, HIGHEST_PATH_ORDER, INNER_LENGTH,
@@ -413,7 +422,16 @@ public class MultiTreeStatistics extends TreeStatistics {
 	}
 
 
-	/* IDE debug method */
+	/**
+	 * Main method for testing and demonstration purposes.
+	 * <p>
+	 * Creates a MultiTreeStatistics instance using demo data and displays various
+	 * analysis plots including histograms and flow plots. This method is primarily
+	 * used for development and debugging.
+	 * </p>
+	 *
+	 * @param args command line arguments (not used)
+	 */
 	public static void main(final String[] args) {
 		final ImageJ ij = new ImageJ();
 		final SNTService sntService = ij.context().getService(SNTService.class);

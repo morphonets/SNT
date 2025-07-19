@@ -32,15 +32,54 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.TreeProperties;
 
-/*
- * A flavor of TreeStatistics that does not do graph conversions, ensuring paths can be measured independently of
- * their connectivity.
+/**
+ * A specialized version of {@link TreeStatistics} for analyzing individual paths
+ * without considering their connectivity relationships.
+ * <p>
+ * PathStatistics provides morphometric analysis of neuronal paths while treating
+ * each path as an independent entity, rather than as part of a connected tree
+ * structure.
+ * </p>
+ * Key differences from TreeStatistics:
+ * <ul>
+ * <li>No graph conversion - paths are analyzed independently</li>
+ * <li>Branch-related metrics are redefined to work with individual paths</li>
+ * <li>Supports path-specific measurements like Path ID and number of children</li>
+ * <li>Provides individual path measurement capabilities</li>
+ * </ul>
+ * Example usage:
+ * <pre>
+ * // Analyze a single path
+ * PathStatistics stats = new PathStatistics(path);
+ * double length = stats.getMetric("Path length").doubleValue();
+ * 
+ * // Analyze multiple paths independently
+ * Collection&lt;Path&gt; paths = getPaths();
+ * PathStatistics multiStats = new PathStatistics(paths, "My Analysis");
+ * multiStats.measureIndividualPaths(Arrays.asList("Path length", "N. nodes"), true);
+ * </pre>
+ *
+ * @author Tiago Ferreira
+ * @see TreeStatistics
+ * @see Path
+ * @see Tree
  */
 public class PathStatistics extends TreeStatistics {
 
 	/** Flag for {@value #N_CHILDREN} analysis. */
 	public static final String N_CHILDREN = "No. of children";
 
+	/**
+	 * Instantiates PathStatistics from a collection of paths.
+	 * <p>
+	 * Creates a PathStatistics instance for analyzing a collection of Path objects.
+	 * The spatial unit is automatically determined from the paths if they all share
+	 * the same calibration unit.
+	 * </p>
+	 *
+	 * @param paths the collection of paths to be analyzed
+	 * @param label the label describing the path collection
+	 */
 	public PathStatistics(Collection<Path> paths, String label) {
 		super(new Tree(paths));
 		tree.setLabel(label);
@@ -49,20 +88,58 @@ public class PathStatistics extends TreeStatistics {
 			tree.getProperties().setProperty(TreeProperties.KEY_SPATIAL_UNIT, unit);
 	}
 
+	/**
+	 * Instantiates PathStatistics from a single path.
+	 * <p>
+	 * Creates a PathStatistics instance for analyzing a single Path object.
+	 * The path's name is used as the label for the analysis.
+	 * </p>
+	 *
+	 * @param path the path to be analyzed
+	 */
 	public PathStatistics(final Path path) {
 		this(Collections.singleton(path), path.getName());
 	}
 
+	/**
+	 * Gets all the paths being analyzed as branches.
+	 * <p>
+	 * In PathStatistics, all paths are considered as branches since each path
+	 * represents a distinct structural element.
+	 * </p>
+	 *
+	 * @return the list of all paths
+	 */
 	@Override
 	public List<Path> getBranches() {
 		return tree.list();
 	}
 
+	/**
+	 * Gets the number of branches (paths) being analyzed.
+	 * <p>
+	 * Returns the total count of paths in this PathStatistics instance.
+	 * </p>
+	 *
+	 * @return the number of paths
+	 */
 	@Override
 	public int getNBranches() {
 		return tree.size();
 	}
 
+	/**
+	 * Gets a summary metric for the analyzed paths.
+	 * <p>
+	 * Extends the parent class functionality to support path-specific metrics
+	 * such as "Path ID". For single-path analyses, returns the specific path ID;
+	 * for multi-path analyses, returns NaN for path-specific metrics.
+	 * </p>
+	 *
+	 * @param metric the name of the metric to retrieve
+	 * @return the metric value, or NaN if not applicable
+	 * @throws UnknownMetricException if the metric is not recognized
+	 */
 	@Override
 	public Number getMetric(final String metric) throws UnknownMetricException {
 		if ("Path ID".equalsIgnoreCase(metric))
@@ -70,6 +147,15 @@ public class PathStatistics extends TreeStatistics {
 		return super.getMetric(metric);
 	}
 
+	/**
+	 * Gets the primary branches from the analyzed paths.
+	 * <p>
+	 * Returns only those paths that are marked as primary branches, typically
+	 * those that originate directly from the root or soma.
+	 * </p>
+	 *
+	 * @return the list of primary paths
+	 */
 	@Override
 	public List<Path> getPrimaryBranches() {
 		final ArrayList<Path> paths = new ArrayList<>();
@@ -79,6 +165,16 @@ public class PathStatistics extends TreeStatistics {
 		return paths;
 	}
 
+	/**
+	 * Gets the terminal branches from the analyzed paths.
+	 * <p>
+	 * Returns paths that have children, representing non-terminal segments.
+	 * Note: This implementation differs from typical terminal branch definition
+	 * as it returns paths with children rather than leaf paths.
+	 * </p>
+	 *
+	 * @return the list of paths with children
+	 */
 	@Override
 	public List<Path> getTerminalBranches() {
 		final ArrayList<Path> paths = new ArrayList<>();
@@ -88,21 +184,54 @@ public class PathStatistics extends TreeStatistics {
 		return paths;
 	}
 
+	/**
+	 * Gets the total length of primary branches.
+	 * <p>
+	 * Calculates the sum of lengths of all paths marked as primary branches.
+	 * </p>
+	 *
+	 * @return the total length of primary branches
+	 */
 	@Override
 	public double getPrimaryLength() {
 		return getPrimaryBranches().stream().mapToDouble(Path::getLength).sum();
 	}
 
+	/**
+	 * Gets the total length of terminal branches.
+	 * <p>
+	 * Calculates the sum of lengths of all terminal branches as defined by
+	 * {@link #getTerminalBranches()}.
+	 * </p>
+	 *
+	 * @return the total length of terminal branches
+	 */
 	@Override
 	public double getTerminalLength() {
 		return getTerminalBranches().stream().mapToDouble(Path::getLength).sum();
 	}
 
+	/**
+	 * Gets the inner branches from the analyzed paths.
+	 * <p>
+	 * In PathStatistics, inner branches are equivalent to primary branches.
+	 * </p>
+	 *
+	 * @return the list of inner branches (same as primary branches)
+	 */
 	@Override
 	public List<Path> getInnerBranches() {
 		return getPrimaryBranches();
 	}
 
+	/**
+	 * Gets the total length of inner branches.
+	 * <p>
+	 * In PathStatistics, this returns the same value as {@link #getPrimaryLength()}.
+	 * </p>
+	 *
+	 * @return the total length of inner branches
+	 */
 	@Override
 	public double getInnerLength() {
 		return getPrimaryLength();
@@ -135,6 +264,28 @@ public class PathStatistics extends TreeStatistics {
 		return super.getSummaryStats(metric);
 	}
 
+	/**
+	 * Gets a specific metric value for an individual path.
+	 * <p>
+	 * This method provides direct access to morphometric properties of individual
+	 * paths, including geometric measurements, connectivity information, and
+	 * structural characteristics. It supports all standard path metrics plus
+	 * PathStatistics-specific measurements.
+	 * </p>
+	 * Supported metrics include:
+	 * <ul>
+	 * <li>Geometric: length, volume, surface area, mean radius</li>
+	 * <li>Structural: number of nodes, branch points, children</li>
+	 * <li>Angular: extension angles in XY, XZ, ZY planes</li>
+	 * <li>Morphological: contraction, fractal dimension, spine density</li>
+	 * <li>Metadata: path ID, channel, frame, order</li>
+	 * </ul>
+	 *
+	 * @param metric the name of the metric to retrieve
+	 * @param path the specific path to measure
+	 * @return the metric value for the specified path
+	 * @throws UnknownMetricException if the metric is not recognized
+	 */
 	public Number getMetric(final String metric, final Path path) throws UnknownMetricException {
 		switch (metric) {
 			case "Path ID":
@@ -192,6 +343,25 @@ public class PathStatistics extends TreeStatistics {
 		}
 	}
 
+	/**
+	 * Measures specified metrics for each individual path and creates a detailed table.
+	 * <p>
+	 * This method generates a comprehensive measurement table where each row represents
+	 * an individual path and columns contain the requested morphometric measurements.
+	 * This is particularly useful for comparative analysis of path properties or
+	 * for exporting detailed morphometric data.
+	 * </p>
+	 * The generated table includes:
+	 * <ul>
+	 * <li>Path identification information (name, SWC type)</li>
+	 * <li>All requested morphometric measurements</li>
+	 * <li>Optional summary statistics (if summarize is true)</li>
+	 * </ul>
+	 *
+	 * @param metrics the collection of metric names to measure for each path.
+	 *                If null or empty, a default "safe" set of metrics is used
+	 * @param summarize if true, adds summary statistics to the table
+	 */
 	public void measureIndividualPaths(final Collection<String> metrics, final boolean summarize) {
 		if (table == null) table = new SNTTable();
 		final Collection<String> measuringMetrics = (metrics == null || metrics.isEmpty()) ? getMetrics("safe") : metrics;

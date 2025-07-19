@@ -73,10 +73,26 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
     private int numThreads;
 
 
+    /**
+     * Constructs a Frangi filter with the specified scales, spacing, and stack maximum.
+     * Uses the default number of threads (available processors).
+     *
+     * @param scales the scales for multi-scale analysis
+     * @param spacing the pixel spacing in each dimension
+     * @param stackMax the maximum value in the image stack for normalization
+     */
     public Frangi(final double[] scales, final double[] spacing, final double stackMax) {
         this(scales, spacing, stackMax, Runtime.getRuntime().availableProcessors());
     }
 
+    /**
+     * Constructs a Frangi filter with the specified scales, spacing, stack maximum, and number of threads.
+     *
+     * @param scales the scales for multi-scale analysis
+     * @param spacing the pixel spacing in each dimension
+     * @param stackMax the maximum value in the image stack for normalization
+     * @param numThreads the number of threads to use for computation
+     */
     public Frangi(final double[] scales, final double[] spacing, final double stackMax, final int numThreads) {
         this.scales = scales;
         this.spacing = spacing;

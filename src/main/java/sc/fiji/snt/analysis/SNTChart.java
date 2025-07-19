@@ -251,6 +251,15 @@ public class SNTChart extends ChartPanel {
 		getXYPlot().addRangeMarker(marker);
 	}
 
+	/**
+	 * Sets the visibility of chart axes.
+	 * <p>
+	 * Controls whether the domain (X) and range (Y) axes are visible in the chart.
+	 * This affects both XY plots and category plots.
+	 * </p>
+	 *
+	 * @param visible true to show axes, false to hide them
+	 */
 	public void setAxesVisible(final boolean visible) {
 		if (getChart().getPlot() instanceof XYPlot plot) {
 			plot.getDomainAxis().setVisible(visible);
@@ -269,6 +278,14 @@ public class SNTChart extends ChartPanel {
 		}
 	}
 
+	/**
+	 * Checks if the plot outline is visible.
+	 * <p>
+	 * Returns true if the plot's border outline is currently visible.
+	 * </p>
+	 *
+	 * @return true if outline is visible, false otherwise
+	 */
 	public boolean isOutlineVisible() {
 		return getChart().getPlot().isOutlineVisible();
 	}
@@ -312,6 +329,14 @@ public class SNTChart extends ChartPanel {
 		}
 	}
 
+	/**
+	 * Sets the visibility of the plot outline.
+	 * <p>
+	 * Controls whether the border outline around the plot area is visible.
+	 * </p>
+	 *
+	 * @param visible true to show outline, false to hide it
+	 */
 	public void setOutlineVisible(final boolean visible) {
 		getChart().getPlot().setOutlineVisible(visible);
 	}
@@ -630,6 +655,15 @@ public class SNTChart extends ChartPanel {
 		return getFont().getSize();
 	}
 
+	/**
+	 * Gets an ImagePlus representation of the chart.
+	 * <p>
+	 * Creates an ImagePlus object containing a rasterized version of the chart
+	 * at default scaling (1.0x).
+	 * </p>
+	 *
+	 * @return an ImagePlus containing the chart image
+	 */
 	public ImagePlus getImage() {
 		return getImages(1f).getFirst();
 	}
@@ -1066,6 +1100,14 @@ public class SNTChart extends ChartPanel {
 		show();
 	}
 
+	/**
+	 * Disposes of this chart and releases its resources.
+	 * <p>
+	 * Closes the chart window and removes it from the list of open instances.
+	 * This method should be called when the chart is no longer needed to
+	 * prevent memory leaks.
+	 * </p>
+	 */
 	public void dispose() {
 		disposeInternal();
 		openInstances.remove(this);
@@ -1078,8 +1120,13 @@ public class SNTChart extends ChartPanel {
 	}
 
 	/**
+	 * Checks if the chart contains valid data.
+	 * <p>
+	 * Returns true if the chart object exists and presumably contains data
+	 * that can be displayed.
+	 * </p>
 	 *
-	 * @return whether current chart contains valid Data
+	 * @return whether chart contains valid Data
 	 */
 	public boolean containsValidData() {
 		return getChart() != null;

@@ -46,6 +46,12 @@ public class Logger {
 	private boolean debug;
 	private final String callerIdentifier;
 
+	/**
+	 * Constructs a new Logger with the specified context and caller identifier.
+	 *
+	 * @param context the SciJava context for dependency injection
+	 * @param callerIdentifier the identifier for the calling class/component
+	 */
 	public Logger(final Context context, final String callerIdentifier) {
 		context.inject(this);
 		debug = SNTUtils.isDebugMode() || prefService.getBoolean(ShollAnalysisPrefsCmd.class, "debugMode",
@@ -54,22 +60,47 @@ public class Logger {
 		this.callerIdentifier = callerIdentifier;
 	}
 
+	/**
+	 * Logs an informational message.
+	 *
+	 * @param msg the message to log
+	 */
 	public void info(final Object msg) {
 		logService.info(callerIdentifier + ": " + msg );
 	}
 
+	/**
+	 * Logs a debug message (only if debug mode is enabled).
+	 *
+	 * @param msg the debug message to log
+	 */
 	public void debug(final Object msg) {
 		if (debug) logService.info(callerIdentifier + ": " + msg);
 	}
 
+	/**
+	 * Logs a warning message.
+	 *
+	 * @param string the warning message to log
+	 */
 	public void warn(final String string) {
 		logService.warn(callerIdentifier + ": " + string);
 	}
 
+	/**
+	 * Checks if debug mode is enabled.
+	 *
+	 * @return true if debug mode is enabled, false otherwise
+	 */
 	public boolean isDebug() {
 		return debug;
 	}
 
+	/**
+	 * Sets the debug mode state.
+	 *
+	 * @param debug true to enable debug mode, false to disable
+	 */
 	public void setDebug(final boolean debug) {
 		this.debug = debug;
 	}

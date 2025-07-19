@@ -72,6 +72,11 @@ class ColorTableMapper extends ColorMapper {
 		this.max = max;
 	}
 
+	/**
+	 * Gets the color table used by this mapper.
+	 *
+	 * @return the ColorTable instance
+	 */
 	public ColorTable getColorTable() {
 		return colorTable;
 	}

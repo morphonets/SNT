@@ -60,7 +60,9 @@ public class ScriptInstaller implements MenuKeyListener {
 	@Parameter
 	private ScriptService scriptService;
 
+	/** Pattern to match demo scripts (case-insensitive) */
 	public static final Pattern DEMO_SCRIPT = Pattern.compile(".*demo.*", Pattern.CASE_INSENSITIVE);
+	/** Pattern to match non-demo scripts (case-insensitive) */
 	public static final Pattern NON_DEMO_SCRIPT = Pattern.compile("^(?!.*demo).*$", Pattern.CASE_INSENSITIVE);
 
 	private static final Icon revealIcon = UIManager.getIcon("Tree.openIcon");

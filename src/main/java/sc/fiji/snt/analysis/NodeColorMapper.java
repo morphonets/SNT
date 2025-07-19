@@ -183,10 +183,21 @@ public class NodeColorMapper extends ColorMapper {
 		map(measurement, getColorTable(lut));
 	}
 
+	/**
+	 * Gets the collection of nodes being mapped.
+	 *
+	 * @return the collection of SNTPoint nodes
+	 */
 	public Collection<? extends SNTPoint> getNodes() {
 		return nodeStatistics.points;
 	}
 
+	/**
+	 * Gets the color table for the specified lookup table name.
+	 *
+	 * @param lut the lookup table name
+	 * @return the ColorTable instance
+	 */
 	public ColorTable getColorTable(final String lut) {
 		return tColorMapper.getColorTable(lut);
 	}

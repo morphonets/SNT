@@ -119,6 +119,15 @@ public class SNTTable extends DefaultGenericTable {
 		}
 	}
 
+	/**
+	 * Fills all empty cells in the table with the specified value.
+	 * <p>
+	 * Iterates through all cells in the table and replaces null values
+	 * with the provided replacement value.
+	 * </p>
+	 *
+	 * @param value the value to use for filling empty cells
+	 */
 	public void fillEmptyCells(final Object value) {
 		validate();
 		for (int col = 0; col < getColumnCount(); ++col) {
@@ -143,10 +152,29 @@ public class SNTTable extends DefaultGenericTable {
 		}
 	}
 
+	/**
+	 * Checks if the table has unsaved data.
+	 * <p>
+	 * Returns true if the table contains data and has been modified since
+	 * the last save operation.
+	 * </p>
+	 *
+	 * @return true if there is unsaved data, false otherwise
+	 */
 	public boolean hasUnsavedData() {
 		return getRowCount() > 0 && hasUnsavedData;
 	}
 
+	/**
+	 * Appends a value to the last row in the specified column.
+	 * <p>
+	 * If the table is empty, a new row is created first. The value is then
+	 * set in the specified column of the last row.
+	 * </p>
+	 *
+	 * @param colHeader the column header
+	 * @param value the value to append
+	 */
 	public void appendToLastRow(final String colHeader, final Object value) {
 		if (getRowCount() == 0) appendRow();
 		set(getCol(colHeader), getRowCount() - 1, value);
@@ -257,11 +285,28 @@ public class SNTTable extends DefaultGenericTable {
 		return headers;
 	}
 
+	/**
+	 * Checks if the table contains summary statistics.
+	 * <p>
+	 * Returns true if the table has been summarized with statistical measures
+	 * like mean, standard deviation, etc. This is determined by looking for
+	 * specific row headers in the expected positions.
+	 * </p>
+	 *
+	 * @return true if table contains summary statistics, false otherwise
+	 */
 	public boolean isSummarized() {
 		final int meanRowIdx = getRowIndex("Mean");
 		return meanRowIdx > 1 && meanRowIdx <= getRowCount() - 6 && getRowIndex("SD") == meanRowIdx+1;
 	}
 
+	/**
+	 * Removes summary statistics from the table.
+	 * <p>
+	 * If the table contains summary statistics, this method removes the
+	 * summary rows to return the table to its raw data state.
+	 * </p>
+	 */
 	public void removeSummary() {
 		if (isSummarized()) removeRows( getRowIndex("Mean")-1, 9);
 	}
@@ -354,6 +399,13 @@ public class SNTTable extends DefaultGenericTable {
 		hasUnsavedData = false;
 	}
 
+	/**
+	 * Displays the table in a window.
+	 * <p>
+	 * Creates or updates the table display window. If a display already exists,
+	 * it is updated with the current table contents.
+	 * </p>
+	 */
 	public void show() {
 		createOrUpdateDisplay();
 	}
@@ -367,10 +419,24 @@ public class SNTTable extends DefaultGenericTable {
 		displayService.createDisplay(windowTitle, this);
 	}
 
+	/**
+	 * Updates the existing table display.
+	 * <p>
+	 * Refreshes the table display with the current table contents without
+	 * creating a new display window.
+	 * </p>
+	 */
 	public void updateDisplay() {
 		updateDisplay(false);
 	}
 
+	/**
+	 * Creates a new display or updates an existing one.
+	 * <p>
+	 * If no display exists, creates a new table display window. If a display
+	 * already exists, updates it with the current table contents.
+	 * </p>
+	 */
 	public void createOrUpdateDisplay() {
 		updateDisplay(true);
 	}
@@ -397,6 +463,14 @@ public class SNTTable extends DefaultGenericTable {
 		}
 	}
 
+	/**
+	 * Gets the title of the table.
+	 * <p>
+	 * Returns the table's title, or "SNT Measurements" if no title has been set.
+	 * </p>
+	 *
+	 * @return the table title
+	 */
 	public String getTitle() {
 		return (title == null) ? "SNT Measurements" : title;
 	}

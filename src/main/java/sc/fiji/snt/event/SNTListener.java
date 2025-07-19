@@ -24,6 +24,11 @@ package sc.fiji.snt.event;
 
 public interface SNTListener {
 
+	/**
+	 * Called when an SNT event occurs.
+	 *
+	 * @param event the SNT event that occurred
+	 */
 	public void onEvent(SNTEvent event);
 
 }

@@ -58,16 +58,13 @@ import sc.fiji.snt.gui.GuiUtils;
 class EditorRuler extends JComponent implements MouseMotionListener,
 		DropTargetListener
 {
-
-	/**
-	 * 
-	 */
+	
 	private static final long serialVersionUID = -6310912355878668096L;
-
-	/**
-	 * Defines the constants for horizontal and vertical orientation.
-	 */
-	public static int ORIENTATION_HORIZONTAL = 0, ORIENTATION_VERTICAL = 1;
+	
+	/** Constant for horizontal orientation */
+	public static int ORIENTATION_HORIZONTAL = 0;
+	/** Constant for vertical orientation */
+	public static int ORIENTATION_VERTICAL = 1;
 
 	/**
 	 * Internal constant used to describe the screen resolution (DPI). Default

@@ -36,8 +36,11 @@ import sc.fiji.snt.viewer.OBJMesh;
  */
 public interface BrainAnnotation {
 
+	/** Character constant representing the left hemisphere */
 	public char LEFT_HEMISPHERE = 'l';
+	/** Character constant representing the right hemisphere */
 	public char RIGHT_HEMISPHERE = 'r';
+	/** Character constant representing any hemisphere (null character) */
 	public char ANY_HEMISPHERE = '\u0000';
 
 	/** @return the compartment's unique id */

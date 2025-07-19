@@ -26,7 +26,9 @@ import java.util.ArrayList;
 
 class SimplePoint {
 
+	/** The x, y, z coordinates of this point */
 	public double x = 0, y = 0, z = 0;
+	/** The original index of this point before downsampling */
 	public int originalIndex;
 
 	public SimplePoint(final double x, final double y, final double z,

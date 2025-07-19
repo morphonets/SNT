@@ -106,10 +106,25 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		getAnalysis().forEach((key, value) -> System.out.println("\t" + key + ":\t" + value));
 	}
 
+	/**
+	 * Gets the list of metrics supported by ConvexHullAnalyzer.
+	 *
+	 * @return the list of supported metric names that can be computed by this analyzer
+	 */
 	public static List<String> supportedMetrics() {
 		return List.of(BOUNDARY_SIZE, BOXIVITY, ELONGATION, ROUNDNESS, SIZE, COMPACTNESS_3D, ECCENTRICITY_2D);
 	}
 
+	/**
+	 * Gets all computed convex hull analysis metrics.
+	 * <p>
+	 * Returns a map containing all the computed convex hull metrics and their values.
+	 * The metrics are computed lazily and cached for subsequent calls. If the hull
+	 * cannot be computed, all metrics return NaN.
+	 * </p>
+	 *
+	 * @return a map of metric names to their computed values
+	 */
 	public Map<String, Double> getAnalysis() {
 		if (metrics != null) {
 			return metrics;
@@ -145,11 +160,27 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		}
 	}
 
+	/**
+	 * Gets the convex hull object being analyzed. The hull is initialized if needed.
+	 *
+	 * @return the convex hull object
+	 */
 	public AbstractConvexHull getHull() {
 		initHull();
 		return hull;
 	}
 
+	/**
+	 * Gets the value of a specific convex hull metric.
+	 * <p>
+	 * Retrieves the computed value for the specified metric name. The metric
+	 * must be one of the supported metrics returned by {@link #supportedMetrics()}.
+	 * </p>
+	 *
+	 * @param metric the name of the metric to retrieve
+	 * @return the computed value for the metric
+	 * @see #supportedMetrics()
+	 */
 	public double get(final String metric) {
 		return getAnalysis().get(metric);
 	}
@@ -161,26 +192,55 @@ public class ConvexHullAnalyzer extends ContextCommand {
 				(hull instanceof ConvexHull3D) ? cntd.getDoublePosition(2) : 0);
 	}
 
+	/**
+	 * Gets the boxivity of the convex hull, which measures how box-like the convex hull is.
+	 * Values closer to 1 indicate a more box-like shape.
+	 *
+	 * @return the boxivity value
+	 */
 	public double getBoxivity() {
 		initHull();
 		return computeBoxivity(hull);
 	}
 
+	/**
+	 * Gets the elongation of the convex hull, which measures how elongated the convex hull is.
+	 * Higher values indicate more elongated shapes.
+	 *
+	 * @return the elongation value
+	 */
 	public double getElongation() {
 		initHull();
 		return computeElongation(hull);
 	}
 
+	/**
+	 * Gets the roundness of the convex hull, which measures how round or circular the convex hull is.
+	 * Values closer to 1 indicate a more round shape.
+	 *
+	 * @return the roundness value
+	 */
 	public double getRoundness() {
 		initHull();
 		return computeRoundness(hull);
 	}
 
+	/**
+	 * Gets the size (area or volume) of the convex hull, which is the area for 2D hulls
+	 * or the volume for 3D hulls.
+	 *
+	 * @return the size of the convex hull
+	 */
 	public double getSize() {
 		initHull();
 		return hull.size();
 	}
 
+	/**
+	 * Gets the boundary size (perimeter for 2D hulls or surface area for 3D hulls) of the convex hull.
+	 *
+	 * @return the boundary size of the convex hull
+	 */
 	public double getBoundarySize() {
 		initHull();
 		return hull.boundarySize();
@@ -291,6 +351,11 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		return false;
 	}
 
+	/**
+	 * Gets the tree being analyzed.
+	 *
+	 * @return the tree being analyzed, or null if the analyzer was created directly from a convex hull.
+	 */
 	public Tree getTree() {
 		return tree;
 	}
@@ -305,6 +370,16 @@ public class ConvexHullAnalyzer extends ContextCommand {
 		return new TreeStatistics(tree).getUnit(metric);
 	}
 
+	/**
+	 * Main method for testing and demonstration purposes.
+	 * <p>
+	 * Creates a ConvexHullAnalyzer instance using demo data and runs the analysis.
+	 * This method is primarily used for development and debugging.
+	 * </p>
+	 *
+	 * @param args command line arguments (not used)
+	 * @throws InterruptedException if the execution is interrupted
+	 */
 	public static void main(final String[] args) throws InterruptedException {
 		final ImageJ ij = new ImageJ();
 		final SNTService sntService = ij.context().getService(SNTService.class);

@@ -136,6 +136,11 @@ public class NeuroMorphoLoader implements RemoteSWCLoader {
 		}
 	}
 
+	/**
+	 * Enables or disables the use of source version URLs.
+	 *
+	 * @param enable true to enable source version URLs, false otherwise
+	 */
 	public void enableSourceVersion(final boolean enable) {
 		sourceVersion = enable;
 	}

@@ -37,6 +37,13 @@ public class CollapsiblePanel extends JPanel {
 	private final JCheckBox checkbox;
 	private final Component contents;
 
+	/**
+	 * Constructs a new CollapsiblePanel with the specified header and contents.
+	 * The panel is initially collapsed by default.
+	 *
+	 * @param header the header text for the panel
+	 * @param contents the component to be shown/hidden when the panel is expanded/collapsed
+	 */
 	public CollapsiblePanel(final String header, final Component contents) {
 		this(header, contents, true);
 	}
@@ -75,6 +82,11 @@ public class CollapsiblePanel extends JPanel {
 		return b;
 	}
 
+	/**
+	 * Sets the collapsed state of this panel.
+	 *
+	 * @param collapse true to collapse the panel, false to expand it
+	 */
 	public void setCollapsed(final boolean collapse) {
 		contents.setVisible(!collapse);
 		final Window parent = SwingUtilities.windowForComponent(this);
@@ -82,6 +94,11 @@ public class CollapsiblePanel extends JPanel {
 			parent.pack();
 	}
 
+	/**
+	 * Checks if this panel is currently collapsed.
+	 *
+	 * @return true if the panel is collapsed, false if expanded
+	 */
 	public boolean isCollapsed() {
 		return contents.isVisible();
 	}

@@ -190,11 +190,25 @@ public class PathStraightener {
 		return width;
 	}
 
+	/**
+	 * Sets the width of the straightened path image.
+	 *
+	 * @param width the width in pixels
+	 */
 	public void setWidth(final int width) {
 		this.width = width;
 	}
 
-	/* IDE debug method **/
+	/**
+	 * Main method for testing and demonstration purposes.
+	 * <p>
+	 * Creates a PathStraightener instance using demo data and displays the
+	 * straightened path result. This method is primarily used for development
+	 * and debugging.
+	 * </p>
+	 *
+	 * @param args command line arguments (not used)
+	 */
 	public static void main(final String[] args) {
 		final SNTService sntService = new SNTService();
 		final ImagePlus imp = sntService.demoImage("fractal");

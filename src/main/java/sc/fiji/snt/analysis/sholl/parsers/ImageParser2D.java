@@ -37,6 +37,8 @@ import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
+ * Parser for 2D images
+ *
  * @author Tiago Ferreira
  */
 public class ImageParser2D extends ImageParser {

@@ -415,6 +415,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		currentThresholdLabel.setEnabled(false);
 	}
 
+	/**
+	 * Sets the transparency state of fills.
+	 *
+	 * @param transparent true to make fills transparent, false for opaque
+	 */
 	public void setFillTransparent(final boolean transparent) {
 		if (this.transparentCheckbox != null) {
 			SwingUtilities.invokeLater(() -> this.transparentCheckbox.setSelected(transparent));

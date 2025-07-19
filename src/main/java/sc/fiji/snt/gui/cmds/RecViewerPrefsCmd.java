@@ -48,10 +48,15 @@ public class RecViewerPrefsCmd extends ContextCommand {
 
 	public static String DEF_SNAPSHOT_DIR = System.getProperty("user.home") +
 		File.separator + "Desktop" + File.separator + "SNTsnapshots";
+	/** Default rotation angle for 3D viewer animations (360 degrees) */
 	public static float DEF_ROTATION_ANGLE = 360f;
+	/** Default rotation duration for 3D viewer animations (12 seconds) */
 	public static double DEF_ROTATION_DURATION = 12;
+	/** Default frames per second for 3D viewer animations */
 	public static int DEF_ROTATION_FPS = 30;
+	/** Default sensitivity setting for 3D viewer controls */
 	public static String DEF_CONTROLS_SENSITIVITY = "High";
+	/** Default file extension for scripts */
 	public static String DEF_SCRIPT_EXTENSION = ".groovy";
 
 	@Parameter(

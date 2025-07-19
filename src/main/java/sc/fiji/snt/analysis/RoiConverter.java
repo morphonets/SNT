@@ -161,6 +161,16 @@ public class RoiConverter {
 		return overlay;
 	}
 
+	/**
+	 * Gets ROI representations of the specified path.
+	 * <p>
+	 * Converts the path to a list of PolygonRoi objects using the path's name
+	 * as the ROI name. The conversion respects the current view setting.
+	 * </p>
+	 *
+	 * @param path the path to convert
+	 * @return a list of PolygonRoi objects representing the path
+	 */
 	public List<PolygonRoi> getROIs(final Path path) {
 		return getROIs(path, path.getName());
 	}

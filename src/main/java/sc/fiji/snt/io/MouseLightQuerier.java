@@ -80,11 +80,23 @@ public class MouseLightQuerier {
 		return success;
 	}
 
+	/**
+	 * Gets neuron IDs for the specified brain compartment.
+	 *
+	 * @param compartment the Allen brain compartment
+	 * @return list of neuron IDs in the compartment
+	 */
 	public static List<String> getIDs(final AllenCompartment compartment) {
 		if (compartment.getOntologyDepth() == 0) return getAllIDs();
 		return getIDs(new BodyBuilder().somaLocationQuery(compartment));
 	}
  
+	/**
+	 * Gets neuron IDs for the specified collection of brain compartments.
+	 *
+	 * @param compartments the collection of Allen brain compartments
+	 * @return list of neuron IDs in the compartments
+	 */
 	public static List<String> getIDs(final Collection<AllenCompartment> compartments) {
 		return getIDs(new BodyBuilder().somaLocationQuery(compartments));
 	}
@@ -100,10 +112,22 @@ public class MouseLightQuerier {
 		return getIDs(new BodyBuilder().idQuery(idOrDOI, exactMatch));
 	}
 
+	/**
+	 * Gets neuron IDs matching the specified collection of IDs or DOIs.
+	 *
+	 * @param idsOrDOIs the collection of IDs or DOIs to search for
+	 * @param exactMatch if true, only exact matches will be considered
+	 * @return list of matching neuron IDs
+	 */
 	public static List<String> getIDs(final Collection<String> idsOrDOIs, final boolean exactMatch) {
 		return getIDs(new BodyBuilder().idQuery(idsOrDOIs, exactMatch));
 	}
 
+	/**
+	 * Gets all available neuron IDs from the database.
+	 *
+	 * @return list of all neuron IDs
+	 */
 	public static List<String> getAllIDs() {
 		return getIDs(new BodyBuilder().allIDsQuery());
 	}

@@ -57,11 +57,17 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	private PlatformService platformService;
 
 	/* DEFAULTS */
+	/** Default setting for skipping single voxel intersections */
 	public final static boolean DEF_SKIP_SINGLE_VOXELS = true;
+	/** Default setting for including zero counts in analysis */
 	public final static boolean DEF_INCLUDE_ZERO_COUNTS = true;
+	/** Default setting for skipping somatic segments */
 	public final static boolean DEF_SKIP_SOMATIC_SEGMENTS = true;
+	/** Default cutoff value for enclosing radius */
 	public final static int DEF_ENCLOSING_RADIUS_CUTOFF = 1;
+	/** Default minimum degree for polynomial fitting */
 	public final static int DEF_MIN_DEGREE = 2;
+	/** Default maximum degree for polynomial fitting */
 	public final static int DEF_MAX_DEGREE = 30;
 	public final static int ALLOWED_MAX_DEGREE = 60;
 	public final static int ALLOWED_MIN_DEGREE = 2;

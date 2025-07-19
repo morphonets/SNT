@@ -243,18 +243,38 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 		return nextPoints;
 	}
 
+	/**
+	 * Sets the tags associated with this point.
+	 *
+	 * @param tags the tags string
+	 */
 	public void setTags(final String tags) {
 		this.tags = tags;
 	}
 
+	/**
+	 * Sets the color of this point.
+	 *
+	 * @param color the color to set
+	 */
 	public void setColor(final Color color) {
 		this.color = color;
 	}
 
+	/**
+	 * Gets the tags associated with this point.
+	 *
+	 * @return the tags string
+	 */
 	public String getTags() {
 		return tags;
 	}
 
+	/**
+	 * Gets the color of this point.
+	 *
+	 * @return the color
+	 */
 	public Color getColor() {
 		return color;
 	}

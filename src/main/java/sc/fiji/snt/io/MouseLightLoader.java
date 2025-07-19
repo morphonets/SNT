@@ -122,14 +122,29 @@ public class MouseLightLoader {
 		return null;
 	}
 
+	/**
+	 * Gets the neuron ID for this loader.
+	 *
+	 * @return the neuron ID
+	 */
 	public String getID() {
 		return id;
 	}
 
+	/**
+	 * Gets the DOI for this neuron.
+	 *
+	 * @return the DOI string, or null if not available
+	 */
 	public String getDOI() {
 		return (getJSONNeuron() == null) ? null : jsonNeuron.getString("DOI");
 	}
 
+	/**
+	 * Gets sample information for this neuron.
+	 *
+	 * @return the sample information as a JSON string, or null if not available
+	 */
 	public String getSampleInfo() {
 		return (getJSONNeuron() == null) ? null : jsonNeuron.getJSONObject("sample").toString();
 	}
@@ -166,10 +181,20 @@ public class MouseLightLoader {
 		return jsonNeuron;
 	}
 
+	/**
+	 * Gets the soma location for this neuron.
+	 *
+	 * @return the SWCPoint representing the soma location
+	 */
 	public SWCPoint getSomaLocation() {
 		return getNodes(SOMA).first();
 	}
 
+	/**
+	 * Gets the brain compartment containing the soma.
+	 *
+	 * @return the AllenCompartment containing the soma
+	 */
 	public AllenCompartment getSomaCompartment() {
 		return (AllenCompartment) getSomaLocation().getAnnotation();
 	}
@@ -414,6 +439,11 @@ public class MouseLightLoader {
 	 *
 	 * @return true, if the neuron id specified in the constructor was found in the
 	 *         database
+	 */
+	/**
+	 * Checks if the neuron ID exists in the database.
+	 *
+	 * @return true if the ID exists, false otherwise
 	 */
 	public boolean idExists() {
 		return getJSON() != null;

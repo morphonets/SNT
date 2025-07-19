@@ -161,6 +161,12 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 		return values;
 	}
 
+	/**
+	 * Gets the raw values for each node at the specified step interval.
+	 *
+	 * @param nodeStep the step interval between nodes
+	 * @return a map of node indices to their raw values
+	 */
 	public SortedMap<Integer, List<Double>> getRawValues(final int nodeStep) {
 		final SortedMap<Integer, List<Double>> rawValues = new TreeMap<>();
 		int step = Math.max(nodeStep, 1);
@@ -181,6 +187,9 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 		return rawValues;
 	}
 
+	/**
+	 * Processes the profile data by calling the computation.
+	 */
 	public void process() {
 		call();
 	}

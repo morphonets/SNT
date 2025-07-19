@@ -24,16 +24,29 @@ package sc.fiji.snt.event;
 
 public class SNTEvent {
 
+	/** Event type indicating no specific event */
 	public final static int NO_EVENT = 0;
+	/** Event type indicating a quit/exit event */
 	public final static int QUIT = 1;
+	/** Event type indicating data should be sent to TrakEM2 */
 	public final static int SEND_TO_TRAKEM2 = 2;
 
 	protected int type;
 
+	/**
+	 * Constructs a new SNT event with the specified type.
+	 *
+	 * @param type the event type (e.g., {@link #NO_EVENT}, {@link #QUIT}, {@link #SEND_TO_TRAKEM2})
+	 */
 	public SNTEvent(final int type) {
 		this.type = type;
 	}
 
+	/**
+	 * Gets the type of this SNT event.
+	 *
+	 * @return the event type
+	 */
 	public int getType() {
 		return type;
 	}

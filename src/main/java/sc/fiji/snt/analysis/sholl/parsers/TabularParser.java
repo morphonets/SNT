@@ -35,8 +35,33 @@ import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 
 /**
- * @author Tiago Ferreira
+ * A {@link Parser} for extracting Sholl profiles from tabular data.
+ * <p>
+ * TabularParser processes data from tables (CSV files, ResultsTables, etc.) containing
+ * radial distance and intersection count columns to generate Sholl analysis profiles.
+ * This is useful for analyzing pre-computed Sholl data or importing results from
+ * external analysis tools.
+ * </p>
+ * <p>
+ * The parser supports both ImageJ1 ({@link ij.measure.ResultsTable}) and ImageJ2
+ * ({@link org.scijava.table.DoubleTable}) table formats, and can automatically
+ * detect spatial calibration units from column headers.
+ * </p>
+ * Example usage:
+ * <pre>
+ * // Parse from CSV file
+ * TabularParser parser = new TabularParser("data.csv", "Distance_um", "Intersections");
+ * parser.parse();
+ * Profile profile = parser.getProfile();
+ * 
+ * // Parse subset of rows from ResultsTable
+ * TabularParser parser2 = new TabularParser(resultsTable, "Radius", "Count", 5, 25);
+ * parser2.parse();
+ * </pre>
  *
+ * @author Tiago Ferreira
+ * @see Parser
+ * @see Profile
  */
 public class TabularParser implements Parser {
 
@@ -53,17 +78,56 @@ public class TabularParser implements Parser {
 	private final String radiiColumnHeader;
 	private volatile boolean running = true;
 
+	/**
+	 * Constructs a TabularParser from a table file.
+	 * <p>
+	 * Loads and parses a table file (CSV, TSV, etc.) containing Sholl analysis data.
+	 * The file should have columns for radial distances and intersection counts.
+	 * </p>
+	 *
+	 * @param table the File containing the tabular data
+	 * @param radiiColumnHeader the header name of the column containing radial distances
+	 * @param countsColumnHeader the header name of the column containing intersection counts
+	 * @throws IOException if the file cannot be read or parsed
+	 * @throws IllegalArgumentException if the specified column headers are not found
+	 */
 	public TabularParser(final File table, final String radiiColumnHeader, final String countsColumnHeader)
 			throws IOException {
 		this(ResultsTable.open(table.getAbsolutePath()), radiiColumnHeader, countsColumnHeader, -1, -1);
 		tableName = table.getName();
 	}
 
+	/**
+	 * Constructs a TabularParser from a table file path.
+	 * <p>
+	 * Convenience constructor that accepts a file path string instead of a File object.
+	 * </p>
+	 *
+	 * @param filePath the path to the file containing the tabular data
+	 * @param radiiColumnHeader the header name of the column containing radial distances
+	 * @param countsColumnHeader the header name of the column containing intersection counts
+	 * @throws IOException if the file cannot be read or parsed
+	 * @throws IllegalArgumentException if the specified column headers are not found
+	 */
 	public TabularParser(final String filePath, final String radiiColumnHeader, final String countsColumnHeader)
 			throws IOException {
 		this(new File(filePath), radiiColumnHeader, countsColumnHeader);
 	}
 
+	/**
+	 * Constructs a TabularParser from an ImageJ1 ResultsTable with row range specification.
+	 * <p>
+	 * This constructor allows parsing a specific subset of rows from the table,
+	 * which is useful for analyzing partial data or excluding outliers.
+	 * </p>
+	 *
+	 * @param table the ImageJ1 ResultsTable containing the data
+	 * @param radiiColumnHeader the header name of the column containing radial distances
+	 * @param countsColumnHeader the header name of the column containing intersection counts
+	 * @param startRow the first row to include in parsing (0-based, -1 for start of table)
+	 * @param endRow the last row to include in parsing (0-based, -1 for end of table)
+	 * @throws IllegalArgumentException if the table is null/empty or column headers are not found
+	 */
 	public TabularParser(final ij.measure.ResultsTable table, final String radiiColumnHeader,
 			final String countsColumnHeader, final int startRow, final int endRow) {
 
@@ -82,11 +146,34 @@ public class TabularParser implements Parser {
 		this.endRow = endRow;
 	}
 
+	/**
+	 * Constructs a TabularParser from an ImageJ2 ResultsTable.
+	 * <p>
+	 * Convenience constructor for ImageJ2 ResultsTable objects.
+	 * </p>
+	 *
+	 * @param table the ImageJ2 ResultsTable containing the data
+	 * @param radiiColumnHeader the header name of the column containing radial distances
+	 * @param countsColumnHeader the header name of the column containing intersection counts
+	 * @throws IllegalArgumentException if the table is null/empty or column headers are not found
+	 */
 	public TabularParser(final net.imagej.table.ResultsTable table, final String radiiColumnHeader,
 			final String countsColumnHeader) {
 		this((DoubleTable)table, radiiColumnHeader, countsColumnHeader);
 	}
 
+	/**
+	 * Constructs a TabularParser from a DoubleTable.
+	 * <p>
+	 * This constructor works with SciJava DoubleTable objects, providing compatibility
+	 * with the ImageJ2 table framework.
+	 * </p>
+	 *
+	 * @param table the DoubleTable containing the data
+	 * @param radiiColumnHeader the header name of the column containing radial distances
+	 * @param countsColumnHeader the header name of the column containing intersection counts
+	 * @throws IllegalArgumentException if the table is null/empty or column headers are not found
+	 */
 	public TabularParser(final DoubleTable table, final String radiiColumnHeader,
 		final String countsColumnHeader) {
 	if (table == null || table.isEmpty())
@@ -100,6 +187,22 @@ public class TabularParser implements Parser {
 	this.radiiColumnHeader = radiiColumnHeader;
 }
 
+	/**
+	 * Parses the tabular data to extract the Sholl profile.
+	 * <p>
+	 * This method reads the specified columns from the table, creates ProfileEntry
+	 * objects for each row, and builds a complete Sholl profile. It also attempts
+	 * to automatically detect spatial calibration units from the radii column header.
+	 * </p>
+	 * The parsing process:
+	 * <ol>
+	 * <li>Creates a new Profile object</li>
+	 * <li>Reads data from the specified radii and counts columns</li>
+	 * <li>Creates ProfileEntry objects for each data row</li>
+	 * <li>Sets profile metadata and properties</li>
+	 * <li>Attempts to detect and set spatial calibration</li>
+	 * </ol>
+	 */
 	@Override
 	public void parse() {
 		profile = new Profile();

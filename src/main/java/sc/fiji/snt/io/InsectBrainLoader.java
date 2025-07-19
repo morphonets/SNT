@@ -60,6 +60,11 @@ public class InsectBrainLoader {
     private JSONObject jsonData;
     private NeuronInfo neuronInfo;
 
+    /**
+     * Constructs a new InsectBrainLoader for the specified neuron ID.
+     *
+     * @param id the neuron ID to load
+     */
     public InsectBrainLoader(final int id) {
         this.id = id;
         this.jsonData = null;
@@ -124,6 +129,11 @@ public class InsectBrainLoader {
         return tree;
     }
 
+    /**
+     * Gets the 3D meshes associated with this neuron's brain compartments.
+     *
+     * @return list of OBJMesh objects representing brain compartments
+     */
     public List<OBJMesh> getMeshes() {
         List<OBJMesh> meshList = new ArrayList<>();
         for (InsectBrainCompartment compartment : getAnnotations()) {
@@ -135,6 +145,11 @@ public class InsectBrainLoader {
         return meshList;
     }
 
+    /**
+     * Gets the brain compartment annotations for this neuron.
+     *
+     * @return list of InsectBrainCompartment annotations, or null if not available
+     */
     public List<InsectBrainCompartment> getAnnotations() {
         if (getJSON() == null) {
             return null;

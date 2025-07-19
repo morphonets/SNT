@@ -58,10 +58,21 @@ public class SNTEditorPane extends EditorPane {
         updateUI(); // set theme based on LaF
     }
 
+    /**
+     * Gets the scroll pane containing this editor.
+     *
+     * @return the RTextScrollPane instance
+     */
     public RTextScrollPane getScrollPane() {
         return scrollPane;
     }
 
+    /**
+     * Appends a timestamp to the editor content.
+     *
+     * @param prefix the text to appear before the timestamp
+     * @param suffix the text to appear after the timestamp
+     */
     public void appendTimeStamp(final String prefix, final String suffix) {
         try {
             final String lastCharAsString = getDocument().getText(getDocument().getLength() - 1, 1);

@@ -564,6 +564,10 @@ public class SkeletonConverter {
     /**
      * Sets the original {@link ImagePlus} to be used during voxel-based loop pruning.
      * See <a href="https://imagej.net/plugins/analyze-skeleton/?amp=1#loop-detection-and-pruning">AnalyzeSkeleton documentation</a>
+     * <p>
+     * Specifies the original (non-skeletonized) image to be used during
+     * skeleton analysis for additional processing options.
+     * </p>
      *
      * @param origIP the original ImagePlus
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
@@ -573,9 +577,14 @@ public class SkeletonConverter {
     }
 
     /**
-     * Gets the loop pruning strategy.
+     * Gets the current root ROI strategy.
+     * <p>
+     * Returns the strategy used for handling root ROIs during skeleton conversion.
+     * If no root ROI is set, returns ROI_UNSET.
+     * </p>
      *
-     * @see #setPruneMode(int)
+     * @return the root ROI strategy constant
+     * @see #setRootRoi(Roi, int)
      */
     public int getRootRoiStrategy() {
         return (somaRoi ==null) ? ROI_UNSET : strategy;
@@ -605,8 +614,13 @@ public class SkeletonConverter {
 	}
 
     /**
-     * Sets whether to prune branches which end in end-points from the result.
+     * Sets whether to prune end branches during skeleton analysis.
+     * <p>
+     * Controls whether terminal branches should be pruned during the
+     * skeleton analysis process.
+     * </p>
      *
+     * @param pruneEnds true to prune end branches, false otherwise
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setPruneEnds(boolean pruneEnds) {
@@ -616,6 +630,7 @@ public class SkeletonConverter {
     /**
      * Sets whether to calculate the longest shortest-path in the skeleton result.
      *
+     * @param shortestPath true to calculate shortest paths, false otherwise
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setShortestPath(boolean shortestPath) {
@@ -623,9 +638,13 @@ public class SkeletonConverter {
     }
 
     /**
-     * Setting this to false will display both the tagged skeleton image and the shortest path image (if the
-     * shortest path calculation is enabled).
+     * Sets whether to run skeleton analysis in silent mode.
+     * <p>
+	 * Setting this to false will display both the tagged skeleton image and the shortest path image (if the
+	 * shortest path calculation is enabled).
+     * </p>
      *
+     * @param silent true for silent operation, false for debug output
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setSilent(boolean silent) {
@@ -633,6 +652,13 @@ public class SkeletonConverter {
     }
 
     /**
+     * Sets whether to run skeleton analysis in verbose mode.
+     * <p>
+     * Controls whether the skeleton analysis should provide detailed
+     * output messages during processing.
+     * </p>
+     *
+     * @param verbose true for verbose output, false for normal output
      * @see AnalyzeSkeleton_#run(int, boolean, boolean, ImagePlus, boolean, boolean)
      */
     public void setVerbose(boolean verbose) {
@@ -647,10 +673,14 @@ public class SkeletonConverter {
     }
 
     /**
-     * The minimum component length necessary to avoid pruning. This value is only used
-     * if {@link SkeletonConverter#pruneByLength} is true.
+     * Sets the minimum component length necessary to avoid pruning. This value is only used
+	 * if {@link SkeletonConverter#pruneByLength} is true.
+     * <p>
+     * Specifies the minimum length below which skeleton components will be
+     * pruned from the result. Negative values are set to 0.
+     * </p>
      *
-     * @param lengthThreshold the length threshold
+     * @param lengthThreshold the minimum length threshold
      * @see SkeletonConverter#setPruneByLength(boolean)
      */
     public void setLengthThreshold(double lengthThreshold) {
@@ -661,9 +691,13 @@ public class SkeletonConverter {
     }
 
     /**
-     * Whether to merge broken components in the skeleton result
+     * Sets whether to connect nearby skeleton components.
+     * <p>
+     * Controls whether disconnected skeleton components should be connected
+     * if they are within the maximum connection distance.
+     * </p>
      *
-     * @param connectComponents
+     * @param connectComponents true to connect components, false otherwise
      * @see SkeletonConverter#setMaxConnectDist(double)
      */
     public void setConnectComponents(boolean connectComponents) {
@@ -671,9 +705,13 @@ public class SkeletonConverter {
     }
 
     /**
-     * The maximum allowable distance between nearest neighbors to be considered for a merge
+     * Sets the maximum distance for connecting skeleton components.
+     * <p>
+     * Specifies the maximum distance within which disconnected skeleton
+     * components will be connected. Values &le; 0 are set to Double.MIN_VALUE.
+     * </p>
      *
-     * @param maxConnectDist
+     * @param maxConnectDist the maximum connection distance
      * @see SkeletonConverter#setConnectComponents(boolean)
      */
     public void setMaxConnectDist(double maxConnectDist) {

@@ -217,6 +217,11 @@ public class AllenUtils {
 		}
 	}
 
+	/**
+	 * Assigns a tree to the left hemisphere by mirroring it if necessary.
+	 *
+	 * @param tree the tree to assign to the left hemisphere
+	 */
 	public static void assignToLeftHemisphere(final Tree tree) {
 		final PointInImage root = tree.getRoot();
 		if (root == null || isLeftHemisphere(root))
@@ -224,6 +229,11 @@ public class AllenUtils {
 		mirrorTree(tree);
 	}
 
+	/**
+	 * Assigns a tree to the right hemisphere by mirroring it if necessary.
+	 *
+	 * @param tree the tree to assign to the right hemisphere
+	 */
 	public static void assignToRightHemisphere(final Tree tree) {
 		final PointInImage root = tree.getRoot();
 		if (root == null || !isLeftHemisphere(root))
@@ -242,6 +252,11 @@ public class AllenUtils {
 		return isLeftHemisphere(tree.getRoot());
 	}
 
+	/**
+	 * Assigns hemisphere tags to all nodes in a graph.
+	 *
+	 * @param graph the DirectedWeightedGraph to tag
+	 */
 	public static void assignHemisphereTags(final DirectedWeightedGraph graph) {
 		graph.vertexSet().forEach(node ->
 				node.setHemisphere(

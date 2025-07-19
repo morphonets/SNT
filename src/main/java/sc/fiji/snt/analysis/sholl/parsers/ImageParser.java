@@ -45,7 +45,30 @@ import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
+ * A {@link Parser} for extracting Sholl profiles from image data.
+ * <p>
+ * ImageParser analyzes 2D or 3D images to compute intersection counts at various
+ * radial distances from a center point. It supports thresholded analysis, 
+ * multi-channel images, and various sampling strategies including hemishell analysis.
+ * </p>
+ * <p>
+ * The parser can work with binary images, grayscale images with threshold ranges,
+ * or intensity-based analysis. It provides methods for setting analysis parameters
+ * such as center point, radii, thresholds, and sampling regions.
+ * </p>
+ * Key features include:
+ * <ul>
+ * <li>Support for 2D and 3D image analysis</li>
+ * <li>Flexible center point definition (manual coordinates or ROI-based)</li>
+ * <li>Customizable radial sampling with automatic or manual radius specification</li>
+ * <li>Threshold-based analysis for binary or grayscale images</li>
+ * <li>Hemishell analysis for directional sampling</li>
+ * <li>Integration with ImageJ's calibration system</li>
+ * </ul>
+ *
  * @author Tiago Ferreira
+ * @see Parser
+ * @see Profile
  */
 public class ImageParser extends ContextCommand implements Parser {
 
@@ -101,6 +124,16 @@ public class ImageParser extends ContextCommand implements Parser {
 		properties = profile.getProperties();
 	}
 
+	/**
+	 * Gets the isotropic voxel size used for analysis.
+	 * <p>
+	 * For 2D images, this is the average of pixel width and height.
+	 * For 3D images, this is the average of pixel width, height, and depth.
+	 * This value is used as the minimum step size for radial sampling.
+	 * </p>
+	 *
+	 * @return the isotropic voxel size in calibrated units
+	 */
 	public double getIsotropicVoxelSize() {
 		return voxelSize;
 	}
@@ -174,6 +207,17 @@ public class ImageParser extends ContextCommand implements Parser {
 		zc = (int) center.rawZ(cal);
 	}
 
+	/**
+	 * Sets the threshold range for pixel inclusion in the analysis.
+	 * <p>
+	 * Only pixels with intensity values within the specified range will be
+	 * considered as intersections during Sholl analysis. This is particularly
+	 * useful for analyzing specific structures in grayscale images.
+	 * </p>
+	 *
+	 * @param lower the lower threshold value (inclusive)
+	 * @param upper the upper threshold value (inclusive)
+	 */
 	public void setThreshold(final double lower, final double upper) {
 		lowerT = lower;
 		upperT = upper;

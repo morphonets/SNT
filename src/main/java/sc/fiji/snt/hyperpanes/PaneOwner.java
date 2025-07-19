@@ -24,13 +24,43 @@ package sc.fiji.snt.hyperpanes;
 
 public interface PaneOwner {
 
+	/**
+	 * Called when the mouse is moved to a new position.
+	 *
+	 * @param x the x coordinate
+	 * @param y the y coordinate
+	 * @param plane the plane identifier
+	 * @param shift_down whether the shift key is pressed
+	 */
 	public void mouseMovedTo(double x, double y, int plane, boolean shift_down);
 
+	/**
+	 * Called when a zoom event occurs.
+	 *
+	 * @param zoomInEvent true for zoom in, false for zoom out
+	 * @param x the x coordinate of the zoom center
+	 * @param y the y coordinate of the zoom center
+	 * @param sourcePlane the plane where the zoom occurred
+	 */
 	public void zoomEventOccurred(boolean zoomInEvent, int x, int y,
 	                              int sourcePlane);
 
+	/**
+	 * Called when a pan event occurs.
+	 *
+	 * @param x the x coordinate of the pan
+	 * @param y the y coordinate of the pan
+	 * @param sourcePlane the plane where the pan occurred
+	 */
 	public void panEventOccurred(int x, int y, int sourcePlane);
 
+	/**
+	 * Shows a status message with progress information.
+	 *
+	 * @param progress the current progress value
+	 * @param maximum the maximum progress value
+	 * @param message the status message to display
+	 */
 	public void showStatus(int progress, int maximum, String message);
 
 }
