@@ -171,8 +171,8 @@ public class SNTChart extends ChartPanel {
 
 				@Override
 				public void windowClosing(final WindowEvent e) {
-					if (isCombined())
-						otherCombinedCharts.forEach(SNTChart::dispose);
+					if (isCombined()) otherCombinedCharts.forEach(SNTChart::dispose);
+					dispose();
 				}
 			});
 		}
