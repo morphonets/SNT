@@ -325,16 +325,46 @@ public class Tree implements TreeProperties {
 	}
 
 	/**
-	 * Downsamples the tree.
+	 * Downsamples the tree, i.e., reduces the density of its nodes by increasing internode spacing.
+	 * <p>
+	 * Note that 1) upsampling is not supported (see {{@link #upsample(double)}}, and 2) the
+	 * position of nodes at branch points and tips remains unaltered during downsampling.
+	 * </p>
 	 *
-	 * @param maximumAllowedDeviation the maximum allowed distance between 'shaft'
-	 *          path nodes. Note that 1) upsampling is not supported, and 2) the
-	 *          position of nodes at branch points and tips remains unaltered
-	 *          during downsampling
+	 * @param maximumAllowedDeviation the maximum allowed distance between path nodes.
 	 * @see PathDownsampler
+	 * @see #upsample(double)
 	 */
-	public void downSample(final double maximumAllowedDeviation) {
+	public void downsample(final double maximumAllowedDeviation) {
 		tree.parallelStream().forEach(p -> p.downsample(maximumAllowedDeviation));
+		nullifyGraphsAndPafm();
+	}
+
+	/**
+	 * @deprecated Use {@link #downsample(double)} instead.
+	 */
+	@Deprecated
+	public void downSample(final double maximumAllowedDeviation) {
+		downsample(maximumAllowedDeviation);
+	}
+
+	/**
+	 * Downsamples the tree, i.e., increases the density of its nodes by decreasing internode spacing.
+	 * <p>
+	 * The upscaling will include all the original nodes plus additional interpolated nodes
+	 * placed at regular intervals between them, approximately equal to the specified
+	 * distance. The original nodes are preserved in the upsampled tree. If the distance
+	 * between two adjacent original nodes is less than the specified pacing, no additional
+	 * nodes are added between them.
+	 * </p>
+	 *
+	 * @param internodeSpacing the desired distance between adjacent nodes in the upsampled path
+	 * @throws IllegalArgumentException if spacing is less than or equal to zero
+	 * @see #downsample(double)
+	 * @see Path#upsample(double)
+	 */
+	public void upsample(final double internodeSpacing) {
+		tree.parallelStream().forEach(p -> p.upsample(internodeSpacing));
 		nullifyGraphsAndPafm();
 	}
 

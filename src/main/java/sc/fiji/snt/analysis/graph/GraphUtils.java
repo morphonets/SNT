@@ -95,7 +95,7 @@ public class GraphUtils {
 		SNTUtils.setDebugMode(true);
 		SNTService sntService = ij.context().getService(SNTService.class);
 		final Tree tree = sntService.demoTree("fractal");
-		tree.downSample(Double.MAX_VALUE);
+		tree.downsample(Double.MAX_VALUE);
 		tree.setColor(Colors.RED);
 		final DirectedWeightedGraph graph = tree.getGraph();
 		final Viewer3D recViewer = new Viewer3D(ij.context());

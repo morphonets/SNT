@@ -791,19 +791,12 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected PointInCanvas getPointInCanvas2D(final int node, final TracerCanvas canvas) {
-		final PointInCanvas result;
-		switch(canvas.getPlane()) {
-		case MultiDThreePanes.XZ_PLANE:
-			result = new PointInCanvas(getXUnscaledDouble(node), getZUnscaledDouble(node), 0);
-			break;
-		case MultiDThreePanes.ZY_PLANE:
-			result = new PointInCanvas(getZUnscaledDouble(node), getYUnscaledDouble(node), 0);
-			break;
-		default:
-			result = new PointInCanvas(getXUnscaledDouble(node), getYUnscaledDouble(node), 0);
-			break;
-		}
-		result.onPath = this;
+		final PointInCanvas result = switch (canvas.getPlane()) {
+            case MultiDThreePanes.XZ_PLANE -> new PointInCanvas(getXUnscaledDouble(node), getZUnscaledDouble(node), 0);
+            case MultiDThreePanes.ZY_PLANE -> new PointInCanvas(getZUnscaledDouble(node), getYUnscaledDouble(node), 0);
+            default -> new PointInCanvas(getXUnscaledDouble(node), getYUnscaledDouble(node), 0);
+        };
+        result.onPath = this;
 		return result;
 	}
 
@@ -1066,10 +1059,6 @@ public class Path implements Comparable<Path> {
 
 	protected boolean isBeingEdited() {
 		return editableNodeIndex != -1;
-	}
-
-	protected void stopBeingEdited() {
-		editableNodeIndex = -1;
 	}
 
 	protected boolean isEditableNodeLocked() {
@@ -1819,27 +1808,17 @@ public class Path implements Comparable<Path> {
 	 * @return the SWC color
 	 */
 	public static Color getSWCcolor(final int swcType) {
-		switch (swcType) {
-			case Path.SWC_SOMA:
-				return Color.BLUE;
-			case Path.SWC_AXON:
-				return Color.RED;
-			case Path.SWC_DENDRITE:
-				return Color.GREEN;
-			case Path.SWC_APICAL_DENDRITE:
-				return Color.CYAN;
-			case Path.SWC_CUSTOM:
-				return Color.YELLOW;
-			case Path.SWC_UNSPECIFIED:
-				return Color.ORANGE;
-			case Path.SWC_GLIA_PROCESS:
-				return Color.PINK;
-			case Path.SWC_CUSTOM2:
-				return Color.YELLOW.darker();
-			case Path.SWC_UNDEFINED:
-			default:
-				return SNT.DEFAULT_DESELECTED_COLOR;
-		}
+        return switch (swcType) {
+            case Path.SWC_SOMA -> Color.BLUE;
+            case Path.SWC_AXON -> Color.RED;
+            case Path.SWC_DENDRITE -> Color.GREEN;
+            case Path.SWC_APICAL_DENDRITE -> Color.CYAN;
+            case Path.SWC_CUSTOM -> Color.YELLOW;
+            case Path.SWC_UNSPECIFIED -> Color.ORANGE;
+            case Path.SWC_GLIA_PROCESS -> Color.PINK;
+            case Path.SWC_CUSTOM2 -> Color.YELLOW.darker();
+            default -> SNT.DEFAULT_DESELECTED_COLOR;
+        };
 	}
 
 	/**
@@ -2124,9 +2103,7 @@ public class Path implements Comparable<Path> {
 	 *         invalid radii.
 	 */
 	public Map<Integer, Double> interpolateMissingRadii(final boolean apply) {
-		return interpolateMissingRadii((x) -> {
-			return x <= 0 || Double.isNaN(x);
-		}, apply);
+		return interpolateMissingRadii((x) -> x <= 0 || Double.isNaN(x), apply);
 	}
 
 	/**
@@ -2706,7 +2683,6 @@ public class Path implements Comparable<Path> {
 		nameWhenAddedToViewerExtra = null;
 
 		// univ.resetView();
-		return;
 	}
 
 	public void setSelected(final boolean newSelectedStatus) {
@@ -3020,6 +2996,163 @@ public class Path implements Comparable<Path> {
 			lastIndex = fpi;
 		}
 		invalidate3DView();
+	}
+
+	/**
+	 * Upsamples this path by spacing nodes at a specified distance.
+	 * <p>
+	 * The original nodes are preserved and additional interpolated nodes are placed at regular
+	 * intervals between them. The spacing between adjacent nodes will thus be approximately
+	 * equal to the specified distance. If the distance between two adjacent original nodes is
+	 * less than the specified pacing, no additional nodes are added between them. Some properties
+	 * like node colors may be lost.
+	 * </p>
+	 *
+	 * @param internodeSpacing the desired distance between adjacent nodes
+	 * @throws IllegalArgumentException if spacing is less than or equal to zero
+	 */
+	synchronized public void upsample(final double internodeSpacing) {
+		if (internodeSpacing <= 0) {
+			throw new IllegalArgumentException("internode spacing must be greater than zero");
+		}
+
+		if (size() < 2) return;
+
+		// Prefer squared distances for (marginal) performance gains
+		final double spacingSquared = internodeSpacing * internodeSpacing;
+		final int originalSize = size();
+
+		// Pre-calculate segment data and total points needed
+		final double[] segmentDx = new double[originalSize - 1];
+		final double[] segmentDy = new double[originalSize - 1];
+		final double[] segmentDz = new double[originalSize - 1];
+		final int[] segmentPoints = new int[originalSize - 1];
+		int totalPointsToAdd = 0;
+
+		for (int i = 0; i < originalSize - 1; i++) {
+			final PointInImage p1 = getNodeWithoutChecks(i);
+			final PointInImage p2 = getNodeWithoutChecks(i + 1);
+
+			final double dx = p2.x - p1.x;
+			final double dy = p2.y - p1.y;
+			final double dz = p2.z - p1.z;
+			final double lengthSquared = dx * dx + dy * dy + dz * dz;
+
+			segmentDx[i] = dx;
+			segmentDy[i] = dy;
+			segmentDz[i] = dz;
+
+			if (lengthSquared > spacingSquared) {
+				final int numPoints = (int) Math.floor(Math.sqrt(lengthSquared) / internodeSpacing);
+				segmentPoints[i] = numPoints;
+				totalPointsToAdd += numPoints;
+			} else {
+				segmentPoints[i] = 0;
+			}
+		}
+
+		if (totalPointsToAdd == 0) return;
+
+		// Allocate final arrays
+		final int newSize = originalSize + totalPointsToAdd;
+		final double[] newX = new double[newSize];
+		final double[] newY = new double[newSize];
+		final double[] newZ = new double[newSize];
+
+		// Check once for optional data arrays
+		final boolean hasRadiiData = hasRadii();
+		final boolean hasValueData = hasNodeValues();
+		final boolean hasAnnotationData = hasNodeAnnotations();
+		final boolean hasHemisphereData = hasNodeHemisphereFlags();
+		final double[] newRadii = (hasRadiiData) ? new double[newSize] : null;
+		final double[] newValues = (hasValueData) ? new double[newSize] : null;
+		final BrainAnnotation[] newAnnotations = (hasAnnotationData) ? new BrainAnnotation[newSize] : null;
+		final char[] newHemisphereFlags = (hasHemisphereData) ? new char[newSize] : null;
+
+		// Process each segment
+		int idx = 0;
+		for (int i = 0; i < originalSize - 1; i++) {
+			final PointInImage p1 = getNodeWithoutChecks(i);
+
+			// Add original point
+			newX[idx] = p1.x;
+			newY[idx] = p1.y;
+			newZ[idx] = p1.z;
+
+			// Cache original data values to avoid repeated method calls
+			final double r1 = (hasRadiiData) ? getNodeRadius(i) : 0;
+			final double v1 = (hasValueData) ? nodeValues[i] : 0;
+			if (hasRadiiData) newRadii[idx] = r1;
+			if (hasValueData) newValues[idx] = v1;
+			if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[i];
+			if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[i];
+			idx++;
+
+			// Add interpolated points
+			final int numPoints = segmentPoints[i];
+			if (numPoints > 0) {
+				final double stepSize = 1.0 / (numPoints + 1);
+				final double dx = segmentDx[i];
+				final double dy = segmentDy[i];
+				final double dz = segmentDz[i];
+				// Pre-calculate interpolation deltas
+				final double r2 = (hasRadiiData) ? getNodeRadius(i + 1) : 0;
+				final double v2 = (hasValueData) ? nodeValues[i + 1] : 0;
+				final double dr = r2 - r1;
+				final double dv = v2 - v1;
+				// Pre-calculate midpoint for annotation/hemisphere selection: interpolated node will adopt the
+				// value of the closest node. This may not work in all the cases, but it is a sensible assumption.
+				final int midPoint = (numPoints + 1) / 2;
+
+				for (int j = 1; j <= numPoints; j++) {
+					final double t = j * stepSize;
+					newX[idx] = p1.x + t * dx;
+					newY[idx] = p1.y + t * dy;
+					newZ[idx] = p1.z + t * dz;
+					if (hasRadiiData) newRadii[idx] = r1 + t * dr;
+					if (hasValueData) newValues[idx] = v1 + t * dv;
+					final int indexOfClosestNode = (j <= midPoint) ? i : i + 1;
+					if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[indexOfClosestNode];
+					if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[indexOfClosestNode];
+					idx++;
+				}
+			}
+		}
+
+		// Add final node
+		final PointInImage lastPoint = getNodeWithoutChecks(originalSize - 1);
+		final int lastIdx = originalSize - 1;
+
+		newX[idx] = lastPoint.x;
+		newY[idx] = lastPoint.y;
+		newZ[idx] = lastPoint.z;
+
+		if (hasRadiiData) newRadii[idx] = getNodeRadius(lastIdx);
+		if (hasValueData) newValues[idx] = nodeValues[lastIdx];
+		if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[lastIdx];
+		if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[lastIdx];
+
+		// Update path data
+		points = newSize;
+		maxPoints = newSize;
+		precise_x_positions = newX;
+		precise_y_positions = newY;
+		precise_z_positions = newZ;
+		nodeValues = newValues;
+		nodeAnnotations = newAnnotations;
+		nodeHemisphereFlags = newHemisphereFlags;
+		setRadiiInPlace(newRadii);
+	}
+
+	private void setRadiiInPlace(final double[] newRadii) {
+		if (newRadii != null) {
+			assert points == newRadii.length;
+			tangents_x = new double[newRadii.length];
+			tangents_y = new double[newRadii.length];
+			tangents_z = new double[newRadii.length];
+			setGuessedTangents(2);
+		}
+		radii = newRadii;
 	}
 
 	/**
