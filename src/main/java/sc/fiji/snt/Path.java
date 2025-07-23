@@ -2984,7 +2984,7 @@ public class Path implements Comparable<Path> {
 		nodeValues = newValues;
 		nodeAnnotations = newAnnotations;
 		nodeHemisphereFlags = newHemisphereFlags;
-		setRadii(newRadii);
+		setRadiiInPlace(newRadii);
 		setNodeColors(null); // remove color coding as per upsample()
 	}
 	

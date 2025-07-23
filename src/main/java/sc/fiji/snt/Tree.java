@@ -345,8 +345,8 @@ public class Tree implements TreeProperties {
 	 * @deprecated Use {@link #downsample(double)} instead.
 	 */
 	@Deprecated
-	public void downSample(final double maximumAllowedDeviation) {
-		downsample(maximumAllowedDeviation);
+	public void downSample(final double internodeSpacing) {
+		downsample(internodeSpacing);
 	}
 
 	/**
