@@ -327,16 +327,17 @@ public class Tree implements TreeProperties {
 	/**
 	 * Downsamples the tree, i.e., reduces the density of its nodes by increasing internode spacing.
 	 * <p>
-	 * Note that 1) upsampling is not supported (see {{@link #upsample(double)}}, and 2) the
-	 * position of nodes at branch points and tips remains unaltered during downsampling.
+	 * Note that 1) upsampling is not supported (cf. {{@link #upsample(double)}}, and 2) the
+	 * position of nodes at branch points and tips remains unaltered during downsampling, as per
+	 * {@link Path#downsample(double)}.
 	 * </p>
 	 *
-	 * @param maximumAllowedDeviation the maximum allowed distance between path nodes.
+	 * @param internodeSpacing the maximum allowed distance between path nodes.
 	 * @see PathDownsampler
 	 * @see #upsample(double)
 	 */
-	public void downsample(final double maximumAllowedDeviation) {
-		tree.parallelStream().forEach(p -> p.downsample(maximumAllowedDeviation));
+	public void downsample(final double internodeSpacing) {
+		tree.parallelStream().forEach(p -> p.downsample(internodeSpacing));
 		nullifyGraphsAndPafm();
 	}
 

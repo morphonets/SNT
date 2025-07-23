@@ -3122,33 +3122,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			else if (DOWNSAMPLE_CMD.equals(cmd)) {
-				final double minSep = plugin.getMinimumSeparation();
-				final Double userMaxDeviation = guiUtils.getDouble(
-						"Please specify the maximum permitted distance between nodes:<ul>" +
-						"<li>This destructive operation cannot be undone!</li>" +
-						"<li>Paths can only be downsampled: Smaller inter-node distances will not be interpolated</li>" +
-						"<li>Currently, the smallest voxel dimension is " + SNTUtils
-							.formatDouble(minSep, 3) + plugin.spacing_units + "</li>",
-					"Downsampling: " + n + " Selected Path(s)", 2 * minSep);
-				if (userMaxDeviation == null) return; // user pressed cancel
-
-				final double maxDeviation = userMaxDeviation;
-				if (Double.isNaN(maxDeviation) || maxDeviation <= 0) {
-					guiUtils.error(
-						"The maximum permitted distance must be a positive number",
-						"Invalid Input");
-					return;
-				}
-				for (final Path p : selectedPaths) {
-					Path pathToUse = p;
-					if (p.getUseFitted()) {
-						pathToUse = p.getFitted();
-					}
-					pathToUse.downsample(maxDeviation);
-				}
-				// Make sure that the 3D viewer and the stacks are redrawn:
-				plugin.updateAllViewers();
-				plugin.setUnsavedChanges(true);
+				dowsamplePaths(selectedPaths);
 				return;
 
 			}
@@ -3232,6 +3206,44 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 				return;
 			}
+		}
+
+		@SuppressWarnings("deprecated")
+		private void dowsamplePaths(final List<Path> selectedPaths) {
+			final double minSep = plugin.getMinimumSeparation();
+			final Double userMaxDeviation = guiUtils.getDouble(
+					"Please specify the maximum permitted distance between nodes:<ul>" +
+					"<li>This destructive operation cannot be undone!</li>" +
+					"<li>Paths can only be downsampled: Smaller inter-node distances will not be interpolated</li>" +
+					"<li>Paths with less than three nodes are ignored</li>" +
+					"<li>Currently, the smallest voxel dimension is " + SNTUtils
+						.formatDouble(minSep, 3) + plugin.spacing_units + "</li>",
+				"Downsampling: " + selectedPaths.size() + " Selected Path(s)", 2 * minSep);
+			if (userMaxDeviation == null) return;
+			final double maxDeviation = userMaxDeviation;
+			if (Double.isNaN(maxDeviation) || maxDeviation <= 0) {
+				guiUtils.error(
+					"The maximum permitted distance must be a positive number",
+					"Invalid Input");
+				return;
+			}
+			for (final Path p : selectedPaths) {
+				Path pathToUse = p;
+				if (p.getUseFitted()) {
+					pathToUse = p.getFitted();
+				}
+				pathToUse.downsample(maxDeviation);
+			}
+			// Make sure that the 3D viewer and the stacks are redrawn:
+			if (plugin.univ != null) {
+				pathAndFillManager.getPaths().forEach( p -> {
+					p.removeFrom3DViewer(plugin.univ);
+					//noinspection deprecation
+					p.addTo3DViewer(plugin.univ, p.getColor(), null);
+				});
+			}
+			plugin.updateAllViewers();
+			plugin.setUnsavedChanges(true);
 		}
 
 		void removeColorNodesPrompt(final Collection<Path> selectedPaths) {

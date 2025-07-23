@@ -2377,18 +2377,7 @@ public class Path implements Comparable<Path> {
 			}
 		}
 
-		// Has the path's representation in the 3D viewer been marked as
-		// invalid?
-
-		if (pathToUse.is3DViewInvalid()) {
-			pathToUse.removeFrom3DViewer(univ);
-			pathToUse.addTo3DViewer(univ, color, colorImage);
-			invalid3DMesh = false;
-			return;
-		}
-
 		// Is the (flat) color wrong?
-
 		if (pathToUse.realColor == null || !pathToUse.realColor.equals(color)) {
 
 			/*
@@ -2440,16 +2429,6 @@ public class Path implements Comparable<Path> {
 		return linePoints;
 	}
 
-	protected boolean invalid3DMesh = false;
-
-	private void invalidate3DView() {
-		invalid3DMesh = true;
-	}
-
-	private boolean is3DViewInvalid() {
-		return invalid3DMesh;
-	}
-
 	@Deprecated
 	public Content addAsLinesTo3DViewer(final Image3DUniverse univ, final Color c,
 		final ImagePlus colorImage)
@@ -2499,18 +2478,12 @@ public class Path implements Comparable<Path> {
 	}
 
 	@Deprecated
-	synchronized public void addTo3DViewer(final Image3DUniverse univ,
-		final Color c, final ImagePlus colorImage)
-	{
-		if (c == null) throw new IllegalArgumentException(
-			"In addTo3DViewer, Color can no longer be null");
-		addTo3DViewer(univ, Utils.toColor3f(c), colorImage);
+	synchronized public void addTo3DViewer(final Image3DUniverse univ, final Color c, final ImagePlus colorImage) {
+		addTo3DViewer(univ, Utils.toColor3f((c == null) ? SNT.DEFAULT_DESELECTED_COLOR : c), colorImage);
 	}
 
 	@Deprecated
-	synchronized public void addTo3DViewer(final Image3DUniverse univ,
-		final Color3f c, final ImagePlus colorImage)
-	{
+	synchronized public void addTo3DViewer(final Image3DUniverse univ, final Color3f c, final ImagePlus colorImage) {
 		if (c == null) throw new IllegalArgumentException(
 			"In addTo3DViewer, Color3f can no longer be null");
 
@@ -2893,109 +2866,188 @@ public class Path implements Comparable<Path> {
 		return result;
 	}
 
-	synchronized public void downsample(final double maximumAllowedDeviation) {
-		// We should only downsample between the fixed points, i.e.
-		// where this neuron joins others
-		final TreeSet<Integer> fixedPoints = findJunctionIndices();
-		// Add the start and end points:
-		fixedPoints.add(0);
-		fixedPoints.add(points - 1);
-		int lastIndex = -1;
-		int totalDroppedPoints = 0;
-		for (final int fpi : fixedPoints) {
-			if (lastIndex >= 0) {
-				final int start = lastIndex - totalDroppedPoints;
-				final int end = fpi - totalDroppedPoints;
-				// Now downsample between those points:
-				final ArrayList<SimplePoint> forDownsampling = new ArrayList<>();
-				for (int i = start; i <= end; ++i) {
-					forDownsampling.add(new SimplePoint(precise_x_positions[i],
-						precise_y_positions[i], precise_z_positions[i], i));
-				}
-				final ArrayList<SimplePoint> downsampled = PathDownsampler.downsample(
-					forDownsampling, maximumAllowedDeviation);
+	/**
+	 * Downsamples this path (in-place) by reducing the number of nodes while preserving its overall shape.
+	 * <p>
+	 * This method reduces the density of nodes in the path by removing redundant points expected
+	 * to not significantly contribute to the path's shape. The downsampling is performed using the
+	 * Douglas-Peucker algorithm, which preserves fidelity within the specified tolerance.
+	 * </p>
+	 * <p>
+	 * The method operates on the segments flanked by anchor points (junctions, start, and end points).
+	 * Each segment is downsampled independently, and the results are combined to form the final
+	 * downsampled path. Node radii are averaged appropriately for retained points
+	 * </p>
+	 *
+	 * @param internodeSpacing the target spacing between nodes after downsampling. This parameter
+	 *                         controls the aggressiveness of the downsampling - smaller values
+	 *                         preserve more detail, larger values result in more aggressive
+	 *                         simplification. Must be greater than zero.
+	 * @throws IllegalArgumentException if internodeSpacing is less than or equal to zero
+	 * @see #upsample(double)
+	 * @see PathDownsampler#downsample(ArrayList, double)
+	 * @see #findJunctionIndices()
+	 */
+	synchronized public void downsample(final double internodeSpacing) {
+		if (points < 3) return; // Need at least 3 points to downsample
 
-				// Now update x_points, y_points, z_points:
-				final int pointsDroppedThisTime = forDownsampling.size() - downsampled
-					.size();
-				totalDroppedPoints += pointsDroppedThisTime;
-				final int newLength = points - pointsDroppedThisTime;
-				final double[] new_x_points = new double[maxPoints];
-				final double[] new_y_points = new double[maxPoints];
-				final double[] new_z_points = new double[maxPoints];
-				// First copy the elements before 'start' verbatim:
-				System.arraycopy(precise_x_positions, 0, new_x_points, 0, start);
-				System.arraycopy(precise_y_positions, 0, new_y_points, 0, start);
-				System.arraycopy(precise_z_positions, 0, new_z_points, 0, start);
-				// Now copy in the downsampled points:
-				final int downsampledLength = downsampled.size();
-				for (int i = 0; i < downsampledLength; ++i) {
-					final SimplePoint sp = downsampled.get(i);
-					new_x_points[start + i] = sp.x;
-					new_y_points[start + i] = sp.y;
-					new_z_points[start + i] = sp.z;
-				}
-				System.arraycopy(precise_x_positions, end, new_x_points, (start +
-					downsampledLength) - 1, points - end);
-				System.arraycopy(precise_y_positions, end, new_y_points, (start +
-					downsampledLength) - 1, points - end);
-				System.arraycopy(precise_z_positions, end, new_z_points, (start +
-					downsampledLength) - 1, points - end);
+		// Find fixed points (junctions) that must be preserved. Set is already sorted
+		// Convert to sorted array for easier processing
+		final TreeSet<Integer> fixedIndicesSet = findJunctionIndices();
+		fixedIndicesSet.add(0); // Always preserve start
+		fixedIndicesSet.add(points - 1); // Always preserve end
+		final int[] fixedIndices = fixedIndicesSet.stream().mapToInt(Integer::intValue).toArray();
 
-				double[] new_radiuses = null;
-				if (hasRadii()) {
-					new_radiuses = new double[maxPoints];
-					System.arraycopy(radii, 0, new_radiuses, 0, start);
-					for (int i = 0; i < downsampledLength; ++i) {
-						final SimplePoint sp = downsampled.get(i);
-						// Find a first and last index in the original radius
-						// array to
-						// take a mean over:
-						int firstRadiusIndex, lastRadiusIndex, n = 0;
-						double total = 0;
-						if (i == 0) {
-							// This is the first point:
-							final SimplePoint spNext = downsampled.get(i + 1);
-							firstRadiusIndex = sp.originalIndex;
-							lastRadiusIndex = (sp.originalIndex + spNext.originalIndex) / 2;
-						}
-						else if (i == downsampledLength - 1) {
-							// Then this is the last point:
-							final SimplePoint spPrevious = downsampled.get(i - 1);
-							firstRadiusIndex = (spPrevious.originalIndex + sp.originalIndex) /
-								2;
-							lastRadiusIndex = sp.originalIndex;
-						}
-						else {
-							final SimplePoint spPrevious = downsampled.get(i - 1);
-							final SimplePoint spNext = downsampled.get(i + 1);
-							firstRadiusIndex = (sp.originalIndex + spPrevious.originalIndex) /
-								2;
-							lastRadiusIndex = (sp.originalIndex + spNext.originalIndex) / 2;
-						}
-						for (int j = firstRadiusIndex; j <= lastRadiusIndex; ++j) {
-							total += radii[j];
-							++n;
-						}
-						new_radiuses[start + i] = total / n;
-					}
-					System.arraycopy(radii, end, new_radiuses, (start +
-						downsampledLength) - 1, points - end);
-				}
+		// Process all segments and collect results
+		final List<SegmentResult> segmentResults = new ArrayList<>();
+		int totalPointsToKeep = 0;
 
-				// Now update all of those fields:
-				points = newLength;
-				precise_x_positions = new_x_points;
-				precise_y_positions = new_y_points;
-				precise_z_positions = new_z_points;
-				radii = new_radiuses;
-				if (hasRadii()) {
-					setGuessedTangents(2);
-				}
+		for (int segIdx = 0; segIdx < fixedIndices.length - 1; segIdx++) {
+			final int segStart = fixedIndices[segIdx];
+			final int segEnd = fixedIndices[segIdx + 1];
+
+			// Skip empty or single-point segments
+			if (segEnd <= segStart) continue;
+
+			// Create input for downsampling
+			final ArrayList<SimplePoint> segmentPoints = new ArrayList<>(segEnd - segStart + 1);
+			for (int i = segStart; i <= segEnd; i++) {
+				segmentPoints.add(new SimplePoint(
+						precise_x_positions[i], precise_y_positions[i], precise_z_positions[i], i));
 			}
-			lastIndex = fpi;
+
+			// Downsample this segment
+			ArrayList<SimplePoint> downsampled = PathDownsampler.downsample(segmentPoints, internodeSpacing);
+
+			if (downsampled.isEmpty()) {
+				// Fallback to original segment if downsampling fails
+				downsampled = segmentPoints;
+			}
+
+			final SegmentResult result = new SegmentResult(segStart, segEnd, downsampled);
+			segmentResults.add(result);
+			totalPointsToKeep += downsampled.size();
+
+			// Avoid double-counting shared endpoints between segments
+			if (segIdx > 0) totalPointsToKeep--;
 		}
-		invalidate3DView();
+
+		if (totalPointsToKeep >= points || segmentResults.isEmpty()) return; // No improvement from downsampling
+
+		// Allocate new arrays
+		final double[] newX = new double[totalPointsToKeep];
+		final double[] newY = new double[totalPointsToKeep];
+		final double[] newZ = new double[totalPointsToKeep];
+
+		final boolean hasRadiiData = hasRadii();
+		final boolean hasValueData = hasNodeValues();
+		final boolean hasAnnotationData = hasNodeAnnotations();
+		final boolean hasHemisphereData = hasNodeHemisphereFlags();
+		final double[] newRadii = hasRadiiData ? new double[totalPointsToKeep] : null;
+		final double[] newValues = hasValueData ? new double[totalPointsToKeep] : null;
+		final BrainAnnotation[] newAnnotations = hasAnnotationData ? new BrainAnnotation[totalPointsToKeep] : null;
+		final char[] newHemisphereFlags = hasHemisphereData ? new char[totalPointsToKeep] : null;
+
+		// Build the final downsampled path
+		int outputIdx = 0;
+		for (int segIdx = 0; segIdx < segmentResults.size(); segIdx++) {
+			final SegmentResult result = segmentResults.get(segIdx);
+			final int startIdx = (segIdx == 0) ? 0 : 1; // Skip first point of non-first segments to avoid duplication
+
+			for (int i = startIdx; i < result.downsampledPoints.size(); i++) {
+				final SimplePoint sp = result.downsampledPoints.get(i);
+
+				// Copy coordinates
+				newX[outputIdx] = sp.x;
+				newY[outputIdx] = sp.y;
+				newZ[outputIdx] = sp.z;
+
+				// Handle optional data arrays
+				if (hasRadiiData)
+					newRadii[outputIdx] = calculateAverageRadius(sp, result, i);
+				if (hasValueData)
+					newValues[outputIdx] = nodeValues[sp.originalIndex];
+				if (hasAnnotationData)
+					newAnnotations[outputIdx] = nodeAnnotations[sp.originalIndex];
+				if (hasHemisphereData)
+					newHemisphereFlags[outputIdx] = nodeHemisphereFlags[sp.originalIndex];
+				outputIdx++;
+			}
+		}
+
+		// Update path data
+		points = totalPointsToKeep;
+		precise_x_positions = newX;
+		precise_y_positions = newY;
+		precise_z_positions = newZ;
+		radii = newRadii;
+		nodeValues = newValues;
+		nodeAnnotations = newAnnotations;
+		nodeHemisphereFlags = newHemisphereFlags;
+		setRadii(newRadii);
+		setNodeColors(null); // remove color coding as per upsample()
+	}
+	
+	/**
+	 * Helper class to store the results of downsampling a single path segment.
+	 * <p>
+	 * This class encapsulates the original segment boundaries and the resulting
+	 * downsampled points for a segment between two fixed points (junctions).
+	 * </p>
+	 */
+	private static class SegmentResult {
+		final int originalStart;
+		final int originalEnd;
+		final ArrayList<SimplePoint> downsampledPoints;
+		
+		SegmentResult(int originalStart, int originalEnd, ArrayList<SimplePoint> downsampledPoints) {
+			this.originalStart = originalStart;
+			this.originalEnd = originalEnd;
+			this.downsampledPoints = downsampledPoints;
+		}
+	}
+	
+	/**
+	 * Calculates an appropriate radius value for a downsampled point.
+	 * <p>
+	 * For endpoint nodes, the original radius is preserved. For intermediate nodes,
+	 * the radius is computed as the average of nearby original nodes within a small
+	 * neighborhood window to maintain smooth radius transitions.
+	 * </p>
+	 * 
+	 * @param sp the downsampled point for which to calculate the radius
+	 * @param result the segment result containing context about the original segment
+	 * @param pointIndex the index of the point within the downsampled segment
+	 * @return the calculated radius value, or 0.0 if no radius data is available
+	 */
+	private double calculateAverageRadius(final SimplePoint sp, final SegmentResult result, final int pointIndex) {
+		if (!hasRadii() || sp.originalIndex < 0 || sp.originalIndex >= radii.length) {
+			return 0.0;
+		}
+		
+		// For endpoints, use the original radius
+		if (pointIndex == 0 || pointIndex == result.downsampledPoints.size() - 1) {
+			return radii[sp.originalIndex];
+		}
+		
+		// For intermediate points, average over a small neighborhood
+		final int originalIdx = sp.originalIndex;
+		final int windowSize = 2; // Average over ±2 points
+		final int startIdx = Math.max(0, Math.max(result.originalStart, originalIdx - windowSize));
+		final int endIdx = Math.min(radii.length - 1, Math.min(result.originalEnd, originalIdx + windowSize));
+		
+		// Ensure valid range
+		if (startIdx > endIdx) {
+			return radii[originalIdx];
+		}
+
+		double sum = 0.0;
+		int count = 0;
+		for (int i = startIdx; i <= endIdx; i++) {
+			sum += radii[i];
+			count++;
+		}
+		return count > 0 ? sum / count : radii[originalIdx];
 	}
 
 	/**
