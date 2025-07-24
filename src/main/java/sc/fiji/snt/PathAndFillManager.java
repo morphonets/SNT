@@ -802,210 +802,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		return result;
 	}
 
-	/**
-	 * Gets the list of SWCPoints associated with a collection of Paths.
-	 *
-	 * @param paths the paths from which to retrieve the list
-	 * @return the list of SWCPoints, corresponding to all the nodes of
-	 *         {@code paths}
-	 * @throws SWCExportException if list could not be retrieved
-	 */
-	public synchronized List<SWCPoint> getSWCForOld(final Collection<Path> paths)
-		throws SWCExportException
-	{
-
-		/*
-		 * Turn the primary paths into a Set. This call also ensures that the
-		 * Path.children and Path.somehowJoins relationships are set up correctly:
-		 */
-		final Set<Path> structuredPathSet = new HashSet<>(Arrays.asList(
-			getPathsStructured(paths)));
-
-		/*
-		 * Check that there's only one primary path in selectedPaths by taking the
-		 * intersection and checking there's exactly one element in it:
-		 */
-		structuredPathSet.retainAll(new HashSet<>(paths));
-
-		if (structuredPathSet.isEmpty()) throw new SWCExportException(
-			"The paths you select for SWC export must include a primary path (i.e., one at the top level in the Path Manager tree)");
-		if (structuredPathSet.size() > 1) throw new SWCExportException(
-			"You can only select one connected set of paths for SWC export");
-
-		/*
-		 * So now we definitely only have one primary path. All the connected paths must
-		 * also be selected, but we'll check that as we go along:
-		 */
-
-		final ArrayList<SWCPoint> result = new ArrayList<>();
-
-		int currentPointID = 1;
-
-		/*
-		 * nextPathsToAdd is the queue of Paths to add points from, and pathsAlreadyDone
-		 * is the set of Paths that have already had their points added
-		 */
-
-		final LinkedList<Path> nextPathsToAdd = new LinkedList<>();
-		final Set<Path> pathsAlreadyDone = new HashSet<>();
-
-		final Path firstPath = structuredPathSet.iterator().next();
-		if (firstPath.size() == 0) throw new SWCExportException(
-			"The primary path contained no points!");
-		nextPathsToAdd.add(firstPath);
-
-		while (!nextPathsToAdd.isEmpty()) {
-
-			final Path currentPath = nextPathsToAdd.removeFirst();
-
-			if (!paths.contains(currentPath)) {
-				SNTUtils.error(
-						"The path \"" + currentPath +
-						"\" is connected to other paths, but wasn't itself included.");
-			}
-
-			/*
-			 * The paths we're dealing with specify connectivity, but we might be using the
-			 * fitted versions - take them for the point positions:
-			 */
-
-			Path pathToUse = currentPath;
-			if (currentPath.getUseFitted()) {
-				pathToUse = currentPath.getFitted();
-			}
-
-			Path parent = null;
-
-			for (final Path possibleParent : currentPath.somehowJoins) {
-				if (pathsAlreadyDone.contains(possibleParent)) {
-					parent = possibleParent;
-					break;
-				}
-			}
-
-			int indexToStartAt = 0;
-			int nearestParentSWCPointID = -1;
-			PointInImage connectingPoint = null;
-			if (parent != null) {
-				if (currentPath.getStartJoins() != null && currentPath
-					.getStartJoins() == parent) connectingPoint =
-						currentPath.getStartJoinsPoint();
-				else if (parent.getStartJoins() != null && parent
-					.getStartJoins() == currentPath) connectingPoint =
-						parent.getStartJoinsPoint();
-				else throw new SWCExportException(
-					"Couldn't find the link between parent \"" + parent +
-						"\"\nand child \"" + currentPath + "\" which are somehow joined");
-
-				/* Find the SWC point ID on the parent which is nearest: */
-
-				double distanceSquaredToNearestParentPoint = Double.MAX_VALUE;
-				for (final SWCPoint s : result) {
-					if (s.getPath() != parent) continue;
-					final double distanceSquared = connectingPoint.distanceSquaredTo(s.x,
-						s.y, s.z);
-					if (distanceSquared < distanceSquaredToNearestParentPoint) {
-						nearestParentSWCPointID = s.id;
-						distanceSquaredToNearestParentPoint = distanceSquared;
-					}
-				}
-
-				/*
-				 * Now find the index of the point on this path which is nearest
-				 */
-				indexToStartAt = pathToUse.indexNearestTo(connectingPoint.x,
-					connectingPoint.y, connectingPoint.z);
-			}
-
-			SWCPoint firstSWCPoint = null;
-
-			final boolean realRadius = pathToUse.hasRadii();
-			final boolean hasAnnotations = pathToUse.hasNodeAnnotations();
-			final boolean hasHemisphereFlags = pathToUse.hasNodeHemisphereFlags();
-			final Color pathColor = pathToUse.getColor();
-			final String pathTags = PathManagerUI.extractTagsFromPath(pathToUse);
-			final boolean hasNodeValues = pathToUse.hasNodeValues();
-			for (int i = indexToStartAt; i < pathToUse.size(); ++i) {
-
-				final boolean firstPoint = firstSWCPoint == null;
-
-				// The first node of a child path is the same as the forked point
-				// on its parent, so we'll skip it if this is a child path
-				if (firstPoint && !currentPath.isPrimary()) i++;
-
-				final SWCPoint swcPoint = new SWCPoint(currentPointID, // id
-						pathToUse.getSWCType(), // type
-						pathToUse.precise_x_positions[i], // x
-						pathToUse.precise_y_positions[i], // y
-						pathToUse.precise_z_positions[i], // z
-						(realRadius) ? pathToUse.radii[i] : 0, // radius
-						(firstPoint) ? nearestParentSWCPointID : currentPointID - 1 // parent
-				);
-				swcPoint.setPath(currentPath);
-				// Only use Path color, node colors are ignored
-				swcPoint.setColor(pathColor);
-				swcPoint.setTags(pathTags);
-				if (hasNodeValues) {
-					swcPoint.v = pathToUse.getNodeValue(i);
-				}
-				if (hasAnnotations) swcPoint.setAnnotation(pathToUse.getNodeAnnotation(i));
-				if (hasHemisphereFlags) swcPoint.setHemisphere(pathToUse.getNodeHemisphereFlag(i));
-
-				result.add(swcPoint);
-				++currentPointID;
-				if (firstSWCPoint == null) firstSWCPoint = swcPoint;
-			}
-			assert firstSWCPoint != null;
-			boolean firstOfOtherBranch = true;
-			for (int i = indexToStartAt - 1; i >= 0; --i) {
-				int previousPointID = currentPointID - 1;
-				if (firstOfOtherBranch) {
-					firstOfOtherBranch = false;
-                    previousPointID = firstSWCPoint.id;
-				}
-				double radius = 0;
-				if (realRadius) radius = pathToUse.radii[i];
-				final SWCPoint swcPoint = new SWCPoint(currentPointID, pathToUse
-					.getSWCType(), pathToUse.precise_x_positions[i],
-					pathToUse.precise_y_positions[i], pathToUse.precise_z_positions[i],
-					radius, previousPointID);
-				swcPoint.setPath(currentPath);
-				if (hasAnnotations) swcPoint.setAnnotation(pathToUse.getNodeAnnotation(i));
-				result.add(swcPoint);
-				++currentPointID;
-			}
-
-			pathsAlreadyDone.add(currentPath);
-
-			/*
-			 * Add all the connected paths that aren't already in pathsAlreadyDone
-			 */
-
-			for (final Path connectedPath : currentPath.somehowJoins) {
-				if (!pathsAlreadyDone.contains(connectedPath)) {
-					nextPathsToAdd.add(connectedPath);
-				}
-			}
-		}
-
-		// Now check that all selectedPaths are in pathsAlreadyDone, otherwise
-		// give an error:
-
-		Path disconnectedExample = null;
-		int selectedAndNotConnected = 0;
-		for (final Path selectedPath : paths) {
-			if (!pathsAlreadyDone.contains(selectedPath)) {
-				++selectedAndNotConnected;
-				if (disconnectedExample == null) disconnectedExample = selectedPath;
-			}
-		}
-		if (selectedAndNotConnected > 0) throw new SWCExportException(
-			"You must select all the connected paths\n(" + selectedAndNotConnected +
-				" paths (e.g. \"" + disconnectedExample + "\") were not connected.)");
-
-		return result;
-	}
-
 	private synchronized void resetListenersAfterDataChangingOperation(final Path justAdded) {
 		resetListeners(justAdded, false);
 		unsavedPaths = true;
@@ -1370,117 +1166,66 @@ public class PathAndFillManager extends DefaultHandler implements
 
 			pw.println("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
 			pw.println("<!DOCTYPE tracings [");
-			pw.println(
-				"  <!ELEMENT tracings       (samplespacing,imagesize,path*,fill*)>");
+			pw.println("  <!ELEMENT tracings       (samplespacing,imagesize,path*,fill*)>");
 			pw.println("  <!ELEMENT imagesize      EMPTY>");
 			pw.println("  <!ELEMENT samplespacing  EMPTY>");
 			pw.println("  <!ELEMENT path           (point+)>");
 			pw.println("  <!ELEMENT point          EMPTY>");
 			pw.println("  <!ELEMENT fill           (node*)>");
 			pw.println("  <!ELEMENT node           EMPTY>");
-			pw.println(
-				"  <!ATTLIST samplespacing  x                 CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST samplespacing  y                 CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST samplespacing  z                 CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST samplespacing  units             CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST imagesize      width             CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST imagesize      height            CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST imagesize      depth             CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST path           id                CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST path           primary           CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           name              CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           startson          CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           startsindex       CDATA           #IMPLIED>"); // deprecated
-			pw.println(
-				"  <!ATTLIST path           startsx           CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           startsy           CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           startsz           CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           endson            CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           endsindex         CDATA           #IMPLIED>"); // deprecated
-			pw.println(
-				"  <!ATTLIST path           endsx             CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           endsy             CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           endsz             CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           reallength        CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           usefitted         (true|false)    #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           fitted            CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           fittedversionof   CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           swctype           CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           color             CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST path           channel           CDATA           #IMPLIED>");
-			pw.println(
-					"  <!ATTLIST path         frame             CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          x                 CDATA           #REQUIRED>"); // deprecated
-			pw.println(
-				"  <!ATTLIST point          y                 CDATA           #REQUIRED>"); // deprecated
-			pw.println(
-				"  <!ATTLIST point          z                 CDATA           #REQUIRED>"); // deprecated
-			pw.println(
-				"  <!ATTLIST point          xd                CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          yd                CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          zd                CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          tx                CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          ty                CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          tz                CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST point          r                 CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST fill           id                CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST fill           frompaths         CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST fill           metric            CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST fill           threshold         CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST fill           volume            CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST node           id                CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST node           x                 CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST node           y                 CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST node           z                 CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST node           previousid        CDATA           #IMPLIED>");
-			pw.println(
-				"  <!ATTLIST node           distance          CDATA           #REQUIRED>");
-			pw.println(
-				"  <!ATTLIST node           status            (open|closed)   #REQUIRED>");
+			pw.println("  <!ATTLIST samplespacing  x                 CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST samplespacing  y                 CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST samplespacing  z                 CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST samplespacing  units             CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST imagesize      width             CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST imagesize      height            CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST imagesize      depth             CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST path           id                CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST path           primary           CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           name              CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           startson          CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           startsindex       CDATA           #IMPLIED>"); // deprecated
+			pw.println("  <!ATTLIST path           startsx           CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           startsy           CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           startsz           CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           endson            CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           endsindex         CDATA           #IMPLIED>"); // deprecated
+			pw.println("  <!ATTLIST path           endsx             CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           endsy             CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           endsz             CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           reallength        CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           usefitted         (true|false)    #IMPLIED>");
+			pw.println("  <!ATTLIST path           fitted            CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           fittedversionof   CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           swctype           CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           color             CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           channel           CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST path           frame             CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          x                 CDATA           #REQUIRED>"); // deprecated
+			pw.println("  <!ATTLIST point          y                 CDATA           #REQUIRED>"); // deprecated
+			pw.println("  <!ATTLIST point          z                 CDATA           #REQUIRED>"); // deprecated
+			pw.println("  <!ATTLIST point          xd                CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          yd                CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          zd                CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          tx                CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          ty                CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          tz                CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST point          r                 CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST fill           id                CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST fill           frompaths         CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST fill           metric            CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST fill           threshold         CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST fill           volume            CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST node           id                CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST node           x                 CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST node           y                 CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST node           z                 CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST node           v                 CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST node           previousid        CDATA           #IMPLIED>");
+			pw.println("  <!ATTLIST node           distance          CDATA           #REQUIRED>");
+			pw.println("  <!ATTLIST node           status            (open|closed)   #REQUIRED>");
 			pw.println("]>");
 			pw.println("");
-
 			pw.println("<tracings>");
 
 			pw.println("  <samplespacing x=\"" + x_spacing + "\" " + "y=\"" +
@@ -1566,6 +1311,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				attributes += " ty=\"" + p.tangents_y[i] + "\"";
 				attributes += " tz=\"" + p.tangents_z[i] + "\"";
 				attributes += " r=\"" + p.radii[i] + "\"";
+				if (p.hasNodeValues())
+					attributes += " v=\"" + p.getNodeValue(i)  + "\"";
+
 			}
 			pw.println("    <point " + attributes + "/>");
 		}
@@ -1877,6 +1625,11 @@ public class PathAndFillManager extends DefaultHandler implements
 						if (current_path.hasRadii()) throw new TracesFileFormatException(
 								"The point at index " + lastIndex +
 										" had no fitted circle, but all previously did");
+					}
+
+					final String vString = attributes.getValue("v");
+					if (vString!= null) {
+						current_path.setNodeValue(Double.parseDouble(vString), lastIndex);
 					}
 
 				} catch (final NumberFormatException e) {

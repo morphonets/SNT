@@ -2671,7 +2671,7 @@ public class SNTUI extends JDialog {
 		saveAsMenuItem.addActionListener(e -> {
 			if (!noPathsError()) {
 				final File saveFile = saveFile("Save Traces As...", null, "traces");
-				if (saveFile != null && saveToXML(saveFile))
+				if (saveFile != null && saveToXML(saveFile, true))
 					warnOnPossibleAnnotationLoss();
 			}
 		});
@@ -4593,7 +4593,7 @@ public class SNTUI extends JDialog {
 				"Data restored from snapshot backup. Shall this state now be saved to the main file, overriding its contents? "
 						+ "Alternatively, you can dismiss this prompt and save data manually later on.",
 				"Data Restored. Override Main File?", "Yes. Override main file.", "No. Do nothing.")) {
-			saveToXML(autosaveFile);
+			saveToXML(autosaveFile, false);
 		}
 	}
 
@@ -4619,7 +4619,7 @@ public class SNTUI extends JDialog {
 				targetFile = saveFile("Save Traces As...", null, "traces");
 			}
 			if (targetFile != null)
-				successfull = saveToXML(targetFile);
+				successfull = saveToXML(targetFile, !timeStampedCopy);
 		} catch (final SecurityException ignored) {
 			// do nothing
 		}
@@ -4633,8 +4633,9 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	protected boolean saveToXML(final File file) {
+	protected boolean saveToXML(final File file, final boolean promptForNodeValuesExport) {
 		if (noPathsError()) return false; // do not create empty files
+		if (promptForNodeValuesExport) promptForNodeValuesExport();
 		showStatus("Saving traces to " + file.getAbsolutePath(), false);
 
 		final int preSavingState = currentState;
@@ -4653,6 +4654,23 @@ public class SNTUI extends JDialog {
 		changeState(preSavingState);
 		showStatus("Saving completed.", true);
 		return true;
+	}
+
+	private void promptForNodeValuesExport() {
+		if (plugin.getPrefs().getTemp("firstSave", true)
+				&& pathAndFillManager.getPaths().stream().anyMatch(Path::hasNodeValues)) {
+			final String[] choices = new String[]{
+					"Discard. Ensure file size remains small",
+					"Store and reapply computed tags on file load"};
+			final String choice = guiUtils.getChoice("An analysis routine has tagged path nodes with " +
+							"computation values. Typically, this type of data is not critical and can be recreated. " +
+							"How would you like to handle this extra data? " +
+							"<br> NB: This dialog is displayed only once. Dismissing it defaults choice to '<i>Store</i>'.",
+					"Store Computed Data?", choices, choices[0]);
+			plugin.getPrefs().setTemp("firstSave", false);
+			if (choices[0].equals(choice))
+				pathAndFillManager.getPaths().forEach(path -> path.setNodeValues(null));
+		}
 	}
 
 	private void warnOnPossibleAnnotationLoss() {

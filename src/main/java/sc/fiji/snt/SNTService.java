@@ -274,7 +274,7 @@ public class SNTService extends AbstractService {
 			if (asSWC) {
 				return getUI().saveAllPathsToSwc(saveFile.getAbsolutePath());
 			}
-			getUI().saveToXML(saveFile);
+			getUI().saveToXML(saveFile, false);
 		} else {
 			if (asSWC) {
 				return getPathAndFillManager().exportAllPathsAsSWC(SNTUtils.stripExtension(saveFile.getAbsolutePath()));

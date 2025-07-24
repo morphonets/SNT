@@ -527,6 +527,59 @@ public class AllenUtils {
 		return new String[] { "Anterior-Posterior", "Dorsal-Ventral", "Left-Right (ML)" };
 	}
 
+	/**
+	 * Transfers brain annotation IDs to node values for all paths in a Tree.
+	 * <p>
+	 * This is useful for preserving annotation information when saving data to TRACES files.
+	 * Note that this method overwrites any existing node values. Nodes without annotations (null)
+	 * are assigned {@link #BRAIN_ROOT_ID}.
+	 * </p>
+	 *
+	 * @param tree the Tree containing paths with brain annotations to be transferred.
+	 *             Must not be null and must contain valid annotations.
+	 * @throws IllegalArgumentException if the tree contains no brain annotations
+	 * @see #assignAnnotationsFromNodeValues(Tree)
+	 * @see Path#hasNodeAnnotations()
+	 * @see Path#getNodeAnnotation(int)
+	 */
+	public static void transferAnnotationIdsToNodeValues(final Tree tree) {
+		if (tree.list().stream().noneMatch(Path::hasNodeAnnotations)) {
+			throw new IllegalArgumentException("Tree contains no brain annotations.");
+		}
+		tree.list().forEach(path -> {
+			for (int i = 0; i < path.size(); i++) {
+				final BrainAnnotation annot = path.getNodeAnnotation(i);
+				path.setNodeValue((annot == null) ? BRAIN_ROOT_ID : annot.id(), i);
+			}
+		});
+	}
+
+	/**
+	 * Assigns brain annotations (interpreted as CCF IDs) to node values for all paths in a Tree.
+	 * <p>
+	 * This method is the inverse operation of {@link #transferAnnotationIdsToNodeValues(Tree)}.
+	 * </p>
+	 *
+	 * @param tree the Tree containing paths with node values to be converted to annotations.
+	 *             Must not be null. Paths without node values are skipped. Invalid node
+	 *             values result in null annotations.
+	 * @see #transferAnnotationIdsToNodeValues(Tree)
+	 * @see Path#hasNodeValues()
+	 * @see Path#getNodeValue(int)
+	 */
+	public static void assignAnnotationsFromNodeValues(final Tree tree) {
+		if (tree.list().stream().noneMatch(Path::hasNodeValues)) {
+			throw new IllegalArgumentException("Tree contains no node values.");
+		}
+		tree.list().forEach(path -> {
+			if (!path.hasNodeValues()) return;
+			for (int i = 0; i < path.size(); i++) {
+				final int id = (int) path.getNodeValue(i);
+				path.setNodeAnnotation(getCompartment(id), i);
+			}
+		});
+	}
+
 	/* IDE Debug method */
 	public static void main(final String[] args) {
 		final AllenCompartment compartmentOfInterest = AllenUtils.getCompartment("CA3");
