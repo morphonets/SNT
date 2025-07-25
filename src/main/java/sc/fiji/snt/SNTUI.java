@@ -138,8 +138,7 @@ public class SNTUI extends JDialog {
 	private JButton openSciView;
 	private JButton svSyncPathManager;
 
-
-	protected final GuiListener listener;
+	private final GuiListener listener;
 
 	/* These are the states that the UI can be in: */
 	/**
@@ -2031,10 +2030,11 @@ public class SNTUI extends JDialog {
 		c.gridwidth = 3;
 		final JCheckBox jcbx = new JCheckBox("Disable pop-up errors", ij.IJ.redirectingErrorMessages());
 		jcbx.addActionListener( e -> ij.IJ.redirectErrorMessages(jcbx.isSelected()));
-		jcbx.setToolTipText("Interactions with the Viewer's canvas may trigger warnings\n" +
-				"and errors that are displayed in pop-up dialogs. Activate\n" +
-				"this option to have such messages displayed discretely in\n" +
-				"a Log window instead.");
+		jcbx.setToolTipText("""
+                Interactions with the Viewer's canvas may trigger warnings
+                and errors that are displayed in pop-up dialogs. Activate
+                this option to have such messages displayed discretely in
+                a Log window instead.""");
 		p.add(jcbx, c);
 		return p;
 	}
@@ -4456,8 +4456,10 @@ public class SNTUI extends JDialog {
 
 		static void ijmLogMessage() {
 			if (ij.IJ.recording()) {
-				final String recordString = "// NB: This recorder may not capture SNT's internal commands. Those are\n"
-						+ "// better captured using SNT's own Script Recorder (Scripts -> New -> Record...)\n";
+				final String recordString = """
+                        // NB: This recorder may not capture SNT's internal commands. Those are
+                        // better captured using SNT's own Script Recorder (Scripts -> New -> Record...)
+                        """;
 				Recorder.recordString(recordString);
 			}
 		}
@@ -4657,8 +4659,9 @@ public class SNTUI extends JDialog {
 	}
 
 	private void promptForNodeValuesExport() {
-		if (plugin.getPrefs().getTemp("firstSave", true)
+		if (plugin.getPrefs().getTemp("nv-export-nag", true)
 				&& pathAndFillManager.getPaths().stream().anyMatch(Path::hasNodeValues)) {
+			plugin.getPrefs().setTemp("nv-export-nag", false);
 			final String[] choices = new String[]{
 					"Discard. Ensure file size remains small",
 					"Store and reapply computed tags on file load"};
@@ -4667,7 +4670,6 @@ public class SNTUI extends JDialog {
 							"How would you like to handle this extra data? " +
 							"<br> NB: This dialog is displayed only once. Dismissing it defaults choice to '<i>Store</i>'.",
 					"Store Computed Data?", choices, choices[0]);
-			plugin.getPrefs().setTemp("firstSave", false);
 			if (choices[0].equals(choice))
 				pathAndFillManager.getPaths().forEach(path -> path.setNodeValues(null));
 		}

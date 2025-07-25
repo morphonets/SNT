@@ -559,9 +559,9 @@ public class Path implements Comparable<Path> {
 		final double deltaX = x2 - x1;
 		final double deltaY = sr.predict(x2) - sr.predict(x1);
 		double angle;
-		if (deltaX == 0) { // vertical
+		if (Math.abs(deltaX) < 1e-10) { // vertical (using small epsilon for floating point comparison)
 			angle = (deltaY > 0) ? Math.PI / 2 : 3 * Math.PI / 2;
-		} else if (deltaY == 0) { // horizontal
+		} else if (Math.abs(deltaY) < 1e-10) { // horizontal
 			angle = (deltaX > 0) ? 0 : Math.PI;
 		} else {
 			angle = Math.atan2(deltaY, deltaX);
