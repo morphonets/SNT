@@ -192,12 +192,11 @@ public class PathAnalyzerCmd extends CommonDynamicCmd {
 		if (pathContraction) metrics.add(PathStatistics.PATH_CONTRACTION);
 		if (pathFragmentation) metrics.add(PathStatistics.N_PATH_NODES);
 		if (extensionAngles) {
+			metrics.add(PathStatistics.PATH_EXT_ANGLE);
+			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL);
 			metrics.add(PathStatistics.PATH_EXT_ANGLE_XY);
 			metrics.add(PathStatistics.PATH_EXT_ANGLE_XZ);
 			metrics.add(PathStatistics.PATH_EXT_ANGLE_ZY);
-			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL_XY);
-			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL_XZ);
-			metrics.add(PathStatistics.PATH_EXT_ANGLE_REL_ZY);
 		}
 		if (pathLength) metrics.add(PathStatistics.PATH_LENGTH);
 		if (pathMeanRadius) metrics.add(PathStatistics.PATH_MEAN_RADIUS);

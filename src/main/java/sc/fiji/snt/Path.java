@@ -476,33 +476,30 @@ public class Path implements Comparable<Path> {
 	 * Returns the overall extension angle of this path in the XY plane.
 	 * The angle is obtained from the slope of a linear regression across all the path nodes.
 	 *
-	 * @param relative if true and path has a parent, angle is computed relatively to parent's extension angle on the same plane
 	 * @return the overall 'extension' angle in degrees [0-360[ of this path in the XY plane.
 	 */
-	public double getExtensionAngleXY(final boolean relative) {
-		return getExtensionAngle(MultiDThreePanes.XY_PLANE, relative);
+	public double getExtensionAngleXY() {
+		return getExtensionAngle(MultiDThreePanes.XY_PLANE, false);
 	}
 
 	/**
 	 * Returns the overall extension angle of this path in the XZ plane.
 	 * The angle is obtained from the slope of a linear regression across all the path nodes.
 	 *
-	 * @param relative if true and path has a parent, angle is computed relatively to parent's extension angle on the same plane
-	 * @return the overall 'extension' angle in degrees [0-360[ in the XZ plane or zero if path is 2D.
+	 * @return the overall 'extension' angle in degrees [0-360[ in the XZ plane or NaN if path is 2D.
 	 */
-	public double getExtensionAngleXZ(final boolean relative) {
-		return (is3D()) ? getExtensionAngle(MultiDThreePanes.XZ_PLANE, relative) : 0;
+	public double getExtensionAngleXZ() {
+		return (is3D()) ? getExtensionAngle(MultiDThreePanes.XZ_PLANE, false) : Double.NaN;
 	}
 
 	/**
 	 * Returns the overall extension angle of this path in the ZY plane.
 	 * The angle is obtained from the slope of a linear regression across all the path nodes.
 	 *
-	 * @param relative if true and path has a parent, angle is computed relatively to parent's extension angle on the same plane
-	 * @return the overall 'extension' angle in degrees [0-360[ in the ZY plane or zero if path is 2D.
+	 * @return the overall 'extension' angle in degrees [0-360[ in the ZY plane or NaN if path is 2D.
 	 */
-	public double getExtensionAngleZY(final boolean relative) {
-		return (is3D()) ? getExtensionAngle(MultiDThreePanes.ZY_PLANE, relative) : 0;
+	public double getExtensionAngleZY() {
+		return (is3D()) ? getExtensionAngle(MultiDThreePanes.ZY_PLANE, false) : Double.NaN;
 	}
 
 	private boolean is3D() throws IllegalArgumentException {
@@ -514,63 +511,270 @@ public class Path implements Comparable<Path> {
 	}
 
 	private double getExtensionAngle(final int view, final boolean relative) {
-		final double angle = getExtensionAngle(view);
-		if (!relative || Double.isNaN(angle))
-			return angle;
+		if (!relative)
+			return getExtensionAngle(view);
 		if (startJoins == null)
 			return Double.NaN;
-		double parentAngle = (startJoins.getExtensionAngle(view) + 180) % 360; // opposite angle in [0-360[ degrees
-		// calculate the acute angle with parent path. It is either |diff| or |180-diff|
-		// https://math.stackexchange.com/questions/2592698/
-		double theta = angle - parentAngle;
-		if (angle >= 180 && angle < 360 && parentAngle >= 0 && parentAngle < 180)
-			theta = 180 - (angle - parentAngle);
-		if (theta >= 180)
-			theta = 180 - theta;
-		else if (theta < 0)
-			theta += 180;
-		return Math.abs(theta);
+		return getExtensionAngle3D(startJoins.getExtensionDirection3D());
 	}
 
 	private double getExtensionAngle(final int view) {
 		if (size() == 1)
 			return Double.NaN;
 		final SimpleRegression sr = new SimpleRegression();
-		double x1, x2;
 		switch (view) {
 			case MultiDThreePanes.XY_PLANE:
 				getNodes().forEach(node -> sr.addData(node.x, node.y));
-				x1 = getNodeWithoutChecks(0).x;
-				x2 = getNodeWithoutChecks(size() - 1).x;
 				break;
 			case MultiDThreePanes.XZ_PLANE:
 				getNodes().forEach(node -> sr.addData(node.x, node.z));
-				x1 = getNodeWithoutChecks(0).x;
-				x2 = getNodeWithoutChecks(size() - 1).x;
 				break;
 			case MultiDThreePanes.ZY_PLANE:
 				getNodes().forEach(node -> sr.addData(node.z, node.y));
-				x1 = getNodeWithoutChecks(0).z;
-				x2 = getNodeWithoutChecks(size() - 1).z;
 				break;
 			default:
 				throw new IllegalArgumentException("Not a valid plane");
 		}
-		final double deltaX = x2 - x1;
-		final double deltaY = sr.predict(x2) - sr.predict(x1);
-		double angle;
-		if (Math.abs(deltaX) < 1e-10) { // vertical (using small epsilon for floating point comparison)
-			angle = (deltaY > 0) ? Math.PI / 2 : 3 * Math.PI / 2;
-		} else if (Math.abs(deltaY) < 1e-10) { // horizontal
-			angle = (deltaX > 0) ? 0 : Math.PI;
-		} else {
-			angle = Math.atan2(deltaY, deltaX);
+		
+		// Get the slope from the regression line
+		final double slope = sr.getSlope();
+		
+		// Handle vertical lines (infinite slope or NaN slope) separately
+		if (Double.isInfinite(slope) || Double.isNaN(slope)) {
+			// For vertical lines, determine direction by looking at Y coordinates
+			double y1, y2;
+			switch (view) {
+				case MultiDThreePanes.XY_PLANE, MultiDThreePanes.ZY_PLANE:
+					y1 = getNodeWithoutChecks(0).y;
+					y2 = getNodeWithoutChecks(size() - 1).y;
+					break;
+				case MultiDThreePanes.XZ_PLANE:
+					y1 = getNodeWithoutChecks(0).z;
+					y2 = getNodeWithoutChecks(size() - 1).z;
+					break;
+                default:
+					y1 = y2 = 0;
+			}
+			// In image coordinates, Y increases downward, so North is negative Y direction
+			if (y2 <= y1) {
+				return 0.0; // North
+			} else {
+				return 180.0; // South
+			}
 		}
-		// We'll rotate everything so that West: 0; EAST: PI; North: PI/2; South: 3/2PI;
-		// Is this WEST-CLOCKWISE convention too awkward?
-		angle -= Math.PI;
-		angle = MathUtils.normalizeAngle(angle, Math.PI); // normalize angle between 0-2PI
-		return Math.toDegrees(angle); // return angle in 0-360 degrees. % 360 not needed since angle is normalized
+		
+		// Calculate direction vector from regression line. We need to determine the direction
+		// (positive or negative X direction) by looking at the overall X range of the data
+		double x1, x2;
+		switch (view) {
+			case MultiDThreePanes.XY_PLANE, MultiDThreePanes.XZ_PLANE:
+				x1 = getNodeWithoutChecks(0).x;
+				x2 = getNodeWithoutChecks(size() - 1).x;
+				break;
+            case MultiDThreePanes.ZY_PLANE:
+				x1 = getNodeWithoutChecks(0).z;
+				x2 = getNodeWithoutChecks(size() - 1).z;
+				break;
+			default:
+				x1 = x2 = 0; // This won't be reached due to earlier validation
+		}
+		
+		// Determine direction: if path goes from left to right, deltaX = 1, else deltaX = -1
+		final double deltaX = (x2 >= x1) ? 1.0 : -1.0;
+		final double deltaY = slope * deltaX;
+		double angle;
+
+		// Calculate angle using atan2 for full quadrant information
+		// Convert to navigation/compass convention: North: 0°; East: 90°; South: 180°; West: 270°
+		// In image coordinates, Y increases downward, so North has a negative deltaY
+		angle = Math.atan2(-deltaY, deltaX); // Flip Y axis for proper North direction
+		
+		// Now convert from standard math angles to compass bearing
+		// Math: East=0°, North=90°; Compass: North=0°, East=90°
+		angle = Math.PI / 2 - angle;
+		
+		// Normalize angle to [0, 2π] range
+		angle = MathUtils.normalizeAngle(angle, Math.PI);
+		return Math.toDegrees(angle); // return angle in 0-360 degrees
+	}
+
+	/**
+	 * Returns the 3D extension direction vector of this path using linear regression.
+	 * The vector represents the overall direction from start to end of the path, fitted through all its nodes.
+	 *
+	 * @return the normalized Vector3d (length of 1) representing the extension direction,
+	 * or null if path has only one point
+	 */
+	public Vector3d getExtensionDirection3D() {
+		if (size() == 1)
+			return null;
+
+		// Parametric approach: Use linear regression for each coordinate
+		final SimpleRegression xRegression = new SimpleRegression();
+		final SimpleRegression yRegression = new SimpleRegression();
+		final SimpleRegression zRegression = new SimpleRegression();
+
+		// Add data points using index as parameter
+		for (int i = 0; i < size(); i++) {
+			final PointInImage node = getNodeWithoutChecks(i);
+			xRegression.addData(i, node.x);
+			yRegression.addData(i, node.y);
+			zRegression.addData(i, node.z);
+		}
+
+		// Calculate direction vector using regression slopes. Because we use indices
+		// this is the same as xRegression.predict(size() - 1) - xRegression.predict(0)
+		// but more direct and slightly more efficient:
+		// given y = mx + b:
+		//    predict(size() - 1) = m * (size() - 1) + b
+		//    predict(0) = m * 0 + b = b
+		//    predict(size() - 1) - predict(0) = m * (size() - 1) + b - b = m * (size() - 1)
+		final double deltaX = xRegression.getSlope() * (size() - 1);
+		final double deltaY = yRegression.getSlope() * (size() - 1);
+		final double deltaZ = zRegression.getSlope() * (size() - 1);
+
+		final Vector3d direction = new Vector3d(deltaX, deltaY, deltaZ);
+		direction.normalize(); // Convert to unit vector
+		return direction;
+	}
+
+	/**
+	 * Returns either the compass bearing or the relative branching angle of this path's 3D extension direction.
+	 * 
+	 * @param relative determines the calculation mode:
+	 *                 - false: returns compass bearing in XY plane (absolute angle)
+	 *                 - true: returns angle relative to parent path (relative angle)
+	 * @return when relative=false: compass bearing in degrees (0-360°) using navigation convention:
+	 *         0° = North (negative Y direction in image coordinates),
+	 *         90° = East (positive X direction),
+	 *         180° = South (positive Y direction in image coordinates),
+	 *         270° = West (negative X direction).
+	 *         The 3D direction vector is projected onto the XY plane for compass calculation.
+	 *         <p>
+	 *         When relative=true: acute angle in degrees (0-180°) between this path's 3D direction
+	 *         vector and its parent path's 3D direction vector. This measures the true 3D branching
+	 *         angle, not just the XY projection.
+	 *         <p>
+	 *         Returns Double.NaN if:
+	 *         - Path has only one point (cannot determine direction)
+	 *         - relative=true and path has no parent (startJoins is null)
+	 *         - relative=true and parent path has no direction (single point parent)
+	 * @see #getExtensionDirection3D()
+	 * @see #getExtensionAngle3D(Vector3d)
+	 * @see #getExtensionAngles3D()
+	 * @see #getExtensionAngleXY()
+	 */
+	public double getExtensionAngle3D(final boolean relative) {
+		if (relative) {
+			if (startJoins == null) return Double.NaN;
+			final Vector3d sjDirection = startJoins.getExtensionDirection3D();
+			return (sjDirection == null) ? Double.NaN : getExtensionAngle3D(sjDirection);
+		}
+
+		final Vector3d direction = getExtensionDirection3D();
+		if (direction == null)
+			return Double.NaN;
+		// Use X and Y components for compass calculation
+		final double deltaX = direction.x;
+		final double deltaY = direction.y;
+
+		// Calculate angle using atan2 for full quadrant information
+		// Convert to navigation/compass convention: North: 0°; East: 90°; South: 180°; West: 270°
+		// In image coordinates, Y increases downward, so North has a negative deltaY
+		double angle = Math.atan2(-deltaY, deltaX); // Flip Y axis for proper North direction
+		
+		// Now convert from standard math angles to compass bearing
+		// Math: East=0°, North=90°; Compass: North=0°, East=90°
+		angle = Math.PI / 2 - angle;
+		
+		// Normalize angle to [0, 2π] range
+		angle = MathUtils.normalizeAngle(angle, Math.PI);
+		return Math.toDegrees(angle); // return angle in 0-360 degrees
+	}
+
+	/**
+	 * Returns the complete 3D orientation of this path's extension direction as spherical coordinates
+	 * using navigation/compass convention.
+	 * <p>
+	 * This method provides both horizontal direction (azimuth) and vertical inclination (elevation)
+	 * of the path's overall extension direction.
+	 * 
+	 * @return double array containing [azimuth, elevation] in degrees, where:
+	 *         <p>
+	 *         <b>azimuth</b> (index 0): Compass bearing in XY plane (0-360°) following navigation convention:
+	 *         <ul>
+	 *         <li>0° = North (negative Y direction in image coordinates)</li>
+	 *         <li>90° = East (positive X direction)</li>
+	 *         <li>180° = South (positive Y direction in image coordinates)</li>
+	 *         <li>270° = West (negative X direction)</li>
+	 *         </ul>
+	 *         <p>
+	 *         <b>elevation</b> (index 1): Vertical angle from XY plane (-90° to +90°):
+	 *         <ul>
+	 *         <li>0° = horizontal (parallel to XY plane)</li>
+	 *         <li>+90° = pointing straight up (positive Z direction)</li>
+	 *         <li>-90° = pointing straight down (negative Z direction)</li>
+	 *         </ul>
+	 *         <p>
+	 *         Returns null if path has only one point or extension direction cannot be determined
+	 *         <p>
+	 * 
+	 * @see #getExtensionDirection3D()
+	 * @see #getExtensionAngle3D(boolean)
+	 * @see #getExtensionAngleXY()
+	 * @see #getExtensionAngleFromVertical()
+	 */
+	public double[] getExtensionAngles3D() {
+		final Vector3d direction = getExtensionDirection3D();
+		if (direction == null)
+			return null;
+		
+		// Calculate azimuth angle in XY plane using navigation/compass convention
+		// 0°: North (negative Y), 90°: East (positive X), 180°: South (positive Y), 270°: West (negative X)
+		// Note: In image coordinates, Y increases downward, so North is negative Y direction
+		double azimuth = Math.atan2(direction.x, -direction.y);
+		azimuth = MathUtils.normalizeAngle(azimuth, Math.PI); // normalize to [0, 2π]
+		azimuth = Math.toDegrees(azimuth);
+		
+		// Calculate elevation angle from XY plane (-90° to +90°)
+		final double xyLength = Math.sqrt(direction.x * direction.x + direction.y * direction.y);
+		double elevation = Math.atan2(direction.z, xyLength);
+		elevation = Math.toDegrees(elevation);
+		
+		return new double[]{azimuth, elevation};
+	}
+
+	/**
+	 * Returns a single angle representing the 3D extension direction.
+	 * This is the angle between the path's direction vector and a reference vector.
+	 * 
+	 * @param referenceVector the reference vector to measure angle from (e.g., new Vector3d(0, 0, 1) for vertical
+	 *                       reference, or new Vector3d(1, 0, 0) for horizontal)
+	 * @return the acute angle in degrees (0-180°), or Double.NaN if path has only one point
+	 */
+	public double getExtensionAngle3D(final Vector3d referenceVector) {
+		final Vector3d direction = getExtensionDirection3D();
+		if (direction == null)
+			return Double.NaN;
+		
+		// Calculate angle between direction and reference vector
+		final double dotProduct = direction.dot(referenceVector);
+		// Clamp to [-1, 1] to handle floating point precision issues
+		final double clampedDot = Math.max(-1.0, Math.min(1.0, dotProduct));
+		final double angle = Math.acos(clampedDot);
+		
+		return Math.toDegrees(angle);
+	}
+
+	/**
+	 * Returns the angle between the path's 3D direction and the vertical axis.
+	 *
+	 * @return angle from vertical in degrees (0° = vertical, 90° = horizontal), 
+	 *         or Double.NaN if path has only one point
+	 */
+	public double getExtensionAngleFromVertical() {
+		// Use positive Z as vertical reference
+		return getExtensionAngle3D(new Vector3d(0, 0, 1));
 	}
 
 	protected String getRealLengthString() {

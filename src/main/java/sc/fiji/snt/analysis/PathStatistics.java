@@ -294,15 +294,16 @@ public class PathStatistics extends TreeStatistics {
 				return path.getChannel();
 			case PATH_CONTRACTION:
 				return path.getContraction();
+			case PATH_EXT_ANGLE:
+				return path.getExtensionAngle3D(false);
+			case PATH_EXT_ANGLE_REL:
+				return path.getExtensionAngle3D(true);
 			case PATH_EXT_ANGLE_XY:
-			case PATH_EXT_ANGLE_REL_XY:
-				return path.getExtensionAngleXY(metric.toLowerCase().contains("rel"));
+				return path.getExtensionAngleXY();
 			case PATH_EXT_ANGLE_XZ:
-			case PATH_EXT_ANGLE_REL_XZ:
-				return path.getExtensionAngleXZ(metric.toLowerCase().contains("rel"));
+				return path.getExtensionAngleXZ();
 			case PATH_EXT_ANGLE_ZY:
-			case PATH_EXT_ANGLE_REL_ZY:
-				return path.getExtensionAngleZY(metric.toLowerCase().contains("rel"));
+				return path.getExtensionAngleZY();
 			case PATH_FRACTAL_DIMENSION:
 				return path.getFractalDimension();
 			case PATH_FRAME:

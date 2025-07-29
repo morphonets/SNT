@@ -65,23 +65,31 @@ public class TreeStatistics extends ContextCommand {
 
     // branch angles
     /** Flag specifying Branch extension angle XY */
+    public static final String BRANCH_EXTENSION_ANGLE = "Branch extension angle";
+    /** Flag specifying Branch extension angle XY */
     public static final String BRANCH_EXTENSION_ANGLE_XY = "Branch extension angle XY";
     /** Flag specifying Branch extension angle XZ */
     public static final String BRANCH_EXTENSION_ANGLE_XZ = "Branch extension angle XZ";
     /** Flag specifying Branch extension angle ZY */
     public static final String BRANCH_EXTENSION_ANGLE_ZY = "Branch extension angle ZY";
+    /** Flag specifying Inner branches: Extension angle */
+    public static final String INNER_EXTENSION_ANGLE = "Inner branches: Extension angle";
     /** Flag specifying "Inner branches: Extension angle XY" */
     public static final String INNER_EXTENSION_ANGLE_XY = "Inner branches: Extension angle XY";
     /** Flag specifying "Inner branches: Extension angle XZ" */
     public static final String INNER_EXTENSION_ANGLE_XZ = "Inner branches: Extension angle XZ";
     /** Flag specifying "Inner branches: Extension angle ZY" */
     public static final String INNER_EXTENSION_ANGLE_ZY = "Inner branches: Extension angle ZY";
+    /** Flag specifying "Primary branches: Extension angle" */
+    public static final String PRIMARY_EXTENSION_ANGLE = "Primary branches: Extension angle";
     /** Flag specifying "Primary branches: Extension angle XY" */
     public static final String PRIMARY_EXTENSION_ANGLE_XY = "Primary branches: Extension angle XY";
     /** Flag specifying "Primary branches: Extension angle XZ" */
     public static final String PRIMARY_EXTENSION_ANGLE_XZ = "Primary branches: Extension angle XZ";
     /** Flag specifying "Primary branches: Extension angle ZY" */
     public static final String PRIMARY_EXTENSION_ANGLE_ZY = "Primary branches: Extension angle ZY";
+    /** Flag specifying "Terminal branches: Extension angle" */
+    public static final String TERMINAL_EXTENSION_ANGLE = "Terminal branches: Extension angle";
     /** Flag specifying "Terminal branches: Extension angle XY" */
     public static final String TERMINAL_EXTENSION_ANGLE_XY = "Terminal branches: Extension angle XY";
     /** Flag specifying "Terminal branches: Extension angle XZ" */
@@ -93,18 +101,16 @@ public class TreeStatistics extends ContextCommand {
     // paths
     /** Flag specifying "Path length" */
     public static final String PATH_LENGTH = "Path length";
+    /** Flag specifying "Path extension angle" */
+    public static final String PATH_EXT_ANGLE = "Path extension angle";
+    /** Flag specifying "Path extension angle (Rel.)"*/
+    public static final String PATH_EXT_ANGLE_REL = "Path extension angle (Rel.)";
     /** Flag specifying "Path extension angle XY" */
     public static final String PATH_EXT_ANGLE_XY = "Path extension angle XY";
     /** Flag specifying "Path extension angle XZ" */
     public static final String PATH_EXT_ANGLE_XZ = "Path extension angle XZ";
     /** Flag specifying "Path extension angle ZY" */
     public static final String PATH_EXT_ANGLE_ZY = "Path extension angle ZY";
-    /** Flag specifying "Path extension angle XY (Rel.)"*/
-    public static final String PATH_EXT_ANGLE_REL_XY = "Path extension angle XY (Rel.)";
-    /** Flag specifying "Path extension angle XZ (Rel.)"*/
-    public static final String PATH_EXT_ANGLE_REL_XZ = "Path extension angle XZ (Rel.)";
-    /** Flag specifying "Path extension angle ZY (Rel.)"*/
-    public static final String PATH_EXT_ANGLE_REL_ZY = "Path extension angle ZY (Rel.)";
     /** Flag specifying "Path order" */
     public static final String PATH_ORDER = "Path order";
     /** Flag specifying "Path channel" */
@@ -194,6 +200,8 @@ public class TreeStatistics extends ContextCommand {
     // graph geodesics
     /** Flag specifying "Longest shortest path: Length" statistics. */
     public static final String GRAPH_DIAMETER = "Longest shortest path: Length";
+    /** Flag specifying "Longest shortest path: Extension angle" statistics. */
+    public static final String GRAPH_DIAMETER_ANGLE = "Longest shortest path: Extension angle";
     /** Flag specifying "Longest shortest path: Extension angle XY" statistics. */
     public static final String GRAPH_DIAMETER_ANGLE_XY = "Longest shortest path: Extension angle XY";
     /** Flag specifying "Longest shortest path: Extension angle XZ" statistics. */
@@ -293,21 +301,26 @@ public class TreeStatistics extends ContextCommand {
     public static final String FRACTAL_DIMENSION = "Fractal dimension";
 
     private static final String[] ALL_FLAGS = { //
-            GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY, //
+            GRAPH_DIAMETER_ANGLE, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY, //
             BRANCH_CONTRACTION, BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, //
             BRANCH_VOLUME, COMPLEXITY_INDEX_ACI, COMPLEXITY_INDEX_DCI, //
             CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION, //
             CONVEX_HULL_ROUNDNESS, CONVEX_HULL_SIZE, CONVEX_HULL_COMPACTNESS_3D, CONVEX_HULL_ECCENTRICITY_2D, //
-            DEPTH, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY, //
+            DEPTH, BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_XY, //
+            BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY, //
+            INNER_EXTENSION_ANGLE, //
             INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, //
+            PRIMARY_EXTENSION_ANGLE, //
             PRIMARY_EXTENSION_ANGLE_XY, PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, //
+            TERMINAL_EXTENSION_ANGLE, //
             TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, //
             GRAPH_DIAMETER, HEIGHT, INNER_LENGTH, //
             INTER_NODE_ANGLE, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH, //
             N_BRANCH_NODES, N_BRANCH_POINTS, N_BRANCHES, N_FITTED_PATHS, N_INNER_BRANCHES, N_NODES, N_PATH_NODES, N_PATHS, //
             N_PRIMARY_BRANCHES, N_SPINES, N_TERMINAL_BRANCHES, N_TIPS, NODE_RADIUS, PARTITION_ASYMMETRY, PATH_CHANNEL, //
-            PATH_CONTRACTION, PATH_FRACTAL_DIMENSION, PATH_FRAME, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, //
-            PATH_EXT_ANGLE_REL_XY, PATH_EXT_ANGLE_REL_XZ, PATH_EXT_ANGLE_REL_ZY, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, //
+            PATH_CONTRACTION, PATH_FRACTAL_DIMENSION, PATH_FRAME,  //
+            PATH_EXT_ANGLE, PATH_EXT_ANGLE_REL, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, //
+            PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, //
             PATH_N_SPINES, PATH_ORDER, PATH_SURFACE_AREA, PATH_VOLUME, PRIMARY_LENGTH, REMOTE_BIF_ANGLES, //
             ROOT_ANGLE_B_FACTOR, ROOT_ANGLE_C_BIAS, ROOT_ANGLE_M_DIRECTION, //
             SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE, SHOLL_MEAN_VALUE, SHOLL_N_MAX, //
@@ -409,8 +422,8 @@ public class TreeStatistics extends ContextCommand {
                 metrics = new String[]{INTER_NODE_ANGLE, //
                         INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, N_BRANCH_POINTS, N_FITTED_PATHS, N_NODES, //
                         N_PATH_NODES, N_PATHS, N_SPINES, N_TIPS, NODE_RADIUS, PATH_CHANNEL, PATH_CONTRACTION, PATH_FRAME, //
-                        PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, PATH_EXT_ANGLE_REL_XY, PATH_EXT_ANGLE_REL_XZ, //
-                        PATH_EXT_ANGLE_REL_ZY, PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER, //
+                        PATH_EXT_ANGLE, PATH_EXT_ANGLE_REL, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_ZY, //
+                        PATH_LENGTH, PATH_MEAN_RADIUS, PATH_SPINE_DENSITY, PATH_N_SPINES, PATH_ORDER, //
                         PATH_SURFACE_AREA, PATH_VOLUME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES};
                 break;
             case "common":
@@ -518,6 +531,28 @@ public class TreeStatistics extends ContextCommand {
 
     protected static String tryReallyHardToGuessMetric(final String guess) {
         final String normGuess = guess.toLowerCase();
+        // Try specific patterns first
+        String result = guessSpecialMetrics(normGuess);
+        if (result != null) return result;
+        result = guessLengthMetrics(normGuess);
+        if (result != null) return result;
+        result = guessAngleMetrics(normGuess);
+        if (result != null) return result;
+        result = guessNodeMetrics(normGuess);
+        if (result != null) return result;
+        result = guessRadiusMetrics(normGuess);
+        if (result != null) return result;
+        result = guessSpineMetrics(normGuess);
+        if (result != null) return result;
+        result = guessCoordinateMetrics(normGuess);
+        if (result != null) return result;
+        if (normGuess.contains("values") || normGuess.contains("intensit")) {
+            return VALUES;
+        }
+        return "unknown";
+    }
+    
+    private static String guessSpecialMetrics(final String normGuess) {
         if (normGuess.contains("contrac")) {
             return (normGuess.contains("path")) ? PATH_CONTRACTION : BRANCH_CONTRACTION;
         }
@@ -530,45 +565,67 @@ public class TreeStatistics extends ContextCommand {
         if (normGuess.contains("fractal")) {
             return (normGuess.contains("path")) ? PATH_FRACTAL_DIMENSION : BRANCH_FRACTAL_DIMENSION;
         }
-        if (normGuess.contains("length") || normGuess.contains("cable")) {
-            if (normGuess.contains("term")) {
-                return TERMINAL_LENGTH;
-            } else if (normGuess.contains("prim")) {
-                return PRIMARY_LENGTH;
-            } else if (normGuess.contains("inner")) {
-                return INNER_LENGTH;
-            } else if (normGuess.contains("path")) {
-                return PATH_LENGTH;
-            } else {
-                return BRANCH_LENGTH;
-            }
-        }
-        if (normGuess.contains("angle")) {
-            if (normGuess.contains("path") && normGuess.contains("ext")) {
-                if (normGuess.contains("xz"))
-                    return (normGuess.contains("rel")) ? PATH_EXT_ANGLE_REL_XZ : PATH_EXT_ANGLE_XZ;
-                else if (normGuess.contains("zy"))
-                    return (normGuess.contains("rel")) ? PATH_EXT_ANGLE_REL_ZY : PATH_EXT_ANGLE_ZY;
-                else return (normGuess.contains("rel")) ? PATH_EXT_ANGLE_REL_XY : PATH_EXT_ANGLE_XY;
-            } else if (normGuess.contains("term")) {
-                if (normGuess.contains("xz")) return TERMINAL_EXTENSION_ANGLE_XZ;
-                else if (normGuess.contains("zy")) return TERMINAL_EXTENSION_ANGLE_ZY;
-                else return TERMINAL_EXTENSION_ANGLE_XY;
-            } else if (normGuess.contains("prim")) {
-                if (normGuess.contains("xz")) return PRIMARY_EXTENSION_ANGLE_XZ;
-                else if (normGuess.contains("zy")) return PRIMARY_EXTENSION_ANGLE_ZY;
-                else return PRIMARY_EXTENSION_ANGLE_XY;
-            } else if (normGuess.contains("inner")) {
-                if (normGuess.contains("xz")) return INNER_EXTENSION_ANGLE_XZ;
-                else if (normGuess.contains("zy")) return INNER_EXTENSION_ANGLE_ZY;
-                else return INNER_EXTENSION_ANGLE_XY;
-            } else if (normGuess.contains("xz")) return BRANCH_EXTENSION_ANGLE_XZ;
-            else if (normGuess.contains("zy")) return BRANCH_EXTENSION_ANGLE_ZY;
-            else return BRANCH_EXTENSION_ANGLE_XY;
-        }
         if (normGuess.contains("path") && normGuess.contains("order")) {
             return PATH_ORDER;
         }
+        return null;
+    }
+    
+    private static String guessLengthMetrics(final String normGuess) {
+        if (!(normGuess.contains("length") || normGuess.contains("cable"))) {
+            return null;
+        }
+        if (normGuess.contains("term")) return TERMINAL_LENGTH;
+        if (normGuess.contains("prim")) return PRIMARY_LENGTH;
+        if (normGuess.contains("inner")) return INNER_LENGTH;
+        if (normGuess.contains("path")) return PATH_LENGTH;
+        return BRANCH_LENGTH;
+    }
+    
+    private static String guessAngleMetrics(final String normGuess) {
+        if (!normGuess.contains("angle")) {
+            return null;
+        }
+        // Extension angles with specific path types
+        if (normGuess.contains("ext")) {
+            return guessExtensionAngleMetrics(normGuess);
+        }
+        // Default branch extension angles
+        return guessPlaneSpecificAngle(normGuess,
+                BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY);
+    }
+    
+    private static String guessExtensionAngleMetrics(final String normGuess) {
+        if (normGuess.contains("path")) {
+            if (normGuess.contains("rel")) return PATH_EXT_ANGLE_REL;
+            return guessPlaneSpecificAngle(normGuess, PATH_EXT_ANGLE, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ,
+                                          PATH_EXT_ANGLE_ZY);
+        }
+        if (normGuess.contains("term")) {
+            return guessPlaneSpecificAngle(normGuess, TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_XY,
+                    TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY);
+        }
+        if (normGuess.contains("prim")) {
+            return guessPlaneSpecificAngle(normGuess, PRIMARY_EXTENSION_ANGLE, PRIMARY_EXTENSION_ANGLE_XY,
+                    PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY);
+        }
+        if (normGuess.contains("inner")) {
+            return guessPlaneSpecificAngle(normGuess, INNER_EXTENSION_ANGLE, INNER_EXTENSION_ANGLE_XY,
+                    INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY);
+        }
+        return null;
+    }
+    
+    private static String guessPlaneSpecificAngle(final String normGuess, 
+                                                 final String xzAngle, final String zyAngle, 
+                                                 final String xyAngle, final String defaultAngle) {
+        if (normGuess.contains("xz")) return xzAngle;
+        if (normGuess.contains("zy")) return zyAngle;
+        if (normGuess.contains("xy")) return xyAngle;
+        return defaultAngle;
+    }
+    
+    private static String guessNodeMetrics(final String normGuess) {
         if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
             return N_BRANCH_POINTS;
         }
@@ -576,41 +633,40 @@ public class TreeStatistics extends ContextCommand {
             return N_NODES;
         }
         if (normGuess.contains("node") && (normGuess.contains("dis") || normGuess.contains("dx"))) {
-            if (normGuess.contains("sq")) {
-                return INTER_NODE_DISTANCE_SQUARED;
-            } else if (normGuess.contains("angle")) {
-                return INTER_NODE_ANGLE;
-            } else {
-                return INTER_NODE_DISTANCE;
-            }
+            if (normGuess.contains("sq")) return INTER_NODE_DISTANCE_SQUARED;
+            if (normGuess.contains("angle")) return INTER_NODE_ANGLE;
+            return INTER_NODE_DISTANCE;
         }
-        if (normGuess.contains("radi")) {
-            if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
-                return (normGuess.contains("path")) ? PATH_MEAN_RADIUS : BRANCH_MEAN_RADIUS;
-            } else {
-                return NODE_RADIUS;
-            }
+        return null;
+    }
+    
+    private static String guessRadiusMetrics(final String normGuess) {
+        if (!normGuess.contains("radi")) {
+            return null;
         }
-        if (normGuess.contains("spines") || normGuess.contains("varicosities")) {
-            if (normGuess.contains("dens") || normGuess.contains("path")) {
-                return PATH_SPINE_DENSITY;
-            } else {
-                return N_SPINES;
-            }
+        
+        if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
+            return (normGuess.contains("path")) ? PATH_MEAN_RADIUS : BRANCH_MEAN_RADIUS;
         }
-        if (normGuess.contains("values") || normGuess.contains("intensit")) {
-            return VALUES;
+        return NODE_RADIUS;
+    }
+    
+    private static String guessSpineMetrics(final String normGuess) {
+        if (!(normGuess.contains("spines") || normGuess.contains("varicosities"))) {
+            return null;
         }
-        if (normGuess.matches(".*\\bx\\b.*")) {
-            return X_COORDINATES;
+
+        if (normGuess.contains("dens") || normGuess.contains("path")) {
+            return PATH_SPINE_DENSITY;
         }
-        if (normGuess.matches(".*\\by\\b.*")) {
-            return Y_COORDINATES;
-        }
-        if (normGuess.matches(".*\\bz\\b.*")) {
-            return Z_COORDINATES;
-        }
-        return "unknown";
+        return N_SPINES;
+    }
+
+    private static String guessCoordinateMetrics(final String normGuess) {
+        if (normGuess.matches(".*\\bx\\b.*")) return X_COORDINATES;
+        if (normGuess.matches(".*\\by\\b.*")) return Y_COORDINATES;
+        if (normGuess.matches(".*\\bz\\b.*")) return Z_COORDINATES;
+        return null;
     }
 
     protected static String getNormalizedMeasurement(final String measurement) {
@@ -1206,8 +1262,8 @@ public class TreeStatistics extends ContextCommand {
         final String m = getNormalizedMeasurement(measurement);
         try {
             switch (m) {
-                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ,
-                     BRANCH_EXTENSION_ANGLE_ZY,
+                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE,
+                     BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY,
                      BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME ->
                         assembleBranchStats(stat, m);
                 case COMPLEXITY_INDEX_ACI -> {
@@ -1241,11 +1297,12 @@ public class TreeStatistics extends ContextCommand {
                 case ROOT_ANGLE_B_FACTOR, ROOT_ANGLE_C_BIAS, ROOT_ANGLE_M_DIRECTION ->
                         stat.addValue(getRootAngleMetric(m));
                 case DEPTH -> stat.addValue(getDepth());
-                case GRAPH_DIAMETER, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY ->
+                case GRAPH_DIAMETER, GRAPH_DIAMETER_ANGLE, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY ->
                         assembleGraphDiameterStats(stat, m);
                 case HEIGHT -> stat.addValue(getHeight());
-                case INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, INNER_LENGTH,
-                     N_INNER_BRANCHES -> assembleInnerBranchStats(stat, m);
+                case INNER_EXTENSION_ANGLE, INNER_EXTENSION_ANGLE_XY,
+                     INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, INNER_LENGTH, N_INNER_BRANCHES ->
+                        assembleInnerBranchStats(stat, m);
                 case INTER_NODE_ANGLE -> {
                     for (final Path p : tree.list()) {
                         if (p.size() < 3) continue;
@@ -1290,17 +1347,22 @@ public class TreeStatistics extends ContextCommand {
                 case PARTITION_ASYMMETRY -> getPartitionAsymmetry().forEach(stat::addValue);
                 case PATH_CHANNEL -> tree.list().forEach(path -> stat.addValue(path.getChannel()));
                 case PATH_CONTRACTION -> tree.list().forEach(path -> stat.addValue(path.getContraction()));
-                case PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_REL_XY -> {
+                case PATH_EXT_ANGLE_XY -> {
                     for (final Path p : tree.list())
-                        stat.addValue(p.getExtensionAngleXY(PATH_EXT_ANGLE_REL_XY.equals(m)));
+                        stat.addValue(p.getExtensionAngleXY());
                 }
-                case PATH_EXT_ANGLE_XZ, PATH_EXT_ANGLE_REL_XZ -> {
+                case PATH_EXT_ANGLE_XZ -> {
                     for (final Path p : tree.list())
-                        stat.addValue(p.getExtensionAngleXZ(PATH_EXT_ANGLE_REL_XZ.equals(m)));
+                        stat.addValue(p.getExtensionAngleXZ());
                 }
-                case PATH_EXT_ANGLE_ZY, PATH_EXT_ANGLE_REL_ZY -> {
+                case PATH_EXT_ANGLE_ZY -> {
                     for (final Path p : tree.list())
-                        stat.addValue(p.getExtensionAngleZY(PATH_EXT_ANGLE_REL_ZY.equals(m)));
+                        stat.addValue(p.getExtensionAngleZY());
+                }
+                case PATH_EXT_ANGLE, PATH_EXT_ANGLE_REL -> {
+                    final boolean rel = PATH_EXT_ANGLE_REL.equals(m);
+                    for (final Path p : tree.list())
+                        stat.addValue(p.getExtensionAngle3D(rel));
                 }
                 case PATH_FRACTAL_DIMENSION -> tree.list().forEach(p -> stat.addValue(p.getFractalDimension()));
                 case PATH_FRAME -> tree.list().forEach(p -> stat.addValue(p.getFrame()));
@@ -1312,8 +1374,9 @@ public class TreeStatistics extends ContextCommand {
                         tree.list().forEach(p -> stat.addValue(p.getSpineOrVaricosityCount() / p.getLength()));
                 case PATH_SURFACE_AREA -> tree.list().forEach(p -> stat.addValue(p.getApproximatedSurface()));
                 case PATH_VOLUME -> tree.list().forEach(p -> stat.addValue(p.getApproximatedVolume()));
-                case PRIMARY_EXTENSION_ANGLE_XY, PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, PRIMARY_LENGTH,
-                     N_PRIMARY_BRANCHES -> assemblePrimaryBranchStats(stat, m);
+                case PRIMARY_EXTENSION_ANGLE, PRIMARY_EXTENSION_ANGLE_XY,
+                     PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, PRIMARY_LENGTH, N_PRIMARY_BRANCHES ->
+                        assemblePrimaryBranchStats(stat, m);
                 case REMOTE_BIF_ANGLES -> getRemoteBifAngles().forEach(stat::addValue);
                 case SHOLL_DECAY, SHOLL_KURTOSIS, SHOLL_MAX_FITTED, SHOLL_MAX_FITTED_RADIUS, SHOLL_MAX_VALUE,
                      SHOLL_MEAN_VALUE, SHOLL_N_MAX, SHOLL_N_SECONDARY_MAX, SHOLL_POLY_FIT_DEGREE,
@@ -1322,9 +1385,9 @@ public class TreeStatistics extends ContextCommand {
                 case STRAHLER_NUMBER -> stat.addValue(getStrahlerNumber());
                 case STRAHLER_RATIO -> stat.addValue(getStrahlerBifurcationRatio());
                 case SURFACE_AREA -> stat.addValue(tree.getApproximatedSurface());
-                case TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY,
-                     TERMINAL_LENGTH,
-                     N_TERMINAL_BRANCHES -> assembleTerminalBranchStats(stat, m);
+                case TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_XY,
+                     TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, TERMINAL_LENGTH, N_TERMINAL_BRANCHES ->
+                        assembleTerminalBranchStats(stat, m);
                 case VALUES -> {
                     for (final Path p : tree.list()) {
                         if (!p.hasNodeValues()) continue;
@@ -1359,13 +1422,16 @@ public class TreeStatistics extends ContextCommand {
 
     private void assembleBranchStats(final StatisticsInstance stat, final String branchMetric) {
         switch (branchMetric) {
-            case BRANCH_CONTRACTION -> getBranches().forEach(branch -> stat.addValue(branch.getContraction()));
+            case BRANCH_CONTRACTION ->
+                    getBranches().forEach(branch -> stat.addValue(branch.getContraction()));
+            case BRANCH_EXTENSION_ANGLE ->
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngle3D(false)));
             case BRANCH_EXTENSION_ANGLE_XY ->
-                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
             case BRANCH_EXTENSION_ANGLE_XZ ->
-                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ()));
             case BRANCH_EXTENSION_ANGLE_ZY ->
-                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+                    getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY()));
             case BRANCH_FRACTAL_DIMENSION ->
                     getBranches().forEach(branch -> stat.addValue(branch.getFractalDimension()));
             case BRANCH_LENGTH -> getBranches().forEach(branch -> stat.addValue(branch.getLength()));
@@ -1379,20 +1445,23 @@ public class TreeStatistics extends ContextCommand {
         final Path graphDiameter = tree.getGraph().getLongestPath(true);
         switch (graphDiameterMetric) {
             case GRAPH_DIAMETER -> stat.addValue(graphDiameter.getLength());
-            case GRAPH_DIAMETER_ANGLE_XY -> stat.addValue(graphDiameter.getExtensionAngleXY(false));
-            case GRAPH_DIAMETER_ANGLE_XZ -> stat.addValue(graphDiameter.getExtensionAngleXZ(false));
-            case GRAPH_DIAMETER_ANGLE_ZY -> stat.addValue(graphDiameter.getExtensionAngleZY(false));
+            case GRAPH_DIAMETER_ANGLE -> stat.addValue(graphDiameter.getExtensionAngle3D(false));
+            case GRAPH_DIAMETER_ANGLE_XY -> stat.addValue(graphDiameter.getExtensionAngleXY());
+            case GRAPH_DIAMETER_ANGLE_XZ -> stat.addValue(graphDiameter.getExtensionAngleXZ());
+            case GRAPH_DIAMETER_ANGLE_ZY -> stat.addValue(graphDiameter.getExtensionAngleZY());
         }
     }
 
     private void assembleInnerBranchStats(final StatisticsInstance stat, final String innerBranchMetric) {
         switch (innerBranchMetric) {
             case INNER_EXTENSION_ANGLE_XY ->
-                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
             case INNER_EXTENSION_ANGLE_XZ ->
-                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ()));
             case INNER_EXTENSION_ANGLE_ZY ->
-                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY()));
+            case INNER_EXTENSION_ANGLE ->
+                    getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngle3D(false)));
             case INNER_LENGTH -> getInnerBranches().forEach(branch -> stat.addValue(branch.getLength()));
             case N_INNER_BRANCHES -> stat.addValue(getInnerBranches().size());
         }
@@ -1400,12 +1469,14 @@ public class TreeStatistics extends ContextCommand {
 
     private void assembleTerminalBranchStats(final StatisticsInstance stat, final String terminalBranchMetric) {
         switch (terminalBranchMetric) {
+            case TERMINAL_EXTENSION_ANGLE ->
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngle3D(false)));
             case TERMINAL_EXTENSION_ANGLE_XY ->
-                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
             case TERMINAL_EXTENSION_ANGLE_XZ ->
-                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ()));
             case TERMINAL_EXTENSION_ANGLE_ZY ->
-                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+                    getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY()));
             case TERMINAL_LENGTH -> getTerminalBranches().forEach(branch -> stat.addValue(branch.getLength()));
             case N_TERMINAL_BRANCHES -> stat.addValue(getTerminalBranches().size());
         }
@@ -1413,12 +1484,14 @@ public class TreeStatistics extends ContextCommand {
 
     private void assemblePrimaryBranchStats(final StatisticsInstance stat, final String primaryBranchMetric) {
         switch (primaryBranchMetric) {
+            case PRIMARY_EXTENSION_ANGLE ->
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngle3D(false)));
             case PRIMARY_EXTENSION_ANGLE_XY ->
-                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY(false)));
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
             case PRIMARY_EXTENSION_ANGLE_XZ ->
-                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ(false)));
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ()));
             case PRIMARY_EXTENSION_ANGLE_ZY ->
-                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY(false)));
+                    getPrimaryBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleZY()));
             case PRIMARY_LENGTH -> getPrimaryBranches().forEach(branch -> stat.addValue(branch.getLength()));
             case N_PRIMARY_BRANCHES -> stat.addValue(getPrimaryBranches().size());
         }

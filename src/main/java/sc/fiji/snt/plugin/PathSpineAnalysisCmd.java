@@ -66,8 +66,8 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 	@Parameter(label = "X-Axis Metric", choices = { "Path ID", //
 			PathStatistics.PATH_CHANNEL, PathStatistics.PATH_FRAME, //
 			PathStatistics.N_BRANCH_POINTS, PathStatistics.PATH_CONTRACTION, //
+			PathStatistics.PATH_EXT_ANGLE, PathStatistics.PATH_EXT_ANGLE_REL, //
 			PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_ZY,//
-			PathStatistics.PATH_EXT_ANGLE_REL_XY, PathStatistics.PATH_EXT_ANGLE_REL_XZ, PathStatistics.PATH_EXT_ANGLE_REL_ZY,//
 			PathStatistics.PATH_LENGTH, PathStatistics.PATH_MEAN_RADIUS, //
 			PathStatistics.PATH_ORDER, PathStatistics.PATH_SURFACE_AREA, //
 			PathStatistics.N_PATH_NODES, PathStatistics.PATH_VOLUME })
@@ -105,9 +105,9 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 		if (anyMetric) {
 			final List<String> metrics = Arrays.asList(NONE_OPTION, "Path ID", //
 					PathStatistics.PATH_CHANNEL, PathStatistics.PATH_FRAME, //
-					PathStatistics.PATH_CONTRACTION, PathStatistics.PATH_LENGTH,
-					PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_ZY,//
-					PathStatistics.PATH_EXT_ANGLE_REL_XY, PathStatistics.PATH_EXT_ANGLE_REL_XZ, PathStatistics.PATH_EXT_ANGLE_REL_ZY,//
+					PathStatistics.PATH_CONTRACTION, PathStatistics.PATH_LENGTH, //
+					PathStatistics.PATH_EXT_ANGLE, PathStatistics.PATH_EXT_ANGLE_REL, //
+					PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_ZY, //
 					PathStatistics.PATH_ORDER, PathStatistics.PATH_N_SPINES, PathStatistics.PATH_SPINE_DENSITY, //
 					PathStatistics.N_BRANCH_POINTS, PathStatistics.PATH_MEAN_RADIUS, //
 					PathStatistics.PATH_SURFACE_AREA, PathStatistics.N_PATH_NODES, PathStatistics.PATH_VOLUME);

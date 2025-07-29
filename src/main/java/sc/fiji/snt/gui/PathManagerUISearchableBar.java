@@ -443,12 +443,11 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		{
 			final Path p = iterator.next();
 			double value = switch (property) {
-                case PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_REL_XY ->
-                        p.getExtensionAngleXY(PathStatistics.PATH_EXT_ANGLE_REL_XY.equals(property));
-                case PathStatistics.PATH_EXT_ANGLE_XZ, PathStatistics.PATH_EXT_ANGLE_REL_XZ ->
-                        p.getExtensionAngleXZ(PathStatistics.PATH_EXT_ANGLE_REL_XZ.equals(property));
-                case PathStatistics.PATH_EXT_ANGLE_ZY, PathStatistics.PATH_EXT_ANGLE_REL_ZY ->
-                        p.getExtensionAngleZY(PathStatistics.PATH_EXT_ANGLE_REL_ZY.equals(property));
+                case PathStatistics.PATH_EXT_ANGLE_XY -> p.getExtensionAngleXY();
+				case PathStatistics.PATH_EXT_ANGLE_XZ -> p.getExtensionAngleXZ();
+				case PathStatistics.PATH_EXT_ANGLE_ZY -> p.getExtensionAngleZY();
+				case PathStatistics.PATH_EXT_ANGLE -> p.getExtensionAngle3D(false);
+				case PathStatistics.PATH_EXT_ANGLE_REL -> p.getExtensionAngle3D(true);
                 case PathStatistics.PATH_LENGTH, "Length" -> p.getLength();
                 case PathStatistics.N_NODES -> p.size();
                 case PathStatistics.PATH_MEAN_RADIUS -> p.getMeanRadius();

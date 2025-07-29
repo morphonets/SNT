@@ -1857,20 +1857,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		case PathStatistics.PATH_EXT_ANGLE_XY:
 		case PathStatistics.PATH_EXT_ANGLE_XZ:
 		case PathStatistics.PATH_EXT_ANGLE_ZY:
-		case PathStatistics.PATH_EXT_ANGLE_REL_XY:
-		case PathStatistics.PATH_EXT_ANGLE_REL_XZ:
-		case PathStatistics.PATH_EXT_ANGLE_REL_ZY:
+		case PathStatistics.PATH_EXT_ANGLE:
+		case PathStatistics.PATH_EXT_ANGLE_REL:
 			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE + "\\d+.\\d+]|\\[" + SYM_ANGLE + "NaN]", "")));
 			if (reapply) {
 				final boolean relative = cmd.toLowerCase().contains("rel");
 				paths.forEach(p-> {
 					double value;
 					if (cmd.contains("XZ"))
-						value = p.getExtensionAngleXZ(relative);
+						value = p.getExtensionAngleXZ();
 					else if (cmd.contains("ZY"))
-						value = p.getExtensionAngleZY(relative);
+						value = p.getExtensionAngleZY();
+					else if (cmd.contains("XY"))
+						value = p.getExtensionAngleXY();
 					else
-						value = p.getExtensionAngleXY(relative);
+						value = p.getExtensionAngle3D(relative);
 					p.setName(String.format(Locale.US, "%s [%s%.1f]", p.getName(), SYM_ANGLE, value));
 				});
 			}

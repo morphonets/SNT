@@ -26,7 +26,6 @@ import net.imagej.ImageJ;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.PathManagerUI;
@@ -51,11 +50,9 @@ public class FilterOrTagPathsByAngleCmd extends CommonDynamicCmd {
     @Parameter(label = "Largest angle:", min = "0", max = "360", stepSize = "30",style = NumberWidget.SLIDER_STYLE)
     private double largestAngle;
 
-    @Parameter(label = "Plane:", choices = {"XY", "XZ", "ZY"}, style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
-    private String planeChoice;
-
-    @Parameter(label = "Type:", choices = {"Absolute", "Relative to parent path"}, style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
-    private String type;
+    @Parameter(label = "Type of angle:", choices = { "Relative to parent path", "Absolute (3D)", "Absolute (XY plane)",
+            "Absolute (XZ plane)", "Absolute (ZY plane)"})
+    private String angleChoice;
 
     @Parameter(required = false)
     private boolean tagOnly;
@@ -79,8 +76,7 @@ public class FilterOrTagPathsByAngleCmd extends CommonDynamicCmd {
      */
     @Override
     public void run() {
-        final boolean relative = type != null && type.toLowerCase().contains("relative");
-        final String metric = getMetric(relative);
+        final String metric = getMetric();
         if (tagOnly) {
             ui.getPathManager().applyDefaultTags(metric);
             if (ui != null && ui.getRecorder(false) != null)
@@ -91,18 +87,13 @@ public class FilterOrTagPathsByAngleCmd extends CommonDynamicCmd {
         }
         for (final Iterator<Path> iterator = paths.iterator(); iterator.hasNext();) {
             final Path p = iterator.next();
-            double value;
-            switch (planeChoice) {
-                case "XZ":
-                    value = p.getExtensionAngleXZ(relative);
-                    break;
-                case "ZY":
-                    value = p.getExtensionAngleZY(relative);
-                    break;
-                default:
-                    value = p.getExtensionAngleXY(relative);
-                    break;
-            }
+            final double value = switch (metric) {
+                case PathStatistics.PATH_EXT_ANGLE_REL -> p.getExtensionAngle3D(true);
+                case PathStatistics.PATH_EXT_ANGLE_XY -> p.getExtensionAngleXY();
+                case PathStatistics.PATH_EXT_ANGLE_ZY -> p.getExtensionAngleZY();
+                case PathStatistics.PATH_EXT_ANGLE_XZ -> p.getExtensionAngleXZ();
+                default -> p.getExtensionAngle3D(false);
+            };
             if (value < lowestAngle || value > largestAngle) {
                 iterator.remove();
             }
@@ -115,15 +106,14 @@ public class FilterOrTagPathsByAngleCmd extends CommonDynamicCmd {
         }
     }
 
-    private String getMetric(final boolean relative) {
-        switch (planeChoice) {
-            case "XZ":
-                return (relative) ? PathStatistics.PATH_EXT_ANGLE_REL_XZ : PathStatistics.PATH_EXT_ANGLE_XZ;
-            case "ZY":
-                return (relative) ? PathStatistics.PATH_EXT_ANGLE_REL_ZY : PathStatistics.PATH_EXT_ANGLE_ZY;
-            default:
-                return (relative) ? PathStatistics.PATH_EXT_ANGLE_REL_XY : PathStatistics.PATH_EXT_ANGLE_XY;
-        }
+    private String getMetric() {
+        return switch (angleChoice) {
+            case String s when s.contains("Relative") ->  PathStatistics.PATH_EXT_ANGLE_REL;
+            case String s when s.contains("XY") ->  PathStatistics.PATH_EXT_ANGLE_XY;
+            case String s when s.contains("XZ") ->  PathStatistics.PATH_EXT_ANGLE_XZ;
+            case String s when s.contains("ZY") ->  PathStatistics.PATH_EXT_ANGLE_ZY;
+            default -> PathStatistics.PATH_EXT_ANGLE;
+        };
     }
 
     /* IDE debug method **/

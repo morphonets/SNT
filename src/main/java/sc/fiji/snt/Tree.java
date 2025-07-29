@@ -1759,16 +1759,15 @@ public class Tree implements TreeProperties {
 						refPath = tree.getGraph().getLongestPath(true);
 					}
 					if (straighten && isXZ) {
-						angle = refPath.getExtensionAngleXZ(false);
+						angle = refPath.getExtensionAngleXZ(); // NaN if tree is 2D
 					} else if (straighten && isZY) {
 						// NB: must be negative for ImagePlus and Viewer2D!???
-						angle = -refPath.getExtensionAngleZY(false);
+						angle = -refPath.getExtensionAngleZY();  // NaN if tree is 2D
 					} else if (straighten) {
-						angle = refPath.getExtensionAngleXY(false);
+						angle = refPath.getExtensionAngleXY();
 					}
 					if (!Double.isNaN(angle)) {
-						// since angle is relative to horizontal, we need to add 90 degrees
-						if (angle != 0) angle += 90;
+						// we are using compass directions (N:0 degrees)
 						tree.rotate(rotationAxis, -angle + finalRotAngle); // does nothing if angle is 0
 					}
 				}

@@ -432,9 +432,7 @@ public class DelineationsManager {
         choiceList.remove(PathStatistics.N_SPINES); // Path sections inherit parent No. of Spines
         choiceList.remove(PathStatistics.PATH_N_SPINES);
         choiceList.remove(PathStatistics.PATH_SPINE_DENSITY);
-        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL_XY); // Path sections have no parent
-        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL_XZ);
-        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL_ZY);
+        choiceList.remove(PathStatistics.PATH_EXT_ANGLE_REL); // Path sections have no parent
         if (!sntui.plugin.accessToValidImageData()) choiceList.remove(PathStatistics.VALUES);
         return choiceList.toArray(new String[0]);
     }
