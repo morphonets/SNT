@@ -693,6 +693,20 @@ public class PathExtensionAngleTest {
         assertEquals("XZ perpendicular paths should have 90° relative angle", 90.0, relativeAngle, EPSILON);
     }
 
+
+    @Test
+    public void testAzimuthAndElevationAngles() {
+        Path path = new Path(1.0, 1.0, 1.0, "μm");
+        path.addNode(new PointInImage(0, 0, 0));
+        // Second point to achieve 45° azimuth and 30° elevation
+        // direction.x = 1, direction.y = -1, direction.z = sqrt(2/3) ≈ 0.8165
+        path.addNode(new PointInImage(1, -1, Math.sqrt(2.0/3.0)));
+        double[] angles = path.getExtensionAngles3D();
+        assertEquals("azimuth angle should be", 45d, angles[0], EPSILON);
+        assertEquals("elevation angle should be", 30d, angles[1], EPSILON);
+        assertEquals("azimuth angle should be same as XY angle", angles[0], path.getExtensionAngleXY(), EPSILON);
+    }
+
     @Test
     public void testExtensionAngleZY_Basic() {
         // Test ZY plane relative angles using 3D relative angle method

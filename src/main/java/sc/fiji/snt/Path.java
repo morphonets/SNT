@@ -448,11 +448,10 @@ public class Path implements Comparable<Path> {
 		return totalLength;
 	}
 
-
-	/*
+	/**
 	 * Computes the angle between the specified node and its two flanking neighbors.
 	 * <p>
-	 * With B being the specified node, A its previous neighbor, and C is subsequent neighbor, computes the angle
+	 * With B being the specified node, A its previous neighbor, and C is next neighbor, computes the angle
 	 * between the vectors AB, and BC.
 	 * </p>
 	 * @return the angle in degrees (0-360 range) or Double.NaN if specified node does not have sufficient neighbors
