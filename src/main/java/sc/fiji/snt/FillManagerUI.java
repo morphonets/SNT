@@ -32,6 +32,7 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -62,7 +63,6 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 	private static final long serialVersionUID = 1L;
 	protected static final String FILLING_URI = "https://imagej.net/plugins/snt/walkthroughs#filling";
-	private static final int STATUS_MARGIN = 2;
 	private static final int MARGIN = 10;
 
 	public enum State {READY, STARTED, ENDED, LOADED, STOPPED}
@@ -75,24 +75,24 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	private double maxThresholdValue = 0;
 	private State currentState;
 
-	private JTextField manualThresholdInputField;
+	private final JTextField manualThresholdInputField;
 	private JLabel maxThresholdLabel;
 	private JLabel currentThresholdLabel;
 	private JLabel cursorPositionLabel;
 	private JLabel fillTypeLabel;
 	private JLabel statusText;
-	private JButton manualThresholdApplyButton;
-	private JButton exploredThresholdApplyButton;
+	private final JButton manualThresholdApplyButton;
+	private final JButton exploredThresholdApplyButton;
 	private JButton startFill;
 	private JButton saveFill;
 	private JButton stopFill;
-	private JButton reloadFill;
-	private JRadioButton cursorThresholdChoice;
-	private JRadioButton manualThresholdChoice;
-	private JRadioButton exploredThresholdChoice;
+	private final JButton reloadFill;
+	private final JRadioButton cursorThresholdChoice;
+	private final JRadioButton manualThresholdChoice;
+	private final JRadioButton exploredThresholdChoice;
 	private JPopupMenu exportFillsMenu;
-	private JCheckBox transparentCheckbox;
-	private JCheckBox storeExtraNodesCheckbox;
+	private final JCheckBox transparentCheckbox;
+	private final JCheckBox storeExtraNodesCheckbox;
 
 
 	/**
@@ -116,6 +116,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		fillList.setPrototypeCellValue(PrototypeFill.instance);
 		gUtils = new GuiUtils(this);
 		setPlaceholderStatusLabels();
+		initializeActions();
 
 		assert SwingUtilities.isEventDispatchThread();
 
@@ -148,7 +149,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 		final JPanel distancePanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		cursorThresholdChoice = new JRadioButton("Set by clicking on traced structure (preferred)"); // dummy. the default
+		cursorThresholdChoice = new JRadioButton("Set by clicking on traced structure (preferred)"); // placeholder default
 
 		final JPanel t1Panel = leftAlignedPanel();
 		t1Panel.add(cursorThresholdChoice);
@@ -460,6 +461,24 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 	/* (non-Javadoc)
 	 * @see java.awt.event.ActionListener#actionPerformed(java.awt.event.ActionEvent)
 	 */
+	// Action command interface
+	private interface FillAction {
+		boolean canHandle(Object source);
+		void execute();
+	}
+
+	// Action registry
+	private final List<FillAction> actions = new ArrayList<>();
+
+	// Initialize actions
+	private void initializeActions() {
+		actions.add(new ExploredThresholdApplyAction());
+		actions.add(new ManualThresholdApplyAction());
+		actions.add(new StopFillAction());
+		actions.add(new SaveFillAction());
+		actions.add(new StartFillAction());
+	}
+
 	@Override
 	public void actionPerformed(final ActionEvent ae) {
 		assert SwingUtilities.isEventDispatchThread();
@@ -470,7 +489,26 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		}
 
-		if (source == exploredThresholdApplyButton) {
+		// Process actions in order
+		for (FillAction action : actions) {
+			if (action.canHandle(source)) {
+				action.execute();
+				return;
+			}
+		}
+
+		SNTUtils.error("BUG: FillWindow received an event from an unknown source.");
+	}
+
+	// Action implementations
+	private class ExploredThresholdApplyAction implements FillAction {
+		@Override
+		public boolean canHandle(Object source) {
+			return source == exploredThresholdApplyButton;
+		}
+
+		@Override
+		public void execute() {
 			try {
 				plugin.setFillThreshold(maxThresholdValue);
 			} catch (final IllegalArgumentException ignored) {
@@ -478,35 +516,68 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 				cursorThresholdChoice.setSelected(true);
 			}
 		}
-		else if (source == manualThresholdApplyButton || source == manualThresholdInputField) {
+	}
+
+	private class ManualThresholdApplyAction implements FillAction {
+		@Override
+		public boolean canHandle(Object source) {
+			return source == manualThresholdApplyButton || source == manualThresholdInputField;
+		}
+
+		@Override
+		public void execute() {
 			try {
-				plugin.setFillThreshold(Double.parseDouble(manualThresholdInputField.getText())); // will call #setThreshold()
-			}
-			catch (final IllegalArgumentException ignored) { // includes NumberFormatException
+				plugin.setFillThreshold(Double.parseDouble(manualThresholdInputField.getText()));
+			} catch (final IllegalArgumentException ignored) { // includes NumberFormatException
 				gUtils.error("The threshold '" + manualThresholdInputField.getText() +
 					"' is not a valid option. Only positive values accepted.");
 				cursorThresholdChoice.setSelected(true);
 			}
-
 		}
-		else if (source == stopFill) {
+	}
 
+	private class StopFillAction implements FillAction {
+		@Override
+		public boolean canHandle(Object source) {
+			return source == stopFill;
+		}
+
+		@Override
+		public void execute() {
 			try {
 				plugin.stopFilling(); // will change state
 			} catch (final IllegalArgumentException ex) {
 				gUtils.error(ex.getMessage());
 			}
 		}
-		else if (source == saveFill) {
+	}
+
+	private class SaveFillAction implements FillAction {
+		@Override
+		public boolean canHandle(Object source) {
+			return source == saveFill;
+		}
+
+		@Override
+		public void execute() {
 			try {
 				plugin.saveFill(); // will change state
 			} catch (final IllegalArgumentException ex) {
 				gUtils.error(ex.getMessage());
 			}
 		}
-		else if (source == startFill) {
+	}
+
+	private class StartFillAction implements FillAction {
+		@Override
+		public boolean canHandle(Object source) {
+			return source == startFill;
+		}
+
+		@Override
+		public void execute() {
 			if (plugin.fillerThreadPool != null) {
-				gUtils.error ("A filling operation is already running.");
+				gUtils.error("A filling operation is already running.");
 				return;
 			}
 			if (plugin.fillerSet.isEmpty()) {
@@ -514,7 +585,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 					plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
 					applyCheckboxSelections();
 					plugin.startFilling();
-				} else  {
+				} else {
 					final int ans = gUtils.yesNoDialog("There are no paths selected in Path Manager. Would you like to "
 							+ "fill all paths? Alternatively, you can dismiss this prompt, select a subset in the Path "
 							+ "Manager list, and rerun. ", "Fill All Paths?", "Yes. Fill All", "No. I'll Select A Subset");
@@ -527,17 +598,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			} else {
 				try {
 					applyCheckboxSelections();
-					plugin.startFilling(); //TODO: Check if this is the only thing left to do.
+					plugin.startFilling();
 				} catch (final IllegalArgumentException ex) {
 					gUtils.error(ex.getMessage());
 				}
 			}
 		}
-
-		else {
-			SNTUtils.error("BUG: FillWindow received an event from an unknown source.");
-		}
-
 	}
 
 	private void applyCheckboxSelections() {
@@ -566,12 +632,21 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		return noPaths;
 	}
 
-	private void assembleExportFillsMenu() {
-		exportFillsMenu = new JPopupMenu();
+	// Export menu action interface
+	private interface ExportAction {
+		String getMenuText();
+		void execute();
+	}
 
-		// TODO: implement a dialog?
-		JMenuItem jmi = new JMenuItem("Annotated Distance Map");
-		jmi.addActionListener(e-> {
+	// Export action implementations
+	private class AnnotatedDistanceMapExportAction implements ExportAction {
+		@Override
+		public String getMenuText() {
+			return "Annotated Distance Map";
+		}
+
+		@Override
+		public void execute() {
 			ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
 			if (imp != null) {
 				ij.IJ.run(imp,
@@ -579,43 +654,105 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 					   "location=[Upper Right] fill=White label=Black number=10 decimal=3 zoom=1 overlay");
 				imp.show();
 			}
-		});
-		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("Binary Mask");
-		jmi.addActionListener(e-> {
-		ImagePlus imp =	exportAsImp(FillConverter.ResultType.BINARY_MASK);
-		  if (imp != null)
-			  imp.show();
-		});
-		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("Distance Image");
-		jmi.addActionListener(e-> {
-			ImagePlus imp =	exportAsImp(FillConverter.ResultType.DISTANCE);
+		}
+	}
+
+	private class BinaryMaskExportAction implements ExportAction {
+		@Override
+		public String getMenuText() {
+			return "Binary Mask";
+		}
+
+		@Override
+		public void execute() {
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.BINARY_MASK);
 			if (imp != null)
 				imp.show();
-		});
-		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("Grayscale Image");
-		jmi.addActionListener(e-> {
+		}
+	}
+
+	private class DistanceImageExportAction implements ExportAction {
+		@Override
+		public String getMenuText() {
+			return "Distance Image";
+		}
+
+		@Override
+		public void execute() {
+			ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
+			if (imp != null)
+				imp.show();
+		}
+	}
+
+	private class GrayscaleImageExportAction implements ExportAction {
+		@Override
+		public String getMenuText() {
+			return "Grayscale Image";
+		}
+
+		@Override
+		public void execute() {
 			ImagePlus imp = exportAsImp(FillConverter.ResultType.SAME);
 			if (imp != null)
 				imp.show();
-		});
-		exportFillsMenu.add(jmi);
-		jmi = new JMenuItem("Label Image");
-		jmi.addActionListener(e -> {
+		}
+	}
+
+	private class LabelImageExportAction implements ExportAction {
+		@Override
+		public String getMenuText() {
+			return "Label Image";
+		}
+
+		@Override
+		public void execute() {
 			ImagePlus imp = exportAsImp(FillConverter.ResultType.LABEL);
 			if (imp != null)
 				imp.show();
-		});
-		exportFillsMenu.add(jmi);
-		exportFillsMenu.addSeparator();
-		jmi = new JMenuItem("CSV Summary...");
-		jmi.addActionListener(e-> saveFills());
-		exportFillsMenu.add(jmi);
+		}
 	}
 
-	private <T extends RealType<T>> ImagePlus exportAsImp(final FillConverter.ResultType resultType) {
+	private class CsvSummaryExportAction implements ExportAction {
+		@Override
+		public String getMenuText() {
+			return "CSV Summary...";
+		}
+
+		@Override
+		public void execute() {
+			saveFills();
+		}
+	}
+
+	private void assembleExportFillsMenu() {
+		exportFillsMenu = new JPopupMenu();
+
+		// Create export actions
+		List<ExportAction> exportActions = Arrays.asList(
+			new AnnotatedDistanceMapExportAction(),
+			new BinaryMaskExportAction(),
+			new DistanceImageExportAction(),
+			new GrayscaleImageExportAction(),
+			new LabelImageExportAction()
+		);
+
+		// Add image export actions
+		for (ExportAction action : exportActions) {
+			JMenuItem jmi = new JMenuItem(action.getMenuText());
+			jmi.addActionListener(e -> action.execute());
+			exportFillsMenu.add(jmi);
+		}
+
+		// Add separator and CSV export
+		exportFillsMenu.addSeparator();
+		CsvSummaryExportAction csvAction = new CsvSummaryExportAction();
+		JMenuItem csvItem = new JMenuItem(csvAction.getMenuText());
+		csvItem.addActionListener(e -> csvAction.execute());
+		exportFillsMenu.add(csvItem);
+	}
+
+	private ImagePlus exportAsImp(final FillConverter.ResultType resultType) {
 		if (noFillsError())
 			return null;
 		if (plugin.fillerSet.isEmpty()) {
@@ -630,26 +767,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return null;
 		}
 		final ImagePlus imp;
-		switch (resultType) {
-			case SAME: {
-				imp = plugin.getFilledImp();
-				break;
-			}
-			case BINARY_MASK: {
-				imp = plugin.getFilledBinaryImp();
-				break;
-			}
-			case DISTANCE: {
-				imp = plugin.getFilledDistanceImp();
-				break;
-			}
-			case LABEL: {
-				imp = plugin.getFilledLabelImp();
-				break;
-			}
-			default:
-				throw new IllegalArgumentException("Unknown result type: " + resultType);
-		}
+        switch (resultType) {
+            case SAME -> imp = plugin.getFilledImp();
+            case BINARY_MASK -> imp = plugin.getFilledBinaryImp();
+            case DISTANCE -> imp = plugin.getFilledDistanceImp();
+            case LABEL -> imp = plugin.getFilledLabelImp();
+            default -> throw new IllegalArgumentException("Unknown result type: " + resultType);
+        }
 		if (imp != null) imp.setTitle("Fill_" + resultType);
 		return imp;
 	}
@@ -753,51 +877,44 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 			return;
 		currentState = newState;
 		SwingUtilities.invokeLater(() -> {
-			switch (newState) {
-
-			case READY:
-				updateStatusText("Press <i>Start</i> to initiate filling...");
-				startFill.setEnabled(true);
-				stopFill.setEnabled(false);
-				saveFill.setEnabled(false);
-				reloadFill.setEnabled(true);
-				break;
-
-			case STARTED:
-				updateStatusText("Filling started...");
-				startFill.setEnabled(false);
-				stopFill.setEnabled(true);
-				saveFill.setEnabled(false);
-				reloadFill.setEnabled(false);
-				break;
-
-			case LOADED:
-				updateStatusText("Press <i>Start</i> to initiate filling...");
-				startFill.setEnabled(true);
-				stopFill.setEnabled(false);
-				saveFill.setEnabled(true);
-				reloadFill.setEnabled(false);
-				break;
-
-			case STOPPED:
-				updateStatusText("Filling stopped...");
-				startFill.setEnabled(true);
-				stopFill.setEnabled(false);
-				saveFill.setEnabled(true);
-				reloadFill.setEnabled(false);
-				break;
-
-			case ENDED:
-				updateStatusText("Filling concluded... Store result?");
-				startFill.setEnabled(true);
-				stopFill.setEnabled(false);
-				saveFill.setEnabled(true);
-				reloadFill.setEnabled(false);
-				break;
-
-			default:
-				SNTUtils.error("BUG: switching to an unknown state");
-			}
+            switch (newState) {
+                case READY -> {
+                    updateStatusText("Press <i>Start</i> to initiate filling...");
+                    startFill.setEnabled(true);
+                    stopFill.setEnabled(false);
+                    saveFill.setEnabled(false);
+                    reloadFill.setEnabled(true);
+                }
+                case STARTED -> {
+                    updateStatusText("Filling started...");
+                    startFill.setEnabled(false);
+                    stopFill.setEnabled(true);
+                    saveFill.setEnabled(false);
+                    reloadFill.setEnabled(false);
+                }
+                case LOADED -> {
+                    updateStatusText("Press <i>Start</i> to initiate filling...");
+                    startFill.setEnabled(true);
+                    stopFill.setEnabled(false);
+                    saveFill.setEnabled(true);
+                    reloadFill.setEnabled(false);
+                }
+                case STOPPED -> {
+                    updateStatusText("Filling stopped...");
+                    startFill.setEnabled(true);
+                    stopFill.setEnabled(false);
+                    saveFill.setEnabled(true);
+                    reloadFill.setEnabled(false);
+                }
+                case ENDED -> {
+                    updateStatusText("Filling concluded... Store result?");
+                    startFill.setEnabled(true);
+                    stopFill.setEnabled(false);
+                    saveFill.setEnabled(true);
+                    reloadFill.setEnabled(false);
+                }
+                default -> SNTUtils.error("BUG: switching to an unknown state");
+            }
 		});
 	}
 

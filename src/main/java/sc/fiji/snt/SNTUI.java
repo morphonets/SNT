@@ -212,6 +212,7 @@ public class SNTUI extends JDialog {
 		commandFinder = new SNTCommandFinder(this);
 		commandFinder.register(getTracingCanvasPopupMenu(), new ArrayList<>(Collections.singletonList("Image Contextual Menu")));
         bookmarkManager = new BookmarkManager(this);
+        initializeStates();
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 
@@ -895,6 +896,36 @@ public class SNTUI extends JDialog {
 		rebuildCanvasButton.setText(label);
 	}
 
+	// State interface for UI state management
+	private interface UIState {
+		void enter();
+		int getStateId();
+	}
+
+	// State registry
+	private final Map<Integer, UIState> states = new HashMap<>();
+
+	// Initialize UI states
+	private void initializeStates() {
+		states.put(WAITING_TO_START_PATH, new WaitingToStartPathState());
+		states.put(TRACING_PAUSED, new TracingPausedState());
+		states.put(PARTIAL_PATH, new PartialPathState());
+		states.put(SEARCHING, new SearchingState());
+		states.put(QUERY_KEEP, new QueryKeepState());
+		states.put(FILLING_PATHS, new FillingPathsState());
+		states.put(FITTING_PATHS, new FittingPathsState());
+		states.put(RUNNING_CMD, new RunningCmdState());
+		states.put(CACHING_DATA, new CachingDataState());
+		states.put(CALCULATING_HESSIAN_I, new CalculatingHessianIState());
+		states.put(CALCULATING_HESSIAN_II, new CalculatingHessianIIState());
+		states.put(WAITING_FOR_SIGMA_POINT_I, new WaitingForSigmaPointIState());
+		states.put(WAITING_FOR_SIGMA_CHOICE, new WaitingForSigmaChoiceState());
+		states.put(LOADING, new LoadingState());
+		states.put(SAVING, new SavingState());
+		states.put(EDITING, new EditingState());
+		states.put(SNT_PAUSED, new SntPausedState());
+	}
+
 	/**
 	 * Changes this UI to a new state. Does nothing if {@code newState} is the
 	 * current UI state
@@ -903,160 +934,288 @@ public class SNTUI extends JDialog {
 	 *                 {@link SNTUI#TRACING_PAUSED}, etc.
 	 */
 	public void changeState(final int newState) {
-
 		if (newState == currentState || plugin == null) return; // plugin may be null when exiting
 		currentState = newState;
+		
 		SwingUtilities.invokeLater(() -> {
-			switch (newState) {
-
-			case WAITING_TO_START_PATH:
-				keepSegment.setEnabled(false);
-				junkSegment.setEnabled(false);
-				completePath.setEnabled(false);
-				GuiUtils.enableComponents(sourcePanel, true);
-
-				partsNearbyCSpinner.setEnabled(isStackAvailable());
-				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
-				fmUI.setEnabledWhileNotFilling();
-				saveMenuItem.setEnabled(true);
-
-				quitMenuItem.setEnabled(true);
-				showPathsSelected.setEnabled(true);
-				updateStatusText("Click somewhere to start a new path...");
-				showOrHideFillList.setEnabled(true);
-				updateRebuildCanvasButton();
-				break;
-
-			case TRACING_PAUSED:
-
-				keepSegment.setEnabled(false);
-				junkSegment.setEnabled(false);
-				completePath.setEnabled(false);
-				pmUI.valueChanged(null); // Fake a selection change in the path tree:
-				partsNearbyCSpinner.setEnabled(isStackAvailable());
-				setEnableAutoTracingComponents(false, false);
-				plugin.discardFill();
-				fmUI.setEnabledWhileNotFilling();
-				// setFillListVisible(false);
-				saveMenuItem.setEnabled(true);
-
-				quitMenuItem.setEnabled(true);
-				showPathsSelected.setEnabled(true);
-				updateRebuildCanvasButton();
-				updateStatusText("Tracing functions disabled...");
-				break;
-
-			case PARTIAL_PATH:
-				updateStatusText("Select a point further along the structure...");
-				disableEverything();
-				keepSegment.setEnabled(false);
-				junkSegment.setEnabled(false);
-				completePath.setEnabled(true);
-				partsNearbyCSpinner.setEnabled(isStackAvailable());
-				setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
-				quitMenuItem.setEnabled(false);
-				break;
-
-			case SEARCHING:
-				updateStatusText("Searching for path between points...");
-				disableEverything();
-				break;
-
-			case QUERY_KEEP:
-				updateStatusText("Keep this new path segment?");
-				disableEverything();
-				keepSegment.setEnabled(true);
-				junkSegment.setEnabled(true);
-				break;
-
-			case FILLING_PATHS:
-				updateStatusText("Filling out selected paths...");
-				disableEverything();
-				fmUI.setEnabledWhileFilling();
-				break;
-
-			case FITTING_PATHS:
-				updateStatusText("Fitting volumes around selected paths...");
-				break;
-
-			case RUNNING_CMD:
-				updateStatusText("Running Command...");
-				disableEverything();
-				break;
-
-			case CACHING_DATA:
-				updateStatusText("Caching data. This could take a while...");
-				disableEverything();
-				break;
-
-			case CALCULATING_HESSIAN_I:
-				updateStatusText("Calculating Hessian...");
-				showStatus("Computing Hessian for main image...", false);
-				disableEverything();
-				break;
-
-			case CALCULATING_HESSIAN_II:
-				updateStatusText("Calculating Hessian (II Image)..");
-				showStatus("Computing Hessian (secondary image)...", false);
-				disableEverything();
-				break;
-
-			case WAITING_FOR_SIGMA_POINT_I:
-				updateStatusText("Click on a representative structure...");
-				showStatus("Adjusting Hessian (main image)...", false);
-				//disableEverything();
-				break;
-
-			case WAITING_FOR_SIGMA_CHOICE:
-				updateStatusText("Close 'Pick Sigma &amp; Max' to continue...");
-				//disableEverything();
-				break;
-
-			case LOADING:
-				updateStatusText("Loading...");
-				disableEverything();
-				break;
-
-			case SAVING:
-				updateStatusText("Saving...");
-				disableEverything();
-				break;
-
-			case EDITING:
-				if (noPathsError())
-					return;
-				plugin.setCanvasLabelAllPanes(InteractiveTracerCanvas.EDIT_MODE_LABEL);
-				updateStatusText("Editing Mode. Tracing functions disabled...");
-				disableEverything();
-				keepSegment.setEnabled(false);
-				junkSegment.setEnabled(false);
-				completePath.setEnabled(false);
-				partsNearbyCSpinner.setEnabled(isStackAvailable());
-				setEnableAutoTracingComponents(false, false);
-				getFillManager().setVisible(false);
-				showOrHideFillList.setEnabled(false);
-				break;
-
-			case SNT_PAUSED:
-				updateStatusText("SNT is paused. Core functions disabled...");
-				disableEverything();
-				keepSegment.setEnabled(false);
-				junkSegment.setEnabled(false);
-				completePath.setEnabled(false);
-				partsNearbyCSpinner.setEnabled(isStackAvailable());
-				setEnableAutoTracingComponents(false, false);
-				getFillManager().setVisible(false);
-				showOrHideFillList.setEnabled(false);
-				break;
-
-			default:
+			UIState state = states.get(newState);
+			if (state != null) {
+				state.enter();
+				SNTUtils.log("UI state: " + getState(currentState));
+				plugin.updateTracingViewers(true);
+			} else {
 				SNTUtils.error("BUG: switching to an unknown state");
-				return;
 			}
-			SNTUtils.log("UI state: " + getState(currentState));
-			plugin.updateTracingViewers(true);
 		});
+	}
 
+	// State implementations
+	private class WaitingToStartPathState implements UIState {
+		@Override
+		public void enter() {
+			keepSegment.setEnabled(false);
+			junkSegment.setEnabled(false);
+			completePath.setEnabled(false);
+			GuiUtils.enableComponents(sourcePanel, true);
+			partsNearbyCSpinner.setEnabled(isStackAvailable());
+			setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
+			fmUI.setEnabledWhileNotFilling();
+			saveMenuItem.setEnabled(true);
+			quitMenuItem.setEnabled(true);
+			showPathsSelected.setEnabled(true);
+			updateStatusText("Click somewhere to start a new path...");
+			showOrHideFillList.setEnabled(true);
+			updateRebuildCanvasButton();
+		}
+
+		@Override
+		public int getStateId() {
+			return WAITING_TO_START_PATH;
+		}
+	}
+
+	private class TracingPausedState implements UIState {
+		@Override
+		public void enter() {
+			keepSegment.setEnabled(false);
+			junkSegment.setEnabled(false);
+			completePath.setEnabled(false);
+			pmUI.valueChanged(null); // Fake a selection change in the path tree
+			partsNearbyCSpinner.setEnabled(isStackAvailable());
+			setEnableAutoTracingComponents(false, false);
+			plugin.discardFill();
+			fmUI.setEnabledWhileNotFilling();
+			saveMenuItem.setEnabled(true);
+			quitMenuItem.setEnabled(true);
+			showPathsSelected.setEnabled(true);
+			updateRebuildCanvasButton();
+			updateStatusText("Tracing functions disabled...");
+		}
+
+		@Override
+		public int getStateId() {
+			return TRACING_PAUSED;
+		}
+	}
+
+	private class PartialPathState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Select a point further along the structure...");
+			disableEverything();
+			keepSegment.setEnabled(false);
+			junkSegment.setEnabled(false);
+			completePath.setEnabled(true);
+			partsNearbyCSpinner.setEnabled(isStackAvailable());
+			setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
+			quitMenuItem.setEnabled(false);
+		}
+
+		@Override
+		public int getStateId() {
+			return PARTIAL_PATH;
+		}
+	}
+
+	private class SearchingState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Searching for path between points...");
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return SEARCHING;
+		}
+	}
+
+	private class QueryKeepState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Keep this new path segment?");
+			disableEverything();
+			keepSegment.setEnabled(true);
+			junkSegment.setEnabled(true);
+		}
+
+		@Override
+		public int getStateId() {
+			return QUERY_KEEP;
+		}
+	}
+
+	private class FillingPathsState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Filling out selected paths...");
+			disableEverything();
+			fmUI.setEnabledWhileFilling();
+		}
+
+		@Override
+		public int getStateId() {
+			return FILLING_PATHS;
+		}
+	}
+
+	private class FittingPathsState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Fitting volumes around selected paths...");
+		}
+
+		@Override
+		public int getStateId() {
+			return FITTING_PATHS;
+		}
+	}
+
+	private class RunningCmdState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Running Command...");
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return RUNNING_CMD;
+		}
+	}
+
+	private class CachingDataState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Caching data. This could take a while...");
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return CACHING_DATA;
+		}
+	}
+
+	private class CalculatingHessianIState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Calculating Hessian...");
+			showStatus("Computing Hessian for main image...", false);
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return CALCULATING_HESSIAN_I;
+		}
+	}
+
+	private class CalculatingHessianIIState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Calculating Hessian (II Image)..");
+			showStatus("Computing Hessian (secondary image)...", false);
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return CALCULATING_HESSIAN_II;
+		}
+	}
+
+	private class WaitingForSigmaPointIState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Click on a representative structure...");
+			showStatus("Adjusting Hessian (main image)...", false);
+		}
+
+		@Override
+		public int getStateId() {
+			return WAITING_FOR_SIGMA_POINT_I;
+		}
+	}
+
+	private class WaitingForSigmaChoiceState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Close 'Pick Sigma &amp; Max' to continue...");
+		}
+
+		@Override
+		public int getStateId() {
+			return WAITING_FOR_SIGMA_CHOICE;
+		}
+	}
+
+	private class LoadingState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Loading...");
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return LOADING;
+		}
+	}
+
+	private class SavingState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("Saving...");
+			disableEverything();
+		}
+
+		@Override
+		public int getStateId() {
+			return SAVING;
+		}
+	}
+
+	private class EditingState implements UIState {
+		@Override
+		public void enter() {
+			if (noPathsError()) return;
+			plugin.setCanvasLabelAllPanes(InteractiveTracerCanvas.EDIT_MODE_LABEL);
+			updateStatusText("Editing Mode. Tracing functions disabled...");
+			disableEverything();
+			keepSegment.setEnabled(false);
+			junkSegment.setEnabled(false);
+			completePath.setEnabled(false);
+			partsNearbyCSpinner.setEnabled(isStackAvailable());
+			setEnableAutoTracingComponents(false, false);
+			getFillManager().setVisible(false);
+			showOrHideFillList.setEnabled(false);
+		}
+
+		@Override
+		public int getStateId() {
+			return EDITING;
+		}
+	}
+
+	private class SntPausedState implements UIState {
+		@Override
+		public void enter() {
+			updateStatusText("SNT is paused. Core functions disabled...");
+			disableEverything();
+			keepSegment.setEnabled(false);
+			junkSegment.setEnabled(false);
+			completePath.setEnabled(false);
+			partsNearbyCSpinner.setEnabled(isStackAvailable());
+			setEnableAutoTracingComponents(false, false);
+			getFillManager().setVisible(false);
+			showOrHideFillList.setEnabled(false);
+		}
+
+		@Override
+		public int getStateId() {
+			return SNT_PAUSED;
+		}
 	}
 
 	protected void resetState() {
@@ -1942,7 +2101,6 @@ public class SNTUI extends JDialog {
 					guiUtils.error("Could not open " + imageFile.getAbsolutePath() + ". Maybe it is not a valid image?",
 							"IO Error");
 					exc.printStackTrace();
-					return;
 				}
 			}
 		}
@@ -2576,7 +2734,6 @@ public class SNTUI extends JDialog {
 			final File openFile = openReconstructionFile("labels");
 			if (openFile != null) { // null if user pressed cancel;
 				plugin.loadLabelsFile(openFile.getAbsolutePath());
-				return;
 			}
 		});
 		fileMenu.add(loadLabelsMenuItem);
@@ -3054,45 +3211,41 @@ public class SNTUI extends JDialog {
 			jmi.addActionListener(e -> {
 				File f = null;
 				boolean proceed = true;
-				switch (label) {
-				case "Fiji Scripts":
-					f = installer.getScriptsDir();
-					break;
-				case "Image Being Traced":
-					if (!plugin.accessToValidImageData()) {
-						noValidImageDataError();
-						proceed = false;
-					}
-					try {
-						f = new File(plugin.getImagePlus().getOriginalFileInfo().getFilePath());
-					} catch (final Exception ignored) {
-						// do nothing
-					}
-					break;
-				case "Last Accessed Folder":
-					f = plugin.getPrefs().getRecentDir();
-					break;
-				case "Snapshot Backup(s)":
-					f = getAutosaveFile();
-					if (SNTUtils.getBackupCopies(f).isEmpty()) {
-						guiUtils.error("No Snapshot Backup(s) seem to exist for current tracings.");
-						proceed = false;
-					}
-					break;
-				case "Secondary Layer Image":
-					f = plugin.getFilteredImageFile();
-					proceed = !noSecondaryDataAvailableError();
-					break;
-				case "Current TRACES File":
-					f = getAutosaveFile();
-					if (f == null) {
-						guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
-						proceed = false;
-					}
-					break;
-				default:
-					break;
-				}
+                switch (label) {
+                    case "Fiji Scripts" -> f = installer.getScriptsDir();
+                    case "Image Being Traced" -> {
+                        if (!plugin.accessToValidImageData()) {
+                            noValidImageDataError();
+                            proceed = false;
+                        }
+                        try {
+                            f = new File(plugin.getImagePlus().getOriginalFileInfo().getFilePath());
+                        } catch (final Exception ignored) {
+                            // do nothing
+                        }
+                    }
+                    case "Last Accessed Folder" -> f = plugin.getPrefs().getRecentDir();
+                    case "Snapshot Backup(s)" -> {
+                        f = getAutosaveFile();
+                        if (SNTUtils.getBackupCopies(f).isEmpty()) {
+                            guiUtils.error("No Snapshot Backup(s) seem to exist for current tracings.");
+                            proceed = false;
+                        }
+                    }
+                    case "Secondary Layer Image" -> {
+                        f = plugin.getFilteredImageFile();
+                        proceed = !noSecondaryDataAvailableError();
+                    }
+                    case "Current TRACES File" -> {
+                        f = getAutosaveFile();
+                        if (f == null) {
+                            guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
+                            proceed = false;
+                        }
+                    }
+                    default -> {
+                    }
+                }
 				if (proceed) guiUtils.showDirectory(f);
 			});
 		});
@@ -3915,82 +4068,83 @@ public class SNTUI extends JDialog {
 	protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
 		if (commandFinder != null)
 			commandFinder.setVisible(false);
-		switch (currentState) {
-		case (SEARCHING):
-			updateStatusText("Cancelling path search...", true);
-			plugin.cancelSearch(false);
-			break;
-		case (CACHING_DATA):
-			updateStatusText("Unloading cached data", true);
-			break;
-		case (RUNNING_CMD):
-			updateStatusText("Requesting command cancellation", true);
-			break;
-		case (CALCULATING_HESSIAN_I):
-		case (CALCULATING_HESSIAN_II):
-			updateStatusText("Cancelling Hessian generation...", true);
-			break;
-		case (WAITING_FOR_SIGMA_POINT_I):
-			if (sigmaPalette != null) sigmaPalette.dismiss();
-			showStatus("Sigma adjustment cancelled...", true);
-			break;
-		case (PARTIAL_PATH):
-			showStatus("Last temporary path cancelled...", true);
-			plugin.cancelTemporary();
-			if (plugin.currentPath != null)
-				plugin.cancelPath();
-			break;
-		case (QUERY_KEEP):
-			showStatus("Last segment cancelled...", true);
-			if (plugin.temporaryPath != null)
-				plugin.cancelTemporary();
-			plugin.cancelPath();
-			break;
-		case (FILLING_PATHS):
-			showStatus("Filling out cancelled...", true);
-			plugin.stopFilling(); // will change UI state
-			plugin.discardFill();
-			return;
-		case (FITTING_PATHS):
-			showStatus("Fitting cancelled...", true);
-			pmUI.cancelFit(true); // will change UI state
-			return;
-		case (SNT_PAUSED):
-			showStatus("SNT is now active...", true);
-			if (plugin.getImagePlus() != null)
-				plugin.getImagePlus().unlock();
-			plugin.pause(false, false); // will change UI state
-			return;
-		case (TRACING_PAUSED):
-			if (!plugin.accessToValidImageData()) {
-				showStatus("All tasks terminated", true);
-				return;
-			}
-			showStatus("Tracing is now active...", true);
-			plugin.pauseTracing(false, false); // will change UI state
-			return;
-		case (EDITING):
-			showStatus("Exited from 'Edit Mode'...", true);
-			plugin.enableEditMode(false); // will change UI state
-			return;
-		case (WAITING_FOR_SIGMA_CHOICE):
-			showStatus("Close the sigma palette to abort sigma input...", true);
-			return; // do nothing: Currently we have no control over the sigma
-					// palette window
-		case (WAITING_TO_START_PATH):
-			// If user is aborting something in this state, something
-			// went awry!?. Try to abort all possible lingering tasks
-			pmUI.cancelFit(true);
-			plugin.cancelSearch(true);
-			if (plugin.currentPath != null)
-				plugin.cancelPath();
-			if (plugin.temporaryPath != null)
-				plugin.cancelTemporary();
-			showStatus("All tasks terminated", true);
-			return;
-		default:
-			break;
-		}
+        switch (currentState) {
+            case (SEARCHING) -> {
+                updateStatusText("Cancelling path search...", true);
+                plugin.cancelSearch(false);
+            }
+            case (CACHING_DATA) -> updateStatusText("Unloading cached data", true);
+            case (RUNNING_CMD) -> updateStatusText("Requesting command cancellation", true);
+            case (CALCULATING_HESSIAN_I), (CALCULATING_HESSIAN_II) ->
+                    updateStatusText("Cancelling Hessian generation...", true);
+            case (WAITING_FOR_SIGMA_POINT_I) -> {
+                if (sigmaPalette != null) sigmaPalette.dismiss();
+                showStatus("Sigma adjustment cancelled...", true);
+            }
+            case (PARTIAL_PATH) -> {
+                showStatus("Last temporary path cancelled...", true);
+                plugin.cancelTemporary();
+                if (plugin.currentPath != null)
+                    plugin.cancelPath();
+            }
+            case (QUERY_KEEP) -> {
+                showStatus("Last segment cancelled...", true);
+                if (plugin.temporaryPath != null)
+                    plugin.cancelTemporary();
+                plugin.cancelPath();
+            }
+            case (FILLING_PATHS) -> {
+                showStatus("Filling out cancelled...", true);
+                plugin.stopFilling(); // will change UI state
+                plugin.discardFill();
+                return;
+            }
+            case (FITTING_PATHS) -> {
+                showStatus("Fitting cancelled...", true);
+                pmUI.cancelFit(true); // will change UI state
+                return; // will change UI state
+            }
+            case (SNT_PAUSED) -> {
+                showStatus("SNT is now active...", true);
+                if (plugin.getImagePlus() != null)
+                    plugin.getImagePlus().unlock();
+                plugin.pause(false, false); // will change UI state
+                return; // will change UI state
+            }
+            case (TRACING_PAUSED) -> {
+                if (!plugin.accessToValidImageData()) {
+                    showStatus("All tasks terminated", true);
+                    return;
+                }
+                showStatus("Tracing is now active...", true);
+                plugin.pauseTracing(false, false); // will change UI state
+                return; // will change UI state
+            }
+            case (EDITING) -> {
+                showStatus("Exited from 'Edit Mode'...", true);
+                plugin.enableEditMode(false); // will change UI state
+                return; // will change UI state
+            }
+            case (WAITING_FOR_SIGMA_CHOICE) -> {
+                showStatus("Close the sigma palette to abort sigma input...", true);
+                return; // do nothing: Currently we have no control over the sigma
+            }
+            // palette window
+            case (WAITING_TO_START_PATH) -> {
+                // If user is aborting something in this state, something
+                // went awry!?. Try to abort all possible lingering tasks
+                pmUI.cancelFit(true);
+                plugin.cancelSearch(true);
+                if (plugin.currentPath != null)
+                    plugin.cancelPath();
+                if (plugin.temporaryPath != null)
+                    plugin.cancelTemporary();
+                showStatus("All tasks terminated", true);
+                return;
+            }
+            default -> {
+            }
+        }
 		if (activeWorker != null && !activeWorker.isDone()) activeWorker.kill();
 		changeState(WAITING_TO_START_PATH);
 	}
@@ -4129,8 +4283,124 @@ public class SNTUI extends JDialog {
 	private class GuiListener
 			implements ActionListener, ItemListener, ImageListener {
 
+		// Action command interface
+		private interface UIAction {
+			boolean canHandle(Object source);
+			void execute();
+		}
+
+		// Action registry
+		private final List<UIAction> actions = new ArrayList<>();
+
 		public GuiListener() {
 			ImagePlus.addImageListener(this);
+			initializeActions();
+		}
+
+		private void initializeActions() {
+			actions.add(new SecondaryLayerAction());
+			actions.add(new KeepSegmentAction());
+			actions.add(new JunkSegmentAction());
+			actions.add(new CompletePathAction());
+			actions.add(new QuitAction());
+			actions.add(new ShowPathListAction());
+			actions.add(new ShowFillListAction());
+		}
+
+		// Action implementations
+		private class SecondaryLayerAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == secLayerActivateCheckbox;
+			}
+
+			@Override
+			public void execute() {
+				if (secLayerActivateCheckbox.isSelected()) {
+					if (!plugin.accessToValidImageData()) {
+						plugin.enableSecondaryLayerTracing(false);
+						noValidImageDataError();
+						return;
+					}
+					plugin.enableSecondaryLayerTracing(true);
+					if (plugin.isTracingOnSecondaryImageActive())
+						warnOnAutoCTcompatibilityOthers();
+				} else {
+					plugin.enableSecondaryLayerTracing(false);
+				}
+			}
+		}
+
+		private class KeepSegmentAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == keepSegment;
+			}
+
+			@Override
+			public void execute() {
+				plugin.confirmTemporary(true);
+			}
+		}
+
+		private class JunkSegmentAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == junkSegment;
+			}
+
+			@Override
+			public void execute() {
+				plugin.cancelTemporary();
+			}
+		}
+
+		private class CompletePathAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == completePath;
+			}
+
+			@Override
+			public void execute() {
+				plugin.finishedPath();
+			}
+		}
+
+		private class QuitAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == quitMenuItem;
+			}
+
+			@Override
+			public void execute() {
+				exitRequested();
+			}
+		}
+
+		private class ShowPathListAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == showOrHidePathList;
+			}
+
+			@Override
+			public void execute() {
+				togglePathListVisibility();
+			}
+		}
+
+		private class ShowFillListAction implements UIAction {
+			@Override
+			public boolean canHandle(Object source) {
+				return source == showOrHideFillList;
+			}
+
+			@Override
+			public void execute() {
+				toggleFillListVisibility();
+			}
 		}
 
 		/* ImageListener */
@@ -4196,47 +4466,13 @@ public class SNTUI extends JDialog {
 
 			final Object source = e.getSource();
 
-			if (source == secLayerActivateCheckbox) {
-
-				if (secLayerActivateCheckbox.isSelected()) {
-					if (!plugin.accessToValidImageData()) {
-						plugin.enableSecondaryLayerTracing(false);
-						noValidImageDataError();
-						return;
-					}
-					plugin.enableSecondaryLayerTracing(true);
-					if (plugin.isTracingOnSecondaryImageActive())
-						warnOnAutoCTcompatibilityOthers();
-				} else {
-					plugin.enableSecondaryLayerTracing(false);
+			// Process actions in order
+			for (UIAction action : actions) {
+				if (action.canHandle(source)) {
+					action.execute();
+					return;
 				}
-
-			} else if (source == keepSegment) {
-
-				plugin.confirmTemporary(true);
-
-			} else if (source == junkSegment) {
-
-				plugin.cancelTemporary();
-
-			} else if (source == completePath) {
-
-				plugin.finishedPath();
-
-			} else if (source == quitMenuItem) {
-
-				exitRequested();
-
-			} else if (source == showOrHidePathList) {
-
-				togglePathListVisibility();
-
-			} else if (source == showOrHideFillList) {
-
-				toggleFillListVisibility();
-
 			}
-
 		}
 
 		private void toggleFillListVisibility() {
@@ -4743,82 +4979,78 @@ public class SNTUI extends JDialog {
 			if (!proceed()) return;
 			final HashMap<String, Object> inputs = new HashMap<>();
 			final int priorState = currentState;
-			switch (type) {
-			case AUTO_TRACE_IMAGE:
-				if (plugin.isSecondaryDataAvailable()) {
-					flushSecondaryDataPrompt();
-				}
-				inputs.put("useFileChoosers", true);
-				(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
-				break;
-			case DEMO:
-				if (plugin.isSecondaryDataAvailable()) {
-					flushSecondaryDataPrompt();
-				}
-				final DemoRunner demoRunner = new DemoRunner(SNTUI.this, plugin);
-				if (file != null) { // recorded command
-					try (final Scanner scanner = new Scanner(file.getName())) {
-						demoRunner.load(scanner.useDelimiter("\\D+").nextInt());
-						return;
-					} catch (final NoSuchElementException | IllegalStateException | IllegalArgumentException ex) {
-						throw new IllegalArgumentException ("Invalid recorded option " + ex.getMessage());
-					}
-				}
-				final Demo choice = demoRunner.getChoice();
-				if (choice == null) {
-					changeState(priorState);
-					showStatus(null, true);
-					return;
-				}
-				// Suppress the 'auto-tracing' prompt for this image. This
-				// will be reset once SNT initializes with the new data
-				plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
-				choice.load(); // will reset UI
-				break;
-			case IMAGE:
-			case IMAGE_CLIPBOARD:
-				if (plugin.isSecondaryDataAvailable()) {
-					flushSecondaryDataPrompt();
-				}
-				inputs.put("file", (IMAGE==type) ? file : null);
-				inputs.put("clipboard", IMAGE_CLIPBOARD==type);
-				(new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
-				break;
-			case JSON:
-				if (file != null) inputs.put("file", file);
-				(new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING)).run();
-				break;
-			case NDF:
-				if (file != null) inputs.put("file", file);
-				(new DynamicCmdRunner(NDFImporterCmd.class, inputs, LOADING)).run();
-				break;
-			case SWC_DIR:
-				if (file != null) inputs.put("dir", file);
-				(new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
-				break;
-			case TRACES:
-			case SWC:
-			case ANY_RECONSTRUCTION:
-				boolean succeed = false;
-				changeState(LOADING);
-				if (type == SWC) {
-					succeed = loadSWCFile(file);
-				} else if (type == TRACES){
-					succeed = plugin.loadTracesFile(file);
-					setAutosaveFile(file);
-				} else if (type == ANY_RECONSTRUCTION){
-					if (file == null)
-						file = openReconstructionFile(null);
-					if (file != null)
-						succeed = plugin.loadTracings(file);
-				}
-				if (succeed)
-					validateImgDimensions();
-				changeState(priorState);
-				break;
-			default:
-				throw new IllegalArgumentException("Unknown action");
-			}
+            switch (type) {
+                case AUTO_TRACE_IMAGE -> {
+                    if (plugin.isSecondaryDataAvailable()) {
+                        flushSecondaryDataPrompt();
+                    }
+                    inputs.put("useFileChoosers", true);
+                    (new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
+                }
+                case DEMO -> {
+                    if (plugin.isSecondaryDataAvailable()) {
+                        flushSecondaryDataPrompt();
+                    }
+                    final DemoRunner demoRunner = new DemoRunner(SNTUI.this, plugin);
+                    if (file != null) { // recorded command
+                        try (final Scanner scanner = new Scanner(file.getName())) {
+                            demoRunner.load(scanner.useDelimiter("\\D+").nextInt());
+                            return;
+                        } catch (final NoSuchElementException | IllegalStateException | IllegalArgumentException ex) {
+                            throw new IllegalArgumentException("Invalid recorded option " + ex.getMessage());
+                        }
+                    }
+                    final Demo choice = demoRunner.getChoice();
+                    if (choice == null) {
+                        changeState(priorState);
+                        showStatus(null, true);
+                        return;
+                    }
+                    // Suppress the 'auto-tracing' prompt for this image. This
+                    // will be reset once SNT initializes with the new data
+                    plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+                    choice.load(); // will reset UI
+                }
+                case IMAGE, IMAGE_CLIPBOARD -> {
+                    if (plugin.isSecondaryDataAvailable()) {
+                        flushSecondaryDataPrompt();
+                    }
+                    inputs.put("file", (IMAGE == type) ? file : null);
+                    inputs.put("clipboard", IMAGE_CLIPBOARD == type);
+                    (new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
+                }
+                case JSON -> {
+                    if (file != null) inputs.put("file", file);
+                    (new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING)).run();
+                }
+                case NDF -> {
+                    if (file != null) inputs.put("file", file);
+                    (new DynamicCmdRunner(NDFImporterCmd.class, inputs, LOADING)).run();
+                }
+                case SWC_DIR -> {
+                    if (file != null) inputs.put("dir", file);
+                    (new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
+                }
+                case TRACES, SWC, ANY_RECONSTRUCTION -> {
+                    boolean succeed = false;
+                    changeState(LOADING);
+                    if (type == SWC) {
+                        succeed = loadSWCFile(file);
+                    } else if (type == TRACES) {
+                        succeed = plugin.loadTracesFile(file);
+                        setAutosaveFile(file);
+                    } else if (type == ANY_RECONSTRUCTION) {
+                        if (file == null)
+                            file = openReconstructionFile(null);
+                        if (file != null)
+                            succeed = plugin.loadTracings(file);
+                    }
+                    if (succeed)
+                        validateImgDimensions();
+                    changeState(priorState);
+                }
+                default -> throw new IllegalArgumentException("Unknown action");
+            }
 			if (file != null && recorder != null)
 				recorder.recordComment("Detected option: \"" + file.getAbsolutePath() + "\"");
 

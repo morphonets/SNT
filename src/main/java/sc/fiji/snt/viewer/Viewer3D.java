@@ -428,24 +428,24 @@ public class Viewer3D {
 
 	private void squarify(final String axes, final boolean enable) {
 		final String parsedAxes = (enable) ? axes.toLowerCase() : "none";
-		switch (parsedAxes) {
-		case "xy":
-			view.setSquarifier(new XYSquarifier());
-			view.setSquared(true);
-			break;
-		case "zy":
-			view.setSquarifier(new ZYSquarifier());
-			view.setSquared(true);
-			break;
-		case "xz":
-			view.setSquarifier(new XZSquarifier());
-			view.setSquared(true);
-			break;
-		default:
-			view.setSquarifier(null);
-			view.setSquared(false);
-			break;
-		}
+        switch (parsedAxes) {
+            case "xy" -> {
+                view.setSquarifier(new XYSquarifier());
+                view.setSquared(true);
+            }
+            case "zy" -> {
+                view.setSquarifier(new ZYSquarifier());
+                view.setSquared(true);
+            }
+            case "xz" -> {
+                view.setSquarifier(new XZSquarifier());
+                view.setSquared(true);
+            }
+            default -> {
+                view.setSquarifier(null);
+                view.setSquared(false);
+            }
+        }
 	}
 
 	private void flipAxis(final String axis, final boolean enable) {
@@ -951,17 +951,11 @@ public class Viewer3D {
 	 */
 	public void addTrees(final Collection<Tree> trees, final String color) {
 		final String adjustedC = (color == null) ? "" : color.toLowerCase();
-		switch (adjustedC) {
-		case "unique":
-			Tree.assignUniqueColors(trees);
-			break;
-		case "":
-		case "none":
-			break;
-		default:
-			trees.forEach(tree -> tree.setColor(color));
-			break;
-		}
+        switch (adjustedC) {
+            case "unique" -> Tree.assignUniqueColors(trees);
+            case "", "none" -> {}
+            default -> trees.forEach(tree -> tree.setColor(color));
+        }
 		addCollection(trees);
 	}
 
@@ -2479,43 +2473,36 @@ public class Viewer3D {
 		}
 		OBJMesh objMesh;
 		String[] labels = null;
-		switch (label) {
-		case MESH_LABEL_JFRC2018:
-			objMesh = VFBUtils.getRefBrain("jfrc2018");
-			labels = VFBUtils.getXYZLabels();
-			break;
-		case MESH_LABEL_JFRC2:
-			objMesh = VFBUtils.getRefBrain("jfrc2");
-			labels = VFBUtils.getXYZLabels();
-			break;
-		case MESH_LABEL_JFRC3:
-			objMesh = VFBUtils.getRefBrain("jfrc3");
-			labels = VFBUtils.getXYZLabels();
-			break;
-		case MESH_LABEL_FCWB:
-			objMesh = VFBUtils.getRefBrain("fcwb");
-			labels = VFBUtils.getXYZLabels();
-			break;
-		case MESH_LABEL_L1:
-			objMesh = VFBUtils.getMesh("VFB_00050000");
-			break;
-		case MESH_LABEL_L3:
-			objMesh = VFBUtils.getMesh("VFB_00049000");
-			break;
-		case MESH_LABEL_VNS:
-			objMesh = VFBUtils.getMesh("VFB_00100000");
-			break;
-		case MESH_LABEL_ALLEN:
-			objMesh = AllenUtils.getRootMesh(null);
-			labels = AllenUtils.getXYZLabels();
-			break;
-		case MESH_LABEL_ZEBRAFISH:
-			objMesh = ZBAtlasUtils.getRefBrain();
-			labels = ZBAtlasUtils.getXYZLabels();
-			break;
-		default:
-			throw new IllegalArgumentException("Invalid option: " + label);
-		}
+        switch (label) {
+            case MESH_LABEL_JFRC2018 -> {
+                objMesh = VFBUtils.getRefBrain("jfrc2018");
+                labels = VFBUtils.getXYZLabels();
+            }
+            case MESH_LABEL_JFRC2 -> {
+                objMesh = VFBUtils.getRefBrain("jfrc2");
+                labels = VFBUtils.getXYZLabels();
+            }
+            case MESH_LABEL_JFRC3 -> {
+                objMesh = VFBUtils.getRefBrain("jfrc3");
+                labels = VFBUtils.getXYZLabels();
+            }
+            case MESH_LABEL_FCWB -> {
+                objMesh = VFBUtils.getRefBrain("fcwb");
+                labels = VFBUtils.getXYZLabels();
+            }
+            case MESH_LABEL_L1 -> objMesh = VFBUtils.getMesh("VFB_00050000");
+            case MESH_LABEL_L3 -> objMesh = VFBUtils.getMesh("VFB_00049000");
+            case MESH_LABEL_VNS -> objMesh = VFBUtils.getMesh("VFB_00100000");
+            case MESH_LABEL_ALLEN -> {
+                objMesh = AllenUtils.getRootMesh(null);
+                labels = AllenUtils.getXYZLabels();
+            }
+            case MESH_LABEL_ZEBRAFISH -> {
+                objMesh = ZBAtlasUtils.getRefBrain();
+                labels = ZBAtlasUtils.getXYZLabels();
+            }
+            default -> throw new IllegalArgumentException("Invalid option: " + label);
+        }
 		objMesh.setLabel(label);
 		objMesh.drawable.setColor(getNonUserDefColor());
 		if (labels != null) setAxesLabels(labels);
@@ -3664,14 +3651,13 @@ public class Viewer3D {
 					SNTUtils.setDebugMode(debug);
 				}
 				if (debug) {
-					switch(ENGINE) {
-					case JOGL:
-						logGLDetails();
-						setDebuggerEnabled(debug);
-						break;
-					default:
-						SNTUtils.log("Rendering engine: " +  ENGINE.toString());
-					}
+                    switch (ENGINE) {
+                        case JOGL -> {
+                            logGLDetails();
+                            setDebuggerEnabled(debug);
+                        }
+                        default -> SNTUtils.log("Rendering engine: " + ENGINE.toString());
+                    }
 				}
 			});
 			return debugCheckBox;
@@ -3816,9 +3802,44 @@ public class Viewer3D {
 			private static final long serialVersionUID = 1L;
 			final String name;
 
+			// Action command interface
+			private interface ViewerAction {
+				boolean canHandle(String actionName);
+				void execute();
+			}
+
+			// Action registry
+			private final Map<String, ViewerAction> actions = new HashMap<>();
+
+			// Initialize actions
+			private void initializeActions() {
+				actions.put(ALL, new SelectAllAction());
+				actions.put(AXES_TOGGLE, new AxesToggleAction());
+				actions.put(FIND, new FindAction());
+				actions.put(PROGRESS, new ProgressAction());
+				actions.put(ENTER_FULL_SCREEN, new EnterFullScreenAction());
+				actions.put(RESIZE, new ResizeAction());
+				actions.put(FIT, new FitAction());
+				actions.put(LOG_TO_RECORDER, new LogToRecorderAction());
+				actions.put(NONE, new NoneAction());
+				actions.put(REBUILD, new RebuildAction());
+				actions.put(RELOAD, new ReloadAction());
+				actions.put(RESET_VIEW, new ResetViewAction());
+				actions.put(SCENE_SHORTCUTS_LIST, new SceneShortcutsListAction());
+				actions.put(SCENE_SHORTCUTS_NOTIFICATION, new SceneShortcutsNotificationAction());
+				actions.put(RECORDER, new RecorderAction());
+				actions.put(SNAPSHOT_DISK, new SnapshotDiskAction());
+				actions.put(SNAPSHOT_SHOW, new SnapshotShowAction());
+				actions.put(SYNC, new SyncAction());
+				actions.put(TAG, new TagAction());
+				actions.put(TOGGLE_DARK_MODE, new ToggleDarkModeAction());
+				actions.put(TOGGLE_CONTROL_PANEL, new ToggleControlPanelAction());
+			}
+
 			Action(final String name) {
 				super(name);
 				this.name = name;
+				initializeActions();
 			}
 
 			Action(final String name, final int key, final boolean requireCtrl, final boolean requireShift) {
@@ -3841,15 +3862,49 @@ public class Viewer3D {
 			@Override
 			public void actionPerformed(final ActionEvent e) {
 				if (disableActions) return;
-				switch (name) {
-				case ALL:
+				
+				ViewerAction action = actions.get(name);
+				if (action != null && action.canHandle(name)) {
+					action.execute();
+				} else {
+					throw new IllegalArgumentException("Unrecognized action: " + name);
+				}
+			}
+
+			// Action implementations
+			private class SelectAllAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return ALL.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					showPanelAsNeeded();
 					managerList.selectAll();
-					return;
-				case AXES_TOGGLE:
+				}
+			}
+
+			private class AxesToggleAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return AXES_TOGGLE.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					if (!keyController.emptySceneMsg()) keyController.toggleAxes();
-					return;
-				case FIND:
+				}
+			}
+
+			private class FindAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return FIND.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					showPanelAsNeeded();
 					if (searchableBar.isShowing()) {
 						searchableBar.getInstaller().closeSearchBar(searchableBar);
@@ -3857,61 +3912,196 @@ public class Viewer3D {
 						searchableBar.getInstaller().openSearchBar(searchableBar);
 						searchableBar.focusSearchField();
 					}
-					return;
-				case PROGRESS:
+				}
+			}
+
+			private class ProgressAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return PROGRESS.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					showPanelAsNeeded();
 					progressBar.setVisible(!progressBar.isShowing());
-					return;
-				case ENTER_FULL_SCREEN:
+				}
+			}
+
+			private class EnterFullScreenAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return ENTER_FULL_SCREEN.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					frame.enterFullScreen();
-					return;
-				case RESIZE:
+				}
+			}
+
+			private class ResizeAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return RESIZE.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					guiUtils.adjustComponentThroughPrompt(frame);
-					return;
-				case FIT:
+				}
+			}
+
+			private class FitAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return FIT.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					fitToVisibleObjects(true, true);
-					return;
-				case LOG_TO_RECORDER:
+				}
+			}
+
+			private class LogToRecorderAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return LOG_TO_RECORDER.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					openRecorder(false);
 					logSceneControls(true);
-					break;
-				case NONE:
+				}
+			}
+
+			private class NoneAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return NONE.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					showPanelAsNeeded();
 					managerList.clearSelection();
-					return;
-				case REBUILD:
+				}
+			}
+
+			private class RebuildAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return REBUILD.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					if (guiUtils.getConfirmation("Rebuild 3D Scene Completely?", "Force Rebuild")) {
 						rebuild();
 					}
-					return;
-				case RELOAD:
+				}
+			}
+
+			private class ReloadAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return RELOAD.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					if (!sceneIsOK()
-							&& guiUtils.getConfirmation("Scene was reloaded but some objects have invalid attributes. "//
+							&& guiUtils.getConfirmation("Scene was reloaded but some objects have invalid attributes. "
 									+ "Rebuild 3D Scene Completely?", "Rebuild Required")) {
 						rebuild();
 					} else {
 						displayMsg("Scene reloaded");
 					}
-					return;
-				case RESET_VIEW:
+				}
+			}
+
+			private class ResetViewAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return RESET_VIEW.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					keyController.resetView();
-					return;
-				case SCENE_SHORTCUTS_LIST:
-					 keyController.showHelp(true);
-					 return;
-				case SCENE_SHORTCUTS_NOTIFICATION:
-					 keyController.showHelp(false);
-					 return;
-				case RECORDER:
+				}
+			}
+
+			private class SceneShortcutsListAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return SCENE_SHORTCUTS_LIST.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
+					keyController.showHelp(true);
+				}
+			}
+
+			private class SceneShortcutsNotificationAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return SCENE_SHORTCUTS_NOTIFICATION.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
+					keyController.showHelp(false);
+				}
+			}
+
+			private class RecorderAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return RECORDER.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					openRecorder(true);
-					return;
-				case SNAPSHOT_DISK:
+				}
+			}
+
+			private class SnapshotDiskAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return SNAPSHOT_DISK.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					keyController.saveScreenshot();
-					return;
-				case SNAPSHOT_SHOW:
+				}
+			}
+
+			private class SnapshotShowAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return SNAPSHOT_SHOW.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					snapshot().show();
-					return;
-				case SYNC:
+				}
+			}
+
+			private class SyncAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return SYNC.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					try {
 						if (!syncPathManagerList())
 							rebuild();
@@ -3919,32 +4109,56 @@ public class Viewer3D {
 					} catch (final IllegalArgumentException ex) {
 						guiUtils.error(ex.getMessage());
 					}
-					return;
-				case TAG:
+				}
+			}
+
+			private class TagAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return TAG.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					if (noLoadedItemsGuiError())
 						return;
 					final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
 					if (managerList.isSelectionEmpty() && !all) return;
-					final String tags = guiUtils.getString("<p>Enter one or more tags (space or " //
-							+ "comma- separated list) to be assigned to selected items. Tags encoding "//
-							+ "a color (e.g., 'red', 'lightblue') will be use to highligh entries. "//
-							+ "After dismissing this dialog:</p><ul>" //
-							+ "<li>Double-click on an object to edit its tags</li>" //
+					final String tags = guiUtils.getString("<p>Enter one or more tags (space or "
+							+ "comma- separated list) to be assigned to selected items. Tags encoding "
+							+ "a color (e.g., 'red', 'lightblue') will be use to highligh entries. "
+							+ "After dismissing this dialog:</p><ul>"
+							+ "<li>Double-click on an object to edit its tags</li>"
 							+ "<li>Double-click on '" + CheckBoxList.ALL_ENTRY.toString()
-							+ "' to add tags to the entire list</li></ul>", //
+							+ "' to add tags to the entire list</li></ul>",
 							"Add Tag(s)", "");
 					if (tags == null)
 						return; // user pressed cancel
 					managerList.applyTagToSelectedItems(tags, all);
-					return;
-				case TOGGLE_DARK_MODE:
+				}
+			}
+
+			private class ToggleDarkModeAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return TOGGLE_DARK_MODE.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					setEnableDarkMode(!isDarkModeOn());
-					return;
-				case TOGGLE_CONTROL_PANEL:
+				}
+			}
+
+			private class ToggleControlPanelAction implements ViewerAction {
+				@Override
+				public boolean canHandle(String actionName) {
+					return TOGGLE_CONTROL_PANEL.equals(actionName);
+				}
+
+				@Override
+				public void execute() {
 					toggleControlPanel();
-					return;
-				default:
-					throw new IllegalArgumentException("Unrecognized action");
 				}
 			}
 
@@ -5644,15 +5858,10 @@ public class Viewer3D {
 
 		private void loadRefBrainAction(final boolean warnIfLoaded, final String label, final boolean setProgressBar) {
 			final boolean canProceed;
-			switch (label) {
-			case MESH_LABEL_L1:
-			case MESH_LABEL_L3:
-			case MESH_LABEL_VNS:
-				canProceed = VFBUtils.isDatabaseAvailable();
-				break;
-			default:
-				canProceed = true;
-			}
+            switch (label) {
+                case MESH_LABEL_L1, MESH_LABEL_L3, MESH_LABEL_VNS -> canProceed = VFBUtils.isDatabaseAvailable();
+                default -> canProceed = true;
+            }
 			if (!canProceed) {
 				guiUtils.error("Remote server not reached. It is either down or you have no internet access.");
 				return;
@@ -5773,21 +5982,19 @@ public class Viewer3D {
 				@Override
 				protected void done() {
 					try {
-						switch(get()) {
-						case ABORTED:
-							displayMsg("Drag & drop operation aborted");
-							break;
-						case COMPLETED:
-							if (failuresAndSuccesses[1] > 0) validate();
-							if (failuresAndSuccesses[0] > 0 && guiUtils != null)
-								guiUtils.error("" + failuresAndSuccesses[0] + " of "
-										+ (failuresAndSuccesses[0] + failuresAndSuccesses[1])
-										+ " dropped file(s) could not be imported (Console may"
-										+ " have more details if you have enabled \"Debug mode\").");
-							break;
-						default:
-							break; // do nothing for now
-						}
+                        switch (get()) {
+                            case ABORTED -> displayMsg("Drag & drop operation aborted");
+                            case COMPLETED -> {
+                                if (failuresAndSuccesses[1] > 0) validate();
+                                if (failuresAndSuccesses[0] > 0 && guiUtils != null)
+                                    guiUtils.error("" + failuresAndSuccesses[0] + " of "
+                                            + (failuresAndSuccesses[0] + failuresAndSuccesses[1])
+                                            + " dropped file(s) could not be imported (Console may"
+                                            + " have more details if you have enabled \"Debug mode\").");
+                            }
+                            default -> { // do nothing for now
+                            }
+                        }
 					} catch (InterruptedException | ExecutionException e) {
 						e.printStackTrace();
 					} finally {
@@ -6943,32 +7150,36 @@ public class Viewer3D {
 			final List<java.awt.Color> somaColors)
 		{
 			final Color color = fromAWTColor(SNTColor.average(somaColors));
-			switch (somaPoints.size()) {
-				case 0:
-					//SNT.log(tree.getLabel() + ": No soma attribute");
-					somaSubShape = null;
-					return;
-				case 1:
-					// single point soma: http://neuromorpho.org/SomaFormat.html
-					somaSubShape = sphere(somaPoints.get(0), color);
-					return;
-				case 3:
-					// 3 point soma representation: http://neuromorpho.org/SomaFormat.html
-					final SWCPoint p1 = somaPoints.get(0);
-					final SWCPoint p2 = somaPoints.get(1);
-					final SWCPoint p3 = somaPoints.get(2);
-					final Tube t1 = tube(p2, p1, color);
-					final Tube t2 = tube(p1, p3, color);
-					final Shape composite = new Shape();
-					composite.add(t1);
-					composite.add(t2);
-					somaSubShape = composite;
-					return;
-				default:
-					// just create a centroid sphere
-					somaSubShape = sphere(SNTPoint.average(somaPoints), color);
-					return;
-			}
+            switch (somaPoints.size()) {
+                case 0 -> {
+                    //SNT.log(tree.getLabel() + ": No soma attribute");
+                    somaSubShape = null;
+                    return;
+                }
+                case 1 -> {
+                    // single point soma: http://neuromorpho.org/SomaFormat.html
+                    somaSubShape = sphere(somaPoints.get(0), color);
+                    return;
+                }
+                case 3 -> {
+                    // 3 point soma representation: http://neuromorpho.org/SomaFormat.html
+                    final SWCPoint p1 = somaPoints.get(0);
+                    final SWCPoint p2 = somaPoints.get(1);
+                    final SWCPoint p3 = somaPoints.get(2);
+                    final Tube t1 = tube(p2, p1, color);
+                    final Tube t2 = tube(p1, p3, color);
+                    final Shape composite = new Shape();
+                    composite.add(t1);
+                    composite.add(t2);
+                    somaSubShape = composite;
+                    return;
+                }
+                default -> {
+                    // just create a centroid sphere
+                    somaSubShape = sphere(SNTPoint.average(somaPoints), color);
+                    return;
+                }
+            }
 		}
 
 		private <T extends Wireframeable & ISingleColorable> void
@@ -7162,17 +7373,12 @@ public class Viewer3D {
 			try {
 				status = get();
 				if (status) {
-					switch (type) {
-						case VALIDATE_SCENE:
-							validate();
-							break;
-						case RELOAD_PREFS:
-							prefs.setPreferences();
-							break;
-						case DO_NOTHING:
-						default:
-							break;
-					}
+                    switch (type) {
+                        case VALIDATE_SCENE -> validate();
+                        case RELOAD_PREFS -> prefs.setPreferences();
+                        default -> {
+                        }
+                    }
 				}
 			}
 			catch (final Exception ignored) {
@@ -7386,8 +7592,34 @@ public class Viewer3D {
 		private long timeKeyDown = 0; // last time key was pressed
 		private int lastKeyPressedCode;
 
+		// Key command interface
+		private interface KeyCommand {
+			boolean canHandle(KeyEvent e, boolean doublePress);
+			void execute(KeyEvent e, boolean doublePress);
+		}
+
+		// Key command registry
+		private final List<KeyCommand> keyCommands = new ArrayList<>();
+
+		// Initialize key commands
+		private void initializeKeyCommands() {
+			keyCommands.add(new ControlPanelToggleKeyCommand()); // Must be before CameraKeyCommand
+			keyCommands.add(new AxesKeyCommand());
+			keyCommands.add(new CameraKeyCommand());
+			keyCommands.add(new DarkModeKeyCommand());
+			keyCommands.add(new HelpKeyCommand());
+			keyCommands.add(new LogKeyCommand());
+			keyCommands.add(new ResetReloadKeyCommand());
+			keyCommands.add(new ScreenshotStatusKeyCommand());
+			keyCommands.add(new FitFullScreenKeyCommand());
+			keyCommands.add(new ZoomKeyCommand());
+			keyCommands.add(new NavigationKeyCommand());
+			keyCommands.add(new EscapeKeyCommand());
+		}
+
 		public KeyController(final Chart chart) {
 			register(chart);
+			initializeKeyCommands();
 		}
 
 		private boolean isDoublePress(final KeyEvent ke) {
@@ -7406,106 +7638,210 @@ public class Viewer3D {
 		@Override
 		public void keyPressed(final KeyEvent e) {
 			final boolean doublePress = isDoublePress(e);
-			switch (e.getKeyChar()) {
-				case 'a':
-				case 'A':
-					if (!emptySceneMsg()) toggleAxes();
-					break;
-				case 'c':
-				case 'C':
-					if (e.isShiftDown()) {
-						toggleControlPanel();
-					} else if (!emptySceneMsg())
-						changeCameraMode();
-					break;
-				case 'd':
-				case 'D':
-					toggleDarkMode();
-					break;
-				case 'h':
-				case 'H':
-					showHelp(false);
-					break;
-				case 'l':
-				case 'L':
-					logSceneControls(true);
-					break;
-				case 'r':
-				case 'R':
-					if (doublePress || e.isShiftDown()) {
-						validate();
-						displayMsg("Scene reloaded");
-					} else {
-						resetView();
-					}
-					break;
-				case 's':
-				case 'S':
-					if (e.isShiftDown() && frame != null) {
-						frame.status.setVisible(!frame.status.isVisible());
-					} else {
-						saveScreenshot();
-					}
-					break;
-				case 'f':
-				case 'F':
-					if (e.isShiftDown()) {
-						if (frame.isFullScreen)
-							frame.exitFullScreen();
-						else
-							frame.enterFullScreen();
-					} else {
-						if (!emptySceneMsg()) fitToVisibleObjects(true, true);
-					}
-					break;
-				case '+':
-				case '=':
-					mouseController.zoom(1f - zoomStep);
-					break;
-				case '-':
-				case '_':
-					mouseController.zoom(1f + zoomStep);
-					break;
-				default:
-					switch (e.getKeyCode()) {
-						case KeyEvent.VK_F1:
-							showHelp(true);
-							break;
-						case KeyEvent.VK_DOWN:
-							if (e.isShiftDown()) {
-								pan(new Coord2d(0, -1));
-							} else
-								mouseController.rotateLive(new Coord2d(0f, -rotationStep));
-							break;
-						case KeyEvent.VK_UP:
-							if (e.isShiftDown()) {
-								pan(new Coord2d(0, 1));
-							} else
-								mouseController.rotateLive(new Coord2d(0f, rotationStep));
-							break;
-						case KeyEvent.VK_LEFT:
-							if (e.isShiftDown()) {
-								pan(new Coord2d(-1, 0));
-							} else
-								mouseController.rotateLive(new Coord2d(-rotationStep, 0));
-							break;
-						case KeyEvent.VK_RIGHT:
-							if (e.isShiftDown()) {
-								pan(new Coord2d(1, 0));
-							} else
-								mouseController.rotateLive(new Coord2d(rotationStep, 0));
-							break;
-						case KeyEvent.VK_ESCAPE:
-							if (frame.isFullScreen)
-								frame.exitFullScreen();
-							else
-								abortCurrentOperation = true;
-							break;
-						default:
-							break;
-					}
+			
+			// Process key commands in order
+			for (KeyCommand command : keyCommands) {
+				if (command.canHandle(e, doublePress)) {
+					command.execute(e, doublePress);
+					return;
+				}
+			}
+		}
+
+		// Key command implementations
+		private class AxesKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == 'a' || e.getKeyChar() == 'A';
 			}
 
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (!emptySceneMsg()) toggleAxes();
+			}
+		}
+
+		private class CameraKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return (e.getKeyChar() == 'c' || e.getKeyChar() == 'C') && !e.isShiftDown();
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (!emptySceneMsg()) changeCameraMode();
+			}
+		}
+
+		private class DarkModeKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == 'd' || e.getKeyChar() == 'D';
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				toggleDarkMode();
+			}
+		}
+
+		private class HelpKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return (e.getKeyChar() == 'h' || e.getKeyChar() == 'H') || e.getKeyCode() == KeyEvent.VK_F1;
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				showHelp(e.getKeyCode() == KeyEvent.VK_F1);
+			}
+		}
+
+		private class LogKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == 'l' || e.getKeyChar() == 'L';
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				logSceneControls(true);
+			}
+		}
+
+		private class ResetReloadKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == 'r' || e.getKeyChar() == 'R';
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (doublePress || e.isShiftDown()) {
+					validate();
+					displayMsg("Scene reloaded");
+				} else {
+					resetView();
+				}
+			}
+		}
+
+		private class ScreenshotStatusKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == 's' || e.getKeyChar() == 'S';
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (e.isShiftDown() && frame != null) {
+					frame.status.setVisible(!frame.status.isVisible());
+				} else {
+					saveScreenshot();
+				}
+			}
+		}
+
+		private class FitFullScreenKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == 'f' || e.getKeyChar() == 'F';
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (e.isShiftDown()) {
+					if (frame.isFullScreen)
+						frame.exitFullScreen();
+					else
+						frame.enterFullScreen();
+				} else {
+					if (!emptySceneMsg()) fitToVisibleObjects(true, true);
+				}
+			}
+		}
+
+		private class ZoomKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyChar() == '+' || e.getKeyChar() == '=' || 
+					   e.getKeyChar() == '-' || e.getKeyChar() == '_';
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (e.getKeyChar() == '+' || e.getKeyChar() == '=') {
+					mouseController.zoom(1f - zoomStep);
+				} else {
+					mouseController.zoom(1f + zoomStep);
+				}
+			}
+		}
+
+		private class NavigationKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyCode() == KeyEvent.VK_DOWN || e.getKeyCode() == KeyEvent.VK_UP ||
+					   e.getKeyCode() == KeyEvent.VK_LEFT || e.getKeyCode() == KeyEvent.VK_RIGHT;
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+                switch (e.getKeyCode()) {
+                    case KeyEvent.VK_DOWN -> {
+                        if (e.isShiftDown()) {
+                            pan(new Coord2d(0, -1));
+                        } else
+                            mouseController.rotateLive(new Coord2d(0f, -rotationStep));
+                    }
+                    case KeyEvent.VK_UP -> {
+                        if (e.isShiftDown()) {
+                            pan(new Coord2d(0, 1));
+                        } else
+                            mouseController.rotateLive(new Coord2d(0f, rotationStep));
+                    }
+                    case KeyEvent.VK_LEFT -> {
+                        if (e.isShiftDown()) {
+                            pan(new Coord2d(-1, 0));
+                        } else
+                            mouseController.rotateLive(new Coord2d(-rotationStep, 0));
+                    }
+                    case KeyEvent.VK_RIGHT -> {
+                        if (e.isShiftDown()) {
+                            pan(new Coord2d(1, 0));
+                        } else
+                            mouseController.rotateLive(new Coord2d(rotationStep, 0));
+                    }
+                }
+			}
+		}
+
+		private class EscapeKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return e.getKeyCode() == KeyEvent.VK_ESCAPE;
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				if (frame.isFullScreen)
+					frame.exitFullScreen();
+				else
+					abortCurrentOperation = true;
+			}
+		}
+
+		// Special command for control panel toggle (Shift+C)
+		private class ControlPanelToggleKeyCommand implements KeyCommand {
+			@Override
+			public boolean canHandle(KeyEvent e, boolean doublePress) {
+				return (e.getKeyChar() == 'c' || e.getKeyChar() == 'C') && e.isShiftDown();
+			}
+
+			@Override
+			public void execute(KeyEvent e, boolean doublePress) {
+				toggleControlPanel();
+			}
 		}
 
 		private void pan(final Coord2d direction) {
@@ -8368,16 +8704,18 @@ public class Viewer3D {
 
 		/** Returns ChartComponentFactory adopting {@link AView} */
 		private ChartFactory getUpstreamFactory(final Engine render) {
-			switch (render) {
-			case EMUL_GL:
-				return new EmulGLFactory();
-			case OFFSCREEN:
-				return new OffScreenFactory();
-			case JOGL:
-				return new JOGLFactory();
-			default:
-				throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
-			}
+            switch (render) {
+                case EMUL_GL -> {
+                    return new EmulGLFactory();
+                }
+                case OFFSCREEN -> {
+                    return new OffScreenFactory();
+                }
+                case JOGL -> {
+                    return new JOGLFactory();
+                }
+                default -> throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
+            }
 
 		}
 

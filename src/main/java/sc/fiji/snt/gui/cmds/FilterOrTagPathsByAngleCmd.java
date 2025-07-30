@@ -104,6 +104,7 @@ public class FilterOrTagPathsByAngleCmd extends CommonDynamicCmd {
                     String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\", %.2f, %.2f)",
                         metric, lowestAngle, largestAngle));
         }
+        resetUI();
     }
 
     private String getMetric() {
