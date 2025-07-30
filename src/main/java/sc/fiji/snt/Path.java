@@ -3259,8 +3259,10 @@ public class Path implements Comparable<Path> {
 	 * The original nodes are preserved and additional interpolated nodes are placed at regular
 	 * intervals between them. The spacing between adjacent nodes will thus be approximately
 	 * equal to the specified distance. If the distance between two adjacent original nodes is
-	 * less than the specified pacing, no additional nodes are added between them. Some properties
-	 * like node colors may be lost.
+	 * less than the specified pacing, no additional nodes are added between them.
+	 * </p>
+	 * <p>
+	 *     <b>NB:</b>Some assigned properties (node colors, node values, etc.) will be lost.
 	 * </p>
 	 *
 	 * @param internodeSpacing the desired distance between adjacent nodes
@@ -3320,7 +3322,6 @@ public class Path implements Comparable<Path> {
 		final boolean hasAnnotationData = hasNodeAnnotations();
 		final boolean hasHemisphereData = hasNodeHemisphereFlags();
 		final double[] newRadii = (hasRadiiData) ? new double[newSize] : null;
-		final double[] newValues = (hasValueData) ? new double[newSize] : null;
 		final BrainAnnotation[] newAnnotations = (hasAnnotationData) ? new BrainAnnotation[newSize] : null;
 		final char[] newHemisphereFlags = (hasHemisphereData) ? new char[newSize] : null;
 
@@ -3338,7 +3339,6 @@ public class Path implements Comparable<Path> {
 			final double r1 = (hasRadiiData) ? getNodeRadius(i) : 0;
 			final double v1 = (hasValueData) ? nodeValues[i] : 0;
 			if (hasRadiiData) newRadii[idx] = r1;
-			if (hasValueData) newValues[idx] = v1;
 			if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[i];
 			if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[i];
 			idx++;
@@ -3365,7 +3365,6 @@ public class Path implements Comparable<Path> {
 					newY[idx] = p1.y + t * dy;
 					newZ[idx] = p1.z + t * dz;
 					if (hasRadiiData) newRadii[idx] = r1 + t * dr;
-					if (hasValueData) newValues[idx] = v1 + t * dv;
 					final int indexOfClosestNode = (j <= midPoint) ? i : i + 1;
 					if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[indexOfClosestNode];
 					if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[indexOfClosestNode];
@@ -3383,17 +3382,17 @@ public class Path implements Comparable<Path> {
 		newZ[idx] = lastPoint.z;
 
 		if (hasRadiiData) newRadii[idx] = getNodeRadius(lastIdx);
-		if (hasValueData) newValues[idx] = nodeValues[lastIdx];
 		if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[lastIdx];
 		if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[lastIdx];
 
 		// Update path data
+		nodeValues = null;
+		nodeColors = null;
 		points = newSize;
 		maxPoints = newSize;
 		precise_x_positions = newX;
 		precise_y_positions = newY;
 		precise_z_positions = newZ;
-		nodeValues = newValues;
 		nodeAnnotations = newAnnotations;
 		nodeHemisphereFlags = newHemisphereFlags;
 		setRadiiInPlace(newRadii);
