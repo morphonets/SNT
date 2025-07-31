@@ -102,9 +102,20 @@ public class RootAngleAnalyzer {
         final double dotProduct = vector1.dotProduct(vector2);
         final double magnitude1 = vector1.getNorm();
         final double magnitude2 = vector2.getNorm();
-        return (magnitude1 == 0 || magnitude2 == 0)
-                ? 0
-                : Math.acos(Math.max(-1.0, Math.min(1.0, dotProduct / (magnitude1 * magnitude2))));
+        
+        // Handle degenerate cases more explicitly
+        if (magnitude1 == 0) {
+            SNTUtils.log("Warning: Zero-length vector from node to previous node. Skipping angle calculation.");
+            return Double.NaN; // Indicate invalid angle
+        }
+        if (magnitude2 == 0) {
+            SNTUtils.log("Warning: Node coincides with root. Skipping angle calculation.");
+            return Double.NaN; // Indicate invalid angle
+        }
+        
+        // Clamp dot product to avoid numerical errors in acos
+        final double cosAngle = Math.max(-1.0, Math.min(1.0, dotProduct / (magnitude1 * magnitude2)));
+        return Math.acos(cosAngle);
     }
 
     /**
@@ -131,9 +142,16 @@ public class RootAngleAnalyzer {
         for (final SWCPoint node : nodes) {
             if (node.previous() != null) {
                 final double angle = getRootAngleInDegrees(node, root);
-                rootAnglesInDegrees.add(angle);
-                node.v = angle;
+                // Only add valid angles (skip NaN values from degenerate cases)
+                if (!Double.isNaN(angle)) {
+                    rootAnglesInDegrees.add(angle);
+                    node.v = angle;
+                }
             }
+        }
+        
+        if (rootAnglesInDegrees.isEmpty()) {
+            throw new IllegalArgumentException("No valid root angles could be computed from the tree");
         }
     }
 
@@ -565,7 +583,13 @@ public class RootAngleAnalyzer {
             final double a = 1.0 + Math.sqrt(1.0 + 4.0 * concentration * concentration);
             final double b = (a - Math.sqrt(2.0 * a)) / (2.0 * concentration);
             final double r = (1.0 + b * b) / (2.0 * b);
-            while (true) {
+            
+            // Add safety counter to prevent infinite loops
+            int maxAttempts = 10000;
+            int attempts = 0;
+            
+            while (attempts < maxAttempts) {
+                attempts++;
                 final double u1 = random.nextDouble();
                 final double z = Math.cos(Math.PI * u1);
                 final double f = (1.0 + r * z) / (r + z);
@@ -580,6 +604,10 @@ public class RootAngleAnalyzer {
                     }
                 }
             }
+            
+            // Fallback: return a random value in the range if sampling fails
+            SNTUtils.log("Warning: von Mises sampling failed after " + maxAttempts + " attempts. Using uniform fallback.");
+            return min + random.nextDouble() * (max - min);
         }
     }
 
