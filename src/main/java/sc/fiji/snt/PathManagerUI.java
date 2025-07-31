@@ -1103,7 +1103,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final Boolean prompt = displayPromptRequired();
 			if (prompt == null) {
 				return; // user pressed cancel
-			} else if (prompt) {
+			}
+			if (prompt) {
 				new FittingOptionsWorker(this, true).execute();
 			} else {
 				fit();
@@ -4026,7 +4027,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private class ProofReadingTagsToolBar extends JToolBar {
 
-		final Map<String, int[]> tagsMap;
+		final Map<String, Color> tagsMap;
 		final JCheckBoxMenuItem toggleMenuItem;
 		SNTChart ringChart;
 
@@ -4042,17 +4043,39 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				plugin.getPrefs().set("proofReadBar", toggleMenuItem.isSelected());
 			});
 			tagsMap = new TreeMap<>();
-			tagsMap.put("active", new int[]{0xb7e3f2, 0x135b76});
-			tagsMap.put("complete", new int[]{0XC1E561, 0x2B5D00});
-			tagsMap.put("partial", new int[]{0XFFF8BF, 0xA06106});
-			tagsMap.put("unsure", new int[]{0XFFDF9E, 0XED5B00});
-			tagsMap.put("wrong", new int[]{0xEBB8BC, 0xE51C2B}); //0xE53E4D
+			initializeTagColors();
+			rebuildToolbar();
+			setVisible(isVisible);
+		}
+
+		private void initializeTagColors() {
+			// Load colors from preferences or use defaults
+			tagsMap.put("active", loadTagColor("active", "B7E3F2"));
+			tagsMap.put("complete", loadTagColor("complete", "C1E561"));
+			tagsMap.put("partial", loadTagColor("partial", "FFF8BF"));
+			tagsMap.put("unsure", loadTagColor("unsure", "FFDF9E"));
+			tagsMap.put("wrong", loadTagColor("wrong", "EBB8BC"));
+		}
+
+		private Color loadTagColor(final String tagName, final String defaultTagColor) {
+			final String key = "proofReadTag." + tagName;
+			return SNTColor.stringToColor(plugin.getPrefs().get(key, defaultTagColor));
+		}
+
+		private void saveTagColor(final String tagName, final Color tagColor ) {
+			final String key = "proofReadTag." + tagName;
+			plugin.getPrefs().set(key, (tagColor == null) ? null : SNTColor.colorToString(tagColor)); // setting to null removes pref
+		}
+
+		private void rebuildToolbar() {
+			removeAll();
 			add(summaryButton());
 			addSeparator();
-			tagsMap.forEach((name, colors) -> add(tagButton(name, colors[0], colors[1])));
+			tagsMap.forEach((name, color) -> add(tagButton(name, color)));
 			add(clearButton());
 			addExtras();
-			setVisible(isVisible);
+			revalidate();
+			repaint();
 		}
 
 		@Override
@@ -4067,12 +4090,59 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		void addExtras() {
 			final JPopupMenu popupMenu = new JPopupMenu();
-			final JMenuItem item = new JMenuItem("Hide " + getName(), IconFactory.menuIcon('\uf070', true));
-			item.addActionListener(e -> setVisible(false));
-			popupMenu.add(item);
+			final JMenuItem customizeItem = new JMenuItem("Change Colors...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+			customizeItem.addActionListener(e -> showColorCustomizationDialog());
+			popupMenu.add(customizeItem);
+			popupMenu.addSeparator();
+			final JMenuItem hideItem = new JMenuItem("Hide " + getName(), IconFactory.menuIcon('\uf070', true));
+			hideItem.addActionListener(e -> setVisible(false));
+			popupMenu.add(hideItem);
 			setComponentPopupMenu(popupMenu);
 			add(Box.createHorizontalGlue());
 			add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/manual#tag-"));
+		}
+
+		private void showColorCustomizationDialog() {
+			// Create the panel with color chooser buttons
+			final JPanel panel = new JPanel(new GridBagLayout());
+			final GridBagConstraints c = GuiUtils.defaultGbc();
+			// Create color selection components for each tag
+			c.insets = new Insets(0, 0, 5, 0);
+			final Map<String, ColorChooserButton> colorButtons = new HashMap<>();
+			tagsMap.forEach( (tagName, color) -> {
+				final ColorChooserButton colorButton = new ColorChooserButton(color, capitalized(tagName));
+				panel.add(colorButton, c);
+				colorButtons.put(tagName, colorButton);
+				c.gridy++;
+			});
+			// Add reset button
+			c.insets.top += 10;
+			final JButton resetButton = new JButton("Reset to Defaults");
+			resetButton.addActionListener(e -> {
+				tagsMap.keySet().forEach( tagName -> saveTagColor(tagName, null));
+				tagsMap.clear();
+				initializeTagColors();
+				colorButtons.forEach( (tagName, button) -> {
+					button.setSelectedColor(tagsMap.get(tagName), true);
+				});
+			});
+			panel.add(resetButton, c);
+			
+			// Show the option pane
+			final int result = JOptionPane.showConfirmDialog(PathManagerUI.this,
+				panel, "Proofreading Tag Colors", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			
+			// save the new colors if user pressed OK
+			if (result == JOptionPane.OK_OPTION) {
+				colorButtons.forEach( (tagName, button) -> {
+					final Color selectedColor = button.getSelectedColor();
+					if (selectedColor != null) {
+						tagsMap.put(tagName, selectedColor);
+						saveTagColor(tagName, selectedColor);
+					}
+				});
+				rebuildToolbar();
+			}
 		}
 
 		JButton summaryButton() {
@@ -4116,11 +4186,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return string.substring(0, 1).toUpperCase() + string.substring(1);
 		}
 
-		JButton tagButton(final String tagName, final int background, final int foreground) {
+		JButton tagButton(final String tagName, final Color tagColor) {
 			final JButton tagButton = GuiUtils.Buttons.toolbarButton(capitalized(tagName));
-			final Color bkgrdColor = new Color(background);
-			tagButton.setBackground(bkgrdColor);
-			tagButton.setForeground(new Color(foreground));
+			tagButton.setBackground(tagColor);
+			tagButton.setForeground(SNTColor.contrastColor(tagColor));
 			tagButton.addActionListener(e -> {
 				final Collection<Path> selectedPaths = getSelectedPaths(true);
 				if (selectedPaths.isEmpty()) {
@@ -4135,7 +4204,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					} else {
 						p.setName(String.format("%s {%s}", removeTags(p), tags.replace(oldTag, tagName)));
 					}
-					p.setColor(bkgrdColor);
+					p.setColor(tagColor);
 				});
 				refreshManager(true, true, selectedPaths);
 				plugin.setUnsavedChanges(true);
@@ -4154,9 +4223,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			final HashMap<String, Double> dataset = new HashMap<>();
 			final HashMap<String, Color> colors = new HashMap<>();
-			tagsMap.forEach( (tag, intColors) -> {
-				dataset.put(tag, 0d);
-				colors.put(tag, new Color(intColors[0]));
+			tagsMap.forEach( (tagName, tagColor) -> {
+				dataset.put(tagName, 0d);
+				colors.put(tagName, tagColor);
 			});
 			dataset.put("none", 0d);
 			colors.put("none", Color.LIGHT_GRAY);
