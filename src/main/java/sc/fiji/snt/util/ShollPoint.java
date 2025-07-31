@@ -25,6 +25,7 @@ import ij.measure.Calibration;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -113,6 +114,11 @@ public class ShollPoint extends PointInImage {
 		if (object == null) return false;
 		if (getClass() != object.getClass()) return false;
 		return isSameLocation((ShollPoint) object);
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(super.hashCode(), flag);
 	}
 
 }

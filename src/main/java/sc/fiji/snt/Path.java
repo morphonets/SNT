@@ -3043,9 +3043,8 @@ public class Path implements Comparable<Path> {
 			public boolean equals(final Object o) {
 				if (o == this) return true;
 				if (o == null) return false;
-				if (!(o instanceof PointInImage)) return false;
-				final PointInImage other = (PointInImage) o;
-				return isSameLocation(other);
+				if (!(o instanceof PointInImage other)) return false;
+                return isSameLocation(other);
 			}
 		}
 		final Set<PointInImage> result = new HashSet<>();
@@ -3473,21 +3472,5 @@ public class Path implements Comparable<Path> {
 	protected boolean removeChangeListener(PathChangeListener listener) {
 		return changeListeners.remove(listener);
 	}
-
-// FIXME: Implementing hasCode() and equals() breaks current TreeStatistics tests
-//	@Override
-//	public int hashCode() {
-//		return Objects.hash(id, points, name, order, swcType, treeLabel);
-//	}
-//
-//	@Override
-//	public boolean equals(Object obj) {
-//		if (this == obj) return true;
-//		if (obj == null) return false;
-//		if (getClass() != obj.getClass()) return false;
-//		final Path other = (Path) obj;
-//		return id == other.id && points == other.points && Objects.equals(name, other.name)
-//				&& order == other.order && swcType == other.swcType && Objects.equals(treeLabel, other.treeLabel);
-//	}
 
 }

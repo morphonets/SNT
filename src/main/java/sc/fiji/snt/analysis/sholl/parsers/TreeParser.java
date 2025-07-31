@@ -24,6 +24,7 @@ package sc.fiji.snt.analysis.sholl.parsers;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import ij.ImagePlus;
@@ -353,19 +354,16 @@ public class TreeParser implements Parser {
 			return 0;
 		}
 
-		/*
-		 * (non-Javadoc)
-		 *
-		 * @see java.lang.Object#equals(java.lang.Object)
-		 */
 		@Override
-		public boolean equals(final Object o) {
-			if (this == o) return true;
-			if (o == null) return false;
-			if (!(o instanceof ComparableShollPoint)) return false;
+		public boolean equals(Object o) {
+			if (o == null || getClass() != o.getClass()) return false;
 			final ComparableShollPoint other = (ComparableShollPoint) o;
-			return nearer == other.nearer
-					&& Double.doubleToLongBits(distanceSquared) == Double.doubleToLongBits(other.distanceSquared);
+			return nearer == other.nearer && Double.compare(distanceSquared, other.distanceSquared) == 0;
+		}
+
+		@Override
+		public int hashCode() {
+			return Objects.hash(nearer, distanceSquared);
 		}
 	}
 
