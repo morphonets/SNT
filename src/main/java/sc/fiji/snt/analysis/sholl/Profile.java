@@ -401,25 +401,16 @@ public class Profile implements ProfileProperties {
 
 	@Override
 	public boolean equals(final Object o) {
-		if (o == null) {
-			return false;
-		}
-		if (o == this) {
-			return true;
-		}
-		if (getClass() != o.getClass()) {
-			return false;
-		}
-		final Profile other = (Profile) o;
-		if (size() != other.size()) {
-			return false;
-		}
-		if (startRadius() != other.startRadius()) {
-			return false;
-		}
-		if (endRadius() != other.endRadius()) {
-			return false;
-		}
-		return counts().equals(other.counts());
+		if (o == null || getClass() != o.getClass()) return false;
+		final Profile profile1 = (Profile) o;
+		return size() == profile1.size() &&
+				Double.compare(startRadius(), profile1.startRadius()) == 0 &&
+				Double.compare(endRadius(), profile1.endRadius()) == 0 &&
+				counts().equals(profile1.counts());
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(profile, center, cal, properties, stepRadius, isIntDensityProfile);
 	}
 }

@@ -155,10 +155,13 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	 * Sets a string preference value.
 	 *
 	 * @param key the preference key
-	 * @param defaultValue the value to set
+	 * @param value the value to set
 	 */
-	public void set(final String key, final String defaultValue) {
-		prefService.put(SNTPrefs.class, key, defaultValue);
+	public void set(final String key, final String value) {
+		if (value == null)
+			prefService.remove(SNTPrefs.class, key);
+		else
+			prefService.put(SNTPrefs.class, key, value);
 	}
 
 	/**

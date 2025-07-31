@@ -1103,7 +1103,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final Boolean prompt = displayPromptRequired();
 			if (prompt == null) {
 				return; // user pressed cancel
-			} else if (prompt) {
+			}
+			if (prompt) {
 				new FittingOptionsWorker(this, true).execute();
 			} else {
 				fit();
@@ -1820,132 +1821,118 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	/** Should be the only method called for toggling built-in tags **/
 	private void removeOrReapplyDefaultTag(final Collection<Path> paths, final String cmd, final boolean reapply, final boolean interactiveUI) {
-		switch (cmd) {
-		case MultiPathActionListener.CHANNEL_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Ch:\\d+]", "")));
-			if (reapply) {
-				paths.forEach( p -> p.setName(p.getName() + " [Ch:" + p.getChannel() + "]"));
-			}
-			break;
-		case MultiPathActionListener.FRAME_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[T:\\d+]", "")));
-			if (reapply) {
-				paths.forEach( p -> p.setName(p.getName() + " [T:" + p.getFrame() + "]"));
-			}
-			break;
-		case MultiPathActionListener.SLICE_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Z:\\d+]", "")));
-			if (reapply) {
-				paths.forEach( p -> {
-					p.setName(p.getName() + " [Z:" + (p.getZUnscaled(0) + 1) + "]"); // 1-based index
-				});
-			}
-			break;
-		case MultiPathActionListener.TREE_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_TREE + ".*]", "")));
-			if (reapply) {
-				paths.forEach( p -> p.setName(p.getName() + " [" + SYM_TREE +  p.getTreeLabel() + "]"));
-			}
-			break;
-		case MultiPathActionListener.N_CHILDREN_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_CHILDREN + "\\d+]", "")));
-			if (reapply) {
-				paths.forEach(p-> p.setName(p.getName() + " [" + SYM_CHILDREN + p.getChildren().size() + "]"));
-			}
-			break;
-		case "Extension Angle...":
-		case PathStatistics.PATH_EXT_ANGLE_XY:
-		case PathStatistics.PATH_EXT_ANGLE_XZ:
-		case PathStatistics.PATH_EXT_ANGLE_ZY:
-		case PathStatistics.PATH_EXT_ANGLE:
-		case PathStatistics.PATH_EXT_ANGLE_REL:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE + "\\d+.\\d+]|\\[" + SYM_ANGLE + "NaN]", "")));
-			if (reapply) {
-				final boolean relative = cmd.toLowerCase().contains("rel");
-				paths.forEach(p-> {
-					double value;
-					if (cmd.contains("XZ"))
-						value = p.getExtensionAngleXZ();
-					else if (cmd.contains("ZY"))
-						value = p.getExtensionAngleZY();
-					else if (cmd.contains("XY"))
-						value = p.getExtensionAngleXY();
-					else
-						value = p.getExtensionAngle3D(relative);
-					p.setName(String.format(Locale.US, "%s [%s%.1f]", p.getName(), SYM_ANGLE, value));
-				});
-			}
-			break;
-		case MultiPathActionListener.ORDER_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER + "\\d+]", "")));
-			if (reapply) {
-				paths.forEach(p-> p.setName(p.getName() + " [" + SYM_ORDER + p.getOrder() + "]"));
-			}
-			break;
-		case MultiPathActionListener.LENGTH_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_LENGTH + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
-			if (reapply) {
-				paths.forEach(p -> {
-					final String lengthTag = " [" + SYM_LENGTH + p.getRealLengthString() + p.spacing_units + "]";
-					p.setName(p.getName() + lengthTag);
-				});
-			}
-			break;
-		case MultiPathActionListener.MEAN_RADIUS_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
-			if (reapply) {
-				paths.forEach(p -> {
-					final String radiusTag = " [" + SYM_RADIUS + SNTUtils.formatDouble(p.getMeanRadius(), 3) + p.spacing_units + "]";
-					p.setName(p.getName() + radiusTag);
-				});
-			}
-			break;
-		case MultiPathActionListener.COUNT_TAG_CMD:
-			paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_MARKER + "\\d+]", "")));
-			if (reapply) {
-				paths.forEach(p -> {
-					final String countTag = " [" + SYM_MARKER + p.getSpineOrVaricosityCount() + "]";
-					p.setName(p.getName() + countTag);
-				});
-			}
-			break;
-		case MultiPathActionListener.SLICE_LABEL_TAG_CMD:
-			if (reapply) { // Special case: not toggleable: Nothing to remove
-				if (noValidImageDataError()) return;
-				int errorCounter = 0;
-				for (final Path p : paths) {
-					try {
-						String label = plugin.getImagePlus().getStack().getShortSliceLabel(
-							plugin.getImagePlus().getStackIndex(p.getChannel(), p.getZUnscaled(0) +1, // 1-based index,
-									p.getFrame()));
-						if (label == null || label.isEmpty()) {
-							errorCounter++;
-							continue;
-						}
-						label = label.replace("[", "(");
-						label = label.replace("]", ")");
-						final String existingTags = extractTagsFromPath(p);
-						if (!existingTags.contains(label))
-							p.setName(p.getName() + " {" + label + ((existingTags.isEmpty()) ? ""
-									: ", ") + existingTags + "}");
-					}
-					catch (final IllegalArgumentException | IndexOutOfBoundsException ignored) {
-						errorCounter++;
-					}
-				}
-				if (errorCounter > 0) {
-					final String errorMsg = "It was not possible to retrieve labels for " +
-						errorCounter + "/" + paths.size() + " paths.";
-					if (interactiveUI)
-						guiUtils.error(errorMsg);
-					else
-						System.out.println(errorMsg);
-				}
-			}
-			break;
-		default:
-			throw new IllegalArgumentException("Unrecognized tag '" + cmd + "'. Not a default option?");
-		}
+        switch (cmd) {
+            case MultiPathActionListener.CHANNEL_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Ch:\\d+]", "")));
+                if (reapply)
+                    paths.forEach(p -> p.setName(p.getName() + " [Ch:" + p.getChannel() + "]"));
+            }
+            case MultiPathActionListener.FRAME_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[T:\\d+]", "")));
+                if (reapply)
+                    paths.forEach(p -> p.setName(p.getName() + " [T:" + p.getFrame() + "]"));
+            }
+            case MultiPathActionListener.SLICE_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Z:\\d+]", "")));
+                if (reapply)
+                    paths.forEach(p -> p.setName(p.getName() + " [Z:" + (p.getZUnscaled(0) + 1) + "]")); // 1-based index
+            }
+            case MultiPathActionListener.TREE_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_TREE + ".*]", "")));
+                if (reapply)
+                    paths.forEach(p -> p.setName(p.getName() + " [" + SYM_TREE + p.getTreeLabel() + "]"));
+            }
+            case MultiPathActionListener.N_CHILDREN_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_CHILDREN + "\\d+]", "")));
+                if (reapply)
+                    paths.forEach(p -> p.setName(p.getName() + " [" + SYM_CHILDREN + p.getChildren().size() + "]"));
+            }
+            case "Extension Angle...", PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ,
+                 PathStatistics.PATH_EXT_ANGLE_ZY, PathStatistics.PATH_EXT_ANGLE, PathStatistics.PATH_EXT_ANGLE_REL -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE + "\\d+.\\d+]|\\[" + SYM_ANGLE + "NaN]", "")));
+                if (reapply) {
+                    final boolean relative = cmd.toLowerCase().contains("rel");
+                    paths.forEach(p -> {
+                        double value;
+                        if (cmd.contains("XZ"))
+                            value = p.getExtensionAngleXZ();
+                        else if (cmd.contains("ZY"))
+                            value = p.getExtensionAngleZY();
+                        else if (cmd.contains("XY"))
+                            value = p.getExtensionAngleXY();
+                        else
+                            value = p.getExtensionAngle3D(relative);
+                        p.setName(String.format(Locale.US, "%s [%s%.1f]", p.getName(), SYM_ANGLE, value));
+                    });
+                }
+            }
+            case MultiPathActionListener.ORDER_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER + "\\d+]", "")));
+                if (reapply)
+                    paths.forEach(p -> p.setName(p.getName() + " [" + SYM_ORDER + p.getOrder() + "]"));
+            }
+            case MultiPathActionListener.LENGTH_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_LENGTH + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
+                if (reapply) {
+                    paths.forEach(p -> {
+                        final String lengthTag = " [" + SYM_LENGTH + p.getRealLengthString() + p.spacing_units + "]";
+                        p.setName(p.getName() + lengthTag);
+                    });
+                }
+            }
+            case MultiPathActionListener.MEAN_RADIUS_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
+                if (reapply) {
+                    paths.forEach(p -> {
+                        final String radiusTag = " [" + SYM_RADIUS + SNTUtils.formatDouble(p.getMeanRadius(), 3) + p.spacing_units + "]";
+                        p.setName(p.getName() + radiusTag);
+                    });
+                }
+            }
+            case MultiPathActionListener.COUNT_TAG_CMD -> {
+                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_MARKER + "\\d+]", "")));
+                if (reapply) {
+                    paths.forEach(p -> {
+                        final String countTag = " [" + SYM_MARKER + p.getSpineOrVaricosityCount() + "]";
+                        p.setName(p.getName() + countTag);
+                    });
+                }
+            }
+            case MultiPathActionListener.SLICE_LABEL_TAG_CMD -> {
+                if (reapply) { // Special case: not toggleable: Nothing to remove
+                    if (noValidImageDataError()) return;
+                    int errorCounter = 0;
+                    for (final Path p : paths) {
+                        try {
+                            String label = plugin.getImagePlus().getStack().getShortSliceLabel(
+                                    plugin.getImagePlus().getStackIndex(p.getChannel(), p.getZUnscaled(0) + 1, // 1-based index,
+                                            p.getFrame()));
+                            if (label == null || label.isEmpty()) {
+                                errorCounter++;
+                                continue;
+                            }
+                            label = label.replace("[", "(");
+                            label = label.replace("]", ")");
+                            final String existingTags = extractTagsFromPath(p);
+                            if (!existingTags.contains(label))
+                                p.setName(p.getName() + " {" + label + ((existingTags.isEmpty()) ? ""
+                                        : ", ") + existingTags + "}");
+                        } catch (final IllegalArgumentException | IndexOutOfBoundsException ignored) {
+                            errorCounter++;
+                        }
+                    }
+                    if (errorCounter > 0) {
+                        final String errorMsg = "It was not possible to retrieve labels for " +
+                                errorCounter + "/" + paths.size() + " paths.";
+                        if (interactiveUI)
+                            guiUtils.error(errorMsg);
+                        else
+                            System.out.println(errorMsg);
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("Unrecognized tag '" + cmd + "'. Not a default option?");
+        }
 		selectTagCheckBoxMenu(cmd, reapply);
 		if (interactiveUI) refreshManager(false, false, paths);
 	}
@@ -2098,7 +2085,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 } else {
                     throw new IllegalArgumentException("Not enough arguments...");
                 }
-                return;
             }
             case MultiPathActionListener.CONVERT_TO_ROI_CMD -> {
                 if (args.length == 1) {
@@ -2148,8 +2134,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		input.put("colorTable", lutService.loadLUT(lutService.findLUTs().get(lutName)));
 		final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 		cmdService.run(TreeMapperCmd.class, true, input);
-		return;
-	}
+    }
 
 	private void runHistogramPathsCmd(final Collection<Path> paths, final String metric1, final Boolean polar1,
 			final String metric2, final Boolean polar2) {
@@ -2251,32 +2236,23 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
-			switch (e.getActionCommand()) {
-			case SELECT_NONE_CMD:
-				tree.clearSelection();
-				return;
-			case EXPAND_ALL_CMD:
-				GuiUtils.JTrees.expandAllNodes(tree);
-				return;
-			case COLLAPSE_ALL_CMD:
-				GuiUtils.JTrees.collapseAllNodes(tree);
-				return;
-			case COLLAPSE_SELECTED_LEVEL:
-			case EXPAND_SELECTED_LEVEL:
-				final TreePath selectedPath = tree.getSelectionPath();
-				if (selectedPath == null) {
-					guiUtils.error("No path selected.");
-					return;
-				}
-				if (EXPAND_SELECTED_LEVEL.equals(e.getActionCommand()))
-					GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
-				else
-					GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
-				return;
-			default:
-				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
-				break;
-			}
+            switch (e.getActionCommand()) {
+                case SELECT_NONE_CMD -> tree.clearSelection();
+                case EXPAND_ALL_CMD -> GuiUtils.JTrees.expandAllNodes(tree);
+                case COLLAPSE_ALL_CMD -> GuiUtils.JTrees.collapseAllNodes(tree);
+                case COLLAPSE_SELECTED_LEVEL, EXPAND_SELECTED_LEVEL -> {
+                    final TreePath selectedPath = tree.getSelectionPath();
+                    if (selectedPath == null) {
+                        guiUtils.error("No path selected.");
+                        return;
+                    }
+                    if (EXPAND_SELECTED_LEVEL.equals(e.getActionCommand()))
+                        GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
+                    else
+                        GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
+                }
+                default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+            }
 		}
 	}
 
@@ -2299,58 +2275,53 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			final Path p = selectedPaths.iterator().next();
-			switch (e.getActionCommand()) {
-				case RENAME_CMD:
-					final String s = guiUtils.getString(
-							"Rename this path to (clear to reset name):", "Rename Path", p
-									.getName());
-					if (s == null) return; // user pressed cancel
-					synchronized (getPathAndFillManager()) {
-						if (s.trim().isEmpty()) {
-							p.setName("");
-						} else if (getPathAndFillManager().getPathFromName(s, false) != null) {
-							displayTmpMsg("There is already a path named:\n('" + s + "')");
-							return;
-						} else {// Otherwise this is OK, change the name:
-							p.setName(s);
-							plugin.setUnsavedChanges(true);
-						}
-						refreshManager(false, false, Collections.singleton(p));
-					}
-					return;
-
-				case DUPLICATE_CMD:
-					final HashMap<String, Object> inputs = new HashMap<>();
-					inputs.put("path", p);
-					(plugin.getUI().new DynamicCmdRunner(DuplicateCmd.class, inputs)).run();
-					return;
-
-				case EXPLORE_FIT_CMD:
-					if (noValidImageDataError())
-						return;
-					if (!plugin.uiReadyForModeChange() && plugin.getEditingPath() != null
-							&& !p.equals(plugin.getEditingPath())) {
-						guiUtils.error("Please finish current operation before exploring fit.");
-						return;
-					}
-					if (fittingHelper == null)
-						fittingHelper = new FitHelper();
-					exploreFit(p, fittingHelper);
-					return;
-				case STRAIGHTEN:
-					straightenPath(p);
-					return;
-				case NODE_PROFILER:
-					if (noValidImageDataError())
-						return;
-					final HashMap<String, Object> input = new HashMap<>();
-					input.put("path", p);
-					input.put("dataset", plugin.getDataset());
-					(plugin.getUI().new DynamicCmdRunner(NodeProfiler.class, input)).run();
-					return;
-				default:
-					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
-			}
+            switch (e.getActionCommand()) {
+                case RENAME_CMD -> {
+                    final String s = guiUtils.getString(
+                            "Rename this path to (clear to reset name):", "Rename Path", p
+                                    .getName());
+                    if (s == null) return; // user pressed cancel
+                    synchronized (getPathAndFillManager()) {
+                        if (s.trim().isEmpty()) {
+                            p.setName("");
+                        } else if (getPathAndFillManager().getPathFromName(s, false) != null) {
+                            displayTmpMsg("There is already a path named:\n('" + s + "')");
+                            return;
+                        } else {// Otherwise this is OK, change the name:
+                            p.setName(s);
+                            plugin.setUnsavedChanges(true);
+                        }
+                        refreshManager(false, false, Collections.singleton(p));
+                    }
+                }
+                case DUPLICATE_CMD -> {
+                    final HashMap<String, Object> inputs = new HashMap<>();
+                    inputs.put("path", p);
+                    (plugin.getUI().new DynamicCmdRunner(DuplicateCmd.class, inputs)).run();
+                }
+                case EXPLORE_FIT_CMD -> {
+                    if (noValidImageDataError())
+                        return;
+                    if (!plugin.uiReadyForModeChange() && plugin.getEditingPath() != null
+                            && !p.equals(plugin.getEditingPath())) {
+                        guiUtils.error("Please finish current operation before exploring fit.");
+                        return;
+                    }
+                    if (fittingHelper == null)
+                        fittingHelper = new FitHelper();
+                    exploreFit(p, fittingHelper);
+                }
+                case STRAIGHTEN -> straightenPath(p);
+                case NODE_PROFILER -> {
+                    if (noValidImageDataError())
+                        return;
+                    final HashMap<String, Object> input = new HashMap<>();
+                    input.put("path", p);
+                    input.put("dataset", plugin.getDataset());
+                    (plugin.getUI().new DynamicCmdRunner(NodeProfiler.class, input)).run();
+                }
+                default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+            }
 		}
 	}
 
@@ -2527,47 +2498,47 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private TagMenuItem(final String tag) {
 			super(tag, false);
 			addActionListener(this);
-			switch (tag) {
-			case MultiPathActionListener.SLICE_TAG_CMD:
-				setToolTip("Z:");
-				setIcon(IconFactory.menuIcon('Z', true));
-				break;
-			case MultiPathActionListener.CHANNEL_TAG_CMD:
-				setToolTip("Ch:");
-				setIcon(IconFactory.menuIcon('C', true));
-				break;
-			case MultiPathActionListener.FRAME_TAG_CMD:
-				setToolTip("T:");
-				setIcon(IconFactory.menuIcon('T', true));
-				break;
-			case MultiPathActionListener.LENGTH_TAG_CMD:
-				setIcon(IconFactory.menuIcon(IconFactory.GLYPH.RULER_VERTICAL));
-				setToolTip(SYM_LENGTH);
-				break;
-			case MultiPathActionListener.TREE_TAG_CMD:
-				setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ID_ALT));
-				setToolTip(SYM_TREE);
-				break;
-			case MultiPathActionListener.N_CHILDREN_TAG_CMD:
-				setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHILDREN));
-				setToolTip(SYM_CHILDREN);
-				break;
-			case MultiPathActionListener.MEAN_RADIUS_TAG_CMD:
-				setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
-				setToolTip(SYM_RADIUS);
-				break;
-			case MultiPathActionListener.COUNT_TAG_CMD:
-				setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
-				setToolTip(SYM_MARKER);
-				break;
-			case MultiPathActionListener.ORDER_TAG_CMD:
-				setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BRANCH_CODE));
-				setToolTip(SYM_ORDER);
-				break;
-			default:
-				// do nothing
-				break;
-			}
+            switch (tag) {
+                case MultiPathActionListener.SLICE_TAG_CMD -> {
+                    setToolTip("Z:");
+                    setIcon(IconFactory.menuIcon('Z', true));
+                }
+                case MultiPathActionListener.CHANNEL_TAG_CMD -> {
+                    setToolTip("Ch:");
+                    setIcon(IconFactory.menuIcon('C', true));
+                }
+                case MultiPathActionListener.FRAME_TAG_CMD -> {
+                    setToolTip("T:");
+                    setIcon(IconFactory.menuIcon('T', true));
+                }
+                case MultiPathActionListener.LENGTH_TAG_CMD -> {
+                    setIcon(IconFactory.menuIcon(IconFactory.GLYPH.RULER_VERTICAL));
+                    setToolTip(SYM_LENGTH);
+                }
+                case MultiPathActionListener.TREE_TAG_CMD -> {
+                    setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ID_ALT));
+                    setToolTip(SYM_TREE);
+                }
+                case MultiPathActionListener.N_CHILDREN_TAG_CMD -> {
+                    setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHILDREN));
+                    setToolTip(SYM_CHILDREN);
+                }
+                case MultiPathActionListener.MEAN_RADIUS_TAG_CMD -> {
+                    setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
+                    setToolTip(SYM_RADIUS);
+                }
+                case MultiPathActionListener.COUNT_TAG_CMD -> {
+                    setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
+                    setToolTip(SYM_MARKER);
+                }
+                case MultiPathActionListener.ORDER_TAG_CMD -> {
+                    setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BRANCH_CODE));
+                    setToolTip(SYM_ORDER);
+                }
+                default -> {
+                }
+                // do nothing
+            }
 			ScriptRecorder.setRecordingCall(this, "snt.getUI().getPathManager().applyDefaultTags(\"" + tag + "\")");
 		}
 
@@ -2678,6 +2649,84 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		// Built-in tag definition: anything flanked by square braces
 		private static final String TAG_DEFAULT_PATTERN = " ?\\[.*]";
 
+		// Command interface for handling path operations
+		private interface PathCommand {
+			void execute(List<Path> selectedPaths, String cmd);
+			boolean canExecute(List<Path> selectedPaths);
+		}
+
+		// Command registry
+		private final Map<String, PathCommand> commands = new HashMap<>();
+
+		// Initialize commands in constructor
+		private void initializeCommands() {
+			// Selection commands
+			commands.put(APPEND_ALL_CHILDREN_CMD, new AppendChildrenCommand(true));
+			commands.put(APPEND_DIRECT_CHILDREN_CMD, new AppendChildrenCommand(false));
+			
+			// Color commands
+			commands.put(ASSIGN_DISTINCT_COLORS, new AssignDistinctColorsCommand());
+			commands.put(ASSIGN_CUSTOM_COLOR, new AssignCustomColorCommand());
+			commands.put(COLORS_MENU, new ColorMenuCommand());
+			commands.put(COLORIZE_TREES_CMD, new ColorizeTreesCommand());
+			commands.put(COLORIZE_PATHS_CMD, new ColorizePathsCommand());
+			commands.put(COLORIZE_REMOVE_CMD, new ColorizeRemoveCommand());
+			commands.put(TIME_COLOR_CODING_CMD, new TimeColorCodingCommand());
+			commands.put(SPINE_COLOR_CODING_CMD, new SpineColorCodingCommand());
+			
+			// Analysis commands
+			commands.put(PLOT_PROFILE_CMD, new PlotProfileCommand());
+			commands.put(MEASURE_TREES_CMD, new MeasureTreesCommand());
+			commands.put(MEASURE_PATHS_CMD, new MeasurePathsCommand());
+			commands.put(HISTOGRAM_PATHS_CMD, new HistogramPathsCommand());
+			commands.put(HISTOGRAM_TREES_CMD, new HistogramTreesCommand());
+			commands.put(HISTOGRAM_2D_CMD, new Histogram2DCommand());
+			
+			// Time analysis commands
+			commands.put(TIME_PROFILE_CMD, new TimeProfileCommand());
+			commands.put(SPINE_PROFILE_CMD, new SpineProfileCommand());
+			commands.put(MULTI_METRIC_PLOT_CMD, new MultiMetricPlotCommand());
+			commands.put(SPINE_EXTRACT_CMD, new SpineExtractCommand());
+			commands.put(MATCH_PATHS_ACROSS_TIME_CMD, new MatchPathsAcrossTimeCommand());
+			
+			// Modification commands
+			commands.put(REVERSE_CMD, new ReverseCommand());
+			commands.put(CONCATENATE_CMD, new ConcatenateCommand());
+			commands.put(COMBINE_CMD, new CombineCommand());
+			commands.put(AUTO_CONNECT_CMD, new AutoConnectCommand());
+			commands.put(MERGE_PRIMARY_PATHS_CMD, new MergePrimaryPathsCommand());
+			commands.put(DISCONNECT_CMD, new DisconnectCommand());
+			commands.put(REBUILD_CMD, new RebuildCommand());
+			commands.put(DOWNSAMPLE_CMD, new DownsampleCommand());
+			
+			// Tag commands
+			commands.put(CUSTOM_TAG_CMD, new CustomTagCommand());
+			commands.put(REPLACE_TAG_CMD, new ReplaceTagCommand());
+			commands.put(REMOVE_TAGS_CMD, new RemoveTagsCommand());
+			commands.put(SLICE_LABEL_TAG_CMD, new SliceLabelTagCommand());
+			
+			// Export/conversion commands
+			commands.put(CONVERT_TO_ROI_CMD, new ConvertToRoiCommand());
+			commands.put(CONVERT_TO_SWC_CMD, new ConvertToSwcCommand());
+			commands.put(CONVERT_TO_SKEL_CMD, new ConvertToSkelCommand());
+			commands.put(SEND_TO_LABKIT_CMD, new SendToLabkitCommand());
+			commands.put(SEND_TO_TWS_CMD, new SendToTwsCommand());
+			
+			// Path property commands
+			commands.put(FILL_OUT_CMD, new FillOutCommand());
+			commands.put(SPECIFY_RADIUS_CMD, new SpecifyRadiusCommand());
+			commands.put(SPECIFY_COUNTS_CMD, new SpecifyCountsCommand());
+			commands.put(INTERPOLATE_MISSING_RADII, new InterpolateMissingRadiiCommand());
+			commands.put(RESET_FITS, new ResetFitsCommand());
+			
+			// Utility commands
+			commands.put(SORT_TREES, new SortTreesCommand());
+			commands.put(DELETE_CMD, new DeleteCommand());
+			
+			// Fit command (special case with dynamic text)
+			commands.put("fit", new FitCommand()); // handles both fit and unfit
+		}
+
 		private void selectChildren(final List<Path> paths, final boolean recursive) {
 			final ListIterator<Path> iter = paths.listIterator();
 			while(iter.hasNext()){
@@ -2697,106 +2746,264 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
+		// Constructor
+		public MultiPathActionListener() {
+			initializeCommands();
+		}
+
 		@Override
 		public void actionPerformed(final ActionEvent e) {
-
 			final String cmd = e.getActionCommand();
 			final List<Path> selectedPaths = getSelectedPaths(true);
-			final int n = selectedPaths.size();
 
-			if (n == 0) {
+			if (selectedPaths.isEmpty()) {
 				guiUtils.error("There are no traced paths.");
 				return;
 			}
 
-			// If no path is selected action applies to all paths
-			final boolean assumeAll = tree.getSelectionCount() == 0;
-
-			// Case 1: Non-destructive commands that do not require confirmation
-			if (APPEND_ALL_CHILDREN_CMD.equals(cmd) || APPEND_DIRECT_CHILDREN_CMD.equals(cmd)) {
-				if (assumeAll)
-					guiUtils.error("No Path(s) are currently selected.");
-				else
-					selectChildren(selectedPaths, APPEND_ALL_CHILDREN_CMD.equals(cmd));
+			// Handle fit command specially due to dynamic text
+			if (e.getSource().equals(fitVolumeMenuItem) || cmd.toLowerCase().contains("fit paths")) {
+				commands.get("fit").execute(selectedPaths, cmd);
 				return;
 			}
-			else if (ASSIGN_DISTINCT_COLORS.equals(cmd)) {
+
+			// Execute command
+			PathCommand command = commands.get(cmd);
+			if (command != null) {
+				if (command.canExecute(selectedPaths)) {
+					command.execute(selectedPaths, cmd);
+				}
+			} else {
+				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+			}
+		}
+
+		// Command implementations
+		private class AppendChildrenCommand implements PathCommand {
+			private final boolean includeAll;
+			
+			public AppendChildrenCommand(boolean includeAll) {
+				this.includeAll = includeAll;
+			}
+			
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (tree.getSelectionCount() == 0) {
+					guiUtils.error("No Path(s) are currently selected.");
+				} else {
+					selectChildren(selectedPaths, includeAll);
+				}
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class AssignDistinctColorsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				removeColorNodesPrompt(selectedPaths);
 				assignDistinctColors(selectedPaths);
-				return;
-			} else if (ASSIGN_CUSTOM_COLOR.equals(cmd)) {
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class AssignCustomColorCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Color color = guiUtils.getColor("Choose New Color Tag for Selected Path(s):",
 						null, (String[]) null);
 				if (color != null) applyColorToSelectedPaths(new SNTColor(color), selectedPaths);
-				return;
 			}
-			else if (SORT_TREES.equals(cmd)) {
-				sortTrees();
-				return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
 			}
-			else if (COLORS_MENU.equals(cmd)) {
+		}
+
+		private class ColorMenuCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				applyColorToSelectedPaths(colorMenu.getSelectedSWCColor(), selectedPaths);
-				return;
 			}
-			else if (PLOT_PROFILE_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SortTreesCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				sortTrees();
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return true;
+			}
+		}
+
+		private class PlotProfileCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				if (noValidImageDataError()) return;
 				final HashMap<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
 				input.put("dataset", plugin.getDataset());
 				(plugin.getUI().new DynamicCmdRunner(PathProfiler.class, input)).run();
-				return;
 			}
-			else if (MEASURE_TREES_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class MeasureTreesCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				measureCells();
-				return;
 			}
-			else if (MEASURE_PATHS_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class MeasurePathsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				inputs.put("table", getTable());
 				(plugin.getUI().new DynamicCmdRunner(PathAnalyzerCmd.class, inputs)).run();
-				return;
 			}
-			else if (REVERSE_CMD.equals(cmd) && guiUtils.getConfirmation("Reverse selected path(s)?" //
-					+ " This will reverse their orientation so that the starting node becomes the " //
-					+ "end-node and vice versa. NB: Only primary paths can be reversed.",
-					"Reverse Path(s)")) {
-				reverse(selectedPaths);
-				return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
 			}
-			else if (CONCATENATE_CMD.equals(cmd)) {
+		}
+
+		private class ReverseCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (guiUtils.getConfirmation("Reverse selected path(s)?" +
+						" This will reverse their orientation so that the starting node becomes the " +
+						"end-node and vice versa. NB: Only primary paths can be reversed.",
+						"Reverse Path(s)")) {
+					reverse(selectedPaths);
+				}
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ConcatenateCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				if (selectedPaths.size() < 2) {
 					guiUtils.error("You must have at least 2 Paths selected.");
 					return;
 				}
 				concatenate(selectedPaths);
 			}
-			else if (TIME_PROFILE_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return selectedPaths.size() >= 2;
+			}
+		}
+
+		private class TimeProfileCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				(plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
-				return;
 			}
-			else if (SPINE_PROFILE_CMD.equals(cmd) || MULTI_METRIC_PLOT_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SpineProfileCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				inputs.put("anyMetric", MULTI_METRIC_PLOT_CMD.equals(cmd));
 				(plugin.getUI().new DynamicCmdRunner(PathSpineAnalysisCmd.class, inputs)).run();
-				return;
 			}
-			else if (SPINE_EXTRACT_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class MultiMetricPlotCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				inputs.put("anyMetric", true);
+				(plugin.getUI().new DynamicCmdRunner(PathSpineAnalysisCmd.class, inputs)).run();
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SpineExtractCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				(plugin.getUI().new DynamicCmdRunner(SpineExtractorCmd.class, inputs)).run();
-				return;
 			}
-			else if (MATCH_PATHS_ACROSS_TIME_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class MatchPathsAcrossTimeCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				(plugin.getUI().new DynamicCmdRunner(PathMatcherCmd.class, inputs)).run();
-				return;
-			} else if (TIME_COLOR_CODING_CMD.equals(cmd)) {
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class TimeColorCodingCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Tree tree = new Tree(selectedPaths);
 				if (tree.isEmpty() || delineationsExistError(List.of(tree))) return;
 				final Map<String, Object> input = new HashMap<>();
@@ -2804,11 +3011,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				input.put("onlyConnectivitySafeMetrics", true);
 				input.put("measurementChoice", TreeColorMapper.PATH_FRAME);
 				input.put("runFigCreator", false);
-				final CommandService cmdService = plugin.getContext().getService(
-						CommandService.class);
-				cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
-				return;
-			} else if (SPINE_COLOR_CODING_CMD.equals(cmd)) {
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+				cmdService.run(TreeMapperCmd.class, true, input);
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SpineColorCodingCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Tree tree = new Tree(selectedPaths);
 				if (tree.isEmpty() || delineationsExistError(List.of(tree))) return;
 				final Map<String, Object> input = new HashMap<>();
@@ -2816,11 +3031,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				input.put("onlyConnectivitySafeMetrics", true);
 				input.put("measurementChoice", TreeColorMapper.PATH_AVG_SPINE_DENSITY);
 				input.put("runFigCreator", false);
-				final CommandService cmdService = plugin.getContext().getService(
-						CommandService.class);
-				cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
-				return;
-			} else if (CONVERT_TO_ROI_CMD.equals(cmd)) {
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+				cmdService.run(TreeMapperCmd.class, true, input);
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ConvertToRoiCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
 				if (plugin.accessToValidImageData()) {
@@ -2831,25 +3054,60 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					input.put("imp", null);
 				}
 				plugin.getContext().getService(CommandService.class).run(ROIExporterCmd.class, true, input);
-				return;
-			} else if (SEND_TO_LABKIT_CMD.equals(cmd)) {
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SendToLabkitCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("paths", selectedPaths);
 				plugin.getContext().getService(CommandService.class).run(LabkitLoaderCmd.class, true, input);
-				return;
-			} else if (SEND_TO_TWS_CMD.equals(cmd)) {
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SendToTwsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("paths", selectedPaths);
 				input.put("imp", plugin.getImagePlus());
 				plugin.getContext().getService(CommandService.class).run(TWSLoaderCmd.class, true, input);
-				return;
-			} else if (INTERPOLATE_MISSING_RADII.equals(cmd)) {
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class InterpolateMissingRadiiCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("paths", selectedPaths);
 				plugin.getContext().getService(CommandService.class).run(InterpolateRadiiCmd.class, true, input);
-				return;
 			}
-			else if (COLORIZE_TREES_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ColorizeTreesCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null || trees.isEmpty() || delineationsExistError(trees))
@@ -2858,21 +3116,47 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				input.put("trees", trees);
 				plugin.getContext().getService(CommandService.class).run(TreeMapperCmd.class, true, input);
 				refreshManager(false, true, selectedPaths);
-				return;
 			}
-			else if (COLORIZE_PATHS_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ColorizePathsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Tree tree = new Tree(selectedPaths);
 				if (!delineationsExistError(List.of(tree))) runColorMapper(tree, true);
-				return;
 			}
-			else if (COLORIZE_REMOVE_CMD.equals(cmd) && guiUtils.getConfirmation(
-					"Remove color mappings from selected paths (color tags may also be reset)?",
-					"Confirm?")) {
-				ColorMapper.unMap(selectedPaths);
-				plugin.updateAllViewers();
-				return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
 			}
-			else if (HISTOGRAM_2D_CMD.equals(cmd)) {
+		}
+
+		private class ColorizeRemoveCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (guiUtils.getConfirmation(
+						"Remove color mappings from selected paths (color tags may also be reset)?",
+						"Confirm?")) {
+					ColorMapper.unMap(selectedPaths);
+					plugin.updateAllViewers();
+				}
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class Histogram2DCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Map<String, Object> input = new HashMap<>();
 				input.put("tree", new Tree(selectedPaths));
 				input.put("onlyConnectivitySafeMetrics", true);
@@ -2880,23 +3164,55 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 				cmdService.run(TwoDHistCmd.class, true, input);
 			}
-			else if (HISTOGRAM_TREES_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class HistogramTreesCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
 				final Collection<Tree> trees = getMultipleTrees();
 				if (trees == null) return;
 				runDistributionAnalysisCmd(trees, null, null);
-				return;
 			}
-			else if (HISTOGRAM_PATHS_CMD.equals(cmd)) {
-				runHistogramPathsCmd(selectedPaths, null, null, null, null);
-				return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
 			}
-			else if (REPLACE_TAG_CMD.equals(cmd)) {
-				replaceTags(selectedPaths);
-				return;
-			}
-			else if (CUSTOM_TAG_CMD.equals(cmd)) {
+		}
 
+		private class HistogramPathsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				runHistogramPathsCmd(selectedPaths, null, null, null, null);
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ReplaceTagCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				replaceTags(selectedPaths);
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class CustomTagCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Set<String> existingTags = extractTagsFromPaths(selectedPaths);
 				final Set<String> tags = guiUtils.getStringSet(
 					"Enter one or more tags (comma separated list):<br>" +
@@ -2915,37 +3231,71 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				applyCustomTags(selectedPaths, GuiUtils.toString(tags));
 				refreshManager(false, false, selectedPaths);
 				plugin.setUnsavedChanges(true);
-				return;
 			}
-			else if (SLICE_LABEL_TAG_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SliceLabelTagCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				removeOrReapplyDefaultTag(selectedPaths, SLICE_LABEL_TAG_CMD, true, true);
-				return;
 			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
 
-			else if (CONVERT_TO_SKEL_CMD.equals(cmd)) {
-
+		private class ConvertToSkelCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Map<String, Object> input = new HashMap<>();
 				final Tree tree = new Tree(selectedPaths);
 				tree.setLabel("Paths");
 				input.put("tree", tree);
-				final CommandService cmdService = plugin.getContext().getService(
-					CommandService.class);
+				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 				cmdService.run(SkeletonizerCmd.class, true, input);
-				return;
-
 			}
-			else if (CONVERT_TO_SWC_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ConvertToSwcCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				exportSelectedPaths(selectedPaths);
-				return;
-
 			}
-			else if (FILL_OUT_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class FillOutCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				if (noValidImageDataError()) return;
 				plugin.initPathsToFill(new HashSet<>(selectedPaths));
-				return;
-
 			}
-			else if (SPECIFY_RADIUS_CMD.equals(e.getActionCommand())) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SpecifyRadiusCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				if (allUsingFittedVersion(selectedPaths)) {
 					guiUtils.error("This command only applies to unfitted paths.");
 					return;
@@ -2978,9 +3328,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				guiUtils.tempMsg("Command finished. Fitted path(s) ignored.");
 				plugin.updateAllViewers();
 				plugin.setUnsavedChanges(true);
-				return;
 			}
-			else if (SPECIFY_COUNTS_CMD.equals(e.getActionCommand())) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class SpecifyCountsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				final Double userCounts = guiUtils.getDouble(
 						"Please specify the no. of markers (e.g., spines or varicosities) to be associated to selected path(s).",
 						"Spine/Varicosity Counts", 0);
@@ -2994,29 +3352,63 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				selectedPaths.forEach(p -> p.setSpineOrVaricosityCount(userCounts.intValue()));
 				plugin.setUnsavedChanges(true);
 				removeOrReapplyDefaultTag(selectedPaths, MultiPathActionListener.COUNT_TAG_CMD, true, false);
-				return;
 			}
-			// Case 2: Commands that require some sort of confirmation
-			else if (DELETE_CMD.equals(cmd)) {
-				if (guiUtils.getConfirmation((assumeAll) ? "Are you really sure you want to delete everything?"
-						: "Delete the selected " + n + " path(s)?", "Confirm Deletion?")) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class DeleteCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				boolean assumeAll = tree.getSelectionCount() == 0;
+				String message = assumeAll ? "Are you really sure you want to delete everything?"
+						: "Delete the selected " + selectedPaths.size() + " path(s)?";
+				if (guiUtils.getConfirmation(message, "Confirm Deletion?")) {
 					deletePaths(selectedPaths);
 				}
-				return;
 			}
-			else if (REMOVE_TAGS_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
 
+		private class RemoveTagsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				removeTagsThroughPrompt(selectedPaths);
-				return;
 			}
-			else if (AUTO_CONNECT_CMD.equals(cmd)) {
-				if (n != 2)
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class AutoConnectCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (selectedPaths.size() != 2) {
 					guiUtils.error("This command requires exactly 2 paths to be selected.");
-				else
+				} else {
 					autoConnect(selectedPaths.get(0), selectedPaths.get(1));
-				return;
+				}
 			}
-			else if (COMBINE_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return selectedPaths.size() == 2;
+			}
+		}
+
+		private class CombineCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				final int n = selectedPaths.size();
 				if (n == 1) {
 					displayTmpMsg("You must have at least two paths selected.");
 					return;
@@ -3055,21 +3447,36 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				removeOrReapplyDefaultTag(selectedPaths, "angle", false, false);
 				removeOrReapplyDefaultTag(selectedPaths, LENGTH_TAG_CMD, false, false);
 				refreshManager(true, true, selectedPaths);
-				return;
-
 			}
-			else if (DISCONNECT_CMD.equals(cmd)) {
-				if (!guiUtils.getConfirmation("Disconnect " + n + " path(s) from all connections? "
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return selectedPaths.size() >= 2;
+			}
+		}
+
+		private class DisconnectCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (!guiUtils.getConfirmation("Disconnect " + selectedPaths.size() + " path(s) from all connections? "
 						+ "Connectivity will be re-assessed for <i>all</i> paths and IDs will be reset.",
 						"Confirm Disconnect?"))
 					return;
 				for (final Path p : selectedPaths)
 					p.disconnectFromAll();
 				rebuildRelationShips(); // will call refreshManager()
-				return;
 			}
-			else if (MERGE_PRIMARY_PATHS_CMD.equals(cmd)) {
-				if (n == 1) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class MergePrimaryPathsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (selectedPaths.size() == 1) {
 					displayTmpMsg("You must have at least two primary paths selected.");
 					return;
 				}
@@ -3110,9 +3517,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					primaryPath.setStartJoin(newSoma, centroid);
 				});
 				rebuildRelationShips(); // will call refreshManager()
-				return;
 			}
-			else if (REBUILD_CMD.equals(cmd)) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return selectedPaths.size() >= 2;
+			}
+		}
+
+		private class RebuildCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				if (!guiUtils.getConfirmation("Rebuild all path relationships? " +
 						"This will reset all IDs and recompute connectivity for all " +
 						"paths.", "Confirm Rebuild?"))
@@ -3120,25 +3535,45 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					return;
 				}
 				rebuildRelationShips();
-				return;
 			}
-			else if (DOWNSAMPLE_CMD.equals(cmd)) {
-				dowsamplePaths(selectedPaths);
-				return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return true;
+			}
+		}
 
+		private class DownsampleCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				dowsamplePaths(selectedPaths);
 			}
-			else if (RESET_FITS.equals(cmd)) {
-				if (!guiUtils.getConfirmation("Discard existing fits?",
-					"Confirm Discard?")) return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class ResetFitsCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				if (!guiUtils.getConfirmation("Discard existing fits?", "Confirm Discard?")) return;
 				for (final Path p : selectedPaths) {
 					p.discardFit();
 				}
 				refreshManager(true, false, selectedPaths);
-				return;
-
 			}
-			else if (e.getSource().equals(fitVolumeMenuItem) || cmd.toLowerCase().contains("fit paths")) {
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
 
+		private class FitCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
 				// this MenuItem is a toggle: check if it is set for 'unfitting'
 				if (fitVolumeMenuItem.getText().contains("Un-fit")) {
 					for (final Path p : selectedPaths)
@@ -3153,12 +3588,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 				try {
 					for (final Path p : selectedPaths) {
-
 						// If the fitted version is already being used. Do nothing
 						if (p.getUseFitted()) {
 							continue;
 						}
-
 						// A fitted version does not exist
 						else if (p.getFitted() == null) {
 							if (imageNotAvailable) {
@@ -3170,23 +3603,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 								pathsToFit.add(pathFitter);
 							}
 						}
-
 						// Just use the existing fitted version:
 						else {
 							p.setUseFitted(true);
 						}
 					}
-
 				} catch (final IllegalArgumentException ex) {
 					guiUtils.centeredMsg(ex.getMessage(), "Error");
 					return;
 				}
 
-				if (skippedFits == n) {
+				if (skippedFits == selectedPaths.size()) {
 					noValidImageDataError();
 				}
 				else if (!pathsToFit.isEmpty()) {
-
 					if (fittingHelper == null) fittingHelper = new FitHelper();
 					fittingHelper.pathsToFit = pathsToFit;
 					fittingHelper.fitUsingPrompAsNeeded(); // call refreshManager
@@ -3199,13 +3629,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				else {
 					refreshManager(true, false, selectedPaths);
 				}
-				return;
-
 			}
-
-			else {
-				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
-				return;
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
 			}
 		}
 
@@ -3299,32 +3727,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
 			if (choice == null)
 				return;
-			switch (choice) {
-			case "Cell ID":
-				primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
-				break;
-			case "Cell label":
-				primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
-				break;
-			case "Path name":
-				primaryPaths.sort(Comparator.comparing(Path::getName));
-				break;
-			case "Path length":
-				primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
-				break;
-			case "Path mean radius":
-				primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
-				break;
-			case "Traced channel":
-				primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
-				break;
-			case "Traced frame":
-				primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
-				break;
-			default:
-				guiUtils.error("Not a recognized sorting option.");
-				return;
-			}
+            switch (choice) {
+                case "Cell ID" -> primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
+                case "Cell label" -> primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
+                case "Path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
+                case "Path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
+                case "Path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
+                case "Traced channel" -> primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
+                case "Traced frame" -> primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
+                default -> {
+                    guiUtils.error("Not a recognized sorting option.");
+                    return;
+                }
+            }
 			final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
 			final DefaultMutableTreeNode jtreeRoot = ((DefaultMutableTreeNode) model.getRoot());
 			jtreeRoot.removeAllChildren();
@@ -3612,7 +4027,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private class ProofReadingTagsToolBar extends JToolBar {
 
-		final Map<String, int[]> tagsMap;
+		final Map<String, Color> tagsMap;
 		final JCheckBoxMenuItem toggleMenuItem;
 		SNTChart ringChart;
 
@@ -3620,7 +4035,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			super("Proofreading Tags", HORIZONTAL);
 			setFocusable(false);
 			setFloatable(true);
-			final boolean isVisible = plugin.getPrefs().getBoolean("proofReadBar", false);
+			final boolean isVisible = plugin.getPrefs().getBoolean("proofReadBar", true);
 			toggleMenuItem = new JCheckBoxMenuItem("Proofreading Toolbar", isVisible);
 			toggleMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.GLASSES));
 			toggleMenuItem.addItemListener(e -> {
@@ -3628,17 +4043,39 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				plugin.getPrefs().set("proofReadBar", toggleMenuItem.isSelected());
 			});
 			tagsMap = new TreeMap<>();
-			tagsMap.put("active", new int[]{0xb7e3f2, 0x135b76});
-			tagsMap.put("complete", new int[]{0XC1E561, 0x2B5D00});
-			tagsMap.put("partial", new int[]{0XFFF8BF, 0xA06106});
-			tagsMap.put("unsure", new int[]{0XFFDF9E, 0XED5B00});
-			tagsMap.put("wrong", new int[]{0xEBB8BC, 0xE51C2B}); //0xE53E4D
+			initializeTagColors();
+			rebuildToolbar();
+			setVisible(isVisible);
+		}
+
+		private void initializeTagColors() {
+			// Load colors from preferences or use defaults
+			tagsMap.put("active", loadTagColor("active", "B7E3F2"));
+			tagsMap.put("complete", loadTagColor("complete", "C1E561"));
+			tagsMap.put("partial", loadTagColor("partial", "FFF8BF"));
+			tagsMap.put("unsure", loadTagColor("unsure", "FFDF9E"));
+			tagsMap.put("wrong", loadTagColor("wrong", "EBB8BC"));
+		}
+
+		private Color loadTagColor(final String tagName, final String defaultTagColor) {
+			final String key = "proofReadTag." + tagName;
+			return SNTColor.stringToColor(plugin.getPrefs().get(key, defaultTagColor));
+		}
+
+		private void saveTagColor(final String tagName, final Color tagColor ) {
+			final String key = "proofReadTag." + tagName;
+			plugin.getPrefs().set(key, (tagColor == null) ? null : SNTColor.colorToString(tagColor)); // setting to null removes pref
+		}
+
+		private void rebuildToolbar() {
+			removeAll();
 			add(summaryButton());
 			addSeparator();
-			tagsMap.forEach((name, colors) -> add(tagButton(name, colors[0], colors[1])));
+			tagsMap.forEach((name, color) -> add(tagButton(name, color)));
 			add(clearButton());
 			addExtras();
-			setVisible(isVisible);
+			revalidate();
+			repaint();
 		}
 
 		@Override
@@ -3653,12 +4090,59 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		void addExtras() {
 			final JPopupMenu popupMenu = new JPopupMenu();
-			final JMenuItem item = new JMenuItem("Hide " + getName(), IconFactory.menuIcon('\uf070', true));
-			item.addActionListener(e -> setVisible(false));
-			popupMenu.add(item);
+			final JMenuItem customizeItem = new JMenuItem("Change Colors...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+			customizeItem.addActionListener(e -> showColorCustomizationDialog());
+			popupMenu.add(customizeItem);
+			popupMenu.addSeparator();
+			final JMenuItem hideItem = new JMenuItem("Hide " + getName(), IconFactory.menuIcon('\uf070', true));
+			hideItem.addActionListener(e -> setVisible(false));
+			popupMenu.add(hideItem);
 			setComponentPopupMenu(popupMenu);
 			add(Box.createHorizontalGlue());
 			add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/manual#tag-"));
+		}
+
+		private void showColorCustomizationDialog() {
+			// Create the panel with color chooser buttons
+			final JPanel panel = new JPanel(new GridBagLayout());
+			final GridBagConstraints c = GuiUtils.defaultGbc();
+			// Create color selection components for each tag
+			c.insets = new Insets(0, 0, 5, 0);
+			final Map<String, ColorChooserButton> colorButtons = new HashMap<>();
+			tagsMap.forEach( (tagName, color) -> {
+				final ColorChooserButton colorButton = new ColorChooserButton(color, capitalized(tagName));
+				panel.add(colorButton, c);
+				colorButtons.put(tagName, colorButton);
+				c.gridy++;
+			});
+			// Add reset button
+			c.insets.top += 10;
+			final JButton resetButton = new JButton("Reset to Defaults");
+			resetButton.addActionListener(e -> {
+				tagsMap.keySet().forEach( tagName -> saveTagColor(tagName, null));
+				tagsMap.clear();
+				initializeTagColors();
+				colorButtons.forEach( (tagName, button) -> {
+					button.setSelectedColor(tagsMap.get(tagName), true);
+				});
+			});
+			panel.add(resetButton, c);
+			
+			// Show the option pane
+			final int result = JOptionPane.showConfirmDialog(PathManagerUI.this,
+				panel, "Proofreading Tag Colors", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+			
+			// save the new colors if user pressed OK
+			if (result == JOptionPane.OK_OPTION) {
+				colorButtons.forEach( (tagName, button) -> {
+					final Color selectedColor = button.getSelectedColor();
+					if (selectedColor != null) {
+						tagsMap.put(tagName, selectedColor);
+						saveTagColor(tagName, selectedColor);
+					}
+				});
+				rebuildToolbar();
+			}
 		}
 
 		JButton summaryButton() {
@@ -3702,11 +4186,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return string.substring(0, 1).toUpperCase() + string.substring(1);
 		}
 
-		JButton tagButton(final String tagName, final int background, final int foreground) {
+		JButton tagButton(final String tagName, final Color tagColor) {
 			final JButton tagButton = GuiUtils.Buttons.toolbarButton(capitalized(tagName));
-			final Color bkgrdColor = new Color(background);
-			tagButton.setBackground(bkgrdColor);
-			tagButton.setForeground(new Color(foreground));
+			tagButton.setBackground(tagColor);
+			tagButton.setForeground(SNTColor.contrastColor(tagColor));
 			tagButton.addActionListener(e -> {
 				final Collection<Path> selectedPaths = getSelectedPaths(true);
 				if (selectedPaths.isEmpty()) {
@@ -3721,7 +4204,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 					} else {
 						p.setName(String.format("%s {%s}", removeTags(p), tags.replace(oldTag, tagName)));
 					}
-					p.setColor(bkgrdColor);
+					p.setColor(tagColor);
 				});
 				refreshManager(true, true, selectedPaths);
 				plugin.setUnsavedChanges(true);
@@ -3740,9 +4223,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 			final HashMap<String, Double> dataset = new HashMap<>();
 			final HashMap<String, Color> colors = new HashMap<>();
-			tagsMap.forEach( (tag, intColors) -> {
-				dataset.put(tag, 0d);
-				colors.put(tag, new Color(intColors[0]));
+			tagsMap.forEach( (tagName, tagColor) -> {
+				dataset.put(tagName, 0d);
+				colors.put(tagName, tagColor);
 			});
 			dataset.put("none", 0d);
 			colors.put("none", Color.LIGHT_GRAY);

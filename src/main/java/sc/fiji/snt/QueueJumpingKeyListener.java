@@ -46,28 +46,30 @@ class QueueJumpingKeyListener implements KeyListener {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private static final int CTRL_CMD_MASK = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-	private final SNT tracerPlugin;
-	private final InteractiveTracerCanvas canvas;
-	private final Image3DUniverse univ;
-	private final ArrayList<KeyListener> listeners = new ArrayList<>();
 	private static final int DOUBLE_PRESS_INTERVAL = 300; // ms
-	private long timeKeyDown = 0; // last time key was pressed
-	private int lastKeyPressedCode;
-
-	/* Define which keys are always parsed by IJ listeners */
-	private static final int[] W_KEYS = new int[] { //
+	/* Define the keys that are always parsed by IJ listeners */
+	private static final int[] IJ_KEYS = new int[]{ //
 			// Zoom keys
 			KeyEvent.VK_EQUALS, KeyEvent.VK_MINUS, KeyEvent.VK_UP, KeyEvent.VK_DOWN, //
 			// Stack navigation keys
 			KeyEvent.VK_COMMA, KeyEvent.VK_PERIOD, KeyEvent.VK_LEFT, KeyEvent.VK_RIGHT, //
 			// Extra navigation/zoom keys
-			KeyEvent.VK_PLUS, KeyEvent.VK_LESS, KeyEvent.VK_GREATER, KeyEvent.VK_TAB };
+			KeyEvent.VK_PLUS, KeyEvent.VK_LESS, KeyEvent.VK_GREATER, KeyEvent.VK_TAB};
 
+	private final SNT tracerPlugin;
+	private final InteractiveTracerCanvas canvas;
+	private final Image3DUniverse univ;
+	private final ArrayList<KeyListener> listeners = new ArrayList<>();
+	// Command registry
+	private final ArrayList<KeyCommand> keyCommands = new ArrayList<>();
+	private long timeKeyDown = 0; // last time key was pressed
+	private int lastKeyPressedCode;
 
 	public QueueJumpingKeyListener(final SNT tracerPlugin, final InteractiveTracerCanvas canvas) {
 		this.tracerPlugin = tracerPlugin;
 		this.canvas = canvas;
 		univ = null;
+		initializeKeyCommands();
 	}
 
 	public QueueJumpingKeyListener(final SNT tracerPlugin, final Image3DUniverse univ) {
@@ -75,238 +77,77 @@ class QueueJumpingKeyListener implements KeyListener {
 		this.canvas = tracerPlugin.getTracingCanvas();
 		this.univ = univ;
 		univ.addInteractiveBehavior(new PointSelectionBehavior(univ));
+		initializeKeyCommands();
+	}
+
+	// Initialize key commands
+	private void initializeKeyCommands() {
+		// System commands (highest priority)
+		keyCommands.add(new EscapeKeyCommand());
+		keyCommands.add(new EnterKeyCommand());
+		keyCommands.add(new ZoomUnzoomCommand());
+		keyCommands.add(new SaveCommand());
+		keyCommands.add(new CommandPaletteCommand());
+
+		// Allowlisted keys that should be passed through
+		keyCommands.add(new AllowListedKeysCommand());
+
+		// SNT hotkeys that don't override defaults
+		keyCommands.add(new ShollAnalysisCommand());
+
+		// Common SNT keystrokes
+		keyCommands.add(new ModifierVisualizationCommand());
+		keyCommands.add(new BookmarkCommand());
+		keyCommands.add(new EditModeToggleCommand());
+		keyCommands.add(new PauseTracingCommand());
+		keyCommands.add(new SelectNearestPathCommand());
+		keyCommands.add(new UIToggleCommands());
+
+		// Edit mode specific commands
+		keyCommands.add(new EditModeCommands());
+
+		// Tracing mode specific commands
+		keyCommands.add(new TracingModeCommands());
 	}
 
 	@Override
 	public void keyPressed(final KeyEvent e) {
-
-		// KEY_PRESSED, KEY_RELEASED, and KEY_TYPED all trigger actions in the Legacy 3D viewer
-		if (KeyEvent.KEY_PRESSED != e.getID() || !tracerPlugin.isUIready() || (canvas != null && canvas
-			.isEventsDisabled()))
-		{
+		// Early validation
+		if (KeyEvent.KEY_PRESSED != e.getID() || !tracerPlugin.isUIready() ||
+				(canvas != null && canvas.isEventsDisabled())) {
 			waiveKeyPress(e);
 			return;
 		}
-		final int keyCode = e.getKeyCode();
-		if (keyCode == KeyEvent.VK_SPACE) {// IJ's pan tool shortcut
+
+		// Handle space key (pan mode) specially
+		if (e.getKeyCode() == KeyEvent.VK_SPACE) {
 			if (canvas != null) tracerPlugin.panMode = true;
 			waiveKeyPress(e);
 			return;
 		}
 
-		// NB: we don't want accidental keystrokes to interfere with SNT tasks
-		// so we'll block any keys from reaching other listeners, unless: 1)
-		// the keystroke is white-listed, 2) the user pressed a modifier key,
-		// 3) it is a numeric keypad or 'action' (eg, fn) key
+		// Create context for key commands
 		final boolean doublePress = isDoublePress(e);
-		final boolean ctrl_down = (e.getModifiersEx() & CTRL_CMD_MASK) != 0;
-		final boolean shift_down = e.isShiftDown();
+		final KeyContext context = new KeyContext(e, doublePress, tracerPlugin.requireShiftToFork);
 
-		if (keyCode == KeyEvent.VK_ESCAPE) {
-			if (doublePress) tracerPlugin.getUI().reset();
-			else tracerPlugin.getUI().abortCurrentOperation();
-			e.consume();
-			return;
-		}
-		else if (keyCode == KeyEvent.VK_ENTER) {
-			tracerPlugin.getUI().toFront();
-			e.consume();
-			return;
-		}
-		else if (keyCode == KeyEvent.VK_4) {
-			if (!calledFromUniv(true))
-				tracerPlugin.unzoomAllPanes(); // ignore if called from 3D legacy viewer
-			e.consume();
-			return;
-		}
-		else if (keyCode == KeyEvent.VK_5) {
-			if (!calledFromUniv(true))
-				tracerPlugin.zoom100PercentAllPanes();
-			e.consume();
-			return;
-		}
-		else if (ctrl_down && shift_down && keyCode == KeyEvent.VK_P && tracerPlugin.getUI() != null) {
-			tracerPlugin.getUI().runCustomCommand("cmdPalette");
-			e.consume();
-			return;
-		}
-		else if (ctrl_down && keyCode == KeyEvent.VK_S && tracerPlugin.getUI() != null) {
-			tracerPlugin.getUI().saveToXML(shift_down);
-			e.consume();
-			return;
-		}
-		// Exceptions above aside, do not intercept white-listed keystrokes,
-		// combinations that include the OS shortcut key, action keys, or
-		// numpad keys (so that users can still access IJ built-in shortcuts
-		// and/or custom shortcuts for their macros)
-		else if ( ctrl_down || e.isActionKey()
-				|| e.getKeyLocation() == KeyEvent.KEY_LOCATION_NUMPAD
-				|| Arrays.stream(W_KEYS).anyMatch(i -> i == keyCode))
-		{
-			waiveKeyPress(e);
-			return;
-		}
-
-		final char keyChar = e.getKeyChar();
-		final boolean alt_down = e.isAltDown();
-		final boolean join_modifier_down = (tracerPlugin.requireShiftToFork) ? shift_down && alt_down : alt_down;
-
-		// SNT Hotkeys that do not override defaults
-		if (join_modifier_down && keyCode == KeyEvent.VK_A)
-		{
-			startShollAnalysis();
-			e.consume();
-		}
-
-		// SNT Keystrokes that override IJ defaults. These
-		// are common to both tracing and edit mode
-		else if (canvas != null && keyChar == '\u0000' && (shift_down || alt_down)) {
-
-			// This case is just so that when someone starts holding down
-			// the modified immediately see the effect, rather than having
-			// to wait for the next mouse move event
-			canvas.fakeMouseMoved(shift_down, join_modifier_down);
-			e.consume();
-		}
-		else if (shift_down && (keyChar == 'b' || keyChar == 'B')) {
-			// IJ1 built-in: Shift+B Blobs Sample Image
-			bookmarkCursorLocation();
-			e.consume();
-		}
-		else if (shift_down && (keyChar == 'e' || keyChar == 'E')) {
-			// IJ1 built-in: Shift+E Restore Selection
-			if (canvas != null && !calledFromUniv(true))
-				canvas.toggleEditMode();
-			e.consume();
-		}
-		else if (shift_down && (keyChar == 'p' || keyChar == 'P')) {
-			// IJ1 built-in: Shift+P Image Properties
-			if (canvas != null && !calledFromUniv(true))
-				canvas.togglePauseTracing();
-			e.consume();
-		}
-		else if (keyChar == 'g' || keyChar == 'G') {
-			// IJ1 built-in: Shift+G Take a screenshot
-			selectNearestPathToMousePointer(shift_down);
-			e.consume();
-		}
-
-		// Hotkeys common to all modes
-		else if (keyChar == '1') {
-			// IJ1 built-in: Select First Lane
-			tracerPlugin.getUI().togglePathsChoice();
-			e.consume();
-		}
-		else if (keyChar == '2') {
-			// IJ1 built-in: Select Next Lane
-			tracerPlugin.getUI().togglePartsChoice();
-			e.consume();
-		}
-		else if (keyChar == '3') {
-			// IJ1 built-in: Plot Lanes
-			tracerPlugin.getUI().toggleChannelAndFrameChoice();
-			e.consume();
-		}
-
-		// Keystrokes exclusive to edit mode (NB: Currently these only work
-		// with InteractiveCanvas). We'll skip hasty keystrokes to avoid
-		// mis-editing
-		else if (canvas != null && canvas.isEditMode()) {
-			if (doublePress || calledFromUniv(true)) {
-				e.consume();
+		// Process key commands in order of priority
+		for (KeyCommand command : keyCommands) {
+			if (command.canHandle(e, context)) {
+				command.execute(e, context);
 				return;
 			}
-			if (keyChar == 'd' || keyChar == 'D' || keyCode == KeyEvent.VK_BACK_SPACE
-					|| keyCode == KeyEvent.VK_DELETE) {
-				canvas.deleteEditingNode(false);
-			}
-			else if (keyChar == 'i' || keyChar == 'I')
-			{
-				canvas.appendLastCanvasPositionToEditingNode(false);
-			}
-			else if (keyChar == 'r' || keyChar == 'R')
-			{
-				canvas.assignRadiusToEditingNode(false);
-			}
-			else if (keyChar == 'l' || keyChar == 'L') {
-				canvas.toggleEditingNode(true);
-			}
-			else if (keyChar == 'm' || keyChar == 'M') {
-				canvas.moveEditingNodeToLastCanvasPosition(false);
-			}
-			else if (keyChar == 'b' || keyChar == 'B') {
-				canvas.assignLastCanvasZPositionToEditNode(false);
-			}
-			else if (keyChar == 'c' || keyChar == 'C') {
-				canvas.connectEditingPathToPreviousEditingPath();
-			}
-			else if (keyChar == 'x' || keyChar == 'X') {
-				canvas.splitTreeAtEditingNode(false);
-			}
-			else if (keyChar == 'v' || keyChar == 'V') {
-				canvas.clickAtMaxPoint(false);
-			}
-			e.consume();
 		}
 
-		// Keystrokes exclusive to tracing mode
-		else if (canvas != null && !canvas.isEditMode() &&
-			!tracerPlugin.tracingHalted)
-		{
-
-			if (keyChar == 'y' || keyChar == 'Y') {
-				// IJ1 built-in: ROI Properties...
-				if (tracerPlugin.getUI().finishOnDoubleConfimation && doublePress)
-					tracerPlugin.finishedPath();
-				else tracerPlugin.confirmTemporary(true);
-				e.consume();
-			}
-			else if (keyChar == 'n' || keyChar == 'N') {
-				// IJ1 built-in: New Image
-				if (tracerPlugin.getUI().discardOnDoubleCancellation && doublePress)
-					tracerPlugin.cancelPath();
-				else tracerPlugin.cancelTemporary();
-				e.consume();
-			}
-			else if (keyChar == 'c' || keyChar == 'C') {
-				// IJ1 built-in: Copy
-				if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH) tracerPlugin
-					.cancelPath();
-				else if (doublePress) tracerPlugin.getUI().abortCurrentOperation();
-				e.consume();
-			}
-			else if (keyChar == 'f' || keyChar == 'F') {
-				// IJ1 built-in: Fill
-				tracerPlugin.finishedPath();
-				e.consume();
-			}
-			else if (keyChar == 'l' || keyChar == 'L') {
-				// IJ1 built-in: commands/Find commands
-				tracerPlugin.getUI().toggleSecondaryLayerTracing();
-				e.consume();
-			}
-			else if ((keyChar == 'v' || keyChar == 'V') && !calledFromUniv(true)) {
-				// IJ1 built-in: Measure
-				canvas.clickAtMaxPoint(join_modifier_down);
-				e.consume();
-			}
-			else if ((keyChar == 's' || keyChar == 'S') && !calledFromUniv(true)) {
-				// IJ1 built-in: Save
-				tracerPlugin.toggleSnapCursor();
-				e.consume();
-			}
-		}
-
+		// If no command handled the key, don't pass it on to avoid interference
 		// Uncomment below to pass on any other key press to existing listeners
-		// else waiveKeyPress(e);
-
+		// waiveKeyPress(e);
 	}
 
 	private void bookmarkCursorLocation() {
 		if (calledFromUniv(false)) {
 			final Point3d p = getNearestPickedPoint();
 			if (p != null) {
-				tracerPlugin.getUI().getBookmarkManager().add((int)p.x, (int)p.y, (int)p.z,
+				tracerPlugin.getUI().getBookmarkManager().add((int) p.x, (int) p.y, (int) p.z,
 						tracerPlugin.getChannel(), tracerPlugin.getFrame());
 				if (!tracerPlugin.getUI().getBookmarkManager().isShowing())
 					showStatus("Bookmark added");
@@ -394,7 +235,7 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	private boolean isDoublePress(final KeyEvent ke) {
 		if (lastKeyPressedCode == ke.getKeyCode() && ((ke.getWhen() -
-			timeKeyDown) < DOUBLE_PRESS_INTERVAL)) return true;
+				timeKeyDown) < DOUBLE_PRESS_INTERVAL)) return true;
 		timeKeyDown = ke.getWhen();
 		lastKeyPressedCode = ke.getKeyCode();
 		return false;
@@ -407,9 +248,315 @@ class QueueJumpingKeyListener implements KeyListener {
 	 */
 	public void addOtherKeyListeners(final KeyListener[] laterKeyListeners) {
 		final ArrayList<KeyListener> newListeners = new ArrayList<>(Arrays.asList(
-			laterKeyListeners));
+				laterKeyListeners));
 		for (KeyListener listener : newListeners) {
 			if (!listeners.contains(listener)) listeners.add(listener);
+		}
+	}
+
+	void showStatus(final String msg) {
+		//NB: using new GuiUtils(univ.getWindow()).tempMsg(msg) steals focus from viewer canvas and thus this listener
+		tracerPlugin.getUI().showStatus(msg, true);
+	}
+
+	boolean calledFromUniv(final boolean warnIfNonApplicableKey) {
+		if (univ != null && warnIfNonApplicableKey)
+			showStatus("Shortcut does not apply to Leg. 3D Viewer...");
+		return univ != null;
+	}
+
+	// Key command interface for handling key operations
+	private interface KeyCommand {
+		boolean canHandle(KeyEvent e, KeyContext context);
+
+		void execute(KeyEvent e, KeyContext context);
+	}
+
+	// Context object to pass key state information
+	private static class KeyContext {
+		final boolean doublePress;
+		final boolean ctrlDown;
+		final boolean shiftDown;
+		final boolean altDown;
+		final boolean joinModifierDown;
+		final int keyCode;
+		final char keyChar;
+
+		KeyContext(KeyEvent e, boolean doublePress, boolean requireShiftToFork) {
+			this.doublePress = doublePress;
+			this.ctrlDown = (e.getModifiersEx() & CTRL_CMD_MASK) != 0;
+			this.shiftDown = e.isShiftDown();
+			this.altDown = e.isAltDown();
+			this.joinModifierDown = requireShiftToFork ? shiftDown && altDown : altDown;
+			this.keyCode = e.getKeyCode();
+			this.keyChar = e.getKeyChar();
+		}
+	}
+
+	// Key command implementations
+	private class EscapeKeyCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyCode == KeyEvent.VK_ESCAPE;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			if (context.doublePress) {
+				tracerPlugin.getUI().reset();
+			} else {
+				tracerPlugin.getUI().abortCurrentOperation();
+			}
+			e.consume();
+		}
+	}
+
+	private class EnterKeyCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyCode == KeyEvent.VK_ENTER;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			tracerPlugin.getUI().toFront();
+			e.consume();
+		}
+	}
+
+	private class ZoomUnzoomCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyCode == KeyEvent.VK_4 || context.keyCode == KeyEvent.VK_5;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			if (!calledFromUniv(true)) {
+				if (context.keyCode == KeyEvent.VK_4) {
+					tracerPlugin.unzoomAllPanes();
+				} else {
+					tracerPlugin.zoom100PercentAllPanes();
+				}
+			}
+			e.consume();
+		}
+	}
+
+	private class SaveCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.ctrlDown && context.keyCode == KeyEvent.VK_S && tracerPlugin.getUI() != null;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			tracerPlugin.getUI().saveToXML(context.shiftDown);
+			e.consume();
+		}
+	}
+
+	private class CommandPaletteCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.ctrlDown && context.shiftDown && context.keyCode == KeyEvent.VK_P &&
+					tracerPlugin.getUI() != null;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			tracerPlugin.getUI().runCustomCommand("cmdPalette");
+			e.consume();
+		}
+	}
+
+	private class AllowListedKeysCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.ctrlDown || e.isActionKey() ||
+					e.getKeyLocation() == KeyEvent.KEY_LOCATION_NUMPAD ||
+					Arrays.stream(IJ_KEYS).anyMatch(i -> i == context.keyCode);
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			waiveKeyPress(e);
+		}
+	}
+
+	private class ShollAnalysisCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.joinModifierDown && context.keyCode == KeyEvent.VK_A;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			startShollAnalysis();
+			e.consume();
+		}
+	}
+
+	private class ModifierVisualizationCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return canvas != null && context.keyChar == '\u0000' &&
+					(context.shiftDown || context.altDown);
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			canvas.fakeMouseMoved(context.shiftDown, context.joinModifierDown);
+			e.consume();
+		}
+	}
+
+	private class BookmarkCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.shiftDown && (context.keyChar == 'b' || context.keyChar == 'B');
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			bookmarkCursorLocation();
+			e.consume();
+		}
+	}
+
+	private class EditModeToggleCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.shiftDown && (context.keyChar == 'e' || context.keyChar == 'E');
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			if (canvas != null && !calledFromUniv(true)) {
+				canvas.toggleEditMode();
+			}
+			e.consume();
+		}
+	}
+
+	private class PauseTracingCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.shiftDown && (context.keyChar == 'p' || context.keyChar == 'P');
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			if (canvas != null && !calledFromUniv(true)) {
+				canvas.togglePauseTracing();
+			}
+			e.consume();
+		}
+	}
+
+	private class SelectNearestPathCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyChar == 'g' || context.keyChar == 'G';
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			selectNearestPathToMousePointer(context.shiftDown);
+			e.consume();
+		}
+	}
+
+	private class UIToggleCommands implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyChar == '1' || context.keyChar == '2' || context.keyChar == '3';
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			switch (context.keyChar) {
+				case '1' -> tracerPlugin.getUI().togglePathsChoice();
+				case '2' -> tracerPlugin.getUI().togglePartsChoice();
+				case '3' -> tracerPlugin.getUI().toggleChannelAndFrameChoice();
+			}
+			e.consume();
+		}
+	}
+
+	private class EditModeCommands implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return canvas != null && canvas.isEditMode() && !context.doublePress && !calledFromUniv(true);
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			switch (context.keyChar) {
+				case 'd', 'D' -> canvas.deleteEditingNode(false);
+				case 'i', 'I' -> canvas.appendLastCanvasPositionToEditingNode(false);
+				case 'r', 'R' -> canvas.assignRadiusToEditingNode(false);
+				case 'l', 'L' -> canvas.toggleEditingNode(true);
+				case 'm', 'M' -> canvas.moveEditingNodeToLastCanvasPosition(false);
+				case 'b', 'B' -> canvas.assignLastCanvasZPositionToEditNode(false);
+				case 'c', 'C' -> canvas.connectEditingPathToPreviousEditingPath();
+				case 'x', 'X' -> canvas.splitTreeAtEditingNode(false);
+				case 'v', 'V' -> canvas.clickAtMaxPoint(false);
+			}
+
+			// Handle delete keys
+			if (context.keyCode == KeyEvent.VK_BACK_SPACE || context.keyCode == KeyEvent.VK_DELETE) {
+				canvas.deleteEditingNode(false);
+			}
+
+			e.consume();
+		}
+	}
+
+	private class TracingModeCommands implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return canvas != null && !canvas.isEditMode() && !tracerPlugin.tracingHalted;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			switch (context.keyChar) {
+				case 'y', 'Y' -> {
+					if (tracerPlugin.getUI().finishOnDoubleConfimation && context.doublePress) {
+						tracerPlugin.finishedPath();
+					} else {
+						tracerPlugin.confirmTemporary(true);
+					}
+				}
+				case 'n', 'N' -> {
+					if (tracerPlugin.getUI().discardOnDoubleCancellation && context.doublePress) {
+						tracerPlugin.cancelPath();
+					} else {
+						tracerPlugin.cancelTemporary();
+					}
+				}
+				case 'c', 'C' -> {
+					if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH) {
+						tracerPlugin.cancelPath();
+					} else if (context.doublePress) {
+						tracerPlugin.getUI().abortCurrentOperation();
+					}
+				}
+				case 'f', 'F' -> tracerPlugin.finishedPath();
+				case 'l', 'L' -> tracerPlugin.getUI().toggleSecondaryLayerTracing();
+				case 'v', 'V' -> {
+					if (!calledFromUniv(true)) {
+						canvas.clickAtMaxPoint(context.joinModifierDown);
+					}
+				}
+				case 's', 'S' -> {
+					if (!calledFromUniv(true)) {
+						tracerPlugin.toggleSnapCursor();
+					}
+				}
+			}
+			e.consume();
 		}
 	}
 
@@ -427,12 +574,10 @@ class QueueJumpingKeyListener implements KeyListener {
 				if (keyChar == 'w' || keyChar == 'W') {
 					Toolbar.getInstance().setTool(Toolbar.WAND);
 					showStatus("Wand Tool selected");
-				}
-				else if (keyChar == 'h' || keyChar == 'H') {
+				} else if (keyChar == 'h' || keyChar == 'H') {
 					Toolbar.getInstance().setTool(Toolbar.HAND);
 					showStatus("Hand Tool selected");
-				}
-				else {
+				} else {
 					keyPressed(e);
 				}
 			});
@@ -441,39 +586,21 @@ class QueueJumpingKeyListener implements KeyListener {
 		@Override
 		public void doProcess(final MouseEvent me) {
 
-			if (!tracerPlugin.isUIready() || Toolbar.getToolId() != Toolbar.WAND || me
-				.getID() != MouseEvent.MOUSE_PRESSED)
-			{
+			if (!tracerPlugin.isUIready() || Toolbar.getToolId() != Toolbar.WAND || me.getID() != MouseEvent.MOUSE_PRESSED) {
 				super.doProcess(me);
 				return;
 			}
-
 			final Picker picker = univ.getPicker();
 			final Content c = picker.getPickedContent(me.getX(), me.getY());
 			if (null == c) {
 				showStatus("No content picked!");
 				return;
 			}
-
 			showStatus("Retrieving content...");
-			final Point3d point = picker.getPickPointGeometry(c, me.getX(), me
-				.getY());
-			showStatus(SNTUtils.formatDouble(point.x, 3) + ", " + SNTUtils.formatDouble(
-				point.y, 3) + ", " + SNTUtils.formatDouble(point.z, 3));
+			final Point3d point = picker.getPickPointGeometry(c, me.getX(), me.getY());
+			showStatus(String.format("%.3f, %.3f, %.3f", point.x, point.y, point.z));
 			final boolean joiner_modifier_down = me.isAltDown();
-			SwingUtilities.invokeLater(() -> tracerPlugin.clickForTrace(point,
-				joiner_modifier_down));
+			SwingUtilities.invokeLater(() -> tracerPlugin.clickForTrace(point, joiner_modifier_down));
 		}
-	}
-
-	void showStatus(final String msg) {
-		//NB: using new GuiUtils(univ.getWindow()).tempMsg(msg) steals focus from viewer canvas and thus this listener
-		tracerPlugin.getUI().showStatus(msg, true);
-	}
-
-	boolean calledFromUniv(final boolean warnIfNonApplicableKey) {
-		if (univ != null && warnIfNonApplicableKey)
-			showStatus("Shortcut does not apply to Leg. 3D Viewer...");
-		return univ != null;
 	}
 }
