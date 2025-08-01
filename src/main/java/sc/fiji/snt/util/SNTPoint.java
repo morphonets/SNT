@@ -26,7 +26,6 @@ package sc.fiji.snt.util;
 import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.Collection;
-import java.util.Iterator;
 
 /**
  * Classes extend this interface implement a point in a 3D space, always using
@@ -75,17 +74,25 @@ public interface SNTPoint {
 		double y = 0;
 		double z = 0;
 		int n = 0;
-		final Iterator<? extends SNTPoint> it = points.iterator();
-		while (it.hasNext()) {
-			final SNTPoint p = it.next();
-			if (p != null) {
-				x += p.getX();
-				y += p.getY();
-				z += p.getZ();
-				n++;
-			}
-		}
+        for (final SNTPoint p : points) {
+            if (p != null) {
+                x += p.getX();
+                y += p.getY();
+                z += p.getZ();
+                n++;
+            }
+        }
 		return new PointInImage(x / n, y / n, z / n);
 	}
 
+	/**
+	 * Script friendly method for instantiating a new point.
+	 *
+	 * @param x the X coordinate
+	 * @param y the Y coordinate
+	 * @param z the Z coordinate
+	 */
+	public static PointInImage of(final double x, double y, double z) {
+		return new PointInImage(x, y, z );
+	}
 }

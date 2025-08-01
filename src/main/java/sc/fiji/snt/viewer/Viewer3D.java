@@ -1356,8 +1356,18 @@ public class Viewer3D {
 	 *                Collections of supported objects are also supported.
 	 */
 	public void zoomTo(final Object... objects) {
+		if (objects == null) {
+			resetView();
+			return;
+		}
+		Object[] objs;
+		if (objects.length == 1 && objects[0] instanceof Collection<?>) {
+			objs = ((Collection<?>)objects[0]).toArray(new Object[0]);
+		} else {
+			objs = objects;
+		}
 		final BoundingBox3d bounds = new BoundingBox3d();
-		for (final Object obj : objects) {
+		for (final Object obj : objs) {
 			final Drawable d = getDrawableFromObject(obj);
 			if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
 				bounds.add(d.getBounds());
@@ -2434,7 +2444,7 @@ public class Viewer3D {
 	private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
 		setAnimationEnabled(false);
 		chart.add(objMesh.drawable, false); // this used to trigger a GLException when true?
-		final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.getLabel());
+		final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.label());
 		plottedObjs.put(label, objMesh.drawable);
 		addItemToManager(label);
 		if (frame != null && frame.allenNavigator != null) {

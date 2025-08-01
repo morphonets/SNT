@@ -340,10 +340,11 @@ public class Annotation3D {
 	/**
 	 * Sets the annotation width.
 	 *
-	 * @param size the new width. A negative value will set width to
+	 * @param floatSize the new width. A negative value will set width to
 	 *             {@link Viewer3D}'s default.
 	 */
-	public void setSize(final float size) {
+	public void setSize(final Number floatSize) {
+		final float size = floatSize.floatValue();
 		this.size = (size < 0) ? viewer.getDefaultThickness() : size;
 		if (drawable == null)
 			return;

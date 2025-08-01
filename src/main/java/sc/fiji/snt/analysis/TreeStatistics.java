@@ -2221,6 +2221,53 @@ public class TreeStatistics extends ContextCommand {
     }
 
     /**
+     * Gets the position of all tips in the analyzed tree that are further distant than the
+     * specified distance from the root.
+     *
+     * @param minDistance the minimum distance from root (inclusive, in the same units as tree coordinates)
+     * @return the set of terminal points distant from root by at least {@code minDistance},
+     * or an empty set if no tips are found or if the tree has no root
+     */
+    public Set<PointInImage> getTips(final double minDistance) {
+        return getTips(minDistance, Double.MAX_VALUE);
+    }
+
+    /**
+     * Gets the position of all tips in the analyzed tree that are within the specified
+     * distance range from the root. This method is useful for analyzing tree morphology
+     * within specific distance bands from the soma.
+     *
+     * @param minDistance the minimum distance from root (inclusive, in the same units as tree coordinates)
+     * @param maxDistance the maximum distance from root (inclusive, in the same units as tree coordinates)
+     * @return the set of terminal points within the specified distance range from root,
+     * or an empty set if no tips are found within the range or if the tree has no root
+     */
+    public Set<PointInImage> getTips(final double minDistance, final double maxDistance) {
+        if (minDistance < 0 || maxDistance < 0 || minDistance > maxDistance) {
+            throw new IllegalArgumentException("Distances must be non-negative and min distance cannot be greater than max");
+        }
+        final PointInImage root = tree.getRoot();
+        if (root == null) {
+            return new HashSet<>();
+        }
+        // Get all tips first
+        final Set<PointInImage> allTips = getTips();
+        final Set<PointInImage> filteredTips = new HashSet<>();
+
+        // Filter tips by distance range from root
+        final double minSq = minDistance * minDistance;
+        final double maxSq = maxDistance * maxDistance;
+        for (final PointInImage tip : allTips) {
+            final double distanceFromRoot = tip.distanceSquaredTo(root);
+            if (distanceFromRoot >= minSq && distanceFromRoot <= maxSq) {
+                filteredTips.add(tip);
+            }
+        }
+
+        return filteredTips;
+    }
+
+    /**
      * Gets the percentage of end points in the analyzed tree associated with the
      * specified annotation
      *

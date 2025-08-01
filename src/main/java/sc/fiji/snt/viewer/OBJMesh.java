@@ -37,6 +37,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 
 import org.jzy3d.colors.Color;
@@ -50,7 +51,13 @@ import org.jzy3d.plot3d.primitives.vbo.drawable.DrawableVBO;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 
+import org.apache.commons.math3.linear.Array2DRowRealMatrix;
+import org.apache.commons.math3.linear.EigenDecomposition;
+import org.apache.commons.math3.linear.RealMatrix;
+import org.apache.commons.math3.stat.correlation.Covariance;
+
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.PCAnalyzer;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -260,7 +267,15 @@ public class OBJMesh {
 		return bbox;
 	}
 
-	protected String getLabel() {
+	/** @deprecated use {@link #label} instead */
+	public String getLabel() {
+		return label();
+	}
+
+	/**
+	 * Gets this mesh label.
+	 */
+	public String label() {
 		return (label == null) ? loader.getLabel() : label;
 	}
 
@@ -349,6 +364,179 @@ public class OBJMesh {
 		}
 		return loader.obj.getCenter(normHemisphere);
 	}
+
+	/**
+	 * Computes the principal axes of the mesh using Principal Component Analysis (PCA).
+	 * The principal axes represent the directions of maximum, medium, and minimum variance
+	 * in the mesh geometry, providing insight into the overall shape orientation of this mesh.
+	 *
+	 * @param hemiHalf either "left", "l", "right", "r", otherwise principal axes are
+	 *                 computed for both hemi-halves, i.e., the full mesh
+	 * @return array of three PrincipalAxis objects ordered by decreasing variance
+	 *         (primary, secondary, tertiary), or null if computation fails
+	 */
+	public PCAnalyzer.PrincipalAxis[] getPrincipalAxes(final String hemiHalf) {
+		return PCAnalyzer.getPrincipalAxes(getVertices(hemiHalf));
+	}
+
+	/**
+	 * Computes the principal axes of this mesh using the new PCAnalyzer.
+	 * This method replaces the deprecated {@link #getPrincipalAxes(String)} method.
+	 *
+	 * @param hemiHalf either "left", "l", "right", "r", otherwise principal axes are
+	 *                 computed for both hemi-halves, i.e., the full mesh
+	 * @return array of three PrincipalAxis objects ordered by decreasing variance
+	 *         (primary, secondary, tertiary), or null if computation fails
+	 */
+	public PCAnalyzer.PrincipalAxis[] computePrincipalAxes(final String hemiHalf) {
+		return PCAnalyzer.getPrincipalAxes(getVertices(hemiHalf));
+	}
+
+	/**
+	 * Computes the local direction of the mesh at a specific point using nearest neighbor analysis.
+	 * This method finds the dominant direction of mesh curvature in the local neighborhood of the
+	 * specified point, which is useful for analyzing how structures align with curved anatomical surfaces.
+	 *
+	 * @param point the point at which to compute the local mesh direction
+	 * @param hemiHalf either "left", "l", "right", "r", otherwise analysis is performed
+	 *                 on both hemi-halves, i.e., the full mesh
+	 * @param neighborCount the number of nearest mesh vertices to use for local analysis (default: 20)
+	 * @return the local mesh direction as a normalized vector, or null if computation fails
+	 */
+	public double[] getLocalDirection(final SNTPoint point, final String hemiHalf, final int neighborCount) {
+		final Collection<? extends SNTPoint> vertices = getVertices(hemiHalf);
+		if (vertices == null || vertices.isEmpty() || vertices.size() < neighborCount) {
+			return null;
+		}
+
+		// Find nearest vertices to the specified point
+		final List<? extends SNTPoint> vertexList = new ArrayList<>(vertices);
+		final List<VertexDistance> distances = new ArrayList<>();
+		for (final SNTPoint vertex : vertexList) {
+			final double dx = vertex.getX() - point.getX();
+			final double dy = vertex.getY() - point.getY();
+			final double dz = vertex.getZ() - point.getZ();
+			final double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+			distances.add(new VertexDistance(vertex, distance));
+		}
+
+		// Sort by distance and take nearest neighbors
+		distances.sort(Comparator.comparingDouble(a -> a.distance));
+		final List<SNTPoint> nearestVertices = distances.stream()
+				.limit(neighborCount)
+				.map(vd -> vd.vertex)
+				.toList();
+
+		// Compute the local direction using PCA on nearest neighbors
+		// Center the data around the query point for true local analysis
+		final int n = nearestVertices.size();
+		final double[][] data = new double[n][3];
+
+		for (int i = 0; i < n; i++) {
+			final SNTPoint vertex = nearestVertices.get(i);
+			// Use relative coordinates from the query point
+			data[i][0] = vertex.getX() - point.getX();
+			data[i][1] = vertex.getY() - point.getY();
+			data[i][2] = vertex.getZ() - point.getZ();
+		}
+
+		try {
+			// Compute covariance matrix manually for better control
+			// Data is already centered around the query point
+			final double[][] covMatrix = new double[3][3];
+			
+			// Compute covariance matrix elements
+			for (int i = 0; i < 3; i++) {
+				for (int j = 0; j < 3; j++) {
+					double sum = 0.0;
+					for (int k = 0; k < n; k++) {
+						sum += data[k][i] * data[k][j];
+					}
+					covMatrix[i][j] = sum / (n - 1);
+				}
+			}
+
+			// Compute eigenvalues and eigenvectors
+			final RealMatrix covRealMatrix = new Array2DRowRealMatrix(covMatrix);
+			final EigenDecomposition eigenDecomp = new EigenDecomposition(covRealMatrix);
+			final RealMatrix eigenVectors = eigenDecomp.getV();
+			final double[] eigenValues = eigenDecomp.getRealEigenvalues();
+
+			// Find the eigenvector with the largest eigenvalue (principal direction)
+			int maxIndex = 0;
+			for (int i = 1; i < eigenValues.length; i++) {
+				if (Math.abs(eigenValues[i]) > Math.abs(eigenValues[maxIndex])) {
+					maxIndex = i;
+				}
+			}
+
+			// Return the principal direction (normalized eigenvector)
+			return new double[]{
+				eigenVectors.getEntry(0, maxIndex),
+				eigenVectors.getEntry(1, maxIndex),
+				eigenVectors.getEntry(2, maxIndex)
+			};
+
+		} catch (final Exception ignored) {
+			// Handle any numerical issues with PCA computation
+			return null;
+		}
+	}
+
+	/**
+	 * Computes the angle between a direction vector and the local mesh direction at a point.
+	 * This is useful for e.g., analyzing how neuronal processes align with the local curvature
+	 * of surfaces (neuropil meshes).
+	 *
+	 * @param point the point at which to compute the local mesh direction
+	 * @param direction the normalized vector for which the angle will be computed
+	 * @param hemiHalf either "left", "l", "right", "r", otherwise analysis is performed
+	 *                 on both hemi-halves, i.e., the full mesh
+	 * @param neighborCount the number of nearest mesh vertices to use for local analysis
+	 * @return the acute angle in degrees (0-90°) between the direction vector and local mesh direction,
+	 *         or NaN if computation fails
+	 */
+	public double getAngleWithLocalDirection(final SNTPoint point, final double[] direction,
+											 final String hemiHalf, final int neighborCount) {
+		if (direction.length < 3) {
+			throw new IllegalArgumentException("direction array must have at least 3 elements (X,Y,Z)");
+		}
+		final double[] localDirection = getLocalDirection(point, hemiHalf, neighborCount);
+		if (localDirection == null) return Double.NaN;
+
+		// Normalize direction vector
+		final double dirMag = Math.sqrt(direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2]);
+		if (dirMag == 0) return Double.NaN;
+
+		final double normDirX = direction[0] / dirMag;
+		final double normDirY = direction[1] / dirMag;
+		final double normDirZ = direction[2] / dirMag;
+
+		// Compute dot product (local direction is already normalized from PCA)
+		double dotProduct = normDirX * localDirection[0] + normDirY * localDirection[1] + normDirZ * localDirection[2];
+
+		// Clamp to [-1, 1] to handle numerical errors
+		dotProduct = Math.max(-1.0, Math.min(1.0, dotProduct));
+
+		// Return acute angle (0-90 degrees)
+		final double angle = Math.acos(Math.abs(dotProduct));
+		return Math.toDegrees(angle);
+	}
+
+	/**
+	 * Helper class for storing vertex-distance pairs during nearest neighbor search.
+	 */
+	private static class VertexDistance {
+		final SNTPoint vertex;
+		final double distance;
+
+		VertexDistance(final SNTPoint vertex, final double distance) {
+			this.vertex = vertex;
+			this.distance = distance;
+		}
+	}
+
+
 
 	/**
 	 * Returns the {@link OBJFile} associated with this mesh

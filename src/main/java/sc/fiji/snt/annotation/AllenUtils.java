@@ -253,6 +253,16 @@ public class AllenUtils {
 	}
 
 	/**
+	 * Checks the hemisphere a neuron belongs to.
+	 *
+	 * @param tree the Tree to be tested
+	 * @return the hemisphere label: either "left", or "right"
+	 */
+	public static String getHemisphere(final Tree tree) {
+		return (isLeftHemisphere(tree.getRoot())) ? "left" : "right";
+	}
+
+	/**
 	 * Assigns hemisphere tags to all nodes in a graph.
 	 *
 	 * @param graph the DirectedWeightedGraph to tag

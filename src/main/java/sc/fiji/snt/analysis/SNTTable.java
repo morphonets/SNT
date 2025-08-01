@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 /**
@@ -64,6 +65,15 @@ public class SNTTable extends DefaultGenericTable {
 
 	public SNTTable() {
 		super();
+	}
+
+	public SNTTable(final Map<String, Collection <Number>> values) {
+		this();
+		values.forEach((k, v) -> {
+			final GenericColumn col = new GenericColumn(k);
+			col.addAll(v);
+			add(col);
+		});
 	}
 
 	public SNTTable(final String filePath) throws IOException {

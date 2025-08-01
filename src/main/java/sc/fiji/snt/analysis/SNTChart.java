@@ -33,6 +33,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.text.DecimalFormat;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import javax.swing.ButtonGroup;
@@ -1237,6 +1238,11 @@ public class SNTChart extends ChartPanel {
 		SwingUtilities.invokeLater(() -> getFrame().show());
 	}
 
+	public void show(final String title) {
+		setTitle(title);
+		show();
+	}
+
 	private void customizePopupMenu() {
 		if (getPopupMenu() != null) {
 			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
@@ -1987,7 +1993,9 @@ public class SNTChart extends ChartPanel {
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);
 		int finalNBins = nBins;
-		hdpMap.forEach((label, hdp) -> dataset.addSeries(label, hdp.values(), finalNBins, limits[0], limits[1]));
+		final AtomicInteger index = new AtomicInteger();
+		hdpMap.forEach((label, hdp) ->
+				dataset.addSeries((label==null) ? index.getAndIncrement() : label, hdp.values(), finalNBins, limits[0], limits[1]));
 		final String title = table.getTitle();
 		final String axisLabel = (columnIndices.length == 1) ? table.getColumnHeader(columnIndices[0]) : "";
 		final SNTChart chart = (polar) ?
@@ -1996,6 +2004,10 @@ public class SNTChart extends ChartPanel {
 				new ArrayList<>(hdpMap.values()));
 		chart.setTitle(title);
 		return chart;
+	}
+
+	public static SNTChart getHistogram(final SNTTable table, final boolean polar) {
+		return getHistogram(table, IntStream.range(0, table.getColumnCount()).toArray(), polar);
 	}
 
 	/* IDE debug method */
