@@ -269,7 +269,7 @@ public class ShollAnalysisPlugin implements PlugIn, DialogListener {
 			"(Zero for continuous sampling)");
 
 		// Assemble SWC choices
-		final ArrayList<String> swcTypeNames = Path.getSWCtypeNames();
+		final java.util.List<String> swcTypeNames = Path.getSWCtypeNames();
 		final int nTypes = swcTypeNames.size();
 		final String[] typeNames = swcTypeNames.toArray(new String[nTypes]);
 		final boolean[] typeChoices = new boolean[nTypes];

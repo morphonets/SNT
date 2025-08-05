@@ -1788,7 +1788,7 @@ public class SNT extends MultiDThreePanes implements
 
 		currentPath.add(temporaryPath);
 
-		final PointInImage last = currentPath.lastPoint();
+		final PointInImage last = currentPath.lastNode();
 		last_start_point_x = (int) Math.round(last.x / x_spacing);
 		last_start_point_y = (int) Math.round(last.y / y_spacing);
 		last_start_point_z = (int) Math.round(last.z / z_spacing);
@@ -2151,9 +2151,9 @@ public class SNT extends MultiDThreePanes implements
 		selectPath(path, false);
 		setPathUnfinished(true);
 		setCurrentPath(path);
-		last_start_point_x = (int) Math.round(path.lastPoint().x / x_spacing);
-		last_start_point_y = (int) Math.round(path.lastPoint().y / y_spacing);
-		last_start_point_z = (int) Math.round(path.lastPoint().z / z_spacing);
+		last_start_point_x = (int) Math.round(path.lastNode().x / x_spacing);
+		last_start_point_y = (int) Math.round(path.lastNode().y / y_spacing);
+		last_start_point_z = (int) Math.round(path.lastNode().z / z_spacing);
 		setTemporaryPath(null);
 		changeUIState(SNTUI.PARTIAL_PATH);
 		updateAllViewers();

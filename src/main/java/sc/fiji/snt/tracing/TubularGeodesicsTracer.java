@@ -31,6 +31,7 @@ import ij.IJ;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.SearchProgressCallback;
+import sc.fiji.snt.util.PointInImage;
 
 /**
  * A tracer thread for {@code FijiITKInterface.TubularGeodesics} (assumes the
@@ -85,11 +86,9 @@ public class TubularGeodesicsTracer extends Thread implements SearchInterface {
 
 		final Path realResult = new Path(x_spacing, y_spacing, z_spacing,
 			spacing_units);
-		realResult.createCircles();
 		for (int i = 0; i < numberOfPoints; ++i) {
 			final int start = i * 4;
-			realResult.addPointDouble(points[start], points[start + 1], points[start +
-				2]);
+			realResult.addNode(new PointInImage(points[start], points[start + 1], points[start + 2]));
 			realResult.setRadius(points[start + 3], i);
 			// System.out.println("point "+i+" is "+points[start]+",
 			// "+points[start+1]+", "+points[start+2]+", "+points[start+3]);

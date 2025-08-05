@@ -28,6 +28,7 @@ import ij.process.FloatProcessor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealRandomAccess;
 import net.imglib2.RealRandomAccessible;
+import sc.fiji.snt.util.PointInImage;
 import net.imglib2.converter.Converters;
 import net.imglib2.converter.RealFloatConverter;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
@@ -331,16 +332,12 @@ public class PathFitter implements Callable<Path> {
 	}
 
 	private String getScopeAsString() {
-		switch (fitScope) {
-			case RADII_AND_MIDPOINTS:
-				return "radii and midpoint refinement";
-			case RADII:
-				return "radii";
-			case MIDPOINTS:
-				return "midpoint refinement";
-			default:
-				return "Unrecognized option";
-		}
+        return switch (fitScope) {
+            case RADII_AND_MIDPOINTS -> "radii and midpoint refinement";
+            case RADII -> "radii";
+            case MIDPOINTS -> "midpoint refinement";
+            default -> "Unrecognized option";
+        };
 	}
 
 	private <T extends RealType<T>> void fitCircles() {
@@ -406,9 +403,10 @@ public class PathFitter implements Callable<Path> {
 
 			path.getTangent(i, pointsEitherSide, tangent);
 
-			final double x_world = path.precise_x_positions[i];
-			final double y_world = path.precise_y_positions[i];
-			final double z_world = path.precise_z_positions[i];
+			final PointInImage node = path.getNodeWithoutChecks(i);
+			final double x_world = node.x;
+			final double y_world = node.y;
+			final double z_world = node.z;
 
 			final double[] x_basis_in_plane = new double[3];
 			final double[] y_basis_in_plane = new double[3];
@@ -631,16 +629,16 @@ public class PathFitter implements Callable<Path> {
 				// Then if we're gone too far without a
 				// successfully optimized datapoint,
 				// add the original one:
-				final boolean goneTooFar = i -
-					lastValidIndex >= Path.noMoreThanOneEvery;
+				final boolean goneTooFar = i - lastValidIndex >= Path.DEFAULT_SAMPLING_INTERVAL;
 				boolean nextValid = false;
 				if (i < (totalPoints - 1) &&  (valid[i + 1])) nextValid = true;
 
 				if ((goneTooFar && !nextValid) || firstOrLast) {
 					valid[i] = true;
-					optimized_x[i] = path.precise_x_positions[i];
-					optimized_y[i] = path.precise_y_positions[i];
-					optimized_z[i] = path.precise_z_positions[i];
+					final PointInImage node = path.getNodeWithoutChecks(i);
+					optimized_x[i] = node.x;
+					optimized_y[i] = node.y;
+					optimized_z[i] = node.z;
 					rsUnscaled[i] = 1;
 					rs[i] = scaleInNormalPlane;
 					modeRadiiUnscaled[i] = 1;
@@ -675,17 +673,22 @@ public class PathFitter implements Callable<Path> {
 		int added = 0;
 		for (int i = 0; i < totalPoints; ++i) {
 			if (!valid[i]) continue;
-			fitted_optimized_x[added] = (fitPoints) ? optimized_x[i]
-				: path.precise_x_positions[i];
-			fitted_optimized_y[added] = (fitPoints) ? optimized_y[i]
-				: path.precise_y_positions[i];
-			fitted_optimized_z[added] = (fitPoints) ? optimized_z[i]
-				: path.precise_z_positions[i];
+			final Path.PathNode node = path.getNodeWithoutChecks(i);
+			fitted_optimized_x[added] = (fitPoints) ? optimized_x[i] : node.x;
+			fitted_optimized_y[added] = (fitPoints) ? optimized_y[i] : node.y;
+			fitted_optimized_z[added] = (fitPoints) ? optimized_z[i] : node.z;
 			if (outputRadii) {
-				fitted_ts_x[added] = (fitRadii) ? ts_x[i] : path.tangents_x[i];
-				fitted_ts_y[added] = (fitRadii) ? ts_y[i] : path.tangents_y[i];
-				fitted_ts_z[added] = (fitRadii) ? ts_z[i] : path.tangents_z[i];
-				fitted_rs[added] = (fitRadii) ? rs[i] : path.radii[i];
+				final double[] nodeTangent = node.getTangent();
+				if (nodeTangent != null) {
+					fitted_ts_x[added] = (fitRadii) ? ts_x[i] : nodeTangent[0];
+					fitted_ts_y[added] = (fitRadii) ? ts_y[i] : nodeTangent[1];
+					fitted_ts_z[added] = (fitRadii) ? ts_z[i] : nodeTangent[2];
+				} else {
+					fitted_ts_x[added] = (fitRadii) ? ts_x[i] : 0.0;
+					fitted_ts_y[added] = (fitRadii) ? ts_y[i] : 0.0;
+					fitted_ts_z[added] = (fitRadii) ? ts_z[i] : 1.0;
+				}
+				fitted_rs[added] = (fitRadii) ? rs[i] : node.getRadius();
 			}
 			++added;
 		}
