@@ -375,6 +375,29 @@ public class ImpUtils {
 		}
 	}
 
+	/**
+	 * Checks if a given point (in image coordinates) is currently visible in an image
+	 *
+	 * @param imp the ImagePlus to check
+	 * @param x the x coordinate in image pixels
+	 * @param y the y coordinate in image pixels
+	 * @return true if the point is visible in the current view, false otherwise
+	 */
+	public static boolean isPointVisible(final ImagePlus imp, final int x, final int y) {
+		final ImageCanvas canvas = imp.getCanvas();
+		if (canvas == null) return false;
+		// Get the current view bounds in image coordinates. Check if the point is within the visible rectangle
+		return canvas.getSrcRect().contains(x, y);
+	}
+
+	public static double nextZoomLevel(final double level) {
+		return ImageCanvas.getHigherZoomLevel(level);
+	}
+
+	public static double previousZoomLevel(final double level) {
+		return ImageCanvas.getLowerZoomLevel(level);
+	}
+
 	public static String imageTypeToString(final int type) {
 		return switch (type) {
 			case ImagePlus.GRAY8 -> "GRAY8 (8-bit grayscale (unsigned))";
