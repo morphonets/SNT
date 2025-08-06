@@ -155,7 +155,10 @@ def computeAngleBetweenPoints(point1, point2) {
     def path = new Path()
     path.addNode(point1)
     path.addNode(point2)
-    return path.getExtensionAngleFromVertical()
+    if (path.is3D())
+    	return path.getExtensionAngleFromVertical()
+	else
+		return path.getExtensionAngleFromHorizontal();
 }
 
 /**

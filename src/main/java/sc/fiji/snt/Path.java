@@ -776,6 +776,16 @@ public class Path implements Comparable<Path> {
 		return getExtensionAngle3D(new Vector3d(0, 0, 1));
 	}
 
+	/**
+	 * Returns the angle between the path's 3D direction and the horizontal axis.
+	 *
+	 * @return angle from horizontal in degrees (09° = vertical, 0° = horizontal),
+	 *         or Double.NaN if path has only one point.
+	 */
+	public double getExtensionAngleFromHorizontal() {
+		return getExtensionAngle3D(new Vector3d(1, 0, 0)); // Use positive X as horizontal reference
+	}
+
 	protected String getRealLengthString() {
 		return String.format(Locale.US, "%.3f", getLength()); // see https://github.com/morphonets/SNT/issues/147
 	}
