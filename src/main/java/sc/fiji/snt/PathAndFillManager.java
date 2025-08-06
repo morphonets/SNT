@@ -115,7 +115,6 @@ public class PathAndFillManager extends DefaultHandler implements
 	private final ArrayList<Path> allPaths;
 	private final Map<Integer, Path> pathIdMap;
 	private final Map<String, Path> pathNameMap;
-	private final Map<String, Path> pathNameLowercaseMap;
 	private final ArrayList<Fill> allFills;
 	private final Map<Fill, FillerThread> loadedFills;
 	private final ArrayList<PathAndFillListener> listeners;
@@ -156,7 +155,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		allPaths = new ArrayList<>();
 		pathIdMap = new HashMap<>();
 		pathNameMap = new HashMap<>();
-		pathNameLowercaseMap = new HashMap<>();
 		allFills = new ArrayList<>();
 		loadedFills = new HashMap<>();
 		listeners = new ArrayList<>();
@@ -336,10 +334,17 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param caseSensitive If true, case considerations are ignored
 	 * @return the Path with the specified name, or null if name was not found.
 	 */
-	public synchronized Path getPathFromName(final String name,
-		final boolean caseSensitive)
-	{
-		return caseSensitive ? pathNameMap.get(name) : pathNameLowercaseMap.get(name.toLowerCase(Locale.ROOT));
+	public synchronized Path getPathFromName(final String name, final boolean caseSensitive) {
+		if (caseSensitive) {
+			return pathNameMap.get(name);  // O(1) lookup for common case
+		} else {
+			// O(n) search for rare case-insensitive lookups
+			for (final Path p : allPaths) {
+				if (p.getName().equalsIgnoreCase(name))
+					return p;
+			}
+			return null;
+		}
 	}
 
 	protected synchronized Path getPathFrom3DViewerName(final String name) {
@@ -986,7 +991,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final String originalName = p.getName();
 		String candidateName = originalName;
 		int numberSuffix = 2;
-		while (getPathFromName(candidateName, false) != null) {
+		while (getPathFromName(candidateName, true) != null) {
 			candidateName = originalName + " (" + numberSuffix + ")";
 			++numberSuffix;
 		}
@@ -1002,7 +1007,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		allPaths.add(p);
 		pathIdMap.put(p.getID(), p);
 		pathNameMap.put(p.getName(), p);
-		pathNameLowercaseMap.put(p.getName().toLowerCase(Locale.ROOT), p);
 		p.addChangeListener(this);
 		resetListenersAfterDataChangingOperation(p);
 	}
@@ -1024,7 +1028,8 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return true, if index is valid and Path was successfully deleted
 	 */
 	public synchronized boolean deletePath(final int index) {
-		return deletePath(index, enableUIupdates);
+		if (index < 0 || index >= allPaths.size()) return false;
+		return deletePathInternal(allPaths.get(index), enableUIupdates);
 	}
 
 	/**
@@ -1034,9 +1039,7 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @return true, if path was found and successfully deleted
 	 */
 	public synchronized boolean deletePath(final Path p) {
-		final int i = getPathIndex(p);
-		if (i < 0) return false;
-		return deletePath(i);
+		return deletePathInternal(p, enableUIupdates);
 	}
 
 	/**
@@ -1048,63 +1051,57 @@ public class PathAndFillManager extends DefaultHandler implements
 	 *         deleted
 	 */
 	public synchronized boolean deletePaths(final Collection<Path> paths) {
-		final ArrayList<Integer> indices = new ArrayList<>(paths.size());
+		if (paths == null || paths.isEmpty()) return true;
+		
+		enableUIupdates = false;
+		boolean allDeleted = true;
+		
 		for (final Path path : paths) {
-			final int index = getPathIndex(path);
-			if (index != -1) indices.add(index);
+			if (!deletePathInternal(path, false)) {
+				allDeleted = false;
+			}
 		}
-		deletePaths(indices.stream().mapToInt(i->i).toArray());
-		return indices.size() == paths.size();
+		
+		enableUIupdates = true;
+		resetListenersAfterDataChangingOperation(null);
+		return allDeleted;
 	}
 
 	/**
-	 * Gets the index of a Path.
-	 *
-	 * @param p the Path for which the index should be retrieved
-	 * @return the path index, or -1 if p was not found
+	 * Core object-based path deletion method. All deletion operations funnel through this method.
+	 * 
+	 * @param pathToDelete the Path object to delete
+	 * @param updateInterface whether to update the UI after deletion
+	 * @return true if the path was successfully deleted
 	 */
-	public synchronized int getPathIndex(final Path p) {
-		for (int i = 0; i < allPaths.size(); ++i) {
-			if (p == allPaths.get(i)) return i;
-		}
-		return -1;
-	}
-
-	private synchronized boolean deletePath(final int index,
-		final boolean updateInterface)
-	{
-
-		final Path originalPathToDelete = allPaths.get(index);
-
-
+	private synchronized boolean deletePathInternal(final Path pathToDelete, final boolean updateInterface) {
+		if (pathToDelete == null) return false;
 		Path unfittedPathToDelete = null;
 		Path fittedPathToDelete = null;
-
-		if (originalPathToDelete.fittedVersionOf == null) {
-			unfittedPathToDelete = originalPathToDelete;
-			fittedPathToDelete = originalPathToDelete.getFitted();
+		if (pathToDelete.fittedVersionOf == null) {
+			unfittedPathToDelete = pathToDelete;
+			fittedPathToDelete = pathToDelete.getFitted();
 		}
 		else {
-			unfittedPathToDelete = originalPathToDelete.fittedVersionOf;
-			fittedPathToDelete = originalPathToDelete;
+			unfittedPathToDelete = pathToDelete.fittedVersionOf;
+			fittedPathToDelete = pathToDelete;
 		}
-
+		// Direct object removal
 		boolean removed = allPaths.remove(unfittedPathToDelete);
 		pathIdMap.remove(unfittedPathToDelete.getID());
 		pathNameMap.remove(unfittedPathToDelete.getName());
-		pathNameLowercaseMap.remove(unfittedPathToDelete.getName().toLowerCase(Locale.ROOT));
 		unfittedPathToDelete.removeChangeListener(this);
+		
 		if (fittedPathToDelete != null) {
 			removed = removed || allPaths.remove(fittedPathToDelete);
 			pathIdMap.remove(fittedPathToDelete.getID());
 			pathNameMap.remove(fittedPathToDelete.getName());
-			pathNameLowercaseMap.remove(fittedPathToDelete.getName().toLowerCase(Locale.ROOT));
 			fittedPathToDelete.removeChangeListener(this);
 		}
+		
 		if (removed) unsavedPaths = true;
 
-		// We don't just delete; have to fix up the references
-		// in other paths (for start and end joins):
+		// Fix up references in other paths (for start and end joins)
 		for (final Path p : unfittedPathToDelete.somehowJoins) {
 			if (p.getStartJoins() == unfittedPathToDelete) {
 				p.startJoins = null;
@@ -1118,8 +1115,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (plugin != null && plugin.use3DViewer) {
 			if (fittedPathToDelete != null && fittedPathToDelete.content3D != null)
 				fittedPathToDelete.removeFrom3DViewer(plugin.univ);
-			if (unfittedPathToDelete.content3D != null) unfittedPathToDelete
-				.removeFrom3DViewer(plugin.univ);
+			if (unfittedPathToDelete.content3D != null) 
+				unfittedPathToDelete.removeFrom3DViewer(plugin.univ);
 		}
 
 		if (updateInterface) resetListenersAfterDataChangingOperation(null);
@@ -1132,13 +1129,15 @@ public class PathAndFillManager extends DefaultHandler implements
 	 * @param indices the indices to be deleted
 	 */
 	public void deletePaths(final int[] indices) {
-		Arrays.sort(indices);
-		enableUIupdates = false;
-		for (int i = indices.length - 1; i >= 0; --i) {
-			deletePath(indices[i], false);
+		if (indices == null || indices.length == 0) return;
+		// Convert indices to paths first, then use object-based deletion
+		final List<Path> pathsToDelete = new ArrayList<>();
+		for (final int index : indices) {
+			if (index >= 0 && index < allPaths.size()) {
+				pathsToDelete.add(allPaths.get(index));
+			}
 		}
-		enableUIupdates = true;
-		resetListenersAfterDataChangingOperation(null);
+		deletePaths(pathsToDelete);
 	}
 
 	protected void addFill(final Fill fill) {
@@ -1808,7 +1807,6 @@ public class PathAndFillManager extends DefaultHandler implements
 				allPaths.add(current_path);
 				pathIdMap.put(current_path.getID(), current_path);
 				pathNameMap.put(current_path.getName(), current_path);
-				pathNameLowercaseMap.put(current_path.getName().toLowerCase(Locale.ROOT), current_path);
 				current_path.addChangeListener(this);
 
 				break;
@@ -1854,12 +1852,10 @@ public class PathAndFillManager extends DefaultHandler implements
 						allPaths.remove(p);
 						pathIdMap.remove(p.getID(), p);
 						pathNameMap.remove(p.getName(), p);
-						pathNameLowercaseMap.remove(p.getName().toLowerCase(Locale.ROOT), p);
 
 						allPaths.add(pReversed);
 						pathIdMap.put(pReversed.getID(), pReversed);
 						pathNameMap.put(pReversed.getName(), pReversed);
-						pathNameLowercaseMap.put(pReversed.getName().toLowerCase(Locale.ROOT), pReversed);
 
 						pReversed.setStartJoin(endPath, endJoinPoint);
 
@@ -1914,7 +1910,6 @@ public class PathAndFillManager extends DefaultHandler implements
 						itr.remove();
 						pathIdMap.remove(p.getID(), p);
 						pathNameMap.remove(p.getName(), p);
-						pathNameLowercaseMap.remove(p.getName().toLowerCase(Locale.ROOT), p);
 					}
 				}
 
@@ -2218,7 +2213,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		allPaths.clear();
 		pathIdMap.clear();
 		pathNameMap.clear();
-		pathNameLowercaseMap.clear();
 		selectedPathsSet.clear();
 		allFills.clear();
 		loadedFills.clear();
@@ -3494,12 +3488,6 @@ public class PathAndFillManager extends DefaultHandler implements
 				{
 					pathNameMap.remove(oldName);
 					pathNameMap.put(newName, p);
-				}
-				p = pathNameLowercaseMap.get(oldName.toLowerCase(Locale.ROOT));
-				if (p == path)
-				{
-					pathNameLowercaseMap.remove(oldName.toLowerCase(Locale.ROOT));
-					pathNameLowercaseMap.put(newName, p);
 				}
 				break;
 			}
