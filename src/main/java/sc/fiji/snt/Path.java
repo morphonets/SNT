@@ -1590,15 +1590,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void addPointDouble(final double x, final double y, final double z) {
-		//addNode(new PointInImage(x, y, z));
-		if (points >= maxPoints) {
-			final int newReserved = (int) (maxPoints *1.2 + 1);
-			expandTo(newReserved);
-		}
-		precise_x_positions[points] = x;
-		precise_y_positions[points] = y;
-		precise_z_positions[points++] = z;
-
+		addNode(new PointInImage(x, y, z));
 	}
 
 	public void drawPathAsPoints(final TracerCanvas canvas, final Graphics2D g,
