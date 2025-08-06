@@ -775,7 +775,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 						tracerPlugin.last_start_point_y * tracerPlugin.y_spacing,
 						tracerPlugin.last_start_point_z * tracerPlugin.z_spacing);
 				p.onPath = currentPath;
-				final PathNode pn = new PathNode(p, 0, this);
+				final PathNodeCanvas pn = new PathNodeCanvas(p, 0, this);
 				pn.setSize(spotDiameter);
 				pn.draw(g, getUnconfirmedPathColor());
 			}
@@ -1232,16 +1232,17 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final Path editingPath = tracerPlugin.getEditingPath();
 		final int editingNode = editingPath.getEditableNodeIndex();
 		final PointInCanvas offset = editingPath.getCanvasOffset();
+		final PointInImage currentNode = editingPath.getNodeWithoutChecks(editingNode);
 		double newZ = switch (plane) {
             case MultiDThreePanes.XY_PLANE -> (imp.getZ() - 1 - offset.z) * tracerPlugin.z_spacing;
             case MultiDThreePanes.XZ_PLANE -> (last_y_in_pane_precise - offset.y) * tracerPlugin.y_spacing;
             case MultiDThreePanes.ZY_PLANE -> (last_x_in_pane_precise - offset.x) * tracerPlugin.x_spacing;
-            default -> editingPath.precise_z_positions[editingNode];
+            default -> currentNode.z;
         };
         try {
 			editingPath.moveNode(editingNode, new PointInImage(
-				editingPath.precise_x_positions[editingNode],
-				editingPath.precise_y_positions[editingNode], newZ));
+				currentNode.x,
+				currentNode.y, newZ));
 			redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
 		}
 		catch (final IllegalArgumentException exc) {

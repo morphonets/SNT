@@ -749,7 +749,8 @@ public class Tree implements TreeProperties {
 		tree.forEach(p -> {
 			if (p.hasRadii()) {
 				for (int node = 0; node < p.size(); node++) {
-					p.radii[node] *= radiusScale;
+					final double currentRadius = p.getNodeRadius(node);
+					p.setNodeRadius(currentRadius * radiusScale, node);
 				}
 			}
 		});

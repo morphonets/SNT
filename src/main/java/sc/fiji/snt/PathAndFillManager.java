@@ -700,11 +700,42 @@ public class PathAndFillManager extends DefaultHandler implements
 		return primaryPaths.toArray(new Path[] {});
 	}
 
-	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths)
-			throws SWCExportException
-	{
+	/**
+	 * Represents a junction point identified purely by spatial location,
+	 * ignoring path membership and other attributes.
+	 */
+	static class JunctionPoint {
+		public final double x, y, z;
+
+		public JunctionPoint(final PointInImage point) {
+			this.x = point.x;
+			this.y = point.y;
+			this.z = point.z;
+		}
+
+		@Override
+		public boolean equals(Object o) {
+			if (this == o) return true;
+			if (!(o instanceof JunctionPoint other)) return false;
+			return Double.compare(x, other.x) == 0 && 
+				   Double.compare(y, other.y) == 0 && 
+				   Double.compare(z, other.z) == 0;
+		}
+		
+		@Override
+		public int hashCode() {
+			return Objects.hash(x, y, z);
+		}
+		
+		@Override
+		public String toString() {
+			return String.format("JunctionPoint(%.3f, %.3f, %.3f)", x, y, z);
+		}
+	}
+
+	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths) throws SWCExportException {
 		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
-		final Set<PointInImage> joinPointSet = new HashSet<>();
+		final Set<JunctionPoint> joinPointSet = new HashSet<>();
 		final Set<Path> primaryPaths = new HashSet<>();
 		for (final Path path : paths) {
 			final Path startJoins = path.getStartJoins();
@@ -712,12 +743,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				primaryPaths.add(path);
 				continue;
 			}
-			// HACK: this will let us find the SWCPoint id of the startJoinsPoint later
-			// PointInImage equality depends on both xyz location and onPath
-			// clone the point so we don't change the onPath property of the input startJoinsPoint
-			final PointInImage startJoinsPoint = path.getStartJoinsPoint().clone();
-			startJoinsPoint.onPath = startJoins;
-			joinPointSet.add(startJoinsPoint);
+			// Collect junction points for later ID mapping
+			final PointInImage startJoinsPoint = path.getStartJoinsPoint();
+			joinPointSet.add(new JunctionPoint(startJoinsPoint));
 			pathChildrenMap.putIfAbsent(startJoins, new ArrayList<>());
 			pathChildrenMap.get(startJoins).add(path);
 		}
@@ -731,7 +759,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		int swcPointId = 1;
 		final Set<Path> pathsAlreadyDone = new HashSet<>();
 		final List<SWCPoint> result = new ArrayList<>();
-		final Map<PointInImage, Integer> joinPointIdMap = new HashMap<>();
+		final Map<JunctionPoint, Integer> joinPointIdMap = new HashMap<>();
 		final Deque<Path> pathStack = new ArrayDeque<>();
 		pathStack.push(primaryPaths.iterator().next());
 		while (!pathStack.isEmpty()) {
@@ -742,20 +770,24 @@ public class PathAndFillManager extends DefaultHandler implements
 			final String pathTags = PathManagerUI.extractTagsFromPath(path);
 			final boolean hasNodeValues = path.hasNodeValues();
 			for (int i = 0; i < path.size(); ++i) {
-				final PointInImage pim = path.getNode(i);
-				// This is where our hack comes into play
-				if (joinPointSet.contains(pim)) {
-					joinPointIdMap.put(pim, swcPointId);
+				final PointInImage currentNode = path.getNode(i);
+				final JunctionPoint junctionPoint = new JunctionPoint(currentNode);
+				// Check if this node is a junction point and store its ID
+				if (joinPointSet.contains(junctionPoint)) {
+					joinPointIdMap.put(junctionPoint, swcPointId);
 				}
 				int parentId;
 				if (i == 0) {
 					if (path.getStartJoins() == null) {
 						parentId = -1;
 					} else {
-						// HACK so that equality comparisons work
-						final PointInImage startJoinsPoint = path.getStartJoinsPoint().clone();
-						startJoinsPoint.onPath = path.getStartJoins();
-						parentId = joinPointIdMap.get(startJoinsPoint);
+						// Find the parent ID by looking up the start junction point
+						final JunctionPoint startJunctionPoint = new JunctionPoint(path.getStartJoinsPoint());
+						final Integer parentIdValue = joinPointIdMap.get(startJunctionPoint);
+						if (parentIdValue == null) {
+							throw new SWCExportException("Could not find parent ID for junction point at " + startJunctionPoint);
+						}
+						parentId = parentIdValue;
 					}
 				} else {
 					parentId = swcPointId - 1;
@@ -763,9 +795,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				final SWCPoint swcPoint = new SWCPoint(
 						swcPointId,
 						path.getSWCType(),
-						pim.getX(),
-						pim.getY(),
-						pim.getZ(),
+						currentNode.getX(),
+						currentNode.getY(),
+						currentNode.getZ(),
 						path.getNodeRadius(i),
 						parentId);
 				swcPoint.setPath(path);
@@ -785,8 +817,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			pathsAlreadyDone.add(path);
 		}
 
-		// Now check that all selectedPaths are in pathsAlreadyDone, otherwise
-		// give an error:
+		// Now check that all selectedPaths are in pathsAlreadyDone, otherwise give an error:
 		Path disconnectedExample = null;
 		int selectedAndNotConnected = 0;
 		for (final Path selectedPath : paths) {
@@ -1301,16 +1332,20 @@ public class PathAndFillManager extends DefaultHandler implements
 			final int px = p.getXUnscaled(i);
 			final int py = p.getYUnscaled(i);
 			final int pz = p.getZUnscaled(i);
-			final double pxd = p.precise_x_positions[i];
-			final double pyd = p.precise_y_positions[i];
-			final double pzd = p.precise_z_positions[i];
+			final PointInImage node = p.getNodeWithoutChecks(i);
+			final double pxd = node.x;
+			final double pyd = node.y;
+			final double pzd = node.z;
 			String attributes = "x=\"" + px + "\" " + "y=\"" + py + "\" z=\"" + pz + "\" " + "xd=\"" + pxd + "\" yd=\""
 					+ pyd + "\" zd=\"" + pzd + "\"";
 			if (p.hasRadii()) {
-				attributes += " tx=\"" + p.tangents_x[i] + "\"";
-				attributes += " ty=\"" + p.tangents_y[i] + "\"";
-				attributes += " tz=\"" + p.tangents_z[i] + "\"";
-				attributes += " r=\"" + p.radii[i] + "\"";
+				final double[] tangent = p.getNodeTangent(i);
+				if (tangent != null) {
+					attributes += " tx=\"" + tangent[0] + "\"";
+					attributes += " ty=\"" + tangent[1] + "\"";
+					attributes += " tz=\"" + tangent[2] + "\"";
+				}
+				attributes += " r=\"" + p.getNodeRadius(i) + "\"";
 				if (p.hasNodeValues())
 					attributes += " v=\"" + p.getNodeValue(i)  + "\"";
 
@@ -1607,16 +1642,17 @@ public class PathAndFillManager extends DefaultHandler implements
 
 					if (radiusString != null && tXString != null && tYString != null &&
 							tZString != null) {
-						if (lastIndex == 0)
-							// Then we've just started, create the arrays in Path:
-							current_path.createCircles();
-						else if (!current_path.hasRadii())
+						if (lastIndex > 0 && !current_path.hasRadii())
 							throw new TracesFileFormatException("The point at index " +
 									lastIndex + " had a fitted circle, but none previously did");
-						current_path.tangents_x[lastIndex] = Double.parseDouble(tXString);
-						current_path.tangents_y[lastIndex] = Double.parseDouble(tYString);
-						current_path.tangents_z[lastIndex] = Double.parseDouble(tZString);
-						current_path.radii[lastIndex] = Double.parseDouble(radiusString);
+						
+						// Set radius and tangents for the current node
+						final double radius = Double.parseDouble(radiusString);
+						current_path.setNodeRadius(radius, lastIndex);
+						final double tx = Double.parseDouble(tXString);
+						final double ty = Double.parseDouble(tYString);
+						final double tz = Double.parseDouble(tZString);
+						current_path.setNodeTangent(new double[]{tx, ty, tz}, lastIndex);
 					} else if (radiusString != null || tXString != null || tYString != null ||
 							tZString != null) throw new TracesFileFormatException(
 							"If one of the r, tx, ty or tz attributes to the point element is specified, they all must be");
@@ -3116,7 +3152,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		final PriorityQueue<NearPoint> pq = new PriorityQueue<>();
 
 		for (final Path path : paths) {
-			if (!path.versionInUse()) continue;
+			if (!path.isActiveVersion()) continue;
 			for (int j = 0; j < path.size(); ++j) {
 				pq.add(new NearPoint(pim, path, j, unScaledPositions));
 			}
@@ -3518,7 +3554,7 @@ public class PathAndFillManager extends DefaultHandler implements
 				int tmpPathIndex = currentPathIndex + 1;
 				while (tmpPathIndex < numberOfPaths) {
 					final Path p = allPaths.get(tmpPathIndex);
-					if (p.size() > 0 && p.versionInUse()) return true;
+					if (p.size() > 0 && p.isActiveVersion()) return true;
 					++tmpPathIndex;
 				}
 				return false;
@@ -3543,7 +3579,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					if (currentPathIndex == numberOfPaths)
 						throw new java.util.NoSuchElementException();
 					currentPath = allPaths.get(currentPathIndex);
-				} while (currentPath.size() <= 0 || !currentPath.versionInUse());
+				} while (currentPath.size() <= 0 || !currentPath.isActiveVersion());
 			}
 			else++currentPointIndex;
 			return currentPath.getNodeWithoutChecks(currentPointIndex);

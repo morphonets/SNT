@@ -28,11 +28,9 @@ import ij3d.Content;
 import ij3d.Image3DUniverse;
 import ij3d.Pipe;
 import ij3d.Utils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.math3.analysis.interpolation.LinearInterpolator;
 import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
 import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
-import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.apache.commons.math3.util.MathUtils;
 import org.scijava.util.ColorRGB;
@@ -50,7 +48,6 @@ import java.awt.*;
 import java.util.List;
 import java.util.function.DoublePredicate;
 import java.util.*;
-import java.util.stream.DoubleStream;
 
 /**
  * This class represents a traced segment (i.e., a <i>Path</i>) in a
@@ -74,7 +71,6 @@ public class Path implements Comparable<Path> {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	// https://swc-specification.readthedocs.io/en/latest/
-	
 	/** SWC type flag specifying {@value #SWC_UNDEFINED_LABEL} */
 	public static final int SWC_UNDEFINED = 0;
 	/** SWC type flag specifying {@value #SWC_SOMA_LABEL} */
@@ -120,27 +116,98 @@ public class Path implements Comparable<Path> {
 	/** String representation of {@link Path#SWC_CUSTOM2} */
 	public static final String SWC_CUSTOM2_LABEL = "custom (2)";
 
-	// FIXME: this should be based on distance between points in the path, not a static number:
-	protected static final int noMoreThanOneEvery = 2;
+	// Default sampling interval for 3D visualization - can be overridden based on path characteristics
+	protected static final int DEFAULT_SAMPLING_INTERVAL = 2;
+	
+	/**
+	 * @deprecated Use {@link #DEFAULT_SAMPLING_INTERVAL} instead
+	 */
+	@Deprecated
+	protected static final int noMoreThanOneEvery = DEFAULT_SAMPLING_INTERVAL;
+	
+	/**
+	 * Calculates an appropriate sampling interval for 3D visualization based on path characteristics.
+	 * Uses path length and node density to determine optimal sampling.
+	 * 
+	 * @return the recommended sampling interval
+	 */
+	 private int calculateSamplingInterval() {
+		if (size() <= DEFAULT_SAMPLING_INTERVAL) return 1;
+		// For short paths, use minimal sampling
+		if (size() <= 10) return 1;
+		// For longer paths, calculate based on average inter-node distance
+		final double avgDistance = getLength() / (size() - 1);
+		final double minSpacing = getMinimumSeparation();
+		// If nodes are very close together, increase sampling interval
+		if (avgDistance < minSpacing * 2) {
+			return Math.min(size() / 10, 5); // Max interval of 5
+		}
+		return DEFAULT_SAMPLING_INTERVAL;
+	}
+
+	/**
+	 * Enhanced PointInImage that stores all node-specific properties.
+	 * This eliminates the need for parallel arrays and provides better
+	 * memory efficiency and data encapsulation.
+	 */
+	public static class PathNode extends PointInImage {
+		
+		private Color nodeColor;
+		private double radius = 0.0;
+		private double[] tangent; // [x, y, z]
+		
+		public PathNode(final double x, final double y, final double z) {
+			super(x, y, z);
+		}
+		
+		public PathNode(final SNTPoint point) {
+			super(point.getX(), point.getY(), point.getZ());
+			if (point instanceof PointInImage pim) {
+                this.v = pim.v;
+				this.setAnnotation(pim.getAnnotation());
+				this.setHemisphere(pim.getHemisphere());
+			}
+			if (point instanceof SWCPoint) {
+				this.radius = ((SWCPoint) point).radius;
+			}
+		}
+		
+		// Node color management
+		public Color getNodeColor() { return nodeColor; }
+		public boolean hasNodeColor() { return nodeColor != null; }
+		public void setNodeColor(final Color color) { this.nodeColor = color; }
+
+		// Radius management
+		public double getRadius() { return radius; }
+		public boolean hasRadius() { return radius > 0; }
+		public void setRadius(final double radius) { this.radius = radius; }
+
+		// Tangent management
+		public double[] getTangent() { return tangent; }
+		public boolean hasTangent() { return tangent != null; }
+		public void setTangent(final double[] tangent) { this.tangent = tangent; }
+		public void setTangent(final double tx, final double ty, final double tz) {
+			this.tangent = new double[]{tx, ty, tz};
+		}
+		
+		@Override
+		public PathNode clone() {
+			// Create new PathNode and copy all fields from parent class
+			final PathNode clone = new PathNode(x, y, z);
+			clone.v = this.v;
+			clone.setAnnotation(this.getAnnotation());
+			clone.setHemisphere(this.getHemisphere());
+			clone.onPath = this.onPath;
+			clone.nodeColor = this.nodeColor;
+			clone.radius = this.radius;
+			clone.tangent = this.tangent != null ? this.tangent.clone() : null;
+			return clone;
+		}
+	}
 
 	/* Path properties */
-	// n. of nodes
-	private int points;
-	// node coordinates
-	protected double[] precise_x_positions;
-	protected double[] precise_y_positions;
-	protected double[] precise_z_positions;
-	// radii and tangents
-	protected double[] radii;
-	protected double[] tangents_x;
-	protected double[] tangents_y;
-	protected double[] tangents_z;
-	// numeric properties of nodes (e.g., pixel intensities)
-	private double[] nodeValues;
-	// BrainAnnotations associated with this node;
-	private BrainAnnotation[] nodeAnnotations;
-	// Hemisphere flags associated with this node;
-	private char[] nodeHemisphereFlags;
+	// Single collection of enhanced nodes (replaces all parallel arrays previous to SNTv5)
+	private final List<PathNode> nodes;
 	/*
 	 * Path identifiers: this Path's id is stored in (lower) bits 15-0. Tree id in
 	 * the (upper) bits 31-16. NB: should only be assigned by PathAndFillManager.
@@ -150,7 +217,7 @@ public class Path implements Comparable<Path> {
 	private long id = -1L;
 	private String treeLabel;
 
-	// NB: The leagacy 3D viewer requires always a unique name
+	// NB: The legacy 3D viewer requires always a unique name
 	private String name;
 	// Path based ordering akin of reverse Horton-Strahler numbers
 	private int order = 1;
@@ -197,17 +264,12 @@ public class Path implements Comparable<Path> {
 	// If this path is a fitted version of another one, this is the original
 	protected Path fittedVersionOf;
 
-	/* Color definitions */
+	/* General color definitions (in addition to node colors) */
 	private Color color;
 	private Color3f realColor;
 	private boolean hasCustomColor;
-	private Color[] nodeColors;
-
-	/* Internal fields */
-	private int maxPoints;
 
 	private final List<PathChangeListener> changeListeners;
-
 
 	/**
 	 * Instantiates a new path under default settings (isotropic 1um pixel spacing)
@@ -222,27 +284,15 @@ public class Path implements Comparable<Path> {
 	 * @param x_spacing Pixel width in spacing_units
 	 * @param y_spacing Pixel height in spacing_units
 	 * @param z_spacing Pixel depth in spacing_units
-	 * @param spacing_units the length unit in physical world units (typically
-	 *          "um").
+	 * @param spacing_units the length unit in physical world units (typically "um").
 	 */
 	public Path(final double x_spacing, final double y_spacing,
-		final double z_spacing, final String spacing_units)
-	{
-		this(x_spacing, y_spacing, z_spacing, spacing_units, 128);
-	}
-
-	Path(final double x_spacing, final double y_spacing, final double z_spacing,
-		final String spacing_units, final int reserve)
-	{
+		final double z_spacing, final String spacing_units) {
 		this.x_spacing = x_spacing;
 		this.y_spacing = y_spacing;
 		this.z_spacing = z_spacing;
 		this.spacing_units = SNTUtils.getSanitizedUnit(spacing_units);
-		points = 0;
-		maxPoints = reserve;
-		precise_x_positions = new double[maxPoints];
-		precise_y_positions = new double[maxPoints];
-		precise_z_positions = new double[maxPoints];
+		this.nodes = new ArrayList<>();
 		somehowJoins = new ArrayList<>();
 		children = new ArrayList<>();
 		ctPosition = new int[] {1, 1};
@@ -322,8 +372,21 @@ public class Path implements Comparable<Path> {
 		return startJoins;
 	}
 
-	public PointInImage getStartJoinsPoint() { // TODO: this should be renamed?
+	/**
+	 * Gets the junction point where this path starts (connects to its parent path).
+	 * 
+	 * @return the start junction point, or null if this is a primary path
+	 */
+	public PointInImage getJunctionNode() {
 		return startJoinsPoint;
+	}
+	
+	/**
+	 * @deprecated Use {@link #getJunctionNode()} instead
+	 */
+	@Deprecated
+	public PointInImage getStartJoinsPoint() {
+		return getJunctionNode();
 	}
 
 	/**
@@ -429,7 +492,7 @@ public class Path implements Comparable<Path> {
 		for (final double eucDist : eucDists) {
 			denominator += Math.log(1 + eucDist) * Math.log(1 + eucDist);
 		}
-		return (double) numerator / denominator;
+		return numerator / denominator;
 	}
 
 	/**
@@ -438,12 +501,17 @@ public class Path implements Comparable<Path> {
 	 * @return the length of this Path
 	 */
 	public double getLength() {
+		if (nodes.size() < 2) return 0;
+		
 		double totalLength = 0;
-		for (int i = 1; i < points; ++i) {
-			final double xdiff = precise_x_positions[i] - precise_x_positions[i - 1];
-			final double ydiff = precise_y_positions[i] - precise_y_positions[i - 1];
-			final double zdiff = precise_z_positions[i] - precise_z_positions[i - 1];
+		PathNode prevNode = nodes.get(0);
+		for (int i = 1; i < nodes.size(); ++i) {
+			final PathNode currentNode = nodes.get(i);
+			final double xdiff = currentNode.x - prevNode.x;
+			final double ydiff = currentNode.y - prevNode.y;
+			final double zdiff = currentNode.z - prevNode.z;
 			totalLength += Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
+			prevNode = currentNode;
 		}
 		return totalLength;
 	}
@@ -769,11 +837,10 @@ public class Path implements Comparable<Path> {
 	 * Returns the angle between the path's 3D direction and the vertical axis.
 	 *
 	 * @return angle from vertical in degrees (0° = vertical, 90° = horizontal), 
-	 *         or Double.NaN if path has only one point
+	 *         or Double.NaN if path has only one point, or 90° if path is 2D
 	 */
 	public double getExtensionAngleFromVertical() {
-		// Use positive Z as vertical reference
-		return getExtensionAngle3D(new Vector3d(0, 0, 1));
+		return getExtensionAngle3D(new Vector3d(0, 0, 1)); // Use positive Z as vertical reference
 	}
 
 	/**
@@ -790,18 +857,12 @@ public class Path implements Comparable<Path> {
 		return String.format(Locale.US, "%.3f", getLength()); // see https://github.com/morphonets/SNT/issues/147
 	}
 
+	/**
+	 * @deprecated No longer needed - radii and tangents are now stored per-node
+	 */
+	@Deprecated
 	public void createCircles() {
-//		if (tangents_x != null || tangents_y != null || tangents_z != null ||
-//			radii != null) throw new IllegalArgumentException(
-//				"Trying to create circles data arrays when at least one is already there");
-		if (tangents_x == null)
-			tangents_x = new double[maxPoints];
-		if (tangents_y == null)
-			tangents_y = new double[maxPoints];
-		if (tangents_z == null)
-			tangents_z = new double[maxPoints];
-		if (radii == null)
-			radii = new double[maxPoints];
+		// No-op in new design - radii and tangents are stored per-node as needed
 	}
 
 	protected void setIsPrimary(final boolean primary) {
@@ -872,21 +933,20 @@ public class Path implements Comparable<Path> {
 		if (fitted == null) {
 			throw new IllegalArgumentException("assignFittedNodes() called but path has no fitted flavor");
 		}
-		points = fitted.points;
-		precise_x_positions = fitted.precise_x_positions.clone();
-		precise_y_positions = fitted.precise_y_positions.clone();
-		precise_z_positions = fitted.precise_z_positions.clone();
-		if (fitted.radii != null) radii = fitted.radii.clone();
-		if (fitted.tangents_x != null) tangents_x = fitted.tangents_x.clone();
-		if (fitted.tangents_y != null) tangents_y = fitted.tangents_y.clone();
-		if (fitted.tangents_z != null) tangents_z = fitted.tangents_z.clone();
-		if (fitted.nodeValues != null) nodeValues = fitted.nodeValues.clone();
-		if (fitted.nodeAnnotations != null) nodeAnnotations = fitted.nodeAnnotations.clone();
-		if (fitted.nodeHemisphereFlags != null) nodeHemisphereFlags = fitted.nodeHemisphereFlags.clone();
-		setNodeColors(fitted.getNodeColors());
+		
+		// Clear current nodes and copy from fitted version
+		nodes.clear();
+		for (int i = 0; i < fitted.size(); i++) {
+			PathNode fittedNode = fitted.getNodeWithoutChecks(i);
+			PathNode newNode = fittedNode.clone();
+			newNode.onPath = this;
+			nodes.add(newNode);
+		}
+		
 		if (!getName().contains(" [Fitted*]")) setName( getName() + " [Fitted*]");
-		if (getStartJoins() != null) {
-			final int index = startJoins.indexNearestTo(precise_x_positions[0], precise_y_positions[0], precise_z_positions[0]);
+		if (getStartJoins() != null && !nodes.isEmpty()) {
+			final PathNode firstNode = nodes.getFirst();
+			final int index = startJoins.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
 			final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.getNodeWithoutChecks(index);
 			startJoinsPoint.x = pim.x;
 			startJoinsPoint.y = pim.y;
@@ -941,7 +1001,16 @@ public class Path implements Comparable<Path> {
 	 * @return the size, i.e., number of nodes
 	 */
 	public int size() {
-		return points;
+		return nodes.size();
+	}
+
+	/**
+	 * Gets all nodes as a list.
+	 *
+	 * @return a new list containing all nodes
+	 */
+	public List<PointInImage> getNodes() {
+		return new ArrayList<>(nodes);
 	}
 
 	protected void getPointDouble(final int i, final double[] p) {
@@ -950,9 +1019,10 @@ public class Path implements Comparable<Path> {
 				"BUG: getPointDouble was asked for an out-of-range point: " + i);
 		}
 
-		p[0] = precise_x_positions[i];
-		p[1] = precise_y_positions[i];
-		p[2] = precise_z_positions[i];
+		final PathNode node = getNodeWithoutChecks(i);
+		p[0] = node.x;
+		p[1] = node.y;
+		p[2] = node.z;
 	}
 
 	/**
@@ -964,36 +1034,26 @@ public class Path implements Comparable<Path> {
 	 * @throws IndexOutOfBoundsException if position is out-of-range
 	 */
 	public PointInImage getNode(final int pos) throws IndexOutOfBoundsException {
-		if (pos == -1)
-			return getNodeWithoutChecks(size()-1);
-		if ((pos < 0) || pos >= size()) {
-			throw new IndexOutOfBoundsException(
-				"getNode() was asked for an out-of-range point: " + pos);
-		}
-		return getNodeWithoutChecks(pos);
+		return getNodeWithChecks(pos);
 	}
 
 	/**
-	 * Gets the nodes of this path.
-	 *
-	 * @return the list of nodes that form this path
+	 * Gets the internal PathNode at the specified position (for advanced operations).
 	 */
-	public List<PointInImage> getNodes() {
-		final List<PointInImage> list = new ArrayList<>(size());
-		for (int i = 0; i < size(); i++) {
-			list.add(getNodeWithoutChecks(i));
-		}
-		return list;
+	protected PathNode getNodeWithoutChecks(final int pos) {
+		return nodes.get(pos);
 	}
 
-	protected PointInImage getNodeWithoutChecks(final int pos) {
-		final PointInImage result = new PointInImage(precise_x_positions[pos],
-			precise_y_positions[pos], precise_z_positions[pos]);
-		result.onPath = this;
-		if (nodeValues != null) result.v = nodeValues[pos];
-		if (nodeAnnotations != null) result.setAnnotation(nodeAnnotations[pos]);
-		if (nodeHemisphereFlags != null) result.setHemisphere(nodeHemisphereFlags[pos]);
-		return result;
+	/**
+	 * Gets the internal PathNode at the specified position (for advanced operations).
+	 */
+	protected PathNode getNodeWithChecks(final int pos) {
+		if (pos == -1)
+			return getNodeWithoutChecks(size()-1);
+		if ((pos < 0) || pos >= size()) {
+			throw new IndexOutOfBoundsException("getNode() was asked for an out-of-range point: " + pos);
+		}
+		return nodes.get(pos);
 	}
 
 	public PointInCanvas getPointInCanvas(final int node) {
@@ -1041,9 +1101,13 @@ public class Path implements Comparable<Path> {
 	 */
 	public boolean contains(final PointInImage pim) {
 		if (pim.onPath != null) return pim.onPath == this;
-		return (DoubleStream.of(precise_x_positions).anyMatch(x -> x == pim.x) &&
-			DoubleStream.of(precise_y_positions).anyMatch(y -> y == pim.y) &&
-			DoubleStream.of(precise_z_positions).anyMatch(z -> z == pim.z));
+		// Direct iteration is faster than stream for simple checks
+		for (PathNode node : nodes) {
+			if (node.x == pim.x && node.y == pim.y && node.z == pim.z) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -1055,31 +1119,22 @@ public class Path implements Comparable<Path> {
 	 */
 	public void insertNode(final int index, final PointInImage point) {
 		if (index < 0 || index > size()) throw new IllegalArgumentException(
-			"addNode() asked for an out-of-range point: " + index);
+			"insertNode() asked for an out-of-range point: " + index);
 
-		// FIXME: This all would be much easier if we were using Collections/Lists
-		precise_x_positions = ArrayUtils.insert(index, precise_x_positions,
-			point.x);
-		precise_y_positions = ArrayUtils.insert(index, precise_y_positions,
-			point.y);
-		precise_z_positions = ArrayUtils.insert(index, precise_z_positions,
-			point.z);
-		points++;
-		if (hasRadii()) {
-			tangents_x = ArrayUtils.insert(index, tangents_x, 0d);
-			tangents_y = ArrayUtils.insert(index, tangents_y, 0d);
-			tangents_z = ArrayUtils.insert(index, tangents_z, 0d);
-			radii = ArrayUtils.insert(index, radii, 0d);
-		}
-		if (nodeAnnotations != null) {
-			nodeAnnotations = ArrayUtils.insert(index, nodeAnnotations, (BrainAnnotation)null);
-		}
-		if (nodeHemisphereFlags != null) {
-			nodeHemisphereFlags = ArrayUtils.insert(index, nodeHemisphereFlags, BrainAnnotation.ANY_HEMISPHERE);
-		}
-		if (nodeValues != null) {
-			nodeValues = ArrayUtils.insert(index, nodeValues, Double.NaN);
-		}
+		PathNode node = new PathNode(point);
+		node.onPath = this;
+		nodes.add(index, node);
+	}
+
+	/**
+	 * Inserts a node at the specified position.
+	 *
+	 * @param index the position at which the node is to be inserted
+	 * @param point the node to be inserted
+	 * @throws IllegalArgumentException if index is out-of-range
+	 */
+	public void insertNode(final int index, final SNTPoint point) {
+		insertNode(index, new PointInImage(point.getX(), point.getY(), point.getZ()));
 	}
 
 	/**
@@ -1090,31 +1145,16 @@ public class Path implements Comparable<Path> {
 	 * @throws IllegalArgumentException if index is out-of-range
 	 */
 	public void removeNode(final int index) {
-		if (points == 1) return;
-		if (index < 0 || index >= points) throw new IllegalArgumentException(
+		if (size() == 1) return;
+		if (index < 0 || index >= size()) throw new IllegalArgumentException(
 			"removeNode() asked for an out-of-range point: " + index);
-		// FIXME: This all would be much easier if we were using Collections/Lists
+		
 		final PointInImage p = getNodeWithoutChecks(index);
-		precise_x_positions = ArrayUtils.remove(precise_x_positions, index);
-		precise_y_positions = ArrayUtils.remove(precise_y_positions, index);
-		precise_z_positions = ArrayUtils.remove(precise_z_positions, index);
-		points -= 1;
-		if (hasRadii()) {
-			tangents_x = ArrayUtils.remove(tangents_x, index);
-			tangents_y = ArrayUtils.remove(tangents_y, index);
-			tangents_z = ArrayUtils.remove(tangents_z, index);
-			radii = ArrayUtils.remove(radii, index);
+		nodes.remove(index);
+		
+		if (p.equals(startJoinsPoint) && !nodes.isEmpty()) {
+			startJoinsPoint = getNodeWithoutChecks(0);
 		}
-		if (nodeAnnotations != null) {
-			nodeAnnotations = ArrayUtils.remove(nodeAnnotations, index);
-		}
-		if (nodeHemisphereFlags != null) {
-			nodeHemisphereFlags = ArrayUtils.remove(nodeHemisphereFlags, index);
-		}
-		if (nodeValues != null) {
-			nodeValues = ArrayUtils.remove(nodeValues, index);
-		}
-		if (p.equals(startJoinsPoint)) startJoinsPoint = getNodeWithoutChecks(0);
 	}
 
 	/**
@@ -1127,14 +1167,17 @@ public class Path implements Comparable<Path> {
 	public void moveNode(final int index, final PointInImage destination) {
 		if (index < 0 || index >= size()) throw new IllegalArgumentException(
 			"moveNode() asked for an out-of-range point: " + index);
-		final PointInImage thisLoc = getNodeWithoutChecks(index);
-		precise_x_positions[index] = destination.x;
-		precise_y_positions[index] = destination.y;
-		precise_z_positions[index] = destination.z;
+		
+		final PathNode node = getNodeWithoutChecks(index);
+        // Update node coordinates
+		node.x = destination.x;
+		node.y = destination.y;
+		node.z = destination.z;
+		
 		// If this is a start join for other paths, update those as well
 		for (final Path p : somehowJoins) {
 			final PointInImage startJoinsPoint = p.getStartJoinsPoint();
-			if (startJoinsPoint != null && startJoinsPoint.isSameLocation(thisLoc)) {
+			if (startJoinsPoint != null && startJoinsPoint.isSameLocation(node)) {
 				startJoinsPoint.x = destination.x;
 				startJoinsPoint.y = destination.y;
 				startJoinsPoint.z = destination.z;
@@ -1151,11 +1194,12 @@ public class Path implements Comparable<Path> {
 	 *         occurrence
 	 */
 	public int getNodeIndex(final PointInImage pim) {
-		for (int i = 0; i < points; ++i) {
-			if (Math.abs(precise_x_positions[i] - pim.x) < x_spacing && Math.abs(
-				precise_y_positions[i] - pim.y) < y_spacing && Math.abs(
-					precise_z_positions[i] - pim.z) < z_spacing)
-			{
+		// Direct list access is faster than method calls
+		for (int i = 0; i < nodes.size(); ++i) {
+			final PathNode node = nodes.get(i);
+			if (Math.abs(node.x - pim.x) < x_spacing && 
+				Math.abs(node.y - pim.y) < y_spacing && 
+				Math.abs(node.z - pim.z) < z_spacing) {
 				return i;
 			}
 		}
@@ -1205,17 +1249,18 @@ public class Path implements Comparable<Path> {
 		final double within)
 	{
 
-		if (size() < 1) throw new IllegalArgumentException(
+		if (nodes.isEmpty()) throw new IllegalArgumentException(
 			"indexNearestTo called on a Path of size() = 0");
 
 		double minimumDistanceSquared = within * within;
 		int indexOfMinimum = -1;
 
-		for (int i = 0; i < size(); ++i) {
-
-			final double diff_x = x - precise_x_positions[i];
-			final double diff_y = y - precise_y_positions[i];
-			final double diff_z = z - precise_z_positions[i];
+		// Direct list access is faster than method calls
+		for (int i = 0; i < nodes.size(); ++i) {
+			final PathNode node = nodes.get(i);
+			final double diff_x = x - node.x;
+			final double diff_y = y - node.y;
+			final double diff_z = z - node.z;
 
 			final double thisDistanceSquared = diff_x * diff_x + diff_y * diff_y +
 				diff_z * diff_z;
@@ -1280,7 +1325,6 @@ public class Path implements Comparable<Path> {
 
 	protected void setEditableNodeLocked(final boolean editableNodeLocked) {
 		this.editableNodeLocked = editableNodeLocked;
-//		System.out.println(getName()+ " is now " + isEditableNodeLocked());
 	}
 
 	/**
@@ -1315,19 +1359,19 @@ public class Path implements Comparable<Path> {
 	public double getXUnscaledDouble(final int i) {
 //		if ((i < 0) || i >= size())
 //			throw new IllegalArgumentException("getXUnscaled was asked for an out-of-range point: " + i);
-		return precise_x_positions[i] / x_spacing + canvasOffset.x;
+		return nodes.get(i).x / x_spacing + canvasOffset.x;
 	}
 
 	public double getYUnscaledDouble(final int i) {
 //		if ((i < 0) || i >= size())
 //			throw new IllegalArgumentException("getYUnscaled was asked for an out-of-range point: " + i);
-		return precise_y_positions[i] / y_spacing + canvasOffset.y;
+		return nodes.get(i).y / y_spacing + canvasOffset.y;
 	}
 
 	public double getZUnscaledDouble(final int i) {
 //		if ((i < 0) || i >= size())
 //			throw new IllegalArgumentException("getZUnscaled was asked for an out-of-range point: " + i);
-		return precise_z_positions[i] / z_spacing + canvasOffset.z;
+		return nodes.get(i).z / z_spacing + canvasOffset.z;
 	}
 
 	/**
@@ -1344,27 +1388,16 @@ public class Path implements Comparable<Path> {
 			throw new IllegalArgumentException("Indices out of range!");
 		}
 		final Calibration cal = getCalibration();
-		final Path sub = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), size());
-		sub.points = endIndex - startIndex + 1;
-		sub.precise_x_positions = Arrays.copyOfRange(precise_x_positions, startIndex, endIndex + 1);
-		sub.precise_y_positions = Arrays.copyOfRange(precise_y_positions, startIndex, endIndex + 1);
-		sub.precise_z_positions = Arrays.copyOfRange(precise_z_positions, startIndex, endIndex + 1);
-		if (radii != null)
-			sub.radii = Arrays.copyOfRange(radii, startIndex, endIndex + 1);
-		if (tangents_x != null)
-			sub.tangents_x = Arrays.copyOfRange(tangents_x, startIndex, endIndex + 1);
-		if (tangents_y != null)
-			sub.tangents_y = Arrays.copyOfRange(tangents_y, startIndex, endIndex + 1);
-		if (tangents_z != null)
-			sub.tangents_z = Arrays.copyOfRange(tangents_z, startIndex, endIndex + 1);
-		if (nodeValues != null)
-			sub.nodeValues = Arrays.copyOfRange(nodeValues, startIndex, endIndex + 1);
-		if (nodeAnnotations != null)
-			sub.nodeAnnotations = Arrays.copyOfRange(nodeAnnotations, startIndex, endIndex + 1);
-		if (nodeHemisphereFlags != null)
-			sub.nodeHemisphereFlags = Arrays.copyOfRange(nodeHemisphereFlags, startIndex, endIndex + 1);
-		if (nodeColors != null)
-			sub.nodeColors = Arrays.copyOfRange(nodeColors, startIndex, endIndex + 1);
+		final Path sub = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
+		
+		// Copy nodes from the specified range
+		for (int i = startIndex; i <= endIndex; i++) {
+			final PathNode originalNode = getNodeWithoutChecks(i);
+			final PathNode newNode = originalNode.clone();
+			newNode.onPath = sub;
+			sub.nodes.add(newNode);
+		}
+		
 		if (getFitted() != null)
 			sub.setFitted(getFitted().getSection(startIndex, endIndex));
 		applyCommonProperties(sub);
@@ -1392,10 +1425,8 @@ public class Path implements Comparable<Path> {
 	 */
 	public Path createPath() {
 		final Calibration cal = getCalibration();
-		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), points);
+		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
 		applyCommonProperties(dup);
-		if (hasRadii())
-			dup.createCircles();
 		return dup;
 	}
 
@@ -1411,24 +1442,22 @@ public class Path implements Comparable<Path> {
 	public Path clone() {
 
 		final Calibration cal = getCalibration();
-		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit(), size());
-		dup.points = points;
-		dup.precise_x_positions = precise_x_positions.clone();
-		dup.precise_y_positions = precise_y_positions.clone();
-		dup.precise_z_positions = precise_z_positions.clone();
-		if (radii != null) dup.radii = radii.clone();
-		if (tangents_x != null) dup.tangents_x = tangents_x.clone();
-		if (tangents_y != null) dup.tangents_y = tangents_y.clone();
-		if (tangents_z != null) dup.tangents_z = tangents_z.clone();
-		if (nodeValues != null) dup.nodeValues = nodeValues.clone();
-		if (nodeAnnotations != null) dup.nodeAnnotations = nodeAnnotations.clone();
-		if (nodeHemisphereFlags != null) dup.nodeHemisphereFlags = nodeHemisphereFlags.clone();
+		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
+		
+		// Clone all nodes
+		for (final PathNode node : nodes) {
+			PathNode clonedNode = node.clone();
+			clonedNode.onPath = dup;
+			dup.nodes.add(clonedNode);
+		}
+		
+		// Clone path relationships
 		dup.somehowJoins = (ArrayList<Path>) somehowJoins.clone();
 		dup.children = (ArrayList<Path>) children.clone();
 		if (startJoins != null) dup.startJoins = startJoins.clone();
 		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone();
 		if (getFitted() != null) dup.setFitted(getFitted().clone());
-		dup.setNodeColors(getNodeColors());
+		
 		applyCommonProperties(dup);
 		return dup;
 	}
@@ -1471,44 +1500,6 @@ public class Path implements Comparable<Path> {
 		return cal;
 	}
 
-	protected PointInImage lastPoint() {
-		if (points < 1) return null;
-		else return new PointInImage(precise_x_positions[points - 1],
-			precise_y_positions[points - 1], precise_z_positions[points - 1]);
-	}
-
-	private void expandTo(final int newMaxPoints) {
-		precise_x_positions = expandArray(precise_x_positions, newMaxPoints);
-		precise_y_positions = expandArray(precise_y_positions, newMaxPoints);
-		precise_z_positions = expandArray(precise_z_positions, newMaxPoints);
-		if (hasRadii()) {
-			tangents_x = expandArray(tangents_x, newMaxPoints);
-			tangents_y = expandArray(tangents_y, newMaxPoints);
-			tangents_z = expandArray(tangents_z, newMaxPoints);
-			radii = expandArray(radii, newMaxPoints);
-		}
-		if (nodeValues != null) {
-			nodeValues = expandArray(nodeValues, newMaxPoints);
-		}
-		if (nodeAnnotations != null) {
-			final BrainAnnotation[] newNodeAnnotations = new BrainAnnotation[newMaxPoints];
-			System.arraycopy(nodeAnnotations, 0, newNodeAnnotations, 0, points);
-			nodeAnnotations = newNodeAnnotations;
-		}
-		if (nodeHemisphereFlags != null) {
-			final char[] newNodeHemisphereFlags = new char[newMaxPoints];
-			System.arraycopy(nodeHemisphereFlags, 0, newNodeHemisphereFlags, 0, points);
-			nodeHemisphereFlags = newNodeHemisphereFlags;
-		}
-		maxPoints = newMaxPoints;
-	}
-
-	private static double[] expandArray(final double[] array, final int newCapacity) {
-		final double[] expanded = new double[newCapacity];
-		System.arraycopy(array, 0, expanded, 0, array.length);
-		return expanded;
-	}
-
 	public void add(final Path other) {
 
 		if (other == null) {
@@ -1516,56 +1507,40 @@ public class Path implements Comparable<Path> {
 			return;
 		}
 
-		// If we're trying to add a path with circles to one
-		// that previously had none, add circles to the
-		// previous one, and carry on:
-
+		// If we're trying to add a path with radii to one that has none,
+		// set default radii for existing nodes
 		if (other.hasRadii() && !hasRadii()) {
-			createCircles();
 			final double defaultRadius = getMinimumSeparation() * 2;
-			for (int i = 0; i < points; ++i)
-				radii[i] = defaultRadius;
-		}
-
-		if (maxPoints < (points + other.points)) {
-			expandTo(points + other.points);
+			for (final PathNode node : nodes)
+				node.radius = defaultRadius;
 		}
 
 		int toSkip = 0;
 
-		/*
-		 * We may want to skip some points at the beginning of the next path if they're
-		 * the same as the last point on this path:
-		 */
-		if (points > 0) {
-			final double last_x = precise_x_positions[points - 1];
-			final double last_y = precise_y_positions[points - 1];
-			final double last_z = precise_z_positions[points - 1];
-			while ((other.precise_x_positions[toSkip] == last_x) &&
-				(other.precise_y_positions[toSkip] == last_y) &&
-				(other.precise_z_positions[toSkip] == last_z))
-			{
-				++toSkip;
+		// Skip points at the beginning of the other path if they're
+		// the same as the last point on this path
+		if (!nodes.isEmpty() && !other.nodes.isEmpty()) {
+			final PathNode lastNode = nodes.getLast();
+			while (toSkip < other.size()) {
+				final PathNode otherNode = other.nodes.get(toSkip);
+				if (otherNode.x == lastNode.x && 
+					otherNode.y == lastNode.y && 
+					otherNode.z == lastNode.z) {
+					toSkip++;
+				} else {
+					break;
+				}
 			}
 		}
 
-		System.arraycopy(other.precise_x_positions, toSkip, precise_x_positions,
-			points, other.points - toSkip);
-		System.arraycopy(other.precise_y_positions, toSkip, precise_y_positions,
-			points, other.points - toSkip);
-		System.arraycopy(other.precise_z_positions, toSkip, precise_z_positions,
-			points, other.points - toSkip);
-
-		if (hasRadii() && other.hasRadii()) {
-			System.arraycopy(other.radii, toSkip, radii, points, other.points -
-				toSkip);
+		// Add nodes from the other path, starting from toSkip
+		for (int i = toSkip; i < other.size(); i++) {
+			final PathNode otherNode = other.getNodeWithoutChecks(i);
+			final PathNode newNode = otherNode.clone();
+			newNode.onPath = this;
+			nodes.add(newNode);
 		}
-
-		points = points + (other.points - toSkip);
-
-		if (hasRadii()) {
-			setGuessedTangents(2);
-		}
+		if (hasRadii()) setGuessedTangents(2);
 	}
 
 	/**
@@ -1584,30 +1559,21 @@ public class Path implements Comparable<Path> {
 	 */
 	public Path reversed() {
 		final Path c = createPath();
-		c.points = points;
-		for (int i = 0; i < points; ++i) {
-			c.precise_x_positions[i] = precise_x_positions[(points - 1) - i];
-			c.precise_y_positions[i] = precise_y_positions[(points - 1) - i];
-			c.precise_z_positions[i] = precise_z_positions[(points - 1) - i];
+		// Add nodes in reverse order
+		for (int i = size() - 1; i >= 0; i--) {
+			final PathNode originalNode = getNodeWithoutChecks(i);
+			final PathNode reversedNode = originalNode.clone();
+			reversedNode.onPath = c;
+			c.nodes.add(reversedNode);
 		}
-		if (c.fitted != null)
-			c.fitted = c.fitted.reversed();
+		if (c.fitted != null) c.fitted = c.fitted.reversed();
 		return c;
 	}
 
 	private static void reverseInSitu(final Path c) {
-		ArrayUtils.reverse(c.precise_x_positions, 0, c.points);
-		ArrayUtils.reverse(c.precise_y_positions, 0, c.points);
-		ArrayUtils.reverse(c.precise_z_positions, 0, c.points);
-		ArrayUtils.reverse(c.radii, 0, c.points);
-		ArrayUtils.reverse(c.tangents_x, 0, c.points);
-		ArrayUtils.reverse(c.tangents_y, 0, c.points);
-		ArrayUtils.reverse(c.nodeValues, 0, c.points);
-		ArrayUtils.reverse(c.nodeAnnotations, 0, c.points);
-		ArrayUtils.reverse(c.nodeHemisphereFlags, 0, c.points);
-		ArrayUtils.reverse(c.nodeColors, 0, c.points);
+		Collections.reverse(c.nodes);
 		if (c.editableNodeIndex > -1)
-			c.editableNodeIndex = c.points - 1 - c.editableNodeIndex;
+			c.editableNodeIndex = c.size() - 1 - c.editableNodeIndex;
 		if (c.fitted != null)
 			reverseInSitu(c.fitted);
 	}
@@ -1618,21 +1584,9 @@ public class Path implements Comparable<Path> {
 	 * @param point the node to be inserted
 	 */
 	public void addNode(final PointInImage point) {
-		addCommonPropertiesNode(point);
-		if (!Double.isNaN(point.v)) setNodeValue(point.v, size() - 1);
-		if (point instanceof SWCPoint) {
-			final double radius = ((SWCPoint)point).radius;
-			if (radius > 0) {
-				if (!hasRadii()) createCircles();
-				radii[size() - 1] = ((SWCPoint)point).radius;
-			}
-		}
-	}
-
-	private void addCommonPropertiesNode(final SNTPoint point) {
-		addPointDouble(point.getX(), point.getY(), point.getZ());
-		if (point.getAnnotation() != null) setNodeAnnotation(point.getAnnotation(), size() - 1);
-		if (point.getHemisphere() != BrainAnnotation.ANY_HEMISPHERE) setNodeHemisphere(point.getHemisphere(), size() - 1);
+		final PathNode node = new PathNode(point);
+		node.onPath = this;
+		nodes.add(node);
 	}
 
 	public void addPointDouble(final double x, final double y, final double z) {
@@ -1684,24 +1638,24 @@ public class Path implements Comparable<Path> {
 		boolean drawDiameter, final int slice, final int either_side)
 	{
 
-		if (points == 0) {
-			new PathNode(this, 0, PathNode.HERMIT, canvas).draw(g2, c);
+		if (nodes.isEmpty()) {
+			new PathNodeCanvas(this, 0, PathNodeCanvas.HERMIT, canvas).draw(g2, c);
 			return;
 		}
 		int startIndexOfLastDrawnLine = -1;
 
-		for (int i = 0; i < points; ++i) {
+		for (int i = 0; i < nodes.size(); ++i) {
 
-			final PathNode currentNode = new PathNode(this, i, canvas);
-			PathNode previousNode = null;
-			PathNode nextNode = null;
+			final PathNodeCanvas currentNode = new PathNodeCanvas(this, i, canvas);
+			PathNodeCanvas previousNode = null;
+			PathNodeCanvas nextNode = null;
 			if (i > 0) {
-				previousNode = new PathNode(this, i-1, canvas);
+				previousNode = new PathNodeCanvas(this, i-1, canvas);
 			} else if (startJoinsPoint != null) {
-				previousNode = new PathNode(startJoinsPoint, i, canvas);
+				previousNode = new PathNodeCanvas(startJoinsPoint, i, canvas);
 			}
-			if (i < points - 1) {
-				nextNode = new PathNode(this, i+1, canvas);
+			if (i < nodes.size() - 1) {
+				nextNode = new PathNodeCanvas(this, i+1, canvas);
 			}
 
 			final boolean outOfDepthBounds = (either_side >= 0) && (Math.abs(
@@ -1709,18 +1663,16 @@ public class Path implements Comparable<Path> {
 
 			// Draw node
 			if (!outOfDepthBounds) {
-				//System.out.println("Drawing node: " + g2.getColor());
 				currentNode.setEditable(getEditableNodeIndex() == i);
 				currentNode.draw(g2, c);
 			}
 
 			// Options for drawing inter-node segments and node diameter. Color
-			// will be whatever has been set by PathNode#Draw(). If 2D canvas,
+			// will be whatever has been set by PathNodeCanvas#draw(). If 2D canvas,
 			// out-of-bounds transparency is ignored
 			g2.setStroke(new BasicStroke((float) (canvas.nodeDiameter() / 3), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 			g2.setColor(SNTColor.alphaColor(g2.getColor(),
-					(outOfDepthBounds && either_side > -1) ? canvas.getOutOfBoundsTransparency()
-							: canvas.getDefaultTransparency()));
+					(outOfDepthBounds) ? canvas.getOutOfBoundsTransparency() : canvas.getDefaultTransparency()));
 
 			// We are within Z-bounds and have been asked to draw the diameters, just do it in XY
 			if (drawDiameter && !outOfDepthBounds) {
@@ -1736,10 +1688,10 @@ public class Path implements Comparable<Path> {
 				}
 			}
 			else if (getStartJoinsPoint() != null) {
-				final PathNode jointNode = new PathNode(getStartJoinsPoint(), i, canvas);
-				jointNode.setType(PathNode.JOINT);
+				final PathNodeCanvas jointNode = new PathNodeCanvas(getStartJoinsPoint(), i, canvas);
+				jointNode.setType(PathNodeCanvas.JOINT);
 				jointNode.draw(g2, c);
-				currentNode.setType(PathNode.SLAB);
+				currentNode.setType(PathNodeCanvas.SLAB);
 				currentNode.drawConnection(g2, previousNode);
 			}
 			// If there's a next point in this path, draw a line from here to there:
@@ -1747,9 +1699,7 @@ public class Path implements Comparable<Path> {
 				currentNode.drawConnection(g2, nextNode);
 				startIndexOfLastDrawnLine = i;
 			}
-
 		}
-
 	}
 
 	/**
@@ -1759,11 +1709,15 @@ public class Path implements Comparable<Path> {
 	 *          default) all nodes are rendered using the Path color.
 	 */
 	public void setNodeColors(final Color[] colors) {
-		if (colors != null && colors.length != size()) {
-			throw new IllegalArgumentException(
-				"colors array must have as many elements as nodes");
+		if (colors == null) {
+			nodes.forEach(node -> node.setNodeColor(null));
+			return;
+		} else if (colors.length != size()) {
+			throw new IllegalArgumentException("colors array must have as many elements as nodes");
+		} else {
+			for (int i = 0; i < colors.length; i++)
+				getNodeWithoutChecks(i).setNodeColor(colors[i]);
 		}
-		nodeColors = colors;
 	}
 
 	/**
@@ -1773,7 +1727,11 @@ public class Path implements Comparable<Path> {
 	 *         are rendered using the Path color
 	 */
 	public Color[] getNodeColors() {
-		return nodeColors;
+		// Direct array creation is faster than using streams!?
+		final Color[] colors = new Color[nodes.size()];
+		for (int i = 0; i < nodes.size(); i++)
+			colors[i] = nodes.get(i).getNodeColor();
+		return colors;
 	}
 
 	/**
@@ -1784,7 +1742,7 @@ public class Path implements Comparable<Path> {
 	 *         this path
 	 */
 	public Color getNodeColor(final int pos) {
-		return (nodeColors == null) ? null : nodeColors[pos];
+		return getNodeWithChecks(pos).getNodeColor();
 	}
 
 	/**
@@ -1794,8 +1752,7 @@ public class Path implements Comparable<Path> {
 	 * @param pos the node position
 	 */
 	public void setNodeColor(final Color color, final int pos) {
-		if (nodeColors == null) nodeColors = new Color[size()];
-		nodeColors[pos] = color;
+		getNodeWithChecks(pos).setNodeColor(color);
 	}
 
 	/**
@@ -1816,10 +1773,7 @@ public class Path implements Comparable<Path> {
 	 * @see PathProfiler#assignValues()
 	 */
 	public void setNodeValue(final double value, final int pos) {
-		if (nodeValues == null) {
-			nodeValues = new double[maxPoints];
-		}
-		nodeValues[pos] = value;
+		getNodeWithChecks(pos).v = value;
 	}
 
 	/**
@@ -1829,10 +1783,7 @@ public class Path implements Comparable<Path> {
 	 * @param pos the node position
 	 */
 	public void setNodeAnnotation(final BrainAnnotation annotation, final int pos) {
-		if (nodeAnnotations == null) {
-			nodeAnnotations = new BrainAnnotation[maxPoints];
-		}
-		nodeAnnotations[pos] = annotation;
+		getNodeWithChecks(pos).setAnnotation(annotation);
 	}
 
 	/**
@@ -1842,10 +1793,7 @@ public class Path implements Comparable<Path> {
 	 * @param pos the node position
 	 */
 	public void setNodeHemisphere(final char hemisphereFlag, final int pos) {
-		if (nodeHemisphereFlags == null) {
-			nodeHemisphereFlags = new char[maxPoints];
-		}
-		nodeHemisphereFlags[pos] = hemisphereFlag;
+		getNodeWithChecks(pos).setHemisphere(hemisphereFlag);
 	}
 
 	/**
@@ -1857,7 +1805,7 @@ public class Path implements Comparable<Path> {
 	 * @see PointInImage#v
 	 */
 	public double getNodeValue(final int pos) {
-		return (nodeValues == null) ? Double.NaN : nodeValues[pos];
+		return getNodeWithChecks(pos).v;
 	}
 
 	/**
@@ -1868,7 +1816,7 @@ public class Path implements Comparable<Path> {
 	 * @see SNTPoint#getAnnotation()
 	 */
 	public BrainAnnotation getNodeAnnotation(final int pos) {
-		return (nodeAnnotations == null) ? null : nodeAnnotations[pos];
+		return getNodeWithChecks(pos).getAnnotation();
 	}
 
 	/**
@@ -1882,7 +1830,7 @@ public class Path implements Comparable<Path> {
 	 * @see SNTPoint#getAnnotation()
 	 */
 	public char getNodeHemisphereFlag(final int pos) {
-		return (nodeHemisphereFlags == null) ? BrainAnnotation.ANY_HEMISPHERE : nodeHemisphereFlags[pos];
+		return getNodeWithChecks(pos).getHemisphere();
 	}
 
 	/**
@@ -1895,10 +1843,15 @@ public class Path implements Comparable<Path> {
 	 */
 	public void setNodeValues(final double[] values) {
 		if (values != null && values.length != size()) {
-			throw new IllegalArgumentException(
-				"values array must have as many elements as nodes");
+			throw new IllegalArgumentException("values array must have as many elements as nodes");
 		}
-		this.nodeValues = (values == null) ? null : values.clone();
+		if (values == null) { // Clear all node values
+			for (final PathNode node : nodes) node.v = Double.NaN;
+		} else {
+			for (int i = 0; i < values.length; i++) { // Set values on individual nodes
+				getNodeWithoutChecks(i).v = values[i];
+			}
+		}
 	}
 
 	/**
@@ -1910,7 +1863,11 @@ public class Path implements Comparable<Path> {
 	 * @see PathProfiler#assignValues()
 	 */
 	public boolean hasNodeValues() {
-		return nodeValues != null;
+		// Direct iteration with early termination is faster than streams!?
+		for (final PathNode node : nodes) {
+			if (!Double.isNaN(node.v)) return true;
+		}
+		return false;
 	}
 
 	/**
@@ -1921,7 +1878,11 @@ public class Path implements Comparable<Path> {
 	 * @see SNTPoint#getAnnotation()
 	 */
 	public boolean hasNodeAnnotations() {
-		return nodeAnnotations != null;
+		// Direct iteration with early termination is faster than streams!?
+		for (final PathNode node : nodes) {
+			if (node.getAnnotation() != null) return true;
+		}
+		return false;
 	}
 
 	/**
@@ -1931,7 +1892,12 @@ public class Path implements Comparable<Path> {
 	 * @see SNTPoint#getHemisphere()
 	 */
 	public boolean hasNodeHemisphereFlags() {
-		return nodeHemisphereFlags != null;
+		// Direct iteration with early termination is faster than streams!?
+		for (final PathNode node : nodes) {
+			if (node.getHemisphere() != BrainAnnotation.ANY_HEMISPHERE)
+				return true;
+		}
+		return false;
 	}
 
 	/**
@@ -1953,8 +1919,7 @@ public class Path implements Comparable<Path> {
 	 * @see #hasNodeColors()
 	 */
 	public ColorRGB getColorRGB() {
-			return (color == null) ? null : new ColorRGB(color.getRed(), color
-				.getGreen(), color.getBlue());
+		return (color == null) ? null : new ColorRGB(color.getRed(), color.getGreen(), color.getBlue());
 	}
 
 	/**
@@ -1968,7 +1933,7 @@ public class Path implements Comparable<Path> {
 		this.color = color;
 		hasCustomColor = color != null;
 		if (getFitted() != null) getFitted().setColor(color);
-		if (hasNodeColors() && size() == 1) nodeColors[0] = color;
+		if (hasNodeColors() && size() == 1) getNodeWithoutChecks(0).setNodeColor(color);
 	}
 
 	/**
@@ -2002,17 +1967,6 @@ public class Path implements Comparable<Path> {
 	 */
 	public boolean hasCustomColor() {
 		return (hasCustomColor && color != null); // backwards compatibility: we cannot include hasNodeColors()
-	}
-
-	/**
-	 * Assesses whether the nodes of this path have been assigned an array of
-	 * colors
-	 *
-	 * @return true, if successful
-	 * @see #getNodeColors()
-	 */
-	public boolean hasNodeColors() {
-		return nodeColors != null;
 	}
 
 	/**
@@ -2138,32 +2092,23 @@ public class Path implements Comparable<Path> {
 	}
 
 	public void setGuessedTangents(final int pointsEitherSide) {
-		if (tangents_x == null || tangents_y == null || tangents_z == null) {
-//			throw new IllegalArgumentException(
-//			"BUG: setGuessedTangents called with one of the tangent arrays null");
-			createCircles();
-		}
 		final double[] tangent = new double[3];
-		for (int i = 0; i < points; ++i) {
+		for (int i = 0; i < nodes.size(); ++i) {
 			getTangent(i, pointsEitherSide, tangent);
-			tangents_x[i] = tangent[0];
-			tangents_y[i] = tangent[1];
-			tangents_z[i] = tangent[2];
+			nodes.get(i).setTangent(tangent.clone());
 		}
 	}
 
-	public void getTangent(final int i, final int pointsEitherSide,
-		final double[] result)
-	{
+	public void getTangent(final int i, final int pointsEitherSide, final double[] result) {
 		int min_index = i - pointsEitherSide;
 		if (min_index < 0) min_index = 0;
-
 		int max_index = i + pointsEitherSide;
-		if (max_index >= points) max_index = points - 1;
-
-		result[0] = precise_x_positions[max_index] - precise_x_positions[min_index];
-		result[1] = precise_y_positions[max_index] - precise_y_positions[min_index];
-		result[2] = precise_z_positions[max_index] - precise_z_positions[min_index];
+		if (max_index >= size()) max_index = size() - 1;
+		final PathNode minNode = nodes.get(min_index);
+		final PathNode maxNode = nodes.get(max_index);
+		result[0] = maxNode.x - minNode.x;
+		result[1] = maxNode.y - minNode.y;
+		result[2] = maxNode.z - minNode.z;
 	}
 
 	/**
@@ -2171,17 +2116,9 @@ public class Path implements Comparable<Path> {
 	 *
 	 * @return the list of SWC type names
 	 */
-	public static ArrayList<String> getSWCtypeNames() {
-		final ArrayList<String> swcTypes = new ArrayList<>();
-		swcTypes.add(SWC_UNDEFINED_LABEL);
-		swcTypes.add(SWC_SOMA_LABEL);
-		swcTypes.add(SWC_AXON_LABEL);
-		swcTypes.add(SWC_DENDRITE_LABEL);
-		swcTypes.add(SWC_APICAL_DENDRITE_LABEL);
-		// swcTypes.add(SWC_FORK_POINT_LABEL);
-		// swcTypes.add(SWC_END_POINT_LABEL);
-		swcTypes.add(SWC_CUSTOM_LABEL);
-		return swcTypes;
+	public static List<String> getSWCtypeNames() {
+		return List.of(SWC_UNDEFINED_LABEL, SWC_SOMA_LABEL, SWC_AXON_LABEL, SWC_DENDRITE_LABEL,
+				SWC_APICAL_DENDRITE_LABEL, SWC_CUSTOM_LABEL);
 	}
 
 	/**
@@ -2189,17 +2126,8 @@ public class Path implements Comparable<Path> {
 	 *
 	 * @return the list of SWC type flags
 	 */
-	public static ArrayList<Integer> getSWCtypes() {
-		final ArrayList<Integer> swcTypes = new ArrayList<>();
-		swcTypes.add(SWC_UNDEFINED);
-		swcTypes.add(SWC_SOMA);
-		swcTypes.add(SWC_AXON);
-		swcTypes.add(SWC_DENDRITE);
-		swcTypes.add(SWC_APICAL_DENDRITE);
-		// swcTypes.add(SWC_FORK_POINT);
-		// swcTypes.add(SWC_END_POINT);
-		swcTypes.add(SWC_CUSTOM);
-		return swcTypes;
+	public static List<Integer> getSWCtypes() {
+		return List.of(SWC_UNDEFINED, SWC_SOMA, SWC_AXON, SWC_DENDRITE, SWC_APICAL_DENDRITE, SWC_CUSTOM);
 	}
 
 	/**
@@ -2216,53 +2144,21 @@ public class Path implements Comparable<Path> {
 		final boolean capitalized)
 	{
 		String typeName;
-		switch (type) {
-			case -1:
-				return (capitalized) ? "None" : "none";
-			case SWC_SOMA:
-				typeName = SWC_SOMA_LABEL;
-				break;
-			case SWC_AXON:
-				typeName = SWC_AXON_LABEL;
-				break;
-			case SWC_DENDRITE:
-				typeName = SWC_DENDRITE_LABEL;
-				break;
-			case SWC_APICAL_DENDRITE:
-				typeName = SWC_APICAL_DENDRITE_LABEL;
-				break;
-			case SWC_CUSTOM:
-				typeName = SWC_CUSTOM_LABEL;
-				break;
-			case SWC_UNSPECIFIED:
-				typeName = SWC_UNSPECIFIED_LABEL;
-				break;
-			case SWC_GLIA_PROCESS:
-				typeName = SWC_GLIA_PROCESS_LABEL;
-				break;
-			case SWC_CUSTOM2:
-				typeName = SWC_CUSTOM2_LABEL;
-				break;
-			case SWC_UNDEFINED:
-			default:
-				typeName = SWC_UNDEFINED_LABEL;
-				break;
-		}
-		if (!capitalized) return typeName;
-
-		final char[] buffer = typeName.toCharArray();
-		boolean capitalizeNext = true;
-		for (int i = 0; i < buffer.length; i++) {
-			final char ch = buffer[i];
-			if (Character.isWhitespace(ch) || !Character.isLetter(ch)) {
-				capitalizeNext = true;
-			}
-			else if (capitalizeNext) {
-				buffer[i] = Character.toTitleCase(ch);
-				capitalizeNext = false;
-			}
-		}
-		return new String(buffer);
+        switch (type) {
+            case -1 -> {
+                return (capitalized) ? "None" : "none";
+            }
+            case SWC_SOMA -> typeName = SWC_SOMA_LABEL;
+            case SWC_AXON -> typeName = SWC_AXON_LABEL;
+            case SWC_DENDRITE -> typeName = SWC_DENDRITE_LABEL;
+            case SWC_APICAL_DENDRITE -> typeName = SWC_APICAL_DENDRITE_LABEL;
+            case SWC_CUSTOM -> typeName = SWC_CUSTOM_LABEL;
+            case SWC_UNSPECIFIED -> typeName = SWC_UNSPECIFIED_LABEL;
+            case SWC_GLIA_PROCESS -> typeName = SWC_GLIA_PROCESS_LABEL;
+            case SWC_CUSTOM2 -> typeName = SWC_CUSTOM2_LABEL;
+            default -> typeName = SWC_UNDEFINED_LABEL;
+        }
+		return (capitalized) ? org.apache.commons.text.WordUtils.capitalize(typeName) : typeName;
 	}
 
 	/**
@@ -2273,7 +2169,17 @@ public class Path implements Comparable<Path> {
 	 * @see #hasRadii()
 	 */
 	public double getMeanRadius() {
-		return (hasRadii()) ? StatUtils.mean(radii) : 0;
+		if (!hasRadii()) return 0;
+		// Direct calculation without intermediate array creation
+		double sum = 0;
+		int count = 0;
+		for (final PathNode node : nodes) {
+			if (node.hasRadius()) {
+				sum += node.getRadius();
+				count++;
+			}
+		}
+		return count > 0 ? sum / count : 0;
 	}
 
 	/**
@@ -2284,12 +2190,17 @@ public class Path implements Comparable<Path> {
 	 *         defined thickness
 	 */
 	public double getNodeRadius(final int pos) {
-		if (radii == null) return 0;
-		if ((pos < 0) || pos >= size()) {
-			throw new IllegalArgumentException(
-				"getNodeRadius() was asked for an out-of-range point: " + pos);
-		}
-		return radii[pos];
+		return getNodeWithChecks(pos).getRadius();
+	}
+
+	/**
+	 * Sets the radius of a specific node.
+	 *
+	 * @param radius the radius value
+	 * @param pos the node position
+	 */
+	public void setNodeRadius(final double radius, final int pos) {
+		getNodeWithChecks(pos).setRadius(radius);
 	}
 
 	/**
@@ -2299,7 +2210,282 @@ public class Path implements Comparable<Path> {
 	 *         list of radii
 	 */
 	public boolean hasRadii() {
-		return radii != null;
+		// Direct iteration with early termination is faster than streams
+		for (final PathNode node : nodes) {
+			if (node.hasRadius())  return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Checks whether any nodes have custom colors assigned.
+	 *
+	 * @return true if any nodes have custom colors
+	 * @see #getNodeColors()
+	 */
+	public boolean hasNodeColors() {
+		// Direct iteration with early termination is faster than streams!?
+		for (final PathNode node : nodes) {
+			if (node.hasNodeColor()) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Gets the tangent vector of a specific node.
+	 *
+	 * @param pos the node position
+	 * @return the tangent vector [x, y, z] or null if not defined
+	 */
+	public double[] getNodeTangent(final int pos) {
+		return getNodeWithChecks(pos).getTangent();
+	}
+
+	/**
+	 * Sets the tangent vector of a specific node.
+	 *
+	 * @param tangent the tangent vector [x, y, z]
+	 * @param pos the node position
+	 */
+	public void setNodeTangent(final double[] tangent, final int pos) {
+		getNodeWithChecks(pos).setTangent(tangent);
+	}
+
+	/**
+	 * Sets the tangent vector of a specific node.
+	 *
+	 * @param tx the X component of the tangent
+	 * @param ty the Y component of the tangent
+	 * @param tz the Z component of the tangent
+	 * @param pos the node position
+	 */
+	public void setNodeTangent(final double tx, final double ty, final double tz, final int pos) {
+		getNodeWithChecks(pos).setTangent(tx, ty, tz);
+	}
+
+	/**
+	 * Checks whether any nodes have tangent vectors defined.
+	 *
+	 * @return true if any nodes have tangents
+	 */
+	public boolean hasTangents() {
+		// Direct iteration with early termination is faster than streams
+		for (final PathNode node : nodes) {
+			if (node.hasTangent()) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Returns the first node of this path.
+	 *
+	 * @return the root node, or null if path is empty
+	 */
+	public PointInImage firstNode() {
+		return size() > 0 ? getNodeWithoutChecks(0) : null;
+	}
+
+	/**
+	 * Returns the last node of this path.
+	 *
+	 * @return the terminal node, or null if path is empty
+	 */
+	public PointInImage lastNode() {
+		return size() > 0 ? getNodeWithoutChecks(size() - 1) : null;
+	}
+
+	/**
+	 * Checks if this path contains the specified point within the given tolerance.
+	 *
+	 * @param point the point to check
+	 * @param tolerance the distance tolerance
+	 * @return true if the path contains the point within tolerance
+	 */
+	public boolean contains(final PointInImage point, final double tolerance) {
+		for (int i = 0; i < size(); i++) {
+			if (getNodeWithoutChecks(i).distanceTo(point) <= tolerance) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns a new Path in which nodes have been interpolated to ensure that
+	 * the distance between consecutive nodes does not exceed the specified
+	 * threshold.
+	 *
+	 * @param maxDistance the maximum distance allowed between consecutive nodes
+	 * @return the interpolated path
+	 */
+	public Path getInterpolatedPath(final double maxDistance) {
+		if (maxDistance <= 0) {
+			throw new IllegalArgumentException("maxDistance must be positive");
+		}
+
+		final Path result = createPath();
+		if (size() == 0) return result;
+
+		// Add first point
+		result.addNode(getNodeWithoutChecks(0));
+
+		for (int i = 1; i < size(); i++) {
+			final PointInImage p1 = getNodeWithoutChecks(i - 1);
+			final PointInImage p2 = getNodeWithoutChecks(i);
+
+			final double distance = p1.distanceTo(p2);
+			if (distance <= maxDistance) {
+				// Distance is acceptable, add the point directly
+				result.addNode(p2);
+			} else {
+				// Need to interpolate
+				final int numSegments = (int) Math.ceil(distance / maxDistance);
+				final double stepX = (p2.x - p1.x) / numSegments;
+				final double stepY = (p2.y - p1.y) / numSegments;
+				final double stepZ = (p2.z - p1.z) / numSegments;
+
+				// Add interpolated points
+				for (int j = 1; j <= numSegments; j++) {
+					final double newX = p1.x + stepX * j;
+					final double newY = p1.y + stepY * j;
+					final double newZ = p1.z + stepZ * j;
+					result.addNode(new PointInImage(newX, newY, newZ));
+				}
+			}
+		}
+
+		return result;
+	}
+
+	/**
+	 * Returns a new Path in which nodes have been resampled to ensure uniform
+	 * spacing along the path.
+	 *
+	 * @param targetSpacing the desired spacing between consecutive nodes
+	 * @return the resampled path
+	 */
+	public Path getResampledPath(final double targetSpacing) {
+		if (targetSpacing <= 0) {
+			throw new IllegalArgumentException("targetSpacing must be positive");
+		}
+
+		final Path result = createPath();
+		if (size() <= 1) {
+			// Copy all nodes if path is too short
+			for (int i = 0; i < size(); i++) {
+				result.addNode(getNodeWithoutChecks(i));
+			}
+			return result;
+		}
+
+		// Calculate cumulative distances
+		final double[] cumDistances = new double[size()];
+		cumDistances[0] = 0;
+		for (int i = 1; i < size(); i++) {
+			final PointInImage p1 = getNodeWithoutChecks(i - 1);
+			final PointInImage p2 = getNodeWithoutChecks(i);
+			cumDistances[i] = cumDistances[i - 1] + p1.distanceTo(p2);
+		}
+
+		final double totalLength = cumDistances[size() - 1];
+		if (totalLength == 0) {
+			// All points are the same, just copy them
+			for (int i = 0; i < size(); i++) {
+				result.addNode(getNodeWithoutChecks(i));
+			}
+			return result;
+		}
+
+		// Add first point
+		result.addNode(getNodeWithoutChecks(0));
+
+		// Add resampled points
+		double currentDistance = targetSpacing;
+		while (currentDistance < totalLength) {
+			// Find the segment containing this distance
+			int segmentIndex = 0;
+			for (int i = 1; i < size(); i++) {
+				if (cumDistances[i] >= currentDistance) {
+					segmentIndex = i - 1;
+					break;
+				}
+			}
+
+			// Interpolate within the segment
+			final PointInImage p1 = getNodeWithoutChecks(segmentIndex);
+			final PointInImage p2 = getNodeWithoutChecks(segmentIndex + 1);
+			final double segmentStart = cumDistances[segmentIndex];
+			final double segmentEnd = cumDistances[segmentIndex + 1];
+			final double segmentLength = segmentEnd - segmentStart;
+
+			if (segmentLength > 0) {
+				final double t = (currentDistance - segmentStart) / segmentLength;
+				final double newX = p1.x + t * (p2.x - p1.x);
+				final double newY = p1.y + t * (p2.y - p1.y);
+				final double newZ = p1.z + t * (p2.z - p1.z);
+				result.addNode(new PointInImage(newX, newY, newZ));
+			}
+
+			currentDistance += targetSpacing;
+		}
+
+		// Add final point if it's not too close to the last added point
+		final PointInImage lastOriginal = getNodeWithoutChecks(size() - 1);
+		if (result.size() == 0 || result.getNodeWithoutChecks(result.size() - 1).distanceTo(lastOriginal) > targetSpacing / 2) {
+			result.addNode(lastOriginal);
+		}
+
+		return result;
+	}
+
+	/**
+	 * Returns a smoothed version of this path using a simple moving average filter.
+	 *
+	 * @param windowSize the size of the smoothing window (must be odd and >= 3)
+	 * @return the smoothed path
+	 */
+	public Path getSmoothedPath(final int windowSize) {
+		if (windowSize < 3 || windowSize % 2 == 0) {
+			throw new IllegalArgumentException("windowSize must be odd and >= 3");
+		}
+
+		final Path result = createPath();
+		if (size() <= windowSize) {
+			// Path too short for smoothing, return copy
+			for (int i = 0; i < size(); i++) {
+				result.addNode(getNodeWithoutChecks(i));
+			}
+			return result;
+		}
+
+		final int halfWindow = windowSize / 2;
+
+		// Copy first few points unchanged
+		for (int i = 0; i < halfWindow; i++) {
+			result.addNode(getNodeWithoutChecks(i));
+		}
+
+		// Apply smoothing to middle points
+		for (int i = halfWindow; i < size() - halfWindow; i++) {
+			double sumX = 0, sumY = 0, sumZ = 0;
+			for (int j = i - halfWindow; j <= i + halfWindow; j++) {
+				final PointInImage p = getNodeWithoutChecks(j);
+				sumX += p.x;
+				sumY += p.y;
+				sumZ += p.z;
+			}
+			final double avgX = sumX / windowSize;
+			final double avgY = sumY / windowSize;
+			final double avgZ = sumZ / windowSize;
+			result.addNode(new PointInImage(avgX, avgY, avgZ));
+		}
+
+		// Copy last few points unchanged
+		for (int i = size() - halfWindow; i < size(); i++) {
+			result.addNode(getNodeWithoutChecks(i));
+		}
+
+		return result;
 	}
 
 	/**
@@ -2345,16 +2531,27 @@ public class Path implements Comparable<Path> {
 		final List<Double> validRadii = new ArrayList<>();
 		final List<Integer> replacementIndices = new ArrayList<>();
 		for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
-			if (predicate.test(radii[nodeIdx])) {
+			final double nodeRadius = getNodeWithoutChecks(nodeIdx).getRadius();
+			if (predicate.test(nodeRadius)) {
 				replacementIndices.add(nodeIdx);
 			} else {
 				validIndices.add(nodeIdx);
-				validRadii.add(radii[nodeIdx]);
+				validRadii.add(nodeRadius);
 			}
 		}
-		final double[] knownIndices = validIndices.stream().mapToDouble(d -> d).toArray();
-		final double[] knownRadii = validRadii.stream().mapToDouble(d -> d).toArray();
-		final double[] unknownIndices = replacementIndices.stream().mapToDouble(d -> d).toArray();
+		// Direct array creation is faster than stream operations
+		final double[] knownIndices = new double[validIndices.size()];
+		for (int i = 0; i < validIndices.size(); i++) {
+			knownIndices[i] = validIndices.get(i);
+		}
+		final double[] knownRadii = new double[validRadii.size()];
+		for (int i = 0; i < validRadii.size(); i++) {
+			knownRadii[i] = validRadii.get(i);
+		}
+		final double[] unknownIndices = new double[replacementIndices.size()];
+		for (int i = 0; i < replacementIndices.size(); i++) {
+			unknownIndices[i] = replacementIndices.get(i);
+		}
 		final double[] guessedRadii = interpolate(knownIndices, knownRadii, unknownIndices);
 		final Map<Integer, Double> result = new TreeMap<>();
 		for (int idx = 0; idx < unknownIndices.length; idx++) {
@@ -2377,14 +2574,13 @@ public class Path implements Comparable<Path> {
 		final double[] knots = function.getKnots();
 		final double firstKnot = knots[0];
 		final double lastKnot = knots[knots.length - 1];
-		final double[] resultList = Arrays.stream(x2).map(d -> {
-			if (d > lastKnot) {
-				return lastFunction.value(d - knots[knots.length - 2]);
-			} else if (d < firstKnot)
-				return firstFunction.value(d - knots[0]);
-			return function.value(d);
-		}).toArray();
-		return resultList;
+        return Arrays.stream(x2).map(d -> {
+            if (d > lastKnot) {
+                return lastFunction.value(d - knots[knots.length - 2]);
+            } else if (d < firstKnot)
+                return firstFunction.value(d - knots[0]);
+            return function.value(d);
+        }).toArray();
 	}
 
 	protected void setFittedCircles(final int nPoints, final double[] tangents_x,
@@ -2392,15 +2588,26 @@ public class Path implements Comparable<Path> {
 		final double[] radii, final double[] optimized_x,
 		final double[] optimized_y, final double[] optimized_z)
 	{
-		this.points = nPoints;
-		if (tangents_x != null) this.tangents_x = tangents_x.clone();
-		if (tangents_y != null) this.tangents_y = tangents_y.clone();
-		if (tangents_z != null) this.tangents_z = tangents_z.clone();
-		if (radii != null) this.radii = radii.clone();
-
-		this.precise_x_positions = optimized_x.clone();
-		this.precise_y_positions = optimized_y.clone();
-		this.precise_z_positions = optimized_z.clone();
+		// Clear existing nodes and create new ones from the fitted data
+		nodes.clear();
+		
+		for (int i = 0; i < nPoints; i++) {
+			PathNode node = new PathNode(optimized_x[i], optimized_y[i], optimized_z[i]);
+			node.onPath = this;
+			
+			// Set radius if available
+			if (radii != null && i < radii.length) {
+				node.setRadius(radii[i]);
+			}
+			
+			// Set tangent if available
+			if (tangents_x != null && tangents_y != null && tangents_z != null && 
+				i < tangents_x.length && i < tangents_y.length && i < tangents_z.length) {
+				node.setTangent(tangents_x[i], tangents_y[i], tangents_z[i]);
+			}
+			
+			nodes.add(node);
+		}
 	}
 
 	/**
@@ -2637,9 +2844,8 @@ public class Path implements Comparable<Path> {
 
 	public java.util.List<Point3f> getPoint3fList() {
 		final ArrayList<Point3f> linePoints = new ArrayList<>();
-		for (int i = 0; i < points; ++i) {
-			linePoints.add(new Point3f((float) precise_x_positions[i],
-				(float) precise_y_positions[i], (float) precise_z_positions[i]));
+		for (final PathNode node : nodes) {
+			linePoints.add(new Point3f((float) node.x, (float) node.y, (float) node.z));
 		}
 		return linePoints;
 	}
@@ -2672,17 +2878,38 @@ public class Path implements Comparable<Path> {
 	{
 		if (!hasRadii()) return null;
 
-		final Color3f[] originalColors = Pipe.getPointColors(precise_x_positions,
-			precise_y_positions, precise_z_positions, c, colorImage);
+		// Create coordinate arrays for color calculation - direct array creation is faster
+		final int nodeCount = nodes.size();
+		final double[] xCoords = new double[nodeCount];
+		final double[] yCoords = new double[nodeCount];
+		final double[] zCoords = new double[nodeCount];
+		for (int i = 0; i < nodeCount; i++) {
+			final PathNode node = nodes.get(i);
+			xCoords[i] = node.x;
+			yCoords[i] = node.y;
+			zCoords[i] = node.z;
+		}
+		
+		final Color3f[] originalColors = Pipe.getPointColors(xCoords, yCoords, zCoords, c, colorImage);
 
 		final List<Color3f> meshColors = new ArrayList<>();
 
 		final int edges = 8;
-		final List<Point3f> allTriangles = new ArrayList<>(edges * points);
-		for (int i = 0; i < points; ++i) {
+		final List<Point3f> allTriangles = new ArrayList<>(edges * size());
+		for (int i = 0; i < size(); ++i) {
+			final PathNode node = getNodeWithoutChecks(i);
+			final double[] tangent = node.getTangent();
+			
+			// Use tangent if available, otherwise calculate from neighbors
+			double tx = 0, ty = 0, tz = 1; // default tangent
+			if (tangent != null && tangent.length >= 3) {
+				tx = tangent[0];
+				ty = tangent[1];
+				tz = tangent[2];
+			}
+			
 			final List<Point3f> discMesh = customnode.MeshMaker.createDisc(
-				precise_x_positions[i], precise_y_positions[i], precise_z_positions[i],
-				tangents_x[i], tangents_y[i], tangents_z[i], radii[i], 8);
+				node.x, node.y, node.z, tx, ty, tz, node.getRadius(), 8);
 			final int pointsInDiscMesh = discMesh.size();
 			for (int j = 0; j < pointsInDiscMesh; ++j)
 				meshColors.add(originalColors[i]);
@@ -2704,7 +2931,7 @@ public class Path implements Comparable<Path> {
 
 		realColor = c;
 
-		if (points <= 1) {
+		if (size() <= 1) {
 			content3D = null;
 			content3DExtra = null;
 			return;
@@ -2733,22 +2960,22 @@ public class Path implements Comparable<Path> {
 
 		int pointsToUse = -1;
 
-		double[] x_points_d = new double[points];
-		double[] y_points_d = new double[points];
-		double[] z_points_d = new double[points];
-		double[] radiuses_d = new double[points];
+		double[] x_points_d = new double[size()];
+		double[] y_points_d = new double[size()];
+		double[] z_points_d = new double[size()];
+		double[] radiuses_d = new double[size()];
 
 		if (hasRadii()) {
 			int added = 0;
-			int lastIndexAdded = -noMoreThanOneEvery;
-			for (int i = 0; i < points; ++i) {
-				if ((points <= noMoreThanOneEvery) || (i -
-					lastIndexAdded >= noMoreThanOneEvery))
-				{
-					x_points_d[added] = precise_x_positions[i];
-					y_points_d[added] = precise_y_positions[i];
-					z_points_d[added] = precise_z_positions[i];
-					radiuses_d[added] = radii[i];
+			final int samplingInterval = calculateSamplingInterval();
+			int lastIndexAdded = -samplingInterval;
+			for (int i = 0; i < size(); ++i) {
+				if ((size() <= samplingInterval) || (i - lastIndexAdded >= samplingInterval)) {
+					final PathNode node = getNodeWithoutChecks(i);
+					x_points_d[added] = node.x;
+					y_points_d[added] = node.y;
+					z_points_d[added] = node.z;
+					radiuses_d[added] = node.getRadius();
 					lastIndexAdded = i;
 					++added;
 				}
@@ -2756,13 +2983,14 @@ public class Path implements Comparable<Path> {
 			pointsToUse = added;
 		}
 		else {
-			for (int i = 0; i < points; ++i) {
-				x_points_d[i] = precise_x_positions[i];
-				y_points_d[i] = precise_y_positions[i];
-				z_points_d[i] = precise_z_positions[i];
+			for (int i = 0; i < size(); ++i) {
+				final PathNode node = getNodeWithoutChecks(i);
+				x_points_d[i] = node.x;
+				y_points_d[i] = node.y;
+				z_points_d[i] = node.z;
 				radiuses_d[i] = getMinimumSeparation() * 2;
 			}
-			pointsToUse = points;
+			pointsToUse = size();
 		}
 
 		if (pointsToUse == 2) {
@@ -2881,10 +3109,22 @@ public class Path implements Comparable<Path> {
 		return selected;
 	}
 
-	// TODO: this should be renamed
-	public boolean versionInUse() {
+	/**
+	 * Checks if this version of the path is currently being used for display/analysis.
+	 * 
+	 * @return true if this version is active, false otherwise
+	 */
+	public boolean isActiveVersion() {
 		if (fittedVersionOf != null) return fittedVersionOf.useFitted;
 		return !useFitted;
+	}
+	
+	/**
+	 * @deprecated Use {@link #isActiveVersion()} instead
+	 */
+	@Deprecated
+	public boolean versionInUse() {
+		return isActiveVersion();
 	}
 
 	/**
@@ -2913,18 +3153,27 @@ public class Path implements Comparable<Path> {
 			return Double.NaN;
 		}
 
+		if (nodes.size() < 2) return 0;
+		
 		double totalVolume = 0;
-		for (int i = 0; i < points - 1; ++i) {
-			final double xdiff = precise_x_positions[i + 1] - precise_x_positions[i];
-			final double ydiff = precise_y_positions[i + 1] - precise_y_positions[i];
-			final double zdiff = precise_z_positions[i + 1] - precise_z_positions[i];
+		// Cache node references to avoid repeated method calls
+		PathNode prevNode = nodes.get(0);
+		for (int i = 1; i < nodes.size(); ++i) {
+			final PathNode currentNode = nodes.get(i);
+			
+			final double xdiff = currentNode.x - prevNode.x;
+			final double ydiff = currentNode.y - prevNode.y;
+			final double zdiff = currentNode.z - prevNode.z;
 			final double h = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
-			final double r1 = radii[i];
-			final double r2 = radii[i + 1];
+			
+			final double r1 = prevNode.getRadius();
+			final double r2 = currentNode.getRadius();
+			
 			// See http://en.wikipedia.org/wiki/Frustum
 			final double partVolume = (Math.PI * h * (r1 * r1 + r2 * r2 + r1 * r2)) /
 				3.0;
 			totalVolume += partVolume;
+			prevNode = currentNode;
 		}
 
 		return totalVolume;
@@ -2944,17 +3193,26 @@ public class Path implements Comparable<Path> {
 			return Double.NaN;
 		}
 
+		if (nodes.size() < 2) return 0;
+		
 		double totalSurface = 0;
-		for (int i = 0; i < points - 1; ++i) {
-			final double xdiff = precise_x_positions[i + 1] - precise_x_positions[i];
-			final double ydiff = precise_y_positions[i + 1] - precise_y_positions[i];
-			final double zdiff = precise_z_positions[i + 1] - precise_z_positions[i];
+		// Cache node references to avoid repeated method calls
+		PathNode prevNode = nodes.get(0);
+		for (int i = 1; i < nodes.size(); ++i) {
+			final PathNode currentNode = nodes.get(i);
+			
+			final double xdiff = currentNode.x - prevNode.x;
+			final double ydiff = currentNode.y - prevNode.y;
+			final double zdiff = currentNode.z - prevNode.z;
 			final double h = Math.sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
-			final double r1 = radii[i];
-			final double r2 = radii[i + 1];
+			
+			final double r1 = prevNode.getRadius();
+			final double r2 = currentNode.getRadius();
+			
 			// Lateral surface area of conical frustum https://en.wikipedia.org/wiki/Frustum
 			final double partSurface = Math.PI * (r1 + r2) * Math.sqrt((r1 - r2) * (r1 - r2) + (h * h));
 			totalSurface += partSurface;
+			prevNode = currentNode;
 		}
 
 		return totalSurface;
@@ -2982,16 +3240,17 @@ public class Path implements Comparable<Path> {
 		}
 
 		final Path result = new Path(templatePixelWidth, templatePixelHeight,
-			templatePixelDepth, templateUnits, size());
+			templatePixelDepth, templateUnits);
 		final double[] transformed = new double[3];
 
 		// Actually, just say you'll have to refit all the
 		// previously fitted paths...
 
-		for (int i = 0; i < points; ++i) {
-			final double original_x = precise_x_positions[i];
-			final double original_y = precise_y_positions[i];
-			final double original_z = precise_z_positions[i];
+		for (int i = 0; i < size(); ++i) {
+			final PathNode node = getNodeWithoutChecks(i);
+			final double original_x = node.x;
+			final double original_y = node.y;
+			final double original_z = node.z;
 			transformation.transformPoint(original_x, original_y, original_z,
 				transformed);
 			final double new_x = transformed[0];
@@ -3045,22 +3304,14 @@ public class Path implements Comparable<Path> {
 	 * @return the junction nodes
 	 */
 	public Set<PointInImage> getJunctionNodes() {
-		class LocationBasePoint extends PointInImage {
-			LocationBasePoint(final PointInImage pim) {
-				super(pim.x, pim.y, pim.z, pim.onPath);
-				setAnnotation(pim.getAnnotation());
-			}
-
-			@Override
-			public boolean equals(final Object o) {
-				if (o == this) return true;
-				if (o == null) return false;
-				if (!(o instanceof PointInImage other)) return false;
-                return isSameLocation(other);
+		final Set<PathAndFillManager.JunctionPoint> uniqueJunctions = new HashSet<>();
+		final Set<PointInImage> result = new HashSet<>();
+		for (final PointInImage junction : findJunctions()) {
+			final PathAndFillManager.JunctionPoint junctionPoint = new PathAndFillManager.JunctionPoint(junction);
+			if (uniqueJunctions.add(junctionPoint)) {
+				result.add(junction); // This is a new unique junction based on location
 			}
 		}
-		final Set<PointInImage> result = new HashSet<>();
-		findJunctions().forEach(j -> result.add(new LocationBasePoint(j)));
 		return result;
 	}
 
@@ -3092,6 +3343,10 @@ public class Path implements Comparable<Path> {
 	 * Each segment is downsampled independently, and the results are combined to form the final
 	 * downsampled path. Node radii are averaged appropriately for retained points
 	 * </p>
+	 * <p>
+	 * <b>Thread Safety:</b> This method is synchronized to prevent concurrent modification
+	 * of the path structure during the downsampling operation.
+	 * </p>
 	 *
 	 * @param internodeSpacing the target spacing between nodes after downsampling. This parameter
 	 *                         controls the aggressiveness of the downsampling - smaller values
@@ -3102,15 +3357,20 @@ public class Path implements Comparable<Path> {
 	 * @see PathDownsampler#downsample(ArrayList, double)
 	 * @see #findJunctionIndices()
 	 */
-	synchronized public void downsample(final double internodeSpacing) {
-		if (points < 3) return; // Need at least 3 points to downsample
+	public synchronized void downsample(final double internodeSpacing) {
+		if (size() < 3) return; // Need at least 3 points to downsample
 
 		// Find fixed points (junctions) that must be preserved. Set is already sorted
 		// Convert to sorted array for easier processing
 		final TreeSet<Integer> fixedIndicesSet = findJunctionIndices();
 		fixedIndicesSet.add(0); // Always preserve start
-		fixedIndicesSet.add(points - 1); // Always preserve end
-		final int[] fixedIndices = fixedIndicesSet.stream().mapToInt(Integer::intValue).toArray();
+		fixedIndicesSet.add(size() - 1); // Always preserve end
+		// Direct array creation is faster than stream operations
+		final int[] fixedIndices = new int[fixedIndicesSet.size()];
+		int idx = 0;
+		for (Integer index : fixedIndicesSet) {
+			fixedIndices[idx++] = index;
+		}
 
 		// Process all segments and collect results
 		final List<SegmentResult> segmentResults = new ArrayList<>();
@@ -3126,8 +3386,8 @@ public class Path implements Comparable<Path> {
 			// Create input for downsampling
 			final ArrayList<SimplePoint> segmentPoints = new ArrayList<>(segEnd - segStart + 1);
 			for (int i = segStart; i <= segEnd; i++) {
-				segmentPoints.add(new SimplePoint(
-						precise_x_positions[i], precise_y_positions[i], precise_z_positions[i], i));
+				final PathNode node = getNodeWithoutChecks(i);
+				segmentPoints.add(new SimplePoint(node.x, node.y, node.z, i));
 			}
 
 			// Downsample this segment
@@ -3146,79 +3406,54 @@ public class Path implements Comparable<Path> {
 			if (segIdx > 0) totalPointsToKeep--;
 		}
 
-		if (totalPointsToKeep >= points || segmentResults.isEmpty()) return; // No improvement from downsampling
+		if (totalPointsToKeep >= size() || segmentResults.isEmpty()) return; // No improvement from downsampling
 
-		// Allocate new arrays
-		final double[] newX = new double[totalPointsToKeep];
-		final double[] newY = new double[totalPointsToKeep];
-		final double[] newZ = new double[totalPointsToKeep];
-
-		final boolean hasRadiiData = hasRadii();
-		final boolean hasValueData = hasNodeValues();
-		final boolean hasAnnotationData = hasNodeAnnotations();
-		final boolean hasHemisphereData = hasNodeHemisphereFlags();
-		final double[] newRadii = hasRadiiData ? new double[totalPointsToKeep] : null;
-		final double[] newValues = hasValueData ? new double[totalPointsToKeep] : null;
-		final BrainAnnotation[] newAnnotations = hasAnnotationData ? new BrainAnnotation[totalPointsToKeep] : null;
-		final char[] newHemisphereFlags = hasHemisphereData ? new char[totalPointsToKeep] : null;
+		// Create new nodes list
+		final List<PathNode> newNodes = new ArrayList<>(totalPointsToKeep);
 
 		// Build the final downsampled path
-		int outputIdx = 0;
 		for (int segIdx = 0; segIdx < segmentResults.size(); segIdx++) {
 			final SegmentResult result = segmentResults.get(segIdx);
 			final int startIdx = (segIdx == 0) ? 0 : 1; // Skip first point of non-first segments to avoid duplication
 
 			for (int i = startIdx; i < result.downsampledPoints.size(); i++) {
 				final SimplePoint sp = result.downsampledPoints.get(i);
-
-				// Copy coordinates
-				newX[outputIdx] = sp.x;
-				newY[outputIdx] = sp.y;
-				newZ[outputIdx] = sp.z;
-
-				// Handle optional data arrays
-				if (hasRadiiData)
-					newRadii[outputIdx] = calculateAverageRadius(sp, result, i);
-				if (hasValueData)
-					newValues[outputIdx] = nodeValues[sp.originalIndex];
-				if (hasAnnotationData)
-					newAnnotations[outputIdx] = nodeAnnotations[sp.originalIndex];
-				if (hasHemisphereData)
-					newHemisphereFlags[outputIdx] = nodeHemisphereFlags[sp.originalIndex];
-				outputIdx++;
+				
+				// Create new node with downsampled coordinates
+				final PathNode newNode = new PathNode(sp.x, sp.y, sp.z);
+				newNode.onPath = this;
+				
+				// Copy properties from original node if it exists
+				if (sp.originalIndex >= 0 && sp.originalIndex < nodes.size()) {
+					final PathNode originalNode = nodes.get(sp.originalIndex);
+					newNode.v = originalNode.v;
+					newNode.setAnnotation(originalNode.getAnnotation());
+					newNode.setHemisphere(originalNode.getHemisphere());
+					
+					// For radius, use average if this is an interpolated point
+					if (originalNode.hasRadius()) {
+						newNode.setRadius(calculateAverageRadius(sp, result, i));
+					}
+				}
+				
+				newNodes.add(newNode);
 			}
 		}
 
-		// Update path data
-		points = totalPointsToKeep;
-		precise_x_positions = newX;
-		precise_y_positions = newY;
-		precise_z_positions = newZ;
-		radii = newRadii;
-		nodeValues = newValues;
-		nodeAnnotations = newAnnotations;
-		nodeHemisphereFlags = newHemisphereFlags;
-		setRadiiInPlace(newRadii);
-		setNodeColors(null); // remove color coding as per upsample()
+		// Replace nodes with downsampled version
+		nodes.clear();
+		nodes.addAll(newNodes);
+		setNodeColors(null);
 	}
-	
+
 	/**
-	 * Helper class to store the results of downsampling a single path segment.
+	 * Helper record to store the results of downsampling a single path segment.
 	 * <p>
-	 * This class encapsulates the original segment boundaries and the resulting
+	 * This record encapsulates the original segment boundaries and the resulting
 	 * downsampled points for a segment between two fixed points (junctions).
 	 * </p>
 	 */
-	private static class SegmentResult {
-		final int originalStart;
-		final int originalEnd;
-		final ArrayList<SimplePoint> downsampledPoints;
-		
-		SegmentResult(int originalStart, int originalEnd, ArrayList<SimplePoint> downsampledPoints) {
-			this.originalStart = originalStart;
-			this.originalEnd = originalEnd;
-			this.downsampledPoints = downsampledPoints;
-		}
+	private record SegmentResult(int originalStart, int originalEnd, ArrayList<SimplePoint> downsampledPoints) {
 	}
 	
 	/**
@@ -3235,33 +3470,33 @@ public class Path implements Comparable<Path> {
 	 * @return the calculated radius value, or 0.0 if no radius data is available
 	 */
 	private double calculateAverageRadius(final SimplePoint sp, final SegmentResult result, final int pointIndex) {
-		if (!hasRadii() || sp.originalIndex < 0 || sp.originalIndex >= radii.length) {
+		if (!hasRadii() || sp.originalIndex < 0 || sp.originalIndex >= size()) {
 			return 0.0;
 		}
 		
 		// For endpoints, use the original radius
 		if (pointIndex == 0 || pointIndex == result.downsampledPoints.size() - 1) {
-			return radii[sp.originalIndex];
+			return getNodeWithoutChecks(sp.originalIndex).getRadius();
 		}
 		
 		// For intermediate points, average over a small neighborhood
 		final int originalIdx = sp.originalIndex;
 		final int windowSize = 2; // Average over ±2 points
 		final int startIdx = Math.max(0, Math.max(result.originalStart, originalIdx - windowSize));
-		final int endIdx = Math.min(radii.length - 1, Math.min(result.originalEnd, originalIdx + windowSize));
+		final int endIdx = Math.min(size() - 1, Math.min(result.originalEnd, originalIdx + windowSize));
 		
 		// Ensure valid range
 		if (startIdx > endIdx) {
-			return radii[originalIdx];
+			return getNodeWithoutChecks(originalIdx).getRadius();
 		}
 
 		double sum = 0.0;
 		int count = 0;
 		for (int i = startIdx; i <= endIdx; i++) {
-			sum += radii[i];
+			sum += getNodeWithoutChecks(i).getRadius();
 			count++;
 		}
-		return count > 0 ? sum / count : radii[originalIdx];
+		return count > 0 ? sum / count : getNodeWithoutChecks(originalIdx).getRadius();
 	}
 
 	/**
@@ -3275,11 +3510,15 @@ public class Path implements Comparable<Path> {
 	 * <p>
 	 *     <b>NB:</b>Some assigned properties (node colors, node values, etc.) will be lost.
 	 * </p>
+	 * <p>
+	 * <b>Thread Safety:</b> This method is synchronized to prevent concurrent modification
+	 * of the path structure during the upsampling operation.
+	 * </p>
 	 *
 	 * @param internodeSpacing the desired distance between adjacent nodes
 	 * @throws IllegalArgumentException if spacing is less than or equal to zero
 	 */
-	synchronized public void upsample(final double internodeSpacing) {
+	public synchronized void upsample(final double internodeSpacing) {
 		if (internodeSpacing <= 0) {
 			throw new IllegalArgumentException("internode spacing must be greater than zero");
 		}
@@ -3298,8 +3537,8 @@ public class Path implements Comparable<Path> {
 		int totalPointsToAdd = 0;
 
 		for (int i = 0; i < originalSize - 1; i++) {
-			final PointInImage p1 = getNodeWithoutChecks(i);
-			final PointInImage p2 = getNodeWithoutChecks(i + 1);
+			final PathNode p1 = getNodeWithoutChecks(i);
+			final PathNode p2 = getNodeWithoutChecks(i + 1);
 
 			final double dx = p2.x - p1.x;
 			final double dy = p2.y - p1.y;
@@ -3321,38 +3560,18 @@ public class Path implements Comparable<Path> {
 
 		if (totalPointsToAdd == 0) return;
 
-		// Allocate final arrays
-		final int newSize = originalSize + totalPointsToAdd;
-		final double[] newX = new double[newSize];
-		final double[] newY = new double[newSize];
-		final double[] newZ = new double[newSize];
-
-		// Check once for optional data arrays
-		final boolean hasRadiiData = hasRadii();
-		final boolean hasValueData = hasNodeValues();
-		final boolean hasAnnotationData = hasNodeAnnotations();
-		final boolean hasHemisphereData = hasNodeHemisphereFlags();
-		final double[] newRadii = (hasRadiiData) ? new double[newSize] : null;
-		final BrainAnnotation[] newAnnotations = (hasAnnotationData) ? new BrainAnnotation[newSize] : null;
-		final char[] newHemisphereFlags = (hasHemisphereData) ? new char[newSize] : null;
+		// Create new nodes list
+		final List<PathNode> newNodes = new ArrayList<>(originalSize + totalPointsToAdd);
 
 		// Process each segment
-		int idx = 0;
 		for (int i = 0; i < originalSize - 1; i++) {
-			final PointInImage p1 = getNodeWithoutChecks(i);
+			final PathNode p1 = getNodeWithoutChecks(i);
+			final PathNode p2 = getNodeWithoutChecks(i + 1);
 
 			// Add original point
-			newX[idx] = p1.x;
-			newY[idx] = p1.y;
-			newZ[idx] = p1.z;
-
-			// Cache original data values to avoid repeated method calls
-			final double r1 = (hasRadiiData) ? getNodeRadius(i) : 0;
-			final double v1 = (hasValueData) ? nodeValues[i] : 0;
-			if (hasRadiiData) newRadii[idx] = r1;
-			if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[i];
-			if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[i];
-			idx++;
+			PathNode newNode = p1.clone();
+			newNode.onPath = this;
+			newNodes.add(newNode);
 
 			// Add interpolated points
 			final int numPoints = segmentPoints[i];
@@ -3361,63 +3580,73 @@ public class Path implements Comparable<Path> {
 				final double dx = segmentDx[i];
 				final double dy = segmentDy[i];
 				final double dz = segmentDz[i];
+				
 				// Pre-calculate interpolation deltas
-				final double r2 = (hasRadiiData) ? getNodeRadius(i + 1) : 0;
-				final double v2 = (hasValueData) ? nodeValues[i + 1] : 0;
+				final double r1 = p1.getRadius();
+				final double r2 = p2.getRadius();
+				final double v1 = p1.v;
+				final double v2 = p2.v;
 				final double dr = r2 - r1;
 				final double dv = v2 - v1;
-				// Pre-calculate midpoint for annotation/hemisphere selection: interpolated node will adopt the
-				// value of the closest node. This may not work in all the cases, but it is a sensible assumption.
+				
+				// Pre-calculate midpoint for annotation/hemisphere selection
 				final int midPoint = (numPoints + 1) / 2;
 
 				for (int j = 1; j <= numPoints; j++) {
 					final double t = j * stepSize;
-					newX[idx] = p1.x + t * dx;
-					newY[idx] = p1.y + t * dy;
-					newZ[idx] = p1.z + t * dz;
-					if (hasRadiiData) newRadii[idx] = r1 + t * dr;
-					final int indexOfClosestNode = (j <= midPoint) ? i : i + 1;
-					if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[indexOfClosestNode];
-					if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[indexOfClosestNode];
-					idx++;
+					
+					// Create interpolated node
+					PathNode interpolatedNode = new PathNode(
+						p1.x + t * dx,
+						p1.y + t * dy,
+						p1.z + t * dz
+					);
+					interpolatedNode.onPath = this;
+					
+					// Interpolate radius
+					if (p1.hasRadius() || p2.hasRadius()) {
+						interpolatedNode.setRadius(r1 + t * dr);
+					}
+					
+					// Interpolate value
+					interpolatedNode.v = v1 + t * dv;
+					
+					// Use closest node for annotation/hemisphere
+					final PathNode closestNode = (j <= midPoint) ? p1 : p2;
+					interpolatedNode.setAnnotation(closestNode.getAnnotation());
+					interpolatedNode.setHemisphere(closestNode.getHemisphere());
+					
+					newNodes.add(interpolatedNode);
 				}
 			}
 		}
 
 		// Add final node
-		final PointInImage lastPoint = getNodeWithoutChecks(originalSize - 1);
-		final int lastIdx = originalSize - 1;
+		PathNode lastNode = getNodeWithoutChecks(originalSize - 1).clone();
+		lastNode.onPath = this;
+		newNodes.add(lastNode);
 
-		newX[idx] = lastPoint.x;
-		newY[idx] = lastPoint.y;
-		newZ[idx] = lastPoint.z;
-
-		if (hasRadiiData) newRadii[idx] = getNodeRadius(lastIdx);
-		if (hasAnnotationData) newAnnotations[idx] = nodeAnnotations[lastIdx];
-		if (hasHemisphereData) newHemisphereFlags[idx] = nodeHemisphereFlags[lastIdx];
-
-		// Update path data
-		nodeValues = null;
-		nodeColors = null;
-		points = newSize;
-		maxPoints = newSize;
-		precise_x_positions = newX;
-		precise_y_positions = newY;
-		precise_z_positions = newZ;
-		nodeAnnotations = newAnnotations;
-		nodeHemisphereFlags = newHemisphereFlags;
-		setRadiiInPlace(newRadii);
+		// Replace nodes with upsampled version
+		nodes.clear();
+		nodes.addAll(newNodes);
+		setNodeColors(null);
 	}
 
 	private void setRadiiInPlace(final double[] newRadii) {
 		if (newRadii != null) {
-			assert points == newRadii.length;
-			tangents_x = new double[newRadii.length];
-			tangents_y = new double[newRadii.length];
-			tangents_z = new double[newRadii.length];
+			assert size() == newRadii.length;
+			// Set radii on individual nodes
+			for (int i = 0; i < newRadii.length; i++) {
+				getNodeWithoutChecks(i).setRadius(newRadii[i]);
+			}
+			// Update tangents if we now have radii
 			setGuessedTangents(2);
+		} else {
+			// Clear all radii
+			for (PathNode node : nodes) {
+				node.setRadius(0.0);
+			}
 		}
-		radii = newRadii;
 	}
 
 	/**
@@ -3428,24 +3657,28 @@ public class Path implements Comparable<Path> {
 	 */
 	public void setRadius(final double r) {
 		if (Double.isNaN(r) || r == 0d) {
-			radii = null;
+			// Clear all radii
+			for (PathNode node : nodes) {
+				node.setRadius(0.0);
+			}
 		}
 		else {
-			if (radii == null) {
-				createCircles();
+			// Set radius for all nodes
+			for (PathNode node : nodes) {
+				node.setRadius(r);
+			}
+			// Update tangents if this is the first time setting radii
+			if (!hasTangents()) {
 				setGuessedTangents(2);
 			}
-			Arrays.fill(radii, r);
 		}
 	}
 
 	public void setRadius(final double r, final int index) {
 		if (Double.isNaN(r)) return;
-		if (radii == null) {
-			createCircles();
-			setGuessedTangents(2);
-		}
-		radii[index] = r;
+		getNodeWithChecks(index).setRadius(r);
+		// Update tangents if this is the first radius being set
+		if (!hasTangents()) setGuessedTangents(2);
 	}
 
 	/**
@@ -3457,18 +3690,15 @@ public class Path implements Comparable<Path> {
 	 */
 	public void setRadii(final double[] radii) {
 		if (radii == null || radii.length == 0) {
-			this.radii = null;
-		}
-		else if (radii.length != size()) {
-			throw new IllegalArgumentException(
-				"radii array must have as many elements as nodes");
-		}
-		else {
-			if (this.radii == null) {
-				createCircles();
-				setGuessedTangents(2);
-			}
-			System.arraycopy(radii, 0, this.radii, 0, size());
+			for (final PathNode node : nodes)
+				node.radius = 0; // Clear all radii
+		} else if (radii.length != size()) {
+			throw new IllegalArgumentException("radii array must have as many elements as nodes");
+		} else {
+			for (int i = 0; i < radii.length; i++) // Set radii on individual nodes
+				getNodeWithoutChecks(i).setRadius(radii[i]);
+			// Update tangents if we now have radii
+			if (!hasTangents()) setGuessedTangents(2);
 		}
 	}
 

@@ -40,7 +40,7 @@ import sc.fiji.snt.hyperpanes.MultiDThreePanes;
  *
  * @author Tiago Ferreira
  */
-class PathNode {
+class PathNodeCanvas {
 
 	/** Flag describing a start point node */
 	public static final int START = 1;
@@ -70,7 +70,7 @@ class PathNode {
 	 * @param pim the position of the node (z-position ignored)
 	 * @param canvas the canvas to render this node. Cannot be null
 	 */
-	public PathNode(final PointInImage pim, final int index, final TracerCanvas canvas) {
+	public PathNodeCanvas(final PointInImage pim, final int index, final TracerCanvas canvas) {
 		this.path = pim.onPath;
 		this.canvas = canvas;
 		this.index = index;
@@ -78,7 +78,7 @@ class PathNode {
 		y = getScreenCoordinateY(pim);
 	}
 
-	public PathNode(final Path path, final int index, final int type, final TracerCanvas canvas) {
+	public PathNodeCanvas(final Path path, final int index, final int type, final TracerCanvas canvas) {
 		this(path.getNodeWithoutChecks(index), index, canvas);
 		this.type = type;
 	}
@@ -90,7 +90,7 @@ class PathNode {
 	 * @param index the position of this node within path
 	 * @param canvas the canvas to render this node. Cannot be null
 	 */
-	public PathNode(final Path path, final int index, final TracerCanvas canvas) {
+	public PathNodeCanvas(final Path path, final int index, final TracerCanvas canvas) {
 		this(path.getNodeWithoutChecks(index), index, canvas);
 
 		// Define which type of node we're dealing with
@@ -210,7 +210,7 @@ class PathNode {
 	/**
 	 * Returns the type of node.
 	 *
-	 * @return the node type: PathNode.END, PathNode.JOINT, PathNode.SLAB, etc.
+	 * @return the node type: PathNodeCanvas.END, PathNodeCanvas.JOINT, PathNodeCanvas.SLAB, etc.
 	 */
 	public int getType() {
 		return type;
@@ -275,7 +275,7 @@ class PathNode {
 
 	}
 
-	protected void drawConnection(final Graphics2D g, final PathNode other) {
+	protected void drawConnection(final Graphics2D g, final PathNodeCanvas other) {
 		g.draw(new Line2D.Double(x, y, other.x, other.y));
 	}
 
@@ -300,9 +300,10 @@ class PathNode {
 		final double n_x = 0;
 		final double n_y = 0;
 		final double n_z = 1;
-		final double t_x = path.tangents_x[index];
-		final double t_y = path.tangents_y[index];
-		final double t_z = path.tangents_z[index];
+		final double[] tangent = path.getNodeWithChecks(index).getTangent();
+		final double t_x = (tangent != null && tangent.length >= 3) ? tangent[0] : 0.0;
+		final double t_y = (tangent != null && tangent.length >= 3) ? tangent[1] : 0.0;
+		final double t_z = (tangent != null && tangent.length >= 3) ? tangent[2] : 1.0;
 		final double cross_x = n_y * t_z - n_z * t_y;
 		final double cross_y = n_z * t_x - n_x * t_z;
 		final double cross_z = n_x * t_y - n_y * t_x;
@@ -312,7 +313,7 @@ class PathNode {
 		final double normalized_cross_y = cross_y / sizeInPlane;
 		final double normalized_cross_z = cross_z / sizeInPlane;
 		final double zdiff = Math.abs((slice - getSlice()) * path.z_spacing);
-		final double realRadius = path.radii[index];
+		final double realRadius = path.getNodeWithChecks(index).getRadius();
 
 		if (either_side < 0 || zdiff <= realRadius) {
 			double effective_radius;
@@ -323,12 +324,13 @@ class PathNode {
 			}
 			final PointInImage left = new PointInImage();
 			final PointInImage right = new PointInImage();
-			left.x = path.precise_x_positions[index] + normalized_cross_x * effective_radius;
-			left.y = path.precise_y_positions[index] + normalized_cross_y * effective_radius;
-			left.z = path.precise_z_positions[index] + normalized_cross_z * effective_radius;
-			right.x = path.precise_x_positions[index] - normalized_cross_x * effective_radius;
-			right.y = path.precise_y_positions[index] - normalized_cross_y * effective_radius;
-			right.z = path.precise_z_positions[index] - normalized_cross_z * effective_radius;
+			final PointInImage node = path.getNodeWithChecks(index);
+			left.x = node.x + normalized_cross_x * effective_radius;
+			left.y = node.y + normalized_cross_y * effective_radius;
+			left.z = node.z + normalized_cross_z * effective_radius;
+			right.x = node.x - normalized_cross_x * effective_radius;
+			right.y = node.y - normalized_cross_y * effective_radius;
+			right.z = node.z - normalized_cross_z * effective_radius;
 			g2.draw(new Line2D.Double(getScreenCoordinateX(left), getScreenCoordinateY(left),
 					getScreenCoordinateX(right), getScreenCoordinateY(right)));
 		}

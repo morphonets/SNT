@@ -84,7 +84,7 @@ public class ShollAnalysisDialog extends JDialog implements ActionListener {
 
 	private final JButton swcTypesButton = new JButton("SWC Type Filtering...");
 	private final JPopupMenu swcTypesMenu = new JPopupMenu();
-	private final ArrayList<String> filteredTypes = Path.getSWCtypeNames();
+	private final List<String> filteredTypes = Path.getSWCtypeNames();
 	private final JLabel filteredTypesWarningLabel = new JLabel();
 
 	private final JButton makeShollImageButton = new JButton("Sholl Image");
