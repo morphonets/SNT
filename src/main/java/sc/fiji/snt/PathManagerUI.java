@@ -37,10 +37,7 @@ import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
 
 import javax.swing.Timer;
 import javax.swing.*;
@@ -149,6 +146,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(getDeleteMenuItem(multiPathListener));
 		editMenu.add(getDuplicateMenuItem(singlePathListener));
 		editMenu.add(getRenameMenuItem(singlePathListener));
+		editMenu.add(getGoToMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.LINK));
@@ -161,7 +159,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		editMenu.add(jmi);
 		editMenu.addSeparator();
 
-		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_SPLIT));
+		jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.menuIcon('\uf387', true));
 		jmi.setToolTipText("Combines 2 or more disconnected paths into a single one");
 		jmi.addActionListener(multiPathListener);
 		editMenu.add(jmi);
@@ -534,6 +532,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		duplicateMitem.addActionListener(singlePathListener);
 		duplicateMitem.setToolTipText("Duplicates a full path and its children or a sub-section");
 		return duplicateMitem;
+	}
+
+	private JMenuItem getGoToMenuItem(final SinglePathActionListener singlePathListener) {
+		final JMenuItem mItem = new JMenuItem(SinglePathActionListener.GO_TO_CMD);
+		mItem.setIcon(IconFactory.menuIcon('\ue4c1', true));
+		mItem.addActionListener(singlePathListener);
+		mItem.setToolTipText("Navigate to start point, midpoint, or end point of selected path");
+		return mItem;
 	}
 
 	private JMenuItem getDeleteMenuItem(final MultiPathActionListener multiPathListener) {
@@ -2264,6 +2270,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String EXPLORE_FIT_CMD = "Explore/Preview Fit";
 		private static final String STRAIGHTEN = "Straighten...";
 		private static final String NODE_PROFILER = "Node Profiler...";
+		private static final String GO_TO_CMD = "Go To...";
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
@@ -2320,11 +2327,52 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     input.put("dataset", plugin.getDataset());
                     (plugin.getUI().new DynamicCmdRunner(NodeProfiler.class, input)).run();
                 }
+                case GO_TO_CMD -> goToPathNode(p);
                 default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
             }
 		}
 	}
 
+	private void goToPathNode(final Path path) {
+		if (plugin.getImagePlus() == null) {
+			guiUtils.error("Image is not available.");
+			return;
+		}
+		if (path == null || path.size() == 0) {
+			guiUtils.error("Selected path is empty or invalid.");
+			return;
+		}
+		// Create options for the user to choose from
+		final String[] options = {"Start", "Midpoint", "End"};
+		final String choice = guiUtils.getChoice(String.format("Navigate to which node of %s?", path.getName()),
+				"Go To...", options, options[0]);
+		if (choice == null) return; // User cancelled
+		switch (choice) {
+			case "Start" -> navigateToNode(0, path);
+			case "Midpoint" -> navigateToNode(path.size() / 2, path);
+			case "End" -> navigateToNode(path.size() - 1, path);
+			default -> {
+			} // Do nothing
+		}
+	}
+
+	private void navigateToNode(final int index, final Path path) {
+		// Convert world coordinates to image coordinates
+		final int x = path.getXUnscaled(index);
+		final int y = path.getYUnscaled(index);
+		final int z = path.getZUnscaled(index);
+
+		// Set the ImagePlus position (channel, slice, frame)
+		final ImagePlus imp = plugin.getImagePlus(); // method is only called when image is available
+		imp.setPosition(path.getChannel(), z, path.getFrame());
+
+		// Check if the target point is already visible. Zoom to it if not visible
+		double mag = imp.getCanvas().getMagnification();
+		if (ImpUtils.isPointVisible(imp, x, y))
+			mag = ImpUtils.nextZoomLevel(mag);
+		ImpUtils.zoomTo(imp, mag, x, y);
+		plugin.getUI().showStatus(String.format("Go To: (%d, %d, %d)", x, y, z), true);
+	}
 
 	private void exploreFit(final Path p, final FitHelper fittingHelper) {
 		assert SwingUtilities.isEventDispatchThread();
