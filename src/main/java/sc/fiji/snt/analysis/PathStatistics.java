@@ -331,7 +331,7 @@ public class PathStatistics extends TreeStatistics {
 			case N_NODES:
 				return path.size();
 			case N_BRANCH_POINTS:
-				return path.getJunctionNodes().size();
+				return path.getBranchPoints().size();
 			default:
 				// A generic metric not directly associated with the Path class!?
 				// we can recycle the logic behind #assembleStats(). Since, all

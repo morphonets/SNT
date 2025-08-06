@@ -314,7 +314,7 @@ public class SkeletonConverter {
 			tree.add(newRootPath);
 			// Set primary paths to branch out from it
 			primaryPaths.forEach(primaryPath -> {
-				primaryPath.setStartJoin(newRootPath, newRootPath.getNode(0));
+				primaryPath.setBranchFrom(newRootPath, newRootPath.getNode(0));
 			});
 		}
 		return tree;

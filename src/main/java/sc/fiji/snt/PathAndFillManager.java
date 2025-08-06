@@ -695,8 +695,8 @@ public class PathAndFillManager extends DefaultHandler implements
 				primaryPaths.add(p);
 				continue;
 			}
-			pathChildrenMap.putIfAbsent(p.getStartJoins(), new ArrayList<>());
-			pathChildrenMap.get(p.getStartJoins()).add(p);
+			pathChildrenMap.putIfAbsent(p.getParentPath(), new ArrayList<>());
+			pathChildrenMap.get(p.getParentPath()).add(p);
 		}
 		for (final Entry<Path, List<Path>> entry : pathChildrenMap.entrySet()) {
 			entry.getKey().children.clear();
@@ -743,13 +743,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		final Set<JunctionPoint> joinPointSet = new HashSet<>();
 		final Set<Path> primaryPaths = new HashSet<>();
 		for (final Path path : paths) {
-			final Path startJoins = path.getStartJoins();
+			final Path startJoins = path.getParentPath();
 			if (startJoins == null) {
 				primaryPaths.add(path);
 				continue;
 			}
 			// Collect junction points for later ID mapping
-			final PointInImage startJoinsPoint = path.getStartJoinsPoint();
+			final PointInImage startJoinsPoint = path.getBranchPoint();
 			joinPointSet.add(new JunctionPoint(startJoinsPoint));
 			pathChildrenMap.putIfAbsent(startJoins, new ArrayList<>());
 			pathChildrenMap.get(startJoins).add(path);
@@ -783,11 +783,11 @@ public class PathAndFillManager extends DefaultHandler implements
 				}
 				int parentId;
 				if (i == 0) {
-					if (path.getStartJoins() == null) {
+					if (path.getParentPath() == null) {
 						parentId = -1;
 					} else {
 						// Find the parent ID by looking up the start junction point
-						final JunctionPoint startJunctionPoint = new JunctionPoint(path.getStartJoinsPoint());
+						final JunctionPoint startJunctionPoint = new JunctionPoint(path.getBranchPoint());
 						final Integer parentIdValue = joinPointIdMap.get(startJunctionPoint);
 						if (parentIdValue == null) {
 							throw new SWCExportException("Could not find parent ID for junction point at " + startJunctionPoint);
@@ -963,8 +963,8 @@ public class PathAndFillManager extends DefaultHandler implements
 		// assumption when adding paths in bulk, but in an interactive session, we need to
 		// ensure the path is being assigned the correct tree ID.
 		int treeID = maxUsedTreeID;
-		if (!assumeMaxUsedTreeID && !isPrimary && (p.getStartJoins() != null)) {
-			treeID = p.getStartJoins().getTreeID();
+		if (!assumeMaxUsedTreeID && !isPrimary && (p.getParentPath() != null)) {
+			treeID = p.getParentPath().getTreeID();
 		}
 		p.setIDs((forceNewId || p.getID() < 0) ? ++maxUsedPathID : p.getID(), treeID);
 		if (maxUsedPathID < p.getID()) maxUsedPathID = p.getID();
@@ -1103,7 +1103,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		// Fix up references in other paths (for start and end joins)
 		for (final Path p : unfittedPathToDelete.somehowJoins) {
-			if (p.getStartJoins() == unfittedPathToDelete) {
+			if (p.getParentPath() == unfittedPathToDelete) {
 				p.startJoins = null;
 				p.startJoinsPoint = null;
 			}
@@ -1302,11 +1302,11 @@ public class PathAndFillManager extends DefaultHandler implements
 			// Find the nearest index for backward compatibility:
 			int nearestIndexOnStartPath = -1;
 			if (p.startJoins.size() > 0) {
-				nearestIndexOnStartPath = p.startJoins.indexNearestTo(p.getStartJoinsPoint().x,
-						p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
+				nearestIndexOnStartPath = p.startJoins.indexNearestTo(p.getBranchPoint().x,
+						p.getBranchPoint().y, p.getBranchPoint().z);
 			}
-			startsString = " startson=\"" + startPathID + "\"" + " startx=\"" + p.getStartJoinsPoint().x + "\""
-					+ " starty=\"" + p.getStartJoinsPoint().y + "\"" + " startz=\"" + p.getStartJoinsPoint().z + "\"";
+			startsString = " startson=\"" + startPathID + "\"" + " startx=\"" + p.getBranchPoint().x + "\""
+					+ " starty=\"" + p.getBranchPoint().y + "\"" + " startz=\"" + p.getBranchPoint().z + "\"";
 			if (nearestIndexOnStartPath >= 0)
 				startsString += " startsindex=\"" + nearestIndexOnStartPath + "\"";
 		}
@@ -1836,7 +1836,7 @@ public class PathAndFillManager extends DefaultHandler implements
 							// Then we have to get it from startIndexInteger:
 							startJoinPoint = startPath.getNodeWithoutChecks(startIndexInteger);
 						}
-						p.setStartJoin(startPath, startJoinPoint);
+						p.setBranchFrom(startPath, startJoinPoint);
 					}
 					if (endID != null) {
 						Path endPath = getPathFromID(endID);
@@ -1857,13 +1857,13 @@ public class PathAndFillManager extends DefaultHandler implements
 						pathIdMap.put(pReversed.getID(), pReversed);
 						pathNameMap.put(pReversed.getName(), pReversed);
 
-						pReversed.setStartJoin(endPath, endJoinPoint);
+						pReversed.setBranchFrom(endPath, endJoinPoint);
 
 						for (final Path join : new ArrayList<>(p.somehowJoins)) {
-							if (join.getStartJoins() == p) {
-								final PointInImage joinPoint = join.getStartJoinsPoint();
-								join.unsetStartJoin();
-								join.setStartJoin(pReversed, joinPoint);
+							if (join.getParentPath() == p) {
+								final PointInImage joinPoint = join.getBranchPoint();
+								join.detachFromParent();
+								join.setBranchFrom(pReversed, joinPoint);
 							}
 						}
 
@@ -2009,14 +2009,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		final SWCPoint root = graph.getRoot();
 		final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = graph.getDepthFirstIterator(root);
 		Path currentPath = new Path(1d, 1d, 1d, "? units");
-		currentPath.createCircles();
 		currentPath.setIsPrimary(true);
 		boolean addStartJoin = false;
 		while (depthFirstIterator.hasNext()) {
 			final SWCPoint point = depthFirstIterator.next();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
-				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
+				currentPath.setBranchFrom(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
 			currentPath.addNode(point);
@@ -2032,7 +2031,6 @@ public class PathAndFillManager extends DefaultHandler implements
 				currentPath.setSWCType(point.type);
 				currentPath.setGuessedTangents(2);
 				currentPath = new Path(1d, 1d, 1d, "? units");
-				currentPath.createCircles();
 				addStartJoin = true;
 			}
 		}
@@ -2067,7 +2065,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			final SWCPoint point = stack.pop();
 			if (addStartJoin) {
 				final SWCPoint previousPoint = Graphs.predecessorListOf(graph, point).getFirst();
-				currentPath.setStartJoin(previousPoint.onPath, previousPoint.clone());
+				currentPath.setBranchFrom(previousPoint.onPath, previousPoint.clone());
 				addStartJoin = false;
 			}
 			currentPath.addNode(point);
@@ -2085,7 +2083,6 @@ public class PathAndFillManager extends DefaultHandler implements
 					currentPath.setGuessedTangents(2);
 					currentPath = child.getPath().createPath();
 					currentPath.setName(child.getPath().getName());
-					currentPath.createCircles();
 					addStartJoin = true;
 				}
 
@@ -2109,7 +2106,6 @@ public class PathAndFillManager extends DefaultHandler implements
 					if (peeked != null) {
 						currentPath = peeked.getPath().createPath();
 						currentPath.setName(peeked.getPath().getName());
-						currentPath.createCircles();
 						addStartJoin = true;
 					}
 				}
@@ -2122,7 +2118,6 @@ public class PathAndFillManager extends DefaultHandler implements
 				if (peeked != null) {
 					currentPath = peeked.getPath().createPath();
 					currentPath.setName(peeked.getPath().getName());
-					currentPath.createCircles();
 					addStartJoin = true;
 				}
 			}
@@ -2476,7 +2471,6 @@ public class PathAndFillManager extends DefaultHandler implements
 		Path currentPath;
 		while ((start = backtrackTo.poll()) != null) {
 			currentPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
-			currentPath.createCircles();
 			final SWCPoint beforeStart = start.previous();
 			if (beforeStart != null) {
 				pathStartsOnSWCPoint.put(currentPath, beforeStart);
@@ -2523,7 +2517,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			}
 			final Path previousPath = pointToPath.get(swcPoint);
 			final PointInImage pointInImage = pathStartsOnSWCPoint.get(p);
-			p.setStartJoin(previousPath, pointInImage);
+			p.setBranchFrom(previousPath, pointInImage);
 		}
 
 		// Add paths after setting all joins to ensure treeIDs are computed correctly
@@ -3412,13 +3406,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		int i = 0;
 		for (final Path p : allPaths) {
 
-			final Path startJoin = p.getStartJoins();
+			final Path startJoin = p.getParentPath();
 			if (startJoin == null) {
 				startJoinsIndices[i] = -1;
 			}
 			else {
 				startJoinsIndices[i] = allPaths.indexOf(startJoin);
-				final PointInImage transformedPoint = p.getStartJoinsPoint().transform(
+				final PointInImage transformedPoint = p.getBranchPoint().transform(
 					transformation);
 				if (transformedPoint.isReal()) startJoinsPoints[i] = transformedPoint;
 			}
@@ -3437,7 +3431,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			final int si = startJoinsIndices[i];
 			if (addedPaths[i] != null) {
 				if (si >= 0 && addedPaths[si] != null && startJoinsPoints[i] != null)
-					addedPaths[i].setStartJoin(addedPaths[si], startJoinsPoints[i]);
+					addedPaths[i].setBranchFrom(addedPaths[si], startJoinsPoints[i]);
 			}
 		}
 

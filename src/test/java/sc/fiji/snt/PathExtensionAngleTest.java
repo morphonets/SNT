@@ -313,7 +313,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(15, -5, 15));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 5, 5));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 5, 5));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Parallel 3D paths should have 0° relative angle", 0.0, relativeAngle, EPSILON);
@@ -332,7 +332,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(5, 0, 10));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Perpendicular 3D paths should have 90° relative angle", 90.0, relativeAngle, EPSILON);
@@ -351,7 +351,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(-5, 15, -5));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 5, 5));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 5, 5));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Opposite 3D paths should have 180° relative angle", 180.0, relativeAngle, EPSILON);
@@ -370,7 +370,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(15, 0, 10)); // 45° elevation from horizontal
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("45° 3D branching should have 45° relative angle", 45.0, relativeAngle, EPSILON);
@@ -389,7 +389,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(10, 0, 5));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(0, 0, 5));
+        childPath.setBranchFrom(parentPath, new PointInImage(0, 0, 5));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Vertical to horizontal should have 90° relative angle", 90.0, relativeAngle, EPSILON);
@@ -408,7 +408,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(9, 6, 12)); // East and up
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(3, 6, 4));
+        childPath.setBranchFrom(parentPath, new PointInImage(3, 6, 4));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
 
@@ -428,7 +428,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(5, 0, 0));
         childPath.addNode(new PointInImage(5, -10, 0)); // North
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double absoluteAngle = childPath.getExtensionAngle3D(false);
         double relativeAngle = childPath.getExtensionAngle3D(true);
@@ -466,7 +466,7 @@ public class PathExtensionAngleTest {
             Path childPath = new Path(1.0, 1.0, 1.0, "μm");
             childPath.addNode(new PointInImage(5, 0, 2.5));
             childPath.addNode(new PointInImage(5 + direction[0], direction[1], 2.5 + direction[2]));
-            childPath.setStartJoin(parentPath, new PointInImage(5, 0, 2.5));
+            childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 2.5));
 
             double relativeAngle = childPath.getExtensionAngle3D(true);
 
@@ -485,7 +485,7 @@ public class PathExtensionAngleTest {
 
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(5, 0, 2.5)); // Single point
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 2.5));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 2.5));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertTrue("Single-node child should return NaN for 3D relative angle", Double.isNaN(relativeAngle));
@@ -500,7 +500,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(0, 0, 0));
         childPath.addNode(new PointInImage(10, 0, 5));
-        childPath.setStartJoin(parentPath, new PointInImage(0, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(0, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertTrue("Child w/ single node parent should return NaN for 3D relative angle", Double.isNaN(relativeAngle));
@@ -518,15 +518,15 @@ public class PathExtensionAngleTest {
         pathB.addNode(new PointInImage(5, -10, 5)); // North and up
 
         // Test A as parent, B as child
-        pathB.setStartJoin(pathA, new PointInImage(5, 0, 0));
+        pathB.setBranchFrom(pathA, new PointInImage(5, 0, 0));
         double angleAtoB = pathB.getExtensionAngle3D(true);
 
         // Reset and test B as parent, A as child (reverse relationship)
-        pathB.unsetStartJoin();
+        pathB.unsetBranchFrom();
         Path pathA2 = new Path(1.0, 1.0, 1.0, "μm");
         pathA2.addNode(new PointInImage(5, 0, 0));
         pathA2.addNode(new PointInImage(15, 0, 0)); // Continue east from branch point
-        pathA2.setStartJoin(pathB, new PointInImage(5, 0, 0));
+        pathA2.setBranchFrom(pathB, new PointInImage(5, 0, 0));
         double angleBtoA = pathA2.getExtensionAngle3D(true);
 
         // The angles should be the same (symmetric)
@@ -558,7 +558,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(15, 0, 0));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Parallel XY paths should have 0° relative angle", 0.0, relativeAngle, EPSILON);
@@ -577,7 +577,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(5, -10, 0));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Perpendicular XY paths should have 90° relative angle", 90.0, relativeAngle, EPSILON);
@@ -596,7 +596,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(-5, 0, 0));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("Opposite XY paths should have 180° relative angle", 180.0, relativeAngle, EPSILON);
@@ -615,7 +615,7 @@ public class PathExtensionAngleTest {
         childPath.addNode(new PointInImage(15, -10, 0));
 
         // Set up parent-child relationship
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("45° XY branching should have 45° relative angle", 45.0, relativeAngle, EPSILON);
@@ -631,7 +631,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(5, 0, 0));
         childPath.addNode(new PointInImage(5, -10, 0)); // North
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double absoluteAngle = childPath.getExtensionAngle3D(false);
         double relativeAngle = childPath.getExtensionAngle3D(true);
@@ -666,7 +666,7 @@ public class PathExtensionAngleTest {
             Path childPath = new Path(1.0, 1.0, 1.0, "μm");
             childPath.addNode(new PointInImage(5, 0, 0));
             childPath.addNode(new PointInImage(5 + direction[0], direction[1], 0));
-            childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+            childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
             double relativeAngle = childPath.getExtensionAngle3D(true);
 
@@ -687,7 +687,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(5, 0, 0));
         childPath.addNode(new PointInImage(5, 0, 10));
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertEquals("XZ perpendicular paths should have 90° relative angle", 90.0, relativeAngle, EPSILON);
@@ -745,7 +745,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(0, 0, 0));
         childPath.addNode(new PointInImage(10, 0, 0));
-        childPath.setStartJoin(parentPath, new PointInImage(0, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(0, 0, 0));
 
         double relativeAngle = childPath.getExtensionAngle3D(true);
         assertTrue("Child w/ single node parent should return NaN for XY relative angle", Double.isNaN(relativeAngle));
@@ -762,7 +762,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(5, 0, 0));
         childPath.addNode(new PointInImage(5, -10, 0)); // North (coplanar in XY)
-        childPath.setStartJoin(parentPath, new PointInImage(5, 0, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(5, 0, 0));
 
         double relativeAngleXY = childPath.getExtensionAngleXY();
         double relativeAngle3D = childPath.getExtensionAngle3D(false);
@@ -782,7 +782,7 @@ public class PathExtensionAngleTest {
         Path childPath = new Path(1.0, 1.0, 1.0, "μm");
         childPath.addNode(new PointInImage(3, 6, 0));
         childPath.addNode(new PointInImage(9, 6, 0)); // East
-        childPath.setStartJoin(parentPath, new PointInImage(3, 6, 0));
+        childPath.setBranchFrom(parentPath, new PointInImage(3, 6, 0));
 
         double relativeAngle = childPath.getExtensionAngleXY();
 

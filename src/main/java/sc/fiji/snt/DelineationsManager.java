@@ -403,7 +403,7 @@ public class DelineationsManager {
 
     private int getUniqueJunctionsCount(final List<Path> sections) {
         final Set<PointInImage> uniqueJunctions = new HashSet<>();
-        sections.forEach(section -> pafm.getPathFromID(section.getID()).getJunctionNodes().forEach(junction -> {
+        sections.forEach(section -> pafm.getPathFromID(section.getID()).getBranchPoints().forEach(junction -> {
             if (section.getNodeIndex(junction) != -1) uniqueJunctions.add(junction);
         }));
         return uniqueJunctions.size();

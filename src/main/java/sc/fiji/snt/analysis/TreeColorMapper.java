@@ -306,7 +306,7 @@ public class TreeColorMapper extends ColorMapper {
 			case N_BRANCH_POINTS:
 				integerScale = true;
 				for (final Path p : paths)
-					mappedPaths.add(new MappedPath(p, (double) p.getJunctionNodes()
+					mappedPaths.add(new MappedPath(p, (double) p.getBranchPoints()
 						.size()));
 				break;
 			case N_SPINES:
@@ -430,8 +430,8 @@ public class TreeColorMapper extends ColorMapper {
 		// 2nd pass: Calculate distances for remaining paths
 		for (final Path p : paths) {
 			if (p.isPrimary()) continue;
-			double dx = p.getStartJoins().getNodeValue(p.getStartJoins().getNodeIndex(p.getStartJoinsPoint())); // very inefficient
-			p.setNodeValue(dx + p.getNode(0).distanceTo(p.getStartJoinsPoint()), 0);
+			double dx = p.getParentPath().getNodeValue(p.getParentPath().getNodeIndex(p.getBranchPoint())); // very inefficient
+			p.setNodeValue(dx + p.getNode(0).distanceTo(p.getBranchPoint()), 0);
 			for (int i = 1; i < p.size(); ++i) {
 				final double dxPrev = p.getNodeValue(i - 1);
 				final PointInImage prev = p.getNode(i - 1);

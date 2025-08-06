@@ -35,7 +35,7 @@ def run():
     for path in ref_tree.list():
 
         end_point = path.getNode(path.size() - 1)
-        fork_point = path.getStartJoinsPoint()
+        fork_point = path.getBranchPoint()
 
         if fork_point is None:
             # We're creating a primary Path
@@ -44,7 +44,7 @@ def run():
             new_tree.add(primary_path)
         else:
             # We're creating a branched Path: assign fork point to new Tree
-            fork_path = new_tree.get(ref_tree.indexOf(path.getStartJoins()))
+            fork_path = new_tree.get(ref_tree.indexOf(path.getParentPath()))
             fork_point.setPath(fork_path)
             child = plugin.autoTrace([fork_point, end_point], fork_point)
             new_tree.add(child)

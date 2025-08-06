@@ -1840,7 +1840,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		if (currentPath != null && currentPath.startJoins != null) {
-			currentPath.unsetStartJoin();
+			currentPath.detachFromParent();
 		}
 
 		removeSphere(targetBallName);
@@ -2137,7 +2137,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		if (forkPoint != null) {
-			fullPath.setStartJoin(forkPoint.getPath(), forkPoint);
+			fullPath.setBranchFrom(forkPoint.getPath(), forkPoint);
 		}
 		return fullPath;
 	}
@@ -2359,7 +2359,7 @@ public class SNT extends MultiDThreePanes implements
 			real_last_start_x = joinPoint.x;
 			real_last_start_y = joinPoint.y;
 			real_last_start_z = joinPoint.z;
-			path.setStartJoin(joinPoint.onPath, joinPoint);
+			path.setBranchFrom(joinPoint.onPath, joinPoint);
 			ballColor = Color.GREEN;
 		}
 

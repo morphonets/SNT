@@ -3562,7 +3562,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				centroid.onPath = newSoma;
 				primaryPaths.forEach(primaryPath -> {
 					primaryPath.insertNode(0, centroid);
-					primaryPath.setStartJoin(newSoma, centroid);
+					primaryPath.setBranchFrom(newSoma, centroid);
 				});
 				rebuildRelationShips(); // will call refreshManager()
 			}
@@ -3827,14 +3827,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				guiUtils.error("Fork point could not be detected. Please use the editing 'Connect to...' "
 						+ "command in the image contextual menu to connect the two paths.");
 			} else {
-				if (child.getStartJoins() != null)
-					child.unsetStartJoin();
+				if (child.getParentPath() != null)
+					child.detachFromParent();
 				if (nFirst.getDistanceSquared() < nLast.getDistanceSquared()) {
 					child.insertNode(0, nFirst.getNode());
-					child.setStartJoin(parent, nFirst.getNode());
+					child.setBranchFrom(parent, nFirst.getNode());
 				} else {
 					child.addNode(nLast.getNode());
-					child.setStartJoin(parent, nLast.getNode());
+					child.setBranchFrom(parent, nLast.getNode());
 				}
 				child.setIDs(child.getID(), parent.getTreeID());
 				child.getChildren().forEach(c -> c.setIDs(c.getID(), parent.getTreeID()));
@@ -3846,12 +3846,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private void concatenate(final List<Path> selectedPaths) {
 			final Map<Path, List<Path>> map = new HashMap<>();
 			for (final Path p : selectedPaths) {
-				if (p.getStartJoins() == null || !selectedPaths.contains(p.getStartJoins()) || !p.getStartJoinsPoint()
-						.isSameLocation(p.getStartJoins().getNode(p.getStartJoins().size() - 1))) {
+				if (p.getParentPath() == null || !selectedPaths.contains(p.getParentPath()) || !p.getBranchPoint()
+						.isSameLocation(p.getParentPath().getNode(p.getParentPath().size() - 1))) {
 					continue;
 				}
-				map.putIfAbsent(p.getStartJoins(), new ArrayList<>());
-				map.get(p.getStartJoins()).add(p);
+				map.putIfAbsent(p.getParentPath(), new ArrayList<>());
+				map.get(p.getParentPath()).add(p);
 			}
 			if (map.size() != selectedPaths.size() - 1 || map.values().stream().anyMatch(l -> l.size() != 1)) {
 				guiUtils.error("Selected Paths must form a single, un-branched segment!");
@@ -3860,17 +3860,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final List<Path> sortedPaths = map.keySet().stream().sorted(Comparator.comparingInt(Path::getOrder)).toList();
 			final Path mergedPath = sortedPaths.getFirst().createPath();
 			mergedPath.setName(sortedPaths.getFirst().getName());
-			final Path firstStartJoin = sortedPaths.getFirst().getStartJoins();
-			final PointInImage firstStartJoinPoint = sortedPaths.getFirst().getStartJoinsPoint();
+			final Path firstStartJoin = sortedPaths.getFirst().getParentPath();
+			final PointInImage firstStartJoinPoint = sortedPaths.getFirst().getBranchPoint();
 			for (final Path p : sortedPaths) {
 				mergedPath.add(p);
 				// avoid CME
 				for (final Path join : new ArrayList<>(p.somehowJoins)) {
 					for (int i = 0; i < mergedPath.size(); ++i) {
 						final PointInImage pim = mergedPath.getNode(i);
-						if (join.getStartJoinsPoint() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
-							join.unsetStartJoin();
-							join.setStartJoin(mergedPath, pim);
+						if (join.getBranchPoint() != null && join.getBranchPoint().isSameLocation(pim)) {
+							join.detachFromParent();
+							join.setBranchFrom(mergedPath, pim);
 							break;
 						}
 					}
@@ -3884,9 +3884,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			for (final Path join : new ArrayList<>(lastChild.somehowJoins)) {
 				for (int i = 0; i < mergedPath.size(); ++i) {
 					final PointInImage pim = mergedPath.getNode(i);
-					if (join.getStartJoins() != null && join.getStartJoinsPoint().isSameLocation(pim)) {
-						join.unsetStartJoin();
-						join.setStartJoin(mergedPath, pim);
+					if (join.getParentPath() != null && join.getBranchPoint().isSameLocation(pim)) {
+						join.detachFromParent();
+						join.setBranchFrom(mergedPath, pim);
 						break;
 					}
 				}
@@ -3894,7 +3894,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			lastChild.disconnectFromAll();
 			pathAndFillManager.deletePath(lastChild);
 			if (firstStartJoin != null) {
-				mergedPath.setStartJoin(firstStartJoin, firstStartJoinPoint);
+				mergedPath.setBranchFrom(firstStartJoin, firstStartJoinPoint);
 			}
 			pathAndFillManager.addPath(mergedPath, false, false);
 			// treeID is always overridden when adding a Path, so re-set it after adding

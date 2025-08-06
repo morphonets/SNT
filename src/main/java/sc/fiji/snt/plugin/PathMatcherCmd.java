@@ -346,8 +346,8 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 		}
 
 		int getIndexOfStartingNode() {
-			if (path.size() > 1 && path.getStartJoins() != null
-					&& (path.getStartJoins().size() == 1 || path.getStartJoins().getSWCType() == Path.SWC_SOMA)) {
+			if (path.size() > 1 && path.getParentPath() != null
+					&& (path.getParentPath().size() == 1 || path.getParentPath().getSWCType() == Path.SWC_SOMA)) {
 				// path is directly connected to a single-point root. The first node is thus the root location
 				// so use the subsequent node instead
 				return 1;

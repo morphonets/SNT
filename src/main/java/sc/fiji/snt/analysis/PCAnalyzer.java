@@ -211,7 +211,7 @@ public class PCAnalyzer {
     /**
      * Orients principal axes so the primary axis points toward a reference direction, i.e.,
      * the primary axis is oriented to minimize the angle with the reference direction.
-     * If the primary axis points away from the reference (dot product < 0), it's flipped.\
+     * If the primary axis points away from the reference (dot product &lt; 0), it's flipped.\
      *
      * @param axes               the principal axes to orient
      * @param referenceDirection the reference direction vector [x, y, z]

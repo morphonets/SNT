@@ -1483,12 +1483,12 @@ public class Tree implements TreeProperties {
 			clone.add(clonePath);
 		}
 		for (final Path path : clone.list()) {
-			if (path.getStartJoins() == null) continue;
-			final Path join = idToPathMap.get(path.getStartJoins().getID());
-			final PointInImage joinPoint = path.getStartJoinsPoint().clone();
+			if (path.getParentPath() == null) continue;
+			final Path join = idToPathMap.get(path.getParentPath().getID());
+			final PointInImage joinPoint = path.getBranchPoint().clone();
 			if (join != null && joinPoint != null) {
-				path.unsetStartJoin();
-				path.setStartJoin(join, joinPoint);
+				path.detachFromParent();
+				path.setBranchFrom(join, joinPoint);
 			}
 		}
 		return clone;

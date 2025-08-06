@@ -154,9 +154,9 @@ public class Viewer2D extends TreeColorMapper {
 			series.setLabel(p.getName());
 			final List<Double> xc = new ArrayList<>();
 			final List<Double> yc = new ArrayList<>();
-			if (p.getStartJoinsPoint() != null) {
-				xc.add(p.getStartJoinsPoint().x);
-				yc.add(p.getStartJoinsPoint().y);
+			if (p.getBranchPoint() != null) {
+				xc.add(p.getBranchPoint().x);
+				yc.add(p.getBranchPoint().y);
 			}
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage pim = p.getNode(node);

@@ -368,25 +368,41 @@ public class Path implements Comparable<Path> {
 		return canvasOffset;
 	}
 
-	public Path getStartJoins() {
+	public Path getParentPath() {
 		return startJoins;
 	}
 
 	/**
-	 * Gets the junction point where this path starts (connects to its parent path).
+	 * @deprecated  use {@link #getParentPath()} instead
+	 */
+	@Deprecated
+	public Path getStartJoins() {
+		return getParentPath();
+	}
+
+
+	/**
+	 * Gets the branch point (junction) where this path starts, i.e., connects to its parent path.
 	 * 
 	 * @return the start junction point, or null if this is a primary path
+	 * @see #getBranchPoints()
 	 */
-	public PointInImage getJunctionNode() {
+	public PointInImage getBranchPoint() {
 		return startJoinsPoint;
 	}
 	
 	/**
-	 * @deprecated Use {@link #getJunctionNode()} instead
+	 * @deprecated Use {@link #getBranchPoint()} instead.
+	 *
+	 * <p>
+	 * NB: Earlier versions of Simple Neurite Tracer allowed paths to connect at either the start
+	 * point (getStartJoinsPoint()) or end-point (getStartJoinsPoint()). Useful for some
+	 * applications but a huge headache to handle.
+	 * </p>
 	 */
 	@Deprecated
 	public PointInImage getStartJoinsPoint() {
-		return getJunctionNode();
+		return getBranchPoint();
 	}
 
 	/**
@@ -902,15 +918,49 @@ public class Path implements Comparable<Path> {
 		setIsPrimary(true);
 	}
 
+	/**
+	 * Establishes this path as a child path originating from the specified parent path.
+	 * <p>
+	 * In detail:
+	 * <ul>
+	 * <li>Sets the parent path that this path branches from</li>
+	 * <li>Records the exact point where branching occurs</li>
+	 * <li>Adds this path to the parent's children collection</li>
+	 * <li>Updates this path's order to be parent order + 1</li>
+	 * <li>Maintains bidirectional references for tree traversal</li>
+	 * </ul>
+	 *
+	 * @param parentPath  the parent path that this path branches from. Must not be null.
+	 *                    Some operations may expect it to be an existing path in the same
+	 *                    tree structure
+	 * @param branchPoint the exact 3D coordinate where this path branches from the parent.
+	 *                    Must not be null and should correspond to a location on or near
+	 *                    the parent path
+	 * @throws IllegalArgumentException if parentPath is null
+	 * @throws IllegalArgumentException if this path already has a parent (use
+	 *                                  {@link #detachFromParent()} first to detach)
+	 * @see #getParentPath() to retrieve the parent path
+	 * @see #getBranchPoint() to get the branching point
+	 * @see #getChildren() to access child paths branching from this path
+	 * @see #getOrder() for the hierarchical level (parent order + 1)
+	 * @see #detachFromParent() for disconnecting this path
+	 */
+	public void setBranchFrom(final Path parentPath, final PointInImage branchPoint) {
+		setStartJoin(parentPath, branchPoint);
+	}
+
+	/**
+	 * @deprecated use {@link #setBranchFrom(Path, PointInImage)} instead
+	 */
+	@Deprecated
 	public void setStartJoin(final Path other, final PointInImage joinPoint) {
 		if (other == null) {
-			throw new IllegalArgumentException(
-				"setJoin should never take a null path");
+			throw new IllegalArgumentException("setBranchFrom should never take a null path");
 		}
 		{
 			// If there was an existing path, that's an error:
-			if (startJoins != null) throw new IllegalArgumentException(
-				"setJoin for START should not replace another join");
+			if (startJoins != null)
+				throw new IllegalArgumentException("setBranchFrom should not replace existing child-parent connections");
 			startJoins = other;
 			startJoinsPoint = joinPoint;
 			startJoinsPoint.onPath = this;
@@ -944,7 +994,7 @@ public class Path implements Comparable<Path> {
 		}
 		
 		if (!getName().contains(" [Fitted*]")) setName( getName() + " [Fitted*]");
-		if (getStartJoins() != null && !nodes.isEmpty()) {
+		if (getParentPath() != null && !nodes.isEmpty()) {
 			final PathNode firstNode = nodes.getFirst();
 			final int index = startJoins.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
 			final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.getNodeWithoutChecks(index);
@@ -959,8 +1009,8 @@ public class Path implements Comparable<Path> {
 	protected void rebuildConnectionsOfFittedVersion() {
 		if (fitted == null)
 			return;
-		if (getStartJoins() != null) { // this is always the case if not primary
-			if (fitted.startJoins != null) fitted.unsetStartJoin();
+		if (getParentPath() != null) { // this is always the case if not primary
+			if (fitted.startJoins != null) fitted.detachFromParent();
 			if (startJoins.getUseFitted()) {
 				final int index = startJoins.fitted.indexNearestTo(startJoinsPoint.x, startJoinsPoint.y, startJoinsPoint.z);
 				final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.fitted.getNodeWithoutChecks(index);
@@ -971,22 +1021,47 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	@Deprecated
 	public void unsetStartJoin() {
+		detachFromParent();
+	}
+
+	/**
+	 * Detaches this path from its parent, converting it into an independent primary path.
+	 * <p>
+	 * Removes the parent-child relationship established by {@link #setBranchFrom(Path, PointInImage)}
+	 * In
+	 * <ul>
+	 * <li>Clears the parent path reference and branch point</li>
+	 * <li>Removes this path from the parent's children collection</li>
+	 * <li>Updates bidirectional references for tree traversal</li>
+	 * <li>Resets the path order to -1 (no hierarchical position)</li>
+	 * <li>Converts this path from a branch to a primary path</li>
+	 * </ul>
+	 *
+	 * @throws IllegalArgumentException if this path has no parent (i.e., is already
+	 *                                  a primary path). Use {@link #getParentPath()}
+	 *                                  to check before calling this method.
+	 *
+	 * @see #setBranchFrom(Path, PointInImage) to establish a parent-child relationship
+	 * @see #getParentPath() to check if this path has a parent
+	 * @see #getBranchPoint() to get the current branch point (before detaching)
+	 * @see #isPrimary() to check if this path is already independent
+	 * @see #getChildren() to access paths that branch from this path
+	 * @see #getOrder() for hierarchical position information
+	 */
+	public void detachFromParent() {
 		Path other = startJoins;
 		if (other == null) {
-			throw new IllegalArgumentException(
-				"Don't call unsetJoin if the other Path is already null");
+			throw new IllegalArgumentException("Don't call detachFromParent if the other Path is already null");
 		}
-		if (!(other.startJoins == this))
-		{
+		if (!(other.startJoins == this)) {
 			somehowJoins.remove(other);
 			other.somehowJoins.remove(this);
 			other.children.remove(this);
 		}
-		{
-			startJoins = null;
-			startJoinsPoint = null;
-		}
+		startJoins = null;
+		startJoinsPoint = null;
 		setOrder(-1);
 	}
 
@@ -1472,9 +1547,9 @@ public class Path implements Comparable<Path> {
 		while (childrenIt.hasNext()) {
 			final Path child = childrenIt.next();
 			final Path dupChild = child.clone();
-			if (dupChild.getStartJoinsPoint() != null) {
-				final PointInImage dupSPoint = dupChild.getStartJoinsPoint().clone();
-				dupChild.unsetStartJoin();
+			if (dupChild.getBranchPoint() != null) {
+				final PointInImage dupSPoint = dupChild.getBranchPoint().clone();
+				dupChild.detachFromParent();
 				dupChild.setStartJoin(dup, dupSPoint);
 			}
 			dup.children.add(dupChild);
@@ -1703,7 +1778,6 @@ public class Path implements Comparable<Path> {
 	public void setNodeColors(final Color[] colors) {
 		if (colors == null) {
 			nodes.forEach(node -> node.setNodeColor(null));
-			return;
 		} else if (colors.length != size()) {
 			throw new IllegalArgumentException("colors array must have as many elements as nodes");
 		} else {
@@ -2725,8 +2799,7 @@ public class Path implements Comparable<Path> {
 		}
 
 		// Now we know it should be visible.
-
-		Path pathToUse = null;
+		Path pathToUse;
 
 		if (useFitted) {
 			/*
@@ -3273,7 +3346,7 @@ public class Path implements Comparable<Path> {
 	 *
 	 * @return the list of nodes as {@link PointInImage} objects
 	 * @see #findJunctionIndices()
-	 * @see #getJunctionNodes()
+	 * @see #getBranchPoints()
 	 */
 	public List<PointInImage> findJunctions() {
 		final ArrayList<PointInImage> result = new ArrayList<>();
@@ -3295,7 +3368,7 @@ public class Path implements Comparable<Path> {
 	 * @see #findJunctionIndices()
 	 * @return the junction nodes
 	 */
-	public Set<PointInImage> getJunctionNodes() {
+	public Set<PointInImage> getBranchPoints() {
 		final Set<PathAndFillManager.JunctionPoint> uniqueJunctions = new HashSet<>();
 		final Set<PointInImage> result = new HashSet<>();
 		for (final PointInImage junction : findJunctions()) {
@@ -3307,14 +3380,20 @@ public class Path implements Comparable<Path> {
 		return result;
 	}
 
-	/**
-	 * Returns the indices of nodes which are indicated to be a join, either in this
-	 * Path object, or any other that starts or ends on it.
-	 *
-	 * @return the indices of junction nodes, naturally sorted
-	 * @see #findJunctions()
-	 * @see #getJunctionNodes()
-	 */
+	/** @deprecated use {@link #getBranchPoints()} instead */
+	@Deprecated
+	public Set<PointInImage> getJunctionNodes() {
+		return getBranchPoints();
+	}
+
+		/**
+         * Returns the indices of nodes which are indicated to be a join, either in this
+         * Path object, or any other that starts or ends on it.
+         *
+         * @return the indices of junction nodes, naturally sorted
+         * @see #findJunctions()
+         * @see #getBranchPoints()
+         */
 	public TreeSet<Integer> findJunctionIndices() {
 		final TreeSet<Integer> result = new TreeSet<>();
 		for (final PointInImage point : findJunctions()) {
@@ -3695,7 +3774,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	public boolean isConnectedTo(final Path other) {
-		return (getStartJoins() != null && getStartJoins().equals(other))
+		return (getParentPath() != null && getParentPath().equals(other))
 			|| (somehowJoins != null && somehowJoins.contains(other));
 	}
 

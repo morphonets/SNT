@@ -2288,7 +2288,7 @@ public class TreeStatistics extends ContextCommand {
     public Set<PointInImage> getBranchPoints() {
         joints = new HashSet<>();
         for (final Path p : tree.list()) {
-            joints.addAll(p.getJunctionNodes());
+            joints.addAll(p.getBranchPoints());
         }
         return joints;
     }
@@ -2442,8 +2442,8 @@ public class TreeStatistics extends ContextCommand {
     private double sumLength(final Collection<Path> paths) {
         double totalLength = 0d;
         for (final Path p : paths) {
-            if (p.getStartJoins() != null) {
-                totalLength += p.getStartJoinsPoint().distanceTo(p.getNode(0));
+            if (p.getParentPath() != null) {
+                totalLength += p.getBranchPoint().distanceTo(p.getNode(0));
             }
             totalLength += p.getLength();
         }

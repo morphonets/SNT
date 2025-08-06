@@ -7129,8 +7129,8 @@ public class Viewer3D {
 					final Color color =
 							fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor(), fallbackColor);
 					final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
-					if (i == 0 && p.getStartJoinsPoint() != null) {
-						final Coord3d joint = new Coord3d(p.getStartJoinsPoint().x, p.getStartJoinsPoint().y, p.getStartJoinsPoint().z);
+					if (i == 0 && p.getBranchPoint() != null) {
+						final Coord3d joint = new Coord3d(p.getBranchPoint().x, p.getBranchPoint().y, p.getBranchPoint().z);
 						line.add(new Point(joint, color, width));
 					}
 					line.add(new Point(new Coord3d(pim.x, pim.y, pim.z), color, width));
