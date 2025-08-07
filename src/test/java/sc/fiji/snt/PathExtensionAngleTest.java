@@ -522,7 +522,7 @@ public class PathExtensionAngleTest {
         double angleAtoB = pathB.getExtensionAngle3D(true);
 
         // Reset and test B as parent, A as child (reverse relationship)
-        pathB.unsetBranchFrom();
+        pathB.detachFromParent();
         Path pathA2 = new Path(1.0, 1.0, 1.0, "μm");
         pathA2.addNode(new PointInImage(5, 0, 0));
         pathA2.addNode(new PointInImage(15, 0, 0)); // Continue east from branch point

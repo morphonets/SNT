@@ -36,6 +36,7 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
+import sc.fiji.snt.io.SWCExportException;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.*;
 

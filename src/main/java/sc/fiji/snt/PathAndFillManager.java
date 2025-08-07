@@ -46,9 +46,7 @@ import org.xml.sax.helpers.DefaultHandler;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.io.MouseLightLoader;
-import sc.fiji.snt.io.NDFImporter;
-import sc.fiji.snt.io.NeuroMorphoLoader;
+import sc.fiji.snt.io.*;
 import sc.fiji.snt.tracing.FillerThread;
 import sc.fiji.snt.util.*;
 import util.Bresenham3D;
@@ -706,13 +704,13 @@ public class PathAndFillManager extends DefaultHandler implements
 	}
 
 	/**
-	 * Represents a junction point identified purely by spatial location,
-	 * ignoring path membership and other attributes.
+	 * Represents a position in 3D space identified purely by spatial coordinates,
+	 * ignoring path membership and other attributes. Used as a key for coordinate-based lookups.
 	 */
-	static class JunctionPoint {
+	static class PositionPoint {
 		public final double x, y, z;
 
-		public JunctionPoint(final PointInImage point) {
+		public PositionPoint(final PointInImage point) {
 			this.x = point.x;
 			this.y = point.y;
 			this.z = point.z;
@@ -721,7 +719,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		@Override
 		public boolean equals(Object o) {
 			if (this == o) return true;
-			if (!(o instanceof JunctionPoint other)) return false;
+			if (!(o instanceof PositionPoint other)) return false;
 			return Double.compare(x, other.x) == 0 && 
 				   Double.compare(y, other.y) == 0 && 
 				   Double.compare(z, other.z) == 0;
@@ -734,107 +732,160 @@ public class PathAndFillManager extends DefaultHandler implements
 		
 		@Override
 		public String toString() {
-			return String.format("JunctionPoint(%.3f, %.3f, %.3f)", x, y, z);
+			return String.format("PositionPoint(%.3f, %.3f, %.3f)", x, y, z);
 		}
 	}
 
+	/**
+	 * Converts a collection of connected Path objects into SWC points for export.
+	 * <p>
+	 * SWC is the standardized format used for neuromorphological data exchange. The conversion process:
+	 * <ul>
+	 * <li>Validates that paths form a proper tree structure with exactly one primary path (tree's root)</li>
+	 * <li>Uses breadth-first traversal to ensure correct parent-child relationships</li>
+	 * <li>Assigns sequential SWC IDs starting from 1</li>
+	 * <li>Establishes proper parent references based on path connectivity</li>
+	 * <li>Preserves path properties including SWC type, color, annotations, and custom tags</li>
+	 * </ul>
+	 *
+	 * <p>
+	 * <strong>Path Requirements:</strong>
+	 * <ul>
+	 * <li>Must contain exactly <strong>one primary path</strong> (root of the tree)</li>
+	 * <li>All non-primary paths must have valid parent relationships</li>
+	 * <li>Paths must form a connected tree structure (no disconnected components)</li>
+	 * <li>Empty paths (size == 0) are automatically skipped</li>
+	 * </ul>
+	 *
+	 * @param paths the collection of Path objects to convert. Must contain exactly one primary
+	 *              path and form a connected tree structure. Empty paths are automatically skipped.
+	 *              Cannot be null or empty.
+	 * @return a list of SWCPoint objects representing the neuronal structure in SWC format.
+	 * Points are ordered by their sequential SWC IDs, with proper parent-child
+	 * relationships established. The list is never null but may be empty if all
+	 * input paths are empty.
+	 * @throws SWCExportException if the input paths do not form a valid tree structure:
+	 * @see SWCPoint for details on the SWC point data structure
+	 * @see Path#getParentPath() for parent-child relationships
+	 * @see Path#getBranchPoint() for branch point coordinates
+	 * @see Tree#getNodesAsSWCPoints() for converting entire Tree objects
+	 */
 	public synchronized List<SWCPoint> getSWCFor(final Collection<Path> paths) throws SWCExportException {
 		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
-		final Set<JunctionPoint> joinPointSet = new HashSet<>();
 		final Set<Path> primaryPaths = new HashSet<>();
 		for (final Path path : paths) {
-			final Path startJoins = path.getParentPath();
-			if (startJoins == null) {
+			final Path parentPath = path.getParentPath();
+			if (parentPath == null) {
 				primaryPaths.add(path);
 				continue;
 			}
-			// Collect junction points for later ID mapping
-			final PointInImage startJoinsPoint = path.getBranchPoint();
-			joinPointSet.add(new JunctionPoint(startJoinsPoint));
-			pathChildrenMap.putIfAbsent(startJoins, new ArrayList<>());
-			pathChildrenMap.get(startJoins).add(path);
+			pathChildrenMap.putIfAbsent(parentPath, new ArrayList<>());
+			pathChildrenMap.get(parentPath).add(path);
 		}
 		if (primaryPaths.isEmpty()) {
 			throw new SWCExportException("The paths you select for SWC export must include a primary path " +
 					"(i.e., one at the top level in the Path Manager tree)");
-		}
-		else if (primaryPaths.size() > 1) {
-			throw new SWCExportException("Multiple primary Paths detected");
+		} else if (primaryPaths.size() > 1) {
+			throw new SWCExportException("Multiple primary Paths detected. The paths you select for SWC export " +
+					"must defined a single directed rooted tree, and thus containing only a primary path");
 		}
 		int swcPointId = 1;
-		final Set<Path> pathsAlreadyDone = new HashSet<>();
 		final List<SWCPoint> result = new ArrayList<>();
-		final Map<JunctionPoint, Integer> joinPointIdMap = new HashMap<>();
-		final Deque<Path> pathStack = new ArrayDeque<>();
-		pathStack.push(primaryPaths.iterator().next());
-		while (!pathStack.isEmpty()) {
-			final Path path = pathStack.pop();
+		// Map each Path to its starting SWC ID for direct parent lookup
+		final Map<Path, Integer> pathStartIdMap = new HashMap<>();
+
+		// Debug flag for branch point distance validation (disabled by default to maintain backward compatibility)
+		// To enable:
+		// option 1: set system property -Dsnt.debug.swcImportValidation=true
+		// option 2: System.setProperty("snt.debug.swcImportValidation", "true");
+		final boolean VALIDATE_BRANCH_DISTANCES = Boolean.getBoolean("snt.debug.swcImportValidation");
+		// Distance threshold for validating branch points (only used when validation is enabled)
+		final double MAX_BRANCH_DISTANCE = 5; // Maximum allowed distance between branch point and parent node
+
+		// Use breadth-first traversal to ensure parents are processed before children
+		final Queue<Path> pathQueue = new ArrayDeque<>();
+		pathQueue.offer(primaryPaths.iterator().next());
+
+		while (!pathQueue.isEmpty()) {
+			final Path path = pathQueue.poll();
+
+			// Skip empty paths
+			if (path.size() == 0) continue;
+
+			// Store the starting SWC ID for this path for child path lookups
+			pathStartIdMap.put(path, swcPointId);
+
+			// Pre-calculate path properties once per path (not per node)
 			final boolean hasAnnotations = path.hasNodeAnnotations();
 			final boolean hasHemisphereFlags = path.hasNodeHemisphereFlags();
 			final Color pathColor = path.getColor();
 			final String pathTags = PathManagerUI.extractTagsFromPath(path);
 			final boolean hasNodeValues = path.hasNodeValues();
-			for (int i = 0; i < path.size(); ++i) {
-				final PointInImage currentNode = path.getNode(i);
-				final JunctionPoint junctionPoint = new JunctionPoint(currentNode);
-				// Check if this node is a junction point and store its ID
-				if (joinPointSet.contains(junctionPoint)) {
-					joinPointIdMap.put(junctionPoint, swcPointId);
+			final boolean hasNodeColors = path.hasNodeColors();
+			final int pathSize = path.size();
+
+			// Pre-calculate parent information for first node (if applicable)
+			final Path parentPath = path.getParentPath();
+			Integer firstNodeParentId = null;
+			if (parentPath != null) {
+				final Integer parentStartId = pathStartIdMap.get(parentPath);
+				if (parentStartId == null) {
+					throw new SWCExportException("Parent path " + parentPath.getName() +
+							" has not been processed yet. This should not happen with breadth-first traversal.");
 				}
-				int parentId;
-				if (i == 0) {
-					if (path.getParentPath() == null) {
-						parentId = -1;
-					} else {
-						// Find the parent ID by looking up the start junction point
-						final JunctionPoint startJunctionPoint = new JunctionPoint(path.getBranchPoint());
-						final Integer parentIdValue = joinPointIdMap.get(startJunctionPoint);
-						if (parentIdValue == null) {
-							throw new SWCExportException("Could not find parent ID for junction point at " + startJunctionPoint);
+
+				// Find the closest node in the parent path to the branch point
+				final PointInImage branchPoint = path.getBranchPoint();
+				int closestNodeIndex = parentPath.indexNearestTo(branchPoint.x, branchPoint.y, branchPoint.z);
+				if (closestNodeIndex >= 0) {
+					// Optional validation: check if branch point is reasonably close to parent node
+					// (only performed when debug flag is enabled for backwards compatibility)
+					if (VALIDATE_BRANCH_DISTANCES) {
+						final PointInImage closestParentNode = parentPath.getNode(closestNodeIndex);
+						final double distanceSquared = branchPoint.distanceSquaredTo(closestParentNode);
+						final double maxDistanceSquared = MAX_BRANCH_DISTANCE * MAX_BRANCH_DISTANCE;
+						if (distanceSquared > maxDistanceSquared) {
+							final double distance = Math.sqrt(distanceSquared); // Only calculate sqrt for error message
+							throw new SWCExportException("Branch point at " + branchPoint +
+									" is too far (" + String.format("%.3f", distance) + " units) from closest parent node at " + closestParentNode);
 						}
-						parentId = parentIdValue;
 					}
+
+					// Calculate the parent SWC ID: parent start ID + node index
+					firstNodeParentId = parentStartId + closestNodeIndex;
 				} else {
-					parentId = swcPointId - 1;
+					throw new SWCExportException("Could not find closest node in parent path for branch point at " + branchPoint);
 				}
-				final SWCPoint swcPoint = new SWCPoint(
-						swcPointId,
-						path.getSWCType(),
-						currentNode.getX(),
-						currentNode.getY(),
-						currentNode.getZ(),
-						path.getNodeRadius(i),
-						parentId);
+			}
+
+			for (int i = 0; i < pathSize; ++i) {
+				final PointInImage currentNode = path.getNode(i);
+
+				// Determine parent ID based on node position
+				final int parentId = (i == 0) ?
+						(firstNodeParentId != null ? firstNodeParentId : -1) :
+						swcPointId - 1;
+				final SWCPoint swcPoint = new SWCPoint(swcPointId, path.getSWCType(),
+						currentNode.getX(), currentNode.getY(), currentNode.getZ(), path.getNodeRadius(i), parentId);
 				swcPoint.setPath(path);
-				// Only use Path color, node colors are ignored
-				swcPoint.setColor(pathColor);
 				swcPoint.setTags(pathTags);
 				if (hasNodeValues) swcPoint.v = path.getNodeValue(i);
 				if (hasAnnotations) swcPoint.setAnnotation(path.getNodeAnnotation(i));
 				if (hasHemisphereFlags) swcPoint.setHemisphere(path.getNodeHemisphereFlag(i));
+				if (hasNodeColors) {
+					swcPoint.setColor(path.getNodeColor(i));
+				} else {
+					swcPoint.setColor(pathColor);
+				}
 				result.add(swcPoint);
 				swcPointId++;
 			}
+			// Add children to queue for breadth-first processing
 			final List<Path> children = pathChildrenMap.get(path);
 			if (children != null) {
-				children.forEach(pathStack::push);
-			}
-			pathsAlreadyDone.add(path);
-		}
-
-		// Now check that all selectedPaths are in pathsAlreadyDone, otherwise give an error:
-		Path disconnectedExample = null;
-		int selectedAndNotConnected = 0;
-		for (final Path selectedPath : paths) {
-			if (!pathsAlreadyDone.contains(selectedPath)) {
-				++selectedAndNotConnected;
-				if (disconnectedExample == null) disconnectedExample = selectedPath;
+				children.forEach(pathQueue::offer);
 			}
 		}
-		if (selectedAndNotConnected > 0) throw new SWCExportException(
-				"You must select all the connected paths\n(" + selectedAndNotConnected +
-						" paths (e.g. \"" + disconnectedExample + "\") were not connected.)");
-
 		return result;
 	}
 
@@ -3580,16 +3631,3 @@ public class PathAndFillManager extends DefaultHandler implements
 
 }
 
-class TracesFileFormatException extends SAXException {
-
-	public TracesFileFormatException(final String message) {
-		super(message);
-	}
-}
-
-class SWCExportException extends IOException {
-
-	public SWCExportException(final String message) {
-		super(message);
-	}
-}

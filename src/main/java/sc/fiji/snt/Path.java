@@ -3369,10 +3369,10 @@ public class Path implements Comparable<Path> {
 	 * @return the junction nodes
 	 */
 	public Set<PointInImage> getBranchPoints() {
-		final Set<PathAndFillManager.JunctionPoint> uniqueJunctions = new HashSet<>();
+		final Set<PathAndFillManager.PositionPoint> uniqueJunctions = new HashSet<>();
 		final Set<PointInImage> result = new HashSet<>();
 		for (final PointInImage junction : findJunctions()) {
-			final PathAndFillManager.JunctionPoint junctionPoint = new PathAndFillManager.JunctionPoint(junction);
+			final PathAndFillManager.PositionPoint junctionPoint = new PathAndFillManager.PositionPoint(junction);
 			if (uniqueJunctions.add(junctionPoint)) {
 				result.add(junction); // This is a new unique junction based on location
 			}
