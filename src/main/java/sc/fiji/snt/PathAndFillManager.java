@@ -490,7 +490,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			while (!nextPathsToConsider.isEmpty()) {
 				final Path currentPath = nextPathsToConsider.removeFirst();
 				connectedPaths.add(currentPath);
-				for (final Path joinedPath : currentPath.somehowJoins) {
+				for (final Path joinedPath : currentPath.connectedPaths) {
 					if (!connectedPaths.contains(joinedPath)) nextPathsToConsider.add(
 						joinedPath);
 				}
@@ -1153,10 +1153,10 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (removed) unsavedPaths = true;
 
 		// Fix up references in other paths (for start and end joins)
-		for (final Path p : unfittedPathToDelete.somehowJoins) {
+		for (final Path p : unfittedPathToDelete.connectedPaths) {
 			if (p.getParentPath() == unfittedPathToDelete) {
-				p.startJoins = null;
-				p.startJoinsPoint = null;
+				p.parentPath = null;
+				p.branchPoint = null;
 			}
 		}
 
@@ -1348,12 +1348,12 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		String startsString = "";
 		String endsString = "";
-		if (p.startJoins != null) {
-			final int startPathID = p.startJoins.getID();
+		if (p.parentPath != null) {
+			final int startPathID = p.parentPath.getID();
 			// Find the nearest index for backward compatibility:
 			int nearestIndexOnStartPath = -1;
-			if (p.startJoins.size() > 0) {
-				nearestIndexOnStartPath = p.startJoins.indexNearestTo(p.getBranchPoint().x,
+			if (p.parentPath.size() > 0) {
+				nearestIndexOnStartPath = p.parentPath.indexNearestTo(p.getBranchPoint().x,
 						p.getBranchPoint().y, p.getBranchPoint().z);
 			}
 			startsString = " startson=\"" + startPathID + "\"" + " startx=\"" + p.getBranchPoint().x + "\""
@@ -1910,7 +1910,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 						pReversed.setBranchFrom(endPath, endJoinPoint);
 
-						for (final Path join : new ArrayList<>(p.somehowJoins)) {
+						for (final Path join : new ArrayList<>(p.connectedPaths)) {
 							if (join.getParentPath() == p) {
 								final PointInImage joinPoint = join.getBranchPoint();
 								join.detachFromParent();
@@ -2983,9 +2983,9 @@ public class PathAndFillManager extends DefaultHandler implements
 			final ArrayList<Bresenham3D.IntegerPoint> pointsToJoin =
 				new ArrayList<>();
 
-			if (p.startJoins != null) {
-				final PointInImage s = p.startJoinsPoint;
-				final Path sp = p.startJoins;
+			if (p.parentPath != null) {
+				final PointInImage s = p.branchPoint;
+				final Path sp = p.parentPath;
 				final int spi = sp.indexNearestTo(s.x, s.y, s.z);
 				pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
 					.getYUnscaled(spi), (ignoreDepth) ? 0 : sp.getZUnscaled(spi)));
@@ -3357,7 +3357,7 @@ public class PathAndFillManager extends DefaultHandler implements
 			SNTUtils.csvQuoteAndPrint(pw, p.spacing_units); //col6: PathLengthUnits
 			pw.print(",");
 			// FIXME: should we print "N/A" or " " when p.startJoins == null?
-			pw.print((p.startJoins == null) ? "" : "" + p.startJoins.getID()); // col7: StartsOnPath
+			pw.print((p.parentPath == null) ? "" : "" + p.parentPath.getID()); // col7: StartsOnPath
 			pw.print(",");
 			SNTUtils.csvQuoteAndPrint(pw, p.somehowJoinsAsString()); // col8: ConnectedPathIDs
 			pw.print(",");

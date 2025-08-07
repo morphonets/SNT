@@ -38,7 +38,7 @@ import java.util.Objects;
  *
  * @author Tiago Ferreira
  */
-public class BoundingBox {
+public class BoundingBox implements Cloneable {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -451,17 +451,20 @@ public class BoundingBox {
 				&& Objects.equals(originOpposite, other.originOpposite);
 	}
 
+	/**
+	 * Creates a copy of this BoundingBox.
+	 * 
+	 * @return a new BoundingBox that is a copy of this bounding box
+	 */
 	@Override
 	public BoundingBox clone() {
-		final BoundingBox clone = new BoundingBox();
-		clone.origin = this.origin;
-		clone.originOpposite = this.originOpposite;
-		clone.xSpacing = this.xSpacing;
-		clone.ySpacing = this.ySpacing;
-		clone.zSpacing = this.zSpacing;
-		clone.info = this.info;
-		clone.spacingUnit = this.spacingUnit;
-		return clone;
+		try {
+			// Call super.clone() to get a shallow copy
+			return (BoundingBox) super.clone();
+		} catch (final CloneNotSupportedException e) {
+			// This should never happen since we implement Cloneable
+			throw new AssertionError("Clone not supported", e);
+		}
 	}
 
 	@Override

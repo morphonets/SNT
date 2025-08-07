@@ -66,7 +66,7 @@ import java.util.*;
  * relatively to its non-fitted version
  * </p>
  **/
-public class Path implements Comparable<Path> {
+public class Path implements Comparable<Path>, Cloneable {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -150,7 +150,7 @@ public class Path implements Comparable<Path> {
 	 * This eliminates the need for parallel arrays and provides better
 	 * memory efficiency and data encapsulation.
 	 */
-	public static class PathNode extends PointInImage {
+	public static class PathNode extends PointInImage implements Cloneable {
 		
 		private Color nodeColor;
 		private double radius = 0.0;
@@ -190,18 +190,30 @@ public class Path implements Comparable<Path> {
 			this.tangent = new double[]{tx, ty, tz};
 		}
 		
+		/**
+		 * Creates a deep copy of this PathNode.
+		 * <p>
+		 * This method creates a complete copy of the node including all properties
+		 * such as color, radius, and tangent information. The cloned node will have
+		 * the same spatial coordinates and metadata as the original.
+		 * </p>
+		 * 
+		 * @return a new PathNode that is a deep copy of this node
+		 */
 		@Override
 		public PathNode clone() {
-			// Create new PathNode and copy all fields from parent class
-			final PathNode clone = new PathNode(x, y, z);
-			clone.v = this.v;
-			clone.setAnnotation(this.getAnnotation());
-			clone.setHemisphere(this.getHemisphere());
-			clone.onPath = this.onPath;
-			clone.nodeColor = this.nodeColor;
-			clone.radius = this.radius;
-			clone.tangent = this.tangent != null ? this.tangent.clone() : null;
-			return clone;
+			try {
+				// Call super.clone() to get a shallow copy
+				PathNode cloned = (PathNode) super.clone();
+				
+				// Deep clone mutable fields
+				cloned.tangent = this.tangent != null ? this.tangent.clone() : null;
+				
+				return cloned;
+			} catch (final Exception e) {
+				// This should never happen since we implement Cloneable
+				throw new AssertionError("Clone not supported", e);
+			}
 		}
 	}
 
@@ -245,14 +257,13 @@ public class Path implements Comparable<Path> {
 	protected String spacing_units;
 
 	/* Branching */
-	protected Path startJoins;
-	protected PointInImage startJoinsPoint = null;
+	protected Path parentPath;
+	protected PointInImage branchPoint = null;
 	// This is a symmetrical relationship, showing
 	// all the other paths this one is joined to...
-	protected ArrayList<Path> somehowJoins;
-	// We sometimes impose a tree structure on the Path
-	// graph, which is largely for display purposes. When
-	// this is done, we regenerated this list. This should
+	protected ArrayList<Path> connectedPaths;
+	// We almost always impose tree structure on the Path graph.
+	// When this is done, we regenerated this list. This should
 	// always be a subset of 'somehowJoins'...
 	protected ArrayList<Path> children;
 
@@ -293,7 +304,7 @@ public class Path implements Comparable<Path> {
 		this.z_spacing = z_spacing;
 		this.spacing_units = SNTUtils.getSanitizedUnit(spacing_units);
 		this.nodes = new ArrayList<>();
-		somehowJoins = new ArrayList<>();
+		connectedPaths = new ArrayList<>();
 		children = new ArrayList<>();
 		ctPosition = new int[] {1, 1};
 		changeListeners = new ArrayList<>();
@@ -368,8 +379,23 @@ public class Path implements Comparable<Path> {
 		return canvasOffset;
 	}
 
+	/**
+	 * Gets the parent path that this path branches from.
+	 * <p>
+	 * Returns the path from which this path originates as a branch. For primary
+	 * (root) paths, this method returns null since they don't branch from any
+	 * other path. The parent-child relationship is established when a path is
+	 * created as a branch using {@link #setBranchFrom(Path, PointInImage)}.
+	 * </p>
+	 * 
+	 * @return the parent path, or null if this is a primary (root) path
+	 * 
+	 * @see #setBranchFrom(Path, PointInImage) for establishing parent-child relationships
+	 * @see #isPrimary() for checking if this is a root path
+	 * @see #getBranchPoint() for the specific branching point
+	 */
 	public Path getParentPath() {
-		return startJoins;
+		return parentPath;
 	}
 
 	/**
@@ -388,7 +414,7 @@ public class Path implements Comparable<Path> {
 	 * @see #getBranchPoints()
 	 */
 	public PointInImage getBranchPoint() {
-		return startJoinsPoint;
+		return branchPoint;
 	}
 	
 	/**
@@ -444,7 +470,7 @@ public class Path implements Comparable<Path> {
 	}
 
 	protected String somehowJoinsAsString() {
-		return pathsToIDListString(somehowJoins);
+		return pathsToIDListString(connectedPaths);
 	}
 
 	protected String childrenAsString() {
@@ -454,7 +480,7 @@ public class Path implements Comparable<Path> {
 	protected void setChildren(final Set<Path> pathsLeft) {
 		// Set the children of this path in a breadth first fashion:
 		children.clear();
-		for (final Path c : somehowJoins) {
+		for (final Path c : connectedPaths) {
 			if (pathsLeft.contains(c)) {
 				children.add(c);
 				pathsLeft.remove(c);
@@ -596,9 +622,9 @@ public class Path implements Comparable<Path> {
 	private double getExtensionAngle(final int view, final boolean relative) {
 		if (!relative)
 			return getExtensionAngle(view);
-		if (startJoins == null)
+		if (parentPath == null)
 			return Double.NaN;
-		return getExtensionAngle3D(startJoins.getExtensionDirection3D());
+		return getExtensionAngle3D(parentPath.getExtensionDirection3D());
 	}
 
 	private double getExtensionAngle(final int view) {
@@ -749,8 +775,8 @@ public class Path implements Comparable<Path> {
 	 */
 	public double getExtensionAngle3D(final boolean relative) {
 		if (relative) {
-			if (startJoins == null) return Double.NaN;
-			final Vector3d sjDirection = startJoins.getExtensionDirection3D();
+			if (parentPath == null) return Double.NaN;
+			final Vector3d sjDirection = parentPath.getExtensionDirection3D();
 			return (sjDirection == null) ? Double.NaN : getExtensionAngle3D(sjDirection);
 		}
 
@@ -891,7 +917,7 @@ public class Path implements Comparable<Path> {
 	 * @return true, if is primary (root)
 	 */
 	public boolean isPrimary() {
-		return order == 1 || (startJoins == null);
+		return order == 1 || (parentPath == null);
 	}
 
 	/*
@@ -903,18 +929,18 @@ public class Path implements Comparable<Path> {
 		 * 2) other starts on this In any of these cases, we need to also remove this
 		 * from other's somehowJoins and other from this's somehowJoins.
 		 */
-		for (final Path other : somehowJoins) {
-			if (other.startJoins == this) {
-				other.startJoins = null;
-				other.startJoinsPoint = null;
+		for (final Path other : connectedPaths) {
+			if (other.parentPath == this) {
+				other.parentPath = null;
+				other.branchPoint = null;
 			}
-			other.somehowJoins.remove(this);
+			other.connectedPaths.remove(this);
 			other.children.remove(this);
 		}
-		somehowJoins.clear();
+		connectedPaths.clear();
 		children.clear();
-		startJoins = null;
-		startJoinsPoint = null;
+		parentPath = null;
+		branchPoint = null;
 		setIsPrimary(true);
 	}
 
@@ -946,37 +972,37 @@ public class Path implements Comparable<Path> {
 	 * @see #detachFromParent() for disconnecting this path
 	 */
 	public void setBranchFrom(final Path parentPath, final PointInImage branchPoint) {
-		setStartJoin(parentPath, branchPoint);
+		if (parentPath == null) {
+			throw new IllegalArgumentException("setBranchFrom should never take a null path");
+		}
+		{
+			// If there was an existing path, that's an error:
+			if (this.parentPath != null)
+				throw new IllegalArgumentException("setBranchFrom should not replace existing child-parent connections");
+			this.parentPath = parentPath;
+			this.branchPoint = branchPoint;
+			this.branchPoint.onPath = this;
+		}
+		// Also update the somehowJoins list:
+		if (!connectedPaths.contains(parentPath)) {
+			connectedPaths.add(parentPath);
+		}
+		if (!parentPath.connectedPaths.contains(this)) {
+			parentPath.connectedPaths.add(this);
+		}
+		if (!parentPath.children.contains(this)) {
+			parentPath.children.add(this);
+		}
+		// update order
+		setOrder(parentPath.order + 1);
 	}
 
 	/**
 	 * @deprecated use {@link #setBranchFrom(Path, PointInImage)} instead
 	 */
 	@Deprecated
-	public void setStartJoin(final Path other, final PointInImage joinPoint) {
-		if (other == null) {
-			throw new IllegalArgumentException("setBranchFrom should never take a null path");
-		}
-		{
-			// If there was an existing path, that's an error:
-			if (startJoins != null)
-				throw new IllegalArgumentException("setBranchFrom should not replace existing child-parent connections");
-			startJoins = other;
-			startJoinsPoint = joinPoint;
-			startJoinsPoint.onPath = this;
-		}
-		// Also update the somehowJoins list:
-		if (!somehowJoins.contains(other)) {
-			somehowJoins.add(other);
-		}
-		if (!other.somehowJoins.contains(this)) {
-			other.somehowJoins.add(this);
-		}
-		if (!other.children.contains(this)) {
-			other.children.add(this);
-		}
-		// update order
-		setOrder(other.order + 1);
+	public void setStartJoin(final Path parentPath, final PointInImage branchPoint) {
+		setBranchFrom(parentPath, branchPoint);
 	}
 
 	protected void replaceNodesWithFittedVersion() {
@@ -996,11 +1022,11 @@ public class Path implements Comparable<Path> {
 		if (!getName().contains(" [Fitted*]")) setName( getName() + " [Fitted*]");
 		if (getParentPath() != null && !nodes.isEmpty()) {
 			final PathNode firstNode = nodes.getFirst();
-			final int index = startJoins.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
-			final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.getNodeWithoutChecks(index);
-			startJoinsPoint.x = pim.x;
-			startJoinsPoint.y = pim.y;
-			startJoinsPoint.z = pim.z;
+			final int index = parentPath.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
+			final PointInImage pim = (index == -1) ? branchPoint : parentPath.getNodeWithoutChecks(index);
+			branchPoint.x = pim.x;
+			branchPoint.y = pim.y;
+			branchPoint.z = pim.z;
 		}
 		setUseFitted(false);
 		fitted = null;
@@ -1010,13 +1036,13 @@ public class Path implements Comparable<Path> {
 		if (fitted == null)
 			return;
 		if (getParentPath() != null) { // this is always the case if not primary
-			if (fitted.startJoins != null) fitted.detachFromParent();
-			if (startJoins.getUseFitted()) {
-				final int index = startJoins.fitted.indexNearestTo(startJoinsPoint.x, startJoinsPoint.y, startJoinsPoint.z);
-				final PointInImage pim = (index == -1) ? startJoinsPoint : startJoins.fitted.getNodeWithoutChecks(index);
-				fitted.setStartJoin(startJoins.getFitted(), pim);
+			if (fitted.parentPath != null) fitted.detachFromParent();
+			if (parentPath.getUseFitted()) {
+				final int index = parentPath.fitted.indexNearestTo(branchPoint.x, branchPoint.y, branchPoint.z);
+				final PointInImage pim = (index == -1) ? branchPoint : parentPath.fitted.getNodeWithoutChecks(index);
+				fitted.setBranchFrom(parentPath.getFitted(), pim);
 			} else {
-				fitted.setStartJoin(startJoins, startJoinsPoint);
+				fitted.setBranchFrom(parentPath, branchPoint);
 			}
 		}
 	}
@@ -1051,17 +1077,17 @@ public class Path implements Comparable<Path> {
 	 * @see #getOrder() for hierarchical position information
 	 */
 	public void detachFromParent() {
-		Path other = startJoins;
+		Path other = parentPath;
 		if (other == null) {
 			throw new IllegalArgumentException("Don't call detachFromParent if the other Path is already null");
 		}
-		if (!(other.startJoins == this)) {
-			somehowJoins.remove(other);
-			other.somehowJoins.remove(this);
+		if (!(other.parentPath == this)) {
+			connectedPaths.remove(other);
+			other.connectedPaths.remove(this);
 			other.children.remove(this);
 		}
-		startJoins = null;
-		startJoinsPoint = null;
+		parentPath = null;
+		branchPoint = null;
 		setOrder(-1);
 	}
 
@@ -1221,14 +1247,10 @@ public class Path implements Comparable<Path> {
 	 */
 	public void removeNode(final int index) {
 		if (size() == 1) return;
-		if (index < 0 || index >= size()) throw new IllegalArgumentException(
-			"removeNode() asked for an out-of-range point: " + index);
-		
-		final PointInImage p = getNodeWithoutChecks(index);
+		final PointInImage p = getNodeWithChecks(index);
 		nodes.remove(index);
-		
-		if (p.equals(startJoinsPoint) && !nodes.isEmpty()) {
-			startJoinsPoint = getNodeWithoutChecks(0);
+		if (p.equals(branchPoint) && !nodes.isEmpty()) {
+			branchPoint = getNodeWithoutChecks(0);
 		}
 	}
 
@@ -1240,18 +1262,15 @@ public class Path implements Comparable<Path> {
 	 * @throws IllegalArgumentException if index is out-of-range
 	 */
 	public void moveNode(final int index, final PointInImage destination) {
-		if (index < 0 || index >= size()) throw new IllegalArgumentException(
-			"moveNode() asked for an out-of-range point: " + index);
-		
-		final PathNode node = getNodeWithoutChecks(index);
+		final PathNode node = getNodeWithChecks(index);
         // Update node coordinates
 		node.x = destination.x;
 		node.y = destination.y;
 		node.z = destination.z;
 		
 		// If this is a start join for other paths, update those as well
-		for (final Path p : somehowJoins) {
-			final PointInImage startJoinsPoint = p.getStartJoinsPoint();
+		for (final Path p : connectedPaths) {
+			final PointInImage startJoinsPoint = p.getBranchPoint();
 			if (startJoinsPoint != null && startJoinsPoint.isSameLocation(node)) {
 				startJoinsPoint.x = destination.x;
 				startJoinsPoint.y = destination.y;
@@ -1291,9 +1310,7 @@ public class Path implements Comparable<Path> {
 	 * @return the closest node to the specified one or null if no such node was
 	 *         found.
 	 */
-	public PointInImage nearestNodeTo(final PointInImage node,
-		final double within)
-	{
+	public PointInImage nearestNodeTo(final PointInImage node, final double within) {
 		double minimumDistanceSquared = within * within;
 		PointInImage closestNode = null;
 		for (int i = 0; i < size(); ++i) {
@@ -1488,6 +1505,7 @@ public class Path implements Comparable<Path> {
 		other.setCanvasOffset(getCanvasOffset());
 		other.setColor(getColor());
 		other.setSpineOrVaricosityCount(getSpineOrVaricosityCount());
+		// Directly set ID without triggering change events during cloning
 		other.id = id;
 		other.editableNodeIndex = editableNodeIndex;
 		other.editableNodeLocked = editableNodeLocked;
@@ -1512,52 +1530,126 @@ public class Path implements Comparable<Path> {
 		this.spacing_units = cal.getUnit();
 	}
 
+	/**
+	 * Creates a deep copy of this Path.
+	 * <p>
+	 * This method creates a complete copy of the path including all nodes, properties,
+	 * and calibration settings. The cloned path will have the same spatial coordinates,
+	 * node properties (radius, color, tangent), and metadata as the original, but will
+	 * be completely independent. Parent-child relationships are not preserved in the clone
+	 * to avoid infinite recursion and should be established separately if needed.
+	 * </p>
+	 * <p>
+	 * Fitted paths and legacy 3D viewer content are not cloned - the new path will need to
+	 * be re-fitted and re-added to viewers if needed.
+	 * </p>
+	 *
+	 * @return a new Path that is a deep copy of this path
+	 * @see #clone(boolean) for the deprecated version with child inclusion option
+	 */
 	@SuppressWarnings("unchecked")
 	@Override
 	public Path clone() {
-
+		// For Path, we use manual cloning due to final fields referencing mutable objects
+		// Using super.clone() causes issues because the final 'nodes' field would reference
+		// the same ArrayList instance, causing dup.nodes.clear() to clear the original's nodes
+		
 		final Calibration cal = getCalibration();
 		final Path dup = new Path(cal.pixelWidth, cal.pixelHeight, cal.pixelDepth, cal.getUnit());
-		
+
 		// Clone all nodes
 		for (final PathNode node : nodes) {
 			PathNode clonedNode = node.clone();
 			clonedNode.onPath = dup;
 			dup.nodes.add(clonedNode);
 		}
-		
-		// Clone path relationships
-		dup.somehowJoins = (ArrayList<Path>) somehowJoins.clone();
+
+		// Clone path relationships (shallow clone of lists, but references remain)
+		dup.connectedPaths = (ArrayList<Path>) connectedPaths.clone();
 		dup.children = (ArrayList<Path>) children.clone();
-		if (startJoins != null) dup.startJoins = startJoins.clone();
-		if (startJoinsPoint != null) dup.startJoinsPoint = startJoinsPoint.clone();
-		if (getFitted() != null) dup.setFitted(getFitted().clone());
+
+		// Note: We don't deep clone parentPath, branchPoint, or fitted to avoid infinite recursion
+		// These relationships should be established separately after cloning
+		dup.parentPath = null;
+		dup.branchPoint = null;
+		dup.fitted = null;
+
+		// Clone canvas offset
+		if (canvasOffset != null) {
+			dup.canvasOffset = new PointInCanvas(canvasOffset.x, canvasOffset.y, canvasOffset.z);
+			dup.canvasOffset.onPath = dup;
+		}
+
+		// Reset 3D viewer content (should not be shared)
+		dup.content3D = null;
+		dup.nameWhenAddedToViewer = null;
 		
+		// Clear change listeners to prevent events during cloning
+		dup.changeListeners.clear();
+
 		applyCommonProperties(dup);
 		return dup;
 	}
 
-	@Deprecated
+	/**
+	 * Creates a copy of this Path with optional inclusion of immediate children.
+	 * <p>
+	 * This method creates a clone of this path and optionally includes clones of its
+	 * immediate child paths. When children are included, they are properly reconnected
+	 * to the cloned parent path, maintaining the parent-child relationships. Note that
+	 * only immediate children are cloned - grandchildren and deeper descendants are not
+	 * included.
+	 * </p>
+	 * <p>
+	 * <strong>Limitations:</strong> This method only clones the immediate children and
+	 * does not recursively clone the entire subtree. For complex tree structures, consider
+	 * using {@link Tree#clone()} instead.
+	 * </p>
+	 *
+	 * @param includeImmediateChildren if true, includes clones of immediate child paths;
+	 *                                 if false, returns a clone without children
+	 * @return a new Path that is a copy of this path, optionally including children
+	 */
 	public Path clone(final boolean includeImmediateChildren) {
 		final Path dup = clone();
 		if (!includeImmediateChildren) return dup;
 
+		// Clone immediate children and reconnect them to the cloned parent
 		dup.children = new ArrayList<>(children.size());
-		final Iterator<Path> childrenIt = children.iterator();
-		while (childrenIt.hasNext()) {
-			final Path child = childrenIt.next();
+		for (final Path child : children) {
 			final Path dupChild = child.clone();
-			if (dupChild.getBranchPoint() != null) {
-				final PointInImage dupSPoint = dupChild.getBranchPoint().clone();
-				dupChild.detachFromParent();
-				dupChild.setStartJoin(dup, dupSPoint);
+
+			// Clear the cloned child's relationships since they point to original paths
+			dupChild.connectedPaths.clear();
+			dupChild.children.clear();
+
+			// Reconnect the child to the cloned parent if it had a branch point
+			if (child.getBranchPoint() != null) {
+				final PointInImage dupBranchPoint = child.getBranchPoint().clone();
+				dupChild.setBranchFrom(dup, dupBranchPoint);
 			}
+
 			dup.children.add(dupChild);
 		}
 		return dup;
 	}
 
-	public ArrayList<Path> getChildren() {
+	/**
+	 * Gets the list of child paths that branch from this path.
+	 * <p>
+	 * Returns the collection of paths that have this path as their parent.
+	 * The returned list is the actual internal list, so modifications to it
+	 * will affect the path's structure.
+	 * </p>
+	 * 
+	 * @return the List of child paths. May be empty if this path has no children,
+	 *         but never null.
+	 * 
+	 * @see #setBranchFrom(Path, PointInImage) for creating parent-child relationships
+	 * @see #getParentPath() for getting the parent of this path
+	 * @see #isPrimary() for checking if this is a root path
+	 */
+	public List<Path> getChildren() {
 		return children;
 	}
 
@@ -1718,8 +1810,8 @@ public class Path implements Comparable<Path> {
 			PathNodeCanvas nextNode = null;
 			if (i > 0) {
 				previousNode = new PathNodeCanvas(this, i-1, canvas);
-			} else if (startJoinsPoint != null) {
-				previousNode = new PathNodeCanvas(startJoinsPoint, i, canvas);
+			} else if (branchPoint != null) {
+				previousNode = new PathNodeCanvas(branchPoint, i, canvas);
 			}
 			if (i < nodes.size() - 1) {
 				nextNode = new PathNodeCanvas(this, i+1, canvas);
@@ -2108,10 +2200,24 @@ public class Path implements Comparable<Path> {
 		return useFitted && fitted != null;
 	}
 
+	/**
+	 * Gets the number of spines or varicosities associated with this path.
+	 * @return the number of spines or varicosities. Returns 0 if no features have
+	 *         been annotated.
+	 * 
+	 * @see #setSpineOrVaricosityCount(int) for setting the count
+	 */
 	public int getSpineOrVaricosityCount() {
 		return spinesOrVaricosities;
 	}
 
+	/**
+	 * Sets the number of spines or varicosities associated with this path.
+	 * 
+	 * @param newCount the new count of spines or varicosities. Should be non-negative.
+	 * 
+	 * @see #getSpineOrVaricosityCount() for getting the current count
+	 */
 	public void setSpineOrVaricosityCount(final int newCount) {
 		this.spinesOrVaricosities = newCount;
 		if (fitted != null) fitted.setSpineOrVaricosityCount(newCount);
@@ -2896,6 +3002,14 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	/**
+	 * Removes this path from the specified 3D viewer universe.
+	 * @param univ the Image3DUniverse from which to remove this path's 3D representation.
+	 *             Must not be null.
+	 *
+	 * @deprecated This method is deprecated. Use newer 3D visualization methods instead.
+	 */
+	@Deprecated
 	synchronized public void removeFrom3DViewer(final Image3DUniverse univ) {
 		if (content3D != null) {
 			univ.removeContent(nameWhenAddedToViewer);
@@ -2907,6 +3021,7 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	@Deprecated
 	public java.util.List<Point3f> getPoint3fList() {
 		final ArrayList<Point3f> linePoints = new ArrayList<>();
 		for (final PathNode node : nodes) {
@@ -2984,11 +3099,29 @@ public class Path implements Comparable<Path> {
 			.getSafeContentName("Discs for path " + getName()));
 	}
 
+	/**
+	 * Adds this path to the specified 3D viewer universe with the given color.
+	 * 
+	 * @param univ the Image3DUniverse to add this path to
+	 * @param c the color to use for rendering this path
+	 * @param colorImage the color image for texture mapping (can be null)
+	 * 
+	 * @deprecated This method is deprecated. Use newer 3D visualization methods instead.
+	 */
 	@Deprecated
 	synchronized public void addTo3DViewer(final Image3DUniverse univ, final Color c, final ImagePlus colorImage) {
 		addTo3DViewer(univ, Utils.toColor3f((c == null) ? SNT.DEFAULT_DESELECTED_COLOR : c), colorImage);
 	}
 
+	/**
+	 * Adds this path to the specified 3D viewer universe with the given Color3f.
+	 * 
+	 * @param univ the Image3DUniverse to add this path to
+	 * @param c the Color3f to use for rendering this path. Must not be null.
+	 * @param colorImage the color image for texture mapping (can be null)
+	 *
+	 * @deprecated This method is deprecated. Use newer 3D visualization methods instead.
+	 */
 	@Deprecated
 	synchronized public void addTo3DViewer(final Image3DUniverse univ, final Color3f c, final ImagePlus colorImage) {
 		if (c == null) throw new IllegalArgumentException(
@@ -3350,12 +3483,12 @@ public class Path implements Comparable<Path> {
 	 */
 	public List<PointInImage> findJunctions() {
 		final ArrayList<PointInImage> result = new ArrayList<>();
-		if (startJoinsPoint != null) {
-			result.add(startJoinsPoint);
+		if (branchPoint != null) {
+			result.add(branchPoint);
 		}
-		for (final Path other : somehowJoins) {
-			if (other.startJoins == this) {
-				result.add(other.startJoinsPoint);
+		for (final Path other : connectedPaths) {
+			if (other.parentPath == this) {
+				result.add(other.branchPoint);
 			}
 		}
 		return result;
@@ -3386,14 +3519,14 @@ public class Path implements Comparable<Path> {
 		return getBranchPoints();
 	}
 
-		/**
-         * Returns the indices of nodes which are indicated to be a join, either in this
-         * Path object, or any other that starts or ends on it.
-         *
-         * @return the indices of junction nodes, naturally sorted
-         * @see #findJunctions()
-         * @see #getBranchPoints()
-         */
+	/**
+	 * Returns the indices of nodes which are indicated to be a join, either in this
+	 * Path object, or any other that starts or ends on it.
+	 *
+	 * @return the indices of junction nodes, naturally sorted
+	 * @see #findJunctions()
+	 * @see #getBranchPoints()
+	 */
 	public TreeSet<Integer> findJunctionIndices() {
 		final TreeSet<Integer> result = new TreeSet<>();
 		for (final PointInImage point : findJunctions()) {
@@ -3745,6 +3878,22 @@ public class Path implements Comparable<Path> {
 		}
 	}
 
+	/**
+	 * Assigns a radius to a specific node of this Path.
+	 * <p>
+	 * Sets the radius for the node at the specified index. If this is the first
+	 * radius being set for the path and no tangents exist, this method will also
+	 * compute guessed tangents to support proper 3D rendering.
+	 * </p>
+	 * 
+	 * @param r the radius to be assigned to the node. NaN values are ignored.
+	 * @param index the 0-based index of the node to modify
+	 * 
+	 * @throws IndexOutOfBoundsException if index is out of range
+	 * 
+	 * @see #setRadius(double) for setting radius on all nodes
+	 * @see #getNodeRadius(int) for getting the radius of a specific node
+	 */
 	public void setRadius(final double r, final int index) {
 		if (Double.isNaN(r)) return;
 		getNodeWithChecks(index).setRadius(r);
@@ -3775,7 +3924,7 @@ public class Path implements Comparable<Path> {
 
 	public boolean isConnectedTo(final Path other) {
 		return (getParentPath() != null && getParentPath().equals(other))
-			|| (somehowJoins != null && somehowJoins.contains(other));
+			|| (connectedPaths != null && connectedPaths.contains(other));
 	}
 
 	protected void addChangeListener(PathChangeListener listener) {

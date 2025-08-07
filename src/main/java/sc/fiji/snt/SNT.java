@@ -1839,7 +1839,7 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 
-		if (currentPath != null && currentPath.startJoins != null) {
+		if (currentPath != null && currentPath.parentPath != null) {
 			currentPath.detachFromParent();
 		}
 
@@ -2182,7 +2182,7 @@ public class SNT extends MultiDThreePanes implements
 				last_start_point_y * y_spacing, last_start_point_z * z_spacing);
 			p.onPath = currentPath;
 			currentPath.addPointDouble(p.x, p.y, p.z);
-			currentPath.startJoinsPoint = p;
+			currentPath.branchPoint = p;
 			cancelSearch(false);
 		}
 		else {

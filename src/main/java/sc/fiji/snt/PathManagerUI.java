@@ -657,7 +657,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		boolean rebuild = false;
 		for (final Path p : pathsToBeDeleted) {
 			if (plugin !=null && p.isBeingEdited()) plugin.enableEditMode(false);
-			if (!p.somehowJoins.isEmpty()) {
+			if (!p.connectedPaths.isEmpty()) {
 				rebuild = true;
 			}
 			p.disconnectFromAll();
@@ -3471,8 +3471,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 				final HashSet<Path> pathsToMerge = new HashSet<>();
 				for (final Path p : selectedPaths) {
-					if (refPath.equals(p) || refPath.somehowJoins.contains(p) ||
-						p.somehowJoins.contains(refPath)) continue;
+					if (refPath.equals(p) || refPath.connectedPaths.contains(p) ||
+						p.connectedPaths.contains(refPath)) continue;
 					pathsToMerge.add(p);
 				}
 				if (pathsToMerge.isEmpty()) {
@@ -3866,7 +3866,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			for (final Path p : sortedPaths) {
 				mergedPath.add(p);
 				// avoid CME
-				for (final Path join : new ArrayList<>(p.somehowJoins)) {
+				for (final Path join : new ArrayList<>(p.connectedPaths)) {
 					for (int i = 0; i < mergedPath.size(); ++i) {
 						final PointInImage pim = mergedPath.getNode(i);
 						if (join.getBranchPoint() != null && join.getBranchPoint().isSameLocation(pim)) {
@@ -3882,7 +3882,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final Path lastChild = map.get(sortedPaths.getLast()).getFirst();
 			mergedPath.add(lastChild);
 			// avoid CME
-			for (final Path join : new ArrayList<>(lastChild.somehowJoins)) {
+			for (final Path join : new ArrayList<>(lastChild.connectedPaths)) {
 				for (int i = 0; i < mergedPath.size(); ++i) {
 					final PointInImage pim = mergedPath.getNode(i);
 					if (join.getParentPath() != null && join.getBranchPoint().isSameLocation(pim)) {

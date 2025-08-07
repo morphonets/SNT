@@ -98,7 +98,7 @@ class PathNodeCanvas {
 			type = HERMIT;
 		}
 		else if (index == 0) {
-			type = (path.startJoins == null) ? START : JOINT;
+			type = (path.parentPath == null) ? START : JOINT;
 		}
 		else if (index == path.size() - 1) {
 			type = END;

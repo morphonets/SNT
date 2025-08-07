@@ -58,7 +58,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */
-public class Tree implements TreeProperties {
+public class Tree implements TreeProperties, Cloneable {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -135,10 +135,35 @@ public class Tree implements TreeProperties {
 		setLabel(label);
 	}
 
+	/**
+	 * Instantiates a new Tree from a DirectedWeightedGraph with the specified label.
+	 * <p>
+	 * The graph's nodes and edges are transformed into the path-based representation used
+	 * by SNT. This constructor uses the default behavior of not preserving the original
+	 * tree path structure during conversion.
+	 * </p>
+	 * 
+	 * @param graph the DirectedWeightedGraph to convert into a Tree. Must not be null.
+	 * @param label the label to assign to this Tree
+	 * 
+	 * @see #Tree(DirectedWeightedGraph, String, boolean) for controlling path structure preservation
+	 * @see DirectedWeightedGraph for the graph representation
+	 */
 	public Tree(final DirectedWeightedGraph graph, final String label) {
 		this(graph, label, false);
 	}
 
+	/**
+	 * Instantiates a new Tree from a DirectedWeightedGraph with control over path structure preservation.
+	 * 
+	 * @param graph the DirectedWeightedGraph to convert into a Tree. Must not be null.
+	 * @param label the label to assign to this Tree
+	 * @param keepTreePathStructure if true, preserves the original tree path structure during
+	 *                              conversion; if false, allows reorganization for optimization
+	 * 
+	 * @see DirectedWeightedGraph for the graph representation
+	 * @see PathAndFillManager#createFromGraph for the conversion implementation
+	 */
 	public Tree(final DirectedWeightedGraph graph, final String label, final boolean keepTreePathStructure) {
 		pafm = PathAndFillManager.createFromGraph(graph, keepTreePathStructure);
 		tree = pafm.getPaths();
@@ -566,6 +591,18 @@ public class Tree implements TreeProperties {
 		return getSWCTypes(true); // backwardsCompatibility
 	}
 
+	/**
+	 * Gets the set of SWC types present in this tree with optional soma inclusion.
+	 * 
+	 * @param includeSoma if true, includes soma types in the returned set; if false,
+	 *                    excludes {@link Path#SWC_SOMA} from the result
+	 * 
+	 * @return a Set containing the SWC type constants (e.g., {@link Path#SWC_AXON},
+	 *         {@link Path#SWC_DENDRITE}, etc.) present in the tree
+	 * 
+	 * @see #getSWCTypes() for the version that includes soma by default
+	 * @see Path#getSWCType() for individual path SWC types
+	 */
 	public Set<Integer> getSWCTypes(final boolean includeSoma) {
 		final HashSet<Integer> types = new HashSet<>();
         for (final Path path : tree) {
@@ -1467,32 +1504,75 @@ public class Tree implements TreeProperties {
 		return clone;
 	}
 
+	/**
+	 * Creates a deep copy of this Tree.
+	 * <p>
+	 * This method creates a complete copy of the tree including all paths and their
+	 * relationships. Each path is cloned individually, and then the parent-child
+	 * relationships are reconstructed in the cloned tree. This ensures that the
+	 * cloned tree maintains the same structure as the original while being
+	 * completely independent.
+	 * </p>
+	 * 
+	 * @return a new Tree that is a deep copy of this tree
+	 */
 	@Override
 	public Tree clone() {
-        final Tree clone = new Tree();
-		clone.setLabel(getLabel());
-		clone.applyProperties(this);
-		clone.setColor(getColor());
-		clone.assignValue(getAssignedValue());
-		final Map<Integer, Path> idToPathMap = new HashMap<>();
-		for (final Path path : list()) {
-			final Path clonePath = path.clone();
-			idToPathMap.put(clonePath.getID(), clonePath);
-			// Clear these, but don't unset startJoin yet
-			clonePath.somehowJoins.clear();
-			clonePath.children.clear();
-			clone.add(clonePath);
-		}
-		for (final Path path : clone.list()) {
-			if (path.getParentPath() == null) continue;
-			final Path join = idToPathMap.get(path.getParentPath().getID());
-			final PointInImage joinPoint = path.getBranchPoint().clone();
-			if (join != null && joinPoint != null) {
-				path.detachFromParent();
-				path.setBranchFrom(join, joinPoint);
+		try {
+			// For Tree, we use manual cloning due to complex path relationships
+			// Using super.clone() would be problematic due to the complex internal state
+			final Tree clone = new Tree();
+			clone.setLabel(getLabel());
+			clone.applyProperties(this);
+			clone.setColor(getColor());
+			clone.assignValue(getAssignedValue());
+
+			// Debug: Check if original tree has paths
+			if (list().isEmpty()) {
+				return clone; // Return empty clone if original is empty
 			}
+
+			// Clone all paths and build mapping
+			final Map<Path, Path> originalToCloneMap = new HashMap<>();
+			
+			for (final Path originalPath : list()) {
+				final Path clonePath = originalPath.clone();
+				
+				// Debug: Verify the cloned path has nodes
+				assert clonePath.size() == originalPath.size();
+				
+				originalToCloneMap.put(originalPath, clonePath);
+				// Clear these, but don't detachFromParent yet
+				clonePath.connectedPaths.clear();
+				clonePath.children.clear();
+				clone.add(clonePath);
+			}
+
+			// Reconstruct path relationships using original path information
+			for (final Path originalPath : list()) {
+				if (originalPath.getParentPath() == null) continue;
+				
+				final Path clonedPath = originalToCloneMap.get(originalPath);
+				final Path clonedParent = originalToCloneMap.get(originalPath.getParentPath());
+				final PointInImage originalBranchPoint = originalPath.getBranchPoint();
+				
+				if (clonedParent != null && originalBranchPoint != null) {
+					final PointInImage clonedBranchPoint = originalBranchPoint.clone();
+					clonedPath.setBranchFrom(clonedParent, clonedBranchPoint);
+				}
+			}
+			
+			// Debug: Verify the cloned tree has the same number of paths
+			if (clone.size() != this.size()) {
+				throw new RuntimeException("Cloned tree has different number of paths: " + 
+					clone.size() + " vs " + this.size());
+			}
+			
+			return clone;
+		} catch (final Exception e) {
+			// Wrap any exceptions in a runtime exception
+			throw new RuntimeException("Failed to clone Tree: " + e.getMessage(), e);
 		}
-		return clone;
 	}
 
 	private static class TreeBoundingBox extends BoundingBox {

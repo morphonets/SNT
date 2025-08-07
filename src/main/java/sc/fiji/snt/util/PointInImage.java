@@ -37,7 +37,7 @@ import java.util.Objects;
  *
  * @author Tiago Ferreira
  */
-public class PointInImage implements SNTPoint {
+public class PointInImage implements SNTPoint, Cloneable {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -215,14 +215,24 @@ public class PointInImage implements SNTPoint {
 		this.onPath = onPath;
 	}
 
+	/**
+	 * Creates a copy of this PointInImage.
+	 * <p>
+	 * This method creates a copy of the point including all properties such as
+	 * coordinates, value, annotation, and hemisphere information.
+	 * </p>
+	 * 
+	 * @return a new PointInImage that is a copy of this point
+	 */
 	@Override
 	public PointInImage clone() {
-		final PointInImage dup = new PointInImage(getX(), getY(), getZ());
-		dup.onPath = onPath;
-		dup.v = v;
-		dup.annotation = annotation;
-		dup.lr = lr;
-		return dup;
+		try {
+			// Call super.clone() to get a shallow copy
+			return (PointInImage) super.clone();
+		} catch (final CloneNotSupportedException e) {
+			// This should never happen since we implement Cloneable
+			throw new AssertionError("Clone not supported", e);
+		}
 	}
 
 	@Override

@@ -1074,7 +1074,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 			editingPath + "?", "Delete Path?"))
 		{
 			boolean rebuild = false;
-			for (final Path p : editingPath.somehowJoins) {
+			for (final Path p : editingPath.connectedPaths) {
 				if (p.getParentPath() == editingPath) {
 					rebuild = true;
 					break;
