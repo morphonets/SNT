@@ -38,6 +38,10 @@ def branch_angles_x_path_distances(tree, holding_dic):
 
 def run():
 
+    if not NeuroMorphoLoader().isDatabaseAvailable():
+        print("NeuroMorpho does not seem to be reachable. Are you online!?")
+        return
+
     # define cell names from Neuromorpho.org's Carlen archive (PMID 33593856)
     nm_neuron_names = ["458_4_C1","458_3_C2","500_1_C3","535_1_C2","535_2_C4",
                        "613_3_C4","614_5_C2","614_5_C6","614_6_C3","190131_C2"]

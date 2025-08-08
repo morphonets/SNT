@@ -55,7 +55,7 @@ def run():
         # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
         metric = "inter-node distance"  # same as TreeStatistics.INTER_NODE_DISTANCE
         summary_stats = d_stats.getSummaryStats(metric)
-        print("The average inter-node distance is %d" % summary_stats.getMean())
+        print("The average inter-node distance is %.2f" % summary_stats.getMean())
 
         # To display a detailed distribution analysis:
         d_stats.getHistogram(metric).show()
@@ -65,7 +65,7 @@ def run():
         # this volume calculation, have a look at Tree's documentation:
         # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/Tree.html
         compartment_volume = tree.getApproximatedVolume()
-        print("Approximate volume of tracing is %d cubic microns" % compartment_volume)
+        print("Approximate volume of tracing is %.2f cubic microns" % compartment_volume)
 
         # Let's find the minimum bounding box containing all existing nodes:
         # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/util/BoundingBox.html

@@ -36,6 +36,7 @@ import org.scijava.util.ColorRGB;
 import org.scijava.util.Colors;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
@@ -68,15 +69,10 @@ public class Viewer2D extends TreeColorMapper {
 	private boolean visibleOutline;
 
 	/**
-	 * Instantiates an empty 2D viewer. Note that because the instance is not aware
-	 * of any context, script-friendly methods that use string as arguments may fail
-	 * to retrieve referenced Scijava objects.
+	 * Instantiates an empty 2D viewer using SNT's default context.
 	 */
 	public Viewer2D() {
-		super();
-		setAxesVisible(true);
-		setGridlinesVisible(false);
-		setOutlineVisible(true);
+		this(SNTUtils.getContext());
 	}
 
 	/**

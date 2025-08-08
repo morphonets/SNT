@@ -1,4 +1,3 @@
-//@Context context
 //@UIService ui
 
 /**
@@ -28,9 +27,9 @@ import sc.fiji.snt.analysis.sholl.parsers.*
 imp = Opener.openUsingBioFormats("path/to/image/file.tif")
 if (imp != null) {
     if (imp.getNDimensions() == 2)
-        parser = new ImageParser2D(imp, context)
+        parser = new ImageParser2D(imp)
     else
-        parser = new ImageParser3D(imp, context)
+        parser = new ImageParser3D(imp)
     // we would then set the required options:
     parser.setHemiShells(true)
     parser.setThreshold(100, 250)

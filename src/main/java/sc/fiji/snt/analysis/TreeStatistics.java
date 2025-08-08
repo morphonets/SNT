@@ -1984,16 +1984,19 @@ public class TreeStatistics extends ContextCommand {
      * (running headless!?), table is printed to Console.
      */
     public void updateAndDisplayTable() {
-        if (getContext() == null) {
+        try {
+            if (getContext() == null) {
+                SNTUtils.getContext().inject(this);
+            }
+            final String displayName = (tableTitle == null) ? "SNT Measurements" : tableTitle;
+            final Display<?> display = displayService.getDisplay(displayName);
+            if (display != null) {
+                display.update();
+            } else {
+                displayService.createDisplay(displayName, table);
+            }
+        } catch (final Exception ignored) {
             System.out.println(SNTTable.toString(table, 0, table.getRowCount() - 1));
-            return;
-        }
-        final String displayName = (tableTitle == null) ? "SNT Measurements" : tableTitle;
-        final Display<?> display = displayService.getDisplay(displayName);
-        if (display != null) {
-            display.update();
-        } else {
-            displayService.createDisplay(displayName, table);
         }
     }
 

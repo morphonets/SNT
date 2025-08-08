@@ -1,4 +1,3 @@
-#@Context context
 #@LogService log
 
 """
@@ -19,11 +18,11 @@ def main(imp):
     # the C,T position to be analyzed by activating them. The channel and frame
     # will be stored in the profile properties map and can be retrieved later):
     if imp.getNSlices() == 1:
-        parser = ImageParser2D(imp, context)
+        parser = ImageParser2D(imp)
         parser.setRadiiSpan(0, ImageParser2D.MEAN) # mean of 4 measurements at every radius
         parser.setPosition(1, 1, 1) # channel, frame, Z-slice
     else: 
-        parser = ImageParser3D(imp, context)
+        parser = ImageParser3D(imp)
         parser.setSkipSingleVoxels(True) # ignore isolated voxels
         parser.setPosition(1, 1) # channel, frame
   

@@ -39,11 +39,9 @@ parser = new TreeParser(tree)
 // We'll compute tne convex hull, i.e., a mesh if a 3D reconstruction, or a
 // polygon if 2D, and set the Sholl center to the centroid of the convex hull
 hull2D = new ConvexHull2D(tree.getNodes())
-hull2D.compute()
 centroid2D = ops.geom().centroid(hull2D.getPolygon())
 if (tree.is3D()) {
     hull3D = new ConvexHull3D(tree.getNodes())
-    hull3D.compute()
     centroid3D = ops.geom().centroid(hull3D.getMesh())
     parser.setCenter(centroid3D.positionAsDoubleArray())
 } else {
@@ -64,12 +62,12 @@ stats = new LinearProfileStats(profile)
 // Viewer2D (Reconstruction Plotter). When dealing with 3D reconstructions, it
 // makes more sense to use Viewer3D (Reconstruction Viewer), but this will
 // exemplifies how to create a publication-quality figure
-viewer = new Viewer2D(snt.getContext())
+viewer = new Viewer2D()
 viewer.addPolygon(hull2D.getPolygon(), "Convex hull")
 
 // Color code the tree according to the Sholl profile (i.e., using intersection
 // counts as mapping variable)
-mapper = new TreeColorMapper(snt.context())
+mapper = new TreeColorMapper()
 mapper.map(tree, stats, ColorTables.ICE)
 viewer.add(tree)
 viewer.addColorBarLegend(mapper)

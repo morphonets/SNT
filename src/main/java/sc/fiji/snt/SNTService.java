@@ -341,6 +341,18 @@ public class SNTService extends AbstractService {
 	}
 
 	/**
+	 * Gets the collection of paths listed in the Path Manager as a {@link Tree}
+	 * object.
+	 *
+	 * @return the Tree holding the Path collection
+	 * @throws UnsupportedOperationException if SNT is not running
+	 */
+	public Collection<Tree> getTrees() {
+		accessActiveInstance(false);
+		return plugin.getPathAndFillManager().getTrees();
+	}
+
+	/**
 	 * @deprecated Use {@link #getStatistics(boolean)} instead
 	 */
 	@Deprecated

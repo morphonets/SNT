@@ -1,5 +1,3 @@
-# @ImageJ ij
-
 import sc.fiji.snt.*
 import sc.fiji.snt.io.*
 import sc.fiji.snt.analysis.*
@@ -62,7 +60,7 @@ hist = nodeStats.getHistogram("branch order")
 hist.show()
 
 // Let's assemble a Reconstruction Viewer to visualize the data
-viewer = new Viewer3D(ij.context())
+viewer = new Viewer3D(true) // true = interactive
 
 // Add relevant meshes
 brainMesh = AllenUtils.getCompartment("Whole Brain").getMesh()
@@ -75,7 +73,7 @@ tree.setColor("yellow")
 viewer.add(tree)
 
 // Add extracted branch points color-coded by order
-mapper = new NodeColorMapper(nodeStats, ij.context())
+mapper = new NodeColorMapper(nodeStats)
 mapper.map("branch length", "Ice.lut")
 annot = viewer.annotatePoints(bps, "Thalamic BPs")
 annot.setSize(10)

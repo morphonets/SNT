@@ -54,8 +54,8 @@ println(">> Brain region: " + compartment)
 println(">> # cells in database: " + ids.size())
 println(">> # cells downloaded: " + somas.size())
 
-viewer = new Viewer3D(true)
-viewer.loadRefBrain("mouse")
+viewer = new Viewer3D(true) // true = interactive
+viewer.loadRefBrain("mouse") // load brain countour
 viewer.add(somas)
 viewer.setSomaRadius(50)
 viewer.setViewMode("XZ")

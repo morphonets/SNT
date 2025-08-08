@@ -131,7 +131,7 @@ public class TreeColorMapper extends ColorMapper {
 	 *          required by the class
 	 */
 	public TreeColorMapper(final Context context) {
-		this();
+		mappedTrees = new ArrayList<>();
 		context.inject(this);
 	}
 
@@ -141,7 +141,7 @@ public class TreeColorMapper extends ColorMapper {
 	 * to retrieve referenced Scijava objects.
 	 */
 	public TreeColorMapper() {
-		mappedTrees = new ArrayList<>();
+		this(SNTUtils.getContext());
 	}
 
 	/**

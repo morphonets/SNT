@@ -46,7 +46,7 @@ def run():
     # isolated voxels that may exist should be eroded
     filtered_img = snt.getPlugin().getSecondaryDataAsImp()
     #filtered_img.duplicate().show() # display copy
-    SkeletonConverter.skeletonize(filtered_img, 0.005, 1, True)
+    SkeletonConverter.skeletonize(filtered_img, 0.45, 1, True)
     #filtered_img.show() # display skeletonized image
 
     # We can now initialize the converter and specify some tweaks:

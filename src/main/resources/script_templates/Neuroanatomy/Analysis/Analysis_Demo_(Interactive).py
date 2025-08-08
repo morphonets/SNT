@@ -27,12 +27,16 @@ def run():
 
     # Let's import some demo data. See Scripted_Tracing_Demo.py for how
     # to retrieve the demo image associated with this data
-    demo_tree = snt.demoTree()
+    demo_tree = snt.demoTree("fractal")
     if not demo_tree:
-        ui.showDialog("Somehow could not load bundled file.", "Error")
+        ui.showDialog("Somehow could not load demo data.", "Error")
+        return
+    elif snt.getPaths():
+        snt.getUI().error("Please delete existing paths before running this demo")
         return
 
-    # Pause tracing functions and load demo data
+    # Delete all paths, pause tracing functions and load demo data
+    snt.getUI().getPathManager().runCommand("Delete...", "") # recorded command
     snt.getUI().changeState(SNTUI.TRACING_PAUSED)
     snt.loadTree(demo_tree)
 
@@ -41,7 +45,8 @@ def run():
     # it from SNTService using 1) all the Paths currently loaded, or 2) just
     # the current subset of selected Paths in the Path Manager dialog.
     # This is useful when one only wants to analyze the group(s) of Paths
-    # selected through Path Manager's filtering toolbar.
+    # selected through Path Manager's filtering toolbar. But do note that it
+    # assumes selected parts form a valid mathematical tree graph
     # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/TreeStatistics.html
     stats = snt.getStatistics(False)   # Include only selected paths?
 
@@ -50,34 +55,34 @@ def run():
     stats.summarize("TreeV Demo", True) # Split summary by compartment?
     stats.updateAndDisplayTable()
 
+    # We can also compute distributions
+    metric = "inter-node distance"  #same as TreeStatistics.INTER_NODE_DISTANCE
+    stats.getHistogram(metric).show()
+    summary_stats = stats.getSummaryStats(metric)
+    print("Smallest inter-node distance: %.4f" % summary_stats.getMin())
+
     # It is also possible to build the above instances from a Tree. This is
     # useful for post-hoc analysis and if, e.g, one needs to manipulate Paths
     # in advance.
-    metric = "inter-node distance"  #same as TreeStatistics.INTER_NODE_DISTANCE
-    summary_stats = stats.getSummaryStats(metric)
-    stats.getHistogram(metric).show()
-    print("Smallest inter-node distance: %d" % summary_stats.getMin())
-
     # E.g., let's' downsample the Tree, imposing 10um between 'shaft' nodes:
     # When downsampling, branch points and tip positions are not altered
-    tree = snt.getTree(False) # Retrieve only paths selected in the Manager?
+    tree = demo_tree.clone() # duplicate demo_tree
     tree.downSample(10) # 10um
     tree.setLabel("10um downsampled")
 
-    # Let's compare the distribution of the chosen metric after downsampling:
+    # Initialize a new TreeStatistics instance from downsampled tree
     stats = TreeStatistics(tree)
-    summary_stats = stats.getSummaryStats(metric)
+
+    # Let's compare the distribution of the chosen metric after downsampling:
     stats.getHistogram(metric).show()
-    stats.summarize("TreeV Demo (Downsampled)", True)
-    stats.updateAndDisplayTable()
-    print("After downsampling: %d" % summary_stats.getMin())
+    summary_stats = stats.getSummaryStats(metric)
+    print("After downsampling: %.4f" % summary_stats.getMin())
 
     # To render both the downsampled tree and the original:
-    tree.setColor("cyan")
-    tree = snt.demoTree()
+    demo_tree.setColor("cyan")
     tree.setColor("yellow")
-    snt.loadTree(tree)
-    snt.getRecViewer().show()
+    snt.loadTree(tree) ## add dowsampled tree to Path Manager list
+    snt.getRecViewer().show() ## display Path Manager's list in Reconstruction Viewer
     snt.updateViewers()
 
 run()

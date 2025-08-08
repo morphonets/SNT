@@ -1,5 +1,3 @@
-#@Context context
-
 """
 file:       Graph_Analysis_Demo.py
 author:     Tiago Ferreira, Cameron Arshadi
@@ -94,7 +92,7 @@ def run():
     print("Graph diameter (DSP)=%s. Time: %ss" % (length, t1-t0))
 
     # Visualize the longest path in Viewer3D (interactive instance)
-    viewer = Viewer3D(context)
+    viewer = Viewer3D(True) # true = interactive
 
     # Import results as sc.fiji.snt.Tree objects expected by Viewer3D
     axon_tree.setColor("cyan")

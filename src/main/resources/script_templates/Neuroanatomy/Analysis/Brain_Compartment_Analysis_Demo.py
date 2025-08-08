@@ -48,8 +48,7 @@ hist.show()
 hist = nStats.getHistogram("x coordinates") # Medial-Lateral axis
 midline = AllenUtils.brainCenter().getX()
 hist.annotateXline(midline, "midline")
-hemisphere = "left" if AllenUtils.isLeftHemisphere(soma_loc) else "right" 
-hist.annotatePoint(soma_loc.getX(), 0, "soma ({} hemi.)".format(hemisphere))
+hist.annotateXline(soma_loc.getX(), "soma", "blue")
 hist.show()
 
 # More simply, we can just obtain ipsi/contralateral ratios directly
