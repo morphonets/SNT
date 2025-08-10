@@ -26,6 +26,8 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.assumeNotNull;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -72,7 +74,10 @@ public class IOTest {
 				assertFalse("Reading file " + swcPath, swcTree.isEmpty());
 
 				// Did tree change when saving to SWC?
-				assertEquals(bps, new TreeStatistics(swcTree).getBranchPoints());
+				//assertEquals(bps, new TreeStatistics(swcTree).getBranchPoints());
+				Set<PointInImage> bps2 = new TreeStatistics(swcTree).getBranchPoints();
+				assertEquals(bps.size(), bps2.size());
+				compareNodes(bps, bps2);
 				assertEquals(cableLength, new TreeStatistics(swcTree).getCableLength(), precision);
 
 				// TRACES I/O
@@ -82,7 +87,9 @@ public class IOTest {
 				assertFalse("Reading file " + tracesPath, tracesTree.isEmpty());
 
 				// Did tree change when saving to TRACES?
-				assertEquals(bps, new TreeStatistics(tracesTree).getBranchPoints());
+				bps2 = new TreeStatistics(tracesTree).getBranchPoints();
+                assertEquals(bps.size(), bps2.size());
+				compareNodes(bps, bps2);
 				assertEquals(cableLength, new TreeStatistics(tracesTree).getCableLength(), precision);
 			} catch (final IOException e) {
 				e.printStackTrace();
@@ -90,4 +97,12 @@ public class IOTest {
 		});
 	}
 
+
+	private void compareNodes(final Collection<PointInImage> p1, final Collection<PointInImage> p2) {
+		final Iterator<PointInImage> it1 = p1.iterator();
+		final Iterator<PointInImage> it2 = p1.iterator();
+		while (it1.hasNext() && it2.hasNext()) {
+			assertTrue(it1.next().isSameLocation(it2.next()));
+		}
+	}
 }

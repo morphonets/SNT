@@ -58,8 +58,7 @@ public class DirectedWeightedGraphTest {
 
 	@Before
 	public void setUp() throws Exception {
-//		tree = new MouseLightLoader("AA0103").getTree();
-		tree = new SNTService().demoTrees().get(0);
+		tree = new SNTService().demoTree("pyramidal");
 		analyzer = new TreeStatistics(tree);
 		graph = tree.getGraph();
 	}
@@ -222,7 +221,7 @@ public class DirectedWeightedGraphTest {
 		}
 	}
 
-	@Ignore
+	@Ignore // takes ~15seconds to run. skip for now
 	@Test
 	public void testShortestPath() {
 		// Compare against JGraphT Dijkstra implementation

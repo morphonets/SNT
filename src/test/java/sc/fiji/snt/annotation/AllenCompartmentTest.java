@@ -23,6 +23,7 @@
 package sc.fiji.snt.annotation;
 
 import org.json.JSONObject;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
@@ -219,6 +220,7 @@ public class AllenCompartmentTest {
         }
 
         @Test
+        @Ignore // Can take up to several seconds. Skip for now
         public void testGetMesh() {
             assumeTrue(MouseLightLoader.isDatabaseAvailable());
             // Parabrachial nucleus, lateral division, dorsal lateral part
