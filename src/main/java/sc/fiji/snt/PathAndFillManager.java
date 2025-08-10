@@ -1156,7 +1156,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		for (final Path p : unfittedPathToDelete.connectedPaths) {
 			if (p.getParentPath() == unfittedPathToDelete) {
 				p.parentPath = null;
-				p.branchPoint = null;
+				p.branchPointIndex = -1;
 			}
 		}
 
@@ -2984,11 +2984,13 @@ public class PathAndFillManager extends DefaultHandler implements
 				new ArrayList<>();
 
 			if (p.parentPath != null) {
-				final PointInImage s = p.branchPoint;
-				final Path sp = p.parentPath;
-				final int spi = sp.indexNearestTo(s.x, s.y, s.z);
-				pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
-					.getYUnscaled(spi), (ignoreDepth) ? 0 : sp.getZUnscaled(spi)));
+				final PointInImage s = p.getBranchPoint();
+				if (s != null) {
+					final Path sp = p.parentPath;
+					final int spi = sp.indexNearestTo(s.x, s.y, s.z);
+					pointsToJoin.add(new Bresenham3D.IntegerPoint(sp.getXUnscaled(spi), sp
+						.getYUnscaled(spi), (ignoreDepth) ? 0 : sp.getZUnscaled(spi)));
+				}
 			}
 
 			for (int i = 0; i < n; ++i) {

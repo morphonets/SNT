@@ -242,12 +242,14 @@ public class Path implements Comparable<Path>, Cloneable {
 	// whether node being edited is locked
 	private boolean editableNodeLocked;
 
-	// the display offset for this Path in a tracing canvas
+	// the display offset for this Path in a tracing canvas. This allows to overlay the path
+	// away from the signal without changing its coordinates
 	protected PointInCanvas canvasOffset = new PointInCanvas(0, 0, 0);
 
 	// the channel and frame associated with this Path (1-based indices)
 	private final int[] ctPosition;
-	// the number of spines or varicosities associated with this path
+	// the number of spines or varicosities associated with this path.
+	//TODO: This should be move to PathNode so that such count can be assigned to individual nodes
 	private int spinesOrVaricosities;
 
 	/* Spatial calibration definitions */
@@ -258,7 +260,7 @@ public class Path implements Comparable<Path>, Cloneable {
 
 	/* Branching */
 	protected Path parentPath;
-	protected PointInImage branchPoint = null;
+	protected int branchPointIndex = -1;
 	// This is a symmetrical relationship, showing
 	// all the other paths this one is joined to...
 	protected ArrayList<Path> connectedPaths;
@@ -414,7 +416,19 @@ public class Path implements Comparable<Path>, Cloneable {
 	 * @see #getBranchPoints()
 	 */
 	public PointInImage getBranchPoint() {
-		return branchPoint;
+		if (parentPath == null || branchPointIndex < 0 || branchPointIndex >= parentPath.size()) {
+			return null;
+		}
+		return parentPath.getNode(branchPointIndex);
+	}
+	
+	/**
+	 * Gets the index of the branch point in the parent path.
+	 * 
+	 * @return the branch point index, or -1 if this is a primary path
+	 */
+	public int getBranchPointIndex() {
+		return branchPointIndex;
 	}
 	
 	/**
@@ -932,7 +946,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		for (final Path other : connectedPaths) {
 			if (other.parentPath == this) {
 				other.parentPath = null;
-				other.branchPoint = null;
+				other.branchPointIndex = -1;
 			}
 			other.connectedPaths.remove(this);
 			other.children.remove(this);
@@ -940,7 +954,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		connectedPaths.clear();
 		children.clear();
 		parentPath = null;
-		branchPoint = null;
+		branchPointIndex = -1;
 		setIsPrimary(true);
 	}
 
@@ -980,8 +994,17 @@ public class Path implements Comparable<Path>, Cloneable {
 			if (this.parentPath != null)
 				throw new IllegalArgumentException("setBranchFrom should not replace existing child-parent connections");
 			this.parentPath = parentPath;
-			this.branchPoint = branchPoint;
-			this.branchPoint.onPath = this;
+			
+			// Find the nearest node index in the parent path
+			if (branchPoint != null) {
+				this.branchPointIndex = parentPath.indexNearestTo(branchPoint.x, branchPoint.y, branchPoint.z);
+				if (this.branchPointIndex == -1) {
+					// If no nearby node found, use the last node as fallback
+					this.branchPointIndex = parentPath.size() - 1;
+				}
+			} else {
+				this.branchPointIndex = -1;
+			}
 		}
 		// Also update the somehowJoins list:
 		if (!connectedPaths.contains(parentPath)) {
@@ -1023,10 +1046,9 @@ public class Path implements Comparable<Path>, Cloneable {
 		if (getParentPath() != null && !nodes.isEmpty()) {
 			final PathNode firstNode = nodes.getFirst();
 			final int index = parentPath.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
-			final PointInImage pim = (index == -1) ? branchPoint : parentPath.getNodeWithoutChecks(index);
-			branchPoint.x = pim.x;
-			branchPoint.y = pim.y;
-			branchPoint.z = pim.z;
+			if (index != -1) {
+				branchPointIndex = index;
+			}
 		}
 		setUseFitted(false);
 		fitted = null;
@@ -1037,12 +1059,13 @@ public class Path implements Comparable<Path>, Cloneable {
 			return;
 		if (getParentPath() != null) { // this is always the case if not primary
 			if (fitted.parentPath != null) fitted.detachFromParent();
-			if (parentPath.getUseFitted()) {
-				final int index = parentPath.fitted.indexNearestTo(branchPoint.x, branchPoint.y, branchPoint.z);
-				final PointInImage pim = (index == -1) ? branchPoint : parentPath.fitted.getNodeWithoutChecks(index);
-				fitted.setBranchFrom(parentPath.getFitted(), pim);
-			} else {
-				fitted.setBranchFrom(parentPath, branchPoint);
+			final PointInImage currentBranchPoint = getBranchPoint();
+			if (currentBranchPoint != null) {
+				if (parentPath.getUseFitted()) {
+					fitted.setBranchFrom(parentPath.getFitted(), currentBranchPoint);
+				} else {
+					fitted.setBranchFrom(parentPath, currentBranchPoint);
+				}
 			}
 		}
 	}
@@ -1087,7 +1110,7 @@ public class Path implements Comparable<Path>, Cloneable {
 			other.children.remove(this);
 		}
 		parentPath = null;
-		branchPoint = null;
+		branchPointIndex = -1;
 		setOrder(-1);
 	}
 
@@ -1247,10 +1270,24 @@ public class Path implements Comparable<Path>, Cloneable {
 	 */
 	public void removeNode(final int index) {
 		if (size() == 1) return;
-		final PointInImage p = getNodeWithChecks(index);
 		nodes.remove(index);
-		if (p.equals(branchPoint) && !nodes.isEmpty()) {
-			branchPoint = getNodeWithoutChecks(0);
+		
+		// Update branch point indices for child paths that may be affected
+		for (final Path child : getChildren()) {
+			if (child.branchPointIndex > index) {
+				child.branchPointIndex--; // Shift index down due to removal
+			} else if (child.branchPointIndex == index) {
+				// The branch point node was removed, find nearest remaining node
+				if (!nodes.isEmpty()) {
+					final PointInImage firstChildNode = child.firstNode();
+					if (firstChildNode != null) {
+						child.branchPointIndex = indexNearestTo(firstChildNode.x, firstChildNode.y, firstChildNode.z);
+						if (child.branchPointIndex == -1) {
+							child.branchPointIndex = Math.min(index, size() - 1);
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -1268,15 +1305,13 @@ public class Path implements Comparable<Path>, Cloneable {
 		node.y = destination.y;
 		node.z = destination.z;
 		
-		// If this is a start join for other paths, update those as well
-		for (final Path p : connectedPaths) {
-			final PointInImage startJoinsPoint = p.getBranchPoint();
-			if (startJoinsPoint != null && startJoinsPoint.isSameLocation(node)) {
-				startJoinsPoint.x = destination.x;
-				startJoinsPoint.y = destination.y;
-				startJoinsPoint.z = destination.z;
-			}
+		// Update fitted path if it exists (avoid recursion by checking if this is not already a fitted path)
+		if (getFitted() != null && !isFittedVersionOfAnotherPath() && index < getFitted().size()) {
+			getFitted().moveNode(index, destination);
 		}
+		
+		// Note: Branch points now automatically stay in sync since they reference the actual parent nodes
+		// No manual synchronization needed!
 	}
 
 	/**
@@ -1568,10 +1603,10 @@ public class Path implements Comparable<Path>, Cloneable {
 		dup.connectedPaths = (ArrayList<Path>) connectedPaths.clone();
 		dup.children = (ArrayList<Path>) children.clone();
 
-		// Note: We don't deep clone parentPath, branchPoint, or fitted to avoid infinite recursion
+		// Note: We don't deep clone parentPath, branchPointIndex, or fitted to avoid infinite recursion
 		// These relationships should be established separately after cloning
 		dup.parentPath = null;
-		dup.branchPoint = null;
+		dup.branchPointIndex = -1;
 		dup.fitted = null;
 
 		// Clone canvas offset
@@ -1625,8 +1660,7 @@ public class Path implements Comparable<Path>, Cloneable {
 
 			// Reconnect the child to the cloned parent if it had a branch point
 			if (child.getBranchPoint() != null) {
-				final PointInImage dupBranchPoint = child.getBranchPoint().clone();
-				dupChild.setBranchFrom(dup, dupBranchPoint);
+				dupChild.setBranchFrom(dup, child.getBranchPoint());
 			}
 
 			dup.children.add(dupChild);
@@ -1797,10 +1831,6 @@ public class Path implements Comparable<Path>, Cloneable {
 		boolean drawDiameter, final int slice, final int either_side)
 	{
 
-		if (nodes.isEmpty()) {
-			new PathNodeCanvas(this, 0, PathNodeCanvas.HERMIT, canvas).draw(g2, c);
-			return;
-		}
 		int startIndexOfLastDrawnLine = -1;
 
 		for (int i = 0; i < nodes.size(); ++i) {
@@ -1810,8 +1840,8 @@ public class Path implements Comparable<Path>, Cloneable {
 			PathNodeCanvas nextNode = null;
 			if (i > 0) {
 				previousNode = new PathNodeCanvas(this, i-1, canvas);
-			} else if (branchPoint != null) {
-				previousNode = new PathNodeCanvas(branchPoint, i, canvas);
+			} else if (getBranchPoint() != null) {
+				previousNode = new PathNodeCanvas(getBranchPoint(), i, canvas);
 			}
 			if (i < nodes.size() - 1) {
 				nextNode = new PathNodeCanvas(this, i+1, canvas);
@@ -3483,12 +3513,16 @@ public class Path implements Comparable<Path>, Cloneable {
 	 */
 	public List<PointInImage> findJunctions() {
 		final ArrayList<PointInImage> result = new ArrayList<>();
-		if (branchPoint != null) {
-			result.add(branchPoint);
+		final PointInImage myBranchPoint = getBranchPoint();
+		if (myBranchPoint != null) {
+			result.add(myBranchPoint);
 		}
 		for (final Path other : connectedPaths) {
 			if (other.parentPath == this) {
-				result.add(other.branchPoint);
+				final PointInImage otherBranchPoint = other.getBranchPoint();
+				if (otherBranchPoint != null) {
+					result.add(otherBranchPoint);
+				}
 			}
 		}
 		return result;

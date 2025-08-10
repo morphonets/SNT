@@ -729,7 +729,7 @@ public class Tree implements TreeProperties, Cloneable {
 		tree.forEach(p -> {
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage current = p.getNodeWithoutChecks(node);
-				// Path#moveNode will take care of startJoins etc.
+				// Path#moveNode will take care of fitted paths
 				p.moveNode(node, new PointInImage(current.x + xOffset, current.y + yOffset, current.z + zOffset));
 			}
 		});
@@ -757,7 +757,7 @@ public class Tree implements TreeProperties, Cloneable {
 		tree.forEach(p -> {
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage current = p.getNodeWithoutChecks(node);
-				// Path#moveNode will take care of startJoins etc.
+				// Path#moveNode will take care of fitted paths
 				p.moveNode(node, new PointInImage(current.x * xScale, current.y * yScale, current.z * zScale));
 			}
 		});
@@ -811,7 +811,7 @@ public class Tree implements TreeProperties, Cloneable {
 		tree.forEach(p -> {
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage current = p.getNodeWithoutChecks(node);
-				// Path#moveNode will take care of startJoins etc.
+				// Path#moveNode will take care of fitted paths
 				p.moveNode(node, rotate(current, cos, sin, axis));
 			}
 		});
