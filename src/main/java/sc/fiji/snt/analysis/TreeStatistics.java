@@ -64,8 +64,10 @@ import java.util.stream.Collectors;
 public class TreeStatistics extends ContextCommand {
 
     // branch angles
-    /** Flag specifying Branch extension angle XY */
+    /** Flag specifying "Branch extension angle" */
     public static final String BRANCH_EXTENSION_ANGLE = "Branch extension angle";
+    /** Flag specifying "Branch extension angle (Rel.)" */
+    public static final String BRANCH_EXTENSION_ANGLE_REL = "Branch extension angle (Rel.)";
     /** Flag specifying Branch extension angle XY */
     public static final String BRANCH_EXTENSION_ANGLE_XY = "Branch extension angle XY";
     /** Flag specifying Branch extension angle XZ */
@@ -74,6 +76,8 @@ public class TreeStatistics extends ContextCommand {
     public static final String BRANCH_EXTENSION_ANGLE_ZY = "Branch extension angle ZY";
     /** Flag specifying Inner branches: Extension angle */
     public static final String INNER_EXTENSION_ANGLE = "Inner branches: Extension angle";
+    /** Flag specifying Inner branches: Extension angle (Rel.) */
+    public static final String INNER_EXTENSION_ANGLE_REL = "Inner branches: Extension angle (Rel.)";
     /** Flag specifying "Inner branches: Extension angle XY" */
     public static final String INNER_EXTENSION_ANGLE_XY = "Inner branches: Extension angle XY";
     /** Flag specifying "Inner branches: Extension angle XZ" */
@@ -90,6 +94,8 @@ public class TreeStatistics extends ContextCommand {
     public static final String PRIMARY_EXTENSION_ANGLE_ZY = "Primary branches: Extension angle ZY";
     /** Flag specifying "Terminal branches: Extension angle" */
     public static final String TERMINAL_EXTENSION_ANGLE = "Terminal branches: Extension angle";
+    /** Flag specifying "Terminal branches: Extension angle (Rel.)" */
+    public static final String TERMINAL_EXTENSION_ANGLE_REL = "Terminal branches: Extension angle (Rel.)";
     /** Flag specifying "Terminal branches: Extension angle XY" */
     public static final String TERMINAL_EXTENSION_ANGLE_XY = "Terminal branches: Extension angle XY";
     /** Flag specifying "Terminal branches: Extension angle XZ" */
@@ -306,13 +312,13 @@ public class TreeStatistics extends ContextCommand {
             BRANCH_VOLUME, COMPLEXITY_INDEX_ACI, COMPLEXITY_INDEX_DCI, //
             CONVEX_HULL_BOUNDARY_SIZE, CONVEX_HULL_BOXIVITY, CONVEX_HULL_CENTROID_ROOT_DISTANCE, CONVEX_HULL_ELONGATION, //
             CONVEX_HULL_ROUNDNESS, CONVEX_HULL_SIZE, CONVEX_HULL_COMPACTNESS_3D, CONVEX_HULL_ECCENTRICITY_2D, //
-            DEPTH, BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_XY, //
-            BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY, //
-            INNER_EXTENSION_ANGLE, //
+            DEPTH, BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_REL, //
+            BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY, //
+            INNER_EXTENSION_ANGLE, INNER_EXTENSION_ANGLE_REL, //
             INNER_EXTENSION_ANGLE_XY, INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, //
             PRIMARY_EXTENSION_ANGLE, //
             PRIMARY_EXTENSION_ANGLE_XY, PRIMARY_EXTENSION_ANGLE_XZ, PRIMARY_EXTENSION_ANGLE_ZY, //
-            TERMINAL_EXTENSION_ANGLE, //
+            TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_REL, //
             TERMINAL_EXTENSION_ANGLE_XY, TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, //
             GRAPH_DIAMETER, HEIGHT, INNER_LENGTH, //
             INTER_NODE_ANGLE, INTER_NODE_DISTANCE, INTER_NODE_DISTANCE_SQUARED, LENGTH, //
@@ -1262,7 +1268,7 @@ public class TreeStatistics extends ContextCommand {
         final String m = getNormalizedMeasurement(measurement);
         try {
             switch (m) {
-                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE,
+                case BRANCH_CONTRACTION, BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_REL,
                      BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY,
                      BRANCH_FRACTAL_DIMENSION, BRANCH_LENGTH, BRANCH_MEAN_RADIUS, BRANCH_SURFACE_AREA, BRANCH_VOLUME ->
                         assembleBranchStats(stat, m);
@@ -1300,7 +1306,7 @@ public class TreeStatistics extends ContextCommand {
                 case GRAPH_DIAMETER, GRAPH_DIAMETER_ANGLE, GRAPH_DIAMETER_ANGLE_XY, GRAPH_DIAMETER_ANGLE_XZ, GRAPH_DIAMETER_ANGLE_ZY ->
                         assembleGraphDiameterStats(stat, m);
                 case HEIGHT -> stat.addValue(getHeight());
-                case INNER_EXTENSION_ANGLE, INNER_EXTENSION_ANGLE_XY,
+                case INNER_EXTENSION_ANGLE, INNER_EXTENSION_ANGLE_REL, INNER_EXTENSION_ANGLE_XY,
                      INNER_EXTENSION_ANGLE_XZ, INNER_EXTENSION_ANGLE_ZY, INNER_LENGTH, N_INNER_BRANCHES ->
                         assembleInnerBranchStats(stat, m);
                 case INTER_NODE_ANGLE -> {
@@ -1385,7 +1391,7 @@ public class TreeStatistics extends ContextCommand {
                 case STRAHLER_NUMBER -> stat.addValue(getStrahlerNumber());
                 case STRAHLER_RATIO -> stat.addValue(getStrahlerBifurcationRatio());
                 case SURFACE_AREA -> stat.addValue(tree.getApproximatedSurface());
-                case TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_XY,
+                case TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_REL, TERMINAL_EXTENSION_ANGLE_XY,
                      TERMINAL_EXTENSION_ANGLE_XZ, TERMINAL_EXTENSION_ANGLE_ZY, TERMINAL_LENGTH, N_TERMINAL_BRANCHES ->
                         assembleTerminalBranchStats(stat, m);
                 case VALUES -> {
@@ -1426,6 +1432,12 @@ public class TreeStatistics extends ContextCommand {
                     getBranches().forEach(branch -> stat.addValue(branch.getContraction()));
             case BRANCH_EXTENSION_ANGLE ->
                     getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngle3D(false)));
+            case BRANCH_EXTENSION_ANGLE_REL -> {
+                final StrahlerAnalyzer sa = getStrahlerAnalyzer();
+                getBranches().forEach(branch -> {
+                    stat.addValue(sa.getRelativeExtensionAngle(branch));
+                });
+            }
             case BRANCH_EXTENSION_ANGLE_XY ->
                     getBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
             case BRANCH_EXTENSION_ANGLE_XZ ->
@@ -1456,6 +1468,10 @@ public class TreeStatistics extends ContextCommand {
         switch (innerBranchMetric) {
             case INNER_EXTENSION_ANGLE_XY ->
                     getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
+            case INNER_EXTENSION_ANGLE_REL -> {
+                final StrahlerAnalyzer sa = getStrahlerAnalyzer();
+                getInnerBranches().forEach(branch -> stat.addValue(sa.getRelativeExtensionAngle(branch)));
+            }
             case INNER_EXTENSION_ANGLE_XZ ->
                     getInnerBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXZ()));
             case INNER_EXTENSION_ANGLE_ZY ->
@@ -1471,6 +1487,10 @@ public class TreeStatistics extends ContextCommand {
         switch (terminalBranchMetric) {
             case TERMINAL_EXTENSION_ANGLE ->
                     getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngle3D(false)));
+            case TERMINAL_EXTENSION_ANGLE_REL -> {
+                final StrahlerAnalyzer sa = getStrahlerAnalyzer();
+                getTerminalBranches().forEach(branch -> stat.addValue(sa.getRelativeExtensionAngle(branch)));
+            }
             case TERMINAL_EXTENSION_ANGLE_XY ->
                     getTerminalBranches().forEach(branch -> stat.addValue(branch.getExtensionAngleXY()));
             case TERMINAL_EXTENSION_ANGLE_XZ ->
@@ -2451,6 +2471,25 @@ public class TreeStatistics extends ContextCommand {
             totalLength += p.getLength();
         }
         return totalLength;
+    }
+
+    /** Clears internal caches and mappings to free memory. */
+    public void dispose() {
+        tree = null;
+        primaryBranches = null;
+        innerBranches = null;
+        terminalBranches = null;
+        tips = null;
+        table = null;
+        lastDstats = null;
+        unfilteredTree = null;
+        joints = null;
+        tableTitle = null;
+        if (sAnalyzer != null) sAnalyzer.dispose();
+        sAnalyzer = null;
+        shllAnalyzer = null;
+        convexAnalyzer = null;
+        rootAngleAnalyzer = null;
     }
 
     static class StatisticsInstance {

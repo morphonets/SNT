@@ -720,6 +720,7 @@ public class MeasureUI extends JFrame {
 					processColumnsOfStatChoices(row, summaryStatistics, metricHeader, tree.getLabel());
 				}
 			}
+			tStats.dispose();
 		}
 
 		private void assignNodeValuesAsNeeded(final Tree tree, final String metric) {

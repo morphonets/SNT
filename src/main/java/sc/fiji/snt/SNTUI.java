@@ -2872,6 +2872,7 @@ public class SNTUI extends JDialog {
 				}
 				ta.setTable(pmUI.getTable(), PathManagerUI.TABLE_TITLE);
 				ta.run();
+				ta.dispose();
 			}
 			catch (final IllegalArgumentException ignored) {
 				getPathManager().quickMeasurementsCmdError(guiUtils);

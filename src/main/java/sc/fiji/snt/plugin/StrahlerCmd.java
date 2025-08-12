@@ -31,7 +31,6 @@ import org.scijava.plot.*;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
-import org.scijava.util.Colors;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
@@ -104,9 +103,10 @@ public class StrahlerCmd extends ContextCommand {
 		}
 		if (!validInput()) {
 			if (sntService.isActive() && mixedPaths()) {
-				cancel("None of the reconstruction(s) could be parsed. This is likely caused by\n"
-						+ "mixing fitted and non-fitted paths which may mask original connectivity.\n"
-						+ "You may need to apply (or discard) fits more coherently.");
+				cancel("""
+                        None of the reconstruction(s) could be parsed. This is likely caused by
+                        mixing fitted and non-fitted paths which may mask original connectivity.
+                        You may need to apply (or discard) fits more coherently.""");
 			} else {
 				cancel("None of the reconstruction(s) could be parsed. Invalid topologies?");
 			}
@@ -125,7 +125,9 @@ public class StrahlerCmd extends ContextCommand {
 		}
 		if (detailedAnalysis) {
 			final List<SNTChart> charts = new ArrayList<>();
-			for (final String m : new String[]{"Branch length", "Branch contraction"}) {
+			final List<String> metrics = List.of(TreeStatistics.BRANCH_LENGTH, TreeStatistics.BRANCH_CONTRACTION,
+					TreeStatistics.BRANCH_EXTENSION_ANGLE, TreeStatistics.BRANCH_EXTENSION_ANGLE_REL);
+			for (final String m : metrics) {
 				charts.add(getHistogram(m));
 				charts.add(getBoxPlot(m));
 			}
@@ -145,11 +147,11 @@ public class StrahlerCmd extends ContextCommand {
 				cChart.setTitle("Strahler Charts");
 				cChart.show();
 			} else {
-				charts.forEach(c -> c.show());
+				charts.forEach(SNTChart::show);
 			}
 		}
 		getChart().show();
-
+		dataMap.values().forEach( v-> v.analyzer.dispose());
 	}
 
 	private void initMap() {
@@ -177,29 +179,38 @@ public class StrahlerCmd extends ContextCommand {
 		if (!sd.parseable()) {
 			throw new IllegalArgumentException("");
 		}
+		final ColorRGB[] colors = SNTColor.getDistinctColors(7);
 		final CategoryChart chart = plotService.newCategoryChart();
 		chart.categoryAxis().setLabel("Horton-Strahler order");
 		chart.categoryAxis().setOrder((Comparator<?>) Comparator.reverseOrder());
 		LineSeries series = chart.addLineSeries();
 		series.setLabel("Length (sum)");
 		series.setValues(sd.analyzer.getLengths());
-		series.setStyle(plotService.newSeriesStyle(Colors.BLUE, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(colors[0], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("No. of branches");
 		series.setValues(sd.analyzer.getBranchCounts());
-		series.setStyle(plotService.newSeriesStyle(Colors.RED, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(colors[1], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("Bif. ratio");
 		series.setValues(sd.analyzer.getBifurcationRatios());
-		series.setStyle(plotService.newSeriesStyle(Colors.DARKORANGE, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(colors[2], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("Avg. contraction");
 		series.setValues(sd.analyzer.getAvgContractions());
-		series.setStyle(plotService.newSeriesStyle(Colors.DARKMAGENTA, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(colors[3], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
 		series.setLabel("Avg. fragmentation");
 		series.setValues(sd.analyzer.getAvgFragmentations());
-		series.setStyle(plotService.newSeriesStyle(Colors.DARKGREEN, LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series.setStyle(plotService.newSeriesStyle(colors[4], LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series = chart.addLineSeries();
+		series.setLabel("Avg. ext. angle (°)");
+		series.setValues(sd.analyzer.getAvgExtensionAngles(false));
+		series.setStyle(plotService.newSeriesStyle(colors[5], LineStyle.SOLID, MarkerStyle.CIRCLE));
+		series = chart.addLineSeries();
+		series.setLabel("Avg. ext.angle (Rel.) (°)");
+		series.setValues(sd.analyzer.getAvgExtensionAngles(true));
+		series.setStyle(plotService.newSeriesStyle(colors[6], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		return chart;
 	}
 
@@ -222,6 +233,7 @@ public class StrahlerCmd extends ContextCommand {
 		charts.add(getChart("bifurcation"));
 		charts.add(getChart("fragmentation"));
 		charts.add(getChart("contraction"));
+		charts.add(getChart("extension angle (rel.)"));
 		final SNTChart combinedFrame = SNTChart.combine(charts, false);
 		combinedFrame.setTitle("Combined Strahler Plots");
 		return combinedFrame;
@@ -231,7 +243,7 @@ public class StrahlerCmd extends ContextCommand {
 	 * Returns a 'Strahler plot' for the specified metric.
 	 *
 	 * @param metric either "avg contraction", "avg fragmentation", "bifurcation
-	 *               ratio", "branch count", or "length" (default)
+	 *               ratio", "branch count", "extension angle", or "length" (default)
 	 * @return the Strahler plot
 	 */
 	public SNTChart getChart(final String metric) {
@@ -258,6 +270,8 @@ public class StrahlerCmd extends ContextCommand {
 					series.setValues(data.analyzer.getAvgContractions());
 				else if (normMetric.contains("frag"))
 					series.setValues(data.analyzer.getAvgFragmentations());
+				else if (normMetric.contains("angle"))
+					series.setValues(data.analyzer.getAvgExtensionAngles(normMetric.contains("rel")));
 				else
 					throw new IllegalArgumentException("Unrecognized metric: " + normMetric);
 			}
@@ -269,8 +283,8 @@ public class StrahlerCmd extends ContextCommand {
 	 * Returns a histogram for the specified metric, in which data is grouped by
 	 * order.
 	 *
-	 * @param metric either "branch contraction", "branch fragmentation", or "branch
-	 *               length" (default)
+	 * @param metric either "branch contraction", "branch fragmentation", "branch
+	 *               relative extension angle", or "branch length" (default)
 	 * @return the Strahler histogram if only a single Tree is being analyzed, or a
 	 *         montage of histograms if multiple trees are being parsed.
 	 */
@@ -282,8 +296,8 @@ public class StrahlerCmd extends ContextCommand {
 	 * Returns a boxplot for the specified metric, in which data is grouped by
 	 * order.
 	 *
-	 * @param metric either "branch contraction", "branch fragmentation", or "branch
-	 *               length" (default)
+	 * @param metric either "branch contraction", "branch fragmentation", "branch
+	 *               relative extension angle", or "branch length" (default)
 	 * @return the Strahler boxplot if only a single Tree is being analyzed, or a
 	 *         montage of plots if multiple trees are being parses.
 	 */
@@ -309,8 +323,13 @@ public class StrahlerCmd extends ContextCommand {
 				groupedStats.addGroup(branchesAsTree, "Order " + order);
 			});
 			groupedStats.setMinNBins(6);
-			final SNTChart chart = (boxplotElseHistogram) ? groupedStats.getBoxPlot(normMetric)
-					: groupedStats.getHistogram(normMetric);
+			final SNTChart chart;
+			if (boxplotElseHistogram)
+				chart = groupedStats.getBoxPlot(normMetric);
+			else if (normMetric.contains("angle"))
+				chart = groupedStats.getPolarHistogram(normMetric);
+			else
+				chart = groupedStats.getHistogram(normMetric);
 			if (singleChart) {
 				chart.setTitle("Strahler " + normMetric + ((boxplotElseHistogram) ? " BoxPlot " : " Histogram ") + label);
 			} else {
@@ -319,7 +338,7 @@ public class StrahlerCmd extends ContextCommand {
 			charts.add(chart);
 		});
 		if (singleChart) {
-			return charts.get(0);
+			return charts.getFirst();
 		}
 		final SNTChart result = SNTChart.combine(charts);
 		result.setTitle("Strahler Combined " + normMetric + ((boxplotElseHistogram)? " BoxPlots" : " Histograms"));
@@ -349,7 +368,15 @@ public class StrahlerCmd extends ContextCommand {
 				table.addColumn(label + " Contraction Order " + order,
 						branches.stream().map(Path::getContraction).collect(Collectors.toList()));
 			});
+			data.analyzer.getBranches().forEach((order, branches) -> {
+				table.addColumn(label + " Extension Angle Order " + order,
+						branches.stream().map(p -> p.getExtensionAngle3D(false)).collect(Collectors.toList()));
+			});
+			data.analyzer.getBranches().forEach((order, branches) ->
+				table.addColumn(label + " Relative Extension Angle Order " + order,
+                    branches.stream().map(data.analyzer::getRelativeExtensionAngle).collect(Collectors.toList())));
 		});
+		table.replace(" Order", 0d, Double.NaN);
 		table.fillEmptyCells(Double.NaN);
 	}
 
@@ -380,7 +407,7 @@ public class StrahlerCmd extends ContextCommand {
 	 */
 	public boolean validInput() {
 		initMap();
-		return dataMap.values().stream().allMatch(analyzer -> analyzer.parseable());
+		return dataMap.values().stream().allMatch(StrahlerData::parseable);
 	}
 
 	/**
@@ -391,7 +418,7 @@ public class StrahlerCmd extends ContextCommand {
 	public List<Tree> getValidTrees() {
 		initMap();
 		return dataMap.values().stream()
-				.filter( analyzer -> analyzer.parseable())
+				.filter(StrahlerData::parseable)
 				.map( analyzer -> analyzer.tree)
 				.collect(Collectors.toCollection(ArrayList::new));
 	}
@@ -429,6 +456,10 @@ public class StrahlerCmd extends ContextCommand {
 						toString(data.analyzer.getAvgContractions(), iDF));
 				table.set("Order:Measurement Pairs: Avg. fragmentation", row,
 						toString(data.analyzer.getAvgFragmentations(), iDF));
+				table.set("Order:Measurement Pairs: Avg. extension angle", row,
+						toString(data.analyzer.getAvgExtensionAngles(false), dDF));
+				table.set("Order:Measurement Pairs: Avg. extension angle (Rel.)", row,
+						toString(data.analyzer.getAvgExtensionAngles(true), dDF));
 			} else {
 				table.set("Root no.", row, "Not parseable");
 			}
@@ -447,6 +478,8 @@ public class StrahlerCmd extends ContextCommand {
 			return "Avg. fragmentation";
 		else if (metric.contains("contract"))
 			return "Avg. contraction";
+		else if (metric.contains("extension") || metric.contains("angle"))
+			return "Avg. relative extension angle (°)";
 		else
 			throw new IllegalArgumentException("Unrecognized metric");
 	}

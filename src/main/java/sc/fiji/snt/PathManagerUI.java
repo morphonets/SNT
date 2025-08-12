@@ -146,8 +146,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		menuBar.add(editMenu);
 		editMenu.add(getDeleteMenuItem(multiPathListener));
 		editMenu.add(getDuplicateMenuItem(singlePathListener));
-		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.add(getGoToMenuItem(singlePathListener));
+		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
 		JMenuItem jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.LINK));
@@ -2343,10 +2343,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			guiUtils.error("Selected path is empty or invalid.");
 			return;
 		}
+		if (path.size() == 1) {
+			navigateToNode(0, path);
+			return;
+		}
 		// Create options for the user to choose from
 		final String[] options = {"Start", "Midpoint", "End"};
+		final String prevChoice = plugin.getPrefs().getTemp("gtChoice", options[0]);
 		final String choice = guiUtils.getChoice(String.format("Navigate to which node of %s?", path.getName()),
-				"Go To...", options, options[0]);
+				"Go To...", options, prevChoice);
 		if (choice == null) return; // User cancelled
 		switch (choice) {
 			case "Start" -> navigateToNode(0, path);
@@ -2355,6 +2360,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			default -> {
 			} // Do nothing
 		}
+		plugin.getPrefs().setTemp("gtChoice", choice);
 	}
 
 	private void navigateToNode(final int index, final Path path) {
