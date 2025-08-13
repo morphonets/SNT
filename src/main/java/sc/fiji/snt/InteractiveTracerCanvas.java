@@ -841,6 +841,12 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		togglePauseTracingMenuItem.doClick();
 	}
 
+	protected void synchronizeControls() {
+		toggleEditModeMenuItem.setSelected(tracerPlugin.isEditModeEnabled());
+		togglePauseTracingMenuItem.setSelected(tracerPlugin.tracingHalted);
+		togglePauseSNTMenuItem.setSelected(isEventsDisabled());
+	}
+
 	private void showHelpOnCountingSpines() {
 		final String HELP_MSG = "<html>" //
 				+ "<b>Counting Spines/Varicosities:</b>" //

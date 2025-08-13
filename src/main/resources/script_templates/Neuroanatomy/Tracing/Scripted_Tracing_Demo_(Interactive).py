@@ -38,7 +38,7 @@ def run():
     # PathAndFillManager (the latter manages all things related to Paths):
     # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/SNT.html
     # https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/PathAndFillManager.html
-    plugin = snt.getPlugin()
+    plugin = snt.getInstance()
     pafm = snt.getPathAndFillManager()
     imp = plugin.getImagePlus()
 

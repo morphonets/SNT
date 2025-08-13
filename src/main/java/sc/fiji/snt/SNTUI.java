@@ -519,6 +519,26 @@ public class SNTUI extends JDialog {
 	}
 
 	/**
+	 * Pauses/Resume SNT (equivalent to command in image contextual menu).
+	 * @param pause whether SNT should be paused/resumed
+	 */
+	public void pause(final boolean pause) {
+		plugin.pause(pause, true);
+		if (plugin.getXYCanvas() != null)
+			SwingUtilities.invokeLater(() -> plugin.getXYCanvas().synchronizeControls());
+	}
+
+	/**
+	 * Pauses/Resume tracing functions (equivalent to command in image contextual menu).
+	 * @param pause whether tracing functions should be paused/resumed
+	 */
+	public void pauseTracing(final boolean pause) {
+		plugin.pauseTracing(pause, false);
+		if (plugin.getXYCanvas() != null)
+			SwingUtilities.invokeLater(() -> plugin.getXYCanvas().synchronizeControls());
+	}
+
+	/**
 	 * Runs a menu command (as listed in the menu bar hierarchy).
 	 *
 	 * @param cmd The command to be run, exactly as listed in its menu (either in

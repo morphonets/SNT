@@ -1997,7 +1997,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * Clears the current path selection.
 	 */
 	public void clearSelection() {
-		tree.clearSelection();
+		SwingUtilities.invokeLater(tree::clearSelection);
 	}
 
 	/**
@@ -2005,6 +2005,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	public void selectAll() {
 		tree.setSelectionInterval(0, tree.getRowCount());
+	}
+
+	/**
+	 * Selects a specific path in the Path Manager.
+	 * 
+	 * @param path the path to be selected. If the path is not found in the manager,
+	 *             the selection remains unchanged. If null active selection (if any)
+	 *             is cleared.
+	 */
+	public void select(final Path path) {
+		SwingUtilities.invokeLater(() -> {
+			tree.clearSelection();
+			if (path != null) tree.setSelectedPaths(List.of(path));
+		});
 	}
 
 	/**
