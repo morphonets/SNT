@@ -1811,22 +1811,21 @@ public class SNTChart extends ChartPanel {
 												final ColorTable colorTable,
 												final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final Color[] palette = alphaColorsFromColorTable(colorTable);
-		smile.plot.swing.Canvas canvas;
+		smile.plot.swing.Figure figure;
 		String title;
 		if (smile.plot.swing.Histogram3D.class.equals(smilePlotClass)) {
-			canvas = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).canvas();
+            figure = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).figure();
 			title = "Two-Dimensional Histogram";
 		} else if (smile.plot.swing.Heatmap.class.equals(smilePlotClass)) {
-			canvas = smile.plot.swing.Heatmap.of(data, palette).canvas();
+            figure = smile.plot.swing.Heatmap.of(data, palette).figure();
 			title = "Heatmap";
 		} else {
 			throw new IllegalArgumentException("Unsupported plot type: " + smilePlotClass);
 		}
 		if (axisLabels != null && axisLabels.length > 0)
-			canvas.setAxisLabels(Arrays.copyOf(axisLabels, canvas.getAxisLabels().length));
-		final JFrame window = canvas.window();
-		window.setTitle(title);
-		window.setVisible(true);
+            figure.setAxisLabels(Arrays.copyOf(axisLabels, figure.getAxisLabels().length));
+        figure.setTitle(title);
+        figure.show();
 	}
 
 	private static Color[] alphaColorsFromColorTable(final ColorTable colorTable) {

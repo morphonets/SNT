@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>40.0.1-SNAPSHOT</version>
+		<version>41.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -144,10 +144,10 @@
 		<maven.test.skip>true</maven.test.skip>
 
 		<!-- Dependency versions -->
-		<flatlaf.version>3.6</flatlaf.version> <!-- upstream 3.5.1 -->
+		<flatlaf.version>3.6.1</flatlaf.version> <!-- upstream 3.5.1 -->
 		<rsyntaxtextarea.version>3.6.0</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
 		<annotations.version>26.0.2</annotations.version>
-		<fastutil-core.version>8.5.15</fastutil-core.version>
+		<fastutil-core.version>8.5.16</fastutil-core.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
@@ -156,7 +156,7 @@
 		<orsonpdf.version>1.9.1</orsonpdf.version>
 		<scenery.version>0.11.2</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
-		<smile.version>4.3.0</smile.version>
+		<smile.version>4.4.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
 		<smile-plot.version>${smile.version}</smile-plot.version>
