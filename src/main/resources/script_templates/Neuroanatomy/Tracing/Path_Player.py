@@ -1,7 +1,7 @@
 #@SNTService snt # scijava parameter
 """
-This script plays through selected paths in SNT, centering and zooming on each
-path node sequentially. The playback can be aborted by clicking on the image.
+This script 'plays' a walkthrough through selected paths in SNT, centering and zooming
+on each path node sequentially. The playback can be aborted by clicking on the image.
 
 File: Path_Player.py
 Documentation Resources: https://imagej.net/plugins/snt/scripting
@@ -12,6 +12,7 @@ Latest SNT API: https://javadoc.scijava.org/SNT/
 from java.awt.event import MouseAdapter
 from ij.plugin import Zoom
 from sc.fiji.snt import Path
+
 
 # Define the zoom level of the playback (4=400%, 6=600%, etc.)
 ZOOM_LEVEL = 4
@@ -32,10 +33,10 @@ class AbortMouseListener(MouseAdapter):
 
 def get_selected_paths_and_image():
     """
-    Get selected paths and current image from SNT.
+    Get selected paths (or all if none is selected) and image from SNT.
     Returns:
-        tuple: (paths, imp) where paths is list of selected paths
-               and imp is the ImagePlus instance, or (None, None) if invalid
+        tuple: (paths, imp) where paths is the list of paths and imp
+               is the ImagePlus instance, or (None, None) if invalid
     """
     try:
         # Retrieve image and paths. Select all paths if none selected
@@ -46,7 +47,7 @@ def get_selected_paths_and_image():
         if not imp or not paths:
             snt.getUI().error(
                 "Either no paths exist or no image is available.<br>"
-   	            "If you would like to demo this script, choose the 'Drosophila "
+                "If you would like to demo this script, choose the 'Drosophila "
                 "OP' neuron from File > Load Demo Dataset... prompt and rerun."
             )
             return None, None
@@ -65,16 +66,23 @@ def play_path(path, imp, abort_listener):
         imp: ImagePlus instance
         abort_listener: AbortMouseListener to check for user abortion
     """
-    for index in range(path.size()):
+    # Iterate through all path nodes
+    n_nodes = path.size()
+    for index in range(n_nodes):
+        
         # Check for user abortion
         if abort_listener.abort:
             snt.getInstance().setCanvasLabelAllPanes("Aborting...")
             break
         
-        # Display current path name
-        snt.getInstance().setCanvasLabelAllPanes(path.getName())
+        # Report path name and node position
+        path_name = path.getName()
+        path_name = path_name if len(path_name) <= 13 else path_name[:10] + "..."
+        snt.getInstance().setCanvasLabelAllPanes(
+            "{} node {}/{}".format(path_name, index+1, n_nodes)
+        )
         
-        # Get world coordinates and convert to image coordinates
+        # Get position of node in image coordinates
         x = path.getXUnscaled(index)
         y = path.getYUnscaled(index)
         z = path.getZUnscaled(index)
@@ -99,7 +107,7 @@ def play_selected_paths():
     # Ensure SNT remains paused during playback
     snt.getUI().pauseTracing(True)
     
-    # Adjust viewing options (obtained from Script Recorder)
+    # Adjust viewing options (calls obtained from Script Recorder)
     snt.getUI().setVisibilityFilter("selected", True)
     snt.getUI().setVisibilityFilter("z-slices", True)
     
@@ -117,6 +125,7 @@ def play_selected_paths():
         for path in paths:
             if listener.abort:
                 break
+            # Activate and play path
             snt.getUI().getPathManager().select(path)
             play_path(path, imp, listener)
             
@@ -124,14 +133,14 @@ def play_selected_paths():
         snt.getUI().error("Error during playback: {}".format(str(e)))
         
     finally:
-    	
-        # Restore SNT's state and options
+        # Restore SNT's state and some of the imposed options
         snt.getUI().pauseTracing(True)
         snt.getUI().setVisibilityFilter("selected", False)
 
         # Remove the mouse listener
-        imp.getCanvas().removeMouseListener(listener)
-        print("Playback completed")
+        if imp and imp.getCanvas():
+            imp.getCanvas().removeMouseListener(listener)
+
 
 
 if __name__ == "__main__":

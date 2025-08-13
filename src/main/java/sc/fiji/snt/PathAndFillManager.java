@@ -1456,8 +1456,8 @@ public class PathAndFillManager extends DefaultHandler implements
 						checkForAppropriateImageDimensions();
 					}
 				} catch (final NumberFormatException e) {
-					throw new TracesFileFormatException(
-							"There was an invalid attribute to <imagesize/>: " + e);
+					SNTUtils.error("Invalid traces file?", e);
+					throw new TracesFileFormatException("There was an invalid attribute to <imagesize/>: " + e);
 				}
 
 				break;
@@ -1480,8 +1480,8 @@ public class PathAndFillManager extends DefaultHandler implements
 						spacing_units = spacingUnits;
 					}
 				} catch (final NumberFormatException e) {
-					throw new TracesFileFormatException(
-							"There was an invalid attribute to <samplespacing/>: " + e);
+					SNTUtils.error("Invalid traces file?", e);
+					throw new TracesFileFormatException("There was an invalid attribute to <samplespacing/>: " + e);
 				}
 
 				break;
@@ -1606,9 +1606,8 @@ public class PathAndFillManager extends DefaultHandler implements
 							.parseInt(fittedIDString);
 
 				} catch (final NumberFormatException e) {
-					e.printStackTrace();
-					throw new TracesFileFormatException(
-							"There was an invalid attribute in <path/>: " + e);
+					SNTUtils.error("Invalid traces file?", e);
+					throw new TracesFileFormatException("There was an invalid attribute in <path/>: " + e);
 				}
 
 				// Assign ID
@@ -1636,11 +1635,9 @@ public class PathAndFillManager extends DefaultHandler implements
 				if (useFittedString == null) useFittedFields.put(id, false);
 				else {
 					if (useFittedString.equals("true")) useFittedFields.put(id, true);
-					else if (useFittedString.equals("false")) useFittedFields.put(id,
-							false);
+					else if (useFittedString.equals("false")) useFittedFields.put(id, false);
 					else {
-						throw new TracesFileFormatException(
-								"Unknown value for 'fitted' attribute: '" + useFittedString + "'");
+						throw new TracesFileFormatException("Unknown value for 'fitted' attribute: '" + useFittedString + "'");
 					}
 				}
 
@@ -1690,12 +1687,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					final String tYString = attributes.getValue("ty");
 					final String tZString = attributes.getValue("tz");
 
-					if (radiusString != null && tXString != null && tYString != null &&
-							tZString != null) {
-						if (lastIndex > 0 && !current_path.hasRadii())
-							throw new TracesFileFormatException("The point at index " +
-									lastIndex + " had a fitted circle, but none previously did");
-						
+					if (radiusString != null && tXString != null && tYString != null && tZString != null) {
 						// Set radius and tangents for the current node
 						final double radius = Double.parseDouble(radiusString);
 						current_path.setNodeRadius(radius, lastIndex);
@@ -1703,14 +1695,9 @@ public class PathAndFillManager extends DefaultHandler implements
 						final double ty = Double.parseDouble(tYString);
 						final double tz = Double.parseDouble(tZString);
 						current_path.setNodeTangent(new double[]{tx, ty, tz}, lastIndex);
-					} else if (radiusString != null || tXString != null || tYString != null ||
-							tZString != null) throw new TracesFileFormatException(
+					} else if (radiusString != null || tXString != null || tYString != null || tZString != null) {
+						throw new TracesFileFormatException(
 							"If one of the r, tx, ty or tz attributes to the point element is specified, they all must be");
-					else {
-						// All circle attributes are null:
-						if (current_path.hasRadii()) throw new TracesFileFormatException(
-								"The point at index " + lastIndex +
-										" had no fitted circle, but all previously did");
 					}
 
 					final String vString = attributes.getValue("v");
@@ -1719,8 +1706,8 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 
 				} catch (final NumberFormatException e) {
-					throw new TracesFileFormatException(
-							"There was an invalid attribute to <imagesize/>");
+					SNTUtils.error("Invalid traces file?", e);
+					throw new TracesFileFormatException("There was an invalid attribute: "  + qName);
 				}
 
 				break;
@@ -1755,8 +1742,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					int fill_id = Integer.parseInt(fill_id_string);
 
 					if (fill_id < 0) {
-						throw new TracesFileFormatException(
-								"Can't have a negative id in <fill>");
+						throw new TracesFileFormatException("Can't have a negative id in <fill>");
 					}
 
 					if (fill_id != (last_fill_id + 1)) {
@@ -1780,8 +1766,8 @@ public class PathAndFillManager extends DefaultHandler implements
 					current_fill.setThreshold(fillThreshold);
 
 				} catch (final NumberFormatException e) {
-					throw new TracesFileFormatException(
-							"There was an invalid attribute to <fill>");
+					SNTUtils.error("Invalid traces file?", e);
+					throw new TracesFileFormatException("There was an invalid attribute to <fill>");
 				}
 
 				break;
@@ -1818,8 +1804,8 @@ public class PathAndFillManager extends DefaultHandler implements
 					last_fill_node_id = parsed_id;
 
 				} catch (final NumberFormatException e) {
-					throw new TracesFileFormatException(
-							"There was an invalid attribute to <node/>: " + e);
+					SNTUtils.error("Invalid traces file?", e);
+					throw new TracesFileFormatException("There was an invalid attribute to <node/>: " + e);
 				}
 
 				break;
