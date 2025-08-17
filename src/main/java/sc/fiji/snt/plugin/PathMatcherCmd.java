@@ -33,6 +33,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.growth.GrowthAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.BoundingBox;
@@ -52,8 +53,8 @@ import java.util.stream.IntStream;
 public class PathMatcherCmd extends CommonDynamicCmd {
 
 	private static final String TAG_FORMAT = "{neurite#%d}";
-	protected static final String TAG_REGEX_PATTERN = "\\{neurite#\\d+\\}";
-	protected static final String TAG_REGEX_PATTERN_LEGACY = "\\{Group \\d+\\}"; // used prior to v4.3.0
+	public static final String TAG_REGEX_PATTERN = GrowthAnalyzer.TAG_REGEX_PATTERN;
+    public static final String TAG_REGEX_PATTERN_LEGACY = "\\{Group \\d+\\}"; // used prior to v4.3.0
 
 	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
 	private final String header = "<HTML>This command automatically matches paths across time, assigning them<br>" //
@@ -266,14 +267,15 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 			groupCounter++;
 		}
 		if (groupCounter == paths.size()) {
-			msg("Unsuccessful maching: Each path perceived as an independent neurite.", "Unsuccessful Maching");
+			msg("Unsuccessful matching: Each path perceived as an independent neurite.", "Unsuccessful Matching");
 			wipeMatches();
 		} else {
 			if (groupCounter == 1) {
 				msg("All paths were assigned a common neurite.", "Matching Completed");
 			} else {
 				final String timePointsParsed = (timePoints == null) ? "all" : String.valueOf(timePoints.size());
-				msg(String.format("%d paths assigned to %d neurite(s) across %s timepoints.", paths.size(), groupCounter,
+				msg(String.format("%d paths assigned to %d neurite(s) across %s timepoints. " +
+                                "You can now run 'Grow Analysis...' on the dataset.", paths.size(), groupCounter,
 						timePointsParsed), "Matching Completed");
 			}
 			if (ui != null) {
@@ -298,9 +300,7 @@ public class PathMatcherCmd extends CommonDynamicCmd {
 					final String rngEnd = userInput.substring(idx1 + 1);
 					final int first = Integer.parseInt(rngStart.trim());
 					final int last = Integer.parseInt(rngEnd.trim());
-					IntStream.rangeClosed(first, last).forEach(timePoint -> {
-						timePoints.add(timePoint);
-					});
+					IntStream.rangeClosed(first, last).forEach(timePoints::add);
 				} else {
 					timePoints.add(Integer.parseInt(number.trim()));
 				}

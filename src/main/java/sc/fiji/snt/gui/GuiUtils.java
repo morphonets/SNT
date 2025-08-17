@@ -1887,7 +1887,8 @@ public class GuiUtils {
 			window.toFront();
 			hloc += tileWidth + GAP;
 		}
-	}
+        SwingUtilities.invokeLater(() -> windowList.forEach(w -> w.setVisible(true)));
+    }
 
 	public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
 		final JDialog dialog = new HTMLDialog(msg, title, modal);

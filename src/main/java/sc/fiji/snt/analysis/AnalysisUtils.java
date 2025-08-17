@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.analysis;
 
+import org.apache.commons.lang.WordUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
@@ -31,6 +32,7 @@ import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.SubCategoryAxis;
+import org.jfree.chart.axis.SymbolAxis;
 import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.labels.XYToolTipGenerator;
 import org.jfree.chart.plot.*;
@@ -58,8 +60,11 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.TreeProperties;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.analysis.growth.GrowthAnalyzer.GrowthPhase;
+import sc.fiji.snt.analysis.growth.GrowthAnalyzer.GrowthPhaseType;
 
 import java.awt.*;
+
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -658,7 +663,7 @@ public class AnalysisUtils {
 	public static SNTChart ringPlot(final String title, final HashMap<String, Double> data,
 									final HashMap<String, Color> colors)  {
 		final DefaultPieDataset<String> dataset = new DefaultPieDataset<>();
-		data.forEach((k,v) -> dataset.setValue(StringUtils.capitalize(k), v));
+		data.forEach((k,v) -> dataset.setValue(WordUtils.capitalizeFully(k), v));
 		dataset.sortByValues(SortOrder.DESCENDING);
 		final RingPlot ringPlot = getRingPlot(dataset);
 		if (colors == null) {
@@ -667,7 +672,7 @@ public class AnalysisUtils {
 			for (final String key : data.keySet())
 				ringPlot.setSectionPaint(key, c[idx++]);
 		} else {
-			colors.forEach((k,v) -> ringPlot.setSectionPaint(StringUtils.capitalize(k), v));
+			colors.forEach((k,v) -> ringPlot.setSectionPaint(WordUtils.capitalizeFully(k), v));
 		}
 		return new SNTChart(title, new JFreeChart(null, null, ringPlot, false));
 	}
@@ -713,7 +718,7 @@ public class AnalysisUtils {
 		return false;
 	}
 
-	static class HistogramDatasetPlus {
+    static class HistogramDatasetPlus {
 		int nBins;
 		long n;
 		double q1, q3, min, max;
@@ -794,4 +799,136 @@ public class AnalysisUtils {
 			return histArea;
 		}
 	}
+
+    /**
+     * Creates a horizontal timeline chart with one row per neurite showing color-coded growth phases
+     * in sequence, so that each neurite gets one row with colored segments representing different phases.
+     *
+     * @param neuritePhases Map of neurite IDs to their growth phases
+     * @param timeUnits     Units for time axis
+     * @return JFreeChart with horizontal timeline visualization
+     */
+    public static JFreeChart createTimeline(final Map<String, java.util.List<GrowthPhase>> neuritePhases,
+                                            final String timeUnits) {
+        final DefaultXYDataset dataset = new DefaultXYDataset();
+        final List<String> neuriteIds = new ArrayList<>(neuritePhases.keySet());
+        final List<String> seriesLabels = new ArrayList<>();
+        int seriesIndex = 0;
+        int plottedNeuriteIndex = 0;
+        for (final String neuriteId : neuriteIds) {
+            final List<GrowthPhase> phases = neuritePhases.get(neuriteId);
+            if (phases.isEmpty()) {
+                continue; // exclude neurites without phases
+            }
+            seriesLabels.add(WordUtils.capitalizeFully(neuriteId).replace("Neurite", ""));
+            for (final GrowthPhase phase : phases) {
+                final double[] xData = {phase.startTime(), phase.endTime()};
+                final double[] yData = {plottedNeuriteIndex, plottedNeuriteIndex}; // Same Y for horizontal line
+                // Create series data
+                final double[][] seriesData = new double[2][];
+                seriesData[0] = xData; // X values (time)
+                seriesData[1] = yData; // Y values (neurite index)
+                final String seriesKey = neuriteId + "_" + phase.type() + "_" + seriesIndex;
+                dataset.addSeries(seriesKey, seriesData);
+                seriesIndex++;
+            }
+            plottedNeuriteIndex++;
+        }
+
+        // Create XY line chart
+        final JFreeChart chart = ChartFactory.createXYLineChart(null, "Time (" + timeUnits + ")",
+                null, dataset, PlotOrientation.VERTICAL, true, true, false);
+
+        // Customize renderer to draw "horizontal "bars"
+        final XYPlot plot = (XYPlot) chart.getPlot();
+        final XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, false);
+        plot.setRenderer(renderer);
+
+        // Set strokes and colors for each phase segment
+        seriesIndex = 0;
+        for (final String neuriteId : neuriteIds) {
+            final List<GrowthPhase> phases = neuritePhases.get(neuriteId);
+            if (phases.isEmpty()) {
+                continue; // exclude neurites without phases
+            }
+            for (final GrowthPhase phase : phases) {
+                final Color phaseColor = getPhaseColor(phase.type());
+                renderer.setSeriesPaint(seriesIndex, phaseColor);
+                renderer.setSeriesStroke(seriesIndex, new BasicStroke(15.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+                renderer.setSeriesVisibleInLegend(seriesIndex, false); // Hide individual series from legend
+                seriesIndex++;
+            }
+        }
+
+        // Create custom Y-axis with neurite names
+        final SymbolAxis yAxis = new SymbolAxis("Neurite", seriesLabels.toArray(new String[0]));
+        plot.setRangeAxis(yAxis);
+        yAxis.setGridBandsVisible(false);
+        yAxis.setTickMarksVisible(false);
+        yAxis.setMinorTickMarksVisible(false);
+        yAxis.setAxisLineVisible(false);
+        yAxis.setInverted(true);
+
+        // Apply styles
+        addCustomPhaseLegend(chart, plot);
+        applyHistogramStyle(chart, plot);
+        plot.setOutlineVisible(false);
+        return chart;
+    }
+
+    /**
+     * Creates a ring plot of growth phases.
+     *
+     * @param title            The plot title
+     * @param phaseFrequencies Map of growth phases  to their frequencies
+     * @return JFreeChart with horizontal timeline visualization
+     */
+    public static SNTChart ringPlot(final String title, final HashMap<GrowthPhaseType, Double> phaseFrequencies) {
+        final HashMap<String, Double> donutData = new HashMap<>(phaseFrequencies.size());
+        final HashMap<String, Color> donutColors = new HashMap<>(phaseFrequencies.size());
+        phaseFrequencies.forEach((phaseType, counts) -> {
+            final String key = WordUtils.capitalizeFully(phaseType.toString());
+            donutData.put(key, counts);
+            donutColors.put(key, getPhaseColor(phaseType));
+        });
+        return ringPlot(title, donutData, donutColors);
+    }
+
+    /**
+     * Helper method to get appropriate color for each growth phase type.
+     */
+    private static Color getPhaseColor(final GrowthPhaseType type) {
+        return switch (type) {
+            case LAG -> new Color(255, 248, 191, 255); // Yellow
+            case RAPID -> new Color(193, 229, 97, 255); // Green
+            case STEADY -> new Color(183, 227, 242, 255); // Blue
+            case PLATEAU -> new Color(211, 211, 211, 255);  // Gray
+            case RETRACTION -> new Color(235, 184, 188, 255); // Red
+        };
+    }
+
+    /** Add a custom legend showing phase types and their colors. */
+    private static void addCustomPhaseLegend(final JFreeChart chart, final XYPlot plot) {
+        final LegendItemCollection legendItems = new LegendItemCollection();
+        for (final GrowthPhaseType type : GrowthPhaseType.values()) {
+            final Color color = getPhaseColor(type);
+            final LegendItem item = new LegendItem(
+                    WordUtils.capitalizeFully(type.toString()),
+                    null, null, null,
+                    new java.awt.geom.Rectangle2D.Double(0, 0, 12, 12),
+                    color
+            );
+            legendItems.add(item);
+        }
+        replaceLegend(chart, plot, legendItems);
+    }
+
+    /** Add a custom legend showing phase types and their colors. */
+    public static void replaceLegend(final JFreeChart chart, final XYPlot plot, final LegendItemCollection legendItems) {
+        plot.setFixedLegendItems(legendItems);
+        if (chart.getLegend() != null) {
+            chart.getLegend().setVisible(true);
+            chart.getLegend().setPosition(RectangleEdge.BOTTOM);
+        }
+    }
 }

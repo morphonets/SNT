@@ -143,7 +143,11 @@ public class SNTTable extends DefaultGenericTable {
 		for (int col = 0; col < getColumnCount(); ++col) {
 			for (int row = 0; row < getRowCount(); ++row) {
 				if (get(col, row) == null) {
-					set(col, row, value);
+					try {
+                        set(col, row, value);
+                    } catch (final Exception ignored) {
+                        // do nothing
+                    }
 				}
 			}
 		}

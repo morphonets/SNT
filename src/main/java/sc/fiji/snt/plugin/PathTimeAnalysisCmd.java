@@ -55,6 +55,7 @@ import sc.fiji.snt.analysis.PathStatistics;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.growth.GrowthAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.SNTColor;
@@ -67,7 +68,7 @@ import sc.fiji.snt.util.SNTColor;
 @Plugin(type = Command.class, label = "Time Profile Analysis...", initializer = "init")
 public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 
-	private static final String TAG_REGEX_PATTERN = "("+ PathMatcherCmd.TAG_REGEX_PATTERN + ")";
+	private static final String TAG_REGEX_PATTERN = "("+ GrowthAnalyzer.TAG_REGEX_PATTERN + ")";
 	private static final String TAG_REGEX_PATTERN_LEGACY = "("+ PathMatcherCmd.TAG_REGEX_PATTERN_LEGACY + ")";
 
 	@Parameter

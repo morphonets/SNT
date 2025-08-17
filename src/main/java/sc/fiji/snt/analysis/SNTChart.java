@@ -1653,12 +1653,23 @@ public class SNTChart extends ChartPanel {
 		openInstances.clear();
 	}
 
-	/** Tiles all open charts displaying them on a grid */
-	public static void tileAll() {
-		final List<JFrame> frames = new ArrayList<>();
-		openInstances.forEach( oi -> frames.add(oi.getFrame()));
-		GuiUtils.tile(frames);
-	}
+    /**
+     * Tiles all open charts displaying them on a grid. Charts's windows are made visible if not displayed.
+     */
+    public static void tileAll() {
+        tile(openInstances);
+    }
+
+    /**
+     * Tiles specified charts displaying them on a grid. Charts's windows are made visible if not displayed.
+     *
+     * @param charts the charts to be tiled
+     */
+    public static void tile(final Collection<SNTChart> charts) {
+        final List<JFrame> frames = new ArrayList<>();
+        charts.forEach(oi -> frames.add(oi.getFrame()));
+        GuiUtils.tile(frames);
+    }
 
 	/**
 	 * Combines a collection of charts into a ImageJ1 stack.

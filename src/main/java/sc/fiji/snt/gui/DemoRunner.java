@@ -185,7 +185,8 @@ public class DemoRunner {
 				return sntService.demoImage("cil701");
 			}
 		};
-		entry.summary = "Downloads a timelapse video (19h) of a cultured hippocampal neuron in which neurites have been traced across time.";
+		entry.summary = "Downloads a timelapse video (19h) of a cultured hippocampal neuron in which neurites have been traced across time. " +
+                "Suitable for testing Growth Analysis options";
 		entry.data = "Image (2D; timelapse image, 52MB) and tracings (420KB)";
 		entry.source = "Cell Image Library, doi:10.7295/W9CIL701";
 		entry.online = true;

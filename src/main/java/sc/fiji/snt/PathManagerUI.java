@@ -501,8 +501,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
-		menu.addSeparator();
-		jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
+        jmi = new JMenuItem(MultiPathActionListener.GROWTH_ANALYSIS_CMD);
+        jmi.setToolTipText("Growth rate and growth phase analysis for matched time-lapse paths");
+        jmi.addActionListener(multiPathListener);
+        menu.add(jmi);
+        menu.addSeparator();
+        jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
 		jmi.setToolTipText(tooltip);
 		jmi.addActionListener(multiPathListener);
 		menu.add(jmi);
@@ -2708,6 +2712,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
 		private static final String TIME_PROFILE_CMD = "Time Profile...";
 		private static final String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
+		private static final String GROWTH_ANALYSIS_CMD = "Growth Analysis...";
 		private static final String SPINE_PROFILE_CMD = "Density Profiles...";
 		private static final String MULTI_METRIC_PLOT_CMD = "Multimetric Plot...";
 		private static final String SPINE_EXTRACT_CMD = "Extract Counts from Multipoint ROIs...";
@@ -2757,6 +2762,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			commands.put(MULTI_METRIC_PLOT_CMD, new MultiMetricPlotCommand());
 			commands.put(SPINE_EXTRACT_CMD, new SpineExtractCommand());
 			commands.put(MATCH_PATHS_ACROSS_TIME_CMD, new MatchPathsAcrossTimeCommand());
+			commands.put(GROWTH_ANALYSIS_CMD, new GrowthAnalysisCommand());
 			
 			// Modification commands
 			commands.put(REVERSE_CMD, new ReverseCommand());
@@ -3004,6 +3010,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				final HashMap<String, Object> inputs = new HashMap<>();
 				inputs.put("paths", selectedPaths);
 				(plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
+			}
+			
+			@Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
+		private class GrowthAnalysisCommand implements PathCommand {
+			@Override
+			public void execute(List<Path> selectedPaths, String cmd) {
+				final HashMap<String, Object> inputs = new HashMap<>();
+				inputs.put("paths", selectedPaths);
+				(plugin.getUI().new DynamicCmdRunner(GrowthAnalyzerCmd.class, inputs)).run();
 			}
 			
 			@Override
