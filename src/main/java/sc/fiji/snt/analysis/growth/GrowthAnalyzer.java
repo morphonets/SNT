@@ -248,8 +248,9 @@ public class GrowthAnalyzer {
         final List<TimePoint> timePoints = data.getTimePoints();
         if (timePoints.size() < 4) return; // Need at least 4 points for phase detection
 
-        // Calculate instantaneous growth rates
+        // Calculate instantaneous growth rates and frame-independent length changes
         final List<Double> instantaneousRates = new ArrayList<>();
+        final List<Double> lengthChanges = new ArrayList<>();
         for (int i = 1; i < timePoints.size(); i++) {
             TimePoint prev = timePoints.get(i - 1);
             TimePoint curr = timePoints.get(i);
@@ -257,10 +258,11 @@ public class GrowthAnalyzer {
             double deltaTime = (curr.frame - prev.frame) * frameInterval;
             double rate = deltaTime > 0 ? deltaLength / deltaTime : 0;
             instantaneousRates.add(rate);
+            lengthChanges.add(deltaLength); // frameInterval-independent for change detection
         }
 
-        // Detect phase changes using improved change point detection
-        final List<Integer> changePoints = detectChangePoints(instantaneousRates);
+        // Detect phase changes using frame-independent length changes
+        final List<Integer> changePoints = detectChangePoints(lengthChanges);
 
         // Create growth phases
         final List<GrowthPhase> phases = new ArrayList<>();
