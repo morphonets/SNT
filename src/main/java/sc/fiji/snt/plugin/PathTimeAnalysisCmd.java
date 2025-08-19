@@ -220,9 +220,8 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 		}
 		if (map.isEmpty()) {
 			error("No matched paths found. Please run \"Match Paths Across Time...\" or "
-					+ "assign groups manually using "
-					+ TAG_REGEX_PATTERN.replace("(\\{", "").replace("\\d+\\})", "" + " tags."));
-			return;
+					+ "assign groups manually using 'neurite #' tags.");
+            return;
 		}
 		if (ignoreSinglePoints) {
 			map.entrySet().removeIf(entry->entry.getValue().size() < 2);

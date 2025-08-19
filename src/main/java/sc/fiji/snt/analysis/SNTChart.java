@@ -71,6 +71,7 @@ import org.jfree.data.general.PieDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.XYDataset;
+import org.scijava.command.CommandService;
 import org.scijava.plot.CategoryChart;
 import org.scijava.table.Column;
 import org.scijava.ui.awt.AWTWindows;
@@ -83,6 +84,7 @@ import ij.plugin.ImagesToStack;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.SaveMeasurementsCmd;
 import sc.fiji.snt.util.SNTColor;
 
 /**
@@ -1390,7 +1392,18 @@ public class SNTChart extends ChartPanel {
 		utils.add(jmi);
 		jmi.addActionListener(e -> SNTChart.tileAll());
 		utils.add(jmi);
-
+        utils.addSeparator();
+        jmi = new JMenuItem("Save All...");
+        utils.add(jmi);
+        jmi.addActionListener( e -> {
+            try {
+                SNTUtils.getContext().getService(CommandService.class)
+                        .run(SaveMeasurementsCmd.class, true, (Map<String, Object>) null);
+            } catch (final Exception ex) {
+                new GuiUtils(frame).error("Could not proceed with operation. " +
+                                "Please run \"Save Tables & Analysis Plots...\" manually.", "Command Not Found");
+            }
+        });
 		popup.addSeparator();
 		jmi = new JMenuItem("Frame Size...");
 		jmi.addActionListener(
@@ -1559,42 +1572,117 @@ public class SNTChart extends ChartPanel {
 				return;
 			final ChartEntity ce = event.getEntity();
 			if (ce instanceof TitleEntity) {
-				final Title title = ((TitleEntity) ce).getTitle();
-				if (title instanceof TextTitle) {
-					final String newLabel = getCustomString(((TextTitle) title).getText());
-					if (newLabel != null)
-						((TextTitle) title).setText(newLabel);
-				}
+				editTitle((TitleEntity) ce);
 			} else if (ce instanceof XYAnnotationEntity) {
-				final int idx = ((XYAnnotationEntity) ce).getRendererIndex();
-				final XYAnnotation annot = getXYPlot().getAnnotations().get(idx);
-				if (annot instanceof XYTextAnnotation) {
-					final String newLabel = getCustomString(((XYTextAnnotation) annot).getText());
-					if (newLabel != null)
-						((XYTextAnnotation) annot).setText(newLabel);
-				}
+				editAnnotation((XYAnnotationEntity) ce);
 			} else if (ce instanceof XYItemEntity) {
-				final int idx = ((XYItemEntity) ce).getSeriesIndex();
-				final Color newColor = getCustomColor();
-				if (newColor != null)
-					getXYPlot().getRenderer().setSeriesPaint(idx, SNTColor.alphaColor(newColor, 60));
+				editSeries((XYItemEntity) ce);
 			} else if (ce instanceof AxisEntity) {
-				doEditChartProperties();
-			} else if (!(ce instanceof JFreeChartEntity) && !(ce instanceof PlotEntity)) {
-				new GuiUtils(frame).error(
-						"This component cannot be edited by double-click. "//
-						+ "Please use options in right-click menu.");
+				editAxisTitle((AxisEntity) ce);
+			} else if (ce instanceof PlotEntity) {
+				editPlotBackground((PlotEntity) ce);
+			} else if (!(ce instanceof JFreeChartEntity)) {
+				showUneditableMessage();
 			} else {
 				SNTUtils.log(ce.toString());
 			}
 		}
 
-		String getCustomString(final String old) {
-			return new GuiUtils(frame).getString("", "Edit Label", old);
+        private void editTitle(TitleEntity titleEntity) {
+			final Title title = titleEntity.getTitle();
+			if (title instanceof TextTitle) {
+				final String newLabel = getCustomString(((TextTitle) title).getText());
+				if (newLabel != null)
+					((TextTitle) title).setText(newLabel);
+			}
 		}
 
-		Color getCustomColor() {
-			return new GuiUtils(frame).getColor("New Color", Color.DARK_GRAY);
+		private void editAnnotation(XYAnnotationEntity annotEntity) {
+			final int idx = annotEntity.getRendererIndex();
+			final XYAnnotation annot = getXYPlot().getAnnotations().get(idx);
+			if (annot instanceof XYTextAnnotation) {
+				final String newLabel = getCustomString(((XYTextAnnotation) annot).getText());
+				if (newLabel != null)
+					((XYTextAnnotation) annot).setText(newLabel);
+			}
+		}
+		
+		private void editSeries(XYItemEntity itemEntity) {
+			final int idx = itemEntity.getSeriesIndex();
+			final String[] options = {"Change Color", "Change Line Style" };
+			final String choice = new GuiUtils(frame).getChoice("Edit Series", 
+				"What would you like to edit?", options, options[0]);
+			if (choice == null) return;
+			switch (choice) {
+				case "Change Color":
+					editSeriesColor(idx);
+					break;
+				case "Change Line Style":
+					editSeriesStroke(idx);
+					break;
+				case "All Properties":
+					doEditChartProperties(); // Use existing comprehensive editor
+					break;
+			}
+		}
+		
+		private void editAxisTitle(final AxisEntity axisEntity) {
+            final String newLabel = getCustomString(axisEntity.getAxis().getLabel());
+            if (newLabel != null) {
+                axisEntity.getAxis().setLabel(newLabel);
+            }
+		}
+
+		private void editPlotBackground(final PlotEntity plotEntity) {
+			final Color newColor = getCustomColor("New Background Color");
+			if (newColor != null) {
+				getChart().getPlot().setBackgroundPaint(newColor);
+			}
+		}
+		
+		private void showUneditableMessage() {
+			new GuiUtils(frame).error(
+					"This component cannot be edited by double-click. "
+					+ "Please use options in right-click menu.");
+		}
+		
+		// Helper methods for series editing
+		private void editSeriesColor(int seriesIndex) {
+			final Color newColor = getCustomColor("New Color for Series " + (seriesIndex+1));
+			if (newColor != null) {
+				getXYPlot().getRenderer().setSeriesPaint(seriesIndex, SNTColor.alphaColor(newColor, 60));
+			}
+		}
+		
+		private void editSeriesStroke(int seriesIndex) {
+			final Stroke newStroke = getCustomStroke("Adjust Line Style for Series " + (seriesIndex+1));
+			if (newStroke != null) {
+				getXYPlot().getRenderer().setSeriesStroke(seriesIndex, newStroke);
+			}
+		}
+		
+		private Stroke getCustomStroke(final String promptTitle) {
+			final String[] options = {"Thin", "Normal", "Thick", "Dashed", "Dotted"};
+			final String choice = new GuiUtils(frame).getChoice("Line Style",
+                    promptTitle, options, options[1]);
+			if (choice == null) return null;
+            return switch (choice) {
+                case "Thin" -> new BasicStroke(1.0f);
+                case "Thick" -> new BasicStroke(4.0f);
+                case "Dashed" -> new BasicStroke(2.0f, BasicStroke.CAP_BUTT,
+                        BasicStroke.JOIN_MITER, 10.0f, new float[]{5.0f}, 0.0f);
+                case "Dotted" -> new BasicStroke(2.0f, BasicStroke.CAP_BUTT,
+                        BasicStroke.JOIN_MITER, 10.0f, new float[]{2.0f}, 0.0f);
+                default -> new BasicStroke(2.0f);
+            };
+		}
+
+		String getCustomString(final String old) {
+            return new GuiUtils(frame).getString("", "Edit Label", old);
+		}
+
+		Color getCustomColor(final String prompt) {
+			return new GuiUtils(frame).getColor(prompt, Color.DARK_GRAY, (String[]) null);
 		}
 
 		@Override
@@ -1895,8 +1983,14 @@ public class SNTChart extends ChartPanel {
 			holdingPanel.setToolTipText("Use the \"Save Tables & Analysis Plots...\" command to save panel(s)");
 			holdingPanel.otherCombinedCharts = new ArrayList<>();
 			charts.forEach(chart -> {
-				if (labelPanels && chart.getChart().getTitle() == null)
-					chart.setChartTitle(chart.getTitle());
+				if (labelPanels) {
+                    final String title = (chart.title == null) ? chart.getChart().getTitle().getText() : chart.title;
+                    if (title != null) {
+                        chart.setChartTitle(title);
+                        chart.getChart().getTitle().setFont(chart.getChart().getTitle().getFont().deriveFont(Font.PLAIN)
+                                .deriveFont(chart.defFontSize()));
+                    }
+                }
 				holdingPanel.add(chart);
 				holdingPanel.otherCombinedCharts.add(chart);
 			});

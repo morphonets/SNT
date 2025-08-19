@@ -811,7 +811,15 @@ public class AnalysisUtils {
     public static JFreeChart createTimeline(final Map<String, java.util.List<GrowthPhase>> neuritePhases,
                                             final String timeUnits) {
         final DefaultXYDataset dataset = new DefaultXYDataset();
+        
+        // Sort neurites by relative proportion of each phase type in priority order (RAPID, STEADY, PLATEAU, LAG, RETRACTION)
         final List<String> neuriteIds = new ArrayList<>(neuritePhases.keySet());
+        neuriteIds.sort((neurite1, neurite2) -> {
+            double score1 = calculatePhasePriorityScore(neuritePhases.get(neurite1));
+            double score2 = calculatePhasePriorityScore(neuritePhases.get(neurite2));
+            return Double.compare(score2, score1); // Descending order (highest priority first)
+        });
+        
         final List<String> seriesLabels = new ArrayList<>();
         int seriesIndex = 0;
         int plottedNeuriteIndex = 0;
@@ -930,5 +938,72 @@ public class AnalysisUtils {
             chart.getLegend().setVisible(true);
             chart.getLegend().setPosition(RectangleEdge.BOTTOM);
         }
+    }
+    
+    /**
+     * Calculates a priority score for sorting neurites based on weighted phase proportions.
+     * Uses weighted scoring: RAPID (×10000) > STEADY (×1000) > PLATEAU (×100) > LAG (×10).
+     * RETRACTION phases receive a very heavy penalty (×-100000) to push problematic neurites to bottom.
+     * 
+     * @param phases List of growth phases for a neurite
+     * @return Priority score for sorting (higher = more priority, negative for high retraction)
+     */
+    private static double calculatePhasePriorityScore(final List<GrowthPhase> phases) {
+        if (phases.isEmpty()) return 0.0;
+        
+        double rapidTotal = 0.0;
+        double steadyTotal = 0.0;
+        double plateauTotal = 0.0;
+        double lagTotal = 0.0;
+        double retractionTotal = 0.0;
+        double totalDuration = 0.0;
+        
+        // Sum total amounts by phase type and calculate total duration
+        for (final GrowthPhase phase : phases) {
+            double duration = phase.duration();
+            totalDuration += duration;
+            
+            switch (phase.type()) {
+                case RAPID:
+                    rapidTotal += duration;
+                    break;
+                case STEADY:
+                    steadyTotal += duration;
+                    break;
+                case PLATEAU:
+                    plateauTotal += duration;
+                    break;
+                case LAG:
+                    lagTotal += duration;
+                    break;
+                case RETRACTION:
+                    retractionTotal += duration;
+                    break;
+            }
+        }
+        
+        // Avoid division by zero
+        if (totalDuration == 0.0) return 0.0;
+        
+        // Calculate relative proportions (0.0 to 1.0)
+        double rapidProportion = rapidTotal / totalDuration;
+        double steadyProportion = steadyTotal / totalDuration;
+        double plateauProportion = plateauTotal / totalDuration;
+        double lagProportion = lagTotal / totalDuration;
+        double retractionProportion = retractionTotal / totalDuration;
+        
+        // Use weighted scoring with heavy penalty for retraction
+        // Priority order: RAPID > STEADY > PLATEAU > LAG, with RETRACTION heavily penalized
+        double score = (rapidProportion * 10000.0) + 
+                      (steadyProportion * 1000.0) + 
+                      (plateauProportion * 100.0) + 
+                      (lagProportion * 10.0) - 
+                      (retractionProportion * 100000.0); // Very heavy penalty for any retraction
+        
+        // Add duration bonus for tie-breaking within same phase composition ranges
+        // This ensures longer neurites appear before shorter ones when phase proportions are similar
+        double durationBonus = Math.min(100.0, totalDuration * 0.5);
+        
+        return score + durationBonus;
     }
 }

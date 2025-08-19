@@ -330,11 +330,28 @@ public class NeuriteGrowthData {
     }
 
     /**
-     * Gets the number of time points in the series.
+     * Gets the number of unique time points in the series.
+     * This counts distinct frame numbers, so duplicate time points for the same frame are counted only once.
      *
-     * @return Number of time points
+     * @return Number of unique time points
      */
     public int getTimePointCount() {
+        if (timePoints.isEmpty()) return 0;
+        
+        // Count unique frame numbers to handle cases where duplicate time points exist
+        return (int) timePoints.stream()
+                .mapToInt(TimePoint::frame)
+                .distinct()
+                .count();
+    }
+    
+    /**
+     * Gets the total number of time point entries in the series (including duplicates).
+     * This returns the raw size of the time points list.
+     *
+     * @return Total number of time point entries
+     */
+    public int getTimePointEntryCount() {
         return timePoints.size();
     }
 

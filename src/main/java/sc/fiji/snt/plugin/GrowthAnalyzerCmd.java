@@ -66,57 +66,67 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
             + "Analysis includes linear growth rates, phase detection, and retraction events.<br>"
             + "Paths must be first tagged using the 'Match Paths Across Time...' command.";
 
-    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Growth Phases:")
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Growth Phase Thresholds:")
     private String HEADER1;
 
-    @Parameter(label = "Threshold for 'Lag'/'Plateau' phase (%)", min = "10", max = "50", stepSize = "1",
+    @Parameter(label = "Threshold for 'Lag'/'Plateau' (%)", min = "10", max = "50", stepSize = "1",
             style = "slider,format:0", description = """
             Defines the minimum growth rate threshold for classifying growth phases.
             Growth rates below this percentage are classified as 'lag' or 'plateau'.
             Must be between 10 and 50%""")
     private double lagPlateauThresholdPercent = GrowthAnalyzer.DEFAULT_BASE_THRESHOLD_FRACTION * 100;
 
-    @Parameter(label = "Threshold for 'Rapid' phase (%)", min = "110", max = "300", stepSize = "1",
+    @Parameter(label = "Threshold for 'Rapid' (%)", min = "110", max = "300", stepSize = "1",
             style = "slider,format:0", description = """
             Growth rates that are this percentage above the overall rate are classified as 'Rapid'.
             Must be between 110 and 300%""")
     private double rapidThresholdPercent = GrowthAnalyzer.DEFAULT_RAPID_THRESHOLD_MULTIPLE * 100;
 
-    @Parameter(label = "Threshold for retraction length (%)", min = "1", max = "50", stepSize = "1",
-            style = "slider,format:0", description = """
-                    Minimum length decrease to classify as retraction.
-                    Must be between 1 and 50%""")
-    private double retractionThresholdPercent = GrowthAnalyzer.DEFAULT_RETRACTION_THRESHOLD * 100;
+    @Parameter(label = "Calculation", style = "radioButtonHorizontal",
+            choices = {"Global", "Per-neurite"}, description = """
+            Global: Thresholds calculated relative to mean growth rate of all neurites
+            Per-neurite: Thresholds calculated relative to each neurite's individual growth rate""")
+    private String thresholdChoice = "Global"; // Default to false (per-neurite)
 
-    @Parameter(label = "Phase detection sensitivity", min = "0.05", max = "1.0", stepSize = "0.05",
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Phase Boundary Detection:")
+    private String HEADER2;
+
+    @Parameter(label = "Sensitivity", min = "0.05", max = "1.0", stepSize = "0.05",
             style = "slider,format:0.00", description = """
             Sensitivity for detecting growth phase changes
             Higher values = more sensitive (detect more phases)
             Lower values = less sensitive (detect fewer, major phases)""")
     private double phaseSensitivity = GrowthAnalyzer.DEFAULT_PHASE_SENSITIVITY;
 
-    @Parameter(label = "Detection smoothing (%)", min = "5", max = "50", stepSize = "1",
+    @Parameter(label = "Window size (no. of frames)", min = "2", max = "40", stepSize = "1",
             style = "slider,format:0", description = """
-    Controls smoothing of phase change detection. Higher values provide more stable 
-    detection with fewer phases, while lower values detect more detailed changes 
-    but may include noise.""")
-    private double windowSizePercent = GrowthAnalyzer.DEFAULT_WINDOW_SIZE_FRACTION * 100;
+                    Fixed window size in frames for phase boundary detection.
+                    Minimum value is 2 frames.""")
+    private int absoluteWindowSize = GrowthAnalyzer.DEFAULT_ABSOLUTE_WINDOW_SIZE;
 
-    @Parameter(required = false, label = "Defaults", callback = "resetInputParameters")
-    private Button reset;
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Retractions:")
+    private String HEADER3;
 
+    @Parameter(label = "Threshold for retraction length (%)", min = "1", max = "50", stepSize = "1",
+            style = "slider,format:0", description = """
+                    Minimum length decrease to classify as retraction.
+                    Must be between 1 and 50%""")
+    private double retractionThresholdPercent = GrowthAnalyzer.DEFAULT_RETRACTION_THRESHOLD * 100;
+    
     @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Filtering Options:")
-    private String HEADER2;
+    private String HEADER4;
 
     @Parameter(label = "Minimum duration (no. of frames)", min = "2",
             description = "Neurites persisting less than this no. of frames are ignored from analysis")
     private int minTimePoints = GrowthAnalyzer.DEFAULT_MIN_TIME_POINTS;
 
     // Filtering parameters
-    @Parameter(label = "Minimum path length (physical units)", min = "0",
+    @Parameter(label = "Minimum length (physical units)", min = "0",
             description = "Neurites shorter than this length at any given frame are ignored from analysis")
     private double minPathLength = GrowthAnalyzer.DEFAULT_MIN_PATH_LENGTH;
 
+    @Parameter(required = false, label = "Defaults", callback = "resetInputParameters")
+    private Button reset;
 
     @Parameter(required = true)
     private Collection<Path> paths;
@@ -148,9 +158,12 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
     private void resetInputParameters() {
         lagPlateauThresholdPercent = GrowthAnalyzer.DEFAULT_BASE_THRESHOLD_FRACTION * 100;
         rapidThresholdPercent = GrowthAnalyzer.DEFAULT_RAPID_THRESHOLD_MULTIPLE * 100;
-        retractionThresholdPercent = GrowthAnalyzer.DEFAULT_RETRACTION_THRESHOLD * 100;
+        thresholdChoice = (GrowthAnalyzer.DEFAULT_USE_GLOBAL_THRESHOLDS) ? "Global" : "Per-neurite";
         phaseSensitivity = GrowthAnalyzer.DEFAULT_PHASE_SENSITIVITY;
-        windowSizePercent = GrowthAnalyzer.DEFAULT_WINDOW_SIZE_FRACTION * 100;
+        absoluteWindowSize = GrowthAnalyzer.DEFAULT_ABSOLUTE_WINDOW_SIZE;
+        retractionThresholdPercent = GrowthAnalyzer.DEFAULT_RETRACTION_THRESHOLD * 100;
+        minTimePoints = 2;
+        minPathLength = 0;
     }
 
     @Override
@@ -162,15 +175,29 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
             analyzer.setRapidThreshold(rapidThresholdPercent / 100d);
             analyzer.setRetractionThreshold(retractionThresholdPercent / 100d);
             analyzer.setPhaseSensitivity(phaseSensitivity);
-            analyzer.setWindowSizeFraction(windowSizePercent / 100d);
+            analyzer.setUseAbsoluteWindowSize(true);
+            analyzer.setAbsoluteWindowSize(absoluteWindowSize);
+            analyzer.setUseGlobalThresholds(thresholdChoice == null || thresholdChoice.toLowerCase().contains("global"));
             // Configure filtering
             analyzer.setMinTimePoints(Math.max(2, minTimePoints));
-            analyzer.setMinPathLength(minPathLength);
+            analyzer.setMinPathLength(Math.max(0, minPathLength));
             // Perform the analysis
             analysisResults = analyzer.analyze(paths, frameInterval, timeUnits);
+            if (analysisResults.getNeuriteGrowthData().values().stream().allMatch(ngd ->
+                            ngd.getTimePointCount() == 1)) {
+                error("Only one time point has been parsed. Make sure all the paths to be analyzed have been " +
+                        "selected, and that there are enough data points for growth analysis.");
+                resetUI();
+                return;
+            }
             // Generate visualizations and reports
-            generateSummaryStatistics();
-            assembleAndDisplayPlots();
+            assembleAndDisplayTable();
+            final boolean hasPhases = analysisResults.getNeuriteGrowthData().values()
+                    .stream().anyMatch( ngd -> !ngd.getGrowthPhases().isEmpty());
+            assembleAndDisplayPlots(hasPhases);
+            if (!hasPhases) {
+                msg("No growth phases detected. Perhaps thresholds need adjustments!?", "No Growth Phases");
+            }
         } catch (final IllegalArgumentException e) {
             error(e.getMessage());
         } catch (final Exception e) {
@@ -181,44 +208,59 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
         }
     }
 
-    /**
-     * Generates and displays summary statistics table.
-     */
-    private void generateSummaryStatistics() {
-        final SNTTable summaryTable = new SNTTable();
+    private void assembleAndDisplayTable() {
+        final SNTTable table = new SNTTable();
         for (final NeuriteGrowthData data : analysisResults.getNeuriteGrowthData().values()) {
-            summaryTable.insertRow(data.getNeuriteId());
-            summaryTable.appendToLastRow("Total_Growth_" + lengthUnits, data.getTotalGrowth());
-            summaryTable.appendToLastRow("Net_Growth_" + lengthUnits, data.getNetGrowth());
-            summaryTable.appendToLastRow("Linear_Rate_" + lengthUnits + "_per_" + timeUnits, data.getLinearGrowthRate());
-            summaryTable.appendToLastRow("R_Squared", data.getLinearRSquared());
-            summaryTable.appendToLastRow("Average_Rate_" + lengthUnits + "_per_" + timeUnits, data.getAverageGrowthRate());
-            summaryTable.appendToLastRow("Average_Elongation_Rate_" + lengthUnits + "_per_" + timeUnits, data.getAverageElongationRate());
-            summaryTable.appendToLastRow("Average_Retraction_Rate_" + lengthUnits + "_per_" + timeUnits, data.getAverageRetractionRate());
-            summaryTable.appendToLastRow("Total_Elongation_Length_" + lengthUnits, data.getTotalElongationLength());
-            summaryTable.appendToLastRow("Total_Retraction_Length_" + lengthUnits, data.getTotalRetractionLength());
-            summaryTable.appendToLastRow("No_Growth_Phases", data.getGrowthPhases().size());
-            summaryTable.appendToLastRow("No_Elongation_Events", data.getElongationEvents().size());
-            summaryTable.appendToLastRow("No_Retraction_Events", data.getRetractionEvents().size());
+            table.insertRow(data.getNeuriteId());
+            table.appendToLastRow("Time unit", timeUnits);
+            table.appendToLastRow("Length unit", lengthUnits);
+            table.appendToLastRow("Frame Interval", frameInterval);
+            if (!data.getTimePoints().isEmpty()) {
+                table.appendToLastRow("First frame", data.getTimePoints().getFirst().frame());
+                table.appendToLastRow("Last frame", data.getTimePoints().getLast().frame());
+                table.appendToLastRow("No. of time points", data.getTimePointCount());
+                table.appendToLastRow("Duration", data.getTotalDuration(frameInterval));
+
+            }
+            table.appendToLastRow("Initial length", data.getInitialLength());
+            table.appendToLastRow("Final length", data.getFinalLength());
+            table.appendToLastRow("Total growth", data.getTotalGrowth());
+            table.appendToLastRow("Net growth", data.getNetGrowth());
+            table.appendToLastRow("Linear rate (Lr)", data.getLinearGrowthRate());
+            table.appendToLastRow("Lr R squared", data.getLinearRSquared());
+            table.appendToLastRow("Average growth rate", data.getAverageGrowthRate());
+            table.appendToLastRow("Average elongation rate", data.getAverageElongationRate());
+            table.appendToLastRow("Average retraction rate", data.getAverageRetractionRate());
+            table.appendToLastRow("Total elongation length", data.getTotalElongationLength());
+            table.appendToLastRow("Total retraction length", data.getTotalRetractionLength());
+            table.appendToLastRow("No. of elongation events", data.getElongationEvents().size());
+            table.appendToLastRow("No. of retraction events", data.getRetractionEvents().size());
+            table.appendToLastRow("No. of growth phases", data.getGrowthPhases().size());
+            for (final GrowthAnalyzer.GrowthPhaseType type : GrowthAnalyzer.GrowthPhaseType.values()) {
+                table.appendToLastRow(WordUtils.capitalizeFully(type.toString()) + " duration",
+                        data.getPhaseDuration(type));
+            }
         }
-        summaryTable.show("SNT_Growth_Analysis_Summary.csv");
+        table.summarize();
+        table.show("SNT_Growth_Analysis.csv");
     }
 
     /**
      * Assembles and displays all visualization plots.
      */
-    private void assembleAndDisplayPlots() {
-        // Create the main plots
-        final String title = String.format("Growth Phase Timelines (N=%d Neurites)", analysisResults.getNeuriteCount());
-        final SNTChart chart1 = new SNTChart(title, AnalysisUtils.createTimeline(analysisResults.getNeuritePhases(), timeUnits));
-        final SNTChart chart2 = assembleLengthVsTimePlot();
-        final SNTChart chart3 = assembleGrowthPhaseRingPlot();
-        final SNTChart chart4 = assembleGrowthPhaseDurationRingPlot();
-        final SNTChart chart5 = assembleDirectionalAnalysisPlot();
-        final SNTChart chart6 = assembleAngularVelocityPlot();
-        
-        // Display charts in tiled layout (2x3 grid)
-        SNTChart.tile(List.of(chart1, chart2, chart3, chart4, chart5, chart6));
+    private void assembleAndDisplayPlots(final boolean includePhases) {
+        final List<SNTChart> charts = new ArrayList<>();
+        charts.add(assembleLengthVsTimePlot());
+        charts.add(assembleDirectionalAnalysisPlot());
+        charts.add(assembleAngularVelocityPlot());
+        if (includePhases) {
+            charts.add(assembleGrowthPhaseRingPlot());
+            charts.add(assembleGrowthPhaseDurationRingPlot());
+            final String title = String.format("Growth Phase Timelines (N=%d Neurites)", analysisResults.getNeuriteCount());
+            charts.add(new SNTChart(title, AnalysisUtils.createTimeline(analysisResults.getNeuritePhases(), timeUnits)));
+        }
+        // Display charts in tiled layout
+        SNTChart.tile(charts);
     }
 
     /**
@@ -511,18 +553,15 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
      * Helper method to get matched paths for a specific neurite ID.
      */
     private List<Path> getMatchedPathsForNeurite(String neuriteId) {
-        List<Path> matchedPaths = new ArrayList<>();
-        
-        for (Path path : paths) {
-            String pathNeuriteId = extractNeuriteIdFromPath(path);
+        final List<Path> matchedPaths = new ArrayList<>();
+        for (final Path path : paths) {
+            final String pathNeuriteId = extractNeuriteIdFromPath(path);
             if (neuriteId.equals(pathNeuriteId)) {
                 matchedPaths.add(path);
             }
         }
-        
         // Sort by frame number for temporal analysis
         matchedPaths.sort(Comparator.comparingInt(Path::getFrame));
-        
         return matchedPaths;
     }
     

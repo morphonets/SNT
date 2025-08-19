@@ -1996,7 +1996,7 @@ public class GuiUtils {
 				nRows = Math.max(1, (int) Math.ceil((double) charts.size() / nCols));
 				colField.setText("" + nCols);
 				rowField.setText("" + nRows);
-				final int result = JOptionPane.showConfirmDialog(parent, panel(), "Make SNTChart Montage",
+				final int result = JOptionPane.showConfirmDialog(parent, panel(), "Make Chart Montage",
 						JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 				if (result == JOptionPane.OK_OPTION) {
 					final double rows = GuiUtils.extractDouble(rowField);

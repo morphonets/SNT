@@ -69,6 +69,6 @@ snt.getUI().setRenderingScale(6)
 snt.getUI().getPathManager().applyDefaultTags("Traced Frame")
 snt.getUI().getPathManager().runCommand("Match Paths Across Time...")
 
-println("Done. You should now be able to obtain time profiles for common metrics.")
+println("Done. You should now be able to run 'Growth Analysis...' or 'Time Profile...'")
 // Path extraction concluded. Let's animate the timelapse..
 IJ.run(imp, "Animation Options...", "speed=6 first=1 last=4 loop start")

@@ -103,6 +103,21 @@ public class GrowthAnalyzer {
      * Default window size fraction for change point detection
      */
     public static final double DEFAULT_WINDOW_SIZE_FRACTION = 0.125; // 1/8 of data length
+    
+    /**
+     * Default absolute window size in frames (used when useAbsoluteWindowSize is true)
+     */
+    public static final int DEFAULT_ABSOLUTE_WINDOW_SIZE = 3;
+    
+    /**
+     * Default setting for using absolute window size instead of fraction
+     */
+    public static final boolean DEFAULT_USE_ABSOLUTE_WINDOW_SIZE = true;
+    
+    /**
+     * Default setting for using global mean growth rate for thresholds
+     */
+    public static final boolean DEFAULT_USE_GLOBAL_THRESHOLDS = true;
 
     // Path matching patterns
     public static final String TAG_REGEX_PATTERN = "\\{([Nn]eurite\\s*#\\d+)}";
@@ -114,7 +129,10 @@ public class GrowthAnalyzer {
     private double retractionThreshold;
     private double minPathLength;
     private double windowSizeFraction;
+    private int absoluteWindowSize;
+    private boolean useAbsoluteWindowSize;
     private int minTimePoints;
+    private boolean useGlobalThresholds;
 
     /**
      * Creates a new GrowthAnalyzer with default parameters.
@@ -127,6 +145,9 @@ public class GrowthAnalyzer {
         minPathLength = DEFAULT_MIN_PATH_LENGTH;
         minTimePoints = DEFAULT_MIN_TIME_POINTS;
         windowSizeFraction = DEFAULT_WINDOW_SIZE_FRACTION;
+        absoluteWindowSize = DEFAULT_ABSOLUTE_WINDOW_SIZE;
+        useAbsoluteWindowSize = DEFAULT_USE_ABSOLUTE_WINDOW_SIZE;
+        useGlobalThresholds = DEFAULT_USE_GLOBAL_THRESHOLDS;
     }
 
     /**
@@ -174,16 +195,60 @@ public class GrowthAnalyzer {
                     "No groups meet min. requirements (length: %.1f, time points: %d)", minPathLength, minTimePoints));
         }
 
+        // Calculate global mean growth rate if needed
+        double globalMeanRate = 0.0;
+        if (useGlobalThresholds) {
+            globalMeanRate = calculateGlobalMeanGrowthRate(matchedGroups, frameInterval);
+        }
+
         // Perform analysis for each group
         final Map<String, NeuriteGrowthData> growthDataMap = new HashMap<>();
         for (Map.Entry<String, List<Path>> entry : matchedGroups.entrySet()) {
             final String groupId = entry.getKey();
             final List<Path> groupPaths = entry.getValue();
-            final NeuriteGrowthData growthData = analyzeGroup(groupId, groupPaths, frameInterval);
+            final NeuriteGrowthData growthData = analyzeGroup(groupId, groupPaths, frameInterval, globalMeanRate);
             growthDataMap.put(groupId, growthData);
         }
 
         return new GrowthAnalysisResults(growthDataMap, frameInterval, timeUnits);
+    }
+
+    /**
+     * Calculates the global mean growth rate across all neurite groups.
+     * This is used as the reference rate when useGlobalThresholds is enabled.
+     *
+     * @param matchedGroups Map of neurite groups with their paths
+     * @param frameInterval Time interval between frames
+     * @return Global mean growth rate across all neurites
+     */
+    private double calculateGlobalMeanGrowthRate(Map<String, List<Path>> matchedGroups, double frameInterval) {
+        double totalGrowthRate = 0.0;
+        int neuriteCount = 0;
+
+        for (Map.Entry<String, List<Path>> entry : matchedGroups.entrySet()) {
+            List<Path> groupPaths = entry.getValue();
+            
+            // Calculate linear growth rate for this neurite
+            if (groupPaths.size() >= 2) {
+                // Sort paths by frame
+                groupPaths.sort((p1, p2) -> Integer.compare(p1.getFrame(), p2.getFrame()));
+                
+                // Calculate overall growth rate using simple linear approach
+                Path firstPath = groupPaths.get(0);
+                Path lastPath = groupPaths.get(groupPaths.size() - 1);
+                
+                double totalLengthChange = lastPath.getLength() - firstPath.getLength();
+                double totalTime = (lastPath.getFrame() - firstPath.getFrame()) * frameInterval;
+                
+                if (totalTime > 0) {
+                    double neuriteGrowthRate = totalLengthChange / totalTime;
+                    totalGrowthRate += neuriteGrowthRate;
+                    neuriteCount++;
+                }
+            }
+        }
+
+        return neuriteCount > 0 ? totalGrowthRate / neuriteCount : 0.0;
     }
 
     /**
@@ -192,9 +257,11 @@ public class GrowthAnalyzer {
      * @param groupId       Identifier for this neurite group
      * @param groupPaths    List of paths for this neurite, sorted by frame
      * @param frameInterval Time interval between frames
+     * @param globalMeanRate Global mean growth rate across all neurites (used when useGlobalThresholds is true)
      * @return NeuriteGrowthData containing all analysis results for this neurite
      */
-    private NeuriteGrowthData analyzeGroup(final String groupId, final List<Path> groupPaths, final double frameInterval) {
+    private NeuriteGrowthData analyzeGroup(final String groupId, final List<Path> groupPaths, 
+                                          final double frameInterval, final double globalMeanRate) {
         // Create time series data
         final NeuriteGrowthData data = new NeuriteGrowthData(groupId);
         for (final Path path : groupPaths) {
@@ -202,7 +269,7 @@ public class GrowthAnalyzer {
         }
         // Analyze
         performLinearGrowthAnalysis(data, frameInterval);
-        performPhaseBasedAnalysis(data, frameInterval);
+        performPhaseBasedAnalysis(data, frameInterval, globalMeanRate);
         performRetractionAnalysis(data, frameInterval);
         return data;
     }
@@ -243,13 +310,15 @@ public class GrowthAnalyzer {
      *
      * @param data          NeuriteGrowthData to populate with phase analysis results
      * @param frameInterval Time interval between frames
+     * @param globalMeanRate Global mean growth rate across all neurites (used when useGlobalThresholds is true)
      */
-    private void performPhaseBasedAnalysis(final NeuriteGrowthData data, final double frameInterval) {
+    private void performPhaseBasedAnalysis(final NeuriteGrowthData data, final double frameInterval, final double globalMeanRate) {
         final List<TimePoint> timePoints = data.getTimePoints();
         if (timePoints.size() < 4) return; // Need at least 4 points for phase detection
 
-        // Calculate instantaneous growth rates
+        // Calculate instantaneous growth rates and frame-independent length changes
         final List<Double> instantaneousRates = new ArrayList<>();
+        final List<Double> lengthChanges = new ArrayList<>();
         for (int i = 1; i < timePoints.size(); i++) {
             TimePoint prev = timePoints.get(i - 1);
             TimePoint curr = timePoints.get(i);
@@ -257,10 +326,11 @@ public class GrowthAnalyzer {
             double deltaTime = (curr.frame - prev.frame) * frameInterval;
             double rate = deltaTime > 0 ? deltaLength / deltaTime : 0;
             instantaneousRates.add(rate);
+            lengthChanges.add(deltaLength); // frameInterval-independent for change detection
         }
 
-        // Detect phase changes using improved change point detection
-        final List<Integer> changePoints = detectChangePoints(instantaneousRates);
+        // Detect phase changes using frame-independent length changes
+        final List<Integer> changePoints = detectChangePoints(lengthChanges);
 
         // Create growth phases
         final List<GrowthPhase> phases = new ArrayList<>();
@@ -282,8 +352,9 @@ public class GrowthAnalyzer {
             }
             avgRate = rateCount > 0 ? avgRate / rateCount : 0;
 
-            // Classify phase type
-            GrowthPhaseType phaseType = classifyPhaseType(avgRate, data.getAverageGrowthRate());
+            // Classify phase type using either global or per-neurite reference rate
+            double referenceRate = useGlobalThresholds ? globalMeanRate : data.getAverageGrowthRate();
+            GrowthPhaseType phaseType = classifyPhaseType(avgRate, referenceRate);
 
             double lengthChange = 0;
             if (endIdx < timePoints.size()) {
@@ -521,15 +592,6 @@ public class GrowthAnalyzer {
     }
 
     /**
-     * Gets the current minimum path length.
-     *
-     * @return Current minimum path length
-     */
-    public double getMinPathLength() {
-        return minPathLength;
-    }
-
-    /**
      * Sets the minimum path length for analysis inclusion.
      *
      * @param minPathLength Minimum path length in physical units
@@ -540,15 +602,6 @@ public class GrowthAnalyzer {
             throw new IllegalArgumentException("Minimum path length cannot be negative");
         }
         this.minPathLength = minPathLength;
-    }
-
-    /**
-     * Gets the current minimum time points requirement.
-     *
-     * @return Current minimum time points
-     */
-    public int getMinTimePoints() {
-        return minTimePoints;
     }
 
     /**
@@ -578,12 +631,6 @@ public class GrowthAnalyzer {
      * 
      * <p>This parameter controls the size of the moving window used in change point detection
      * algorithms. The actual window size is calculated as: windowSize = max(minSize, dataLength × fraction)</p>
-     * 
-     * <p>Effects:</p>
-     * <ul>
-     *   <li><strong>Smaller fractions (0.05-0.1)</strong>: More sensitive to local changes, may detect noise</li>
-     *   <li><strong>Larger fractions (0.15-0.25)</strong>: Less sensitive, focuses on major transitions</li>
-     * </ul>
      *
      * @param windowSizeFraction Fraction of data length for window size (typically 0.05-0.25)
      * @throws IllegalArgumentException if fraction is not between 0.05 and 0.5
@@ -593,6 +640,78 @@ public class GrowthAnalyzer {
             throw new IllegalArgumentException("Window size fraction must be between 0.05 and 0.5");
         }
         this.windowSizeFraction = windowSizeFraction;
+    }
+
+    /**
+     * Gets whether global thresholds are used for phase classification.
+     *
+     * @return true if using global mean growth rate for thresholds, false if using per-neurite rates
+     */
+    public boolean isUseGlobalThresholds() {
+        return useGlobalThresholds;
+    }
+
+    /**
+     * Sets whether to use global thresholds for phase classification.
+     * 
+     * <p>This parameter determines how growth phase thresholds are calculated:</p>
+     * <ul>
+     *   <li><strong>Global thresholds (true)</strong>: Thresholds calculated relative to mean growth rate across all neurites</li>
+     *   <li><strong>Per-neurite thresholds (false)</strong>: Thresholds calculated relative to each individual neurite's growth rate</li>
+     * </ul>
+     *
+     * @param useGlobalThresholds true to use global mean rate, false to use per-neurite rates
+     */
+    public void setUseGlobalThresholds(boolean useGlobalThresholds) {
+        this.useGlobalThresholds = useGlobalThresholds;
+    }
+
+    /**
+     * Gets the current absolute window size in frames.
+     *
+     * @return Current absolute window size (used when useAbsoluteWindowSize is true)
+     */
+    public int getAbsoluteWindowSize() {
+        return absoluteWindowSize;
+    }
+
+    /**
+     * Sets the absolute window size for change point detection in frames.
+     * 
+     * <p>This parameter is only used when useAbsoluteWindowSize is true.</p>
+     *
+     * @param absoluteWindowSize Window size in frames (minimum 2)
+     * @throws IllegalArgumentException if window size is less than 2
+     */
+    public void setAbsoluteWindowSize(int absoluteWindowSize) {
+        if (absoluteWindowSize < 2) {
+            throw new IllegalArgumentException("Absolute window size must be at least 2 frames");
+        }
+        this.absoluteWindowSize = absoluteWindowSize;
+    }
+
+    /**
+     * Gets whether absolute window size is used instead of fractional window size.
+     *
+     * @return true if using absolute window size, false if using fractional window size
+     */
+    public boolean isUseAbsoluteWindowSize() {
+        return useAbsoluteWindowSize;
+    }
+
+    /**
+     * Sets whether to use absolute window size instead of fractional window size.
+     * 
+     * <p>Window size modes:</p>
+     * <ul>
+     *   <li><strong>Absolute (true)</strong>: Fixed window size in frames, consistent across all datasets</li>
+     *   <li><strong>Fractional (false)</strong>: Window size as percentage of data length, adaptive to dataset size</li>
+     * </ul>
+     *
+     * @param useAbsoluteWindowSize true to use absolute window size, false to use fractional
+     */
+    public void setUseAbsoluteWindowSize(boolean useAbsoluteWindowSize) {
+        this.useAbsoluteWindowSize = useAbsoluteWindowSize;
     }
 
     /**
@@ -634,9 +753,38 @@ public class GrowthAnalyzer {
         });
     }
 
+    /**
+     * Calculates the appropriate window size based on current settings.
+     * 
+     * @param dataSize Size of the data array
+     * @param minSize Minimum window size for this detection method
+     * @return Calculated window size
+     */
+    private int calculateWindowSize(int dataSize, int minSize) {
+        return calculateWindowSize(dataSize, minSize, 1.0);
+    }
+    
+    /**
+     * Calculates the appropriate window size based on current settings with scaling factor.
+     * 
+     * @param dataSize Size of the data array
+     * @param minSize Minimum window size for this detection method
+     * @param scaleFactor Scaling factor for fractional window size (e.g., 0.75 for smaller windows)
+     * @return Calculated window size
+     */
+    private int calculateWindowSize(int dataSize, int minSize, double scaleFactor) {
+        if (useAbsoluteWindowSize) {
+            // Use absolute window size, but respect minimum requirements
+            return Math.max(minSize, absoluteWindowSize);
+        } else {
+            // Use fractional window size (existing behavior)
+            return Math.max(minSize, (int) (dataSize * windowSizeFraction * scaleFactor));
+        }
+    }
+
     private List<Integer> detectMeanShiftChangePoints(List<Double> rates) {
         List<Integer> changePoints = new ArrayList<>();
-        int windowSize = Math.max(3, (int) (rates.size() * windowSizeFraction));
+        int windowSize = calculateWindowSize(rates.size(), 3);
 
         for (int i = windowSize; i < rates.size() - windowSize; i++) {
             double leftMean = calculateMean(rates.subList(i - windowSize, i));
@@ -657,7 +805,7 @@ public class GrowthAnalyzer {
 
     private List<Integer> detectVarianceChangePoints(List<Double> rates) {
         List<Integer> changePoints = new ArrayList<>();
-        int windowSize = Math.max(2, (int) (rates.size() * windowSizeFraction * 0.75)); // Slightly smaller for variance detection
+        int windowSize = calculateWindowSize(rates.size(), 2, 0.75); // Slightly smaller for variance detection
 
         for (int i = windowSize; i < rates.size() - windowSize; i++) {
             double leftVariance = calculateVariance(rates.subList(i - windowSize, i));
@@ -679,7 +827,7 @@ public class GrowthAnalyzer {
 
     private List<Integer> detectTrendChangePoints(List<Double> rates) {
         List<Integer> changePoints = new ArrayList<>();
-        int windowSize = Math.max(3, (int) (rates.size() * windowSizeFraction));
+        int windowSize = calculateWindowSize(rates.size(), 3);
 
         for (int i = windowSize; i < rates.size() - windowSize; i++) {
             double leftSlope = calculateSlope(rates.subList(i - windowSize, i));

@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 /**
  * Container class for growth analysis results from {@link GrowthAnalyzer}, serving as the
- * primary interface for accessing growth analysis results.</p>
+ * primary interface for accessing growth analysis results.
  *
  * <p><strong>Usage Example:</strong></p>
  * <pre>{@code
