@@ -1904,7 +1904,8 @@ public class GuiUtils {
 			final JTextField rowField;
 			final JList<String> titles;
 			final JCheckBox checkbox;
-			final Map<String, SNTChart> charts;
+            final JTextField titleField;
+            final Map<String, SNTChart> charts;
 
 			boolean pauseSyncFields;
 			private int nRows;
@@ -1929,6 +1930,9 @@ public class GuiUtils {
 				rowField = intField();
 				titles = getJList(charts.keySet().toArray(new String[0]), null);
 				checkbox = new JCheckBox("Label panels", false);
+                titleField = new JTextField();
+                GuiUtils.addClearButton(titleField);
+                GuiUtils.addPlaceholder(titleField, "Combined Charts");
 			}
 
 			JTextField intField() {
@@ -1949,7 +1953,11 @@ public class GuiUtils {
 				final GridBagConstraints c = defaultGbc();
 				c.fill = GridBagConstraints.HORIZONTAL;
 				c.gridwidth = 1;
-				contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
+                contentPane.add(leftAlignedLabel("Title for montage:", true), c);
+                ++c.gridy;
+                contentPane.add(titleField, c);
+                ++c.gridy;
+                contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
 				++c.gridy;
 				contentPane.add(getScrollPane(titles), c);
 				++c.gridy;
@@ -2013,7 +2021,7 @@ public class GuiUtils {
 						error("No charts selected from list.");
 						return;
 					}
-					SNTChart.combine(selection, (int) rows, (int) cols, checkbox.isSelected()).show();
+					SNTChart.combine(selection, titleField.getText(), (int) rows, (int) cols, checkbox.isSelected()).show();
 				}
 			}
 

@@ -1796,18 +1796,36 @@ public class SNTChart extends ChartPanel {
 		return combine(charts, -1, -1, labelPanels);
 	}
 
+    /**
+     * Combines a collection of charts into a multipanel montage.
+     *
+     * @param charts      input charts
+     * @param rows        the number of rows in the montage
+     * @param cols        the number of columns in the montage
+     * @param labelPanels whether each panel in the montage should be labeled
+     * @return the frame containing the montage
+     */
+    public static SNTChart combine(final Collection<SNTChart> charts, final int rows, final int cols,
+                                   final boolean labelPanels) {
+        return combine(charts, null, rows, cols, labelPanels);
+    }
+
 	/**
 	 * Combines a collection of charts into a multipanel montage.
 	 *
 	 * @param charts      input charts
+     * @param commonTitle Common title for the montage
 	 * @param rows        the number of rows in the montage
 	 * @param cols        the number of columns in the montage
 	 * @param labelPanels whether each panel in the montage should be labeled
 	 * @return the frame containing the montage
 	 */
-	public static SNTChart combine(final Collection<SNTChart> charts, final int rows, final int cols,
+	public static SNTChart combine(final Collection<SNTChart> charts, final String commonTitle, final int rows, final int cols,
 			final boolean labelPanels) {
-		return new MultiSNTChart(charts, rows, cols, labelPanels).getChart();
+        final MultiSNTChart mChart =  new MultiSNTChart(charts, rows, cols, labelPanels);
+        if (commonTitle != null && !commonTitle.isBlank())
+            mChart.setLabel(commonTitle);
+        return mChart.getChart();
 	}
 
 	/**
