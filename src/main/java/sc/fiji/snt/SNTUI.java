@@ -138,7 +138,10 @@ public class SNTUI extends JDialog {
 	private JButton openSciView;
 	private JButton svSyncPathManager;
 
-	private final GuiListener listener;
+    /* Bvv */
+    private Bvv bvvSNT;
+
+    private final GuiListener listener;
 
 	/* These are the states that the UI can be in: */
 	/**
@@ -329,8 +332,9 @@ public class SNTUI extends JDialog {
 		InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", true, c3);
 		++c3.gridy;
 		final String msg4 = "EXPERIMENTAL: Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
-				"capable of GPU volume rendering of images too large to fit into memory. Currently, support " +
-				"for BVV remains limited as only image data is rendered.";
+				"capable of GPU volume rendering of images too large to fit into memory. " +
+                "Similarly to sciview, some Path Manager changes may need to be synchronized " +
+                "manually using \"Sync Changes\".";
 		tab3.add(GuiUtils.longSmallMsg(msg4, tab3), c3);
 		c3.gridy++;
 		tab3.add(bvvPanel(), c3);
@@ -2317,24 +2321,41 @@ public class SNTUI extends JDialog {
 	}
 
 	private JPanel bvvPanel() {
-		final JButton openBVV = new JButton("Open BigVolumeViewer");
-		registerInCommandFinder(openBVV, null, "3D Tab");
-		openBVV.addActionListener(e -> {
-			if (!plugin.accessToValidImageData()) {
-				noValidImageDataError();
-			} else if (plugin.is2D()) {
-				error("Current image has no depth: BVV can only render three-dimensional images.");
-			} else {
-				initializeBvvFromPrompt();
-			}
-		});
-		// Build panel
-		final JPanel panel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gdb = new GridBagConstraints();
-		gdb.fill = GridBagConstraints.HORIZONTAL;
-		gdb.weightx = 0.5;
-		panel.add(openBVV, gdb);
-		return panel;
+        final JButton openBVV = new JButton("Open BVV");
+        if (openSciView != null) openBVV.setPreferredSize(openSciView.getPreferredSize());
+        registerInCommandFinder(openBVV, null, "3D Tab");
+        openBVV.addActionListener(e -> {
+            if (!plugin.accessToValidImageData()) {
+                noValidImageDataError();
+            } else if (plugin.is2D()) {
+                error("Current image has no depth: BVV can only render three-dimensional images.");
+            } else {
+                initializeBvvFromPrompt();
+            }
+        });
+        final JButton syncBVV = new JButton("Sync Changes");
+        if (svSyncPathManager != null) openBVV.setPreferredSize(svSyncPathManager.getPreferredSize());
+        registerInCommandFinder(syncBVV, null, "3D Tab");
+        syncBVV.setToolTipText("Refreshes Viewer contents to reflect Path Manager changes");
+        syncBVV.addActionListener(e -> {
+            if (bvvSNT == null) {
+                guiUtils.error("Big Volume Viewer is not open.");
+                openBVV.setEnabled(true);
+            } else {
+                bvvSNT.syncPathManagerList();
+                final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "BVV synchronized";
+                showStatus(msg, true);
+            }
+        });
+
+        // Build panel
+        final JPanel panel = new JPanel(new GridBagLayout());
+        final GridBagConstraints gdb = new GridBagConstraints();
+        gdb.fill = GridBagConstraints.HORIZONTAL;
+        gdb.weightx = 0.5;
+        panel.add(openBVV, gdb);
+        panel.add(syncBVV, gdb);
+        return panel;
 	}
 
 	private void initializeBvvFromPrompt() {
@@ -2347,21 +2368,33 @@ public class SNTUI extends JDialog {
 			noSecondaryDataAvailableError();
 			return;
 		}
-		try {
+        bvvSNT = new Bvv(plugin);
+        try {
 			if (choices[0].equals(choice)) {
-				new Bvv(plugin).showImagePlus(plugin.getImagePlus());
+                bvvSNT.show(plugin.getImagePlus());
 			} else if (choices[1].equals(choice)) {
-				new Bvv(plugin).showLoadedData();
+                bvvSNT.showLoadedData();
 			} else if (plugin.isSecondaryDataAvailable()) {
-				new Bvv(plugin).showSecondaryData();
+                bvvSNT.showSecondaryData();
 			} else {
+                bvvSNT = null;
 				noSecondaryDataAvailableError();
 			}
+            if (bvvSNT.getViewerFrame() != null) {
+                bvvSNT.getViewerFrame().addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosing(WindowEvent e) {
+                        super.windowClosing(e);
+                        bvvSNT = null;
+                    }
+                });
+            }
 		} catch (final Throwable exc) {
 			exc.printStackTrace();
 			error(exc.getMessage());
 		} finally {
 			plugin.getPrefs().setTemp("bvvChoice", choice);
+            if (bvvSNT != null) bvvSNT.syncPathManagerList();
 		}
 	}
 

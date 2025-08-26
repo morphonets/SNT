@@ -36,11 +36,14 @@ import org.scijava.ui.swing.SwingDialog;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
+import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
 import javax.swing.Timer;
@@ -753,6 +756,51 @@ public class GuiUtils {
 			return Double.NaN; // invalid user input
 		}
 	}
+
+    public Integer getPercentage(final String promptMsg, final String promptTitle,
+                          final int defaultValue) {
+        return getInt(promptMsg, promptTitle, defaultValue, 0, 100);
+    }
+
+    public Integer getInt(final String promptMsg, final String promptTitle,
+                                 final int defaultValue, final int min, final int max) {
+        final JSlider slider = new JSlider(min, max, defaultValue);
+        slider.setPaintLabels(true);
+        slider.setPaintTicks(true);
+        slider.setMajorTickSpacing( (max - min) / 5);
+        slider.setMinorTickSpacing( (max - min) / 5 / 2);
+        final JComponent[] inputs = new JComponent[] { getLabel(promptMsg), slider };
+        final int result = JOptionPane.showConfirmDialog(null, inputs, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            return slider.getValue();
+        }
+        return null;
+    }
+
+    public SNTPoint getCoordinates(final String promptMsg, final String promptTitle, final SNTPoint defaultValue,
+                                   final int decimalPlaces) {
+        final JPanel panel = new JPanel(new FlowLayout());
+        final SNTPoint def = (defaultValue == null) ? SNTPoint.of(0, 0, 0) : defaultValue;
+        panel.add(new JLabel(promptMsg));
+        final String[] labels = new String[]{"X", "Y", "Z"};
+        final double[] values = new double[]{def.getX(), def.getY(), def.getZ()};
+        final JSpinner[] spinners = new JSpinner[3];
+        for (int i = 0; i < 3; i++) {
+            panel.add(new JLabel(labels[i]));
+            spinners[i] = (decimalPlaces == 0) ?
+                    GuiUtils.integerSpinner((int) values[i], -10000, 10000, 10, true) :
+                    GuiUtils.doubleSpinner(values[i], -10000, 10000, 10, decimalPlaces);
+            panel.add(spinners[i]);
+        }
+        final int result = JOptionPane.showConfirmDialog(null, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE);
+        if (result == JOptionPane.OK_OPTION) {
+            return SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(),
+                    (Number) spinners[2].getValue());
+        }
+        return null;
+    }
 
 	public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
 		final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
@@ -2689,10 +2737,14 @@ public class GuiUtils {
 		}
 
 		public static JButton undo() {
-			final JButton button = new JButton();
-			makeSmallBorderless(button, GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
-			return button;
+			return undo(null);
 		}
+
+        public static JButton undo(final Action action) {
+            final JButton button = (action == null) ? new JButton() : new JButton(action);
+            makeSmallBorderless(button, GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
+            return button;
+        }
 
 		public static JButton show(final Color color) {
 			final JButton button = new JButton();
@@ -2746,9 +2798,27 @@ public class GuiUtils {
 			return button;
 		}
 
-		public static JButton toolbarButton(final IconFactory.GLYPH glyph, final Color color) {
+        public static JButton toolbarButton(final Action action, final String tooltipText) {
+            final JButton button = new JButton(action);
+            button.setText(null);
+            button.setToolTipText(tooltipText);
+            button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+            return button;
+        }
+
+        public static JToggleButton toolbarToggleButton(final Action action, final String tooltipText,
+                                                        final IconFactory.GLYPH glyph1, final IconFactory.GLYPH glyph2) {
+            final JToggleButton button = new JToggleButton(action);
+            IconFactory.assignIcon(button, glyph1, glyph2);
+            button.setText(null);
+            button.setToolTipText(tooltipText);
+            button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+            return button;
+        }
+
+		public static JButton toolbarButton(final IconFactory.GLYPH glyph, final Color color, final float scalingFactor) {
 			final JButton button = toolbarButton("");
-			IconFactory.assignIcon(button, glyph, color, .9f);
+			IconFactory.assignIcon(button, glyph, color, scalingFactor);
 			return button;
 		}
 

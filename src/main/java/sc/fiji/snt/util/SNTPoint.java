@@ -92,7 +92,7 @@ public interface SNTPoint {
 	 * @param y the Y coordinate
 	 * @param z the Z coordinate
 	 */
-	public static PointInImage of(final double x, double y, double z) {
-		return new PointInImage(x, y, z );
+	public static PointInImage of(final Number x, final Number y, final Number z) {
+		return new PointInImage(x.doubleValue(), y.doubleValue(), z.doubleValue() );
 	}
 }

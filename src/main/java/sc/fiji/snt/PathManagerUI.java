@@ -4235,7 +4235,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		JButton summaryButton() {
-			final JButton sButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CHART_PIE, new Color(0xF8F8F8));
+			final JButton sButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CHART_PIE, new Color(0xF8F8F8), .9f);
 			sButton.setToolTipText("Summarizes applied tags in a donut chart");
 			sButton.setBackground(new Color(0x8F8F8F));
 			sButton.addActionListener(e -> summarizeTags());

@@ -73,7 +73,7 @@
 
 SNT is [ImageJ](https://imagej.net/)'s framework for semi-automated tracing, visualization, quantitative analyses and modeling of neuronal morphology. For tracing, SNT supports modern multidimensional microscopy data, and highly-customizable routines. For data analysis, SNT features advanced visualization tools, access to all major morphology databases, and support for whole-brain circuitry data.
 
-SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related Fiji plugins. **See  [SNT's publication](https://doi.org/10.1038/s41592-021-01105-7)  and [techical notes](./NOTES.md) for details**.
+SNT can be used as a regular application or as a scripting library. Python (through [pyimagej](https://github.com/imagej/pyimagej)) and  all of SciJava's scripting languages are supported. It is distributed with [Fiji](https://imagej.net/Fiji) and supersedes the original [Simple Neurite Tracer](#backwards-compatibility) plug-in. It also incorporates several other neuroanatomy-related Fiji plugins. **See  [SNT's publication](https://doi.org/10.1038/s41592-021-01105-7)  and [technical notes](./NOTES.md) for details**.
 
 ## Overview
 
@@ -128,6 +128,8 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * [Persistent homology-based analyses](https://imagej.net/plugins/snt/analysis#persistence-homology)
 
+* [Growth analysis](https://imagej.net/plugins/snt/analysis#growth-analysis)
+
 * [Root angle analysis](https://imagej.net/plugins/snt/analysis#root-angle-analysis)
 
 * [Sholl](./NOTES.md) and [Horton-Strahler](https://imagej.net/plugins/snt/analysis#strahler-analysis) analyses
@@ -138,7 +140,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
   
 ### Visualization
 
-* Quantitative visualizations: Display neurons color coded by morphometric traits, or neuropil annotations. 
+* Quantitative visualizations: Display neurons color coded by morphometric traits, or neuropil annotations.
 
 * Publication-quality visualizations:  Neuronal reconstructions, diagrams, plots and histograms can be exported as vector graphics
 
@@ -200,11 +202,11 @@ Problems? Have a look at the full [documentation](https://imagej.net/SNT).
 
 Use this button to open the project on the cloud using [Gitpod](https://gitpod.io). No local installation necessary (although project may take a while to load).
 
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/morphonets/SNT) 
+[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/morphonets/SNT)
 
 ### Locally
 
-1. Clone the main branch of this repository (use the green _code_ button above the list of files) 
+1. Clone the main branch of this repository (use the green _code_ button above the list of files)
 
 2. Import the project into an IDE such as [Eclipse](https://www.eclipse.org/downloads/packages/)/[IntelliJ](https://www.jetbrains.com/idea/download/)/[NetBeans](https://netbeans.apache.org/download/index.html):
    - In Eclipse: Run _Import> Existing Maven Projects_ and specify the path to the downloaded `SNT` folder in _Root Directory_
@@ -229,7 +231,7 @@ From a Java IDE:
 - [JUnit tests](./src/test/java/sc/fiji/snt/)
 
 From Fiji's Script Editor:
-- Scripts in the _Templates>Neuroanatomy>_ menu. These are part of the source code and can also be accessed from [Script templates](./src/main/resources/script_templates/Neuroanatomy/) 
+- Scripts in the _Templates>Neuroanatomy>_ menu. These are part of the source code and can also be accessed from [Script templates](./src/main/resources/script_templates/Neuroanatomy/)
 
 From python:
 - [Jupyter notebooks](./notebooks)
@@ -243,7 +245,7 @@ Snippets and code templates:
 
 ## Contributing
 
-Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time. You can also report bugs and propose improvements using the [forum](https://forum.image.sc/tag/snt). Please tag your post using `snt` so that it does not go unnoticed. 
+Want to contribute? Please, please do! We welcome [issues](https://github.com/morphonets/SNT/issues) and [pull requests](https://github.com/morphonets/SNT/pulls) any time. You can also report bugs and propose improvements using the [forum](https://forum.image.sc/tag/snt). Please tag your post using `snt` so that it does not go unnoticed.
 
 ## Thanks To All Contributors
 

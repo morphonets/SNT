@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 
+import net.imagej.ImageJService;
 import org.scijava.Context;
 import org.scijava.Priority;
 import org.scijava.log.LogService;
@@ -67,7 +68,7 @@ import sc.fiji.snt.viewer.Viewer3D;
  *
  */
 @Plugin(type = Service.class, priority = Priority.NORMAL)
-public class SNTService extends AbstractService {
+public class SNTService extends AbstractService implements ImageJService {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
