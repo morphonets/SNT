@@ -24,16 +24,19 @@ package sc.fiji.snt.viewer;
 
 import bdv.tools.HelpDialog;
 import bdv.util.AxisOrder;
+import bdv.viewer.ViewerState;
 import bvv.core.BigVolumeViewer;
 import bvv.core.VolumeViewerFrame;
 import bvv.core.VolumeViewerPanel;
 import bvv.vistools.*;
 import ij.ImagePlus;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.RealPoint;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
+import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
@@ -46,10 +49,7 @@ import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
-import javax.swing.event.ChangeListener;
 import java.awt.*;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.io.File;
 import java.util.*;
 import java.util.List;
@@ -79,13 +79,13 @@ public class Bvv {
     /**
      * Constructor for assembling a BVV instance tethered to SNT.
      *
-     * @param snt the snt instance providing paths and imagery for rendering
+     * @param snt the snt instance providing paths and imagery to be rendered
      */
     public Bvv(final SNT snt) {
         this.snt = snt;
         this.renderedTrees = new HashMap<>();
-        this.renderingOptions = new PathRenderingOptions();
         options = bvv.vistools.Bvv.options();
+        this.renderingOptions = new PathRenderingOptions();
         options.preferredSize(1024, 1024);
         options.frameTitle("SNT BVV");
         options.cacheBlockSize(32); // GPU cache tile size
@@ -113,6 +113,14 @@ public class Bvv {
         }
     }
 
+    /**
+     * Displays the BVV viewer with the specified image.
+     *
+     * @param <T> the numeric type of the image data
+     * @param img the image data to display
+     * @param calibration optional calibration values for x, y, z dimensions. If null, defaults to {1, 1, 1}
+     * @return the BvvSource representing the displayed image
+     */
     public <T extends RealType<T>> BvvSource show(final RandomAccessibleInterval<T> img, final double... calibration) {
         final double[] cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
         final BvvSource source = BvvFunctions.show(img, "SNT Bvv", options.sourceTransform(cal));
@@ -120,6 +128,13 @@ public class Bvv {
         return source;
     }
 
+    /**
+     * Displays the BVV viewer with the specified image.
+     *
+     * @param imp the ImagePlus to display
+     * @return the BvvSource representing the displayed image
+     * @throws IllegalArgumentException if the image type is unsupported (COLOR_256)
+     */
     public BvvSource show(final ImagePlus imp) {
         return showImagePlus(imp);
     }
@@ -172,14 +187,14 @@ public class Bvv {
             pathOverlay.updatePaths();
         }
         final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
-        bvvFrame.getCardPanel().addCard("Camera Controls", cameraPanel(bvvFrame), true);
-        bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(bvv), true);
+        final BvvActions actions = new BvvActions(bvv);
+        bvvFrame.getCardPanel().addCard("Camera Controls",
+                new CameraControls(this, source, pathOverlay.overlayRenderer).getToolbar(actions), true);
+        bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
         SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
     }
 
-    /**
-     * Initializes the path overlay system for drawing traced paths.
-     */
+    /** Initializes the path overlay system for drawing traced paths. */
     private void initializePathOverlay(final BigVolumeViewer bvv) {
         if (pathOverlay != null) {
             pathOverlay.dispose();
@@ -187,15 +202,18 @@ public class Bvv {
         pathOverlay = new PathOverlay(bvv, this);
     }
 
-    private JToolBar sntToolbar(final BigVolumeViewer bvv) {
-        final BvvActions actions = new BvvActions(bvv);
+    private JToolBar sntToolbar(final BvvActions actions) {
         final JToolBar toolbar = new JToolBar();
         toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togggleVisibilityAction(),
-                "Show/hide annotations", IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH));
+                "Show/hide annotations",
+                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH));
+        toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
+                "Restrict display of annotations around cursor",
+                IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE));
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalStrut(10));
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setDefaultColorAction(),
-                "Default annotation color"));
+                "Change default annotation color"));
         toolbar.add(GuiUtils.Buttons.undo(actions.resetDefaultColorAction()));
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setTransparencyAction(),
                 "Change transparency of annotations"));
@@ -215,7 +233,6 @@ public class Bvv {
         toolbar.addSeparator();
         final JButton optionsButton = optionsButton(actions);
         toolbar.add(optionsButton);
-        toolbar.add(Box.createHorizontalStrut(optionsButton.getPreferredSize().width)); // otherwise occluded in card panel
         return toolbar;
     }
 
@@ -223,28 +240,19 @@ public class Bvv {
         final JPopupMenu menu = new JPopupMenu();
         final JButton oButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.OPTIONS));
         oButton.addActionListener(e -> menu.show(oButton, oButton.getWidth() / 2, oButton.getHeight() / 2));
-        GuiUtils.addSeparator(menu, "Actions");
-        menu.add(new JMenuItem(actions.clearAllPathsAction()));
+        menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
+            menu.addSeparator();
             menu.add(new JMenuItem(actions.syncPathManagerAction()));
         }
-        GuiUtils.addSeparator(menu, "Settings");
-        menu.add(new JMenuItem(actions.loadSettingsAction()));
-        menu.add(new JMenuItem(actions.saveSettingsAction()));
-        GuiUtils.addSeparator(menu, "Help");
-        menu.add(new JMenuItem(actions.showHelpAction()));
+        menu.addSeparator();
+        menu.add(new JMenuItem(actions.clearAllPathsAction()));
         return oButton;
-    }
-
-    private JPanel cameraPanel(final VolumeViewerFrame bvvFrame) {
-        final CameraControls controls = new CameraControls(bvvFrame);
-        return controls.createPanel();
     }
 
 
     /**
-     * Adds a Tree to the BVV viewer as overlay paths.
-     * Uses an overlay system similar to BigTrace to draw paths on top of volume data.
+     * Adds a Tree to the viewer as overlay
      *
      * @param tree the Tree to render
      */
@@ -254,12 +262,12 @@ public class Bvv {
 
     /**
      * Script friendly method to add a supported object ({@link Tree},
-     * {@link DirectedWeightedGraph}) to this viewer.
-     * collections of are also supported, which is an effective
-     * way of adding multiple items since the scene is only updated once all items
+     * {@link DirectedWeightedGraph}) to the viewer overlay.
+     * Collections are also supported, which is an effective way of adding
+     * multiple items since the scene is only updated once all items
      * have been added.
      *
-     * @param object the object to be added. No exception is triggered if null
+     * @param object the object to be added. Null objects are ignored
      * @throws IllegalArgumentException if object is not supported
      */
     public void add(final Object object) {
@@ -280,15 +288,15 @@ public class Bvv {
                 tree.setColor(SNTColor.getDistinctColors(1)[0]);
                 addTree(tree, updateScene);
             }
-            case Collection<?> collection -> addCollection(collection);
+            case Collection<?> collection -> addCollection(collection, true);
             default -> throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
         }
     }
 
-    private void addCollection(final Collection<?> collection) {
+    private void addCollection(final Collection<?> collection, final boolean updateView) {
         for (final Object o : collection)
             add(o, false);
-        updateView();
+        if (updateView) syncOverlays();
     }
 
     private void addTree(final Tree tree, final boolean updateScene) {
@@ -297,15 +305,25 @@ public class Bvv {
         }
         final String label = getUniqueLabel(tree);
         renderedTrees.put(label, tree);
-        if (updateScene) updateView();
+        if (updateScene) syncOverlays();
     }
 
-    public void updateView() {
+    /**
+     * Updates the viewer display to reflect changes in rendered trees and paths.
+     * This method should be called after modifying the collection of rendered objects
+     * to ensure the display is synchronized.
+     */
+    public void syncOverlays() {
         if (pathOverlay != null) pathOverlay.updatePaths();
     }
 
-    public VolumeViewerFrame getViewerFrame() {
-        return (currentBvv == null) ? null : currentBvv.getViewerFrame();
+    /**
+     * Forces a repaint of the viewer, updating volume renderings but not overlays.
+     */
+    public void repaint() {
+        if (currentBvv != null) {
+            currentBvv.getViewer().requestRepaint();
+        }
     }
 
     /**
@@ -317,7 +335,7 @@ public class Bvv {
     public boolean removeTree(final String treeLabel) {
         final Tree removedTree = renderedTrees.remove(treeLabel);
         if (removedTree != null && pathOverlay != null) {
-            updateView();
+            syncOverlays();
             return true;
         }
         return false;
@@ -328,7 +346,7 @@ public class Bvv {
      */
     public void clearAllTrees() {
         renderedTrees.clear();
-        updateView();
+        syncOverlays();
     }
 
     private String getUniqueLabel(final Tree tree) {
@@ -346,7 +364,7 @@ public class Bvv {
     }
 
     /**
-     * Gets all currently rendered trees.
+     * Gets all the trees currently rendered.
      *
      * @return collection of rendered trees
      */
@@ -355,16 +373,31 @@ public class Bvv {
     }
 
     /**
-     * Checks if any paths are currently being displayed.
-     *
-     * @return true if paths are being displayed
+     * @return a reference to the viewer's frame.
      */
-    public boolean hasAnnotations() {
-        return !renderedTrees.isEmpty();
+    public VolumeViewerFrame getViewerFrame() {
+        return (currentBvv == null) ? null : currentBvv.getViewerFrame();
     }
 
+    /**
+     * @return a reference to the viewer's options.
+     */
     public BvvOptions getOptions() {
         return options;
+    }
+
+    /**
+     * @return a reference to the underlying BigVolumeViewer instance.
+     */
+    public BigVolumeViewer getViewer() {
+        return currentBvv;
+    }
+
+    /**
+     * @return a reference to the viewer's panel.
+     */
+    public VolumeViewerPanel getViewerPanel() {
+        return (currentBvv == null) ? null : currentBvv.getViewer();
     }
 
     /**
@@ -377,28 +410,42 @@ public class Bvv {
     }
 
     /**
-     * Sets a canvas offset on all currently rendered paths for testing offset functionality.
-     * This allows visual verification that canvas offset translation is working correctly.
+     * Offsets all paths being rendered.
+     * This allows for 'dislodging' paths from their underlying signal without altering their coordinates.
      *
-     * @param offsetX X offset in pixels
-     * @param offsetY Y offset in pixels
-     * @param offsetZ Z offset in pixels
+     * @param offsetX X offset (calibrated distance)
+     * @param offsetY Y offset (calibrated distance)
+     * @param offsetZ Z offset (calibrated distance)
      */
     public void setCanvasOffset(final double offsetX, final double offsetY, final double offsetZ) {
         for (final Tree tree : renderedTrees.values()) {
             tree.applyCanvasOffset(offsetX, offsetY, offsetZ);
         }
-        updateView();
+        syncOverlays();
         renderingOptions.canvasOffset = (offsetX == 0 && offsetY == 0d && offsetZ == 0d) ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
     }
 
     // ---- methods for SNT Bvv instance
-
+    /**
+     * Displays the main tracing data from the associated SNT instance.
+     * This method is only available for BVV instances that are tethered to an SNT instance.
+     *
+     * @return the BvvSource representing the displayed tracing data
+     * @throws IllegalArgumentException if this is a standalone viewer or no valid image data is available
+     */
     @SuppressWarnings("UnusedReturnValue")
     public BvvSource showLoadedData() {
         return displayData(false);
     }
 
+
+    /**
+     * Displays the secondary tracing data from the associated SNT instance.
+     * This method is only available for BVV instances that are tethered to an SNT instance.
+     *
+     * @return the BvvSource representing the displayed secondary data
+     * @throws IllegalArgumentException if this is a standalone viewer or no valid image data is available
+     */
     @SuppressWarnings("UnusedReturnValue")
     public BvvSource showSecondaryData() {
         return displayData(true);
@@ -406,9 +453,9 @@ public class Bvv {
 
     /**
      * Synchronizes the Path Manager contents with BVV display.
-     * Similar to SciViewSNT's syncPathManagerList() method.
      *
      * @return true if synchronization was successful
+     * @throws IllegalArgumentException if this is a standalone viewer not tethered to a SNT instance
      */
     public boolean syncPathManagerList() {
         if (snt == null)
@@ -418,103 +465,151 @@ public class Bvv {
         final Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
         final List<String> existingTreeLabels = trees.stream().map(Tree::getLabel).toList();
         existingTreeLabels.forEach(renderedTrees.keySet()::remove);
-        addCollection(trees);
-        updateView();
+        addCollection(trees, true);
         return true;
     }
 
     /**
-     * Camera controls for BVV viewer.
-     * Encapsulates camera parameter management and UI creation.
+     * Primitive Camera controls and camera parameter management
      */
     private static class CameraControls {
-        private static final double DEFAULT_CAM_DISTANCE = 2000.0;
-        private static final double DEFAULT_CLIP_NEAR = 1000.0;
-        private static final double DEFAULT_CLIP_FAR = 1000.0;
 
-        private final VolumeViewerFrame bvvFrame;
+        private final Bvv bvvInstance;
+        private final OverlayRenderer overlayRenderer;
         private final JSpinner dCamSpinner;
         private final JSpinner nearSpinner;
         private final JSpinner farSpinner;
+        private final ViewerState snapshot;
 
-        CameraControls(final VolumeViewerFrame bvvFrame) {
-            this.bvvFrame = bvvFrame;
-            this.dCamSpinner = GuiUtils.doubleSpinner(DEFAULT_CAM_DISTANCE, DEFAULT_CAM_DISTANCE / 5, DEFAULT_CAM_DISTANCE * 5, DEFAULT_CAM_DISTANCE / 4, 0);
-            this.nearSpinner = GuiUtils.doubleSpinner(DEFAULT_CLIP_NEAR, DEFAULT_CLIP_NEAR / 5, DEFAULT_CLIP_NEAR * 5, DEFAULT_CLIP_NEAR / 4, 0);
-            this.farSpinner = GuiUtils.doubleSpinner(DEFAULT_CLIP_FAR, DEFAULT_CLIP_FAR / 5, DEFAULT_CLIP_FAR * 5, DEFAULT_CLIP_FAR / 4, 0);
+        CameraControls(final Bvv bvvInstance, final BvvSource source, final OverlayRenderer overlayRenderer) {
+            this.bvvInstance = bvvInstance;
+            snapshot = source.getBvvHandle().getViewerPanel().state().snapshot();
+            this.overlayRenderer = overlayRenderer;
+            this.dCamSpinner = GuiUtils.integerSpinner((int) overlayRenderer.dCam, 10, 10000, 50, true);
+            this.nearSpinner = GuiUtils.integerSpinner((int) overlayRenderer.nearClip, 100, 10000, 50, true);
+            this.farSpinner = GuiUtils.integerSpinner((int) overlayRenderer.farClip, 100, 10000, 50, true);
             setupSpinners();
         }
 
-        private void setupSpinners() {
-            final ChangeListener spinnerListener = e -> updateCameraParameters();
-            dCamSpinner.addChangeListener(spinnerListener);
-            nearSpinner.addChangeListener(spinnerListener);
-            farSpinner.addChangeListener(spinnerListener);
+        private double[] defaultCamParams() {
+            return new double[]{2000, 1000, 1000}; // default in BBVOptions: dCam, dClipNear, dClipFar
+        }
 
+        private void setupSpinners() {
+            dCamSpinner.addChangeListener(e -> updateCameraParameters(false));
+            nearSpinner.addChangeListener(e -> updateCameraParameters(true));
+            farSpinner.addChangeListener(e -> updateCameraParameters(true));
             dCamSpinner.setToolTipText("Distance from camera to z=0 plane in physical units");
             nearSpinner.setToolTipText("Near clipping plane in physical units");
             farSpinner.setToolTipText("Distant clipping plane in physical units");
         }
 
-        private void updateCameraParameters() {
-            bvvFrame.getViewerPanel().setCamParams(
-                    (double) dCamSpinner.getValue(),
-                    (double) nearSpinner.getValue(),
-                    (double) farSpinner.getValue()
+        private void updateCameraParameters(final boolean updatePlaneSpinners) {
+            bvvInstance.getViewerFrame().getViewerPanel().setCamParams(
+                    overlayRenderer.dCam = ((Number) dCamSpinner.getValue()).doubleValue(),
+                    overlayRenderer.nearClip = ((Number) nearSpinner.getValue()).doubleValue(),
+                    overlayRenderer.farClip = ((Number) farSpinner.getValue()).doubleValue()
             );
-            bvvFrame.getViewerPanel().requestRepaint();
+            bvvInstance.syncOverlays();
+            if (updatePlaneSpinners) {
+                SwingUtilities.invokeLater(() -> {
+                    nearSpinner.setValue((int) Math.min(overlayRenderer.farClip, overlayRenderer.nearClip));
+                    farSpinner.setValue((int) Math.max(overlayRenderer.farClip, overlayRenderer.nearClip));
+                });
+            }
         }
 
-        private Action createResetCameraDistanceAction() {
-            return new AbstractAction() {
+        private Action resetViewAction() {
+            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    dCamSpinner.setValue(DEFAULT_CAM_DISTANCE);
-                    updateCameraParameters();
+                    bvvInstance.currentBvv.getViewer().state().setViewerTransform(snapshot.getViewerTransform());
+                    SwingUtilities.invokeLater(() -> {
+                        dCamSpinner.setValue(defaultCamParams()[0]);
+                        nearSpinner.setValue(defaultCamParams()[1]);
+                        farSpinner.setValue(defaultCamParams()[2]);
+                    });
+                    updateCameraParameters(false); // will call repaint()
                 }
             };
         }
 
-        private Action createResetNearClipAction() {
+        private Action resetCameraDistanceAction() {
             return new AbstractAction() {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    nearSpinner.setValue(DEFAULT_CLIP_NEAR);
-                    updateCameraParameters();
+                    dCamSpinner.setValue(defaultCamParams()[0]);
+                    updateCameraParameters(false);
                 }
             };
         }
 
-        private Action createResetFarClipAction() {
+        private Action resetNearClipAction() {
             return new AbstractAction() {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    farSpinner.setValue(DEFAULT_CLIP_FAR);
-                    updateCameraParameters();
+                    nearSpinner.setValue(defaultCamParams()[1]);
+                    updateCameraParameters(true);
                 }
             };
         }
 
-        public JPanel createPanel() {
-            final JButton dCamReset = GuiUtils.Buttons.undo(createResetCameraDistanceAction());
-            final JButton nearReset = GuiUtils.Buttons.undo(createResetNearClipAction());
-            final JButton farReset = GuiUtils.Buttons.undo(createResetFarClipAction());
-            final JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, dCamSpinner.getFont().getSize() / 2));
-            panel.add(new JLabel(IconFactory.buttonIcon('\uf1e5', true)));
-            panel.add(dCamSpinner);
-            panel.add(dCamReset);
-            panel.add(new JLabel(IconFactory.buttonIcon('\ue4b8', true)));
-            panel.add(nearSpinner);
-            panel.add(nearReset);
-            panel.add(new JLabel(IconFactory.buttonIcon('\ue4c2', true)));
-            panel.add(farSpinner);
-            panel.add(farReset);
-            return panel;
+        private Action resetFarClipAction() {
+            return new AbstractAction() {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    farSpinner.setValue(defaultCamParams()[2]);
+                    updateCameraParameters(true);
+                }
+            };
+        }
+
+        /**
+         * Creates and returns a toolbar containing camera control components.
+         * The toolbar includes spinners for camera distance, near clipping plane, and far clipping plane,
+         * along with reset buttons and an options menu.
+         *
+         * @param bvvActions the BVV actions instance for accessing additional functionality
+         * @return a configured JToolBar with camera controls
+         */
+        public JToolBar getToolbar(final BvvActions bvvActions) {
+            final JButton dCamReset = GuiUtils.Buttons.undo(resetCameraDistanceAction());
+            final JButton nearReset = GuiUtils.Buttons.undo(resetNearClipAction());
+            final JButton farReset = GuiUtils.Buttons.undo(resetFarClipAction());
+            final JToolBar toolbar = new JToolBar();
+            addSpinnerToToolbar(toolbar, '\uf1e5', dCamSpinner, dCamReset);
+            addSpinnerToToolbar(toolbar, '\ue4b8', nearSpinner, nearReset);
+            addSpinnerToToolbar(toolbar, '\ue4c2', farSpinner, farReset);
+            toolbar.add(Box.createHorizontalGlue());
+            toolbar.addSeparator();
+            toolbar.add(optionsButton(bvvActions));
+            return toolbar;
+        }
+
+        private void addSpinnerToToolbar(final JToolBar toolbar, final char spinnerSolidIcon, final JSpinner spinner, final AbstractButton spinnerButton) {
+            toolbar.add(new JLabel(IconFactory.buttonIcon(spinnerSolidIcon, true)));
+            toolbar.add(Box.createHorizontalStrut(2));
+            toolbar.add(spinner);
+            toolbar.add(spinnerButton);
+            toolbar.add(Box.createHorizontalStrut(10));
+        }
+
+        private JButton optionsButton(final BvvActions actions) {
+            final JPopupMenu menu = new JPopupMenu();
+            final JButton oButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.OPTIONS));
+            oButton.addActionListener(e -> menu.show(oButton, oButton.getWidth() / 2, oButton.getHeight() / 2));
+            GuiUtils.addSeparator(menu, "Restore View");
+            menu.add(new JMenuItem(resetViewAction()));
+            menu.add(new JMenuItem(actions.loadSettingsAction()));
+            menu.add(new JMenuItem(actions.saveSettingsAction()));
+            GuiUtils.addSeparator(menu, "Help");
+            menu.add(new JMenuItem(actions.showHelpAction()));
+            return oButton;
         }
     }
 
     /**
-     * Configuration options for path rendering in BVV.
+     * Configuration options for path rendering.
      * Controls thickness, transparency, and other visual properties.
      */
     public static class PathRenderingOptions {
@@ -523,9 +618,9 @@ public class Bvv {
         private boolean usePathRadius = true;
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
-        private boolean antiAliasing = true;
         private SNTPoint canvasOffset;
         private Color fallbackColor = Color.MAGENTA;
+        private float clippingDistance;
 
         /**
          * Gets the thickness multiplier for path rendering.
@@ -617,47 +712,41 @@ public class Bvv {
             this.maxThickness = Math.max(1.0f, maxThickness);
         }
 
+
         /**
-         * Gets whether anti-aliasing is enabled.
+         * Enables or disables 'clipped visibility' for path overlays.
+         * When enabled, only path nodes within the specified distance from cursor are displayed.
+         * When disabled, paths are always visible regardless of cursor positon
          *
-         * @return true if anti-aliasing is enabled
+         * @param clippingDistance the clippingDistance (in real world units). Set to zero to disable clipping
          */
-        public boolean isAntiAliasing() {
-            return antiAliasing;
+        public void setClippingDistance(final float clippingDistance) {
+            this.clippingDistance = clippingDistance;
         }
 
         /**
-         * Sets whether to enable anti-aliasing for smoother path rendering.
+         * Gets whether 'clipped visibility' is enabled
          *
-         * @param antiAliasing true to enable anti-aliasing
+         * @return true if persistent visibility is enabled
+         * @see #setClippingDistance(float)
          */
-        public void setAntiAliasing(boolean antiAliasing) {
-            this.antiAliasing = antiAliasing;
+        public boolean isClippingEnabled() {
+            return clippingDistance > 0;
         }
     }
 
-    /**
-     * Path overlay class for drawing traced paths on top of BVV volume data.
-     * Inspired by BigTrace's overlay system.
-     */
+    /** Path overlay class for drawing traced paths on top of BVV volume data. */
     private static class PathOverlay {
         private final Bvv sntBvv;
         private final VolumeViewerPanel viewerPanel;
         private final OverlayRenderer overlayRenderer;
 
-         PathOverlay(final BigVolumeViewer bvv, final Bvv sntBvv) {
+        PathOverlay(final BigVolumeViewer bvv, final Bvv sntBvv) {
             this.sntBvv = sntBvv;
-            this.viewerPanel = bvv.getViewer(); // Fix: use bvv parameter directly
-            this.overlayRenderer = new OverlayRenderer(viewerPanel, sntBvv.getRenderingOptions());
+            this.viewerPanel = bvv.getViewer();
             // Add the overlay renderer to the viewer
+            this.overlayRenderer = new OverlayRenderer(viewerPanel, sntBvv.getRenderingOptions());
             viewerPanel.getDisplay().overlays().add(overlayRenderer);
-            // Listen for viewer changes to trigger repaints
-            viewerPanel.addComponentListener(new ComponentAdapter() {
-                @Override
-                public void componentResized(ComponentEvent e) {
-                    viewerPanel.requestRepaint();
-                }
-            });
         }
 
         void disableRendering(final boolean disable) {
@@ -675,7 +764,7 @@ public class Bvv {
             viewerPanel.requestRepaint();
         }
 
-         void dispose() {
+        void dispose() {
             if (viewerPanel != null && overlayRenderer != null) {
                 viewerPanel.getDisplay().overlays().remove(overlayRenderer);
             }
@@ -689,15 +778,18 @@ public class Bvv {
         private final VolumeViewerPanel viewerPanel;
         private final PathRenderingOptions renderingOptions;
         private final AffineTransform3D viewerTransform = new AffineTransform3D();
-        private final double[] worldCoords = new double[3];
-        private final double[] viewerCoords = new double[3];
         private Collection<Tree> trees = new ArrayList<>();
-        private double currentCameraDistance = 2000.0; // Default BVV camera distance
         private boolean hide;
+
+        /* Cached camera parameters: No public setters exist for these!? */
+        private double dCam;
+        private double nearClip;
+        private double farClip;
 
         OverlayRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
             this.renderingOptions = renderingOptions;
+            viewerPanel.setCamParams(dCam = 2000, nearClip = 1000, farClip = 1000); // default in BBVOptions
         }
 
         void updatePaths(final Collection<Tree> trees) {
@@ -708,27 +800,17 @@ public class Bvv {
         public void drawOverlays(final Graphics g) {
             if (trees.isEmpty() || hide) return;
 
-            final Graphics2D g2d = (Graphics2D) g.create();
-
             // Get viewer transform and camera information
             synchronized (viewerTransform) {
                 viewerPanel.state().getViewerTransform(viewerTransform);
-                currentCameraDistance = viewerPanel.getOptionValues().getDCam();
-            }
-            // Apply rendering options
-            if (renderingOptions.isAntiAliasing()) {
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            } else {
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             }
 
-            // Set global transparency if needed
+            final Graphics2D g2d = (Graphics2D) g.create();
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
             if (renderingOptions.getTransparency() < 1.0f) {
                 g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, renderingOptions.getTransparency()));
             }
-
-            // Draw each tree
             for (final Tree tree : trees) {
                 drawTree(g2d, tree);
             }
@@ -741,17 +823,12 @@ public class Bvv {
             }
         }
 
-        private void drawPath(final Graphics2D g2d, final Path path) {
-            if (path.size() < 1) return;
-            // Transform is updated in each BvvPathNode constructor to ensure zoom changes are captured
-            drawPathUsingExistingLogic(g2d, path);
-        }
-
         /**
          * Draws a path using logic similar to Path.drawPathAsPoints() but adapted for BVV 3D-to-2D projection.
          * Supports node colors and color interpolation between nodes.
          */
-        private void drawPathUsingExistingLogic(final Graphics2D g2d, final Path path) {
+        private void drawPath(final Graphics2D g2d, final Path path) {
+            if (path.size() < 1) return;
 
             // Set default path color
             Color defaultPathColor = path.getColor();
@@ -768,19 +845,9 @@ public class Bvv {
 
             for (int i = 0; i < path.size(); i++) {
                 final BvvPathNode currentNode = new BvvPathNode(path, i);
-                // Determine current node color
-                Color currentNodeColor = defaultPathColor;
-                if (hasNodeColors) {
-                    try {
-                        final Color pathNodeColor = path.getNodeColor(i);
-                        if (pathNodeColor != null) {
-                            currentNodeColor = pathNodeColor;
-                        }
-                    } catch (final Exception e) {
-                        // Fallback to default color if node color access fails
-                        SNTUtils.error("Warning: Could not get node color for index " + i, e);
-                    }
-                }
+
+                // Get node color
+                final Color currentNodeColor = getNodeColor(path, i);
 
                 // Draw the node as a sphere if visible
                 if (currentNode.isVisible()) {
@@ -803,15 +870,23 @@ public class Bvv {
             }
         }
 
-        private boolean isPointVisible(final double[] screenCoords) {
-            // Get canvas dimensions for proper visibility check
+        private Color getNodeColor(final Path path, final int nodeIndex) {
+            if (path.hasNodeColors()) {
+                final Color nodeColor = path.getNodeColor(nodeIndex);
+                if (nodeColor != null) return nodeColor;
+            }
+            return path.getColor() != null ? path.getColor() : renderingOptions.fallbackColor;
+        }
+
+        private boolean is2DPositionVisible(final double xScreenCoord, final double yScreenCoord) {
+            // Check if point is within canvas bounds with some margin for large nodes
             final int canvasWidth = viewerPanel.getDisplay().getWidth();
             final int canvasHeight = viewerPanel.getDisplay().getHeight();
-
-            // Check if point is within canvas bounds with some margin for large nodes
             final double margin = 100.0; // Allow margin for nodes that extend beyond canvas
-            return screenCoords[0] >= -margin && screenCoords[0] <= canvasWidth + margin &&
-                    screenCoords[1] >= -margin && screenCoords[1] <= canvasHeight + margin;
+
+            // Early exit for obviously out-of-bounds coordinates
+            if (xScreenCoord < -margin || yScreenCoord < -margin) return false;
+            return !(xScreenCoord > canvasWidth + margin) && !(yScreenCoord > canvasHeight + margin);
         }
 
         @Override
@@ -825,33 +900,28 @@ public class Bvv {
          */
         private class BvvPathNode {
             private final double x, y;
-            private final boolean visible;
             private final double screenRadius;
+            private boolean visible;
 
             BvvPathNode(final Path path, final int index) {
 
                 final PointInImage point = path.getNode(index);
 
-                // Apply canvas offset translation if present
-                // Canvas offset allows paths to be displayed with a visual offset without changing their actual coordinates
+                // Store world coordinates with canvas offset applied (if present). This allows paths
+                // to be displayed with a visual offset without changing their actual coordinates
+                final double[] worldCoords = new double[3];
+                worldCoords[0] = point.x;
+                worldCoords[1] = point.y;
+                worldCoords[2] = point.z;
                 final sc.fiji.snt.util.PointInCanvas canvasOffset = path.getCanvasOffset();
-                double offsetX = 0, offsetY = 0, offsetZ = 0;
                 if (canvasOffset != null) {
-                    offsetX = canvasOffset.x;
-                    offsetY = canvasOffset.y;
-                    offsetZ = canvasOffset.z;
+                    worldCoords[0] += canvasOffset.x;
+                    worldCoords[1] += canvasOffset.y;
+                    worldCoords[2] += canvasOffset.z;
                 }
 
-                // Store world coordinates with canvas offset applied
-                double worldX = point.x + offsetX;
-                double worldY = point.y + offsetY;
-                double worldZ = point.z + offsetZ;
-
                 // Apply viewer transformation (rotation, translation, camera position)
-                worldCoords[0] = worldX;
-                worldCoords[1] = worldY;
-                worldCoords[2] = worldZ;
-
+                final double[] viewerCoords = new double[3];
                 viewerTransform.apply(worldCoords, viewerCoords);
 
                 // Get canvas dimensions for proper centering
@@ -860,23 +930,22 @@ public class Bvv {
                 final double centerX = canvasWidth / 2.0;
                 final double centerY = canvasHeight / 2.0;
 
-                // Apply perspective projection centered around canvas center
-                // BVV uses perspective projection: screen = center + (viewer - center) * (cameraDistance / (cameraDistance + viewerZ))
-                final double perspectiveFactor = currentCameraDistance / (currentCameraDistance + viewerCoords[2]);
+                // Apply perspective projection centered around canvas center. BVV seems to use:
+                // screen = center + (viewer - center) * (cameraDistance / (cameraDistance + viewerZ))
+                final double perspectiveFactor = dCam / (dCam + viewerCoords[2]);
 
                 this.x = centerX + (viewerCoords[0] - centerX) * perspectiveFactor;
                 this.y = centerY + (viewerCoords[1] - centerY) * perspectiveFactor;
-                this.visible = isPointVisible(new double[]{this.x, this.y, viewerCoords[2]});
+                this.visible = is2DPositionVisible(x, y);
 
-                // Debug output (uncomment for debugging)
-                // if (index < 2) {
-                //     System.out.printf("  Centered perspective - viewer(%.1f,%.1f,%.1f) center(%.1f,%.1f) * %.3f -> screen(%.1f,%.1f) canvas=%dx%d\n",
-                //         viewerCoords[0], viewerCoords[1], viewerCoords[2], centerX, centerY, perspectiveFactor, this.x, this.y, canvasWidth, canvasHeight);
-                // }
+                if (visible && renderingOptions.isClippingEnabled()) {
+                    final double[] gPos = new double[3];
+                    viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
+                    visible = Math.abs(worldCoords[2] - gPos[2]) <= renderingOptions.clippingDistance;
+                }
 
                 // Get node radius
-                double radius = getNodeRadius(path, index);
-                this.screenRadius = calculateScreenRadius(radius);
+                this.screenRadius = calculateScreenRadius(getNodeRadius(path, index), viewerCoords[2]);
             }
 
             /**
@@ -921,7 +990,7 @@ public class Bvv {
              * Converts world radius to screen radius using perspective projection.
              * Uses the same perspective factor that's applied to coordinates.
              */
-            double calculateScreenRadius(final double worldRadius) {
+            double calculateScreenRadius(final double worldRadius, final double viewerZcoords) {
                 try {
                     // Extract the scale from the transform matrix
                     final double scaleX = Math.sqrt(
@@ -940,7 +1009,7 @@ public class Bvv {
                     final double avgScale = (scaleX + scaleY) / 2.0;
 
                     // Apply perspective projection (same as coordinates)
-                    final double perspectiveFactor = currentCameraDistance / (currentCameraDistance + viewerCoords[2]);
+                    final double perspectiveFactor = dCam / (dCam + viewerZcoords);
 
                     // Apply both transform scale and perspective to world radius
                     final double screenRadius = worldRadius * avgScale * perspectiveFactor;
@@ -1034,21 +1103,18 @@ public class Bvv {
         }
     }
 
-    /**
-     * Actions for BVV GUI components.
-     * Separates business logic from GUI component creation.
-     */
+    /** Actions for BVV GUI components. */
     private class BvvActions {
         private final BigVolumeViewer bvv;
         private final GuiUtils guiUtils;
 
-        public BvvActions(final BigVolumeViewer bvv) {
+        BvvActions(final BigVolumeViewer bvv) {
             this.bvv = bvv;
             this.guiUtils = new GuiUtils(bvv.getViewerFrame());
         }
 
-        public Action loadSettingsAction() {
-            return new AbstractAction("Load...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
+        Action loadSettingsAction() {
+            return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final File f = guiUtils.getFile(snt.getPrefs().getRecentDir(), "xml");
@@ -1064,8 +1130,8 @@ public class Bvv {
             };
         }
 
-        public Action saveSettingsAction() {
-            return new AbstractAction("Save...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
+        Action saveSettingsAction() {
+            return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final File f = guiUtils.getSaveFile("Save BVV Settings...", snt.getPrefs().getRecentDir(), "xml");
@@ -1081,7 +1147,7 @@ public class Bvv {
             };
         }
 
-        public Action syncPathManagerAction() {
+        Action syncPathManagerAction() {
             return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.REDO)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
@@ -1094,8 +1160,8 @@ public class Bvv {
             };
         }
 
-        public Action clearAllPathsAction() {
-            return new AbstractAction("Remove All Annotations", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
+        Action clearAllPathsAction() {
+            return new AbstractAction("Remove All Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (guiUtils.getConfirmation("Remove all reconstructions? (undoable action)",
@@ -1107,21 +1173,52 @@ public class Bvv {
             };
         }
 
-        public Action togggleVisibilityAction() {
-            return new AbstractAction("Show/hide All Paths", null) {
+        Action importAction() {
+            return new AbstractAction("Import Reconstructions...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (!syncPathManagerList() || pathOverlay == null) {
-                        bvv.getViewer().showMessage("Error: No paths exist or SNT is unavailable");
-                    } else if (e.getSource() instanceof AbstractButton toggleButton) {
-                        pathOverlay.disableRendering(toggleButton.isSelected());
-                        bvv.getViewer().showMessage((pathOverlay.isRenderingEnable()) ? "Annotations visible" : "Annotations hidden");
+                    final File[] files = guiUtils.getReconstructionFiles(snt.getPrefs().getRecentDir());
+                    if (files == null || files.length == 0) return;
+                    int failureCounter = 0;
+                    final ColorRGB[] colors = SNTColor.getDistinctColors(files.length);
+                    for (int i = 0; i < files.length; i++) {
+                        try {
+                            final Collection<Tree> trees = Tree.listFromFile(files[i].getAbsolutePath());
+                            for (final Tree tree : trees) tree.setColor(colors[i]);
+                            addCollection(trees, false);
+                            bvv.getViewer().showMessage(String.format("%s loaded", files[i].getName()));
+                        } catch (final Exception ex) {
+                            bvv.getViewer().showMessage(String.format("%s failed", files[i].getName()));
+                            failureCounter++;
+                        }
+                    }
+                    syncOverlays();;
+                    if (failureCounter > 0) {
+                        guiUtils.error(String.format("%d/%d file(s) successfully imported.", (files.length-failureCounter), files.length));
                     }
                 }
             };
         }
 
-        public Action setTransparencyAction() {
+        Action togggleVisibilityAction() {
+            return new AbstractAction("Show/hide All Annotations") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (pathOverlay == null || pathOverlay.sntBvv.getRenderedTrees().isEmpty()) {
+                        bvv.getViewer().showMessage("No annotations exist.");
+                        return;
+                    }
+                    if (e.getSource() instanceof AbstractButton toggleButton) {
+                        pathOverlay.disableRendering(toggleButton.isSelected());
+                    } else {
+                        pathOverlay.disableRendering(!pathOverlay.isRenderingEnable());
+                    }
+                    bvv.getViewer().showMessage((pathOverlay.isRenderingEnable()) ? "Annotations visible" : "Annotations hidden");
+                }
+            };
+        }
+
+        Action setTransparencyAction() {
             return new AbstractAction("Transparency...", IconFactory.buttonIcon(IconFactory.GLYPH.ADJUST, 1f)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
@@ -1130,17 +1227,18 @@ public class Bvv {
                             (int) (100 - renderingOptions.getTransparency() * 100));
                     if (newValue == null) return;
                     renderingOptions.setTransparency(1 - (float) (newValue) / 100);
-                    updateView();
+                    syncOverlays();
+                    bvv.getViewer().showMessage(String.format("%d%% Transparency", newValue));
                 }
             };
         }
 
-        public Action setCanvasOffsetAction() {
+        Action setCanvasOffsetAction() {
             return new AbstractAction("Annotations Offset...", IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, 1f)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final SNTPoint offset = guiUtils.getCoordinates("Offset (pixels):", "Annotations Offset",
-                            renderingOptions.canvasOffset, 0);
+                    final SNTPoint offset = guiUtils.getCoordinates("Offset (calibrated distances):", "Annotations Offset ",
+                            renderingOptions.canvasOffset, 2);
                     if (offset == null) return;
                     if (offset.getX() == 0 && offset.getY() == 0 && offset.getZ() == 0) {
                         resetCanvasOffsetAction().actionPerformed(e);
@@ -1152,33 +1250,35 @@ public class Bvv {
             };
         }
 
-        public Action setThicknessMultiplierAction() {
+        Action setThicknessMultiplierAction() {
             return new AbstractAction("Thickness Multiplier", IconFactory.buttonIcon('\uf386', true)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final Double multi = guiUtils.getDouble("Thickness multiplier (applied to radii of all annotations):",
-                            "Thickness Multiplier", renderingOptions.thicknessMultiplier);
+                            "Thickness Multiplier", renderingOptions.getThicknessMultiplier());
                     if (multi == null)
                         return;
-                    if (Double.isNaN(multi) || multi < renderingOptions.minThickness || multi > renderingOptions.maxThickness) {
-                        guiUtils.error("Invalid multiplier.");
+                    if (Double.isNaN(multi) || multi < 0.09f || multi > 100f) {
+                        guiUtils.error("Invalid value: Multiplier must be better 0.1× and 100×.");
                     } else {
                         renderingOptions.setThicknessMultiplier(multi.floatValue());
-                        bvv.getViewer().showMessage(String.format("Thickness factor: %.1f×", multi.floatValue()));
+                        bvv.getViewer().showMessage(
+                                (1f==renderingOptions.getThicknessMultiplier())
+                                ? "Thickness factor removed" : String.format("%.1f× Thickness", multi.floatValue()));
                     }
                 }
             };
         }
 
-        public Action setDefaultColorAction() {
+        Action setDefaultColorAction() {
             return new AbstractAction("Default Annotation Color...", IconFactory.buttonIcon(IconFactory.GLYPH.COLOR, 1f)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final Color c = guiUtils.getColor("Default Annotation Color", renderingOptions.fallbackColor, (String[])null);
+                    final Color c = guiUtils.getColor("Default Annotation Color", renderingOptions.fallbackColor, (String[]) null);
                     if (c != null && !c.equals(renderingOptions.fallbackColor)) {
                         // New color choice: refresh panel
                         renderingOptions.fallbackColor = c;
-                        updateView();
+                        syncOverlays();
                     }
                 }
             };
@@ -1189,7 +1289,7 @@ public class Bvv {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     renderingOptions.fallbackColor = Color.MAGENTA;
-                    updateView();
+                    syncOverlays();
                     bvv.getViewer().showMessage("Default color reset");
                 }
             };
@@ -1200,8 +1300,8 @@ public class Bvv {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     renderingOptions.setThicknessMultiplier(1f);
-                    updateView();
-                    bvv.getViewer().showMessage("Thickness factor: 1×");
+                    syncOverlays();
+                    bvv.getViewer().showMessage("Thickness factor removed");
                 }
             };
         }
@@ -1221,13 +1321,44 @@ public class Bvv {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     renderingOptions.setTransparency(1);
-                    updateView();
+                    syncOverlays();
                     bvv.getViewer().showMessage("Transparency reset");
                 }
             };
         }
 
-        public Action showHelpAction() {
+        Action togglePersistentAnnotationsAction() {
+            return new AbstractAction("Toggle Annotations Around Cursor") {
+
+                float lastInputDistance = 100f; // default. presumably 100um
+
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+
+                    if (e.getSource() instanceof AbstractButton toggleButton) {
+                        if (renderingOptions.isClippingEnabled()) { // disable clippingDistance without prompt
+                            lastInputDistance = renderingOptions.clippingDistance;
+                            renderingOptions.clippingDistance = 0;
+                        } else {
+                            final Double newDist = guiUtils.getDouble(
+                                    "<HTMl>Only annotations within this distance from cursor " +
+                                            "(in spatially calibrated units)<br> will be displayed. " +
+                                            "Set it to 0, or cancel this prompt to disable this option.",
+                                    "Annotations Near Cursor",
+                                    lastInputDistance);
+                            lastInputDistance = (newDist == null || newDist < 0 || Double.isNaN(newDist))
+                                    ? 0f : newDist.floatValue();
+                            renderingOptions.clippingDistance = lastInputDistance;
+                        }
+                        toggleButton.setSelected(renderingOptions.isClippingEnabled());
+                    }
+                    bvv.getViewer().showMessage((renderingOptions.isClippingEnabled())
+                            ? "Visibility: Around cursor" : "Visibility: All visible");
+                }
+            };
+        }
+
+        Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {

@@ -2359,9 +2359,9 @@ public class SNTUI extends JDialog {
 	}
 
 	private void initializeBvvFromPrompt() {
-		final String[] choices = new String[] { "Full image", "Only data being traced", "Secondary layer"};
+		final String[] choices = new String[] { "Full image (all channels/frames)", "Only the channel/frame being traced", "Secondary layer"};
 		final String defChoice = plugin.getPrefs().getTemp("bvvChoice", choices[0]);
-		final String choice = guiUtils.getChoice("Render which kind of data?", "Which Image?", choices, defChoice);
+		final String choice = guiUtils.getChoice("Render which kind of data?", "Render Which Image?", choices, defChoice);
 		if (choice == null)
 			return;
 		if (choices[2].equals(choice) && !plugin.isSecondaryDataAvailable()) {

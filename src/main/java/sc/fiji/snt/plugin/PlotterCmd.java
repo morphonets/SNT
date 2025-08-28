@@ -129,7 +129,8 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			resolveInput("tree");
 			statusService.showStatus(
 				"Please select one or more reconstruction files");
-			final File[] files = new GuiUtils().getReconstructionFiles();
+            final File lastDir = (snt == null) ? null : snt.getPrefs().getRecentDir();
+			final File[] files = new GuiUtils().getReconstructionFiles(lastDir);
 			if (files == null) {
 				cancel("");
 				return;

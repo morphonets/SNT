@@ -966,8 +966,9 @@ public class GuiUtils {
 		return chosenFile;
 	}
 
-	public File[] getReconstructionFiles() {
+	public File[] getReconstructionFiles(final File selectedFile) {
 		final JFileChooser fileChooser = getReconstructionFileChooser(null);
+        if (selectedFile != null) fileChooser.setSelectedFile(selectedFile);
 		return (File[])getOpenFileChooserResult(fileChooser);
 	}
 
@@ -1189,6 +1190,7 @@ public class GuiUtils {
 	}
 
 	private String getWrappedText(final JComponent c, final String text) {
+        if (text.startsWith("<")) return text; // <HTML>
 		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
 		final int max = (parent == null) ? 600 : parent.getWidth();
 		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" +

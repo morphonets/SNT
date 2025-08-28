@@ -87,6 +87,7 @@ public class IconFactory {
 			COLOR('\uf53f', true), //
 			COLOR2('\uf5c3', true), //
 			COMMENTS('\uf086', false), //
+            COMPUTER_MOUSE('\uf8cc', true), //
 			CUBES('\uf1b3', true), //
 			EYE_DROPPER('\uf1fb', true), //
 			GLASSES('\uf530', true), //
@@ -143,7 +144,8 @@ public class IconFactory {
 			LIST_ALT('\uf022', true), //
 			LOCK('\uf023', true), //
 			LOCK_OPEN('\uf3c1', true), //
-			MAGIC('\uf0d0', true), //
+            MAGNIFIED_LOCATION('\uf689', true), //
+            MAGIC('\uf0d0', true), //
 			MAP_PIN('\uf276', true), //
 			MARKER('\uf3c5', true), //
 			MASKS('\uf630', true), //
