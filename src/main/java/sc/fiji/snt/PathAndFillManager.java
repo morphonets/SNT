@@ -977,7 +977,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		return trees.stream()
 				.map(tree -> tree.getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT))
 				.distinct()
-				.reduce((a, b) -> null)
+				.reduce((a, b) -> a + ", " + b)
 				.orElse(null);
 	}
 

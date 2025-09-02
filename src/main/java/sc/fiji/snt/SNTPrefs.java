@@ -52,6 +52,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
 	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";
 	public static final String AUTOSAVE_KEY = "tracespath";
+
+    /** Boolean identifiers */
 	private static final int DRAW_DIAMETERS = 1;
 	private static final int SNAP_CURSOR = 2;
 	private static final int REQUIRE_SHIFT_FOR_FORK = 4;
@@ -60,37 +62,35 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final int USE_THREE_PANE = 32;
 	private static final int USE_3D_VIEWER = 64;
 	private static final int FORCE_2D_DISPLAY_CANVAS = 128;
-	// @Deprecated//private static final int LOOK_FOR_OOF = 256;
-	private static final int SHOW_ONLY_SELECTED = 512;
+    private static final int AUTO_LOAD_CT = 256;
+    // Visibility of paths: NB: Do not store the 'hide deselected' preference as it causes
+    // no paths to be displayed at startup when active, which is unexpected for most users
+    private static final int JUST_ACTIVE_CT = 512;
 	private static final int STORE_WIN_LOCATIONS = 1024;
-	// @Deprecated//private static final int JUST_NEAR_SLICES = 1024;
 	private static final int ENFORCE_DEFAULT_PATH_COLORS = 2048;
 	private static final int DEBUG = 4096;
-	// @Deprecated//private static final int LOOK_FOR_TRACES = 8192;
-	private static final int COMPRESSED_XML = 16384;
+    private static final int COMPRESSED_XML = 8192;
 
-	private static final String BOOLEANS = "tracing.snt.booleans";
+    /** Pref keys */
+    private static final int UNSET_PREFS = -1;
+    private static final String BOOLEANS = "tracing.snt.booleans";
 	private static final String SNAP_XY = "tracing.snt.xysnap";
 	private static final String SNAP_Z = "tracing.snt.zsnap";
 	private static final String PATHWIN_LOC = "tracing.snt.pwloc";
 	private static final String FILLWIN_LOC = "tracing.snt.fwloc";
 	private static final String FILTERED_IMG_PATH = "tracing.snt.fipath";
 	private static final String VERSION_CHECK = "tracing.snt.version";
-
-	@Deprecated
-	private static final String LOAD_DIRECTORY_KEY = "tracing.snt.lastdir";
-
+    /** recent directory */
 	private static File recentDir;
+    /** temp preferences (forgotten after the program exits) */
+    private volatile static HashSet<String> tempKeys;
 
 	private final SNT snt;
-	private static final int UNSET_PREFS = -1;
+    private final PrefService prefService;
 	private int currentBooleans;
 	private boolean ij1ReverseSliderOrder;
 	private boolean ij1PointerCursor;
 	private int resFactor3Dcontent = -1;
-	private volatile static HashSet<String> tempKeys;
-
-	private final PrefService prefService;
 
 	/**
 	 * Constructs a new SNTPrefs instance for the specified SNT instance.
@@ -261,24 +261,21 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.setDrawDiameters(getPref(DRAW_DIAMETERS));
 		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
-		snt.setShowOnlySelectedPaths(getPref(SHOW_ONLY_SELECTED), false);
+        snt.setShowOnlyActiveCTposPaths(getPref(JUST_ACTIVE_CT), false);
 		if (!SNTUtils.isDebugMode()) SNTUtils.setDebugMode(getPref(DEBUG));
-		snt.cursorSnapWindowXY = (int) Prefs.get(SNAP_XY, 4);
-		snt.cursorSnapWindowXY = whithinBoundaries(snt.cursorSnapWindowXY,
-			SNT.MIN_SNAP_CURSOR_WINDOW_XY,
-			SNT.MAX_SNAP_CURSOR_WINDOW_XY);
-		snt.cursorSnapWindowZ = (int) Prefs.get(SNAP_Z, 0);
-		snt.cursorSnapWindowZ = whithinBoundaries(snt.cursorSnapWindowZ,
-			SNT.MIN_SNAP_CURSOR_WINDOW_Z,
-			SNT.MAX_SNAP_CURSOR_WINDOW_Z);
-		if (snt.cursorSnapWindowZ > snt.depth) snt.cursorSnapWindowZ = snt.depth;
-		{
-			final String fIpath = Prefs.get(FILTERED_IMG_PATH, null);
-			if (fIpath != null) snt.setSecondaryImage(new File(fIpath));
-		}
+        snt.cursorSnapWindowXY = withinBoundaries(
+                (int) Prefs.get(SNAP_XY, 4),
+                SNT.MIN_SNAP_CURSOR_WINDOW_XY,
+                SNT.MAX_SNAP_CURSOR_WINDOW_XY);
+        snt.cursorSnapWindowZ = withinBoundaries(
+                (int) Prefs.get(SNAP_Z, 0),
+                SNT.MIN_SNAP_CURSOR_WINDOW_Z,
+                Math.min(SNT.MAX_SNAP_CURSOR_WINDOW_Z, snt.depth));
+        final String fIPath = Prefs.get(FILTERED_IMG_PATH, null);
+        if (fIPath != null) snt.setSecondaryImage(new File(fIPath));
 	}
 
-	private int whithinBoundaries(final int value, final int min, final int max) {
+	private int withinBoundaries(final int value, final int min, final int max) {
 		if (value < min) return min;
         return Math.min(value, max);
     }
@@ -317,8 +314,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(SNAP_Z, snt.cursorSnapWindowZ);
 		setPref(DRAW_DIAMETERS, snt.getDrawDiameters());
 		setPref(ENFORCE_DEFAULT_PATH_COLORS, !snt.displayCustomPathColors);
-		setPref(SHOW_ONLY_SELECTED, snt.showOnlySelectedPaths);
-		setPref(DEBUG, SNTUtils.isDebugMode());
+        setPref(JUST_ACTIVE_CT, snt.showOnlyActiveCTposPaths);
+        setPref(AUTO_LOAD_CT, snt.autoCT);
+        setPref(DEBUG, SNTUtils.isDebugMode());
 		Prefs.set(BOOLEANS, currentBooleans);
 		if (isSaveWinLocations()) {
 			final SNTUI rd = snt.getUI();
@@ -485,7 +483,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	private static void clearLegacyPrefs() {
-		Prefs.set(LOAD_DIRECTORY_KEY, null);
+		Prefs.set("tracing.snt.lastdir", null);
 		Prefs.set("tracing.Simple_Neurite_Tracer.drawDiametersXY", null);
 		Prefs.set("tracing.SWCImportOptionsDialog.xOffset", null);
 		Prefs.set("tracing.SWCImportOptionsDialog.yOffset", null);

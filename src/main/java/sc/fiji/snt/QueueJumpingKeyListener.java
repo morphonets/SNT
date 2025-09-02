@@ -118,8 +118,13 @@ class QueueJumpingKeyListener implements KeyListener {
 			waiveKeyPress(e);
 			return;
 		}
-
-		// Handle space key (pan mode) specially
+        // Special case #1: Handle 'hide' key
+        if (e.getKeyCode() == KeyEvent.VK_H && canvas != null) {
+            tracerPlugin.setAnnotationsVisible(false);
+            e.consume();
+            return;
+        }
+        // Special case #2: Handle space key (pan mode)
 		if (e.getKeyCode() == KeyEvent.VK_SPACE) {
 			if (canvas != null) tracerPlugin.panMode = true;
 			waiveKeyPress(e);
@@ -216,9 +221,17 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	@Override
 	public void keyReleased(final KeyEvent e) {
-		if (e.getKeyCode() == KeyEvent.VK_SPACE && canvas != null) { // IJ's pan tool shortcut
-			tracerPlugin.panMode = false;
-		}
+        // Special case #1: Handle 'hide' key
+        if (e.getKeyCode() == KeyEvent.VK_H && canvas != null) {
+            tracerPlugin.setAnnotationsVisible(true);
+            e.consume();
+            return;
+        }
+        // Special case #2: Handle space key (pan mode)
+        if (e.getKeyCode() == KeyEvent.VK_SPACE && canvas != null) {
+            tracerPlugin.panMode = false;
+        }
+
 		for (final KeyListener kl : listeners) {
 			if (e.isConsumed()) break;
 			kl.keyReleased(e);

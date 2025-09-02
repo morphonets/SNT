@@ -303,41 +303,36 @@ public class SNTUI extends JDialog {
 		final JPanel tab3 = InternalUtils.getTab();
 		tab3.setLayout(new GridBagLayout());
 		final GridBagConstraints c3 = GuiUtils.defaultGbc();
-		// c3.insets.left = MARGIN * 2;
+		c3.insets.bottom = InternalUtils.MARGIN;
 		c3.anchor = GridBagConstraints.NORTHEAST;
 		c3.gridwidth = GridBagConstraints.REMAINDER;
 
 		tabbedPane.addTab("3D", tab3);
-		InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
+        final ViewerPanelBuilder viewerPanelBuilder = new ViewerPanelBuilder();
+        InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
 		c3.gridy++;
 		final String msg = "A dedicated OpenGL visualization tool specialized in Neuroanatomy, " +
-				"supporting morphometric annotations, reconstructions and meshes. For " +
-				"performance reasons, some Path Manager changes may need to be synchronized " +
-				"manually from the \"Scene Controls\" menu.";
+				"supporting reconstructions, meshes, morphometric annotations, and multi-species atlases.";
 		tab3.add(GuiUtils.longSmallMsg(msg, tab3), c3);
 		c3.gridy++;
-		tab3.add(reconstructionViewerPanel(), c3);
+		tab3.add(reconstructionViewerPanel(viewerPanelBuilder), c3);
 		c3.gridy++;
 		InternalUtils.addSeparatorWithURL(tab3, "sciview:", true, c3);
 		++c3.gridy;
-		final String msg3 =
-				"Modern 3D visualization framework supporting large image volumes, " +
-						"reconstructions, meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended. " +
-						"For performance reasons, some Path Manager changes may need to be synchronized " +
-						"manually using \"Sync Changes\".";
+		final String msg3 = "Modern 3D visualization framework supporting large image volumes, reconstructions, " +
+						"meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended.";
 		tab3.add(GuiUtils.longSmallMsg(msg3, tab3), c3);
 		c3.gridy++;
-		tab3.add(sciViewerPanel(), c3);
+		tab3.add(sciViewerPanel(viewerPanelBuilder), c3);
 		c3.gridy++;
 		InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", true, c3);
 		++c3.gridy;
 		final String msg4 = "EXPERIMENTAL: Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
 				"capable of GPU volume rendering of images too large to fit into memory. " +
-                "Similarly to sciview, some Path Manager changes may need to be synchronized " +
-                "manually using \"Sync Changes\".";
+                "Discrete graphics card recommended.";
 		tab3.add(GuiUtils.longSmallMsg(msg4, tab3), c3);
 		c3.gridy++;
-		tab3.add(bvvPanel(), c3);
+		tab3.add(bvvPanel(viewerPanelBuilder), c3);
 		c3.gridy++;
 		InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
 		++c3.gridy;
@@ -1399,7 +1394,16 @@ public class SNTUI extends JDialog {
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 		gdb.gridwidth = 1;
 
-		final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at "),
+        final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
+                !plugin.isZoomAllPanesDisabled());
+        registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views",
+                "Options Tab");
+        zoomAllPanesCheckBox
+                .addItemListener(e -> plugin.disableZoomAllPanes(e.getStateChange() == ItemEvent.DESELECTED));
+        viewsPanel.add(zoomAllPanesCheckBox, gdb);
+        ++gdb.gridy;
+
+        final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at "),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
 		registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
 		mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
@@ -1417,15 +1421,6 @@ public class SNTUI extends JDialog {
 			}
 		});
 		viewsPanel.add(mipCS, gdb);
-		++gdb.gridy;
-
-		final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
-				!plugin.isZoomAllPanesDisabled());
-		registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views",
-				"Options Tab");
-		zoomAllPanesCheckBox
-				.addItemListener(e -> plugin.disableZoomAllPanes(e.getStateChange() == ItemEvent.DESELECTED));
-		viewsPanel.add(zoomAllPanesCheckBox, gdb);
 		++gdb.gridy;
 
 		final String bLabel = (plugin.getSinglePane()) ? "Display" : "Rebuild";
@@ -1522,7 +1517,7 @@ public class SNTUI extends JDialog {
 				Stream.of(plugin.getImagePlus(SNT.XY_PLANE), plugin.getImagePlus(SNT.XZ_PLANE), plugin.getImagePlus(SNT.ZY_PLANE))
 						.filter(Objects::nonNull).forEach(ImpUtils::invertLut);
 		});
-		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, InternalUtils.MARGIN, 0));
+		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, InternalUtils.MARGIN, InternalUtils.MARGIN));
 		buttonPanel.add(invertLutButton);
 		buttonPanel.add(rebuildCanvasButton);
 		buttonPanel.add(refreshPanesButton);
@@ -1866,15 +1861,20 @@ public class SNTUI extends JDialog {
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 		miscPanel.add(extraColorsPanel(), gdb);
 		++gdb.gridy;
-		final JCheckBox canvasCheckBox = new JCheckBox("Activate canvas on mouse hovering",
-				plugin.autoCanvasActivation);
-		registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
-				"Options Tab");
-		GuiUtils.addTooltip(canvasCheckBox, "Whether the image window should be brought to front as soon as the mouse "
-				+ "pointer enters it. This may be needed to ensure single key shortcuts work as expected when tracing.");
-		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
-		miscPanel.add(canvasCheckBox, gdb);
-		++gdb.gridy;
+
+        final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
+                plugin.autoCanvasActivation);
+        registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
+                "Options Tab");
+        GuiUtils.addTooltip(canvasCheckBox, """
+                Whether the image window should be brought to front as soon as the mouse pointer enters it.
+                This may be needed to ensure single key shortcuts work as expected when tracing,
+                but may hijack cursor too eagerly from other windows.
+                """);
+        canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
+        miscPanel.add(canvasCheckBox, gdb);
+        ++gdb.gridy;
+
 		final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
 		registerInCommandFinder(askUserConfirmationCheckBox, "Toggle Skip Confirmation Dialogs",
 				"Options Tab");
@@ -2221,10 +2221,41 @@ public class SNTUI extends JDialog {
 		return p;
 	}
 
-	private JPanel reconstructionViewerPanel() {
-		InitViewer3DSystemProperties.init(); // needs to be called as early as possible to be effective
-		openRecViewer = new JButton("Open Reconstruction Viewer");
-		registerInCommandFinder(openRecViewer, null, "3D Tab");
+    /** Inner class to manage 3D viewer panels with consistent styling */
+    private class ViewerPanelBuilder {
+        private static final int PREFERRED_BUTTON_WIDTH = 140;
+        private static final String SYNC_BUTTON_TEXT = "Sync Changes";
+        private static final String SYNC_TOOLTIP = "Refreshes Viewer contents to reflect Path Manager changes";
+
+        private JPanel createViewerPanel(JButton openButton, JButton syncButton) {
+            setStandardButtonSize(openButton);
+            setStandardButtonSize(syncButton);
+            final JPanel panel = new JPanel(new GridBagLayout());
+            final GridBagConstraints gbc = new GridBagConstraints();
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+            gbc.weightx = 0.5;
+            panel.add(openButton, gbc);
+            panel.add(syncButton, gbc);
+            return panel;
+        }
+
+        private void setStandardButtonSize(final JButton button) {
+            final Dimension preferredSize = new Dimension(PREFERRED_BUTTON_WIDTH, button.getPreferredSize().height);
+            button.setPreferredSize(preferredSize);
+            button.setMinimumSize(preferredSize);
+        }
+
+        private JButton createSyncButton(String commandName) {
+            final JButton syncButton = new JButton(SYNC_BUTTON_TEXT);
+            registerInCommandFinder(syncButton, commandName, "3D Tab");
+            syncButton.setToolTipText(SYNC_TOOLTIP);
+            return syncButton;
+        }
+    }
+
+	private JPanel reconstructionViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
+		openRecViewer = new JButton("Open Rec. Viewer");
+		registerInCommandFinder(openRecViewer, "Open Reconstruction Viewer (RV)", "3D Tab");
 		openRecViewer.addActionListener(e -> {
 			if (noPathsError()) return; // otherwise list in RV controls won't update once paths are added
 			class RecWorker extends SwingWorker<Boolean, Object> {
@@ -2246,7 +2277,7 @@ public class SNTUI extends JDialog {
 				protected void done() {
 					try {
 						if (!get())
-							no3DcapabilitiesError("Reconstruction Viewer");
+                            no3DCapabilitiesError("Reconstruction Viewer");
 					} catch (final InterruptedException | ExecutionException e) {
 						guiUtils.error("Unfortunately an error occurred. See Console for details.");
 						e.printStackTrace();
@@ -2263,16 +2294,22 @@ public class SNTUI extends JDialog {
 			}
 		});
 
-		// Build panel
-		final JPanel panel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gdb = new GridBagConstraints();
-		gdb.fill = GridBagConstraints.HORIZONTAL;
-		gdb.weightx = 0.5;
-		panel.add(openRecViewer, gdb);
-		return panel;
+		final JButton syncRecViewer = viewerPanelBuilder.createSyncButton("Sync Reconstruction Viewer");
+		syncRecViewer.addActionListener(e -> {
+			if (recViewer == null || recViewerFrame == null) {
+				guiUtils.error("Reconstruction Viewer is not open.");
+				openRecViewer.setEnabled(true);
+			} else {
+				recViewer.syncPathManagerList();
+				final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "Reconstruction Viewer synchronized";
+				showStatus(msg, true);
+			}
+		});
+
+		return viewerPanelBuilder.createViewerPanel(openRecViewer, syncRecViewer);
 	}
 
-	private JPanel sciViewerPanel() {
+	private JPanel sciViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
 		openSciView = new JButton("Open sciview");
 		registerInCommandFinder(openSciView, null, "3D Tab");
 		openSciView.addActionListener(e -> {
@@ -2292,13 +2329,11 @@ public class SNTUI extends JDialog {
 				}
 			} catch (final Throwable exc) {
 				exc.printStackTrace();
-				no3DcapabilitiesError("sciview");
+                no3DCapabilitiesError("sciview");
 			}
 		});
 
-		svSyncPathManager = new JButton("Sync Changes");
-		registerInCommandFinder(svSyncPathManager, "Sync sciview", "3D Tab");
-		svSyncPathManager.setToolTipText("Refreshes Viewer contents to reflect Path Manager changes");
+		svSyncPathManager = viewerPanelBuilder.createSyncButton("Sync sciview");
 		svSyncPathManager.addActionListener(e -> {
 			if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
 				guiUtils.error("sciview is not open.");
@@ -2310,52 +2345,38 @@ public class SNTUI extends JDialog {
 			}
 		});
 
-		// Build panel
-		final JPanel panel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gdb = new GridBagConstraints();
-		gdb.fill = GridBagConstraints.HORIZONTAL;
-		gdb.weightx = 0.5;
-		panel.add(openSciView, gdb);
-		panel.add(svSyncPathManager, gdb);
-		return panel;
+		return viewerPanelBuilder.createViewerPanel(openSciView, svSyncPathManager);
 	}
 
-	private JPanel bvvPanel() {
-        final JButton openBVV = new JButton("Open BVV");
-        if (openSciView != null) openBVV.setPreferredSize(openSciView.getPreferredSize());
-        registerInCommandFinder(openBVV, null, "3D Tab");
-        openBVV.addActionListener(e -> {
-            if (!plugin.accessToValidImageData()) {
-                noValidImageDataError();
-            } else if (plugin.is2D()) {
-                error("Current image has no depth: BVV can only render three-dimensional images.");
-            } else {
-                initializeBvvFromPrompt();
-            }
-        });
-        final JButton syncBVV = new JButton("Sync Changes");
-        if (svSyncPathManager != null) openBVV.setPreferredSize(svSyncPathManager.getPreferredSize());
-        registerInCommandFinder(syncBVV, null, "3D Tab");
-        syncBVV.setToolTipText("Refreshes Viewer contents to reflect Path Manager changes");
-        syncBVV.addActionListener(e -> {
-            if (bvvSNT == null) {
-                guiUtils.error("Big Volume Viewer is not open.");
-                openBVV.setEnabled(true);
-            } else {
-                bvvSNT.syncPathManagerList();
-                final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "BVV synchronized";
-                showStatus(msg, true);
-            }
-        });
-
-        // Build panel
-        final JPanel panel = new JPanel(new GridBagLayout());
-        final GridBagConstraints gdb = new GridBagConstraints();
-        gdb.fill = GridBagConstraints.HORIZONTAL;
-        gdb.weightx = 0.5;
-        panel.add(openBVV, gdb);
-        panel.add(syncBVV, gdb);
-        return panel;
+	private JPanel bvvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
+		final JButton openBVV = new JButton("Open BVV");
+		registerInCommandFinder(openBVV, "Open Big Volume Viewer (BVV)", "3D Tab");
+		openBVV.addActionListener(e -> {
+			if (!plugin.accessToValidImageData()) {
+				noValidImageDataError();
+			} else if (plugin.is2D()) {
+				error("Current image has no depth: BVV can only render three-dimensional images.");
+			} else {
+                try {
+                    initializeBvvFromPrompt();
+                } catch (final Throwable exc) {
+                    exc.printStackTrace();
+                    no3DCapabilitiesError("BVV");
+                }
+			}
+		});
+		final JButton syncBVV = viewerPanelBuilder.createSyncButton("Sync Big Volume Viewer");
+		syncBVV.addActionListener(e -> {
+			if (bvvSNT == null) {
+				guiUtils.error("Big Volume Viewer is not open.");
+				openBVV.setEnabled(true);
+			} else {
+				bvvSNT.syncPathManagerList();
+				final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "BVV synchronized";
+				showStatus(msg, true);
+			}
+		});
+		return viewerPanelBuilder.createViewerPanel(openBVV, syncBVV);
 	}
 
 	private void initializeBvvFromPrompt() {
@@ -2398,12 +2419,10 @@ public class SNTUI extends JDialog {
 		}
 	}
 
-	private void no3DcapabilitiesError(final String viewer) {
-		SwingUtilities.invokeLater(() -> {
-			guiUtils.error(viewer + " could not be initialized. Your installation seems "
-				+ "to be missing essential 3D libraries. Please use the updater to install any "
-				+ "missing files. See Console for details.", "Error: Dependencies Missing");
-		});
+	private void no3DCapabilitiesError(final String viewer) {
+		SwingUtilities.invokeLater(() -> guiUtils.error(viewer + " could not be initialized. Your installation seems "
+            + "to be missing essential 3D libraries. Please use the updater to install any "
+            + "missing files. See Console for details.", "Error: Dependencies Missing"));
 	}
 
 	private void registerInCommandFinder(final AbstractButton button, final String recordedString,
@@ -2894,7 +2913,7 @@ public class SNTUI extends JDialog {
 		restartMenuItem.addActionListener( e -> {
 			CommandService cmdService = plugin.getContext().getService(CommandService.class);
 			exitRequested();
-			if (SNTUtils.getPluginInstance() == null) { // exit successful
+			if (SNTUtils.getInstance() == null) { // exit successful
 				PrefsCmd.wipe();
 				SNTPrefs.setFirstRunAfterUpdate(false);
 				cmdService.run(SNTLoaderCmd.class, true);
@@ -3006,7 +3025,8 @@ public class SNTUI extends JDialog {
 		utilitiesMenu.add(commandFinder.getMenuItem(false));
 		utilitiesMenu.addSeparator();
 		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
-		compareFiles.setToolTipText("Statistical comparisons between cell groups or individual files");
+		compareFiles.setToolTipText("Statistical comparisons (t-test/ANOVA) between cell groups " +
+                "or direct comparison between two files");
 		compareFiles.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BINOCULARS));
 		utilitiesMenu.add(compareFiles);
 		compareFiles.addActionListener(e -> {
@@ -3324,7 +3344,7 @@ public class SNTUI extends JDialog {
 		partsNearbyCSpinner.getSpinner().addChangeListener(e -> plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue()));
 
 		final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-		onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel("3. Only paths from active channel/frame", "3"));
+		onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel("3. Only paths from active channel/frame", "3"), plugin.showOnlyActiveCTposPaths);
 		row3.add(onlyActiveCTposition);
 		onlyActiveCTposition.addItemListener(listener);
 
@@ -4662,12 +4682,6 @@ public class SNTUI extends JDialog {
 			showStatus("Command terminated...", false);
 			if (run && preRunState != SNTUI.this.getState())
 				changeState(preRunState);
-		}
-	}
-
-	private static class InitViewer3DSystemProperties extends Viewer3D {
-		static void init() {
-			workaroundIntelGraphicsBug();
 		}
 	}
 

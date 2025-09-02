@@ -1077,21 +1077,15 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void justDisplayNearSlices(final boolean value, final int eitherSide) {
-
 		getXYCanvas().just_near_slices = value;
-		if (!single_pane) {
+        getXYCanvas().eitherSide = eitherSide;
+        if (!single_pane) {
 			getXZCanvas().just_near_slices = value;
 			getZYCanvas().just_near_slices = value;
-		}
-
-		getXYCanvas().eitherSide = eitherSide;
-		if (!single_pane) {
-			getXZCanvas().eitherSide = eitherSide;
-			getZYCanvas().eitherSide = eitherSide;
-		}
-
+            getXZCanvas().eitherSide = eitherSide;
+            getZYCanvas().eitherSide = eitherSide;
+        }
 		updateTracingViewers(false);
-
 	}
 
 	protected boolean uiReadyForModeChange() {
@@ -3377,6 +3371,20 @@ public class SNT extends MultiDThreePanes implements
 	protected void toggleSnapCursor() {
 		enableSnapCursor(!snapCursor);
 	}
+
+    /**
+     * Enables/Disables SNT overlays over tracing views.
+     * Note that disabling overlays will also suppress most GUI-related operations.
+     *
+     * @param visible whether overlays should be rendered
+     */
+    public synchronized void setAnnotationsVisible(final boolean visible) {
+        // We are recycling the 'headless' flag. Most GUI-related updates will be suppressed
+        getPathAndFillManager().enableUIupdates = visible;
+        if (xy_canvas != null) xy_canvas.repaint();
+        if (xz_canvas != null) xz_canvas.repaint();
+        if (zy_canvas != null) zy_canvas.repaint();
+    }
 
 	/**
 	 * Enables SNT's XYZ snap cursor feature. Does nothing if no image data is

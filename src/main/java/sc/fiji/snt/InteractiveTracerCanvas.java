@@ -107,22 +107,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final AListener listener = new AListener();
 		pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
 		pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK)));
-		final JMenuItem selectByRoi = new JMenuItem("Select Paths by 2D ROI");
-		selectByRoi.addActionListener( e -> {
-			if (pathAndFillManager.size() == 0) {
-				getGuiUtils().error("There are no traced paths.", "Nothing to Select");
-				return;
-			}
-			if (getImage().getRoi() != null && selectPathsByRoi()) {
-				return; // a ROI existed, and we successfully used it to select paths
-			} else {
-				// User still has to create ROI
-				waitingForRoiDrawing = true;
-				if (unsuitableToolForRoiSelection()) IJ.setTool("freehand");
-				getGuiUtils().tempMsg("Draw ROI around paths to be selected. Current tool: " + IJ.getToolName());
-			}
-		});
-		pMenu.add(selectByRoi);
+        final JMenuItem selectByRoi = getSelectRoiMenuItem();
+        pMenu.add(selectByRoi);
+        pMenu.add(menuItem(AListener.HIDE_ALL, listener, KeyEvent.VK_H));
 		pMenu.addSeparator();
 		pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK)));
 		pMenu.addSeparator();
@@ -162,22 +149,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		pMenu.add(jmi);
 		pMenu.addSeparator();
 
-		final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
-		final boolean[] firstTimeCallingCountSpines = {true};
-		countSpines.addActionListener(e -> {
-			if (getPlane() != MultiDThreePanes.XY_PLANE) {
-				getGuiUtils().error("Currently, counting Spine/Varicosities is only supported on main view.");
-				return;
-			}
-			if (!isEventsDisabled())
-				tracerPlugin.pause(true, true); // FIXME: We should support counting on side panes too
-			if (isEventsDisabled()) { // plugin successfully paused
-				IJ.setTool("multipoint");
-				if (firstTimeCallingCountSpines[0]) showHelpOnCountingSpines();
-				firstTimeCallingCountSpines[0] = false;
-			}
-		});
-		pMenu.add(countSpines);
+        pMenu.add(getCountSpinesMenuItem());
 		pMenu.add(menuItem(AListener.START_SHOLL, listener, 
 				KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
 		pMenu.addSeparator();
@@ -203,10 +175,47 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE);
 		togglePauseSNTMenuItem.addItemListener(listener);
 		pMenu.add(togglePauseSNTMenuItem);
-
 	}
 
-	private void showPopupMenu(final int x, final int y) {
+    private JMenuItem getSelectRoiMenuItem() {
+        final JMenuItem selectByRoi = new JMenuItem("Select Paths by 2D ROI");
+        selectByRoi.addActionListener( e -> {
+            if (pathAndFillManager.size() == 0) {
+                getGuiUtils().error("There are no traced paths.", "Nothing to Select");
+                return;
+            }
+            if (getImage().getRoi() != null && selectPathsByRoi()) {
+                return; // a ROI existed, and we successfully used it to select paths
+            } else {
+                // User still has to create ROI
+                waitingForRoiDrawing = true;
+                if (unsuitableToolForRoiSelection()) IJ.setTool("freehand");
+                getGuiUtils().tempMsg("Draw ROI around paths to be selected. Current tool: " + IJ.getToolName());
+            }
+        });
+        return selectByRoi;
+    }
+
+    private JMenuItem getCountSpinesMenuItem() {
+        final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
+        final boolean[] firstTimeCallingCountSpines = {true};
+        countSpines.addActionListener(e -> {
+            if (getPlane() != MultiDThreePanes.XY_PLANE) {
+                getGuiUtils().error("Currently, counting Spine/Varicosities is only supported on main view.");
+                return;
+            }
+            if (!isEventsDisabled())
+                tracerPlugin.pause(true, true); // FIXME: We should support counting on side panes too
+            if (isEventsDisabled()) { // plugin successfully paused
+                IJ.setTool("multipoint");
+                if (firstTimeCallingCountSpines[0]) showHelpOnCountingSpines();
+                firstTimeCallingCountSpines[0] = false;
+            }
+        });
+        return countSpines;
+    }
+
+    private void showPopupMenu(final int x, final int y) {
 		final Path activePath = tracerPlugin.getSingleSelectedPath();
 		final boolean be = uiReadyForModeChange(SNTUI.EDITING);
 		extendPathMenuItem.setText(
@@ -355,7 +364,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_HELP);
 		helpItem.addActionListener(e -> {
 			final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
-			tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but 
+			tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but
 													  // ensures the help dialog will maintain its frontmost state
 			getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_HELP, false)
 					.addWindowListener(new WindowAdapter() {
@@ -829,6 +838,20 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		toggleEditModeMenuItem.doClick();
 	}
 
+    private void hideAllPaths() {
+        tracerPlugin.setAnnotationsVisible(false);
+        final Timer timer = new Timer(500, ae -> tracerPlugin.setAnnotationsVisible(true));
+        timer.setRepeats(false);
+        if (!tracerPlugin.getPrefs().getTemp("h-key-skipnag", false)) {
+            final Boolean skipNag = getGuiUtils().getPersistentWarning("""
+                                    This action is more easily triggered using its hotkey:
+                                    Paths remain hidden when "H" is pressed and become visible once "H" is released.
+                                    """, "Keyboard Operation");
+            if (skipNag != null) tracerPlugin.getPrefs().setTemp("h-key-skipnag", skipNag);
+        }
+        timer.start();
+    }
+
 	protected void bookmarkCursorLocation() {
 		final int[] p = new int[3];
 		tracerPlugin.findPointInStack((int) Math.round(last_x_in_pane_precise), (int) Math.round(last_y_in_pane_precise), plane, p);
@@ -876,8 +899,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 	/** This class implements ActionListeners for InteractiveTracerCanvas's contextual menu. */
 	private class AListener implements ActionListener, ItemListener {
 
-		/* Listed shortcuts are specified in QueueJumpingKeyListener */
-		private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
+        /* Listed shortcuts are specified in QueueJumpingKeyListener */
+        private static final String HIDE_ALL = "Hide All Paths";
+        private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
 		private static final String FORK_NEAREST = "Fork at Nearest Node";
 		private static final String BOOKMARK_CURSOR = "Bookmark Cursor Position";
 		private static final String SELECT_NEAREST = "Select Nearest Path";
@@ -917,118 +941,176 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
-			if (e.getSource() == extendPathMenuItem) {
-
-				if (tracerPlugin.tracingHalted) {
-					getGuiUtils().tempMsg("Tracing functions currently disabled");
-					return;
-				} else if (pathAndFillManager.size() == 0) {
-					getGuiUtils().tempMsg("There are no finished paths to extend");
-					return;
-				} else if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
-					getGuiUtils().tempMsg(
-						"Please finish current operation before extending path");
+			try {
+				// Handle special case of extend path menu item
+				if (e.getSource() == extendPathMenuItem) {
+					handleExtendPath();
 					return;
 				}
-				final Path activePath = tracerPlugin.getSingleSelectedPath();
-				if (activePath == null) {
-					getGuiUtils().tempMsg(
-						"No path selected. Please select a single path to be extended");
+				// Handle all other commands by action command string
+				final String command = e.getActionCommand();
+				if (command == null) {
+					SNTUtils.error("Received action event with null command: " + e);
 					return;
 				}
-				tracerPlugin.replaceCurrentPath(activePath);
-				return;
-
-			}
-
-			else if (e.getActionCommand().equals(BOOKMARK_CURSOR)) {
-				bookmarkCursorLocation();
-				return;
-			}
-
-			else if (e.getActionCommand().equals(CLICK_AT_MAX)) {
-				clickAtMaxPoint(false);
-				return;
-			}
-			else if (e.getActionCommand().startsWith(FORK_NEAREST)) {
-
-				if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
-					getGuiUtils().tempMsg(
-						"Please finish current operation before creating branch");
+				// Dispatch to appropriate handler based on command type
+				if (handleGeneralCommands(command, e)) {
 					return;
 				}
-				else if (pathAndFillManager.size() == 0) {
-					getGuiUtils().tempMsg(
-						"There are no finished paths to branch out from");
+				if (handleEditCommands(command)) {
 					return;
 				}
-				selectNearestPathToMousePointer(false);
-				tracerPlugin.mouseMovedTo(last_x_in_pane_precise,
-					last_y_in_pane_precise, plane, true, true);
-				tracerPlugin.clickForTrace(last_x_in_pane_precise,
-					last_y_in_pane_precise, plane, true);
-				return;
+				// If we reach here, the command was not recognized
+				SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
 
+			} catch (Exception ex) {
+				SNTUtils.error("Error handling action event: " + ex.getMessage());
+				ex.printStackTrace();
 			}
-			else if (e.getActionCommand().equals(SELECT_NEAREST)) {
-				final boolean add = ((e.getModifiers() & ActionEvent.SHIFT_MASK) > 0);
-				selectNearestPathToMousePointer(add);
-				return;
-			}
-			else if (e.getActionCommand().equals(APPEND_NEAREST)) {
-				selectNearestPathToMousePointer(true);
-				return;
-			}
-			else if (e.getActionCommand().equals(START_SHOLL)) {
-				if (pathAndFillManager.size() == 0) {
-					getGuiUtils().error("There are no traced paths.");
-					return;
-				}
-				startShollAnalysis();
-				return;
-			}
-			else if (impossibleEdit(true)) return;
+		}
 
-			// EDIT Commands below
-			if (e.getActionCommand().startsWith(NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX)) {
-				connectEditingPathToPreviousEditingPath();
+		/** Handles the extend path menu item action. */
+		private void handleExtendPath() {
+			if (tracerPlugin.tracingHalted) {
+				getGuiUtils().tempMsg("Tracing functions currently disabled");
 				return;
 			}
-			switch (e.getActionCommand()) {
-				case NODE_RESET:
-					tracerPlugin.getEditingPath().setEditableNode(-1);
-					break;
-				case NODE_DELETE:
-					deleteEditingNode(true);
-					break;
-				case NODE_INSERT:
-					appendLastCanvasPositionToEditingNode(true);
-					break;
-				case NODE_LOCK:
-					toggleEditingNode(true);
-					break;
-				case NODE_MOVE:
-					moveEditingNodeToLastCanvasPosition(true);
-					break;
-				case NODE_RADIUS:
-					assignRadiusToEditingNode(true);
-					break;
-				case NODE_COLOR:
-					assignColorToEditingNode();
-					break;
-				case NODE_MOVE_Z:
-					assignLastCanvasZPositionToEditNode(true);
-					break;
-				case NODE_SET_ROOT:
-					assignTreeRootToEditingNode(true);
-					break;
-				case NODE_SPLIT:
-					splitTreeAtEditingNode(true);
-					break;
+			if (pathAndFillManager.size() == 0) {
+				getGuiUtils().tempMsg("There are no finished paths to extend");
+				return;
+			}
+			if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
+				getGuiUtils().tempMsg("Please finish current operation before extending path");
+				return;
+			}
+			final Path activePath = tracerPlugin.getSingleSelectedPath();
+			if (activePath == null) {
+				getGuiUtils().tempMsg("No path selected. Please select a single path to be extended");
+				return;
+			}
+			tracerPlugin.replaceCurrentPath(activePath);
+		}
+
+		/**
+		 * Handles general (non-edit) commands.
+		 * @param command The action command string
+		 * @param e The original action event
+		 * @return true if the command was handled, false otherwise
+		 */
+		private boolean handleGeneralCommands(final String command, final ActionEvent e) {
+			switch (command) {
+				case HIDE_ALL:
+					hideAllPaths();
+					return true;
+				case BOOKMARK_CURSOR:
+					bookmarkCursorLocation();
+					return true;
+				case CLICK_AT_MAX:
+					clickAtMaxPoint(false);
+					return true;
+				case SELECT_NEAREST:
+					final boolean addToSelection = (e.getModifiers() & ActionEvent.SHIFT_MASK) > 0;
+					selectNearestPathToMousePointer(addToSelection);
+					return true;
+				case APPEND_NEAREST:
+					selectNearestPathToMousePointer(true);
+					return true;
+				case START_SHOLL:
+					return handleStartSholl();
 				default:
-					SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+					// Check for commands that start with specific prefixes
+					if (command.startsWith(FORK_NEAREST)) {
+						return handleForkNearest();
+					}
+					return false;
+			}
+		}
+
+		private boolean handleStartSholl() {
+			if (pathAndFillManager.size() == 0) {
+				getGuiUtils().error("There are no traced paths.");
+				return true; // Command was handled, even if it failed
+			}
+			startShollAnalysis();
+			return true;
+		}
+
+		private boolean handleForkNearest() {
+			if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
+				getGuiUtils().tempMsg("Please finish current operation before creating branch");
+				return true;
+			}
+			if (pathAndFillManager.size() == 0) {
+				getGuiUtils().tempMsg("There are no finished paths to branch out from");
+				return true;
+			}
+			selectNearestPathToMousePointer(false);
+			tracerPlugin.mouseMovedTo(last_x_in_pane_precise, last_y_in_pane_precise, plane, true, true);
+			tracerPlugin.clickForTrace(last_x_in_pane_precise, last_y_in_pane_precise, plane, true);
+			return true;
+		}
+
+		/**
+		 * Handles edit-related commands.
+		 * @param command The action command string
+		 * @return true if the command was handled, false otherwise
+		 */
+		private boolean handleEditCommands(final String command) {
+			// Check for connection command first
+			if (command.startsWith(NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX)) {
+				connectEditingPathToPreviousEditingPath();
+				return true;
 			}
 
+			// For all other edit commands, check if editing is possible
+			if (impossibleEdit(true)) {
+				return true; // Command was handled (by showing error message)
+			}
+
+			// Handle specific edit commands
+            return switch (command) {
+                case NODE_RESET -> {
+                    tracerPlugin.getEditingPath().setEditableNode(-1);
+                    yield true;
+                }
+                case NODE_DELETE -> {
+                    deleteEditingNode(true);
+                    yield true;
+                }
+                case NODE_INSERT -> {
+                    appendLastCanvasPositionToEditingNode(true);
+                    yield true;
+                }
+                case NODE_LOCK -> {
+                    toggleEditingNode(true);
+                    yield true;
+                }
+                case NODE_MOVE -> {
+                    moveEditingNodeToLastCanvasPosition(true);
+                    yield true;
+                }
+                case NODE_RADIUS -> {
+                    assignRadiusToEditingNode(true);
+                    yield true;
+                }
+                case NODE_COLOR -> {
+                    assignColorToEditingNode();
+                    yield true;
+                }
+                case NODE_MOVE_Z -> {
+                    assignLastCanvasZPositionToEditNode(true);
+                    yield true;
+                }
+                case NODE_SET_ROOT -> {
+                    assignTreeRootToEditingNode(true);
+                    yield true;
+                }
+                case NODE_SPLIT -> {
+                    splitTreeAtEditingNode(true);
+                    yield true;
+                }
+                default -> false; // Command not recognized as an edit command
+            };
 		}
 	}
 
@@ -1090,8 +1172,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
 											 // in a forked path
 			tracerPlugin.getPathAndFillManager().deletePath(editingPath);
 			if (rebuild) tracerPlugin.getPathAndFillManager().rebuildRelationships();
-			//tracerPlugin.detectEditingPath();
-//			enableEditMode(false);
 			tracerPlugin.setEditingPath(null);
 			tracerPlugin.updateAllViewers();
 		}

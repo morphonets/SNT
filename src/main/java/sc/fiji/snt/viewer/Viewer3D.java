@@ -278,7 +278,6 @@ public class Viewer3D {
 		SNTUtils.log("Initializing Viewer3D...");
 		ENGINE = engine;
 		if (Engine.JOGL == engine || Engine.OFFSCREEN == engine) {
-			workaroundIntelGraphicsBug();
 			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
 			Settings.getInstance().setHardwareAccelerated(true);
 		}
@@ -352,17 +351,6 @@ public class Viewer3D {
 		context.inject(this);
 		prefs.setPreferences();
 		cmdFinder = new SNTCommandFinder(this);
-	}
-
-	protected static void workaroundIntelGraphicsBug() { // FIXME: This should go away with jogl 2.40?
-		/*
-		 * In a fresh install of ubuntu 20.04 displaying a 3DViewer triggers a
-		 * ```com.jogamp.opengl.GLException: Profile GL4bc is not available on
-		 * X11GraphicsDevice (...)``` The workaround discussed here works:
-		 * https://github.com/processing/processing/issues/5476. Since it has no
-		 * (apparent) side effects, we'll use it here for all platforms
-		 */
-		System.setProperty("jogl.disable.openglcore", System.getProperty("jogl.disable.openglcore", "false"));
 	}
 
 	/**

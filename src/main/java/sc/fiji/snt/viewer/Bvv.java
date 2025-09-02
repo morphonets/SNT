@@ -1192,7 +1192,7 @@ public class Bvv {
                             failureCounter++;
                         }
                     }
-                    syncOverlays();;
+                    syncOverlays();
                     if (failureCounter > 0) {
                         guiUtils.error(String.format("%d/%d file(s) successfully imported.", (files.length-failureCounter), files.length));
                     }
