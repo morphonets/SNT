@@ -84,21 +84,25 @@ public class SNTUtils {
 	private static final String TIMESTAMP_PATTERN = "'_D'yyyy-MM-dd'T'HH-mm-ss";
 	private static final String TIMESTAMP_REGEX = "(.+?)_D(\\d{4}-\\d{2}-\\d{2})T(\\d{2}-\\d{2}-\\d{2})";
 	private static Context context;
-	private static LogService logService;
+	private static volatile LogService logService;  // Make volatile for thread safety
 
 	public static final String VERSION = getVersion();
 
-	private static boolean initialized;
+	private static volatile boolean initialized;  // Make volatile for thread safety
 	private static SNT plugin;
 	private static HashMap<Integer, Viewer3D> viewerMap;
 
 	private SNTUtils() {}
 
-	private static synchronized void initialize() {
+	private static void initialize() {
 		if (initialized) return;
-		if (context == null) getContext();
-		if (logService == null) logService = context.getService(LogService.class);
-		initialized = true;
+		
+		synchronized (SNTUtils.class) { // Double-checked locking pattern for thread safety
+			if (initialized) return;
+			if (context == null) getContext();
+            logService = context.getService(LogService.class);
+            initialized = logService != null;
+		}
 	}
 
 	public static String getReadableVersion() {
@@ -145,16 +149,20 @@ public class SNTUtils {
 	}
 
 	public static synchronized void error(final String string) {
-		if (SNTUtils.isDebugMode()) nonDebugError(string);
-	}
+        if (!initialized) initialize();
+        logService.error("[SNT] " + string);
+    }
 
 	protected static void setPlugin(final SNT plugin) {
-		SNTUtils.plugin = plugin;
-		if (plugin == null) { // dispose resources
-			context = null;
-			logService = null;
-		} else if (context == null)
-			setContext(plugin.getContext());
+		synchronized (SNTUtils.class) {
+			SNTUtils.plugin = plugin;
+			if (plugin == null) { // dispose resources
+				context = null;
+				logService = null;
+				initialized = false;  // Reset initialization state when disposing
+			} else if (context == null)
+				setContext(plugin.getContext());
+		}
 	}
 
 	/**
@@ -169,17 +177,10 @@ public class SNTUtils {
 		return plugin;
 	}
 
-	protected static synchronized void nonDebugError(final String string) {
-		if (!initialized) initialize();
-		logService.error("[SNT] " + string);
-	}
-
-	public static synchronized void error(final String string,
-		final Throwable t)
-	{
+	public static synchronized void error(final String string, final Throwable t)  {
 		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
-		if ( t == null) 
+		if (t == null) 
 			logService.error("[SNT] " + string);
 		else
 			logService.error("[SNT] " + string, t);
@@ -471,9 +472,8 @@ public class SNTUtils {
 			try {
 				if (p.matcher(candidate.getName()).find())
 					copies.add(candidate);
-			} catch (final Exception ignored) {
-				// do nothing
-				ignored.printStackTrace();
+			} catch (final Exception ex) {
+                ex.printStackTrace();
 			}
 		}
 		return copies;
@@ -618,7 +618,7 @@ public class SNTUtils {
 		final SNT snt = new SNT(getContext(), pathAndFillManager);
 		snt.initialize(null);
 		try {
-			javax.swing.SwingUtilities.invokeAndWait(() -> snt.startUI());
+			javax.swing.SwingUtilities.invokeAndWait(snt::startUI);
 		} catch (final InvocationTargetException | InterruptedException e) {
 			e.printStackTrace();
 		}
