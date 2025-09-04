@@ -38,7 +38,6 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.plugin.ij1.CallLegacyCmd;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -51,7 +50,6 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 
 /**
  * A command that displays a shortcut window of most popular commands, inspired
@@ -95,9 +93,6 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		addStrahlerButton(si);
 		buttons.add(null);
 		addScriptsButton();
-		buttons.add(null);
-		addButton(new Shortcut("Deprecated Cmds...", CallLegacyCmd.class,
-				"Runs an outdated plugin (here only for backwards compatibility)"));
 		buttons.add(null);
 		addHelpButton();
 
@@ -211,16 +206,13 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		menu.add(label);
 	}
 
-	private void addButton(final Shortcut shortcut) {
-		addButtons(Collections.singletonList(shortcut));
-	}
-
 	private void addButtons(final Collection<Shortcut> shortcuts) {
 		shortcuts.forEach(shrtct -> {
 			final JButton b = new JButton(shrtct.label);
-				b.setToolTipText(HTML_TOOLTIP + shrtct.description);
-				b.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
-				buttons.add(b);
+			b.setToolTipText(HTML_TOOLTIP + shrtct.description);
+			b.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
+			makeSmallerButton(b);
+			buttons.add(b);
 		});
 	}
 
@@ -228,6 +220,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		final JButton button = new JButton("<HTML>" + label + " &#9657;");
 		button.setToolTipText(HTML_TOOLTIP + tooltip);
 		button.addActionListener( e -> popup.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		makeSmallerButton(button);
 		return button;
 	}
 
@@ -248,6 +241,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		button.setToolTipText(HTML_TOOLTIP + "All of SNT scripts: Bulk measurements, conversions, multi-panel figures, etc.");
 		final JPopupMenu sMenu = installer.getScriptsMenu().getPopupMenu();
 		button.addActionListener(e -> sMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		makeSmallerButton(button);
 		buttons.add(button);
 	}
 
@@ -255,8 +249,18 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		final JButton button = new JButton("<HTML>Help & Resources &#9657;");
 		final JPopupMenu hMenu = GuiUtils.MenuItems.helpMenu(null).getPopupMenu();
 		button.addActionListener(e -> hMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		makeSmallerButton(button);
 		buttons.add(button);
 	}
+
+	private void makeSmallerButton(final JButton button) {
+        final Font currentFont = button.getFont();
+		if (currentFont != null) {
+			button.setFont(currentFont.deriveFont(currentFont.getSize() * 0.9f));
+		}
+        // too harsh
+        //button.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+    }
 
 	private JFrame getFrame() {
 		if (frame == null) {

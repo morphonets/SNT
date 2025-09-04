@@ -26,7 +26,6 @@ import ij.IJ;
 import ij.plugin.BrowserLauncher;
 import ij.plugin.frame.Recorder;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
-import sc.fiji.snt.plugin.ij1.Sholl_Utils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -354,7 +353,7 @@ public class EnhancedGenericDialog extends GenericDialogPlus {
 	@Deprecated
 	public static JMenuItem menuItemTriggeringResources() {
 		final JMenuItem mi = new JMenuItem("About & Resources...");
-		mi.addActionListener(e -> IJ.runPlugIn(Sholl_Utils.class.getName(), "about"));
+		mi.addActionListener(e -> GuiUtils.showAboutDialog());
 		return mi;
 	}
 
