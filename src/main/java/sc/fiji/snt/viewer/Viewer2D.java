@@ -67,6 +67,7 @@ public class Viewer2D extends TreeColorMapper {
 	private boolean visibleAxes;
 	private boolean visibleGridLines;
 	private boolean visibleOutline;
+    private boolean equalizeAxes;
 
 	/**
 	 * Instantiates an empty 2D viewer using SNT's default context.
@@ -99,10 +100,12 @@ public class Viewer2D extends TreeColorMapper {
 			setAxesVisible(true);
 			setGridlinesVisible(false);
 			setOutlineVisible(true);
-		} else {
+            setEqualizeAxes(true);
+        } else {
 			setAxesVisible(template.getAxesVisible());
 			setGridlinesVisible(template.getGridlinesVisible());
 			setOutlineVisible(template.getOutlineVisible());
+            setEqualizeAxes(template.getEqualizeAxes());
 			setTitle(template.getTitle());
 			setDefaultColor(template.defaultColor);
 		}
@@ -448,6 +451,7 @@ public class Viewer2D extends TreeColorMapper {
 					(getTitle() == null || getTitle().trim().isEmpty()) ? "Reconstruction Plotter" : getTitle(),
 					converter.convert(plot, JFreeChart.class));
 		}
+		chart.setEqualizeAxes(getEqualizeAxes());
 		chart.setAxesVisible(getAxesVisible());
 		chart.setOutlineVisible(getOutlineVisible());
 		chart.setGridlinesVisible(getGridlinesVisible());
@@ -555,20 +559,33 @@ public class Viewer2D extends TreeColorMapper {
 	 * @param height the preferred frame height
 	 */
 	public void show(final int width, final int height) {
-		getChart().show(width, height);
+        getChart().show(width, height);
 	}
 
 	public void setGridlinesVisible(final boolean visible) {
-		visibleGridLines = visible;
+        visibleGridLines = visible;
 	}
 
 	public void setAxesVisible(final boolean visible) {
-		visibleAxes = visible;
+        visibleAxes = visible;
 	}
 
 	public void setOutlineVisible(final boolean visible) {
 		visibleOutline = visible;
 	}
+
+    /**
+     /**
+     * Sets whether the axes should be equalized (same scale).
+     * <p>
+     * When enabled, both X and Y axes will use the same scale to maintain
+     * equal aspect ratio. When disabled, each axis maximizes its range.
+     * </p>
+     * @param equalizeAxes true to equalize axes, false otherwise
+     */
+    public void setEqualizeAxes(final boolean equalizeAxes) {
+        this.equalizeAxes = equalizeAxes;
+    }
 
 	private boolean getGridlinesVisible() {
 		return visibleGridLines;
@@ -581,6 +598,10 @@ public class Viewer2D extends TreeColorMapper {
 	private boolean getOutlineVisible() {
 		return visibleOutline;
 	}
+
+    private boolean getEqualizeAxes() {
+        return equalizeAxes;
+    }
 
 	/* IDE debug method */
 	public static void main(final String... args) {

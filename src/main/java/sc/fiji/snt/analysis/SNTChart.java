@@ -46,15 +46,14 @@ import javax.swing.JRadioButtonMenuItem;
 import javax.swing.MenuElement;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 
 import net.imglib2.roi.geom.real.Polygon2D;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.jfree.chart.*;
 import org.jfree.chart.annotations.*;
-import org.jfree.chart.axis.Axis;
-import org.jfree.chart.axis.AxisLocation;
-import org.jfree.chart.axis.CategoryAnchor;
-import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.axis.*;
 import org.jfree.chart.entity.*;
 import org.jfree.chart.plot.*;
 import org.jfree.chart.plot.flow.FlowPlot;
@@ -103,10 +102,11 @@ public class SNTChart extends ChartPanel {
 	private List<SNTChart> otherCombinedCharts;
 	private JFrame frame;
 	private String title;
+    private boolean equalizedXY;
 
 	static double scalingFactor = 1;
 
-	public SNTChart(final String title, final JFreeChart chart) {
+    public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension((int)(400 * scalingFactor), (int)(400 * scalingFactor)));
 	}
 
@@ -342,6 +342,57 @@ public class SNTChart extends ChartPanel {
 	 */
 	public void setOutlineVisible(final boolean visible) {
 		getChart().getPlot().setOutlineVisible(visible);
+	}
+
+    /**
+     * Sets whether the axes of the underlying XY plot should be equalized (same scale).
+     * <p>
+     * When enabled, both X and Y axes will use the same scale to maintain
+     * equal aspect ratio. When disabled, each axis maximizes its range.
+     * </p>
+     *
+     * @param equalize true to equalize axes, false otherwise
+     * @throws IllegalArgumentException if the underlying plot is not a XY plot
+     */
+    public void setEqualizeAxes(final boolean equalize) {
+        if (!(getChart().getPlot() instanceof XYPlot)) {
+            throw new IllegalArgumentException("Equalized axes apply only to XY plots");
+        }
+        this.equalizedXY = equalize;
+        if (!equalize) {
+            getXYPlot().getDomainAxis().setAutoRange(true);
+            getXYPlot().getRangeAxis().setAutoRange(true);
+            return;
+        }
+        final ValueAxis xAxis = getXYPlot().getDomainAxis();
+        final ValueAxis yAxis = getXYPlot().getRangeAxis();
+        if (xAxis.getRange().getLength() < yAxis.getRange().getLength()) {
+            double idealXRange = yAxis.getRange().getLength();
+            double currXRange = xAxis.getRange().getLength();
+            double xDelta = (idealXRange - currXRange) / 2;
+            double xLower = xAxis.getLowerBound();
+            double xUpper = xAxis.getUpperBound();
+            xAxis.setRange(new Range(xLower - xDelta, xUpper + xDelta), true, true);
+        } else if (xAxis.getRange().getLength() > yAxis.getRange().getLength()) {
+            double idealYRange = xAxis.getRange().getLength();
+            double currYRange = yAxis.getRange().getLength();
+            double yDelta = (idealYRange - currYRange) / 2;
+            double yLower = yAxis.getLowerBound();
+            double yUpper = yAxis.getUpperBound();
+            yAxis.setRange(new Range(yLower - yDelta, yUpper + yDelta), true, true);
+        }
+    }
+
+	/**
+	 * Checks if the axes of the underlying XY plot are equalized.
+	 * <p>
+	 * Returns true if both X and Y axes use the same scale.
+	 * </p>
+	 *
+	 * @return true if axes are equalized, false otherwise
+	 */
+	public boolean isEqualized() {
+        return (getChart().getPlot() instanceof XYPlot) && equalizedXY;
 	}
 
 	public void setLegendVisible(final boolean visible) {
@@ -1245,153 +1296,189 @@ public class SNTChart extends ChartPanel {
 		show();
 	}
 
-	private void customizePopupMenu() {
-		if (getPopupMenu() != null) {
-			final JMenuItem mi = new JMenuItem("Data (as CSV)...");
-			mi.addActionListener(e -> {
-				final String filename = (getTitle() == null) ? "SNTChartData" : getTitle();
-				final File file = new GuiUtils(frame).getSaveFile("Export to CSV (Experimental)",
-						new File(getDefaultDirectoryForSaveAs(), filename + ".csv"), "csv");
-				if (file == null)
-					return;
-				try {
-					exportAsCSV(file);
-				} catch (final IllegalStateException ise) {
-					new GuiUtils(frame).error("Could not save data. See Console for details.");
-					ise.printStackTrace();
-				}
-			});
-			final JMenu saveAs = getMenu(getPopupMenu(), "Save as");
-			if (saveAs != null) {
-				saveAs.addSeparator();
-				saveAs.add(mi);
-			} else
-				getPopupMenu().add(mi);
-			addCustomizationPanel(getPopupMenu());
-		}
-	}
+    private void customizePopupMenu() {
+        if (getPopupMenu() == null) {
+            return;
+        }
+        addExportDataOption(getPopupMenu());
+        if (getChart().getPlot() instanceof XYPlot) {
+            addSquarifyOption(getPopupMenu());
+        }
+        addCustomizationPanel(getPopupMenu());
+    }
 
-	private void addCustomizationPanel(final JPopupMenu popup) {
-		final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Theme", false);
-		final Paint DEF_ZOP = getZoomOutlinePaint();
-		final Paint DEF_ZFP = getZoomFillPaint();
-		dark.addItemListener( e -> {
-			if (dark.isSelected()) {
-				replaceBackground(Color.WHITE, Color.BLACK);
-				replaceForegroundColor(Color.BLACK, Color.WHITE);
-				if (DEF_ZOP instanceof Color)
-					setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
-				if (DEF_ZFP instanceof Color)
-					setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
-			} else {
-				replaceBackground(Color.BLACK, Color.WHITE);
-				replaceForegroundColor(Color.WHITE, Color.BLACK);
-				setZoomOutlinePaint(DEF_ZOP);
-				setZoomOutlinePaint(DEF_ZFP);
-			}
-		});
-		popup.addSeparator();
+    private void addSquarifyOption(final JPopupMenu popupMenu) {
+        final JCheckBoxMenuItem squarify = new JCheckBoxMenuItem("Equalize Axes", isEqualized());
+        squarify.addItemListener( e -> setEqualizeAxes(squarify.isSelected()));
+        final JMenu autoRange = getMenu(popupMenu, "Auto Range");
+        if (autoRange != null) {
+            autoRange.addSeparator();
+            autoRange.add(squarify);
+        } else
+            popupMenu.add(squarify);
+        popupMenu.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                squarify.setSelected(isEqualized());
+            }
 
-		final JMenu cMenu = new JMenu("Contents & Curve Fitting");
-		popup.add(cMenu);
-		GuiUtils.addSeparator(cMenu, "General:");
-		final JCheckBoxMenuItem grid = new JCheckBoxMenuItem("Grid Lines", isGridlinesVisible());
-		grid.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
-		grid.addItemListener( e -> setGridlinesVisible(grid.isSelected()));
-		cMenu.add(grid);
-		final JCheckBoxMenuItem legend = new JCheckBoxMenuItem("Legend", isLegendVisible());
-		legend.addItemListener( e -> setLegendVisible(legend.isSelected()));
-		legend.setEnabled(getChart().getLegend() != null);
-		cMenu.add(legend);
-		final JCheckBoxMenuItem outline = new JCheckBoxMenuItem("Outline", isOutlineVisible());
-		outline.addItemListener( e -> setOutlineVisible(outline.isSelected()));
-		cMenu.add(outline);
-		GuiUtils.addSeparator(cMenu, "Histograms:");
-		final JCheckBoxMenuItem fit1 = new JCheckBoxMenuItem("Gaussian");
-		fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
-		fit1.addActionListener(e -> {
-			try {
-				final List<XYItemRenderer> renders = AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot());
-				if (renders.isEmpty()) {
-					new GuiUtils(frame).error("Fitting to Normal distribution is not available.", "Option Not Available");
-					fit1.setSelected(false);
-				} else {
-					//AnalysisUtils.getGMMCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
-					renders.forEach(r -> r.setDefaultSeriesVisible(fit1.isSelected()));
-				}
-			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
-				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
-				fit1.setSelected(false);
-			}
-		});
-		cMenu.add(fit1);
-		final JCheckBoxMenuItem fit2 = new JCheckBoxMenuItem("Gaussian Mixture Model");
-		fit2.setEnabled(getChart().getPlot() instanceof XYPlot);
-		fit2.addActionListener( e -> {
-			try {
-				final List<XYItemRenderer> gmmRenders = AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot());
-				if (gmmRenders.isEmpty()) {
-					new GuiUtils(frame).error("Gaussian mixture model is not available. Note that at least 20 data"
-							+ " points are required for GMM computation.", "Option Not Available");
-					fit2.setSelected(false);
-				} else {
-					//AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
-					gmmRenders.forEach(r -> r.setDefaultSeriesVisible(fit2.isSelected()));
-				}
-			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
-				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
-				fit2.setSelected(false);
-			}
-		});
-		cMenu.add(fit2);
-		final JCheckBoxMenuItem fit3 = new JCheckBoxMenuItem("Quartile Marks");
-		fit3.setEnabled(getChart().getPlot() instanceof XYPlot);
-		fit3.addActionListener(e -> {
-			try {
-				final XYItemRenderer r = AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot());
-				r.setDefaultSeriesVisible(fit3.isSelected());
-			} catch (final NullPointerException | ClassCastException ignored) {
-				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
-				fit3.setSelected(false);
-			}
-		});
-		cMenu.add(fit3);
-		GuiUtils.addSeparator(cMenu, "Polar Plots:");
-		JMenuItem jmi = new JMenuItem("Clockwise/Counterclockwise");
-		jmi.addActionListener( e -> {
-			if (getChart().getPlot() instanceof PolarPlot) {
-				((PolarPlot) getChart().getPlot()).setCounterClockwise(!((PolarPlot) getChart().getPlot()).isCounterClockwise());
-				getChart().fireChartChanged();
-			} else {
-				new GuiUtils(frame).error("This option requires a polar plot.", "Option Not Available");
-			}
-		});
-		cMenu.add(jmi);
-		popup.add(cMenu);
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                // do nothing
+            }
 
-		final JMenu utils = new JMenu("Utilities");
-		jmi = GuiUtils.MenuItems.combineCharts();
-		jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
-		utils.add(jmi);
-		GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
-		jmi = new JMenuItem("Close...");
-		utils.add(jmi);
-		jmi.addActionListener( e -> {
-			if (new GuiUtils(frame).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
-				SNTChart.closeAll();
-		});
-		jmi = new JMenuItem("Merge Into ImageJ Stack...");
-		utils.add(jmi);
-		jmi.addActionListener( e -> {
-			if (new GuiUtils(frame).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
-				SNTChart.combineAsImagePlus(openInstances).show();
-				SNTChart.closeAll();
-			}
-		});
-		jmi = new JMenuItem("Tile");
-		utils.add(jmi);
-		jmi.addActionListener(e -> SNTChart.tileAll());
-		utils.add(jmi);
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                // do nothing
+            }
+        });
+    }
+
+    private void addExportDataOption(final JPopupMenu popupMenu) {
+        final JMenuItem mi = new JMenuItem("Data (as CSV)...");
+        mi.addActionListener(e -> {
+            final String filename = (getTitle() == null) ? "SNTChartData" : getTitle();
+            final File file = new GuiUtils(frame).getSaveFile("Export to CSV (Experimental)",
+                    new File(getDefaultDirectoryForSaveAs(), filename + ".csv"), "csv");
+            if (file == null)
+                return;
+            try {
+                exportAsCSV(file);
+            } catch (final IllegalStateException ise) {
+                new GuiUtils(frame).error("Could not save data. See Console for details.");
+                ise.printStackTrace();
+            }
+        });
+        final JMenu saveAs = getMenu(popupMenu, "Save as");
+        if (saveAs != null) {
+            saveAs.addSeparator();
+            saveAs.add(mi);
+        } else {
+            popupMenu.add(mi);
+        }
+    }
+
+    private void addCustomizationPanel(final JPopupMenu popup) {
+        final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Theme", false);
+        final Paint DEF_ZOP = getZoomOutlinePaint();
+        final Paint DEF_ZFP = getZoomFillPaint();
+        dark.addItemListener( e -> {
+            if (dark.isSelected()) {
+                replaceBackground(Color.WHITE, Color.BLACK);
+                replaceForegroundColor(Color.BLACK, Color.WHITE);
+                if (DEF_ZOP instanceof Color)
+                    setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
+                if (DEF_ZFP instanceof Color)
+                    setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
+            } else {
+                replaceBackground(Color.BLACK, Color.WHITE);
+                replaceForegroundColor(Color.WHITE, Color.BLACK);
+                setZoomOutlinePaint(DEF_ZOP);
+                setZoomOutlinePaint(DEF_ZFP);
+            }
+        });
+        popup.addSeparator();
+
+        final JMenu cMenu = new JMenu("Contents & Curve Fitting");
+        popup.add(cMenu);
+        GuiUtils.addSeparator(cMenu, "General:");
+        final JCheckBoxMenuItem grid = new JCheckBoxMenuItem("Grid Lines", isGridlinesVisible());
+        grid.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
+        grid.addItemListener( e -> setGridlinesVisible(grid.isSelected()));
+        cMenu.add(grid);
+        final JCheckBoxMenuItem legend = new JCheckBoxMenuItem("Legend", isLegendVisible());
+        legend.addItemListener( e -> setLegendVisible(legend.isSelected()));
+        legend.setEnabled(getChart().getLegend() != null);
+        cMenu.add(legend);
+        final JCheckBoxMenuItem outline = new JCheckBoxMenuItem("Outline", isOutlineVisible());
+        outline.addItemListener( e -> setOutlineVisible(outline.isSelected()));
+        cMenu.add(outline);
+        GuiUtils.addSeparator(cMenu, "Histograms:");
+        final JCheckBoxMenuItem fit1 = new JCheckBoxMenuItem("Gaussian");
+        fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
+        fit1.addActionListener(e -> {
+            try {
+                final List<XYItemRenderer> renders = AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot());
+                if (renders.isEmpty()) {
+                    new GuiUtils(frame).error("Fitting to Normal distribution is not available.", "Option Not Available");
+                    fit1.setSelected(false);
+                } else {
+                    //AnalysisUtils.getGMMCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
+                    renders.forEach(r -> r.setDefaultSeriesVisible(fit1.isSelected()));
+                }
+            } catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
+                new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+                fit1.setSelected(false);
+            }
+        });
+        cMenu.add(fit1);
+        final JCheckBoxMenuItem fit2 = new JCheckBoxMenuItem("Gaussian Mixture Model");
+        fit2.setEnabled(getChart().getPlot() instanceof XYPlot);
+        fit2.addActionListener( e -> {
+            try {
+                final List<XYItemRenderer> gmmRenders = AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot());
+                if (gmmRenders.isEmpty()) {
+                    new GuiUtils(frame).error("Gaussian mixture model is not available. Note that at least 20 data"
+                            + " points are required for GMM computation.", "Option Not Available");
+                    fit2.setSelected(false);
+                } else {
+                    //AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
+                    gmmRenders.forEach(r -> r.setDefaultSeriesVisible(fit2.isSelected()));
+                }
+            } catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
+                new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+                fit2.setSelected(false);
+            }
+        });
+        cMenu.add(fit2);
+        final JCheckBoxMenuItem fit3 = new JCheckBoxMenuItem("Quartile Marks");
+        fit3.setEnabled(getChart().getPlot() instanceof XYPlot);
+        fit3.addActionListener(e -> {
+            try {
+                final XYItemRenderer r = AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot());
+                r.setDefaultSeriesVisible(fit3.isSelected());
+            } catch (final NullPointerException | ClassCastException ignored) {
+                new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+                fit3.setSelected(false);
+            }
+        });
+        cMenu.add(fit3);
+        GuiUtils.addSeparator(cMenu, "Polar Plots:");
+        JMenuItem jmi = new JMenuItem("Clockwise/Counterclockwise");
+        jmi.addActionListener( e -> {
+            if (getChart().getPlot() instanceof PolarPlot) {
+                ((PolarPlot) getChart().getPlot()).setCounterClockwise(!((PolarPlot) getChart().getPlot()).isCounterClockwise());
+                getChart().fireChartChanged();
+            } else {
+                new GuiUtils(frame).error("This option requires a polar plot.", "Option Not Available");
+            }
+        });
+        cMenu.add(jmi);
+        popup.add(cMenu);
+
+        final JMenu utils = new JMenu("Utilities");
+        jmi = GuiUtils.MenuItems.combineCharts();
+        jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
+        utils.add(jmi);
+        GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
+        jmi = new JMenuItem("Close...");
+        utils.add(jmi);
+        jmi.addActionListener( e -> {
+            if (new GuiUtils(frame).getConfirmation("Close all open plots? (Undoable operation)", "Close All Plots?"))
+                SNTChart.closeAll();
+        });
+        jmi = new JMenuItem("Merge Into ImageJ Stack...");
+        utils.add(jmi);
+        jmi.addActionListener( e -> {
+            if (new GuiUtils(frame).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
+                SNTChart.combineAsImagePlus(openInstances).show();
+                SNTChart.closeAll();
+            }
+        });
+        jmi = new JMenuItem("Tile");
+        utils.add(jmi);
+        jmi.addActionListener(e -> SNTChart.tileAll());
+        utils.add(jmi);
         utils.addSeparator();
         jmi = new JMenuItem("Save All...");
         utils.add(jmi);
@@ -1401,21 +1488,20 @@ public class SNTChart extends ChartPanel {
                         .run(SaveMeasurementsCmd.class, true, (Map<String, Object>) null);
             } catch (final Exception ex) {
                 new GuiUtils(frame).error("Could not proceed with operation. " +
-                                "Please run \"Save Tables & Analysis Plots...\" manually.", "Command Not Found");
+                        "Please run \"Save Tables & Analysis Plots...\" manually.", "Command Not Found");
             }
         });
-		popup.addSeparator();
-		jmi = new JMenuItem("Frame Size...");
-		jmi.addActionListener(
-				e -> new GuiUtils(frame).adjustComponentThroughPrompt((frame == null) ? SNTChart.this : frame));
-		popup.add(jmi);
-		popup.add(fontScalingMenu());
-		popup.addSeparator();
-		popup.add(dark);
-		popup.addSeparator();
-		popup.add(utils);
-
-	}
+        popup.addSeparator();
+        jmi = new JMenuItem("Frame Size...");
+        jmi.addActionListener(
+                e -> new GuiUtils(frame).adjustComponentThroughPrompt((frame == null) ? SNTChart.this : frame));
+        popup.add(jmi);
+        popup.add(fontScalingMenu());
+        popup.addSeparator();
+        popup.add(dark);
+        popup.addSeparator();
+        popup.add(utils);
+    }
 
 	private JMenu fontScalingMenu() {
 		final JMenu fontScaleMenu = new JMenu("Font Scaling");

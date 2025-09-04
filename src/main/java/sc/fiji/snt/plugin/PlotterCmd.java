@@ -211,8 +211,6 @@ public class PlotterCmd extends CommonDynamicCmd implements Interactive {
 			buildPlot();
 			chart.replace(viewer.getChart());
 			chart.getFrame().setVisible(true); // re-open frame if it has been closed
-			viewer.setGridlinesVisible(chart.isGridlinesVisible());
-			viewer.setOutlineVisible(chart.isOutlineVisible());
 			//frame.toFront();
 			msg = "";
 		}
