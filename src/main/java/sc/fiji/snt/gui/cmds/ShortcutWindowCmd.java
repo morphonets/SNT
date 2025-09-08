@@ -82,9 +82,9 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
 		shortcuts.add(new Shortcut("SNT...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend. For tracing start here."));
-		shortcuts.add(new Shortcut("Reconstruction Plotter...", PlotterCmd.class,
+		shortcuts.add(new Shortcut("Rec. Plotter...", PlotterCmd.class,
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
-		shortcuts.add(new Shortcut("Reconstruction Viewer", ReconstructionViewerCmd.class,
+		shortcuts.add(new Shortcut("Rec. Viewer", ReconstructionViewerCmd.class,
 				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
 		addButtons(shortcuts);
 		final ScriptInstaller si = new ScriptInstaller(getContext(), getFrame());
@@ -256,7 +256,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private void makeSmallerButton(final JButton button) {
         final Font currentFont = button.getFont();
 		if (currentFont != null) {
-			button.setFont(currentFont.deriveFont(currentFont.getSize() * 0.9f));
+			button.setFont(currentFont.deriveFont(currentFont.getSize() * 0.95f));
 		}
         // too harsh
         //button.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");

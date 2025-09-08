@@ -36,6 +36,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.ShollPoint;
@@ -227,12 +228,12 @@ public class ShollAnalyzer {
 		getLinearStats();
 		if (lStats == null) return secondaryMaxima;
 
-		double[] dataToUse = lStats.getYvalues();
+		double[] dataToUse = lStats.getYValues();
 		double variance = lStats.getVariance();
 		double absoluteMax = lStats.getMax();
 		try {
 			if (lStats.validFit()) {
-				dataToUse = lStats.getFitYvalues();
+				dataToUse = lStats.getFitYValues();
 				variance = lStats.getVariance(true);
 				absoluteMax = lStats.getMax(true);
 			}
@@ -246,7 +247,7 @@ public class ShollAnalyzer {
                 filteredIndices.add(allPeakIndex);
             }
         }
-		final double[] sMaximaRadii = getValues(lStats.getXvalues(), filteredIndices);
+		final double[] sMaximaRadii = getValues(lStats.getXValues(), filteredIndices);
 		final double[] sMaxima = getValues(dataToUse, filteredIndices);
 		for (int i = 0; i < filteredIndices.size(); i++) {
 			secondaryMaxima.add(new double[] {sMaximaRadii[i], sMaxima[i]});
@@ -273,7 +274,7 @@ public class ShollAnalyzer {
 			if (!parser.successful())
 				parser.parse();
 			if (parser.successful())
-				lStats = new LinearProfileStats(parser.getProfile());
+				lStats = new LinearProfileStats(parser.getProfile(), ShollStats.DataMode.INTERSECTIONS);
 		}
 		return lStats;
 	}
@@ -291,7 +292,7 @@ public class ShollAnalyzer {
 			if (!parser.successful())
 				parser.parse();
 			if (parser.successful()) {
-				nStats = new NormalizedProfileStats(parser.getProfile(),
+				nStats = new NormalizedProfileStats(parser.getProfile(), ShollStats.DataMode.INTERSECTIONS,
 						(tree.is3D()) ? NormalizedProfileStats.VOLUME : NormalizedProfileStats.AREA);
 			}
 		}

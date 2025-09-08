@@ -38,6 +38,9 @@ public class ProfileEntry implements Comparable<ProfileEntry> {
 	/** The number of intersection counts associated at this entry's radius */
 	public double count;
 
+	/** The total cable length associated at this entry's radius */
+	public double length;
+
 	/**
 	 * List of intersection points associated with the entry's radius (in
 	 * spatially calibrated units)
@@ -47,17 +50,33 @@ public class ProfileEntry implements Comparable<ProfileEntry> {
 	public ProfileEntry(final Number r, final Number count, final Set<ShollPoint> points) {
 		this.radius = r.doubleValue();
 		this.count = count.doubleValue();
+		this.length = 0.0;
+		this.points = points;
+	}
+
+	public ProfileEntry(final Number r, final Number count, final Number length, final Set<ShollPoint> points) {
+		this.radius = r.doubleValue();
+		this.count = count.doubleValue();
+		this.length = length.doubleValue();
 		this.points = points;
 	}
 
 	public ProfileEntry(final Number r, final Set<ShollPoint> points) {
 		this.radius = r.doubleValue();
 		this.count = points.size();
+		this.length = 0.0;
 		this.points = points;
 	}
 
 	public ProfileEntry(final Number r, final Number count) {
-		this(r, count, null);
+		this(r, count, 0, null);
+	}
+
+	public ProfileEntry(final Number r, final Number count, final Number length) {
+		this.radius = r.doubleValue();
+		this.count = count.doubleValue();
+		this.length = length.doubleValue();
+		this.points = null;
 	}
 
 	public void addPoint(final ShollPoint point) {

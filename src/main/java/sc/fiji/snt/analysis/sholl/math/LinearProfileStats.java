@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.commons.math3.analysis.integration.BaseAbstractUnivariateIntegrator;
 import org.apache.commons.math3.analysis.integration.RombergIntegrator;
@@ -48,6 +49,7 @@ import org.apache.commons.math3.stat.descriptive.moment.Skewness;
 import org.scijava.prefs.PrefService;
 
 import sc.fiji.snt.analysis.sholl.Profile;
+import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 import sc.fiji.snt.util.ShollPoint;
@@ -81,8 +83,8 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *
 	 * @param profile the profile to be analyzed
 	 */
-	public LinearProfileStats(final Profile profile) {
-		super(profile);
+	public LinearProfileStats(final Profile profile, final DataMode dataMode) {
+		super(profile, dataMode);
 	}
 
 	/**
@@ -489,7 +491,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 * @return the sampled distances.
 	 */
 	@Override
-	public double[] getXvalues() {
+	public double[] getXValues() {
 		return inputRadii;
 	}
 
@@ -500,7 +502,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 * @return the sampled intersection counts.
 	 */
 	@Override
-	public double[] getYvalues() {
+	public double[] getYValues() {
 		return inputCounts;
 	}
 
@@ -513,7 +515,7 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	 *             if {@link #fitPolynomial(int) } has not been called
 	 */
 	@Override
-	public double[] getFitYvalues() {
+	public double[] getFitYValues() {
 		validateFit();
 		return fCounts;
 	}
@@ -545,26 +547,27 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	/**
 	 * Returns a string describing the polynomial fit
 	 *
-	 * @return the description, e.g., 8th degree
-	 * @throws NullPointerException
-	 *             if {@link #fitPolynomial(int)} has not been called
+     * @param detailed if true description includes extended details on the fit
+	 * @return the description, e.g., "8th degree", or an empty string if no valid fit exists
 	 */
-	public String getPolynomialAsString() {
-		final int deg = getPolynomialDegree();
-		String degOrd = "";
-		final String[] sufixes = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
-		switch (deg % 100) {
-		case 11:
-		case 12:
-		case 13:
-			degOrd = deg + "th";
-			break;
-		default:
-			degOrd = deg + sufixes[deg % 10];
-			break;
-		}
-		return degOrd + " deg.";
+	public String getPolynomialAsString(final boolean detailed) {
+        if (!validFit())
+            return "";
+		if (detailed)
+            return String.format("%s (R²= %.3f)", getPolynomialDegreeAsString(), getRSquaredOfFit(true));
+        return getPolynomialDegreeAsString();
 	}
+
+    private String getPolynomialDegreeAsString() {
+        final int deg = getPolynomialDegree();
+        String degOrd = "";
+        final String[] suffixes = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
+        degOrd = switch (deg % 100) {
+            case 11, 12, 13 -> deg + "th";
+            default -> deg + suffixes[deg % 10];
+        };
+        return degOrd + " deg.";
+    }
 
 	/**
 	 * Calculates local maxima (critical points at which the derivative of the
@@ -978,8 +981,26 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	}
 
 	public ShollPlot plot() {
-		return new ShollPlot(this);
+		return new ShollPlot(this, false);
 	}
+
+    protected Profile getFittedProfile() {
+        if (!validFit()) return null;
+        final Profile fittedProfile = new Profile();
+        fittedProfile.setCenter(profile.center());
+        fittedProfile.setIsIntDensityProfile(profile.isIntDensityProfile());
+        fittedProfile.setIdentifier(profile.identifier());
+        fittedProfile.setProperties(profile.getProperties());
+        fittedProfile.setNDimensions(profile.nDimensions());
+        fittedProfile.setSpatialCalibration(profile.spatialCalibration());
+        fittedProfile.getProperties().setProperty("fitted", "true");
+        final AtomicInteger index = new AtomicInteger();
+        profile.entries().forEach( profileEntry -> {
+            final double fValue = fCounts[index.getAndIncrement()];
+            fittedProfile.add(new ProfileEntry(profileEntry.radius, fValue, fValue, profileEntry.points));
+        });
+        return fittedProfile;
+    }
 
 	/** @return {@link #getVariance(boolean) getVariance(false)} */
 	public double getVariance() {

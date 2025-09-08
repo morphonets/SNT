@@ -235,7 +235,7 @@ public class TabularParser implements Parser {
 		final double[] radii = ij1table.getColumnAsDoubles(radiiCol);
 		final double[] counts = ij1table.getColumnAsDoubles(countsCol);
 		for (int i = rowRange[0]; i <= rowRange[1]; i++) {
-			final ProfileEntry entry = new ProfileEntry(radii[i], counts[i], null);
+			final ProfileEntry entry = new ProfileEntry(radii[i], counts[i]);
 			profile.add(entry);
 			if (!running)
 				break;
@@ -249,7 +249,7 @@ public class TabularParser implements Parser {
 			throw new IllegalArgumentException("Specified headings do not match existing ones");
 		final int[] rowRange = getFilteredRowRange(ij2table.getRowCount() - 1);
 		for (int i = rowRange[0]; i <= rowRange[1]; i++) {
-			final ProfileEntry entry = new ProfileEntry(radiiColumn.get(i), countsColumn.get(i), null);
+			final ProfileEntry entry = new ProfileEntry(radiiColumn.get(i), countsColumn.get(i));
 			profile.add(entry);
 			if (!running)
 				break;
@@ -260,7 +260,7 @@ public class TabularParser implements Parser {
 		if (colHeading == null)
 			return null;
 		final String[] tokens = colHeading.toLowerCase().split("\\W");
-		final String[] knownUnits = "\u00B5 um micron mm cm pixels".split(" ");
+		final String[] knownUnits = "µm um micron microns mm cm pixels".split(" ");
 		for (final String token : tokens) {
 			for (final String unit : knownUnits) {
 				if (token.contains(unit)) {
@@ -273,6 +273,7 @@ public class TabularParser implements Parser {
 		return null;
 	}
 
+    @SuppressWarnings("unused")
 	public void restrictToSubset(final int firstRow, final int lastRow) {
 		if (successful())
 			throw new UnsupportedOperationException("restrictToSubset() must be called before parsing data");
@@ -292,7 +293,8 @@ public class TabularParser implements Parser {
 
 	@Override
 	public Profile getProfile() {
-		return profile;
+        if (profile == null) parse();
+        return profile;
 	}
 
 	public static void main(final String... args) {

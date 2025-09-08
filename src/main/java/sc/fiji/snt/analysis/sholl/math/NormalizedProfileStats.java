@@ -55,20 +55,19 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
 	private double[] regressionXdata;
 
-	public NormalizedProfileStats(final Profile profile, final int normalizationFlag) {
-		this(profile, normalizationFlag, GUESS_SLOG);
-	}
+    public NormalizedProfileStats(final Profile profile, final DataMode dataMode, int normalizationFlag) {
+        this(profile, dataMode, normalizationFlag, GUESS_SLOG);
+    }
 
-	public NormalizedProfileStats(final Profile profile, final int normalizationFlag, final int methodFlag) {
-
-		super(profile, true, true);
+	public NormalizedProfileStats(final Profile profile, final DataMode dataMode, int normalizationFlag, final int methodFlag) {
+		super(profile, dataMode, true, true);
 		normType = normalizationFlag;
 		if (profile.is2D() && is3Dnormalization())
 			throw new IllegalArgumentException("3D normalization specified on a 2D profile");
 
 		countsLogNorm = new double[nPoints];
 		normalizeCounts();
-		radiiLog = Arrays.stream(inputRadii).map(r -> Math.log(r)).toArray();
+		radiiLog = Arrays.stream(inputRadii).map(Math::log).toArray();
 
 		regressionSemiLog = new SimpleRegression();
 		regressionLogLog = new SimpleRegression();
@@ -283,7 +282,7 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 	 * @return normalized counts, ie, log(sampled intersections / normalizer)
 	 */
 	@Override
-	public double[] getYvalues() {
+	public double[] getYValues() {
 		return countsLogNorm;
 	}
 
@@ -301,59 +300,38 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 	 *         transform in the case of Log-log analysis
 	 */
 	@Override
-	public double[] getXvalues() {
+	public double[] getXValues() {
 		return regressionXdata;
 	}
 
 	@Override
-	public double[] getFitYvalues() {
+	public double[] getFitYValues() {
 		final double[] counts = new double[nPoints];
 		int i = 0;
-		for (final double x : getXvalues()) {
+		for (final double x : getXValues()) {
 			counts[i++] = regressionChosen.predict(x);
 		}
 		return counts;
 	}
 
 	public static int getNormalizerFlag(final String string) {
-		switch (string.toLowerCase().trim()) {
-		case "area":
-			return AREA;
-		case "perimeter":
-			return PERIMETER;
-		case "annulus":
-			return ANNULUS;
-		case "volume":
-			return VOLUME;
-		case "surface":
-		case "surface area":
-			return SURFACE;
-		case "spheric shell":
-		case "spherical shell":
-			return S_SHELL;
-		default:
-			return -1;
-		}
+        return switch (string.toLowerCase().trim()) {
+            case "area" -> AREA;
+            case "perimeter" -> PERIMETER;
+            case "annulus" -> ANNULUS;
+            case "volume" -> VOLUME;
+            case "surface", "surface area" -> SURFACE;
+            case "spheric shell", "spherical shell" -> S_SHELL;
+            default -> -1;
+        };
 	}
 
 	public static int getMethodFlag(final String string) {
-		switch (string.toLowerCase().replace(" ", "").trim()) {
-		case "automaticallychoose":
-		case "default":
-		case "guess":
-		case "determine":
-		case "calculate":
-			return GUESS_SLOG;
-		case "semi-log":
-		case "semi_log":
-		case "semilog":
-			return SEMI_LOG;
-		case "log-log":
-		case "log_log":
-		case "loglog":
-			return LOG_LOG;
-		default:
-			return -1;
-		}
+        return switch (string.toLowerCase().replace(" ", "").trim()) {
+            case "automaticallychoose", "default", "guess", "determine", "calculate" -> GUESS_SLOG;
+            case "semi-log", "semi_log", "semilog" -> SEMI_LOG;
+            case "log-log", "log_log", "loglog" -> LOG_LOG;
+            default -> -1;
+        };
 	}
 }

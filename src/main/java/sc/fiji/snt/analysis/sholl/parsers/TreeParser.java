@@ -23,8 +23,9 @@ package sc.fiji.snt.analysis.sholl.parsers;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import ij.ImagePlus;
@@ -39,6 +40,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -110,6 +112,11 @@ public class TreeParser implements Parser {
 	private double[] squaredRangeStarts;
 	private int[] crossingsPastEach;
 	private boolean skipSomaticSegments;
+    /*
+     * Cached intrinsic node-to-node spacing (median), computed on first use.
+     * This is needed for length calculations when stepSize is 0.
+     */
+    private Double intrinsicScaleCache = null;
 
 	/**
 	 * Instantiates a new Tree Parser.
@@ -133,7 +140,7 @@ public class TreeParser implements Parser {
 			case ROOT_NODES_ANY:
 				center = getCenter(-1, true);
 				if (center == null && !tree.isEmpty())
-					center = tree.list().get(0).getNode(0);
+					center = tree.list().getFirst().getNode(0);
 				break;
 			case ROOT_NODES_UNDEFINED:
 				center = getCenter(Path.SWC_UNDEFINED, true);
@@ -263,6 +270,7 @@ public class TreeParser implements Parser {
 	 */
 	@Override
 	public Profile getProfile() {
+        if (profile == null || profile.isEmpty()) parse();
 		return profile;
 	}
 
@@ -285,8 +293,7 @@ public class TreeParser implements Parser {
 			}
 		});
 		// Ensure we are not keeping duplicated data points
-		shollPointsList = shollPointsList.stream().distinct().collect(Collectors
-			.toList());
+		shollPointsList = shollPointsList.stream().distinct().collect(Collectors.toList());
 		Collections.sort(shollPointsList);
 	}
 
@@ -310,7 +317,9 @@ public class TreeParser implements Parser {
 				final double x = i * stepSize;
 				if ( x >= minDistance) {
 					final double y = crossingsAtDistanceSquared(x * x);
-					profile.add(new ProfileEntry(x, y, null));
+					final double length = cableLengthInShell(x, x + stepSize);
+					final Set<ShollPoint> intersectionPoints = getIntersectionPointsInShell(x, x + stepSize);
+					profile.add(new ProfileEntry(x, y, length, intersectionPoints));
 				}
 			}
 		}
@@ -318,7 +327,9 @@ public class TreeParser implements Parser {
             for (double squaredRangeStart : squaredRangeStarts) {
                 final double x = Math.sqrt(squaredRangeStart);
                 final double y = crossingsAtDistanceSquared(squaredRangeStart);
-                profile.add(new ProfileEntry(x, y, null));
+                final double length = cableLengthAtRadius(x);
+                final Set<ShollPoint> intersectionPoints = getIntersectionPointsAtRadius(x);
+                profile.add(new ProfileEntry(x, y, length, intersectionPoints));
             }
 		}
 
@@ -337,35 +348,443 @@ public class TreeParser implements Parser {
 		return crossingsPastEach[minIndex];
 	}
 
-	private static class ComparableShollPoint implements Comparable<ComparableShollPoint> {
+	/**
+	 * Calculates the total cable length within a spherical shell.
+	 *
+	 * @param innerRadius the inner radius of the shell
+	 * @param outerRadius the outer radius of the shell
+	 * @return the total cable length within the shell
+	 */
+	private double cableLengthInShell(final double innerRadius, final double outerRadius) {
+		double totalLength = 0.0;
+		final PointInImage soma = tree.getRoot();
+		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
+				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
 
-		private final boolean nearer;
-		private final double distanceSquared;
+		for (final Path path : tree.list()) {
+			if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+				continue;
 
-		ComparableShollPoint(final double distanceSquared, final boolean nearer) {
-			this.distanceSquared = distanceSquared;
-			this.nearer = nearer;
+			for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+				final PointInImage node1 = path.getNode(i);
+				final PointInImage node2 = path.getNode(i + 1);
+				
+				final double dist1 = node1.distanceTo(center);
+				final double dist2 = node2.distanceTo(center);
+				
+				// Check if this segment intersects with the shell
+				final double minDist = Math.min(dist1, dist2);
+				final double maxDist = Math.max(dist1, dist2);
+				
+				if (maxDist >= innerRadius && minDist <= outerRadius) {
+					// Calculate the portion of the segment within the shell
+					final double segmentLength = node1.distanceTo(node2);
+					
+					if (minDist >= innerRadius && maxDist <= outerRadius) {
+						// Entire segment is within the shell
+						totalLength += segmentLength;
+					} else {
+						// Partial segment - calculate intersection points and length
+						final double lengthInShell = calculateSegmentLengthInShell(
+							node1, node2, center, innerRadius, outerRadius);
+						totalLength += lengthInShell;
+					}
+				}
+			}
 		}
+		return totalLength;
+	}
 
-		@Override
-		public int compareTo(final ComparableShollPoint other) {
-			if (this.distanceSquared < other.distanceSquared) return -1;
-			else if (other.distanceSquared < this.distanceSquared) return 1;
-			return 0;
+	/**
+	 * Calculates cable length at a specific radius (for continuous sampling).
+	 * This approximates the length by looking at segments that cross the radius.
+	 *
+	 * @param radius the radius at which to calculate length
+	 * @return the approximate cable length at this radius
+	 */
+    private double cableLengthAtRadius(final double radius) {
+        // Approximate length using a thin shell centered at 'radius'.
+        final double shellThickness;
+        if (stepSize > 0) {
+            shellThickness = stepSize; // match discontinuous sampling shell thickness
+        } else {
+            final double s = intrinsicSegmentScale();
+            shellThickness = Math.max(radius * 0.01, (s > 0.0 ? s : 1e-9));
+        }
+        return cableLengthInShell(radius - shellThickness / 2.0, radius + shellThickness / 2.0);
+    }
+
+	/**
+	 * Calculates the length of a segment that lies within a spherical shell.
+	 *
+	 * @param node1 first endpoint of the segment
+	 * @param node2 second endpoint of the segment  
+	 * @param center center of the spherical shells
+	 * @param innerRadius inner radius of the shell
+	 * @param outerRadius outer radius of the shell
+	 * @return the length of the segment portion within the shell
+	 */
+	private double calculateSegmentLengthInShell(final PointInImage node1, final PointInImage node2,
+			final PointInImage center, final double innerRadius, final double outerRadius) {
+		
+		final double dist1 = node1.distanceTo(center);
+		final double dist2 = node2.distanceTo(center);
+		final double segmentLength = node1.distanceTo(node2);
+		
+		// If segment is entirely within shell
+		if (dist1 >= innerRadius && dist1 <= outerRadius && 
+			dist2 >= innerRadius && dist2 <= outerRadius) {
+			return segmentLength;
 		}
-
-		@Override
-		public boolean equals(Object o) {
-			if (o == null || getClass() != o.getClass()) return false;
-			final ComparableShollPoint other = (ComparableShollPoint) o;
-			return nearer == other.nearer && Double.compare(distanceSquared, other.distanceSquared) == 0;
+		
+		// Calculate intersection parameters for inner and outer spheres
+		final double[] intersections = findSphereIntersections(node1, node2, center, innerRadius, outerRadius);
+		
+		if (intersections.length == 0) {
+			return 0.0; // No intersection with shell
 		}
+		
+		// Calculate the portion of the segment within the shell
+		double t1 = intersections[0];
+		double t2 = intersections[intersections.length - 1];
+		if (intersections.length > 1) {
+			t1 = Math.min(t1, t2);
+			t2 = Math.max(intersections[0], intersections[intersections.length - 1]);
+		}
+		t1 = Math.max(0.0, t1);
+		t2 = Math.min(1.0, t2);
+		
+		// Ensure we're within the shell boundaries
+		if (t1 > t2) return 0.0;
+		
+		return segmentLength * (t2 - t1);
+	}
 
-		@Override
-		public int hashCode() {
-			return Objects.hash(nearer, distanceSquared);
+	/**
+	 * Finds intersection parameters for a line segment with inner and outer spheres.
+	 *
+	 * @param p1 first point of segment
+	 * @param p2 second point of segment
+	 * @param center center of spheres
+	 * @param innerRadius inner sphere radius
+	 * @param outerRadius outer sphere radius
+	 * @return array of intersection parameters t where intersection = p1 + t*(p2-p1)
+	 */
+	private double[] findSphereIntersections(final PointInImage p1, final PointInImage p2,
+			final PointInImage center, final double innerRadius, final double outerRadius) {
+		
+		final List<Double> intersections = new ArrayList<>();
+		
+		// Check intersections with both spheres
+		for (final double radius : new double[]{innerRadius, outerRadius}) {
+			final double[] ts = findLineSphereIntersection(p1, p2, center, radius);
+			for (final double t : ts) {
+				if (t >= 0.0 && t <= 1.0) {
+					intersections.add(t);
+				}
+			}
+		}
+		
+		// Add endpoints if they're within the shell
+		final double dist1 = p1.distanceTo(center);
+		final double dist2 = p2.distanceTo(center);
+		
+		if (dist1 >= innerRadius && dist1 <= outerRadius) {
+			intersections.add(0.0);
+		}
+		if (dist2 >= innerRadius && dist2 <= outerRadius) {
+			intersections.add(1.0);
+		}
+		
+		return intersections.stream().mapToDouble(Double::doubleValue).toArray();
+	}
+
+	/**
+	 * Finds intersection parameters for a line segment with a sphere.
+	 *
+	 * @param p1 first point of segment
+	 * @param p2 second point of segment
+	 * @param center center of sphere
+	 * @param radius sphere radius
+	 * @return array of intersection parameters (0, 1, or 2 values)
+	 */
+	private double[] findLineSphereIntersection(final PointInImage p1, final PointInImage p2,
+			final PointInImage center, final double radius) {
+		
+		// Vector from p1 to p2
+		final double dx = p2.x - p1.x;
+		final double dy = p2.y - p1.y;
+		final double dz = p2.z - p1.z;
+		
+		// Vector from p1 to center
+		final double fx = p1.x - center.x;
+		final double fy = p1.y - center.y;
+		final double fz = p1.z - center.z;
+		
+		// Quadratic equation coefficients: at² + bt + c = 0
+		final double a = dx*dx + dy*dy + dz*dz;
+		final double b = 2*(fx*dx + fy*dy + fz*dz);
+		final double c = fx*fx + fy*fy + fz*fz - radius*radius;
+		
+		final double discriminant = b*b - 4*a*c;
+		
+		if (discriminant < 0) {
+			return new double[0]; // No intersection
+		} else if (discriminant == 0) {
+			return new double[]{-b / (2*a)}; // One intersection
+		} else {
+			final double sqrtD = Math.sqrt(discriminant);
+			return new double[]{
+				(-b - sqrtD) / (2*a),
+				(-b + sqrtD) / (2*a)
+			}; // Two intersections
 		}
 	}
+
+	/**
+	 * Gets intersection points within a spherical shell, grouped as connected components.
+	 *
+	 * @param innerRadius the inner radius of the shell
+	 * @param outerRadius the outer radius of the shell
+	 * @return set of ShollPoints representing centroids of connected components
+	 */
+	private Set<ShollPoint> getIntersectionPointsInShell(final double innerRadius, final double outerRadius) {
+		final List<ShollPoint> allIntersections = new ArrayList<>();
+		final PointInImage soma = tree.getRoot();
+		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
+				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
+
+		// Collect all intersection points within the shell
+		for (final Path path : tree.list()) {
+			if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+				continue;
+
+			for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+				final PointInImage node1 = path.getNode(i);
+				final PointInImage node2 = path.getNode(i + 1);
+				
+				// Find intersections with both spheres
+				final List<PointInImage> segmentIntersections = findSegmentSphereIntersections(
+					node1, node2, center, innerRadius, outerRadius);
+				
+				// Convert to ShollPoints and add to collection
+				for (final PointInImage intersection : segmentIntersections) {
+					allIntersections.add(new ShollPoint(intersection.x, intersection.y, intersection.z));
+				}
+			}
+		}
+
+		// Group intersections into connected components and return centroids
+		return groupIntersectionsIntoComponents(allIntersections);
+	}
+
+    /**
+     * Returns a intrinsic spatial scale of the reconstruction, independent of
+     * image calibration. It is computed as the median distance between consecutive
+     * nodes across all Paths (respecting skipSomaticSegments). If no segments exist, returns 0.0.
+     */
+    private double intrinsicSegmentScale() {
+        if (intrinsicScaleCache != null && intrinsicScaleCache > 0) return intrinsicScaleCache;
+        final List<Double> lengths = new ArrayList<>();
+        final PointInImage soma = tree.getRoot();
+        final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
+                && soma.onPath.getSWCType() == Path.SWC_SOMA;
+        for (final Path path : tree.list()) {
+            if (path.size() == 0 || (skipFirstNode && path.equals(soma.onPath))) continue;
+            for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+                final PointInImage a = path.getNode(i);
+                final PointInImage b = path.getNode(i + 1);
+                lengths.add(a.distanceSquaredTo(b));
+            }
+        }
+        if (lengths.isEmpty()) {
+            intrinsicScaleCache = 0.0;
+            return 0.0;
+        }
+        Collections.sort(lengths);
+        final int m = lengths.size() / 2;
+        final double median = (lengths.size() % 2 == 0)
+                ? 0.5 * (lengths.get(m - 1) + lengths.get(m))
+                : lengths.get(m);
+        intrinsicScaleCache = Math.sqrt(median);
+        return intrinsicScaleCache;
+    }
+
+	/**
+	 * Gets intersection points at a specific radius (for continuous sampling).
+	 *
+	 * @param radius the radius at which to find intersections
+	 * @return set of ShollPoints representing intersection locations
+	 */
+	private Set<ShollPoint> getIntersectionPointsAtRadius(final double radius) {
+		final List<ShollPoint> intersections = new ArrayList<>();
+		final PointInImage soma = tree.getRoot();
+		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
+				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
+
+		// Find all intersections with the sphere at this radius
+		for (final Path path : tree.list()) {
+			if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+				continue;
+
+			for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+				final PointInImage node1 = path.getNode(i);
+				final PointInImage node2 = path.getNode(i + 1);
+				
+				// Find intersections with the sphere
+				final double[] ts = findLineSphereIntersection(node1, node2, center, radius);
+				for (final double t : ts) {
+					if (t >= 0.0 && t <= 1.0) {
+						// Calculate intersection point
+						final double x = node1.x + t * (node2.x - node1.x);
+						final double y = node1.y + t * (node2.y - node1.y);
+						final double z = node1.z + t * (node2.z - node1.z);
+						intersections.add(new ShollPoint(x, y, z));
+					}
+				}
+			}
+		}
+
+		return new LinkedHashSet<>(intersections);
+	}
+
+	/**
+	 * Finds intersection points between a line segment and spherical shell.
+	 *
+	 * @param p1 first endpoint of segment
+	 * @param p2 second endpoint of segment
+	 * @param center center of spheres
+	 * @param innerRadius inner sphere radius
+	 * @param outerRadius outer sphere radius
+	 * @return list of intersection points within the shell
+	 */
+	private List<PointInImage> findSegmentSphereIntersections(final PointInImage p1, final PointInImage p2,
+			final PointInImage center, final double innerRadius, final double outerRadius) {
+		
+		final List<PointInImage> intersections = new ArrayList<>();
+		
+		// Find intersections with both spheres
+		for (final double radius : new double[]{innerRadius, outerRadius}) {
+			final double[] ts = findLineSphereIntersection(p1, p2, center, radius);
+			
+			for (final double t : ts) {
+				if (t >= 0.0 && t <= 1.0) {
+					// Calculate intersection point
+					final double x = p1.x + t * (p2.x - p1.x);
+					final double y = p1.y + t * (p2.y - p1.y);
+					final double z = p1.z + t * (p2.z - p1.z);
+					
+					// Verify the point is within the shell
+					final double dist = Math.sqrt((x - center.x)*(x - center.x) + 
+												  (y - center.y)*(y - center.y) + 
+												  (z - center.z)*(z - center.z));
+					if (dist >= innerRadius && dist <= outerRadius) {
+						intersections.add(new PointInImage(x, y, z));
+					}
+				}
+			}
+		}
+		
+		return intersections;
+	}
+
+	/**
+	 * Groups intersection points into connected components and returns their centroids.
+	 * Points are considered connected if they are within a threshold distance of each other.
+	 *
+	 * @param intersections list of all intersection points
+	 * @return set of centroids representing connected components
+	 */
+	private Set<ShollPoint> groupIntersectionsIntoComponents(final List<ShollPoint> intersections) {
+		if (intersections.isEmpty()) {
+			return new LinkedHashSet<>();
+		}
+
+		final Set<ShollPoint> centroids = new LinkedHashSet<>();
+		final List<List<ShollPoint>> components = new ArrayList<>();
+		final boolean[] visited = new boolean[intersections.size()];
+
+        final double connectionThresholdSquared;
+        if (stepSize > 0) {
+            // Discontinuous mode: use full shell thickness so inner/outer intersections connect
+            connectionThresholdSquared = stepSize * stepSize;
+        } else {
+            // Continuous mode: derive tolerance without voxel calibration.
+            // Use max(1% of mean radius, intrinsic median segment length).
+            final double rBarSquared = intersections.stream()
+                    .mapToDouble(p -> p.distanceSquaredTo(center))
+                    .average().orElse(0.0);
+            final double s = intrinsicSegmentScale();
+            final double thr = Math.max(0.01 * Math.sqrt(rBarSquared), (s > 0.0 ? s : 1e-9));
+            connectionThresholdSquared = thr * thr;
+        }
+
+		for (int i = 0; i < intersections.size(); i++) {
+			if (visited[i]) continue;
+			
+			// Start a new component
+			final List<ShollPoint> component = new ArrayList<>();
+			final List<Integer> toVisit = new ArrayList<>();
+			toVisit.add(i);
+			
+			while (!toVisit.isEmpty()) {
+				final int currentIdx = toVisit.removeLast();
+				if (visited[currentIdx]) continue;
+				
+				visited[currentIdx] = true;
+				final ShollPoint currentPoint = intersections.get(currentIdx);
+				component.add(currentPoint);
+				
+				// Find nearby unvisited points
+				for (int j = 0; j < intersections.size(); j++) {
+					if (!visited[j]) {
+						final ShollPoint otherPoint = intersections.get(j);
+						final double distance = currentPoint.distanceSquaredTo(otherPoint);
+						if (distance <= connectionThresholdSquared) {
+							toVisit.add(j);
+						}
+					}
+				}
+			}
+			
+			components.add(component);
+		}
+		
+		// Calculate centroid for each component
+		for (final List<ShollPoint> component : components) {
+			if (!component.isEmpty()) {
+				double sumX = 0, sumY = 0, sumZ = 0;
+				for (final ShollPoint point : component) {
+					sumX += point.x;
+					sumY += point.y;
+					sumZ += point.z;
+				}
+				final int size = component.size();
+				centroids.add(new ShollPoint(sumX / size, sumY / size, sumZ / size));
+			}
+		}
+		
+		return centroids;
+	}
+
+    private record ComparableShollPoint(double distanceSquared,
+                                        boolean nearer) implements Comparable<ComparableShollPoint> {
+
+        @Override
+        public int compareTo(final ComparableShollPoint other) {
+            if (this.distanceSquared < other.distanceSquared) return -1;
+            else if (other.distanceSquared < this.distanceSquared) return 1;
+            return 0;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            final ComparableShollPoint other = (ComparableShollPoint) o;
+            return nearer == other.nearer && Double.compare(distanceSquared, other.distanceSquared) == 0;
+        }
+
+    }
 
 	/**
 	 * Gets the labels image.
@@ -411,7 +830,7 @@ public class TreeParser implements Parser {
 		}
 		final ImagePlus result = new ImagePlus("Labels Image", stack);
 		ImpUtils.applyColorTable(result, (cTable == null) ? ColorTables.ICE : cTable);
-		result.setDisplayRange(0, new LinearProfileStats(profile).getMax());
+		result.setDisplayRange(0, new LinearProfileStats(profile, ShollStats.DataMode.INTERSECTIONS).getMax());
 		result.setCalibration(templateImg.getCalibration());
 		return result;
 	}
@@ -442,7 +861,7 @@ public class TreeParser implements Parser {
 	/**
 	 * If primary paths start far-away from the soma (expected to be defined by a
 	 * single-point (soma centroid)), should segments between the soma and neurite
-	 * be ignored. Useful when somas are large relatively to the length of arbor, as
+	 * be ignored. Useful when soma is large relatively to the length of arbor, as
 	 * in microglia cells. See e.g.,
 	 * <a href="https://forum.image.sc/t//51707/">this forum thread</a>.
 	 * 

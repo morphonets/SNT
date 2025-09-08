@@ -21,6 +21,7 @@
  */
 package sc.fiji.snt.analysis.sholl.math;
 
+import org.apache.commons.lang3.StringUtils;
 import sc.fiji.snt.analysis.sholl.Profile;
 
 /**
@@ -32,41 +33,61 @@ import sc.fiji.snt.analysis.sholl.Profile;
 public interface ShollStats {
 
 	/** Flag for area normalization (Semi-log/Log-log method) */
-	final static int AREA = 2;
+	int AREA = 2;
 	/** Flag for perimeter normalization (Semi-log/Log-log method) */
-	static int PERIMETER = 4;
+	int PERIMETER = 4;
 	/** Flag for annulus normalization (Semi-log/Log-log method) */
-	final static int ANNULUS = 8;
+	int ANNULUS = 8;
 	/** Flag for volume normalization (Semi-log/Log-log method) */
-	final static int VOLUME = 16;
+	int VOLUME = 16;
 	/** Flag for surface normalization (Semi-log/Log-log method) */
-	final static int SURFACE = 32;
+	int SURFACE = 32;
 	/** Flag for spherical shell normalization (Semi-log/Log-log method) */
-	static final int S_SHELL = 64;
+    int S_SHELL = 64;
 
 	/** Flag for imposing Semi-log analysis */
-	final static int SEMI_LOG = 128;
+	int SEMI_LOG = 128;
 	/** Flag for imposing Log-log analysis */
-	final static int LOG_LOG = 256;
+	int LOG_LOG = 256;
 	/** Flag for automatic choice between Semi-log/Log-log analysis */
-	final static int GUESS_SLOG = 512;
+	int GUESS_SLOG = 512;
 
-	double[] getXvalues();
+	double[] getXValues();
 
-	double[] getYvalues();
+	double[] getYValues();
 
-	double[] getYvalues(final boolean asCumulativeFrequencies);
+	double[] getYValues(final boolean asCumulativeFrequencies);
 
 	// double[] getFitXvalues();
 
-	double[] getFitYvalues();
+	double[] getFitYValues();
 
-	double[] getFitYvalues(final boolean asCumulativeFrequencies);
+	double[] getFitYValues(final boolean asCumulativeFrequencies);
 
 	boolean validFit();
 
 	int getN();
 
 	Profile getProfile();
+
+    DataMode getDataMode();
+
+    void setDataMode(final DataMode mode);
+
+    enum DataMode {
+        INTERSECTIONS, LENGTH;
+
+        @Override
+        public String toString() {
+            return StringUtils.capitalize(super.toString().toLowerCase());
+        }
+
+        public static DataMode fromString(final String string) {
+            if (string == null || string.isBlank() || string.toLowerCase().contains("int"))
+                return INTERSECTIONS;
+            return LENGTH;
+        }
+
+    }
 
 }

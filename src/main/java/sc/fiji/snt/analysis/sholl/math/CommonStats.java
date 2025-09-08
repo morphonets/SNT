@@ -45,25 +45,27 @@ class CommonStats extends ContextCommand implements ShollStats {
 
 	protected final static double UNASSIGNED_VALUE = Double.MIN_VALUE;
 
-	protected final double[] inputRadii;
-	protected final double[] inputCounts;
+    private DataMode dataMode = DataMode.INTERSECTIONS; // Default mode
+    protected final double[] inputRadii;
+	protected final double[] inputCounts; // holds sampled data. Either intersection counts or lengths
 	protected final Profile profile;
 	protected int nPoints;
-	protected double[] fCounts;
+	protected double[] fCounts; // holds fitted data. Either intersection counts or lengths
 	protected ShollPlot plot;
 	protected Logger logger;
 
-	protected CommonStats(final Profile profile) {
-		this(profile, false, false);
+	protected CommonStats(final Profile profile, final DataMode dataMode) {
+        this(profile, dataMode, false, false);
 	}
 
-	protected CommonStats(final Profile profile, final boolean duplicateProfile, final boolean trimZeroes) throws IllegalArgumentException {
+	protected CommonStats(final Profile profile, final DataMode dataMode, final boolean duplicateProfile, final boolean trimZeroes) throws IllegalArgumentException {
 
 		if (profile == null)
 			throw new IllegalArgumentException("Cannot instantiate analysis with a null profile");
 		if (profile.isEmpty())
 			throw new IllegalArgumentException("Cannot instantiate analysis with an empty profile");
 
+        setDataMode(dataMode);
 		this.profile = (duplicateProfile) ? profile.duplicate() : profile;
 		// Remove all zeroes from input sample: this is required when e.g.,
 		// performing log transforms, since log(0) is undefined
@@ -74,10 +76,17 @@ class CommonStats extends ContextCommand implements ShollStats {
 		inputRadii = new double[nPoints];
 		inputCounts = new double[nPoints];
 		int idx = 0;
-		for (final ProfileEntry entry : this.profile.entries()) {
-			inputRadii[idx] = entry.radius;
-			inputCounts[idx++] = entry.count;
-		}
+        if (dataMode == DataMode.LENGTH) {
+            for (final ProfileEntry entry : this.profile.entries()) {
+                inputRadii[idx] = entry.radius;
+                inputCounts[idx++] = entry.length;
+            }
+        } else {
+            for (final ProfileEntry entry : this.profile.entries()) {
+                inputRadii[idx] = entry.radius;
+                inputCounts[idx++] = entry.count;
+            }
+        }
 	}
 
 	/**
@@ -183,18 +192,18 @@ class CommonStats extends ContextCommand implements ShollStats {
 	 * @return X-values of a Sholl plot
 	 */
 	@Override
-	public double[] getXvalues() {
+	public double[] getXValues() {
 		return inputRadii;
 	}
 
 	@Override
-	public double[] getYvalues() {
+	public double[] getYValues() {
 		return inputCounts;
 	}
 
 	@Override
-	public double[] getYvalues(final boolean asCumulativeFrequencies) {
-		return (asCumulativeFrequencies) ? getCumFrequencies(getYvalues()) : getYvalues();
+	public double[] getYValues(final boolean asCumulativeFrequencies) {
+		return (asCumulativeFrequencies) ? getCumFrequencies(getYValues()) : getYValues();
 	}
 
 	@Override
@@ -203,13 +212,13 @@ class CommonStats extends ContextCommand implements ShollStats {
 	}
 
 	@Override
-	public double[] getFitYvalues() {
+	public double[] getFitYValues() {
 		return fCounts;
 	}
 
 	@Override
-	public double[] getFitYvalues(final boolean asCumulativeFrequencies) {
-		return (asCumulativeFrequencies) ? getCumFrequencies(getFitYvalues()) : getFitYvalues();
+	public double[] getFitYValues(final boolean asCumulativeFrequencies) {
+		return (asCumulativeFrequencies) ? getCumFrequencies(getFitYValues()) : getFitYValues();
 	}
 
 	private double[] getCumFrequencies(final double[] array) {
@@ -235,16 +244,26 @@ class CommonStats extends ContextCommand implements ShollStats {
 	 * @return {@code true} if polynomial fitted data exists
 	 */
 	@Override
-	public boolean validFit() {
-		return (fCounts != null && fCounts.length > 0);
-	}
+	public boolean validFit() { return (fCounts != null && fCounts.length > 0); }
 
 	@Override
 	public Profile getProfile() {
 		return profile;
 	}
 
-	@Override
+    @Override
+    public DataMode getDataMode() {
+        return dataMode;
+    }
+
+    @Override
+    public void setDataMode(final DataMode mode) {
+        if (inputCounts != null)
+            throw new IllegalArgumentException("DataMode must be called before data is gathered from profile");
+        this.dataMode = mode;
+    }
+
+    @Override
 	public void run() {
 		// implemented by extending classes
 	}

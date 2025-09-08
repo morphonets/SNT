@@ -29,6 +29,7 @@ import ij.measure.Calibration;
 import ij.process.ImageProcessor;
 import sc.fiji.snt.analysis.sholl.gui.ShollOverlay;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.util.ShollPoint;
 
 
@@ -117,7 +118,7 @@ public class Profile implements ProfileProperties {
 		properties.setProperty(KEY_ID, identifier);
 	}
 
-	public ArrayList<Double> radii() {
+	public List<Double> radii() {
 		final ArrayList<Double> radii = new ArrayList<>();
 		for (final ProfileEntry e : profile)
 			radii.add(e.radius);
@@ -131,7 +132,7 @@ public class Profile implements ProfileProperties {
 		return dup;
 	}
 
-	public ArrayList<Double> radiiSquared() {
+	public List<Double> radiiSquared() {
 		final ArrayList<Double> radii = new ArrayList<>();
 		for (final ProfileEntry e : profile)
 			radii.add(e.radius * e.radius);
@@ -142,7 +143,7 @@ public class Profile implements ProfileProperties {
 		return radii().stream().mapToDouble(d -> d).toArray();
 	}
 
-	public ArrayList<Double> counts() {
+	public List<Double> counts() {
 		final ArrayList<Double> counts = new ArrayList<>();
 		for (final ProfileEntry e : profile)
 			counts.add(e.count);
@@ -153,7 +154,18 @@ public class Profile implements ProfileProperties {
 		return counts().stream().mapToDouble(d -> d).toArray();
 	}
 
-	public ArrayList<Set<ShollPoint>> points() {
+	public List<Double> lengths() {
+		final ArrayList<Double> lengths = new ArrayList<>();
+		for (final ProfileEntry e : profile)
+			lengths.add(e.length);
+		return lengths;
+	}
+
+	public double[] lengthsAsArray() {
+		return lengths().stream().mapToDouble(d -> d).toArray();
+	}
+
+	public List<Set<ShollPoint>> points() {
 		final ArrayList<Set<ShollPoint>> allPoints = new ArrayList<>();
 		for (final ProfileEntry e : profile)
 			allPoints.add(e.points);
@@ -242,7 +254,7 @@ public class Profile implements ProfileProperties {
 	}
 
 	public ShollPlot plot() {
-		return new ShollPlot(this);
+		return new ShollPlot(ShollStats.DataMode.INTERSECTIONS, this);
 	}
 
 	@Override
@@ -259,7 +271,7 @@ public class Profile implements ProfileProperties {
 		properties.setProperty(KEY_CENTER, center.toString());
 	}
 
-	private static ArrayList<Number> arrayToList(final Number[] array) {
+	private static List<Number> arrayToList(final Number[] array) {
 		return new ArrayList<>(Arrays.asList(array));
 	}
 

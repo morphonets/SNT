@@ -1019,7 +1019,7 @@ public class GraphEditor extends JPanel
 
 			PaintScaleLegend getLegend() {
 				final boolean integers = (int)min == min && (int)max == max;
-				final PaintScaleLegend legend = SNTChart.getPaintScaleLegend(colorTable, min, max, (integers) ? 0 : 2);
+				final PaintScaleLegend legend = SNTChart.getPaintScaleLegend(null, colorTable, min, max, (integers) ? 0 : 2);
 				legend.setPosition(RectangleEdge.TOP);
 				legend.setMargin(10, 50, 0, 50);
 				legend.getAxis().setLabelPaint(color);

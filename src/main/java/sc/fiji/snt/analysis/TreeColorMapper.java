@@ -34,6 +34,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
@@ -185,7 +186,7 @@ public class TreeColorMapper extends ColorMapper {
 				parser.setCenter(tree.getRoot());
 				parser.setStepSize(0);
 				parser.parse();
-				map(tree, new LinearProfileStats(parser.getProfile()), colorTable);
+				map(tree, new LinearProfileStats(parser.getProfile(), ShollStats.DataMode.INTERSECTIONS), colorTable);
 				integerScale = true;
 				break;
 			case PATH_DISTANCE:
@@ -471,7 +472,7 @@ public class TreeColorMapper extends ColorMapper {
 	 * @param colorTable the color table specifying the color mapping. Null not allowed.
 	 */
 	public void map(final Tree tree, final Profile profile, final ColorTable colorTable) {
-		map(tree, new LinearProfileStats(profile), colorTable);
+		map(tree, new LinearProfileStats(profile, ShollStats.DataMode.INTERSECTIONS), colorTable);
 	}
 
 	/**

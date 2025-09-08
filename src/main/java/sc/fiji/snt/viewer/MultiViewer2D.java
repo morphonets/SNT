@@ -41,6 +41,7 @@ import sc.fiji.snt.analysis.MultiTreeColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.util.PointInImage;
 
@@ -185,7 +186,7 @@ public class MultiViewer2D {
 			legendMax = max;
 		}
 		colorLegendViewer = viewers.getLast();
-		legend = SNTChart.getPaintScaleLegend(colorTable, legendMin, legendMax, nDecimalPlaces);
+		legend = SNTChart.getPaintScaleLegend(null, colorTable, legendMin, legendMax, nDecimalPlaces);
 	}
 
 	public void save(final String filePath) {
@@ -387,7 +388,7 @@ public class MultiViewer2D {
 			parser.setCenter(TreeParser.ROOT_NODES_ANY);
 			parser.setStepSize(0);
 			parser.parse();
-			final LinearProfileStats stats = new LinearProfileStats(parser.getProfile());
+			final LinearProfileStats stats = new LinearProfileStats(parser.getProfile(), ShollStats.DataMode.INTERSECTIONS);
 			min = Math.min(stats.getMin(), min);
 			max = Math.max(stats.getMax(), max);
 			tmapper.map(tree, stats, ColorTables.CYAN);

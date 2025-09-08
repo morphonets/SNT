@@ -27,7 +27,7 @@ import java.awt.FontMetrics;
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.commons.math3.stat.StatUtils;
@@ -80,8 +80,7 @@ public class ShollPlot extends Plot {
 	private boolean preferCumulativeFrequencies;
 	private ShollStats stats;
 	private LinearProfileStats linearStats;
-	private NormalizedProfileStats normStats;
-	private StringBuffer tempLegend;
+    private StringBuffer tempLegend;
 	private double xMin, xMax, yMin, yMax;
 
 	/**
@@ -95,27 +94,23 @@ public class ShollPlot extends Plot {
 		super(title, xLabel, yLabel);
 	}
 
-	public ShollPlot(final Profile profile) {
-		this(new LinearProfileStats(profile), false);
-	}
-
-	public ShollPlot(final ShollStats stats) {
-		this(stats, false);
-	}
 
 	public ShollPlot(final ShollStats stats, final boolean cumulativeFrequencies) {
 		this(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats, true, cumulativeFrequencies);
 	}
 
-	public ShollPlot(final Profile... profiles) {
-		super("Combined Sholl Plot", "Distance", "No. Intersections");
+	public ShollPlot(final ShollStats.DataMode dataMode, final Profile... profiles) {
+		super("Combined Sholl Plot", "Distance", defaultYtitle(dataMode, profiles));
 		final Color[] colors = SNTColor.getDistinctColorsAWT(profiles.length);
 		final StringBuilder legend = new StringBuilder();
 		setLineWidth(1.75f);
 		for (int i = 0; i < profiles.length; i++) {
 			final Profile p = profiles[i];
 			setColor(colors[i]);
-			addPoints(p.radii(), p.counts(), LINE);
+            if (dataMode == ShollStats.DataMode.LENGTH)
+                addPoints((ArrayList<Double>) p.radii(), (ArrayList<Double>) p.lengths(), LINE);
+            else
+                addPoints((ArrayList<Double>) p.radii(), (ArrayList<Double>) p.counts(), LINE);
 			legend.append(p.identifier()).append("\n");
 		}
 		setLimitsToFit(false);
@@ -132,6 +127,7 @@ public class ShollPlot extends Plot {
 		// custom shape, otherwise the default Plot.Line would be used
 		super(title, xLabel, (useCumulativeFrequencies) ? "Cumulative Frequency" : yLabel, DUMMY_VALUES, DUMMY_VALUES, DEF_FLAGS);
 		this.stats = stats;
+        NormalizedProfileStats normStats;
         switch (stats) {
             case null -> throw new IllegalArgumentException("Stats instance cannot be null");
             case LinearProfileStats linearProfileStats -> {
@@ -150,8 +146,8 @@ public class ShollPlot extends Plot {
 		tempLegend = new StringBuffer();
 
 		// Set plot limits without grid lines
-		final double[] xValues = stats.getXvalues();
-		final double[] yValues = stats.getYvalues(preferCumulativeFrequencies);
+		final double[] xValues = stats.getXValues();
+		final double[] yValues = stats.getYValues(preferCumulativeFrequencies);
 		xMin = StatUtils.min(xValues);
 		xMax = StatUtils.max(xValues);
 		yMin = StatUtils.min(yValues);
@@ -175,7 +171,7 @@ public class ShollPlot extends Plot {
 		// Add fitted data
 		setColor(FDATA_COLOR1);
 		if (linearStats != null && linearStats.validFit()) {
-			addPoints(linearStats.getXvalues(), linearStats.getFitYvalues(preferCumulativeFrequencies), THICK_LINE);
+			addPoints(linearStats.getXValues(), linearStats.getFitYValues(preferCumulativeFrequencies), THICK_LINE);
 			annotateLinearProfile(!preferCumulativeFrequencies);
 		}
 		if (normStats != null && normStats.validFit()) {
@@ -191,11 +187,9 @@ public class ShollPlot extends Plot {
 
 		// Append finalized legend
 		final int flagPos = (annotate) ? AUTO_POSITION | LEGEND_TRANSPARENT : 0;
-		final StringBuilder finalLegend = new StringBuilder("Sampled data\n");
-		finalLegend.append(tempLegend);
 		setLineWidth(1);
 		setColor(Color.WHITE);
-		setLegend(finalLegend.toString(), flagPos);
+		setLegend("Sampled data\n" + tempLegend, flagPos);
 		updateImage();
 		resetDrawing();
 	}
@@ -244,7 +238,7 @@ public class ShollPlot extends Plot {
 
 	private static String defaultTitle(final ShollStats stats) {
 		String plotTitle = "Sholl Profile";
-		if (stats.getProfile().isIntDensityProfile())
+        if (stats.getProfile().isIntDensityProfile())
 			plotTitle += " (IntDen)";
 		else if (stats instanceof LinearProfileStats)
 			plotTitle += " (Linear)";
@@ -256,14 +250,14 @@ public class ShollPlot extends Plot {
 		return WindowManager.getUniqueName(plotTitle); //displayService.isUniqueName(plotTitle);
 	}
 
-	private static String defaultXtitle(final Profile profile) {
+	public static String defaultXtitle(final Profile profile) {
 		final StringBuilder sb = new StringBuilder();
 		if (profile.is2D())
 			sb.append("2D ");
 		sb.append("Distance");
 		final ShollPoint center = profile.center();
 		if (center != null)
-			sb.append(" from ").append(center.toString());
+			sb.append(" from ").append(center);
 		if (profile.scaled())
 			sb.append(" (").append(profile.spatialCalibration().getUnit()).append(")");
 		return sb.toString();
@@ -279,22 +273,42 @@ public class ShollPlot extends Plot {
 
 	private static String defaultYtitle(final ShollStats stats) {
 		final boolean intensities = stats.getProfile().isIntDensityProfile();
-		if (stats instanceof NormalizedProfileStats) {
+        final boolean length = stats.getDataMode()== ShollStats.DataMode.LENGTH;
+        if (stats instanceof NormalizedProfileStats) {
 			final int normMethod = (((NormalizedProfileStats) stats)).getMethod();
-            return switch (normMethod) {
-                case ShollStats.ANNULUS -> (intensities) ? "log(N. Int. Dens./Annulus)" : "log(No. Inters./Annulus)";
-                case ShollStats.AREA -> (intensities) ? "log(N. Int. Dens./Area)" : "log(No. Inters./Area)";
+            final String title = switch (normMethod) {
+                case ShollStats.ANNULUS -> (intensities) ? "log(N. Int. Dens./Annulus)" : "log(SCOPE/Annulus)";
+                case ShollStats.AREA -> (intensities) ? "log(N. Int. Dens./Area)" : "log(SCOPE/Area)";
                 case ShollStats.PERIMETER ->
-                        (intensities) ? "log(N. Int. Dens./Perimeter)" : "log(No. Inters./Perimeter)";
+                        (intensities) ? "log(N. Int. Dens./Perimeter)" : "log(SCOPE/Perimeter)";
                 case ShollStats.S_SHELL ->
-                        (intensities) ? "log(N. Int. Dens./Spherical Shell)" : "log(No. Inters./Spherical Shell)";
-                case ShollStats.SURFACE -> (intensities) ? "log(N. Int. Dens./Surface)" : "log(No. Inters./Surface)";
-                case ShollStats.VOLUME -> (intensities) ? "log(N. Int. Dens./Volume)" : "log(No. Inters./Volume)";
-                default -> "Normalized Inters.";
+                        (intensities) ? "log(N. Int. Dens./Spherical Shell)" : "log(SCOPE/Spherical Shell)";
+                case ShollStats.SURFACE -> (intensities) ? "log(N. Int. Dens./Surface)" : "log(SCOPE/Surface)";
+                case ShollStats.VOLUME -> (intensities) ? "log(N. Int. Dens./Volume)" : "log(SCOPE/Volume)";
+                default -> "Normalized SCOPE";
             };
+            return title.replaceAll("SCOPE", (length) ? getLengthStringWithUnit(stats.getProfile()) : "No. Inters.");
 		}
-		return (stats.getProfile().isIntDensityProfile()) ? "Norm. Integrated Density" : "No. Intersections";
+        if (stats.getProfile().isIntDensityProfile())
+            return "Norm. Integrated Density";
+        return  (length) ? getLengthStringWithUnit(stats.getProfile()) : "No. Intersections";
 	}
+
+    private static String defaultYtitle(final ShollStats.DataMode dataMode, final Profile... profiles) {
+        final boolean intensities = Arrays.stream(profiles).allMatch(Profile::isIntDensityProfile);
+        if (intensities)
+            return "Integrated Density";
+        if (dataMode == ShollStats.DataMode.LENGTH)
+            return (profiles.length == 1) ? getLengthStringWithUnit(profiles[0]) : "Length";
+        return "No. Intersections";
+    }
+
+    private static String getLengthStringWithUnit(final Profile profile) {
+        if (profile != null && profile.scaled())
+            return "Length ("+ profile.spatialCalibration().getUnit() + ")";
+        else
+            return "Length";
+    }
 
 	private void drawDottedLine(final double x1, final double y1, final double x2, final double y2) {
 		final int DASH_STEP = 4;
@@ -363,10 +377,7 @@ public class ShollPlot extends Plot {
 
 		// build label
 		if (fittedData) {
-			final double rsqred = linearStats.getRSquaredOfFit(true);
-			final String polyType = linearStats.getPolynomialAsString();
-			tempLegend.append(polyType).append(" fit (");
-			tempLegend.append("R\u00B2= ").append(ShollUtils.d2s(rsqred)).append(")\n");
+			tempLegend.append(linearStats.getPolynomialAsString(true)).append("\n");
 		}
 
 	}
@@ -388,10 +399,10 @@ public class ShollPlot extends Plot {
 
 		final double x = pCentroid.x;
 		final double y = pCentroid.y;
-		final double xStart = descaleX((int) (scaleXtoPxl(x) - (markSize / 2) + 0.5));
-		final double yStart = descaleY((int) (scaleYtoPxl(y) - (markSize / 2) + 0.5));
-		final double xEnd = descaleX((int) (scaleXtoPxl(x) + (markSize / 2) + 0.5));
-		final double yEnd = descaleY((int) (scaleYtoPxl(y) + (markSize / 2) + 0.5));
+		final double xStart = descaleX((int) (scaleXtoPxl(x) - ((double) markSize / 2) + 0.5));
+		final double yStart = descaleY((int) (scaleYtoPxl(y) - ((double) markSize / 2) + 0.5));
+		final double xEnd = descaleX((int) (scaleXtoPxl(x) + ((double) markSize / 2) + 0.5));
+		final double yEnd = descaleY((int) (scaleYtoPxl(y) + ((double) markSize / 2) + 0.5));
 
 		draw();
 		switch (markShape) {

@@ -30,9 +30,7 @@ import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
-import org.jfree.chart.axis.NumberAxis;
-import org.jfree.chart.axis.SubCategoryAxis;
-import org.jfree.chart.axis.SymbolAxis;
+import org.jfree.chart.axis.*;
 import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.labels.XYToolTipGenerator;
 import org.jfree.chart.plot.*;
@@ -196,7 +194,7 @@ public class AnalysisUtils {
 	private static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
 			final HistogramDatasetPlus datasetPlus, final String description) {
 
-		final PolarPlot polarPlot = new PolarPlot();
+        final PolarPlot polarPlot = initPolarPlot();
 		polarPlot.setDataset(histoDatasetToSingleXYDataset(datasetPlus.getDataset(), 1, datasetPlus.nBins));
 
 		// Customize series
@@ -240,27 +238,7 @@ public class AnalysisUtils {
 	}
 
 	private static JFreeChart assemblePolarPlotChart(final PolarPlot polarPlot, final boolean createLegend) {
-		// Customize axes
-		final NumberAxis rangeAxis = new NumberAxis();
-		polarPlot.setAxis(rangeAxis);
-		rangeAxis.setAxisLineVisible(true);
-		rangeAxis.setTickMarksVisible(true);
-		rangeAxis.setAutoTickUnitSelection(true);
-		rangeAxis.setTickLabelsVisible(true);
-		// Customize plot
-		//polarPlot.addCornerTextItem(xAxisTitle);
-		polarPlot.setCounterClockwise(false);
-		polarPlot.setRadiusMinorGridlinesVisible(false);
-		polarPlot.setAxisLocation(PolarAxisLocation.NORTH_LEFT);
-		polarPlot.setBackgroundAlpha(0f);
-		polarPlot.setAngleGridlinePaint(Color.DARK_GRAY);
-		polarPlot.setBackgroundPaint(Color.WHITE);
-		polarPlot.setRadiusGridlinePaint(Color.LIGHT_GRAY);
-		polarPlot.setAngleGridlinesVisible(true);
-		polarPlot.setOutlineVisible(false);
-
-		// Customize chart
-		final JFreeChart chart = new JFreeChart(null, rangeAxis.getLabelFont(), polarPlot, createLegend);
+		final JFreeChart chart = new JFreeChart(null, polarPlot.getAngleLabelFont(), polarPlot, createLegend);
 		chart.setBorderVisible(false);
 		return chart;
 	}
@@ -676,6 +654,63 @@ public class AnalysisUtils {
 		}
 		return new SNTChart(title, new JFreeChart(null, null, ringPlot, false));
 	}
+
+    private static PolarPlot initPolarPlot() {
+        final PolarPlot polarPlot = new PolarPlot();
+        polarPlot.setAngleTickUnit(new NumberTickUnit(PolarPlot.DEFAULT_ANGLE_TICK_UNIT_SIZE) {
+            @Override
+            public String valueToString(double value) {
+                return super.valueToString(value) + "°";
+            }
+        });
+        polarPlot.setAxisLocation(PolarAxisLocation.EAST_BELOW);
+        polarPlot.setCounterClockwise(false);
+        polarPlot.setRadiusMinorGridlinesVisible(false);
+        polarPlot.setBackgroundAlpha(0f);
+        polarPlot.setAngleGridlinePaint(Color.DARK_GRAY);
+        polarPlot.setBackgroundPaint(Color.WHITE);
+        polarPlot.setRadiusGridlinePaint(Color.LIGHT_GRAY);
+        polarPlot.setAngleGridlinesVisible(true);
+        polarPlot.setOutlineVisible(false);
+        final NumberAxis rangeAxis = new NumberAxis();
+        rangeAxis.setLabelFont(polarPlot.getAngleLabelFont());
+        rangeAxis.setAxisLineVisible(false);
+        rangeAxis.setTickMarksVisible(false);
+        rangeAxis.setAutoTickUnitSelection(true);
+        rangeAxis.setTickLabelsVisible(true);
+        polarPlot.setAxis(rangeAxis);
+        return polarPlot;
+    }
+
+    /**
+     * Generates a polar plot
+     *
+     * @param title        the title of the chart. Null allowed
+     * @param seriesData   the data (must be an array with length 2, containing two arrays of equal length,
+     *                     the first containing the x-values and the second containing the y-values)
+     * @param seriesColors the series colors corresponding to the sections of the plot
+     * @return an instance of SNTChart containing the generated polar plot
+     */
+    public static SNTChart polarPlot(final String title, final List<double[][]> seriesData, final List<Color> seriesColors) {
+        final PolarPlot polarPlot = initPolarPlot();
+        final DefaultXYDataset xyDataset = new DefaultXYDataset();
+        for (int i = 0; i < seriesData.size(); i++) {
+            xyDataset.addSeries(String.format("%03d", i), seriesData.get(i));
+        }
+        polarPlot.setDataset(xyDataset);
+        final DefaultPolarItemRenderer renderer = new DefaultPolarItemRenderer();
+        polarPlot.setRenderer(renderer);
+        renderer.setShapesVisible(false);
+        renderer.setConnectFirstAndLastPoint(true);
+        for (int i = 0; i < seriesColors.size(); i++) {
+            final Color color = seriesColors.get(i);
+            renderer.setSeriesFilled(i, true);
+            renderer.setSeriesOutlinePaint(i, color);
+            renderer.setSeriesPaint(i, color);
+            renderer.setSeriesFillPaint(i, color);
+        }
+        return new SNTChart(title, assemblePolarPlotChart(polarPlot, false));
+    }
 
 	private static RingPlot getRingPlot(final DefaultPieDataset<String> dataset) {
 		final RingPlot ringPlot = new RingPlot(dataset);

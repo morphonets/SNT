@@ -57,6 +57,7 @@ import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.ProfileProperties;
@@ -66,6 +67,8 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.analysis.sholl.math.PolarStats;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser3D;
@@ -135,9 +138,12 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private static final int SCOPE_ABORT = 2;
 	private static final int SCOPE_CHANGE_DATASET = 3;
 
-	/* Parameters */
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Shells:")
 	private String HEADER1;
+
+    @Parameter(label = "Sampling type", choices = {"Intersections", "Length"},
+            style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
+    private String dataModeChoice;
 
 	@Parameter(label = "Starting radius", required = false, callback = "startRadiusStepSizeChanged", min = "0",
 			style="scroll bar,format:0.000")
@@ -209,8 +215,11 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "<br>Output:")
 	private String HEADER4;
 
-	@Parameter(label = "Plots", callback="saveOptionsChanged", choices = { "Linear plot", "Normalized plot", "Linear & normalized plots",
-			"Integrated density plot", "Cumulative: Linear plot", "Cumulative: Integrated density plot", "None. Show no plots" })
+	@Parameter(label = "Plots", callback="saveOptionsChanged",
+            choices = { "Linear plot", "Normalized plot", "Polar plot", //
+                    "Linear & normalized plots", "Linear, normalized, and polar plots", //
+			        "Integrated density plot", //
+                    "Cumulative: Linear plot", "Cumulative: Integrated density plot", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", callback="saveOptionsChanged", choices = { "Detailed table", "Summary table",
@@ -393,7 +402,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		if (!choices.contains("Drosophila_ddaC_Neuron.tif"))
 			choices.add("Demo Image");
 		final String choice = helper.getChoice("Choose new image", "Choose New Image", choices.toArray(new String[0]),
-				choices.get(0));
+				choices.getFirst());
 		if (choice == null) // user pressed cancel
 			return;
 		final ImagePlus newImp;
@@ -501,14 +510,14 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		return getProfile() != null && !getProfile().isEmpty();
 	}
 
-	private NormalizedProfileStats getNormalizedProfileStats(final Profile profile) {
+	private NormalizedProfileStats getNormalizedProfileStats(final Profile profile, final ShollStats.DataMode dataMode) {
 		String normalizerString = normalizerDescription.toLowerCase();
 		if (normalizerString.startsWith("default")) {
 			normalizerString = (twoD) ? NORM2D_CHOICES.get(1) : NORM3D_CHOICES.get(1);
 		}
 		final int normFlag = NormalizedProfileStats.getNormalizerFlag(normalizerString);
 		final int methodFlag = NormalizedProfileStats.getMethodFlag(normalizationMethodDescription);
-		return new NormalizedProfileStats(profile, normFlag, methodFlag);
+		return new NormalizedProfileStats(profile, dataMode, normFlag, methodFlag);
 	}
 
 	protected void setProfile(final Profile profile) {
@@ -680,7 +689,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		final List<String> choices = (twoD) ? NORM2D_CHOICES : NORM3D_CHOICES;
 		final MutableModuleItem<String> mItem = getInfo().getMutableInput("normalizerDescription", String.class);
 		mItem.setChoices((twoD) ? NORM2D_CHOICES : NORM3D_CHOICES);
-		mItem.setValue(this, choices.get(0));
+		mItem.setValue(this, choices.getFirst());
 	}
 
 	private boolean validRadiiOptions() {
@@ -857,7 +866,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			choices.add(entry.getKey());
 		}
 		Collections.sort(choices);
-		choices.add(0, "No LUT. Use active ROI color");
+		choices.addFirst("No LUT. Use active ROI color");
 		final MutableModuleItem<String> input = getInfo().getMutableInput("lutChoice", String.class);
 		input.setChoices(choices);
 		input.setValue(this, lutChoice);
@@ -919,7 +928,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			helper.setParentToActiveWindow();
 			helper.error(normalizerDescription + " normalization requires radius step size to be ≥ "
 					+ ShollUtils.d2s(voxelSize) + cal.getUnit(), null);
-			normalizerDescription = (twoD) ? NORM2D_CHOICES.get(0) : NORM3D_CHOICES.get(0);
+			normalizerDescription = (twoD) ? NORM2D_CHOICES.getFirst() : NORM3D_CHOICES.getFirst();
 		}
 	}
 
@@ -1119,9 +1128,11 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 				}
 			}
 			final Profile profile = parser.getProfile();
+            final ShollStats.DataMode dataMode = ShollStats.DataMode.fromString(dataModeChoice);
+            logger.debug("Data mode: " + dataMode);
 
-			// Linear profile stats
-			final LinearProfileStats lStats = new LinearProfileStats(profile);
+            // Linear profile stats
+			final LinearProfileStats lStats = new LinearProfileStats(profile, dataMode);
 			lStats.setLogger(logger);
 			if (primaryBranches > 0 ) {
 				lStats.setPrimaryBranches(primaryBranches);
@@ -1146,7 +1157,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			}
 
 			/// Normalized profile stats
-			final NormalizedProfileStats nStats = getNormalizedProfileStats(profile);
+			final NormalizedProfileStats nStats = getNormalizedProfileStats(profile, dataMode);
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
 
 			// Set ROIs
@@ -1173,6 +1184,13 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 				outputs.add(lPlot);
 				lPlot.show();
 			}
+            if (plotOutputDescription.toLowerCase().contains("polar")) {
+                final int angleStepSize = prefService.getInt(ShollAnalysisPrefsCmd.class, "angleStepSize",
+                        ShollAnalysisPrefsCmd.DEF_ANGLE_STEP_SIZE);
+                final SNTChart polarPlot = new PolarStats(lStats, angleStepSize).getPlot();
+                polarPlot.show();
+                outputs.add(polarPlot);
+            }
 			if (plotOutputDescription.toLowerCase().contains("normalized")) {
 				final ShollPlot nPlot = nStats.getPlot(false);
 				outputs.add(nPlot);

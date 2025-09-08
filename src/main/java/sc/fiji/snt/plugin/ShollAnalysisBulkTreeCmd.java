@@ -38,17 +38,21 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.thread.ThreadService;
 import org.scijava.widget.Button;
+import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 
 import net.imagej.ImageJ;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.analysis.sholl.math.PolarStats;
+import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -89,6 +93,10 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Sampling:")
 	private String HEADER1;
+
+    @Parameter(label = "Type", choices = {"Intersections", "Length"},
+            style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
+    private String dataModeChoice;
 
 	@Parameter(label = "Path filtering", required = false, choices = { "None",
 		"Paths tagged as 'Axon'", "Paths tagged as 'Dendrite'",
@@ -149,9 +157,9 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Output:")
 	private String HEADER3;
 
-	@Parameter(label = "Plots",  required = false, choices = { "Linear plot", "Normalized plot",
-		"Linear & normalized plots", "None" })
-	private String plotOutputDescription;
+    @Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot", "Polar plot",
+            "Linear & normalized plots", "Linear, normalized, and polar plots", "None. Show no plots" })
+    private String plotOutputDescription;
 
 	@Parameter(label = "Tables", required = false, choices = {"Summary table", "Detailed & Summary tables"})
 	private String tableOutputDescription;
@@ -188,6 +196,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 	/* Preferences */
 	private int minDegree;
 	private int maxDegree;
+    private ShollStats.DataMode dataMode;
 
 	@Override
 	public void run() {
@@ -224,8 +233,9 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 			normalizationMethodDescription = "Automatically choose";
 		if (centerChoice == null || centerChoice.isEmpty())
 			centerChoice = "Root node(s)";
-		
-		logger = new Logger(context(), "Sholl");
+        dataMode = ShollStats.DataMode.fromString(dataModeChoice);
+
+        logger = new Logger(context(), "Sholl");
 		logger.info("Running multithreaded analysis...");
 		readPreferences();
 		commonSummaryTable = new ShollTable();
@@ -273,7 +283,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 		final int normFlag = NormalizedProfileStats.getNormalizerFlag(normString);
 		final int methodFlag = NormalizedProfileStats.getMethodFlag(
 			normalizationMethodDescription);
-		return new NormalizedProfileStats(profile, normFlag, methodFlag);
+		return new NormalizedProfileStats(profile, dataMode, normFlag, methodFlag);
 	}
 
 	private void readPreferences() {
@@ -414,7 +424,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 			final Profile profile = parser.getProfile();
 
 			// Linear profile stats
-            LinearProfileStats lStats = new LinearProfileStats(profile);
+            LinearProfileStats lStats = new LinearProfileStats(profile, dataMode);
 			lStats.setLogger(logger);
 			int primaryBranches;
 			try {
@@ -466,6 +476,19 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 				}
 				if (showAnalysis) nPlot.show();
 			}
+
+            if (plotOutputDescription.toLowerCase().contains("polar")) {
+                final int angleStepSize = prefService.getInt(ShollAnalysisPrefsCmd.class, "angleStepSize",
+                        ShollAnalysisPrefsCmd.DEF_ANGLE_STEP_SIZE);
+                final SNTChart polarPlot = new PolarStats(lStats, angleStepSize).getPlot();
+                if (validDir) {
+                    if (polarPlot.save(saveDir))
+                        logger.info(TREE_LABEL + " Polar plot saved...");
+                    else
+                        logger.warn(TREE_LABEL + " Error while saving normalized plot");
+                }
+                if (showAnalysis) polarPlot.show();
+            }
 
 			// Tables
 			if (tableOutputDescription.contains("Detailed")) {

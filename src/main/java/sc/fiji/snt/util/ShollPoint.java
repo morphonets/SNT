@@ -49,7 +49,7 @@ public class ShollPoint extends PointInImage {
 	}
 
 	public ShollPoint(final double x, final double y, final double z) {
-		super(x,y, z);
+		super(x, y, z);
 	}
 
 	public ShollPoint(final double x, final double y) {

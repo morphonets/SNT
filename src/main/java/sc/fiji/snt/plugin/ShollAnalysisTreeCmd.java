@@ -45,12 +45,14 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.thread.ThreadService;
 import org.scijava.widget.Button;
+import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.Profile;
@@ -61,6 +63,7 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.analysis.sholl.math.PolarStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
@@ -109,6 +112,10 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "Sampling:")
 	private String HEADER1;
+
+    @Parameter(label = "Type", choices = {"Intersections", "Length"},
+            style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
+    private String dataModeChoice;
 
 	@Parameter(label = "Path filtering", required = false, choices = { "None",
 		"Selected paths", "Paths tagged as 'Axon'", "Paths tagged as 'Dendrite'",
@@ -171,8 +178,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Output:")
 	private String HEADER3;
 
-	@Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot",
-		"Linear & normalized plots", "None. Show no plots" })
+	@Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot", "Polar plot",
+            "Linear & normalized plots", "Linear, normalized, and polar plots", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", choices = { "Detailed table", "Summary table",
@@ -234,6 +241,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 	/* Preferences */
 	private int minDegree;
 	private int maxDegree;
+    private ShollStats.DataMode dataMode;
 
 	@Override
 	public void run() {
@@ -343,9 +351,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		return paths.getRoot();
 	}
 
-	private NormalizedProfileStats getNormalizedProfileStats(
-		final Profile profile, boolean threeD)
-	{
+	private NormalizedProfileStats getNormalizedProfileStats(final Profile profile, boolean threeD) {
 		String normString = normalizerDescription.toLowerCase();
 		if (normString.startsWith("default")) {
 			normString = "Area/Volume";
@@ -359,7 +365,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		final int normFlag = NormalizedProfileStats.getNormalizerFlag(normString);
 		final int methodFlag = NormalizedProfileStats.getMethodFlag(
 			normalizationMethodDescription);
-		return new NormalizedProfileStats(profile, normFlag, methodFlag);
+		return new NormalizedProfileStats(profile, dataMode, normFlag, methodFlag);
 	}
 
 	/* initializer method running before displaying prompt */
@@ -451,7 +457,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		if (filePath != null) file = new File(filePath);
 		filterChoice = prefService.get(ShollAnalysisTreeCmd.class, "filterChoice", "None");
 		stepSize = prefService.getDouble(ShollAnalysisTreeCmd.class, "stepSize", 0d);
-		centerChoice = prefService.get(ShollAnalysisTreeCmd.class, "centerChoice", "Root node(s)");
+        dataModeChoice = prefService.get(ShollAnalysisTreeCmd.class, "dataModeChoice", "Intersections");
+        centerChoice = prefService.get(ShollAnalysisTreeCmd.class, "centerChoice", "Root node(s)");
 		polynomialChoice = prefService.get(ShollAnalysisTreeCmd.class, "polynomialChoice", "'Best fitting' degree");
 		polynomialDegree = prefService.getInt(ShollAnalysisTreeCmd.class, "polynomialDegree", 0);
 		normalizationMethodDescription = prefService.get(ShollAnalysisTreeCmd.class, "normalizationMethodDescription", "Automatically choose");
@@ -703,12 +710,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				return;
 			}
 
+            dataMode = ShollStats.DataMode.fromString(dataModeChoice);
 			// Linear profile stats
-            final LinearProfileStats lStats = new LinearProfileStats(profile);
+            final LinearProfileStats lStats = new LinearProfileStats(profile, dataMode);
 			lStats.setLogger(logger);
 			int primaryBranches;
 			try {
-				logger.debug("Retriving primary branches...");
+				logger.debug("Retrieving primary branches...");
 				primaryBranches = new TreeStatistics(tree).getPrimaryBranches().size();
 			} catch (IllegalArgumentException exc) {
 				logger.debug("Failure... Structure is not a graph. Defaulting to primary paths");
@@ -759,6 +767,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				nPlot = showOrRebuildPlot(nPlot, nStats);
 				outputs.add(nPlot);
 			}
+            if (plotOutputDescription.toLowerCase().contains("polar")) {
+                final int angleStepSize = prefService.getInt(ShollAnalysisPrefsCmd.class, "angleStepSize",
+                        ShollAnalysisPrefsCmd.DEF_ANGLE_STEP_SIZE);
+                final SNTChart polarPlot = new PolarStats(lStats, angleStepSize).getPlot();
+                polarPlot.show();
+                outputs.add(polarPlot);
+            }
 
 			// Set tables
 			if (tableOutputDescription.contains("Detailed")) {
@@ -797,8 +812,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				}
 				if (annotationsDescription.contains("coded")) {
 					showStatus("Color coding nodes...");
-					final TreeColorMapper treeColorizer = new TreeColorMapper(snt
-						.getContext());
+					final TreeColorMapper treeColorizer = new TreeColorMapper(snt.getContext());
 					treeColorizer.map(parser.getTree(), lStats, lutTable);
 					if (snt != null) snt.updateAllViewers();
 				}
@@ -815,6 +829,9 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 					if (output instanceof ShollPlot) {
 						if (!((ShollPlot)output).save(saveDir)) ++failures;
 					}
+                    else if (output instanceof SNTChart) {
+                        if (! ((SNTChart)output).save(saveDir)) ++failures;
+                    }
 					else if (output instanceof ShollTable table) {
                         if (!table.hasContext()) table.setContext(getContext());
 						if (!table.saveSilently(saveDir)) ++failures;

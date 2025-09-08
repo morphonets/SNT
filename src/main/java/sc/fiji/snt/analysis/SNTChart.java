@@ -762,6 +762,15 @@ public class SNTChart extends ChartPanel {
 		return imp;
 	}
 
+    public boolean save(final File file) {
+        try {
+            saveAsPNG(file);
+            return true;
+        } catch (final IOException ignored) {
+            return false;
+        }
+    }
+
 	public void saveAsPNG(final File file) throws IOException {
 		final int SCALE = 1;
 		if (isCombined()) {
@@ -772,8 +781,8 @@ public class SNTChart extends ChartPanel {
 				}
 			}
 		} else {
-			ChartUtils.saveChartAsPNG(file, getChart(), getWidth() * SCALE,
-					getHeight() * SCALE);
+            final File f = (file.isDirectory()) ? new File(file, getTitle()) : file;
+			ChartUtils.saveChartAsPNG(f, getChart(), getWidth() * SCALE, getHeight() * SCALE);
 		}
 	}
 
@@ -1568,48 +1577,63 @@ public class SNTChart extends ChartPanel {
 	protected void exportAsCSV(final File file) throws IllegalStateException {
 		// https://stackoverflow.com/a/58530238
 		final ArrayList<String> csv = new ArrayList<>();
-		if (getChart().getPlot() instanceof XYPlot) {
-			for (int d = 0; d < getXYPlot().getDatasetCount(); d++) {
-				final XYDataset xyDataset = getXYPlot().getDataset(d);
-				if (!getXYPlot().getRenderer(d).getDefaultSeriesVisible())
-					continue;
-				csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d+1) ));
-				final int seriesCount = xyDataset.getSeriesCount();
-				for (int i = 0; i < seriesCount; i++) {
-					final int itemCount = xyDataset.getItemCount(i);
-					for (int j = 0; j < itemCount; j++) {
-						final Comparable<?> key = xyDataset.getSeriesKey(i);
-						final Number x = xyDataset.getX(i, j);
-						final Number y = xyDataset.getY(i, j);
-						csv.add(String.format("%s,%s,%s", key, x, y));
-					}
-				}
-			}
-		} else if (getChart().getPlot() instanceof CategoryPlot) {
-			for (int d = 0; d < getCategoryPlot().getDatasetCount(); d++) {
-				final CategoryDataset categoryDataset = getCategoryPlot().getDataset(d);
-				if (!getCategoryPlot().getRenderer(d).getDefaultSeriesVisible())
-					continue;
-				csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d+1) ));
-				final int columnCount = categoryDataset.getColumnCount();
-				final int rowCount = categoryDataset.getRowCount();
-				for (int i = 0; i < rowCount; i++) {
-					for (int j = 0; j < columnCount; j++) {
-						final Comparable<?> key1 = categoryDataset.getRowKey(i);
-						final Comparable<?> key2 = categoryDataset.getColumnKey(j);
-						final Number n = categoryDataset.getValue(i, j);
-						csv.add(String.format("%s,%s,%s", key1, key2, n));
-					}
-				}
-			}
-		} else if (getChart().getPlot() instanceof RingPlot ringPlot) {
-			final PieDataset<?> dataset = ringPlot.getDataset();
-			for (int i = 0; i < dataset.getItemCount(); i++) {
-				csv.add(String.format("%s,%s", dataset.getKey(i), dataset.getValue(i)));
-			}
-		} else {
-			throw new IllegalStateException("Export of this type of dataset is not supported.");
-		}
+        switch (getChart().getPlot()) {
+            case XYPlot xyplot -> {
+                for (int d = 0; d < xyplot.getDatasetCount(); d++) {
+                    final XYDataset xyDataset = xyplot.getDataset(d);
+                    if (!xyplot.getRenderer(d).getDefaultSeriesVisible())
+                        continue;
+                    csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
+                    final int seriesCount = xyDataset.getSeriesCount();
+                    for (int i = 0; i < seriesCount; i++) {
+                        final int itemCount = xyDataset.getItemCount(i);
+                        for (int j = 0; j < itemCount; j++) {
+                            final Comparable<?> key = xyDataset.getSeriesKey(i);
+                            final Number x = xyDataset.getX(i, j);
+                            final Number y = xyDataset.getY(i, j);
+                            csv.add(String.format("%s,%s,%s", key, x, y));
+                        }
+                    }
+                }
+            }
+            case PolarPlot polarPlot -> {
+                csv.add("Series,Angle,Radius");
+                final XYDataset dataset = polarPlot.getDataset();
+                for (int series = 0; series < dataset.getSeriesCount(); series++) {
+                    final String seriesName = (String) dataset.getSeriesKey(series);
+                    for (int item = 0; item < dataset.getItemCount(series); item++) {
+                        final double angle = dataset.getXValue(series, item);
+                        final double radius = dataset.getYValue(series, item);
+                        csv.add(String.format("%s,%s,%s", seriesName, angle, radius));
+                    }
+                }
+            }
+            case CategoryPlot categoryPlotPlot -> {
+                for (int d = 0; d < categoryPlotPlot.getDatasetCount(); d++) {
+                    final CategoryDataset categoryDataset = categoryPlotPlot.getDataset(d);
+                    if (!categoryPlotPlot.getRenderer(d).getDefaultSeriesVisible())
+                        continue;
+                    csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
+                    final int columnCount = categoryDataset.getColumnCount();
+                    final int rowCount = categoryDataset.getRowCount();
+                    for (int i = 0; i < rowCount; i++) {
+                        for (int j = 0; j < columnCount; j++) {
+                            final Comparable<?> key1 = categoryDataset.getRowKey(i);
+                            final Comparable<?> key2 = categoryDataset.getColumnKey(j);
+                            final Number n = categoryDataset.getValue(i, j);
+                            csv.add(String.format("%s,%s,%s", key1, key2, n));
+                        }
+                    }
+                }
+            }
+            case RingPlot ringPlot -> {
+                final PieDataset<?> dataset = ringPlot.getDataset();
+                for (int i = 0; i < dataset.getItemCount(); i++) {
+                    csv.add(String.format("%s,%s", dataset.getKey(i), dataset.getValue(i)));
+                }
+            }
+            case null, default -> throw new IllegalStateException("Export of this type of dataset is not supported.");
+        }
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
 			for (final String line : csv) {
 				writer.append(line);
@@ -1640,13 +1664,14 @@ public class SNTChart extends ChartPanel {
 	/**
 	 * Adds a color bar legend (LUT ramp).
 	 *
-	 * @param colorTable the color table
-	 * @param min the minimum value in the color table
+	 * @param title the color bar label
+     * @param colorTable the color table
+     * @param min the minimum value in the color table
 	 * @param max the maximum value in the color table
 	 * @param nDecimalPlaces the number of decimal places in the legend labels
 	 */
-	public void addColorBarLegend(final ColorTable colorTable, double min, double max, final int nDecimalPlaces) {
-		getChart().addSubtitle(getPaintScaleLegend(colorTable, min, max, nDecimalPlaces));
+	public void addColorBarLegend(final String title, final ColorTable colorTable, double min, double max, final int nDecimalPlaces) {
+		getChart().addSubtitle(getPaintScaleLegend(title, colorTable, min, max, nDecimalPlaces));
 	}
 
 	private class ChartListener implements ChartMouseListener {
@@ -1778,7 +1803,7 @@ public class SNTChart extends ChartPanel {
 
 	}
 
-	public static PaintScaleLegend getPaintScaleLegend(final ColorTable colorTable, double min, double max, final int nDecimalPlaces) {
+	public static PaintScaleLegend getPaintScaleLegend(final String title, final ColorTable colorTable, double min, double max, final int nDecimalPlaces) {
 		if (min >= max || colorTable == null) {
 			throw new IllegalArgumentException("Invalid scale: min must be smaller than max and colorTable not null");
 		}
@@ -1803,7 +1828,9 @@ public class SNTChart extends ChartPanel {
 		numberAxis.centerRange((max+min)/2);
 		numberAxis.setLabelFont(numberAxis.getLabelFont().deriveFont(GuiUtils.uiFontSize()));
 		numberAxis.setTickLabelFont(numberAxis.getTickLabelFont().deriveFont(GuiUtils.uiFontSize()));
-		final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
+        if (title != null) numberAxis.setLabel(title);
+
+        final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
 		psl.setBackgroundPaint(null); // transparent
 		psl.setPosition(RectangleEdge.RIGHT);
 		psl.setAxisLocation(AxisLocation.TOP_OR_RIGHT);

@@ -264,7 +264,7 @@ public class Viewer2D extends TreeColorMapper {
 			return;
 		}
 		chart = getChart();
-		chart.addColorBarLegend(colorTable, min, max, (integerScale) ? 0 : 2);
+		chart.addColorBarLegend(null, colorTable, min, max, (integerScale) ? 0 : 2);
 	}
 
 	/**

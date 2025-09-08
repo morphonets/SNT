@@ -38,6 +38,7 @@ import org.scijava.widget.Button;
 
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.growth.GrowthAnalyzer;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.Logger;
@@ -69,7 +70,10 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	public final static int DEF_MIN_DEGREE = 2;
 	/** Default maximum degree for polynomial fitting */
 	public final static int DEF_MAX_DEGREE = 30;
-	public final static int ALLOWED_MAX_DEGREE = 60;
+    /** Default angle step size for Polar analyses */
+    public final static int DEF_ANGLE_STEP_SIZE = 10;
+
+    public final static int ALLOWED_MAX_DEGREE = 60;
 	public final static int ALLOWED_MIN_DEGREE = 2;
 	public final static double DEF_RSQUARED = 0.70;
 	public final static boolean DEF_KS_TESTING = false;
@@ -86,7 +90,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 	protected static final String HEADER_HTML = "<html><body><div style='font-weight:bold;'>";
 	protected static final String DESCRIPTION_HTML = "<html><body><div style='width:500px'>";
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = HEADER_HTML + "Sampling of 3D Images:")
 	private String HEADER_SAMPLING;
 
@@ -148,9 +152,17 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 			description = DESCRIPTION_HTML + "The size of the point ROIs highlighting intersection counts")
 	private String roiSize = DEF_ROI_SIZE;
 
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE,
+            label = HEADER_HTML + "<br>Polar Analysis:")
+    private String HEADER4;
+
+    @Parameter(label = "Bin size (°)", min = "1", max = "180", stepSize = "1", style = "slider,format:0",
+            description = "Angle step size for polar plots in degrees")
+    private int angleStepSize;
+
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 			label = HEADER_HTML + "<br>Misc:")
-	private String HEADER4;
+	private String HEADER5;
 
 	@Parameter(label = "Skip somatic segments",
 			description = DESCRIPTION_HTML + "If primary paths start far-away from the soma, should "
@@ -172,7 +184,7 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = HEADER_HTML + "<br>Help &amp; Resources:")
-	private String HEADER5;
+	private String HEADER6;
 
 	@Parameter(label = "Resource", required = false, persist = false,
 		callback = "help", choices = { PLACEHOLDER_CHOICE, "About...",
@@ -258,7 +270,8 @@ public class ShollAnalysisPrefsCmd extends OptionsPlugin {
 		skipSomaticSegments = DEF_SKIP_SOMATIC_SEGMENTS;
 		includeZeroCounts = DEF_INCLUDE_ZERO_COUNTS;
 		enclosingRadiusCutoff = DEF_ENCLOSING_RADIUS_CUTOFF;
-		minDegree = DEF_MIN_DEGREE;
+        angleStepSize = DEF_ANGLE_STEP_SIZE;
+        minDegree = DEF_MIN_DEGREE;
 		maxDegree = DEF_MAX_DEGREE;
 		rSquared = DEF_RSQUARED;
 		ksTesting = DEF_KS_TESTING;

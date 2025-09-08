@@ -21,8 +21,7 @@
  */
 package sc.fiji.snt.analysis.sholl.parsers;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.commons.math3.stat.StatUtils;
 import org.scijava.Context;
@@ -33,11 +32,12 @@ import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.TypeConverter;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
- * Parser for 2D images
+ * Sholl Parser for 2D images
  *
  * @author Tiago Ferreira
  */
@@ -46,7 +46,7 @@ public class ImageParser2D extends ImageParser {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private ImageProcessor ip;
-	private final boolean doSpikeSupression;
+	private final boolean doSpikeSuppression;
 	private int nSpans;
 	private int spanType;
 	private int slice;
@@ -67,9 +67,10 @@ public class ImageParser2D extends ImageParser {
 	public ImageParser2D(final ImagePlus imp, final Context context) {
 		super(imp, context);
 		setPosition(imp.getC(), imp.getZ(), imp.getT());
-		doSpikeSupression = true;
+        doSpikeSuppression = true;
 	}
 
+    @SuppressWarnings("unused")
 	public void setCenterPx(final int x, final int y) {
 		super.setCenterPx(x, y, 1);
 	}
@@ -110,20 +111,27 @@ public class ImageParser2D extends ImageParser {
 		spanType = integrationFlag;
 	}
 
+    @Override
+    public Profile getProfile() {
+        if (profile == null || profile.isEmpty()) parse();
+        return super.getProfile();
+    }
+
 	@Override
 	public void parse() {
 		super.parse();
 		ip = getProcessor();
 
-		double[] binsamples;
-		int[] pixels;
+		double[] binSamples;
+        double[] lenSamples;
+        int[] pixels;
 		int[][] points;
 
 		final int size = radii.size();
 
-		// Create array for bin samples. Passed value of binSize must be at
-		// least 1
-		binsamples = new double[nSpans];
+		// Create array for bin samples. Passed value of binSize must be at least 1
+		binSamples = new double[nSpans];
+        lenSamples = new double[nSpans];
 
 		statusService.showStatus(
 				"Sampling " + size + " radii, " + nSpans + " measurement(s) per radius. Press 'Esc' to abort...");
@@ -132,8 +140,7 @@ public class ImageParser2D extends ImageParser {
 		int i = 0;
 		for (final Double radius : radii) {
 
-			// Retrieve the radius in pixel coordinates and set the largest
-			// radius of this bin span
+			// Retrieve the radius in pixel coordinates and set the largest radius of this bin span
 			int intRadius = (int) Math.round(radius / voxelSize + (double) nSpans / 2);
 			final Set<ShollPoint> pointsList = new HashSet<>();
 
@@ -147,14 +154,17 @@ public class ImageParser2D extends ImageParser {
 				points = getCircumferencePoints(xc, yc, intRadius--);
 				pixels = getPixels(points);
 
-				// Count the number of intersections
-				final Set<ShollPoint> thisBinIntersPoints = targetGroupsPositions(pixels, points);
+                // Retrieve lengths
+                lenSamples[s] = lengthOnRingFromMaskedPixels(points, pixels, cal);
+
+                // Count components on the ring and get positions in image pixel coordinates
+                final Set<ShollPoint> thisBinIntersPoints = groupPositionsOnRing(points, pixels);
 				if (isRetrieveIntDensitiesSet()) {
 					double sum = 0;
-					for (final float v:getPixelIntensities(points)) sum += v;
-					binsamples[s] = sum / points.length;
+					for (final float v: getPixelIntensities(points)) sum += v;
+					binSamples[s] = sum / points.length;
 				} else {
-					binsamples[s] = thisBinIntersPoints.size();
+					binSamples[s] = thisBinIntersPoints.size();
 					pointsList.addAll(thisBinIntersPoints);
 				}
 			}
@@ -162,175 +172,27 @@ public class ImageParser2D extends ImageParser {
 
 			// Statistically combine bin data
 			double counts = 0;
+            double length = 0;
 			if (nSpans > 1) {
 				if (spanType == MEDIAN) { // 50th percentile
-					counts = StatUtils.percentile(binsamples, 50);
+					counts = StatUtils.percentile(binSamples, 50);
+                    length = StatUtils.percentile(lenSamples, 50);
 				} else if (spanType == MEAN) { // mean
-					counts = StatUtils.mean(binsamples);
-				} else if (spanType == MODE) { // the 1st max freq. element
-					counts = StatUtils.mode(binsamples)[0];
-				}
+					counts = StatUtils.mean(binSamples);
+                    length = StatUtils.mean(lenSamples);
+                } else if (spanType == MODE) { // the 1st max freq. element
+					counts = StatUtils.mode(binSamples)[0];
+                    length = StatUtils.mode(lenSamples)[0];// mode is nonsensical for continuos values of lengths!
+                }
 			} else { // There was only one sample
-				counts = binsamples[0];
+				counts = binSamples[0];
+                length = lenSamples[0];
 			}
-			profile.add(new ProfileEntry(radius, counts, pointsList));
+			profile.add(new ProfileEntry(radius, counts, length, pointsList)); // pointsList already in cal. units
 
 		}
 
 		clearStatus();
-	}
-
-	protected Set<ShollPoint> targetGroupsPositions(final int[] pixels, final int[][] rawpoints) {
-
-		int i, j;
-		int[][] points;
-
-		// Count how many target pixels (i.e., foreground, non-zero) we have
-		for (i = 0, j = 0; i < pixels.length; i++)
-			if (pixels[i] != 0.0)
-				j++;
-
-		// Create an array to hold target pixels
-		points = new int[j][2];
-
-		// Copy all target pixels into the array
-		for (i = 0, j = 0; i < pixels.length; i++)
-			if (pixels[i] != 0.0)
-				points[j++] = rawpoints[i];
-
-		return groupPositions(points);
-
-	}
-
-	private void removeSinglePixels(final int[][] points, final int pointsLength, final int[] grouping,
-			final HashSet<Integer> positions) {
-
-		for (int i = 0; i < pointsLength; i++) {
-
-			// Check for other members of this group
-			boolean multigroup = false;
-			for (int j = 0; j < pointsLength; j++) {
-				if (i == j)
-					continue;
-				if (grouping[i] == grouping[j]) {
-					multigroup = true;
-					break;
-				}
-			}
-
-			// If not a single-pixel group, try again
-			if (multigroup)
-				continue;
-
-			// Store the coordinates of this point
-			final int dx = points[i][0];
-			final int dy = points[i][1];
-
-			// Calculate the 8 neighbors surrounding this point
-			final int[][] testpoints = new int[8][2];
-			testpoints[0][0] = dx - 1;
-			testpoints[0][1] = dy + 1;
-			testpoints[1][0] = dx;
-			testpoints[1][1] = dy + 1;
-			testpoints[2][0] = dx + 1;
-			testpoints[2][1] = dy + 1;
-			testpoints[3][0] = dx - 1;
-			testpoints[3][1] = dy;
-			testpoints[4][0] = dx + 1;
-			testpoints[4][1] = dy;
-			testpoints[5][0] = dx - 1;
-			testpoints[5][1] = dy - 1;
-			testpoints[6][0] = dx;
-			testpoints[6][1] = dy - 1;
-			testpoints[7][0] = dx + 1;
-			testpoints[7][1] = dy - 1;
-
-			// Pull out the pixel values for these points
-			final int[] px = getPixels(testpoints);
-
-			// Now perform the stair checks
-			if ((px[0] != 0 && px[1] != 0 && px[3] != 0 && px[4] == 0 && px[6] == 0 && px[7] == 0)
-					|| (px[1] != 0 && px[2] != 0 && px[4] != 0 && px[3] == 0 && px[5] == 0 && px[6] == 0)
-					|| (px[4] != 0 && px[6] != 0 && px[7] != 0 && px[0] == 0 && px[1] == 0 && px[3] == 0)
-					|| (px[3] != 0 && px[5] != 0 && px[6] != 0 && px[1] == 0 && px[2] == 0 && px[4] == 0)) {
-
-				positions.remove(i);
-			}
-
-		}
-
-	}
-
-	protected Set<ShollPoint> groupPositions(final int[][] points) {
-
-		final int len = points.length;
-		final Set<ShollPoint> sPoints = new HashSet<>();
-
-		if (len == 0) return sPoints;
-
-		int target, source;
-
-		// Create an array to hold the point grouping data
-		final int[] grouping = new int[len];
-
-		// Initialize each point to be in a unique group
-		final HashSet<Integer> positions = new HashSet<>();
-		for (int i = 0; i < len; i++) {
-			grouping[i] = i + 1;
-			positions.add(i);
-		}
-
-		for (int i = 0; i < len; i++) {
-			for (int j = 0; j < len; j++) {
-
-				// Don't compare the same point with itself
-				if (i == j)
-					continue;
-
-				// Compute the chessboard (Chebyshev) distance. A distance of 1
-				// underlies 8-connectivity
-				final ShollPoint p1 = new ShollPoint(points[i][0], points[i][1]);
-				final ShollPoint p2 = new ShollPoint(points[j][0], points[j][1]);
-
-				// Should these two points be in the same group?
-				if ((p1.chebyshevXYdxTo(p2) <= 1) && (grouping[i] != grouping[j])) {
-
-					// Record which numbers we're changing
-					source = grouping[i];
-					target = grouping[j];
-
-					// Change all targets to sources
-					for (int k = 0; k < len; k++)
-						if (grouping[k] == target)
-							grouping[k] = source;
-
-					// Remove redundant position
-					positions.remove(j);
-				}
-
-			}
-		}
-
-		// We've compared all but the first and last positions in the circumference.
-		// We must remove first position if connected to last
-		final int frstIds = 0;
-		final int lastIdx = len - 1;
-		final ShollPoint p1 = new ShollPoint(points[frstIds][0], points[frstIds][1]);
-		final ShollPoint p2 = new ShollPoint(points[lastIdx][0], points[lastIdx][1]);
-		if ((p1.chebyshevXYdxTo(p2) <= 1))
-			positions.remove(frstIds);
-
-		// Do spike suppression
-		if (doSpikeSupression) {
-			removeSinglePixels(points, len, grouping, positions);
-		}
-
-		// Return Sholl points
-		positions.forEach(pos -> {
-			sPoints.add(new ShollPoint(points[pos][0], points[pos][1], cal));
-		});
-
-		return sPoints;
 	}
 
 	private float[] getPixelIntensities(final int[][] points) {
@@ -342,7 +204,7 @@ public class ImageParser2D extends ImageParser {
 		// Put the pixel value for each circumference point in the pixel array
 		for (int i = 0; i < pixels.length; i++) {
 
-			// We already filtered out of bounds coordinates in getCircumferencePoints
+			// We already filtered out-of-bounds coordinates in getCircumferencePoints
 			final int x = points[i][0];
 			final int y = points[i][1];
 			if (withinXYbounds(x, y)) {
@@ -353,7 +215,7 @@ public class ImageParser2D extends ImageParser {
 		return pixels;
 	}
 
-	protected int[] getPixels(final int[][] points) {
+	private int[] getPixels(final int[][] points) {
 
 		// Initialize the array to hold the pixel values. int arrays are
 		// initialized to a default value of 0
@@ -362,8 +224,7 @@ public class ImageParser2D extends ImageParser {
 		// Put the pixel value for each circumference point in the pixel array
 		for (int i = 0; i < pixels.length; i++) {
 
-			// We already filtered out of bounds coordinates in
-			// getCircumferencePoints
+			// We already filtered out-of-bounds coordinates in getCircumferencePoints
 			if (withinBoundsAndThreshold(points[i][0], points[i][1]))
 				pixels[i] = 1;
 		}
@@ -372,7 +233,7 @@ public class ImageParser2D extends ImageParser {
 
 	}
 
-	protected boolean withinBoundsAndThreshold(final int x, final int y) {
+	private boolean withinBoundsAndThreshold(final int x, final int y) {
 		return withinXYbounds(x, y) && withinThreshold(ip.getPixel(x, y));
 	}
 
@@ -392,4 +253,98 @@ public class ImageParser2D extends ImageParser {
 			return new TypeConverter(ip, false).convertToShort();
 		return ip;
 	}
+
+    /**
+     * Returns one representative point (component) per contiguous foreground run on the ring.
+     * Representative positions are emitted as IMAGE pixel coordinates (the middle sample of each run)
+     * and carry the image Calibration
+     */
+    private Set<ShollPoint> groupPositionsOnRing(final int[][] ring, final int[] mask) {
+        final int n = (ring == null) ? 0 : ring.length;
+        final LinkedHashSet<ShollPoint> out = new LinkedHashSet<>();
+        if (n == 0 || mask == null || mask.length != n) return out;
+
+        if (doSpikeSuppression) {
+            // NB: suppressSinglePixelsOnRing will alter mask
+            suppressSinglePixelsOnRing(mask);
+        }
+
+        // Collect linear runs of foreground pixels (indices on the ring)
+        final ArrayList<int[]> runs = new ArrayList<>(); // {start, end, count}
+        int i = 0;
+        while (i < n) {
+            // skip background
+            while (i < n && mask[i] == 0) i++;
+            if (i >= n) break;
+            // accumulate a run of ones
+            final int start = i;
+            int count = 0;
+            while (i < n && mask[i] != 0) {
+                count++;
+                i++;
+            }
+            final int end = i - 1;
+            runs.add(new int[]{ start, end, count });
+        }
+
+        // Merge wrap-around if both ends are foreground: last run + first run
+        if (!runs.isEmpty() && mask[0] != 0 && mask[n - 1] != 0 && runs.size() > 1) {
+            final int[] first = runs.getFirst();
+            final int[] last  = runs.getLast();
+            // merged run spans last.start ... first.end (cyclic)
+            final int mergedCount = last[2] + first[2];
+            // replace first with merged, remove last
+            runs.set(0, new int[]{ last[0], first[1], mergedCount });
+            runs.removeLast();
+        }
+        // Emit one IMAGE-SPACE pixel per run (middle sample), with calibration
+        for (final int[] r : runs) {
+            final int start = r[0], count = r[2];
+            // pick the middle index of the run, modulo n for wrap-around runs
+            final int mid = (start + (count >>> 1)) % n;
+            final int ix = ring[mid][0];
+            final int iy = ring[mid][1];
+            out.add(new ShollPoint(ix, iy, cal));
+        }
+        return out;
+    }
+
+    /**
+     * Suppress 1-pixel "spikes" on a rasterized ring mask in-place (wrap-around aware).
+     * A spike is a foreground pixel whose immediate ring neighbors are both background.
+     * This is a 1D morphological opening on the circular sequence.
+     *
+     * @param mask int[N] ring-aligned 0/1 mask (modified in place)
+     */
+    private static void suppressSinglePixelsOnRing(final int[] mask) {
+        final int n = (mask == null) ? 0 : mask.length;
+        if (n == 0) return;
+        // Mark drops first so neighbor tests are not affected during the scan
+        final boolean[] drop = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            if (mask[i] == 0) continue;
+            final int l = (i - 1 + n) % n;
+            final int r = (i + 1) % n;
+            if (mask[l] == 0 && mask[r] == 0) drop[i] = true;
+        }
+        for (int i = 0; i < n; i++) if (drop[i]) mask[i] = 0;
+    }
+
+    /** Linearized length on a ring from a 0/1 mask; no extra allocations. */
+    private static double lengthOnRingFromMaskedPixels(final int[][] ring, final int[] mask,
+                                                 final ij.measure.Calibration cal) {
+        final double pw = (cal != null && cal.pixelWidth  > 0) ? cal.pixelWidth  : 1.0;
+        final double ph = (cal != null && cal.pixelHeight > 0) ? cal.pixelHeight : 1.0;
+        final int n = ring.length;
+        if (n == 0) return 0.0;
+        double length = 0.0;
+        for (int i = 0; i < n; i++) {
+            final int j = (i + 1) % n; // wrap-around
+            if (mask[i] != 0 && mask[j] != 0) {
+                final int[] a = ring[i], b = ring[j];
+                length += Math.hypot((b[0] - a[0]) * pw, (b[1] - a[1]) * ph);
+            }
+        }
+        return length;
+    }
 }

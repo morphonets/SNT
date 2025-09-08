@@ -189,7 +189,11 @@ public class Path implements Comparable<Path>, Cloneable {
 		public void setTangent(final double tx, final double ty, final double tz) {
 			this.tangent = new double[]{tx, ty, tz};
 		}
-		
+
+        private Vector3d asVector() {
+            return new Vector3d(x, y, z);
+        }
+
 		/**
 		 * Creates a deep copy of this PathNode.
 		 * <p>
@@ -644,24 +648,35 @@ public class Path implements Comparable<Path>, Cloneable {
 	private double getExtensionAngle(final int view) {
 		if (size() == 1)
 			return Double.NaN;
-		final SimpleRegression sr = new SimpleRegression();
-		switch (view) {
-			case MultiDThreePanes.XY_PLANE:
-				getNodes().forEach(node -> sr.addData(node.x, node.y));
-				break;
-			case MultiDThreePanes.XZ_PLANE:
-				getNodes().forEach(node -> sr.addData(node.x, node.z));
-				break;
-			case MultiDThreePanes.ZY_PLANE:
-				getNodes().forEach(node -> sr.addData(node.z, node.y));
-				break;
-			default:
-				throw new IllegalArgumentException("Not a valid plane");
-		}
-		
-		// Get the slope from the regression line
-		final double slope = sr.getSlope();
-		
+        double slope;
+        if (size() == 2) {
+            slope = switch (view) {
+                case MultiDThreePanes.XY_PLANE -> getNodeWithoutChecks(1).y - getNodeWithoutChecks(0).y
+                        / getNodeWithoutChecks(1).x - getNodeWithoutChecks(0).x;
+                case MultiDThreePanes.XZ_PLANE -> getNodeWithoutChecks(1).z - getNodeWithoutChecks(0).z
+                        / getNodeWithoutChecks(1).x - getNodeWithoutChecks(0).x;
+                case MultiDThreePanes.ZY_PLANE -> getNodeWithoutChecks(1).y - getNodeWithoutChecks(0).y
+                        / getNodeWithoutChecks(1).z - getNodeWithoutChecks(0).z;
+                default -> throw new IllegalArgumentException("Not a valid plane");
+            };
+        } else {
+            final SimpleRegression sr = new SimpleRegression();
+            switch (view) {
+                case MultiDThreePanes.XY_PLANE:
+                    getNodes().forEach(node -> sr.addData(node.x, node.y));
+                    break;
+                case MultiDThreePanes.XZ_PLANE:
+                    getNodes().forEach(node -> sr.addData(node.x, node.z));
+                    break;
+                case MultiDThreePanes.ZY_PLANE:
+                    getNodes().forEach(node -> sr.addData(node.z, node.y));
+                    break;
+                default:
+                    throw new IllegalArgumentException("Not a valid plane");
+            }
+            slope = sr.getSlope(); // Get the slope from the regression line
+        }
+
 		// Handle vertical lines (infinite slope or NaN slope) separately
 		if (Double.isInfinite(slope) || Double.isNaN(slope)) {
 			// For vertical lines, determine direction by looking at Y coordinates
@@ -731,6 +746,12 @@ public class Path implements Comparable<Path>, Cloneable {
 	public Vector3d getExtensionDirection3D() {
 		if (size() == 1)
 			return null;
+
+        if (size() == 2) {
+            final Vector3d v = getNodeWithoutChecks(1).asVector();
+            v.sub(getNodeWithoutChecks(0).asVector());
+            return v;
+        }
 
 		// Parametric approach: Use linear regression for each coordinate
 		final SimpleRegression xRegression = new SimpleRegression();
