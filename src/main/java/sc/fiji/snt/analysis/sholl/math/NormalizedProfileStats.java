@@ -21,8 +21,6 @@
  */
 package sc.fiji.snt.analysis.sholl.math;
 
-import java.util.Arrays;
-
 import org.apache.commons.math3.stat.StatUtils;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
 
@@ -55,6 +53,14 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
 	private double[] regressionXdata;
 
+    public NormalizedProfileStats(final Profile profile, final int normalizationFlag) {
+        this(profile, DataMode.INTERSECTIONS, normalizationFlag, GUESS_SLOG);
+    }
+
+    public NormalizedProfileStats(final Profile profile, final int normalizationFlag, final int methodFlag) {
+        this(profile, DataMode.INTERSECTIONS, normalizationFlag, methodFlag);
+    }
+
     public NormalizedProfileStats(final Profile profile, final DataMode dataMode, int normalizationFlag) {
         this(profile, dataMode, normalizationFlag, GUESS_SLOG);
     }
@@ -67,15 +73,28 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
 		countsLogNorm = new double[nPoints];
 		normalizeCounts();
-		radiiLog = Arrays.stream(inputRadii).map(Math::log).toArray();
+        radiiLog = new double[nPoints];
+        for (int i = 0; i < nPoints; i++) {
+            final double r = inputRadii[i];
+            radiiLog[i] = (r > 0.0) ? Math.log(r) : Double.NaN;
+        }
 
-		regressionSemiLog = new SimpleRegression();
-		regressionLogLog = new SimpleRegression();
-		for (int i = 0; i < nPoints; i++) {
-			regressionSemiLog.addData(inputRadii[i], countsLogNorm[i]);
-			regressionLogLog.addData(radiiLog[i], countsLogNorm[i]);
-		}
-		determinationRatio = regressionSemiLog.getRSquare() / Math.max(Double.MIN_VALUE, regressionLogLog.getRSquare());
+        regressionSemiLog = new SimpleRegression();
+        regressionLogLog = new SimpleRegression();
+        for (int i = 0; i < nPoints; i++) {
+            final double y = countsLogNorm[i];
+            if (!Double.isFinite(y)) continue; // skip invalid ordinates
+            regressionSemiLog.addData(inputRadii[i], y);
+            final double xLog = radiiLog[i];
+            if (Double.isFinite(xLog)) {
+                regressionLogLog.addData(xLog, y);
+            }
+        }
+        final double r2Semi = regressionSemiLog.getRSquare();
+        final double r2Log  = regressionLogLog.getRSquare();
+        final double num    = Double.isFinite(r2Semi) ? r2Semi : 0.0;
+        final double denom  = (Double.isFinite(r2Log) && r2Log > 0.0) ? r2Log : Double.MIN_VALUE;
+        determinationRatio  = num / denom;
 		assignMethod(methodFlag);
 
 	}
@@ -150,12 +169,16 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 		return chosenMethodDescription;
 	}
 
-	public void resetRegression() {
-		regressionChosen.clear();
-		for (int i = 0; i < nPoints; i++) {
-			regressionChosen.addData(regressionXdata[i], countsLogNorm[i]);
-		}
-	}
+    public void resetRegression() {
+        regressionChosen.clear();
+        for (int i = 0; i < nPoints; i++) {
+            final double x = regressionXdata[i];
+            final double y = countsLogNorm[i];
+            if (Double.isFinite(x) && Double.isFinite(y)) {
+                regressionChosen.addData(x, y);
+            }
+        }
+    }
 
 	public SimpleRegression getRegression() {
 		return regressionChosen;
@@ -222,59 +245,87 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 		return ((methods3D & normType) != 0);
 	}
 
-	private void normByArea() {
-		int i = 0;
-		for (final double r : inputRadii) { // Area of circle
-			countsLogNorm[i] = Math.log(inputCounts[i] / (Math.PI * r * r));
-			i++;
-		}
-	}
+    private void normByArea() {
+        int i = 0;
+        for (final double r : inputRadii) {
+            final double denom = Math.PI * r * r;
+            countsLogNorm[i] = (denom > 0 && inputCounts[i] > 0)
+                    ? Math.log(inputCounts[i] / denom)
+                    : Double.NaN;
+            i++;
+        }
+    }
 
-	private void normByPerimeter() {
-		int i = 0;
-		for (final double r : inputRadii) { // Length of circumference
-			countsLogNorm[i] = Math.log(inputCounts[i] / (Math.PI * r * 2));
-			i++;
-		}
-	}
+    private void normByPerimeter() {
+        int i = 0;
+        for (final double r : inputRadii) {
+            final double denom = Math.PI * r * 2;
+            countsLogNorm[i] = (denom > 0 && inputCounts[i] > 0)
+                    ? Math.log(inputCounts[i] / denom)
+                    : Double.NaN;
+            i++;
+        }
+    }
 
-	private void normByVolume() {
-		int i = 0;
-		for (final double r : inputRadii) { // Volume of sphere
-			countsLogNorm[i] = Math.log(inputCounts[i] / (Math.PI * r * r * r * 4 / 3));
-			i++;
-		}
-	}
+    private void normByVolume() {
+        int i = 0;
+        for (final double r : inputRadii) {
+            final double denom = (4.0 / 3.0) * Math.PI * r * r * r;
+            countsLogNorm[i] = (denom > 0 && inputCounts[i] > 0)
+                    ? Math.log(inputCounts[i] / denom)
+                    : Double.NaN;
+            i++;
+        }
+    }
 
-	private void normBySurface() {
-		int i = 0;
-		for (final double r : inputRadii) { // Surface area of sphere
-			countsLogNorm[i] = Math.log(inputCounts[i] / (Math.PI * r * r * 4));
-			i++;
-		}
-	}
+    private void normBySurface() {
+        int i = 0;
+        for (final double r : inputRadii) {
+            final double denom = 4.0 * Math.PI * r * r;
+            countsLogNorm[i] = (denom > 0 && inputCounts[i] > 0)
+                    ? Math.log(inputCounts[i] / denom)
+                    : Double.NaN;
+            i++;
+        }
+    }
 
-	private void normByAnnulus() {
-		final double stepRadius = profile.stepSize();
-		int i = 0;
-		for (final double r : inputRadii) { // Area of annulus
-			final double r1 = r - stepRadius / 2;
-			final double r2 = r + stepRadius / 2;
-			countsLogNorm[i] = Math.log(inputCounts[i] / (Math.PI * (r2 * r2 - r1 * r1)));
-			i++;
-		}
-	}
+    private void normByAnnulus() {
+        final double stepRadius = profile.stepSize();
+        int i = 0;
+        for (final double r : inputRadii) { // Area of annulus (or perimeter fallback if step=0)
+            double y = Double.NaN;
+            if (stepRadius > 0) {
+                final double r1 = r - stepRadius / 2.0;
+                final double r2 = r + stepRadius / 2.0;
+                final double denom = Math.PI * (r2 * r2 - r1 * r1);
+                if (denom > 0 && inputCounts[i] > 0) y = Math.log(inputCounts[i] / denom);
+            } else {
+                // dr=0 → annulus undefined. Use perimeter scale as the dr→0 limit proxy
+                final double denom = 2.0 * Math.PI * r;
+                if (denom > 0 && inputCounts[i] > 0) y = Math.log(inputCounts[i] / denom);
+            }
+            countsLogNorm[i++] = y;
+        }
+    }
 
-	private void normBySphericalShell() {
-		final double stepRadius = profile.stepSize();
-		int i = 0;
-		for (final double r : inputRadii) { // Volume of spherical shell
-			final double r1 = r - stepRadius / 2;
-			final double r2 = r + stepRadius / 2;
-			countsLogNorm[i] = Math.log(inputCounts[i] / (Math.PI * 4 / 3 * (r2 * r2 * r2 - r1 * r1 * r1)));
-			i++;
-		}
-	}
+    private void normBySphericalShell() {
+        final double stepRadius = profile.stepSize();
+        int i = 0;
+        for (final double r : inputRadii) { // Volume of spherical shell (or surface fallback if step=0)
+            double y = Double.NaN;
+            if (stepRadius > 0) {
+                final double r1 = r - stepRadius / 2.0;
+                final double r2 = r + stepRadius / 2.0;
+                final double denom = (4.0 / 3.0) * Math.PI * (r2 * r2 * r2 - r1 * r1 * r1);
+                if (denom > 0 && inputCounts[i] > 0) y = Math.log(inputCounts[i] / denom);
+            } else {
+                // dr=0 → shell undefined. Use surface area scale as the dr→0 limit proxy
+                final double denom = 4.0 * Math.PI * r * r;
+                if (denom > 0 && inputCounts[i] > 0) y = Math.log(inputCounts[i] / denom);
+            }
+            countsLogNorm[i++] = y;
+        }
+    }
 
 	/**
 	 * Returns the ordinates of the Semi-log/Log-log plot for sampled data.

@@ -78,13 +78,23 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 	private int primaryBranches = -1;
 
 
+
+    /**
+     * Instantiates the Linear Profile Statistics.
+     *
+     * @param profile the profile to be analyzed
+     */
+    public LinearProfileStats(final Profile profile) {
+        super(profile, DataMode.INTERSECTIONS);
+    }
+
 	/**
 	 * Instantiates the Linear Profile Statistics.
 	 *
 	 * @param profile the profile to be analyzed
 	 */
 	public LinearProfileStats(final Profile profile, final DataMode dataMode) {
-		super(profile, dataMode);
+        super(profile, dataMode);
 	}
 
 	/**
@@ -984,22 +994,27 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
 		return new ShollPlot(this, false);
 	}
 
-    protected Profile getFittedProfile() {
-        if (!validFit()) return null;
-        final Profile fittedProfile = new Profile();
-        fittedProfile.setCenter(profile.center());
-        fittedProfile.setIsIntDensityProfile(profile.isIntDensityProfile());
-        fittedProfile.setIdentifier(profile.identifier());
-        fittedProfile.setProperties(profile.getProperties());
-        fittedProfile.setNDimensions(profile.nDimensions());
-        fittedProfile.setSpatialCalibration(profile.spatialCalibration());
-        fittedProfile.getProperties().setProperty("fitted", "true");
+    protected Profile getProfileCopy() {
+        final Profile dup = new Profile();
+        dup.setCenter(profile.center());
+        dup.setIsIntDensityProfile(profile.isIntDensityProfile());
+        dup.setIdentifier(profile.identifier());
+        dup.setProperties(profile.getProperties());
+        dup.setNDimensions(profile.nDimensions());
+        dup.setSpatialCalibration(profile.spatialCalibration());
         final AtomicInteger index = new AtomicInteger();
-        profile.entries().forEach( profileEntry -> {
-            final double fValue = fCounts[index.getAndIncrement()];
-            fittedProfile.add(new ProfileEntry(profileEntry.radius, fValue, fValue, profileEntry.points));
-        });
-        return fittedProfile;
+        if (validFit()) {
+            profile.entries().forEach( profileEntry -> {
+                final double fValue = fCounts[index.getAndIncrement()];
+                dup.add(new ProfileEntry(profileEntry.radius, fValue, fValue, profileEntry.points));
+            });
+        } else {
+            profile.entries().forEach( profileEntry -> {
+                final double inValue = inputCounts[index.getAndIncrement()];
+                dup.add(new ProfileEntry(profileEntry.radius, inValue, inValue, profileEntry.points));
+            });
+        }
+        return dup;
     }
 
 	/** @return {@link #getVariance(boolean) getVariance(false)} */

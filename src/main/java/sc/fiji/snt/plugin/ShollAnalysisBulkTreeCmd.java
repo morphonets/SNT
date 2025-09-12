@@ -51,7 +51,7 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
-import sc.fiji.snt.analysis.sholl.math.PolarStats;
+import sc.fiji.snt.analysis.sholl.math.PolarProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
@@ -158,7 +158,8 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 	private String HEADER3;
 
     @Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot", "Polar plot",
-            "Linear & normalized plots", "Linear, normalized, and polar plots", "None. Show no plots" })
+            "Linear & normalized plots", "Linear & polar plots", "Linear, normalized, and polar plots",
+            "None. Show no plots" })
     private String plotOutputDescription;
 
 	@Parameter(label = "Tables", required = false, choices = {"Summary table", "Detailed & Summary tables"})
@@ -454,7 +455,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 
 			/// Normalized profile stats
             NormalizedProfileStats nStats = getNormalizedProfileStats(profile);
-
+            PolarProfileStats pStats = null;
 			// Plots
 			if (plotOutputDescription.toLowerCase().contains("linear")) {
 				final ShollPlot lPlot = lStats.getPlot(false);
@@ -480,7 +481,8 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
             if (plotOutputDescription.toLowerCase().contains("polar")) {
                 final int angleStepSize = prefService.getInt(ShollAnalysisPrefsCmd.class, "angleStepSize",
                         ShollAnalysisPrefsCmd.DEF_ANGLE_STEP_SIZE);
-                final SNTChart polarPlot = new PolarStats(lStats, angleStepSize).getPlot();
+                pStats = new PolarProfileStats(lStats, angleStepSize);
+                final SNTChart polarPlot = pStats.getPlot();
                 if (validDir) {
                     if (polarPlot.save(saveDir))
                         logger.info(TREE_LABEL + " Polar plot saved...");
@@ -492,7 +494,8 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 
 			// Tables
 			if (tableOutputDescription.contains("Detailed")) {
-				final ShollTable dTable = new ShollTable(lStats, nStats);
+				final ShollTable dTable = (pStats==null)
+                        ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
 				dTable.listProfileEntries();
 				if (!dTable.hasContext()) dTable.setContext(getContext());
 				if (validDir) {
@@ -504,7 +507,8 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 				if (showAnalysis) dTable.show();
 			}
 
-			final ShollTable sTable = new ShollTable(lStats, nStats);
+            final ShollTable sTable = (pStats==null)
+                    ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
 			String header = TREE_LABEL;
 			if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 			if (!sTable.hasContext()) sTable.setContext(getContext());

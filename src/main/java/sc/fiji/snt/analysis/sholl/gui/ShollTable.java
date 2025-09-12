@@ -22,7 +22,6 @@
 package sc.fiji.snt.analysis.sholl.gui;
 
 import java.io.File;
-import java.util.List;
 import java.util.Properties;
 
 import org.scijava.Context;
@@ -30,13 +29,13 @@ import org.scijava.NullContextException;
 import org.scijava.plugin.Parameter;
 import org.scijava.prefs.PrefService;
 import org.scijava.table.DefaultGenericTable;
-import org.scijava.table.DoubleColumn;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
+import sc.fiji.snt.analysis.sholl.math.PolarProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.plugin.ShollAnalysisPrefsCmd;
 import sc.fiji.snt.util.ShollPoint;
@@ -89,16 +88,6 @@ public class ShollTable extends SNTTable {
 		this.stats = stats;
 	}
 
-	private void addCol(final String header, final List<Double> list) {
-		addCol(header, list.stream().mapToDouble(Double::doubleValue).toArray());
-	}
-
-	private void addCol(final String header, final double[] array) {
-		final DoubleColumn col = new DoubleColumn(header);
-		col.fill(array);
-		add(col);
-	}
-
 	/**
 	 * Lists (details) the {@link Profile} entries. If this table is aware of
 	 * {@link ShollStats} that successfully fitted a model to the profile, XY
@@ -107,16 +96,16 @@ public class ShollTable extends SNTTable {
 	public void listProfileEntries() {
 
 		final boolean intensities = profile.isIntDensityProfile();
-		addCol("Radius", profile.radii());
-		addCol((intensities) ? "Norm. IntDen" : "Inters.", profile.counts());
-        addCol("Length", profile.lengths());
+		addColumn("Radius", profile.radii());
+        addColumn((intensities) ? "Norm. IntDen" : "Inters.", profile.counts());
+        addColumn("Length", profile.lengths());
 
 		if (stats == null)
 			return;
 
 		for (final ShollStats stat : stats) {
 
-			if (stat == null || !stat.validFit())
+            if (stat == null || (!(stat instanceof PolarProfileStats) && !stat.validFit()))
 				continue;
 
             String yFitHeader;
@@ -127,17 +116,23 @@ public class ShollTable extends SNTTable {
             else
                 yFitHeader = "Inters.";
 
-			if (stat instanceof LinearProfileStats lStats) {
-                //addCol("Radius (Polyn. fit)", lStats.getXValues());
-				addCol( yFitHeader + " (Polyn. fit)", lStats.getFitYValues());
-
-			} else if (stat instanceof NormalizedProfileStats nStats) {
-                final String xHeader = (nStats.getMethod() == NormalizedProfileStats.LOG_LOG) ? "log(Radius)" : "Radius";
-				final String yHeader = (intensities) ? "log(Norm. IntDen /" + nStats.getNormalizerDescription() + ")"
-						: "log(" + yFitHeader + "/" + nStats.getNormalizerDescription() + ")";
-				//addCol(xHeader, nStats.getXValues());
-				addCol(yHeader, nStats.getFitYValues());
-			}
+            switch (stat) {
+                case LinearProfileStats lStats ->
+                    //addCol("Radius (Polyn. fit)", lStats.getXValues());
+                        addColumn(yFitHeader + " (Polyn. fit)", lStats.getFitYValues());
+                case NormalizedProfileStats nStats -> {
+                    if (nStats.getMethod() == NormalizedProfileStats.LOG_LOG)
+                        addColumn("log(Radius)", nStats.getXValues());
+                    final String yHeader = (intensities) ? "log(Norm. IntDen /" + nStats.getNormalizerDescription() + ")"
+                            : "log(" + yFitHeader + "/" + nStats.getNormalizerDescription() + ")";
+                    addColumn(yHeader, nStats.getFitYValues());
+                }
+                case PolarProfileStats pStats -> {
+                    pStats.detailReport(this);
+                }
+                default -> {
+                }
+            }
 		}
 		fillEmptyCells(Double.NaN);
 	}
@@ -247,6 +242,9 @@ public class ShollTable extends SNTTable {
                         set(getCol("Regression intercept"), row, nStats.getIntercept());
                         set(getCol("Regression slope"), row, nStats.getSlope());
                     }
+                }
+                case PolarProfileStats pStats -> {
+                    pStats.appendSummaryReport(this);
                 }
                 case null, default -> {
                 }

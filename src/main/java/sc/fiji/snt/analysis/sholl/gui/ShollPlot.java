@@ -91,13 +91,20 @@ public class ShollPlot extends Plot {
 	 * @param yLabel the y-axis label
 	 */
 	public ShollPlot(String title, String xLabel, String yLabel) {
-		super(title, xLabel, yLabel);
+        super(title, xLabel, yLabel);
 	}
 
+    public ShollPlot(final Profile profile) {
+        this(new LinearProfileStats(profile), false);
+    }
 
-	public ShollPlot(final ShollStats stats, final boolean cumulativeFrequencies) {
-		this(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats, true, cumulativeFrequencies);
-	}
+    public ShollPlot(final ShollStats stats) {
+        this(stats, false);
+    }
+
+    public ShollPlot(final ShollStats stats, final boolean cumulativeFrequencies) {
+        this(defaultTitle(stats), defaultXtitle(stats), defaultYtitle(stats), stats, true, cumulativeFrequencies);
+    }
 
 	public ShollPlot(final ShollStats.DataMode dataMode, final Profile... profiles) {
 		super("Combined Sholl Plot", "Distance", defaultYtitle(dataMode, profiles));
@@ -118,6 +125,23 @@ public class ShollPlot extends Plot {
 		setLegend(legend.toString(), AUTO_POSITION | LEGEND_TRANSPARENT);
 		resetDrawing();
 	}
+
+    public ShollPlot(final Profile... profiles) {
+        super("Combined Sholl Plot", "Distance", "No. Intersections");
+        final Color[] colors = SNTColor.getDistinctColorsAWT(profiles.length);
+        final StringBuilder legend = new StringBuilder();
+        setLineWidth(1.75f);
+        for (int i = 0; i < profiles.length; i++) {
+            final Profile p = profiles[i];
+            setColor(colors[i]);
+            addPoints((ArrayList<Double>) p.radii(), (ArrayList<Double>) p.counts(), LINE);
+            legend.append(p.identifier()).append("\n");
+        }
+        setLimitsToFit(false);
+        setColor(Color.WHITE);
+        setLegend(legend.toString(), AUTO_POSITION | LEGEND_TRANSPARENT);
+        resetDrawing();
+    }
 
 	@SuppressWarnings("deprecation")
 	public ShollPlot(final String title, final String xLabel, final String yLabel, final ShollStats stats,

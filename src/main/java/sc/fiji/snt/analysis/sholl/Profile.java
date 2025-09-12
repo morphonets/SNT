@@ -184,9 +184,9 @@ public class Profile implements ProfileProperties {
 
 	public void trimZeroCounts() {
 		profile.removeIf(entry -> entry.radius == 0 || entry.count == 0);
-	}
+    }
 
-	public void trimNaNCounts() {
+    public void trimNaNCounts() {
 		profile.removeIf(profileEntry -> Double.isNaN(profileEntry.count));
 	}
 

@@ -63,7 +63,7 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
-import sc.fiji.snt.analysis.sholl.math.PolarStats;
+import sc.fiji.snt.analysis.sholl.math.PolarProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
@@ -178,9 +178,10 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Output:")
 	private String HEADER3;
 
-	@Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot", "Polar plot",
-            "Linear & normalized plots", "Linear, normalized, and polar plots", "None. Show no plots" })
-	private String plotOutputDescription;
+    @Parameter(label = "Plots", choices = { "Linear plot", "Normalized plot", "Polar plot",
+            "Linear & normalized plots", "Linear & polar plots", "Linear, normalized, and polar plots",
+            "None. Show no plots" })
+    private String plotOutputDescription;
 
 	@Parameter(label = "Tables", choices = { "Detailed table", "Summary table",
 		"Detailed & Summary tables", "None. Show no tables" })
@@ -190,7 +191,8 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 			label = "Annotations", choices = { "None", "Color coded nodes", "3D viewer labels image" })
 	private String annotationsDescription;
 
-	@Parameter(required = false, label = "Annotations LUT", callback = "lutChoiceChanged")
+	@Parameter(required = false, label = "Annotations LUT", callback = "lutChoiceChanged",
+            description = "Applies to all annotations as well as heatmap of polar plot")
 	private String lutChoice;
 
 	@Parameter(required = false, label = "<html>&nbsp;")
@@ -752,9 +754,11 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				profile.trimZeroCounts();
 			}
 
-			/// Normalized profile stats
+			// Normalized profile stats
             final NormalizedProfileStats nStats = getNormalizedProfileStats(profile, tree.is3D());
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
+            // Polar stats
+            PolarProfileStats pStats = null;
 
 			// Set Plots
             final ArrayList<Object> outputs = new ArrayList<>();
@@ -770,15 +774,17 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
             if (plotOutputDescription.toLowerCase().contains("polar")) {
                 final int angleStepSize = prefService.getInt(ShollAnalysisPrefsCmd.class, "angleStepSize",
                         ShollAnalysisPrefsCmd.DEF_ANGLE_STEP_SIZE);
-                final SNTChart polarPlot = new PolarStats(lStats, angleStepSize).getPlot();
+                pStats = new PolarProfileStats(lStats, angleStepSize);
+                final SNTChart polarPlot = pStats.getPlot(lutTable);
                 polarPlot.show();
                 outputs.add(polarPlot);
             }
 
 			// Set tables
 			if (tableOutputDescription.contains("Detailed")) {
-				final ShollTable dTable = new ShollTable(lStats, nStats);
-				dTable.listProfileEntries();
+                final ShollTable dTable = (pStats==null)
+                        ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
+                dTable.listProfileEntries();
 				if (detailedTableDisplay != null) {
 					detailedTableDisplay.close();
 				}
@@ -787,8 +793,9 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				outputs.add(dTable);
 			}
 			if (tableOutputDescription.contains("Summary")) {
-				final ShollTable sTable = new ShollTable(lStats, nStats);
-				if (commonSummaryTable == null) commonSummaryTable = new ShollTable();
+                final ShollTable sTable = (pStats==null)
+                        ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
+                if (commonSummaryTable == null) commonSummaryTable = new ShollTable();
 				String header;
 				if (snt == null) {
 					header = file.getName();

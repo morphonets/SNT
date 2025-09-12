@@ -67,7 +67,7 @@ import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.analysis.sholl.gui.ShollTable;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.NormalizedProfileStats;
-import sc.fiji.snt.analysis.sholl.math.PolarStats;
+import sc.fiji.snt.analysis.sholl.math.PolarProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser;
 import sc.fiji.snt.analysis.sholl.parsers.ImageParser2D;
@@ -217,7 +217,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
 	@Parameter(label = "Plots", callback="saveOptionsChanged",
             choices = { "Linear plot", "Normalized plot", "Polar plot", //
-                    "Linear & normalized plots", "Linear, normalized, and polar plots", //
+                    "Linear & normalized plots", "Linear & polar plots", "Linear, normalized, and polar plots", //
 			        "Integrated density plot", //
                     "Cumulative: Linear plot", "Cumulative: Integrated density plot", "None. Show no plots" })
 	private String plotOutputDescription;
@@ -233,7 +233,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private String annotationsDescription;
 
 	@Parameter(label = "Annotations LUT", callback = "lutChoiceChanged",
-			description = HEADER_TOOLTIP + "The mapping LUT used to render ROIs and mask.")
+			description = HEADER_TOOLTIP + "The mapping LUT used to render ROIs and mask as well as heatmap of polar plot")
 	private String lutChoice;
 
 	@Parameter(required = false, label = EMPTY_LABEL)
@@ -1159,6 +1159,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			/// Normalized profile stats
 			final NormalizedProfileStats nStats = getNormalizedProfileStats(profile, dataMode);
 			logger.debug("Sholl decay: " + nStats.getShollDecay());
+            PolarProfileStats pStats = null;
 
 			// Set ROIs
 			if (!annotationsDescription.contains("None") && imp != null) {
@@ -1187,7 +1188,8 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
             if (plotOutputDescription.toLowerCase().contains("polar")) {
                 final int angleStepSize = prefService.getInt(ShollAnalysisPrefsCmd.class, "angleStepSize",
                         ShollAnalysisPrefsCmd.DEF_ANGLE_STEP_SIZE);
-                final SNTChart polarPlot = new PolarStats(lStats, angleStepSize).getPlot();
+                pStats = new PolarProfileStats(lStats, angleStepSize);
+                final SNTChart polarPlot = pStats.getPlot(lutTable);
                 polarPlot.show();
                 outputs.add(polarPlot);
             }
@@ -1199,7 +1201,8 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
 			// Set tables
 			if (tableOutputDescription.contains("Detailed")) {
-				final ShollTable dTable = new ShollTable(lStats, nStats);
+                final ShollTable dTable = (pStats==null)
+                        ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
 				dTable.listProfileEntries();
 				dTable.setTitle(imp.getTitle()+"_Sholl-Profiles");
 				if (detailedTableDisplay != null) {
@@ -1211,7 +1214,8 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
 			if (tableOutputDescription.contains("Summary")) {
 
-				final ShollTable sTable = new ShollTable(lStats, nStats);
+                final ShollTable sTable = (pStats==null)
+                        ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
 				if (commonSummaryTable == null)
 					commonSummaryTable = new ShollTable();
 				sTable.summarize(commonSummaryTable, imp.getTitle());

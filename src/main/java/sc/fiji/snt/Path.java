@@ -3705,17 +3705,17 @@ public class Path implements Comparable<Path>, Cloneable {
 		setNodeColors(null);
 	}
 
-	/**
+	/*
 	 * Helper record to store the results of downsampling a single path segment.
 	 * <p>
 	 * This record encapsulates the original segment boundaries and the resulting
 	 * downsampled points for a segment between two fixed points (junctions).
 	 * </p>
 	 */
-	private record SegmentResult(int originalStart, int originalEnd, ArrayList<SimplePoint> downsampledPoints) {
+	private record SegmentResult(int originalStart, int originalEnd, List<SimplePoint> downsampledPoints) {
 	}
 	
-	/**
+	/*
 	 * Calculates an appropriate radius value for a downsampled point.
 	 * <p>
 	 * For endpoint nodes, the original radius is preserved. For intermediate nodes,
