@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -247,6 +246,18 @@ public class TreeParser implements Parser {
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
 		assembleSortedShollPointList();
 		assembleProfileAfterAssemblingSortedShollPointList();
+
+        // If continuous sampling, log the effective step size
+        final double drNominal = profile.stepSize();
+        if (drNominal > 0d) {
+            profile.getProperties().setProperty(Profile.KEY_EFFECTIVE_STEP_SIZE, Double.toString(drNominal));
+        } else {
+            final double drEff = intrinsicSegmentScale(); // median inter-node distance
+            if (drEff > 0d) {
+                profile.getProperties().setProperty(Profile.KEY_EFFECTIVE_STEP_SIZE, Double.toString(drEff));
+            }
+        }
+
 	}
 
 	/* (non-Javadoc)
@@ -292,53 +303,54 @@ public class TreeParser implements Parser {
 				shollPointsList.add(new ComparableShollPoint(distanceSquaredSecond, !nearer));
 			}
 		});
-		// Ensure we are not keeping duplicated data points
-		shollPointsList = shollPointsList.stream().distinct().collect(Collectors.toList());
+        // Do not de-duplicate: multiple segments can share identical radii legitimately
 		Collections.sort(shollPointsList);
 	}
 
-	private void assembleProfileAfterAssemblingSortedShollPointList() {
-		final int n = shollPointsList.size();
-		squaredRangeStarts = new double[n];
-		crossingsPastEach = new int[n];
-		int currentCrossings = 0;
-		for (int i = 0; i < n; ++i) {
-			final ComparableShollPoint p = shollPointsList.get(i);
-			if (p.nearer) ++currentCrossings;
-			else--currentCrossings;
-			squaredRangeStarts[i] = p.distanceSquared;
-			crossingsPastEach[i] = currentCrossings;
-		}
-		if (!running) return;
-		if (stepSize > 0) { // Discontinuous sampling
-			final double minDistance = Math.sqrt(squaredRangeStarts[0]);
-			final double maxDistance = Math.sqrt(squaredRangeStarts[n - 1]);
-			for (int i = 0; i < Math.ceil(maxDistance / stepSize); ++i) {
-				final double x = i * stepSize;
-				if ( x >= minDistance) {
-					final double y = crossingsAtDistanceSquared(x * x);
-					final double length = cableLengthInShell(x, x + stepSize);
-					final Set<ShollPoint> intersectionPoints = getIntersectionPointsInShell(x, x + stepSize);
-					profile.add(new ProfileEntry(x, y, length, intersectionPoints));
-				}
-			}
-		}
-		else { // Continuous sampling
+    private void assembleProfileAfterAssemblingSortedShollPointList() {
+        final int n = shollPointsList.size();
+        squaredRangeStarts = new double[n];
+        crossingsPastEach = new int[n];
+        int currentCrossings = 0;
+        for (int i = 0; i < n; ++i) {
+            final ComparableShollPoint p = shollPointsList.get(i);
+            if (p.nearer) ++currentCrossings;
+            else --currentCrossings;
+            squaredRangeStarts[i] = p.distanceSquared;
+            crossingsPastEach[i] = currentCrossings;
+        }
+        if (!running) return;
+        if (stepSize > 0) { // Discontinuous sampling
+            final double minDistance = Math.sqrt(squaredRangeStarts[0]);
+            final double maxDistance = Math.sqrt(squaredRangeStarts[n - 1]);
+            final int nShells = (int) Math.ceil(maxDistance / stepSize);
+            for (int i = 0; i < nShells; ++i) {
+                final double x = i * stepSize;
+                if (x >= minDistance) {
+                    // Use geometric intersections (same source as length) to count components
+                    final Set<ShollPoint> intersectionPoints =
+                            getIntersectionPointsInShell(x, x + stepSize);
+                    final double y = intersectionPoints.size();
+                    final double length = cableLengthInShell(x, x + stepSize);
+                    profile.add(new ProfileEntry(x, y, length, intersectionPoints));
+                }
+            }
+        } else { // Continuous sampling
             for (double squaredRangeStart : squaredRangeStarts) {
                 final double x = Math.sqrt(squaredRangeStart);
-                final double y = crossingsAtDistanceSquared(squaredRangeStart);
-                final double length = cableLengthAtRadius(x);
+                // Count exact intersections at this radius; matches length sampling strategy
                 final Set<ShollPoint> intersectionPoints = getIntersectionPointsAtRadius(x);
+                final double y = intersectionPoints.size();
+                final double length = cableLengthAtRadius(x);
                 profile.add(new ProfileEntry(x, y, length, intersectionPoints));
             }
-		}
-
-	}
+        }
+    }
 
 	private int crossingsAtDistanceSquared(final double distanceSquared) {
 		int minIndex = 0;
 		int maxIndex = squaredRangeStarts.length - 1;
-		if (distanceSquared < squaredRangeStarts[minIndex]) return 1;
+        if (distanceSquared < squaredRangeStarts[minIndex]) return 0;
 		else if (distanceSquared > squaredRangeStarts[maxIndex]) return 0;
 		while (maxIndex - minIndex > 1) {
 			final int midPoint = (maxIndex + minIndex) / 2;
@@ -784,6 +796,11 @@ public class TreeParser implements Parser {
             return nearer == other.nearer && Double.compare(distanceSquared, other.distanceSquared) == 0;
         }
 
+        @Override
+        public int hashCode() {
+            int h = Double.hashCode(distanceSquared);
+            return 31 * h + (nearer ? 1 : 0);
+        }
     }
 
 	/**

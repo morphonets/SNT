@@ -40,6 +40,7 @@ public interface ProfileProperties {
 	final String KEY_SLICE_POS = "slice";
 	final String KEY_FRAME_POS = "frame";
 	final String KEY_THRESHOLD_RANGE = "threshold-range";
+    final String KEY_EFFECTIVE_STEP_SIZE = "effective.step.size";
 
 	final String SRC_TABLE = "table";
 	final String SRC_TRACES = "tracings";
