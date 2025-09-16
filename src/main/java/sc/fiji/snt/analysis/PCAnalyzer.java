@@ -44,8 +44,6 @@ import java.util.List;
  * for analyzing the overall orientation and shape characteristics of neuronal
  * structures, meshes, and other 3D geometries.
  * </p>
- *
- * @author SNT Team
  */
 public class PCAnalyzer {
 

@@ -38,8 +38,11 @@ public class ProfileEntry implements Comparable<ProfileEntry> {
 	/** The number of intersection counts associated at this entry's radius */
 	public double count;
 
-	/** The total cable length associated at this entry's radius */
+	/** The total cable length associated with this entry's radius */
 	public double length;
+
+    /** An ad-hoc measurement associated with this entry's radius */
+    public double extra; // extra measurements
 
 	/**
 	 * List of intersection points associated with the entry's radius (in

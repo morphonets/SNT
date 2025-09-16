@@ -154,19 +154,25 @@ public class ImageParser2D extends ImageParser {
 				points = getCircumferencePoints(xc, yc, intRadius--);
 				pixels = getPixels(points);
 
-                // Retrieve lengths
+                // If enabled, suppress 1‑pixel spikes on the ring mask BEFORE computing length
+                if (doSpikeSuppression) {
+                    suppressSinglePixelsOnRing(pixels); // modifies mask in place
+                }
+
+                // Retrieve lengths (now reflects suppression)
                 lenSamples[s] = lengthOnRingFromMaskedPixels(points, pixels, cal);
 
-                // Count components on the ring and get positions in image pixel coordinates
-                final Set<ShollPoint> thisBinIntersPoints = groupPositionsOnRing(points, pixels);
-				if (isRetrieveIntDensitiesSet()) {
-					double sum = 0;
-					for (final float v: getPixelIntensities(points)) sum += v;
-					binSamples[s] = sum / points.length;
-				} else {
-					binSamples[s] = thisBinIntersPoints.size();
-					pointsList.addAll(thisBinIntersPoints);
-				}
+                if (isRetrieveIntDensitiesSet()) {
+                    // Intensity mode: no need to compute connected components
+                    double sum = 0;
+                    for (final float v : getPixelIntensities(points)) sum += v;
+                    binSamples[s] = sum / points.length;
+                } else {
+                    // Intersections/length mode: compute connected components and record representative positions
+                    final Set<ShollPoint> thisBinIntersPoints = groupPositionsOnRing(points, pixels);
+                    binSamples[s] = thisBinIntersPoints.size();
+                    pointsList.addAll(thisBinIntersPoints);
+                }
 			}
 			statusService.showProgress(i++, size * nSpans);
 

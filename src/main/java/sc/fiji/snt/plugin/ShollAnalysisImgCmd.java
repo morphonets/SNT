@@ -50,42 +50,6 @@ public class ShollAnalysisImgCmd extends ShollAnalysisImgCommonCmd {
     }
 
     @Override
-    protected void cancelAndFreezeUI(final String cancelReason) {
-        String uiMsg;
-        switch (cancelReason) {
-            case NO_IMAGE:
-                analysisAction = "Change image...";
-                setAnalysisScope();
-                uiMsg = NO_IMAGE;
-                break;
-            case NO_CENTER:
-                uiMsg = "Please set a ROI indicating the center of analysis and re-run.";
-                break;
-            case NO_RADII:
-                uiMsg = "Ending radius and Radius step size must be within range.";
-                break;
-            case NO_THRESHOLD:
-                uiMsg = "Image is not segmented. Please adjust threshold levels";
-                if (imp.getType() == ImagePlus.COLOR_RGB)
-                    uiMsg += ".<br><br>Since applying a threshold to an RGB image is an ambiguous operation, "
-                            + "you will need to first convert the image to a multichannel composite using IJ's "
-                            + " 'Channels Tool'. This will allow single channels to be parsed";
-                break;
-            default:
-                if (cancelReason.contains(",")) {
-                    uiMsg = "Image cannot be analyzed. Multiple invalid requirements:<br>- "
-                            + cancelReason.replace(", ", "<br>- ");
-                } else {
-                    uiMsg = cancelReason;
-                }
-                break;
-        }
-        cancel(cancelReason);
-        helper.setParentToActiveWindow();
-        helper.error(uiMsg + ".", null);
-    }
-
-    @Override
     public void run() {
         if (isCanceled()) return; // criteria are not met
         try {

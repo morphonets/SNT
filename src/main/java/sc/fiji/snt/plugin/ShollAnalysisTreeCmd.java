@@ -672,17 +672,15 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		private final Tree tree;
 		private final TreeParser parser;
 
-        public AnalysisRunner(final Tree tree) {
+        AnalysisRunner(final Tree tree) {
 			this.tree = tree;
 			parser = new TreeParser(tree);
 			parser.setStepSize(adjustedStepSize());
 		}
 
-		public AnalysisRunner(final Tree tree, final PointInImage center) {
-			this.tree = tree;
-			parser = new TreeParser(tree);
+        AnalysisRunner(final Tree tree, final PointInImage center) {
+			this(tree);
 			parser.setCenter(center);
-			parser.setStepSize(adjustedStepSize());
 		}
 
 		@Override

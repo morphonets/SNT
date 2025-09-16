@@ -133,6 +133,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	static final String NO_THRESHOLD = "Invalid threshold levels";
 	static final String NO_ROI = "No ROI detected";
 	static final String RUNNING = "Analysis currently running";
+    static final String INVALID_PLOT = "Invalid plot choice";
 	static final int SCOPE_IMP = 0;
 	private static final int SCOPE_PROFILE = 1;
 	private static final int SCOPE_ABORT = 2;
@@ -141,7 +142,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Shells:")
 	private String HEADER1;
 
-    @Parameter(label = "Sampling type", choices = {"Intersections", "Length"},
+    @Parameter(label = "Sampling type", choices = {"Intersections", "Length", "Integrated density"},
             style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
     private String dataModeChoice;
 
@@ -218,15 +219,14 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	@Parameter(label = "Plots", callback="saveOptionsChanged",
             choices = { "Linear plot", "Normalized plot", "Polar plot", //
                     "Linear & normalized plots", "Linear & polar plots", "Linear, normalized, and polar plots", //
-			        "Integrated density plot", //
-                    "Cumulative: Linear plot", "Cumulative: Integrated density plot", "None. Show no plots" })
+                    "Cumulative linear plot", "None. Show no plots" })
 	private String plotOutputDescription;
 
 	@Parameter(label = "Tables", callback="saveOptionsChanged", choices = { "Detailed table", "Summary table",
 		"Detailed & Summary tables", "None. Show no tables" })
 	private String tableOutputDescription;
 
-	@Parameter(label = "Annotations", description="Point ROIs are not created when retrieving \"Norm. integrated density plot\"",
+	@Parameter(label = "Annotations", description="Point ROIs are not created when retrieving integrated densities",
 			callback = "annotationsDescriptionChanged",
 		choices = { "ROIs (points only)", "ROIs (points and 2D shells)",
 			"ROIs (points) and mask", "Mask", "None. Show no annotations" })
@@ -329,8 +329,8 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		} else if (includeOngoingAnalysis && ongoingAnalysis()) {
 			cancelReason = RUNNING;
 		} else {
-			cancelReason = validateRequirements(true);
-		}
+            cancelReason = validateRequirements(true);
+        }
 		final boolean successfullCheck = cancelReason.isEmpty();
 		if (!successfullCheck)
 			cancelAndFreezeUI(cancelReason);
@@ -363,7 +363,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			previewShells = false;
 			imp.setOverlay(overlaySnapshot);
 			parser.reset();
-			parser.setRetrieveIntDensities(plotOutputDescription.toLowerCase().contains("integrated"));
+			parser.setRetrieveIntDensities(dataModeChoice.toLowerCase().contains("integrated"));
 			startAnalysisThread(false);
 			break;
 		case SCOPE_PROFILE:
@@ -493,7 +493,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
 	private void startAnalysisThread(final boolean skipImageParsing) {
 		analysisRunner = new AnalysisRunner(parser);
-		analysisRunner.setSkipParsing(skipImageParsing || plotOutputDescription.toLowerCase().contains("integrated") != parser.isRetrieveIntDensitiesSet());
+		analysisRunner.setSkipParsing(skipImageParsing || dataModeChoice.toLowerCase().contains("integrated") != parser.isRetrieveIntDensitiesSet());
 		statusService.showStatus("Analysis started");
 		logger.debug("Analysis started...");
 		if (twoD) {
@@ -789,7 +789,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		String uiMsg;
 		switch (cancelReason) {
 		case NO_IMAGE:
-			previewShells = false;
+            previewShells = false;
 			annotationsDescription = "None. Show no annotations";
 			analysisAction = "Change image...";
 			setAnalysisScope();
@@ -798,12 +798,15 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		case NO_CENTER:
 			previewShells = false;
 			uiMsg = "Please set an ROI, then press \"" + "Set New Center from Active ROI\". "
-					+ "Center coordinates will be defined by the ROI's centroid.";
+					+ "Center coordinates will be defined by the ROI's centroid";
 			break;
 		case NO_RADII:
 			previewShells = false;
-			uiMsg = "Ending radius and Radius step size must be within range.";
+			uiMsg = "Ending radius and Radius step size must be within range";
 			break;
+        case INVALID_PLOT:
+            uiMsg = "Only (cumulative) linear plots can be created for Integrated density";
+            break;
 		case NO_THRESHOLD:
 			uiMsg = "Image is not segmented. Please adjust threshold levels";
 			if (imp.getType() == ImagePlus.COLOR_RGB)
@@ -837,7 +840,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		} else if (imp.isThreshold()) {
 			lowerT = imp.getProcessor().getMinThreshold();
 			upperT = imp.getProcessor().getMaxThreshold();
-		} else if (plotOutputDescription != null && plotOutputDescription.toLowerCase().contains("integrated")) {
+		} else if (dataModeChoice != null && dataModeChoice.toLowerCase().contains("integrated")) {
 			lowerT = Double.MIN_VALUE;
 			upperT = Double.MAX_VALUE;
 		} else {
@@ -1053,12 +1056,20 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		return validRadii;
 	}
 
+    private boolean validPlotChoice() {
+        if( plotOutputDescription == null) return false;
+        return (dataModeChoice == null || !dataModeChoice.toLowerCase().contains("integrated"))
+                || (!plotOutputDescription.contains("polar") && !plotOutputDescription.toLowerCase().contains("norm"));
+    }
+
 	private String validateRequirements(final boolean includeThresholdCheck) {
 		final List<String> cancelReasons = new ArrayList<>();
 		if (center == null)
 			cancelReasons.add(NO_CENTER);
 		if (!validRadiiOptions())
 			cancelReasons.add(NO_RADII);
+        if (!validPlotChoice())
+            cancelReasons.add(INVALID_PLOT);
 		if (!includeThresholdCheck)
 			return String.join(", ", cancelReasons);
 		if (!readThresholdFromImp())
@@ -1180,7 +1191,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
 			// Set Plots
 			outputs = new ArrayList<>();
-			if (plotOutputDescription.toLowerCase().contains("integrated") || plotOutputDescription.toLowerCase().contains("linear")) {
+			if (dataModeChoice.toLowerCase().contains("integrated") || plotOutputDescription.toLowerCase().contains("linear")) {
 				final ShollPlot lPlot = lStats.getPlot(plotOutputDescription.toLowerCase().contains("cum"));
 				outputs.add(lPlot);
 				lPlot.show();

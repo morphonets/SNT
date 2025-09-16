@@ -25,24 +25,15 @@ import ij.measure.Calibration;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 
 import java.util.Collection;
-import java.util.Objects;
-import java.util.Set;
 
 /**
- * Convenience flavor of {@link PointInImage} defining 2D/3D points for Sholll Analysis.
+ * Convenience flavor of {@link PointInImage} defining 2D/3D points for Sholl Analysis.
  *
  * @author Tiago Ferreira
  */
 public class ShollPoint extends PointInImage {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
-
-	public int flag = NONE;
-
-	public final static int NONE = -1;
-	public final static int VISITED = -2;
-	public final static int DELETE = -4;
-	public final static int KEEP = -8;
 
 	public ShollPoint(final PointInImage pim) {
 		this(pim.x, pim.y, pim.z);
@@ -62,11 +53,6 @@ public class ShollPoint extends PointInImage {
 
 	public ShollPoint(final int x, final int y, final Calibration cal) {
 		super(cal.getX(x), cal.getY(y), cal.getZ(0));
-	}
-
-	public ShollPoint(final int x, final int y, final int z, final int flag) {
-		super(x,y,z);
-		this.flag = flag;
 	}
 
 	public static void scale(final Collection<ShollPoint> points, final Calibration cal) {
@@ -99,10 +85,6 @@ public class ShollPoint extends PointInImage {
 		return z / cal.pixelDepth + cal.zOrigin;
 	}
 
-	public void setFlag(final int flag) {
-		this.flag = flag;
-	}
-
 	@Override
 	public String toString() {
 		return ShollUtils.d2s(x) + ", " + ShollUtils.d2s(y) + ", " + ShollUtils.d2s(z);
@@ -114,11 +96,6 @@ public class ShollPoint extends PointInImage {
 		if (object == null) return false;
 		if (getClass() != object.getClass()) return false;
 		return isSameLocation((ShollPoint) object);
-	}
-
-	@Override
-	public int hashCode() {
-		return Objects.hash(super.hashCode(), flag);
 	}
 
 }

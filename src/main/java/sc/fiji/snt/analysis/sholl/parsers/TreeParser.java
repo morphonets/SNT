@@ -244,7 +244,7 @@ public class TreeParser implements Parser {
 		if (tree.getBoundingBox(false) != null) profile.setSpatialCalibration(tree
 			.getBoundingBox(false).getCalibration());
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
-		assembleSortedShollPointList();
+        assembleSortedShollPointList();
 		assembleProfileAfterAssemblingSortedShollPointList();
 
         // If continuous sampling, log the effective step size
@@ -591,7 +591,7 @@ public class TreeParser implements Parser {
 	}
 
     /**
-     * Returns a intrinsic spatial scale of the reconstruction, independent of
+     * Returns an intrinsic spatial scale of the reconstruction, independent of
      * image calibration. It is computed as the median distance between consecutive
      * nodes across all Paths (respecting skipSomaticSegments). If no segments exist, returns 0.0.
      */
@@ -778,6 +778,49 @@ public class TreeParser implements Parser {
 		
 		return centroids;
 	}
+
+    /** Length-weighted mean node radius within a spherical shell. Units: µm if nodes are calibrated.
+     * This could be used for using "Thickness" as a profiled metric.
+     * */
+    private double meanNodeRadiusInShell(final double innerRadius, final double outerRadius) {
+        double sumWR = 0.0, sumW = 0.0;
+        final PointInImage soma = tree.getRoot();
+        final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
+                && soma.onPath.getSWCType() == Path.SWC_SOMA;
+        for (final Path path : tree.list()) {
+            if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath))) continue;
+            for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+                final Path.PathNode a = path.getNode(i);
+                final Path.PathNode b = path.getNode(i + 1);
+                final double lenInShell = calculateSegmentLengthInShell(a, b, center, innerRadius, outerRadius);
+                if (lenInShell <= 0.0) continue;
+                final double rA = a.getRadius();
+                final double rB = b.getRadius();
+                double rPiece;
+                if (Double.isNaN(rA) && Double.isNaN(rB)) continue;
+                else if (Double.isNaN(rA)) rPiece = rB;
+                else if (Double.isNaN(rB)) rPiece = rA;
+                else rPiece = 0.5 * (rA + rB);
+                sumWR += lenInShell * rPiece;
+                sumW  += lenInShell;
+            }
+        }
+        return (sumW > 0.0) ? (sumWR / sumW) : Double.NaN;
+    }
+
+    /** Mean node radius at a specific sampling radius using the same thin-shell used for length.
+     * This could be used for using "Thickness" as a profiled metric.
+     */
+    @SuppressWarnings("unused")
+    private double meanNodeRadiusAtRadius(final double radius) {
+        final double shellThickness;
+        if (stepSize > 0) shellThickness = stepSize;
+        else {
+            final double s = intrinsicSegmentScale();
+            shellThickness = Math.max(radius * 0.01, (s > 0.0 ? s : 1e-9));
+        }
+        return meanNodeRadiusInShell(radius - shellThickness / 2.0, radius + shellThickness / 2.0);
+    }
 
     private record ComparableShollPoint(double distanceSquared,
                                         boolean nearer) implements Comparable<ComparableShollPoint> {

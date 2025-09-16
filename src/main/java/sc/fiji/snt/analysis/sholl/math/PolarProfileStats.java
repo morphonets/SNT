@@ -59,8 +59,7 @@ public class PolarProfileStats implements ShollStats {
     private DataMode dataMode = DataMode.INTERSECTIONS; // Default mode
     private double angleStepSize; // in degrees
     private int nAngleBins; // calculated from angleStepSize since range is always [0-360[ degrees
-    private double[][] intersectionMatrix; // [radialBin][angleBin]
-    private double[][] lengthMatrix; // [radialBin][angleBin]
+    private double[][] dataMatrix; // [radialBin][angleBin]
     private boolean parsed;
     private Report reportCache; // cached summary of peaks, coherences, etc.
 
@@ -150,7 +149,7 @@ public class PolarProfileStats implements ShollStats {
     // Note: Entries without angular locations (entry.points empty) are skipped by default to avoid
     // fabricating uniform rings (esp. for fitted profiles). Set profile.props["polar.allowUniformFallback"]=true
     // to enable uniform distribution: In the absence of points data is spread evenly across the 360° range
-    private void computeMatrices() {
+    private void computeMatrix() {
         if (profile.center() == null || profile.isEmpty()) {
             throw new IllegalStateException("Center of profile unknown or profile is empty");
         }
@@ -170,8 +169,7 @@ public class PolarProfileStats implements ShollStats {
         }
 
         // Initialize intersection and length matrices
-        intersectionMatrix = new double[profile.size()][nAngleBins];
-        lengthMatrix = new double[profile.size()][nAngleBins];
+        dataMatrix = new double[profile.size()][nAngleBins];
         final double stepRadius = profile.stepSize();
         final int nRadialBins = profile.size();
         final double startRadius = profile.startRadius();
@@ -204,18 +202,29 @@ public class PolarProfileStats implements ShollStats {
                 for (int angleBin = 0; angleBin < nAngleBins; angleBin++) {
                     final int c = binCounts[angleBin];
                     if (c == 0) continue;
-                    intersectionMatrix[radialBin][angleBin] += countScale * c;
-                    lengthMatrix[radialBin][angleBin] += lengthPerComponent * c;
+                    switch (dataMode) {
+                        case INTERSECTIONS -> dataMatrix[radialBin][angleBin] += countScale * c;
+                        case LENGTH -> dataMatrix[radialBin][angleBin] += lengthPerComponent * c;
+                        default -> throw new IllegalArgumentException("Unrecognized dataMode");
+                    }
                 }
 
             } else if (allowUniformFallback) {
                 // opt-in behavior: uniform fallback across angle bins
-                final double countPerBin = entry.count / nAngleBins;
-                final double lengthPerBin = entry.length / nAngleBins;
-                if (countPerBin == 0.0 && lengthPerBin == 0.0) continue;
-                for (int angleBin = 0; angleBin < nAngleBins; angleBin++) {
-                    intersectionMatrix[radialBin][angleBin] += countPerBin;
-                    lengthMatrix[radialBin][angleBin] += lengthPerBin;
+                switch (dataMode) {
+                    case INTERSECTIONS -> {
+                        final double countPerBin = entry.count / nAngleBins;
+                        if (countPerBin == 0d) continue;
+                        for (int angleBin = 0; angleBin < nAngleBins; angleBin++)
+                            dataMatrix[radialBin][angleBin] += countPerBin;
+                    }
+                    case LENGTH -> {
+                        final double lengthPerBin = entry.length / nAngleBins;
+                        if (lengthPerBin == 0d) continue;
+                        for (int angleBin = 0; angleBin < nAngleBins; angleBin++)
+                            dataMatrix[radialBin][angleBin] += lengthPerBin;
+                    }
+                    default -> throw new IllegalArgumentException("Unrecognized dataMode");
                 }
             }
         }
@@ -239,8 +248,8 @@ public class PolarProfileStats implements ShollStats {
      * or {@code L[r][a]} is the length in bin (r,a),
      */
     public double[][] getMatrix() {
-        if (!parsed) computeMatrices();
-        return (getDataMode() == DataMode.INTERSECTIONS) ? intersectionMatrix : lengthMatrix;
+        if (!parsed) computeMatrix();
+        return dataMatrix;
     }
 
     /**
@@ -382,7 +391,7 @@ public class PolarProfileStats implements ShollStats {
      * underlying matrices change (on changing angle step, data mode, etc.).
      */
     public Report getReport() {
-        if (!parsed) computeMatrices();
+        if (!parsed) computeMatrix();
         if (reportCache == null) reportCache = computeReport();
         return reportCache;
     }

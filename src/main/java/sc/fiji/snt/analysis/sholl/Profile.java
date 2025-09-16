@@ -110,7 +110,7 @@ public class Profile implements ProfileProperties {
 		properties = new Properties();
 	}
 
-	public String identifier() {
+    public String identifier() {
 		return properties.getProperty(KEY_ID);
 	}
 

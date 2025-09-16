@@ -1178,7 +1178,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	 * @return the node
 	 * @throws IndexOutOfBoundsException if position is out-of-range
 	 */
-	public PointInImage getNode(final int pos) throws IndexOutOfBoundsException {
+	public PathNode getNode(final int pos) throws IndexOutOfBoundsException {
 		return getNodeWithChecks(pos);
 	}
 

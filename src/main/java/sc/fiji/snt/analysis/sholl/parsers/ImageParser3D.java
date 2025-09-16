@@ -147,11 +147,11 @@ public class ImageParser3D extends ImageParser {
                 final int counter = progressCounter.getAndIncrement();
                 statusService.showStatus(counter, nSamples, "Sampling shell " + counter + "/" + nSamples + " (" + nCPUs + " threads)");
 
-                // Choose containers based on mode, i.e., weather intensity or intersections/length.
-                // For intensity profiles: pixelPoints and voxelSet are not needed (no ShollPoint objects)
+                // Choose containers based on mode (intensity vs intersections/length).
+                // For intensity profiles: pixelPoints is not needed; voxelSet is still required to compute length.
                 final boolean intensityMode = isRetrieveIntDensitiesSet();
                 final ArrayList<ShollPoint> pixelPoints = intensityMode ? null : new ArrayList<>();
-                final HashSet<Long> voxelSet = intensityMode ? new HashSet<>() : null;
+                final HashSet<Long> voxelSet = new HashSet<>();
 
                 // Restrain analysis to the smallest volume for this sphere
                 final double r = radii.get(s);
@@ -183,12 +183,11 @@ public class ImageParser3D extends ImageParser {
                                 final double vxValue = stack.getVoxel(x, y, z); // all 0-based indices
                                 if (!withinThreshold(vxValue) || (isSkipSingleVoxels() && !hasNeighbors(x, y, z)))
                                     continue;
+                                voxelSet.add(key(x, y, z));
                                 if (intensityMode) {
                                     intensitySum += vxValue;
-                                    voxelSet.add(key(x, y, z));
                                 } else {
-                                    final ShollPoint sp = new ShollPoint(x, y, z, ShollPoint.NONE);
-                                    pixelPoints.add(sp);
+                                    pixelPoints.add(new ShollPoint(x, y, z));
                                 }
                             }
                         }
@@ -276,8 +275,7 @@ public class ImageParser3D extends ImageParser {
                 final double cy = sumWY / cnt;
                 final double cz = sumWZ / cnt;
                 double best = Double.POSITIVE_INFINITY;
-                for (int i = 0; i < comp.size(); i++) {
-                    final long k = comp.get(i);
+                for (final long k : comp) {
                     final int x = unpackX(k), y = unpackY(k), z = unpackZ(k);
                     final double dx = x * vxW - cx;
                     final double dy = y * vxH - cy;
@@ -292,7 +290,7 @@ public class ImageParser3D extends ImageParser {
                 }
             }
 
-            reps.add(new ShollPoint(rx, ry, rz, ShollPoint.NONE));
+            reps.add(new ShollPoint(rx, ry, rz));
         }
 
         points.clear();

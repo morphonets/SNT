@@ -35,8 +35,6 @@ import sc.fiji.snt.util.SNTPoint;
 
 /**
  * Tests for {@link PCAnalyzer}
- *
- * @author SNT Team
  */
 public class PCAnalyzerTest {
 
