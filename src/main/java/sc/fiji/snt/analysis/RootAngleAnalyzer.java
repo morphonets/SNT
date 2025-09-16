@@ -307,9 +307,14 @@ public class RootAngleAnalyzer {
     }
 
     private void initVonMisesDistributionAsNeeded() {
-        if (vmDistribution == null) vmDistribution = new VonMisesDistribution(asRadians(getAngles()));
+        if (vmDistribution == null) {
+            // Use shared CircularModels on degrees, AXIAL domain (root angles are deviation angles)
+            final double[] aDeg = getAngles().stream().mapToDouble(Double::doubleValue).toArray();
+            final CircularModels.VonMisesFit fit = CircularModels.fitFromPairs(aDeg, null, CircularModels.Domain.AXIAL);
+            final double muRad = Math.toRadians(fit.muDeg());
+            vmDistribution = new VonMisesDistribution(muRad, fit.kappa());
+        }
     }
-
     private List<Double> asRadians(final List<Double> anglesInDegrees) {
         final List<Double> anglesInRadians = new ArrayList<>(anglesInDegrees.size());
         anglesInDegrees.forEach(degAngle -> anglesInRadians.add(Math.toRadians(degAngle)));
@@ -477,21 +482,14 @@ public class RootAngleAnalyzer {
         final Random random;
 
         /**
-         * Constructs a VonMisesDistribution with the specified mean direction and concentration.
-         *
-         * @param anglesInRadians the list of angles (in radians) to be fitted by the distribution.
+         * Constructs a VonMisesDistribution from fitted parameters.
+         * @param meanDirection mean direction in radians (domain [0, π] for root angles)
+         * @param concentration kappa (concentration parameter)
          */
-        VonMisesDistribution(final Collection<Double> anglesInRadians) {
-            double sumSin = 0.0;
-            double sumCos = 0.0;
-            for (final double angle : anglesInRadians) {
-                sumSin += Math.sin(angle);
-                sumCos += Math.cos(angle);
-            }
-            final double R = Math.sqrt(sumSin * sumSin + sumCos * sumCos) / anglesInRadians.size();
-            meanDirection = Math.atan2(sumSin, sumCos);
-            concentration = (R * (2 - R * R)) / (1 - R * R);
-            random = new Random();
+        VonMisesDistribution(final double meanDirection, final double concentration) {
+            this.meanDirection = meanDirection;
+            this.concentration = concentration;
+            this.random = new Random();
         }
 
         /**
