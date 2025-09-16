@@ -99,6 +99,49 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
 	}
 
+    /**
+     * Returns the effective shell thickness Δr to use in area/volume-based normalizations.
+     * Order: nominal step size > profile property Profile#KEY_EFFECTIVE_STEP_SIZE > robust estimate
+     * from median |Δr| of input radii > 0. If all fail, returns 0.
+     */
+    private double effectiveStepRadius() {
+        // 1) Nominal
+        final double dr = profile.stepSize();
+        if (dr > 0d) return dr;
+        // 2) Property
+        final String prop = profile.getProperties().getProperty(Profile.KEY_EFFECTIVE_STEP_SIZE);
+        if (prop != null && !prop.isEmpty()) {
+            try {
+                final double fromProp = Double.parseDouble(prop);
+                if (fromProp > 0d) return fromProp;
+            } catch (final NumberFormatException ignore) { /* fall through */ }
+        }
+        // 3) Robust estimate from radii (median positive Δr)
+        int m = 0;
+        for (int i = 1; i < nPoints; i++) {
+            final double d = Math.abs(inputRadii[i] - inputRadii[i - 1]);
+            if (d > 0d && Double.isFinite(d)) m++;
+        }
+        if (m > 0) {
+            final double[] deltas = new double[m];
+            int k = 0;
+            for (int i = 1; i < nPoints; i++) {
+                final double d = Math.abs(inputRadii[i] - inputRadii[i - 1]);
+                if (d > 0d && Double.isFinite(d)) deltas[k++] = d;
+            }
+            final double median = StatUtils.percentile(deltas, 50d);
+            if (median > 0d && Double.isFinite(median)) return median;
+        }
+        // 4) Give up
+        return 0d;
+    }
+
+    // Note on Δr when step size = 0:
+    // For annulus/spherical-shell normalizations we use an effective shell thickness:
+    // 1) the nominal step if > 0; else
+    // 2) profile property Profile#KEY_EFFECTIVE_STEP_SIZE; else
+    // 3) the median positive Δr between consecutive input radii; else
+    // 4) perimeter/surface fallback.
 	private void normalizeCounts() {
 
 		switch (normType) {
@@ -291,10 +334,11 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
     private void normByAnnulus() {
         final double stepRadius = profile.stepSize();
+        final double effDr = (stepRadius > 0.0) ? stepRadius : effectiveStepRadius();
         int i = 0;
-        for (final double r : inputRadii) { // Area of annulus (or perimeter fallback if step=0)
+        for (final double r : inputRadii) {
             double y = Double.NaN;
-            if (stepRadius > 0) {
+            if (effDr > 0) {
                 final double r1 = r - stepRadius / 2.0;
                 final double r2 = r + stepRadius / 2.0;
                 final double denom = Math.PI * (r2 * r2 - r1 * r1);
@@ -310,10 +354,11 @@ public class NormalizedProfileStats extends CommonStats implements ShollStats {
 
     private void normBySphericalShell() {
         final double stepRadius = profile.stepSize();
+        final double effDr = (stepRadius > 0.0) ? stepRadius : effectiveStepRadius();
         int i = 0;
-        for (final double r : inputRadii) { // Volume of spherical shell (or surface fallback if step=0)
+        for (final double r : inputRadii) {
             double y = Double.NaN;
-            if (stepRadius > 0) {
+            if (effDr > 0.0) {
                 final double r1 = r - stepRadius / 2.0;
                 final double r2 = r + stepRadius / 2.0;
                 final double denom = (4.0 / 3.0) * Math.PI * (r2 * r2 * r2 - r1 * r1 * r1);

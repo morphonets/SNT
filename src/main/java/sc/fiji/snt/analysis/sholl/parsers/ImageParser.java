@@ -111,9 +111,11 @@ public class ImageParser extends ContextCommand implements Parser {
 			setThreshold(1, 255);
 		cal = imp.getCalibration(); // never null
 		if (imp.getNSlices() > 2) {
-			voxelSize = (cal.pixelWidth + cal.pixelHeight + cal.pixelDepth) / 3;
-		} else {
-			voxelSize = (cal.pixelWidth + cal.pixelHeight) / 2;
+			//voxelSize = (cal.pixelWidth + cal.pixelHeight + cal.pixelDepth) / 3; // arithmetic average
+            voxelSize = Math.cbrt(cal.pixelWidth * cal.pixelHeight * cal.pixelDepth); // geometric average
+        } else {
+			//voxelSize = (cal.pixelWidth + cal.pixelHeight) / 2; // arithmetic average
+            voxelSize = Math.sqrt(cal.pixelWidth * cal.pixelHeight); // geometric average
 		}
 		initProfile();
 	}
@@ -121,7 +123,14 @@ public class ImageParser extends ContextCommand implements Parser {
 	private void initProfile() {
 		profile = new Profile();
 		profile.assignImage(imp);
-		properties = profile.getProperties();
+        properties = profile.getProperties();
+        final double nominalStep = profile.stepSize();
+        if (nominalStep > 0.0) {
+            properties.setProperty(Profile.KEY_EFFECTIVE_STEP_SIZE, Double.toString(nominalStep));
+        } else if (voxelSize > 0d) {
+            properties.setProperty(Profile.KEY_EFFECTIVE_STEP_SIZE, Double.toString(voxelSize));
+        }
+        profile.setIsIntDensityProfile(isRetrieveIntDensitiesSet());
 	}
 
 	/**
@@ -533,7 +542,7 @@ public class ImageParser extends ContextCommand implements Parser {
 	@Override
 	public Profile getProfile() {
 		if (profile != null)
-			profile.setIsIntDensityProfile(isRetrieveIntDensitiesSet());
+            profile.setIsIntDensityProfile(isRetrieveIntDensitiesSet());
 		return profile;
 	}
 
