@@ -25,6 +25,9 @@ package sc.fiji.snt.analysis.sholl.math;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.analysis.AnalysisUtils;
+import sc.fiji.snt.analysis.CircularModels;
+import sc.fiji.snt.analysis.CircularModels.Domain;
+import sc.fiji.snt.analysis.CircularModels.VonMisesFit;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.sholl.Profile;
@@ -493,7 +496,47 @@ public class PolarProfileStats implements ShollStats {
         // Use unmodifiable defensive copies to protect cache integrity
         final List<PolarPeak> dirPeaks = List.copyOf(dualPeaks.direction());
         final List<PolarPeak> oriPeaks = List.copyOf(dualPeaks.orientation());
-        return new Report(dirPeaks, oriPeaks, adc, odc, getPreferredDirection(dirPeaks), getPreferredOrientation(oriPeaks));
+
+        final double pd = getPreferredDirection(dirPeaks);
+        final double po = getPreferredOrientation(oriPeaks);
+
+        // Allow unimodality when either (i) exactly one robust peak, or (ii) strong coherence with a dominant peak,
+        // or (iii) very strong coherence even if the peak picker is overly conservative (zero peaks).
+        final double DOM_RATIO_MIN = 1.5;    // top peak must be ≥1.5× the second peak
+        final double ADC_STRONG    = 0.80;   // strong directional coherence
+        final double ODC_STRONG    = 0.80;   // strong axial coherence
+        final double ADC_VERY_STRONG = 0.85; // coherence high enough to accept unimodality even if no peaks returned
+
+        final double dirDom = dominanceRatio(dirPeaks);
+        final double oriDom = dominanceRatio(oriPeaks);
+
+        final boolean dirUnimodal = (dirPeaks.size() == 1)
+                || (adc >= ADC_STRONG && dirDom >= DOM_RATIO_MIN)
+                || (dirPeaks.isEmpty() && adc >= ADC_VERY_STRONG);
+        final boolean oriUnimodal = (oriPeaks.size() == 1)
+                || (odc >= ODC_STRONG && oriDom >= DOM_RATIO_MIN)
+                || (oriPeaks.isEmpty() && odc >= ADC_VERY_STRONG);
+
+        VonMisesFit vmDir = null;
+        VonMisesFit vmAx  = null;
+        if (dirUnimodal) {
+            vmDir = CircularModels.fitFromHistogram(dist, angleStepSize, Domain.DIRECTIONAL);
+        }
+        if (oriUnimodal) {
+            vmAx = CircularModels.fitFromHistogram(dist, angleStepSize, Domain.AXIAL);
+        }
+        return new Report(dirPeaks, oriPeaks, adc, odc, pd, po, vmDir, vmAx);
+    }
+
+    // computes the dominance ratio between the top two peaks (sorted in descending height)
+    // returns positive infinity when there is a single peak and NaN when there are no peaks
+    private static double dominanceRatio(final List<PolarPeak> peaks) {
+        if (peaks == null || peaks.isEmpty()) return Double.NaN;
+        if (peaks.size() == 1) return Double.POSITIVE_INFINITY;
+        final double a = peaks.get(0).value();
+        final double b = peaks.get(1).value();
+        if (!(b > 0)) return Double.POSITIVE_INFINITY;
+        return a / b;
     }
 
     private double getPreferredDirection(final List<PolarPeak> directionPeaks) {
@@ -969,11 +1012,15 @@ public class PolarProfileStats implements ShollStats {
      *                         near 0.
      * @param pd               Preferred direction angle in [0,360[ degrees
      * @param po               Preferred orientation angle in [0,180[ degrees
+     * @param vmDirectional    Optional von Mises fit for the directional distribution (non-null only if unimodal)
+     * @param vmAxial          Optional von Mises fit for the axial/orientation distribution (non-null only if unimodal)
      */
     public record Report(List<PolarPeak> directionPeaks,
                          List<PolarPeak> orientationPeaks,
                          double adc, double odc,
-                         double pd, double po) {
+                         double pd, double po,
+                         VonMisesFit vmDirectional,
+                         VonMisesFit vmAxial) {
 
         /**
          * Creates an adaptive summary tailored to common regimes:
@@ -993,14 +1040,22 @@ public class PolarProfileStats implements ShollStats {
             final double ODC_LOW = 0.15;
             final double ODC_STRONG = 0.45;  // clear axis/bilobed pattern
 
+            // If unimodal fits are available, render compact von Mises summaries
+            final String vmDirStr = (vmDirectional != null)
+                    ? String.format("; VM: μ=%.1f°, κ=%.2f", vmDirectional.muDeg(), vmDirectional.kappa())
+                    : "";
+            final String vmAxStr = (vmAxial != null)
+                    ? String.format("; VM: μ=%.1f°, κ=%.2f", vmAxial.muDeg(), vmAxial.kappa())
+                    : "";
+
             // A) Strong unimodal direction: trust first moment regardless of peak detection
             if (adc >= ADC_STRONG) {
-                return String.format("Single preferred direction: %.1f° (ADC=%.2f)", pd, adc);
+                return String.format("Single preferred direction: %.1f° (ADC=%.2f%s)", pd, adc, vmDirStr);
             }
 
             // B) Strong axis but weak direction (e.g., two-lobed / antipodal morphology)
             if (odc >= ODC_STRONG && adc < ADC_STRONG) {
-                return String.format("Preferred orientation (axis): %.1f° (ODC=%.2f)", po, odc);
+                return String.format("Preferred orientation (axis): %.1f° (ODC=%.2f%s)", po, odc, vmAxStr);
             }
 
             // C) No clear structure
@@ -1012,7 +1067,7 @@ public class PolarProfileStats implements ShollStats {
             // D) Use peak picking to distinguish the remaining cases
             // D1) Single peak
             if (nPeaks == 1)
-                return String.format("Single preferred direction: %.1f° (ADC=%.2f)", directionPeaks.getFirst().angleDeg, adc);
+                return String.format("Single preferred direction: %.1f° (ADC=%.2f%s)", directionPeaks.getFirst().angleDeg, adc, vmDirStr);
 
             // D2) Multiple peaks
             if (nPeaks >= 2) {

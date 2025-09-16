@@ -252,7 +252,7 @@ public class SNTColor {
 	 * @return the color with an alpha component
 	 */
 	public static Color alphaColor(final Color c, final double percent) {
-		return new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) Math.round(
+		return (c == null) ? null : new Color(c.getRed(), c.getGreen(), c.getBlue(), (int) Math.round(
 			percent / 100 * 255));
 	}
 
