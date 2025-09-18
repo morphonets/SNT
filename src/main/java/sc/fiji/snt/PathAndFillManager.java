@@ -836,6 +836,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 				// Find the closest node in the parent path to the branch point
 				final PointInImage branchPoint = path.getBranchPoint();
+                if (branchPoint == null) continue;
 				int closestNodeIndex = parentPath.indexNearestTo(branchPoint.x, branchPoint.y, branchPoint.z);
 				if (closestNodeIndex >= 0) {
 					// Optional validation: check if branch point is reasonably close to parent node

@@ -383,7 +383,7 @@ public class DemoRunner {
 					snt.enableSnapCursor(false);
 					snt.getUI().runCommand("Display/Rebuild ZY/XZ Views");
 					if (!snt.getDrawDiameters())
-						snt.getUI().runCommand("Draw diameters");
+						snt.getUI().runCommand("Toggle Draw diameters");
 					snt.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>());
 					snt.getUI().setVisibilityFilter("Z-slices", true);
 				}
