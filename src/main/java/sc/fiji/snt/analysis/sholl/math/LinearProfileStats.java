@@ -1006,12 +1006,16 @@ public class LinearProfileStats extends CommonStats implements ShollStats {
         if (validFit()) {
             profile.entries().forEach( profileEntry -> {
                 final double fValue = fCounts[index.getAndIncrement()];
-                dup.add(new ProfileEntry(profileEntry.radius, fValue, fValue, profileEntry.points));
+                final ProfileEntry entry = new ProfileEntry(profileEntry.radius, fValue, fValue, profileEntry.points);
+                entry.extra = fValue;
+                dup.add(entry);
             });
         } else {
             profile.entries().forEach( profileEntry -> {
                 final double inValue = inputCounts[index.getAndIncrement()];
-                dup.add(new ProfileEntry(profileEntry.radius, inValue, inValue, profileEntry.points));
+                final ProfileEntry entry = new ProfileEntry(profileEntry.radius, inValue, inValue, profileEntry.points);
+                entry.extra = inValue;
+                dup.add(entry);
             });
         }
         return dup;

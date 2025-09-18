@@ -99,6 +99,9 @@ public class ShollTable extends SNTTable {
 		addColumn("Radius", profile.radii());
         addColumn((intensities) ? "Norm. IntDen" : "Inters.", profile.counts());
         addColumn("Length", profile.lengths());
+        if (profile.hasExtraMeasurement()) {
+            addColumn(profile.getProperties().getProperty(Profile.KEY_EXTRA_MEASUREMENT), profile.extras());
+        }
 
 		if (stats == null)
 			return;
@@ -113,6 +116,8 @@ public class ShollTable extends SNTTable {
                 yFitHeader = "Norm. IntDen";
             else if (stat.getDataMode() == ShollStats.DataMode.LENGTH)
                 yFitHeader = "Length";
+            else if (stat.getDataMode() == ShollStats.DataMode.EXTRA)
+                yFitHeader = stat.getProfile().getExtraMeasurement();
             else
                 yFitHeader = "Inters.";
 

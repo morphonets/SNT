@@ -199,12 +199,14 @@ public class PolarProfileStats implements ShollStats {
                 final int components = entry.points.size();
                 final double countScale = (components > 0) ? (entry.count / (double) components) : 0d;
                 final double lengthPerComponent = (components > 0) ? (entry.length / (double) components) : 0d;
+                final double extraPerComponent = (components > 0) ? (entry.extra / (double) components) : 0d;
                 for (int angleBin = 0; angleBin < nAngleBins; angleBin++) {
                     final int c = binCounts[angleBin];
                     if (c == 0) continue;
                     switch (dataMode) {
                         case INTERSECTIONS -> dataMatrix[radialBin][angleBin] += countScale * c;
                         case LENGTH -> dataMatrix[radialBin][angleBin] += lengthPerComponent * c;
+                        case EXTRA -> dataMatrix[radialBin][angleBin] += extraPerComponent * c;
                         default -> throw new IllegalArgumentException("Unrecognized dataMode");
                     }
                 }
@@ -223,6 +225,12 @@ public class PolarProfileStats implements ShollStats {
                         if (lengthPerBin == 0d) continue;
                         for (int angleBin = 0; angleBin < nAngleBins; angleBin++)
                             dataMatrix[radialBin][angleBin] += lengthPerBin;
+                    }
+                    case EXTRA -> {
+                        final double extraPerBin = entry.extra / nAngleBins;
+                        if (extraPerBin == 0d) continue;
+                        for (int angleBin = 0; angleBin < nAngleBins; angleBin++)
+                            dataMatrix[radialBin][angleBin] += extraPerBin;
                     }
                     default -> throw new IllegalArgumentException("Unrecognized dataMode");
                 }
@@ -883,9 +891,12 @@ public class PolarProfileStats implements ShollStats {
     }
 
     private String dataModeLabel(final boolean abbreviated) {
-        if (getDataMode() == DataMode.INTERSECTIONS)
-            return (abbreviated) ? "No. Intersections" : "No. Inters.";
-        return (profile.scaled()) ? "Length (" + profile.spatialCalibration().getUnit() + ")" : "Length";
+        switch (dataMode) {
+            case INTERSECTIONS -> { return (abbreviated) ? "No. Intersections" : "No. Inters."; }
+            case LENGTH -> {  return (profile.scaled()) ? "Length (" + profile.spatialCalibration().getUnit() + ")" : "Length"; }
+            case EXTRA -> { return profile.getProperties().getProperty(Profile.KEY_EXTRA_MEASUREMENT); }
+            default -> { throw new IllegalArgumentException("Unrecognized dataMode"); }
+        }
     }
 
     private String colorBarLegendLabel() {

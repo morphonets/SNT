@@ -295,11 +295,10 @@ public class ShollPlot extends Plot {
 		return defaultXtitle(stats.getProfile());
 	}
 
-	private static String defaultYtitle(final ShollStats stats) {
-		final boolean intensities = stats.getProfile().isIntDensityProfile();
-        final boolean length = stats.getDataMode()== ShollStats.DataMode.LENGTH;
+    private static String defaultYtitle(final ShollStats stats) {
+        final boolean intensities = stats.getProfile().isIntDensityProfile();
         if (stats instanceof NormalizedProfileStats) {
-			final int normMethod = (((NormalizedProfileStats) stats)).getMethod();
+            final int normMethod = (((NormalizedProfileStats) stats)).getMethod();
             final String title = switch (normMethod) {
                 case ShollStats.ANNULUS -> (intensities) ? "log(N. Int. Dens./Annulus)" : "log(SCOPE/Annulus)";
                 case ShollStats.AREA -> (intensities) ? "log(N. Int. Dens./Area)" : "log(SCOPE/Area)";
@@ -311,12 +310,27 @@ public class ShollPlot extends Plot {
                 case ShollStats.VOLUME -> (intensities) ? "log(N. Int. Dens./Volume)" : "log(SCOPE/Volume)";
                 default -> "Normalized SCOPE";
             };
-            return title.replaceAll("SCOPE", (length) ? getLengthStringWithUnit(stats.getProfile()) : "No. Inters.");
-		}
+            switch (stats.getDataMode()) {
+                case LENGTH -> {
+                    return title.replaceAll("SCOPE", getLengthStringWithUnit(stats.getProfile()));
+                }
+                case EXTRA -> {
+                    return title.replaceAll("SCOPE", stats.getProfile().getExtraMeasurement());
+                }
+                case INTERSECTIONS -> {
+                    return title.replaceAll("SCOPE", "No. Inters.");
+                }
+            }
+        }
         if (stats.getProfile().isIntDensityProfile())
             return "Norm. Integrated Density";
-        return  (length) ? getLengthStringWithUnit(stats.getProfile()) : "No. Intersections";
-	}
+        switch (stats.getDataMode()) {
+            case LENGTH -> { return getLengthStringWithUnit(stats.getProfile()); }
+            case EXTRA -> { return stats.getProfile().getExtraMeasurement(); }
+            case INTERSECTIONS -> { return "No. Intersections"; }
+        }
+        return "N/A";
+    }
 
     private static String defaultYtitle(final ShollStats.DataMode dataMode, final Profile... profiles) {
         final boolean intensities = Arrays.stream(profiles).allMatch(Profile::isIntDensityProfile);

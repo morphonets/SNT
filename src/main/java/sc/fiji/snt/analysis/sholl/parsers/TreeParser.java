@@ -111,6 +111,8 @@ public class TreeParser implements Parser {
 	private double[] squaredRangeStarts;
 	private int[] crossingsPastEach;
 	private boolean skipSomaticSegments;
+    private boolean setIntersectedVolumeAsExtraMeasurement;
+
     /*
      * Cached intrinsic node-to-node spacing (median), computed on first use.
      * This is needed for length calculations when stepSize is 0.
@@ -195,8 +197,7 @@ public class TreeParser implements Parser {
 	 * @param center the focal point of the profile
 	 */
 	public void setCenter(final PointInImage center) {
-		if (successful()) throw new UnsupportedOperationException(
-			"setCenter() must be called before parsing data");
+		if (successful()) throw new UnsupportedOperationException("setCenter() must be called before parsing data");
 		this.center = center;
 	}
 
@@ -206,13 +207,34 @@ public class TreeParser implements Parser {
 	 * @param coordinates the array holding the focal point coordinates of the profile
 	 */
 	public void setCenter(final double[] coordinates) {
-		if (successful()) throw new UnsupportedOperationException(
-			"setCenter() must be called before parsing data");
+		if (successful()) throw new UnsupportedOperationException("setCenter() must be called before parsing data");
 		if (coordinates.length < 3)
 			center = new PointInImage(coordinates[0], coordinates[1], 0);
 		else
 			center = new PointInImage(coordinates[0], coordinates[1], coordinates[2]);
 	}
+
+    /**
+     * Enables storing the intersected arbor volume as a per-shell extra measurement in the resulting {@link Profile}.
+     * <p>
+     * When enabled, each {@link ProfileEntry} will include the volume of cable lying inside the current sampling shell,
+     * expressed in calibrated units cubed (e.g., µm³). The value is computed by clipping each traced segment to the
+     * shell and summing the volumes of the resulting truncated-cone (frustum) pieces. If only one endpoint radius is
+     * available, that radius is used for both ends; if neither endpoint has a radius, the piece contributes no volume.
+     * </p>
+     * <p>
+     * Shells are defined by the parser’s sampling mode: for discontinuous sampling (step size > 0), shells have
+     * thickness equal to {@code stepSize}; for continuous sampling (step size = 0), a thin shell is used whose
+     * thickness falls back to the median internode distance of the Tree.
+     * </p>
+     * 	<p><b>Important:</b> This method <em>before</em> {@link #parse()};
+     * @param b whether
+     */
+    public void setIntersectedVolumeAsExtraMeasurement(final boolean b) {
+        if (successful())
+            throw new IllegalArgumentException("setIntersectedVolumeAsExtraMeasurement must be called before parsing data");
+        this.setIntersectedVolumeAsExtraMeasurement = b;
+    }
 
 	/**
 	 * Sets the radius step size.
@@ -220,8 +242,7 @@ public class TreeParser implements Parser {
 	 * @param stepSize the radius step size
 	 */
 	public void setStepSize(final double stepSize) {
-		if (successful()) throw new UnsupportedOperationException(
-			"setStepSize() must be called before parsing data");
+		if (successful()) throw new UnsupportedOperationException("setStepSize() must be called before parsing data");
 		this.stepSize = (stepSize < 0) ? 0 : stepSize;
 	}
 
@@ -231,18 +252,17 @@ public class TreeParser implements Parser {
 	@Override
 	public void parse() throws IllegalArgumentException {
 		if (tree == null || tree.isEmpty()) {
-			throw new IllegalArgumentException("Invalid tree");
+			throw new IllegalArgumentException("Invalid tree.");
 		}
 		if (center == null) {
-			throw new IllegalArgumentException(
-				"Data cannot be parsed unless a center is specified");
+			throw new IllegalArgumentException("Data cannot be parsed unless a center is specified.");
 		}
 		profile = new Profile();
 		if (tree.getLabel() != null) profile.setIdentifier(tree.getLabel());
 		profile.setNDimensions((tree.is3D()) ? 3 : 2);
 		profile.setCenter(new ShollPoint(center));
-		if (tree.getBoundingBox(false) != null) profile.setSpatialCalibration(tree
-			.getBoundingBox(false).getCalibration());
+		if (tree.getBoundingBox(false) != null)
+            profile.setSpatialCalibration(tree.getBoundingBox(false).getCalibration());
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
         assembleSortedShollPointList();
 		assembleProfileAfterAssemblingSortedShollPointList();
@@ -257,8 +277,10 @@ public class TreeParser implements Parser {
                 profile.getProperties().setProperty(Profile.KEY_EFFECTIVE_STEP_SIZE, Double.toString(drEff));
             }
         }
+        if (setIntersectedVolumeAsExtraMeasurement)
+            profile.setExtraMeasurement("Volume", profile.spatialCalibration().getUnit() + "³");
 
-	}
+    }
 
 	/* (non-Javadoc)
 	 * @see sholl.parsers.Parser#successful()
@@ -332,7 +354,11 @@ public class TreeParser implements Parser {
                             getIntersectionPointsInShell(x, x + stepSize);
                     final double y = intersectionPoints.size();
                     final double length = cableLengthInShell(x, x + stepSize);
-                    profile.add(new ProfileEntry(x, y, length, intersectionPoints));
+                    final ProfileEntry entry = new ProfileEntry(x, y, length, intersectionPoints);
+                    if (setIntersectedVolumeAsExtraMeasurement) {
+                        entry.extra = intersectedVolumeInShell(x, x + stepSize);
+                    }
+                    profile.add(entry);
                 }
             }
         } else { // Continuous sampling
@@ -342,7 +368,11 @@ public class TreeParser implements Parser {
                 final Set<ShollPoint> intersectionPoints = getIntersectionPointsAtRadius(x);
                 final double y = intersectionPoints.size();
                 final double length = cableLengthAtRadius(x);
-                profile.add(new ProfileEntry(x, y, length, intersectionPoints));
+                final ProfileEntry entry = new ProfileEntry(x, y, length, intersectionPoints);
+                if (setIntersectedVolumeAsExtraMeasurement) {
+                    entry.extra = intersectedVolumeAtRadius(x);
+                }
+                profile.add(entry);
             }
         }
     }
@@ -779,47 +809,158 @@ public class TreeParser implements Parser {
 		return centroids;
 	}
 
-    /** Length-weighted mean node radius within a spherical shell. Units: µm if nodes are calibrated.
-     * This could be used for using "Thickness" as a profiled metric.
-     * */
-    private double meanNodeRadiusInShell(final double innerRadius, final double outerRadius) {
-        double sumWR = 0.0, sumW = 0.0;
+    /**
+     * Computes the total arbor volume within a spherical shell [innerRadius, outerRadius)
+     * as a sum of truncated-cone frusta contributed by each segment portion lying in the shell.
+     * Segment radii are assumed to vary linearly between node endpoints. If either endpoint
+     * radius is missing (NaN), the available radius is used for both ends; if both are missing,
+     * the segment contributes no volume.
+     */
+    private double intersectedVolumeInShell(final double innerRadius, final double outerRadius) {
+        if (outerRadius <= innerRadius) return 0.0;
+        final double inner2 = innerRadius * innerRadius;
+        final double outer2 = outerRadius * outerRadius;
+        final double cx = center.x, cy = center.y, cz = center.z;
+        double totalVol = 0.0;
+
         final PointInImage soma = tree.getRoot();
         final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
                 && soma.onPath.getSWCType() == Path.SWC_SOMA;
+
         for (final Path path : tree.list()) {
-            if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath))) continue;
-            for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+            if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+                continue;
+
+            final int startIdx = skipFirstNode ? 1 : 0;
+            for (int i = startIdx; i < path.size() - 1; ++i) {
                 final Path.PathNode a = path.getNode(i);
                 final Path.PathNode b = path.getNode(i + 1);
-                final double lenInShell = calculateSegmentLengthInShell(a, b, center, innerRadius, outerRadius);
-                if (lenInShell <= 0.0) continue;
+                final double ax = a.x, ay = a.y, az = a.z;
+                final double bx = b.x, by = b.y, bz = b.z;
+                final double ux = bx - ax, uy = by - ay, uz = bz - az;
+                final double segLen = a.distanceTo(b);
+                if (segLen == 0.0) continue;
+
                 final double rA = a.getRadius();
                 final double rB = b.getRadius();
-                double rPiece;
-                if (Double.isNaN(rA) && Double.isNaN(rB)) continue;
-                else if (Double.isNaN(rA)) rPiece = rB;
-                else if (Double.isNaN(rB)) rPiece = rA;
-                else rPiece = 0.5 * (rA + rB);
-                sumWR += lenInShell * rPiece;
-                sumW  += lenInShell;
+                final double dist1 = a.distanceTo(center);
+                final double dist2 = b.distanceTo(center);
+                final double minD = Math.min(dist1, dist2);
+                final double maxD = Math.max(dist1, dist2);
+
+                if (maxD >= innerRadius && minD <= outerRadius) {
+                    if (minD >= innerRadius && maxD <= outerRadius) {
+                        // Whole segment inside: single frustum with radii rA,rB
+                        final double[] rr = effectiveRadii(rA, rB, 0.0, 1.0);
+                        if (!Double.isNaN(rr[0]) && !Double.isNaN(rr[1])) {
+                            totalVol += frustumVolume(segLen, rr[0], rr[1]);
+                        }
+                    } else {
+                        // Partial: split by sphere intersections and keep sub-intervals whose mid-point lies in shell
+                        final List<Double> tB = new ArrayList<>(8);
+                        tB.add(0.0); tB.add(1.0);
+                        // Intersections with inner and outer spheres
+                        addTsForSphere(a, b, center, innerRadius, tB);
+                        addTsForSphere(a, b, center, outerRadius, tB);
+                        tB.sort(Double::compare);
+                        // Deduplicate and clamp to [0,1]
+                        final List<Double> T = new ArrayList<>(tB.size());
+                        double last = Double.NaN;
+                        for (double t : tB) {
+                            final double tc = Math.max(0.0, Math.min(1.0, t));
+                            if (T.isEmpty() || Math.abs(tc - last) > 1e-12) {
+                                T.add(tc); last = tc;
+                            }
+                        }
+                        for (int k = 0; k < T.size() - 1; k++) {
+                            final double t0 = T.get(k), t1 = T.get(k + 1);
+                            if (t1 <= t0) continue;
+                            final double tm = 0.5 * (t0 + t1);
+                            // squared radius of the mid-point relative to center
+                            final double mx = (ax + tm*ux) - cx;
+                            final double my = (ay + tm*uy) - cy;
+                            final double mz = (az + tm*uz) - cz;
+                            final double r2m = mx*mx + my*my + mz*mz;
+                            if (r2m < inner2 || r2m > outer2) continue; // outside shell
+                            final double h = segLen * (t1 - t0);
+                            if (h <= 0.0) continue;
+                            final double[] rr = effectiveRadii(rA, rB, t0, t1);
+                            if (!Double.isNaN(rr[0]) && !Double.isNaN(rr[1])) {
+                                totalVol += frustumVolume(h, rr[0], rr[1]);
+                            }
+                        }
+                    }
+                }
             }
         }
-        return (sumW > 0.0) ? (sumWR / sumW) : Double.NaN;
+        return totalVol;
     }
 
-    /** Mean node radius at a specific sampling radius using the same thin-shell used for length.
-     * This could be used for using "Thickness" as a profiled metric.
+    /**
+     * Adds parameter values t in [0,1] where the segment (a→b) intersects the sphere of radius r around center.
      */
-    @SuppressWarnings("unused")
-    private double meanNodeRadiusAtRadius(final double radius) {
+    private static void addTsForSphere(final Path.PathNode a, final Path.PathNode b,
+                                       final PointInImage center, final double r, final List<Double> out) {
+        if (r <= 0) return;
+        final double ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+        final double vx = a.x - center.x, vy = a.y - center.y, vz = a.z - center.z;
+        final double A = ux * ux + uy * uy + uz * uz;
+        if (A == 0.0) return;
+        final double B = 2.0 * (ux * vx + uy * vy + uz * vz);
+        final double C = vx * vx + vy * vy + vz * vz - r * r;
+        double disc = B * B - 4 * A * C;
+        if (disc < 0) {
+            if (disc > -1e-12) disc = 0;
+            else return;
+        }
+        final double sqrt = Math.sqrt(disc);
+        final double inv = 1.0 / (2.0 * A);
+        final double t1 = (-B - sqrt) * inv;
+        final double t2 = (-B + sqrt) * inv;
+        if (!Double.isNaN(t1)) out.add(t1);
+        if (!Double.isNaN(t2)) out.add(t2);
+    }
+
+    /**
+     * Returns effective radii at the two ends of a segment piece [t0,t1], handling missing values
+     */
+    private static double[] effectiveRadii(final double rA, final double rB, final double t0, final double t1) {
+        double r0, r1;
+        final boolean aNaN = Double.isNaN(rA), bNaN = Double.isNaN(rB);
+        if (aNaN && bNaN) return new double[]{ Double.NaN, Double.NaN };
+        if (aNaN) {
+            r0 = rB;
+            r1 = rB;
+        } else if (bNaN) {
+            r0 = rA;
+            r1 = rA;
+        } else {
+            r0 = rA + (rB - rA) * t0;
+            r1 = rA + (rB - rA) * t1;
+        }
+        return new double[]{r0, r1};
+    }
+
+    /**
+     * Volume of a frustum (truncated cone): V = (pi * h / 3) * (r0^2 + r0*r1 + r1^2)
+     */
+    private static double frustumVolume(final double h, final double r0, final double r1) {
+        return (Math.PI * h / 3.0) * (r0 * r0 + r0 * r1 + r1 * r1);
+    }
+
+    /**
+     * Thin-shell version of {@link #intersectedVolumeInShell(double, double)} centered at a radius
+     */
+    private double intersectedVolumeAtRadius(final double radius) {
         final double shellThickness;
         if (stepSize > 0) shellThickness = stepSize;
         else {
             final double s = intrinsicSegmentScale();
             shellThickness = Math.max(radius * 0.01, (s > 0.0 ? s : 1e-9));
         }
-        return meanNodeRadiusInShell(radius - shellThickness / 2.0, radius + shellThickness / 2.0);
+        final double inner = Math.max(0.0, radius - shellThickness / 2.0);
+        final double outer = radius + shellThickness / 2.0;
+        return intersectedVolumeInShell(inner, outer);
     }
 
     private record ComparableShollPoint(double distanceSquared,

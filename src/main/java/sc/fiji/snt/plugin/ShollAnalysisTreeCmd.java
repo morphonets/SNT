@@ -69,6 +69,7 @@ import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.*;
 
+import javax.swing.*;
 import java.io.File;
 import java.net.URL;
 import java.util.*;
@@ -113,7 +114,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "Sampling:")
 	private String HEADER1;
 
-    @Parameter(label = "Type", choices = {"Intersections", "Length"},
+    @Parameter(label = "Type", choices = {"Intersections", "Length", "Volume"},
             style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
     private String dataModeChoice;
 
@@ -244,8 +245,9 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 	private int minDegree;
 	private int maxDegree;
     private ShollStats.DataMode dataMode;
+    private boolean preferencesChanged;
 
-	@Override
+    @Override
 	public void run() {
 		if (ij.IJ.recording() && !IJ.macroRunning()) {
 			Recorder.recordString("// Please have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
@@ -305,6 +307,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 						"Invalid Center");
 				return;
 			}
+            if (dataModeChoice == null) {
+                cancelAndFreezeUI("Could not determine a suitable focal point... "
+                                + ((snt != null) ? " Perhaps you should try the 'Sholl Analysis at Nearest Node' command?"
+                                : ""),
+                        "Invalid Center");
+                return;
+            }
 			logger.info("Center:  " + center);
 			filteredTree.setBoundingBox(snt.getPathAndFillManager().getBoundingBox(false));
 			logger.info("Considering " + filteredTree.size() + " paths out of " + tree
@@ -664,6 +673,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 			final Map<String, Object> input = new HashMap<>();
 			input.put("ignoreBitmapOptions", true);
 			cmdService.run(ShollAnalysisPrefsCmd.class, true, input);
+            preferencesChanged = true;
 		});
 	}
 
@@ -685,20 +695,29 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 
 		@Override
 		public void run() {
-			// while (!Thread.currentThread().isInterrupted()) {
+			if (preferencesChanged) {
+                readPreferences();
+                preferencesChanged = false;
+            }
 			runAnalysis();
-			// }
 		}
 
 		public void runAnalysis() {
-			showStatus("Obtaining profile...");
-			parser.setStepSize(adjustedStepSize());
-			parser.setSkipSomaticSegments(prefService.getBoolean(ShollAnalysisPrefsCmd.class, "skipSomaticSegments",
-						ShollAnalysisPrefsCmd.DEF_SKIP_SOMATIC_SEGMENTS));
-			try {
+            final boolean volumeAsExtraMeasure = dataModeChoice != null && dataModeChoice.toLowerCase().contains("volume");
+            if (volumeAsExtraMeasure && tree.list().stream().noneMatch(Path::hasRadii)) {
+                cancelAndFreezeUI("Reconstruction nodes have no thickness. Intersected volume cannot be profiled.", "Invalid Type");
+                showStatus("Sholl: No profile retrieved.");
+                return;
+            }
+            showStatus("Obtaining profile...");
+            parser.setStepSize(adjustedStepSize());
+            parser.setSkipSomaticSegments(prefService.getBoolean(ShollAnalysisPrefsCmd.class, "skipSomaticSegments",
+                    ShollAnalysisPrefsCmd.DEF_SKIP_SOMATIC_SEGMENTS));
+            parser.setIntersectedVolumeAsExtraMeasurement(volumeAsExtraMeasure);
+            try {
 				parser.parse();
 			} catch (IllegalArgumentException ex) {
-				cancelAndFreezeUI(ex.getMessage(), "Exception Occurred");
+				SwingUtilities.invokeLater(() -> cancelAndFreezeUI(ex.getMessage(), "Exception Occurred"));
 				ex.printStackTrace();
 				return;
 			}

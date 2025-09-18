@@ -75,7 +75,7 @@ public interface ShollStats {
     void setDataMode(final DataMode mode);
 
     enum DataMode {
-        INTERSECTIONS, LENGTH;
+        INTERSECTIONS, LENGTH, EXTRA;
 
         @Override
         public String toString() {
@@ -85,7 +85,9 @@ public interface ShollStats {
         public static DataMode fromString(final String string) {
             if (string == null || string.isBlank() || string.toLowerCase().contains("int"))
                 return INTERSECTIONS;
-            return LENGTH;
+            if (string.toLowerCase().contains("length"))
+                return LENGTH;
+            return EXTRA;
         }
 
     }

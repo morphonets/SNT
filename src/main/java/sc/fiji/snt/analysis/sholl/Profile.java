@@ -40,7 +40,7 @@ import sc.fiji.snt.util.ShollPoint;
  */
 public class Profile implements ProfileProperties {
 
-	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private SortedSet<ProfileEntry> profile;
 	private ShollPoint center;
@@ -160,6 +160,13 @@ public class Profile implements ProfileProperties {
 			lengths.add(e.length);
 		return lengths;
 	}
+
+    public List<Double> extras() {
+        final ArrayList<Double> extras = new ArrayList<>();
+        for (final ProfileEntry e : profile)
+            extras.add(e.extra);
+        return extras;
+    }
 
 	public double[] lengthsAsArray() {
 		return lengths().stream().mapToDouble(d -> d).toArray();
@@ -402,6 +409,25 @@ public class Profile implements ProfileProperties {
 	public boolean isEmpty() {
 		return profile == null || profile.size() == zeroCounts();
 	}
+
+    public boolean hasExtraMeasurement() {
+        return entries().stream().anyMatch( profileEntry -> profileEntry.extra != 0d);
+    }
+
+    public void setExtraMeasurement(String measurement, String unit) {
+        getProperties().setProperty(Profile.KEY_EXTRA_MEASUREMENT, getMeasurementLabel(measurement, unit));
+    }
+
+    public String getExtraMeasurement() {
+        return getProperties().getProperty(Profile.KEY_EXTRA_MEASUREMENT);
+    }
+
+    private static String getMeasurementLabel(final String measurement, final String unit) {
+        if (measurement == null && unit == null)
+            return "N/A";
+        return (unit == null || unit.isBlank())
+                ? measurement : String.format("%s (%s)", measurement, unit);
+    }
 
 	public void setIsIntDensityProfile(final boolean isIntDensityProfile) {
 		this.isIntDensityProfile = isIntDensityProfile;

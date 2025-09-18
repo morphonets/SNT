@@ -81,6 +81,11 @@ class CommonStats extends ContextCommand implements ShollStats {
                 inputRadii[idx] = entry.radius;
                 inputCounts[idx++] = entry.length;
             }
+        } else if (dataMode == DataMode.EXTRA) {
+            for (final ProfileEntry entry : this.profile.entries()) {
+                inputRadii[idx] = entry.radius;
+                inputCounts[idx++] = entry.extra;
+            }
         } else {
             for (final ProfileEntry entry : this.profile.entries()) {
                 inputRadii[idx] = entry.radius;

@@ -87,14 +87,14 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 
 	@Parameter(required = false, label = "Filename filter",
 			description="Only filenames matching this string (case sensitive) will be considered. "
-			+ "Regex patterns accepted. Leave empty to disable fitering.")
+			+ "Regex patterns accepted. Leave empty to disable filtering.")
 	private String filenamePattern;
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
 		label = ShollAnalysisImgCommonCmd.HEADER_HTML + "<br>Sampling:")
 	private String HEADER1;
 
-    @Parameter(label = "Type", choices = {"Intersections", "Length"},
+    @Parameter(label = "Type", choices = {"Intersections", "Length", "Volume"},
             style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE)
     private String dataModeChoice;
 
@@ -403,6 +403,10 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 			}
             TreeParser parser = new TreeParser(tree);
 			parser.setStepSize(adjustedStepSize());
+            parser.setSkipSomaticSegments(prefService.getBoolean(ShollAnalysisPrefsCmd.class, "skipSomaticSegments",
+                    ShollAnalysisPrefsCmd.DEF_SKIP_SOMATIC_SEGMENTS));
+            final boolean volumeAsExtraMeasure = dataModeChoice != null && dataModeChoice.toLowerCase().contains("volume");
+            parser.setIntersectedVolumeAsExtraMeasurement(volumeAsExtraMeasure);
 			try {
 				parser.setCenter(ShollAnalysisTreeCmd.getCenterFromChoice(centerChoice));
 			} catch (final IllegalArgumentException ex) {

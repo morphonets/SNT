@@ -9,6 +9,7 @@
 
 // define the dialog prompt using SciJava parameters
 #@String(choices={"Cortical pyramidal neuron (dendrites, mouse)","Dentate gyrus granule cell (dendrites, rat)","Olfactory projection (axon, drosophila)"},label="Cell") cellChoice
+#@String(choices={"Intersections", "Length"},style="radioButtonHorizontal",label="Profile type:") typeChoice
 #@String(choices={"0 (continuous)","5","10","15","20"},value="10",style="radioButtonHorizontal",label="Radius step size (µm):") stepChoice
 #@String(choices={"2D Reconstruction vs 2D Bitmap (Fast)","3D Reconstruction vs 3D Bitmap (May take a while w/ small step size)", "3D Reconstruction vs 2D Reconstruction (Fast)"},style="radioButtonVertical",label="Type of Comparison") comparisonChoice
 #@String(choices={"Simple skeleton (Ground truth segmentation)","Dilated skeleton (More realistic segmentation)"},style="radioButtonVertical",label="Bitmap rasterization") skelChoice
@@ -182,7 +183,9 @@ def getTracingProfile(tree) {
 def getPlot(profile) {
     start = new Date()
     print("  Obtaining Sholl plot...")
-    def lStats = new LinearProfileStats(profile)
+    // sets whether intersections or lenght should be analyzed 
+    //dataMode = ShollStats.DataMode.fromString(typeChoice)
+    def lStats = new LinearProfileStats(profile)//, dataMode)
     lStats.setDebug(true)
     lStats.findBestFit(2, 30, .7, -1)
     plot = new ShollPlot(lStats)
