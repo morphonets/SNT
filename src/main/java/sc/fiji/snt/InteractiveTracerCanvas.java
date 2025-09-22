@@ -482,9 +482,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 		}
 	}
 
-	public void selectNearestPathToMousePointer(
-			final boolean addToExistingSelection)
-	{
+	public void selectNearestPathToMousePointer(final boolean addToExistingSelection) {
 		if (pathAndFillManager.size() == 0) {
 			getGuiUtils().tempMsg("Nothing to select: There are no traced paths");
 			return;

@@ -626,7 +626,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		return getPathsStructured(allPaths);
 	}
 
-	/**
+ 	/**
 	 * Returns all the paths associated with this PathAndFillManager instance,
 	 * grouped by Tree.
 	 *
@@ -666,7 +666,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
 	private void renameTreeAfterPrimaryPath(final Tree tree) {
 		final String label = tree.getLabel(); // never null here
-		if (label.startsWith("Cell ")) {
+		if (label.startsWith("Arbor ")) {
 			for (final Path p : tree.list()) {
 				if (p.isPrimary()) {
 					tree.setLabel(tree.getLabel() + " rooted in " + p.getName());

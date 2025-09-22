@@ -359,7 +359,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		if (isFittedVersionOfAnotherPath()) {
 			return fittedVersionOf.getTreeLabel();
 		}
-		return (treeLabel == null) ? "Cell " + getTreeID() : treeLabel;
+		return (treeLabel == null) ? String.format("Arbor %d C%dT%d", getTreeID(), getChannel(), getFrame()) : treeLabel;
 	}
 
 	/**
@@ -1181,6 +1181,56 @@ public class Path implements Comparable<Path>, Cloneable {
 	public PathNode getNode(final int pos) throws IndexOutOfBoundsException {
 		return getNodeWithChecks(pos);
 	}
+
+    protected PathNode getNode(String filter) {
+        switch (filter.toLowerCase().trim()) {
+            case "min radius" -> {
+                if (!hasRadii()) return null;
+                return nodes.stream()
+                        .min(java.util.Comparator.comparingDouble(Path.PathNode::getRadius))
+                        .orElse(null);
+            }
+            case "max radius" -> {
+                if (!hasRadii()) return null;
+                return nodes.stream()
+                        .max(java.util.Comparator.comparingDouble(Path.PathNode::getRadius))
+                        .orElse(null);
+            }
+            case "min x" -> {
+                return nodes.stream()
+                        .min(java.util.Comparator.comparingDouble(Path.PathNode::getX))
+                        .orElse(null);
+            }
+            case "max x" -> {
+                return nodes.stream()
+                        .max(java.util.Comparator.comparingDouble(Path.PathNode::getX))
+                        .orElse(null);
+            }
+            case "min y" -> {
+                return nodes.stream()
+                        .min(java.util.Comparator.comparingDouble(Path.PathNode::getY))
+                        .orElse(null);
+            }
+            case "max y" -> {
+                return nodes.stream()
+                        .max(java.util.Comparator.comparingDouble(Path.PathNode::getY))
+                        .orElse(null);
+            }
+            case "min z" -> {
+                return nodes.stream()
+                        .min(java.util.Comparator.comparingDouble(Path.PathNode::getZ))
+                        .orElse(null);
+            }
+            case "max z" -> {
+                return nodes.stream()
+                        .max(java.util.Comparator.comparingDouble(Path.PathNode::getZ))
+                        .orElse(null);
+            }
+            default -> {
+                throw new IllegalArgumentException("unsupported filter");
+            }
+        }
+    }
 
 	/**
 	 * Gets the internal PathNode at the specified position (for advanced operations).

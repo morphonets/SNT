@@ -27,14 +27,17 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.ImageCanvas;
+import ij.gui.Roi;
 import ij.io.Opener;
 import ij.plugin.*;
 import ij.process.*;
 import net.imagej.Dataset;
 import net.imglib2.display.ColorTable;
 import org.scijava.convert.ConvertService;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.RoiConverter;
 
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
@@ -374,6 +377,17 @@ public class ImpUtils {
 			Zoom.set(imp, currentMag, x, y);
 		}
 	}
+
+    public static double zoomTo(final ImagePlus imp, final Collection<Path> paths) {
+        final Roi existingRoi = imp.getRoi();
+        final Roi zoomRoi = RoiConverter.convert(paths, imp);
+        imp.setRoi(zoomRoi);
+        final double currentMag = imp.getCanvas().getMagnification();
+        Zoom.toSelection(imp);
+        imp.setPosition(imp.getChannel(), zoomRoi.getZPosition(), imp.getFrame());
+        imp.setRoi(existingRoi);
+        return imp.getCanvas().getMagnification() - currentMag;
+    }
 
 	/**
 	 * Checks if a given point (in image coordinates) is currently visible in an image
