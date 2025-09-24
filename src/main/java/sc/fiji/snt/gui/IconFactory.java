@@ -49,6 +49,7 @@ public class IconFactory {
 			ARROWS_LR('\uf0ec', true), //
 			ARROWS_LR_TO_LINE('\ue4ba', true), //
 			ARROWS_TO_CIRCLE('\ue4bd', true), //
+            ARROWS_TO_EYE('\ue4bf', true), //
 			ARROWS_DLUR('\uf422', true), //
 			ARROWS_SPLIT('\ue4bc', true), //
 			BARCODE('\uf02a', true), //
@@ -67,7 +68,8 @@ public class IconFactory {
 			CAMERA('\uf030', true), //
 			CARET_DOWN('\uf0d7', true), //
 			CARET_UP('\uf0d8', true), //
-			CHART('\ue0e3', true), //
+            CARET_UP_DOWN('\uf0dc', true), //
+            CHART('\ue0e3', true), //
 			CHART_LINE('\uf201', true), //
 			CHART_AREA('\uf1fe', true), //
 			CHART_MAGNIFIED('\ue522', true), //
@@ -336,10 +338,18 @@ public class IconFactory {
 		if (button instanceof JToggleButton) button.setSelectedIcon(IconFactory.buttonIcon(glyph, selectedColor(), scalingFactor));
 	}
 
-	public static void assignIcon(final JToggleButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph) {
-		button.setIcon(IconFactory.buttonIcon(defaultGlyph.id, defaultGlyph.solid, defaultColor()));
-		button.setSelectedIcon(IconFactory.buttonIcon(selectedGlyph.id, selectedGlyph.solid, selectedColor()));
-	}
+    public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph, final float scalingFactor) {
+        button.setIcon(buttonIcon(defaultGlyph, defaultColor(), scalingFactor));
+        button.setDisabledIcon(buttonIcon(defaultGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
+        if (button instanceof JToggleButton && selectedGlyph != null) {
+            button.setSelectedIcon(buttonIcon(selectedGlyph, selectedColor(), scalingFactor));
+            button.setDisabledSelectedIcon(buttonIcon(selectedGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
+        }
+    }
+
+	public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph) {
+        assignIcon(button, defaultGlyph, selectedGlyph, 1f);
+    }
 
 	public static Color defaultColor() {
 		if (DEF_COLOR == null)

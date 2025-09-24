@@ -168,7 +168,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	private JMenu getMorphoFilterMenu() {
 		final JMenu morphoFilteringMenu = new JMenu("Select by Morphological Trait");
 		morphoFilteringMenu.setIcon(IconFactory.menuIcon( IconFactory.GLYPH.RULER));
-		JMenuItem mi1 = new JMenuItem("Cell ID...");
+		JMenuItem mi1 = new JMenuItem("Arbor ID...");
 		mi1.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ID_ALT));
 		mi1.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
@@ -182,19 +182,19 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 				ids.add(treeID);
 			});
 			if (ids.isEmpty()) {
-				guiUtils.error("No Cell IDs have been specified.");
+				guiUtils.error("No Arbor IDs have been specified.");
 				return;
 			}
 			final String[] choices = ids.toArray(new String[0]);
 			final String defChoice = pmui.getSNT().getPrefs().getTemp("cellidfilter", choices[0]);
-			final String chosenID = guiUtils.getChoice("Select Paths from which cell?", "Cell ID Filtering", choices,
+			final String chosenID = guiUtils.getChoice("Select Paths from which arbor?", "Arbor ID Filtering", choices,
 					defChoice);
 			if (chosenID == null)
 				return;
 			pmui.getSNT().getPrefs().setTemp("cellidfilter", chosenID);
 			paths.removeIf(path -> !chosenID.equals(path.getTreeLabel()));
 			if (paths.isEmpty()) {
-				guiUtils.error("No Path matches the specified ID.");
+				guiUtils.error("No path matches the specified ID.");
 				return;
 			}
 			pmui.setSelectedPaths(paths, this);

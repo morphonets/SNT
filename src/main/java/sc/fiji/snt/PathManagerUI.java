@@ -92,6 +92,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private SNTTable table;
 	private MeasureUI measureUI;
 
+    // --- Arbor navigation toolbar ---
+    private final NavigationToolBar navToolbar;
+    private HelpfulTreeModel fullTreeModel; // full, unfiltered model for the tree
+
 	protected static final String TABLE_TITLE = "SNT Measurements";
 	protected final GuiUtils guiUtils;
     private final JMenuBar menuBar;
@@ -130,7 +134,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		final JScrollPane scrollPane = new JScrollPane();
 		scrollPane.getViewport().add(tree);
-		add(scrollPane, BorderLayout.CENTER);
+        navToolbar = new NavigationToolBar(tree, scrollPane);
+        add(scrollPane, BorderLayout.CENTER);
 
 		// Create all the menu items:
 		final SinglePathActionListener singlePathListener =
@@ -146,7 +151,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		menuBar.add(editMenu);
 		editMenu.add(getDeleteMenuItem(multiPathListener));
 		editMenu.add(getDuplicateMenuItem(singlePathListener));
-		editMenu.add(getGoToMenuItem(singlePathListener));
 		editMenu.add(getRenameMenuItem(singlePathListener));
 		editMenu.addSeparator();
 
@@ -416,9 +420,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		popup.add(getDeleteMenuItem(multiPathListener));
 		popup.add(getDuplicateMenuItem(singlePathListener));
 		popup.add(getRenameMenuItem(singlePathListener));
-		JMenuItem pjmi = popup.add(MultiPathActionListener.SORT_TREES);
-		pjmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SORT));
-		pjmi.addActionListener(multiPathListener);
 		popup.addSeparator();
 		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_ALL_CMD));
 		popup.add(new JTreeMenuItem(JTreeMenuItem.COLLAPSE_SELECTED_LEVEL));
@@ -426,7 +427,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_ALL_CMD));
 		popup.add(new JTreeMenuItem(JTreeMenuItem.EXPAND_SELECTED_LEVEL));
 		popup.addSeparator();
-		pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
+        JMenuItem pjmi = popup.add(MultiPathActionListener.APPEND_ALL_CHILDREN_CMD);
 		pjmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CHILDREN));
 		pjmi.addActionListener(multiPathListener);
 		pjmi = popup.add(MultiPathActionListener.APPEND_DIRECT_CHILDREN_CMD);
@@ -434,6 +435,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		pjmi.addActionListener(multiPathListener);
 		popup.addSeparator();
 		popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
+        popup.addSeparator();
+        popup.add(new JTreeMenuItem(JTreeMenuItem.TOGGLE_NAV_TOOLBAR));
 		tree.setComponentPopupMenu(popup);
 		tree.addMouseListener(new MouseAdapter() {
 
@@ -456,6 +459,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		});
 
 		add(searchableBar, BorderLayout.PAGE_END);
+ //       navToolbar.sync();
 		addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowClosing(final WindowEvent ignored) {
@@ -537,14 +541,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		duplicateMitem.addActionListener(singlePathListener);
 		duplicateMitem.setToolTipText("Duplicates a full path and its children or a sub-section");
 		return duplicateMitem;
-	}
-
-	private JMenuItem getGoToMenuItem(final SinglePathActionListener singlePathListener) {
-		final JMenuItem mItem = new JMenuItem(SinglePathActionListener.GO_TO_CMD);
-		mItem.setIcon(IconFactory.menuIcon('\ue4c1', true));
-		mItem.addActionListener(singlePathListener);
-		mItem.setToolTipText("Navigate to start point, midpoint, or end point of selected path");
-		return mItem;
 	}
 
 	private JMenuItem getDeleteMenuItem(final MultiPathActionListener multiPathListener) {
@@ -712,16 +708,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 */
 	public List<Path> getSelectedPaths(final boolean ifNoneSelectedGetAll) {
 		return SwingSafeResult.getResult(() -> {
-			if (ifNoneSelectedGetAll && tree.getSelectionCount() == 0)
-				return pathAndFillManager.getPathsFiltered();
+            if (ifNoneSelectedGetAll && tree.getSelectionCount() == 0) {
+                // If the view is filtered (e.g., "Hide others is toggled in navigation bar"), prefer the paths actually
+                // listed in the JTree. Detect filtering by comparing against the full model captured during last rebuild.
+                final TreeModel current = tree.getModel();
+                if (current != null && current != fullTreeModel) {
+                    final List<Path> visible = getPathsFromCurrentTreeModel();
+                    if (!visible.isEmpty()) return visible;
+                }
+                // Fallback to backend when unfiltered or if something went wrong.
+                return pathAndFillManager.getPathsFiltered();
+            }
 			final List<Path> result = new ArrayList<>();
 			final TreePath[] selectedPaths = tree.getSelectionPaths();
 			if (selectedPaths == null) {
 				return result;
 			}
 			for (final TreePath tp : selectedPaths) {
-				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp
-					.getLastPathComponent());
+				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp.getLastPathComponent());
 				if (!node.isRoot()) {
 					final Path p = (Path) node.getUserObject();
 					result.add(p);
@@ -730,6 +734,29 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			return result;
 		});
 	}
+
+    /**
+     * Returns all {@link Path} objects currently listed by the JTree's model.
+     * This reflects any active filtering (e.g., "Hide others in navigation bar")
+     * because it walks the tree model rather than querying the backend manager.
+     */
+    private List<Path> getPathsFromCurrentTreeModel() {
+        final TreeModel m = tree.getModel();
+        if (m == null) return java.util.Collections.emptyList();
+        final Object rootObj = m.getRoot();
+        final DefaultMutableTreeNode rootNode =
+                (rootObj instanceof DefaultMutableTreeNode) ? (DefaultMutableTreeNode) rootObj : null;
+        if (rootNode == null) return java.util.Collections.emptyList();
+
+        final List<Path> out = new ArrayList<>();
+        for (final Enumeration<?> e = rootNode.depthFirstEnumeration(); e.hasMoreElements();) {
+            final Object n = e.nextElement();
+            if (!(n instanceof DefaultMutableTreeNode dmtn)) continue;
+            final Object uo = dmtn.getUserObject();
+            if (uo instanceof Path p) out.add(p);
+        }
+        return out;
+    }
 
 	protected boolean selectionExists() {
 		return tree.getSelectionCount() > 0;
@@ -907,6 +934,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 		pathAndFillManager.setSelected((selectionCount == 0) ? null : selectedPaths,
 			this);
+        navToolbar.selectionModelChanged(selectedPaths);
 	}
 
 	private void updateHyperstackPosition(final Path p) {
@@ -924,20 +952,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	 * @see PathAndFillListener#setSelectedPaths(java.util.HashSet, java.lang.Object)
 	 */
 	@Override
-	public void setSelectedPaths(final Collection<Path> selectedPaths,
-		final Object source)
-	{
-		SwingUtilities.invokeLater(new Runnable() {
-
-			@Override
-			public void run() {
-				if (source == this || !pathAndFillManager.enableUIupdates) return;
-				final TreePath[] noTreePaths = {};
-				tree.setSelectionPaths(noTreePaths);
-				tree.setSelectedPaths(selectedPaths);
-			}
-		});
-	}
+    public void setSelectedPaths(final Collection<Path> selectedPaths, final Object source) {
+        SwingUtilities.invokeLater(() -> {
+            if (source == PathManagerUI.this || !pathAndFillManager.enableUIupdates) return;
+            if (navToolbar != null) navToolbar.selectedPathsChangedElsewhere(selectedPaths);
+            tree.clearSelection();
+            tree.setSelectedPaths(selectedPaths);
+        });
+    }
 
 	/* (non-Javadoc)
 	 * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
@@ -959,12 +981,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			final HelpfulTreeModel model = new HelpfulTreeModel();
 			final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
 			for (final Path primaryPath : primaryPaths) {
-				// Add the primary path if it's not just a fitted version of another:
+                // Add the primary path if it's not just a fitted version of another:
 				if (!primaryPath.isFittedVersionOfAnotherPath())
 					model.addNode(model.root(), primaryPath);
 			}
-			tree.setModel(model);
-			tree.reload();
+			tree.setModel(fullTreeModel = model);
+            if (navToolbar != null) navToolbar.initFromFullModel();
+
 			// Set back the expanded state:
 			if (expandAll)
 				GuiUtils.JTrees.expandAllNodes(tree);
@@ -1232,15 +1255,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private static final long serialVersionUID = 1697148395459880568L;
 
-		public HelpfulTreeModel() {
+        HelpfulTreeModel() {
 			super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
 		}
 
-		public DefaultMutableTreeNode root() {
+        /** Builds a model that contains only the primary paths for the given arbor label. */
+        HelpfulTreeModel(final Path[] primaryPaths, final String treeLabel) {
+            this();
+            for (final Path primaryPath : primaryPaths) {
+                if (treeLabel.equals(primaryPath.getTreeLabel()))
+                    addNode(root(), primaryPath);
+            }
+        }
+
+        DefaultMutableTreeNode root() {
 			return (DefaultMutableTreeNode) root;
 		}
 
-		public void addNode(final MutableTreeNode parent, final Path childPath) {
+        void addNode(final MutableTreeNode parent, final Path childPath) {
 			final MutableTreeNode newNode = new DefaultMutableTreeNode(childPath);
 			insertNodeInto(newNode, parent, parent.getChildCount());
 			childPath.getChildren().forEach(p -> addNode(newNode, p));
@@ -1250,42 +1282,52 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	/** This class defines the JTree hosting traced paths */
 	private class HelpfulJTree extends JTree {
 
-		private static final long serialVersionUID = 1L;
-		private static final String ROOT_LABEL = "All Paths";
-		private final TreeSearchable searchable;
+        private static final long serialVersionUID = 1L;
+        private static final String ROOT_LABEL = "All Paths";
+        private final TreeSearchable searchable;
 
-		public HelpfulJTree() {
-			super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
-			//putClientProperty(com.formdev.flatlaf.FlatClientProperties.TREE_WIDE_SELECTION, true );
-			setLargeModel(true);
-			setCellRenderer(new NodeRender());
-			getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
-			setExpandsSelectedPaths(true);
-			setScrollsOnExpand(true);
-			setRowHeight(getFontMetrics(getFont()).getHeight()); // otherwise viewport too small!?
-			searchable = new TreeSearchable(this);
-			final Timer timer = new Timer(400, ev -> getSNT().getUI().getRecorder(false)
+        public HelpfulJTree() {
+            super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
+            //putClientProperty(com.formdev.flatlaf.FlatClientProperties.TREE_WIDE_SELECTION, true );
+            setLargeModel(true);
+            setCellRenderer(new NodeRender());
+            getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
+            setExpandsSelectedPaths(true);
+            setScrollsOnExpand(true);
+            setRowHeight(getFontMetrics(getFont()).getHeight()); // otherwise viewport too small!?
+            searchable = new TreeSearchable(this);
+            final Timer timer = new Timer(400, ev -> getSNT().getUI().getRecorder(false)
                     .recordCmd(String.format("snt.getUI().getPathManager().applySelectionFilter(\"%s\")",
                             searchable.getSearchingText())));
-			timer.setRepeats(false);
-			searchable.addSearchableListener(e -> {
-				if (!timer.isRunning() && getSNT().getUI().getRecorder(false) != null && searchable.getSearchingText() != null
-						&& !searchable.getSearchingText().isEmpty()) {
-					timer.start();
-				}
-			});
-		}
+            timer.setRepeats(false);
+            searchable.addSearchableListener(e -> {
+                if (!timer.isRunning() && getSNT().getUI().getRecorder(false) != null && searchable.getSearchingText() != null
+                        && !searchable.getSearchingText().isEmpty()) {
+                    timer.start();
+                }
+            });
+        }
+
+        @Override
+        public void setModel(final TreeModel newModel) {
+            super.setModel(newModel);
+            if (searchableBar != null)
+                searchableBar.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getNumberOfNodes()));
+        }
 
 		@Override
 		protected void paintComponent(final Graphics g) {
-			super.paintComponent(g);
-			if (getModel().getChildCount(getRoot()) < 1)
-				GuiUtils.drawDragAndDropPlaceHolder(this, (Graphics2D) g);
+            super.paintComponent(g);
+            if (getModel() != null && getModel().getChildCount(getRoot()) < 1) { // if no model yet: avoid NPE until setPathList provides one
+                GuiUtils.drawDragAndDropPlaceHolder(this, (Graphics2D) g);
+            }
 		}
 
-		private DefaultMutableTreeNode getRoot() {
-			return ((DefaultMutableTreeNode) getModel().getRoot());
-		}
+        private DefaultMutableTreeNode getRoot() {
+            final TreeModel m = getModel();
+            if (m == null) return null;
+            return (DefaultMutableTreeNode) m.getRoot();
+        }
 
 		public Set<Path> getSelectedPaths() {
 			final TreePath[] selectionTreePath = getSelectionPaths();
@@ -1302,8 +1344,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		public Set<Path> getExpandedPaths() {
-			final Set<Path> set = new HashSet<>();
-			final Enumeration<?> children = getRoot().depthFirstEnumeration();
+            final Set<Path> set = new HashSet<>();
+            if (getModel() == null || getRoot() == null) return set;
+            final Enumeration<?> children = getRoot().depthFirstEnumeration();
 			while (children.hasMoreElements()) {
 				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
 				if (isExpanded(new TreePath(node.getPath()))) {
@@ -1343,15 +1386,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
-		public void repaintAllNodes() {
-			final DefaultTreeModel model = (DefaultTreeModel) getModel();
-			final Enumeration<?> e = getRoot().preorderEnumeration();
-			while (e.hasMoreElements()) {
-				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
-				model.nodeChanged(node); // will also update the 'invisible'/unrendered root
-			}
-		}
-
 		public void repaintSelectedNodes() {
 			final TreePath[] selectedPaths = getSelectionPaths();
 			if (selectedPaths != null) {
@@ -1363,16 +1397,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
-		public void reload() {
-			((DefaultTreeModel) getModel()).reload();
-			if (searchableBar != null) {
-				searchableBar
-						.setStatusLabelPlaceholder(String.format("%d Path(s) listed", getPathAndFillManager().size()));
-			}
+        public void reload() {
+            ((DefaultTreeModel)getModel()).reload();
+        }
 
-		}
+        int getNumberOfNodes() {
+            return getNumberOfNodes(getModel(), getRoot()) - 1;// exclude hidden root
+        }
 
-	}
+        private int getNumberOfNodes(final TreeModel model, final Object node) {
+            int count = 1;
+            int nChildren = model.getChildCount(node);
+            for (int i = 0; i < nChildren; i++) {
+                count += getNumberOfNodes(model, model.getChild(node, i));
+            }
+            return count;
+        }
+
+    }
 
 	private static class NodeRender extends DefaultTreeCellRenderer {
 
@@ -1425,7 +1467,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		public TreeTransferHandler() {
 			try {
 				final String mimeType = DataFlavor.javaJVMLocalObjectMimeType +
-					";class=\"" + javax.swing.tree.DefaultMutableTreeNode[].class
+					";class=\"" + DefaultMutableTreeNode[].class
 						.getName() + "\"";
 				nodesFlavor = new DataFlavor(mimeType);
 				flavors[0] = nodesFlavor;
@@ -1436,7 +1478,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		@Override
-		public boolean canImport(final TransferHandler.TransferSupport support) {
+		public boolean canImport(final TransferSupport support) {
 			if (!support.isDrop()) {
 				return false;
 			}
@@ -1564,7 +1606,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		@Override
-		public boolean importData(final TransferHandler.TransferSupport support) {
+		public boolean importData(final TransferSupport support) {
 			if (!canImport(support)) {
 				return false;
 			}
@@ -1577,7 +1619,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			catch (final UnsupportedFlavorException ufe) {
 				System.out.println("UnsupportedFlavor: " + ufe.getMessage());
 			}
-			catch (final java.io.IOException ioe) {
+			catch (final IOException ioe) {
 				System.out.println("I/O error: " + ioe.getMessage());
 			}
 			// Get drop location info.
@@ -1648,7 +1690,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (refreshViewers)
 			plugin.updateAllViewers(); // will call #update()
 		else if (tree.getSelectionCount() == 0)
-			tree.repaintAllNodes();
+			tree.reload();
 		else
 			tree.repaintSelectedNodes();
 		if (refreshCmds && selectedPaths != null) {
@@ -1679,7 +1721,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		if (selectedPathsOnly)
 			tree.repaintSelectedNodes();
 		else
-			tree.repaintAllNodes();
+			tree.reload();
 	}
 
 	/** Reloads the contents of {@link PathAndFillManager} */
@@ -2235,6 +2277,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String EXPAND_ALL_CMD = "Expand All";
 		private static final String EXPAND_SELECTED_LEVEL = "Expand Selected Level";
 		private static final String SELECT_NONE_CMD = "Deselect / Select All";
+        private static final String TOGGLE_NAV_TOOLBAR = "Toggle Navigation Toolbar";
 
 		private JTreeMenuItem(final String tag) {
 			super(tag);
@@ -2254,6 +2297,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 case EXPAND_ALL_CMD -> IconFactory.GLYPH.RESIZE;
                 case EXPAND_SELECTED_LEVEL -> IconFactory.GLYPH.CARET_UP;
 				case SELECT_NONE_CMD -> IconFactory.GLYPH.CHECK_DOUBLE;
+                case TOGGLE_NAV_TOOLBAR -> IconFactory.GLYPH.NAVIGATE;
 				default -> null;
             };
             if (iconGlyph != null) setIcon(IconFactory.menuIcon(iconGlyph));
@@ -2262,6 +2306,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		@Override
 		public void actionPerformed(final ActionEvent e) {
             switch (e.getActionCommand()) {
+                case TOGGLE_NAV_TOOLBAR -> navToolbar.setVisible(!navToolbar.isVisible());
                 case SELECT_NONE_CMD -> tree.clearSelection();
                 case EXPAND_ALL_CMD -> GuiUtils.JTrees.expandAllNodes(tree);
                 case COLLAPSE_ALL_CMD -> GuiUtils.JTrees.collapseAllNodes(tree);
@@ -2289,7 +2334,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String EXPLORE_FIT_CMD = "Explore/Preview Fit";
 		private static final String STRAIGHTEN = "Straighten...";
 		private static final String NODE_PROFILER = "Node Profiler...";
-		private static final String GO_TO_CMD = "Go To...";
 
 		@Override
 		public void actionPerformed(final ActionEvent e) {
@@ -2346,57 +2390,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     input.put("dataset", plugin.getDataset());
                     (plugin.getUI().new DynamicCmdRunner(NodeProfiler.class, input)).run();
                 }
-                case GO_TO_CMD -> goToPathNode(p);
                 default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
             }
 		}
-	}
-
-	private void goToPathNode(final Path path) {
-		if (plugin.getImagePlus() == null) {
-			guiUtils.error("Image is not available.");
-			return;
-		}
-		if (path == null || path.size() == 0) {
-			guiUtils.error("Selected path is empty or invalid.");
-			return;
-		}
-		if (path.size() == 1) {
-			navigateToNode(0, path);
-			return;
-		}
-		// Create options for the user to choose from
-		final String[] options = {"Start", "Midpoint", "End"};
-		final String prevChoice = plugin.getPrefs().getTemp("gtChoice", options[0]);
-		final String choice = guiUtils.getChoice(String.format("Navigate to which node of %s?", path.getName()),
-				"Go To...", options, prevChoice);
-		if (choice == null) return; // User cancelled
-		switch (choice) {
-			case "Start" -> navigateToNode(0, path);
-			case "Midpoint" -> navigateToNode(path.size() / 2, path);
-			case "End" -> navigateToNode(path.size() - 1, path);
-			default -> {
-			} // Do nothing
-		}
-		plugin.getPrefs().setTemp("gtChoice", choice);
-	}
-
-	private void navigateToNode(final int index, final Path path) {
-		// Convert world coordinates to image coordinates
-		final int x = path.getXUnscaled(index);
-		final int y = path.getYUnscaled(index);
-		final int z = path.getZUnscaled(index);
-
-		// Set the ImagePlus position (channel, slice, frame)
-		final ImagePlus imp = plugin.getImagePlus(); // method is only called when image is available
-		imp.setPosition(path.getChannel(), z, path.getFrame());
-
-		// Check if the target point is already visible. Zoom to it if not visible
-		double mag = imp.getCanvas().getMagnification();
-		if (ImpUtils.isPointVisible(imp, x, y))
-			mag = ImpUtils.nextZoomLevel(mag);
-		ImpUtils.zoomTo(imp, mag, x, y);
-		plugin.getUI().showStatus(String.format("Go To: (%d, %d, %d)", x, y, z), true);
 	}
 
 	private void exploreFit(final Path p, final FitHelper fittingHelper) {
@@ -2671,7 +2667,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String LENGTH_TAG_CMD = "Length";
 		private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
 		private static final String ORDER_TAG_CMD = "Path Order";
-		private static final String TREE_TAG_CMD = "Cell ID";
+		private static final String TREE_TAG_CMD = "Arbor ID";
 		private static final String N_CHILDREN_TAG_CMD = "No. of Children";
 		private static final String CHANNEL_TAG_CMD = "Traced Channel";
 		private static final String FRAME_TAG_CMD = "Traced Frame";
@@ -2686,7 +2682,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
 		private static final String DISCONNECT_CMD = "Disconnect...";
 		private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
-		private static final String SORT_TREES = "Sort Root-level Paths...";
 
 		private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
 		private static final String SEND_TO_LABKIT_CMD = "Load Labkit With Selected Path(s)...";
@@ -2795,7 +2790,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			commands.put(RESET_FITS, new ResetFitsCommand());
 			
 			// Utility commands
-			commands.put(SORT_TREES, new SortTreesCommand());
 			commands.put(DELETE_CMD, new DeleteCommand());
 			
 			// Fit command (special case with dynamic text)
@@ -2912,18 +2906,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			@Override
 			public boolean canExecute(List<Path> selectedPaths) {
 				return !selectedPaths.isEmpty();
-			}
-		}
-
-		private class SortTreesCommand implements PathCommand {
-			@Override
-			public void execute(List<Path> selectedPaths, String cmd) {
-				sortTrees();
-			}
-			
-			@Override
-			public boolean canExecute(List<Path> selectedPaths) {
-				return true;
 			}
 		}
 
@@ -3452,8 +3434,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private class DeleteCommand implements PathCommand {
 			@Override
 			public void execute(List<Path> selectedPaths, String cmd) {
-				boolean assumeAll = tree.getSelectionCount() == 0;
-				String message = assumeAll ? "Are you really sure you want to delete everything?"
+				boolean assumeAll = tree.getSelectionCount() == 0 || tree.getSelectionCount() == tree.getNumberOfNodes();
+				String message = assumeAll ? "Are you really sure you want to delete all paths?"
 						: "Delete the selected " + selectedPaths.size() + " path(s)?";
 				if (guiUtils.getConfirmation(message, "Confirm Deletion?")) {
 					deletePaths(selectedPaths);
@@ -3805,40 +3787,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 						.recordCmd(String.format("snt.getUI().getPathManager().applyTag(\"%s\")", color));
 		}
 
-		void sortTrees() {
-			final List<Path> primaryPaths = Arrays.asList(pathAndFillManager.getPathsStructured());
-			if (primaryPaths.size() == 1) {
-				guiUtils.error("Only a single root path exists.");
-				return;
-			}
-			final String[] choices = { "Cell ID", "Cell label", "Path name", "Path length", "Path mean radius",
-					"Traced channel", "Traced frame" };
-			final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
-			if (choice == null)
-				return;
-            switch (choice) {
-                case "Cell ID" -> primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
-                case "Cell label" -> primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
-                case "Path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
-                case "Path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
-                case "Path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
-                case "Traced channel" -> primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
-                case "Traced frame" -> primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
-                default -> {
-                    guiUtils.error("Not a recognized sorting option.");
-                    return;
-                }
-            }
-			final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
-			final DefaultMutableTreeNode jtreeRoot = ((DefaultMutableTreeNode) model.getRoot());
-			jtreeRoot.removeAllChildren();
-			for (final Path primaryPath : primaryPaths) {
-				if (!primaryPath.isFittedVersionOfAnotherPath())
-					model.addNode(jtreeRoot, primaryPath);
-			}
-			model.reload();
-		}
-
 		private void autoConnect(final Path p1, final Path p2) {
 			final boolean stop = p1.isConnectedTo(p2) || p2.isConnectedTo(p1) ||
 					(p1.getChildren() != null && p1.getChildren().contains(p2)) ||
@@ -4113,6 +4061,501 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		uniqueTags.remove("");
 		return uniqueTags;
 	}
+
+    /** Builds the top navigation toolbar */
+    private class NavigationToolBar extends JToolBar {
+
+        private final JComponent embeddingParent;
+        private final JComboBox<String> arborChoiceCombo;
+        private final JToggleButton hideOthersButton;
+        private final JButton showAllArborsButton;
+        private final JButton sortArborsButton;
+        private final JButton nextArborButton;
+        private String arborChoice = null; // currently chosen tree label
+        private boolean navSyncGuard = false;   // prevents feedback loops between combobox and jtree
+
+        NavigationToolBar(final JTree jTree, final JScrollPane scrollPaneOfJTree) {
+            super("Navigation Toolbar", HORIZONTAL);
+
+            // Tweak look so that toolbar blends in with JTree's background, etc.
+            scrollPaneOfJTree.setColumnHeaderView(this);
+            setBackground(jTree.getBackground());
+            setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+            setFocusable(false);
+            setFloatable(true);
+
+            this.embeddingParent = scrollPaneOfJTree.getColumnHeader();
+            arborChoiceCombo = new JComboBox<>();
+            hideOthersButton = new JToggleButton();
+            sortArborsButton = sortButton();
+            nextArborButton = nextArborButton();
+            showAllArborsButton = showAllButton();
+
+            // assemble combo box
+            arborChoiceCombo.setToolTipText("Jump to an arbor (rooted structure)");
+            arborChoiceCombo.addActionListener(e -> {
+                if (navSyncGuard) return;
+                readArborChoice();
+                if (arborChoice == null) return;
+                if (hideOthersButton.isSelected())
+                    applyHideOthers(true);
+                else
+                    expandAndRevealTree(arborChoice);
+            });
+
+            // assemble "hide others" button
+            IconFactory.assignIcon(hideOthersButton, IconFactory.GLYPH.ARROWS_TO_EYE, IconFactory.GLYPH.ARROWS_TO_EYE);
+            hideOthersButton.setToolTipText("When selected, show only paths from the chosen arbor/structure");
+            hideOthersButton.addActionListener(e -> {
+                if (arborChoiceCombo.getSelectedIndex() == -1)
+                    guiUtils.error("No arbor/structure chosen.");
+                else
+                    applyHideOthers(hideOthersButton.isSelected());
+            });
+
+            // add components
+            add(sortArborsButton);
+            addSeparator();
+            add(showAllArborsButton);
+            add(arborChoiceCombo);
+            add(nextArborButton);
+            add(hideOthersButton);
+            addSeparator();
+
+            add(zoomToPathsButton());
+            add(zoomToNodeButton());
+            addSeparator();
+
+            add(bookmarkButton());
+            setVisible(plugin.getPrefs().getBoolean("navBar", true));
+        }
+
+        private void readArborChoice() {
+            final String label = (String) arborChoiceCombo.getSelectedItem();
+            arborChoice = (label == null || label.isEmpty()) ? null : label;
+            // Keep the toggle enabled if filtering is active, even if combo shows no selection
+            hideOthersButton.setEnabled(arborChoice != null || hideOthersButton.isSelected());
+        }
+
+        private JButton nextArborButton() {
+            final JButton b = new JButton(); //
+            IconFactory.assignIcon(b, IconFactory.GLYPH.CARET_UP_DOWN, IconFactory.GLYPH.CARET_UP_DOWN, 1f);
+            b.setToolTipText("Next arbor");
+            b.addActionListener(e -> {
+                final int n = arborChoiceCombo.getItemCount();
+                if ( n== 0) return;
+                int i = arborChoiceCombo.getSelectedIndex();
+                if (i == n - 1 || i == -1) {
+                    arborChoiceCombo.setSelectedIndex(0);
+                } else {
+                    arborChoiceCombo.setSelectedIndex(i+1);
+                }
+            });
+            return b;
+        }
+
+        private JButton sortButton() {
+            final JButton b = new JButton(); //
+            IconFactory.assignIcon(b, IconFactory.GLYPH.SORT, IconFactory.GLYPH.SORT, 1f);
+            b.setToolTipText("Sort Arbors/Root-level Paths...");
+            b.addActionListener( e -> {
+                sortArbors(); // full model will be restored
+                arborChoiceCombo.setSelectedIndex(-1);
+            });
+            return b;
+        }
+
+        private JButton showAllButton() {
+            final JButton b = new JButton(); // home
+            IconFactory.assignIcon(b, IconFactory.GLYPH.UNDO, IconFactory.GLYPH.UNDO, .8f);
+            b.setToolTipText("Show all arbors");
+            b.addActionListener(e -> {
+                restoreFullModelState(); // Reset to full model, clear filtering, and ensure hide others is off
+                arborChoiceCombo.setSelectedIndex(-1);
+            });
+            return b;
+        }
+
+        private JButton zoomToNodeButton() {
+            final JButton button = new JButton(IconFactory.buttonIcon('\uf601', true));
+            button.setActionCommand("Zoom To Selected Nodes");
+            button.addActionListener( e -> zoomToNodes(getSelectedPaths(false)));
+            button.setToolTipText("Zoom to selected nodes");
+            return button;
+        }
+
+        private JButton zoomToPathsButton() {
+            final JButton button = new JButton(IconFactory.buttonIcon('\uf248', false));
+            button.setActionCommand("Zoom To Selected Paths");
+            button.addActionListener( e -> zoomToBoundingBox(getSelectedPaths(true)));
+            button.setToolTipText("Zoom to selected path(s)");
+            return button;
+        }
+
+        private JButton bookmarkButton() {
+            final ActionListener action = e -> {
+                final Collection<Path> paths = getSelectedPaths(true); // honors filtered view when none selected
+                if (paths == null || paths.isEmpty()) {
+                    guiUtils.error("No path(s) selected.");
+                    return;
+                }
+                final String cmd = e.getActionCommand();
+                final Map<Path, Set<Integer>> map = new LinkedHashMap<>(paths.size());
+                String suffix = null;
+                switch (cmd) {
+                    case "Branch points" -> {
+                        suffix = "BP";
+                        for (final Path p : paths) {
+                            final TreeSet<Integer> junctionIndices = p.findJunctionIndices(); // sorted indices
+                            // exclude the starting node if its itself
+                            if (!junctionIndices.isEmpty() && p.getBranchPoint() != null && !p.isPrimary())
+                                junctionIndices.pollFirst();
+                            if (!junctionIndices.isEmpty()) map.put(p, junctionIndices);
+                        }
+                    }
+                    case "Start points" -> {
+                        suffix = "SP";
+                        for (final Path path : paths) map.put(path, Set.of(0));
+
+                    }
+                    case "End points" -> {
+                        suffix = "EP";
+                        for (final Path path : paths) map.put(path, Set.of(path.size()-1));
+                    }
+                    case "Nodes without radius" -> {
+                        suffix = "NR";
+                        for (final Path path : paths) {
+                            if (!path.hasRadii()) continue;
+                            final TreeSet<Integer> result = new TreeSet<>();
+                            for (int i = 0; i < path.size(); i++) {
+                                final double r = path.getNodeRadius(i);
+                                if (r == 0 || Double.isNaN(r)) result.add(i);
+                            }
+                            if (!result.isEmpty()) map.put(path, result);
+                        }
+                    }
+//                    case "Nodes without annotations" -> {
+//                        suffix = "NA";
+//                        for (final Path path : paths) {
+//                            if (!path.hasNodeAnnotations()) continue;
+//                            final TreeSet<Integer> result = new TreeSet<>();
+//                            for (int i = 0; i < path.size(); i++) {
+//                                final BrainAnnotation annot = path.getNodeAnnotation(i);
+//                                if (annot == null) result.add(i);
+//                            }
+//                            if (!result.isEmpty()) map.put(path, result);
+//                        }
+//                    }
+                    default -> { /* no-op */ }
+                }
+                if (map.isEmpty()) {
+                    guiUtils.error(String.format("No %s in selected path(s).", cmd.toLowerCase()));
+                } else {
+                    plugin.getUI().getBookmarkManager().add(map, suffix);
+                    if (plugin.getUI().isReady()) plugin.getUI().selectTab("Bookmarks");
+                }
+            };
+
+            final JPopupMenu menu = new JPopupMenu();
+            GuiUtils.addSeparator(menu, "Locations to Bookmark:");
+            List.of("Start points", "Branch points", "End points", "Nodes without radius")// ,"Nodes without annotations")
+                    .forEach(cmd -> {
+                        final JMenuItem mi = new JMenuItem(cmd);
+                        mi.addActionListener(action);
+                        menu.add(mi);
+            });
+            final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK));
+            button.setToolTipText("Bookmark nodes of selected path(s)");
+            button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+            return button;
+        }
+
+        @SuppressWarnings("unused")
+        private JButton closeToolbarButton() {
+            final JButton button = new JButton(IconFactory.buttonIcon('\uf057', false));
+            button.setActionCommand("Close Toolbar");
+            button.addActionListener( e -> setVisible(false));
+            button.setToolTipText("Close toolbar");
+            return button;
+        }
+
+        void sortArbors() {
+            if (tree.getModel() != fullTreeModel) {
+                restoreFullModelState();
+            }
+            final List<Path> primaryPaths = Arrays.asList(pathAndFillManager.getPathsStructured());
+            if (primaryPaths.size() == 1) {
+                guiUtils.error("Only a single root path exists.");
+                return;
+            }
+            final String[] choices = { "Arbor ID", "Cell label", "Path name", "Path length", "Path mean radius",
+                    "Traced channel", "Traced frame" };
+            final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
+            if (choice == null)
+                return;
+            switch (choice) {
+                case "Arbor ID" -> primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
+                case "Cell label" -> primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
+                case "Path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
+                case "Path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
+                case "Path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
+                case "Traced channel" -> primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
+                case "Traced frame" -> primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
+                default -> {
+                    guiUtils.error("Not a recognized sorting option.");
+                    return;
+                }
+            }
+            final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
+            final DefaultMutableTreeNode jtreeRoot = ((DefaultMutableTreeNode) model.getRoot());
+            jtreeRoot.removeAllChildren();
+            for (final Path primaryPath : primaryPaths) {
+                if (!primaryPath.isFittedVersionOfAnotherPath())
+                    model.addNode(jtreeRoot, primaryPath);
+            }
+            model.reload();
+        }
+
+        private void zoomToNodes(final Collection<Path> paths) {
+            if (!canExecuteZoomOperation(paths)) return;
+
+            // Create options for the user to choose from
+            final String[] options = (paths.size() == 1) ?
+                    new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node",
+                            "Smallest radius node", "Largest‑radius node"}
+                    : new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node"};
+            final String prevChoice = plugin.getPrefs().getTemp("gtChoice", options[0]);
+            final String choice = guiUtils.getChoice("Navigate to which node(s) region of selected path(s)?",
+                    "Zoom To Nodes...", options, prevChoice);
+            if (choice == null) return; // User cancelled
+            plugin.getPrefs().setTemp("gtChoice", choice);
+
+            final Path placeholder = paths.iterator().next().createPath(); // empty path from a representative path
+            for (final Path path : paths) {
+                switch (choice) {
+                    case "First node" -> placeholder.addNode(path.getNode(0));
+                    case "First branch-point" -> {
+                        final TreeSet<Integer> junctions = path.findJunctionIndices();
+                        if (junctions.size() > 1) placeholder.addNode(path.getNode(junctions.higher(0)));
+                    }
+                    case "Last branch-point" -> {
+                        final TreeSet<Integer> junctions = path.findJunctionIndices(); // sorted
+                        if (!junctions.isEmpty()) placeholder.addNode(path.getNode(junctions.last()));
+                    }
+                    case "Midpoint" -> placeholder.addNode(path.getNode(path.size() / 2));
+                    case "Last node" -> placeholder.addNode(path.getNode(path.size() - 1));
+                    case "Smallest radius node" -> {
+                        final Path.PathNode thinnest = path.getNode("min radius");
+                        if (thinnest != null) placeholder.addNode(thinnest);
+                    }
+                    case "Largest‑radius node" -> {
+                        final Path.PathNode widest = path.getNode("max radius");
+                        if (widest != null) placeholder.addNode(widest);
+                    }
+                    default -> {
+                    } // Do nothing
+                }
+            }
+            if (placeholder.size() == 0) {
+                final String msg = (choice.contains("radius")) ? "radii" : "branch-points";
+                guiUtils.error(String.format("Selected path(s) have no %s.", msg));
+            } else {
+                zoomToBoundingBox(List.of(placeholder));
+            }
+        }
+
+        private boolean canExecuteZoomOperation(final Collection<Path> paths) {
+            if (paths.isEmpty()) {
+                guiUtils.error("No path(s) selected.");
+                return false;
+            }
+            if (plugin.getImagePlus() == null) {
+                guiUtils.error("Image is not available.");
+                return false;
+            }
+            return true;
+        }
+
+        private void zoomToBoundingBox(final Collection<Path> paths) {
+            if (canExecuteZoomOperation(paths)) {
+                final double zoom = ImpUtils.zoomTo(plugin.getImagePlus(), paths);
+                plugin.setCanvasLabelAllPanes((zoom == 0)? "Selected paths already in view" :
+                        String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
+                final Timer timer = new Timer(600, ae -> plugin.setCanvasLabelAllPanes(null));
+                timer.setRepeats(false);
+                timer.start();
+            }
+        }
+
+        void restoreFullModelState() {
+            arborChoice = null;
+            tree.setModel(fullTreeModel);
+            hideOthersButton.setSelected(false);
+            GuiUtils.JTrees.expandAllNodes(tree);
+        }
+
+        /** After the model is rebuilt, ensure the filter state matches what's available. */
+        void ensureFilterStateConsistentWithModel() {
+            // Only relevant if filtering is currently ON
+            if (!hideOthersButton.isSelected()) return;
+            // If there's no chosen arbor, turn filtering off
+            if (arborChoice == null || arborChoice.isEmpty()) {
+                hideOthersButton.setSelected(false);
+                applyHideOthers(false);
+                return;
+            }
+            // Check whether the chosen arbor still exists in the backend
+            if (getAllTreeLabels().stream().noneMatch( label -> arborChoice.equals(label))) {
+                // The arbor was deleted: disable filter, clear combo, and restore full model
+                hideOthersButton.setSelected(false);
+                arborChoiceCombo.setSelectedIndex(-1);
+                applyHideOthers(false);
+            }
+        }
+
+        void selectedPathsChangedElsewhere(final Collection<Path> selectedPaths) {
+            if (!getTreeLabels(selectedPaths).contains(arborChoice)) {
+                // paths were selected outside PathManagerUI (e.g., via keystroke): we need to clear any filters
+                restoreFullModelState();  // subsequent selection of path will update combobox
+            }
+        }
+
+        void initFromFullModel() {
+            arborChoice = null;
+            ensureFilterStateConsistentWithModel();
+            populateArborChoices();
+        }
+
+        /** Populate the combobox from current trees and enable/disable controls. */
+        private void populateArborChoices() {
+            final List<String> labels = getAllTreeLabels();
+            navSyncGuard = true;
+            try {
+                arborChoiceCombo.removeAllItems();
+                for (String s : labels) arborChoiceCombo.addItem(s);
+                final boolean single = labels.size() <= 1;
+                sortArborsButton.setEnabled(!single);
+                showAllArborsButton.setEnabled(!single);
+                arborChoiceCombo.setEnabled(!single);
+                nextArborButton.setEnabled(!single);
+                hideOthersButton.setEnabled(!single);
+                if (arborChoice != null && labels.contains(arborChoice)) {
+                    arborChoiceCombo.setSelectedItem(arborChoice);
+                } else if (!labels.isEmpty()) {
+                    arborChoiceCombo.setSelectedIndex(0);
+                    arborChoice = labels.getFirst();
+                } else {
+                    arborChoice = null;
+                    arborChoiceCombo.setSelectedIndex(-1);
+                }
+            } finally {
+                navSyncGuard = false;
+            }
+        }
+
+        private List<String> getAllTreeLabels() {
+            return getTreeLabels(getPathAndFillManager().getPathsFiltered());
+        }
+
+        private List<String> getTreeLabels(final Collection<Path> paths) {
+            return paths.stream()
+                    .filter(Path::isPrimary)
+                    .map(Path::getTreeLabel)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .toList();
+        }
+
+        /** Expand the tree and scroll to the first occurrence of the given arbor label. */
+        private void expandAndRevealTree(final String label) {
+            if (label == null) return;
+            //GuiUtils.JTrees.expandAllNodes(tree);
+            for (int row = 0; row < tree.getRowCount(); row++) {
+                final TreePath tp = tree.getPathForRow(row);
+                if (tp == null) continue;
+                final Object uo = ((DefaultMutableTreeNode) tp.getLastPathComponent()).getUserObject();
+                if (uo instanceof Path p && label.equals(p.getTreeLabel())) {
+                    tree.scrollRowToVisible(row);
+                    break;
+                }
+            }
+        }
+
+        /** Show only the chosen arbor or restore the full list. */
+        private void applyHideOthers(final boolean hide) {
+            if (fullTreeModel == null || arborChoice == null) return;
+
+            // 1) Remember the current selection so we can restore it after swapping models
+            final List<Path> prevSelection = getSelectedPaths(false);
+            // 2) Apply model
+            if (hide) {
+                final Path[] primaryPaths = pathAndFillManager.getPathsStructured();
+                tree.setModel(new HelpfulTreeModel(primaryPaths, arborChoice));
+                sortArborsButton.setEnabled(false);
+            } else {
+                tree.setModel(fullTreeModel); // will call reload
+                sortArborsButton.setEnabled(true);
+            }
+            GuiUtils.JTrees.expandAllNodes(tree);
+            // 3) Restore selection if that exists in the new model
+            if (prevSelection != null && !prevSelection.isEmpty()) {
+                final List<Path> toRestore = hide
+                        ? prevSelection.stream()
+                        .filter(p -> arborChoice.equals(p.getTreeLabel()))
+                        .collect(Collectors.toList())
+                        : prevSelection;
+
+                if (!toRestore.isEmpty()) {
+                    tree.setSelectedPaths(toRestore);
+                }
+            }
+        }
+
+        /** Programmatically select an arbor label in the combobox without triggering listeners. */
+        private void selectArborInTop(final String label) {
+            navSyncGuard = true;
+            try {
+                arborChoiceCombo.setSelectedItem(label);
+                arborChoice = label;
+            } finally {
+                navSyncGuard = false;
+            }
+        }
+
+        void selectionModelChanged(final Collection<Path> selectedPaths) {
+            // Reflect a coherent, single-arbor selection
+            final Set<String> selectedLabels = selectedPaths.stream()
+                    .map(Path::getTreeLabel)
+                    .collect(Collectors.toSet());
+
+            if (selectedLabels.size() == 1) {
+                selectArborInTop(selectedLabels.iterator().next());
+                return;
+            }
+
+            // If the list is filtered, keep the top choice pinned even if the user clicks empty space
+            if (hideOthersButton.isSelected() && arborChoice != null) {
+                selectArborInTop(arborChoice);
+            } else if (arborChoiceCombo != null) {
+                navSyncGuard = true;
+                try {
+                    arborChoiceCombo.setSelectedIndex(-1); // only when not filtered
+                } finally {
+                    navSyncGuard = false;
+                }
+            }
+        }
+
+        @Override
+        public void setVisible(final boolean b) {
+            super.setVisible(b);
+            embeddingParent.setVisible(b);
+            if (!b && fullTreeModel != null) restoreFullModelState();
+            plugin.getPrefs().set("navBar", b);
+        }
+
+    }
 
 	private class ProofReadingTagsToolBar extends JToolBar {
 

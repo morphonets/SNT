@@ -23,13 +23,7 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import ij.ImagePlus;
 import ij.gui.Overlay;
@@ -480,14 +474,11 @@ public class RoiConverter {
 	}
 
 	private String getExportPlaneAsString() {
-		switch (exportPlane) {
-			case XZ_PLANE:
-				return "XZ";
-			case ZY_PLANE:
-				return "ZY";
-			default:
-				return "XY";
-		}
+        return switch (exportPlane) {
+            case XZ_PLANE -> "XZ";
+            case ZY_PLANE -> "ZY";
+            default -> "XY";
+        };
 	}
 
 	/**
@@ -585,6 +576,13 @@ public class RoiConverter {
 		return combineNonPoints(rois);
 	}
 
+    public static Roi convert(final Collection<Path> paths, final ImagePlus imp) {
+        final RoiConverter converter = new RoiConverter(paths, imp);
+        final Overlay holdingOverlay = new Overlay();
+        converter.convertPaths(holdingOverlay);
+        return combine(Arrays.asList(holdingOverlay.toArray()));
+    }
+
 	/**
 	 * Retrieves the radius of a circle with the same area of the specified area ROI.
 	 * 
@@ -609,7 +607,13 @@ public class RoiConverter {
 	private static Roi combineNonPoints(final List<Roi> rois) {
 		ShapeRoi s1 = null;
 		ShapeRoi s2 = null;
-		for (Roi roi : rois) {
+        final List<Integer> cPositions= new ArrayList<>();
+        final List<Integer> zPositions= new ArrayList<>();
+        final List<Integer> tPositions= new ArrayList<>();
+        for (Roi roi : rois) {
+            cPositions.add(roi.getCPosition());
+            zPositions.add(roi.getZPosition());
+            tPositions.add(roi.getTPosition());
 			try {
 				if (!roi.isArea() && roi.getType() != Roi.POINT)
 					roi = Roi.convertLineToArea(roi);
@@ -629,7 +633,11 @@ public class RoiConverter {
 				SNTUtils.log("Skipping " + roi + " an exception occurred " + ex.getMessage());
 			}
 		}
-		return (s1 == null) ? null : s1.trySimplify();
+        if (s1 == null) return null;
+        s1.setPosition((int) cPositions.stream().mapToInt(Integer::intValue).average().orElse(1d),
+                (int) zPositions.stream().mapToInt(val -> val).average().orElse(1d),
+                (int) tPositions.stream().mapToInt(val -> val).average().orElse(1d));
+		return s1.trySimplify();
 	}
 
 	private static Roi combinePoints(final List<Roi> rois) {

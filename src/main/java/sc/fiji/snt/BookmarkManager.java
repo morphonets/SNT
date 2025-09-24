@@ -45,10 +45,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.EventObject;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.IntStream;
 
 /**
@@ -429,6 +427,33 @@ public class BookmarkManager {
         locations.forEach(loc -> model.getDataList().add(new Bookmark(model.getUniqueLabel(label), //
                 (int) loc.getX(), (int) loc.getY(), (int) loc.getZ(), channel, frame)));
         model.fireTableDataChanged();
+        resetOrResizeColumns(false, true);
+    }
+
+    /**
+     * Adds multiple bookmarks from selected path nodes
+     *
+     * @param map       the map of [k=Path, v=list of node indices] from which node positions are extracted
+     * @param commonLabel an (optional) bookmark label suffix
+     */
+    public void add(final Map<Path, Set<Integer>> map, final String commonLabel) {
+        final String suffix = (commonLabel == null) ? "" : commonLabel;
+        final int currentN = model.getDataList().size();
+        map.forEach((path, set) -> {
+            final String label = String.format("%s %s", path.getName(), suffix);
+            final int c = path.getChannel();
+            final int t = path.getFrame();
+            int counter = 1;
+            for (final int nodeIndex : set) {
+                final PointInCanvas node = path.getPointInCanvas(nodeIndex);
+                final String l = (set.size()==1) ? label : label + "#" + counter++;
+                model.getDataList().add(new Bookmark(model.getUniqueLabel(l),
+                        (int) node.getX(), (int) node.getY(), (int) node.getZ(), c, t));
+            }
+        });
+        model.fireTableDataChanged();
+        resetOrResizeColumns(false, true);
+        sntui.showStatus(model.getDataList().size() - currentN + " bookmarks added", true);
     }
 
     /**
