@@ -238,7 +238,7 @@ public class Bvv {
 
     private JButton optionsButton(final BvvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        final JButton oButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.OPTIONS));
+        final JButton oButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.OPTIONS, 1f));
         oButton.addActionListener(e -> menu.show(oButton, oButton.getWidth() / 2, oButton.getHeight() / 2));
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
@@ -596,7 +596,7 @@ public class Bvv {
 
         private JButton optionsButton(final BvvActions actions) {
             final JPopupMenu menu = new JPopupMenu();
-            final JButton oButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.OPTIONS));
+            final JButton oButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.OPTIONS, 1f));
             oButton.addActionListener(e -> menu.show(oButton, oButton.getWidth() / 2, oButton.getHeight() / 2));
             GuiUtils.addSeparator(menu, "Restore View");
             menu.add(new JMenuItem(resetViewAction()));

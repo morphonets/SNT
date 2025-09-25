@@ -158,13 +158,9 @@ class PathNodeCanvas {
 	}
 
 	private void assignColor(final Graphics2D g, final Color fallbackColor) {
-		if (color == null) {
-			if (path.hasNodeColors())
-				color = path.getNodeColor(index);
-			else 
-				color = fallbackColor;
-			g.setColor(color);
-		}
+        color = path.getNodeColor(index);
+		if (color == null) color = fallbackColor;
+        g.setColor(color);
 	}
 
 	private void assignRenderingSize() {
@@ -230,9 +226,9 @@ class PathNodeCanvas {
 	 */
 	public void draw(final Graphics2D g, final Color fallbackColor) {
 
-		// Ensure subsequent shapes associated with this node (diameter,
-		// segments, etc.) are rendered with the appropriate color
-		assignColor(g, fallbackColor);
+        // Ensure subsequent shapes associated with this node (diameter,
+        // segments, etc.) are rendered with the appropriate color
+        assignColor(g, fallbackColor);
 
 		if (path.isBeingEdited() && !isEditable()) {
 			return; // draw only editable node

@@ -4203,7 +4203,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final Map<Path, Set<Integer>> map = new LinkedHashMap<>(paths.size());
                 String suffix = null;
                 switch (cmd) {
-                    case "Branch points" -> {
+                    case "Branch Points" -> {
                         suffix = "BP";
                         for (final Path p : paths) {
                             final TreeSet<Integer> junctionIndices = p.findJunctionIndices(); // sorted indices
@@ -4213,61 +4213,113 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             if (!junctionIndices.isEmpty()) map.put(p, junctionIndices);
                         }
                     }
-                    case "Start points" -> {
+                    case "Start Points" -> {
                         suffix = "SP";
                         for (final Path path : paths) map.put(path, Set.of(0));
 
                     }
-                    case "End points" -> {
+                    case "End Points" -> {
                         suffix = "EP";
                         for (final Path path : paths) map.put(path, Set.of(path.size()-1));
                     }
-                    case "Nodes without radius" -> {
-                        suffix = "NR";
+                    case "Nodes With Invalid Radius" -> {
+                        suffix = "Inv. rad. ";
                         for (final Path path : paths) {
                             if (!path.hasRadii()) continue;
                             final TreeSet<Integer> result = new TreeSet<>();
                             for (int i = 0; i < path.size(); i++) {
                                 final double r = path.getNodeRadius(i);
-                                if (r == 0 || Double.isNaN(r)) result.add(i);
+                                if (r == 0d || Double.isNaN(r)) {
+                                    result.add(i);
+                                }
                             }
                             if (!result.isEmpty()) map.put(path, result);
                         }
                     }
-//                    case "Nodes without annotations" -> {
-//                        suffix = "NA";
-//                        for (final Path path : paths) {
-//                            if (!path.hasNodeAnnotations()) continue;
-//                            final TreeSet<Integer> result = new TreeSet<>();
-//                            for (int i = 0; i < path.size(); i++) {
-//                                final BrainAnnotation annot = path.getNodeAnnotation(i);
-//                                if (annot == null) result.add(i);
-//                            }
-//                            if (!result.isEmpty()) map.put(path, result);
-//                        }
-//                    }
+                    case "Manually Tagged Nodes" -> {
+                        suffix = "";
+                        for (final Path path : paths) {
+                            if (path.getName().toLowerCase().contains("tagged nodes") ||!path.hasNodeColors())
+                                continue; // see Tag Active Node... command in InteractiveTracerCanvas
+                            final TreeSet<Integer> result = new TreeSet<>();
+                            for (int i = 0; i < path.size(); i++) {
+                                final Color c = path.getNodeColor(i);
+                                if (c != null) result.add(i);
+                            }
+                            if (!result.isEmpty()) map.put(path, result);
+                        }
+                    }
                     default -> { /* no-op */ }
                 }
                 if (map.isEmpty()) {
                     guiUtils.error(String.format("No %s in selected path(s).", cmd.toLowerCase()));
                 } else {
                     plugin.getUI().getBookmarkManager().add(map, suffix);
-                    if (plugin.getUI().isReady()) plugin.getUI().selectTab("Bookmarks");
+                    plugin.getUI().selectTab("Bookmarks");
                 }
             };
 
             final JPopupMenu menu = new JPopupMenu();
-            GuiUtils.addSeparator(menu, "Locations to Bookmark:");
-            List.of("Start points", "Branch points", "End points", "Nodes without radius")// ,"Nodes without annotations")
+            List.of("-Bookmark Topological Locations:", "Branch Points", "End Points", "Start Points",
+                    "-Bookmark QC Locations:", "Manually Tagged Nodes", "Nodes With Invalid Radius")
                     .forEach(cmd -> {
-                        final JMenuItem mi = new JMenuItem(cmd);
-                        mi.addActionListener(action);
-                        menu.add(mi);
+                        if (cmd.startsWith("-")) {
+                            GuiUtils.addSeparator(menu, cmd.substring(1));
+                        } else {
+                            final JMenuItem mi = new JMenuItem(cmd);
+                            mi.addActionListener(action);
+                            menu.add(mi);
+                        }
             });
-            final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK));
-            button.setToolTipText("Bookmark nodes of selected path(s)");
+            menu.add(getBookmarkCrossoverMenuItem());
+            final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK, .9f));
+            button.setToolTipText("Bookmark key locations along selected path(s)");
             button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
             return button;
+        }
+
+        private JMenuItem getBookmarkCrossoverMenuItem() {
+            final JMenuItem mi = new JMenuItem("Putative Crossovers");
+            mi.setToolTipText("Detect crossovers between paths");
+            mi.addActionListener(e -> {
+                final Collection<Path> paths = getSelectedPaths(true);
+                if (paths == null || paths.isEmpty()) {
+                    guiUtils.error("No path(s) selected.");
+                    return;
+                }
+                final double defProximity = plugin.getAverageSeparation() * 10;
+                final Double n = guiUtils.getDouble(
+                        String.format("Specify the size (in %s) of the search neighborhood for cross-over detection. "
+                                        + "Only paths interacting within this distance will be considered as candidates.<br>"
+                                        + "Default is <i>%.2f%s</i>, i.e., <i>≈10 voxels</i>.",
+                                plugin.getSpacingUnits(), defProximity, plugin.getSpacingUnits()),
+                        "Cross-over Parameters", defProximity);
+                if (n == null) return;
+                if (Double.isNaN(n) || n <= 0)
+                    guiUtils.error("Invalid search neighborhood: Must be > 0.");
+                else
+                    bookmarkCrossOvers(paths, n);
+            });
+            return mi;
+        }
+
+        private void bookmarkCrossOvers(final Collection<Path> selectedPaths, final double proximity) {
+            var cfg = new CrossoverFinder.Config()
+                    .proximity(proximity)
+                    .thetaMinDeg(0) // disable angle filtering
+                    .minRunNodes(2)
+                    .sameCTOnly(true)
+                    .includeSelfCrossovers(true)
+                    .nodeWitnessRadius(-1); // assign proximity threshold
+            final List<CrossoverFinder.CrossoverEvent> events = CrossoverFinder.find(selectedPaths, cfg);
+            final List<double[]> output = new ArrayList<>(events.size());
+            events.forEach(event -> output.add(event.xyzct()));
+            if (output.isEmpty()) {
+                guiUtils.error("No crossover locations detected.");
+            } else {
+                plugin.getUI().getBookmarkManager().add("Put. Crossover", output);
+                plugin.getUI().selectTab("Bookmarks");
+            }
         }
 
         @SuppressWarnings("unused")
@@ -4288,17 +4340,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 guiUtils.error("Only a single root path exists.");
                 return;
             }
-            final String[] choices = { "Arbor ID", "Cell label", "Path name", "Path length", "Path mean radius",
-                    "Traced channel", "Traced frame" };
+            final String[] choices = { "Arbor ID", "Cell label", "Primary path name", "Primary path length",
+                    "Primary path mean radius", "Traced channel", "Traced frame" };
             final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
             if (choice == null)
                 return;
             switch (choice) {
                 case "Arbor ID" -> primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
                 case "Cell label" -> primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
-                case "Path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
-                case "Path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
-                case "Path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
+                case "Primary path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
+                case "Primary path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
+                case "Primary path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
                 case "Traced channel" -> primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
                 case "Traced frame" -> primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
                 default -> {
@@ -4307,11 +4359,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
-            final DefaultMutableTreeNode jtreeRoot = ((DefaultMutableTreeNode) model.getRoot());
-            jtreeRoot.removeAllChildren();
+            final DefaultMutableTreeNode jTreeRoot = ((DefaultMutableTreeNode) model.getRoot());
+            jTreeRoot.removeAllChildren();
             for (final Path primaryPath : primaryPaths) {
                 if (!primaryPath.isFittedVersionOfAnotherPath())
-                    model.addNode(jtreeRoot, primaryPath);
+                    model.addNode(jTreeRoot, primaryPath);
             }
             model.reload();
         }
