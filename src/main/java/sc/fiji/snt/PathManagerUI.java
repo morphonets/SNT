@@ -4255,13 +4255,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error(String.format("No %s in selected path(s).", cmd.toLowerCase()));
                 } else {
                     plugin.getUI().getBookmarkManager().add(map, suffix);
-                    if (plugin.getUI().isReady()) plugin.getUI().selectTab("Bookmarks");
+                    plugin.getUI().selectTab("Bookmarks");
                 }
             };
 
             final JPopupMenu menu = new JPopupMenu();
-            List.of("-Bookmark Topological Locations:", "Start Points", "Branch Points", "End Points",
-                    "-Bookmark QC Locations:", "Nodes With Invalid Radius", "Manually Tagged Nodes")
+            List.of("-Bookmark Topological Locations:", "Branch Points", "End Points", "Start Points",
+                    "-Bookmark QC Locations:", "Manually Tagged Nodes", "Nodes With Invalid Radius")
                     .forEach(cmd -> {
                         if (cmd.startsWith("-")) {
                             GuiUtils.addSeparator(menu, cmd.substring(1));
@@ -4271,10 +4271,55 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             menu.add(mi);
                         }
             });
+            menu.add(getBookmarkCrossoverMenuItem());
             final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK, .9f));
-            button.setToolTipText("Bookmark nodes of selected path(s)");
+            button.setToolTipText("Bookmark key locations along selected path(s)");
             button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
             return button;
+        }
+
+        private JMenuItem getBookmarkCrossoverMenuItem() {
+            final JMenuItem mi = new JMenuItem("Putative Crossovers");
+            mi.setToolTipText("Detect crossovers between paths");
+            mi.addActionListener(e -> {
+                final Collection<Path> paths = getSelectedPaths(true);
+                if (paths == null || paths.isEmpty()) {
+                    guiUtils.error("No path(s) selected.");
+                    return;
+                }
+                final double defProximity = plugin.getAverageSeparation() * 10;
+                final Double n = guiUtils.getDouble(
+                        String.format("Specify the size (in %s) of the search neighborhood for cross-over detection. "
+                                        + "Only paths interacting within this distance will be considered as candidates.<br>"
+                                        + "Default is <i>%.2f%s</i>, i.e., <i>≈10 voxels</i>.",
+                                plugin.getSpacingUnits(), defProximity, plugin.getSpacingUnits()),
+                        "Cross-over Parameters", defProximity);
+                if (n == null) return;
+                if (Double.isNaN(n) || n <= 0)
+                    guiUtils.error("Invalid search neighborhood: Must be > 0.");
+                else
+                    bookmarkCrossOvers(paths, n);
+            });
+            return mi;
+        }
+
+        private void bookmarkCrossOvers(final Collection<Path> selectedPaths, final double proximity) {
+            var cfg = new CrossoverFinder.Config()
+                    .proximity(proximity)
+                    .thetaMinDeg(0) // disable angle filtering
+                    .minRunNodes(2)
+                    .sameCTOnly(true)
+                    .includeSelfCrossovers(true)
+                    .nodeWitnessRadius(-1); // assign proximity threshold
+            final List<CrossoverFinder.CrossoverEvent> events = CrossoverFinder.find(selectedPaths, cfg);
+            final List<double[]> output = new ArrayList<>(events.size());
+            events.forEach(event -> output.add(event.xyzct()));
+            if (output.isEmpty()) {
+                guiUtils.error("No crossover locations detected.");
+            } else {
+                plugin.getUI().getBookmarkManager().add("Put. Crossover", output);
+                plugin.getUI().selectTab("Bookmarks");
+            }
         }
 
         @SuppressWarnings("unused")

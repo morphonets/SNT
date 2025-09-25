@@ -47,6 +47,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 /**
@@ -426,8 +427,23 @@ public class BookmarkManager {
     public void add(final String label, final List<SNTPoint> locations, final int channel, final int frame) {
         locations.forEach(loc -> model.getDataList().add(new Bookmark(model.getUniqueLabel(label), //
                 (int) loc.getX(), (int) loc.getY(), (int) loc.getZ(), channel, frame)));
-        model.fireTableDataChanged();
         resetOrResizeColumns(false, true);
+        model.fireTableDataChanged();
+    }
+
+    /**
+     * Adds multiple bookmarks with the specified label and locations.
+     *
+     * @param label     the label for the bookmarks
+     * @param xyzctLocations the list of XYZCT locations
+     */
+    public void add(final String label, final List<double[]> xyzctLocations) {
+        AtomicInteger ai = new AtomicInteger(1);
+        xyzctLocations.forEach(loc -> model.getDataList().add( //
+                new Bookmark(model.getUniqueLabel(label + ai.getAndIncrement()), //
+                (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4])));
+        resetOrResizeColumns(false, true);
+        model.fireTableDataChanged();
     }
 
     /**
@@ -451,8 +467,8 @@ public class BookmarkManager {
                         (int) node.getX(), (int) node.getY(), (int) node.getZ(), c, t));
             }
         });
-        model.fireTableDataChanged();
         resetOrResizeColumns(false, true);
+        model.fireTableDataChanged();
         sntui.showStatus(model.getDataList().size() - currentN + " bookmarks added", true);
     }
 

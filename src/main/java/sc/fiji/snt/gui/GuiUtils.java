@@ -36,12 +36,10 @@ import org.scijava.ui.swing.SwingDialog;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
 import org.scijava.util.Types;
-import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
-import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
