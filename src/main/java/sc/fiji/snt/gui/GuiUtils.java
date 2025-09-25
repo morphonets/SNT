@@ -2767,7 +2767,7 @@ public class GuiUtils {
 		}
 
 		public static JButton options() {
-			return new JButton(IconFactory.dropdownMenuIcon(GLYPH.OPTIONS));
+			return new JButton(IconFactory.dropdownMenuIcon(GLYPH.OPTIONS, 1f));
 		}
 
 		private static void makeSmallBorderless(final AbstractButton b, final IconFactory.GLYPH glyph, final Color color) {

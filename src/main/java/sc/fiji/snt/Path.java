@@ -153,7 +153,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	public static class PathNode extends PointInImage implements Cloneable {
 		
 		private Color nodeColor;
-		private double radius = 0.0;
+		private double radius = 0d;
 		private double[] tangent; // [x, y, z]
 		
 		public PathNode(final double x, final double y, final double z) {
@@ -179,7 +179,7 @@ public class Path implements Comparable<Path>, Cloneable {
 
 		// Radius management
 		public double getRadius() { return radius; }
-		public boolean hasRadius() { return radius > 0; }
+		public boolean hasRadius() { return radius > 0d; }
 		public void setRadius(final double radius) { this.radius = radius; }
 
 		// Tangent management

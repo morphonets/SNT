@@ -296,15 +296,15 @@ public class IconFactory {
 		return border;
 	}
 
-	public static Icon dropdownMenuIcon(final GLYPH entry) {
+	public static Icon dropdownMenuIcon(final GLYPH entry, final float scalingFactor) {
 		class DropdownIcon implements Icon {
 
 			static final int ICON_GAP = 2;
 			final Icon leftIcon;
 			final Icon rightIcon;
 
-			DropdownIcon(final GLYPH entry) {
-				leftIcon = new FADerivedIcon(entry.id, FADerivedIcon.defSize(), defaultColor(), entry.solid);
+			DropdownIcon(final GLYPH entry, final float scalingFactor) {
+				leftIcon = new FADerivedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), defaultColor(), entry.solid);
 				rightIcon = UIManager.getIcon("Tree.expandedIcon");
 			}
 
@@ -329,7 +329,7 @@ public class IconFactory {
 				return Math.max(leftIcon.getIconHeight(), rightIcon.getIconHeight());
 			}
 		}
-		return new DropdownIcon(entry);
+		return new DropdownIcon(entry, scalingFactor);
 	}
 
 	public static void assignIcon(final AbstractButton button, final GLYPH glyph, final Color color, final float scalingFactor) {

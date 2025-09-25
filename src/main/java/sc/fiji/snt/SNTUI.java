@@ -2619,7 +2619,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private JButton optionsButton(final IconFactory.GLYPH glyph, final JPopupMenu optionsMenu) {
-		final JButton optionsButton =  new JButton(IconFactory.dropdownMenuIcon(glyph));
+		final JButton optionsButton =  new JButton(IconFactory.dropdownMenuIcon(glyph, 1f));
 		optionsButton.addActionListener(e -> optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2));
 		return optionsButton;
 	}

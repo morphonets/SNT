@@ -4203,7 +4203,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final Map<Path, Set<Integer>> map = new LinkedHashMap<>(paths.size());
                 String suffix = null;
                 switch (cmd) {
-                    case "Branch points" -> {
+                    case "Branch Points" -> {
                         suffix = "BP";
                         for (final Path p : paths) {
                             final TreeSet<Integer> junctionIndices = p.findJunctionIndices(); // sorted indices
@@ -4213,39 +4213,42 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             if (!junctionIndices.isEmpty()) map.put(p, junctionIndices);
                         }
                     }
-                    case "Start points" -> {
+                    case "Start Points" -> {
                         suffix = "SP";
                         for (final Path path : paths) map.put(path, Set.of(0));
 
                     }
-                    case "End points" -> {
+                    case "End Points" -> {
                         suffix = "EP";
                         for (final Path path : paths) map.put(path, Set.of(path.size()-1));
                     }
-                    case "Nodes without radius" -> {
-                        suffix = "NR";
+                    case "Nodes With Invalid Radius" -> {
+                        suffix = "Inv. rad. ";
                         for (final Path path : paths) {
                             if (!path.hasRadii()) continue;
                             final TreeSet<Integer> result = new TreeSet<>();
                             for (int i = 0; i < path.size(); i++) {
                                 final double r = path.getNodeRadius(i);
-                                if (r == 0 || Double.isNaN(r)) result.add(i);
+                                if (r == 0d || Double.isNaN(r)) {
+                                    result.add(i);
+                                }
                             }
                             if (!result.isEmpty()) map.put(path, result);
                         }
                     }
-//                    case "Nodes without annotations" -> {
-//                        suffix = "NA";
-//                        for (final Path path : paths) {
-//                            if (!path.hasNodeAnnotations()) continue;
-//                            final TreeSet<Integer> result = new TreeSet<>();
-//                            for (int i = 0; i < path.size(); i++) {
-//                                final BrainAnnotation annot = path.getNodeAnnotation(i);
-//                                if (annot == null) result.add(i);
-//                            }
-//                            if (!result.isEmpty()) map.put(path, result);
-//                        }
-//                    }
+                    case "Manually Tagged Nodes" -> {
+                        suffix = "";
+                        for (final Path path : paths) {
+                            if (path.getName().toLowerCase().contains("tagged nodes") ||!path.hasNodeColors())
+                                continue; // see Tag Active Node... command in InteractiveTracerCanvas
+                            final TreeSet<Integer> result = new TreeSet<>();
+                            for (int i = 0; i < path.size(); i++) {
+                                final Color c = path.getNodeColor(i);
+                                if (c != null) result.add(i);
+                            }
+                            if (!result.isEmpty()) map.put(path, result);
+                        }
+                    }
                     default -> { /* no-op */ }
                 }
                 if (map.isEmpty()) {
@@ -4257,14 +4260,18 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             };
 
             final JPopupMenu menu = new JPopupMenu();
-            GuiUtils.addSeparator(menu, "Locations to Bookmark:");
-            List.of("Start points", "Branch points", "End points", "Nodes without radius")// ,"Nodes without annotations")
+            List.of("-Bookmark Topological Locations:", "Start Points", "Branch Points", "End Points",
+                    "-Bookmark QC Locations:", "Nodes With Invalid Radius", "Manually Tagged Nodes")
                     .forEach(cmd -> {
-                        final JMenuItem mi = new JMenuItem(cmd);
-                        mi.addActionListener(action);
-                        menu.add(mi);
+                        if (cmd.startsWith("-")) {
+                            GuiUtils.addSeparator(menu, cmd.substring(1));
+                        } else {
+                            final JMenuItem mi = new JMenuItem(cmd);
+                            mi.addActionListener(action);
+                            menu.add(mi);
+                        }
             });
-            final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK));
+            final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK, .9f));
             button.setToolTipText("Bookmark nodes of selected path(s)");
             button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
             return button;
@@ -4288,17 +4295,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 guiUtils.error("Only a single root path exists.");
                 return;
             }
-            final String[] choices = { "Arbor ID", "Cell label", "Path name", "Path length", "Path mean radius",
-                    "Traced channel", "Traced frame" };
+            final String[] choices = { "Arbor ID", "Cell label", "Primary path name", "Primary path length",
+                    "Primary path mean radius", "Traced channel", "Traced frame" };
             final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
             if (choice == null)
                 return;
             switch (choice) {
                 case "Arbor ID" -> primaryPaths.sort(Comparator.comparingInt(Path::getTreeID));
                 case "Cell label" -> primaryPaths.sort(Comparator.comparing(Path::getTreeLabel));
-                case "Path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
-                case "Path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
-                case "Path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
+                case "Primary path name" -> primaryPaths.sort(Comparator.comparing(Path::getName));
+                case "Primary path length" -> primaryPaths.sort(Comparator.comparingDouble(Path::getLength));
+                case "Primary path mean radius" -> primaryPaths.sort(Comparator.comparingDouble(Path::getMeanRadius));
                 case "Traced channel" -> primaryPaths.sort(Comparator.comparingInt(Path::getChannel));
                 case "Traced frame" -> primaryPaths.sort(Comparator.comparingInt(Path::getFrame));
                 default -> {
@@ -4307,11 +4314,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             final HelpfulTreeModel model = (HelpfulTreeModel) tree.getModel();
-            final DefaultMutableTreeNode jtreeRoot = ((DefaultMutableTreeNode) model.getRoot());
-            jtreeRoot.removeAllChildren();
+            final DefaultMutableTreeNode jTreeRoot = ((DefaultMutableTreeNode) model.getRoot());
+            jTreeRoot.removeAllChildren();
             for (final Path primaryPath : primaryPaths) {
                 if (!primaryPath.isFittedVersionOfAnotherPath())
-                    model.addNode(jtreeRoot, primaryPath);
+                    model.addNode(jTreeRoot, primaryPath);
             }
             model.reload();
         }
