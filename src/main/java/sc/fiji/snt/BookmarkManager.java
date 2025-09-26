@@ -588,6 +588,40 @@ public class BookmarkManager {
     }
 
     /**
+     * Returns a list of points representing the bookmarks.
+     *
+     * @param onlySelectedRows if true, only selected rows are included; otherwise, all ROIs in the manager are included
+     * @return the list of Points representing the bookmarks
+     */
+    public List<SNTPoint> getPixelPositions(final boolean onlySelectedRows) {
+        final List<SNTPoint> points = new ArrayList<>();
+        int[] rows = (onlySelectedRows) ? table.getSelectedRows() : IntStream.range(0, model.getRowCount()).toArray();
+        if (onlySelectedRows && rows.length == 0) // no selection exists: assume all rows
+            rows = IntStream.range(0, model.getRowCount()).toArray();
+        for (final int row : rows) {
+            final Bookmark b = model.getDataList().get(row);
+            points.add(SNTPoint.of(b.x, b.y, b.z));
+        }
+        return points;
+    }
+
+    /**
+     * Returns a list of points representing the bookmarks.
+     *
+     * @param onlySelectedRows if true, only selected rows are included; otherwise, all ROIs in the manager are included
+     * @return the list of Points representing the bookmarks
+     */
+    public List<SNTPoint> getPositions(final boolean onlySelectedRows) {
+        final ij.measure.Calibration cal = sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
+        List<SNTPoint> pixelPoints = getPixelPositions(onlySelectedRows);
+        final List<SNTPoint> calPoints = new ArrayList<>(pixelPoints.size());
+        for (SNTPoint pxP : pixelPoints) {
+            calPoints.add(SNTPoint.of(cal.getX(pxP.getX()), cal.getY(pxP.getY()), cal.getZ(pxP.getZ())));
+        }
+        return calPoints;
+    }
+
+    /**
      * Adds the bookmark ROIs to the specified overlay. If no bookmarks are selected, all bookmarks are added,
      * otherwise only the selected bookmarks are added.
      *

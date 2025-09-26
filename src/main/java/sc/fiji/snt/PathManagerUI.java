@@ -4239,7 +4239,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     case "Manually Tagged Nodes" -> {
                         suffix = "";
                         for (final Path path : paths) {
-                            if (path.getName().toLowerCase().contains("tagged nodes") ||!path.hasNodeColors())
+                            if (!path.getName().toLowerCase().contains("tagged node(s)") || !path.hasNodeColors())
                                 continue; // see Tag Active Node... command in InteractiveTracerCanvas
                             final TreeSet<Integer> result = new TreeSet<>();
                             for (int i = 0; i < path.size(); i++) {

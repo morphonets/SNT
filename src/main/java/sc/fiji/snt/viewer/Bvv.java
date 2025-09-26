@@ -67,6 +67,7 @@ public class Bvv {
     private final Map<String, Tree> renderedTrees;
     private final PathRenderingOptions renderingOptions;
     private PathOverlay pathOverlay;
+    private AnnotationOverlay annotationOverlay;
     private BigVolumeViewer currentBvv;
 
     /**
@@ -184,6 +185,7 @@ public class Bvv {
         if (currentBvv != bvv) { // Initialize overlay if not already done
             currentBvv = bvv;
             initializePathOverlay(currentBvv);
+            initializeAnnotationOverlay(currentBvv);
             pathOverlay.updatePaths();
         }
         final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
@@ -200,6 +202,14 @@ public class Bvv {
             pathOverlay.dispose();
         }
         pathOverlay = new PathOverlay(bvv, this);
+    }
+
+    /** Initializes the annotation overlay system for drawing spheres at SNTPoint locations. */
+    private void initializeAnnotationOverlay(final BigVolumeViewer bvv) {
+        if (annotationOverlay != null) {
+            annotationOverlay.dispose();
+        }
+        annotationOverlay = new AnnotationOverlay(bvv, this);
     }
 
     private JToolBar sntToolbar(final BvvActions actions) {
@@ -243,6 +253,7 @@ public class Bvv {
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
+            menu.add(new JMenuItem(actions.loadBookmarksAction()));
             menu.add(new JMenuItem(actions.syncPathManagerAction()));
         }
         menu.addSeparator();
@@ -315,6 +326,11 @@ public class Bvv {
      */
     public void syncOverlays() {
         if (pathOverlay != null) pathOverlay.updatePaths();
+        if (annotationOverlay != null) annotationOverlay.updateScene();
+    }
+
+    public AnnotationOverlay annotations() {
+        return annotationOverlay;
     }
 
     /**
@@ -772,19 +788,149 @@ public class Bvv {
     }
 
     /**
+     * Renders spherical annotations at {@link SNTPoint} world coordinates.
+     * Provides two rendering modes: a lightweight CPU overlay (Java2D) and an
+     * optional GPU mode using Scenery spheres attached to the BVV scene graph.
+     */
+    public static class AnnotationOverlay {
+
+        private final VolumeViewerPanel viewerPanel;
+        private final AnnRenderer annRenderer;
+        private final List<Annotation> annotations = new ArrayList<>();
+
+        AnnotationOverlay(final BigVolumeViewer bvv, final Bvv sntBvv) {
+            this.viewerPanel = bvv.getViewer();
+            this.annRenderer = new AnnRenderer(viewerPanel, sntBvv.getRenderingOptions());
+            viewerPanel.getDisplay().overlays().add(annRenderer);
+        }
+
+        /** Replace the current annotations with the provided list. */
+        public void setAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
+            annotations.clear();
+            addAnnotations(points, radius, color);
+        }
+
+        /** Replace the current annotations with the provided list. */
+        public void addAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
+            if (points != null) {
+                for (SNTPoint p : points) annotations.add(new Annotation(p, radius, color));
+            }
+            updateScene();
+        }
+
+        /** Add a single annotation. */
+        public void addAnnotation(final SNTPoint p, final float radius, final Color color) {
+            if (p != null) annotations.add(new Annotation(p, radius, color));
+            updateScene();
+        }
+
+        /** Remove all annotations. */
+        public void clear() {
+            annotations.clear();
+            updateScene();
+        }
+
+        /** Show/hide annotations */
+        public void setVisible(final boolean visible) {
+            annRenderer.hide = !visible;
+            viewerPanel.requestRepaint();
+        }
+
+        public boolean isVisible() {
+            return annRenderer.hide;
+        }
+
+        /** Ensure renderers/nodes reflect current annotation list. */
+        public void updateScene() {
+            annRenderer.setAnnotations(annotations);
+            viewerPanel.requestRepaint();
+        }
+
+        /** Remove overlay/nodes from the viewer. */
+        void dispose() {
+            if (viewerPanel != null && annRenderer != null) {
+                viewerPanel.getDisplay().overlays().remove(annRenderer);
+            }
+        }
+
+        private static class AnnRenderer extends OverlayRenderer {
+            private final List<Annotation> annotations = new ArrayList<>();
+
+            AnnRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+                super(viewerPanel, renderingOptions);
+            }
+
+            void setAnnotations(final List<Annotation> list) {
+                annotations.clear();
+                if (list != null) annotations.addAll(list);
+            }
+
+            @Override
+            public void drawOverlays(final Graphics g) {
+                if (annotations.isEmpty() || hide) return;
+                synchronized (viewerTransform) {
+                    viewerPanel.state().getViewerTransform(viewerTransform);
+                }
+                final Graphics2D g2d = getGraphics2D(g);
+
+                final int canvasWidth = viewerPanel.getDisplay().getWidth();
+                final int canvasHeight = viewerPanel.getDisplay().getHeight();
+                final double cx = canvasWidth / 2.0;
+                final double cy = canvasHeight / 2.0;
+
+                final double[] gPos = new double[3];
+                final boolean clip = renderingOptions.isClippingEnabled();
+                if (clip) viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
+
+                final double margin = 100.0;
+
+                for (final Annotation a : annotations) {
+                    final double[] wc = { a.p.getX(), a.p.getY(), a.p.getZ() };
+                    final double[] vc = new double[3];
+                    viewerTransform.apply(wc, vc);
+
+                    // optional Z clipping around cursor
+                    if (clip && Math.abs(wc[2] - gPos[2]) > renderingOptions.clippingDistance) continue;
+
+                    final double pf = dCam / (dCam + vc[2]);
+                    final double sx = cx + (vc[0] - cx) * pf;
+                    final double sy = cy + (vc[1] - cy) * pf;
+
+                    if (sx < -margin || sy < -margin || sx > canvasWidth + margin || sy > canvasHeight + margin)
+                        continue;
+
+                    final double sr = Math.max(1.0, a.radiusUm * pf);
+                    final int d = (int)Math.round(2 * sr);
+                    final int x = (int)Math.round(sx - sr);
+                    final int y = (int)Math.round(sy - sr);
+
+                    g2d.setColor(a.color);
+                    g2d.fillOval(x, y, d, d);
+                }
+                g2d.dispose();
+            }
+
+            @Override
+            public void setCanvasSize(final int width, final int height) { /* no-op */ }
+        }
+
+        private record Annotation(SNTPoint p, float radiusUm, Color color) { }
+    }
+
+    /**
      * Custom overlay renderer for drawing SNT paths.
      */
     private static class OverlayRenderer implements bdv.viewer.OverlayRenderer {
-        private final VolumeViewerPanel viewerPanel;
-        private final PathRenderingOptions renderingOptions;
-        private final AffineTransform3D viewerTransform = new AffineTransform3D();
+        final VolumeViewerPanel viewerPanel;
+        final PathRenderingOptions renderingOptions;
+        final AffineTransform3D viewerTransform = new AffineTransform3D();
+        boolean hide;
         private Collection<Tree> trees = new ArrayList<>();
-        private boolean hide;
 
         /* Cached camera parameters: No public setters exist for these!? */
-        private double dCam;
-        private double nearClip;
-        private double farClip;
+        double dCam;
+        double nearClip;
+        double farClip;
 
         OverlayRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
@@ -805,12 +951,7 @@ public class Bvv {
                 viewerPanel.state().getViewerTransform(viewerTransform);
             }
 
-            final Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-            if (renderingOptions.getTransparency() < 1.0f) {
-                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, renderingOptions.getTransparency()));
-            }
+            final Graphics2D g2d = getGraphics2D(g);
             for (final Tree tree : trees) {
                 drawTree(g2d, tree);
             }
@@ -821,6 +962,16 @@ public class Bvv {
             for (final Path path : tree.list()) {
                 drawPath(g2d, path);
             }
+        }
+
+        Graphics2D getGraphics2D(final Graphics g) {
+            final Graphics2D g2d = (Graphics2D) g.create();
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            if (renderingOptions.getTransparency() < 1.0f) {
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, renderingOptions.getTransparency()));
+            }
+            return g2d;
         }
 
         /**
@@ -1210,8 +1361,10 @@ public class Bvv {
                     }
                     if (e.getSource() instanceof AbstractButton toggleButton) {
                         pathOverlay.disableRendering(toggleButton.isSelected());
+                        if (annotationOverlay != null) annotationOverlay.setVisible(toggleButton.isSelected());
                     } else {
                         pathOverlay.disableRendering(!pathOverlay.isRenderingEnable());
+                        if (annotationOverlay != null) annotationOverlay.setVisible(!annotationOverlay.isVisible());
                     }
                     bvv.getViewer().showMessage((pathOverlay.isRenderingEnable()) ? "Annotations visible" : "Annotations hidden");
                 }
@@ -1354,6 +1507,27 @@ public class Bvv {
                     }
                     bvv.getViewer().showMessage((renderingOptions.isClippingEnabled())
                             ? "Visibility: Around cursor" : "Visibility: All visible");
+                }
+            };
+        }
+
+        Action loadBookmarksAction() {
+            return new AbstractAction("Annotate Bookmark Manager Locations ", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    try {
+                        final List<SNTPoint> pos = snt.getUI().getBookmarkManager().getPositions(false);
+                        if (pos.isEmpty()) {
+                            guiUtils.error("Bookmark Manager is empty.");
+                        } else {
+                            final Color c = guiUtils.getColor("Bookmarks Color", Color.RED, (String[])null);
+                            if (c == null) return;
+                            annotations().setAnnotations(pos, (float) 3f * renderingOptions.getMinThickness(), c);
+                            bvv.getViewer().showMessage(String.format("%d Bookmarks annotated", pos.size()));
+                        }
+                    } catch (NullPointerException ex) {
+                        bvv.getViewer().showMessage("Bookmark Manager unavailable");
+                    }
                 }
             };
         }
