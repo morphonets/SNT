@@ -2990,11 +2990,11 @@ public class SNTUI extends JDialog {
 		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsShollError()) return;
-			final Tree tree = getPathManager().getMultipleTreesInASingleContainer();
-			if (tree == null) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null) return;
 			softWarningOnShollPreview();
 			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
+			inputs.put("tree", Tree.merge(trees));
 			inputs.put("snt", plugin);
 			new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
 		});

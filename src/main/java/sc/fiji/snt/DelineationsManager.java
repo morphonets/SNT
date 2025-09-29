@@ -770,7 +770,7 @@ public class DelineationsManager {
             return;
         }
         final String[] uniqueAnnotationsArray = uniqueAnnotations.stream().map(BrainAnnotation::toString).toArray(String[]::new);
-        final List<String> choices = sntui.guiUtils.getMultipleChoices("Select annotations to delineate",
+        final List<String> choices = sntui.guiUtils.getMultipleChoices("Select Annotations to Delineate",
                 uniqueAnnotationsArray, uniqueAnnotationsArray[0]);
         if (choices == null || choices.isEmpty() || !resetAuthorizedByUser()) return;
         final Set<BrainAnnotation> chosenAnnotations = uniqueAnnotations.stream().filter(a -> choices.contains(a.toString())).collect(Collectors.toSet());

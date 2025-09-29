@@ -742,12 +742,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
      */
     private List<Path> getPathsFromCurrentTreeModel() {
         final TreeModel m = tree.getModel();
-        if (m == null) return java.util.Collections.emptyList();
+        if (m == null) return Collections.emptyList();
         final Object rootObj = m.getRoot();
         final DefaultMutableTreeNode rootNode =
                 (rootObj instanceof DefaultMutableTreeNode) ? (DefaultMutableTreeNode) rootObj : null;
-        if (rootNode == null) return java.util.Collections.emptyList();
-
+        if (rootNode == null) return Collections.emptyList();
         final List<Path> out = new ArrayList<>();
         for (final Enumeration<?> e = rootNode.depthFirstEnumeration(); e.hasMoreElements();) {
             final Object n = e.nextElement();
@@ -1001,78 +1000,101 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		});
 	}
 
-	protected Tree getSingleTree() {
-		return getSingleTreePrompt((hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()));
+    /* Should be called only outside PathManagerUI */
+    protected Tree getSingleTree() {
+        final Collection<Tree> trees = pathAndFillManager.getTrees();
+        if (trees.size() == 1) {
+            restoreFullModelAsNeeded(trees);
+            return trees.iterator().next();
+        }
+        final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
+        trees.forEach(t -> treeLabels.add(t.getLabel()));
+        Collections.sort(treeLabels);
+        final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.getFirst());
+        final GuiUtils gUtilsActive = (hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow());
+        final String choice = gUtilsActive.getChoice("Multiple rooted structures exist. Which one should be considered?",
+                "Which Structure?", treeLabels.toArray(new String[trees.size()]), defChoice);
+        if (choice != null) {
+            plugin.getPrefs().setTemp("singletree", choice);
+            for (final Tree t : trees) {
+                if (t.getLabel().equals(choice)) {
+                    restoreFullModelAsNeeded(trees);
+                    return t;
+                }
+            }
+        }
+        return null; // user pressed canceled prompt. No need to check if full model needs to be reinstated
 	}
 
+    /* Should be called only outside PathManagerUI (#getMultipleTreesInternal() being the only exception)  */
 	protected Collection<Tree> getMultipleTrees() {
-		return getMultipleTreesPrompt((hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow()), true);
+        final Collection<Tree> trees = pathAndFillManager.getTrees();
+        if (trees.size() == 1) {
+            restoreFullModelAsNeeded(trees);
+            return trees;
+        }
+        final ArrayList<String> treeLabels = new ArrayList<>(trees.size() + 1);
+        trees.forEach(t -> treeLabels.add(t.getLabel()));
+        Collections.sort(treeLabels);
+        treeLabels.addFirst("   -- All --  ");
+        final GuiUtils gUtilsActive = (hasFocus()) ? guiUtils : new GuiUtils(plugin.getActiveWindow());
+        final List<String> choices = gUtilsActive.getMultipleChoices("Which Structure(s)?",
+                treeLabels.toArray(new String[trees.size()]),"   -- All --  ");
+        if (choices == null)
+            return null; // no need to restore full model
+        if (choices.contains("   -- All --  ")) {
+            restoreFullModelAsNeeded(trees);
+            return trees;
+        }
+        final List<Tree> toReturn = new ArrayList<>();
+        for (final Tree t : trees) {
+            if (choices.contains(t.getLabel())) {
+                toReturn.add(t);
+            }
+        }
+        restoreFullModelAsNeeded(toReturn);
+        return (toReturn.isEmpty()) ? null : toReturn;
 	}
 
-	protected Tree getMultipleTreesInASingleContainer() {
-		final Collection<Tree> trees = getMultipleTrees();
-		if (trees == null) return null;
-		if (trees.size() == 1) trees.iterator().next();
-		final Tree holdingTree = new Tree();
-		holdingTree.setLabel("Mixed Paths");
-		trees.forEach(tree -> tree.list().forEach(holdingTree::add));
-		return holdingTree;
-	}
+    private Collection<Tree> getMultipleTreesInternal() {
+        if (tree.getModel() == fullTreeModel)
+            return this.getMultipleTrees();
+        // the navigationToolbar is currently filtering for a single arbor
+        return List.of(pathAndFillManager.getTree(navToolbar.arborChoice));
+    }
 
-	private Collection<Tree> getTreesMimickingPrompt(final String description) {
-		final Collection<Tree> trees = pathAndFillManager.getTrees();
-		if (trees.size() == 1 || description.toLowerCase().contains("all")) return trees;
-		for (final Tree t : trees) {
-			if (t.getLabel().equals(description)) return Collections.singleton(t);
-		}
-		return null;
-	}
+    private Collection<Tree> getMultipleTreesFromScriptCall(final String description) {
+        Collection<Tree> result = null;
+        final Collection<Tree> trees = pathAndFillManager.getTrees();
+        if (trees.size() == 1 || description.toLowerCase().contains("all")) {
+            result = trees;
+        } else for (final Tree t : trees) {
+            if (t.getLabel().equals(description)) {
+                result = Collections.singleton(t);
+                break;
+            }
+        }
+        restoreFullModelAsNeeded(result);
+        return result;
+    }
 
-	private Tree getSingleTreeMimickingPrompt(final String description) {
-		final Collection<Tree> t = getTreesMimickingPrompt(description);
-		return (t == null) ? null : t.iterator().next();
-	}
-
-	private Tree getSingleTreePrompt(final GuiUtils guiUtils) {
-		final Collection<Tree> trees = pathAndFillManager.getTrees();
-		if (trees.size() == 1) return trees.iterator().next();
-		final ArrayList<String> treeLabels = new ArrayList<>(trees.size());
-		trees.forEach(t -> treeLabels.add(t.getLabel()));
-		Collections.sort(treeLabels);
-		final String defChoice = plugin.getPrefs().getTemp("singletree", treeLabels.getFirst());
-		final String choice = guiUtils.getChoice("Multiple rooted structures exist. Which one should be considered?",
-				"Which Structure?", treeLabels.toArray(new String[trees.size()]), defChoice);
-		if (choice != null) {
-			plugin.getPrefs().setTemp("singletree", choice);
-			for (final Tree t : trees) {
-				if (t.getLabel().equals(choice)) return t;
-			}
-		}
-		return null; // user pressed canceled prompt
-	}
-
-	private Collection<Tree> getMultipleTreesPrompt(final GuiUtils guiUtils, final boolean includeAll) {
-		final Collection<Tree> trees = pathAndFillManager.getTrees();
-		if (trees.size() == 1) return trees;
-		final ArrayList<String> treeLabels = new ArrayList<>(trees.size() + 1);
-		trees.forEach(t -> treeLabels.add(t.getLabel()));
-		Collections.sort(treeLabels);
-		if (includeAll)
-			treeLabels.addFirst("   -- All --  ");
-		final List<String> choices = guiUtils.getMultipleChoices("Which Structure(s)?",
-				treeLabels.toArray(new String[trees.size()]), (includeAll) ? "   -- All --  " : null);
-		if (choices == null)
-			return null;
-		if (includeAll && choices.contains("   -- All --  "))
-			return trees;
-		final List<Tree> toReturn = new ArrayList<>();
-		for (final Tree t : trees) {
-			if (choices.contains(t.getLabel())) {
-				toReturn.add(t);
-			}
-		}
-		return (toReturn.isEmpty()) ? null : toReturn;
-	}
+    /* Currently GUI Operations work as follows: Only commands called from PathMangerUI respect navigation toolbar
+     * filtering. Outside commands use all tree(s) currently available. This method ensures that navigation toolbar
+     * filtering is disable if user decided to perform an operation on a tree that is currently hidden by the nav.
+     * toolbar filtering.
+     */
+    private void restoreFullModelAsNeeded(final Collection<Tree> treesChosenByUserElsewhere) {
+        // do nothing if user did not select a valid collection or the navToolbar filtering is not active
+        if (treesChosenByUserElsewhere == null || treesChosenByUserElsewhere.isEmpty() ||
+                tree.getModel() == fullTreeModel || navToolbar == null)
+            return;
+        // if user selected more than one arbor or if user choice does not match the arbor currently being filtered,
+        // // then filtering needs to be disabled
+        if (treesChosenByUserElsewhere.size() > 1 ||
+                (navToolbar.arborChoice != null && !navToolbar.arborChoice.equals(treesChosenByUserElsewhere.iterator().next().getLabel()))) {
+            navToolbar.restoreFullModelState();
+        }
+    }
 
 	protected void quickMeasurementsCmdError(final GuiUtils guiUtils) {
 		guiUtils.error("Selected paths do not fulfill requirements for retrieval of choiceless measurements. "
@@ -1398,7 +1420,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
         public void reload() {
+            final List<TreePath> expanded = new ArrayList<>();
+            for (int i = 0; i < getRowCount() - 1; i++) {
+                TreePath currPath = getPathForRow(i);
+                TreePath nextPath = getPathForRow(i + 1);
+                if (currPath.isDescendant(nextPath))
+                    expanded.add(currPath);
+            }
             ((DefaultTreeModel)getModel()).reload();
+            for (final TreePath path : expanded)
+                expandPath(path);
         }
 
         int getNumberOfNodes() {
@@ -2183,9 +2214,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
 	private void runColorCodingCmd(final String singleTreeDescriptor, final String metric, final String lutName) throws IllegalArgumentException, IOException {
-		final Tree tree =  getSingleTreeMimickingPrompt(singleTreeDescriptor);
-		if (tree == null) throw new IllegalArgumentException("Not a recognized choice "+ singleTreeDescriptor);
-		runColorCodingCmd(tree, false, metric, lutName);
+        final Collection<Tree> trees = getMultipleTreesFromScriptCall(singleTreeDescriptor);
+		if (trees == null) throw new IllegalArgumentException("Not a recognized choice "+ singleTreeDescriptor);
+		runColorCodingCmd(trees.iterator().next(), false, metric, lutName);
 	}
 
 	private void runColorCodingCmd(final Tree tree, final boolean onlyConnectivitySafeMetrics, final String metric, final String lutName) throws IllegalArgumentException, IOException {
@@ -2221,7 +2252,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private void runDistributionAnalysisCmd(final String treeCollectionDescriptor, final String metric, final boolean polar) throws IllegalArgumentException {
-		final Collection<Tree> trees = getTreesMimickingPrompt(treeCollectionDescriptor);
+		final Collection<Tree> trees = getMultipleTreesFromScriptCall(treeCollectionDescriptor);
 		if (trees == null) throw new IllegalArgumentException("Not a recognized choice "+ treeCollectionDescriptor);
 		runDistributionAnalysisCmd(trees, metric, polar);
 	}
@@ -2256,7 +2287,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 		if (measureUI == null) {
-			final Collection<Tree> trees = getMultipleTrees();
+			final Collection<Tree> trees = getMultipleTreesInternal();
 			if (trees == null) return;
 			measureUI = new MeasureUI(plugin, trees);
 			measureUI.addWindowListener(new WindowAdapter() {
@@ -3180,7 +3211,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			@Override
 			public void execute(List<Path> selectedPaths, String cmd) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
-				final Collection<Tree> trees = getMultipleTrees();
+				final Collection<Tree> trees = getMultipleTreesInternal();
 				if (trees == null || trees.isEmpty() || delineationsExistError(trees))
 					return;
 				final Map<String, Object> input = new HashMap<>();
@@ -3246,7 +3277,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			@Override
 			public void execute(List<Path> selectedPaths, String cmd) {
 				selectionDoesNotReflectCompleteTreesWarning(selectedPaths);
-				final Collection<Tree> trees = getMultipleTrees();
+				final Collection<Tree> trees = getMultipleTreesInternal();
 				if (trees == null) return;
 				runDistributionAnalysisCmd(trees, null, null);
 			}
@@ -3982,16 +4013,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 
 		void selectionDoesNotReflectCompleteTreesWarning(final Collection<Path> selectedPaths) {
-			if (selectedPaths.isEmpty() || plugin.getPrefs().getTemp("misc-paths-skipnag", false)
-					|| selectedPaths.size() == pathAndFillManager.getPaths().size()) {
+            if (selectedPaths.isEmpty() || !selectionExists()
+                    || plugin.getPrefs().getTemp("misc-paths-skipnag", false)) {
 				return;
 			}
 			final int refId = selectedPaths.iterator().next().getTreeID();
-			if (getSelectedPaths(false).stream().anyMatch(path -> path.getTreeID() != refId)
-					|| pathAndFillManager.getPaths().stream().anyMatch(path -> !path.isSelected() && path.getTreeID() == refId)) {
-				final Boolean skipnag = guiUtils.getPersistentWarning("Current selection of " + selectedPaths.size() +
+            if (getSelectedPaths(false).stream().anyMatch(path -> path.getTreeID() != refId)
+					|| pathAndFillManager.getTree(refId).size() != selectedPaths.size()) {
+				final Boolean skipNag = guiUtils.getPersistentWarning("Current selection of " + selectedPaths.size() +
 						" path(s) is going to be ignored because this command operates on whole tree(s).", "Ignored Selection");
-				if (skipnag != null) plugin.getPrefs().setTemp("misc-paths-skipnag", skipnag);
+				if (skipNag != null) plugin.getPrefs().setTemp("misc-paths-skipnag", skipNag);
 			}
 		}
 
@@ -4107,9 +4138,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             IconFactory.assignIcon(hideOthersButton, IconFactory.GLYPH.ARROWS_TO_EYE, IconFactory.GLYPH.ARROWS_TO_EYE);
             hideOthersButton.setToolTipText("When selected, show only paths from the chosen arbor/structure");
             hideOthersButton.addActionListener(e -> {
-                if (arborChoiceCombo.getSelectedIndex() == -1)
+                if (arborChoiceCombo.getSelectedIndex() == -1) {
+                    hideOthersButton.setSelected(false);
                     guiUtils.error("No arbor/structure chosen.");
-                else
+                } else
                     applyHideOthers(hideOthersButton.isSelected());
             });
 
@@ -4377,7 +4409,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             "Smallest radius node", "Largest‑radius node"}
                     : new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node"};
             final String prevChoice = plugin.getPrefs().getTemp("gtChoice", options[0]);
-            final String choice = guiUtils.getChoice("Navigate to which node(s) region of selected path(s)?",
+            final String choice = guiUtils.getChoice("Navigate to which node(s) of selected path(s)?",
                     "Zoom To Nodes...", options, prevChoice);
             if (choice == null) return; // User cancelled
             plugin.getPrefs().setTemp("gtChoice", choice);

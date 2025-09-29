@@ -2398,8 +2398,10 @@ public class SNT extends MultiDThreePanes implements
 			final Map<String, Object> input = new HashMap<>();
 			input.put("snt", this);
 			input.put("center", centerScaled);
-			input.put("tree", (getUI() == null) ? new Tree(getPathAndFillManager().getPathsFiltered())
-					: getUI().getPathManager().getMultipleTreesInASingleContainer());
+            final Collection<Tree> trees = (getUI() == null) ? getPathAndFillManager().getTrees() :
+                    getUI().getPathManager().getMultipleTrees();
+            if (trees == null) return;
+			input.put("tree", Tree.merge(trees));
 			final CommandService cmdService = getContext().getService(CommandService.class);
 			cmdService.run(ShollAnalysisTreeCmd.class, true, input);
 		});
@@ -3016,7 +3018,7 @@ public class SNT extends MultiDThreePanes implements
 	public void updateAllViewers() {
 		updateTracingViewers(true);
 		updateNonTracingViewers();
-		if (getUI()!=null) getUI().getPathManager().update();
+        if (getUI()!=null) getUI().getPathManager().update();
 	}
 
 	/*

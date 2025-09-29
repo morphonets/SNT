@@ -654,6 +654,46 @@ public class PathAndFillManager extends DefaultHandler implements
 		return map.values();
 	}
 
+    /**
+     * Returns the specified Tree.
+     *
+     * @param treeLabel the Tree's label
+     * @return the tree or null if this PathAndFillManager instance holds no such treeLabel
+     * @see #getTrees()
+     */
+    public Tree getTree(final String treeLabel) {
+        final Tree tree = new Tree();
+        allPaths.forEach(p->{
+            final Path pathToUse = (p.getUseFitted()) ? p.getFitted() : p;
+            if (treeLabel.equals(pathToUse.getTreeLabel()))
+                tree.add(pathToUse);
+        });
+        if (tree.isEmpty()) return null;
+        tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spacing_units);
+        tree.setLabel(treeLabel);
+        return tree;
+    }
+
+    /**
+     * Returns the specified Tree.
+     *
+     * @param treeId the Tree's id
+     * @return the tree or null if this PathAndFillManager instance holds no such treeId
+     * @see #getTrees()
+     */
+    public Tree getTree(final int treeId) {
+        final Tree tree = new Tree();
+        allPaths.forEach(p->{
+            final Path pathToUse = (p.getUseFitted()) ? p.getFitted() : p;
+            if (treeId == pathToUse.getTreeID())
+                tree.add(pathToUse);
+        });
+        if (tree.isEmpty()) return null;
+        tree.getProperties().setProperty(Tree.KEY_SPATIAL_UNIT, spacing_units);
+        tree.setLabel(tree.list().getFirst().getTreeLabel());
+        return tree;
+    }
+
 	protected boolean multipleTreesExist() {
 		if (allPaths.isEmpty()) return false;
 		final int refID = allPaths.getFirst().getTreeID();
