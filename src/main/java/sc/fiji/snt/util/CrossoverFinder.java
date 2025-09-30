@@ -176,10 +176,12 @@ public class CrossoverFinder {
         if (dists.isEmpty()) return Optional.empty();
 
         // Topological veto: if one path is a direct child of the other, treat it as a true junction
-        final List<Path> aChildren = A.getChildren();
-        final List<Path> bChildren = B.getChildren();
-        if ((aChildren != null && aChildren.contains(B)) || (bChildren != null && bChildren.contains(A))) {
-            return Optional.empty();
+        if (!cfg.includeDirectChildren) {
+            final List<Path> aChildren = A.getChildren();
+            final List<Path> bChildren = B.getChildren();
+            if ((aChildren != null && aChildren.contains(B)) || (bChildren != null && bChildren.contains(A))) {
+                return Optional.empty();
+            }
         }
 
         final double medDist = median(dists);
@@ -419,6 +421,13 @@ public class CrossoverFinder {
         boolean includeSelfCrossovers = false;
 
         /**
+         * If {@code true}, report crossovers with a path's direct child
+         * If {@code false}, child pairs are ignored.
+         * <p>Default: {@code false}.</p>
+         */
+        boolean includeDirectChildren = false;
+
+        /**
          * Radius (in real‑world units) used by the post‑hoc witness filter. If {@code <= 0},
          * the filter uses {@link #proximity}. An event is kept only if at least one
          * <em>participant</em> path has a real node (not a midpoint) within this radius
@@ -479,6 +488,17 @@ public class CrossoverFinder {
          */
         public Config includeSelfCrossovers(final boolean b) {
             this.includeSelfCrossovers = b;
+            return this;
+        }
+
+        /**
+         * Sets {@link #includeDirectChildren}.
+         *
+         * @param b whether to include crossovers with the path's direct child
+         * @return this config (for chaining)
+         */
+        public Config includeDirectChildren(final boolean b) {
+            this.includeDirectChildren = b;
             return this;
         }
 
