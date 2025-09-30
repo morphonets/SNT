@@ -380,7 +380,7 @@ public class ImpUtils {
 
     public static double zoomTo(final ImagePlus imp, final Collection<Path> paths) {
         final Roi existingRoi = imp.getRoi();
-        final Roi zoomRoi = RoiConverter.convert(paths, imp);
+        final Roi zoomRoi = RoiConverter.get2DBoundingBox(paths, RoiConverter.XY_PLANE);
         imp.setRoi(zoomRoi);
         final double currentMag = imp.getCanvas().getMagnification();
         Zoom.toSelection(imp);

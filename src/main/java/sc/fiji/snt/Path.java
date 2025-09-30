@@ -1555,22 +1555,31 @@ public class Path implements Comparable<Path>, Cloneable {
 	public int getZUnscaled(final int i) { return (int) Math.round(getZUnscaledDouble(i)); }
 
 	public double getXUnscaledDouble(final int i) {
-//		if ((i < 0) || i >= size())
-//			throw new IllegalArgumentException("getXUnscaled was asked for an out-of-range point: " + i);
 		return nodes.get(i).x / x_spacing + canvasOffset.x;
 	}
 
 	public double getYUnscaledDouble(final int i) {
-//		if ((i < 0) || i >= size())
-//			throw new IllegalArgumentException("getYUnscaled was asked for an out-of-range point: " + i);
 		return nodes.get(i).y / y_spacing + canvasOffset.y;
 	}
 
 	public double getZUnscaledDouble(final int i) {
-//		if ((i < 0) || i >= size())
-//			throw new IllegalArgumentException("getZUnscaled was asked for an out-of-range point: " + i);
 		return nodes.get(i).z / z_spacing + canvasOffset.z;
 	}
+
+    /**
+     * @return the list of nodes in image space (pixel coordinates). This takes already takes into account
+     * {@link #getCanvasOffset()}.
+     */
+    public List<PointInCanvas> getUnscaledNodes() {
+        List<PointInCanvas> pics = new ArrayList<>(nodes.size());
+        nodes.forEach(node -> {
+            pics.add(new PointInCanvas(
+                    node.x / x_spacing + canvasOffset.x,
+                    node.y / y_spacing + canvasOffset.y,
+                    node.z / z_spacing + canvasOffset.z));
+        });
+        return pics;
+    }
 
 	/**
 	 * Gets a section between two nodes of this Path.

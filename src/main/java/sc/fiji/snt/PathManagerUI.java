@@ -4169,6 +4169,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             hideOthersButton.setEnabled(arborChoice != null || hideOthersButton.isSelected());
         }
 
+        private Collection<Path> getSelectedPathsUsingToolbarOptions(final boolean ifNoneSelectedGetAll) {
+            // if no rows are selected and combo box choice is empty return null:
+            final boolean nothingInCombo = arborChoice == null || arborChoiceCombo.getSelectedIndex() == -1;
+            if (nothingInCombo && !selectionExists()) {
+                return null;
+            }
+            // if no rows are selected, 'hide others' is not active, and a valid combo box choice exists,
+            // retrieve only the arbor listed in the combo box:
+            if (!nothingInCombo && tree.getModel() == fullTreeModel && !selectionExists()) {
+                return pathAndFillManager.getTree(arborChoice).list();
+            }
+            //... otherwise retrieve paths as usual
+            return getSelectedPaths(ifNoneSelectedGetAll);
+        }
+
         private JButton nextArborButton() {
             final JButton b = new JButton(); //
             IconFactory.assignIcon(b, IconFactory.GLYPH.CARET_UP_DOWN, IconFactory.GLYPH.CARET_UP_DOWN, 1f);
@@ -4211,7 +4226,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private JButton zoomToNodeButton() {
             final JButton button = new JButton(IconFactory.buttonIcon('\uf601', true));
             button.setActionCommand("Zoom To Selected Nodes");
-            button.addActionListener( e -> zoomToNodes(getSelectedPaths(false)));
+            button.addActionListener( e -> zoomToNodes(getSelectedPathsUsingToolbarOptions(false)));
             button.setToolTipText("Zoom to selected nodes");
             return button;
         }
@@ -4219,14 +4234,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private JButton zoomToPathsButton() {
             final JButton button = new JButton(IconFactory.buttonIcon('\uf248', false));
             button.setActionCommand("Zoom To Selected Paths");
-            button.addActionListener( e -> zoomToBoundingBox(getSelectedPaths(true)));
+            button.addActionListener( e -> {
+                zoomToBoundingBox(getSelectedPathsUsingToolbarOptions(true));
+            });
             button.setToolTipText("Zoom to selected path(s)");
             return button;
         }
 
         private JButton bookmarkButton() {
             final ActionListener action = e -> {
-                final Collection<Path> paths = getSelectedPaths(true); // honors filtered view when none selected
+                final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
                 if (paths == null || paths.isEmpty()) {
                     guiUtils.error("No path(s) selected.");
                     return;
@@ -4314,7 +4331,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final JMenuItem mi = new JMenuItem("Putative Crossovers");
             mi.setToolTipText("Detect crossovers between paths");
             mi.addActionListener(e -> {
-                final Collection<Path> paths = getSelectedPaths(true);
+                final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
                 if (paths == null || paths.isEmpty()) {
                     guiUtils.error("No path(s) selected.");
                     return;
@@ -4449,6 +4466,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private boolean canExecuteZoomOperation(final Collection<Path> paths) {
+            if (paths == null) {
+                guiUtils.error("No arbor/rooted structure selected.");
+                return false;
+            }
             if (paths.isEmpty()) {
                 guiUtils.error("No path(s) selected.");
                 return false;

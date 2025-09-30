@@ -41,6 +41,7 @@ import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
 
@@ -258,7 +259,7 @@ public class RoiConverter {
 	/**
 	 * Converts paths into 2D polyline ROIs (segment paths), adding them to the
 	 * overlay of the image specified in the constructor.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
 	 *                                  of any image
 	 * @see #convertPaths(Overlay)
@@ -300,7 +301,7 @@ public class RoiConverter {
 	 * Converts all the tips associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s, adding them to the overlay of the image specified
 	 * in the constructor.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
 	 *                                  of any image
 	 * @see #convertTips(Overlay)
@@ -313,7 +314,7 @@ public class RoiConverter {
 	 * Converts all the branch points associated with the parsed paths into
 	 * {@link ij.gui.PointRoi}s, adding them to the overlay of the image specified
 	 * in the constructor.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
 	 *                                  of any image
 	 * @see #convertBranchPoints(Overlay)
@@ -338,7 +339,7 @@ public class RoiConverter {
 	 * Extracts all the ROIs converted so far associated with the specified
 	 * Z-plane. It is assumed that ROIs are stored in the overlay of the image
 	 * specified in the constructor.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if this RoiConverter instance is not aware
 	 *                                  of any image
 	 */
@@ -511,7 +512,7 @@ public class RoiConverter {
 
 	/**
 	 * Extracts ROIs associated with a specified Z position.
-	 * 
+	 *
 	 * @param overlay the overlay holding ROIs
 	 * @param zSlice  the z-plane (1-based index)
 	 * @return the sub-list of ROIs associated with the specified Z position. Note
@@ -535,7 +536,7 @@ public class RoiConverter {
 	/**
 	 * Extracts ROIs associated with a specified CZT position. Only ROIS with known
 	 * hyperstackPosition are considered.
-	 * 
+	 *
 	 * @param overlay the overlay holding ROIs
 	 * @param channel the channel (1-based index)
 	 * @param zSlice the z-plane (1-based index)
@@ -581,6 +582,31 @@ public class RoiConverter {
         final Overlay holdingOverlay = new Overlay();
         converter.convertPaths(holdingOverlay);
         return combine(Arrays.asList(holdingOverlay.toArray()));
+    }
+
+    public static Roi get2DBoundingBox(final Collection<Path> paths, final int exportPlane) {
+        final BoundingBox box = new BoundingBox();
+        paths.forEach(path -> box.append(path.getUnscaledNodes().iterator()) );
+        final PointInImage ori = box.origin();
+        final PointInImage oriOpp = box.originOpposite();
+        switch (exportPlane) {
+            case XY_PLANE -> {
+                final Roi roi = new Roi(ori.x, ori.y, (oriOpp.x - ori.x), (oriOpp.y - ori.y));
+                roi.setPosition((int) ((oriOpp.z - ori.z) / 2) + 1);
+                return roi;
+            }
+            case XZ_PLANE -> {
+                final Roi roi = new Roi(ori.x, ori.z, (oriOpp.x - ori.x), (oriOpp.z - ori.z));
+                roi.setPosition((int) ((oriOpp.y - ori.y) / 2) + 1);
+                return roi;
+            }
+            case ZY_PLANE -> {
+                final Roi roi = new Roi(ori.z, ori.y, (oriOpp.z - ori.z), (oriOpp.y - ori.y));
+                roi.setPosition((int) ((oriOpp.x - ori.x) / 2) + 1);
+                return roi;
+            }
+            default -> throw new IllegalArgumentException("exportPlane is not valid");
+        }
     }
 
 	/**
