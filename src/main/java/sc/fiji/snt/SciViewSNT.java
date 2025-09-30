@@ -27,7 +27,6 @@ import graphics.scenery.attribute.material.DefaultMaterial;
 import graphics.scenery.attribute.material.Material;
 import net.imagej.ImageJ;
 
-import org.jetbrains.annotations.NotNull;
 import org.joml.Vector3f;
 import org.scijava.Context;
 import org.scijava.NullContextException;
@@ -321,7 +320,7 @@ public class SciViewSNT {
 		private Vector3f translationReset;
 
 		public ShapeTree(final Tree tree) {
-			super();
+			super( (tree.getLabel()==null) ? "ShapeTree" : tree.getLabel() );
 			this.tree = tree;
 			translationReset = new Vector3f(0f,0f,0f);
 		}
@@ -462,12 +461,6 @@ public class SciViewSNT {
 					bb = bb.expand(bb, cBB);
 			}
 			return bb;
-		}
-
-		@NotNull
-		@Override
-		public String getName() {
-			return "ShapeTree";
 		}
 	}
 

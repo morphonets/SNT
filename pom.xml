@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>43.0.0-SNAPSHOT</version>
+		<version>43.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -154,7 +154,7 @@
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
 		<orsonpdf.version>1.9.1</orsonpdf.version>
-		<scenery.version>0.11.2</scenery.version>
+		<scenery.version>0.12.0</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
 		<smile.version>4.4.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
@@ -211,12 +211,6 @@
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>pal-optimization</artifactId>
-		</dependency>
-
-		<!-- SCIFIO dependencies -->
-		<dependency>
-			<groupId>io.scif</groupId>
-			<artifactId>scifio</artifactId>
 		</dependency>
 
 		<!-- ImageJ2 dependencies -->
