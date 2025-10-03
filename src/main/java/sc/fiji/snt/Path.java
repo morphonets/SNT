@@ -2362,6 +2362,14 @@ public class Path implements Comparable<Path>, Cloneable {
 	public void setCTposition(final int channel, final int frame) {
 		ctPosition[0] = channel;
 		ctPosition[1] = frame;
+        if (fitted != null) {
+            fitted.ctPosition[0] = channel;
+            fitted.ctPosition[1] = frame;
+        }
+        if (fittedVersionOf != null) {
+            fittedVersionOf.ctPosition[0] = channel;
+            fittedVersionOf.ctPosition[1] = frame;
+        }
 	}
 
 	/**

@@ -95,4 +95,8 @@ public interface SNTPoint {
 	public static PointInImage of(final Number x, final Number y, final Number z) {
 		return new PointInImage(x.doubleValue(), y.doubleValue(), z.doubleValue() );
 	}
+
+    public static PointInImage of(final Number[] coords) {
+        return new PointInImage(coords[0].doubleValue(), coords[1].doubleValue(), coords[2].doubleValue() );
+    }
 }

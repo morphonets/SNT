@@ -184,6 +184,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		jmi.addActionListener(multiPathListener);
 		editMenu.addSeparator();
 
+        jmi = new JMenuItem(MultiPathActionListener.SPECIFY_CT_POSITION_CMD);
+        jmi.setToolTipText("Changes CT position of selected path(s)");
+        jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.LAYERS));
+        jmi.addActionListener(multiPathListener);
+        editMenu.add(jmi);
 		jmi = new JMenuItem(MultiPathActionListener.SPECIFY_RADIUS_CMD);
 		jmi.setToolTipText("Assigns a fixed radius to selected path(s)");
 		jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
@@ -2709,8 +2714,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String REMOVE_TAGS_CMD = "Remove Tags...";
 		private static final String FILL_OUT_CMD = "Fill Out...";
 		private static final String RESET_FITS = "Discard Fit(s)...";
-		private static final String SPECIFY_RADIUS_CMD = "Specify Constant Radius...";
-		private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
+		private static final String SPECIFY_CT_POSITION_CMD = "Specify Channel/Frame...";
+        private static final String SPECIFY_RADIUS_CMD = "Specify Constant Radius...";
+        private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
 		private static final String DISCONNECT_CMD = "Disconnect...";
 		private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
 
@@ -2815,7 +2821,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			
 			// Path property commands
 			commands.put(FILL_OUT_CMD, new FillOutCommand());
-			commands.put(SPECIFY_RADIUS_CMD, new SpecifyRadiusCommand());
+            commands.put(SPECIFY_CT_POSITION_CMD, new SpecifyCTPosCommand());
+            commands.put(SPECIFY_RADIUS_CMD, new SpecifyRadiusCommand());
 			commands.put(SPECIFY_COUNTS_CMD, new SpecifyCountsCommand());
 			commands.put(INTERPOLATE_MISSING_RADII, new InterpolateMissingRadiiCommand());
 			commands.put(RESET_FITS, new ResetFitsCommand());
@@ -3395,6 +3402,37 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			}
 		}
 
+        private class SpecifyCTPosCommand implements PathCommand {
+            @Override
+            public void execute(final List<Path> selectedPaths, String cmd) {
+
+                final Number[] pos = guiUtils.getTwoNumbers("New CT position:  ", "Modify Assigned CT Position",
+                        new Number[]{selectedPaths.getFirst().getChannel(), selectedPaths.getFirst().getFrame()},
+                        new String[]{"Channel", "Frame"}, 0);
+                if (pos == null) {
+                    return; // user pressed cancel
+                }
+                if (Double.isNaN(pos[0].doubleValue()) || pos[0].intValue() < 0 ||
+                        Double.isNaN(pos[1].doubleValue()) || pos[1].intValue() < 0) {
+                    guiUtils.error("Invalid channel/frame position.");
+                    return;
+                }
+                selectedPaths.forEach(p -> p.setCTposition(pos[0].intValue(), pos[1].intValue()) );
+                if (navToolbar != null) {
+                    navToolbar.restoreFullModelState();
+                }
+                applyActiveTags(selectedPaths);
+                guiUtils.tempMsg("Command finished.");
+                plugin.updateAllViewers();
+                plugin.setUnsavedChanges(true);
+            }
+
+            @Override
+			public boolean canExecute(List<Path> selectedPaths) {
+				return !selectedPaths.isEmpty();
+			}
+		}
+
 		private class SpecifyRadiusCommand implements PathCommand {
 			@Override
 			public void execute(List<Path> selectedPaths, String cmd) {
@@ -3629,7 +3667,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private class RebuildCommand implements PathCommand {
 			@Override
-			public void execute(List<Path> selectedPaths, String cmd) {
+			public void execute(List<Path> ignored, String cmd) {
 				if (!guiUtils.getConfirmation("Rebuild all path relationships? " +
 						"This will reset all IDs and recompute connectivity for all " +
 						"paths.", "Confirm Rebuild?"))
@@ -4052,6 +4090,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 	private void rebuildRelationShips() {
 		final List<String> activeTags = guessTagsCurrentlyActive();
+        if (navToolbar != null) navToolbar.restoreFullModelState();
 		tree.clearSelection(); // existing selections could change after the rebuild
 		pathAndFillManager.rebuildRelationships();
 		activeTags.forEach( tag -> removeOrReapplyDefaultTag(pathAndFillManager.getPaths(), tag, true, false));
@@ -4502,7 +4541,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         /** After the model is rebuilt, ensure the filter state matches what's available. */
         void ensureFilterStateConsistentWithModel() {
             // Only relevant if filtering is currently ON
-            if (!hideOthersButton.isSelected()) return;
+            if (fullTreeModel == tree.getModel()) return;
             // If there's no chosen arbor, turn filtering off
             if (arborChoice == null || arborChoice.isEmpty()) {
                 hideOthersButton.setSelected(false);
@@ -4599,6 +4638,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 tree.setModel(new HelpfulTreeModel(primaryPaths, arborChoice));
                 sortArborsButton.setEnabled(false);
             } else {
+                hideOthersButton.setSelected(false); // ensure sync
                 tree.setModel(fullTreeModel); // will call reload
                 sortArborsButton.setEnabled(true);
             }

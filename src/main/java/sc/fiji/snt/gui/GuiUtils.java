@@ -776,15 +776,44 @@ public class GuiUtils {
         return null;
     }
 
-    public SNTPoint getCoordinates(final String promptMsg, final String promptTitle, final SNTPoint defaultValue,
-                                   final int decimalPlaces) {
+    public Number[] getTwoNumbers(final String promptMsg, final String promptTitle,
+                                  final Number[] defaultValues, final String[] labels, final int decimalPlaces) {
+        if (labels.length != 2 && defaultValues.length != 2) {
+            throw new IllegalArgumentException("length of defaultValues/labels is not 2");
+        }
+        final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
+                SNTPoint.of(defaultValues[0], defaultValues[1], -1), labels, decimalPlaces);
+        return (result == null) ? null : new Number[]{result.getX(), result.getY()};
+    }
+
+    public Number[] getThreeNumbers(final String promptMsg, final String promptTitle,
+                                    final Number[] defaultValues, final String[] labels, final int decimalPlaces) {
+        if (labels.length != 3 && defaultValues.length != 3) {
+            throw new IllegalArgumentException("length of defaultValues/labels is not 3");
+        }
+        final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
+                SNTPoint.of(defaultValues), labels, decimalPlaces);
+        return (result == null) ? null : new Number[]{result.getX(), result.getY(), result.getZ()};
+    }
+
+    public SNTPoint getCoordinates(final String promptMsg, final String promptTitle,
+                                   final SNTPoint defaultValue, final int decimalPlaces) {
+        return getCoordinatesInternal(promptMsg, promptTitle,
+                defaultValue, new String[]{"X", "Y", "Z"}, decimalPlaces);
+    }
+
+    public SNTPoint getCoordinatesInternal(final String promptMsg, final String promptTitle, final SNTPoint defaultValue,
+                                           String[] labels, final int decimalPlaces) {
+        if (labels.length < 2 || labels.length > 3) {
+            throw new IllegalArgumentException("Only 2 or 3 values can be retrieved");
+        }
         final JPanel panel = new JPanel(new FlowLayout());
         final SNTPoint def = (defaultValue == null) ? SNTPoint.of(0, 0, 0) : defaultValue;
         panel.add(new JLabel(promptMsg));
-        final String[] labels = new String[]{"X", "Y", "Z"};
-        final double[] values = new double[]{def.getX(), def.getY(), def.getZ()};
-        final JSpinner[] spinners = new JSpinner[3];
-        for (int i = 0; i < 3; i++) {
+        final boolean twoD = labels.length == 2;
+        final double[] values = (twoD) ? new double[]{def.getX(), def.getY()} : new double[]{def.getX(), def.getY(), def.getZ()};
+        final JSpinner[] spinners = new JSpinner[(twoD) ? 2 : 3];
+        for (int i = 0; i < spinners.length; i++) {
             panel.add(new JLabel(labels[i]));
             spinners[i] = (decimalPlaces == 0) ?
                     GuiUtils.integerSpinner((int) values[i], -10000, 10000, 10, true) :
@@ -794,13 +823,14 @@ public class GuiUtils {
         final int result = JOptionPane.showConfirmDialog(null, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            return SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(),
-                    (Number) spinners[2].getValue());
+            return (twoD) ?
+                    SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), -1)
+                    : SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), (Number) spinners[2].getValue());
         }
         return null;
     }
 
-	public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
+    public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
 		final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
 				+ SNTUtils.formatDouble(defaultRange[1], 3));
 		if (s == null)
