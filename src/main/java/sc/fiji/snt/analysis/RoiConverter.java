@@ -268,6 +268,13 @@ public class RoiConverter {
 		convertPaths(getImpOverlay());
 	}
 
+    public void convertBranches(Overlay overlay) {
+        if (overlay == null) overlay = new Overlay();
+        int lastIdx = overlay.size();
+        convertPaths(overlay, tStats.getBranches(), "Branch");
+        appendNumericSuffixToROIs(overlay, lastIdx, overlay.size()-1);
+    }
+
 	public void convertInnerBranches(Overlay overlay) {
 		if (overlay == null) overlay = new Overlay();
 		int lastIdx = overlay.size();

@@ -61,7 +61,7 @@ public class ROIExporterCmd implements Command {
 	@Parameter
 	private StatusService statusService;
 
-	@Parameter(required = false, label = "Convert", choices = { "Paths", "Inner branches*", "Primary branches*",
+	@Parameter(required = false, label = "Convert", choices = { "Paths", "Branches (all)*", "Inner branches*", "Primary branches*",
 			"Terminal branches*", "Branch points", "Tips", "Roots", "All" }, description =
 			"* Branch-based choices require paths to define a single tree (single-rooted structure without loops)")
 	private String roiChoice;
@@ -149,21 +149,27 @@ public class ROIExporterCmd implements Command {
 			warn("Only 1 path selected for conversion. No branch extraction is possible");
 		}
 		try {
-			if (atLeast2Paths && roiChoice.contains("inner")) {
-				size = overlay.size();
-				converter.convertInnerBranches(overlay);
-				if (overlay.size() == size) warn(noConversion("inner branches"));
-			}
-			if (atLeast2Paths && roiChoice.contains("primary")) {
-				size = overlay.size();
-				converter.convertPrimaryBranches(overlay);
-				if (overlay.size() == size) warn(noConversion("primary branches"));
-			}
-			if (atLeast2Paths && roiChoice.contains("terminal")) {
-				size = overlay.size();
-				converter.convertTerminalBranches(overlay);
-				if (overlay.size() == size) warn(noConversion("terminal branches"));
-			}
+            if (atLeast2Paths && roiChoice.contains("Branches (all)")) {
+                size = overlay.size();
+                converter.convertBranches(overlay);
+                if (overlay.size() == size) warn(noConversion("branches"));
+            } else {
+                if (atLeast2Paths && roiChoice.contains("inner")) {
+                    size = overlay.size();
+                    converter.convertInnerBranches(overlay);
+                    if (overlay.size() == size) warn(noConversion("inner branches"));
+                }
+                if (atLeast2Paths && roiChoice.contains("primary")) {
+                    size = overlay.size();
+                    converter.convertPrimaryBranches(overlay);
+                    if (overlay.size() == size) warn(noConversion("primary branches"));
+                }
+                if (atLeast2Paths && roiChoice.contains("terminal")) {
+                    size = overlay.size();
+                    converter.convertTerminalBranches(overlay);
+                    if (overlay.size() == size) warn(noConversion("terminal branches"));
+                }
+            }
 		} catch ( final Exception ex) {
 			warn("Branches could not be converted. Please make sure that paths selected for conversion " +
 					"reflect a single valid tree.");
