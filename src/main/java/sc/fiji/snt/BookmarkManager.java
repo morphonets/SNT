@@ -259,6 +259,7 @@ public class BookmarkManager {
         JMenuItem jmi = new JMenuItem("To CSV File...");
         menu.add(jmi);
         jmi.addActionListener(e -> {
+            if (!noBookmarksError()) return;
             final File saveFile = sntui.saveFile("Export Bookmarks to CSV...",
                     "SNT_Bookmarks.csv", "csv");
             if (saveFile != null) {
@@ -275,6 +276,7 @@ public class BookmarkManager {
         jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
         menu.add(jmi);
         jmi.addActionListener(e -> {
+            if (!noBookmarksError()) return;
             final ImagePlus imp = sntui.plugin.getImagePlus();
             if (imp == null) {
                 sntui.guiUtils.error("No image is currently loaded.");
@@ -290,6 +292,7 @@ public class BookmarkManager {
         jmi = new JMenuItem("To ROI Manager");
         menu.add(jmi);
         jmi.addActionListener(e -> {
+            if (!noBookmarksError()) return;
             table.clearSelection();
             toRoiManager();
             recordCmd("clearSelection()");
@@ -310,16 +313,10 @@ public class BookmarkManager {
     }
 
     private JToolBar assembleToolbar() {
-        final JButton impButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.IMPORT, 1f));
+        final JButton impButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.IMPORT, 1f, importMenu());
         impButton.setToolTipText("Import bookmarks");
-        final JPopupMenu impMenu = importMenu();
-        impButton.addActionListener(e -> impMenu.show(impButton, impButton.getWidth() / 2, impButton.getHeight() / 2));
-        final JButton expButton = new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.EXPORT, 1f));
+        final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export bookmarks");
-        final JPopupMenu expMenu = exportMenu();
-        expButton.addActionListener(e -> {
-            if (!noBookmarksError()) expMenu.show(expButton, expButton.getWidth() / 2, expButton.getHeight() / 2);
-        });
         final JSpinner spinner = GuiUtils.integerSpinner(Math.clamp(visitingZoomPercentage, 25, 3200),
                 25, 3200, 50, true);
         spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());

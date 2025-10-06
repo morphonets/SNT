@@ -25,6 +25,7 @@ package sc.fiji.snt.gui;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.ui.FlatPopupFactory;
 import com.formdev.flatlaf.util.SystemInfo;
+import org.apache.commons.text.WordUtils;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -625,20 +626,12 @@ public class SNTCommandFinder {
 
     }
 
-    private static class AnnotatedComponent {
-        final Component component;
-        final String annotation;
-
-        AnnotatedComponent(final Component component, final String annotation) {
-            this.component = component;
-            this.annotation = annotation;
-        }
+    private record AnnotatedComponent(Component component, String annotation) {
 
         AnnotatedComponent(final Component component) {
-            this.component = component;
-            this.annotation = "";
+                this(component, "");
+            }
         }
-    }
 
     private class ToolBarOrMenuBar {
 
@@ -1057,7 +1050,7 @@ public class SNTCommandFinder {
         }
 
         private String capitalize(final String string) {
-            return string.substring(0, 1).toUpperCase() + string.substring(1);
+            return WordUtils.capitalize(string);
         }
 
     }
@@ -1073,11 +1066,13 @@ public class SNTCommandFinder {
         List<AnnotatedComponent> getComponents() {
             final List<AnnotatedComponent> components = new ArrayList<>();
             if (sntui != null) {
-                components.add(new AnnotatedComponent(sntui.getTracingCanvasPopupMenu(), "Image Contextual Menu"));
+                components.add(new AnnotatedComponent(
+                        sntui.getTracingCanvasPopupMenu(), "Image Contextual Menu"));
                 components.add(new AnnotatedComponent(sntui.getJMenuBar()));
-                components.add(new AnnotatedComponent(sntui.getPathManager().getJTree().getComponentPopupMenu(),
-                        "PM Contextual Menu")); // before PM's menu bar
+                components.add(new AnnotatedComponent(
+                        sntui.getPathManager().getJTree().getComponentPopupMenu(), "PM Contextual Menu")); // before PM's menu bar
                 components.add(new AnnotatedComponent(sntui.getPathManager().getJMenuBar()));
+                components.add(new AnnotatedComponent(sntui.getPathManager().getNavigationToolBar(), "PM Nav. Bar"));
             }
             return components; // recViewer commands are all registered in otherMap
         }
@@ -1109,12 +1104,25 @@ public class SNTCommandFinder {
                     for (int i = 0; i < topLevelMenus; ++i) {
                         final JMenu topLevelMenu = menuBar.getMenu(i);
                         if (topLevelMenu != null && topLevelMenu.getText() != null) {
-                            parseMenu(topLevelMenu, new ArrayList<>(Collections.singletonList(topLevelMenu.getText())));
+                            parseMenu(topLevelMenu, List.of(topLevelMenu.getText()));
                         }
                     }
                 }
-                if (ac.component instanceof JPopupMenu popup) {
-                    getMenuItems(popup).forEach(mi -> registerMenuItem(mi, new ArrayList<>(Collections.singletonList(ac.annotation))));
+                else if (ac.component instanceof JPopupMenu popup) {
+                    getMenuItems(popup).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation)));
+                }
+                else if (ac.component instanceof JToolBar toolBar) {
+                    for (final Component c : toolBar.getComponents()) {
+                        if (c instanceof AbstractButton b)
+                            try {
+                                registerMain(b, List.of(ac.annotation));
+                            } catch (final Exception ignored) {
+                                // do nothing
+                            }
+                    }
+                    if (toolBar.getComponentPopupMenu() != null)
+                        getMenuItems(toolBar.getComponentPopupMenu()).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation, "Menu")));
+
                 }
             }
 
@@ -1176,7 +1184,7 @@ public class SNTCommandFinder {
 
         private boolean irrelevantCommand(final String label) {
             // commands that don't sort well and would only add clutter to the palette
-            return label == null || label.startsWith("<HTML>Help");
+            return label == null || label.startsWith("<HTML>Help") || label.isBlank();
         }
 
         private void removeRecordActions(TreeMap<String, CmdAction> map) {
@@ -1221,7 +1229,13 @@ public class SNTCommandFinder {
         }
 
         void registerMain(final AbstractButton button, final List<String> path) {
-            register(cmdMap, button, path);
+            if (button instanceof GuiUtils.Buttons.OptionsButton optionButton) {
+                final String buttonPath = (String) (button.getClientProperty("cmdFinder"));
+                final List<String> modPath = new ArrayList<>(path);
+                if (buttonPath != null) modPath.add(buttonPath);
+                SNTCommandFinder.this.register(optionButton.popupMenu, modPath);
+            } else
+                register(cmdMap, button, path);
         }
 
         void registerOther(final AbstractButton button, final List<String> path) {

@@ -2759,6 +2759,20 @@ public class GuiUtils {
 
 		private Buttons() {}
 
+        public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
+            return new OptionsButton(IconFactory.dropdownMenuIcon(glyph, scalingFactor), menu);
+        }
+
+        public static class OptionsButton extends JButton {
+            public final JPopupMenu popupMenu;
+
+            private OptionsButton(final Icon icon, final JPopupMenu popupMenu) {
+                super(icon);
+                this.popupMenu = popupMenu;
+                addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
+            }
+        }
+
 		public static JButton help(final String url) {
 			final JButton button = new JButton();
 			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);

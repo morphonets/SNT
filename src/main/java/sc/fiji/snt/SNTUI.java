@@ -2501,7 +2501,7 @@ public class SNTUI extends JDialog {
 		registerInCommandFinder(secLayerActivateCheckbox, "Toggle Secondary Layer", "Main Tab");
 		// Options for externalImagePanel
 		final JPopupMenu secLayerMenu = new JPopupMenu();
-		final JButton secLayerActionButton = optionsButton(IconFactory.GLYPH.LAYERS, secLayerMenu);
+		final JButton secLayerActionButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LAYERS, 1f, secLayerMenu);
 		GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
 		final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
 				IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
@@ -2616,12 +2616,6 @@ public class SNTUI extends JDialog {
 		plugin.secondaryImageFile = imgFile;
 		loadCachedDataImage(true, plugin.secondaryImageFile);
 		setFastMarchSearchEnabled(plugin.tubularGeodesicsTracingEnabled);
-	}
-
-	private JButton optionsButton(final IconFactory.GLYPH glyph, final JPopupMenu optionsMenu) {
-		final JButton optionsButton =  new JButton(IconFactory.dropdownMenuIcon(glyph, 1f));
-		optionsButton.addActionListener(e -> optionsMenu.show(optionsButton, optionsButton.getWidth() / 2, optionsButton.getHeight() / 2));
-		return optionsButton;
 	}
 
 	void disableSecondaryLayerComponents() {
@@ -3511,7 +3505,7 @@ public class SNTUI extends JDialog {
 		checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
 
 		final JPopupMenu optionsMenu = new JPopupMenu();
-		final JButton optionsButton = optionsButton(IconFactory.GLYPH.MATH, optionsMenu);
+		final JButton optionsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MATH, 1f, optionsMenu);
 		GuiUtils.addTooltip(optionsButton, "Algorithm settings");
 		optionsMenu.add(GuiUtils.leftAlignedLabel("Data Structure:", false));
 		final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
@@ -3606,7 +3600,7 @@ public class SNTUI extends JDialog {
 		aStarPanel = new JPanel(new BorderLayout());
 		aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
 		aStarPanel.add(optionsButton, BorderLayout.EAST);
-		return aStarPanel;
+        return aStarPanel;
 	}
 
 	private void enableTracerThread() {

@@ -1117,7 +1117,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		// ignored
 	}
 
-	private class FitHelper {
+    public JToolBar getNavigationToolBar() {
+        return navToolbar;
+    }
+
+    private class FitHelper {
 
 		private boolean promptHasBeenDisplayed = false;
 		private SwingWorker<Object, Object> fitWorker;
@@ -4244,6 +4248,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final JButton b = new JButton(); //
             IconFactory.assignIcon(b, IconFactory.GLYPH.SORT, IconFactory.GLYPH.SORT, 1f);
             b.setToolTipText("Sort Arbors/Root-level Paths...");
+            b.setActionCommand("Sort Arbors/Root-level Paths...");
             b.addActionListener( e -> {
                 sortArbors(); // full model will be restored
                 arborChoiceCombo.setSelectedIndex(-1);
@@ -4255,6 +4260,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final JButton b = new JButton(); // home
             IconFactory.assignIcon(b, IconFactory.GLYPH.UNDO, IconFactory.GLYPH.UNDO, .8f);
             b.setToolTipText("Show all arbors");
+            b.setActionCommand("Show All Arbors");
             b.addActionListener(e -> {
                 restoreFullModelState(); // Reset to full model, clear filtering, and ensure hide others is off
                 arborChoiceCombo.setSelectedIndex(-1);
@@ -4360,9 +4366,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         }
             });
             menu.add(getBookmarkCrossoverMenuItem());
-            final JButton button =  new JButton(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.BOOKMARK, .9f));
+            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.BOOKMARK, .9f, menu);
+            button.putClientProperty("cmdFinder", "Bookmarks");
             button.setToolTipText("Bookmark key locations along selected path(s)");
-            button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
             return button;
         }
 
