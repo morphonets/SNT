@@ -60,8 +60,8 @@ class PathNodeCanvas {
 	private int slice = -1; // see getSlice()
 	private int type;
 	private boolean editable;
-	private double x;
-	private double y;
+	private final double x;
+	private final double y;
 	private Color color;
 
 	/**
@@ -109,81 +109,55 @@ class PathNodeCanvas {
 	}
 
 	private double getScreenCoordinateX(final PointInImage pim) {
-		switch (canvas.getPlane()) {
-			case MultiDThreePanes.XY_PLANE:
-			case MultiDThreePanes.XZ_PLANE:
-				return canvas.myScreenXDprecise(path.canvasOffset.x + pim.x /
-					path.x_spacing);
-			case MultiDThreePanes.ZY_PLANE:
-				return canvas.myScreenXDprecise(path.canvasOffset.z + pim.z /
-					path.z_spacing);
-			default:
-				throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas
-					.getPlane() + ")");
-		}
+        return switch (canvas.getPlane()) {
+            case MultiDThreePanes.XY_PLANE, MultiDThreePanes.XZ_PLANE ->
+                    canvas.myScreenXDprecise(path.canvasOffset.x + pim.x / path.x_spacing);
+            case MultiDThreePanes.ZY_PLANE ->
+                    canvas.myScreenXDprecise(path.canvasOffset.z + pim.z / path.z_spacing);
+            default ->
+                    throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas.getPlane() + ")");
+        };
 	}
 
 	private double getScreenCoordinateY(final PointInImage pim) {
-		switch (canvas.getPlane()) {
-			case MultiDThreePanes.XY_PLANE:
-            case MultiDThreePanes.ZY_PLANE:
-                return canvas.myScreenYDprecise(path.canvasOffset.y + pim.y /
-					path.y_spacing);
-			case MultiDThreePanes.XZ_PLANE:
-				return canvas.myScreenYDprecise(path.canvasOffset.z + pim.z /
-					path.z_spacing);
-            default:
-				throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas
-					.getPlane() + ")");
-		}
+        return switch (canvas.getPlane()) {
+            case MultiDThreePanes.XY_PLANE, MultiDThreePanes.ZY_PLANE ->
+                    canvas.myScreenYDprecise(path.canvasOffset.y + pim.y / path.y_spacing);
+            case MultiDThreePanes.XZ_PLANE ->
+                    canvas.myScreenYDprecise(path.canvasOffset.z + pim.z / path.z_spacing);
+            default ->
+                    throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas.getPlane() + ")");
+        };
 	}
 
 	protected int getSlice() {
 		if (slice == -1) {
 			switch (canvas.getPlane()) {
-			case MultiDThreePanes.XY_PLANE:
-				slice = path.getZUnscaled(index);
-				break;
-			case MultiDThreePanes.XZ_PLANE:
-				slice = path.getYUnscaled(index);
-				break;
-			case MultiDThreePanes.ZY_PLANE:
-				slice = path.getXUnscaled(index);
-				break;
-			default:
-				throw new IllegalArgumentException("BUG: Unknown plane: " + canvas.getPlane());
-			}
+                case MultiDThreePanes.XY_PLANE -> slice = path.getZUnscaled(index);
+                case MultiDThreePanes.XZ_PLANE -> slice = path.getYUnscaled(index);
+                case MultiDThreePanes.ZY_PLANE -> slice = path.getXUnscaled(index);
+                default -> throw new IllegalArgumentException("BUG: Unknown plane: " + canvas.getPlane());
+            }
 		}
 		return slice;
 	}
 
 	private void assignColor(final Graphics2D g, final Color fallbackColor) {
-        color = path.getNodeColor(index);
+        if (path.size() > 0) color = path.getNodeColor(index);
 		if (color == null) color = fallbackColor;
         g.setColor(color);
 	}
 
 	private void assignRenderingSize() {
 		if (size > -1) return; // size already specified via setSize()
-
 		final double baseline = canvas.nodeDiameter();
-		switch (type) {
-			case HERMIT:
-				size = 5 * baseline;
-				break;
-			case START:
-				size = 2 * baseline;
-				break;
-			case END:
-				size = 1.5 * baseline;
-				break;
-			case JOINT:
-				size = 3 * baseline;
-				break;
-			case SLAB:
-			default:
-				size = baseline;
-		}
+        switch (type) {
+            case HERMIT -> size = 5 * baseline;
+            case START -> size = 2 * baseline;
+            case END -> size = 1.5 * baseline;
+            case JOINT -> size = 3 * baseline;
+            default -> size = baseline;
+        }
 		if (isEditable()) size *= 2.5;
 	}
 
@@ -276,17 +250,12 @@ class PathNodeCanvas {
 	}
 
 	private double getSizeInPlane(final double xSize, final double ySize, final double zSize) {
-		switch (canvas.getPlane()) {
-			case MultiDThreePanes.XY_PLANE:
-				return Math.sqrt(xSize * xSize + ySize * ySize);
-			case MultiDThreePanes.XZ_PLANE:
-				return Math.sqrt(xSize * xSize + zSize * zSize);
-			case MultiDThreePanes.ZY_PLANE:
-				return Math.sqrt(zSize * zSize + ySize * ySize);
-			default:
-				throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas
-					.getPlane() + ")");
-		}
+        return switch (canvas.getPlane()) {
+            case MultiDThreePanes.XY_PLANE -> Math.sqrt(xSize * xSize + ySize * ySize);
+            case MultiDThreePanes.XZ_PLANE -> Math.sqrt(xSize * xSize + zSize * zSize);
+            case MultiDThreePanes.ZY_PLANE -> Math.sqrt(zSize * zSize + ySize * ySize);
+            default -> throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas.getPlane() + ")");
+        };
 	}
 
 	protected void drawDiameter(final Graphics2D g2, final int slice, final int either_side) {
