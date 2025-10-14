@@ -32,6 +32,7 @@ import ij.io.Opener;
 import ij.plugin.*;
 import ij.process.*;
 import net.imagej.Dataset;
+import net.imagej.ops.OpService;
 import net.imglib2.display.ColorTable;
 import org.scijava.convert.ConvertService;
 import sc.fiji.snt.Path;
@@ -422,6 +423,25 @@ public class ImpUtils {
 			default -> "Unknown (value: " + type + ")";
 		};
 	}
+
+    /**
+     * Converts the specified image into ascii art.
+     *
+     * @param imp The image to be converted to ascii art
+     * @param dilate whether the image should be dilated before conversion. Ignored if image is not binary
+     * @param width Desired width for the ascii art. Set it to -1 to use image width
+     * @param height Desired height for the ascii art. Set it to -1 to use image height
+     * @return ascii art
+     */
+    public static String ascii(final ImagePlus imp, final boolean dilate, final int width, final int height) {
+        final ImagePlus imp2 = (imp.getNSlices() > 1) ? getMIP(imp) : imp;
+        if (imp2.getProcessor() instanceof ByteProcessor bp && (dilate || imp.getProperty("skel") != null))
+            bp.dilate(1, 0);
+        final int w = (width > 0) ? width : Math.min(width, imp2.getWidth());
+        final int h = (height > 0) ? height : Math.min(height, imp2.getHeight());
+        imp2.setProcessor(imp2.getProcessor().resize(w, h));
+        return SNTUtils.getContext().getService(OpService.class).image().ascii(ImgUtils.getCtSlice(imp2).view());
+    }
 
 	public static void invertLut(final ImagePlus imp) {
 		if (imp.getType() == ImagePlus.COLOR_RGB) {

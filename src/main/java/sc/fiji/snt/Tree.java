@@ -633,23 +633,31 @@ public class Tree implements TreeProperties, Cloneable {
 	 * @return the {@link Viewer2D} instance displaying this Tree
 	 */
 	public Viewer2D show2D() {
-		final Viewer2D viewer = new Viewer2D();
-		viewer.add(this);
-		if (getLabel() != null) {
-			viewer.setTitle(getLabel());
-		}
-		viewer.show();
-		return viewer;
+        final Viewer2D viewer = new Viewer2D();
+        viewer.add(this);
+        if (getLabel() != null) {
+            viewer.setTitle(getLabel());
+        }
+        try {
+            viewer.show();
+        } catch (final java.awt.HeadlessException ex) {
+            System.out.println(ImpUtils.ascii(getSkeleton2D(), true, 80, 80));
+        }
+        return viewer;
 	}
 
 	/**
 	 * Displays this Tree in an appropriate viewer (3D if the tree has depth, 2D otherwise).
 	 */
 	public void show() {
-		if (is3D())
-			show3D();
-		else 
-			show2D();
+        try {
+            if (is3D())
+                show3D();
+            else
+                show2D();
+        } catch (final java.awt.HeadlessException ex) {
+            System.out.println(ImpUtils.ascii(getSkeleton2D(), true, 80, 80));
+        }
 	}
 
 	/**
