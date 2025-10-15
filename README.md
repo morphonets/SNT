@@ -234,12 +234,11 @@ From Fiji's Script Editor:
 - Scripts in the _Templates>Neuroanatomy>_ menu. These are part of the source code and can also be accessed from [Script templates](./src/main/resources/script_templates/Neuroanatomy/)
 
 From python:
-- [Jupyter notebooks](./notebooks)
+- [PySNT](https://github.com/morphonets/pysnt)
 
 Snippets and code templates:
-- [Jupyter notebooks](./notebooks)
 - [Script templates](./src/main/resources/script_templates/Neuroanatomy/)
-- [Examples from the SNT manuscript](https://github.com/morphonets/SNTmanuscript)
+- [Examples from the SNT manuscript](https://github.com/morphonets/SNTmanuscript) (likely outdated)
 - [Examples from I2K tutorials](https://github.com/morphonets/i2k2020)
 - [Snippets across the forum](https://forum.image.sc/tag/snt)
 
