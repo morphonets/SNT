@@ -226,14 +226,33 @@ public class SNTUtils {
 		return getUniquelySuffixedFile(referenceFile);
 	}
 
-	public static File getUniquelySuffixedFile(final File referenceFile) {
-		if (referenceFile.exists()) {
-			final String extension = "." + FileUtils.getExtension(referenceFile);
-			final String filenameWithoutExt = stripExtension(referenceFile.getName());
-			return getUniqueFileName(filenameWithoutExt, extension, referenceFile.getParentFile());
-		}
-		return referenceFile;
-	}
+    public static File getUniquelySuffixedFile(final File referenceFile) {
+        // If the reference file doesn't exist yet, use it as-is
+        if (!referenceFile.exists()) {
+            return referenceFile;
+        }
+        // File exists, so generate a unique suffixed version
+        final String extension = "." + FileUtils.getExtension(referenceFile);
+        final String filenameWithoutExt = stripExtension(referenceFile.getName());
+        return getUniqueFileName(filenameWithoutExt, extension, referenceFile.getParentFile());
+    }
+
+    public static File getUniquelySuffixedFile(final File referenceFile, final String forcedExtension) {
+        final String desiredExt = forcedExtension.startsWith(".") ? forcedExtension : "." + forcedExtension;
+        if (!referenceFile.exists()) {
+            return ensureExtension(referenceFile, desiredExt);
+        }
+        final String filenameWithoutExt = stripExtension(referenceFile.getName());
+        final File uniqueFile = getUniqueFileName(filenameWithoutExt, desiredExt, referenceFile.getParentFile());
+        return ensureExtension(uniqueFile, desiredExt);
+    }
+
+    private static File ensureExtension(final File file, final String extension) {
+        if (file.getName().toLowerCase().endsWith(extension.toLowerCase())) {
+            return file;
+        }
+        return new File(file.getParentFile(), file.getName() + extension);
+    }
 
 	private static File getUniqueFileName(String filename, final String extension, final File parent) {
 		// From ij.WindowManaget#getUniqueName()

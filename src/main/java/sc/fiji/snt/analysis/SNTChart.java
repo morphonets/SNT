@@ -64,6 +64,7 @@ import org.jfree.chart.renderer.category.*;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.*;
 import org.jfree.chart.ui.*;
+import org.jfree.chart.util.ExportUtils;
 import org.jfree.data.Range;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.general.PieDataset;
@@ -728,7 +729,7 @@ public class SNTChart extends ChartPanel {
 			int counter = 1;
 			for (final Component component : getFrame().getContentPane().getComponents()) {
 				if (component instanceof ChartPanel) {
-					final ImagePlus imp = getImagePlus((ChartPanel) component, scalingFactor);
+					final ImagePlus imp = getImagePlus((SNTChart) component, scalingFactor);
 					if ("SNTChart".equals(imp.getTitle()))
 						imp.setTitle("Sub-chart " + counter++);
 					imps.add(imp);
@@ -751,10 +752,10 @@ public class SNTChart extends ChartPanel {
 		return title;
 	}
 
-	private static ImagePlus getImagePlus(final ChartPanel cp, final float scalingFactor) {
+	private static ImagePlus getImagePlus(final SNTChart cp, final float scalingFactor) {
 		final ImagePlus imp = ij.IJ.createImage(
 				(cp.getChart().getTitle() == null) ? "SNTChart" : cp.getChart().getTitle().getText(), "RGB",
-				(int) scalingFactor * cp.getWidth(), (int) scalingFactor * cp.getHeight(), 1);
+				(int) scalingFactor * cp.getValidWidth(false), (int) scalingFactor * cp.getValidHeight(false), 1);
 		final java.awt.image.BufferedImage image = imp.getBufferedImage();
 		cp.getChart().draw(image.createGraphics(),
 				new java.awt.geom.Rectangle2D.Float(0, 0, imp.getWidth(), imp.getHeight()));
@@ -762,35 +763,141 @@ public class SNTChart extends ChartPanel {
 		return imp;
 	}
 
+    /**
+     * Saves this chart.
+     * @param file the output file (null not permitted). The extension of its filename (".svg", ".png", ".pdf"),
+     *             determines the file format
+     * @return true if file was successfully saved, false otherwise
+     */
     public boolean save(final File file) {
         try {
-            saveAsPNG(file);
+            final String name = file.getName().toLowerCase();
+            if (name.endsWith("svg")) {
+                saveAsSVG(file, 1);
+            } else if (name.endsWith("pdf")) {
+                saveAsPDF(file, 1);
+            } else {
+                saveAsPNG(file, 1);
+            }
             return true;
         } catch (final IOException ignored) {
             return false;
         }
     }
 
-	public void saveAsPNG(final File file) throws IOException {
-		final int SCALE = 1;
-		if (isCombined()) {
-			for (Component c : getFrame().getContentPane().getComponents()) {
-				if (c instanceof ChartPanel) {
-					ChartUtils.saveChartAsPNG(SNTUtils.getUniquelySuffixedFile(file), ((ChartPanel) c).getChart(),
-							c.getWidth() * SCALE, c.getHeight() * SCALE);
-				}
-			}
-		} else {
-            final File f = (file.isDirectory()) ? new File(file, getTitle()) : file;
-			ChartUtils.saveChartAsPNG(f, getChart(), getWidth() * SCALE, getHeight() * SCALE);
-		}
-	}
+    /**
+     * Saves this chart.
+     * @param filePath the path of the output file (null not permitted). Its filename extension (".svg", ".png", ".pdf"),
+     *             determines the file format.
+     * @return true if file was successfully saved, false otherwise
+     */
+    public boolean save(final String filePath, final double scalingFactor) {
+        try {
+            final String name = filePath.toLowerCase();
+            if (name.endsWith("svg")) {
+                saveAsSVG(filePath, scalingFactor);
+            } else if (name.endsWith("pdf")) {
+                saveAsPDF(filePath, scalingFactor);
+            } else {
+                saveAsPNG(filePath, scalingFactor);
+            }
+            return true;
+        } catch (final IOException ignored) {
+            return false;
+        }
+    }
 
-	public void saveAsPNG(final String filePath) throws IOException {
-		final File f = new File((filePath.toLowerCase().endsWith(".png")) ? filePath : filePath + ".png");
-		if(!f.getParentFile().exists()) f.getParentFile().mkdirs();
-		saveAsPNG(f);
-	}
+    public void saveAsPNG(final File file) throws IOException {
+        saveAsPNG(file, 1);
+    }
+
+    public void saveAsPNG(final File file, final double scalingFactor) throws IOException {
+        if (isCombined()) {
+            for (int i = 0; i < otherCombinedCharts.size(); i++) {
+                final SNTChart chart = otherCombinedCharts.get(i);
+                final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".png");
+                final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".png");
+                ChartUtils.saveChartAsPNG(outputFile, chart.getChart(),
+                        (int) (chart.getValidWidth(false) * scalingFactor),
+                        (int) (chart.getValidHeight(false) * scalingFactor));
+            }
+        } else {
+            final File f = (file.isDirectory()) ? new File(file, getTitle() + ".png") : file;
+            final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".png");
+            ChartUtils.saveChartAsPNG(outputFile, getChart(),
+                    (int) (getValidWidth(false) * scalingFactor),
+                    (int) (getValidHeight(false) * scalingFactor));
+
+        }
+    }
+
+    public void saveAsPNG(final String filePath) throws IOException {
+        saveAsPNG(filePath, 1);
+    }
+
+    public void saveAsPNG(final String filePath, final double scalingFactor) throws IOException {
+        final File f = new File((filePath.toLowerCase().endsWith(".png")) ? filePath : filePath + ".png");
+        if(!f.getParentFile().exists()) f.getParentFile().mkdirs();
+        saveAsPNG(f, scalingFactor);
+    }
+
+    public void saveAsPDF(final String filePath) throws IOException {
+        saveAsPDF(filePath, 1);
+    }
+
+    public void saveAsPDF(final String filePath, final double scalingFactor) throws IOException {
+        final File f = new File((filePath.toLowerCase().endsWith(".pdf")) ? filePath : filePath + ".pdf");
+        if(!f.getParentFile().exists()) f.getParentFile().mkdirs();
+        saveAsPDF(f, scalingFactor);
+    }
+
+    public void saveAsPDF(final File file, final double scalingFactor) throws IOException {
+        if (isCombined()) {
+            for (int i = 0; i < otherCombinedCharts.size(); i++) {
+                final SNTChart chart = otherCombinedCharts.get(i);
+                final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".pdf");
+                final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".pdf");
+                ExportUtils.writeAsPDF(chart.getChart(),
+                        (int) (chart.getValidWidth(false) * scalingFactor),
+                        (int) (chart.getValidHeight(false) * scalingFactor), outputFile);
+            }
+        } else {
+            final File f = (file.isDirectory()) ? new File(file, getTitle() + ".pdf") : file;
+            final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".pdf");
+            ExportUtils.writeAsPDF(getChart(),
+                    (int) (getValidWidth(false) * scalingFactor),
+                    (int) (getValidHeight(false) * scalingFactor), outputFile);
+        }
+    }
+
+    public void saveAsSVG(final String filePath) throws IOException {
+        saveAsSVG(filePath, 1);
+    }
+
+    public void saveAsSVG(final String filePath, final double scalingFactor) throws IOException {
+        final File f = new File((filePath.toLowerCase().endsWith(".svg")) ? filePath : filePath + ".svg");
+        if(!f.getParentFile().exists()) f.getParentFile().mkdirs();
+        saveAsSVG(f, scalingFactor);
+    }
+
+    public void saveAsSVG(final File file, final double scalingFactor) throws IOException {
+        if (isCombined()) {
+            for (int i = 0; i < otherCombinedCharts.size(); i++) {
+                final SNTChart chart = otherCombinedCharts.get(i);
+                final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".svg");
+                final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".svg");
+                ExportUtils.writeAsSVG(chart.getChart(),
+                        (int) (chart.getValidWidth(false) * scalingFactor),
+                        (int) (chart.getValidHeight(false) * scalingFactor), outputFile);
+            }
+        } else {
+            final File f = (file.isDirectory()) ? new File(file, getTitle() + ".svg") : file;
+            final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".svg");
+            ExportUtils.writeAsPDF(getChart(),
+                    (int) (getValidWidth(false) * scalingFactor),
+                    (int) (getValidHeight(false) * scalingFactor), outputFile);
+        }
+    }
 
 	private void adjustMarkersFont(final Collection<?> markers, final float size) {
 		if (markers != null) {
@@ -1299,6 +1406,16 @@ public class SNTChart extends ChartPanel {
 		}
 		SwingUtilities.invokeLater(() -> getFrame().show());
 	}
+
+    private int getValidWidth(final boolean preferred) {
+        // e.g., width will be unset in headless calls from pysnt
+        return (getWidth() < 1) ? (int) (400 * scalingFactor) : (preferred) ? getPreferredSize().width : getWidth();
+    }
+
+    private int getValidHeight(final boolean preferred) {
+        // e.g., width will be unset in headless calls from pysnt
+        return (getHeight() < 1) ? (int) (400 * scalingFactor) : (preferred) ? getPreferredSize().height : getHeight();
+    }
 
 	public void show(final String title) {
 		setTitle(title);
@@ -2102,10 +2219,10 @@ public class SNTChart extends ChartPanel {
 			int w = Integer.MIN_VALUE;
 			int h = Integer.MIN_VALUE;
 			for (final SNTChart chart : charts) {
-				if (chart.getPreferredSize().width > w)
-					w = chart.getPreferredSize().width;
-				if (chart.getPreferredSize().height > h)
-					h = chart.getPreferredSize().height;
+                final int w1 = chart.getValidWidth(true);
+                final int h1 = chart.getValidHeight(true);
+                if (w1 > w) w = w1;
+                if (h1 > h) w = h1;
 			}
 			for (final SNTChart chart : charts)
 				chart.setPreferredSize(new Dimension(w, h));
@@ -2126,8 +2243,10 @@ public class SNTChart extends ChartPanel {
 				holdingPanel.otherCombinedCharts.add(chart);
 			});
 			// panel.setBackground(charts.get(charts.size()-1).getBackground());
-			final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();
-			holdingPanel.setPreferredSize(scale(holdingPanel.getPreferredSize(), sSize.width * .85, sSize.height * .85));
+            if (!GraphicsEnvironment.isHeadless()) {
+                final Dimension sSize = Toolkit.getDefaultToolkit().getScreenSize();
+                holdingPanel.setPreferredSize(scale(holdingPanel.getPreferredSize(), sSize.width * .85, sSize.height * .85));
+            }
 			return holdingPanel;
 		}
 

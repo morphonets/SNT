@@ -154,7 +154,8 @@
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
 		<orsonpdf.version>1.9.1</orsonpdf.version>
-		<scenery.version>0.12.0</scenery.version>
+        <jfreesvg.version>3.4.4</jfreesvg.version>
+        <scenery.version>0.12.0</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
 		<smile.version>4.4.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
@@ -490,6 +491,13 @@
 			<artifactId>orsonpdf</artifactId>
 			<version>${orsonpdf.version}</version>
 			<scope>runtime</scope>
+        </dependency>
+        <dependency>
+        <!-- automatically allow charts to be exported as SVG -->
+            <groupId>org.jfree</groupId>
+            <artifactId>jfreesvg</artifactId>
+            <version>${jfreesvg.version}</version>
+            <scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<!-- LAF patches for JIDE-OSS -->
@@ -502,13 +510,13 @@
 			<!-- Change verbose logging of smile.stat.distribution.* -->
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.5.18</version>
+			<version>1.5.19</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-core</artifactId>
-			<version>1.5.18</version>
+			<version>1.5.19</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>

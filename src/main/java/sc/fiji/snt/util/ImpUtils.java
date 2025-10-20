@@ -143,6 +143,19 @@ public class ImpUtils {
 		return imp;
 	}
 
+    /**
+     * Saves the specified image.
+     *
+     * @param imp      The image to be saved
+     * @param filePath The file path should end with ".tif", or one of the supported extensions (".jpg", ".zip", etc.)
+     */
+    public static void save(final ImagePlus imp, final String filePath) {
+        final boolean redirecting = IJ.redirectingErrorMessages();
+        IJ.redirectErrorMessages(true);
+        IJ.save(imp, filePath);
+        IJ.redirectErrorMessages(redirecting);
+    }
+
 	public static boolean sameXYZDimensions(final ImagePlus imp1, final ImagePlus imp2) {
 		return imp1.getWidth() == imp2.getWidth() && imp1.getHeight() == imp2.getHeight()
 				&& imp1.getNSlices() == imp2.getNSlices();
@@ -443,7 +456,45 @@ public class ImpUtils {
         return SNTUtils.getContext().getService(OpService.class).image().ascii(ImgUtils.getCtSlice(imp2).view());
     }
 
-	public static void invertLut(final ImagePlus imp) {
+    /**
+     * Converts the specified image into an easy displayable form, i.e., a non-composite 2D image
+     * If the image is a timelapse, only the first frame is considered; if 3D, a MIP is retrieved;
+     * if multichannel a RGB version is obtained. The image is flattened if its Overlay has ROIs.
+     *
+     * @param imp The image to be converted
+     * @param frame The frame to be considered (ignored if image is not a timelapse)
+     * @return a 2D 'flattened' version of the image
+     */
+    public static ImagePlus convertToSimple2D(final ImagePlus imp, final int frame) {
+        ImagePlus imp2;
+        // Handle time series
+        if (imp.getNFrames() > 1) {
+            final int f = Math.max(1, Math.min(frame, imp.getNFrames()));
+            imp2 = new Duplicator().run(imp, 1, imp.getNChannels(), 1, imp.getNSlices(), f, f);
+            if (imp2.getNSlices() > 1)
+                imp2 = getMIP(imp2);
+        }
+        // Handle Z-stacks
+        else if (imp.getNSlices() > 1) {
+            imp2 = getMIP(imp);
+        }
+        // Single slice image
+        else {
+            imp2 = imp;
+        }
+        // Convert composite to RGB
+        if (imp2 instanceof CompositeImage) {
+            new ImageConverter(imp2).convertToRGB();
+        }
+        // Flatten overlay if present
+        if (imp.getOverlay() != null && imp.getOverlay().size() > 1) {
+            imp2.setOverlay(imp.getOverlay());
+            imp2 = imp2.flatten();
+        }
+        return imp2;
+    }
+
+    public static void invertLut(final ImagePlus imp) {
 		if (imp.getType() == ImagePlus.COLOR_RGB) {
 			return;
 		}
