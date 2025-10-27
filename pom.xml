@@ -147,7 +147,7 @@
 		<flatlaf.version>3.6.1</flatlaf.version> <!-- upstream 3.5.1 -->
 		<rsyntaxtextarea.version>3.6.0</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
 		<annotations.version>26.0.2</annotations.version>
-		<fastutil-core.version>8.5.16</fastutil-core.version>
+		<fastutil-core.version>8.5.18</fastutil-core.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
