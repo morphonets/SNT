@@ -226,6 +226,7 @@ public class FigCreatorCmd extends CommonDynamicCmd {
 			final Viewer3D result = new Viewer3D();
 			result.add(renderingTrees);
 			result.setViewMode(getView(renderOptions));
+            result.zoomTo("visible");
 			if (display) result.show();
 			return result;
 		} else {

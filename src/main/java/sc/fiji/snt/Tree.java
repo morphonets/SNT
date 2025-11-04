@@ -594,7 +594,7 @@ public class Tree implements TreeProperties, Cloneable {
 	/**
 	 * Gets the set of SWC types present in this tree with optional soma inclusion.
 	 * 
-	 * @param includeSoma if true, includes soma types in the returned set; if false,
+	 * @param includeSoma if true, includes the soma type in the returned set; if false,
 	 *                    excludes {@link Path#SWC_SOMA} from the result
 	 * 
 	 * @return a Set containing the SWC type constants (e.g., {@link Path#SWC_AXON},
@@ -604,13 +604,33 @@ public class Tree implements TreeProperties, Cloneable {
 	 * @see Path#getSWCType() for individual path SWC types
 	 */
 	public Set<Integer> getSWCTypes(final boolean includeSoma) {
-		final HashSet<Integer> types = new HashSet<>();
+		final Set<Integer> types = new HashSet<>();
         for (final Path path : tree) {
             types.add(path.getSWCType());
         }
 		if (!includeSoma) types.remove(Path.SWC_SOMA);
 		return types;
 	}
+
+    /**
+     * Gets the set of SWC type labels present in this tree with optional soma inclusion
+     * in a readable form.
+     *
+     * @param includeSoma if true, includes soma in the returned set; if false,
+     *                    excludes {@link Path#SWC_SOMA} from the result
+     *
+     * @return a Set containing the SWC type labels (e.g., {@link Path#SWC_AXON_LABEL},
+     *         {@link Path#SWC_DENDRITE_LABEL}, etc.) present in the tree
+     *
+     * @see #getSWCTypes(boolean) for integer SWC type flags
+     */
+    public Set<String> getSWCTypeNames(final boolean includeSoma) {
+        final Set<Integer> types = getSWCTypes(includeSoma);
+        final Set<String> strings = new TreeSet<>();
+        for (final int type : types)
+            strings.add(Path.getSWCtypeName(type, false));
+        return strings;
+    }
 
 	/**
 	 * Displays this Tree in Viewer3D.

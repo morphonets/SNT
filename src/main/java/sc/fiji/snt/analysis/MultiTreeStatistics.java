@@ -127,14 +127,20 @@ public class MultiTreeStatistics extends TreeStatistics {
 	 */
 	public MultiTreeStatistics(final Collection<Tree> group, final String... swcTypes) throws NoSuchElementException {
 		super(new Tree());
-		this.groupOfTrees = new ArrayList<>();
-		group.forEach(inputTree -> {
-			final Tree filteredTree = inputTree.subTree(swcTypes);
+        if (swcTypes == null || swcTypes.length == 0) {
+            // PySNT: python-java bridge gets confused about which constructor
+            // to use with empty kwargs., so we'll handle that case here
+            this.groupOfTrees = new ArrayList<>(group);
+        } else {
+            this.groupOfTrees = new ArrayList<>();
+            group.forEach(inputTree -> {
+                final Tree filteredTree = inputTree.subTree(swcTypes);
 			if (filteredTree != null && !filteredTree.isEmpty())
 				groupOfTrees.add(filteredTree);
 		});
-		if (groupOfTrees.isEmpty())
-			throw new NoSuchElementException("No match for the specified type(s) in group");
+            if (groupOfTrees.isEmpty())
+                throw new NoSuchElementException("No match for the specified type(s) in group");
+        }
 	}
 
 	/**
@@ -239,7 +245,13 @@ public class MultiTreeStatistics extends TreeStatistics {
 		return super.getAnnotations(level);
 	}
 
-	@Override
+    @Override
+    public double getCableLength() {
+        assignGroupToSuperTree();
+        return super.getCableLength();
+    }
+
+    @Override
 	public double getCableLength(final BrainAnnotation compartment) {
 		assignGroupToSuperTree();
 		return getCableLength(compartment, true);
@@ -333,7 +345,7 @@ public class MultiTreeStatistics extends TreeStatistics {
 		final List<Path> allBranches = new ArrayList<>();
 		groupOfTrees.forEach(t -> {
 			final List<Path> list = new StrahlerAnalyzer(t).getBranches().values().stream().flatMap(List::stream)
-					.collect(Collectors.toList());
+					.toList();
 			allBranches.addAll(list);
 		});
 		return allBranches;

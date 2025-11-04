@@ -296,7 +296,7 @@ public class Viewer3D {
 	 * be added concurrently.
 	 */
 	public Viewer3D() {
-		this(Engine.JOGL);
+		this((GraphicsEnvironment.isHeadless()) ? Engine.OFFSCREEN : Engine.JOGL);
 	}
 
 	/**
@@ -1342,12 +1342,18 @@ public class Viewer3D {
 	 *                {@link Tree}, {@link Annotation3D}, etc., or string(s)
 	 *                defining objects listed in the "RV Controls" dialog.
 	 *                Collections of supported objects are also supported.
+     *                If Null view is reset. If "visible" view is zoomed to visible
+     *                objects
 	 */
 	public void zoomTo(final Object... objects) {
 		if (objects == null) {
 			resetView();
 			return;
 		}
+        if (objects.length == 1 && "visible".equalsIgnoreCase(objects[0].toString())) {
+            fitToVisibleObjects(true, false);
+            return;
+        }
 		Object[] objs;
 		if (objects.length == 1 && objects[0] instanceof Collection<?>) {
 			objs = ((Collection<?>)objects[0]).toArray(new Object[0]);
