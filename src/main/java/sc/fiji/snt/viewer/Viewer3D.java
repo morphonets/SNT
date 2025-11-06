@@ -2343,9 +2343,9 @@ public class Viewer3D {
 				// This is the case with the Allen CCF. While this is not addressed, we can
 				// just save a rotated copy of the snapshot. //TODO: Handle this more properly
 				final ij.ImagePlus imp = sc.fiji.snt.util.ImpUtils.open(file.getAbsolutePath());
-				if (imp != null && ij.IJ.getInstance() != null) {
-					ij.IJ.run(imp, "Rotate 90 Degrees Left", "");
-					ij.IJ.saveAs(imp, "PNG", file.getAbsolutePath().replace(".png", "_rotated.png"));
+				if (imp != null) {
+                    ImpUtils.rotate90(imp, "left");
+                    ImpUtils.save(imp, file.getAbsolutePath().replace(".png", "_rotated.png"));
 				}
 			}).start();
 		}
@@ -2379,7 +2379,40 @@ public class Viewer3D {
 		return chart.screenshotImp();
 	}
 
-	protected boolean saveSnapshot(final File file) throws IllegalArgumentException, IOException {
+    /**
+     * Retrieves the specified scene view as an image.
+     *
+     * @param viewMode the view mode (case-insensitive) ("xy", "yz", etc.). Anatomical axes ("sagittal",
+     *                 "coronal", "transverse/horizontal") are also accepted when a reference brain is loaded.
+     * @return the bitmap image of the scene view
+     */
+    public ImagePlus snapshot(final String viewMode) {
+
+        // store settings to restore
+        final ViewportMode prevViewPort = view.getCamera().getViewportMode();
+        final Coord3d prevViewPoint = view.getViewPoint().clone();
+        final String prevViewMode = currentView.description;
+
+        final boolean isCCF = plottedObjs.containsKey(MESH_LABEL_ALLEN);
+        final String vMode = (isCCF) ? AllenUtils.getCartesianPlane(viewMode) : viewMode;
+        setViewMode((vMode != null) ? vMode : viewMode);
+        final ImagePlus result = chart.screenshotImp();
+        ImpUtils.crop(result, isDarkModeOn() ? 0 : 255);
+        if (isCCF) {
+            switch (currentView) {
+                case XZ -> ImpUtils.rotate90(result, "right");
+                case YZ -> ImpUtils.rotate90(result, "left");
+            }
+        }
+        result.setTitle(viewMode);
+        setViewMode(prevViewMode);
+        view.getCamera().setViewportMode(prevViewPort);
+        view.setViewPoint(prevViewPoint);
+        return result;
+    }
+
+
+    protected boolean saveSnapshot(final File file) throws IllegalArgumentException, IOException {
 		if (!chartExists()) {
 			throw new IllegalArgumentException("Viewer is not visible");
 		}

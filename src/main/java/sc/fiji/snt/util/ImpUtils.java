@@ -494,6 +494,77 @@ public class ImpUtils {
         return imp2;
     }
 
+    /**
+     * Crops the image around non-background values. Does nothing if the image does not have
+     * non-background values.
+     *
+     * @param imp             The image to be cropped
+     * @param backgroundValue the background value typically 'black': 0 for 8-/16bit, 0x000000 for RGB),
+     *                        or white (255 for 8-bit, 65535 for 16-bir, 0xFFFFFF for RGB)
+     */
+    public static void crop(final ImagePlus imp, final Number backgroundValue) {
+        final Roi cropRoi = getForegroundRect(imp, backgroundValue);
+        if (cropRoi != null) {
+            final Roi existingRoi = imp.getRoi();
+            imp.setRoi(cropRoi);
+            imp.setStack(imp.crop().getStack());
+            imp.setRoi(existingRoi);
+        }
+    }
+
+    /**
+     * Rotates an image 90 degrees.
+     * @param imp the image to be rotated
+     * @param direction either 'left' or 'right'
+     */
+    public static void rotate90(final ImagePlus imp, final String direction) {
+        switch(direction.toLowerCase()) {
+            case "left" -> ij.IJ.run(imp, "Rotate 90 Degrees Left", "");
+            case "right" -> ij.IJ.run(imp, "Rotate 90 Degrees Right", "");
+        }
+    }
+
+    /**
+     * Returns the cropping rectangle around non-background values.
+     *
+     * @param imp             The image to be parsed
+     * @param backgroundValue the background value typically 'black': 0, or white (255 for 8-bit/RGB,
+     *                        or 65535 for 16-bit)
+     * @return the rectangular ROI defining non-background bounds
+     */
+    public static Roi getForegroundRect(final ImagePlus imp, final Number backgroundValue) {
+        final ImageProcessor ip = imp.getProcessor();
+        int w = ip.getWidth(), h = ip.getHeight();
+        int minX = w, maxX = 0, minY = h, maxY = 0;
+        if (imp.getType() == ImagePlus.GRAY32) {
+            float bgVal = backgroundValue.floatValue();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if (Math.abs(ip.getPixelValue(x, y) - bgVal) > 0.0001f) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+        } else {
+            int bgVal = backgroundValue.intValue();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if (ip.getPixelValue(x, y) != bgVal) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+        }
+        // Return null if all pixels were background
+        return (minX > maxX) ? null : new Roi(minX, minY, maxX - minX + 1, maxY - minY + 1);
+    }
+
     public static void invertLut(final ImagePlus imp) {
 		if (imp.getType() == ImagePlus.COLOR_RGB) {
 			return;

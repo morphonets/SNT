@@ -537,7 +537,24 @@ public class AllenUtils {
 		return new String[] { "Anterior-Posterior", "Dorsal-Ventral", "Left-Right (ML)" };
 	}
 
-	/**
+    /**
+     * Retrieves the Cartesian plane matching the specified anatomical plane.
+     *
+     * @param anatomicalPlane either "sagittal", "coronal", or "transverse"
+     * @return the cartesian plane. Either "xy", "yz", "xz", or null if the anatomicalPlane was not recognized.
+     */
+    public static String getCartesianPlane(final String anatomicalPlane) {
+        final String anatAxis = anatomicalPlane.toLowerCase();
+        if (anatAxis.contains("sagittal"))
+            return "xy";
+        if (anatAxis.contains("coronal"))
+            return "yz";
+        if (anatAxis.contains("transverse") || anatAxis.contains("horizontal"))
+            return "xz";
+        return null;
+    }
+
+    /**
 	 * Transfers brain annotation IDs to node values for all paths in a Tree.
 	 * <p>
 	 * This is useful for preserving annotation information when saving data to TRACES files.
