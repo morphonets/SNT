@@ -56,9 +56,6 @@ public class SWCPoint extends PointInImage implements Comparable<SWCPoint> {
 	/** The parent id of this node */
 	public int parent;
 
-	/** The radius of reconstructed structure at this node */
-	public double radius;
-
 	private final List<SWCPoint> nextPoints;
 	private SWCPoint previousPoint;
 

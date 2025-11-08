@@ -566,14 +566,17 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	 * @return the NodeStatistics instance
 	 */
 	public NodeStatistics<SWCPoint> getNodeStatistics(final String type) {
-        return switch (type.toLowerCase()) {
+        final NodeStatistics<SWCPoint> nodeStats =  switch (type.toLowerCase()) {
             case "all" -> new NodeStatistics<>(vertexSet());
             case "tips", "endings", "end points", "end-points", "terminals" -> new NodeStatistics<>(getTips());
-            case "bps", "forks", "junctions", "fork points", "junction points", "branch points" ->
+            case "bps", "forks", "junctions", "fork points", "junction points", "branch points", "branch-points" ->
                     new NodeStatistics<>(getBPs());
             default ->
                     throw new IllegalArgumentException("type not recognized. Perhaps you meant 'all', 'junctions' or 'tips'?");
         };
+        if (getTree() != null)
+            nodeStats.assignBranches(getTree());
+        return nodeStats;
 	}
 
 	/**

@@ -153,9 +153,8 @@ public class Path implements Comparable<Path>, Cloneable {
 	public static class PathNode extends PointInImage implements Cloneable {
 		
 		private Color nodeColor;
-		private double radius = 0d;
 		private double[] tangent; // [x, y, z]
-		
+
 		public PathNode(final double x, final double y, final double z) {
 			super(x, y, z);
 		}
@@ -166,10 +165,8 @@ public class Path implements Comparable<Path>, Cloneable {
                 this.v = pim.v;
 				this.setAnnotation(pim.getAnnotation());
 				this.setHemisphere(pim.getHemisphere());
-			}
-			if (point instanceof SWCPoint) {
-				this.radius = ((SWCPoint) point).radius;
-			}
+                this.radius = pim.radius;
+            }
 		}
 		
 		// Node color management

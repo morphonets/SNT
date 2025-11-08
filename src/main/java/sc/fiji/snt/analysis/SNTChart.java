@@ -893,7 +893,7 @@ public class SNTChart extends ChartPanel {
         } else {
             final File f = (file.isDirectory()) ? new File(file, getTitle() + ".svg") : file;
             final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".svg");
-            ExportUtils.writeAsPDF(getChart(),
+            ExportUtils.writeAsSVG(getChart(),
                     (int) (getValidWidth(false) * scalingFactor),
                     (int) (getValidHeight(false) * scalingFactor), outputFile);
         }

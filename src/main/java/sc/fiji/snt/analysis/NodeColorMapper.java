@@ -22,20 +22,22 @@
 
 package sc.fiji.snt.analysis;
 
-import java.util.Arrays;
-import java.util.Collection;
+import java.awt.*;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.scijava.Context;
 
 import net.imglib2.display.ColorTable;
+import org.scijava.util.ColorRGB;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
@@ -66,20 +68,25 @@ public class NodeColorMapper extends ColorMapper {
 	/** Flag for statistics on node {@value #VALUES} */
 	public static final String VALUES = TreeStatistics.VALUES;
 
-	private static final String[] ALL_FLAGS = { //
-			BRANCH_LENGTH, //
-			RADIUS, //
-			BRANCH_ORDER, //
-			VALUES, //
-			X_COORDINATES, //
-			Y_COORDINATES, //
-			Z_COORDINATES, //
-	};
+    /** Flag for {@value #NEAREST_NEIGHBOR_DISTANCE} statistics. */
+    public static final String NEAREST_NEIGHBOR_DISTANCE = "Nearest neighbor distance";
+
+    private static final String[] ALL_FLAGS = { //
+            BRANCH_LENGTH, //
+            BRANCH_ORDER, //
+            RADIUS, //
+            NEAREST_NEIGHBOR_DISTANCE, //
+            VALUES, //
+            X_COORDINATES, //
+            Y_COORDINATES, //
+            Z_COORDINATES, //
+    };
 
 	private final NodeStatistics<?> nodeStatistics;
 	private final TreeColorMapper tColorMapper;
 	private Tree singlePointPaths;
 	private Tree pointBranches;
+    private Tree lasMeasurementTree;
 	private boolean autoLimits;
 
 	/**
@@ -151,23 +158,32 @@ public class NodeColorMapper extends ColorMapper {
 		if (normMeasurement.equalsIgnoreCase("unknown"))
 			throw new UnknownMetricException("Unrecognized metric: " + measurement);
 		if (BRANCH_LENGTH.equals(normMeasurement) || BRANCH_ORDER.equals(normMeasurement)) {
-			nodeStatistics.assessIfBranchesHaveBeenAssigned();
-			if (!nodeStatistics.isBranchesAssigned()) {
-				throw new IllegalArgumentException("NodeStatistics#assignBranches() has not been called.");
-			}
-			initPointBranches();
-			resetAutoLimits();
-			if (BRANCH_LENGTH.equals(normMeasurement)) {
-				tColorMapper.map(pointBranches, TreeColorMapper.PATH_LENGTH, colorTable);
-			}
-			else if (BRANCH_ORDER.equals(normMeasurement)) {
-				tColorMapper.map(pointBranches, TreeColorMapper.PATH_ORDER, colorTable);
-			}
-		} else {
-			initSinglePointPaths();
-			resetAutoLimits();
-			tColorMapper.map(singlePointPaths, normMeasurement, colorTable);
-		}
+            nodeStatistics.assessIfBranchesHaveBeenAssigned();
+            if (!nodeStatistics.isBranchesAssigned()) {
+                throw new IllegalArgumentException("NodeStatistics#assignBranches() has not been called.");
+            }
+            initPointBranches();
+            resetAutoLimits();
+            if (BRANCH_LENGTH.equals(normMeasurement)) {
+                tColorMapper.map(pointBranches, TreeColorMapper.PATH_LENGTH, colorTable);
+            } else {
+                tColorMapper.map(pointBranches, TreeColorMapper.PATH_ORDER, colorTable);
+            }
+            lasMeasurementTree = pointBranches;
+        } else {
+            initSinglePointPaths();
+            resetAutoLimits();
+            if (NEAREST_NEIGHBOR_DISTANCE.equals(normMeasurement)) {
+                final List<Path.PathNode> pathNodes = new ArrayList<>(singlePointPaths.size());
+                for (final Path singlePointPath : singlePointPaths.list())
+                    pathNodes.add(singlePointPath.getNode(0));
+                NodeStatistics.computeNearestNeighborDistances(pathNodes);
+                tColorMapper.map(singlePointPaths, TreeColorMapper.VALUES, colorTable);
+            } else {
+                tColorMapper.map(singlePointPaths, normMeasurement, colorTable);
+            }
+            lasMeasurementTree = singlePointPaths;
+        }
 	}
 
 	/**
@@ -226,6 +242,18 @@ public class NodeColorMapper extends ColorMapper {
 	public ColorTable getColorTable() {
 		return tColorMapper.getColorTable();
 	}
+
+    public Map<ColorRGB, List<SNTPoint>> getNodesByColor() {
+        final HashMap<ColorRGB, List<SNTPoint>> result = new HashMap<>(getColorTable().getLength());
+        for (final Path path : lasMeasurementTree.list()) {
+            final Path.PathNode node = path.getNode(0);
+            final Color colorAWT = node.getNodeColor();
+            final ColorRGB color = new ColorRGB(colorAWT.getRed(), colorAWT.getGreen(), colorAWT.getBlue());
+            result.putIfAbsent(color, new ArrayList<>());
+            result.get(color).add(node);
+        }
+        return result;
+    }
 
 	/* IDE debug method */
 	public static void main(final String... args) {

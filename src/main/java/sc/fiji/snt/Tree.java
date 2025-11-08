@@ -729,6 +729,28 @@ public class Tree implements TreeProperties, Cloneable {
 		return (rootPath == null) ? null : rootPath.getNodeWithoutChecks(0);
 	}
 
+    /**
+     * Gets the branch points (junctions) of the graph.
+     * This is simply an alias for {@link DirectedWeightedGraph#getBPs()}.
+     *
+     * @return the list of branch points
+     * @throws IllegalArgumentException if tree contains multiple roots or loops
+     */
+    public List<SWCPoint> getBPs() {
+        return getGraph().getBPs();
+    }
+
+    /**
+     * Gets the end points (tips) of the graph.
+     * This is simply an alias for {@link DirectedWeightedGraph#getTips()}.
+     *
+     * @return the list of end points
+     * @throws IllegalArgumentException if tree contains multiple roots or loops
+     */
+    public List<SWCPoint> getTips() {
+        return getGraph().getTips();
+    }
+
 	/**
 	 * Specifies the offset to be used when rendering this Tree in a
 	 * {@link TracerCanvas}. Path coordinates remain unaltered.

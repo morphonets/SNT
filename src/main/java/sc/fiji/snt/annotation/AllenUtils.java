@@ -280,14 +280,11 @@ public class AllenUtils {
 	 * @return the axis defining the sagittal plane where X=0; Y=1; Z=2;
 	 */
 	public static int getAxisDefiningSagittalPlane() {
-		switch(VERSION) {
-		case V3:
-			return 2; // Z axis
-		case V2_5:
-			return 0; // X axis
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
+        return switch (VERSION) {
+            case V3 -> 2; // Z axis
+            case V2_5 -> 0; // X axis
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
 	}
 
 	public static void assignHemisphereTags(final Tree tree) {
@@ -541,7 +538,7 @@ public class AllenUtils {
      * Retrieves the Cartesian plane matching the specified anatomical plane.
      *
      * @param anatomicalPlane either "sagittal", "coronal", or "transverse"
-     * @return the cartesian plane. Either "xy", "yz", "xz", or null if the anatomicalPlane was not recognized.
+     * @return the cartesian plane. Either "xy", "yz", "xz", or null if {@code anatomicalPlane} was not recognized.
      */
     public static String getCartesianPlane(final String anatomicalPlane) {
         final String anatAxis = anatomicalPlane.toLowerCase();
@@ -551,6 +548,24 @@ public class AllenUtils {
             return "yz";
         if (anatAxis.contains("transverse") || anatAxis.contains("horizontal"))
             return "xz";
+        return null;
+    }
+
+    /**
+     * Retrieves the anatomical plane matching the specified cartesian plane.
+     *
+     * @param cartesianPlane either "xy", "yz", or "xz"
+     * @return the cartesian plane. Either "coronal", "sagittal", "transverse", or null
+     * if {@code cartesianPlane} was not recognized.
+     */
+    public static String getAnatomicalPlane(final String cartesianPlane) {
+        final String cartAxis = cartesianPlane.toLowerCase();
+        if (cartAxis.contains("xy"))
+            return "sagittal";
+        if (cartAxis.contains("yz"))
+            return "coronal";
+        if (cartAxis.contains("xz"))
+            return "transverse";
         return null;
     }
 

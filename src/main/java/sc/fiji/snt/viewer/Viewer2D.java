@@ -39,6 +39,7 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ColorMapper;
+import sc.fiji.snt.analysis.NodeColorMapper;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.util.PointInImage;
@@ -123,13 +124,37 @@ public class Viewer2D extends TreeColorMapper {
 		}
 	}
 
-	public void addPolygon(final Polygon2D poly, final String label) {
+    public void addNodes(final Collection<SNTPoint> points, final String color, final String label) {
+        addNodes(points, Colors.getColor(color), label);
+    }
+
+    public void addNodes(final Map<ColorRGB, List<SNTPoint>> coloredNodes) {
+        initPlot();
+        coloredNodes.forEach( (color, nodes) -> addNodes(nodes, color, null));
+    }
+
+    private void addNodes(final Collection<SNTPoint> points, final ColorRGB color, final String label) {
+        initPlot();
+        final XYSeries series = plot.addXYSeries();
+        if (label != null) series.setLabel(label);
+        final List<Double> xc = new ArrayList<>();
+        final List<Double> yc = new ArrayList<>();
+        for (final SNTPoint point : points) {
+            xc.add(point.getX());
+            yc.add(point.getY());
+        }
+        series.setValues(xc, yc);
+        series.setLegendVisible(false);
+        series.setStyle(plotService.newSeriesStyle((color == null) ? defaultColor : color, LineStyle.NONE, MarkerStyle.FILLEDCIRCLE));
+    }
+
+    public void addPolygon(final Polygon2D poly, final String label) {
 		initPlot();
 		final XYSeries series = plot.addXYSeries();
 		series.setLabel(label);
 		final List<Double> xc = new ArrayList<>();
 		final List<Double> yc = new ArrayList<>();
-		for (RealLocalizable l : poly.vertices()) {
+		for (final RealLocalizable l : poly.vertices()) {
 			xc.add(l.getDoublePosition(0));
 			yc.add(l.getDoublePosition(1));
 		}
@@ -315,7 +340,9 @@ public class Viewer2D extends TreeColorMapper {
 	@SuppressWarnings("unchecked")
 	public void add(final Object object) {
 		if (object instanceof Collection ) {
-			if (!((Collection<?>) object).isEmpty() && ((Collection<?>) object).iterator().next() instanceof Polygon2D) {
+            if (!((Collection<?>) object).isEmpty() && ((Collection<?>) object).iterator().next() instanceof SNTPoint) {
+                addNodes((Collection<SNTPoint>) object, String.valueOf(defaultColor), "nodes");
+            } else if (!((Collection<?>) object).isEmpty() && ((Collection<?>) object).iterator().next() instanceof Polygon2D) {
 				addPolygons((Collection<Polygon2D>) object);
 			} else if (!((Collection<?>) object).isEmpty() && ((Collection<?>) object).iterator().next() instanceof Tree) {
 				addTrees((Collection<Tree>) object, null);

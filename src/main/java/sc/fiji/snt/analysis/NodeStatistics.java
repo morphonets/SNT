@@ -32,7 +32,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import smile.neighbor.KDTree;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.jfree.chart.JFreeChart;
 import org.jfree.data.category.DefaultCategoryDataset;
@@ -45,6 +47,7 @@ import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.util.PointInImage;
+import smile.neighbor.Neighbor;
 
 /**
  * Computes summary and descriptive statistics from a Collection of nodes, including convenience methods to plot
@@ -60,7 +63,10 @@ public class NodeStatistics <T extends PointInImage> {
 	/** Flag for {@value #BRANCH_ORDER} statistics. */
 	public static final String BRANCH_ORDER = "Branch order";
 
-	/** Flag for {@value #RADIUS} statistics. */
+    /** Flag for {@value #NEAREST_NEIGHBOR_DISTANCE} statistics. */
+    public static final String NEAREST_NEIGHBOR_DISTANCE = "Nearest neighbor distance";
+
+    /** Flag for {@value #RADIUS} statistics. */
 	public static final String RADIUS = TreeStatistics.NODE_RADIUS;
 
 	/** Flag for {@value #X_COORDINATES} statistics. */
@@ -77,9 +83,10 @@ public class NodeStatistics <T extends PointInImage> {
 
 	private static final String[] ALL_FLAGS = { //
 			BRANCH_LENGTH, //
-			RADIUS, //
 			BRANCH_ORDER, //
-			VALUES, //
+            RADIUS, //
+            NEAREST_NEIGHBOR_DISTANCE, //
+            VALUES, //
 			X_COORDINATES, //
 			Y_COORDINATES, //
 			Z_COORDINATES, //
@@ -176,6 +183,23 @@ public class NodeStatistics <T extends PointInImage> {
 		case Z_COORDINATES:
 			points.forEach(p->currentStats.addValue(p.getZ()));
 			break;
+        case RADIUS:
+            points.forEach(p->currentStats.addValue(p.radius));
+            break;
+        case NEAREST_NEIGHBOR_DISTANCE:
+            // Convert to list for indexed access (needed for KDTree anyway)
+            final List<PointInImage> pointList = new ArrayList<>(points);
+            // Store original v values
+            final double[] originalValues = new double[pointList.size()];
+            for (int i = 0; i < pointList.size(); i++)
+                originalValues[i] = pointList.get(i).v;
+            computeNearestNeighborDistances(pointList);
+            for (final PointInImage p : points)
+                currentStats.addValue(p.v);
+            // Restore original v values
+            for (int i = 0; i < pointList.size(); i++)
+                pointList.get(i).v = originalValues[i];
+            break;
 		default:
 			throw new UnknownMetricException("Unrecognized metric: " + currentMetric);
 		}
@@ -192,30 +216,47 @@ public class NodeStatistics <T extends PointInImage> {
 	 */
 	public List<T> filter(final String metric, final double lowerBound, final double upperBound) throws UnknownMetricException {
         currentMetric = getNormalizedMeasurement(metric);
-		switch (currentMetric) {
-			case BRANCH_LENGTH:
-				assessIfBranchesHaveBeenAssigned();
-				return points.stream().filter(p ->
-						p.getPath().getLength() >= lowerBound && p.getPath().getLength() <= upperBound).collect(Collectors.toList());
-			case BRANCH_ORDER:
-				assessIfBranchesHaveBeenAssigned();
-				return points.stream().filter(p ->
-						p.getPath().getOrder() >= lowerBound && p.getPath().getOrder() <= upperBound).collect(Collectors.toList());
-			case VALUES:
-				return points.stream().filter(p ->
-						p.v >= lowerBound && p.v <= upperBound).collect(Collectors.toList());
-			case X_COORDINATES:
-				return points.stream().filter(p ->
-						p.getX() >= lowerBound && p.getX() <= upperBound).collect(Collectors.toList());
-			case Y_COORDINATES:
-				return points.stream().filter(p ->
-						p.getY() >= lowerBound && p.getY() <= upperBound).collect(Collectors.toList());
-			case Z_COORDINATES:
-				return points.stream().filter(p ->
-						p.getZ() >= lowerBound && p.getZ() <= upperBound).collect(Collectors.toList());
-			default:
-				throw new UnknownMetricException("Unrecognized metric: " + currentMetric);
-		}
+        return switch (currentMetric) {
+            case BRANCH_LENGTH -> {
+                assessIfBranchesHaveBeenAssigned();
+                yield points.stream().filter(p ->
+                        p.getPath().getLength() >= lowerBound && p.getPath().getLength() <= upperBound).collect(Collectors.toList());
+            }
+            case BRANCH_ORDER -> {
+                assessIfBranchesHaveBeenAssigned();
+                yield points.stream().filter(p ->
+                        p.getPath().getOrder() >= lowerBound && p.getPath().getOrder() <= upperBound).collect(Collectors.toList());
+            }
+            case VALUES -> points.stream().filter(p ->
+                    p.v >= lowerBound && p.v <= upperBound).collect(Collectors.toList());
+            case X_COORDINATES -> points.stream().filter(p ->
+                    p.getX() >= lowerBound && p.getX() <= upperBound).collect(Collectors.toList());
+            case Y_COORDINATES -> points.stream().filter(p ->
+                    p.getY() >= lowerBound && p.getY() <= upperBound).collect(Collectors.toList());
+            case Z_COORDINATES -> points.stream().filter(p ->
+                    p.getZ() >= lowerBound && p.getZ() <= upperBound).collect(Collectors.toList());
+            case RADIUS -> points.stream().filter(p ->
+                    p.radius >= lowerBound && p.radius <= upperBound).collect(Collectors.toList());
+
+            case NEAREST_NEIGHBOR_DISTANCE -> {
+                // Convert to list for indexed access (needed for KDTree anyway)
+                final List<PointInImage> pointList = new ArrayList<>(points);
+                // Store original v values
+                final double[] originalValues = new double[pointList.size()];
+                for (int i = 0; i < pointList.size(); i++)
+                    originalValues[i] = pointList.get(i).v;
+                computeNearestNeighborDistances(pointList);
+                for (final PointInImage p : points)
+                    currentStats.addValue(p.v);
+                final List<T> result = points.stream().filter(p ->
+                        p.v >= lowerBound && p.v <= upperBound).collect(Collectors.toList());
+                // Restore original v values
+                for (int i = 0; i < pointList.size(); i++)
+                    pointList.get(i).v = originalValues[i];
+                yield result;
+            }
+            default -> throw new UnknownMetricException("Unrecognized metric: " + currentMetric);
+        };
 	}
 
 	/**
@@ -526,6 +567,9 @@ public class NodeStatistics <T extends PointInImage> {
 			return guess;
 		}
 		final String normGuess = guess.toLowerCase();
+        if (normGuess.contains("nearest") && normGuess.contains("neighbor")) {
+            return NEAREST_NEIGHBOR_DISTANCE;
+        }
 		if (normGuess.matches(".*\\bx\\b.*")) {
 			return X_COORDINATES;
 		}
@@ -602,6 +646,39 @@ public class NodeStatistics <T extends PointInImage> {
 		}
 	}
 
+
+    /**
+     * Computes nearest neighbor distances. Assigns the computed value to the {@code v} value of each point
+     * @param points the list of points
+     * @param <T> the type of PointImage
+     */
+    public static <T extends PointInImage> void computeNearestNeighborDistances(final List<T> points) {
+
+        // Convert points to double[][] array for KDTree
+        double[][] coordinates = new double[points.size()][3];
+        for (int i = 0; i < points.size(); i++) {
+            coordinates[i][0] = points.get(i).x;
+            coordinates[i][1] = points.get(i).y;
+            coordinates[i][2] = points.get(i).z;
+        }
+
+        // Build KDTree
+        KDTree<Integer> kdTree = new KDTree<>(coordinates,
+                IntStream.range(0, points.size()).boxed().toArray(Integer[]::new));
+
+        // For each point, find its nearest neighbor (k=2 to exclude itself)
+        int i = 0;
+        for (final PointInImage pointInImage : points) {
+            final double[] query = {pointInImage.x, pointInImage.y, pointInImage.z};
+
+            // Search for 2 nearest neighbors (first will be itself, second is nearest neighbor)
+            final Neighbor<double[], Integer>[] neighbors = kdTree.search(query, 2);
+
+            // The FIRST neighbor is the actual nearest neighbor (not itself)
+            pointInImage.v = neighbors[0].distance();
+        }
+
+    }
 
 	/* IDE debug method */
 	public static void main(final String[] args) {

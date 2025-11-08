@@ -1209,6 +1209,11 @@ public class Viewer3D {
 		return annotation;
 	}
 
+    public Annotation3D annotateMidPlane(final BoundingBox boundingBox, final int axis, final String label) {
+        final PointInImage[] plane = AnnotPrompt.getPlane(boundingBox.toBoundingBox3d(), "xyz".substring(axis, axis + 1));
+        return annotatePlane(plane[0], plane[1], label);
+    }
+
 	public Annotation3D annotatePlane(final SNTPoint origin, final SNTPoint originOpposite, final String label) {
 		if (origin == null || originOpposite == null) return null;
 		final Annotation3D annotation = new Annotation3D(this, List.of(origin, originOpposite), Annotation3D.PLANE);
@@ -3530,24 +3535,23 @@ public class Viewer3D {
 			return res;
 		}
 		
-		PointInImage[] getPlane(final BoundingBox3d bounds, final String axis) {
+		static PointInImage[] getPlane(final BoundingBox3d bounds, final String axis) {
 			PointInImage p1;
-			PointInImage p2;
-			switch ( axis.split(" ")[0].toLowerCase()) {
-			case "x":
-				p1 = new PointInImage((bounds.getXmin() + bounds.getXmax()) / 2, bounds.getYmin(), bounds.getZmin());
-				p2 = new PointInImage((bounds.getXmin() + bounds.getXmax()) / 2, bounds.getYmax(), bounds.getZmax());
-				break;
-			case "y":
-				p1 = new PointInImage(bounds.getXmin(), (bounds.getYmin() + bounds.getYmax()) / 2, bounds.getZmin());
-				p2 = new PointInImage(bounds.getXmax(), (bounds.getYmin() + bounds.getYmax()) / 2, bounds.getZmax());
-				break;
-			default: // "z"
-				p1 = new PointInImage(bounds.getXmin(), bounds.getYmin(), (bounds.getZmin() + bounds.getZmax()) / 2);
-				p2 = new PointInImage(bounds.getXmax(), bounds.getYmax(), (bounds.getZmin() + bounds.getZmax()) / 2);
-				break;
-			}
-			return new PointInImage[] { p1, p2 };
+			PointInImage p2 = switch (axis.split(" ")[0].toLowerCase()) {
+                case "x" -> {
+                    p1 = new PointInImage((bounds.getXmin() + bounds.getXmax()) / 2, bounds.getYmin(), bounds.getZmin());
+                    yield new PointInImage((bounds.getXmin() + bounds.getXmax()) / 2, bounds.getYmax(), bounds.getZmax());
+                }
+                case "y" -> {
+                    p1 = new PointInImage(bounds.getXmin(), (bounds.getYmin() + bounds.getYmax()) / 2, bounds.getZmin());
+                    yield new PointInImage(bounds.getXmax(), (bounds.getYmin() + bounds.getYmax()) / 2, bounds.getZmax());
+                }
+                default -> {
+                    p1 = new PointInImage(bounds.getXmin(), bounds.getYmin(), (bounds.getZmin() + bounds.getZmax()) / 2);
+                    yield new PointInImage(bounds.getXmax(), bounds.getYmax(), (bounds.getZmin() + bounds.getZmax()) / 2);
+                }
+            };
+            return new PointInImage[] { p1, p2 };
 		}
 		
 		PointInImage[] getSomaPlane(final BoundingBox3d bounds, final Tree tree, final String axis) {

@@ -44,6 +44,9 @@ public class PointInImage implements SNTPoint, Cloneable {
 	/** The cartesian coordinate of this node */
 	public double x, y, z;
 
+    /** The radius of reconstructed structure at this node */
+    public double radius;
+
 	/**
 	 * A property associated with this point (e.g., voxel intensity) (optional
 	 * field)
