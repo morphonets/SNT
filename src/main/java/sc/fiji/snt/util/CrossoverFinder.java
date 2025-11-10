@@ -45,7 +45,7 @@ import java.util.*;
  *       .minRunNodes(2)          // consecutive near-node pairs to accept a crossover event candidate
  *       .sameCTOnly(true)        // ignore pairs from different channel/time
  *       .includeSelfCrossovers(false) // whether crossover events within the same path should be detected
- *   List<CrossoverFinder.CrossoverEvent> events = CrossoverFinder.find(paths, cfg);
+ *   List&lt;CrossoverFinder.CrossoverEvent&gt; events = CrossoverFinder.find(paths, cfg);
  * </pre>
  */
 public class CrossoverFinder {
