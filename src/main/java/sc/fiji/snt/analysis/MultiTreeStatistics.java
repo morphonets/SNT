@@ -38,6 +38,7 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import net.imagej.ImageJ;
+import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
@@ -386,7 +387,25 @@ public class MultiTreeStatistics extends TreeStatistics {
 		return terminalBranches;
 	}
 
-	@Override
+    /**
+     * Assembles a Box and Whisker Plot for the specified measurement (cell morphometry).
+     *
+     * @param measurement the measurement ({@link MultiTreeStatistics#N_NODES
+     *                    N_NODES}, {@link MultiTreeStatistics#NODE_RADIUS
+     *                    NODE_RADIUS}, etc.)
+     * @return the SNTChart holding the box plot
+     * @see #getMetrics()
+     * @see #getMetric(String)
+     */
+    public SNTChart getBoxPlot(final String measurement) {
+        final String normMeasurement = getNormalizedMeasurement(measurement);
+        final DefaultBoxAndWhiskerCategoryDataset dataset = new DefaultBoxAndWhiskerCategoryDataset();
+        final HDPlus hdp = new HDPlus(normMeasurement);
+        dataset.add(hdp.valuesAsList(), normMeasurement, (tree.getLabel()==null) ? "" : tree.getLabel());
+        return AnalysisUtils.boxPlot(normMeasurement, dataset);
+    }
+
+    @Override
 	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
 			final boolean normalize) {
 		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, normalize);

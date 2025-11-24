@@ -31,19 +31,27 @@ import org.jfree.chart.JFreeChart;
 import org.jfree.chart.LegendItem;
 import org.jfree.chart.LegendItemCollection;
 import org.jfree.chart.axis.*;
+import org.jfree.chart.entity.EntityCollection;
+import org.jfree.chart.labels.BoxAndWhiskerToolTipGenerator;
 import org.jfree.chart.labels.StandardPieSectionLabelGenerator;
 import org.jfree.chart.labels.XYToolTipGenerator;
 import org.jfree.chart.plot.*;
 import org.jfree.chart.renderer.DefaultPolarItemRenderer;
+import org.jfree.chart.renderer.Outlier;
 import org.jfree.chart.renderer.category.BarRenderer;
+import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
+import org.jfree.chart.renderer.category.CategoryItemRendererState;
 import org.jfree.chart.renderer.category.StandardBarPainter;
 import org.jfree.chart.renderer.xy.*;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.ui.RectangleEdge;
 import org.jfree.chart.ui.RectangleInsets;
 import org.jfree.chart.util.SortOrder;
+import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.general.DefaultPieDataset;
+import org.jfree.data.statistics.BoxAndWhiskerCategoryDataset;
+import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
 import org.jfree.data.xy.DefaultXYDataset;
@@ -63,6 +71,11 @@ import sc.fiji.snt.analysis.growth.GrowthAnalyzer.GrowthPhaseType;
 
 import java.awt.*;
 
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import java.text.NumberFormat;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -682,6 +695,56 @@ public class AnalysisUtils {
         return polarPlot;
     }
 
+    private static CustomBoxAndWhiskerRenderer assignRenderer(final CategoryPlot plot, final boolean monochrome, final int nSeries) {
+        plot.setBackgroundPaint(null);
+        plot.setRangePannable(true);
+        plot.setDomainGridlinesVisible(false);
+        plot.setRangeGridlinesVisible(false);
+        plot.setOutlineVisible(false);
+        if (plot.getDataset().getColumnCount() * plot.getDataset().getRowCount() > 4) {
+            plot.getDomainAxis().setCategoryLabelPositions(CategoryLabelPositions.UP_45);
+        }
+        final CustomBoxAndWhiskerRenderer renderer = new CustomBoxAndWhiskerRenderer();
+        plot.setRenderer(renderer);
+        renderer.setPointSize((double) plot.getRangeAxis().getTickLabelFont().getSize2D() / 2);
+        renderer.setDrawOutliers(true);
+        renderer.setItemMargin(0);
+        renderer.setDefaultPaint(Color.BLACK);
+        if (monochrome) {
+            for (int i = 0; i < nSeries; i++) {
+                renderer.setSeriesPaint(i, Color.GRAY);
+                renderer.setSeriesOutlinePaint(i, Color.BLACK);
+                renderer.setSeriesItemLabelPaint(i, Color.BLACK);
+            }
+        } else {
+            final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+            for (int i = 0; i < nSeries; i++) {
+                final Color color = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue());
+                renderer.setSeriesPaint(i, color);
+                renderer.setSeriesOutlinePaint(i, color);
+                renderer.setSeriesItemLabelPaint(i, color);
+            }
+        }
+        final String tooltipFormat = "<html><body>Max: {5}<br>Q3: {7}<br>Median: {3}<br>Q1: {6}<br>Min: {4}<br>Mean: {2}</body></html>";
+        renderer.setDefaultToolTipGenerator(new BoxAndWhiskerToolTipGenerator(tooltipFormat, NumberFormat.getNumberInstance()));
+        renderer.setUseOutlinePaintForWhiskers(true);
+        renderer.setMaximumBarWidth(0.10);
+        renderer.setMedianVisible(true);
+        renderer.setMeanVisible(true);
+        renderer.setFillBox(false);
+        return renderer;
+    }
+
+    public static SNTChart boxPlot(final String valueAxisLabel, final DefaultBoxAndWhiskerCategoryDataset dataset) {
+        final JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(null, null, valueAxisLabel, dataset, false);
+        assignRenderer((CategoryPlot) chart.getPlot(), true, dataset.getRowCount());
+        final int height = 400;
+        final double width = dataset.getRowCount() * 50;
+        final SNTChart sntChart = new SNTChart("Box-plot", chart, new Dimension((int) width, height));
+        sntChart.setOutlineVisible(false);
+        return sntChart;
+    }
+
     /**
      * Generates a polar plot
      *
@@ -1040,5 +1103,193 @@ public class AnalysisUtils {
         double durationBonus = Math.min(100.0, totalDuration * 0.5);
         
         return score + durationBonus;
+    }
+
+
+    /**
+     * This modifies the default BoxAndWhiskerRenderer to achieve the following: 1)
+     * Highlight mean w/ a more discrete marker; 2) Do not use far out markers
+     * (their definition is not transparent to the user); 3) Make rendering of
+     * outliers optional. If outliers are chosen to be rendered, then render all
+     * values (the original implementation renders summary values only!?).
+     * <p>
+     * NB: It has not been thoroughly tested. Horizontal plots are not affected
+     * because we're not overriding drawHorizontalItem()
+     * </p>
+     */
+    private static class CustomBoxAndWhiskerRenderer extends BoxAndWhiskerRenderer {
+
+        private static final long serialVersionUID = 1L;
+        private double pointSize = 5d;
+        private boolean drawOutliers;
+
+        private void setPointSize(final Double pointSize) {
+            this.pointSize = pointSize;
+        }
+
+        private void setDrawOutliers(final boolean drawOutliers) {
+            this.drawOutliers = drawOutliers;
+        }
+
+        @Override
+        public void drawVerticalItem(final Graphics2D g2, final CategoryItemRendererState state,
+                                     final Rectangle2D dataArea, final CategoryPlot plot, final CategoryAxis domainAxis,
+                                     final ValueAxis rangeAxis, final CategoryDataset dataset, final int row, final int column) {
+
+            final BoxAndWhiskerCategoryDataset bawDataset = (BoxAndWhiskerCategoryDataset) dataset;
+
+            final double categoryEnd = domainAxis.getCategoryEnd(column, getColumnCount(), dataArea,
+                    plot.getDomainAxisEdge());
+            final double categoryStart = domainAxis.getCategoryStart(column, getColumnCount(), dataArea,
+                    plot.getDomainAxisEdge());
+            final double categoryWidth = categoryEnd - categoryStart;
+
+            double xx = categoryStart;
+            final int seriesCount = getRowCount();
+            final int categoryCount = getColumnCount();
+
+            if (seriesCount > 1) {
+                final double seriesGap = dataArea.getWidth() * getItemMargin() / (categoryCount * (seriesCount - 1));
+                final double usedWidth = (state.getBarWidth() * seriesCount) + (seriesGap * (seriesCount - 1));
+                // offset the start of the boxes if the total width used is smaller
+                // than the category width
+                final double offset = (categoryWidth - usedWidth) / 2;
+                xx = xx + offset + (row * (state.getBarWidth() + seriesGap));
+            } else {
+                // offset the start of the box if the box width is smaller than the
+                // category width
+                final double offset = (categoryWidth - state.getBarWidth()) / 2;
+                xx = xx + offset;
+            }
+
+            double yyAverage;
+
+            final Paint itemPaint = getItemPaint(row, column);
+            g2.setPaint(itemPaint);
+            final Stroke s = getItemStroke(row, column);
+            g2.setStroke(s);
+
+            final RectangleEdge location = plot.getRangeAxisEdge();
+
+            final Number yQ1 = bawDataset.getQ1Value(row, column);
+            final Number yQ3 = bawDataset.getQ3Value(row, column);
+            final Number yMax = bawDataset.getMaxRegularValue(row, column);
+            final Number yMin = bawDataset.getMinRegularValue(row, column);
+            Shape box = null;
+            if (yQ1 != null && yQ3 != null && yMax != null && yMin != null) {
+
+                final double yyQ1 = rangeAxis.valueToJava2D(yQ1.doubleValue(), dataArea, location);
+                final double yyQ3 = rangeAxis.valueToJava2D(yQ3.doubleValue(), dataArea, location);
+                final double yyMax = rangeAxis.valueToJava2D(yMax.doubleValue(), dataArea, location);
+                final double yyMin = rangeAxis.valueToJava2D(yMin.doubleValue(), dataArea, location);
+                final double xxmid = xx + state.getBarWidth() / 2.0;
+                final double halfW = (state.getBarWidth() / 2.0) * getWhiskerWidth();
+
+                // draw the body...
+                box = new Rectangle2D.Double(xx, Math.min(yyQ1, yyQ3), state.getBarWidth(), Math.abs(yyQ1 - yyQ3));
+                if (getFillBox()) {
+                    g2.fill(box);
+                }
+
+                final Paint outlinePaint = getItemOutlinePaint(row, column);
+                if (getUseOutlinePaintForWhiskers()) {
+                    g2.setPaint(outlinePaint);
+                }
+                // draw the upper shadow...
+                g2.draw(new Line2D.Double(xxmid, yyMax, xxmid, yyQ3));
+                g2.draw(new Line2D.Double(xxmid - halfW, yyMax, xxmid + halfW, yyMax));
+
+                // draw the lower shadow...
+                g2.draw(new Line2D.Double(xxmid, yyMin, xxmid, yyQ1));
+                g2.draw(new Line2D.Double(xxmid - halfW, yyMin, xxmid + halfW, yyMin));
+
+                g2.setStroke(getItemOutlineStroke(row, column));
+                g2.setPaint(outlinePaint);
+                g2.draw(box);
+            }
+
+            g2.setPaint(getArtifactPaint());
+
+            // draw mean - SPECIAL AIMS REQUIREMENT...
+            if (isMeanVisible()) {
+                final Number yMean = bawDataset.getMeanValue(row, column);
+                if (yMean != null) {
+                    yyAverage = rangeAxis.valueToJava2D(yMean.doubleValue(), dataArea, location);
+                    final double xxAverage = xx + state.getBarWidth() / 2.0;
+                    final Shape s1 = new Line2D.Double(xxAverage - pointSize, yyAverage, xxAverage + pointSize,
+                            yyAverage);
+                    final Shape s2 = new Line2D.Double(xxAverage, yyAverage - pointSize, xxAverage,
+                            yyAverage + pointSize);
+                    g2.draw(s1);
+                    g2.draw(s2);
+                }
+            }
+
+            // draw median...
+            if (isMedianVisible()) {
+                final Number yMedian = bawDataset.getMedianValue(row, column);
+                if (yMedian != null) {
+                    final double yyMedian = rangeAxis.valueToJava2D(yMedian.doubleValue(), dataArea, location);
+                    g2.draw(new Line2D.Double(xx, yyMedian, xx + state.getBarWidth(), yyMedian));
+                }
+            }
+
+            // draw yOutliers...
+            if (drawOutliers) {
+
+                g2.setPaint(itemPaint);
+
+                // draw outliers
+                final HashMap<Outlier, Integer> outliers = new HashMap<>();
+                final java.util.List<?> yOutliers = bawDataset.getOutliers(row, column);
+                final double xCenter = xx + state.getBarWidth() / 2.0;
+                if (yOutliers != null) {
+                    for (Object yOutlier : yOutliers) {
+                        final Number outlierValue = ((Number) yOutlier);
+                        final double yyOutlier = rangeAxis.valueToJava2D(outlierValue.doubleValue(), dataArea,
+                                location);
+                        final Outlier outlier = new Outlier(xCenter, yyOutlier, pointSize);
+                        outliers.put(outlier, outliers.getOrDefault(outlier, 1));
+                    }
+
+                    outliers.forEach((outlier, count) -> {
+
+                        if (count == 1) {
+                            drawOutlier(outlier, g2);
+                        } else {
+                            final int leftPoints = count / 2;
+                            final int rightPoints = count - leftPoints;
+                            for (int i = 1; i <= leftPoints; i++) {
+                                final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);
+                                outlier.setPoint(new Point2D.Double(xCenter - offset, outlier.getY()));
+                                drawOutlier(outlier, g2);
+                            }
+                            for (int i = 1; i <= rightPoints; i++) {
+                                final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);
+                                outlier.setPoint(new Point2D.Double(xCenter + offset, outlier.getY()));
+                                drawOutlier(outlier, g2);
+                            }
+                        }
+
+                    });
+                }
+            }
+            // collect entity and tool tip information...
+            if (state.getInfo() != null && box != null) {
+                final EntityCollection entities = state.getEntityCollection();
+                if (entities != null) {
+                    addItemEntity(entities, dataset, row, column, box);
+                }
+            }
+
+        }
+
+        private void drawOutlier(final Outlier outlier, final Graphics2D g2) {
+            final Point2D point = outlier.getPoint();
+            final double size = outlier.getRadius();
+            final Ellipse2D dot = new Ellipse2D.Double(point.getX() + size / 2, point.getY(), size, size);
+            g2.fill(dot);
+        }
+
     }
 }
