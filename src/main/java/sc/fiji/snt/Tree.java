@@ -353,7 +353,7 @@ public class Tree implements TreeProperties, Cloneable {
 	/**
 	 * Downsamples the tree, i.e., reduces the density of its nodes by increasing internode spacing.
 	 * <p>
-	 * Note that 1) upsampling is not supported (cf. {{@link #upsample(double)}}, and 2) the
+	 * Note that 1) upsampling is not supported (cf. {@link Path#upsample(double)}), and 2) the
 	 * position of nodes at branch points and tips remains unaltered during downsampling, as per
 	 * {@link Path#downsample(double)}.
 	 * </p>
@@ -1850,7 +1850,7 @@ public class Tree implements TreeProperties, Cloneable {
 	 * @return the duplicated copy of this Tree transformed according to transformOptions
 	 */
 	public Tree transformedCopy(final String transformOptions) {
-		return transform(Collections.singleton(this), transformOptions, true).iterator().next();
+		return transform(Collections.singleton(this), transformOptions, false).iterator().next();
 	}
 
 	/**
