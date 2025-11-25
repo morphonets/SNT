@@ -77,10 +77,7 @@ import org.jzy3d.plot3d.rendering.view.modes.ViewBoundMode;
 import org.jzy3d.plot3d.rendering.view.modes.ViewPositionMode;
 import org.jzy3d.plot3d.transform.Transform;
 import org.jzy3d.plot3d.transform.Translate;
-import org.jzy3d.plot3d.transform.squarifier.ISquarifier;
-import org.jzy3d.plot3d.transform.squarifier.XYSquarifier;
-import org.jzy3d.plot3d.transform.squarifier.XZSquarifier;
-import org.jzy3d.plot3d.transform.squarifier.ZYSquarifier;
+import org.jzy3d.plot3d.transform.squarifier.*;
 import org.jzy3d.ui.editors.LightEditor;
 import org.scijava.Context;
 import org.scijava.command.Command;
@@ -153,23 +150,23 @@ public class Viewer3D {
 
 		final String[] labels;
 
-		Engine(final String[] labels) {
-			this.labels = labels;
-		}
+        Engine(final String[] labels) {
+            this.labels = labels;
+        }
 
-		static Engine fromString(final String label) {
-			for (final Engine e : Engine.values()) {
-				if (Arrays.stream(e.labels).anyMatch(l -> l.equalsIgnoreCase(label))) {
-					return e;
-				}
-			}
-			throw new IllegalArgumentException("'" + label + "': not a recognizable engine");
-		}
-	}
+        static Engine fromString(final String label) {
+            for (final Engine e : Engine.values()) {
+                if (Arrays.stream(e.labels).anyMatch(l -> l.equalsIgnoreCase(label))) {
+                    return e;
+                }
+            }
+            throw new IllegalArgumentException("'" + label + "': not a recognizable engine");
+        }
+    }
 
-	/**
-	 * Presets of a scene's view point.
-	 */
+    /**
+     * Presets of a scene's view point.
+     */
 	public enum ViewMode {
 		
 		/** Enforce a XY view point of the scene. Rotation(s) are disabled. */
@@ -190,10 +187,10 @@ public class Viewer3D {
 		@Deprecated
 		TOP("Top Constrained", DefCoords.XY);
 
-		private final String description;
-		private Coord3d coord;
+        private final String description;
+        private Coord3d coord;
 
-		private ViewMode next() {
+        private ViewMode next() {
             return switch (this) {
                 case DEFAULT -> XY;
                 case XY, TOP -> XZ;
@@ -201,106 +198,106 @@ public class Viewer3D {
                 case YZ -> PERSPECTIVE;
                 default -> DEFAULT;
             };
-		}
+        }
 
-		ViewMode(final String description, final Coord3d coord) {
-			this.description = description;
-			this.coord = coord;
-		}
+        ViewMode(final String description, final Coord3d coord) {
+            this.description = description;
+            this.coord = coord;
+        }
 
-		static class DefCoords {
-			static final Coord3d XY = new Coord3d(-View.PI_div2, -View.PI_div2, View.DISTANCE_DEFAULT); // //new Coord3d(0, Math.PI, View.DISTANCE_DEFAULT)
-			static final Coord3d XZ = new Coord3d(-View.PI_div2, 1, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI / 2, -1, View.DISTANCE_DEFAULT)
-			static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
-			static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
-			static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
-		}
-	}
+        static class DefCoords {
+            static final Coord3d XY = new Coord3d(-View.PI_div2, -View.PI_div2, View.DISTANCE_DEFAULT); // //new Coord3d(0, Math.PI, View.DISTANCE_DEFAULT)
+            static final Coord3d XZ = new Coord3d(-View.PI_div2, 1, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI / 2, -1, View.DISTANCE_DEFAULT)
+            static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
+            static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
+            static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
+        }
+    }
 
-	private static final String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
-	private static final String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
-	private static final String MESH_LABEL_JFRC2018 = "JRC 2018 (Unisex)";
-	private static final String MESH_LABEL_JFRC2 = "JFRC2";
-	private static final String MESH_LABEL_JFRC3 = "JFRC3";
-	private static final String MESH_LABEL_FCWB = "FCWB";
-	private static final String MESH_LABEL_VNS = "VNS";
-	private static final String MESH_LABEL_L1 = "L1";
-	private static final String MESH_LABEL_L3 = "L3";
+    private static final String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
+    private static final String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
+    private static final String MESH_LABEL_JFRC2018 = "JRC 2018 (Unisex)";
+    private static final String MESH_LABEL_JFRC2 = "JFRC2";
+    private static final String MESH_LABEL_JFRC3 = "JFRC3";
+    private static final String MESH_LABEL_FCWB = "FCWB";
+    private static final String MESH_LABEL_VNS = "VNS";
+    private static final String MESH_LABEL_L1 = "L1";
+    private static final String MESH_LABEL_L3 = "L3";
 
-	private static final String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
-	protected static final float DEF_NODE_RADIUS = 3f;
-	private static final Color DEF_COLOR = new Color(1f, 1f, 1f, 0.05f);
-	private static final Color INVERTED_DEF_COLOR = new Color(0f, 0f, 0f, 0.05f);
+    private static final String PATH_MANAGER_TREE_LABEL = "Path Manager Contents";
+    protected static final float DEF_NODE_RADIUS = 3f;
+    private static final Color DEF_COLOR = new Color(1f, 1f, 1f, 0.05f);
+    private static final Color INVERTED_DEF_COLOR = new Color(0f, 0f, 0f, 0.05f);
 
-	/* Identifiers for multiple viewers */
-	private static int currentID = 0;
-	private int id;
-	private boolean sntInstance;
+    /* Identifiers for multiple viewers */
+    private static int currentID = 0;
+    private int id;
+    private boolean sntInstance;
 
-	/* Maps for plotted objects */
-	private Map<String, ShapeTree> plottedTrees;
-	private Map<String, RemountableDrawableVBO> plottedObjs;
-	private Map<String, Annotation3D> plottedAnnotations;
+    /* Maps for plotted objects */
+    private Map<String, ShapeTree> plottedTrees;
+    private Map<String, RemountableDrawableVBO> plottedObjs;
+    private Map<String, Annotation3D> plottedAnnotations;
 
-	/* Settings */
-	private Color defColor;
-	private float defThickness = DEF_NODE_RADIUS;
-	private Prefs prefs;
+    /* Settings */
+    private Color defColor;
+    private float defThickness = DEF_NODE_RADIUS;
+    private Prefs prefs;
 
-	/* Color Bar */
-	private ColorLegend cBar;
+    /* Color Bar */
+    private ColorLegend cBar;
 
-	/* Manager */
-	private CheckboxListEditable managerList;
+    /* Manager */
+    private CheckboxListEditable managerList;
 
-	private AChart chart;
-	private View view;
-	private ViewerFrame frame;
-	private GuiUtils gUtils;
-	private KeyController keyController;
-	private MouseController mouseController;
-	private boolean viewUpdatesEnabled = true;
-	private ViewMode currentView;
-	private FileDropWorker fileDropWorker;
-	private boolean abortCurrentOperation;
-	private final Engine ENGINE;
-	private SNTCommandFinder cmdFinder;
-	private ScriptRecorder recorder;
-	private MeasureUI measureUI;
+    private AChart chart;
+    private View view;
+    private ViewerFrame frame;
+    private GuiUtils gUtils;
+    private KeyController keyController;
+    private MouseController mouseController;
+    private boolean viewUpdatesEnabled = true;
+    private ViewMode currentView;
+    private FileDropWorker fileDropWorker;
+    private boolean abortCurrentOperation;
+    private final Engine ENGINE;
+    private SNTCommandFinder cmdFinder;
+    private ScriptRecorder recorder;
+    private MeasureUI measureUI;
 
-	@Parameter
-	private CommandService cmdService;
+    @Parameter
+    private CommandService cmdService;
 
-	@Parameter
-	private PrefService prefService;
+    @Parameter
+    private PrefService prefService;
 
-	private Viewer3D(final Engine engine) {
-		SNTUtils.log("Initializing Viewer3D...");
-		ENGINE = engine;
-		if (Engine.JOGL == engine || Engine.OFFSCREEN == engine) {
-			Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
-			Settings.getInstance().setHardwareAccelerated(true);
-		}
-		plottedTrees = new TreeMap<>();
-		plottedObjs = new TreeMap<>();
-		plottedAnnotations = new TreeMap<>();
-		initView();
-		prefs = new Prefs(this);
-		setID();
-		SNTUtils.addViewer(this);
-	}
+    private Viewer3D(final Engine engine) {
+        SNTUtils.log("Initializing Viewer3D...");
+        ENGINE = engine;
+        if (Engine.JOGL == engine || Engine.OFFSCREEN == engine) {
+            Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
+            Settings.getInstance().setHardwareAccelerated(true);
+        }
+        plottedTrees = new TreeMap<>();
+        plottedObjs = new TreeMap<>();
+        plottedAnnotations = new TreeMap<>();
+        initView();
+        prefs = new Prefs(this);
+        setID();
+        SNTUtils.addViewer(this);
+    }
 
-	/**
-	 * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
-	 * a viewer is more suitable for large datasets and allows for {@link Tree}s to
-	 * be added concurrently.
-	 */
-	public Viewer3D() {
-		this((GraphicsEnvironment.isHeadless()) ? Engine.OFFSCREEN : Engine.JOGL);
-	}
+    /**
+     * Instantiates Viewer3D without the 'Controls' dialog ('kiosk mode'). Such
+     * a viewer is more suitable for large datasets and allows for {@link Tree}s to
+     * be added concurrently.
+     */
+    public Viewer3D() {
+        this((GraphicsEnvironment.isHeadless()) ? Engine.OFFSCREEN : Engine.JOGL);
+    }
 
-	/**
-	 * Instantiates an interactive Viewer3D with GUI Controls to import, manage
+    /**
+     * Instantiates an interactive Viewer3D with GUI Controls to import, manage
 	 * and customize the Viewer's scene.
 	 *
 	 * @param context the SciJava application context providing the services
@@ -308,125 +305,137 @@ public class Viewer3D {
 	 */
 	public Viewer3D(final Context context) {
 		this();
-		init(context);
-		if (!SNTUtils.isContextSet()) SNTUtils.setContext(context);
-	}
+        init(context);
+        if (!SNTUtils.isContextSet()) SNTUtils.setContext(context);
+    }
 
-	/**
-	 * Script-friendly constructor.
-	 *
-	 * @param interactive if true, the viewer is displayed with GUI Controls to
-	 *                    import, manage and customize the Viewer's scene.
-	 */
-	public Viewer3D(final boolean interactive) {
-		this(interactive, "jogl");
-	}
+    /**
+     * Script-friendly constructor.
+     *
+     * @param interactive if true, the viewer is displayed with GUI Controls to
+     *                    import, manage and customize the Viewer's scene.
+     */
+    public Viewer3D(final boolean interactive) {
+        this(interactive, "jogl");
+    }
 
-	/**
-	 * Script-friendly constructor.
-	 *
-	 * @param interactive if true, the viewer is displayed with GUI Controls to
-	 *                    import, manage and customize the Viewer's scene.
-	 * @param engine      the rendering engine. Either "gpu" (JOGL), "cpu" (EmulGL),
-	 *                    or "offscreen" (headless). "cpu" and "offscreen" are highly
-	 *                    experimental.
-	 */
-	public Viewer3D(final boolean interactive, final String engine) {
-		this(Engine.fromString(engine));
-		if (interactive) {
-			if (ENGINE == Engine.OFFSCREEN)
-				throw new IllegalArgumentException("Offscreen engine cannot be used interactively");
-			init(SNTUtils.getContext());
-		}
-	}
+    /**
+     * Script-friendly constructor.
+     *
+     * @param interactive if true, the viewer is displayed with GUI Controls to
+     *                    import, manage and customize the Viewer's scene.
+     * @param engine      the rendering engine. Either "gpu" (JOGL), "cpu" (EmulGL),
+     *                    or "offscreen" (headless). "cpu" and "offscreen" are highly
+     *                    experimental.
+     */
+    public Viewer3D(final boolean interactive, final String engine) {
+        this(Engine.fromString(engine));
+        if (interactive) {
+            if (ENGINE == Engine.OFFSCREEN)
+                throw new IllegalArgumentException("Offscreen engine cannot be used interactively");
+            init(SNTUtils.getContext());
+        }
+    }
 
-	protected Viewer3D(final SNT snt) {
-		this(snt.getContext());
-		sntInstance = true;
-	}
+    protected Viewer3D(final SNT snt) {
+        this(snt.getContext());
+        sntInstance = true;
+    }
 
-	private void init(final Context context) {
-		GuiUtils.setLookAndFeel();
-		initManagerList();
-		context.inject(this);
-		prefs.setPreferences();
-		cmdFinder = new SNTCommandFinder(this);
-	}
+    private void init(final Context context) {
+        GuiUtils.setLookAndFeel();
+        initManagerList();
+        context.inject(this);
+        prefs.setPreferences();
+        cmdFinder = new SNTCommandFinder(this);
+    }
 
-	/**
-	 * Returns this Viewer's id.
-	 *
-	 * @return this Viewer's unique numeric ID.
-	 */
-	public int getID() {
-		return id;
-	}
+    /**
+     * Returns this Viewer's id.
+     *
+     * @return this Viewer's unique numeric ID.
+     */
+    public int getID() {
+        return id;
+    }
 
-	private void setID() {
-		id = ++currentID;
-	}
+    private void setID() {
+        id = ++currentID;
+    }
 
-	/**
-	 * Sets whether the scene should update (refresh) every time a new
-	 * reconstruction (or mesh) is added/removed from the scene.
-	 *
-	 * @param enabled Whether scene updates should be enabled. Should be set to
-	 *                {@code false} when performing bulk operations. Scene will
-	 *                update if set to {@code true}
-	 */
-	public void setSceneUpdatesEnabled(final boolean enabled) {
-		viewUpdatesEnabled = enabled;
-		if (enabled) view.shoot(); // same as char.render();
-		if (managerList != null) {
-			managerList.model.setListenersEnabled(viewUpdatesEnabled);
-			//setListenersEnabled already calls managerList.model.update();
-		}
-		if (viewUpdatesEnabled) {
-			chart.getView().updateBounds();
-		}
-	}
+    /**
+     * Sets whether the scene should update (refresh) every time a new
+     * reconstruction (or mesh) is added/removed from the scene.
+     *
+     * @param enabled Whether scene updates should be enabled. Should be set to
+     *                {@code false} when performing bulk operations. Scene will
+     *                update if set to {@code true}
+     */
+    public void setSceneUpdatesEnabled(final boolean enabled) {
+        viewUpdatesEnabled = enabled;
+        if (enabled) view.shoot(); // same as char.render();
+        if (managerList != null) {
+            managerList.model.setListenersEnabled(viewUpdatesEnabled);
+            //setListenersEnabled already calls managerList.model.update();
+        }
+        if (viewUpdatesEnabled) {
+            chart.getView().updateBounds();
+        }
+    }
 
-	private boolean chartExists() {
-		return chart != null && chart.getCanvas() != null;
-	}
+    private boolean chartExists() {
+        return chart != null && chart.getCanvas() != null;
+    }
 
-	/* returns true if chart was initialized */
-	private boolean initView() {
-		if (chartExists()) return false;
-		final Quality quality = Quality.Nicest();
-		quality.setHiDPIEnabled(true); // requires java 9+
-		chart = new AChart(quality, this);
-		chart.black();
-		view = chart.getView();
-		view.setBoundMode(ViewBoundMode.AUTO_FIT);
-		keyController = new KeyController(chart);
-		mouseController = new MouseController(chart);
-		chart.getCanvas().addKeyController(keyController);
-		chart.getCanvas().addMouseController(mouseController);
-		chart.setAxeDisplayed(false);
-		chart.setAnimated(true);
-		squarify("none", false);
-		currentView = ViewMode.DEFAULT;
-		if ( !(chart.getCanvas() instanceof OffscreenCanvas)) {
-			gUtils = new GuiUtils((Component) chart.getCanvas());
-			fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
-		}
-		return true;
-	}
+    /* returns true if chart was initialized */
+    private boolean initView() {
+        if (chartExists()) return false;
+        final Quality quality = Quality.Nicest();
+        quality.setHiDPIEnabled(true); // requires java 9+
+        chart = new AChart(quality, this);
+        chart.black();
+        view = chart.getView();
+        view.setBoundMode(ViewBoundMode.AUTO_FIT);
+        keyController = new KeyController(chart);
+        mouseController = new MouseController(chart);
+        chart.getCanvas().addKeyController(keyController);
+        chart.getCanvas().addMouseController(mouseController);
+        chart.setAxeDisplayed(false);
+        chart.setAnimated(true);
+        squarify("none");
+        currentView = ViewMode.DEFAULT;
+        if (!(chart.getCanvas() instanceof OffscreenCanvas)) {
+            gUtils = new GuiUtils((Component) chart.getCanvas());
+            fileDropWorker = new FileDropWorker((Component) chart.getCanvas(), gUtils);
+        }
+        return true;
+    }
 
-	private void squarify(final String axes, final boolean enable) {
-		final String parsedAxes = (enable) ? axes.toLowerCase() : "none";
+    private void squarify(final String axes) {
+        final String parsedAxes = (axes == null) ? "none" : axes.toLowerCase();
         switch (parsedAxes) {
             case "xy" -> {
                 view.setSquarifier(new XYSquarifier());
                 view.setSquared(true);
             }
-            case "zy" -> {
-                view.setSquarifier(new ZYSquarifier());
-                view.setSquared(true);
-            }
             case "xz" -> {
                 view.setSquarifier(new XZSquarifier());
+                view.setSquared(true);
+            }
+            case "yx" -> {
+                view.setSquarifier(new YXSquarifier());
+                view.setSquared(true);
+            }
+            case "yz" -> {
+                view.setSquarifier(new YZSquarifier());
+                view.setSquared(true);
+            }
+            case "zx" -> {
+                view.setSquarifier(new ZXSquarifier());
+                view.setSquared(true);
+            }
+            case "zy" -> {
+                view.setSquarifier(new ZYSquarifier());
                 view.setSquared(true);
             }
             default -> {
@@ -434,183 +443,182 @@ public class Viewer3D {
                 view.setSquared(false);
             }
         }
-	}
+    }
 
-	private void flipAxis(final String axis, final boolean enable) {
-		final String parsedAxis = axis.toLowerCase();
-		if (parsedAxis.contains("horizontal"))
-			view.get2DLayout().setHorizontalAxisFlip(enable);
-		else if (parsedAxis.contains("vertical"))
-			view.get2DLayout().setVerticalAxisFlip(enable);
-		else if (parsedAxis.contains("all") || parsedAxis.contains("both"))
-			view.get2DLayout().setBothAxisFlip(enable);
-	}
+    private void flipAxis(final String axis, final boolean enable) {
+        final String parsedAxis = axis.toLowerCase();
+        if (parsedAxis.contains("horizontal"))
+            view.get2DLayout().setHorizontalAxisFlip(enable);
+        else if (parsedAxis.contains("vertical"))
+            view.get2DLayout().setVerticalAxisFlip(enable);
+        else if (parsedAxis.contains("all") || parsedAxis.contains("both"))
+            view.get2DLayout().setBothAxisFlip(enable);
+    }
 
-	/**
-	 * Sets custom labels for the 3D coordinate axes.
-	 *
-	 * @param labels the axis labels in order: X-axis, Y-axis, Z-axis.
-	 *               If null, defaults to "X", "Y", "Z". If fewer than 3 labels
-	 *               are provided, only the available axes are labeled.
-	 */
-	public void setAxesLabels(final String... labels) {
-		if (labels == null) {
-			view.getAxisLayout().setXAxisLabel("X");
-			view.getAxisLayout().setYAxisLabel("Y");
-			view.getAxisLayout().setZAxisLabel("Z");
-			return;
-		}
-		if (labels.length > 0) {
-			view.getAxisLayout().setXAxisLabel(labels[0]);
-		}
-		if (labels.length > 1) {
-			view.getAxisLayout().setYAxisLabel(labels[1]);
-		}
-		if (labels.length > 2) {
-			view.getAxisLayout().setZAxisLabel(labels[2]);
-		}
-	}
+    /**
+     * Sets custom labels for the 3D coordinate axes.
+     *
+     * @param labels the axis labels in order: X-axis, Y-axis, Z-axis.
+     *               If null, defaults to "X", "Y", "Z". If fewer than 3 labels
+     *               are provided, only the available axes are labeled.
+     */
+    public void setAxesLabels(final String... labels) {
+        if (labels == null) {
+            view.getAxisLayout().setXAxisLabel("X");
+            view.getAxisLayout().setYAxisLabel("Y");
+            view.getAxisLayout().setZAxisLabel("Z");
+            return;
+        }
+        if (labels.length > 0) {
+            view.getAxisLayout().setXAxisLabel(labels[0]);
+        }
+        if (labels.length > 1) {
+            view.getAxisLayout().setYAxisLabel(labels[1]);
+        }
+        if (labels.length > 2) {
+            view.getAxisLayout().setZAxisLabel(labels[2]);
+        }
+    }
 
-	private String[] getAxesLabels() {
-		return new String[] { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
-				view.getAxisLayout().getZAxisLabel() };
-	}
+    private String[] getAxesLabels() {
+        return new String[]{view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
+                view.getAxisLayout().getZAxisLabel()};
+    }
 
-	private void rebuild() {
-		SNTUtils.log("Rebuilding scene...");
-		try {
-			// remember settings so that they can be restored
-			final boolean lighModeOn = !isDarkModeOn();
-			final boolean axesOn = view.isAxisDisplayed();
-			final float currentZoomStep = keyController.zoomStep;
-			final double currentRotationStep = keyController.rotationStep;
-			final float currentPanStep = mouseController.panStep;
-			final ISquarifier squarifier = view.getSquarifier();
-			final boolean squared = view.getSquared();
-			final CameraMode currentCameraMode = view.getCameraMode();
-			final ViewportMode viewPortMode = view.getCamera().getViewportMode();
-			final Coord3d currentViewPoint = view.getViewPoint();
-			final BoundingBox3d currentBox = view.getBounds();
-			final boolean isAnimating = mouseController.isAnimating();
-			setAnimationEnabled(false);
-			chart.stopAllThreads();
-			chart.dispose();
-			chart = null;
-			if (managerList != null) {
-				// update manager list to reflect that all objects are going to be visible
-				final int allIdx = managerList.getCheckBoxListSelectionModel().getAllEntryIndex();
-				managerList.getCheckBoxListSelectionModel().setSelectionInterval(allIdx, allIdx);
-			}
-			initView();
-			keyController.zoomStep = currentZoomStep;
-			keyController.rotationStep = currentRotationStep;
-			mouseController.panStep = currentPanStep;
-			if (lighModeOn) keyController.toggleDarkMode();
-			if (axesOn) chart.setAxeDisplayed(axesOn);
-			view.setSquarifier(squarifier);
-			view.setSquared(squared);
-			view.setCameraMode(currentCameraMode);
-			view.getCamera().setViewportMode(viewPortMode);
-			view.setViewPoint(currentViewPoint);
-			view.setBoundsManual(currentBox);
-			addAllObjects();
-			setAnimationEnabled(isAnimating);
-			if (frame != null && frame.managerPanel != null && frame.managerPanel.debugger != null) {
-				frame.managerPanel.debugger.setWatchedChart(chart);
-			}
-		}
-		catch (final GLException | NullPointerException exc) {
-			SNTUtils.error("Rebuild Error", exc);
-		}
-		if (frame != null) frame.replaceCurrentChart((AChart)chart);
-		updateView();
-	}
+    private void rebuild() {
+        SNTUtils.log("Rebuilding scene...");
+        try {
+            // remember settings so that they can be restored
+            final boolean lighModeOn = !isDarkModeOn();
+            final boolean axesOn = view.isAxisDisplayed();
+            final float currentZoomStep = keyController.zoomStep;
+            final double currentRotationStep = keyController.rotationStep;
+            final float currentPanStep = mouseController.panStep;
+            final ISquarifier squarifier = view.getSquarifier();
+            final boolean squared = view.getSquared();
+            final CameraMode currentCameraMode = view.getCameraMode();
+            final ViewportMode viewPortMode = view.getCamera().getViewportMode();
+            final Coord3d currentViewPoint = view.getViewPoint();
+            final BoundingBox3d currentBox = view.getBounds();
+            final boolean isAnimating = mouseController.isAnimating();
+            setAnimationEnabled(false);
+            chart.stopAllThreads();
+            chart.dispose();
+            chart = null;
+            if (managerList != null) {
+                // update manager list to reflect that all objects are going to be visible
+                final int allIdx = managerList.getCheckBoxListSelectionModel().getAllEntryIndex();
+                managerList.getCheckBoxListSelectionModel().setSelectionInterval(allIdx, allIdx);
+            }
+            initView();
+            keyController.zoomStep = currentZoomStep;
+            keyController.rotationStep = currentRotationStep;
+            mouseController.panStep = currentPanStep;
+            if (lighModeOn) keyController.toggleDarkMode();
+            if (axesOn) chart.setAxeDisplayed(axesOn);
+            view.setSquarifier(squarifier);
+            view.setSquared(squared);
+            view.setCameraMode(currentCameraMode);
+            view.getCamera().setViewportMode(viewPortMode);
+            view.setViewPoint(currentViewPoint);
+            view.setBoundsManual(currentBox);
+            addAllObjects();
+            setAnimationEnabled(isAnimating);
+            if (frame != null && frame.managerPanel != null && frame.managerPanel.debugger != null) {
+                frame.managerPanel.debugger.setWatchedChart(chart);
+            }
+        } catch (final GLException | NullPointerException exc) {
+            SNTUtils.error("Rebuild Error", exc);
+        }
+        if (frame != null) frame.replaceCurrentChart((AChart) chart);
+        updateView();
+    }
 
-	/**
-	 * Creates a duplicate of this viewer containing only visible objects.
-	 * <p>
-	 * This method creates a new Viewer3D instance and copies all currently visible
-	 * objects (trees, meshes, annotations) from this viewer to the new one. The
-	 * duplicate viewer maintains the same visual settings and object properties
-	 * but operates independently from the original.
-	 * </p>
-	 *
-	 * @return a new Viewer3D instance containing copies of all visible objects
-	 */
-	public Viewer3D duplicate() {
-		SNTUtils.log("Duplicating viewer... (visible objects only)");
+    /**
+     * Creates a duplicate of this viewer containing only visible objects.
+     * <p>
+     * This method creates a new Viewer3D instance and copies all currently visible
+     * objects (trees, meshes, annotations) from this viewer to the new one. The
+     * duplicate viewer maintains the same visual settings and object properties
+     * but operates independently from the original.
+     * </p>
+     *
+     * @return a new Viewer3D instance containing copies of all visible objects
+     */
+    public Viewer3D duplicate() {
+        SNTUtils.log("Duplicating viewer... (visible objects only)");
 
-		final Viewer3D dup = new Viewer3D();
-		dup.initView();
-		dup.setSceneUpdatesEnabled(false);
-		if (this.cBar != null) {
-			this.cBar.updateColors();
-			dup.chart.add(cBar.duplicate(dup.chart).get(), false);
-		}
-		plottedTrees.forEach((k, shapeTree) -> {
-			if (shapeTree.isDisplayed()) {
-				final ShapeTree dupShapeTree = new ShapeTree(shapeTree.tree);
-				dupShapeTree.setDisplayed(true);
-				dup.chart.add(dupShapeTree.get(), false);
-				dup.plottedTrees.put(k, dupShapeTree);
-			}
-		});
-		plottedObjs.forEach((k, remountableDrawableVBO) -> {
-			if (remountableDrawableVBO.isDisplayed()) {
-				final OBJMesh dupMesh = remountableDrawableVBO.objMesh.duplicate();
-				dupMesh.drawable.setDisplayed(true);
-				dup.chart.add(dupMesh.drawable, false);
-				dup.plottedObjs.put(k, dupMesh.drawable);
-			}
-		});
-		plottedAnnotations.forEach((k, annot) -> {
-			if (annot.getDrawable().isDisplayed()) {
-				final Annotation3D dupAnnot = new Annotation3D(dup, Collections.singleton(annot));
-				dupAnnot.getDrawable().setDisplayed(true);
-				dup.chart.add(dupAnnot.getDrawable(), false);
-				dup.plottedAnnotations.put(k, dupAnnot);
-			}
-		});
-		dup.keyController.zoomStep = keyController.zoomStep;
-		dup.keyController.rotationStep = keyController.rotationStep;
-		dup.mouseController.panStep = mouseController.panStep;
-		if (!isDarkModeOn())
-			dup.keyController.toggleDarkMode();
-		dup.chart.setAxeDisplayed(view.isAxisDisplayed());
-		dup.view.setSquarifier(view.getSquarifier());
-		dup.view.setSquared(view.getSquared());
-		dup.view.setCameraMode(view.getCameraMode());
-		dup.view.getCamera().setViewportMode(view.getCamera().getViewportMode());
-		dup.view.setViewPoint(view.getViewPoint().clone());
-		dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
-		dup.updateView();
-		dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
-				frame.getGraphicsConfiguration());
-		dup.frame.setLocationRelativeTo(frame);
-		final int spacer = frame.getInsets().top;
-		dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
-		dup.frame.addWindowListener(new WindowAdapter() {
-			@Override
-			public void windowClosing(final WindowEvent e) {
-				dup.dispose();
-			}
-		});
-		return dup;
-	}
+        final Viewer3D dup = new Viewer3D();
+        dup.initView();
+        dup.setSceneUpdatesEnabled(false);
+        if (this.cBar != null) {
+            this.cBar.updateColors();
+            dup.chart.add(cBar.duplicate(dup.chart).get(), false);
+        }
+        plottedTrees.forEach((k, shapeTree) -> {
+            if (shapeTree.isDisplayed()) {
+                final ShapeTree dupShapeTree = new ShapeTree(shapeTree.tree);
+                dupShapeTree.setDisplayed(true);
+                dup.chart.add(dupShapeTree.get(), false);
+                dup.plottedTrees.put(k, dupShapeTree);
+            }
+        });
+        plottedObjs.forEach((k, remountableDrawableVBO) -> {
+            if (remountableDrawableVBO.isDisplayed()) {
+                final OBJMesh dupMesh = remountableDrawableVBO.objMesh.duplicate();
+                dupMesh.drawable.setDisplayed(true);
+                dup.chart.add(dupMesh.drawable, false);
+                dup.plottedObjs.put(k, dupMesh.drawable);
+            }
+        });
+        plottedAnnotations.forEach((k, annot) -> {
+            if (annot.getDrawable().isDisplayed()) {
+                final Annotation3D dupAnnot = new Annotation3D(dup, Collections.singleton(annot));
+                dupAnnot.getDrawable().setDisplayed(true);
+                dup.chart.add(dupAnnot.getDrawable(), false);
+                dup.plottedAnnotations.put(k, dupAnnot);
+            }
+        });
+        dup.keyController.zoomStep = keyController.zoomStep;
+        dup.keyController.rotationStep = keyController.rotationStep;
+        dup.mouseController.panStep = mouseController.panStep;
+        if (!isDarkModeOn())
+            dup.keyController.toggleDarkMode();
+        dup.chart.setAxeDisplayed(view.isAxisDisplayed());
+        dup.view.setSquarifier(view.getSquarifier());
+        dup.view.setSquared(view.getSquared());
+        dup.view.setCameraMode(view.getCameraMode());
+        dup.view.getCamera().setViewportMode(view.getCamera().getViewportMode());
+        dup.view.setViewPoint(view.getViewPoint().clone());
+        dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
+        dup.updateView();
+        dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
+                frame.getGraphicsConfiguration());
+        dup.frame.setLocationRelativeTo(frame);
+        final int spacer = frame.getInsets().top;
+        dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
+        dup.frame.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(final WindowEvent e) {
+                dup.dispose();
+            }
+        });
+        return dup;
+    }
 
-	/**
-	 * Checks if all drawables in the 3D scene are being rendered properly,
-	 * rebuilding the entire scene if not. Useful to "hard-reset" the viewer, e.g.,
-	 * to ensure all meshes are redrawn.
-	 *
-	 * @see #updateView()
-	 */
-	public void validate() {
-		if (!sceneIsOK()) chart.getView().updateBoundsForceUpdate(true);
-		if (!sceneIsOK()) rebuild();
-	}
+    /**
+     * Checks if all drawables in the 3D scene are being rendered properly,
+     * rebuilding the entire scene if not. Useful to "hard-reset" the viewer, e.g.,
+     * to ensure all meshes are redrawn.
+     *
+     * @see #updateView()
+     */
+    public void validate() {
+        if (!sceneIsOK()) chart.getView().updateBoundsForceUpdate(true);
+        if (!sceneIsOK()) rebuild();
+    }
 
-	/**
+    /**
 	 * Enables/disables debug mode
 	 *
 	 * @param enable true to enable debug mode, otherwise false
@@ -631,6 +639,15 @@ public class Viewer3D {
 		final boolean toggle = keyController != null && isDarkModeOn() != enable;
 		if (toggle) keyController.toggleDarkMode();
 	}
+
+    /**
+     * Enables/disables the display of X,Y,Z axis grid.
+     *
+     * @param enable true to enable axes
+     */
+    public void setEnableAxes(final boolean enable){
+        chart.setAxeDisplayed(enable);
+    }
 
 	/**
 	 * Sets whether axons and dendrites should be imported as separated objects.
@@ -1321,7 +1338,7 @@ public class Viewer3D {
 			return ((OBJMesh) object).getDrawable();
 		} else if (object instanceof Tree) {
 			return plottedTrees.get(((Tree) object).getLabel());
-		} else if (object instanceof String) {
+        } else if (object instanceof String) {
 			final ShapeTree treeShape = plottedTrees.get((String) object);
 			if (treeShape != null) return treeShape;
 			final DrawableVBO obj = plottedObjs.get((String) object);
@@ -1367,10 +1384,17 @@ public class Viewer3D {
 		}
 		final BoundingBox3d bounds = new BoundingBox3d();
 		for (final Object obj : objs) {
-			final Drawable d = getDrawableFromObject(obj);
-			if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
-				bounds.add(d.getBounds());
-			}
+            switch (obj) {
+                case BoundingBox3d box3d -> bounds.add(box3d);
+                case BoundingBox box -> bounds.add(box.toBoundingBox3d());
+                case Path path -> bounds.add(new Tree(List.of(path)).getBoundingBox().toBoundingBox3d());
+                case null, default -> {
+                    final Drawable d = getDrawableFromObject(obj);
+                    if (d != null && d.isDisplayed() && d.getBounds() != null && !d.getBounds().isReset()) {
+                        bounds.add(d.getBounds());
+                    }
+                }
+            }
 		}
 		if (bounds.isPoint())
 			return;
@@ -1941,6 +1965,7 @@ public class Viewer3D {
         switch (object) {
             case Tree tree -> removeTree(tree);
             case OBJMesh objMesh -> removeMesh(objMesh);
+            case Annotation3D annotation3D -> removeAnnotation(annotation3D);
             case String s -> {
                 final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(s);
                 removeSceneObject(labelAndManagerEntry[0], labelAndManagerEntry[1]);
@@ -2243,24 +2268,46 @@ public class Viewer3D {
 	 * @param viewMode the view mode (case-insensitive): "xy"; "xz"; "yz";
 	 *                 "perspective" or "overview"; "default" or "".
 	 */
-	public void setViewMode(final String viewMode) {
-		if (viewMode == null || viewMode.trim().isEmpty()) {
-			setViewMode(ViewMode.DEFAULT);
-			return;
-		}
-		final String vMode = viewMode.toLowerCase();
-		if (vMode.contains("xz") || vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
-			setViewMode(ViewMode.XZ);
-		} else if (vMode.contains("xy") || vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
-			setViewMode(ViewMode.XY);
-		} else if (vMode.contains("yz")) {
-			setViewMode(ViewMode.YZ);
-		} else if (vMode.contains("pers") || vMode.contains("ove")) {
-			setViewMode(ViewMode.PERSPECTIVE);
-		} else {
-			setViewMode(ViewMode.DEFAULT);
-		}
-	}
+    public void setViewMode(final String viewMode) {
+        if (viewMode == null || viewMode.trim().isEmpty()) {
+            setViewMode(ViewMode.DEFAULT);
+            return;
+        }
+        final String vMode = viewMode.toLowerCase();
+
+        // if an axis label is specified use that instead
+        final String[] axesLabels = getAxesLabels();
+        final int axisLabelIndex = IntStream.range(0, axesLabels.length)
+                .filter(i -> axesLabels[i] != null && axesLabels[i].toLowerCase().contains(vMode))
+                .findFirst()
+                .orElse(-1);
+        if (axisLabelIndex > -1) {
+            switch (axisLabelIndex) {
+                case 0:
+                    setViewMode(ViewMode.XY);
+                    break;
+                case 1:
+                    setViewMode(ViewMode.XZ);
+                    break;
+                case 2:
+                    setViewMode(ViewMode.YZ);
+                    break;
+            }
+            return;
+        }
+        // otherwise fallback to defaults
+        if (vMode.contains("xz") || vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
+            setViewMode(ViewMode.XZ);
+        } else if (vMode.contains("xy") || vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
+            setViewMode(ViewMode.XY);
+        } else if (vMode.contains("yz")) {
+            setViewMode(ViewMode.YZ);
+        } else if (vMode.contains("pers") || vMode.contains("ove")) {
+            setViewMode(ViewMode.PERSPECTIVE);
+        } else {
+            setViewMode(ViewMode.DEFAULT);
+        }
+    }
 
 	/**
 	 * Renders the scene from a specified camera angle using polar coordinates
@@ -4373,14 +4420,14 @@ public class Viewer3D {
 		}
 
 		private JMenu squarifyMenu() {
-			final JMenu menu = new JMenu("Impose Isotropic Scale");
+			final JMenu menu = new JMenu("Isotropic Scaling Mode");
 			menu.setIcon(IconFactory.menuIcon(GLYPH.EQUALS));
 			final ButtonGroup cGroup = new ButtonGroup();
-			final String[] axes = new String[] { "XY", "ZY", "XZ", "None"};
+			final String[] axes = new String[] { "XY", "XZ", "YX", "YZ", "ZX", "ZY", "None"};
 			for (final String axis : axes) {
 				final JMenuItem jcbmi = new JCheckBoxMenuItem(axis, axis.startsWith("None"));
 				cGroup.add(jcbmi);
-				jcbmi.addItemListener(e -> squarify(axis, jcbmi.isSelected()));
+				jcbmi.addItemListener(e -> squarify(axis));
 				menu.add(jcbmi);
 			}
 			return menu;

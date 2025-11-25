@@ -430,6 +430,28 @@ public class BoundingBox implements Cloneable {
 		return bounds;
 	}
 
+    public BoundingBox scale(final double[] scale) {
+        final BoundingBox b = new BoundingBox();
+        b.origin.x = this.origin.x * scale[0];
+        b.origin.y = this.origin.y * scale[1];
+        b.origin.z = this.origin.z * scale[2];
+        b.originOpposite.x = this.originOpposite.x * scale[0];
+        b.originOpposite.y = this.originOpposite.y * scale[1];
+        b.originOpposite.z = this.originOpposite.z * scale[2];
+        return b;
+    }
+
+    public BoundingBox shift(final double[] offset) {
+        final BoundingBox b = new BoundingBox();
+        b.origin.x = this.origin.x + offset[0];
+        b.origin.y = this.origin.y + offset[1];
+        b.origin.z = this.origin.z + offset[2];
+        b.originOpposite.x = this.originOpposite.x + offset[0];
+        b.originOpposite.y = this.originOpposite.y + offset[1];
+        b.originOpposite.z = this.originOpposite.z + offset[2];
+        return b;
+    }
+
 	@Override
 	public int hashCode() {
 		return Objects.hash(xSpacing, ySpacing, zSpacing, spacingUnit, origin, originOpposite);
