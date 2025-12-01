@@ -75,8 +75,9 @@ public class AllenUtils {
 	}
 
 	private static JSONObject getJSONfile(final String resourcePath) {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream(resourcePath);
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : AllenUtils.class.getClassLoader();
+		final InputStream is = classLoader.getResourceAsStream(resourcePath);
 		final JSONTokener tokener = new JSONTokener(is);
 		final JSONObject json = new JSONObject(tokener);
 		try {
@@ -500,21 +501,20 @@ public class AllenUtils {
 	public static OBJMesh getRootMesh(final ColorRGB color) {
 		final String meshLabel = "Whole Brain";
 		String meshPath;
-		double volume;
-		switch (VERSION) {
-		case V3:
-			meshPath = "meshes/MouseBrainAllen3.obj";
-			volume = 513578693035.138d;  // pre-computed in trimesh
-			break;
-		case V2_5:
-			meshPath = "meshes/MouseBrainAllen2.5.obj";
-			volume = 513578693035.138d; // pre-computed in trimesh
-			break;
-		default:
-			throw new IllegalArgumentException("Unrecognized CCF version");
-		}
-		final ClassLoader loader = Thread.currentThread().getContextClassLoader();
-		final URL url = loader.getResource(meshPath);
+		double volume = switch (VERSION) {
+            case V3 -> {
+                meshPath = "meshes/MouseBrainAllen3.obj";
+                yield 513578693035.138d;
+            }
+            case V2_5 -> {
+                meshPath = "meshes/MouseBrainAllen2.5.obj";
+                yield 513578693035.138d;
+            }
+            default -> throw new IllegalArgumentException("Unrecognized CCF version");
+        };
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : AllenUtils.class.getClassLoader();
+		final URL url = classLoader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
 		final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());

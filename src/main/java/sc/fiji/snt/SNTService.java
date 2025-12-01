@@ -545,8 +545,9 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	private Tree getResourceSWCTree(final String treeLabel, final String resourcePath) {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream(resourcePath);
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : SNTService.class.getClassLoader();
+        final InputStream is = classLoader.getResourceAsStream(resourcePath);
 		final PathAndFillManager pafm = new PathAndFillManager(1, 1, 1, GuiUtils.micrometer());
 		pafm.setHeadless(true);
 		Tree tree;

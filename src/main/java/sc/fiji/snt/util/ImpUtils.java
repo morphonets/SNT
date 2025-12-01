@@ -582,8 +582,9 @@ public class ImpUtils {
 	}
 
 	private static ImagePlus demoImageInternal(final String path, final String displayTitle) {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream(path);
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : ImpUtils.class.getClassLoader();
+        final InputStream is = classLoader.getResourceAsStream(path);
 		final boolean redirecting = IJ.redirectingErrorMessages();
 		IJ.redirectErrorMessages(true);
 		final ImagePlus imp = new Opener().openTiff(is, displayTitle);

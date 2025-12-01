@@ -91,8 +91,9 @@ public class ZBAtlasUtils {
 	}
 
 	private static OBJMesh getBundledMesh(final String meshLabel, final String meshPath) {
-		final ClassLoader loader = Thread.currentThread().getContextClassLoader();
-		final URL url = loader.getResource(meshPath);
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : ZBAtlasUtils.class.getClassLoader();
+		final URL url = classLoader.getResource(meshPath);
 		if (url == null)
 			throw new IllegalArgumentException(meshLabel + " not found");
 		final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());

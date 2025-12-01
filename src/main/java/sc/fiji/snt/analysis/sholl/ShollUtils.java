@@ -61,10 +61,11 @@ public class ShollUtils {
 
 	// this method is from BAR
 	private static URL getResource(final String resourcePath) {
-		final ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : ShollUtils.class.getClassLoader();
 		URL resource = null;
 		try {
-			final Enumeration<URL> resources = loader.getResources(resourcePath);
+			final Enumeration<URL> resources = classLoader.getResources(resourcePath);
 			while (resources.hasMoreElements()) {
 				resource = resources.nextElement();
 				if (resource.toString().contains(resourcePath))

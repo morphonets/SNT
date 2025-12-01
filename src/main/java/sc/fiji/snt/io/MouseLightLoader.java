@@ -623,8 +623,9 @@ public class MouseLightLoader {
 	 *         cells "AA0001", "AA0002", "AA0003", "AA0004"
 	 */
 	public static List<Tree> demoTrees() {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream("ml/demo-trees/AA0001-4.json");
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : AllenUtils.class.getClassLoader();
+		final InputStream is = classLoader.getResourceAsStream("ml/demo-trees/AA0001-4.json");
 		final Map<String, Tree> result = MouseLightLoader.extractTrees(is, "dendrites");
 		if (result.values().stream().anyMatch(tree -> tree == null || tree.isEmpty())) {
 			return null;

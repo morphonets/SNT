@@ -59,12 +59,14 @@ class FADerivedIcon implements Icon {
 	private static Font loadFont(final String fontName) {
 		Font font;
 		try {
-			final InputStream is = Thread.currentThread().getContextClassLoader()
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+            classLoader = (classLoader != null) ? classLoader : FADerivedIcon.class.getClassLoader();
+			final InputStream is = classLoader
 				.getResourceAsStream(String.format("META-INF/resources/webjars/font-awesome/%s/webfonts/%s", FA_VERSION, fontName));
 			assert is != null;
 			font = Font.createFont(Font.TRUETYPE_FONT, is).deriveFont((float)defSize());
 		}
-		catch (final FontFormatException | IOException ex) {
+		catch (final Exception ignored) {
 			font = UIManager.getFont("Label.font"); // desperate fallback
 		}
 		return font;

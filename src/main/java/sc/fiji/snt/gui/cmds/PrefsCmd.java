@@ -210,8 +210,9 @@ public class PrefsCmd extends OptionsPlugin {
 	}
 
 	private Set<Class<?>> findClasses(final String packageName) {
-		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-		final InputStream is = classloader.getResourceAsStream(packageName.replaceAll("[.]", "/"));
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classLoader = (classLoader != null) ? classLoader : PrefsCmd.class.getClassLoader();
+		final InputStream is = classLoader.getResourceAsStream(packageName.replaceAll("[.]", "/"));
 		final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
 		final Set<Class<?>> set = reader.lines().filter(line -> line.endsWith(".class") && !line.contains("$"))
 				.map(line -> getClass(line, packageName)).collect(Collectors.toSet());
