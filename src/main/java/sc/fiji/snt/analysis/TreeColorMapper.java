@@ -36,10 +36,7 @@ import sc.fiji.snt.analysis.sholl.ProfileEntry;
 import sc.fiji.snt.analysis.sholl.math.LinearProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SWCPoint;
-import sc.fiji.snt.util.ShollPoint;
+import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.MultiViewer2D;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -155,6 +152,8 @@ public class TreeColorMapper extends ColorMapper {
 	}
 
 	public ColorTable getColorTable(final String lut) {
+        final ColorTable cMap = ColorMaps.get(lut);
+        if (cMap != null) return cMap;
 		initLuts();
 		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
 			if (entry.getKey().contains(lut)) {

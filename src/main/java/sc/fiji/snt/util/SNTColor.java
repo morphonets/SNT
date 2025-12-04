@@ -158,11 +158,24 @@ public class SNTColor {
 	 * @param color the input AWT color
 	 * @return the converted string
 	 */
-	public static String colorToString(final Color color) {
-		if (color == null) return "null color";
-		return String.format("#%02x%02x%02x%02x", color.getRed(), color.getGreen(),
-			color.getBlue(), color.getAlpha());
-	}
+	public static String colorToString(final Object color) {
+        switch (color) {
+            case null -> {
+                return "null color";
+            }
+            case Color colorAWT -> {
+                return String.format("#%02x%02x%02x%02x", colorAWT.getRed(), colorAWT.getGreen(),
+                        colorAWT.getBlue(), colorAWT.getAlpha());
+            }
+            case ColorRGB colorRGB -> {
+                return String.format("#%02x%02x%02x%02x", colorRGB.getRed(), colorRGB.getGreen(),
+                        colorRGB.getBlue(), colorRGB.getAlpha());
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
 
 	/**
 	 * Returns an AWT Color from a (#)RRGGBB(AA) hex string.
@@ -313,6 +326,36 @@ public class SNTColor {
 		}
 		return colors;
 	}
+
+    /**
+     * Returns distinct colors based on Kenneth Kelly's 22 colors of maximum
+     * contrast (black and white excluded) as Hex values. More details on this
+     * <a href="https://stackoverflow.com/a/4382138">SO discussion</a>
+     *
+     * @param nColors    the number of colors to be retrieved
+     * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', 'blue', or 'dim'
+     * @return the maximum contrast colors as hex color strings
+     */
+    public static String[] getDistinctColorsHex(final int nColors, final String excludedHue) {
+        final ColorRGB[] colors = getDistinctColors(nColors, excludedHue);
+        final String[] colorsHex = new String[nColors];
+        for (int i = 0; i < nColors; i++) {
+            colorsHex[i] = colorToString(colors[i]);
+        }
+        return colorsHex;
+    }
+
+    /**
+     * Returns distinct colors based on Kenneth Kelly's 22 colors of maximum
+     * contrast (black and white excluded) as Hex values. More details on this
+     * <a href="https://stackoverflow.com/a/4382138">SO discussion</a>
+     *
+     * @param nColors    the number of colors to be retrieved
+     * @return the maximum contrast colors as hex color strings
+     */
+    public static String[] getDistinctColorsHex(final int nColors) {
+        return getDistinctColorsHex(nColors, "");
+    }
 
 	public static Color[] getDistinctColorsAWT(final int nColors) {
 		final Color[] colors = new Color[nColors];

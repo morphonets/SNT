@@ -37,7 +37,6 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 
 /**
@@ -247,7 +246,7 @@ public class NodeColorMapper extends ColorMapper {
         final HashMap<ColorRGB, List<SNTPoint>> result = new HashMap<>(getColorTable().getLength());
         for (final Path path : lasMeasurementTree.list()) {
             final Path.PathNode node = path.getNode(0);
-            final Color colorAWT = node.getNodeColor();
+            final Color colorAWT = node.getColor();
             final ColorRGB color = new ColorRGB(colorAWT.getRed(), colorAWT.getGreen(), colorAWT.getBlue());
             result.putIfAbsent(color, new ArrayList<>());
             result.get(color).add(node);

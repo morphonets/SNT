@@ -34,6 +34,7 @@ import org.scijava.Context;
 import org.scijava.util.ColorRGB;
 
 import sc.fiji.snt.analysis.ColorMapper;
+import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.viewer.geditor.GraphEditor;
 
 import java.io.IOException;
@@ -168,6 +169,8 @@ public class GraphColorMapper<V, E extends DefaultWeightedEdge> extends ColorMap
     }
 
     public ColorTable getColorTable(final String lut) {
+        final ColorTable cMap = ColorMaps.get(lut);
+        if (cMap != null) return cMap;
         initLuts();
         for (final Map.Entry<String, URL> entry : luts.entrySet()) {
             if (entry.getKey().contains(lut)) {

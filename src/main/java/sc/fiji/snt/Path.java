@@ -170,9 +170,9 @@ public class Path implements Comparable<Path>, Cloneable {
 		}
 		
 		// Node color management
-		public Color getNodeColor() { return nodeColor; }
-		public boolean hasNodeColor() { return nodeColor != null; }
-		public void setNodeColor(final Color color) { this.nodeColor = color; }
+		public Color getColor() { return nodeColor; }
+		public boolean hasColor() { return nodeColor != null; }
+		public void setColor(final Color color) { this.nodeColor = color; }
 
 		// Radius management
 		public double getRadius() { return radius; }
@@ -1976,12 +1976,12 @@ public class Path implements Comparable<Path>, Cloneable {
 	 */
 	public void setNodeColors(final Color[] colors) {
 		if (colors == null) {
-			nodes.forEach(node -> node.setNodeColor(null));
+			nodes.forEach(node -> node.setColor(null));
 		} else if (colors.length != size()) {
 			throw new IllegalArgumentException("colors array must have as many elements as nodes");
 		} else {
 			for (int i = 0; i < colors.length; i++)
-				getNodeWithoutChecks(i).setNodeColor(colors[i]);
+				getNodeWithoutChecks(i).setColor(colors[i]);
 		}
 	}
 
@@ -1995,7 +1995,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		// Direct array creation is faster than using streams!?
 		final Color[] colors = new Color[nodes.size()];
 		for (int i = 0; i < nodes.size(); i++)
-			colors[i] = nodes.get(i).getNodeColor();
+			colors[i] = nodes.get(i).getColor();
 		return colors;
 	}
 
@@ -2007,7 +2007,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	 *         this path
 	 */
 	public Color getNodeColor(final int pos) {
-		return getNodeWithChecks(pos).getNodeColor();
+		return getNodeWithChecks(pos).getColor();
 	}
 
 	/**
@@ -2017,7 +2017,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	 * @param pos the node position
 	 */
 	public void setNodeColor(final Color color, final int pos) {
-		getNodeWithChecks(pos).setNodeColor(color);
+		getNodeWithChecks(pos).setColor(color);
 	}
 
 	/**
@@ -2198,7 +2198,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		this.color = color;
 		hasCustomColor = color != null;
 		if (getFitted() != null) getFitted().setColor(color);
-		if (hasNodeColors() && size() == 1) getNodeWithoutChecks(0).setNodeColor(color);
+		if (hasNodeColors() && size() == 1) getNodeWithoutChecks(0).setColor(color);
 	}
 
 	/**
@@ -2513,7 +2513,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	public boolean hasNodeColors() {
 		// Direct iteration with early termination is faster than streams!?
 		for (final PathNode node : nodes) {
-			if (node.hasNodeColor()) return true;
+			if (node.hasColor()) return true;
 		}
 		return false;
 	}
