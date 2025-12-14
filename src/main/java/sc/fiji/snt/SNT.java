@@ -322,6 +322,18 @@ public class SNT extends MultiDThreePanes implements
 	protected boolean displayCustomPathColors = true;
 
 
+    /**
+     * Script-friendly constructor for Instantiating and initializing SNT in
+     * 'Tracing Mode' (typically headless operations). The channel/frame to
+     * be traced is assumed to be the image's active CT position.
+     *
+     * @param sourceImage the source image
+     * @throws IllegalArgumentException If sourceImage is of type 'RGB'
+     */
+    public SNT(final ImagePlus sourceImage) throws IllegalArgumentException {
+        this(SNTUtils.getContext(), sourceImage);
+        initialize(true, sourceImage.getChannel(), sourceImage.getFrame());
+    }
 
 	/**
 	 * Instantiates SNT in 'Tracing Mode'.
@@ -678,8 +690,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void addListener(final InteractiveTracerCanvas canvas) {
-		final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this, canvas);
-		setAsFirstKeyListener(canvas, listener);
+        if (!GraphicsEnvironment.isHeadless()) {
+            final QueueJumpingKeyListener listener = new QueueJumpingKeyListener(this, canvas);
+            setAsFirstKeyListener(canvas, listener);
+        }
 	}
 
 	public void reloadImage(final int channel, final int frame) {
@@ -2087,7 +2101,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #autoTrace(List, PointInImage)
 	 */
 	public Path autoTrace(final List<SNTPoint> pointList, final PointInImage forkPoint, final boolean headless) {
-		if (headless) {
+		if (headless || GraphicsEnvironment.isHeadless()) {
 			return autoTraceHeadless(pointList, forkPoint);
 		}
 		return autoTrace(pointList, forkPoint);

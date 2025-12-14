@@ -1046,31 +1046,17 @@ public class Path implements Comparable<Path>, Cloneable {
 		setBranchFrom(parentPath, branchPoint);
 	}
 
-	protected void replaceNodesWithFittedVersion() {
-		if (fitted == null) {
-			throw new IllegalArgumentException("assignFittedNodes() called but path has no fitted flavor");
-		}
-		
-		// Clear current nodes and copy from fitted version
-		nodes.clear();
-		for (int i = 0; i < fitted.size(); i++) {
-			PathNode fittedNode = fitted.getNodeWithoutChecks(i);
-			PathNode newNode = fittedNode.clone();
-			newNode.onPath = this;
-			nodes.add(newNode);
-		}
-		
-		if (!getName().contains(" [Fitted*]")) setName( getName() + " [Fitted*]");
-		if (getParentPath() != null && !nodes.isEmpty()) {
-			final PathNode firstNode = nodes.getFirst();
-			final int index = parentPath.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
-			if (index != -1) {
-				branchPointIndex = index;
-			}
-		}
-		setUseFitted(false);
-		fitted = null;
-	}
+    protected void replaceNodesWithFittedVersion() {
+        if (fitted == null) {
+            throw new IllegalArgumentException("Path has no fitted version");
+        }
+        replaceNodes(fitted);
+        if (!getName().contains(" [Fitted*]")) {
+            setName(getName() + " [Fitted*]");
+        }
+        setUseFitted(false);
+        fitted = null;
+    }
 
 	protected void rebuildConnectionsOfFittedVersion() {
 		if (fitted == null)
@@ -1634,6 +1620,55 @@ public class Path implements Comparable<Path>, Cloneable {
 		applyCommonProperties(dup);
 		return dup;
 	}
+
+    /**
+     * Replaces all nodes of this path with those from the replacement path,
+     * preserving hierarchical relationships (parent, children, connections).
+     * <p>
+     * This method is useful for refining path geometry (e.g., from A* tracing)
+     * while maintaining the tree structure.
+     * </p>
+     *
+     * @param replacementPath the path providing the new node geometry
+     * @throws IllegalArgumentException if replacementPath is null or empty
+     */
+    public void replaceNodes(final Path replacementPath) {
+        if (replacementPath == null || replacementPath.size() == 0) {
+            throw new IllegalArgumentException("Replacement path cannot be null or empty");
+        }
+
+        // Clear current nodes and copy from replacement path
+        nodes.clear();
+        for (int i = 0; i < replacementPath.size(); i++) {
+            final PathNode replacementNode = replacementPath.getNodeWithoutChecks(i);
+            final PathNode newNode = replacementNode.clone();
+            newNode.onPath = this;
+            nodes.add(newNode);
+        }
+
+        // Update branch point index to nearest node in parent (if has parent)
+        if (parentPath != null && !nodes.isEmpty()) {
+            final PathNode firstNode = nodes.getFirst();
+            final int index = parentPath.indexNearestTo(firstNode.x, firstNode.y, firstNode.z);
+            if (index != -1) {
+                branchPointIndex = index;
+            }
+        }
+
+        // Update children's branch point indices to reflect new geometry
+        for (final Path child : children) {
+            if (child.branchPointIndex >= 0) {
+                final PointInImage childBranchPoint = child.getBranchPoint();
+                if (childBranchPoint != null) {
+                    final int newIndex = indexNearestTo(
+                            childBranchPoint.x, childBranchPoint.y, childBranchPoint.z);
+                    if (newIndex != -1) {
+                        child.branchPointIndex = newIndex;
+                    }
+                }
+            }
+        }
+    }
 
 	protected void setSpacing(final Calibration cal) {
 		this.x_spacing = cal.pixelWidth;
@@ -3680,94 +3715,111 @@ public class Path implements Comparable<Path>, Cloneable {
 	 * @see PathDownsampler#downsample(ArrayList, double)
 	 * @see #findJunctionIndices()
 	 */
-	public synchronized void downsample(final double internodeSpacing) {
-		if (size() < 3) return; // Need at least 3 points to downsample
+    public synchronized void downsample(final double internodeSpacing) {
+        if (size() < 3) return; // Need at least 3 points to downsample
 
-		// Find fixed points (junctions) that must be preserved. Set is already sorted
-		// Convert to sorted array for easier processing
-		final TreeSet<Integer> fixedIndicesSet = findJunctionIndices();
-		fixedIndicesSet.add(0); // Always preserve start
-		fixedIndicesSet.add(size() - 1); // Always preserve end
-		// Direct array creation is faster than stream operations
-		final int[] fixedIndices = new int[fixedIndicesSet.size()];
-		int idx = 0;
-		for (Integer index : fixedIndicesSet) {
-			fixedIndices[idx++] = index;
-		}
+        // Find fixed points (junctions) that must be preserved. Set is already sorted
+        // Convert to sorted array for easier processing
+        final TreeSet<Integer> fixedIndicesSet = findJunctionIndices();
+        fixedIndicesSet.add(0); // Always preserve start
+        fixedIndicesSet.add(size() - 1); // Always preserve end
+        // Direct array creation is faster than stream operations
+        final int[] fixedIndices = new int[fixedIndicesSet.size()];
+        int idx = 0;
+        for (Integer index : fixedIndicesSet) {
+            fixedIndices[idx++] = index;
+        }
 
-		// Process all segments and collect results
-		final List<SegmentResult> segmentResults = new ArrayList<>();
-		int totalPointsToKeep = 0;
+        // Process all segments and collect results
+        final List<SegmentResult> segmentResults = new ArrayList<>();
+        int totalPointsToKeep = 0;
 
-		for (int segIdx = 0; segIdx < fixedIndices.length - 1; segIdx++) {
-			final int segStart = fixedIndices[segIdx];
-			final int segEnd = fixedIndices[segIdx + 1];
+        for (int segIdx = 0; segIdx < fixedIndices.length - 1; segIdx++) {
+            final int segStart = fixedIndices[segIdx];
+            final int segEnd = fixedIndices[segIdx + 1];
 
-			// Skip empty or single-point segments
-			if (segEnd <= segStart) continue;
+            // Skip empty or single-point segments
+            if (segEnd <= segStart) continue;
 
-			// Create input for downsampling
-			final ArrayList<SimplePoint> segmentPoints = new ArrayList<>(segEnd - segStart + 1);
-			for (int i = segStart; i <= segEnd; i++) {
-				final PathNode node = getNodeWithoutChecks(i);
-				segmentPoints.add(new SimplePoint(node.x, node.y, node.z, i));
-			}
+            // Create input for downsampling
+            final ArrayList<SimplePoint> segmentPoints = new ArrayList<>(segEnd - segStart + 1);
+            for (int i = segStart; i <= segEnd; i++) {
+                final PathNode node = getNodeWithoutChecks(i);
+                segmentPoints.add(new SimplePoint(node.x, node.y, node.z, i));
+            }
 
-			// Downsample this segment
-			ArrayList<SimplePoint> downsampled = PathDownsampler.downsample(segmentPoints, internodeSpacing);
+            // Downsample this segment
+            ArrayList<SimplePoint> downsampled = PathDownsampler.downsample(segmentPoints, internodeSpacing);
 
-			if (downsampled.isEmpty()) {
-				// Fallback to original segment if downsampling fails
-				downsampled = segmentPoints;
-			}
+            if (downsampled.isEmpty()) {
+                // Fallback to original segment if downsampling fails
+                downsampled = segmentPoints;
+            }
 
-			final SegmentResult result = new SegmentResult(segStart, segEnd, downsampled);
-			segmentResults.add(result);
-			totalPointsToKeep += downsampled.size();
+            final SegmentResult result = new SegmentResult(segStart, segEnd, downsampled);
+            segmentResults.add(result);
+            totalPointsToKeep += downsampled.size();
 
-			// Avoid double-counting shared endpoints between segments
-			if (segIdx > 0) totalPointsToKeep--;
-		}
+            // Avoid double-counting shared endpoints between segments
+            if (segIdx > 0) totalPointsToKeep--;
+        }
 
-		if (totalPointsToKeep >= size() || segmentResults.isEmpty()) return; // No improvement from downsampling
+        if (totalPointsToKeep >= size() || segmentResults.isEmpty()) return; // No improvement from downsampling
 
-		// Create new nodes list
-		final List<PathNode> newNodes = new ArrayList<>(totalPointsToKeep);
+        // Create new nodes list
+        final List<PathNode> newNodes = new ArrayList<>(totalPointsToKeep);
 
-		// Build the final downsampled path
-		for (int segIdx = 0; segIdx < segmentResults.size(); segIdx++) {
-			final SegmentResult result = segmentResults.get(segIdx);
-			final int startIdx = (segIdx == 0) ? 0 : 1; // Skip first point of non-first segments to avoid duplication
+        // Build the final downsampled path
+        for (int segIdx = 0; segIdx < segmentResults.size(); segIdx++) {
+            final SegmentResult result = segmentResults.get(segIdx);
+            final int startIdx = (segIdx == 0) ? 0 : 1; // Skip first point of non-first segments to avoid duplication
 
-			for (int i = startIdx; i < result.downsampledPoints.size(); i++) {
-				final SimplePoint sp = result.downsampledPoints.get(i);
-				
-				// Create new node with downsampled coordinates
-				final PathNode newNode = new PathNode(sp.x, sp.y, sp.z);
-				newNode.onPath = this;
-				
-				// Copy properties from original node if it exists
-				if (sp.originalIndex >= 0 && sp.originalIndex < nodes.size()) {
-					final PathNode originalNode = nodes.get(sp.originalIndex);
-					newNode.v = originalNode.v;
-					newNode.setAnnotation(originalNode.getAnnotation());
-					newNode.setHemisphere(originalNode.getHemisphere());
-					
-					// For radius, use average if this is an interpolated point
-					if (originalNode.hasRadius()) {
-						newNode.setRadius(calculateAverageRadius(sp, result, i));
-					}
-				}
-				
-				newNodes.add(newNode);
-			}
-		}
+            for (int i = startIdx; i < result.downsampledPoints.size(); i++) {
+                final SimplePoint sp = result.downsampledPoints.get(i);
 
-		// Replace nodes with downsampled version
-		nodes.clear();
-		nodes.addAll(newNodes);
-		setNodeColors(null);
-	}
+                // Create new node with downsampled coordinates
+                final PathNode newNode = new PathNode(sp.x, sp.y, sp.z);
+                newNode.onPath = this;
+
+                // Copy properties from original node if it exists
+                if (sp.originalIndex >= 0 && sp.originalIndex < nodes.size()) {
+                    final PathNode originalNode = nodes.get(sp.originalIndex);
+                    newNode.v = originalNode.v;
+                    newNode.setAnnotation(originalNode.getAnnotation());
+                    newNode.setHemisphere(originalNode.getHemisphere());
+
+                    // For radius, use average if this is an interpolated point
+                    if (originalNode.hasRadius()) {
+                        newNode.setRadius(calculateAverageRadius(sp, result, i));
+                    }
+                }
+
+                newNodes.add(newNode);
+            }
+        }
+
+        // Save children's branch points BEFORE modifying nodes
+        final Map<Path, PointInImage> savedBranchPoints = new HashMap<>();
+        for (final Path child : children) {
+            final PointInImage bp = child.getBranchPoint();
+            if (bp != null) {
+                savedBranchPoints.put(child, bp.clone());
+            }
+        }
+
+        // Replace nodes with downsampled version
+        nodes.clear();
+        nodes.addAll(newNodes);
+        setNodeColors(null);
+
+        // Recalculate children's branch point indices using saved coordinates
+        for (final Path child : children) {
+            final PointInImage savedBP = savedBranchPoints.get(child);
+            if (savedBP != null) {
+                child.branchPointIndex = indexNearestTo(savedBP.x, savedBP.y, savedBP.z);
+            }
+        }
+    }
 
 	/*
 	 * Helper record to store the results of downsampling a single path segment.

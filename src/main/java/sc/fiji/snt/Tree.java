@@ -1586,64 +1586,55 @@ public class Tree implements TreeProperties, Cloneable {
 	 * 
 	 * @return a new Tree that is a deep copy of this tree
 	 */
-	@Override
-	public Tree clone() {
-		try {
-			// For Tree, we use manual cloning due to complex path relationships
-			// Using super.clone() would be problematic due to the complex internal state
-			final Tree clone = new Tree();
-			clone.setLabel(getLabel());
-			clone.applyProperties(this);
-			clone.setColor(getColor());
-			clone.assignValue(getAssignedValue());
+    @Override
+    public Tree clone() {
+        try {
+            // For Tree, we use manual cloning due to complex path relationships
+            // Using super.clone() would be problematic due to the complex internal state
+            final Tree clone = new Tree();
+            clone.setLabel(getLabel());
+            clone.applyProperties(this);
+            clone.setColor(getColor());
+            clone.assignValue(getAssignedValue());
 
-			// Debug: Check if original tree has paths
-			if (list().isEmpty()) {
-				return clone; // Return empty clone if original is empty
-			}
+            if (list().isEmpty()) {
+                return clone; // Return empty clone if original is empty
+            }
 
-			// Clone all paths and build mapping
-			final Map<Path, Path> originalToCloneMap = new HashMap<>();
-			
-			for (final Path originalPath : list()) {
-				final Path clonePath = originalPath.clone();
-				
-				// Debug: Verify the cloned path has nodes
-				assert clonePath.size() == originalPath.size();
-				
-				originalToCloneMap.put(originalPath, clonePath);
-				// Clear these, but don't detachFromParent yet
-				clonePath.connectedPaths.clear();
-				clonePath.children.clear();
-				clone.add(clonePath);
-			}
+            // Clone all paths and build mapping
+            final Map<Path, Path> originalToCloneMap = new HashMap<>();
 
-			// Reconstruct path relationships using original path information
-			for (final Path originalPath : list()) {
-				if (originalPath.getParentPath() == null) continue;
-				
-				final Path clonedPath = originalToCloneMap.get(originalPath);
-				final Path clonedParent = originalToCloneMap.get(originalPath.getParentPath());
-				final PointInImage originalBranchPoint = originalPath.getBranchPoint();
-				
-				if (clonedParent != null && originalBranchPoint != null) {
-					final PointInImage clonedBranchPoint = originalBranchPoint.clone();
-					clonedPath.setBranchFrom(clonedParent, clonedBranchPoint);
-				}
-			}
-			
-			// Debug: Verify the cloned tree has the same number of paths
-			if (clone.size() != this.size()) {
-				throw new RuntimeException("Cloned tree has different number of paths: " + 
-					clone.size() + " vs " + this.size());
-			}
-			
-			return clone;
-		} catch (final Exception e) {
-			// Wrap any exceptions in a runtime exception
-			throw new RuntimeException("Failed to clone Tree: " + e.getMessage(), e);
-		}
-	}
+            for (final Path originalPath : list()) {
+                final Path clonedPath = originalPath.clone();
+                originalToCloneMap.put(originalPath, clonedPath);
+                clonedPath.connectedPaths.clear();
+                clonedPath.children.clear();
+                clone.add(clonedPath);
+            }
+
+            // Reconstruct path relationships
+            for (final Path originalPath : list()) {
+                if (originalPath.getParentPath() == null) continue;
+
+                final Path clonedPath = originalToCloneMap.get(originalPath);
+                final Path clonedParent = originalToCloneMap.get(originalPath.getParentPath());
+
+                if (clonedParent != null) {
+                    // Use original branch point, or fallback to first node of child
+                    PointInImage branchPoint = originalPath.getBranchPoint();
+                    if (branchPoint == null) {
+                        branchPoint = originalPath.getNode(0);
+                    }
+                    clonedPath.setBranchFrom(clonedParent, branchPoint);
+                }
+            }
+
+            return clone;
+        } catch (final Exception e) {
+            // Wrap any exceptions in a runtime exception
+            throw new RuntimeException("Failed to clone Tree: " + e.getMessage(), e);
+        }
+    }
 
 	private static class TreeBoundingBox extends BoundingBox {
 
