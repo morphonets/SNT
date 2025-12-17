@@ -1226,8 +1226,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				@Override
 				protected void done() {
 					if (pathsToFit != null) {
-						// since paths were fitted asynchronously, we need to rebuild connections
-						pathAndFillManager.rebuildRelationships();
+						// since paths were fitted asynchronously, we need to apply fit
+                        // sequentially after all parallel fitting is complete.
+                        pathsToFit.forEach(PathFitter::applyFit);
+						// no longer needed: pathAndFillManager.rebuildRelationships();
 					}
 					refreshManager(true, false, getSelectedPaths(true));
 					msg.dispose();

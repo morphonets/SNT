@@ -1677,6 +1677,13 @@ public class Path implements Comparable<Path>, Cloneable {
 		this.spacing_units = cal.getUnit();
 	}
 
+    public void setSpacing(double xSpacing, double ySpacing, double zSpacing, String unit) {
+        this.x_spacing = xSpacing;
+        this.y_spacing = ySpacing;
+        this.z_spacing = zSpacing;
+        this.spacing_units = SNTUtils.getSanitizedUnit(unit);
+    }
+
 	/**
 	 * Creates a deep copy of this Path.
 	 * <p>
@@ -2810,100 +2817,264 @@ public class Path implements Comparable<Path>, Cloneable {
 		return result;
 	}
 
-	/**
-	 * Uses linear interpolation to correct nodes with invalid radius.
-	 * <p>
-	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
-	 * them new values using linear interpolation based on remaining nodes with
-	 * valid radii.
-	 *
-	 * @param apply If {@code true} interpolated values are immediately to this
-	 *              path. If false, nodes remain unchanged.
-	 * @return the map containing the (node index, interpolated radius) pairs or
-	 *         null if current path has not been assigned radii or has less than 2
-	 *         nodes. Note that the map keys hold only the indices for which
-	 *         interpolation succeed, which may be a subset of all the nodes with
-	 *         invalid radii.
-	 */
-	public Map<Integer, Double> interpolateMissingRadii(final boolean apply) {
-		return interpolateMissingRadii((x) -> x <= 0 || Double.isNaN(x), apply);
-	}
+    /**
+     * @deprecated Use {@link #sanitizeRadii(DoublePredicate, boolean)} instead
+     */
+    @Deprecated
+    public Map<Integer, Double> interpolateMissingRadii(final DoublePredicate predicate,
+                                                        final boolean apply) {
+        return sanitizeRadii(predicate, apply);
+    }
 
-	/**
-	 * Uses linear interpolation to correct nodes with invalid radius.
-	 * <p>
-	 * Collects nodes with invalid radii (zero, NaN, or negative values) and assigns
-	 * them new values using linear interpolation based on remaining nodes with
-	 * valid radii.
-	 *
-	 * @param predicate the function defining invalid radiii, e.g. {@code (x) -> {
-	 *                  return x <= 0 || Double.isNaN(x);} }
-	 * @param apply     If {@code true} interpolated values are immediately to this
-	 *                  path. If false, nodes remain unchanged.
-	 * @return the map containing the (node index, interpolated radius) pairs or
-	 *         null if current path has not been assigned radii or has less than 2
-	 *         nodes. Note that the map keys hold only the indices for which
-	 *         interpolation succeed, which may be a subset of all the nodes with
-	 *         invalid radii.
-	 */
-	public Map<Integer, Double> interpolateMissingRadii(final DoublePredicate predicate, final boolean apply) {
-		if (!hasRadii() || size() < 2)
-			return null;
-		final List<Integer> validIndices = new ArrayList<>();
-		final List<Double> validRadii = new ArrayList<>();
-		final List<Integer> replacementIndices = new ArrayList<>();
-		for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
-			final double nodeRadius = getNodeWithoutChecks(nodeIdx).getRadius();
-			if (predicate.test(nodeRadius)) {
-				replacementIndices.add(nodeIdx);
-			} else {
-				validIndices.add(nodeIdx);
-				validRadii.add(nodeRadius);
-			}
-		}
-		// Direct array creation is faster than stream operations
-		final double[] knownIndices = new double[validIndices.size()];
-		for (int i = 0; i < validIndices.size(); i++) {
-			knownIndices[i] = validIndices.get(i);
-		}
-		final double[] knownRadii = new double[validRadii.size()];
-		for (int i = 0; i < validRadii.size(); i++) {
-			knownRadii[i] = validRadii.get(i);
-		}
-		final double[] unknownIndices = new double[replacementIndices.size()];
-		for (int i = 0; i < replacementIndices.size(); i++) {
-			unknownIndices[i] = replacementIndices.get(i);
-		}
-		final double[] guessedRadii = interpolate(knownIndices, knownRadii, unknownIndices);
-		final Map<Integer, Double> result = new TreeMap<>();
-		for (int idx = 0; idx < unknownIndices.length; idx++) {
-			final double r = guessedRadii[idx];
-			if (r < 0)
-				continue;
-			result.put((int) unknownIndices[idx], r);
-			if (apply)
-				setRadius(r, (int) unknownIndices[idx]);
-		}
-		return result;
-	}
+    /**
+     * Sanitizes node radii by interpolating invalid values (zero, NaN, or negative).
+     * <p>
+     * Convenience method equivalent to calling
+     * {@code sanitizeRadii((r) -> r <= 0 || Double.isNaN(r), apply)}.
+     * </p>
+     *
+     * @param apply if {@code true}, corrected values are immediately applied
+     * @return map of corrected {@code (node index, radius)} pairs, or {@code null}
+     * if path has no radii or fewer than 2 nodes
+     * @see #sanitizeRadii(DoublePredicate, boolean)
+     */
+    public Map<Integer, Double> sanitizeRadii(final boolean apply) {
+        return sanitizeRadii(r -> r <= 0 || Double.isNaN(r), apply);
+    }
 
-	private double[] interpolate(final double[] x1, final double[] y1, final double[] x2) {
-		// see https://stackoverflow.com/a/73716167
-		final PolynomialSplineFunction function = new LinearInterpolator().interpolate(x1, y1);
-		final PolynomialFunction[] splines = function.getPolynomials();
-		final PolynomialFunction firstFunction = splines[0];
-		final PolynomialFunction lastFunction = splines[splines.length - 1];
-		final double[] knots = function.getKnots();
-		final double firstKnot = knots[0];
-		final double lastKnot = knots[knots.length - 1];
+    /**
+     * Sanitizes node radii by interpolating values that match the given predicate.
+     * <p>
+     * Collects nodes with invalid radii (as defined by predicate) and assigns new
+     * values using linear interpolation based on remaining valid nodes. Interpolated
+     * values are clamped to the observed range of valid radii to prevent extrapolation
+     * artifacts.
+     * </p>
+     * <p>
+     * If fewer than two valid radii exist, interpolation is not possible and an
+     * empty map is returned. For automatic fallback handling, use
+     * {@link #sanitizeRadii(double, double, boolean)} instead.
+     * </p>
+     *
+     * @param predicate function returning {@code true} for invalid radii
+     * @param apply     if {@code true}, corrected values are immediately applied
+     * @return map of corrected {@code (node index, radius)} pairs, or {@code null}
+     * if path has no radii or fewer than 2 nodes. Empty map if no invalid
+     * radii found or interpolation not possible.
+     * @see #sanitizeRadii(double, double, boolean)
+     */
+    public Map<Integer, Double> sanitizeRadii(final DoublePredicate predicate, final boolean apply) {
+        if (!hasRadii() || size() < 2)
+            return null;
+
+        // Collect valid and invalid nodes
+        final List<Integer> validIndices = new ArrayList<>();
+        final List<Double> validRadii = new ArrayList<>();
+        final List<Integer> invalidIndices = new ArrayList<>();
+
+        for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
+            final double r = getNodeWithoutChecks(nodeIdx).getRadius();
+            if (predicate.test(r)) {
+                invalidIndices.add(nodeIdx);
+            } else {
+                validIndices.add(nodeIdx);
+                validRadii.add(r);
+            }
+        }
+
+        // Nothing to fix
+        if (invalidIndices.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // Cannot interpolate without at least 2 valid points
+        if (validIndices.size() < 2) {
+            SNTUtils.warn("Cannot interpolate radii: fewer than 2 valid radii found. " +
+                    "Consider using sanitizeRadii(minRadius, maxRadius, apply) for automatic fallback.");
+            return Collections.emptyMap();
+        }
+
+        // Compute bounds from valid radii for clamping
+        final double minValid = validRadii.stream().mapToDouble(Double::doubleValue).min().orElse(0);
+        final double maxValid = validRadii.stream().mapToDouble(Double::doubleValue).max().orElse(Double.MAX_VALUE);
+
+        return interpolateAndApply(validIndices, validRadii, invalidIndices, minValid, maxValid, apply);
+    }
+
+    /**
+     * Sanitizes node radii by enforcing bounds and interpolating outliers.
+     * <p>
+     * Identifies nodes with radii outside {@code [minRadius, maxRadius]} and assigns
+     * new values using linear interpolation based on remaining valid nodes. Interpolated
+     * values are clamped to the specified range to prevent extrapolation artifacts.
+     * </p>
+     * <p>
+     * If fewer than two nodes have valid radii, a context-appropriate fallback is used:
+     * <ul>
+     *   <li>All radii above range → {@code maxRadius}</li>
+     *   <li>All radii below range → {@code minRadius}</li>
+     *   <li>Mixed or NaN values → midpoint of range</li>
+     * </ul>
+     * </p>
+     *
+     * @param minRadius minimum valid radius (inclusive)
+     * @param maxRadius maximum valid radius (inclusive)
+     * @param apply     if {@code true}, corrected values are immediately applied
+     * @return map of corrected {@code (node index, radius)} pairs, or {@code null}
+     * if path has no radii or fewer than 2 nodes. Empty map if all radii
+     * are already within range.
+     * @throws IllegalArgumentException if bounds are negative or {@code minRadius > maxRadius}
+     * @see #sanitizeRadii(DoublePredicate, boolean)
+     */
+    public Map<Integer, Double> sanitizeRadii(final double minRadius,
+                                              final double maxRadius,
+                                              final boolean apply) {
+        // Validate arguments
+        if (minRadius < 0 || maxRadius < 0) {
+            throw new IllegalArgumentException("Radius bounds must be non-negative");
+        }
+        if (minRadius > maxRadius) {
+            throw new IllegalArgumentException(
+                    "minRadius (" + minRadius + ") must be <= maxRadius (" + maxRadius + ")");
+        }
+
+        if (!hasRadii() || size() < 2)
+            return null;
+
+        // Collect valid and invalid nodes based on range
+        final List<Integer> validIndices = new ArrayList<>();
+        final List<Double> validRadii = new ArrayList<>();
+        final List<Integer> invalidIndices = new ArrayList<>();
+
+        for (int nodeIdx = 0; nodeIdx < size(); nodeIdx++) {
+            final double r = getNodeWithoutChecks(nodeIdx).getRadius();
+            if (r < minRadius || r > maxRadius || Double.isNaN(r)) {
+                invalidIndices.add(nodeIdx);
+            } else {
+                validIndices.add(nodeIdx);
+                validRadii.add(r);
+            }
+        }
+
+        // Nothing to fix
+        if (invalidIndices.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        // Fallback when interpolation not possible
+        if (validIndices.size() < 2) {
+            return applyFallback(invalidIndices, minRadius, maxRadius, apply);
+        }
+
+        return interpolateAndApply(validIndices, validRadii, invalidIndices, minRadius, maxRadius, apply);
+    }
+
+    /**
+     * Determines context-appropriate fallback and applies to all invalid nodes.
+     */
+    private Map<Integer, Double> applyFallback(final List<Integer> invalidIndices,
+                                               final double minRadius,
+                                               final double maxRadius,
+                                               final boolean apply) {
+        // Analyze invalid radii to determine best fallback
+        boolean allAboveMax = true;
+        boolean allBelowMin = true;
+
+        for (final int nodeIdx : invalidIndices) {
+            final double r = getNodeWithoutChecks(nodeIdx).getRadius();
+            if (!Double.isNaN(r)) {
+                if (r <= maxRadius) allAboveMax = false;
+                if (r >= minRadius) allBelowMin = false;
+            }
+        }
+
+        final double fallback;
+        if (allAboveMax) {
+            fallback = maxRadius;
+        } else if (allBelowMin) {
+            fallback = minRadius;
+        } else {
+            fallback = (minRadius + maxRadius) / 2.0;
+        }
+
+        SNTUtils.log("Fewer than 2 valid radii; using fallback value: " + fallback);
+
+        final Map<Integer, Double> result = new TreeMap<>();
+        for (final int nodeIdx : invalidIndices) {
+            result.put(nodeIdx, fallback);
+            if (apply) {
+                setRadius(fallback, nodeIdx);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Performs interpolation and applies clamped results.
+     */
+    private Map<Integer, Double> interpolateAndApply(final List<Integer> validIndices,
+                                                     final List<Double> validRadii,
+                                                     final List<Integer> invalidIndices,
+                                                     final double clampMin,
+                                                     final double clampMax,
+                                                     final boolean apply) {
+        // Build arrays for interpolation
+        final double[] knownIndices = new double[validIndices.size()];
+        final double[] knownRadii = new double[validRadii.size()];
+        final double[] unknownIndices = new double[invalidIndices.size()];
+
+        for (int i = 0; i < validIndices.size(); i++) {
+            knownIndices[i] = validIndices.get(i);
+            knownRadii[i] = validRadii.get(i);
+        }
+        for (int i = 0; i < invalidIndices.size(); i++) {
+            unknownIndices[i] = invalidIndices.get(i);
+        }
+
+        // Interpolate
+        final double[] interpolatedRadii = interpolate(knownIndices, knownRadii, unknownIndices);
+
+        // Apply results with clamping
+        final Map<Integer, Double> result = new TreeMap<>();
+        for (int i = 0; i < unknownIndices.length; i++) {
+            final int nodeIdx = (int) unknownIndices[i];
+            double r = interpolatedRadii[i];
+
+            // Skip invalid interpolation results
+            if (Double.isNaN(r) || r < 0) {
+                continue;
+            }
+
+            // Clamp to valid range
+            r = Math.max(clampMin, Math.min(clampMax, r));
+
+            result.put(nodeIdx, r);
+            if (apply) {
+                setRadius(r, nodeIdx);
+            }
+        }
+
+        return result;
+    }
+
+    private double[] interpolate(final double[] x1, final double[] y1, final double[] x2) {
+        // see https://stackoverflow.com/a/73716167
+        final PolynomialSplineFunction function = new LinearInterpolator().interpolate(x1, y1);
+        final PolynomialFunction[] splines = function.getPolynomials();
+        final PolynomialFunction firstFunction = splines[0];
+        final PolynomialFunction lastFunction = splines[splines.length - 1];
+        final double[] knots = function.getKnots();
+        final double firstKnot = knots[0];
+        final double lastKnot = knots[knots.length - 1];
         return Arrays.stream(x2).map(d -> {
             if (d > lastKnot) {
                 return lastFunction.value(d - knots[knots.length - 2]);
-            } else if (d < firstKnot)
+            } else if (d < firstKnot) {
                 return firstFunction.value(d - knots[0]);
+            }
             return function.value(d);
         }).toArray();
-	}
+    }
 
 	protected void setFittedCircles(final int nPoints, final double[] tangents_x,
 		final double[] tangents_y, final double[] tangents_z,

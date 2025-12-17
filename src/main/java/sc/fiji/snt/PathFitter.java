@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.process.FloatProcessor;
+import net.imagej.ImgPlus;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealRandomAccess;
 import net.imglib2.RealRandomAccessible;
@@ -40,6 +41,7 @@ import pal.math.MultivariateFunction;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
 import sc.fiji.snt.util.ImgUtils;
 
+import java.awt.*;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 
@@ -49,18 +51,31 @@ import org.scijava.prefs.PrefService;
  * Class for fitting circular cross-sections around existing nodes of a
  * {@link Path} in order to compute radii (node thickness) and midpoint
  * refinement of existing coordinates.
- * 
+ * Thread Safety: When fitting multiple paths in parallel:
+ * 1. Call call() in parallel (thread-safe)
+ * 2. Call applyFit() sequentially (modifies path hierarchy)
+ * <p>
+ * Example:
+ * <pre>
+ * List<PathFitter> fitters = paths.stream()
+ *     .map(p -> new PathFitter(img, p))
+ *     .collect(Collectors.toList());
+ *
+ * // Parallel fitting
+ * fitters.parallelStream().forEach(PathFitter::call);
+ *
+ * // Sequential application
+ * fitters.forEach(PathFitter::applyFit);
+ * </pre>
+ *
  * @author Tiago Ferreira
  * @author Mark Longair
  * @author Cameron Arshadi
- * 
+ *
  */
 public class PathFitter implements Callable<Path> {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
-
-	/** The default max radius constraining the fit. */
-	public static int DEFAULT_MAX_RADIUS = 10;
 
 	/** The default value for the smallest angle (in radians) constraining the fit. */
 	public static double DEFAULT_MIN_ANGLE = Math.PI / 2;
@@ -103,12 +118,12 @@ public class PathFitter implements Callable<Path> {
 
 	private final SNT plugin;
 	private RandomAccessibleInterval<? extends RealType<?>> img;
-	private Path path;
+	private final Path path;
 	private boolean showDetailedFittingResults;
 	private int fitterIndex;
 	private MultiTaskProgress progress;
 	private boolean succeeded;
-	private int sideSearch = DEFAULT_MAX_RADIUS;
+	private int sideSearch = PathFitterCmd.DEFAULT_SEARCH_RADIUS_PIXELS;
 	private double minAngle = DEFAULT_MIN_ANGLE;
 	private int fitScope = RADII_AND_MIDPOINTS;
 	private int radiusFallback = FALLBACK_MODE;
@@ -116,53 +131,76 @@ public class PathFitter implements Callable<Path> {
 	private boolean fitInPlace; // backwards compatibility with v3 and earlier
 
 
-	/**
-	 * Instantiates a new PathFitter.
-	 *
-	 * @param imp the Image containing the signal to which the fit will be
-	 *          performed
-	 * @param path the {@link Path} to be fitted
-	 */
-	public PathFitter(final ImagePlus imp, final Path path) {
-		if (path == null)
-			throw new IllegalArgumentException("Cannot fit a null path");
-		if (path.isFittedVersionOfAnotherPath())
-			throw new IllegalArgumentException("Trying to fit an already fitted path");
-		setImage(ImgUtils.getCtSlice(imp));
-		this.plugin = null;
-		this.path = path;
-		this.fitterIndex = -1;
-		this.progress = null;
-		this.showDetailedFittingResults = false;
-	}
+    /**
+     * Instantiates a new PathFitter.
+     *
+     * @param imp  the Image containing the signal to which the fit will be
+     *             performed
+     * @param path the {@link Path} to be fitted.
+     *             Note that path spacing will change to that of image's voxel size.
+     */
+    public PathFitter(final ImagePlus imp, final Path path) {
+        this(ImgUtils.getCtSlice(imp), path);
+        path.setSpacing(imp.getCalibration());
+    }
 
-	/**
-	 * Instantiates a new PathFitter. If img has more than two dimensions, the third dimension
-	 * is treated as depth.
-	 *
-	 * @param img the Image containing the signal to which the fit will be
-	 *          performed
-	 * @param path the {@link Path} to be fitted
-	 */
-	public PathFitter(final RandomAccessibleInterval<? extends RealType<?>> img, final Path path) {
+    /**
+     * Instantiates a new PathFitter.
+     *
+     * @param img  the Image containing the signal to which the fit will be
+     *             performed
+     * @param path the {@link Path} to be fitted.
+     *             Note that path spacing will change to that of image's voxel size.
+     */
+    public PathFitter(final ImgPlus<? extends RealType<?>> img, final Path path) {
+        this(img.getImg(), path);
+        path.setSpacing(ImgUtils.imgPlusToCalibration(img));
+    }
+
+    /**
+     * Instantiates a new PathFitter directly from pixel data.
+     * If img has more than two dimensions, the third dimension
+     * is treated as depth.
+     * <p>
+     * Specified pixel dimensions will be applied to Path's spacing values.
+     * </p>
+     *
+     * @param img      the Image containing the signal to which the fit will be performed
+     * @param path     the {@link Path} to be fitted
+     * @param xSpacing pixel width in physical distance
+     * @param ySpacing pixel height in physical distance
+     * @param zSpacing pixel depth in physical distance
+     * @param unit     spatial calibration unit
+     */
+    public PathFitter(final RandomAccessibleInterval<? extends RealType<?>> img, final Path path,
+                       final double xSpacing,
+                       final double ySpacing,
+                       final double zSpacing,
+                       final String unit) {
+        this(img, path);
+        path.setSpacing(xSpacing, ySpacing, zSpacing, unit);
+    }
+
+	private PathFitter(final RandomAccessibleInterval<? extends RealType<?>> img, final Path path) {
 		if (path == null)
 			throw new IllegalArgumentException("Cannot fit a null path");
 		if (path.isFittedVersionOfAnotherPath())
 			throw new IllegalArgumentException("Trying to fit an already fitted path");
 		setImage(img);
-		this.plugin = null;
+        this.plugin = null;
 		this.path = path;
 		this.fitterIndex = -1;
 		this.progress = null;
 		this.showDetailedFittingResults = false;
 	}
 
-	/**
+    /**
 	 * Instantiates a new PathFitter.
 	 *
 	 * @param plugin the {@link SNT} instance specifying input
 	 *          image. The computation will be performed on the image currently
-	 *          loaded by the plugin.
+	 *          loaded by the plugin, adopting the plugin's spatial calibration
+     *
 	 * @param path the {@link Path} to be fitted
 	 */
 	public PathFitter(final SNT plugin, final Path path) {
@@ -172,6 +210,7 @@ public class PathFitter implements Callable<Path> {
 			throw new IllegalArgumentException("Trying to fit an already fitted path");
 		this.plugin = plugin;
 		setImage(plugin.getLoadedData());
+        path.setSpacing(plugin.x_spacing, plugin.y_spacing, plugin.z_spacing, plugin.spacing_units);
 		this.path = path;
 		this.fitterIndex = -1;
 		this.progress = null;
@@ -185,6 +224,8 @@ public class PathFitter implements Callable<Path> {
 	 *                          only useful if SNT's UI is visible and functional.
 	 */
 	public void setShowAnnotatedView(final boolean showAnnotatedView) {
+        if (showAnnotatedView && GraphicsEnvironment.isHeadless())
+            throw new IllegalArgumentException("Option not available in headless mode");
 		showDetailedFittingResults = showAnnotatedView;
 	}
 
@@ -195,17 +236,17 @@ public class PathFitter implements Callable<Path> {
 
 	public void readPreferences() {
 		final PrefService prefService = SNTUtils.getContext().getService(PrefService.class);
-		final String fitTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FITCHOICE_KEY);
+		final String fitTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FIT_CHOICE_KEY);
 		fitScope = (fitTypeString== null) ? RADII_AND_MIDPOINTS : Integer.parseInt(fitTypeString);
-		final String fallbackTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FALLBACKCHOICE_KEY);
+		final String fallbackTypeString = prefService.get(PathFitterCmd.class, PathFitterCmd.FALLBACK_CHOICE_KEY);
 		radiusFallback = (fallbackTypeString == null) ? FALLBACK_MODE : Integer.parseInt(fallbackTypeString);
-		final String maxRadiuString = prefService.get(PathFitterCmd.class, PathFitterCmd.MAXRADIUS_KEY);
-		sideSearch = (maxRadiuString == null) ? DEFAULT_MAX_RADIUS : Integer.parseInt(maxRadiuString);
-		final String minAngleString = prefService.get(PathFitterCmd.class, PathFitterCmd.MINANGLE_KEY);
+		final String maxRadiuString = prefService.get(PathFitterCmd.class, PathFitterCmd.MAX_SEARCH_RADIUS_PX_KEY);
+		sideSearch = (maxRadiuString == null) ? PathFitterCmd.DEFAULT_SEARCH_RADIUS_PIXELS : Integer.parseInt(maxRadiuString);
+		final String minAngleString = prefService.get(PathFitterCmd.class, PathFitterCmd.MIN_ANGLE_KEY);
 		minAngle = (minAngleString == null) ? DEFAULT_MIN_ANGLE : Double.parseDouble(minAngleString);
-		fitInPlace = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.FITINPLACE_KEY, false);
+		fitInPlace = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.FIT_IN_PLACE_KEY, false);
 		if (plugin != null) {
-			final boolean secondary = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.SECLAYER_KEY, false);
+			final boolean secondary = prefService.getBoolean(PathFitterCmd.class, PathFitterCmd.SEC_LAYER_KEY, false);
 			final RandomAccessibleInterval<? extends RealType<?>> img = (secondary && plugin.isSecondaryDataAvailable()) ? plugin.getSecondaryData()
 					: plugin.getLoadedData();
 			setImage(img);
@@ -221,34 +262,45 @@ public class PathFitter implements Callable<Path> {
 		img = pf.img;
 	}
 
-	/**
-	 * Takes the signal from the image specified in the constructor to fit
-	 * cross-section circles around the nodes of input path. Computation of fit is
-	 * confined to the neighborhood specified by {@link #setMaxRadius(int)}.
-	 * Note that connectivity of path may need to be rebuilt upon fit.
-	 *
-	 * @return the reference to the computed result. This Path is automatically
-	 *         set as the fitted version of input Path.
-	 * @throws IllegalArgumentException If path already has been fitted, and its
-	 *           fitted version not nullified
-	 * @see #setScope(int)
-	 */
-	@Override
-	public Path call() throws IllegalArgumentException {
-		fitCircles();
-		if (fitted == null) {
-			succeeded = false;
-			return null;
-		}
-		succeeded = true;
-		// Common properties have been set using Path#creatPath(),
-		path.setFitted(fitted);
-		path.setUseFitted(true);
-		if (fitInPlace) {
-			path.replaceNodesWithFittedVersion();
-		}
-		return fitted;
-	}
+    /**
+     * Takes the signal from the image specified in the constructor to fit
+     * cross-section circles around the nodes of input path. Computation of fit is
+     * confined to the neighborhood specified by {@link #setCrossSectionRadius(double)}.
+     *
+     * @return the reference to the computed result. Note that this Path is *not* automatically
+     * set as the fitted version of input Path. That only happens when {@link #applyFit()}
+     * is called.
+     * @see #setScope(int)
+     * @see #applyFit()
+     */
+    @Override
+    public Path call() throws IllegalArgumentException {
+        fitCircles();
+        if (fitted == null) {
+            succeeded = false;
+            return null;
+        }
+        succeeded = true;
+        // Thread-safety: Only store the result, don't modify path hierarchy yet
+        return fitted;
+    }
+
+    /**
+     * Applies the fitted result to the path. For multithreaded processing: Must
+     * be called sequentially after all parallel fitting is complete.
+     */
+    public void applyFit() {
+        if (fitted == null || !succeeded) return;
+
+        synchronized (path) {
+            path.setFitted(null);
+            path.setFitted(fitted);
+            path.setUseFitted(true);
+            if (fitInPlace) {
+                path.replaceNodesWithFittedVersion();
+            }
+        }
+    }
 
 	/**
 	 * @return the path being fitted
@@ -266,25 +318,30 @@ public class PathFitter implements Callable<Path> {
 		return succeeded;
 	}
 
-	/**
-	 * Gets the current max radius (in pixels)
-	 *
-	 * @return the maximum radius currently being considered, or
-	 *         {@link #DEFAULT_MAX_RADIUS} if {@link #setMaxRadius(int)} has not
-	 *         been called
-	 */
-	public int getMaxRadius() {
-		return sideSearch;
-	}
-
-	/**
-	 * Sets the max radius (side search) for constraining the fit.
-	 *
-	 * @param maxRadius the new maximum radius
-	 */
-	public void setMaxRadius(final int maxRadius) {
-		this.sideSearch = maxRadius;
-	}
+    /**
+     * Sets the radius of cross-sectional planes sampled around each node.
+     * <p>
+     * At each node, PathFitter samples a square cross-section perpendicular to
+     * the path tangent. This radius controls the physical extent of that sampling.
+     * </p>
+     * @param crossSectionRadius the physical search radius (in physical units)
+     */
+    public void setCrossSectionRadius(final double crossSectionRadius) {
+        if (crossSectionRadius <= 0) {
+            throw new IllegalArgumentException("Search radius must be positive");
+        }
+        // Compute appropriate grid size based on path calibration
+        final double minScale = path.getMinimumSeparation();
+        // Grid should sample at ~minScale resolution
+        // Physical radius = (sideSearch/2) × scale, so:
+        this.sideSearch = (int) Math.ceil(2 * crossSectionRadius / minScale);
+        // Clamp to reasonable range
+        this.sideSearch = Math.max(5, Math.min(this.sideSearch, 100));
+        SNTUtils.log(String.format(
+                "Set search radius to %.2f %s (grid size: %d×%d)",
+                crossSectionRadius, path.spacing_units, sideSearch, sideSearch
+        ));
+    }
 
 	/**
 	 * Sets the fitting scope.
@@ -302,16 +359,22 @@ public class PathFitter implements Callable<Path> {
 		this.fitScope = scope;
 	}
 
-	/**
-	 * Sets the fallback strategy for radii at locations in which fitting failed
-	 *
+    /**
+     * Sets the fallback strategy for node radii at locations where fitting failed.
+     * <p>
+     * When cross-section fitting fails at a node (e.g., low SNR, ambiguous geometry),
+     * this strategy determines what radius value to assign to that node.
+     * </p>
+     *
+     * @param fallback the fallback strategy: {@link #FALLBACK_MODE},
+     *                 {@link #FALLBACK_MIN_SEP}, or {@link #FALLBACK_NAN}
      */
-	public void setRadiusFallback(final int fallback) {
+	public void setNodeRadiusFallback(final int fallback) {
 		if (fallback != PathFitter.FALLBACK_MODE && fallback != PathFitter.FALLBACK_MIN_SEP &&
 				fallback != PathFitter.FALLBACK_NAN)
 			{
-				throw new IllegalArgumentException(
-					" Invalid flag. Only RADII, RADII, or RADII_AND_MIDPOINTS allowed");
+                throw new IllegalArgumentException(
+                        "Invalid flag. Only FALLBACK_MODE, FALLBACK_MIN_SEP, or FALLBACK_NAN allowed");
 			}
 		radiusFallback = fallback;
 	}
@@ -339,6 +402,58 @@ public class PathFitter implements Callable<Path> {
             default -> "Unrecognized option";
         };
 	}
+
+    /**
+     * Computes orthonormal basis vectors in the plane perpendicular to the given normal.
+     * Returns [a_basis, b_basis] where each is [x, y, z].
+     */
+    private double[][] computeTangentPlaneBasis(final double nx, final double ny, final double nz) {
+        final double epsilon = 1e-6;
+
+        // First basis vector: cross product with (0,0,1) or (0,1,0)
+        double ax, ay, az;
+        if (Math.abs(nx) < epsilon && Math.abs(ny) < epsilon) {
+            // Normal is parallel to Z, use (0,1,0) instead
+            ax = nz;
+            ay = 0;
+            az = -nx;
+        } else {
+            // Cross normal with (0,0,1)
+            ax = -ny;
+            ay = nx;
+            az = 0;
+        }
+
+        // Second basis vector: cross product of a with normal
+        double bx = ay * nz - az * ny;
+        double by = az * nx - ax * nz;
+        double bz = ax * ny - ay * nx;
+
+        // Normalize both vectors
+        final double a_size = Math.sqrt(ax * ax + ay * ay + az * az);
+        ax = ax / a_size;
+        ay = ay / a_size;
+        az = az / a_size;
+
+        final double b_size = Math.sqrt(bx * bx + by * by + bz * bz);
+        bx = bx / b_size;
+        by = by / b_size;
+        bz = bz / b_size;
+
+        return new double[][] {
+                {ax, ay, az},  // a_basis
+                {bx, by, bz}   // b_basis
+        };
+    }
+
+    private double computeScaleAlongVector(final double vx, final double vy, final double vz) {
+        // Effective scale = sqrt(sum of (component * spacing)^2)
+        return Math.sqrt(
+                Math.pow(vx * path.x_spacing, 2) +
+                        Math.pow(vy * path.y_spacing, 2) +
+                        Math.pow(vz * path.z_spacing, 2)
+        );
+    }
 
 	private <T extends RealType<T>> void fitCircles() {
 
@@ -383,8 +498,8 @@ public class PathFitter implements Callable<Path> {
 		final double[] scores = new double[totalPoints];
 		final double[] moved = new double[totalPoints];
 		final boolean[] valid = new boolean[totalPoints];
+        final double[] scales_iso = new double[totalPoints];  // Isotropic scale per node
 
-		final double scaleInNormalPlane = path.getMinimumSeparation();
 		final double[] tangent = new double[3];
 
 		if (progress != null) progress.updateProgress(0d, fitterIndex);
@@ -403,21 +518,46 @@ public class PathFitter implements Callable<Path> {
 
 			path.getTangent(i, pointsEitherSide, tangent);
 
-			final PointInImage node = path.getNodeWithoutChecks(i);
-			final double x_world = node.x;
-			final double y_world = node.y;
-			final double z_world = node.z;
+            final Path.PathNode node = path.getNodeWithoutChecks(i);
+            final double x_world = node.x;
+            final double y_world = node.y;
+            final double z_world = node.z;
 
-			final double[] x_basis_in_plane = new double[3];
-			final double[] y_basis_in_plane = new double[3];
+            // Compute orthonormal basis in tangent plane
+            final double[][] basis = computeTangentPlaneBasis(tangent[0], tangent[1], tangent[2]);
+            final double[] a_basis = basis[0];  // [ax, ay, az]
+            final double[] b_basis = basis[1];  // [bx, by, bz]
 
-			final float[] normalPlane = squareNormalToVector(sideSearch,
-				scaleInNormalPlane, // This is in the same units as
-				// the _spacing, etc. variables.
-				x_world, y_world, z_world, // These are scaled now
-				tangent[0], tangent[1], tangent[2], //
-				x_basis_in_plane, y_basis_in_plane, realRandomAccess);
+            // Compute physical scales along each basis vector
+            final double scale_a = computeScaleAlongVector(a_basis[0], a_basis[1], a_basis[2]);
+            final double scale_b = computeScaleAlongVector(b_basis[0], b_basis[1], b_basis[2]);
+            final double scale_iso = Math.sqrt(scale_a * scale_b);  // Geometric mean
+            scales_iso[i] = scale_iso;
 
+            if (Math.abs(scale_a - scale_b) / scale_iso > 0.1) {
+                SNTUtils.log(String.format(
+                        "  Node %d: Anisotropic tangent plane (%.3f vs %.3f µm). Using %.3f µm.",
+                        i, scale_a, scale_b, scale_iso
+                ));
+            }
+
+            final double[] x_basis_in_plane = new double[3];
+            final double[] y_basis_in_plane = new double[3];
+
+            final float[] normalPlane = squareNormalToVector(
+                    sideSearch,
+                    scale_iso,  // Pass isotropic scale for both axes
+                    scale_iso,  // Pass isotropic scale for both axes
+                    x_world, y_world, z_world,
+                    tangent[0], tangent[1], tangent[2],
+                    a_basis,
+                    b_basis,
+                    x_basis_in_plane,
+                    y_basis_in_plane,
+                    realRandomAccess
+            );
+
+            SNTUtils.log(String.format("  Scale along a: %.3f, along b: %.3f", scale_a, scale_b));
 			// Now at this stage, try to optimize a circle in there...
 
 			// NB these aren't normalized
@@ -452,18 +592,18 @@ public class PathFitter implements Callable<Path> {
 			centre_x_positionsUnscaled[i] = startValues[0];
 			centre_y_positionsUnscaled[i] = startValues[1];
 			rsUnscaled[i] = startValues[2];
-			rs[i] = scaleInNormalPlane * rsUnscaled[i];
+            rs[i] = scales_iso[i] * rsUnscaled[i];
 
-			scores[i] = attempt.min;
+            scores[i] = attempt.min;
 
 			// Now we calculate the real co-ordinates of the new centre:
 
 			final double x_from_centre_in_plane = startValues[0] - (sideSearch / 2.0);
 			final double y_from_centre_in_plane = startValues[1] - (sideSearch / 2.0);
 
-			moved[i] = scaleInNormalPlane * Math.sqrt(x_from_centre_in_plane *
-				x_from_centre_in_plane + y_from_centre_in_plane *
-					y_from_centre_in_plane);
+            moved[i] = scales_iso[i] * Math.sqrt(x_from_centre_in_plane *
+                    x_from_centre_in_plane + y_from_centre_in_plane *
+                    y_from_centre_in_plane);
 
 			// SNT.log("Vector to new centre from original: " + x_from_centre_in_plane
 			// + "," + y_from_centre_in_plane);
@@ -529,9 +669,9 @@ public class PathFitter implements Callable<Path> {
 			}
 			Arrays.sort(valuesForMode);
 			modeRadiiUnscaled[i] = valuesForMode[modeEitherSide];
-			modeRadii[i] = scaleInNormalPlane * modeRadiiUnscaled[i];
-			valid[i] = moved[i] < modeRadiiUnscaled[i];
-		}
+            modeRadii[i] = scales_iso[i] * modeRadiiUnscaled[i];
+            valid[i] = moved[i] < modeRadii[i];  // Both in physical units
+        }
 
 		// Calculate the angle between the vectors from the point to the one on
 		// either side:
@@ -619,6 +759,7 @@ public class PathFitter implements Callable<Path> {
 			}
 		}
 
+        final boolean[] originallyValid = valid.clone();
 		int lastValidIndex = 0;
 		int fittedPoints = 0;
 		for (int i = 0; i < totalPoints; ++i) {
@@ -640,18 +781,18 @@ public class PathFitter implements Callable<Path> {
 					optimized_y[i] = node.y;
 					optimized_z[i] = node.z;
 					rsUnscaled[i] = 1;
-					rs[i] = scaleInNormalPlane;
+					rs[i] = scales_iso[i];
 					modeRadiiUnscaled[i] = 1;
-					modeRadii[i] = scaleInNormalPlane;
+					modeRadii[i] = scales_iso[i];
 					centre_x_positionsUnscaled[i] = sideSearch / 2.0;
 					centre_y_positionsUnscaled[i] = sideSearch / 2.0;
 				}
 			}
 
 			if (valid[i]) {
-				if (rs[i] < scaleInNormalPlane) {
+				if (rs[i] < scales_iso[i]) {
 					rsUnscaled[i] = 1;
-					rs[i] = scaleInNormalPlane;
+					rs[i] = scales_iso[i];
 				}
 				// NB: We'll add the points to the path in bulk later on
 				fittedPoints++;
@@ -693,34 +834,45 @@ public class PathFitter implements Callable<Path> {
 			++added;
 		}
 
-		if (outputRadii) {
-			switch (radiusFallback) {
-			case FALLBACK_MODE:
-				for (int i = 0; i < fitted_rs.length; i++) {
-					if (!valid[i])
-						fitted_rs[i] = modeRadiiUnscaled[i] * scaleInNormalPlane;
-				}
-				break;
-			case FALLBACK_NAN:
-				for (int i = 0; i < fitted_rs.length; i++) {
-					if (!valid[i])
-						fitted_rs[i] = Double.NaN;
-				}
-				break;
-			default:
-				for (int i = 0; i < fitted_rs.length; i++) {
-					if (!valid[i])
-						fitted_rs[i] = scaleInNormalPlane;
-				}
-				break;
-			}
-		}
+        if (outputRadii) {
+            int fittedIndex = 0;
+            switch (radiusFallback) {
+                // Apply fallbacks if for forced valid nodes (not originally valid)
+                case FALLBACK_MODE:
+                    for (int originalIndex = 0; originalIndex < totalPoints; originalIndex++) {
+                        if (!valid[originalIndex]) continue;
+                        if (!originallyValid[originalIndex]) {
+                            fitted_rs[fittedIndex] = modeRadii[originalIndex];
+                        }
+                        fittedIndex++;
+                    }
+                    break;
+                case FALLBACK_NAN:
+                    for (int originalIndex = 0; originalIndex < totalPoints; originalIndex++) {
+                        if (!valid[originalIndex]) continue;
+                        if (!originallyValid[originalIndex]) {
+                            fitted_rs[fittedIndex] = Double.NaN;
+                        }
+                        fittedIndex++;
+                    }
+                    break;
+                case FALLBACK_MIN_SEP:
+                default:
+                    for (int originalIndex = 0; originalIndex < totalPoints; originalIndex++) {
+                        if (!valid[originalIndex]) continue;
+                        if (!originallyValid[originalIndex]) {
+                            fitted_rs[fittedIndex] = scales_iso[originalIndex];
+                        }
+                        fittedIndex++;
+                    }
+                    break;
+            }
+        }
 
 		fitted.setFittedCircles(fittedPoints, fitted_ts_x, fitted_ts_y, fitted_ts_z, fitted_rs, //
 				fitted_optimized_x, fitted_optimized_y, fitted_optimized_z);
 
-		SNTUtils.log("Done. With " + fittedPoints + "/" + totalPoints +
-			" accepted fits");
+		SNTUtils.log("Done. With " + fittedPoints + "/" + totalPoints + " accepted fits");
 		if (showDetailedFittingResults) {
 			SNTUtils.log("Generating annotated cross view stack");
 			final ImagePlus imp = new ImagePlus("Cross-section View " + fitted.getName(), stack);
@@ -896,138 +1048,67 @@ public class PathFitter implements Callable<Path> {
 			u2_smaller + "u2_larger=" + u2_larger);
 	}
 
-	private float[] squareNormalToVector(final int side, // The number of samples
-																 // in x and y in the
-																 // plane, separated by
-																 // step
-																 final double step,
-																 // step is in the same units as the _spacing,
-																 // etc. variables.
-																 final double ox, /* These are scaled now */
-																 final double oy, final double oz, final double nx,
-																 final double ny, final double nz,
-																 final double[] x_basis_vector, /* The basis vectors are returned here */
-																 final double[] y_basis_vector, /* they *are* scaled by _spacing */
-																 final RealRandomAccess<FloatType> realRandomAccess) /* This should be from an interpolated image */
-	{
+    private float[] squareNormalToVector(
+            final int side,
+            final double step_a,  // Physical spacing along a-axis
+            final double step_b,  // Physical spacing along b-axis
+            final double ox, final double oy, final double oz,
+            final double nx, final double ny, final double nz,
+            final double[] a_basis,  // Pre-computed [ax, ay, az]
+            final double[] b_basis,  // Pre-computed [bx, by, bz]
+            final double[] x_basis_vector,
+            final double[] y_basis_vector,
+            final RealRandomAccess<FloatType> realRandomAccess) {
+        final float[] result = new float[side * side];
+        final int nDim = realRandomAccess.numDimensions();
 
-		final float[] result = new float[side * side];
+        // Extract basis components
+        final double ax = a_basis[0];
+        final double ay = a_basis[1];
+        final double az = a_basis[2];
 
-		final double epsilon = 1e-6;
+        final double bx = b_basis[0];
+        final double by = b_basis[1];
+        final double bz = b_basis[2];
 
-		// If the image is 2D, use the XY plane as our basis by default
-		double ax = 1;
-		double ay = 0;
-		double az = 0;
+        // Scale each basis by its respective physical spacing
+        final double ax_s = ax * step_a;
+        final double ay_s = ay * step_a;
+        final double az_s = az * step_a;
 
-		double bx = 0;
-		double by = 1;
-		double bz = 0;
+        final double bx_s = bx * step_b;
+        final double by_s = by * step_b;
+        final double bz_s = bz * step_b;
 
-		final int nDim = realRandomAccess.numDimensions();
+        final double[] position = new double[nDim];
 
-		if (nDim > 2) {
+        for (int grid_i = 0; grid_i < side; ++grid_i) {
+            for (int grid_j = 0; grid_j < side; ++grid_j) {
+                final double midside_grid = ((side - 1) / 2.0f);
+                final double gi = midside_grid - grid_i;
+                final double gj = midside_grid - grid_j;
 
-			/*
-			 * To find an arbitrary vector in the normal plane, do the cross product with
-			 * (0,0,1), unless the normal is parallel to that, in which case we cross it
-			 * with (0,1,0) instead...
-			 */
+                // Convert to pixel coordinates (divide by voxel spacing)
+                position[0] = (ox + gi * ax_s + gj * bx_s) / path.x_spacing;
+                position[1] = (oy + gi * ay_s + gj * by_s) / path.y_spacing;
+                if (nDim > 2)
+                    position[2] = (oz + gi * az_s + gj * bz_s) / path.z_spacing;
 
-			if (Math.abs(nx) < epsilon && Math.abs(ny) < epsilon) {
-				// Cross with (0,1,0):
-				ax = nz;
-				ay = 0;
-				az = -nx;
-			} else {
-				// Cross with (0,0,1):
-				ax = -ny;
-				ay = nx;
-				az = 0;
-			}
+                result[grid_j * side + grid_i] = realRandomAccess.setPositionAndGet(position).getRealFloat();
+            }
+        }
 
-			/*
-			 * Now to find the other vector in that plane, do the cross product of
-			 * (ax,ay,az) with (nx,ny,nz)
-			 */
+        // Return scaled basis vectors
+        x_basis_vector[0] = ax_s;
+        x_basis_vector[1] = ay_s;
+        x_basis_vector[2] = az_s;
 
-			bx = ay * nz - az * ny;
-			by = az * nx - ax * nz;
-			bz = ax * ny - ay * nx;
+        y_basis_vector[0] = bx_s;
+        y_basis_vector[1] = by_s;
+        y_basis_vector[2] = bz_s;
 
-			/* Normalize a and b */
-
-			final double a_size = Math.sqrt(ax * ax + ay * ay + az * az);
-			ax = ax / a_size;
-			ay = ay / a_size;
-			az = az / a_size;
-
-			final double b_size = Math.sqrt(bx * bx + by * by + bz * bz);
-			bx = bx / b_size;
-			by = by / b_size;
-			bz = bz / b_size;
-
-		}
-
-		/* Scale them with spacing... */
-
-		final double ax_s = ax * step;
-		final double ay_s = ay * step;
-		final double az_s = az * step;
-
-		final double bx_s = bx * step;
-		final double by_s = by * step;
-		final double bz_s = bz * step;
-
-//		SNT.log("a (in normal plane) is " + ax + "," + ay + "," + az);
-//		SNT.log("b (in normal plane) is " + bx + "," + by + "," + bz);
-
-//		// a and b must be perpendicular:
-//		final double a_dot_b = ax * bx + ay * by + az * bz;
-
-//		// ... and each must be perpendicular to the normal
-//		final double a_dot_n = ax * nx + ay * ny + az * nz;
-//		final double b_dot_n = bx * nx + by * ny + bz * nz;
-
-//		SNT.log("a_dot_b: " + a_dot_b);
-//		SNT.log("a_dot_n: " + a_dot_n);
-//		SNT.log("b_dot_n: " + b_dot_n);
-
-		final double[] position = new double[nDim];
-
-		for (int grid_i = 0; grid_i < side; ++grid_i) {
-			for (int grid_j = 0; grid_j < side; ++grid_j) {
-
-				final double midside_grid = ((side - 1) / 2.0f);
-
-				final double gi = midside_grid - grid_i;
-				final double gj = midside_grid - grid_j;
-
-				// So now denormalize to pixel co-ordinates:
-
-				position[0] = (ox + gi * ax_s + gj * bx_s) / path.x_spacing;
-				position[1] = (oy + gi * ay_s + gj * by_s) / path.y_spacing;
-				if (nDim > 2)
-					position[2] = (oz + gi * az_s + gj * bz_s) / path.z_spacing;
-
-				/*
-				 * And do n-linear interpolation to find the value there:
-				 */
-
-				result[grid_j * side + grid_i] = realRandomAccess.setPositionAndGet(position).getRealFloat();
-			}
-		}
-
-		x_basis_vector[0] = ax_s;
-		x_basis_vector[1] = ay_s;
-		x_basis_vector[2] = az_s;
-
-		y_basis_vector[0] = bx_s;
-		y_basis_vector[1] = by_s;
-		y_basis_vector[2] = bz_s;
-
-		return result;
-	}
+        return result;
+    }
 
 	/**
 	 * Sets the target image
@@ -1086,12 +1167,7 @@ public class PathFitter implements Callable<Path> {
 		@Override
 		public double evaluate(final double[] x) {
 			final double badness = evaluateCircle(x[0], x[1], x[2]);
-
-			if (badness < min) {
-				x.clone();
-				min = badness;
-			}
-
+			if (badness < min) min = badness;
 			return badness;
 		}
 

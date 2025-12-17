@@ -43,15 +43,18 @@ import sc.fiji.snt.gui.GuiUtils;
 @Plugin(type = Command.class, initializer = "init", visible = false, label = "Refinement of Paths")
 public class PathFitterCmd extends ContextCommand {
 
+    /** The default search radius constraining the fit (in pixels). */
+    public static int DEFAULT_SEARCH_RADIUS_PIXELS = 10;
+
 	@Parameter
 	private PrefService prefService;
 
-	public static final String FITCHOICE_KEY = "choice";
-	public static final String FALLBACKCHOICE_KEY = "fallback";
-	public static final String MAXRADIUS_KEY = "maxrad";
-	public static final String MINANGLE_KEY = "minang";
-	public static final String FITINPLACE_KEY = "inplace";
-	public static final String SECLAYER_KEY = "secondary";
+	public static final String FIT_CHOICE_KEY = "choice";
+	public static final String FALLBACK_CHOICE_KEY = "fallback";
+	public static final String MAX_SEARCH_RADIUS_PX_KEY = "maxsearchpx";
+	public static final String MIN_ANGLE_KEY = "minang";
+	public static final String FIT_IN_PLACE_KEY = "inplace";
+	public static final String SEC_LAYER_KEY = "secondary";
 
 	private static final String EMPTY_LABEL = "<html>&nbsp;";
 	private static final String CHOICE_RADII =
@@ -85,15 +88,15 @@ public class PathFitterCmd extends ContextCommand {
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg2 = HEADER +
-		"<b>Max. radius:</b> This setting defines (in physical units) the largest " //
-		+ "radius allowed in the fit. It constrains the optimization to minimize " //
-		+ "fitting artifacts caused from neighboring structures. (Tip: The " //
-		+ "<i>Secondary Layer Creation Wizard</i> can estimate neurite thickness)";
+		"<b>Cross-section radius:</b> Defines the spatial extent (in physical units) sampled " //
+		+ "around each node when fitting. Larger values are more robust to noise but may " //
+		+ "include neighboring structures. (Tip: Should be 2-3× the expected neurite thickness, " //
+		+ "which can be estimated using the <i>Secondary Layer Creation Wizard</i>.)";
 	@Parameter(required = false, initializer = "init", label = EMPTY_LABEL, callback= "updateMaxRadiusLegend",
 			min = "0", style="format:#.000", description="<HTML>An exaggerated " //
 		+ "radius may originate jagged paths.<br>When in doubt, start with a smaller radius " //
 		+ "and repeat fitting in smaller increments")
-	private double maxRadius;
+	private double maxSearchRadius;
 
 	@Parameter(required = false, persist=false, visibility = ItemVisibility.MESSAGE, initializer="updateMaxRadiusLegend")
 	private String maxRadiusLegend;
@@ -153,8 +156,8 @@ public class PathFitterCmd extends ContextCommand {
 			unit = SNTUtils.getSanitizedUnit(null);
 			smallestSep = 1;
 		}
-		if (maxRadius <= 0d || Double.isNaN(minAngle))
-			maxRadius = PathFitter.DEFAULT_MAX_RADIUS * smallestSep;
+		if (maxSearchRadius <= 0d || Double.isNaN(minAngle))
+            maxSearchRadius = DEFAULT_SEARCH_RADIUS_PIXELS * smallestSep;
 		if (minAngle < 0d || Double.isNaN(minAngle))
 			minAngle = Math.toDegrees(PathFitter.DEFAULT_MIN_ANGLE);
 		nThreads = getAdjustedThreadNumber(SNTPrefs.getThreads());
@@ -162,14 +165,14 @@ public class PathFitterCmd extends ContextCommand {
 	}
 
 	private void updateMaxRadiusLegend() {
-		maxRadiusLegend = String.format("For current image: %.3f%s ≈ %dpixel(s)", maxRadius, unit,
-				Math.round(maxRadius / smallestSep));
+		maxRadiusLegend = String.format("For current image: %.3f%s ≈ %dpixel(s)", maxSearchRadius, unit,
+				Math.round(maxSearchRadius / smallestSep));
 	}
 
 	@SuppressWarnings("unused")
 	private void reset() {
 		fitChoice = PathFitterCmd.CHOICE_RADII;
-		maxRadius = PathFitter.DEFAULT_MAX_RADIUS * smallestSep;
+        maxSearchRadius = DEFAULT_SEARCH_RADIUS_PIXELS * smallestSep;
 		minAngle = Math.toDegrees(PathFitter.DEFAULT_MIN_ANGLE);
 		fallbackChoice = PathFitterCmd.CHOICE_FALLBACK_MODE;
 		impChoice = "Main image";
@@ -195,30 +198,30 @@ public class PathFitterCmd extends ContextCommand {
 	public void run() {
 		switch (fitChoice) {
 			case CHOICE_MIDPOINT:
-				prefService.put(PathFitterCmd.class, FITCHOICE_KEY, PathFitter.MIDPOINTS);
+				prefService.put(PathFitterCmd.class, FIT_CHOICE_KEY, PathFitter.MIDPOINTS);
 				break;
 			case CHOICE_RADII:
-				prefService.put(PathFitterCmd.class, FITCHOICE_KEY, PathFitter.RADII);
+				prefService.put(PathFitterCmd.class, FIT_CHOICE_KEY, PathFitter.RADII);
 				break;
 			default:
-				prefService.put(PathFitterCmd.class, FITCHOICE_KEY, PathFitter.RADII_AND_MIDPOINTS);
+				prefService.put(PathFitterCmd.class, FIT_CHOICE_KEY, PathFitter.RADII_AND_MIDPOINTS);
 				break;
 		}
-		prefService.put(PathFitterCmd.class, MAXRADIUS_KEY, Math.round(maxRadius / smallestSep));
-		prefService.put(PathFitterCmd.class, MINANGLE_KEY, Math.toRadians(minAngle));
+		prefService.put(PathFitterCmd.class, MAX_SEARCH_RADIUS_PX_KEY, (int) Math.round(maxSearchRadius / smallestSep));
+		prefService.put(PathFitterCmd.class, MIN_ANGLE_KEY, Math.toRadians(minAngle));
 		switch (fallbackChoice) {
 		case CHOICE_FALLBACK_NAN:
-			prefService.put(PathFitterCmd.class, FALLBACKCHOICE_KEY, PathFitter.FALLBACK_NAN);
+			prefService.put(PathFitterCmd.class, FALLBACK_CHOICE_KEY, PathFitter.FALLBACK_NAN);
 			break;
 		case CHOICE_FALLBACK_MINSEP:
-			prefService.put(PathFitterCmd.class, FALLBACKCHOICE_KEY, PathFitter.FALLBACK_MIN_SEP);
+			prefService.put(PathFitterCmd.class, FALLBACK_CHOICE_KEY, PathFitter.FALLBACK_MIN_SEP);
 			break;
 		default:
-			prefService.put(PathFitterCmd.class, FALLBACKCHOICE_KEY, PathFitter.FALLBACK_MODE);
+			prefService.put(PathFitterCmd.class, FALLBACK_CHOICE_KEY, PathFitter.FALLBACK_MODE);
 			break;
 		}
-		prefService.put(PathFitterCmd.class, SECLAYER_KEY, impChoice.toLowerCase().contains("secondary"));
-		prefService.put(PathFitterCmd.class, FITINPLACE_KEY, fitInPlaceChoice.toLowerCase().contains("replace"));
+		prefService.put(PathFitterCmd.class, SEC_LAYER_KEY, impChoice.toLowerCase().contains("secondary"));
+		prefService.put(PathFitterCmd.class, FIT_IN_PLACE_KEY, fitInPlaceChoice.toLowerCase().contains("replace"));
 		nThreads = getAdjustedThreadNumber(nThreads);
 		SNTPrefs.setThreads(nThreads);
 	}

@@ -29,9 +29,13 @@ import ij.ImageStack;
 import ij.gui.ImageCanvas;
 import ij.gui.Roi;
 import ij.io.Opener;
+import ij.measure.Calibration;
 import ij.plugin.*;
 import ij.process.*;
 import net.imagej.Dataset;
+import net.imagej.axis.Axes;
+import net.imagej.axis.CalibratedAxis;
+import net.imagej.axis.DefaultLinearAxis;
 import net.imagej.ops.OpService;
 import net.imglib2.display.ColorTable;
 import org.scijava.convert.ConvertService;
@@ -63,6 +67,21 @@ public class ImpUtils {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 	private ImpUtils() {} // prevent class instantiation
+
+    /** Creates ImgPlus axes from IJ1 Calibration */
+    public static CalibratedAxis[] calibrationToAxes(final Calibration cal, final int numDimensions) {
+        final CalibratedAxis[] axes = new CalibratedAxis[numDimensions];
+        if (numDimensions >= 1) {
+            axes[0] = new DefaultLinearAxis(Axes.X, cal.getUnit(), cal.pixelWidth);
+        }
+        if (numDimensions >= 2) {
+            axes[1] = new DefaultLinearAxis(Axes.Y, cal.getUnit(), cal.pixelHeight);
+        }
+        if (numDimensions >= 3) {
+            axes[2] = new DefaultLinearAxis(Axes.Z, cal.getUnit(), cal.pixelDepth);
+        }
+        return axes;
+    }
 
 	public static void removeIsolatedPixels(final ImagePlus binaryImp) {
 		final ImageStack stack = binaryImp.getStack();

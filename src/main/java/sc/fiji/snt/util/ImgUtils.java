@@ -23,8 +23,11 @@
 package sc.fiji.snt.util;
 
 import ij.ImagePlus;
+import ij.measure.Calibration;
 import net.imagej.Dataset;
+import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
+import net.imagej.axis.CalibratedAxis;
 import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.Localizable;
@@ -51,11 +54,30 @@ public class ImgUtils
 
     private ImgUtils() {}
 
+
+    /** Extracts IJ;s ImagePlus Calibration from ImgPlus CalibratedAxis */
+    public static Calibration imgPlusToCalibration(final ImgPlus<?> imgPlus) {
+        final Calibration cal = new Calibration();
+        for (int d = 0; d < imgPlus.numDimensions(); d++) {
+            final CalibratedAxis axis = imgPlus.axis(d);
+            final double scale = axis.averageScale(0, 1);
+            if (axis.type() == Axes.X) {
+                cal.pixelWidth = scale;
+                cal.setUnit(axis.unit());
+            } else if (axis.type() == Axes.Y) {
+                cal.pixelHeight = scale;
+            } else if (axis.type() == Axes.Z) {
+                cal.pixelDepth = scale;
+            }
+        }
+        return cal;
+    }
+
     /**
      * @param dimensions
      * @return the index of the largest dimension
      */
-    public static int maxDimension( final long[] dimensions )
+    public static int maxDimension(final long[] dimensions )
     {
         long dimensionMax = Long.MIN_VALUE;
         int dimensionArgMax = -1;
