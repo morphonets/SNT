@@ -4744,7 +4744,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
 		private Color loadTagColor(final String tagName, final String defaultTagColor) {
 			final String key = "proofReadTag." + tagName;
-			return SNTColor.stringToColor(plugin.getPrefs().get(key, defaultTagColor));
+			return SNTColor.fromHex(plugin.getPrefs().get(key, defaultTagColor));
 		}
 
 		private void saveTagColor(final String tagName, final Color tagColor ) {

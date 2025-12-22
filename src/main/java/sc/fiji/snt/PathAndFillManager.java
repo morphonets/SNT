@@ -1600,7 +1600,7 @@ public class PathAndFillManager extends DefaultHandler implements
 					}
 
 					if (colorString != null) {
-						current_path.setColor(SNTColor.stringToColor(colorString));
+						current_path.setColor(SNTColor.fromHex(colorString));
 					}
 					if (channelString != null && frameString != null) {
 						current_path.setCTposition(Integer.parseInt(channelString), Integer

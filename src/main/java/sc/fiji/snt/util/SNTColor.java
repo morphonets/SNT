@@ -183,7 +183,7 @@ public class SNTColor {
 	 * @param hex the input string
 	 * @return the converted AWT color
 	 */
-	public static Color stringToColor(final String hex) {
+	public static Color fromHex(final String hex) {
 		final ColorRGB color = ColorRGB.fromHTMLColor(hex.toLowerCase()); // backwards compatibility for v4.2.0 that used capitalized strings
 		if (color != null)
 			return new Color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
@@ -326,6 +326,21 @@ public class SNTColor {
 		}
 		return colors;
 	}
+
+    /**
+     * Parses a color from the given string.
+     * <p>
+     * The following formats are supported: Hex format [HTML color codes starting with hash (#)],
+     * Color presets (e.g., 'blue', 'pink', 'silver', etc.), and  integer triples of the form
+     * r,g,b, with each element in the range [0, 255].
+     * </p>
+     *
+     * @param colorSpec string defining the color value
+     * @return the color
+     */
+    public static ColorRGB valueOf(final String colorSpec) {
+        return new ColorRGB(colorSpec);
+    }
 
     /**
      * Returns distinct colors based on Kenneth Kelly's 22 colors of maximum
