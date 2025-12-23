@@ -30,6 +30,7 @@ import bvv.core.VolumeViewerFrame;
 import bvv.core.VolumeViewerPanel;
 import bvv.vistools.*;
 import ij.ImagePlus;
+import net.imagej.ImgPlus;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
 import net.imglib2.img.display.imagej.ImageJFunctions;
@@ -44,12 +45,14 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.geom.Path2D;
 import java.io.File;
 import java.util.*;
 import java.util.List;
@@ -127,6 +130,14 @@ public class Bvv {
         final BvvSource source = BvvFunctions.show(img, "SNT Bvv", options.sourceTransform(cal));
         attachControlPanel(source);
         return source;
+    }
+
+    public <T extends RealType<T>> BvvSource show(final ImgPlus<T> imgPlus) {
+        final double[] cal = new double[Math.min(3, imgPlus.numDimensions())];
+        for (int d = 0; d < cal.length; d++) {
+            cal[d] = imgPlus.averageScale(d);
+        }
+        return show(imgPlus, cal);  // ImgPlus is a RandomAccessibleInterval<T>
     }
 
     /**
@@ -787,8 +798,7 @@ public class Bvv {
 
     /**
      * Renders spherical annotations at {@link SNTPoint} world coordinates.
-     * Provides two rendering modes: a lightweight CPU overlay (Java2D) and an
-     * optional GPU mode using Scenery spheres attached to the BVV scene graph.
+     * Rendered with CPU (Java2D) but optimized with caching and batched rendering.
      */
     public static class AnnotationOverlay {
 
@@ -802,13 +812,17 @@ public class Bvv {
             viewerPanel.getDisplay().overlays().add(annRenderer);
         }
 
-        /** Replace the current annotations with the provided list. */
+        /**
+         * Replace the current annotations with the provided list.
+         */
         public void setAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
             annotations.clear();
             addAnnotations(points, radius, color);
         }
 
-        /** Replace the current annotations with the provided list. */
+        /**
+         * Add annotations to the current list.
+         */
         public void addAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
             if (points != null) {
                 for (SNTPoint p : points) annotations.add(new Annotation(p, radius, color));
@@ -816,439 +830,691 @@ public class Bvv {
             updateScene();
         }
 
-        /** Add a single annotation. */
+        /**
+         * Add a single annotation.
+         */
         public void addAnnotation(final SNTPoint p, final float radius, final Color color) {
             if (p != null) annotations.add(new Annotation(p, radius, color));
             updateScene();
         }
 
-        /** Remove all annotations. */
+        /**
+         * Remove all annotations.
+         */
         public void clear() {
             annotations.clear();
             updateScene();
         }
 
-        /** Show/hide annotations */
+        public boolean isVisible() {
+            return !annRenderer.hide;
+        }
+
+        /**
+         * Show/hide annotations
+         */
         public void setVisible(final boolean visible) {
             annRenderer.hide = !visible;
             viewerPanel.requestRepaint();
         }
 
-        public boolean isVisible() {
-            return annRenderer.hide;
-        }
-
-        /** Ensure renderers/nodes reflect current annotation list. */
+        /**
+         * Ensure renderers/nodes reflect current annotation list.
+         */
         public void updateScene() {
             annRenderer.setAnnotations(annotations);
             viewerPanel.requestRepaint();
         }
 
-        /** Remove overlay/nodes from the viewer. */
+        /**
+         * Remove overlay/nodes from the viewer.
+         */
         void dispose() {
             if (viewerPanel != null && annRenderer != null) {
                 viewerPanel.getDisplay().overlays().remove(annRenderer);
             }
         }
 
-        private static class AnnRenderer extends OverlayRenderer {
-            private final List<Annotation> annotations = new ArrayList<>();
+        /**
+         * Optimized annotation renderer with caching and batched drawing.
+         */
+        private static class AnnRenderer implements bdv.viewer.OverlayRenderer {
+
+            // Camera parameters
+            private static final double D_CAM = 2000;
+            private final VolumeViewerPanel viewerPanel;
+            private final PathRenderingOptions renderingOptions;
+            private final AffineTransform3D viewerTransform = new AffineTransform3D();
+            // === CACHING ===
+            private final AffineTransform3D cachedTransform = new AffineTransform3D();
+            // Reusable coordinate arrays
+            private final double[] worldCoords = new double[3];
+            private final double[] viewerCoords = new double[3];
+            boolean hide;
+            // Source annotations
+            private List<Annotation> annotations = new ArrayList<>();
+            private boolean cacheValid = false;
+            // Cached screen data
+            private AnnotationScreenData[] screenData;
+            // Canvas dimensions cache
+            private int canvasWidth, canvasHeight;
+            private double centerX, centerY;
 
             AnnRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
-                super(viewerPanel, renderingOptions);
+                this.viewerPanel = viewerPanel;
+                this.renderingOptions = renderingOptions;
             }
 
             void setAnnotations(final List<Annotation> list) {
-                annotations.clear();
-                if (list != null) annotations.addAll(list);
+                this.annotations = (list != null) ? new ArrayList<>(list) : new ArrayList<>();
+                invalidateCache();
+            }
+
+            void invalidateCache() {
+                cacheValid = false;
+                screenData = null;
             }
 
             @Override
             public void drawOverlays(final Graphics g) {
                 if (annotations.isEmpty() || hide) return;
+
+                // Update canvas dimensions
+                canvasWidth = viewerPanel.getDisplay().getWidth();
+                canvasHeight = viewerPanel.getDisplay().getHeight();
+                centerX = canvasWidth / 2.0;
+                centerY = canvasHeight / 2.0;
+
+                // Check if transform changed
                 synchronized (viewerTransform) {
                     viewerPanel.state().getViewerTransform(viewerTransform);
                 }
-                final Graphics2D g2d = getGraphics2D(g);
 
-                final int canvasWidth = viewerPanel.getDisplay().getWidth();
-                final int canvasHeight = viewerPanel.getDisplay().getHeight();
-                final double cx = canvasWidth / 2.0;
-                final double cy = canvasHeight / 2.0;
-
-                final double[] gPos = new double[3];
-                final boolean clip = renderingOptions.isClippingEnabled();
-                if (clip) viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
-
-                final double margin = 100.0;
-
-                for (final Annotation a : annotations) {
-                    final double[] wc = { a.p.getX(), a.p.getY(), a.p.getZ() };
-                    final double[] vc = new double[3];
-                    viewerTransform.apply(wc, vc);
-
-                    // optional Z clipping around cursor
-                    if (clip && Math.abs(wc[2] - gPos[2]) > renderingOptions.clippingDistance) continue;
-
-                    final double pf = dCam / (dCam + vc[2]);
-                    final double sx = cx + (vc[0] - cx) * pf;
-                    final double sy = cy + (vc[1] - cy) * pf;
-
-                    if (sx < -margin || sy < -margin || sx > canvasWidth + margin || sy > canvasHeight + margin)
-                        continue;
-
-                    final double sr = Math.max(1.0, a.radiusUm * pf);
-                    final int d = (int)Math.round(2 * sr);
-                    final int x = (int)Math.round(sx - sr);
-                    final int y = (int)Math.round(sy - sr);
-
-                    g2d.setColor(a.color);
-                    g2d.fillOval(x, y, d, d);
+                if (!transformEquals(viewerTransform, cachedTransform)) {
+                    cachedTransform.set(viewerTransform);
+                    cacheValid = false;
                 }
+
+                // Compute screen data if needed
+                if (!cacheValid || screenData == null) {
+                    computeScreenData();
+                    cacheValid = true;
+                }
+
+                // Get clipping info
+                final boolean doClip = renderingOptions.isClippingEnabled();
+                final double[] clipPos = doClip ? getClipPosition() : null;
+                final float clipDist = renderingOptions.clippingDistance;
+
+                final Graphics2D g2d = setupGraphics(g);
+
+                // Batch by color for more efficient rendering
+                final Map<Color, List<Integer>> colorBatches = new HashMap<>();
+
+                for (int i = 0; i < screenData.length; i++) {
+                    final AnnotationScreenData data = screenData[i];
+
+                    // Skip off-screen
+                    if (!data.visible) continue;
+
+                    // Z-clipping
+                    if (doClip && Math.abs(data.worldZ - clipPos[2]) > clipDist) continue;
+
+                    // Skip subpixel annotations
+                    if (data.screenRadius < 0.5) continue;
+
+                    colorBatches.computeIfAbsent(data.color, k -> new ArrayList<>()).add(i);
+                }
+
+                // Draw batches
+                for (final Map.Entry<Color, List<Integer>> entry : colorBatches.entrySet()) {
+                    g2d.setColor(entry.getKey());
+                    for (final int idx : entry.getValue()) {
+                        final AnnotationScreenData data = screenData[idx];
+                        final int d = (int) Math.round(2 * data.screenRadius);
+                        final int x = (int) Math.round(data.screenX - data.screenRadius);
+                        final int y = (int) Math.round(data.screenY - data.screenRadius);
+                        g2d.fillOval(x, y, d, d);
+                    }
+                }
+
                 g2d.dispose();
             }
 
+            private void computeScreenData() {
+                screenData = new AnnotationScreenData[annotations.size()];
+
+                final double margin = 100.0;
+
+                for (int i = 0; i < annotations.size(); i++) {
+                    final Annotation ann = annotations.get(i);
+                    final AnnotationScreenData data = new AnnotationScreenData();
+
+                    // World coordinates
+                    worldCoords[0] = ann.p.getX();
+                    worldCoords[1] = ann.p.getY();
+                    worldCoords[2] = ann.p.getZ();
+                    data.worldZ = worldCoords[2];
+
+                    // Transform to viewer coordinates
+                    viewerTransform.apply(worldCoords, viewerCoords);
+
+                    // Perspective projection
+                    final double pf = D_CAM / (D_CAM + viewerCoords[2]);
+                    data.screenX = centerX + (viewerCoords[0] - centerX) * pf;
+                    data.screenY = centerY + (viewerCoords[1] - centerY) * pf;
+                    data.screenRadius = Math.max(1.0, ann.radiusUm * pf);
+                    data.color = ann.color;
+
+                    // Visibility check
+                    data.visible = data.screenX >= -margin && data.screenY >= -margin &&
+                            data.screenX <= canvasWidth + margin &&
+                            data.screenY <= canvasHeight + margin;
+
+                    screenData[i] = data;
+                }
+            }
+
+            private double[] getClipPosition() {
+                final double[] gPos = new double[3];
+                viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
+                return gPos;
+            }
+
+            private boolean transformEquals(final AffineTransform3D a, final AffineTransform3D b) {
+                for (int i = 0; i < 3; i++) {
+                    for (int j = 0; j < 4; j++) {
+                        if (Math.abs(a.get(i, j) - b.get(i, j)) > 1e-9) return false;
+                    }
+                }
+                return true;
+            }
+
+            private Graphics2D setupGraphics(final Graphics g) {
+                final Graphics2D g2d = (Graphics2D) g.create();
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (renderingOptions.getTransparency() < 1.0f) {
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                            renderingOptions.getTransparency()));
+                }
+                return g2d;
+            }
+
             @Override
-            public void setCanvasSize(final int width, final int height) { /* no-op */ }
+            public void setCanvasSize(final int width, final int height) {
+                if (width != canvasWidth || height != canvasHeight) {
+                    invalidateCache();
+                }
+            }
+
+            /**
+             * Cached screen-space data for a single annotation
+             */
+            private static class AnnotationScreenData {
+                double screenX, screenY;
+                double screenRadius;
+                double worldZ;
+                Color color;
+                boolean visible;
+            }
         }
 
-        private record Annotation(SNTPoint p, float radiusUm, Color color) { }
+        private record Annotation(SNTPoint p, float radiusUm, Color color) {
+        }
     }
 
     /**
-     * Custom overlay renderer for drawing SNT paths.
+     * Optimized overlay renderer for drawing SNT paths.
+     * Uses caching, batching, bounding box culling, and LOD to improve performance.
      */
     private static class OverlayRenderer implements bdv.viewer.OverlayRenderer {
+
         final VolumeViewerPanel viewerPanel;
         final PathRenderingOptions renderingOptions;
         final AffineTransform3D viewerTransform = new AffineTransform3D();
+        private final AffineTransform3D cachedTransform = new AffineTransform3D();
+        // Cached screen data per tree
+        private final Map<Tree, TreeScreenData> screenDataCache = new WeakHashMap<>();
+        // Reusable coordinate arrays (avoid allocation in render loop)
+        private final double[] worldCoords = new double[3];
+        private final double[] viewerCoords = new double[3];
+        private final double[] screenBoundsMin = new double[2];
+        private final double[] screenBoundsMax = new double[2];
+        // Reusable Path2D for batched drawing
+        private final Path2D.Double batchPath = new Path2D.Double();
         boolean hide;
-        private Collection<Tree> trees = new ArrayList<>();
-
-        /* Cached camera parameters: No public setters exist for these!? */
+        // Camera parameters
         double dCam;
         double nearClip;
         double farClip;
+        // === CACHING ===
+        private Collection<Tree> trees = new ArrayList<>();
+        private boolean cacheValid = false;
+        // Canvas dimensions cache
+        private int canvasWidth, canvasHeight;
+        private double centerX, centerY;
 
         OverlayRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
             this.renderingOptions = renderingOptions;
-            viewerPanel.setCamParams(dCam = 2000, nearClip = 1000, farClip = 1000); // default in BBVOptions
+            viewerPanel.setCamParams(dCam = 2000, nearClip = 1000, farClip = 1000);
         }
 
         void updatePaths(final Collection<Tree> trees) {
             this.trees = new ArrayList<>(trees);
+            invalidateCache();
+        }
+
+        void invalidateCache() {
+            cacheValid = false;
+            screenDataCache.clear();
         }
 
         @Override
         public void drawOverlays(final Graphics g) {
             if (trees.isEmpty() || hide) return;
 
-            // Get viewer transform and camera information
+            // Update canvas dimensions
+            canvasWidth = viewerPanel.getDisplay().getWidth();
+            canvasHeight = viewerPanel.getDisplay().getHeight();
+            centerX = canvasWidth / 2.0;
+            centerY = canvasHeight / 2.0;
+
+            // Check if transform changed
             synchronized (viewerTransform) {
                 viewerPanel.state().getViewerTransform(viewerTransform);
             }
 
-            final Graphics2D g2d = getGraphics2D(g);
-            for (final Tree tree : trees) {
-                drawTree(g2d, tree);
+            if (!transformEquals(viewerTransform, cachedTransform)) {
+                cachedTransform.set(viewerTransform);
+                cacheValid = false;
             }
+
+            final Graphics2D g2d = setupGraphics(g);
+
+            // Get current clipping state
+            final double[] clipPos = renderingOptions.isClippingEnabled() ? getClipPosition() : null;
+
+            for (final Tree tree : trees) {
+                // tree level bounding box culling
+                if (!isTreePotentiallyVisible(tree)) {
+                    continue; // Skip entire tree
+                }
+                drawTreeOptimized(g2d, tree, clipPos);
+            }
+
             g2d.dispose();
         }
 
-        private void drawTree(final Graphics2D g2d, final Tree tree) {
-            for (final Path path : tree.list()) {
-                drawPath(g2d, path);
+        /**
+         * Quick rejection test using tree's bounding box.
+         * Projects all 8 corners to screen space and checks overlap with canvas.
+         */
+        private boolean isTreePotentiallyVisible(final Tree tree) {
+            final BoundingBox bbox = tree.getBoundingBox();
+            if (bbox == null) return true; // this should never happen
+
+            final PointInImage origin = bbox.origin();
+            final PointInImage opposite = bbox.originOpposite();
+
+            if (origin == null || opposite == null) return true;
+
+            final double[] worldMin = {origin.getX(), origin.getY(), origin.getZ()};
+            final double[] worldMax = {opposite.getX(), opposite.getY(), opposite.getZ()};
+
+            projectBoundsToScreen(worldMin, worldMax, screenBoundsMin, screenBoundsMax);
+
+            // Check if projected bounds overlap with canvas (with margin for thick paths)
+            final double margin = renderingOptions.getMaxThickness();
+            return screenBoundsMax[0] >= -margin && screenBoundsMin[0] <= canvasWidth + margin &&
+                    screenBoundsMax[1] >= -margin && screenBoundsMin[1] <= canvasHeight + margin;
+        }
+
+        /**
+         * Projects a 3D bounding box to screen space, computing the 2D AABB.
+         */
+        private void projectBoundsToScreen(final double[] worldMin, final double[] worldMax,
+                                           final double[] screenMin, final double[] screenMax) {
+            screenMin[0] = Double.MAX_VALUE;
+            screenMin[1] = Double.MAX_VALUE;
+            screenMax[0] = -Double.MAX_VALUE;
+            screenMax[1] = -Double.MAX_VALUE;
+
+            // Project all 8 corners of the bounding box
+            for (int i = 0; i < 8; i++) {
+                worldCoords[0] = ((i & 1) == 0) ? worldMin[0] : worldMax[0];
+                worldCoords[1] = ((i & 2) == 0) ? worldMin[1] : worldMax[1];
+                worldCoords[2] = ((i & 4) == 0) ? worldMin[2] : worldMax[2];
+
+                viewerTransform.apply(worldCoords, viewerCoords);
+
+                final double pf = dCam / (dCam + viewerCoords[2]);
+                final double sx = centerX + (viewerCoords[0] - centerX) * pf;
+                final double sy = centerY + (viewerCoords[1] - centerY) * pf;
+
+                screenMin[0] = Math.min(screenMin[0], sx);
+                screenMin[1] = Math.min(screenMin[1], sy);
+                screenMax[0] = Math.max(screenMax[0], sx);
+                screenMax[1] = Math.max(screenMax[1], sy);
             }
         }
 
-        Graphics2D getGraphics2D(final Graphics g) {
+        private double[] getClipPosition() {
+            final double[] gPos = new double[3];
+            viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
+            return gPos;
+        }
+
+        private void drawTreeOptimized(final Graphics2D g2d, final Tree tree, final double[] clipPos) {
+            // Get or compute screen data
+            TreeScreenData screenData = screenDataCache.get(tree);
+            if (screenData == null || !cacheValid) {
+                screenData = computeScreenData(tree);
+                screenDataCache.put(tree, screenData);
+            }
+
+            // Batch render by color
+            final Map<Color, List<SegmentData>> colorBatches = new HashMap<>();
+
+            for (final PathScreenData pathData : screenData.paths) {
+                batchPathSegments(pathData, clipPos, colorBatches);
+            }
+
+            // Draw all batches
+            for (final Map.Entry<Color, List<SegmentData>> entry : colorBatches.entrySet()) {
+                drawBatch(g2d, entry.getKey(), entry.getValue());
+            }
+        }
+
+        private TreeScreenData computeScreenData(final Tree tree) {
+            final TreeScreenData data = new TreeScreenData();
+
+            // Extract scale from transform once
+            final double avgScale = getAverageScale();
+
+            for (final Path path : tree.list()) {
+                if (path.size() < 1) continue;
+
+                final PathScreenData pathData = new PathScreenData(path.size());
+                final Color defaultColor = path.getColor() != null ? path.getColor() : renderingOptions.fallbackColor;
+                final boolean hasNodeColors = path.hasNodeColors();
+
+                for (int i = 0; i < path.size(); i++) {
+                    final PointInImage point = path.getNode(i);
+
+                    // Transform to screen coordinates
+                    worldCoords[0] = point.x;
+                    worldCoords[1] = point.y;
+                    worldCoords[2] = point.z;
+
+                    // Apply canvas offset if present
+                    final sc.fiji.snt.util.PointInCanvas offset = path.getCanvasOffset();
+                    if (offset != null) {
+                        worldCoords[0] += offset.x;
+                        worldCoords[1] += offset.y;
+                        worldCoords[2] += offset.z;
+                    }
+
+                    viewerTransform.apply(worldCoords, viewerCoords);
+
+                    // Perspective projection
+                    final double pf = dCam / (dCam + viewerCoords[2]);
+                    pathData.screenX[i] = centerX + (viewerCoords[0] - centerX) * pf;
+                    pathData.screenY[i] = centerY + (viewerCoords[1] - centerY) * pf;
+                    pathData.worldZ[i] = worldCoords[2];
+
+                    // Screen radius
+                    final double nodeRadius = getNodeRadius(path, i);
+                    pathData.screenRadius[i] = Math.max(0.5, nodeRadius * avgScale * pf);
+
+                    // Color
+                    pathData.colors[i] = hasNodeColors && path.getNodeColor(i) != null
+                            ? path.getNodeColor(i) : defaultColor;
+
+                    // Visibility (basic bounds check)
+                    pathData.visible[i] = isOnScreen(pathData.screenX[i], pathData.screenY[i]);
+                }
+
+                data.paths.add(pathData);
+            }
+
+            return data;
+        }
+
+        private void batchPathSegments(final PathScreenData pathData, final double[] clipPos,
+                                       final Map<Color, List<SegmentData>> batches) {
+
+            final float clipDist = renderingOptions.clippingDistance;
+            final boolean doClip = clipPos != null;
+
+            for (int i = 0; i < pathData.size - 1; i++) {
+                // Skip if both endpoints are off-screen
+                if (!pathData.visible[i] && !pathData.visible[i + 1]) continue;
+
+                // Z-clipping
+                if (doClip) {
+                    if (Math.abs(pathData.worldZ[i] - clipPos[2]) > clipDist &&
+                            Math.abs(pathData.worldZ[i + 1] - clipPos[2]) > clipDist) {
+                        continue;
+                    }
+                }
+
+                // Skip subpixel segments
+                final double dx = pathData.screenX[i + 1] - pathData.screenX[i];
+                final double dy = pathData.screenY[i + 1] - pathData.screenY[i];
+                final double length = Math.sqrt(dx * dx + dy * dy);
+                if (length < 0.5) continue;
+
+                // Create segment data
+                final SegmentData seg = new SegmentData();
+                seg.x1 = pathData.screenX[i];
+                seg.y1 = pathData.screenY[i];
+                seg.x2 = pathData.screenX[i + 1];
+                seg.y2 = pathData.screenY[i + 1];
+                seg.r1 = pathData.screenRadius[i];
+                seg.r2 = pathData.screenRadius[i + 1];
+                seg.color1 = pathData.colors[i];
+                seg.color2 = pathData.colors[i + 1];
+
+                // Batch by primary color
+                final Color batchColor = seg.color1;
+                batches.computeIfAbsent(batchColor, k -> new ArrayList<>()).add(seg);
+            }
+        }
+
+        private void drawBatch(final Graphics2D g2d, final Color batchColor, final List<SegmentData> segments) {
+            if (segments.isEmpty()) return;
+
+            // Separate uniform-color segments from gradient segments
+            final List<SegmentData> uniformSegments = new ArrayList<>();
+            final List<SegmentData> gradientSegments = new ArrayList<>();
+
+            for (final SegmentData seg : segments) {
+                if (seg.color1.equals(seg.color2)) {
+                    uniformSegments.add(seg);
+                } else {
+                    gradientSegments.add(seg);
+                }
+            }
+
+            // Draw uniform segments as batched path
+            if (!uniformSegments.isEmpty()) {
+                batchPath.reset();
+                for (final SegmentData seg : uniformSegments) {
+                    addFrustumToPath(batchPath, seg);
+                }
+                g2d.setColor(batchColor);
+                g2d.fill(batchPath);
+
+                // === ADD NODE CAPS TO SMOOTH JOINTS ===
+                for (final SegmentData seg : uniformSegments) {
+                    // Draw circle at start node
+                    final int d1 = (int) Math.round(2 * seg.r1);
+                    if (d1 >= 1) {
+                        g2d.fillOval((int) Math.round(seg.x1 - seg.r1),
+                                (int) Math.round(seg.y1 - seg.r1), d1, d1);
+                    }
+                    // Draw circle at end node
+                    final int d2 = (int) Math.round(2 * seg.r2);
+                    if (d2 >= 1) {
+                        g2d.fillOval((int) Math.round(seg.x2 - seg.r2),
+                                (int) Math.round(seg.y2 - seg.r2), d2, d2);
+                    }
+                }
+            }
+
+            // Draw gradient segments individually
+            for (final SegmentData seg : gradientSegments) {
+                drawGradientFrustum(g2d, seg);
+                // Add caps for gradient segments too
+                g2d.setColor(seg.color1);
+                final int d1 = (int) Math.round(2 * seg.r1);
+                if (d1 >= 1) {
+                    g2d.fillOval((int) Math.round(seg.x1 - seg.r1),
+                            (int) Math.round(seg.y1 - seg.r1), d1, d1);
+                }
+                g2d.setColor(seg.color2);
+                final int d2 = (int) Math.round(2 * seg.r2);
+                if (d2 >= 1) {
+                    g2d.fillOval((int) Math.round(seg.x2 - seg.r2),
+                            (int) Math.round(seg.y2 - seg.r2), d2, d2);
+                }
+            }
+        }
+
+        private void addFrustumToPath(final Path2D.Double path, final SegmentData seg) {
+            final double dx = seg.x2 - seg.x1;
+            final double dy = seg.y2 - seg.y1;
+            final double length = Math.sqrt(dx * dx + dy * dy);
+            if (length < 0.1) return;
+
+            final double perpX = -dy / length;
+            final double perpY = dx / length;
+
+            // Four corners of frustum
+            final double x1a = seg.x1 + perpX * seg.r1;
+            final double y1a = seg.y1 + perpY * seg.r1;
+            final double x1b = seg.x1 - perpX * seg.r1;
+            final double y1b = seg.y1 - perpY * seg.r1;
+            final double x2a = seg.x2 + perpX * seg.r2;
+            final double y2a = seg.y2 + perpY * seg.r2;
+            final double x2b = seg.x2 - perpX * seg.r2;
+            final double y2b = seg.y2 - perpY * seg.r2;
+
+            path.moveTo(x1a, y1a);
+            path.lineTo(x2a, y2a);
+            path.lineTo(x2b, y2b);
+            path.lineTo(x1b, y1b);
+            path.closePath();
+        }
+
+        private void drawGradientFrustum(final Graphics2D g2d, final SegmentData seg) {
+            batchPath.reset();
+            addFrustumToPath(batchPath, seg);
+
+            final GradientPaint gradient = new GradientPaint(
+                    (float) seg.x1, (float) seg.y1, seg.color1,
+                    (float) seg.x2, (float) seg.y2, seg.color2
+            );
+
+            final Paint original = g2d.getPaint();
+            g2d.setPaint(gradient);
+            g2d.fill(batchPath);
+            g2d.setPaint(original);
+        }
+
+        private double getNodeRadius(final Path path, final int index) {
+            double radius = 1.0;
+
+            if (renderingOptions.isUsePathRadius()) {
+                final double r = path.getNodeRadius(index);
+                if (r > 0) radius = r;
+            }
+
+            radius *= renderingOptions.getThicknessMultiplier();
+            radius = Math.max(renderingOptions.getMinThickness() / 2.0, radius);
+            radius = Math.min(renderingOptions.getMaxThickness() / 2.0, radius);
+
+            return radius;
+        }
+
+        private double getAverageScale() {
+            final double scaleX = Math.sqrt(
+                    viewerTransform.get(0, 0) * viewerTransform.get(0, 0) +
+                            viewerTransform.get(1, 0) * viewerTransform.get(1, 0) +
+                            viewerTransform.get(2, 0) * viewerTransform.get(2, 0)
+            );
+            final double scaleY = Math.sqrt(
+                    viewerTransform.get(0, 1) * viewerTransform.get(0, 1) +
+                            viewerTransform.get(1, 1) * viewerTransform.get(1, 1) +
+                            viewerTransform.get(2, 1) * viewerTransform.get(2, 1)
+            );
+            return (scaleX + scaleY) / 2.0;
+        }
+
+        private boolean isOnScreen(final double x, final double y) {
+            final double margin = 100.0;
+            return x >= -margin && y >= -margin &&
+                    x <= canvasWidth + margin && y <= canvasHeight + margin;
+        }
+
+        private boolean transformEquals(final AffineTransform3D a, final AffineTransform3D b) {
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 4; j++) {
+                    if (Math.abs(a.get(i, j) - b.get(i, j)) > 1e-9) return false;
+                }
+            }
+            return true;
+        }
+
+        private Graphics2D setupGraphics(final Graphics g) {
             final Graphics2D g2d = (Graphics2D) g.create();
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
             if (renderingOptions.getTransparency() < 1.0f) {
-                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, renderingOptions.getTransparency()));
+                g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                        renderingOptions.getTransparency()));
             }
             return g2d;
         }
 
-        /**
-         * Draws a path using logic similar to Path.drawPathAsPoints() but adapted for BVV 3D-to-2D projection.
-         * Supports node colors and color interpolation between nodes.
-         */
-        private void drawPath(final Graphics2D g2d, final Path path) {
-            if (path.size() < 1) return;
-
-            // Set default path color
-            Color defaultPathColor = path.getColor();
-            if (defaultPathColor == null) {
-                defaultPathColor = renderingOptions.fallbackColor;
-            }
-
-            // Check if path has node colors
-            final boolean hasNodeColors = path.hasNodeColors();
-
-            // Draw nodes and connections with per-node radius support
-            BvvPathNode previousNode = null;
-            Color previousNodeColor = null;
-
-            for (int i = 0; i < path.size(); i++) {
-                final BvvPathNode currentNode = new BvvPathNode(path, i);
-
-                // Get node color
-                final Color currentNodeColor = getNodeColor(path, i);
-
-                // Draw the node as a sphere if visible
-                if (currentNode.isVisible()) {
-                    currentNode.drawNodeSphere(g2d, currentNodeColor);
-                }
-
-                // Draw connection to previous node as frustum-like segment
-                if (previousNode != null && previousNode.isVisible() && currentNode.isVisible()) {
-                    if (hasNodeColors && previousNodeColor != null && currentNodeColor != null) {
-                        // Draw frustum segment with color interpolation
-                        currentNode.drawFrustumSegment(g2d, previousNode, previousNodeColor, currentNodeColor);
-                    } else {
-                        // Draw frustum segment with single color
-                        currentNode.drawFrustumSegment(g2d, previousNode, currentNodeColor, currentNodeColor);
-                    }
-                }
-
-                previousNode = currentNode;
-                previousNodeColor = currentNodeColor;
-            }
-        }
-
-        private Color getNodeColor(final Path path, final int nodeIndex) {
-            if (path.hasNodeColors()) {
-                final Color nodeColor = path.getNodeColor(nodeIndex);
-                if (nodeColor != null) return nodeColor;
-            }
-            return path.getColor() != null ? path.getColor() : renderingOptions.fallbackColor;
-        }
-
-        private boolean is2DPositionVisible(final double xScreenCoord, final double yScreenCoord) {
-            // Check if point is within canvas bounds with some margin for large nodes
-            final int canvasWidth = viewerPanel.getDisplay().getWidth();
-            final int canvasHeight = viewerPanel.getDisplay().getHeight();
-            final double margin = 100.0; // Allow margin for nodes that extend beyond canvas
-
-            // Early exit for obviously out-of-bounds coordinates
-            if (xScreenCoord < -margin || yScreenCoord < -margin) return false;
-            return !(xScreenCoord > canvasWidth + margin) && !(yScreenCoord > canvasHeight + margin);
-        }
-
         @Override
         public void setCanvasSize(final int width, final int height) {
-            // Handle canvas size changes if needed
+            if (width != canvasWidth || height != canvasHeight) {
+                invalidateCache();
+            }
         }
 
-        /**
-         * BVV-specific path node that handles coordinate transformation.
-         * Tests both manual transformation and direct world coordinates.
-         */
-        private class BvvPathNode {
-            private final double x, y;
-            private final double screenRadius;
-            private boolean visible;
+        // === DATA CLASSES ===
 
-            BvvPathNode(final Path path, final int index) {
+        private static class TreeScreenData {
+            final List<PathScreenData> paths = new ArrayList<>();
+        }
 
-                final PointInImage point = path.getNode(index);
+        private static class PathScreenData {
+            final int size;
+            final double[] screenX;
+            final double[] screenY;
+            final double[] worldZ;
+            final double[] screenRadius;
+            final Color[] colors;
+            final boolean[] visible;
 
-                // Store world coordinates with canvas offset applied (if present). This allows paths
-                // to be displayed with a visual offset without changing their actual coordinates
-                final double[] worldCoords = new double[3];
-                worldCoords[0] = point.x;
-                worldCoords[1] = point.y;
-                worldCoords[2] = point.z;
-                final sc.fiji.snt.util.PointInCanvas canvasOffset = path.getCanvasOffset();
-                if (canvasOffset != null) {
-                    worldCoords[0] += canvasOffset.x;
-                    worldCoords[1] += canvasOffset.y;
-                    worldCoords[2] += canvasOffset.z;
-                }
-
-                // Apply viewer transformation (rotation, translation, camera position)
-                final double[] viewerCoords = new double[3];
-                viewerTransform.apply(worldCoords, viewerCoords);
-
-                // Get canvas dimensions for proper centering
-                final int canvasWidth = viewerPanel.getDisplay().getWidth();
-                final int canvasHeight = viewerPanel.getDisplay().getHeight();
-                final double centerX = canvasWidth / 2.0;
-                final double centerY = canvasHeight / 2.0;
-
-                // Apply perspective projection centered around canvas center. BVV seems to use:
-                // screen = center + (viewer - center) * (cameraDistance / (cameraDistance + viewerZ))
-                final double perspectiveFactor = dCam / (dCam + viewerCoords[2]);
-
-                this.x = centerX + (viewerCoords[0] - centerX) * perspectiveFactor;
-                this.y = centerY + (viewerCoords[1] - centerY) * perspectiveFactor;
-                this.visible = is2DPositionVisible(x, y);
-
-                if (visible && renderingOptions.isClippingEnabled()) {
-                    final double[] gPos = new double[3];
-                    viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
-                    visible = Math.abs(worldCoords[2] - gPos[2]) <= renderingOptions.clippingDistance;
-                }
-
-                // Get node radius
-                this.screenRadius = calculateScreenRadius(getNodeRadius(path, index), viewerCoords[2]);
+            PathScreenData(int size) {
+                this.size = size;
+                this.screenX = new double[size];
+                this.screenY = new double[size];
+                this.worldZ = new double[size];
+                this.screenRadius = new double[size];
+                this.colors = new Color[size];
+                this.visible = new boolean[size];
             }
+        }
 
-            /**
-             * Gets the radius for a specific node, considering rendering options.
-             */
-            double getNodeRadius(final Path path, final int index) {
-                double nodeRadius = 1.0; // Default radius
-
-                if (renderingOptions.isUsePathRadius()) {
-                    try {
-                        // Access the PathNode directly from the path's nodes list
-                        final List<PointInImage> nodes = path.getNodes();
-                        if (index < nodes.size()) {
-                            final Path.PathNode pathNode = (Path.PathNode) nodes.get(index);
-                            final double radius = pathNode.getRadius();
-                            if (radius > 0) {
-                                nodeRadius = radius;
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Fallback to path mean radius
-                        try {
-                            final double meanRadius = path.getMeanRadius();
-                            if (meanRadius > 0) {
-                                nodeRadius = meanRadius;
-                            }
-                        } catch (Exception ex) {
-                            // Use default radius if all access fails
-                        }
-                    }
-                }
-
-                // Apply thickness multiplier and clamp
-                nodeRadius *= renderingOptions.getThicknessMultiplier();
-                nodeRadius = Math.max(renderingOptions.getMinThickness() / 2.0, nodeRadius);
-                nodeRadius = Math.min(renderingOptions.getMaxThickness() / 2.0, nodeRadius);
-
-                return nodeRadius;
-            }
-
-            /**
-             * Converts world radius to screen radius using perspective projection.
-             * Uses the same perspective factor that's applied to coordinates.
-             */
-            double calculateScreenRadius(final double worldRadius, final double viewerZcoords) {
-                try {
-                    // Extract the scale from the transform matrix
-                    final double scaleX = Math.sqrt(
-                            viewerTransform.get(0, 0) * viewerTransform.get(0, 0) +
-                                    viewerTransform.get(1, 0) * viewerTransform.get(1, 0) +
-                                    viewerTransform.get(2, 0) * viewerTransform.get(2, 0)
-                    );
-
-                    final double scaleY = Math.sqrt(
-                            viewerTransform.get(0, 1) * viewerTransform.get(0, 1) +
-                                    viewerTransform.get(1, 1) * viewerTransform.get(1, 1) +
-                                    viewerTransform.get(2, 1) * viewerTransform.get(2, 1)
-                    );
-
-                    // Use average of X and Y scales
-                    final double avgScale = (scaleX + scaleY) / 2.0;
-
-                    // Apply perspective projection (same as coordinates)
-                    final double perspectiveFactor = dCam / (dCam + viewerZcoords);
-
-                    // Apply both transform scale and perspective to world radius
-                    final double screenRadius = worldRadius * avgScale * perspectiveFactor;
-
-                    return Math.max(0.5, screenRadius);
-
-                } catch (Exception e) {
-                    // Fallback to simple scaling
-                    return Math.max(1.0, worldRadius * 2.0);
-                }
-            }
-
-            boolean isVisible() {
-                return visible;
-            }
-
-            /**
-             * Draws the node as a sphere (circle in 2D) with appropriate radius.
-             */
-            void drawNodeSphere(final Graphics2D g2d, final Color color) {
-                if (!visible) return;
-
-                g2d.setColor(color);
-                final int diameter = (int) (screenRadius * 2);
-                g2d.fillOval(
-                        (int) (x - screenRadius),
-                        (int) (y - screenRadius),
-                        diameter,
-                        diameter
-                );
-            }
-
-            /**
-             * Draws a frustum-like segment between two nodes with different radii.
-             * Creates a tapered connection that respects the radius of each node.
-             */
-            void drawFrustumSegment(final Graphics2D g2d, final BvvPathNode other,
-                                    final Color fromColor, final Color toColor) {
-                if (!visible || !other.visible) return;
-
-                // Calculate perpendicular vectors for the frustum edges
-                final double dx = x - other.x;
-                final double dy = y - other.y;
-                final double length = Math.sqrt(dx * dx + dy * dy);
-
-                if (length < 0.1) return; // Skip very short segments
-
-                // Normalized perpendicular vector
-                final double perpX = -dy / length;
-                final double perpY = dx / length;
-
-                // Calculate the four corners of the frustum
-                final Polygon frustum = getFrustum(other, perpX, perpY);
-
-                // Fill the frustum with gradient if colors are different
-                if (!fromColor.equals(toColor)) {
-                    final GradientPaint gradient = new GradientPaint(
-                            (float) other.x, (float) other.y, fromColor,
-                            (float) x, (float) y, toColor
-                    );
-
-                    final Paint originalPaint = g2d.getPaint();
-                    g2d.setPaint(gradient);
-                    g2d.fill(frustum);
-                    g2d.setPaint(originalPaint);
-                } else {
-                    g2d.setColor(fromColor);
-                    g2d.fill(frustum);
-                }
-            }
-
-            Polygon getFrustum(BvvPathNode other, double perpX, double perpY) {
-                final double x1a = other.x + perpX * other.screenRadius;
-                final double y1a = other.y + perpY * other.screenRadius;
-                final double x1b = other.x - perpX * other.screenRadius;
-                final double y1b = other.y - perpY * other.screenRadius;
-
-                final double x2a = x + perpX * screenRadius;
-                final double y2a = y + perpY * screenRadius;
-                final double x2b = x - perpX * screenRadius;
-                final double y2b = y - perpY * screenRadius;
-
-                // Create the frustum shape
-                final Polygon frustum = new Polygon();
-                frustum.addPoint((int) x1a, (int) y1a);
-                frustum.addPoint((int) x2a, (int) y2a);
-                frustum.addPoint((int) x2b, (int) y2b);
-                frustum.addPoint((int) x1b, (int) y1b);
-                return frustum;
-            }
+        private static class SegmentData {
+            double x1, y1, x2, y2;
+            double r1, r2;
+            Color color1, color2;
         }
     }
 
