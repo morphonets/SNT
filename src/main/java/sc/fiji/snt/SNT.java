@@ -34,6 +34,10 @@ import ij.process.ShortProcessor;
 import ij3d.*;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
+import net.imagej.ImgPlus;
+import net.imagej.axis.Axes;
+import net.imagej.axis.AxisType;
+import net.imagej.axis.CalibratedAxis;
 import net.imagej.display.ColorTables;
 import net.imagej.ops.OpService;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
@@ -44,6 +48,7 @@ import net.imglib2.cache.img.CachedCellImg;
 import net.imglib2.cache.img.DiskCachedCellImg;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.logic.BitType;
+import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.IntegerType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
@@ -335,6 +340,53 @@ public class SNT extends MultiDThreePanes implements
         initialize(true, sourceImage.getChannel(), sourceImage.getFrame());
     }
 
+    /**
+     * Script-friendly constructor for Instantiating SNT in 'Tracing Mode' (typically headless operations)
+     *
+     * @param sourceImage the source image
+     */
+    public <T extends RealType<T>> SNT(final ImgPlus<T> sourceImage) throws IllegalArgumentException {
+        this(sourceImage, 0, 0);
+    }
+
+    /**
+     * Script-friendly constructor for Instantiating SNT in 'Tracing Mode' (typically headless operations)
+     *
+     * @param sourceImage the source image
+     * @param channel     channel index to extract (index 0)
+     * @param timePoint   time index to extract (index 0)
+     */
+    public <T extends RealType<T>> SNT(final ImgPlus<T> sourceImage, final int channel,
+        final int timePoint) throws IllegalArgumentException {
+        if (sourceImage == null || sourceImage.size() == 0) {
+            throw new IllegalArgumentException("Uninitialized image object");
+        }
+
+        // Extract/squeeze to get 2D/3D image
+        final ImgUtils.SliceResult<T> sliceResult = ImgUtils.getCtSlice(sourceImage, channel, timePoint);
+        final ImgPlus<T> processedImage = sliceResult.img();
+        final int nDim = processedImage.numDimensions();
+        if (nDim < 2 || nDim > 3) {
+            throw new IllegalArgumentException(
+                    "Expected 2D (XY) or 3D (XYZ) image, but got " + nDim + "D. " +
+                            "Extract the desired channel/timepoint before loading.");
+        }
+
+        // Log what was extracted for debugging
+        if (sliceResult.channelIndex() >= 0) {
+            SNTUtils.log("Using channel " + sliceResult.channelIndex());
+        }
+        if (sliceResult.timeIndex() >= 0) {
+            SNTUtils.log("Using timepoint " + sliceResult.timeIndex());
+        }
+        SNTUtils.getContext().inject(this);
+        SNTUtils.setPlugin(this);
+        pathAndFillManager = new PathAndFillManager(this);
+        prefs = new SNTPrefs(this);
+        setFieldsFromImgPlus(processedImage);
+        prefs.loadPluginPrefs();
+    }
+
 	/**
 	 * Instantiates SNT in 'Tracing Mode'.
 	 *
@@ -343,9 +395,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param sourceImage the source image
 	 * @throws IllegalArgumentException If sourceImage is of type 'RGB'
 	 */
-	public SNT(final Context context, final ImagePlus sourceImage)
-		throws IllegalArgumentException
-	{
+	public SNT(final Context context, final ImagePlus sourceImage) throws IllegalArgumentException {
 
 		if (context == null) throw new NullContextException();
 		if (sourceImage.getStackSize() == 0) throw new IllegalArgumentException(
@@ -370,9 +420,7 @@ public class SNT extends MultiDThreePanes implements
 	 * @param pathAndFillManager The PathAndFillManager instance to be associated
 	 *          with the plugin
 	 */
-	public SNT(final Context context,
-	           final PathAndFillManager pathAndFillManager)
-	{
+	public SNT(final Context context, final PathAndFillManager pathAndFillManager) {
 
 		if (context == null) throw new NullContextException();
 		if (pathAndFillManager == null) throw new IllegalArgumentException(
@@ -386,7 +434,7 @@ public class SNT extends MultiDThreePanes implements
 		pathAndFillManager.addPathAndFillListener(this);
 		pathAndFillManager.setHeadless(true);
 
-		// Inherit spacing from PathAndFillManager{
+		// Inherit spacing from PathAndFillManager
 		final BoundingBox box = pathAndFillManager.getBoundingBox(false);
 		x_spacing = box.xSpacing;
 		y_spacing = box.ySpacing;
@@ -400,6 +448,69 @@ public class SNT extends MultiDThreePanes implements
 		enableSnapCursor(false);
 		pathAndFillManager.setHeadless(false);
 	}
+
+    private <T extends RealType<T>> void setFieldsFromImgPlus(final ImgPlus<T> imgPlus) {
+        xy = null;
+        ctSlice3d = imgPlus;
+        width = (int) imgPlus.dimension(0);
+        height = (int) imgPlus.dimension(1);
+        depth = imgPlus.numDimensions() > 2 ? (int) imgPlus.dimension(2) : 1;
+        imageType = getImagePlusType(imgPlus.firstElement());
+        singleSlice = depth == 1;
+        setSinglePane(single_pane);
+
+        // Extract calibration from axes
+        x_spacing = getAxisScale(imgPlus, Axes.X, 0);
+        y_spacing = getAxisScale(imgPlus, Axes.Y, 1);
+        z_spacing = imgPlus.numDimensions() > 2 ? getAxisScale(imgPlus, Axes.Z, 2) : 1.0;
+
+        final CalibratedAxis xAxis = imgPlus.axis(0);
+        if (xAxis != null && xAxis.unit() != null) {
+            spacing_units = SNTUtils.getSanitizedUnit(xAxis.unit());
+        }
+
+        if ((x_spacing == 0.0) || (y_spacing == 0.0) || (z_spacing == 0.0)) {
+            throw new IllegalArgumentException(
+                    "One dimension of the calibration information was zero: (" + x_spacing +
+                            "," + y_spacing + "," + z_spacing + ")");
+        }
+
+        if (accessToValidImageData()) {
+            pathAndFillManager.assignSpatialSettings(imgPlus);
+            final String source = imgPlus.getSource();
+            if (source != null && !source.isEmpty()) {
+                final File sourceFile = new File(source);
+                if (sourceFile.getParentFile() != null) {
+                    prefs.setRecentDir(sourceFile.getParentFile());
+                }
+            }
+            stats.min = 0;
+            stats.max = 0;
+        } else {
+            pathAndFillManager.syncSpatialSettingsWithPlugin();
+        }
+    }
+
+    private double getAxisScale(final ImgPlus<?> imgPlus, final AxisType axisType, final int dimFallback) {
+        final int d = imgPlus.dimensionIndex(axisType);
+        final int dim = d >= 0 ? d : dimFallback;
+        if (dim < imgPlus.numDimensions()) {
+            final CalibratedAxis axis = imgPlus.axis(dim);
+            if (axis != null) {
+                final double scale = axis.averageScale(0, 1);
+                return Double.isNaN(scale) || scale == 0 ? 1.0 : scale;
+            }
+        }
+        return 1.0;
+    }
+
+    private int getImagePlusType(final Object type) {
+        if (type instanceof UnsignedByteType) return ImagePlus.GRAY8;
+        if (type instanceof UnsignedShortType) return ImagePlus.GRAY16;
+        if (type instanceof FloatType) return ImagePlus.GRAY32;
+        if (type instanceof ARGBType) return ImagePlus.COLOR_RGB;
+        return ImagePlus.GRAY32; // default for other RealTypes
+    }
 
 	private void setFieldsFromImage(final ImagePlus sourceImage) {
 		xy = sourceImage;
@@ -1530,7 +1641,7 @@ public class SNT extends MultiDThreePanes implements
 
 		final ImagePlus newImp = new ImagePlus(xy.getShortTitle() +
 			" Rendered Paths", newStack);
-		newImp.setCalibration(xy.getCalibration());
+		newImp.setCalibration(getCalibration());
 		return newImp;
 	}
 
@@ -1756,7 +1867,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		Heuristic heuristic = switch (heuristicType) {
-            case EUCLIDEAN -> new Euclidean(xy.getCalibration());
+            case EUCLIDEAN -> new Euclidean(getCalibration());
             case DIJKSTRA -> new Dijkstra();
             default -> throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
         };
@@ -2551,7 +2662,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 		final FillerThread filler = new FillerThread(
 				data,
-				xy.getCalibration(),
+				getCalibration(),
 				fillThresholdDistance,
 				1000,
 				costFunction);
@@ -3752,4 +3863,12 @@ public class SNT extends MultiDThreePanes implements
         };
 	}
 
+    private Calibration getCalibration() {
+        final Calibration calibration = new Calibration();
+        calibration.pixelWidth = x_spacing;
+        calibration.pixelHeight = y_spacing;
+        calibration.pixelDepth = z_spacing;
+        calibration.setUnit(spacing_units);
+        return calibration;
+    }
 }

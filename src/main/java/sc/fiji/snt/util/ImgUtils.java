@@ -32,6 +32,9 @@ import net.imglib2.FinalInterval;
 import net.imglib2.Interval;
 import net.imglib2.Localizable;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.display.ColorTable;
+import net.imglib2.img.Img;
+import net.imglib2.img.ImgView;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
@@ -41,6 +44,7 @@ import net.imglib2.view.Views;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Static utilities for handling and manipulation of {@link RandomAccessibleInterval}s
@@ -284,6 +288,188 @@ public class ImgUtils
         img = Views.hyperSlice( img, 3, imp.getFrame() - 1 );
         // If Z is a singleton dimension, drop it
         return Views.dropSingletonDimensions( img );
+    }
+
+    /**
+     * Extract a specific channel/time slice from an ImgPlus.
+     *
+     * @param imgPlus source image
+     * @param channel channel index to extract, or null to keep all/squeeze singleton
+     * @param time    time index to extract, or null to keep all/squeeze singleton
+     * @return SliceResult with extracted image and tracked indices
+     */
+    public static <T extends RealType<T>> SliceResult<T> getCtSlice(
+            final ImgPlus<T> imgPlus,
+            final int channel,
+            final int time) {
+
+        RandomAccessibleInterval<T> view = imgPlus;
+
+        int channelDim = imgPlus.dimensionIndex(Axes.CHANNEL);
+        int timeDim = imgPlus.dimensionIndex(Axes.TIME);
+
+        int extractedChannel;
+        int extractedTime;
+
+        // Track dimension shifts after slicing
+        int dimOffset = 0;
+
+        // Always remove channel dimension if it exists
+        if (channelDim >= 0) {
+            long numChannels = imgPlus.dimension(channelDim);
+            extractedChannel = channel < 0 ? 0 : channel;  // Negative → default to 0
+            if (extractedChannel >= numChannels) {
+                throw new IllegalArgumentException(
+                        "Channel index " + extractedChannel + " out of bounds [0, " + numChannels + ")");
+            }
+            view = Views.hyperSlice(view, channelDim - dimOffset, extractedChannel);
+            dimOffset++;
+        } else {
+            if (channel > 0) {  // User requested specific channel, but none exists
+                throw new IllegalArgumentException(
+                        "Channel " + channel + " requested but image has no channel axis");
+            }
+            extractedChannel = -1;
+        }
+
+        // Always remove time dimension if it exists
+        if (timeDim >= 0) {
+            long numTimepoints = imgPlus.dimension(timeDim);
+            extractedTime = Math.max(time, 0);  // Negative → default to 0
+            if (extractedTime >= numTimepoints) {
+                throw new IllegalArgumentException(
+                        "Time index " + extractedTime + " out of bounds [0, " + numTimepoints + ")");
+            }
+            view = Views.hyperSlice(view, timeDim - dimOffset, extractedTime);
+        } else {
+            if (time > 0) {  // User requested specific time, but none exists
+                throw new IllegalArgumentException(
+                        "Time " + time + " requested but image has no time axis");
+            }
+            extractedTime = -1;
+        }
+
+        // Wrap and create result
+        final Img<T> wrappedImg = ImgView.wrap(view);
+        final ImgPlus<T> result = new ImgPlus<>(wrappedImg);
+
+        // Preserve basic metadata
+        result.setName(buildSliceName(imgPlus.getName(), extractedChannel, extractedTime));
+        if (imgPlus.getSource() != null) {
+            result.setSource(imgPlus.getSource());
+        }
+
+        // Copy axes for remaining dimensions
+        copyAxes(imgPlus, result, channelDim, timeDim, extractedChannel, extractedTime);
+
+        // Copy channel metadata for the extracted channel
+        copyChannelMetadata(imgPlus, result, extractedChannel);
+
+        // Copy properties
+        final Map<String, Object> srcProps = imgPlus.getProperties();
+        if (srcProps != null && !srcProps.isEmpty()) {
+            result.getProperties().putAll(srcProps);
+        }
+
+        return new SliceResult<>(result, extractedChannel, extractedTime);
+    }
+
+    /**
+     * Extracts a channel/time slice by squeezing singleton dimensions.
+     *
+     * <p>
+     * Convenience overload that removes any singleton (size=1) channel
+     * or time dimensions from the image. Non-singleton C/T dimensions are preserved.
+     * </p>
+     *
+     * @param <T>     pixel type
+     * @param imgPlus source image
+     * @return result containing the squeezed image and indices of any removed
+     * singleton dimensions (0 if squeezed, -1 if axis didn't exist or wasn't squeezed)
+     * @see #getCtSlice(ImgPlus, int, int) for extracting specific C/T indices
+     */
+    public static <T extends RealType<T>> SliceResult<T> getCtSlice(final ImgPlus<T> imgPlus) {
+        return getCtSlice(imgPlus, 0, 0);
+    }
+
+    private static <T extends RealType<T>> void copyAxes(
+            ImgPlus<T> source,
+            ImgPlus<T> dest,
+            int channelDim,
+            int timeDim,
+            int extractedChannel,
+            int extractedTime) {
+
+        int destAxisIndex = 0;
+        for (int d = 0; d < source.numDimensions(); d++) {
+            // Skip dimensions that were sliced out
+            final boolean wasSliced = (d == channelDim && extractedChannel >= 0)
+                    || (d == timeDim && extractedTime >= 0);
+
+            if (!wasSliced && destAxisIndex < dest.numDimensions()) {
+                dest.setAxis(source.axis(d).copy(), destAxisIndex++);
+            }
+        }
+    }
+
+    private static <T extends RealType<T>> void copyChannelMetadata(
+            ImgPlus<T> source,
+            ImgPlus<T> dest,
+            int extractedChannel) {
+
+        // Determine source channel index for metadata
+        final int srcChannel = Math.max(0, extractedChannel);
+
+        // Check how many channels dest has
+        final int destChannelDim = dest.dimensionIndex(Axes.CHANNEL);
+        final int numDestChannels = destChannelDim >= 0 ? (int) dest.dimension(destChannelDim) : 1;
+
+        if (extractedChannel >= 0) {
+            // Single channel extracted - copy its metadata to channel 0
+            copyChannelProps(source, srcChannel, dest, 0);
+        } else {
+            // Multiple channels remain - copy all
+            for (int c = 0; c < numDestChannels; c++) {
+                copyChannelProps(source, c, dest, c);
+            }
+        }
+    }
+
+    private static <T extends RealType<T>> void copyChannelProps(
+            ImgPlus<T> source, int srcChannel,
+            ImgPlus<T> dest, int destChannel) {
+        final double min = source.getChannelMinimum(srcChannel);
+        final double max = source.getChannelMaximum(srcChannel);
+        if (!Double.isNaN(min)) dest.setChannelMinimum(destChannel, min);
+        if (!Double.isNaN(max)) dest.setChannelMaximum(destChannel, max);
+        final ColorTable lut = source.getColorTable(srcChannel);
+        if (lut != null) dest.setColorTable(lut, destChannel);
+    }
+
+    private static String buildSliceName(String baseName, final int channel, final int time) {
+        if (baseName == null) baseName = "image";
+        final StringBuilder sb = new StringBuilder(baseName);
+        if (channel >= 0 || time >= 0) {
+            sb.append(" [");
+            if (channel >= 0) sb.append("C=").append(channel);
+            if (channel >= 0 && time >= 0) sb.append(", ");
+            if (time >= 0) sb.append("T=").append(time);
+            sb.append("]");
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Result of a channel/time slice extraction from an {@link ImgPlus}.
+     *
+     * @param <T>          pixel type
+     * @param img          the extracted image slice with preserved metadata
+     * @param channelIndex the channel index that was extracted (0-based),
+     *                     or -1 if no channel axis existed or no channel was extracted
+     * @param timeIndex    the time index that was extracted (0-based),
+     *                     or -1 if no time axis existed or no timepoint was extracted
+     */
+    public record SliceResult<T extends RealType<T>>(ImgPlus<T> img, int channelIndex, int timeIndex) {
     }
 
     /**

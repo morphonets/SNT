@@ -29,7 +29,9 @@ import ij3d.Content;
 import ij3d.UniverseListener;
 import ij3d.Utils;
 import net.imagej.Dataset;
+import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
+import net.imagej.axis.CalibratedAxis;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 
@@ -158,6 +160,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		listeners = new ArrayList<>();
 		selectedPathsSet = new HashSet<>();
 		resetSpatialSettings(false);
+        enableUIupdates = !GraphicsEnvironment.isHeadless();
 	}
 
 	protected PathAndFillManager(final SNT plugin) {
@@ -219,29 +222,59 @@ public class PathAndFillManager extends DefaultHandler implements
 		}
 	}
 
-	protected Calibration assignSpatialSettings(final Dataset dataset) {
-		x_spacing = dataset.averageScale(0);
-		y_spacing = dataset.averageScale(1);
-		z_spacing = dataset.dimensionIndex(Axes.Z) > -1 ? dataset.averageScale(dataset.dimensionIndex(Axes.Z)) : 1.0;
-		spacing_units = SNTUtils.getSanitizedUnit(dataset.axis(0).unit());
-		final Calibration cal = new Calibration();
-		cal.pixelWidth = x_spacing;
-		cal.pixelHeight = y_spacing;
-		cal.pixelDepth = z_spacing;
-		cal.setUnit(spacing_units);
-		boundingBox.setOrigin(new PointInImage(0, 0, 0));
-		boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
-							   spacing_units);
-		boundingBox.setDimensions(dataset.dimension(Axes.X), dataset.dimension(Axes.Y), dataset.dimension(Axes.Z));
-		if (size() > 0) {
-			final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
-			getPaths().forEach(path -> {
-				path.setSpacing(cal);
-				path.setCanvasOffset(zeroOffset);
-			});
-		}
-		return cal;
-	}
+    private Calibration assignSpatialSettingsInternal(double xScale, double yScale, double zScale,
+                                                      String unit, long dimX, long dimY, long dimZ) {
+        x_spacing = xScale;
+        y_spacing = yScale;
+        z_spacing = zScale;
+        spacing_units = SNTUtils.getSanitizedUnit(unit);
+
+        final Calibration cal = new Calibration();
+        cal.pixelWidth = x_spacing;
+        cal.pixelHeight = y_spacing;
+        cal.pixelDepth = z_spacing;
+        cal.setUnit(spacing_units);
+
+        boundingBox.setOrigin(new PointInImage(0, 0, 0));
+        boundingBox.setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
+        boundingBox.setDimensions(dimX, dimY, dimZ);
+
+        if (size() > 0) {
+            final PointInCanvas zeroOffset = new PointInCanvas(0, 0, 0);
+            getPaths().forEach(path -> {
+                path.setSpacing(cal);
+                path.setCanvasOffset(zeroOffset);
+            });
+        }
+        return cal;
+    }
+
+    protected Calibration assignSpatialSettings(final Dataset dataset) {
+        final int zIdx = dataset.dimensionIndex(Axes.Z);
+        return assignSpatialSettingsInternal(
+                dataset.averageScale(0),
+                dataset.averageScale(1),
+                zIdx > -1 ? dataset.averageScale(zIdx) : 1.0,
+                dataset.axis(0).unit(),
+                dataset.dimension(Axes.X),
+                dataset.dimension(Axes.Y),
+                zIdx > -1 ? dataset.dimension(Axes.Z) : 1
+        );
+    }
+
+    protected Calibration assignSpatialSettings(final ImgPlus<?> imgPlus) {
+        final int zIdx = imgPlus.dimensionIndex(Axes.Z);
+        final CalibratedAxis xAxis = imgPlus.axis(0);
+        return assignSpatialSettingsInternal(
+                xAxis.averageScale(0, 1),
+                imgPlus.axis(1).averageScale(0, 1),
+                zIdx > -1 ? imgPlus.axis(zIdx).averageScale(0, 1) : 1.0,
+                xAxis.unit(),
+                imgPlus.dimension(0),
+                imgPlus.dimension(1),
+                zIdx > -1 ? imgPlus.dimension(zIdx) : 1
+        );
+    }
 
 	protected void resetSpatialSettings(final boolean alsoResetPaths) {
 		boundingBox = new BoundingBox();
