@@ -231,6 +231,66 @@ public class ImpUtils {
 		}
 	}
 
+    /**
+     * Binarize an ImagePlus using lower and upper thresholds.
+     * Pixels within [lower, upper] become 255 (white), others become 0 (black).
+     *
+     * @param imp   the image to be binarized
+     * @param lower the lower threshold (inclusive)
+     * @param upper the upper threshold (inclusive)
+     * @throws IllegalArgumentException if image is not grayscale
+     */
+    public static void binarize(final ImagePlus imp, final double lower, final double upper) {
+        if (imp instanceof CompositeImage || imp.getType() == ImagePlus.COLOR_RGB) {
+            throw new IllegalArgumentException("Image is not grayscale");
+        }
+
+        final ImageStack oldStack = imp.getStack();
+        final int width = oldStack.getWidth();
+        final int height = oldStack.getHeight();
+        final int nPixels = width * height;
+        final ImageStack newStack = new ImageStack(width, height);
+
+        for (int z = 1; z <= oldStack.getSize(); z++) {
+            final Object pixels = oldStack.getProcessor(z).getPixels();
+            final byte[] binary = new byte[nPixels];
+
+            if (pixels instanceof byte[]) {
+                final byte[] p = (byte[]) pixels;
+                final int lo = (int) lower, hi = (int) upper;
+                for (int i = 0; i < nPixels; i++) {
+                    int v = p[i] & 0xFF;
+                    binary[i] = (v >= lo && v <= hi) ? (byte) 255 : 0;
+                }
+            } else if (pixels instanceof short[]) {
+                final short[] p = (short[]) pixels;
+                final int lo = (int) lower, hi = (int) upper;
+                for (int i = 0; i < nPixels; i++) {
+                    int v = p[i] & 0xFFFF;
+                    binary[i] = (v >= lo && v <= hi) ? (byte) 255 : 0;
+                }
+            } else if (pixels instanceof float[]) {
+                final float[] p = (float[]) pixels;
+                final float lo = (float) lower, hi = (float) upper;
+                for (int i = 0; i < nPixels; i++) {
+                    binary[i] = (p[i] >= lo && p[i] <= hi) ? (byte) 255 : 0;
+                }
+            } else { // unneeded fallback for virtual/wrapped images!?
+                final ImageProcessor ip = oldStack.getProcessor(z);
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        final float v = ip.getPixelValue(x, y);
+                        binary[y * width + x] = (v >= lower && v <= upper) ? (byte) 255 : 0;
+                    }
+                }
+            }
+
+            final String label = oldStack.getSliceLabel(z);
+            newStack.addSlice(label, new ByteProcessor(width, height, binary));
+        }
+        imp.setStack(newStack); // updates the display
+    }
+
 	public static double[] getMinMax(final ImagePlus imp) {
 		final ImageStatistics imgStats = imp.getStatistics(ImageStatistics.MIN_MAX);
 		return new double[] { imgStats.min, imgStats.max };

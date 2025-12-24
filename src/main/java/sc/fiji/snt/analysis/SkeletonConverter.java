@@ -194,22 +194,8 @@ public class SkeletonConverter {
 	 */
 	public static void skeletonize(final ImagePlus imp, final double lowerThreshold, final double upperThreshold,
 			final boolean erodeIsolatedPixels) {
-		if (lowerThreshold != ij.process.ImageProcessor.NO_THRESHOLD && lowerThreshold > 0 && upperThreshold > 0) {
-			// TODO: Adopt IJ ops!?
-			ij.IJ.setRawThreshold(imp, lowerThreshold, upperThreshold, "no update");
-			SNTUtils.log("Lower threshold = " + lowerThreshold + ", Upper threshold = " + upperThreshold);
-			final int nImagesBefore = ij.WindowManager.getImageCount();
-			ij.IJ.run(imp, "Convert to Mask", " black");
-			// HACK: By some strange reason (sometimes!?) a new mask is created even though we are skipping the
-			// flag to create a new stack in the options string. So for now, we'll just try to intercept it
-			final int nImagesAfter = ij.WindowManager.getImageCount();
-			if (nImagesAfter == nImagesBefore + 1) {
-				final ImagePlus maskImg = ij.WindowManager.getCurrentImage();
-				if (maskImg.getTitle().startsWith("MASK_") ) {
-					imp.setImage(maskImg);
-					maskImg.close();
-				}
-			}
+		if (lowerThreshold > 0 && upperThreshold > 0) {
+			ImpUtils.binarize(imp, lowerThreshold, upperThreshold);
 		} else {
 			ImpUtils.convertTo8bit(imp); // does nothing if imp already 8-bit
 		}
