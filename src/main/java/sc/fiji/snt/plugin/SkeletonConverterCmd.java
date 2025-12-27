@@ -553,7 +553,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 			}
 			trees.forEach(tree -> pafm.addTree(tree, "Autotraced"));
 			if (trees.size() > 1)
-				ui.getPathManager().applyDefaultTags("Cell ID");
+				ui.getPathManager().applyDefaultTags("Arbor ID");
 
 			// Extra user-friendliness: If no display canvas exist, no image is being
 			// traced, or we are importing from a file path, adopt the chosen image as

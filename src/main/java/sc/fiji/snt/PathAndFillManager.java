@@ -1027,7 +1027,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		});
 		enableUIupdates = enableUIstatus;
 		updateBoundingBox();
-		if (enableUIupdates)
+		if (enableUIupdates && !tree.list().isEmpty())
 			resetListenersAfterDataChangingOperation(tree.list().getFirst());
 	}
 

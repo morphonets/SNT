@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import net.imagej.ImgPlus;
+import net.imglib2.type.numeric.NumericType;
 import org.jgrapht.Graphs;
 import org.jgrapht.alg.connectivity.BiconnectivityInspector;
 
@@ -54,10 +56,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
-import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.util.SWCPoint;
+import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.Viewer3D;
 import smile.neighbor.KDTree;
 import smile.neighbor.Neighbor;
@@ -134,7 +133,15 @@ public class SkeletonConverter {
 	private int strategy;
 	private SkeletonResult skeletonResult;
 
-	/**
+    /**
+     * @param imgPlus The image to be parsed. Will be converted to a topological
+     *                  skeleton (assuming non-zero foreground)
+     */
+    public <T extends NumericType<T>> SkeletonConverter(final ImgPlus<T> imgPlus) {
+        this(ImgUtils.toImagePlus(imgPlus), true);
+    }
+
+    /**
 	 * @param imagePlus The image to be parsed. Will be converted to a topological
 	 *                  skeleton (assuming non-zero foreground)
 	 */
@@ -260,7 +267,9 @@ public class SkeletonConverter {
 			return null;
 		final List<Tree> treeList = new ArrayList<>();
 		for (final DirectedWeightedGraph graph : graphs) {
+            if (graph.vertexSet().isEmpty()) continue;
 			final Tree tree = graph.getTree();
+            if (tree.list().isEmpty()) continue;
 			/* Assign image calibration and known CT positions to tree */
 			assignToImage(tree);
 			treeList.add(tree);
