@@ -22,12 +22,14 @@
 
 package sc.fiji.snt.filter;
 
+import net.imagej.ImgPlus;
 import net.imagej.ops.Ops;
 import net.imagej.ops.special.computer.AbstractUnaryComputerOp;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.algorithm.convolution.fast_gauss.FastGauss;
 import net.imglib2.algorithm.gradient.HessianMatrix;
 import net.imglib2.algorithm.linalg.eigen.TensorEigenValues;
+import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.loops.LoopBuilder;
@@ -42,6 +44,7 @@ import net.imglib2.view.Views;
 import org.scijava.Priority;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import sc.fiji.snt.util.ImgUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -332,4 +335,72 @@ public class Frangi<T extends RealType<T>, U extends RealType<U>> extends
         );
     }
 
+    /**
+     * Apply multiscale Frangi vesselness filter to an ImgPlus.
+     * <p>
+     * Spacing is extracted from axis metadata. Stack maximum is computed from the image.
+     * </p>
+     *
+     * @param <T>    input pixel type
+     * @param img    input image (2D or 3D) with calibrated axes
+     * @param scales scales for multiscale analysis (in physical units)
+     * @return filtered ImgPlus with same axes as input
+     */
+    public static <T extends RealType<T>> ImgPlus<DoubleType> apply(
+            final ImgPlus<T> img,
+            final double[] scales) {
+        return apply(img, scales, -1, Runtime.getRuntime().availableProcessors());
+    }
+
+    /**
+     * Apply multiscale Frangi vesselness filter to an ImgPlus.
+     *
+     * @param <T>        input pixel type
+     * @param img        input image (2D or 3D) with calibrated axes
+     * @param scales     scales for multiscale analysis (in physical units)
+     * @param stackMax   maximum value for normalization, or -1 to auto-compute
+     * @param numThreads number of threads to use
+     * @return filtered ImgPlus with same axes as input
+     */
+    public static <T extends RealType<T>> ImgPlus<DoubleType> apply(
+            final ImgPlus<T> img,
+            final double[] scales,
+            final double stackMax,
+            final int numThreads) {
+
+        final int nDim = img.numDimensions();
+
+        // Extract spacing from axes
+        final double[] spacing = new double[nDim];
+        for (int d = 0; d < nDim; d++) {
+            spacing[d] = img.axis(d).averageScale(0, 1);
+        }
+
+        // Compute stack max if not provided
+        final double max;
+        if (stackMax <= 0) {
+            max = computeMax(img);
+        } else {
+            max = stackMax;
+        }
+
+        // Create output
+        final long[] dims = Intervals.dimensionsAsLongArray(img);
+        final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(dims);
+
+        // Run filter
+        final Frangi<T, DoubleType> frangi = new Frangi<>(scales, spacing, max, numThreads);
+        frangi.compute(img, output);
+
+        // Wrap with axes from source
+        return ImgUtils.wrapWithAxes(output, img, "Frangi");
+    }
+
+    private static <T extends RealType<T>> double computeMax(final RandomAccessibleInterval<T> img) {
+        double max = Double.NEGATIVE_INFINITY;
+        for (final T pixel : Views.flatIterable(img)) {
+            max = Math.max(max, pixel.getRealDouble());
+        }
+        return max;
+    }
 }
