@@ -33,11 +33,20 @@ import ij.measure.Calibration;
 import ij.plugin.*;
 import ij.process.*;
 import net.imagej.Dataset;
+import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imagej.axis.CalibratedAxis;
 import net.imagej.axis.DefaultLinearAxis;
 import net.imagej.ops.OpService;
+import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.display.ColorTable;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.loops.LoopBuilder;
+import net.imglib2.type.NativeType;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.util.Intervals;
 import org.scijava.convert.ConvertService;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -701,4 +710,101 @@ public class ImpUtils {
 		return imp;
 	}
 
+    /**
+     * Convert an ImagePlus to an ImgPlus with calibration and origin metadata.
+     * <p>
+     * Creates an ImgPlus with proper axis types (X, Y, Z, Channel, Time) and
+     * transfers calibration including pixel sizes, units, and origin offsets.
+     * </p>
+     *
+     * @param imp the source ImagePlus
+     * @return ImgPlus with calibrated axes
+     */
+    public static <T extends RealType<T> & NativeType<T>> ImgPlus<T> toImgPlus(final ImagePlus imp) {
+        // Wrap ImagePlus as RAI
+        final RandomAccessibleInterval<T> rai = ImageJFunctions.wrapReal(imp);
+
+        // Create contiguous copy to avoid virtual stack issues
+        final long[] dims = Intervals.dimensionsAsLongArray(rai);
+        final Img<T> img = copyToArrayImg(rai);
+
+        // Build axes from calibration
+        final Calibration cal = imp.getCalibration();
+        final String unit = cal.getUnit();
+        final List<CalibratedAxis> axes = new ArrayList<>();
+
+        // ImageJFunctions.wrap() produces XY(C)(Z)(T) order for ImagePlus
+        // but actual order depends on ImagePlus dimensions
+        final int nChannels = imp.getNChannels();
+        final int nSlices = imp.getNSlices();
+        final int nFrames = imp.getNFrames();
+
+        // X axis (always present)
+        axes.add(new DefaultLinearAxis(Axes.X, unit, cal.pixelWidth, cal.xOrigin));
+
+        // Y axis (always present)
+        axes.add(new DefaultLinearAxis(Axes.Y, unit, cal.pixelHeight, cal.yOrigin));
+
+        // Remaining axes depend on stack organization
+        // ImageJFunctions wraps as [X, Y, ...] where ... follows IJ's dimension order
+        if (nChannels > 1 && nSlices == 1 && nFrames == 1) {
+            // Just channels
+            axes.add(new DefaultLinearAxis(Axes.CHANNEL, "channel", 1.0, 0));
+        } else if (nChannels == 1 && nSlices > 1 && nFrames == 1) {
+            // Just Z
+            axes.add(new DefaultLinearAxis(Axes.Z, unit, cal.pixelDepth, cal.zOrigin));
+        } else if (nChannels == 1 && nSlices == 1 && nFrames > 1) {
+            // Just time
+            axes.add(new DefaultLinearAxis(Axes.TIME, cal.getTimeUnit(), cal.frameInterval, 0));
+        } else if (nChannels > 1 || nSlices > 1 || nFrames > 1) {
+            // Multiple dimensions - ImageJ orders as XYCZT
+            if (nChannels > 1) {
+                axes.add(new DefaultLinearAxis(Axes.CHANNEL, "channel", 1.0, 0));
+            }
+            if (nSlices > 1) {
+                axes.add(new DefaultLinearAxis(Axes.Z, unit, cal.pixelDepth, cal.zOrigin));
+            }
+            if (nFrames > 1) {
+                axes.add(new DefaultLinearAxis(Axes.TIME, cal.getTimeUnit(), cal.frameInterval, 0));
+            }
+        }
+
+        // Create ImgPlus with axes
+        return new ImgPlus<>(img,
+                imp.getTitle() == null ? "image" : imp.getTitle(),
+                axes.toArray(new CalibratedAxis[0]));
+    }
+
+    /**
+     * Convert an ImagePlus to a 3D (XYZ) ImgPlus, extracting a single channel/frame if needed.
+     * <p>
+     * Useful for analysis that expects simple 3D images without channel/time dimensions.
+     * </p>
+     *
+     * @param imp     the source ImagePlus
+     * @param channel channel to extract (1-based), ignored if single channel
+     * @param frame   frame to extract (1-based), ignored if single frame
+     * @return 3D ImgPlus with X, Y, Z axes
+     */
+    public static <T extends RealType<T> & NativeType<T>> ImgPlus<T> toImgPlus3D(
+            final ImagePlus imp,
+            final int channel,
+            final int frame) {
+        // Extract single channel/frame if needed
+        ImagePlus imp3D = imp;
+        if (imp.getNChannels() > 1 || imp.getNFrames() > 1) {
+            final int c = Math.max(1, Math.min(channel, imp.getNChannels()));
+            final int f = Math.max(1, Math.min(frame, imp.getNFrames()));
+            imp3D = new Duplicator().run(imp, c, c, 1, imp.getNSlices(), f, f);
+            imp3D.setCalibration(imp.getCalibration());
+        }
+        return toImgPlus(imp3D);
+    }
+
+    private static <T extends RealType<T> & NativeType<T>> Img<T> copyToArrayImg(final RandomAccessibleInterval<T> rai) {
+        final ArrayImgFactory<T> factory = new ArrayImgFactory<>(rai.getType());
+        final Img<T> copy = factory.create(rai);
+        LoopBuilder.setImages(rai, copy).forEachPixel((src, dst) -> dst.set(src));
+        return copy;
+    }
 }
