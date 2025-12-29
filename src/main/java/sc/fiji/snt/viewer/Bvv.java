@@ -45,15 +45,13 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.util.BoundingBox;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.*;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.List;
 
@@ -72,6 +70,7 @@ public class Bvv {
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
     private BigVolumeViewer currentBvv;
+    private BvvHandle bvvHandle;
 
     /**
      * Constructor for standalone BVV instance.
@@ -129,6 +128,7 @@ public class Bvv {
         final double[] cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
         final BvvSource source = BvvFunctions.show(img, "SNT Bvv", options.sourceTransform(cal));
         attachControlPanel(source);
+        if (bvvHandle == null)  bvvHandle = source.getBvvHandle();
         return source;
     }
 
@@ -166,6 +166,7 @@ public class Bvv {
             source.setDisplayRange(snt.getStats().min, snt.getStats().max);
         }
         attachControlPanel(source);
+        if (bvvHandle == null)  bvvHandle = source.getBvvHandle();
         return source;
     }
 
@@ -188,6 +189,7 @@ public class Bvv {
             }
         }
         attachControlPanel(source);
+        if (bvvHandle == null)  bvvHandle = source.getBvvHandle();
         return source;
     }
 
@@ -493,6 +495,68 @@ public class Bvv {
         existingTreeLabels.forEach(renderedTrees.keySet()::remove);
         addCollection(trees, true);
         return true;
+    }
+
+    /**
+     * Captures a screenshot of the BVV viewer.
+     *
+     * @return BufferedImage of the current view, or null if capture fails
+     */
+    public ImagePlus screenshot() {
+        if (bvvHandle == null) return null;
+
+        final Component panel = bvvHandle.getViewerPanel();
+
+        // Get bounds on EDT
+        final Rectangle[] boundsHolder = new Rectangle[1];
+        try {
+            if (SwingUtilities.isEventDispatchThread()) {
+                boundsHolder[0] = getScreenBounds(panel);
+            } else {
+                SwingUtilities.invokeAndWait(() -> boundsHolder[0] = getScreenBounds(panel));
+            }
+        } catch (final InterruptedException | InvocationTargetException e) {
+            SNTUtils.error("Could not retrieved panel bounds", e);
+            return null;
+        }
+
+        if (boundsHolder[0] == null) return null;
+
+        // Robot capture can be called from any thread
+        try {
+            return new ImagePlus("BVV Screenshot", new Robot().createScreenCapture(boundsHolder[0]));
+        } catch (final AWTException e) {
+            SNTUtils.error("Screenshot not captured", e);
+            return null;
+        }
+    }
+
+    /**
+     * Captures a screenshot and saves to file.
+     *
+     * @param filePath path to save PNG file
+     * @return true if successful
+     */
+    public boolean screenshot(final String filePath) {
+        final ImagePlus image = screenshot();
+        if (image == null) return false;
+        try {
+            ImpUtils.save(image, filePath);
+        } catch (final Exception e) {
+            SNTUtils.error("Screenshot not saved", e);
+            return false;
+        }
+        return true;
+    }
+
+    private static Rectangle getScreenBounds(final Component component) {
+        if (!component.isShowing()) return null;
+        try {
+            final Point location = component.getLocationOnScreen();
+            return new Rectangle(location.x, location.y, component.getWidth(), component.getHeight());
+        } catch (final IllegalComponentStateException e) {
+            return null;
+        }
     }
 
     /**
