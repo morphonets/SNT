@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.hyperpanes;
 
-import java.awt.Color;
+import java.awt.*;
 import java.awt.image.ColorModel;
 
 import ij.ImagePlus;
@@ -664,6 +664,7 @@ public class MultiDThreePanes implements PaneOwner {
 	}
 
 	private void initCanvasesAndWindows() {
+        if (GraphicsEnvironment.isHeadless()) return;
 		xy_canvas = createCanvas(xy, XY_PLANE);
 		if (isDummy()) {
 			xy_window = null;

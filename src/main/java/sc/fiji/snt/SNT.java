@@ -633,13 +633,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public boolean accessToValidImageData() {
-		// NB: Currently we are assuming that image data comes from an ImagePlus. This
-		// needs to be changed when ImagePlus requirements are lift. Note that xy may
-		// be null (e.g., image has been manually closed), but its cached data ctSlice3d
-		// may still be available. Return ctSlice3d != null is problematic on its own,
-		// because there are several calls to this method that happen _before_ ctSlice3d
-		// has been assembled, but _after_ an image has been specified
-		return getImagePlus() != null && !isDisplayCanvas(xy);
+		return (getImagePlus() != null && !isDisplayCanvas(xy)) || ctSlice3d != null;
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
@@ -839,7 +833,7 @@ public class SNT extends MultiDThreePanes implements
 		if (!xz.isVisible()) xz.show();
 	}
 
-	@SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
 	private void loadDatasetFromImagePlus(final ImagePlus imp) {
 		statusService.showStatus("Loading data...");
 		this.ctSlice3d = ImgUtils.getCtSlice3d(imp, channel - 1, frame - 1);
