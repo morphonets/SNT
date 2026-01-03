@@ -5295,10 +5295,10 @@ public class Viewer3D {
 			log.setIcon(IconFactory.menuIcon(GLYPH.STREAM));
 			scriptMenu.add(log);
 			GuiUtils.addSeparator(scriptMenu, "Resources:");
-			scriptMenu.add(GuiUtils.MenuItems.devResourceMain());
-			scriptMenu.add(GuiUtils.MenuItems.devResourceNotebooks());
-			scriptMenu.add(GuiUtils.MenuItems.devResourceAPI());
-			return scriptMenu;
+			scriptMenu.add(GuiUtils.MenuItems.devResourceJavaAPI());
+			scriptMenu.add(GuiUtils.MenuItems.devResourcePythonAPI());
+            scriptMenu.add(GuiUtils.MenuItems.devResourceMain());
+            return scriptMenu;
 		}
 
 		private JPopupMenu prefsMenu() {

@@ -2477,15 +2477,15 @@ public class GuiUtils {
 			return jmi;
 		}
 
-		public static JMenuItem devResourceAPI() {
-			final JMenuItem jmi = openURL("API", "https://javadoc.scijava.org/SNT/");
+		public static JMenuItem devResourceJavaAPI() {
+			final JMenuItem jmi = openURL("Java API", "https://javadoc.scijava.org/SNT/");
 			jmi.setIcon(IconFactory.menuIcon(GLYPH.CODE2));
 			return jmi;
 		}
 
-		public static JMenuItem devResourceNotebooks() {
-			final JMenuItem jmi = openURL("Jupyter Notebooks", "https://github.com/morphonets/SNT/tree/master/notebooks");
-			jmi.setIcon(IconFactory.menuIcon(GLYPH.SCROLL));
+		public static JMenuItem devResourcePythonAPI() {
+			final JMenuItem jmi = openURL("Python API (PySNT)", "https://pysnt.readthedocs.io/en/latest/");
+            jmi.setIcon(IconFactory.menuIcon(GLYPH.CODE2));
 			return jmi;
 		}
 
@@ -2658,10 +2658,10 @@ public class GuiUtils {
 			helpMenu.add(mi);
 
 			helpMenu.addSeparator();
-			helpMenu.add(devResourceMain());
-			helpMenu.add(devResourceNotebooks());
-			helpMenu.add(devResourceAPI());
-			helpMenu.addSeparator();
+			helpMenu.add(devResourceJavaAPI());
+			helpMenu.add(devResourcePythonAPI());
+            helpMenu.add(devResourceMain());
+            helpMenu.addSeparator();
 
 			mi = openURL("Complementary Tools",  URL + "comp-tools");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.COGS));
