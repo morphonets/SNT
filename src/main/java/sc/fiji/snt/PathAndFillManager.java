@@ -2493,8 +2493,11 @@ public class PathAndFillManager extends DefaultHandler implements
 
 		final Pattern pEmpty = Pattern.compile("^\\s*$");
 		final Pattern pComment = Pattern.compile("^([^#]*)#.*$");
+        final Pattern pWhitespace = Pattern.compile("\\s+");
 
 		final TreeSet<SWCPoint> nodes = new TreeSet<>();
+        final Set<Integer> typeFilter = (swcTypes.length == 0) ? null :
+                Arrays.stream(swcTypes).boxed().collect(Collectors.toSet());
 		String line;
 		try {
 			while ((line = br.readLine()) != null) {
@@ -2502,15 +2505,15 @@ public class PathAndFillManager extends DefaultHandler implements
 				line = mComment.replaceAll("$1").trim();
 				final Matcher mEmpty = pEmpty.matcher(line);
 				if (mEmpty.matches()) continue;
-				final String[] fields = line.split("\\s+");
-				if (fields.length < 7) {
+                final String[] fields = pWhitespace.split(line);
+                if (fields.length < 7) {
 					error("Wrong number of fields (" + fields.length + ") in line: " +
 						line);
 					return false;
 				}
 				try {
 					final int type = Integer.parseInt(fields[1]);
-					if (matchesType(type, swcTypes)) {
+                    if (typeFilter == null || typeFilter.contains(type)) {
 						final int id = Integer.parseInt(fields[0]);
 						final double x = xScale * Double.parseDouble(fields[2]) + xOffset;
 						final double y = yScale * Double.parseDouble(fields[3]) + yOffset;
@@ -2538,11 +2541,7 @@ public class PathAndFillManager extends DefaultHandler implements
 		if (replaceAllPaths) unsavedPaths = false;
 		return importNodes(descriptor, nodes, null, assumeCoordinatesInVoxels);
 	}
-
-	private boolean matchesType(final int type, final int... swcTypes) {
-		return swcTypes.length == 0 || Arrays.stream(swcTypes).anyMatch(t -> t == type);
-	}
-
+    
 	private boolean importNodes(final String descriptor,
 	                            final TreeSet<SWCPoint> points, final ColorRGB color,
 	                            final boolean assumeCoordinatesInVoxels)
