@@ -62,6 +62,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 
@@ -85,6 +86,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	private static final String SYM_ORDER ="ORD:"; //"\uD800\uDC92"; // not displayed in macOS
 	private static final String SYM_CHILDREN = "NC:";
 	private static final String SYM_ANGLE ="DEG:";
+
+    // Pre-compiled patterns for tag operations (avoid repeated regex compilation)
+    private static final Pattern CHANNEL_TAG_PATTERN = Pattern.compile(" ?\\[Ch:\\d+]");
+    private static final Pattern FRAME_TAG_PATTERN = Pattern.compile(" ?\\[T:\\d+]");
+    private static final Pattern SLICE_TAG_PATTERN = Pattern.compile(" ?\\[Z:\\d+]");
+    private static final Pattern TREE_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_TREE + ".*]");
+    private static final Pattern CHILDREN_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_CHILDREN + "\\d+]");
+    private static final Pattern ANGLE_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_ANGLE + "\\d+.\\d+]|\\[" + SYM_ANGLE + "NaN]");
+    private static final Pattern ORDER_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_ORDER + "\\d+]");
+    private static final Pattern LENGTH_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_LENGTH + "\\d+\\.?\\d+\\s?.+\\w+]");
+    private static final Pattern RADIUS_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+]");
+    private static final Pattern MARKER_TAG_PATTERN = Pattern.compile(" ?\\[" + SYM_MARKER + "\\d+]");
+    private static final Pattern TAG_SPLIT_PATTERN = Pattern.compile(",\\s*");
 
 	private final HelpfulJTree tree;
 	private final SNT plugin;
@@ -1284,15 +1298,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	/** This class defines the model for the JTree hosting traced paths */
-	private class HelpfulTreeModel extends DefaultTreeModel {
+    class HelpfulTreeModel extends DefaultTreeModel {
 
-		private static final long serialVersionUID = 1697148395459880568L;
+        private static final long serialVersionUID = 1L;
+        private final Map<Path, DefaultMutableTreeNode> pathToNodeMap = new HashMap<>();
 
         HelpfulTreeModel() {
-			super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
-		}
+            super(new DefaultMutableTreeNode(HelpfulJTree.ROOT_LABEL));
+        }
 
-        /** Builds a model that contains only the primary paths for the given arbor label. */
         HelpfulTreeModel(final Path[] primaryPaths, final String treeLabel) {
             this();
             for (final Path primaryPath : primaryPaths) {
@@ -1302,15 +1316,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         DefaultMutableTreeNode root() {
-			return (DefaultMutableTreeNode) root;
-		}
+            return (DefaultMutableTreeNode) root;
+        }
 
         void addNode(final MutableTreeNode parent, final Path childPath) {
-			final MutableTreeNode newNode = new DefaultMutableTreeNode(childPath);
-			insertNodeInto(newNode, parent, parent.getChildCount());
-			childPath.getChildren().forEach(p -> addNode(newNode, p));
-		}
-	}
+            final DefaultMutableTreeNode newNode = new DefaultMutableTreeNode(childPath);
+            pathToNodeMap.put(childPath, newNode);
+            insertNodeInto(newNode, parent, parent.getChildCount());
+            childPath.getChildren().forEach(p -> addNode(newNode, p));
+        }
+
+        DefaultMutableTreeNode getNodeForPath(final Path path) {
+            return pathToNodeMap.get(path);
+        }
+
+        Map<Path, DefaultMutableTreeNode> getPathToNodeMap() {
+            return pathToNodeMap;
+        }
+    }
 
 	/** This class defines the JTree hosting traced paths */
 	private class HelpfulJTree extends JTree {
@@ -1362,62 +1385,73 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             return (DefaultMutableTreeNode) m.getRoot();
         }
 
-		public Set<Path> getSelectedPaths() {
-			final TreePath[] selectionTreePath = getSelectionPaths();
-			final Set<Path> selectedPaths = new HashSet<>();
-			if (selectionTreePath == null)
-				return selectedPaths;
-			for (final TreePath tp : selectionTreePath) {
-				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
-				if (!node.isRoot()) { // 'invisible root' is not a SNT Path
-					selectedPaths.add((Path) node.getUserObject());
-				}
-			}
-			return selectedPaths;
-		}
+        public Set<Path> getSelectedPaths() {
+            final TreePath[] selectionTreePath = getSelectionPaths();
+            final Set<Path> selectedPaths = new HashSet<>();
+            if (selectionTreePath == null)
+                return selectedPaths;
+            for (final TreePath tp : selectionTreePath) {
+                final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
+                if (!node.isRoot()) {
+                    selectedPaths.add((Path) node.getUserObject());
+                }
+            }
+            return selectedPaths;
+        }
 
-		public Set<Path> getExpandedPaths() {
+        public Set<Path> getExpandedPaths() {
             final Set<Path> set = new HashSet<>();
-            if (getModel() == null || getRoot() == null) return set;
-            final Enumeration<?> children = getRoot().depthFirstEnumeration();
-			while (children.hasMoreElements()) {
-				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
-				if (isExpanded(new TreePath(node.getPath()))) {
-					final Object o = node.getUserObject();
-					if (o instanceof Path) { // 'invisible root' is not a SNT Path
-						set.add( (Path) o);
-					}
-				}
-			}
-			return set;
-		}
+            final TreeModel model = getModel();
+            if (model == null || !(model instanceof HelpfulTreeModel))
+                return set;
 
-		public void setSelectedPaths(final Collection<Path> set) {
-			assert SwingUtilities.isEventDispatchThread();
-			final boolean updateCTposition = set.size() == 1;
-			final Enumeration<?> children = getRoot().depthFirstEnumeration();
-			while (children.hasMoreElements()) {
-				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
-				final Object o = node.getUserObject();
-				if (o instanceof Path && set.contains(o)) { // 'invisible root' is not a SNT Path
-					addSelectionPath(new TreePath(node.getPath()));
-					if (updateCTposition && plugin != null) {
-						updateHyperstackPosition((Path) o);
-					}
-				}
-			}
-		}
+            final Map<Path, DefaultMutableTreeNode> pathToNodeMap = ((HelpfulTreeModel) model).getPathToNodeMap();
+            for (final Map.Entry<Path, DefaultMutableTreeNode> entry : pathToNodeMap.entrySet()) {
+                final TreePath treePath = new TreePath(entry.getValue().getPath());
+                if (isExpanded(treePath)) {
+                    set.add(entry.getKey());
+                }
+            }
+            return set;
+        }
 
-		public void setExpandedPaths(final Collection<Path> set) {
-			assert SwingUtilities.isEventDispatchThread();
-			final Enumeration<?> children = getRoot().depthFirstEnumeration();
-			while (children.hasMoreElements()) {
-				final DefaultMutableTreeNode node = (DefaultMutableTreeNode) children.nextElement();
-				final Object o = node.getUserObject();
-				if (o instanceof Path && set.contains(o)) // 'invisible root' is not a SNT Path
-					expandPath(new TreePath(node.getPath()));
-			}
-		}
+        public void setSelectedPaths(final Collection<Path> set) {
+            assert SwingUtilities.isEventDispatchThread();
+            if (set == null || set.isEmpty()) return;
+
+            final TreeModel model = getModel();
+            if (!(model instanceof HelpfulTreeModel)) return;
+
+            final Map<Path, DefaultMutableTreeNode> pathToNodeMap = ((HelpfulTreeModel) model).getPathToNodeMap();
+            final boolean updateCTposition = set.size() == 1;
+
+            for (final Path path : set) {
+                final DefaultMutableTreeNode node = pathToNodeMap.get(path);
+                if (node != null) {
+                    addSelectionPath(new TreePath(node.getPath()));
+                    if (updateCTposition && plugin != null) {
+                        updateHyperstackPosition(path);
+                    }
+                }
+            }
+        }
+
+        public void setExpandedPaths(final Collection<Path> set) {
+            assert SwingUtilities.isEventDispatchThread();
+            if (set == null || set.isEmpty()) return;
+
+            final TreeModel model = getModel();
+            if (!(model instanceof HelpfulTreeModel)) return;
+
+            final Map<Path, DefaultMutableTreeNode> pathToNodeMap = ((HelpfulTreeModel) model).getPathToNodeMap();
+
+            for (final Path path : set) {
+                final DefaultMutableTreeNode node = pathToNodeMap.get(path);
+                if (node != null) {
+                    expandPath(new TreePath(node.getPath()));
+                }
+            }
+        }
 
 		public void repaintSelectedNodes() {
 			final TreePath[] selectedPaths = getSelectionPaths();
@@ -1911,40 +1945,40 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	String untaggedPathName(final Path p) {
-		return p.getName().replaceAll(MultiPathActionListener.TAG_DEFAULT_PATTERN, ""); //"/ ?\\[[^\\[]*\\]", "");
-	}
+        return MultiPathActionListener.TAG_DEFAULT_PATTERN.matcher(p.getName()).replaceAll("");
+    }
 
 	/** Should be the only method called for toggling built-in tags **/
 	private void removeOrReapplyDefaultTag(final Collection<Path> paths, final String cmd, final boolean reapply, final boolean interactiveUI) {
         switch (cmd) {
             case MultiPathActionListener.CHANNEL_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Ch:\\d+]", "")));
+                paths.forEach(p -> p.setName(CHANNEL_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply)
                     paths.forEach(p -> p.setName(p.getName() + " [Ch:" + p.getChannel() + "]"));
             }
             case MultiPathActionListener.FRAME_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[T:\\d+]", "")));
+                paths.forEach(p -> p.setName(FRAME_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply)
                     paths.forEach(p -> p.setName(p.getName() + " [T:" + p.getFrame() + "]"));
             }
             case MultiPathActionListener.SLICE_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[Z:\\d+]", "")));
+                paths.forEach(p -> p.setName(SLICE_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply)
-                    paths.forEach(p -> p.setName(p.getName() + " [Z:" + (p.getZUnscaled(0) + 1) + "]")); // 1-based index
+                    paths.forEach(p -> p.setName(p.getName() + " [Z:" + (p.getZUnscaled(0) + 1) + "]"));
             }
             case MultiPathActionListener.TREE_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_TREE + ".*]", "")));
+                paths.forEach(p -> p.setName(TREE_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply)
                     paths.forEach(p -> p.setName(p.getName() + " [" + SYM_TREE + p.getTreeLabel() + "]"));
             }
             case MultiPathActionListener.N_CHILDREN_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_CHILDREN + "\\d+]", "")));
+                paths.forEach(p -> p.setName(CHILDREN_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply)
                     paths.forEach(p -> p.setName(p.getName() + " [" + SYM_CHILDREN + p.getChildren().size() + "]"));
             }
             case "Extension Angle...", PathStatistics.PATH_EXT_ANGLE_XY, PathStatistics.PATH_EXT_ANGLE_XZ,
                  PathStatistics.PATH_EXT_ANGLE_ZY, PathStatistics.PATH_EXT_ANGLE, PathStatistics.PATH_EXT_ANGLE_REL -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ANGLE + "\\d+.\\d+]|\\[" + SYM_ANGLE + "NaN]", "")));
+                paths.forEach(p -> p.setName(ANGLE_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply) {
                     final boolean relative = cmd.toLowerCase().contains("rel");
                     paths.forEach(p -> {
@@ -1962,12 +1996,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             case MultiPathActionListener.ORDER_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_ORDER + "\\d+]", "")));
+                paths.forEach(p -> p.setName(ORDER_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply)
                     paths.forEach(p -> p.setName(p.getName() + " [" + SYM_ORDER + p.getOrder() + "]"));
             }
             case MultiPathActionListener.LENGTH_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_LENGTH + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
+                paths.forEach(p -> p.setName(LENGTH_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply) {
                     paths.forEach(p -> {
                         final String lengthTag = " [" + SYM_LENGTH + p.getRealLengthString() + p.spacing_units + "]";
@@ -1976,7 +2010,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             case MultiPathActionListener.MEAN_RADIUS_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_RADIUS + "\\d+\\.?\\d+\\s?.+\\w+]", "")));
+                paths.forEach(p -> p.setName(RADIUS_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply) {
                     paths.forEach(p -> {
                         final String radiusTag = " [" + SYM_RADIUS + SNTUtils.formatDouble(p.getMeanRadius(), 3) + p.spacing_units + "]";
@@ -1985,7 +2019,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             case MultiPathActionListener.COUNT_TAG_CMD -> {
-                paths.forEach(p -> p.setName(p.getName().replaceAll(" ?\\[" + SYM_MARKER + "\\d+]", "")));
+                paths.forEach(p -> p.setName(MARKER_TAG_PATTERN.matcher(p.getName()).replaceAll("")));
                 if (reapply) {
                     paths.forEach(p -> {
                         final String countTag = " [" + SYM_MARKER + p.getSpineOrVaricosityCount() + "]";
@@ -2757,9 +2791,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		private static final String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
 
 		// Custom tag definition: anything flanked by curly braces
-		private static final String TAG_CUSTOM_PATTERN = " ?\\{.*}";
-		// Built-in tag definition: anything flanked by square braces
-		private static final String TAG_DEFAULT_PATTERN = " ?\\[.*]";
+        private static final Pattern TAG_CUSTOM_PATTERN = Pattern.compile(" ?\\{.*}");
+        private static final Pattern TAG_DEFAULT_PATTERN = Pattern.compile(" ?\\[.*]");
 
 		// Command interface for handling path operations
 		private interface PathCommand {
@@ -3342,8 +3375,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				}
 
 				// remove any existing tags to avoid duplicates. New tags will contain these
-				selectedPaths.forEach(p -> p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, "")));
-				applyCustomTags(selectedPaths, GuiUtils.toString(tags));
+                selectedPaths.forEach(p -> p.setName(TAG_CUSTOM_PATTERN.matcher(p.getName()).replaceAll("")));
+                applyCustomTags(selectedPaths, GuiUtils.toString(tags));
 				refreshManager(false, false, selectedPaths);
 				plugin.setUnsavedChanges(true);
 			}
@@ -4009,8 +4042,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 				return;
 			}
 			if (choices[2].equals(choice)) {
-				selectedPaths.forEach(p -> p.setName(p.getName().replaceAll(TAG_DEFAULT_PATTERN, "")));
-				if (selectedPaths.size() == pathAndFillManager.size()) deselectAllTagsMenu();
+                selectedPaths.forEach(p -> p.setName(TAG_DEFAULT_PATTERN.matcher(p.getName()).replaceAll("")));
+                if (selectedPaths.size() == pathAndFillManager.size()) deselectAllTagsMenu();
 				refreshManager(false, false, selectedPaths);
 			}
 		}
@@ -4040,8 +4073,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 			if (!plugin.getUI().askUserConfirmation || guiUtils.getConfirmation("Remove custom tags from "
 					+ ((paths.size() == pathAndFillManager.size()) ? "all " : "the selected ")
 					+ paths.size() + " paths?", "Confirm Tag Removal?")) {
-				paths.forEach(p -> p.setName(p.getName().replaceAll(TAG_CUSTOM_PATTERN, "")));
-				plugin.setUnsavedChanges(true);
+                paths.forEach(p -> p.setName(TAG_CUSTOM_PATTERN.matcher(p.getName()).replaceAll("")));
+                plugin.setUnsavedChanges(true);
 				refreshManager(false, false, paths);
 			}
 		}
@@ -4131,12 +4164,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
-	public static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
-		final TreeSet<String> uniqueTags = new TreeSet<>(); // sorted entries
-		paths.forEach( p-> uniqueTags.addAll(Arrays.asList(extractTagsFromPath(p).split(",\\s*"))));
-		uniqueTags.remove("");
-		return uniqueTags;
-	}
+    public static Set<String> extractTagsFromPaths(final Collection<Path> paths) {
+        final TreeSet<String> uniqueTags = new TreeSet<>();
+        paths.forEach(p -> uniqueTags.addAll(Arrays.asList(TAG_SPLIT_PATTERN.split(extractTagsFromPath(p)))));
+        uniqueTags.remove("");
+        return uniqueTags;
+    }
 
     /** Builds the top navigation toolbar */
     private class NavigationToolBar extends JToolBar {

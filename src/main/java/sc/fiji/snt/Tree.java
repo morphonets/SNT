@@ -463,51 +463,35 @@ public class Tree implements TreeProperties, Cloneable {
 	 * @return the tree
 	 * @throws IllegalArgumentException If Tree does not contain selected types
 	 */
-	Tree subTreeNodeConversion(final int... swcTypes) throws IllegalArgumentException {
-		// this is ~4x slower than Path-based conversion but accurate
-		final List<SWCPoint> nodes = getNodesAsSWCPoints();
-		//System.out.println("nNodes: "+ nodes.size());
+    Tree subTreeNodeConversion(final int... swcTypes) throws IllegalArgumentException {
+        final List<SWCPoint> nodes = getNodesAsSWCPoints();
+        final Set<Integer> typesToKeep = Arrays.stream(swcTypes).boxed().collect(Collectors.toSet());
+        final Set<Integer> idsToRemove = new HashSet<>();
 
-		Iterator<SWCPoint> it = nodes.iterator();
-		Set<Integer> idsToRemove = new HashSet<>();
+        // Single pass: remove non-matching nodes and collect removed IDs
+        nodes.removeIf(node -> {
+            if (!typesToKeep.contains(node.type)) {
+                idsToRemove.add(node.id);
+                return true;
+            }
+            return false;
+        });
 
-		// Remove filtered nodes
-		while (it.hasNext()) {
-			final SWCPoint node = it.next();
-			if (!matchesType(node, swcTypes))
-				idsToRemove.add(node.id);
-		}
-		if (!idsToRemove.isEmpty()) {
-			it = nodes.iterator();
-			while (it.hasNext()) {
-				final SWCPoint node = it.next();
-				if (idsToRemove.contains(node.id)) {
-					it.remove();
-				}
-			}
-			it = nodes.iterator();
-			while (it.hasNext()) {
-				final SWCPoint node = it.next();
-				if (idsToRemove.contains(node.parent))
-					node.parent = -1;
-			}
-		}
+        // Fix parent references (unavoidable second pass, but only over remaining nodes)
+        if (!idsToRemove.isEmpty()) {
+            for (final SWCPoint node : nodes) {
+                if (idsToRemove.contains(node.parent))
+                    node.parent = -1;
+            }
+        }
 
-		//System.out.println("Returning subtree with nNodes: "+ nodes.size());
-		final String[] types = new String[swcTypes.length];
-		for (int i = 0; i < swcTypes.length; i++)
-			types[i] = Path.getSWCtypeName(swcTypes[i], true);
-		final Tree subTree = new Tree(nodes, getLabel() + " " + Arrays.toString(types));
-		subTree.applyProperties(this);
-		return subTree;
-	}
-
-	private boolean matchesType(final SWCPoint node, final int... swcTypes) {
-		for (int type : swcTypes) {
-			if (node.type == type) return true;
-		}
-		return false;
-	}
+        final String[] types = new String[swcTypes.length];
+        for (int i = 0; i < swcTypes.length; i++)
+            types[i] = Path.getSWCtypeName(swcTypes[i], true);
+        final Tree subTree = new Tree(nodes, getLabel() + " " + Arrays.toString(types));
+        subTree.applyProperties(this);
+        return subTree;
+    }
 
 	/**
 	 * Applies properties from another Tree to this Tree.
@@ -780,7 +764,7 @@ public class Tree implements TreeProperties, Cloneable {
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage current = p.getNodeWithoutChecks(node);
 				// Path#moveNode will take care of fitted paths
-				p.moveNode(node, new PointInImage(current.x + xOffset, current.y + yOffset, current.z + zOffset));
+                p.moveNode(node, current.x + xOffset, current.y + yOffset, current.z + zOffset);
 			}
 		});
 		if (box != null) {
@@ -808,8 +792,8 @@ public class Tree implements TreeProperties, Cloneable {
 			for (int node = 0; node < p.size(); node++) {
 				final PointInImage current = p.getNodeWithoutChecks(node);
 				// Path#moveNode will take care of fitted paths
-				p.moveNode(node, new PointInImage(current.x * xScale, current.y * yScale, current.z * zScale));
-			}
+                p.moveNode(node, current.x * xScale, current.y * yScale, current.z * zScale);
+            }
 		});
 		if (box != null) {
 			box.origin().x *= xScale;
@@ -852,22 +836,36 @@ public class Tree implements TreeProperties, Cloneable {
 	 *          {@link #Z_AXIS}.
 	 * @param angle the rotation angle in degrees. Ignored if 0.
 	 */
-	public void rotate(final int axis, final double angle) {
-		if (Double.isNaN(angle)) throw new IllegalArgumentException("Invalid angle");
-		if (angle == 0d) return;
-		final double radAngle = Math.toRadians(angle);
-		final double sin = Math.sin(radAngle);
-		final double cos = Math.cos(radAngle);
-		tree.forEach(p -> {
-			for (int node = 0; node < p.size(); node++) {
-				final PointInImage current = p.getNodeWithoutChecks(node);
-				// Path#moveNode will take care of fitted paths
-				p.moveNode(node, rotate(current, cos, sin, axis));
-			}
-		});
-		if (box != null) box.setComputationNeeded(true);
-		nullifyGraphsAndPafm();
-	}
+    public void rotate(final int axis, final double angle) {
+        if (Double.isNaN(angle)) throw new IllegalArgumentException("Invalid angle");
+        if (angle == 0d) return;
+        final double radAngle = Math.toRadians(angle);
+        final double sin = Math.sin(radAngle);
+        final double cos = Math.cos(radAngle);
+        tree.forEach(p -> {
+            for (int node = 0; node < p.size(); node++) {
+                final PointInImage current = p.getNodeWithoutChecks(node);
+                // See http://www.petercollingridge.appspot.com/3D-tutorial
+                switch (axis) {
+                    case Z_AXIS -> p.moveNode(node,
+                            current.x * cos - current.y * sin,
+                            current.y * cos + current.x * sin,
+                            current.z);
+                    case Y_AXIS -> p.moveNode(node,
+                            current.x * cos - current.z * sin,
+                            current.y,
+                            current.z * cos + current.x * sin);
+                    case X_AXIS -> p.moveNode(node,
+                            current.x,
+                            current.y * cos - current.z * sin,
+                            current.z * cos + current.y * sin);
+                    default -> throw new IllegalArgumentException("Unrecognized rotation axis: " + axis);
+                }
+            }
+        });
+        if (box != null) box.setComputationNeeded(true);
+        nullifyGraphsAndPafm();
+    }
 
 	/**
 	 * Gets all the nodes (path points) forming this tree.
@@ -1789,16 +1787,6 @@ public class Tree implements TreeProperties, Cloneable {
 		coordMap.put(swapAxis2, pim.getCoordinateOnAxis(swapAxis1));
 		coordMap.put(unchangedAxis, pim.getCoordinateOnAxis(unchangedAxis));
 		return new PointInImage(coordMap.get(X_AXIS), coordMap.get(Y_AXIS), coordMap.get(Z_AXIS));
-	}
-
-	private PointInImage rotate(final PointInImage pim, final double cos, final double sin, final int untouchedAxis) {
-        return switch (untouchedAxis) {
-            // See http://www.petercollingridge.appspot.com/3D-tutorial
-            case Z_AXIS -> new PointInImage(pim.x * cos - pim.y * sin, pim.y * cos + pim.x * sin, pim.z);
-            case Y_AXIS -> new PointInImage(pim.x * cos - pim.z * sin, pim.y, pim.z * cos + pim.x * sin);
-            case X_AXIS -> new PointInImage(pim.x, pim.y * cos - pim.z * sin, pim.z * cos + pim.y * sin);
-            default -> throw new IllegalArgumentException("Unrecognized rotation axis" + untouchedAxis);
-        };
 	}
 
 	private static File getFile(final String filename, final boolean checkIfAvailable) {

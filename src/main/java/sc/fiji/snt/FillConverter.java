@@ -188,21 +188,21 @@ public class FillConverter {
         // labels start at 1, 0 is reserved for background
         long label = 1;
         for (final FillerThread filler : fillers) {
-            for (Integer sliceIdx : filler.getNodesAsImage().keySet()) {
-                SearchImage<DefaultSearchNode> slice = filler.getNodesAsImage().getSlice(sliceIdx);
+            final SearchImageStack<DefaultSearchNode> nodesImage = filler.getNodesAsImage();
+            final double threshold = filler.getThreshold();
+            for (final int sliceIdx : nodesImage.keySet()) {
+                final SearchImage<DefaultSearchNode> slice = nodesImage.getSlice(sliceIdx);
                 if (slice == null) continue;
                 SearchImage<DefaultSearchNode> newSlice = newStack.getSlice(sliceIdx);
                 if (newSlice == null) {
                     newSlice = newStack.newSlice(sliceIdx);
                 }
                 for (final DefaultSearchNode node : slice) {
-                    if (node == null || node.g > filler.getThreshold()) continue;
+                    if (node == null || node.g > threshold) continue;
                     // HACK, use f-score field for label. This field is ignored for Dijkstra searches
                     node.f = label;
                     final DefaultSearchNode existingNode = newSlice.getValue(node.x, node.y);
-                    if (existingNode == null) {
-                        newSlice.setValue(node.x, node.y, node);
-                    } else if (node.g < existingNode.g) {
+                    if (existingNode == null || node.g < existingNode.g) {
                         // If there are two nodes with the same index, choose the one with lower g-score
                         newSlice.setValue(node.x, node.y, node);
                     }

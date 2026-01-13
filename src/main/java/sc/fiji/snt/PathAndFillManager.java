@@ -759,16 +759,13 @@ public class PathAndFillManager extends DefaultHandler implements
 		 */
 
 		final Map<Path, List<Path>> pathChildrenMap = new HashMap<>();
-		final Iterator<Path> it = paths.iterator();
-		while (it.hasNext()) {
-			final Path p = it.next();
-			if (p.isPrimary()) {
-				primaryPaths.add(p);
-				continue;
-			}
-			pathChildrenMap.putIfAbsent(p.getParentPath(), new ArrayList<>());
-			pathChildrenMap.get(p.getParentPath()).add(p);
-		}
+        for (final Path p : paths) {
+            if (p.isPrimary()) {
+                primaryPaths.add(p);
+                continue;
+            }
+            pathChildrenMap.computeIfAbsent(p.getParentPath(), path -> new ArrayList<>()).add(p);
+        }
 		for (final Entry<Path, List<Path>> entry : pathChildrenMap.entrySet()) {
 			entry.getKey().children.clear();
 			entry.getKey().children.addAll(entry.getValue());

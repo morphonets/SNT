@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Shape;
 import java.awt.Stroke;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
@@ -52,6 +51,11 @@ class PathNodeCanvas {
 	public static final int SLAB = 4;
 	/** Flag describing a single point path */
 	public static final int HERMIT = 5;
+
+    // Static reusable shapes to avoid allocations in render loop
+    private static final BasicStroke EDITABLE_STROKE = new BasicStroke(4);
+    private static final Line2D.Double REUSABLE_LINE = new Line2D.Double();
+    private static final Ellipse2D.Double REUSABLE_ELLIPSE = new Ellipse2D.Double();
 
 	private final Path path;
 	private final int index;
@@ -130,6 +134,28 @@ class PathNodeCanvas {
         };
 	}
 
+    private double getScreenCoordinateX(final double pimX, final double pimZ) {
+        return switch (canvas.getPlane()) {
+            case MultiDThreePanes.XY_PLANE, MultiDThreePanes.XZ_PLANE ->
+                    canvas.myScreenXDprecise(path.canvasOffset.x + pimX / path.x_spacing);
+            case MultiDThreePanes.ZY_PLANE ->
+                    canvas.myScreenXDprecise(path.canvasOffset.z + pimZ / path.z_spacing);
+            default ->
+                    throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas.getPlane() + ")");
+        };
+    }
+
+    private double getScreenCoordinateY(final double pimY, final double pimZ) {
+        return switch (canvas.getPlane()) {
+            case MultiDThreePanes.XY_PLANE, MultiDThreePanes.ZY_PLANE ->
+                    canvas.myScreenYDprecise(path.canvasOffset.y + pimY / path.y_spacing);
+            case MultiDThreePanes.XZ_PLANE ->
+                    canvas.myScreenYDprecise(path.canvasOffset.z + pimZ / path.z_spacing);
+            default ->
+                    throw new IllegalArgumentException("BUG: Unknown plane! (" + canvas.getPlane() + ")");
+        };
+    }
+
 	protected int getSlice() {
 		if (slice == -1) {
 			switch (canvas.getPlane()) {
@@ -198,56 +224,51 @@ class PathNodeCanvas {
 	 *                      parameter is ignored if a color has already been defined
 	 *                      through {@link Path#setNodeColors(Color[])}
 	 */
-	public void draw(final Graphics2D g, final Color fallbackColor) {
-
-        // Ensure subsequent shapes associated with this node (diameter,
-        // segments, etc.) are rendered with the appropriate color
+    public void draw(final Graphics2D g, final Color fallbackColor) {
         assignColor(g, fallbackColor);
 
-		if (path.isBeingEdited() && !isEditable()) {
-			return; // draw only editable node
-		}
+        if (path.isBeingEdited() && !isEditable()) {
+            return;
+        }
 
-		assignRenderingSize();
-		final Shape node = new Ellipse2D.Double(x - size / 2, y - size / 2, size, size);
-		if (editable) {
-			// opaque crosshair and border, transparent fill
-			final Stroke stroke = g.getStroke();
-			g.setStroke(new BasicStroke(4));
-			final double length = size / 1.5;
-			final double offset = size / 3;
-			g.draw(new Line2D.Double(x - offset - length, y, x - offset, y));
-			g.draw(new Line2D.Double(x + offset + length, y, x + offset, y));
-			g.draw(new Line2D.Double(x, y - offset - length, x, y - offset));
-			g.draw(new Line2D.Double(x, y + offset + length, x, y + offset));
-			g.draw(node);
-			g.setColor(SNTColor.alphaColor(color, 20));
-			g.fill(node);
-			g.setStroke(stroke);
-		}
-		else {
+        assignRenderingSize();
+        REUSABLE_ELLIPSE.setFrame(x - size / 2, y - size / 2, size, size);
 
-			if (path.isSelected()) {
-				// opaque border and more opaque fill
-				g.draw(node);
-				g.setColor(SNTColor.alphaColor(color, 80));
-				g.fill(node);
-			}
-			else {
-				// semi-border and more transparent fill
-				g.setColor(SNTColor.alphaColor(color, 50));
-				g.fill(node);
-			}
+        if (editable) {
+            final Stroke stroke = g.getStroke();
+            g.setStroke(EDITABLE_STROKE);
+            final double length = size / 1.5;
+            final double offset = size / 3;
 
-		}
+            REUSABLE_LINE.setLine(x - offset - length, y, x - offset, y);
+            g.draw(REUSABLE_LINE);
+            REUSABLE_LINE.setLine(x + offset + length, y, x + offset, y);
+            g.draw(REUSABLE_LINE);
+            REUSABLE_LINE.setLine(x, y - offset - length, x, y - offset);
+            g.draw(REUSABLE_LINE);
+            REUSABLE_LINE.setLine(x, y + offset + length, x, y + offset);
+            g.draw(REUSABLE_LINE);
 
-		// g.setColor(c); // not really needed
+            g.draw(REUSABLE_ELLIPSE);
+            g.setColor(SNTColor.alphaColor(color, 20));
+            g.fill(REUSABLE_ELLIPSE);
+            g.setStroke(stroke);
+        } else {
+            if (path.isSelected()) {
+                g.draw(REUSABLE_ELLIPSE);
+                g.setColor(SNTColor.alphaColor(color, 80));
+                g.fill(REUSABLE_ELLIPSE);
+            } else {
+                g.setColor(SNTColor.alphaColor(color, 50));
+                g.fill(REUSABLE_ELLIPSE);
+            }
+        }
+    }
 
-	}
-
-	protected void drawConnection(final Graphics2D g, final PathNodeCanvas other) {
-		g.draw(new Line2D.Double(x, y, other.x, other.y));
-	}
+    protected void drawConnection(final Graphics2D g, final PathNodeCanvas other) {
+        REUSABLE_LINE.setLine(x, y, other.x, other.y);
+        g.draw(REUSABLE_LINE);
+    }
 
 	private double getSizeInPlane(final double xSize, final double ySize, final double zSize) {
         return switch (canvas.getPlane()) {
@@ -258,48 +279,49 @@ class PathNodeCanvas {
         };
 	}
 
-	protected void drawDiameter(final Graphics2D g2, final int slice, final int either_side) {
-		if (!path.hasRadii() ) return; // cannot proceed
+    protected void drawDiameter(final Graphics2D g2, final int slice, final int either_side) {
+        if (!path.hasRadii()) return;
 
-		// Cross the tangents with a unit z vector:
-		final double n_x = 0;
-		final double n_y = 0;
-		final double n_z = 1;
-		final double[] tangent = path.getNodeWithChecks(index).getTangent();
-		final double t_x = (tangent != null && tangent.length >= 3) ? tangent[0] : 0.0;
-		final double t_y = (tangent != null && tangent.length >= 3) ? tangent[1] : 0.0;
-		final double t_z = (tangent != null && tangent.length >= 3) ? tangent[2] : 1.0;
-		final double cross_x = n_y * t_z - n_z * t_y;
-		final double cross_y = n_z * t_x - n_x * t_z;
-		final double cross_z = n_x * t_y - n_y * t_x;
+        // Cross the tangents with a unit z vector:
+        final double n_x = 0;
+        final double n_y = 0;
+        final double n_z = 1;
+        final double[] tangent = path.getNodeWithChecks(index).getTangent();
+        final double t_x = (tangent != null && tangent.length >= 3) ? tangent[0] : 0.0;
+        final double t_y = (tangent != null && tangent.length >= 3) ? tangent[1] : 0.0;
+        final double t_z = (tangent != null && tangent.length >= 3) ? tangent[2] : 1.0;
+        final double cross_x = n_y * t_z - n_z * t_y;
+        final double cross_y = n_z * t_x - n_x * t_z;
+        final double cross_z = n_x * t_y - n_y * t_x;
 
-		final double sizeInPlane = getSizeInPlane(cross_x, cross_y, cross_z);
-		final double normalized_cross_x = cross_x / sizeInPlane;
-		final double normalized_cross_y = cross_y / sizeInPlane;
-		final double normalized_cross_z = cross_z / sizeInPlane;
-		final double zdiff = Math.abs((slice - getSlice()) * path.z_spacing);
-		final double realRadius = path.getNodeWithChecks(index).getRadius();
+        final double sizeInPlane = getSizeInPlane(cross_x, cross_y, cross_z);
+        final double normalized_cross_x = cross_x / sizeInPlane;
+        final double normalized_cross_y = cross_y / sizeInPlane;
+        final double normalized_cross_z = cross_z / sizeInPlane;
+        final double zdiff = Math.abs((slice - getSlice()) * path.z_spacing);
+        final double realRadius = path.getNodeWithChecks(index).getRadius();
 
-		if (either_side < 0 || zdiff <= realRadius) {
-			double effective_radius;
-			if (either_side < 0) {
-				effective_radius = realRadius;
-			} else {
-				effective_radius = Math.sqrt(realRadius * realRadius - zdiff * zdiff);
-			}
-			final PointInImage left = new PointInImage();
-			final PointInImage right = new PointInImage();
-			final PointInImage node = path.getNodeWithChecks(index);
-			left.x = node.x + normalized_cross_x * effective_radius;
-			left.y = node.y + normalized_cross_y * effective_radius;
-			left.z = node.z + normalized_cross_z * effective_radius;
-			right.x = node.x - normalized_cross_x * effective_radius;
-			right.y = node.y - normalized_cross_y * effective_radius;
-			right.z = node.z - normalized_cross_z * effective_radius;
-			g2.draw(new Line2D.Double(getScreenCoordinateX(left), getScreenCoordinateY(left),
-					getScreenCoordinateX(right), getScreenCoordinateY(right)));
-		}
-	}
+        if (either_side < 0 || zdiff <= realRadius) {
+            final double effective_radius = (either_side < 0)
+                    ? realRadius
+                    : Math.sqrt(realRadius * realRadius - zdiff * zdiff);
+
+            final PointInImage node = path.getNodeWithChecks(index);
+            final double leftX = node.x + normalized_cross_x * effective_radius;
+            final double leftY = node.y + normalized_cross_y * effective_radius;
+            final double leftZ = node.z + normalized_cross_z * effective_radius;
+            final double rightX = node.x - normalized_cross_x * effective_radius;
+            final double rightY = node.y - normalized_cross_y * effective_radius;
+            final double rightZ = node.z - normalized_cross_z * effective_radius;
+
+            REUSABLE_LINE.setLine(
+                    getScreenCoordinateX(leftX, leftZ),
+                    getScreenCoordinateY(leftY, leftZ),
+                    getScreenCoordinateX(rightX, rightZ),
+                    getScreenCoordinateY(rightY, rightZ));
+            g2.draw(REUSABLE_LINE);
+        }
+    }
 
 	/**
 	 * @return whether this node should be rendered as editable.
