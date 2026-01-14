@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -45,7 +45,7 @@ import java.util.ArrayList;
  */
 public abstract class AbstractSearch implements SearchInterface, Runnable {
 
-	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     protected final RandomAccessibleInterval<? extends RealType<?>> img;
     protected final RandomAccess<? extends RealType<?>> imgAccess;
@@ -65,6 +65,9 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
     protected int timeoutSeconds;
     protected long reportEveryMilliseconds;
     protected ArrayList<SearchProgressCallback> progressListeners;
+
+    // Precomputed neighbor distances for [xdiff+1][ydiff+1][zdiff+1] where diff ∈ {-1, 0, 1}
+    protected double[][][] neighborDistances;
 
     protected final boolean verbose = SNTUtils.isDebugMode();
 
@@ -172,6 +175,27 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
         this.spacing_units = snt.getSpacingUnits();
         this.timeoutSeconds = 0;
         this.reportEveryMilliseconds = 1000;
+    }
+
+    /**
+     * Precompute distances to all 27 neighbors (including self at 0,0,0).
+     * Since xdiff, ydiff, zdiff ∈ {-1, 0, 1} and spacing is fixed,
+     * we can compute these once instead of per-neighbor in the search loop.
+     * Call this method once before starting the search.
+     */
+    protected void precomputeNeighborDistances() {
+        neighborDistances = new double[3][3][3];
+        for (int xdiff = -1; xdiff <= 1; xdiff++) {
+            final double dx = xdiff * xSep;
+            for (int ydiff = -1; ydiff <= 1; ydiff++) {
+                final double dy = ydiff * ySep;
+                for (int zdiff = -1; zdiff <= 1; zdiff++) {
+                    final double dz = zdiff * zSep;
+                    neighborDistances[xdiff + 1][ydiff + 1][zdiff + 1] =
+                            Math.sqrt(dx * dx + dy * dy + dz * dz);
+                }
+            }
+        }
     }
 
     public abstract void addProgressListener(SearchProgressCallback callback);

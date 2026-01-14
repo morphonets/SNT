@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -57,6 +57,9 @@ public class FillerThread extends SearchThread {
     private boolean isStopAtThreshold = false;
     private boolean isStoreAboveThresholdNodes = true;
     private double maxExploredDistance;
+
+    // Precomputed neighbor distances for [xdiff+1][ydiff+1][zdiff+1] where diff ∈ {-1, 0, 1}
+    private double[][][] neighborDistances;
 
     public FillerThread(final RandomAccessibleInterval<? extends RealType<?>> image, final Calibration calibration,
                         final double initialThreshold, final Cost costFunction)
@@ -145,37 +148,27 @@ public class FillerThread extends SearchThread {
     {
         SNTUtils.log("loading a fill with threshold: " + fill.getThreshold() +
                 ", metric: " + fill.getMetric().toString());
-        final Cost cost;
-        switch (fill.getMetric()) {
-            case RECIPROCAL:
-                cost = new Reciprocal(stats.min, stats.max);
-                break;
-            case DIFFERENCE:
-                cost = new Difference(stats.min, stats.max);
-                break;
-            case DIFFERENCE_SQUARED:
-                cost = new DifferenceSq(stats.min, stats.max);
-                break;
-            case PROBABILITY:
-                cost = new OneMinusErf(stats.max, stats.mean, stats.stdDev);
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown cost: " + fill.getMetric());
-        }
+        final Cost cost = switch (fill.getMetric()) {
+            case RECIPROCAL -> new Reciprocal(stats.min, stats.max);
+            case DIFFERENCE -> new Difference(stats.min, stats.max);
+            case DIFFERENCE_SQUARED -> new DifferenceSq(stats.min, stats.max);
+            case PROBABILITY -> new OneMinusErf(stats.max, stats.mean, stats.stdDev);
+            default -> throw new IllegalArgumentException("Unknown cost: " + fill.getMetric());
+        };
         final FillerThread result = new FillerThread(image, calibration,
                 fill.getThreshold(), 1000, cost);
 
-        final List<DefaultSearchNode> tempNodes = new ArrayList<>();
+        final List<Fill.Node> nodeList = fill.getNodeList();  // Cache once
+        final List<DefaultSearchNode> tempNodes = new ArrayList<>(nodeList.size());
 
-        for (final Fill.Node n : fill.getNodeList()) {
-
+        for (final Fill.Node n : nodeList) {
             final DefaultSearchNode s = new DefaultSearchNode(n.x, n.y, n.z, n.distance, 0,
                     null, SearchThread.FREE);
             tempNodes.add(s);
         }
 
         for (int i = 0; i < tempNodes.size(); ++i) {
-            final Fill.Node n = fill.getNodeList().get(i);
+            final Fill.Node n = nodeList.get(i);
             final DefaultSearchNode s = tempNodes.get(i);
             if (n.previous >= 0) {
                 s.setPredecessor(tempNodes.get(n.previous));
@@ -304,6 +297,26 @@ public class FillerThread extends SearchThread {
         }
     }
 
+    /**
+     * Precompute distances to all 27 neighbors (including self at 0,0,0).
+     * Since xdiff, ydiff, zdiff ∈ {-1, 0, 1} and spacing is fixed,
+     * we can compute these once instead of per-neighbor.
+     */
+    protected void precomputeNeighborDistances() {
+        neighborDistances = new double[3][3][3];
+        for (int xdiff = -1; xdiff <= 1; xdiff++) {
+            final double dx = xdiff * xSep;
+            for (int ydiff = -1; ydiff <= 1; ydiff++) {
+                final double dy = ydiff * ySep;
+                for (int zdiff = -1; zdiff <= 1; zdiff++) {
+                    final double dz = zdiff * zSep;
+                    neighborDistances[xdiff + 1][ydiff + 1][zdiff + 1] =
+                            Math.sqrt(dx * dx + dy * dy + dz * dz);
+                }
+            }
+        }
+    }
+
     @Override
     public void run() {
 
@@ -317,6 +330,9 @@ public class FillerThread extends SearchThread {
             started_at = lastReportMilliseconds = System.currentTimeMillis();
 
             aboveThresholdNodeSet = new HashSet<>();
+
+            // Precompute neighbor distances once before the search loop
+            precomputeNeighborDistances();
 
             while (!open_from_start.isEmpty()) {
 
@@ -399,11 +415,8 @@ public class FillerThread extends SearchThread {
                     if (cost_moving_to_new_point < costFunction.minStepCost()) {
                         cost_moving_to_new_point = costFunction.minStepCost();
                     }
-                    final double g_for_new_point = p.g + Math.sqrt(
-                                    Math.pow(xdiff * xSep, 2) +
-                                    Math.pow(ydiff * ySep, 2) +
-                                    Math.pow(zdiff * zSep, 2))
-                            * cost_moving_to_new_point;
+                    final double g_for_new_point = p.g +
+                            neighborDistances[xdiff + 1][ydiff + 1][zdiff + 1] * cost_moving_to_new_point;
 
                     final DefaultSearchNode newNode = createNewNode(
                             new_x,
@@ -464,9 +477,7 @@ public class FillerThread extends SearchThread {
         super.reportPointsInSearch();
 
         for (final SearchProgressCallback progress : progressListeners) {
-            if (progress instanceof FillerProgressCallback) {
-                final FillerProgressCallback fillerProgress =
-                        (FillerProgressCallback) progress;
+            if (progress instanceof FillerProgressCallback fillerProgress) {
                 fillerProgress.maximumDistanceCompletelyExplored(this, maxExploredDistance);
             }
         }
