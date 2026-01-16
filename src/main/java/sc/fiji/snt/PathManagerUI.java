@@ -873,7 +873,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 	}
 
 	private void selectSWCTypeMenuEntry(final int index) {
-		if (index < 0) {
+		if (index < 0 && swcTypeButtonGroup != null) {
 			swcTypeButtonGroup.clearSelection();
 			return;
 		}

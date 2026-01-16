@@ -632,9 +632,15 @@ public class SNT extends MultiDThreePanes implements
 		zy_tracer_canvas = null;
 	}
 
-	public boolean accessToValidImageData() {
-		return (getImagePlus() != null && !isDisplayCanvas(xy)) || ctSlice3d != null;
-	}
+    /**
+     * Checks whether valid image data exists.
+     *
+     * @return true if a tracing image exists or the last C,T position traced remains
+     * cached in memory. False otherwise.
+     */
+    public boolean accessToValidImageData() {
+        return (getImagePlus() != null && !isDisplayCanvas(xy)) || ctSlice3d != null;
+    }
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
 		imp.setProperty("Info", "SNT Display Canvas\n");
@@ -898,18 +904,26 @@ public class SNT extends MultiDThreePanes implements
 		return zy_tracer_canvas;
 	}
 
-	public Dataset getDataset() {
-		return (getImagePlus() == null) ? null : convertService.convert(getImagePlus(), Dataset.class);
-	}
+    /**
+     * Gets the Image being traced as Dataset. If the loaded image has been closed,
+     * cached pixel data is returned as per {@link #getLoadedDataAsImp()}. Null is returned
+     * if no image exists.
+     */
+    public Dataset getDataset() {
+        final ImagePlus imp = getImagePlus();
+        return (imp == null) ? null : convertService.convert(imp, Dataset.class);
+    }
 
-	public ImagePlus getImagePlus() {
-		//return (isDummy()) ? xy : getImagePlus(XY_PLANE);
-		return getImagePlus(XY_PLANE);
-	}
+    /**
+     * Gets the Image being traced. If the loaded image has been closed,
+     * cached pixel data is returned as per {@link #getLoadedDataAsImp()}. Null is returned
+     * if no image exists.
+     */
+    public ImagePlus getImagePlus() {
+        return getImagePlus(XY_PLANE);
+    }
 
-	protected double getImpDiagonalLength(final boolean scaled,
-		final boolean xyOnly)
-	{
+	protected double getImpDiagonalLength(final boolean scaled, final boolean xyOnly) {
 		final double x = (scaled) ? x_spacing * width : width;
 		final double y = (scaled) ? y_spacing * height : height;
 		if (xyOnly) {
@@ -3061,14 +3075,21 @@ public class SNT extends MultiDThreePanes implements
 	 *          {@link MultiDThreePanes#XZ_PLANE} or
 	 *          {@link MultiDThreePanes#ZY_PLANE}.
 	 * @return the image associate with the specified view, or null if the view is
-	 *         not available
+	 *         not available. If the view is XY_PLANE, and the image has been closed,
+     *         cached pixel data is returned as per {@link #getLoadedDataAsImp()}
 	 */
 	public ImagePlus getImagePlus(final int pane) {
 		ImagePlus imp = null;
 		switch (pane) {
 			case XY_PLANE:
-				if (xy != null && isDummy()) return null;
+				if (xy != null && isDummy()) {
+                    return null;
+                }
 				imp = xy;
+                if (imp == null && ctSlice3d != null) {
+                    // Image was closed. Retrieve cached version
+                    return getLoadedDataAsImp();
+                }
 				break;
 			case XZ_PLANE:
 				imp = xz;
