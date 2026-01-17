@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import net.imagej.ImgPlus;
 import net.imglib2.type.numeric.NumericType;
@@ -297,10 +296,9 @@ public class SkeletonConverter {
 				&& (getRootRoiStrategy() == ROI_CENTROID || getRootRoiStrategy() == ROI_CENTROID_WEIGHTED)) {
 
 			// Retrieve primary paths. this is expected to be a singleton list
-			final List<Path> primaryPaths = tree.list().stream().filter(Path::isPrimary)
-					.collect(Collectors.toList());
+			final List<Path> primaryPaths = tree.list().stream().filter(Path::isPrimary).toList();
 			// Create soma Path and add it to tree
-			final Path newRootPath = tree.list().get(0).createPath();
+			final Path newRootPath = tree.list().getFirst().createPath();
 			newRootPath.setOrder(1);
 			newRootPath.setName("Centroid");
 			newRootPath.setSWCType(Path.SWC_SOMA);
@@ -373,12 +371,12 @@ public class SkeletonConverter {
 	public DirectedWeightedGraph getSingleGraph() throws IllegalArgumentException {
 		final List<DirectedWeightedGraph> graphs = getGraphs();
 		if (graphs.size() == 1)
-			return graphs.iterator().next();
+			return graphs.getFirst();
 		if (getRootRoiStrategy() != ROI_CENTROID && getRootRoiStrategy() != ROI_CENTROID_WEIGHTED) {
 			throw new IllegalArgumentException(
 					"Combining multiple graphs requires ROI_CENTROID or ROI_CENTROID_WEIGHTED strategy");
 		}
-		final SWCPoint commonRoot = graphs.iterator().next().getRoot();
+		final SWCPoint commonRoot = graphs.getFirst().getRoot();
 		final DirectedWeightedGraph holder = new DirectedWeightedGraph();
 		holder.addVertex(commonRoot);
 		graphs.forEach(g -> Graphs.addGraph(holder, g));
@@ -391,13 +389,30 @@ public class SkeletonConverter {
 		if (somaRoi == null)
 			return;
 		final List<SWCPoint> allSomaticEndPoints = new ArrayList<>();
-		final Roi roi = getEnlargedSomaAsNeeded();
+        final Roi roi = getEnlargedSomaAsNeeded();
 		for (final DirectedWeightedGraph graph : graphs) {
-			allSomaticEndPoints.addAll(getGraphNodesAssociatedWithRoi(getSkeletonResult().getListOfEndPoints(), roi,
+            // Retrieve end points in soma
+            allSomaticEndPoints.addAll(getGraphNodesAssociatedWithRoi(getSkeletonResult().getListOfEndPoints(), roi,
 					somaRoi.getZPosition(), graph, false));
 		}
-		if (allSomaticEndPoints.isEmpty())
-			return;
+        if (allSomaticEndPoints.isEmpty()) {
+            // there are no end points in soma. Check for junctions
+            for (final DirectedWeightedGraph graph : graphs) {
+                allSomaticEndPoints.addAll(getGraphNodesAssociatedWithRoi(getSkeletonResult().getListOfJunctionVoxels(), roi,
+                        somaRoi.getZPosition(), graph, false));
+            }
+        }
+        if (allSomaticEndPoints.isEmpty()) {
+            // there are no end points nor junctions in soma. Check for slab voxels
+            for (final DirectedWeightedGraph graph : graphs) {
+                allSomaticEndPoints.addAll(getGraphNodesAssociatedWithRoi(getSkeletonResult().getListOfSlabVoxels(), roi,
+                        somaRoi.getZPosition(), graph, false));
+            }
+        }
+        if (allSomaticEndPoints.isEmpty()) {
+            // nothing else to do!?
+            return;
+        }
 		final SWCPoint newRoot = getCentroid(allSomaticEndPoints);
 		if (newRoot == null)
 			throw new IllegalArgumentException(
@@ -412,7 +427,7 @@ public class SkeletonConverter {
 		}
 		final int uniqueId = -2; // will be updated when graph rebuilt
 		newRoot.id = uniqueId;
-		graphs.forEach(g -> {
+        graphs.forEach(g -> {
 			final SWCPoint refRoot = getNearestPoint(g.vertexSet(), newRoot);
 			g.addVertex(newRoot);
 			g.addEdge(refRoot, newRoot);
@@ -501,7 +516,7 @@ public class SkeletonConverter {
 	private SWCPoint getFirstGraphNodeAssociatedWithRoi(final List<Point> skelPointList, final Roi roi,
 			final int roiSlice, final DirectedWeightedGraph graph) {
 		final List<SWCPoint> result = getGraphNodesAssociatedWithRoi(skelPointList, roi, roiSlice, graph, true);
-		return (result.isEmpty()) ? null : result.get(0);
+		return (result.isEmpty()) ? null : result.getFirst();
 	}
 
 	private SWCPoint getMatchingLocationInGraph(final PointInImage point, final DirectedWeightedGraph graph) {
@@ -756,7 +771,7 @@ public class SkeletonConverter {
         final DirectedWeightedGraph sntGraph = new DirectedWeightedGraph();
         final Map<Point, SWCPoint> pointMap = new HashMap<>();
         for (final Vertex vertex : skeletonGraph.getVertices()) {
-            final Point v = vertex.getPoints().get(0);
+            final Point v = vertex.getPoints().getFirst();
             /* Use dummy values for all fields except the point coordinates.
             These will be assigned real values automatically during conversion to Tree. */
             final SWCPoint swcPoint = new SWCPoint(
@@ -772,8 +787,8 @@ public class SkeletonConverter {
             sntGraph.addVertex(swcPoint);
         }
         for (final Edge edge : skeletonGraph.getEdges()) {
-            final SWCPoint p1 = pointMap.get(edge.getV1().getPoints().get(0));
-            final SWCPoint p2 = pointMap.get(edge.getV2().getPoints().get(0));
+            final SWCPoint p1 = pointMap.get(edge.getV1().getPoints().getFirst());
+            final SWCPoint p2 = pointMap.get(edge.getV2().getPoints().getFirst());
             final List<Point> slabs = edge.getSlabs();
             if (slabs.isEmpty()) {
                 sntGraph.addEdge(p1, p2);
@@ -782,13 +797,13 @@ public class SkeletonConverter {
             SWCPoint swcSlab = new SWCPoint(
                     0,
                     0,
-                    slabs.get(0).x * pixelWidth,
-                    slabs.get(0).y * pixelHeight,
-                    slabs.get(0).z * pixelDepth,
+                    slabs.getFirst().x * pixelWidth,
+                    slabs.getFirst().y * pixelHeight,
+                    slabs.getFirst().z * pixelDepth,
                     0,
                     -1
             );
-            pointMap.put(slabs.get(0), swcSlab);
+            pointMap.put(slabs.getFirst(), swcSlab);
             sntGraph.addVertex(swcSlab);
             for (int i = 1; i < slabs.size(); i++) {
                 swcSlab = new SWCPoint(
@@ -806,11 +821,11 @@ public class SkeletonConverter {
                 final SWCWeightedEdge e = sntGraph.addEdge(previous, swcSlab);
                 sntGraph.setEdgeWeight(e, swcSlab.distanceTo(previous));
             }
-            SWCPoint firstSlabPoint = pointMap.get(slabs.get(0));
+            SWCPoint firstSlabPoint = pointMap.get(slabs.getFirst());
             SWCWeightedEdge e1 = sntGraph.addEdge(p1, firstSlabPoint);
             sntGraph.setEdgeWeight(e1, firstSlabPoint.distanceTo(p1));
 
-            SWCPoint lastSlabPoint = pointMap.get(slabs.get(slabs.size() - 1));
+            SWCPoint lastSlabPoint = pointMap.get(slabs.getLast());
             SWCWeightedEdge e2 = sntGraph.addEdge(lastSlabPoint, p2);
             sntGraph.setEdgeWeight(e2, lastSlabPoint.distanceTo(p2));
         }
