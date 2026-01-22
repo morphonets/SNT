@@ -25,7 +25,7 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import org.junit.Before;
 import org.junit.Test;
-import sc.fiji.snt.analysis.SkeletonConverter;
+import sc.fiji.snt.tracing.BinaryTracer;
 import sc.fiji.snt.analysis.TreeStatistics;
 
 import java.util.List;
@@ -34,11 +34,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeNotNull;
 
 /**
- * Tests for {@link sc.fiji.snt.analysis.SkeletonConverter}
+ * Tests for {@link BinaryTracer}
  *
  * @author Cameron Arshadi
  */
-public class SkeletonConverterTest {
+public class BinaryTracerTest {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -56,7 +56,7 @@ public class SkeletonConverterTest {
 
     @Test
     public void testConverter() {
-        final SkeletonConverter converter = new SkeletonConverter(imp, false);
+        final BinaryTracer converter = new BinaryTracer(imp, false);
         final List<Tree> skelTrees = converter.getTrees();
         final Tree tree = skelTrees.get(0);
         final TreeStatistics skelAnalyzer = new TreeStatistics(tree);

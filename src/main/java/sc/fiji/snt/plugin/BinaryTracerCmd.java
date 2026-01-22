@@ -33,7 +33,7 @@ import org.scijava.util.ColorRGB;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.*;
-import sc.fiji.snt.analysis.SkeletonConverter;
+import sc.fiji.snt.tracing.BinaryTracer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -44,14 +44,14 @@ import java.io.File;
 import java.util.*;
 
 /**
- * Command providing a GUI for {@link SkeletonConverter}, SNT's autotracing
+ * Command providing a GUI for {@link BinaryTracer}, SNT's autotracing
  * class.
  *
  * @author Cameron Arshadi
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, label = "Automated Tracing: Tree(s) from Segmented Image...", initializer = "init")
-public class SkeletonConverterCmd extends CommonDynamicCmd {
+public class BinaryTracerCmd extends CommonDynamicCmd {
 
     public static final String ROI_UNSET = "None. Ignore any ROIs";
     public static final String ROI_CONTAINED = "ROI marks a single root";
@@ -294,11 +294,11 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 
     private int getRootStrategy() {
         return switch (rootChoice) {
-            case ROI_CENTROID -> SkeletonConverter.ROI_CENTROID;
-            case ROI_CENTROID_WEIGHTED -> SkeletonConverter.ROI_CENTROID_WEIGHTED;
-            case ROI_EDGE -> SkeletonConverter.ROI_EDGE;
-            case ROI_CONTAINED -> SkeletonConverter.ROI_CONTAINED;
-            default -> SkeletonConverter.ROI_UNSET;
+            case ROI_CENTROID -> BinaryTracer.ROI_CENTROID;
+            case ROI_CENTROID_WEIGHTED -> BinaryTracer.ROI_CENTROID_WEIGHTED;
+            case ROI_EDGE -> BinaryTracer.ROI_EDGE;
+            case ROI_CONTAINED -> BinaryTracer.ROI_CONTAINED;
+            default -> BinaryTracer.ROI_UNSET;
         };
     }
 
@@ -497,15 +497,15 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
 
             // Skeletonize all images again, just to ensure we are indeed dealing with skeletons
             snt.setCanvasLabelAllPanes("Skeletonizing..");
-            SkeletonConverter.skeletonize(chosenMaskImp, chosenMaskImp.getNSlices() == 1);
+            BinaryTracer.skeletonize(chosenMaskImp, chosenMaskImp.getNSlices() == 1);
 
             // fallback loop-solving strategy if intensity image is not available
-            final int fallbackLoopSolvingStrategy = SkeletonConverter.PERIPHERAL_SEGMENTS;
+            final int fallbackLoopSolvingStrategy = BinaryTracer.PERIPHERAL_SEGMENTS;
 
             // Now we can finally run the conversion!
             snt.setCanvasLabelAllPanes("Autotracer running...");
             status("Creating Trees from Skeleton...", false);
-            final SkeletonConverter converter = new SkeletonConverter(chosenMaskImp, false);
+            final BinaryTracer converter = new BinaryTracer(chosenMaskImp, false);
             SNTUtils.log("Converting....");
             setPruneMode(converter);
             converter.setPruneByLength(pruneByLength);
@@ -520,8 +520,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
             final int chosenMode = converter.getPruneMode();
             if (chosenOrigImp == null) {
                 // User chose intensity-based but no intensity image available → fallback
-                if (chosenMode == SkeletonConverter.LOWEST_INTENSITY_BRANCH ||
-                        chosenMode == SkeletonConverter.LOWEST_INTENSITY_VOXEL) {
+                if (chosenMode == BinaryTracer.LOWEST_INTENSITY_BRANCH ||
+                        chosenMode == BinaryTracer.LOWEST_INTENSITY_VOXEL) {
                     converter.setPruneMode(fallbackLoopSolvingStrategy);
                     SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter) +
                             " (fallback; intensity image not available)");
@@ -542,8 +542,8 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
                 trees = converter.getTrees();
             } catch (final ClassCastException ignored) {
                 if (chosenOrigImp != null &&
-                        (converter.getPruneMode() == SkeletonConverter.LOWEST_INTENSITY_BRANCH ||
-                                converter.getPruneMode() == SkeletonConverter.LOWEST_INTENSITY_VOXEL))
+                        (converter.getPruneMode() == BinaryTracer.LOWEST_INTENSITY_BRANCH ||
+                                converter.getPruneMode() == BinaryTracer.LOWEST_INTENSITY_VOXEL))
                     SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to fallback strategy");
                 converter.setPruneMode(fallbackLoopSolvingStrategy);
 
@@ -610,7 +610,7 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
                 resetUI(false, SNTUI.READY);
             }
             status("Successfully created " + trees.size() + " Tree(s)...", true);
-            if (chosenOrigImp != null && converter.getPruneMode() == SkeletonConverter.PERIPHERAL_SEGMENTS) {
+            if (chosenOrigImp != null && converter.getPruneMode() == BinaryTracer.PERIPHERAL_SEGMENTS) {
                 info("Intensity-based resolution of loops could not be used. 'Peripheral segments' pruning was used " +
                         "instead.<br><i>" + originalImgChoice + "</i> (" + chosenOrigImp.getBitDepth() + "-bit " +
                         "image) may not allow for this option.");
@@ -623,35 +623,35 @@ public class SkeletonConverterCmd extends CommonDynamicCmd {
         }
     }
 
-    private String pruneModeToString(final SkeletonConverter skeletonConverter) {
-        return switch (skeletonConverter.getPruneMode()) {
-            case SkeletonConverter.LOWEST_INTENSITY_BRANCH -> "LOWEST_INTENSITY_BRANCH";
-            case SkeletonConverter.LOWEST_INTENSITY_VOXEL -> "LOWEST_INTENSITY_VOXEL";
-            case SkeletonConverter.SHORTEST_BRANCH -> "SHORTEST_BRANCH";
-            case SkeletonConverter.SHORTEST_EDGE -> "SHORTEST_EDGE";
-            case SkeletonConverter.PERIPHERAL_SEGMENTS -> "PERIPHERAL_SEGMENTS";
-            case SkeletonConverter.MOST_DISTAL -> "MOST_DISTAL";
-            default -> "UNKNOWN(" + skeletonConverter.getPruneMode() + ")";
+    private String pruneModeToString(final BinaryTracer binaryTracer) {
+        return switch (binaryTracer.getPruneMode()) {
+            case BinaryTracer.LOWEST_INTENSITY_BRANCH -> "LOWEST_INTENSITY_BRANCH";
+            case BinaryTracer.LOWEST_INTENSITY_VOXEL -> "LOWEST_INTENSITY_VOXEL";
+            case BinaryTracer.SHORTEST_BRANCH -> "SHORTEST_BRANCH";
+            case BinaryTracer.SHORTEST_EDGE -> "SHORTEST_EDGE";
+            case BinaryTracer.PERIPHERAL_SEGMENTS -> "PERIPHERAL_SEGMENTS";
+            case BinaryTracer.MOST_DISTAL -> "MOST_DISTAL";
+            default -> "UNKNOWN(" + binaryTracer.getPruneMode() + ")";
         };
     }
 
-    public void setPruneMode(final SkeletonConverter skConverter) {
+    public void setPruneMode(final BinaryTracer skConverter) {
         if (loopSolvingChoice == null || loopSolvingChoice.isBlank()) {
-            skConverter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH);
+            skConverter.setPruneMode(BinaryTracer.SHORTEST_BRANCH);
             return;
         }
         final String pMode = loopSolvingChoice.toLowerCase();
         if (pMode.contains("shortest segment") || pMode.contains("longest path"))
-            skConverter.setPruneMode(SkeletonConverter.SHORTEST_EDGE);
+            skConverter.setPruneMode(BinaryTracer.SHORTEST_EDGE);
         else if (pMode.contains("peripheral segment") || pMode.contains("backbone"))
-            skConverter.setPruneMode(SkeletonConverter.PERIPHERAL_SEGMENTS);
+            skConverter.setPruneMode(BinaryTracer.PERIPHERAL_SEGMENTS);
         else if (pMode.contains("furthest") || pMode.contains("proximal"))
-            skConverter.setPruneMode(SkeletonConverter.MOST_DISTAL);
+            skConverter.setPruneMode(BinaryTracer.MOST_DISTAL);
         else if (pMode.contains("intensity") || pMode.contains("dimmest"))
             skConverter.setPruneMode((pMode.contains("branch"))
-                    ? SkeletonConverter.LOWEST_INTENSITY_BRANCH : SkeletonConverter.LOWEST_INTENSITY_VOXEL);
+                    ? BinaryTracer.LOWEST_INTENSITY_BRANCH : BinaryTracer.LOWEST_INTENSITY_VOXEL);
         else
-            skConverter.setPruneMode(SkeletonConverter.SHORTEST_BRANCH); // default, also matches "shortest"
+            skConverter.setPruneMode(BinaryTracer.SHORTEST_BRANCH); // default, also matches "shortest"
     }
 
     private Roi getRoi(final ImagePlus... imps) {

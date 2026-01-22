@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis;
+package sc.fiji.snt.tracing;
 
 import ij.ImagePlus;
 import ij.gui.Roi;
@@ -44,6 +44,7 @@ import sc.fiji.skeletonize3D.Skeletonize3D_;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.*;
@@ -57,14 +58,14 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.function.ToDoubleFunction;
 
 /**
- * Class for generation of {@link Tree}s from a skeletonized {@link ImagePlus}.
+ * Class for generation of {@link Tree}s from a skeletonized image.
  *
  * @author Cameron Arshadi
  * @author Tiago Ferreira
  * @see sc.fiji.skeletonize3D.Skeletonize3D_
  * @see sc.fiji.analyzeSkeleton.AnalyzeSkeleton_
  */
-public class SkeletonConverter {
+public class BinaryTracer {
 
     /**
      * Pruning mode: flag for lowest intensity branch pruning
@@ -132,12 +133,10 @@ public class SkeletonConverter {
      */
     public static final int ROI_CENTROID_WEIGHTED = 128;
 
-    static {
-        net.imagej.patcher.LegacyInjector.preinit();
-    } // required for _every_ class that imports ij. classes
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     // AnalyzeSkeleton parameters
-    private final ImagePlus imp;
+    final ImagePlus imp;
     // Scale parameters for generated reconstructions
     double pixelWidth;
     double pixelHeight;
@@ -146,15 +145,15 @@ public class SkeletonConverter {
     private int pruneMode = SHORTEST_BRANCH;
     private boolean pruneEnds = false;
     private boolean shortestPath = false;
-    private boolean silent = true;
-    private boolean verbose = false;
+    boolean silent = true;
+    boolean verbose = false;
     private boolean pruneByLength = false;
     private double lengthThreshold;
     // Connection parameters
     private boolean connectComponents = false;
     private double maxConnectDist;
     // Area ROI delineating soma
-    private Roi somaRoi;
+    Roi somaRoi;
     private int strategy;
     private SkeletonResult skeletonResult;
 
@@ -162,7 +161,7 @@ public class SkeletonConverter {
      * @param imgPlus The image to be parsed. Will be converted to a topological
      *                skeleton (assuming non-zero foreground)
      */
-    public <T extends NumericType<T>> SkeletonConverter(final ImgPlus<T> imgPlus) {
+    public <T extends NumericType<T>> BinaryTracer(final ImgPlus<T> imgPlus) {
         this(ImgUtils.toImagePlus(imgPlus), true);
     }
 
@@ -170,7 +169,7 @@ public class SkeletonConverter {
      * @param imagePlus The image to be parsed. Will be converted to a topological
      *                  skeleton (assuming non-zero foreground)
      */
-    public SkeletonConverter(final ImagePlus imagePlus) {
+    public BinaryTracer(final ImagePlus imagePlus) {
         this(imagePlus, true);
     }
 
@@ -184,7 +183,7 @@ public class SkeletonConverter {
      * @throws IllegalArgumentException if {@code skeletonize} is true and
      *                                  {@code imagePlus} is not binary.
      */
-    public SkeletonConverter(final ImagePlus imagePlus, final boolean skeletonize) throws IllegalArgumentException {
+    public BinaryTracer(final ImagePlus imagePlus, final boolean skeletonize) throws IllegalArgumentException {
         this.imp = imagePlus;
         final Calibration cal = imp.getCalibration();
         this.pixelWidth = cal.pixelWidth;
@@ -204,7 +203,7 @@ public class SkeletonConverter {
      * @throws IllegalArgumentException If image is not binary {@code imagePlus} is
      *                                  not binary.
      */
-    public SkeletonConverter(final ImagePlus imagePlus, final int frame) {
+    public BinaryTracer(final ImagePlus imagePlus, final int frame) {
         this(ImpUtils.getFrame(imagePlus, frame), true);
     }
 
@@ -1093,14 +1092,14 @@ public class SkeletonConverter {
 
     /**
      * Sets the minimum component length necessary to avoid pruning. This value is only used
-     * if {@link SkeletonConverter#pruneByLength} is true.
+     * if {@link BinaryTracer#pruneByLength} is true.
      * <p>
      * Specifies the minimum length below which skeleton components will be
      * pruned from the result. Negative values are set to 0.
      * </p>
      *
      * @param lengthThreshold the minimum length threshold
-     * @see SkeletonConverter#setPruneByLength(boolean)
+     * @see BinaryTracer#setPruneByLength(boolean)
      */
     public void setLengthThreshold(double lengthThreshold) {
         if (lengthThreshold < 0) {
@@ -1117,7 +1116,7 @@ public class SkeletonConverter {
      * </p>
      *
      * @param connectComponents true to connect components, false otherwise
-     * @see SkeletonConverter#setMaxConnectDist(double)
+     * @see BinaryTracer#setMaxConnectDist(double)
      */
     public void setConnectComponents(boolean connectComponents) {
         this.connectComponents = connectComponents;
@@ -1131,7 +1130,7 @@ public class SkeletonConverter {
      * </p>
      *
      * @param maxConnectDist the maximum connection distance
-     * @see SkeletonConverter#setConnectComponents(boolean)
+     * @see BinaryTracer#setConnectComponents(boolean)
      */
     public void setMaxConnectDist(double maxConnectDist) {
         if (maxConnectDist <= 0) {
@@ -1144,7 +1143,7 @@ public class SkeletonConverter {
      * Assigns image calibration, etc. to tree. Avoids unexpected offsets when
      * initializing SNT
      */
-    private void assignToImage(final Tree tree) {
+    void assignToImage(final Tree tree) {
         final String fProp = imp.getProp("extracted-frame");
         final String cProp = imp.getProp("extracted-channel");
         final int f = (fProp == null) ? 1 : Integer.parseInt(fProp);
@@ -1345,7 +1344,7 @@ public class SkeletonConverter {
     /* IDE debug method */
     public static void main(String[] args) {
     	ImagePlus imp = new sc.fiji.snt.SNTService().demoImage("ddaC");
-        SkeletonConverter converter = new SkeletonConverter(imp, true);
+        BinaryTracer converter = new BinaryTracer(imp, true);
         converter.setPruneEnds(false);
         converter.setPruneMode(AnalyzeSkeleton_.SHORTEST_BRANCH);
         converter.setShortestPath(false);

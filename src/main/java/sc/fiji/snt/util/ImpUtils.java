@@ -264,32 +264,34 @@ public class ImpUtils {
             final Object pixels = oldStack.getProcessor(z).getPixels();
             final byte[] binary = new byte[nPixels];
 
-            if (pixels instanceof byte[]) {
-                final byte[] p = (byte[]) pixels;
-                final int lo = (int) lower, hi = (int) upper;
-                for (int i = 0; i < nPixels; i++) {
-                    int v = p[i] & 0xFF;
-                    binary[i] = (v >= lo && v <= hi) ? (byte) 255 : 0;
+            switch (pixels) {
+                case byte[] p -> {
+                    final int lo = (int) lower, hi = (int) upper;
+                    for (int i = 0; i < nPixels; i++) {
+                        int v = p[i] & 0xFF;
+                        binary[i] = (v >= lo && v <= hi) ? (byte) 255 : 0;
+                    }
                 }
-            } else if (pixels instanceof short[]) {
-                final short[] p = (short[]) pixels;
-                final int lo = (int) lower, hi = (int) upper;
-                for (int i = 0; i < nPixels; i++) {
-                    int v = p[i] & 0xFFFF;
-                    binary[i] = (v >= lo && v <= hi) ? (byte) 255 : 0;
+                case short[] p -> {
+                    final int lo = (int) lower, hi = (int) upper;
+                    for (int i = 0; i < nPixels; i++) {
+                        int v = p[i] & 0xFFFF;
+                        binary[i] = (v >= lo && v <= hi) ? (byte) 255 : 0;
+                    }
                 }
-            } else if (pixels instanceof float[]) {
-                final float[] p = (float[]) pixels;
-                final float lo = (float) lower, hi = (float) upper;
-                for (int i = 0; i < nPixels; i++) {
-                    binary[i] = (p[i] >= lo && p[i] <= hi) ? (byte) 255 : 0;
+                case float[] p -> {
+                    final float lo = (float) lower, hi = (float) upper;
+                    for (int i = 0; i < nPixels; i++) {
+                        binary[i] = (p[i] >= lo && p[i] <= hi) ? (byte) 255 : 0;
+                    }
                 }
-            } else { // unneeded fallback for virtual/wrapped images!?
-                final ImageProcessor ip = oldStack.getProcessor(z);
-                for (int y = 0; y < height; y++) {
-                    for (int x = 0; x < width; x++) {
-                        final float v = ip.getPixelValue(x, y);
-                        binary[y * width + x] = (v >= lower && v <= upper) ? (byte) 255 : 0;
+                case null, default -> {
+                    final ImageProcessor ip = oldStack.getProcessor(z);
+                    for (int y = 0; y < height; y++) {
+                        for (int x = 0; x < width; x++) {
+                            final float v = ip.getPixelValue(x, y);
+                            binary[y * width + x] = (v >= lower && v <= upper) ? (byte) 255 : 0;
+                        }
                     }
                 }
             }

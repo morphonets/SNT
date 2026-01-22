@@ -192,7 +192,7 @@ public class SNTUtils {
 		logService.info("[SNT] " + string);
 	}
 
-	protected static synchronized void warn(final String string) {
+	public static synchronized void warn(final String string) {
 		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
 		logService.warn("[SNT] " + string);
