@@ -1,0 +1,471 @@
+/*-
+ * #%L
+ * Fiji distribution of ImageJ for the life sciences.
+ * %%
+ * Copyright (C) 2010 - 2025 Fiji developers.
+ * %%
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this program.  If not, see
+ * <http://www.gnu.org/licenses/gpl-3.0.html>.
+ * #L%
+ */
+
+package sc.fiji.snt.tracing;
+
+import ij.gui.Roi;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.util.Logger;
+import sc.fiji.snt.util.SWCPoint;
+
+import java.util.*;
+
+/**
+ * Abstract base class for grayscale-based automatic neuron tracers.
+ * <p>
+ * Provides common functionality for soma ROI handling, graph utilities, and
+ * tree construction. Subclasses implement specific tracing algorithms that
+ * operate directly on grayscale images without binarization.
+ * </p>
+ *
+ * @author Tiago Ferreira
+ * @see GWDTTracer
+ */
+public abstract class AbstractAutoTracer implements AutoTracer {
+
+    protected Roi somaRoi;
+    protected int somaRoiZPosition = -1;  // Z-slice (0-indexed), -1 if unset
+    protected int rootStrategy = ROI_UNSET;
+    protected Logger logger;
+    protected boolean verbose = false;
+
+    /**
+     * Traces the structure and returns a DirectedWeightedGraph.
+     * @return the traced graph
+     */
+    public abstract DirectedWeightedGraph traceToGraph();
+
+    /**
+     * Gets the voxel spacing used by this tracer.
+     * @return array of [x, y, z] spacing values
+     */
+    protected abstract double[] getSpacing();
+
+    /**
+     * Gets the image dimensions.
+     * @return array of dimension sizes
+     */
+    protected abstract long[] getDimensions();
+
+    /**
+     * Sets the soma ROI and rooting strategy.
+     *
+     * @param roi      area ROI delineating the soma (null to disable)
+     * @param strategy one of {@link #ROI_UNSET}, {@link #ROI_EDGE},
+     *                 {@link #ROI_CENTROID}, or {@link #ROI_CENTROID_WEIGHTED}
+     * @throws IllegalArgumentException if roi is not an area ROI or strategy is invalid
+     */
+    public void setSomaRoi(final Roi roi, final int strategy) {
+        if (roi != null && !roi.isArea()) {
+            throw new IllegalArgumentException("Only area ROIs are supported");
+        }
+        if (strategy != ROI_UNSET && strategy != ROI_EDGE &&
+                strategy != ROI_CENTROID && strategy != ROI_CENTROID_WEIGHTED &&
+                strategy != ROI_CONTAINED) {
+            throw new IllegalArgumentException("Invalid root strategy: " + strategy);
+        }
+        if (strategy != ROI_UNSET && roi == null) {
+            throw new IllegalArgumentException("ROI required for non-UNSET strategy");
+        }
+        this.somaRoi = roi;
+        this.rootStrategy = strategy;
+        this.somaRoiZPosition = (roi != null) ? roi.getZPosition() - 1 : -1;  // Convert to 0-indexed
+    }
+
+    /**
+     * Sets the soma ROI using the default strategy (ROI_CENTROID).
+     * @param roi area ROI delineating the soma
+     */
+    public void setSomaRoi(final Roi roi) {
+        setSomaRoi(roi, roi != null ? ROI_CENTROID : ROI_UNSET);
+    }
+
+    /**
+     * Gets the current soma ROI.
+     * @return the soma ROI, or null if not set
+     */
+    public Roi getSomaRoi() {
+        return somaRoi;
+    }
+
+    /**
+     * Gets the current root strategy.
+     * @return the root strategy constant
+     */
+    public int getRootStrategy() {
+        return rootStrategy;
+    }
+
+    /**
+     * Sets verbose logging mode.
+     * @param verbose true to enable verbose logging
+     */
+    public void setVerbose(final boolean verbose) {
+        this.verbose = verbose;
+    }
+
+    /**
+     * Checks if verbose logging is enabled.
+     * @return true if verbose
+     */
+    public boolean isVerbose() {
+        return verbose;
+    }
+
+    // ==================== Soma ROI Processing (Graph-based) ====================
+
+    /**
+     * Checks if a point is inside the soma ROI.
+     *
+     * @param point the point to check (physical coordinates)
+     * @return true if inside the ROI
+     */
+    protected boolean isInsideSomaRoi(final SWCPoint point) {
+        if (somaRoi == null) return false;
+
+        final double[] spacing = getSpacing();
+        final long[] dims = getDimensions();
+
+        // Convert physical coordinates to pixel coordinates
+        final double px = point.x / spacing[0];
+        final double py = point.y / spacing[1];
+
+        // Check Z position if ROI is slice-specific
+        if (somaRoiZPosition >= 0 && dims.length > 2) {
+            final double pz = point.z / spacing[2];
+            if (Math.abs(pz - somaRoiZPosition) > 0.5) {
+                return false;
+            }
+        }
+
+        return somaRoi.contains((int) Math.round(px), (int) Math.round(py));
+    }
+
+    /**
+     * Splits a graph at the soma boundary, creating separate trees for each neurite.
+     *
+     * @param graph the traced graph
+     * @return list of trees, one per neurite exiting the soma
+     */
+    protected List<Tree> splitAtSomaBoundary(final DirectedWeightedGraph graph) {
+        log("Splitting at soma boundary (ROI_EDGE strategy)...");
+
+        // Find all nodes inside the soma
+        final Set<SWCPoint> somaNodes = new HashSet<>();
+        for (final SWCPoint v : graph.vertexSet()) {
+            if (isInsideSomaRoi(v)) {
+                somaNodes.add(v);
+            }
+        }
+        log("  Found " + somaNodes.size() + " nodes inside soma ROI");
+
+        if (somaNodes.isEmpty()) {
+            log("  No nodes inside soma ROI, returning single tree");
+            return Collections.singletonList(graph.getTree());
+        }
+
+        // Find edges crossing the soma boundary
+        final Map<SWCWeightedEdge, SWCPoint> exitPoints = new HashMap<>();
+        for (final SWCWeightedEdge edge : graph.edgeSet()) {
+            final SWCPoint source = graph.getEdgeSource(edge);
+            final SWCPoint target = graph.getEdgeTarget(edge);
+            final boolean sourceInside = somaNodes.contains(source);
+            final boolean targetInside = somaNodes.contains(target);
+
+            if (sourceInside != targetInside) {
+                exitPoints.put(edge, sourceInside ? target : source);
+            }
+        }
+        log("  Found " + exitPoints.size() + " boundary crossings (neurites)");
+
+        if (exitPoints.isEmpty()) {
+            log("  No boundary crossings found, returning single tree");
+            return Collections.singletonList(graph.getTree());
+        }
+
+        // Remove soma nodes
+        graph.removeAllVertices(somaNodes);
+        log("  Removed soma nodes, " + graph.vertexSet().size() + " nodes remaining");
+
+        // Build trees from connected components
+        final List<Tree> trees = new ArrayList<>();
+        final Set<SWCPoint> processed = new HashSet<>();
+
+        for (final SWCPoint exitPoint : exitPoints.values()) {
+            if (processed.contains(exitPoint) || !graph.containsVertex(exitPoint)) continue;
+
+            // BFS to find connected component
+            final Set<SWCPoint> component = new HashSet<>();
+            final Queue<SWCPoint> queue = new LinkedList<>();
+            queue.add(exitPoint);
+
+            while (!queue.isEmpty()) {
+                final SWCPoint current = queue.poll();
+                if (component.contains(current)) continue;
+                component.add(current);
+
+                // Add all neighbors
+                for (final SWCWeightedEdge edge : graph.edgesOf(current)) {
+                    final SWCPoint neighbor = graph.getEdgeSource(edge).equals(current)
+                            ? graph.getEdgeTarget(edge)
+                            : graph.getEdgeSource(edge);
+                    if (!component.contains(neighbor)) {
+                        queue.add(neighbor);
+                    }
+                }
+            }
+
+            processed.addAll(component);
+
+            // Create subgraph for this component
+            if (!component.isEmpty()) {
+                final DirectedWeightedGraph subgraph = new DirectedWeightedGraph();
+                for (final SWCPoint v : component) {
+                    subgraph.addVertex(v);
+                }
+                for (final SWCWeightedEdge edge : graph.edgeSet()) {
+                    final SWCPoint src = graph.getEdgeSource(edge);
+                    final SWCPoint tgt = graph.getEdgeTarget(edge);
+                    if (component.contains(src) && component.contains(tgt)) {
+                        final SWCWeightedEdge newEdge = subgraph.addEdge(src, tgt);
+                        if (newEdge != null) {
+                            subgraph.setEdgeWeight(newEdge, graph.getEdgeWeight(edge));
+                        }
+                    }
+                }
+
+                // Set the exit point as root
+                try {
+                    subgraph.setRoot(exitPoint);
+                } catch (final Exception ignored) {
+                }
+
+                trees.add(subgraph.getTree());
+            }
+        }
+
+        log("  Created " + trees.size() + " separate trees");
+        return trees.isEmpty() ? Collections.singletonList(graph.getTree()) : trees;
+    }
+
+    /**
+     * Collapses all soma nodes to the geometric ROI centroid.
+     *
+     * @param graph the graph to modify
+     */
+    protected void collapseSomaToRoiCentroid(final DirectedWeightedGraph graph) {
+        log("Collapsing soma nodes to ROI centroid...");
+
+        final double[] spacing = getSpacing();
+        final double[] centroid = somaRoi.getContourCentroid();
+        final double cx = centroid[0] * spacing[0];
+        final double cy = centroid[1] * spacing[1];
+        final double cz = somaRoiZPosition >= 0 ? somaRoiZPosition * spacing[2] : 0;
+
+        collapseSomaNodes(graph, cx, cy, cz);
+    }
+
+    /**
+     * Collapses all soma nodes to their weighted centroid.
+     *
+     * @param graph the graph to modify
+     */
+    protected void collapseSomaToWeightedCentroid(final DirectedWeightedGraph graph) {
+        log("Collapsing soma nodes to weighted centroid...");
+
+        // Find soma nodes and compute centroid
+        final List<SWCPoint> somaNodes = new ArrayList<>();
+        for (final SWCPoint v : graph.vertexSet()) {
+            if (isInsideSomaRoi(v)) {
+                somaNodes.add(v);
+            }
+        }
+
+        if (somaNodes.isEmpty()) {
+            log("  No nodes inside soma ROI, skipping collapse");
+            return;
+        }
+
+        double sumX = 0, sumY = 0, sumZ = 0;
+        for (final SWCPoint node : somaNodes) {
+            sumX += node.x;
+            sumY += node.y;
+            sumZ += node.z;
+        }
+
+        collapseSomaNodes(graph,
+                sumX / somaNodes.size(),
+                sumY / somaNodes.size(),
+                sumZ / somaNodes.size());
+    }
+
+    /**
+     * Core method to collapse soma nodes to a centroid.
+     */
+    protected void collapseSomaNodes(final DirectedWeightedGraph graph,
+                                     final double cx, final double cy, final double cz) {
+        // Find soma nodes
+        final Set<SWCPoint> somaNodes = new HashSet<>();
+        for (final SWCPoint v : graph.vertexSet()) {
+            if (isInsideSomaRoi(v)) {
+                somaNodes.add(v);
+            }
+        }
+        log("  Found " + somaNodes.size() + " nodes inside soma ROI");
+
+        if (somaNodes.isEmpty()) return;
+
+        // Find neighbors outside soma
+        final Set<SWCPoint> outsideNeighbors = new HashSet<>();
+        for (final SWCWeightedEdge edge : graph.edgeSet()) {
+            final SWCPoint source = graph.getEdgeSource(edge);
+            final SWCPoint target = graph.getEdgeTarget(edge);
+
+            if (somaNodes.contains(source) && !somaNodes.contains(target)) {
+                outsideNeighbors.add(target);
+            } else if (somaNodes.contains(target) && !somaNodes.contains(source)) {
+                outsideNeighbors.add(source);
+            }
+        }
+
+        // Remove soma nodes
+        graph.removeAllVertices(somaNodes);
+
+        // Create centroid node
+        final SWCPoint centroidNode = new SWCPoint(
+                -1, Path.SWC_SOMA,
+                cx, cy, cz,
+                computeAverageRadius(somaNodes),
+                -1
+        );
+        graph.addVertex(centroidNode);
+
+        // Connect to outside neighbors
+        for (final SWCPoint neighbor : outsideNeighbors) {
+            if (graph.containsVertex(neighbor)) {
+                final SWCWeightedEdge edge = graph.addEdge(centroidNode, neighbor);
+                if (edge != null) {
+                    graph.setEdgeWeight(edge, centroidNode.distanceTo(neighbor));
+                }
+            }
+        }
+
+        // Set as root
+        try {
+            graph.setRoot(centroidNode);
+        } catch (final Exception ignored) {
+        }
+
+        log("  Collapsed to centroid at (" + cx + ", " + cy + ", " + cz + ")");
+        log("  Connected to " + outsideNeighbors.size() + " neurites");
+    }
+
+    // ==================== Graph Utilities ====================
+
+    /**
+     * Finds the root node of a graph.
+     *
+     * @param graph the graph
+     * @return the root node, or null if graph is empty
+     */
+    protected SWCPoint findRoot(final DirectedWeightedGraph graph) {
+        try {
+            return graph.getRoot();
+        } catch (final IllegalStateException e) {
+            return graph.vertexSet().stream()
+                    .filter(v -> graph.inDegreeOf(v) == 0)
+                    .findFirst()
+                    .orElse(graph.vertexSet().isEmpty() ? null : graph.vertexSet().iterator().next());
+        }
+    }
+
+    /**
+     * Removes all vertices not connected to the root.
+     *
+     * @param graph the graph to clean
+     */
+    protected void removeDisconnectedComponents(final DirectedWeightedGraph graph) {
+        final SWCPoint root = findRoot(graph);
+        if (root == null) return;
+
+        // BFS from root to find connected component
+        final Set<SWCPoint> connected = new HashSet<>();
+        final Queue<SWCPoint> queue = new LinkedList<>();
+        queue.add(root);
+
+        while (!queue.isEmpty()) {
+            final SWCPoint current = queue.poll();
+            if (connected.contains(current)) continue;
+            connected.add(current);
+
+            for (final SWCWeightedEdge edge : graph.edgesOf(current)) {
+                final SWCPoint neighbor = graph.getEdgeSource(edge).equals(current)
+                        ? graph.getEdgeTarget(edge)
+                        : graph.getEdgeSource(edge);
+                if (!connected.contains(neighbor)) {
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        // Remove disconnected nodes
+        final Set<SWCPoint> toRemove = new HashSet<>(graph.vertexSet());
+        toRemove.removeAll(connected);
+
+        if (!toRemove.isEmpty()) {
+            graph.removeAllVertices(toRemove);
+            log("Removed " + toRemove.size() + " disconnected nodes");
+        }
+    }
+
+    // ==================== Utility Methods ====================
+
+    /**
+     * Computes average radius of a set of nodes.
+     */
+    protected double computeAverageRadius(final Set<SWCPoint> nodes) {
+        if (nodes.isEmpty()) return 1.0;
+        double sum = 0;
+        int count = 0;
+        for (final SWCPoint node : nodes) {
+            if (node.radius > 0) {
+                sum += node.radius;
+                count++;
+            }
+        }
+        return count > 0 ? sum / count : 1.0;
+    }
+
+    /**
+     * Logs a message if verbose mode is enabled.
+     */
+    protected void log(final String message) {
+        if (!verbose) return;
+        if (logger == null) {
+            logger = new Logger(getClass());
+        }
+        logger.info(message);
+    }
+}
