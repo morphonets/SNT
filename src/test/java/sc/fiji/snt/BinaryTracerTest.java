@@ -25,7 +25,7 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import org.junit.Before;
 import org.junit.Test;
-import sc.fiji.snt.tracing.BinaryTracer;
+import sc.fiji.snt.tracing.auto.BinaryTracer;
 import sc.fiji.snt.analysis.TreeStatistics;
 
 import java.util.List;

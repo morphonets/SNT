@@ -319,7 +319,7 @@ public class Tree implements TreeProperties, Cloneable {
 	 *
 	 * @return the paths forming this tree
 	 */
-	public ArrayList<Path> list() {
+	public List<Path> list() {
 		return tree;
 	}
 
@@ -1668,32 +1668,18 @@ public class Tree implements TreeProperties, Cloneable {
 
 	}
 
-	/**
-	 * Assigns distinct colors to a collection of Trees.
-	 *
-	 * @see SNTColor#getDistinctColors(int)
-	 */
+    /** @deprecated  use {@link TreeUtils#assignUniqueColors(Collection)} */
+    @Deprecated
 	public static void assignUniqueColors(final Collection<Tree> trees) {
-		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
-		int i = 0;
-		for (Iterator<Tree> it = trees.iterator(); it.hasNext(); i++) {
-			it.next().setColor(colors[i]);
-		}
+		TreeUtils.assignUniqueColors(trees);
 	}
 
-	/**
-	 * Assigns distinct colors to a collection of Trees.
-	 *
-	 * @param excludedHue an optional string defining a hue to be excluded. Either 'red', 'green', or 'blue'.
-	 * @see SNTColor#getDistinctColors(int, String)
-	 */
+	/** @deprecated  use {@link TreeUtils#assignUniqueColors(Collection, String)} */
+    @Deprecated
 	public static void assignUniqueColors(final Collection<Tree> trees, final String excludedHue) {
-		final ColorRGB[] colors = SNTColor.getDistinctColors(trees.size(), excludedHue);
-		int i = 0;
-		for (Iterator<Tree> it = trees.iterator(); it.hasNext(); i++) {
-			it.next().setColor(colors[i]);
-		}
-	}
+        TreeUtils.assignUniqueColors(trees, excludedHue);
+    }
+
 	/**
 	 * Assigns the spatial calibration of an image to this Tree.
 	 *

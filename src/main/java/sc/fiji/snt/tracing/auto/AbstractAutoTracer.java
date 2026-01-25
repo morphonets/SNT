@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.tracing;
+package sc.fiji.snt.tracing.auto;
 
 import ij.gui.Roi;
 import sc.fiji.snt.Path;

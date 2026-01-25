@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.tracing;
+package sc.fiji.snt.tracing.auto;
 
 import ij.ImagePlus;
 import ij.gui.Roi;
@@ -1332,7 +1332,7 @@ public class BinaryTracer implements AutoTracer {
         List<Tree> skelTrees = converter.getTrees();
         System.out.println("Num result trees: " + skelTrees.size());
         Viewer3D viewer = new Viewer3D();
-        Tree.assignUniqueColors(skelTrees);
+        sc.fiji.snt.util.TreeUtils.assignUniqueColors(skelTrees);
         viewer.add(skelTrees);
         viewer.show();
     }

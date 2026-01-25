@@ -126,6 +126,20 @@ public class ImgUtils {
     }
 
     /**
+     * Extracts voxel spacing from ImgPlus axis metadata.
+     *
+     * @param img the ImgPlus with calibrated axes
+     * @return array of spacing values, one per dimension (e.g., {x, y, z})
+     */
+    public static double[] getSpacing(final ImgPlus<?> img) {
+        final double[] spacing = new double[img.numDimensions()];
+        for (int d = 0; d < spacing.length; d++) {
+            spacing[d] = img.axis(d).averageScale(0, 1);
+        }
+        return spacing;
+    }
+
+    /**
      * Get the origin offsets as {xOrigin, yOrigin, zOrigin} from an ImgPlus.
      *
      * @param img the ImgPlus

@@ -35,6 +35,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.InsectBrainLoader;
+import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.viewer.OBJMesh;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -129,7 +130,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 
 		// Customize trees
 		if (colorChoice.contains("unique")) {
-			Tree.assignUniqueColors(trees);
+			TreeUtils.assignUniqueColors(trees);
 		} else {
 			trees.forEach(tree -> tree.setColor(commonColor));
 		}

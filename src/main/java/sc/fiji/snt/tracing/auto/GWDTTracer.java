@@ -20,10 +20,11 @@
  * #L%
  */
 
-package sc.fiji.snt.tracing;
+package sc.fiji.snt.tracing.auto;
 
 import ij.ImagePlus;
 import ij.gui.Roi;
+import net.imagej.ImgPlus;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
@@ -49,6 +50,7 @@ import java.util.*;
 
 /**
  * APP2-style neuron tracer using Gray-Weighted Distance Transform and Fast Marching.
+ * The tree is built directly on the grayscale image using intensity-weighted paths.
  * <p>
  * This implementation follows the APP2 algorithm:
  * <ol>
@@ -56,10 +58,6 @@ import java.util.*;
  *   <li>Fast Marching - Build initial tree from seed using geodesic distance on GWDT</li>
  *   <li>Hierarchical Pruning - Long-segment-first with intensity-weighted coverage</li>
  * </ol>
- * </p>
- * <p>
- * Key difference from skeleton-based approaches: no binarization or skeletonization.
- * The tree is built directly on the grayscale image using intensity-weighted paths.
  * </p>
  *
  * @param <T> pixel type
@@ -119,6 +117,15 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     }
 
     /**
+     * Creates a new GWDTTracer from an ImgPlus.
+     *
+     * @param source the grayscale image to trace
+     */
+    public GWDTTracer(final ImgPlus<T> source) {
+        this(source, ImgUtils.getSpacing(source));
+    }
+
+    /**
      * Creates a new GWDTTracer with isotropic spacing (1.0 for each dimension).
      */
     public GWDTTracer(final RandomAccessibleInterval<T> source) {
@@ -126,12 +133,12 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     }
 
     /**
-     * Creates a new GWDTTracer from an ImagePlus
+     * Creates a new GWDTTracer from an ImagePlus.
      *
-     * @param imp the grayscale image to trace
+     * @param source the grayscale image to trace
      */
-    public GWDTTracer(final ImagePlus imp) {
-        this(ImgUtils.getCtSlice(imp), getSpacing(imp, imp.getNSlices() > 1 ? 3 : 2));
+    public GWDTTracer(final ImagePlus source) {
+        this(ImgUtils.getCtSlice(source), getSpacing(source, source.getNSlices() > 1 ? 3 : 2));
     }
 
     private static double[] createIsotropicSpacing(final int nDims) {
@@ -2604,7 +2611,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     public static void main(String[] args) {
         ImagePlus imp = new sc.fiji.snt.SNTService().demoImage("OP1");
         //imp = sc.fiji.snt.util.ImpUtils.getMIP(imp);
-        final GWDTTracer tracer = new GWDTTracer(imp);
+        final GWDTTracer<?> tracer = new GWDTTracer<>(imp);
         tracer.setSeedPhysical(new double[]{11.208050, 141.749, 0.000});
         tracer.setVerbose(true);
         final List<Tree> trees = tracer.traceToGraph().getTrees();

@@ -33,12 +33,13 @@ import org.scijava.util.ColorRGB;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.*;
-import sc.fiji.snt.tracing.BinaryTracer;
+import sc.fiji.snt.tracing.auto.BinaryTracer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.TreeUtils;
 
 import java.io.File;
 import java.util.*;
@@ -585,7 +586,7 @@ public class BinaryTracerCmd extends CommonDynamicCmd {
                         p.setColor(colors[idx++]);
                 });
             } else {
-                Tree.assignUniqueColors(trees);
+                TreeUtils.assignUniqueColors(trees);
             }
             trees.forEach(tree -> pafm.addTree(tree, "Autotraced"));
             if (trees.size() > 1)

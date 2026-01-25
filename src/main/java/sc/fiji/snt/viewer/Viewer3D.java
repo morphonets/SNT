@@ -957,7 +957,7 @@ public class Viewer3D {
 	public void addTrees(final Collection<Tree> trees, final String color) {
 		final String adjustedC = (color == null) ? "" : color.toLowerCase();
         switch (adjustedC) {
-            case "unique" -> Tree.assignUniqueColors(trees);
+            case "unique" -> TreeUtils.assignUniqueColors(trees);
             case "", "none" -> {}
             default -> trees.forEach(tree -> tree.setColor(color));
         }
@@ -6148,7 +6148,7 @@ public class Viewer3D {
 								failures++;
 							} else if (treesInFile.size() > 1) {
 								addProgressLoad(treesInFile.size());
-								Tree.assignUniqueColors(treesInFile);
+								TreeUtils.assignUniqueColors(treesInFile);
 								for (final Tree tree : treesInFile) {
 									addTree(tree);
 									incrementProgress();

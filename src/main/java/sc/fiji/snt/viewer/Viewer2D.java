@@ -111,7 +111,7 @@ public class Viewer2D extends TreeColorMapper {
 		}
 	}
 
-	private void addPaths(final ArrayList<Path> paths) {
+	private void addPaths(final List<Path> paths) {
 		this.paths = paths;
 		plotPaths();
 	}

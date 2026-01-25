@@ -2,7 +2,7 @@
 
 import sc.fiji.snt.*
 import ij.IJ
-import sc.fiji.snt.tracing.BinaryTracer
+import sc.fiji.snt.tracing.auto.BinaryTracer
 
 /**
  * file: Fully_Automated_Tracing_Timelapse_Demo.groovy

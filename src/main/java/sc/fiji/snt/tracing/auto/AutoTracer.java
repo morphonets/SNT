@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.tracing;
+package sc.fiji.snt.tracing.auto;
 
 import sc.fiji.snt.Tree;
 

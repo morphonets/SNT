@@ -117,7 +117,7 @@ public class TreeColorMapper extends ColorMapper {
 			TAG_FILENAME, VALUES, X_COORDINATES, Y_COORDINATES, Z_COORDINATES
 	};
 
-	protected ArrayList<Path> paths;
+	protected List<Path> paths;
 	private int internalCounter = 1;
 	private final List<Tree> mappedTrees;
 	private boolean nodeMapping;

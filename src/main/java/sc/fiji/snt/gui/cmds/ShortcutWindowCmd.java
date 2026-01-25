@@ -38,6 +38,7 @@ import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -379,7 +380,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 					public Object doInBackground() {
 						if (trees.stream().anyMatch(Tree::is3D)) {
 							final Viewer3D v3d = new Viewer3D(true);
-							Tree.assignUniqueColors(trees);
+							TreeUtils.assignUniqueColors(trees);
 							v3d.add(trees);
 							return v3d;
 						} else {
