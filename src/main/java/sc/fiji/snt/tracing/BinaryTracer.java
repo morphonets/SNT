@@ -65,7 +65,7 @@ import java.util.function.ToDoubleFunction;
  * @see sc.fiji.skeletonize3D.Skeletonize3D_
  * @see sc.fiji.analyzeSkeleton.AnalyzeSkeleton_
  */
-public class BinaryTracer {
+public class BinaryTracer implements AutoTracer {
 
     /**
      * Pruning mode: flag for lowest intensity branch pruning
@@ -103,35 +103,7 @@ public class BinaryTracer {
      * Note: Requires a root to be defined via {@link #setRootRoi(Roi, int)}.
      */
     public static final int MOST_DISTAL = -3; // NB: All modes using AnalyzeSkeleton_.NONE must be negative
-    /**
-     * Rooting strategy: Tree(s) are rooted at arbitrary on end-point(s) of
-     * skeletonized structures, and are not influenced by root-delineating ROI.
-     */
-    public static final int ROI_UNSET = 8;
-    /**
-     * Rooting strategy: Tree(s) are rooted on end-point(s) of skeletonized
-     * structures adjacent to the perimeter (contour) of root-delineating ROI.
-     * Skeletonized voxels inside ROI are excluded from analysis.
-     */
-    public static final int ROI_EDGE = 16;
-    /**
-     * Rooting strategy: Tree(s) are rooted on end-point(s) of skeletonized
-     * structures contained by ROI. Skeletonized voxels inside ROI are included in
-     * analysis.
-     */
-    public static final int ROI_CONTAINED = 32;
-    /**
-     * Rooting strategy: Root(s) of extracted tree(s) are rooted on the centroid of
-     * root-delineating ROI. Skeletonized voxels inside ROI are excluded from
-     * analysis.
-     */
-    public static final int ROI_CENTROID = 64;
-    /**
-     * Rooting strategy: Root(s) of extracted tree(s) are rooted on the centroid of
-     * all the root(s) contained by root-delineating ROI. Skeletonized voxels inside
-     * ROI are excluded from analysis.
-     */
-    public static final int ROI_CENTROID_WEIGHTED = 128;
+
 
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -441,7 +413,7 @@ public class BinaryTracer {
         }
 
         // Verify all graphs share the same root (set by rootAllGraphsOnSomaCentroid)
-        SWCPoint commonRoot = null;
+        SWCPoint commonRoot;
         try {
             commonRoot = graphs.getFirst().getRoot();
         } catch (final IllegalStateException e) {
@@ -1321,6 +1293,11 @@ public class BinaryTracer {
             finalComponentList.add(graphComponent);
         }
         return finalComponentList;
+    }
+
+    @Override
+    public List<Tree> traceTrees() {
+        return getTrees();
     }
 
     private static class VertexPair implements Comparable<VertexPair> {
