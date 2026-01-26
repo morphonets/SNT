@@ -30,10 +30,7 @@ import net.imagej.axis.Axes;
 import net.imagej.axis.AxisType;
 import net.imagej.axis.CalibratedAxis;
 import net.imagej.axis.DefaultLinearAxis;
-import net.imglib2.FinalInterval;
-import net.imglib2.Interval;
-import net.imglib2.Localizable;
-import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.*;
 import net.imglib2.display.ColorTable;
 import net.imglib2.img.Img;
 import net.imglib2.img.ImgView;
@@ -1000,6 +997,55 @@ public class ImgUtils {
         }
 
         return result;
+    }
+
+    /**
+     * Computes the mean intensity of an image.
+     *
+     * @param source the input image
+     * @return the mean intensity value
+     */
+    public static double computeMeanIntensity(
+            final RandomAccessibleInterval<? extends RealType<?>> source) {
+        double sum = 0;
+        long count = 0;
+        final Cursor<? extends RealType<?>> cursor = Views.flatIterable(source).cursor();
+        while (cursor.hasNext()) {
+            cursor.fwd();
+            sum += cursor.get().getRealDouble();
+            count++;
+        }
+        return count > 0 ? sum / count : 0;
+    }
+
+    /**
+     * Computes basic intensity statistics of an image.
+     *
+     * @param source the input image
+     * @return array of [min, max, mean]
+     */
+    public static double[] computeIntensityStats(
+            final RandomAccessibleInterval<? extends RealType<?>> source) {
+        double min = Double.MAX_VALUE;
+        double max = Double.NEGATIVE_INFINITY;
+        double sum = 0;
+        long count = 0;
+
+        final Cursor<? extends RealType<?>> cursor = Views.flatIterable(source).cursor();
+        while (cursor.hasNext()) {
+            cursor.fwd();
+            final double val = cursor.get().getRealDouble();
+            if (val < min) min = val;
+            if (val > max) max = val;
+            sum += val;
+            count++;
+        }
+
+        return new double[]{
+                count > 0 ? min : 0,
+                count > 0 ? max : 0,
+                count > 0 ? sum / count : 0
+        };
     }
 
     /**

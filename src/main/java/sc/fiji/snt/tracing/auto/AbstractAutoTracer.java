@@ -23,10 +23,23 @@
 package sc.fiji.snt.tracing.auto;
 
 import ij.gui.Roi;
+import net.imagej.ops.OpService;
+import net.imglib2.Cursor;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.morphology.distance.DistanceTransform;
+import net.imglib2.histogram.Histogram1d;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.type.logic.BitType;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.SWCPoint;
 
@@ -52,19 +65,330 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     protected boolean verbose = false;
 
     /**
+     * Computes EDT where TRUE = background, so result gives distance to nearest background.
+     */
+    private static Img<FloatType> computeEDT(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing,
+            boolean[] hasForegroundOut) {
+
+        final int nDims = source.numDimensions();
+        final long[] dims = new long[nDims];
+        source.dimensions(dims);
+
+        // Validate spacing
+        final double[] calibration = new double[nDims];
+        for (int d = 0; d < nDims; d++) {
+            calibration[d] = (spacing != null && d < spacing.length && spacing[d] > 0)
+                    ? spacing[d]
+                    : 1.0;
+        }
+
+        // Create mask: TRUE = background
+        final Img<BitType> mask = ArrayImgs.bits(dims);
+        final Cursor<? extends RealType<?>> srcCursor = Views.flatIterable(source).localizingCursor();
+        final net.imglib2.RandomAccess<BitType> maskRA = mask.randomAccess();
+
+        boolean hasForeground = false;
+        while (srcCursor.hasNext()) {
+            srcCursor.fwd();
+            maskRA.setPosition(srcCursor);
+            if (srcCursor.get().getRealDouble() <= threshold) {
+                maskRA.get().set(true);
+            } else {
+                hasForeground = true;
+            }
+        }
+
+        if (hasForegroundOut != null && hasForegroundOut.length > 0) {
+            hasForegroundOut[0] = hasForeground;
+        }
+
+        if (!hasForeground) {
+            return null;
+        }
+
+        final Img<FloatType> edt = ArrayImgs.floats(dims);
+        DistanceTransform.binaryTransform(mask, edt, DistanceTransform.DISTANCE_TYPE.EUCLIDIAN, calibration);
+        return edt;
+    }
+
+    /**
+     * Finds the thickest point in a foreground structure using the Euclidean
+     * Distance Transform (EDT).
+     * <p>
+     * This is more robust than simply finding the brightest pixel because:
+     * <ul>
+     *   <li>Hot pixels/artifacts are typically 1 voxel thick → small EDT value</li>
+     *   <li>The soma, being the thickest structure, has the largest EDT value</li>
+     *   <li>Less sensitive to intensity variations and uneven illumination</li>
+     * </ul>
+     * </p>
+     *
+     * @param source    the input image
+     * @param threshold pixels above this value are considered foreground
+     * @param spacing   voxel spacing [x, y, z] for proper distance calculation
+     * @return the position of the thickest point in voxel coordinates, or null if
+     * no foreground pixels exist
+     */
+    public static long[] findThickestPoint(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing) {
+
+        final Img<FloatType> edt = computeEDT(source, threshold, spacing, null);
+        if (edt == null) return null;
+
+        // Find max EDT
+        double maxEDT = Double.NEGATIVE_INFINITY;
+        final long[] maxPos = new long[source.numDimensions()];
+        final Cursor<FloatType> edtCursor = Views.flatIterable(edt).localizingCursor();
+
+        while (edtCursor.hasNext()) {
+            edtCursor.fwd();
+            final double val = edtCursor.get().getRealDouble();
+            if (val > maxEDT) {
+                maxEDT = val;
+                edtCursor.localize(maxPos);
+            }
+        }
+        return maxPos;
+    }
+
+    /**
+     * Finds the thickest point and converts to physical coordinates.
+     *
+     * @param source    the input image
+     * @param threshold pixels above this value are considered foreground
+     * @param spacing   voxel spacing [x, y, z]
+     * @return the position in physical coordinates, or null if no foreground
+     */
+    public static double[] findThickestPointPhysical(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing) {
+
+        final long[] voxelPos = findThickestPoint(source, threshold, spacing);
+        if (voxelPos == null) return null;
+
+        final double[] physicalPos = new double[voxelPos.length];
+        for (int d = 0; d < voxelPos.length; d++) {
+            physicalPos[d] = voxelPos[d] * (spacing != null && d < spacing.length ? spacing[d] : 1.0);
+        }
+        return physicalPos;
+    }
+
+    /**
+     * Automatically detects the most likely root point (soma center) in a neuronal image.
+     * <p>
+     * This method uses a combined thickness-intensity approach that is robust to common
+     * imaging artifacts and variations in signal distribution. The algorithm:
+     * <ol>
+     *   <li>Computes a binary mask using the specified threshold</li>
+     *   <li>Calculates the Euclidean Distance Transform (EDT) to find distance to background</li>
+     *   <li>Scores each foreground pixel as: {@code EDT_value × normalized_intensity}</li>
+     *   <li>Returns the position with the maximum score</li>
+     * </ol>
+     * </p>
+     * <p>
+     * This combined scoring naturally favors the soma because:
+     * <ul>
+     *   <li>Soma is typically the <b>thickest</b> structure → high EDT value</li>
+     *   <li>Soma usually has <b>reasonable intensity</b> → contributes to score</li>
+     *   <li>Hot pixels/artifacts are tiny → low EDT despite high intensity</li>
+     *   <li>Thin neurites have low EDT → low score even if bright</li>
+     * </ul>
+     * </p>
+     *
+     * @param source    the input image (grayscale)
+     * @param threshold pixels above this value are considered foreground. If {@code NaN},
+     *                  the mean intensity is used. If negative, Otsu's method is applied.
+     * @param spacing   voxel spacing [x, y, z] for proper distance calculation. If null,
+     *                  isotropic spacing of 1.0 is assumed.
+     * @return the detected root position in <b>voxel coordinates</b>, or null if detection fails
+     * (e.g., no foreground pixels, empty image)
+     * @see #findRootPhysical(RandomAccessibleInterval, double, double[])
+     * @see #findThickestPoint(RandomAccessibleInterval, double, double[])
+     */
+    public static long[] findRoot(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing) {
+
+        if (source == null) {
+            return null;
+        }
+
+        final int nDims = source.numDimensions();
+        final long[] dims = new long[nDims];
+        source.dimensions(dims);
+
+        // Compute intensity statistics
+        final double[] stats = ImgUtils.computeIntensityStats(source);
+        final double minIntensity = stats[0];
+        final double maxIntensity = stats[1];
+        final double meanIntensity = stats[2];
+
+        if (maxIntensity <= minIntensity) {
+            return null;  // Uniform image
+        }
+
+        // Determine effective threshold
+        final double effectiveThreshold;
+        if (Double.isNaN(threshold)) {
+            effectiveThreshold = meanIntensity;
+        } else if (threshold < 0) {
+            effectiveThreshold = computeOtsuThreshold(source);
+        } else {
+            effectiveThreshold = threshold;
+        }
+
+        // Compute EDT
+        final boolean[] hasForeground = {false};
+        final Img<FloatType> edt = computeEDT(source, effectiveThreshold, spacing, hasForeground);
+        if (edt == null || !hasForeground[0]) {
+            return null;
+        }
+
+        // Find pixel with maximum score = EDT × normalized_intensity
+        final Cursor<? extends RealType<?>> scoreCursor = Views.flatIterable(source).localizingCursor();
+        final net.imglib2.RandomAccess<FloatType> edtRA = edt.randomAccess();
+
+        double maxScore = Double.NEGATIVE_INFINITY;
+        final long[] maxPos = new long[nDims];
+        final double intensityRange = maxIntensity - minIntensity;
+
+        while (scoreCursor.hasNext()) {
+            scoreCursor.fwd();
+            final double intensity = scoreCursor.get().getRealDouble();
+
+            // Skip background pixels
+            if (intensity <= effectiveThreshold) {
+                continue;
+            }
+
+            edtRA.setPosition(scoreCursor);
+            final double edtValue = edtRA.get().getRealDouble();
+
+            // Skip pixels at structure edges (EDT ≈ 0)
+            if (edtValue <= 0) {
+                continue;
+            }
+
+            // Combined score: thickness × normalized intensity
+            final double normalizedIntensity = (intensity - minIntensity) / intensityRange;
+            final double score = edtValue * normalizedIntensity;
+
+            if (score > maxScore) {
+                maxScore = score;
+                scoreCursor.localize(maxPos);
+            }
+        }
+
+        return maxScore > Double.NEGATIVE_INFINITY ? maxPos : null;
+    }
+
+    /**
+     * Computes Otsu's threshold using ImageJ Ops.
+     * <p>
+     * Otsu's method finds the threshold that minimizes intra-class variance
+     * (equivalently, maximizes inter-class variance) between foreground and background.
+     * </p>
+     *
+     * @param source the input image
+     * @return the optimal threshold value, or the mean intensity if computation fails
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static double computeOtsuThreshold(final RandomAccessibleInterval<? extends RealType<?>> source) {
+        final OpService ops = SNTUtils.getContext().getService(OpService.class);
+        // Use raw types to avoid generic capture issues
+        final Histogram1d histogram = ops.image().histogram((Iterable) source);
+        final RealType<?> thresholdObj = ops.threshold().otsu(histogram);
+        return thresholdObj.getRealDouble();
+    }
+
+    /**
+     * Automatically detects the root point and returns physical coordinates.
+     *
+     * @param source    the input image (grayscale)
+     * @param threshold pixels above this value are considered foreground. If {@code NaN},
+     *                  the mean intensity is used. If negative, Otsu's method is applied.
+     * @param spacing   voxel spacing [x, y, z] for proper distance calculation
+     * @return the detected root position in <b>physical coordinates</b>, or null if detection fails
+     * @see #findRoot(RandomAccessibleInterval, double, double[])
+     */
+    public static double[] findRootPhysical(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing) {
+
+        final long[] voxelPos = findRoot(source, threshold, spacing);
+        if (voxelPos == null) {
+            return null;
+        }
+
+        final double[] physicalPos = new double[voxelPos.length];
+        for (int d = 0; d < voxelPos.length; d++) {
+            physicalPos[d] = voxelPos[d] * (spacing != null && d < spacing.length ? spacing[d] : 1.0);
+        }
+        return physicalPos;
+    }
+
+    /**
+     * Automatically detects the root point using automatic thresholding (Otsu's method).
+     * <p>
+     * Convenience method equivalent to {@code findRoot(source, -1, spacing)}.
+     * </p>
+     *
+     * @param source  the input image (grayscale)
+     * @param spacing voxel spacing [x, y, z]
+     * @return the detected root position in voxel coordinates, or null if detection fails
+     * @see #findRoot(RandomAccessibleInterval, double, double[])
+     */
+    public static long[] findRoot(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double[] spacing) {
+        return findRoot(source, -1, spacing);
+    }
+
+    /**
+     * Automatically detects the root point using automatic thresholding and returns
+     * physical coordinates.
+     * <p>
+     * Convenience method equivalent to {@code findRootPhysical(source, -1, spacing)}.
+     * </p>
+     *
+     * @param source  the input image (grayscale)
+     * @param spacing voxel spacing [x, y, z]
+     * @return the detected root position in physical coordinates, or null if detection fails
+     * @see #findRootPhysical(RandomAccessibleInterval, double, double[])
+     */
+    public static double[] findRootPhysical(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double[] spacing) {
+        return findRootPhysical(source, -1, spacing);
+    }
+
+    /**
      * Traces the structure and returns a DirectedWeightedGraph.
+     *
      * @return the traced graph
      */
     public abstract DirectedWeightedGraph traceToGraph();
 
+    // ==================== Soma ROI Processing (Graph-based) ====================
+
     /**
      * Gets the voxel spacing used by this tracer.
+     *
      * @return array of [x, y, z] spacing values
      */
     protected abstract double[] getSpacing();
 
     /**
      * Gets the image dimensions.
+     *
      * @return array of dimension sizes
      */
     protected abstract long[] getDimensions();
@@ -73,14 +397,10 @@ public abstract class AbstractAutoTracer implements AutoTracer {
      * Sets the soma ROI and rooting strategy.
      *
      * @param roi      area ROI delineating the soma (null to disable)
-     * @param strategy one of {@link #ROI_UNSET}, {@link #ROI_EDGE},
+     * @param strategy one of {@link #ROI_UNSET}, {@link #ROI_EDGE} (assumed area ROI),
      *                 {@link #ROI_CENTROID}, or {@link #ROI_CENTROID_WEIGHTED}
-     * @throws IllegalArgumentException if roi is not an area ROI or strategy is invalid
      */
     public void setSomaRoi(final Roi roi, final int strategy) {
-        if (roi != null && !roi.isArea()) {
-            throw new IllegalArgumentException("Only area ROIs are supported");
-        }
         if (strategy != ROI_UNSET && strategy != ROI_EDGE &&
                 strategy != ROI_CENTROID && strategy != ROI_CENTROID_WEIGHTED &&
                 strategy != ROI_CONTAINED) {
@@ -89,21 +409,17 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         if (strategy != ROI_UNSET && roi == null) {
             throw new IllegalArgumentException("ROI required for non-UNSET strategy");
         }
+        if (strategy == ROI_EDGE && roi.isArea()) {
+            throw new IllegalArgumentException("Area ROI required for ROI_EDGE strategy");
+        }
         this.somaRoi = roi;
         this.rootStrategy = strategy;
-        this.somaRoiZPosition = (roi != null) ? roi.getZPosition() - 1 : -1;  // Convert to 0-indexed
-    }
-
-    /**
-     * Sets the soma ROI using the default strategy (ROI_CENTROID).
-     * @param roi area ROI delineating the soma
-     */
-    public void setSomaRoi(final Roi roi) {
-        setSomaRoi(roi, roi != null ? ROI_CENTROID : ROI_UNSET);
+        this.somaRoiZPosition = (roi != null && roi.getZPosition() > 0) ? roi.getZPosition() - 1 : -1; // Convert to 0-indexed
     }
 
     /**
      * Gets the current soma ROI.
+     *
      * @return the soma ROI, or null if not set
      */
     public Roi getSomaRoi() {
@@ -111,7 +427,17 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     }
 
     /**
+     * Sets the soma ROI using the default strategy (ROI_CENTROID).
+     *
+     * @param roi area ROI delineating the soma
+     */
+    public void setSomaRoi(final Roi roi) {
+        setSomaRoi(roi, roi != null ? ROI_CENTROID : ROI_UNSET);
+    }
+
+    /**
      * Gets the current root strategy.
+     *
      * @return the root strategy constant
      */
     public int getRootStrategy() {
@@ -119,22 +445,24 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     }
 
     /**
-     * Sets verbose logging mode.
-     * @param verbose true to enable verbose logging
-     */
-    public void setVerbose(final boolean verbose) {
-        this.verbose = verbose;
-    }
-
-    /**
      * Checks if verbose logging is enabled.
+     *
      * @return true if verbose
      */
     public boolean isVerbose() {
         return verbose;
     }
 
-    // ==================== Soma ROI Processing (Graph-based) ====================
+    // ==================== Utility Methods ====================
+
+    /**
+     * Sets verbose logging mode.
+     *
+     * @param verbose true to enable verbose logging
+     */
+    public void setVerbose(final boolean verbose) {
+        this.verbose = verbose;
+    }
 
     /**
      * Checks if a point is inside the soma ROI.
@@ -382,15 +710,13 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         log("  Connected to " + outsideNeighbors.size() + " neurites");
     }
 
-    // ==================== Graph Utilities ====================
-
     /**
      * Finds the root node of a graph.
      *
      * @param graph the graph
      * @return the root node, or null if graph is empty
      */
-    protected SWCPoint findRoot(final DirectedWeightedGraph graph) {
+    protected SWCPoint findGraphRoot(final DirectedWeightedGraph graph) {
         try {
             return graph.getRoot();
         } catch (final IllegalStateException e) {
@@ -407,7 +733,7 @@ public abstract class AbstractAutoTracer implements AutoTracer {
      * @param graph the graph to clean
      */
     protected void removeDisconnectedComponents(final DirectedWeightedGraph graph) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         // BFS from root to find connected component
@@ -440,8 +766,6 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         }
     }
 
-    // ==================== Utility Methods ====================
-
     /**
      * Computes average radius of a set of nodes.
      */
@@ -468,4 +792,5 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         }
         logger.info(message);
     }
+
 }
