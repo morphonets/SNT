@@ -27,10 +27,7 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 /**
  * Static utilities for Trees.
@@ -291,6 +288,263 @@ public class TreeUtils {
         }
         return totalMerged;
     }
+
+    /**
+     * Result of finding the closest endpoints between two paths.
+     *
+     * @param distance  the Euclidean distance between the closest endpoints
+     * @param p1AtStart true if path1's start node is the closest endpoint, false if end
+     * @param p2AtStart true if path2's start node is the closest endpoint, false if end
+     */
+    public record EndpointMatch(double distance, boolean p1AtStart, boolean p2AtStart) {
+
+        /**
+         * Checks if the paths are in "natural" order for merging (p1.end → p2.start).
+         * @return true if no reversal is needed for either path
+         */
+        public boolean isNaturalOrder() {
+            return !p1AtStart && p2AtStart;
+        }
+    }
+
+    /**
+     * Finds the closest endpoint pairing between two paths.
+     * Checks all four combinations: start-start, start-end, end-start, end-end.
+     *
+     * @param p1 first path
+     * @param p2 second path
+     * @return EndpointMatch describing the closest pairing, or null if either path is empty
+     */
+    public static EndpointMatch findClosestEndpoints(final Path p1, final Path p2) {
+        if (p1 == null || p2 == null || p1.size() == 0 || p2.size() == 0) {
+            return null;
+        }
+
+        final PointInImage p1Start = p1.firstNode();
+        final PointInImage p1End = p1.lastNode();
+        final PointInImage p2Start = p2.firstNode();
+        final PointInImage p2End = p2.lastNode();
+
+        double minDistSq = Double.MAX_VALUE;
+        boolean p1AtStart = false;
+        boolean p2AtStart = false;
+
+        double d = p1Start.distanceSquaredTo(p2Start);
+        if (d < minDistSq) { minDistSq = d; p1AtStart = true; p2AtStart = true; }
+
+        d = p1Start.distanceSquaredTo(p2End);
+        if (d < minDistSq) { minDistSq = d; p1AtStart = true; p2AtStart = false; }
+
+        d = p1End.distanceSquaredTo(p2Start);
+        if (d < minDistSq) { minDistSq = d; p1AtStart = false; p2AtStart = true; }
+
+        d = p1End.distanceSquaredTo(p2End);
+        if (d < minDistSq) { minDistSq = d; p1AtStart = false; p2AtStart = false; }
+
+        return new EndpointMatch(Math.sqrt(minDistSq), p1AtStart, p2AtStart);
+    }
+
+    /**
+     * Orders a collection of paths to form a spatially continuous chain based on
+     * endpoint proximity. The algorithm greedily connects paths by finding the
+     * closest endpoint pairs.
+     * <p>
+     * This method does NOT modify the paths (no reversal). Use
+     * {@link #orientPathsForMerging(List)} on the result to fix orientations.
+     * </p>
+     *
+     * @param paths the paths to order (at least 2)
+     * @return ordered list forming a chain, or empty list if paths cannot form a continuous chain
+     */
+    public static List<Path> orderByEndpointProximity(final Collection<Path> paths) {
+        if (paths == null || paths.size() < 2) {
+            return new ArrayList<>(paths != null ? paths : List.of());
+        }
+
+        final List<Path> remaining = new ArrayList<>(paths);
+        final LinkedList<Path> chain = new LinkedList<>();
+
+        // Start with the first path
+        chain.add(remaining.removeFirst());
+
+        // Greedily extend the chain at either end
+        while (!remaining.isEmpty()) {
+            final Path chainStart = chain.getFirst();
+            final Path chainEnd = chain.getLast();
+
+            Path bestPath = null;
+            double bestDist = Double.MAX_VALUE;
+            boolean addToFront = false;
+
+            for (final Path candidate : remaining) {
+                // Check distance to chain start
+                final EndpointMatch matchStart = findClosestEndpoints(chainStart, candidate);
+                if (matchStart != null && matchStart.distance() < bestDist) {
+                    bestDist = matchStart.distance();
+                    bestPath = candidate;
+                    addToFront = true;
+                }
+
+                // Check distance to chain end
+                final EndpointMatch matchEnd = findClosestEndpoints(chainEnd, candidate);
+                if (matchEnd != null && matchEnd.distance() < bestDist) {
+                    bestDist = matchEnd.distance();
+                    bestPath = candidate;
+                    addToFront = false;
+                }
+            }
+
+            if (bestPath == null) {
+                return List.of(); // No suitable connection found
+            }
+
+            remaining.remove(bestPath);
+            if (addToFront) {
+                chain.addFirst(bestPath);
+            } else {
+                chain.addLast(bestPath);
+            }
+        }
+
+        return new ArrayList<>(chain);
+    }
+
+    /**
+     * Orients paths in a chain so they can be merged end-to-start.
+     * After this operation, each path's end node will be near the next path's start node.
+     * <p>
+     * Paths are reversed in-place as needed.
+     * </p>
+     *
+     * @param orderedPaths list of paths previously ordered by {@link #orderByEndpointProximity}
+     */
+    public static void orientPathsForMerging(final List<Path> orderedPaths) {
+        if (orderedPaths == null || orderedPaths.size() < 2) {
+            return;
+        }
+
+        for (int i = 0; i < orderedPaths.size() - 1; i++) {
+            final Path current = orderedPaths.get(i);
+            final Path next = orderedPaths.get(i + 1);
+
+            final EndpointMatch match = findClosestEndpoints(current, next);
+            if (match == null) continue;
+
+            // We want current.end → next.start
+            if (match.p1AtStart()) {
+                current.reverse();
+            }
+            if (!match.p2AtStart()) {
+                next.reverse();
+            }
+        }
+    }
+
+    /**
+     * Checks if a collection of paths can form a spatially continuous chain
+     * within a given tolerance.
+     *
+     * @param paths     the paths to check
+     * @param tolerance maximum allowed distance between consecutive endpoints
+     * @return true if paths can be ordered into a continuous chain within tolerance
+     */
+    public static boolean canFormContinuousChain(final Collection<Path> paths, final double tolerance) {
+        if (paths == null || paths.size() < 2) {
+            return true; // Single path or empty is trivially continuous
+        }
+
+        final List<Path> ordered = orderByEndpointProximity(paths);
+        if (ordered.isEmpty()) {
+            return false;
+        }
+
+        for (int i = 0; i < ordered.size() - 1; i++) {
+            final EndpointMatch match = findClosestEndpoints(ordered.get(i), ordered.get(i + 1));
+            if (match == null || match.distance() > tolerance) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Merges a list of paths into a single path by appending nodes sequentially.
+     * <p>
+     * The paths should be pre-ordered and oriented using {@link #orderByEndpointProximity}
+     * and {@link #orientPathsForMerging}.
+     * </p>
+     * <p>
+     * This method handles:
+     * <ul>
+     *   <li>Appending nodes from each path to the result</li>
+     *   <li>Optionally reparenting children of merged paths to the result</li>
+     *   <li>Preserving the first path's parent connection (if any)</li>
+     * </ul>
+     * </p>
+     * <p>
+     * <b>Note:</b> This method does NOT delete the original paths from any manager.
+     * The caller is responsible for cleanup.
+     * </p>
+     *
+     * @param orderedPaths     paths to merge, in order (should be oriented for merging)
+     * @param reparentChildren if true, children of merged paths are reconnected to the result
+     * @return the merged path, or null if input is empty
+     */
+    public static Path mergePaths(final List<Path> orderedPaths, final boolean reparentChildren) {
+        if (orderedPaths == null || orderedPaths.isEmpty()) {
+            return null;
+        }
+
+        if (orderedPaths.size() == 1) {
+            return orderedPaths.getFirst();
+        }
+
+        final Path first = orderedPaths.getFirst();
+        final Path result = first.createPath();
+        result.setName(first.getName());
+
+        // Preserve first path's parent connection
+        final Path firstParent = first.getParentPath();
+        final PointInImage firstBranchPoint = first.getBranchPoint();
+
+        // Collect children for reparenting
+        final List<ChildBranchInfo> childrenToReparent = new ArrayList<>();
+
+        for (final Path p : orderedPaths) {
+            if (reparentChildren) {
+                for (final Path child : new ArrayList<>(p.getChildren())) {
+                    childrenToReparent.add(new ChildBranchInfo(child, child.getBranchPoint()));
+                    child.detachFromParent();
+                }
+            }
+
+            if (p.getParentPath() != null) {
+                p.detachFromParent();
+            }
+
+            result.add(p);
+        }
+
+        // Reparent children to merged path
+        if (reparentChildren) {
+            for (final ChildBranchInfo info : childrenToReparent) {
+                final PointInImage closest = result.nearestNodeTo(info.branchPoint, Double.MAX_VALUE);
+                if (closest != null) {
+                    info.child.setBranchFrom(result, closest);
+                }
+            }
+        }
+
+        // Restore first path's parent connection
+        if (firstParent != null && firstBranchPoint != null) {
+            result.setBranchFrom(firstParent, firstBranchPoint);
+        }
+
+        return result;
+    }
+
+    /** Helper record for storing child path with its original branch point. */
+    private record ChildBranchInfo(Path child, PointInImage branchPoint) {}
 
 
 }
