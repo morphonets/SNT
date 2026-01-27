@@ -67,7 +67,7 @@ public class Tree implements TreeProperties, Cloneable {
 	public static final int Y_AXIS = 2;
 	public static final int Z_AXIS = 4;
 
-	private ArrayList<Path> tree;
+	private List<Path> tree;
 	private String label;
 	private ColorRGB color;
 	private TreeBoundingBox box;
