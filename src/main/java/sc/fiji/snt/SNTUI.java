@@ -55,6 +55,7 @@ import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.tracing.cost.OneMinusErf;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -127,6 +128,7 @@ public class SNTUI extends JDialog {
 	private final PathManagerUI pmUI;
 	private final FillManagerUI fmUI;
 	private final BookmarkManager bookmarkManager;
+    private final NotesUI notesui;
 
 	/* Reconstruction Viewer */
 	protected Viewer3D recViewer;
@@ -215,6 +217,7 @@ public class SNTUI extends JDialog {
 		commandFinder = new SNTCommandFinder(this);
 		commandFinder.register(getTracingCanvasPopupMenu(), new ArrayList<>(Collections.singletonList("Image Contextual Menu")));
         bookmarkManager = new BookmarkManager(this);
+        notesui = new NotesUI(this);
         initializeStates();
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
@@ -358,7 +361,7 @@ public class SNTUI extends JDialog {
 
 		// Bookmarks and notes
 		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
-		tabbedPane.addTab("Notes", new NotesUI(this).getPanel());
+		tabbedPane.addTab("Notes", notesui.getPanel());
 
 		// set icons
 		tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
@@ -656,44 +659,36 @@ public class SNTUI extends JDialog {
 		return bookmarkManager;
 	}
 
-	/**
-	 * Runs the autotracing prompt on the active image, assumed to be
-	 * pre-processed/binary (script friendly method).
-	 *
-	 * @param simplified whether wizard should omit advanced options
-	 */
-	public void runAutotracingWizard(final boolean simplified) {
-		SwingUtilities.invokeLater(() -> {
-			if (plugin.accessToValidImageData() && plugin.getImagePlus().getProcessor().isBinary()) {
-				runAutotracingOnImage(simplified);
-			} else {
-				noValidImageDataError();
-			}
-		});
-	}
 
-	/**
-	 * Runs the autotracing prompt on the specified image, assumed to be
-	 * pre-processed/binary (script friendly method).
-	 *
-	 * @param imp        the processed image from which paths are to be extracted
-	 * @param simplified whether wizard should omit advanced options
-	 */
-	public void runAutotracingWizard(final ImagePlus imp, final boolean simplified) {
-		final HashMap<String, Object> inputs = new HashMap<>();
-		inputs.put("useFileChoosers", false);
-		inputs.put("maskImgChoice", imp.getTitle());
-		inputs.put("originalImgChoice", (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "None");
-		inputs.put("simplifyPrompt", simplified);
-		if (imp.getRoi() == null) {
-			inputs.put("rootChoice", SkeletonConverterCmd.ROI_UNSET);
-			inputs.put("roiPlane", false);
-		} else {
-			inputs.put("rootChoice", SkeletonConverterCmd.ROI_EDGE);
-			inputs.put("roiPlane", true);
-		}
-		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
-	}
+    /**
+     * Gets the Bookmark Manager pane.
+     *
+     * @return the {@link BookmarkManager} associated with this UI
+     */
+    public NotesUI getNotesPane() {
+        return notesui;
+    }
+
+    /**
+     * Launches the autotracing wizard for the active image.
+     * <p>
+     * The tracer implementation is selected based on image type:
+     * <ul>
+     *   <li><b>Binary images</b>: {@link BinaryTracerCmd} (topology-based skeletonization)</li>
+     *   <li><b>Grayscale images</b>: {@link GWDTTracerCmd} (intensity-weighted distance transform)</li>
+     * </ul>
+     *
+     * @see BinaryTracerCmd
+     * @see GWDTTracerCmd
+     */
+    public void runAutotracingWizard() {
+        if (!plugin.accessToValidImageData()) {
+            SwingUtilities.invokeLater(this::noValidImageDataError);
+            return;
+        }
+        final boolean isBinary = ImpUtils.isBinary(plugin.getImagePlus()) || ImgUtils.isBinary(plugin.getLoadedData());
+        SwingUtilities.invokeLater(() -> runAutotracingOnImage((isBinary) ? BinaryTracerCmd.class : GWDTTracerCmd.class));
+    }
 
 	/**
 	 * Runs the 'secondary layer' wizard prompt for built-in filters
@@ -1285,6 +1280,10 @@ public class SNTUI extends JDialog {
 				cachedDataFallbackPrompt();
 				return;
 			}
+            if (plugin.getImagePlus() == null) {
+                guiUtils.error("Tracing image is no longer available.");
+                return;
+            }
 			if (imgDimensionsChanged() && guiUtils.getConfirmation(
 					"Image properties seem to have changed significantly since it was last imported. "
 							+ "You may need to re-initialize SNT to avoid conflicts with cached properties. Re-initialize now?",
@@ -2744,27 +2743,30 @@ public class SNTUI extends JDialog {
 
 	}
 
-	@SuppressWarnings("deprecation")
-	private JMenuBar createMenuBar() {
-		final JMenuBar menuBar = new JMenuBar();
-		final JMenu fileMenu = new JMenu("File");
-		menuBar.add(fileMenu);
-		final JMenu importSubmenu = new JMenu("Load Tracings");
-		importSubmenu.setToolTipText("Import reconstruction file(s");
-		importSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMPORT));
-		final JMenu exportSubmenu = new JMenu("Save Tracings");
-		exportSubmenu.setToolTipText("Save reconstruction(s)");
-		exportSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
-		final JMenu analysisMenu = new JMenu("Analysis");
-		menuBar.add(analysisMenu);
-		final JMenu utilitiesMenu = new JMenu("Utilities");
-		menuBar.add(utilitiesMenu);
-		final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), SNTUI.this);
-		menuBar.add(installer.getScriptsMenu());
-		final JMenu viewMenu = new JMenu("View");
-		menuBar.add(viewMenu);
-		menuBar.add(GuiUtils.MenuItems.helpMenu(commandFinder));
+    @SuppressWarnings("deprecation")
+    private JMenuBar createMenuBar() {
+        final JMenuBar menuBar = new JMenuBar();
+        final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), SNTUI.this);
+        menuBar.add(fileMenu(installer));
+        menuBar.add(autoTracingMenu());
+        menuBar.add(analysisMenu());
+        menuBar.add(installer.getScriptsMenu());
+        menuBar.add(viewMenu());
+        menuBar.add(GuiUtils.MenuItems.helpMenu(commandFinder));
+        menuBar.add(Box.createHorizontalGlue());
+        menuBar.add(commandFinder.getMenuItem(true));
+        return menuBar;
+    }
 
+	@SuppressWarnings("deprecation")
+	private JMenu fileMenu(final ScriptInstaller installer) {
+        final JMenu fileMenu = new JMenu("File");
+        final JMenu importSubmenu = new JMenu("Load Tracings");
+        importSubmenu.setToolTipText("Import reconstruction file(s");
+        importSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMPORT));
+        final JMenu exportSubmenu = new JMenu("Save Tracings");
+        exportSubmenu.setToolTipText("Save reconstruction(s)");
+        exportSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
 		// Options to replace image data
 		final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
 		changeImpMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
@@ -2781,11 +2783,6 @@ public class SNTUI extends JDialog {
 		fromClipboard.setIcon(IconFactory.menuIcon(GLYPH.CLIPBOARD));
 		changeImpMenu.add(fromClipboard);
 		fileMenu.add(changeImpMenu);
-		fileMenu.addSeparator();
-		final JMenuItem autoTrace = getImportActionMenuItem(ImportAction.AUTO_TRACE_IMAGE);
-		autoTrace.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-		autoTrace.setToolTipText("Runs automated tracing by specifying the path to a thresholded/binary image");
-		fileMenu.add(autoTrace);
 		fileMenu.addSeparator();
 		fileMenu.add(importSubmenu);
 
@@ -2915,242 +2912,269 @@ public class SNTUI extends JDialog {
 				cmdService = null;
 			}
 		});
-
-
 		fileMenu.addSeparator();
 		fileMenu.add(restartMenuItem);
 		fileMenu.addSeparator();
 		quitMenuItem = new JMenuItem("Quit", IconFactory.menuIcon(IconFactory.GLYPH.QUIT));
 		quitMenuItem.addActionListener(listener);
 		fileMenu.add(quitMenuItem);
-
-		final JMenuItem measureMenuItem = GuiUtils.MenuItems.measureQuick();
-		measureMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			try {
-				final TreeStatistics ta = new TreeStatistics(tree);
-				ta.setContext(plugin.getContext());
-				if (ta.getParsedTree().isEmpty()) {
-					guiUtils.error("None of the selected paths could be measured.");
-					return;
-				}
-				ta.setTable(pmUI.getTable(), PathManagerUI.TABLE_TITLE);
-				ta.run();
-				ta.dispose();
-			}
-			catch (final IllegalArgumentException ignored) {
-				getPathManager().quickMeasurementsCmdError(guiUtils);
-			}
-		});
-
-		analysisMenu.add(getBrainAnnotationMenu());
-		analysisMenu.add(getPathAnalysisMenu());
-		analysisMenu.addSeparator();
-
-		final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
-		convexHullMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null || trees.isEmpty()) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			inputs.put("table", getPathManager().getTable());
-			inputs.put("calledFromRecViewerInstance", false);
-			(new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
-		});
-		analysisMenu.add(convexHullMenuItem);
-		final JMenuItem tmdMenuItem = GuiUtils.MenuItems.persistenceAnalysis();
-		tmdMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null || trees.isEmpty()) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
-		});
-		analysisMenu.add(tmdMenuItem);
-		final JMenuItem rootAnalysisMenuItem = GuiUtils.MenuItems.rootAngleAnalysis();
-		rootAnalysisMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null || trees.isEmpty()) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			(new CmdRunner(RootAngleAnalyzerCmd.class, inputs, getState())).execute();
-		});
-		analysisMenu.add(rootAnalysisMenuItem);
-		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
-		shollMenuItem.addActionListener(e -> {
-			if (noPathsShollError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null) return;
-			softWarningOnShollPreview();
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", Tree.merge(trees));
-			inputs.put("snt", plugin);
-			new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
-		});
-		analysisMenu.add(shollMenuItem);
-		analysisMenu.add(shollAnalysisHelpMenuItem());
-		final JMenuItem strahlerMenuItem = GuiUtils.MenuItems.strahlerAnalysis();
-		strahlerMenuItem.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null || trees.isEmpty()) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			(new CmdRunner(StrahlerCmd.class, inputs, getState())).execute();
-		});
-		analysisMenu.add(strahlerMenuItem);
-		analysisMenu.addSeparator();
-
-		// Measuring options : All Paths
-		final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
-		measureWithPrompt.addActionListener(e -> {
-			if (noPathsError()) return;
-			getPathManager().measureCells();
-		});
-		analysisMenu.add(measureWithPrompt);
-		analysisMenu.add(measureMenuItem);
-
-		// Utilities
-		utilitiesMenu.add(commandFinder.getMenuItem(false));
-		utilitiesMenu.addSeparator();
-		final JMenuItem compareFiles = new JMenuItem("Compare Reconstructions/Cell Groups...");
-		compareFiles.setToolTipText("Statistical comparisons (t-test/ANOVA) between cell groups " +
-                "or direct comparison between two files");
-		compareFiles.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BINOCULARS));
-		utilitiesMenu.add(compareFiles);
-		compareFiles.addActionListener(e -> {
-			final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
-			final String[] desc = { //
-					"Opens the contents of two reconstruction files in Reconstruction Viewer. "//
-							+ "A statistical summary of each file is displayed on a dedicated table. "//
-							+ "Note that is also possible to compare two files in the legacy 3D Viewer "//
-							+ "('Legacy viewer' widget in the '3D' tab).", //
-					"Compares up to 6 groups of cells. Detailed measurements and comparison plots "//
-							+ "are retrieved for selected metric(s) along statistical reports (two-sample "//
-							+ "t-test/one-way ANOVA). Color-coded montages of analyzed groups can also be "//
-							+ "generated."//
-			};
-			final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
-			final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
-					"Single or Group Comparison?", choices, desc, defChoice);
-			if (choice == null) return;
-			plugin.getPrefs().setTemp("compare", choice);
-			if (choices[0].equals(choice))
-				(new CmdRunner(CompareFilesCmd.class)).execute();
-			else {
-				(new DynamicCmdRunner(GroupAnalyzerCmd.class, null)).run();
-			}
-		});
-		final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
-		utilitiesMenu.add(graphGenerator);
-		graphGenerator.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", tree);
-			(new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
-		});
-		final JMenuItem figureGenerator = GuiUtils.MenuItems.renderQuick();
-		figureGenerator.addActionListener(e -> {
-			if (noPathsError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null || trees.isEmpty()) return;
-			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("trees", trees);
-			(new DynamicCmdRunner(FigCreatorCmd.class, inputs)).run();
-		});
-		utilitiesMenu.add(figureGenerator);
-		utilitiesMenu.add(getRecPlotterMenuItem());
-		// similar to File>Autotrace Segmented Image File... but assuming current image as source,
-		// which does not require file validations etc.
-		utilitiesMenu.addSeparator();
-		final JMenuItem autotraceJMI = new JMenuItem("Autotrace Segmented Image...",
-				IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-		autotraceJMI.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
-		utilitiesMenu.add(autotraceJMI);
-		ScriptRecorder.setRecordingCall(autotraceJMI, "snt.getUI().runAutotracingWizard(false)");
-		autotraceJMI.addActionListener(e -> runAutotracingOnImage(false));
-		// View menu
-		final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
-				IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS2));
-		arrangeDialogsMenuItem.addActionListener(e -> {
-			final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
-			final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
-			if (w == -1 || h == -1) {
-				error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
-				return;
-			}
-			java.awt.Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-			setBounds(bounds.x, bounds.y, w, h);
-			pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, getLocation().y, w, h);
-			fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, getLocation().y);
-			final Window console = GuiUtils.getConsole();
-			if (console != null)
-				console.setBounds(getLocation().x, bounds.height - h / 3, w * 2, h / 3);
-		});
-		viewMenu.add(arrangeDialogsMenuItem);
-		final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
-		arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
-		arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
-		viewMenu.add(arrangeWindowsMenuItem);
-		final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
-		hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
-		final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
-		xyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XY_PLANE, xyCanvasMenuItem));
-		hideViewsMenu.add(xyCanvasMenuItem);
-		final JCheckBoxMenuItem zyCanvasMenuItem = new JCheckBoxMenuItem("Hide ZY View");
-		zyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.ZY_PLANE, zyCanvasMenuItem));
-		hideViewsMenu.add(zyCanvasMenuItem);
-		final JCheckBoxMenuItem xzCanvasMenuItem = new JCheckBoxMenuItem("Hide XZ View");
-		xzCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XZ_PLANE, xzCanvasMenuItem));
-		hideViewsMenu.add(xzCanvasMenuItem);
-		final JCheckBoxMenuItem threeDViewerMenuItem = new JCheckBoxMenuItem("Hide Legacy 3D View");
-		threeDViewerMenuItem.addItemListener(e -> {
-			if (plugin.get3DUniverse() == null || !plugin.use3DViewer) {
-				guiUtils.error("Legacy 3D Viewer is not active.");
-				return;
-			}
-			plugin.get3DUniverse().getWindow().setVisible(e.getStateChange() == ItemEvent.DESELECTED);
-		});
-		hideViewsMenu.add(threeDViewerMenuItem);
-		viewMenu.add(hideViewsMenu);
-		final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
-		showImpMenuItem.addActionListener(e -> {
-			if (noSecondaryDataAvailableError())
-				return;
-			final ImagePlus imp = plugin.getSecondaryDataAsImp();
-			if (imp == null) {
-				guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
-			} else {
-				imp.show();
-			}
-		});
-		viewMenu.add(showImpMenuItem);
-		viewMenu.addSeparator();
-
-		final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.menuIcon(GLYPH.CODE));
-		consoleJMI.addActionListener(e -> {
-			try {
-				final Window console = GuiUtils.getConsole();
-				if (console == null)
-					plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
-				else
-					console.setVisible(!console.isVisible());
-			} catch (final Exception ex) {
-				guiUtils.error(
-						"Could not toggle Fiji's built-in Console. Please use Fiji's Window>Console command directly.");
-				ex.printStackTrace();
-			}
-		});
-		viewMenu.add(consoleJMI);
-		return menuBar;
+		return fileMenu;
 	}
+
+    private JMenu autoTracingMenu() {
+        final JMenu menu = new JMenu("Auto-trace");
+        // Grayscale autotracing
+        final JMenuItem jmiGray = new JMenuItem("Grayscale Image (GWDT)...");
+        jmiGray.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
+        jmiGray.setToolTipText("Runs automated tracing on a grayscale image already open");
+        menu.add(jmiGray);
+        jmiGray.addActionListener(e -> runAutotracingOnImage(GWDTTracerCmd.class));
+        ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
+        // Binary autotracing
+        menu.addSeparator();
+        final JMenuItem jmiBinaryImg = new JMenuItem("Segmented Image...");
+        jmiBinaryImg.setIcon(IconFactory.menuIcon('\ue69b', true));
+        jmiBinaryImg.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
+        jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
+        ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
+        menu.add(jmiBinaryImg);
+        final JMenuItem jmiBinaryFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_IMAGE);
+        jmiBinaryFile.setIcon(IconFactory.menuIcon('\ue69b', true));
+        jmiBinaryFile.setToolTipText("Runs automated tracing by specifying the path to a thresholded/binary image");
+        menu.add(jmiBinaryFile);
+        return menu;
+    }
+
+    private JMenu analysisMenu() {
+        final JMenu analysisMenu = new JMenu("Analysis");
+        analysisMenu.add(getBrainAnnotationMenu());
+        analysisMenu.add(getPathAnalysisMenu());
+        analysisMenu.addSeparator();
+        analysisMenu.add(compareReconstructionsMenuItem());
+        analysisMenu.addSeparator();
+        final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
+        convexHullMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            inputs.put("table", getPathManager().getTable());
+            inputs.put("calledFromRecViewerInstance", false);
+            (new CmdRunner(ConvexHullCmd.class, inputs, getState())).execute();
+        });
+        analysisMenu.add(convexHullMenuItem);
+        final JMenuItem tmdMenuItem = GuiUtils.MenuItems.persistenceAnalysis();
+        tmdMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
+        });
+        analysisMenu.add(tmdMenuItem);
+        final JMenuItem rootAnalysisMenuItem = GuiUtils.MenuItems.rootAngleAnalysis();
+        rootAnalysisMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            (new CmdRunner(RootAngleAnalyzerCmd.class, inputs, getState())).execute();
+        });
+        analysisMenu.add(rootAnalysisMenuItem);
+        final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
+        shollMenuItem.addActionListener(e -> {
+            if (noPathsShollError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null) return;
+            softWarningOnShollPreview();
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("tree", Tree.merge(trees));
+            inputs.put("snt", plugin);
+            new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
+        });
+        analysisMenu.add(shollMenuItem);
+        analysisMenu.add(shollAnalysisHelpMenuItem());
+        final JMenuItem strahlerMenuItem = GuiUtils.MenuItems.strahlerAnalysis();
+        strahlerMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            (new CmdRunner(StrahlerCmd.class, inputs, getState())).execute();
+        });
+        analysisMenu.add(strahlerMenuItem);
+        analysisMenu.addSeparator();
+        analysisMenu.add(utilitiesMenu());
+        analysisMenu.addSeparator();
+
+        // Measuring options : All Paths
+        final JMenuItem measureWithPrompt = GuiUtils.MenuItems.measureOptions();
+        measureWithPrompt.addActionListener(e -> {
+            if (noPathsError()) return;
+            getPathManager().measureCells();
+        });
+        analysisMenu.add(measureWithPrompt);
+        final JMenuItem measureMenuItem = GuiUtils.MenuItems.measureQuick();
+        measureMenuItem.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Tree tree = getPathManager().getSingleTree();
+            if (tree == null) return;
+            try {
+                final TreeStatistics ta = new TreeStatistics(tree);
+                ta.setContext(plugin.getContext());
+                if (ta.getParsedTree().isEmpty()) {
+                    guiUtils.error("None of the selected paths could be measured.");
+                    return;
+                }
+                ta.setTable(pmUI.getTable(), PathManagerUI.TABLE_TITLE);
+                ta.run();
+                ta.dispose();
+            }
+            catch (final IllegalArgumentException ignored) {
+                getPathManager().quickMeasurementsCmdError(guiUtils);
+            }
+        });
+        analysisMenu.add(measureMenuItem);
+        return analysisMenu;
+    }
+
+    private JMenu utilitiesMenu() {
+        final JMenu utilitiesMenu = new JMenu("Utilities");
+        utilitiesMenu.setIcon(IconFactory.menuIcon(GLYPH.TOOL));
+        final JMenuItem graphGenerator = GuiUtils.MenuItems.createDendrogram();
+        utilitiesMenu.add(graphGenerator);
+        graphGenerator.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Tree tree = getPathManager().getSingleTree();
+            if (tree == null) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("tree", tree);
+            (new DynamicCmdRunner(GraphGeneratorCmd.class, inputs)).run();
+        });
+        final JMenuItem figureGenerator = GuiUtils.MenuItems.renderQuick();
+        figureGenerator.addActionListener(e -> {
+            if (noPathsError()) return;
+            final Collection<Tree> trees = getPathManager().getMultipleTrees();
+            if (trees == null || trees.isEmpty()) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            (new DynamicCmdRunner(FigCreatorCmd.class, inputs)).run();
+        });
+        utilitiesMenu.add(figureGenerator);
+        utilitiesMenu.add(getRecPlotterMenuItem());
+        return utilitiesMenu;
+    }
+
+    private JMenuItem compareReconstructionsMenuItem() {
+        final JMenuItem menuItem = new JMenuItem("Compare Arbors/Cell Groups...");
+        menuItem.setToolTipText("Statistical comparisons (t-test/ANOVA) between cell groups " +
+                "or direct comparison between two files");
+        menuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.BINOCULARS));
+        menuItem.addActionListener(e -> {
+            final String[] choices = { "Compare two files", "Compare groups of cells (two or more)" };
+            final String[] desc = { //
+                    "Opens the contents of two reconstruction files in Reconstruction Viewer. "//
+                            + "A statistical summary of each file is displayed on a dedicated table. "//
+                            + "Note that is also possible to compare two files in the legacy 3D Viewer "//
+                            + "('Legacy viewer' widget in the '3D' tab).", //
+                    "Compares up to 6 groups of cells. Detailed measurements and comparison plots "//
+                            + "are retrieved for selected metric(s) along statistical reports (two-sample "//
+                            + "t-test/one-way ANOVA). Color-coded montages of analyzed groups can also be "//
+                            + "generated."//
+            };
+            final String defChoice = plugin.getPrefs().getTemp("compare", choices[1]);
+            final String choice = guiUtils.getChoice("Which kind of comparison would you like to perform?",
+                    "Single or Group Comparison?", choices, desc, defChoice);
+            if (choice == null) return;
+            plugin.getPrefs().setTemp("compare", choice);
+            if (choices[0].equals(choice))
+                (new CmdRunner(CompareFilesCmd.class)).execute();
+            else {
+                (new DynamicCmdRunner(GroupAnalyzerCmd.class, null)).run();
+            }
+        });
+        return menuItem;
+    }
+
+    @SuppressWarnings("deprecated")
+    private JMenu viewMenu() {
+        final JMenu viewMenu = new JMenu("View");
+        final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
+                IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS2));
+        arrangeDialogsMenuItem.addActionListener(e -> {
+            final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
+            final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
+            if (w == -1 || h == -1) {
+                error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
+                return;
+            }
+            java.awt.Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+            setBounds(bounds.x, bounds.y, w, h);
+            pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, getLocation().y, w, h);
+            fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, getLocation().y);
+            final Window console = GuiUtils.getConsole();
+            if (console != null)
+                console.setBounds(getLocation().x, bounds.height - h / 3, w * 2, h / 3);
+        });
+        viewMenu.add(arrangeDialogsMenuItem);
+        final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
+        arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
+        arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
+        viewMenu.add(arrangeWindowsMenuItem);
+        final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
+        hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
+        final JCheckBoxMenuItem xyCanvasMenuItem = new JCheckBoxMenuItem("Hide XY View");
+        xyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XY_PLANE, xyCanvasMenuItem));
+        hideViewsMenu.add(xyCanvasMenuItem);
+        final JCheckBoxMenuItem zyCanvasMenuItem = new JCheckBoxMenuItem("Hide ZY View");
+        zyCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.ZY_PLANE, zyCanvasMenuItem));
+        hideViewsMenu.add(zyCanvasMenuItem);
+        final JCheckBoxMenuItem xzCanvasMenuItem = new JCheckBoxMenuItem("Hide XZ View");
+        xzCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XZ_PLANE, xzCanvasMenuItem));
+        hideViewsMenu.add(xzCanvasMenuItem);
+        final JCheckBoxMenuItem threeDViewerMenuItem = new JCheckBoxMenuItem("Hide Legacy 3D View");
+        threeDViewerMenuItem.addItemListener(e -> {
+            if (plugin.get3DUniverse() == null || !plugin.use3DViewer)
+                guiUtils.error("Legacy 3D Viewer is not active.");
+            else
+                plugin.get3DUniverse().getWindow().setVisible(e.getStateChange() == ItemEvent.DESELECTED);
+        });
+        hideViewsMenu.add(threeDViewerMenuItem);
+        viewMenu.add(hideViewsMenu);
+        final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
+        showImpMenuItem.addActionListener(e -> {
+            if (noSecondaryDataAvailableError())
+                return;
+            final ImagePlus imp = plugin.getSecondaryDataAsImp();
+            if (imp == null) {
+                guiUtils.error("Somehow image could not be created.", "Secondary Image Unavailable?");
+            } else {
+                imp.show();
+            }
+        });
+        viewMenu.add(showImpMenuItem);
+        viewMenu.addSeparator();
+        final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.menuIcon(GLYPH.CODE));
+        consoleJMI.addActionListener(e -> {
+            try {
+                final Window console = GuiUtils.getConsole();
+                if (console == null)
+                    plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
+                else
+                    console.setVisible(!console.isVisible());
+            } catch (final Exception ex) {
+                guiUtils.error(
+                        "Could not toggle Fiji's built-in Console. Please use Fiji's Window>Console command directly.");
+                ex.printStackTrace();
+            }
+        });
+        viewMenu.add(consoleJMI);
+        return viewMenu;
+    }
 
 	private void softWarningOnShollPreview() {
 		if (plugin.getPrefs().getTemp("sholl-prev-nag", true)) {
@@ -3767,7 +3791,7 @@ public class SNTUI extends JDialog {
 		if (plugin.getPrefs().getTemp("autotracing-prompt-armed", true)) {
 			final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
 			boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
-			if (plugin.accessToValidImageData() && plugin.getImagePlus().isVisible() && plugin.getImagePlus().getProcessor().isBinary()) {
+			if (plugin.accessToValidImageData() && plugin.getImagePlus().isVisible() && ImpUtils.isBinary(plugin.getImagePlus())) {
 				if (nag) {
 					final boolean[] options = guiUtils.getPersistentConfirmation(
 							"Image is eligible for fully automated reconstruction. Would you like to attempt it now?",
@@ -3776,17 +3800,16 @@ public class SNTUI extends JDialog {
 					plugin.getPrefs().setTemp("autotracing-nag", !options[1]);
 				}
 				if (run)
-					runAutotracingOnImage(false);
+					runAutotracingOnImage(BinaryTracerCmd.class);
 			}
 		}
 		plugin.getPrefs().setTemp("autotracing-prompt-armed", true);
 	}
 
-	private void runAutotracingOnImage(final boolean simplifyPrompt) {
+	private void runAutotracingOnImage(final Class<? extends CommonDynamicCmd> clazz) {
 		final HashMap<String, Object> inputs = new HashMap<>();
 		inputs.put("useFileChoosers", false);
-		inputs.put("simplifyPrompt", simplifyPrompt);
-		(new DynamicCmdRunner(SkeletonConverterCmd.class, inputs)).run();
+		(new DynamicCmdRunner(clazz, inputs)).run();
 	}
 
 	@SuppressWarnings("unused")
@@ -4686,7 +4709,7 @@ public class SNTUI extends JDialog {
 
 		static String getImportActionName(final int type) {
             return switch (type) {
-                case ImportAction.AUTO_TRACE_IMAGE -> "Autotrace Segmented Image File...";
+                case ImportAction.AUTO_TRACE_IMAGE -> "Segmented Image File...";
                 case ImportAction.SWC_DIR -> "Directory of SWCs...";
                 case ImportAction.SWC -> "SWC...";
                 case ImportAction.IMAGE -> "From File...";
@@ -4702,7 +4725,7 @@ public class SNTUI extends JDialog {
 
 		static int getImportActionType(final String name) {
             return switch (name) {
-                case "Autotrace Segmented Image File..." -> ImportAction.AUTO_TRACE_IMAGE;
+                case "Segmented Image File..." -> ImportAction.AUTO_TRACE_IMAGE;
                 case "Directory of SWCs..." -> ImportAction.SWC_DIR; // backwards compatibility
                 case "e(SWC)...", "SWC..." -> ImportAction.SWC;
                 case "From File..." -> ImportAction.IMAGE;
@@ -5047,7 +5070,7 @@ public class SNTUI extends JDialog {
                         flushSecondaryDataPrompt();
                     }
                     inputs.put("useFileChoosers", true);
-                    (new DynamicCmdRunner(SkeletonConverterCmd.class, inputs, RUNNING_CMD)).run();
+                    (new DynamicCmdRunner(BinaryTracerCmd.class, inputs, RUNNING_CMD)).run();
                 }
                 case DEMO -> {
                     if (plugin.isSecondaryDataAvailable()) {

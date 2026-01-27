@@ -56,14 +56,15 @@ public class BinaryTracerCmd extends CommonDynamicCmd {
 
     public static final String ROI_UNSET = "None. Ignore any ROIs";
     public static final String ROI_CONTAINED = "ROI marks a single root";
-    public static final String ROI_EDGE = "Path(s) branch out from ROI's edge";
-    public static final String ROI_CENTROID = "Path(s) branch out from ROI's simple centroid";
-    public static final String ROI_CENTROID_WEIGHTED = "Path(s) branch out from ROI's weighted centroid";
+    public static final String ROI_EDGE = "Path(s) branch out from ROI edge";
+    public static final String ROI_CENTROID = "Path(s) branch out from ROI simple centroid";
+    public static final String ROI_CENTROID_WEIGHTED = "Path(s) branch out from ROI weighted centroid";
     private static final String IMG_NONE = "None";
     private static final String IMG_UNAVAILABLE_CHOICE = "No other image open";
     private static final String IMG_TRACED_CHOICE = "Image being traced";
     private static final String IMG_TRACED_DUP_CHOICE = "Image being traced (duplicate)";
     private static final String IMG_TRACED_SEC_LAYER_CHOICE = "Secondary image layer";
+
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private final String msg1 = "<HTML>This command attempts to automatically reconstruct a pre-processed<br>" //
             + "image in which background pixels have been zeroed. Result can be<br>"
@@ -189,7 +190,7 @@ public class BinaryTracerCmd extends CommonDynamicCmd {
     @Parameter(required = false, persist = false)
     private boolean useFileChoosers;
     @Parameter(required = false, persist = false)
-    private boolean simplifyPrompt;
+    private boolean headless;
 
     private HashMap<String, ImagePlus> impMap;
     private ImagePlus chosenMaskImp;
@@ -199,32 +200,8 @@ public class BinaryTracerCmd extends CommonDynamicCmd {
     @SuppressWarnings("unused")
     private void init() {
         super.init(true);
-
-        if (simplifyPrompt) { // adopt sensible defaults
-            resolveInput("HEADER1");
-            resolveInput("maskImgFileChoice");
-            resolveInput("originalImgFileChoice");
-            resolveInput("maskImgChoice");
-            resolveInput("originalImgChoice");
-            resolveInput("useFileChoosers");
-            resolveInput("roiPlane");
-            resolveInput("cullSingleNodePaths");
-            resolveInput("clearExisting");
-            resolveInput("assignDistinctColors");
-            useFileChoosers = false;
-            maskImgChoice = IMG_TRACED_DUP_CHOICE;
-            final MutableModuleItem<String> rootChoiceItem = getInfo().getMutableInput("rootChoice", String.class);
-            rootChoiceItem.setValue(this, ROI_EDGE); // mostly likely to succeed (assuming a ROI exists)
-            connectComponents = true;
-            maxConnectDist = 5d; // hopefully 5 microns
-            pruneByLength = true;
-            lengthThreshold = 1d;
-            cullSingleNodePaths = true;
-            clearExisting = false;
-            assignDistinctColors = true;
-            editMode = false;
-
-        } else if (useFileChoosers) { // disable choice widgets. Use file choosers
+        resolveInput("headless");
+       if (useFileChoosers) { // disable choice widgets. Use file choosers
 
             resolveInput("simplifyPrompt");
             resolveInput("maskImgChoice");
@@ -280,8 +257,10 @@ public class BinaryTracerCmd extends CommonDynamicCmd {
             maskImgChoiceItem.setChoices(maskChoices);
             originalImgChoiceItem.setChoices(originalChoices);
         }
-
-        debugMode = SNTUtils.isDebugMode();
+        if (headless) {
+            debugMode = debugMode || SNTUtils.isDebugMode();
+            resolveAllInputs();
+        }
     }
 
     @SuppressWarnings("unused")
@@ -579,16 +558,11 @@ public class BinaryTracerCmd extends CommonDynamicCmd {
                 pafm.clear();
             }
             if (assignDistinctColors) {
-                trees.forEach(tree -> {
-                    final ColorRGB[] colors = SNTColor.getDistinctColors(tree.size());
-                    int idx = 0;
-                    for (final Path p : tree.list())
-                        p.setColor(colors[idx++]);
-                });
+                trees.forEach(tree -> TreeUtils.assignUniqueColors(tree, "dim"));
             } else {
                 TreeUtils.assignUniqueColors(trees);
             }
-            trees.forEach(tree -> pafm.addTree(tree, "Autotraced"));
+            pafm.addTrees(trees, "BinaryTracer");
             if (trees.size() > 1)
                 ui.getPathManager().applyDefaultTags("Arbor ID");
 

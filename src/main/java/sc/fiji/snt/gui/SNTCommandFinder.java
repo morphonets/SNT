@@ -500,6 +500,7 @@ public class SNTCommandFinder {
             final JButton button = new JButton(getAction());
             button.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
             button.setText(null);
+            button.setFocusable(false);
             GuiUtils.Buttons.makeBorderless(button);
             button.setToolTipText(NAME + "  " + getAcceleratorString());
             return button;
