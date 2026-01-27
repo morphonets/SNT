@@ -250,16 +250,7 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     protected Calibration assignSpatialSettings(final Dataset dataset) {
-        final int zIdx = dataset.dimensionIndex(Axes.Z);
-        return assignSpatialSettingsInternal(
-                dataset.averageScale(0),
-                dataset.averageScale(1),
-                zIdx > -1 ? dataset.averageScale(zIdx) : 1.0,
-                dataset.axis(0).unit(),
-                dataset.dimension(Axes.X),
-                dataset.dimension(Axes.Y),
-                zIdx > -1 ? dataset.dimension(Axes.Z) : 1
-        );
+        return assignSpatialSettings(dataset.getImgPlus());
     }
 
     protected Calibration assignSpatialSettings(final ImgPlus<?> imgPlus) {

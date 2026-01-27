@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import net.imagej.Dataset;
+import net.imagej.ImgPlus;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.ColorRGBA;
 
@@ -1706,17 +1707,26 @@ public class Tree implements TreeProperties, Cloneable {
 	 * @param dataset the Dataset providing the spatial calibration. Null allowed.
 	 */
 	public void assignImage(final Dataset dataset) {
-		initPathAndFillManager();
-		Calibration cal;
-		if (dataset == null) {
-			pafm.resetSpatialSettings(true);
-			cal = new Calibration();
-		} else {
-			cal = pafm.assignSpatialSettings(dataset);
-		}
-		list().forEach(path -> path.setSpacing(cal));
-		getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
+        assignImage(dataset.getImgPlus());
 	}
+
+    /**
+     * Assigns spatial calibration from an ImgPlus to this Tree.
+     *
+     * @param imgPlus the ImgPlus providing the spatial calibration. Null allowed.
+     */
+    public void assignImage(final ImgPlus<?> imgPlus) {
+        initPathAndFillManager();
+        Calibration cal;
+        if (imgPlus == null) {
+            pafm.resetSpatialSettings(true);
+            cal = new Calibration();
+        } else {
+            cal = pafm.assignSpatialSettings(imgPlus);
+        }
+        list().forEach(path -> path.setSpacing(cal));
+        getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
+    }
 
 	/**
 	 * Swaps the coordinates of two axes in this Tree.

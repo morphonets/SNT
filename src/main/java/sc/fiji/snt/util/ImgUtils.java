@@ -38,15 +38,19 @@ import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
+import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import org.scijava.Context;
+import org.scijava.io.IOService;
+import sc.fiji.snt.SNTUtils;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Static utilities for handling and manipulation of {@link RandomAccessibleInterval}s
@@ -1000,6 +1004,82 @@ public class ImgUtils {
     }
 
     /**
+     * Wraps a RandomAccessibleInterval as an ImgPlus with calibrated axes.
+     * <p>
+     * Creates an ImgPlus with proper spatial axis metadata (X, Y, Z) and the
+     * specified voxel spacing. This is useful when working with RAIs that lack
+     * calibration metadata.
+     * </p>
+     *
+     * @param rai     the source image
+     * @param spacing voxel spacing for each dimension (e.g., [x, y] or [x, y, z]).
+     *                If null, defaults to 1.0 for all dimensions. If shorter than
+     *                the number of dimensions, missing values default to 1.0.
+     *                If longer, extra values are ignored (with warning logged).
+     * @param unit    the spatial unit (e.g., "µm", "mm"), or null for no unit
+     * @return an ImgPlus with calibrated spatial axes
+     * @throws IllegalArgumentException if rai is null or any spacing value is not positive
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static ImgPlus<?> wrapWithSpacing(
+            final RandomAccessibleInterval<?> rai, final double[] spacing, final String unit) {
+
+        if (rai == null) {
+            throw new IllegalArgumentException("Source image cannot be null");
+        }
+
+        final int nDims = rai.numDimensions();
+
+        // Validate and build spacing array
+        final double[] validatedSpacing = new double[nDims];
+        for (int d = 0; d < nDims; d++) {
+            if (spacing == null || d >= spacing.length) {
+                validatedSpacing[d] = 1.0;
+            } else if (spacing[d] <= 0) {
+                throw new IllegalArgumentException(
+                        "Invalid spacing[" + d + "]=" + spacing[d] + ". Spacing must be positive.");
+            } else {
+                validatedSpacing[d] = spacing[d];
+            }
+        }
+
+        // Log dimension mismatch
+        if (spacing != null && spacing.length != nDims) {
+            SNTUtils.warn("ImgUtils.wrapWithSpacing: Spacing length (" + spacing.length +
+                    ") != image dimensions (" + nDims + "). Using: " + Arrays.toString(validatedSpacing));
+        }
+
+        // Wrap RAI as Img if needed - use raw types to avoid generic binding issues
+        final Img img = (rai instanceof Img) ? (Img) rai : ImgView.wrap((RandomAccessibleInterval) rai);
+        final ImgPlus result = new ImgPlus(img);
+
+        // Create calibrated axes (X, Y, Z order for spatial dimensions)
+        final AxisType[] defaultAxes = {Axes.X, Axes.Y, Axes.Z, Axes.TIME, Axes.CHANNEL};
+        for (int d = 0; d < nDims; d++) {
+            final AxisType axisType = (d < defaultAxes.length) ? defaultAxes[d] : Axes.unknown();
+            final DefaultLinearAxis axis = (unit != null && !unit.isEmpty())
+                    ? new DefaultLinearAxis(axisType, unit, validatedSpacing[d], 0.0)
+                    : new DefaultLinearAxis(axisType, validatedSpacing[d], 0.0);
+            result.setAxis(axis, d);
+        }
+
+        return result;
+    }
+
+    /**
+     * Wraps a RandomAccessibleInterval as an ImgPlus with calibrated axes (no unit).
+     *
+     * @param rai     the source image
+     * @param spacing voxel spacing for each dimension
+     * @return an ImgPlus with calibrated spatial axes
+     * @throws IllegalArgumentException if rai is null or any spacing value is not positive
+     * @see #wrapWithSpacing(RandomAccessibleInterval, double[], String)
+     */
+    public static ImgPlus<?> wrapWithSpacing(final RandomAccessibleInterval<?> rai, final double[] spacing) {
+        return wrapWithSpacing(rai, spacing, null);
+    }
+
+    /**
      * Computes the mean intensity of an image.
      *
      * @param source the input image
@@ -1046,6 +1126,131 @@ public class ImgUtils {
                 count > 0 ? max : 0,
                 count > 0 ? sum / count : 0
         };
+    }
+
+    /**
+     * Computes an approximate percentile by random sampling.
+     *
+     * @param source     the input image
+     * @param percentile the percentile to compute (0-100)
+     * @return the approximate percentile value
+     */
+    public static double computePercentile(final RandomAccessibleInterval<? extends RealType<?>> source,
+                                            final double percentile) {
+
+        final long totalPixels = source.size();
+        final int maxSamples = 100_000;
+        final double sampleRate = Math.min(1.0, (double) maxSamples / totalPixels);
+
+        final List<Double> samples = new ArrayList<>();
+        final Random rand = new Random(42);  // Fixed seed for reproducibility
+
+        final Cursor<? extends RealType<?>> cursor = Views.iterable(source).cursor();
+        while (cursor.hasNext()) {
+            cursor.fwd();
+            if (sampleRate >= 1.0 || rand.nextDouble() < sampleRate) {
+                samples.add(cursor.get().getRealDouble());
+            }
+        }
+
+        if (samples.isEmpty()) {
+            return 0;
+        }
+
+        Collections.sort(samples);
+        final int index = (int) Math.round((percentile / 100.0) * (samples.size() - 1));
+        return samples.get(Math.min(index, samples.size() - 1));
+    }
+
+    public static boolean isBinary(final RandomAccessibleInterval<?> rai) {
+        if (rai == null || rai.size() == 0) return false;
+        // Instant check for BitType
+        if (rai.firstElement() instanceof BitType) return true;
+        // Early exit on 3rd unique value
+        final Set<Double> unique = new HashSet<>(4);
+        for (final Object pixel : Views.flatIterable(rai)) {
+            if (pixel instanceof RealType) {
+                unique.add(((RealType<?>) pixel).getRealDouble());
+                if (unique.size() > 2) return false;  // Early exit
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Opens an image file as an ImgPlus.
+     * <p>
+     * Supports various formats through SCIFIO (TIFF, PNG, JPEG, etc.) and
+     * Bio-Formats if available. URLs are also supported.
+     * </p>
+     *
+     * @param filePathOrUrl path to the file or URL
+     * @return the opened image as ImgPlus, or null if opening fails
+     * @throws IllegalArgumentException if filePathOrUrl is null or empty
+     */
+    public static ImgPlus<?> open(final String filePathOrUrl) {
+        if (filePathOrUrl == null || filePathOrUrl.isEmpty()) {
+            throw new IllegalArgumentException("File path or URL cannot be null or empty");
+        }
+
+        try {
+            final Context context = SNTUtils.getContext();
+            final IOService io = context.getService(IOService.class);
+            if (io == null)
+                throw new IllegalStateException("IOService not available");
+
+            final Object opened = io.open(filePathOrUrl);
+            if (opened instanceof Dataset) {
+                return ((Dataset) opened).getImgPlus();
+            } else if (opened instanceof ImgPlus) {
+                return (ImgPlus<?>) opened;
+            } else if (opened instanceof Img) {
+                return new ImgPlus<>((Img<?>) opened);
+            } else if (opened != null) {
+                throw new IllegalArgumentException("Unsupported type returned: " + opened.getClass().getName());
+            }
+            return null;
+
+        } catch (final IOException e) {
+            SNTUtils.error("[ERROR] Failed to open: " + filePathOrUrl, e);
+            return null;
+        }
+    }
+
+    /**
+     * Opens an image file as an ImgPlus.
+     *
+     * @param file the file to open
+     * @return the opened image as ImgPlus, or null if opening fails
+     * @throws IllegalArgumentException if file is null
+     */
+    public static ImgPlus<?> open(final File file) {
+        if (file == null)
+            throw new IllegalArgumentException("File cannot be null");
+        return open(file.getAbsolutePath());
+    }
+
+    /**
+     * Checks if an ImgPlus contains packed RGB data (ARGBType).
+     *
+     * @param img the image to check
+     * @return true if the image uses ARGBType pixels
+     */
+    public static boolean isRGB(final ImgPlus<?> img) {
+        if (img == null || img.size() == 0) return false;
+        return img.firstElement() instanceof net.imglib2.type.numeric.ARGBType;
+    }
+
+    /**
+     * Checks if an ImgPlus appears to be a multi-channel RGB image
+     * (3 channels of 8-bit data, not packed ARGB).
+     */
+    public static boolean isMultiChannelRGB(final ImgPlus<?> img) {
+        if (img == null) return false;
+        final int channelDim = img.dimensionIndex(Axes.CHANNEL);
+        if (channelDim < 0) return false;
+        return img.dimension(channelDim) == 3
+                && img.firstElement() instanceof net.imglib2.type.numeric.integer.UnsignedByteType;
     }
 
     /**

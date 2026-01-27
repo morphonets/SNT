@@ -91,6 +91,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     private boolean resampleEnabled = true;  // APP2's b_resample (default: true)
     private double resampleStep = 2.0;  // Resample step in voxels (APP2 uses ~10 for large images)
     private int cnnType = 2;  // APP2's cnn_type: 1=6-conn, 2=18-conn (default), 3=26-conn
+    private boolean allowGap = false;  // APP2's is_break_accept: bridge single dark voxels
 
     // Computed data
     private Img<DoubleType> gwdtImage;
@@ -108,12 +109,34 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      * @param spacing voxel dimensions [x, y, z] in physical units
      */
     public GWDTTracer(final RandomAccessibleInterval<T> source, final double[] spacing) {
+        if (source == null) {
+            throw new IllegalArgumentException("Source image cannot be null");
+        }
         this.source = source;
-        this.spacing = spacing.clone();
         this.dims = Intervals.dimensionsAsLongArray(source);
         this.minBounds = Intervals.minAsLongArray(source);
         this.maxBounds = Intervals.maxAsLongArray(source);
-        computeIntensityRange(); // Compute intensity range for GI normalization
+
+        // Match spacing to source dimensions
+        final int nDims = source.numDimensions();
+        this.spacing = new double[nDims];
+        for (int d = 0; d < nDims; d++) {
+            if (spacing == null || d >= spacing.length) {
+                this.spacing[d] = 1.0;
+            } else if (spacing[d] <= 0) {
+                throw new IllegalArgumentException(
+                        "Invalid spacing[" + d + "]=" + spacing[d] + ". Spacing must be positive.");
+            } else {
+                this.spacing[d] = spacing[d];
+            }
+        }
+
+        // Log dimension mismatches
+        if (spacing != null && spacing.length != nDims) {
+            log("Spacing length (" + spacing.length + ") != source dimensions (" + nDims +
+                    "). Using: " + Arrays.toString(this.spacing));
+        }
+        computeIntensityRange();
     }
 
     /**
@@ -253,16 +276,51 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
 
     /**
      * Sets the connectivity type for Fast Marching.
+     * <p>
+     * <b>3D images:</b>
      * <ul>
-     * <li>1 = 6-connectivity (face neighbors only)</li>
-     * <li>2 = 18-connectivity (face + edge neighbors) - default</li>
-     * <li>3 = 26-connectivity (face + edge + corner neighbors)</li>
+     *   <li>1 = 6-connectivity (face neighbors)</li>
+     *   <li>2 = 18-connectivity (face + edge neighbors) - default</li>
+     *   <li>3 = 26-connectivity (face + edge + corner neighbors)</li>
+     * </ul>
+     * <b>2D images:</b>
+     * <ul>
+     *   <li>1 = 4-connectivity (edge neighbors)</li>
+     *   <li>2, 3 = 8-connectivity (edge + corner neighbors)</li>
      * </ul>
      *
      * @param type connectivity type (1, 2, or 3)
      */
     public void setConnectivityType(final int type) {
         this.cnnType = Math.max(1, Math.min(3, type));
+    }
+
+    /**
+     * Sets whether to allow bridging small intensity gaps.
+     * <p>
+     * When enabled, fast marching can cross a single dark voxel to connect
+     * broken neurites. The crossing is only allowed if the current voxel is
+     * above threshold (i.e., we can step from bright → dark → bright, but not
+     * dark → dark).
+     * </p>
+     * <p>
+     * This is useful for images with fragmented signals or small imaging
+     * artifacts, but may falsely connect separate structures.
+     * </p>
+     *
+     * @param allow true to allow crossing single dark voxels (default: false)
+     */
+    public void setAllowGap(final boolean allow) {
+        this.allowGap = allow;
+    }
+
+    /**
+     * Returns whether gap bridging is enabled.
+     *
+     * @return true if single dark voxels can be crossed during tracing
+     */
+    public boolean isAllowGap() {
+        return allowGap;
     }
 
     /**
@@ -287,6 +345,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
         for (int d = 0; d < nDims; d++) {
             this.seedVoxel[d] = Math.round(physicalCoords[d] / spacing[d]);
         }
+        log("Seed voxel: " + Arrays.toString(seedVoxel));
     }
 
     /**
@@ -365,9 +424,20 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      */
     public List<Tree> traceTrees() {
         final DirectedWeightedGraph graph = traceToGraph();
-        if (graph == null || graph.vertexSet().isEmpty()) {
+        if (graph == null || graph.vertexSet().size() < 2) {
+            log("Tracing failed: No meaningful vertices exist");
             return Collections.emptyList();
         }
+        final List<Tree> trees = tracedTrees(graph);
+        if (verbose) {
+            int totalPaths = 0;
+            for (final Tree t : trees) totalPaths += t.size();
+            log(String.format("Traced %d tree(s) with %d path(s)", trees.size(), totalPaths));
+        }
+        return trees;
+    }
+
+    private List<Tree> tracedTrees(final DirectedWeightedGraph graph) {
 
         // Use APP2-style segment ordering for proper path organization
         // This ensures main trunk is a single path (root → furthest tip)
@@ -402,7 +472,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
 
         // Step 1: Compute or retrieve threshold
         final double threshold = getEffectiveThreshold();
-        log("Using threshold: " + threshold);
+        log("Threshold: " + threshold);
         log("Intensity range for GI: [" + minIntensity + ", " + maxIntensity + "]");
         log("Connectivity type: " + cnnType + " (" +
                 (cnnType == 1 ? "6-conn" : cnnType == 2 ? "18-conn" : "26-conn") + ")");
@@ -472,7 +542,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      * @param windowSize the smoothing window (default 5: 2 neighbors on each side)
      */
     private void smoothCurve(final DirectedWeightedGraph graph, final int windowSize) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         // Find all branch points (nodes with multiple children)
@@ -605,7 +675,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      * Keeps branch points and endpoints, removes intermediate points that are too close.
      */
     private void resampleCurve(final DirectedWeightedGraph graph, final double stepSize) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         // Convert step size from voxels to physical units
@@ -719,7 +789,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      * </p>
      */
     private Tree buildTreeWithSegmentOrdering(final DirectedWeightedGraph graph) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return graph.getTree();
 
         // Step 1: Compute ownership - which leaf "owns" each node
@@ -1208,14 +1278,22 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
             stateRA.setPosition(neighborPos);
             if (stateRA.get().get() == ALIVE) return;
 
-            // Check if foreground
+            // Get intensities for threshold check and cost computation
             srcRA.setPosition(neighborPos);
             final double neighborIntensity = srcRA.get().getRealDouble();
-            if (neighborIntensity <= threshold) return;
-
-            // APP2 cost model: GI = exp(li * (1 - normalized_intensity)^2)
             srcRA.setPosition(pos);
             final double currentIntensity = srcRA.get().getRealDouble();
+
+            // APP2's is_break_accept logic:
+            // - If allowGap: skip only if BOTH current AND neighbor are dark
+            // - Otherwise: skip if neighbor is dark
+            if (allowGap) {
+                if (neighborIntensity <= threshold && currentIntensity <= threshold) return;
+            } else {
+                if (neighborIntensity <= threshold) return;
+            }
+
+            // APP2 cost model: GI = exp(li * (1 - normalized_intensity)^2)
 
             // Normalize intensities
             final double li = 10.0;
@@ -1266,7 +1344,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
             }
             if (isCenter) return;
 
-            // APP2 connectivity filter
+            // connectivity filter 2D and 3D (the offset is the Manhattan distance)
             if (offset > cnnType) return;
 
             consumer.accept(Math.sqrt(euclideanDistSq));
@@ -1505,7 +1583,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      * - Delete if >= 20% of nodes are dark (intensity <= threshold)
      */
     private void darkNodeAndSegmentPruning(final DirectedWeightedGraph graph) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         final RandomAccess<T> srcRA = source.randomAccess();
@@ -1652,7 +1730,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      * </p>
      */
     private void hierarchicalPrune(final DirectedWeightedGraph graph) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         // APP2 uses intensity-based length: sum of (intensity / maxIntensity)
@@ -2005,7 +2083,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      */
     private void pruneDarkTerminalBranches(final DirectedWeightedGraph graph,
                                            final double bkgThreshold) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         // APP2 uses background threshold directly (NOT max(40, bkg_thresh) which is only for radius)
@@ -2111,7 +2189,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
      */
     private void pruneShortTerminalBranches(final DirectedWeightedGraph graph,
                                             final double minBranchLength) {
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         final RandomAccess<? extends RealType<?>> ra = source.randomAccess();
@@ -2199,7 +2277,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     private void leafNodePruning(final DirectedWeightedGraph graph) {
         log("Performing leaf node pruning...");
 
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         final RandomAccess<T> srcRA = source.randomAccess();
@@ -2300,7 +2378,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     private void jointLeafPruning(final DirectedWeightedGraph graph) {
         log("Performing APP2-style joint leaf pruning...");
 
-        final SWCPoint root = findRoot(graph);
+        final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         // Get image access for intensity lookup
@@ -2498,19 +2576,7 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
     }
 
     private double getEffectiveThreshold() {
-        if (backgroundThreshold >= 0) {
-            return backgroundThreshold;
-        }
-        // Auto-compute as mean intensity
-        double sum = 0;
-        long count = 0;
-        final Cursor<T> cursor = Views.flatIterable(source).cursor();
-        while (cursor.hasNext()) {
-            cursor.fwd();
-            sum += cursor.get().getRealDouble();
-            count++;
-        }
-        return count > 0 ? sum / count : 0;
+        return (backgroundThreshold >= 0) ? backgroundThreshold : estimateBackgroundThreshold(source);
     }
 
     private long posToIndex(final long[] pos) {
@@ -2606,6 +2672,16 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
 
     private record FastMarchingResult(Img<DoubleType> distances, Img<IntType> parents, Img<ByteType> state,
                                       int nodeCount, long seedIdx) {
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static GWDTTracer<?> create(final ImgPlus<?> source) {
+        return new GWDTTracer(source);
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    public static GWDTTracer<?> create(final ImagePlus source) {
+        return new GWDTTracer(source);
     }
 
     public static void main(String[] args) {

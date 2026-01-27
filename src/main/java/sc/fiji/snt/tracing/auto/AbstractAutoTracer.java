@@ -290,6 +290,26 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     }
 
     /**
+     * Estimates background threshold using combined range and percentile heuristics.
+     * <p>
+     * Averages two estimates:
+     * <ul>
+     *   <li>5% into intensity range (robust to camera offset)</li>
+     *   <li>90th percentile (robust to signal density)</li>
+     * </ul>
+     *
+     * @param source the input image
+     * @return estimated background threshold
+     */
+    protected static double estimateBackgroundThreshold(final RandomAccessibleInterval<? extends RealType<?>> source) {
+        // Use the mean of 5% into range, 90th percentile
+        final double[] stats = ImgUtils.computeIntensityStats(source);
+        final double rangeBasedThreshold = stats[0] + 0.05 * (stats[1] - stats[0]);
+        final double percentileThreshold = ImgUtils.computePercentile(source, 90);
+        return(rangeBasedThreshold + percentileThreshold) / 2;
+    }
+
+    /**
      * Computes Otsu's threshold using ImageJ Ops.
      * <p>
      * Otsu's method finds the threshold that minimizes intra-class variance
