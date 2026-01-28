@@ -363,7 +363,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 "  <li>Link the two highlighted nodes by pressing 'C' (<u>C</u>onnect To... command)</li>" +
                 "</ol>NB:<ol>" +
                 "  <li>The direction of merge matters and it is assumed to be always from parent to child. " +
-                "If child path is oriented in the wrong direction (i.e., moving “towards” its parent at the point " +
+                "If child path is oriented in the wrong direction (i.e., moving \"towards\" its parent at the point " +
                 "of merge), it will re-oriented so that single root connectivity is maintained</li>" +
                 "  <li>Loop-forming connections are not allowed</li>" +
                 "  <li>To concatenate or combine paths, use the respective commands in Path Manager's Edit menu</li>" +
@@ -469,24 +469,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
             return;
         }
         tracerPlugin.startSholl(centerScaled);
-    }
-
-    /** @deprecated */
-    protected void selectNearestPathToMousePointerOld(
-            final boolean addToExistingSelection)
-    {
-        if (pathAndFillManager.size() == 0) {
-            getGuiUtils().tempMsg("Nothing to select: There are no traced paths");
-            return;
-        }
-        final NearPoint nearPoint = getNearPointToMousePointer();
-        if (nearPoint == null) {
-            getGuiUtils().tempMsg("No selectable paths in view");
-        }
-        else {
-            tracerPlugin.selectPath(nearPoint.getPath(), addToExistingSelection);
-            getGuiUtils().tempMsg(getShortName(nearPoint.getPath())+ " selected");
-        }
     }
 
     public void selectNearestPathToMousePointer(final boolean addToExistingSelection) {
@@ -1248,8 +1230,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 edPath.setName(edPath.getName() + "{" + tags + "}");
             }
             redrawEditingPath(String.format("Node #%d tagged", edNode));
-            if (tracerPlugin.ui != null)
-                tracerPlugin.ui.getPathManager().update(true);
+            if (tracerPlugin.getUI() != null)
+                tracerPlugin.getUI().getPathManager().update(true);
             tracerPlugin.getPrefs().setTemp("editNodeColor", Integer.toString(chosen.getRGB()));
         }
     }

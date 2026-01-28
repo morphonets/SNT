@@ -1254,6 +1254,20 @@ public class ImgUtils {
     }
 
     /**
+     * Extracts spacing units from an ImgPlus.
+     *
+     * @param img the image
+     * @return the unit string (e.g., "µm"), or null if not calibrated
+     */
+    public static String getSpacingUnits(final ImgPlus<?> img) {
+        if (img == null || img.numDimensions() == 0) {
+            return null;
+        }
+        final CalibratedAxis axis = img.axis(0);
+        return axis != null ? axis.unit() : null;
+    }
+
+    /**
      * Result of a channel/time slice extraction from an {@link ImgPlus}.
      *
      * @param <T>          pixel type

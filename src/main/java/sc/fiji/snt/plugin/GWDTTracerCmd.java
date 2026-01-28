@@ -269,7 +269,7 @@ public class GWDTTracerCmd extends CommonDynamicCmd {
             }
         } else {
             final boolean secLayer = !imgChoice.startsWith(IMG_TRACED_CHOICE);
-            chosenImp = getImgPlusFromSNT(secLayer);
+            chosenImp = snt.getLoadedDataAsImg(secLayer);
             if (chosenImp == null) {
                 if (secLayer)
                     error("No secondary image has been defined. Please create or load one first.");
@@ -279,13 +279,6 @@ public class GWDTTracerCmd extends CommonDynamicCmd {
             }
         }
         return (binaryImgError(chosenImp)) ? null : chosenImp;
-    }
-
-    private ImgPlus<?> getImgPlusFromSNT(final boolean secondaryLayer) {
-        final RandomAccessibleInterval<?> loadedData = (secondaryLayer) ? snt.getSecondaryData() : snt.getLoadedData();
-        return (loadedData == null) ? null :
-                ImgUtils.wrapWithSpacing(loadedData,
-                        new double[]{snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()}, snt.getSpacingUnits());
     }
 
     @Override

@@ -54,7 +54,6 @@ import sc.fiji.snt.io.FlyCircuitLoader;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
-import sc.fiji.snt.tracing.cost.OneMinusErf;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.viewer.Bvv;
@@ -72,7 +71,9 @@ import java.util.List;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 /**
@@ -189,7 +190,6 @@ public class SNTUI extends JDialog {
 	protected boolean finishOnDoubleConfimation = true;
 	protected boolean discardOnDoubleCancellation = true;
 	protected boolean askUserConfirmation = true;
-	private boolean openingSciView;
 	private SigmaPaletteListener sigmaPaletteListener;
 	private ScriptRecorder recorder;
 
@@ -682,10 +682,6 @@ public class SNTUI extends JDialog {
      * @see GWDTTracerCmd
      */
     public void runAutotracingWizard() {
-        if (!plugin.accessToValidImageData()) {
-            SwingUtilities.invokeLater(this::noValidImageDataError);
-            return;
-        }
         final boolean isBinary = ImpUtils.isBinary(plugin.getImagePlus()) || ImgUtils.isBinary(plugin.getLoadedData());
         SwingUtilities.invokeLater(() -> runAutotracingOnImage((isBinary) ? BinaryTracerCmd.class : GWDTTracerCmd.class));
     }
@@ -741,14 +737,19 @@ public class SNTUI extends JDialog {
 		final Object syncObject = new Object();
 		inputs.put("syncObject", syncObject);
 		(new DynamicCmdRunner(ComputeSecondaryImg.class, inputs, RUNNING_CMD)).run();
-		synchronized (syncObject) {
-			try {
-				// block this thread until ComputeSecondaryImg calls syncObject.notify()
-				syncObject.wait();
-			} catch (final InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
+        final CountDownLatch latch = new CountDownLatch(1);
+        inputs.put("latch", latch);
+        (new DynamicCmdRunner(ComputeSecondaryImg.class, inputs, RUNNING_CMD)).run();
+        try {
+            // Block this thread until ComputeSecondaryImg calls latch.countDown()
+            // Timeout after 5 minutes to prevent infinite blocking
+            if (!latch.await(5, TimeUnit.MINUTES)) {
+                SNTUtils.error("Secondary image computation timed out after 5 minutes.");
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt(); // Restore interrupt status
+            SNTUtils.error("Secondary image computation was interrupted.");
+        }
 	}
 
 	private void updateStatusText(final String newStatus, final boolean includeStatusBar) {
@@ -2314,23 +2315,56 @@ public class SNTUI extends JDialog {
 		openSciView.addActionListener(e -> {
 			if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
 				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-				cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
-				return;
-			}
-			if (openingSciView && sciViewSNT != null) {
-				openingSciView = false;
-			}
-			try {
-				if (!openingSciView && sciViewSNT == null
-						|| (sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed())) {
-					openingSciView = true;
-					new Thread(() -> new SciViewSNT(plugin).getSciView()).start();
-				}
-			} catch (final Throwable exc) {
-				exc.printStackTrace();
-                no3DCapabilitiesError("sciview");
-			}
-		});
+                cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
+                return;
+            }
+
+            // Use SwingWorker pattern like RecWorker for thread safety
+            class SciViewWorker extends SwingWorker<Boolean, Object> {
+
+                private SciViewSNT newSciViewSNT;
+
+                @Override
+                protected Boolean doInBackground() {
+                    try {
+                        newSciViewSNT = new SciViewSNT(plugin);
+                        newSciViewSNT.getSciView(); // This blocks until sciview is ready
+                        if (pathAndFillManager.size() > 0) {
+                            newSciViewSNT.syncPathManagerList();
+                        }
+                        return true;
+                    } catch (final NoClassDefFoundError | RuntimeException exc) {
+                        exc.printStackTrace();
+                        return false;
+                    }
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        if (get()) {
+                            sciViewSNT = newSciViewSNT;
+                        } else {
+                            no3DCapabilitiesError("sciview");
+                        }
+                    } catch (final InterruptedException | ExecutionException ex) {
+                        guiUtils.error("Unfortunately an error occurred. See Console for details.");
+                        ex.printStackTrace();
+                    } catch (final CancellationException ignored) {
+                        // User cancelled, do nothing
+                    } finally {
+                        setSciViewSNT(sciViewSNT);
+                    }
+                }
+            }
+
+            // Only open if not already open
+            if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
+                openSciView.setEnabled(false); // Disable button while loading
+                showStatus("Opening sciview. Please wait...", true);
+                new SciViewWorker().execute();
+            }
+        });
 
 		svSyncPathManager = viewerPanelBuilder.createSyncButton("Sync sciview");
 		svSyncPathManager.addActionListener(e -> {
@@ -2743,7 +2777,6 @@ public class SNTUI extends JDialog {
 
 	}
 
-    @SuppressWarnings("deprecation")
     private JMenuBar createMenuBar() {
         final JMenuBar menuBar = new JMenuBar();
         final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), SNTUI.this);
@@ -3807,27 +3840,13 @@ public class SNTUI extends JDialog {
 	}
 
 	private void runAutotracingOnImage(final Class<? extends CommonDynamicCmd> clazz) {
+        if (!plugin.accessToValidImageData()) {
+            SwingUtilities.invokeLater( (clazz == GWDTTracerCmd.class) ? this::noValidImageDataErrorExtended : this::noValidImageDataError);
+            return;
+        }
 		final HashMap<String, Object> inputs = new HashMap<>();
 		inputs.put("useFileChoosers", false);
 		(new DynamicCmdRunner(clazz, inputs)).run();
-	}
-
-	@SuppressWarnings("unused")
-	private Double getZFudgeFromUser() {
-		final double defaultValue = new OneMinusErf(0,0,0).getZFudge();
-		final String promptMsg = "Enter multiplier for intensity z-score. "//
-				+ "Values < 1 make it easier to numerically distinguish bright voxels. "//
-				+ "The current default is "//
-				+ SNTUtils.formatDouble(defaultValue, 2) + ".";
-		final Double fudge = guiUtils.getDouble(promptMsg, "Z-score fudge", defaultValue);
-		if (fudge == null) {
-			return null; // user pressed cancel
-		}
-		if (Double.isNaN(fudge) || fudge < 0) {
-			guiUtils.error("Fudge must be a positive number.", "Invalid Input");
-			return null;
-		}
-		return fudge;
 	}
 
 	private JButton resetButton(final String description) {
@@ -3851,7 +3870,6 @@ public class SNTUI extends JDialog {
 		promptMsg +=  ". Values less than or equal to <i>Min</i> maximize the A* cost function. "
 				+ "Values greater than or equal to <i>Max</i> minimize the A* cost function. "//
 				+ "The current min-max range is " + defaultValues[0] + "-" + defaultValues[1];
-		// FIXME: scientific notation is parsed incorrectly
 		final float[] minMax = guiUtils.getRange(promptMsg, "Setting Min-Max Range",
 				defaultValues);
 		if (minMax == null) {
@@ -4088,20 +4106,32 @@ public class SNTUI extends JDialog {
 		return recViewer;
 	}
 
-	/**
-	 * Gets the active getSciViewSNT (SciView-SNT bridge) instance.
-	 *
-	 * @param initializeIfNull it true, initializes SciView if it has not yet
-	 *                         been initialized
-	 * @return the SciViewSNT instance
-	 */
-	public SciViewSNT getSciViewSNT(final boolean initializeIfNull) {
-		if (initializeIfNull && sciViewSNT == null) {
-			sciViewSNT = new SciViewSNT(plugin);
-			new Thread(() -> sciViewSNT.getSciView()).start();
+    /**
+     * Gets the SciViewSNT instance.
+     *
+     * @param initializeIfNull whether a new instance should be created if one hasn't
+     *                         been initialized
+     * @return the SciViewSNT instance
+     */
+    public SciViewSNT getSciViewSNT(final boolean initializeIfNull) {
+        if (initializeIfNull && sciViewSNT == null) {
+            sciViewSNT = new SciViewSNT(plugin);
+            // Use SwingWorker for thread safety
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() {
+                    sciViewSNT.getSciView();
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    setSciViewSNT(sciViewSNT);
+                }
+            }.execute();
         }
-		return sciViewSNT;
-	}
+        return sciViewSNT;
+    }
 
 	public JPopupMenu getTracingCanvasPopupMenu() {
 		return plugin.getTracingCanvas().getComponentPopupMenu();
@@ -4112,14 +4142,16 @@ public class SNTUI extends JDialog {
 		openRecViewer.setEnabled(recViewer == null);
 	}
 
-	protected void setSciViewSNT(final SciViewSNT sciViewSNT) {
-		this.sciViewSNT = sciViewSNT;
-		SwingUtilities.invokeLater(() -> {
-			openingSciView = openingSciView && this.sciViewSNT != null;
-			openSciView.setEnabled(this.sciViewSNT == null);
-			svSyncPathManager.setEnabled(this.sciViewSNT != null);
-		});
-	}
+    protected void setSciViewSNT(final SciViewSNT sciViewSNT) {
+        this.sciViewSNT = sciViewSNT;
+        SwingUtilities.invokeLater(() -> {
+            final boolean isOpen = this.sciViewSNT != null
+                    && this.sciViewSNT.getSciView() != null
+                    && !this.sciViewSNT.getSciView().isClosed();
+            openSciView.setEnabled(!isOpen);
+            svSyncPathManager.setEnabled(isOpen);
+        });
+    }
 
 	protected void reset() {
 		abortCurrentOperation();
@@ -4343,6 +4375,11 @@ public class SNTUI extends JDialog {
 		onlyActiveCTposition.setSelected(!onlyActiveCTposition.isSelected());
 	}
 
+    private void noValidImageDataErrorExtended() {
+        guiUtils.error("This option requires valid image data to be loaded. " +
+                "The image should have bright foreground structures on a dark background.");
+    }
+
 	protected void noValidImageDataError() {
 		guiUtils.error("This option requires valid image data to be loaded.");
 	}
@@ -4350,21 +4387,6 @@ public class SNTUI extends JDialog {
 	private boolean okToReplaceSecLayer() {
 		return !plugin.isSecondaryDataAvailable() || guiUtils
 				.getConfirmation("A secondary layer image is already loaded. Unload it?", "Discard Existing Layer?");
-	}
-
-	@SuppressWarnings("unused")
-	private Boolean userPreferstoRunWizard(final String noButtonLabel) {
-		if (askUserConfirmation && sigmaPalette == null) {
-			final Boolean decision = guiUtils.getConfirmation2(//
-					"You have not yet previewed filtering parameters. It is recommended that you do so "
-							+ "at least once to ensure auto-tracing is properly tuned. Would you like to "
-							+ "preview paramaters now by clicking on a representative region of the image?",
-					"Adjust Parameters Visually?", "Yes. Adjust Visually...", noButtonLabel);
-				if (decision != null && decision)
-					changeState(WAITING_FOR_SIGMA_POINT_I);
-			return decision;
-		}
-		return false;
 	}
 
 	public SNTTable getTable() {
@@ -5124,7 +5146,7 @@ public class SNTUI extends JDialog {
                     } else if (type == TRACES) {
                         succeed = plugin.loadTracesFile(file);
                         setAutosaveFile(file);
-                    } else if (type == ANY_RECONSTRUCTION) {
+                    } else {
                         if (file == null)
                             file = openReconstructionFile(null);
                         if (file != null)

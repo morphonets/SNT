@@ -925,25 +925,30 @@ public class GuiUtils {
     }
 
     public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
-		final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
-				+ SNTUtils.formatDouble(defaultRange[1], 3));
-		if (s == null)
-			return null; // user pressed cancel
-		final float[] values = { Float.NaN,Float.NaN };
-		try {
-			// see https://stackoverflow.com/a/51283413
-			final String regex = "([-+]?\\d*\\.?\\d*)\\s*-\\s*([-+]?\\d*\\.?\\d*)";
-			final Pattern pattern = Pattern.compile(regex);
-			final Matcher matcher = pattern.matcher(s);
-			if (matcher.find()) {
-				values[0] = Float.parseFloat(matcher.group(1));
-				values[1] = Float.parseFloat(matcher.group(2));
-			}
-		} catch (final Exception ignored) {
-			// do nothing
-		}
-		return values;
-	}
+        final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
+                + SNTUtils.formatDouble(defaultRange[1], 3));
+        if (s == null)
+            return null; // user pressed cancel
+        final float[] values = { Float.NaN, Float.NaN };
+        try {
+            // Regex that handles scientific notation (e.g., 1.5e-10, 2E+5, -3.14e2)
+            // Pattern breakdown:
+            //   [-+]?           - optional sign
+            //   \\d*\\.?\\d+    - digits with optional decimal point (at least one digit required)
+            //   (?:[eE][-+]?\\d+)?  - optional exponent part (e or E followed by optional sign and digits)
+            final String numberPattern = "[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?";
+            final String regex = "(" + numberPattern + ")\\s*-\\s*(" + numberPattern + ")";
+            final Pattern pattern = Pattern.compile(regex);
+            final Matcher matcher = pattern.matcher(s.trim());
+            if (matcher.find()) {
+                values[0] = Float.parseFloat(matcher.group(1));
+                values[1] = Float.parseFloat(matcher.group(2));
+            }
+        } catch (final NumberFormatException ignored) {
+            // Return NaN values which will be handled by caller
+        }
+        return values;
+    }
 
 	public void adjustComponentThroughPrompt(final Container container) {
 

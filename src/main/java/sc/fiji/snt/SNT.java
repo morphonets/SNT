@@ -2746,6 +2746,13 @@ public class SNT extends MultiDThreePanes implements
 		return (ctSlice3d == null) ? null : Views.dropSingletonDimensions(ctSlice3d);
 	}
 
+    public ImgPlus<?> getLoadedDataAsImg(final boolean secondaryLayer) {
+        final RandomAccessibleInterval<?> loadedData = (secondaryLayer) ? getSecondaryData() : getLoadedData();
+        return (loadedData == null) ? null :
+                ImgUtils.wrapWithSpacing(loadedData,
+                        new double[]{getPixelWidth(), getPixelHeight(), getPixelDepth()}, getSpacingUnits());
+    }
+
 	@SuppressWarnings("rawtypes")
 	public <T> IterableInterval getLoadedIterable() {
 		return ctSlice3d;
