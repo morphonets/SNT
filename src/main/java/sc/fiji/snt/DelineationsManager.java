@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -130,7 +130,7 @@ public class DelineationsManager {
                 addToCapacity(n.intValue());
         });
         final JButton sortButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SORT, 1.1f));
-        sortButton.setToolTipText("Sort entries");
+        sortButton.setToolTipText("Sort entries alphabetically");
         toolbar.add(sortButton);
         toolbar.add(Box.createHorizontalStrut(5));
 
@@ -140,8 +140,16 @@ public class DelineationsManager {
         mergeButton.addActionListener(e -> {
             if (noAssignmentsExistError()) return;
             final String[] choices = delineations.stream().filter(d -> d.roi != null).map(d -> d.name).toArray(String[]::new);
+            if (choices.length < 2) {
+                sntui.guiUtils.error("At least two delineations with assignments are required for merging.");
+                return;
+            }
             final List<String> chosenChoices = sntui.guiUtils.getMultipleChoices("Select categories to merge", choices, null);
-            if (chosenChoices == null || chosenChoices.isEmpty()) return;
+            if (chosenChoices == null || chosenChoices.size() < 2) {
+                if (chosenChoices != null && chosenChoices.size() == 1)
+                    sntui.guiUtils.error("At least two delineations must be selected for merging.");
+                return;
+            }
             final Delineation template = getDelineation(chosenChoices.getFirst());
             final List<Delineation> toDelete = chosenChoices.stream().skip(1).map(this::getDelineation).toList();
             template.rename(chosenChoices.toString());
@@ -162,7 +170,7 @@ public class DelineationsManager {
             final Color[] colors = (choices[0].equals(choice))
                     ? defaultDelineationColors(Math.min(256, delineations.size()))
                     : ColorMaps.discreteColorsAWT(ColorMaps.get(choice), Math.min(256, delineations.size()));
-           applyColorScheme(colors);
+            applyColorScheme(colors);
         });
         final JButton colorSchemeUndoButton = GuiUtils.Buttons.undo();
         colorSchemeUndoButton.setToolTipText("Reset color scheme");
@@ -190,10 +198,12 @@ public class DelineationsManager {
 
         sortButton.addActionListener(e -> {
             delineations.sort((d1, d2) -> {
-                final boolean def1 = d1.name.toLowerCase().startsWith("delineation");
-                final boolean def2 = d2.name.toLowerCase().startsWith("delineation");
+                final String name1 = (d1.name == null) ? "" : d1.name;
+                final String name2 = (d2.name == null) ? "" : d2.name;
+                final boolean def1 = name1.toLowerCase().startsWith("delineation");
+                final boolean def2 = name2.toLowerCase().startsWith("delineation");
                 if (def1 && def2) return Long.compare(d1.label, d2.label);
-                return d1.name.compareToIgnoreCase(d2.name);
+                return name1.compareToIgnoreCase(name2);
             });
             directEditingButton.setSelected(false);
             delineationsPanel.removeAll();
@@ -247,7 +257,7 @@ public class DelineationsManager {
     private void addToCapacity(final int n) {
         final int currentN = delineations.size();
         final Color[] colors = defaultDelineationColors(Math.min(256, currentN + n));
-        final long lastLabel = delineations.getLast().label;
+        final long lastLabel = delineations.isEmpty() ? 0 : delineations.getLast().label;
         int colorIdx = 0;
         for (int i = 0; i < n; i++) {
             final Delineation del = new Delineation(lastLabel + i + 1, colors[colorIdx++]);
@@ -628,16 +638,16 @@ public class DelineationsManager {
 
     private List<Path> getFallbackColorPaths() {
         return pafm.getPaths().stream().filter(p -> {
-                    for (int i = 0; i < p.size(); i++) if (fallbackColor.equals(p.getNodeColor(i))) return true;
-                    return false;
-                }).toList();
+            for (int i = 0; i < p.size(); i++) if (fallbackColor.equals(p.getNodeColor(i))) return true;
+            return false;
+        }).toList();
     }
 
     private boolean resetAuthorizedByUser() {
         final boolean needed = delineations.stream().anyMatch(d -> d.roi != null);
         if (!needed) return true;
         if (sntui.guiUtils.getConfirmation("Existing assignments will be cleared. Proceed?",
-                        "Remove All Assignments?")) {
+                "Remove All Assignments?")) {
             reset();
             return true;
         }

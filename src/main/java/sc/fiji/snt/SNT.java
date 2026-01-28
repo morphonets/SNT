@@ -1061,7 +1061,7 @@ public class SNT extends MultiDThreePanes implements
             getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
-	protected synchronized void stopFilling() {
+    protected synchronized void stopFilling(boolean updateUIState) {
 
 		if (fillerThreadPool == null) {
 			SNTUtils.log("No filler threads are currently running.");
@@ -1082,19 +1082,23 @@ public class SNT extends MultiDThreePanes implements
 			// Preserve interrupt status
 			Thread.currentThread().interrupt();
 		} finally {
-			fillerThreadPool = null;
-			if (getUI() != null)
-				getUI().getFillManager().changeState(FillManagerUI.State.STOPPED);
+                fillerThreadPool = null;
+                if (updateUIState && getUI() != null)
+                    getUI().getFillManager().changeState(FillManagerUI.State.STOPPED);
 		}
 
 	}
 
+    protected synchronized void stopFilling() {
+        stopFilling(true); // backward compatible
+    }
+
 	protected synchronized void startFilling() {
 		if (fillerSet.isEmpty()) {
-			throw new IllegalArgumentException("No Filters loaded");
+			throw new IllegalArgumentException("No Filters loaded.");
 		}
 		if (fillerThreadPool != null) {
-			throw new IllegalArgumentException("Filler already running");
+			throw new IllegalArgumentException("Filler already running.");
 		}
 		if (getUI() != null)
 			getUI().getFillManager().changeState(FillManagerUI.State.STARTED);
@@ -1113,22 +1117,20 @@ public class SNT extends MultiDThreePanes implements
 				return null;
 			}
 
-			@Override
-			protected void done() {
-				// FIXME: this is a bad solution to make sure we get the correct state when cancelling
-				stopFilling();
-				if (ui != null) {
-					if (fillerSet.isEmpty()) {
-						// This means someone called discardFills() before all future tasks returned
-						ui.getFillManager().changeState(FillManagerUI.State.READY);
-					} else {
-						boolean allSucceeded = fillerSet.stream()
-								.noneMatch(f -> f.getExitReason() == SearchThread.CANCELLED);
-						ui.getFillManager().changeState(
-								allSucceeded ? FillManagerUI.State.ENDED : FillManagerUI.State.STOPPED);
-					}
-				}
-			}
+            @Override
+            protected void done() {
+                stopFilling(false); // Don't change state yet
+                if (ui != null) {
+                    if (fillerSet.isEmpty()) {
+                        ui.getFillManager().changeState(FillManagerUI.State.READY);
+                    } else {
+                        boolean allSucceeded = fillerSet.stream()
+                                .noneMatch(f -> f.getExitReason() == SearchThread.CANCELLED);
+                        ui.getFillManager().changeState(
+                                allSucceeded ? FillManagerUI.State.ENDED : FillManagerUI.State.STOPPED);
+                    }
+                }
+            }
 		};
 		worker.execute();
 
@@ -2687,7 +2689,7 @@ public class SNT extends MultiDThreePanes implements
 
 	protected <T extends RealType<T>> boolean invalidStatsError(final boolean isSecondary) {
 		final boolean invalidStats = (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
-		final boolean compute = invalidStats && getUI() != null && getUI().guiUtils.getConfirmation(
+		final boolean compute = invalidStats && getUI() != null && new GuiUtils(getActiveWindow()).getConfirmation(
 				"Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") //
 						+ " have not been computed yet, but are required to better understand the image being traced. "
 						+ "You can either compute them now for the whole image, or you can dismiss this prompt and "

@@ -104,7 +104,8 @@ public class IconFactory {
 			DELETE('\uf55a', true), //
 			DIAGRAM('\uf542', true), //
 			DICE_20('\uf6cf', true), //
-			DOTCIRCLE('\uf192', true), //
+            DOWNLOAD('\uf019', true), //
+            DOTCIRCLE('\uf192', true), //
 			DRAFT('\uf568', true), //
 			ELLIPSIS('\uf141', true), //
 			ELLIPSIS_VERTICAL('\uf142', true), //
@@ -205,7 +206,8 @@ public class IconFactory {
 			TOOL('\uf0ad', true), //
 			TRASH('\uf2ed', false), //
 			TREE('\uf1bb', true), //
-			UNDO('\uf0e2', true), //
+            UPLOAD('\uf093', true), //
+            UNDO('\uf0e2', true), //
 			UNLINK('\uf127', true), //
 			VIDEO('\uf03d', true), //
 			WIDTH('\uf337', true), //
@@ -214,7 +216,7 @@ public class IconFactory {
 			WIZARD('\uf6e8', true),//
 			X_RAY('\uf497', true);
 
-		private final char id;
+        private final char id;
 		private final boolean solid;
 
 		GLYPH(final char id, final boolean solid) {

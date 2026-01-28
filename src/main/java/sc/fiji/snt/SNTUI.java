@@ -3241,14 +3241,15 @@ public class SNTUI extends JDialog {
         consoleJMI.addActionListener(e -> {
             try {
                 final Window console = GuiUtils.getConsole();
-                if (console == null)
+                if (console == null || !console.isVisible()) {
                     plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
-                else
-                    console.setVisible(!console.isVisible());
+                } else {
+                    console.setVisible(false);
+                }
             } catch (final Exception ex) {
                 guiUtils.error(
                         "Could not toggle Fiji's built-in Console. Please use Fiji's Window>Console command directly.");
-                ex.printStackTrace();
+                SNTUtils.error("Toggle console error", ex);
             }
         });
         viewMenu.add(consoleJMI);

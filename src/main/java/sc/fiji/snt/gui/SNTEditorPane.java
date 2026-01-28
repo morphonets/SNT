@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -40,6 +40,9 @@ import java.time.format.DateTimeFormatter;
  * Implements minor customizations to {@link EditorPane} for usage by SNT.
  */
 public class SNTEditorPane extends EditorPane {
+
+    private static final String LIGHT_THEME = "idea";
+    private static final String DARK_THEME = "monokai";
 
     private final RTextScrollPane scrollPane;
 
@@ -99,19 +102,16 @@ public class SNTEditorPane extends EditorPane {
     }
 
     public AbstractButton lightDarkToggleButton() {
-        final Icon[] sunMoon = {IconFactory.buttonIcon('\uf185', true, IconFactory.defaultColor()), IconFactory.buttonIcon('\uf186', true, IconFactory.defaultColor())};
+        final Icon sunIcon = IconFactory.buttonIcon('\uf185', true, IconFactory.defaultColor());
+        final Icon moonIcon = IconFactory.buttonIcon('\uf186', true, IconFactory.defaultColor());
         final JButton lightDark = new JButton();
-        lightDark.setPreferredSize(new JButton(sunMoon[0]).getPreferredSize()); // the widest icon
+        lightDark.setPreferredSize(new JButton(sunIcon).getPreferredSize());
         lightDark.setToolTipText("Toggle light/dark theme");
-        lightDark.setIcon((isDarkThemeActive()) ? sunMoon[0] : sunMoon[1]);
+        lightDark.setIcon(isDarkThemeActive() ? sunIcon : moonIcon);
         lightDark.addActionListener(e -> {
-            if (isDarkThemeActive()) {
-                applyTheme("default");
-                lightDark.setIcon(sunMoon[1]);
-            } else {
-                applyTheme("dark");
-                lightDark.setIcon(sunMoon[0]);
-            }
+            final boolean wasDark = isDarkThemeActive();
+            applyTheme(wasDark ? LIGHT_THEME : DARK_THEME);
+            lightDark.setIcon(wasDark ? moonIcon : sunIcon);
         });
         return lightDark;
     }
@@ -138,6 +138,16 @@ public class SNTEditorPane extends EditorPane {
             setFont(getFont().deriveFont(GuiUtils.uiFontSize())); // theme may contain hardwired fonts
             scrollPane.getGutter().setLineNumberFont(scrollPane.getGutter().getLineNumberFont().deriveFont(getFontSize()*.75f)); // theme may contain hardwired fonts
             GuiUtils.recolorTracks(scrollPane, th.bgColor, true);
+            // Ensure gutter and row header backgrounds match the editor
+            scrollPane.getGutter().setBackground(th.bgColor);
+            if (scrollPane.getRowHeader() != null) {
+                scrollPane.getRowHeader().setBackground(th.bgColor);
+            }
+            scrollPane.setBackground(th.bgColor);
+            // Fix lower-left corner (below gutter)
+            final JPanel lowerLeftCorner = new JPanel();
+            lowerLeftCorner.setBackground(th.bgColor);
+            scrollPane.setCorner(JScrollPane.LOWER_LEFT_CORNER, lowerLeftCorner);
         } catch (final Exception ex) {
             throw new IllegalArgumentException(ex);
         }
@@ -146,7 +156,7 @@ public class SNTEditorPane extends EditorPane {
     @Override
     public void updateUI() {
         try {
-            applyTheme((FlatLaf.isLafDark()) ? "dark" : "default");
+            applyTheme(FlatLaf.isLafDark() ? DARK_THEME : LIGHT_THEME);
         } catch (final IllegalArgumentException ignored) {
             // do nothing
         }

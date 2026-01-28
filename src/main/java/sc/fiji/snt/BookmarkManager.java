@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -111,15 +111,15 @@ public class BookmarkManager {
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(final MouseEvent me) {
-                if (noBookmarksError()) return;
-                final int row = table.getSelectedRow();
-                if (row == -1) {
-                    sntui.guiUtils.error("No bookmark selected.");
-                    return;
-                }
                 if (me.getClickCount() == 2) {
+                    if (noBookmarksError()) return;
+                    final int row = table.getSelectedRow();
+                    if (row == -1) {
+                        sntui.guiUtils.error("No bookmark selected.");
+                        return;
+                    }
                     final ImagePlus imp = sntui.plugin.getImagePlus();
-                    if (imp == null) sntui.guiUtils.error("No bookmark selected or no image is currently open.");
+                    if (imp == null) sntui.guiUtils.error("No image is currently open.");
                     else goTo(row, imp);
                 }
             }
@@ -128,8 +128,8 @@ public class BookmarkManager {
     }
 
     private void resetOrResizeColumns(final boolean reset, final boolean resize) {
-       assert table != null;
-       assert model != null;
+        assert table != null;
+        assert model != null;
         if (reset) { // https://stackoverflow.com/q/63420045
             final TableColumnModel tcm = table.getColumnModel();
             for (int i = 0; i < model.getColumnCount() - 1; i++) {
@@ -153,14 +153,18 @@ public class BookmarkManager {
 
     private JPopupMenu assembleTablePopupMenu() {
         final JPopupMenu pMenu = new JPopupMenu();
-        JMenuItem  mi = new JMenuItem("Deselect / Select All");
+        JMenuItem mi = new JMenuItem("Deselect / Select All", IconFactory.menuIcon(IconFactory.GLYPH.CHECK_DOUBLE));
         mi.addActionListener(e -> {
-            clearSelection();
-            recordCmd("clearSelection()");
+            if (table.getSelectedRows().length > 0) {
+                table.clearSelection();
+            } else if (model.getRowCount() > 0) {
+                table.setRowSelectionInterval(0, model.getRowCount() - 1);
+            }
+            recordCmd("clearSelection()"); // Note: only records clear, not select all
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Remove All...");
+        mi = new JMenuItem("Remove All...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (!noBookmarksError() && sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
                 reset();
@@ -168,16 +172,27 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
-        mi = new JMenuItem("Remove Selected Row(s)");
-        mi.addActionListener( e -> {
+        mi = new JMenuItem("Remove Selected Row(s)", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        mi.addActionListener(e -> {
             if (noBookmarksError()) return;
-            final int[] rows = table.getSelectedRows();
-            for (int i = 0; i < rows.length; i++)
-                model.removeRow(rows[i] - i);
+            final int[] viewRows = table.getSelectedRows();
+            if (viewRows.length == 0) {
+                sntui.guiUtils.error("No bookmark selected.");
+                return;
+            }
+            // Convert view indices to model indices (handles sorted table)
+            final int[] modelRows = Arrays.stream(viewRows)
+                    .map(table::convertRowIndexToModel)
+                    .boxed()
+                    .sorted(Comparator.reverseOrder()) // Delete from end to preserve indices
+                    .mapToInt(Integer::intValue)
+                    .toArray();
+            for (final int modelRow : modelRows)
+                model.removeRow(modelRow);
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Rename Selected Bookmark...");
+        mi = new JMenuItem("Rename Selected Bookmark...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final int row = table.getSelectedRow();
@@ -191,7 +206,7 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Reset Columns");
+        mi = new JMenuItem("Reset Columns", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         mi.addActionListener(e -> {
             resetOrResizeColumns(true, true);
             recordComment("Bookmark Manager: resizeColumns()");
@@ -303,7 +318,13 @@ public class BookmarkManager {
 
     void resetVisitingZoom() {
         try {
-            final double currentMag = sntui.plugin.getImagePlus().getCanvas().getMagnification();
+            final ImagePlus imp = sntui.plugin.getImagePlus();
+            final ImageCanvas canvas = (imp == null) ? null : imp.getCanvas();
+            if (canvas == null) {
+                visitingZoomPercentage = 600;
+                return;
+            }
+            final double currentMag = canvas.getMagnification();
             final double nextUp1x = ImageCanvas.getHigherZoomLevel(currentMag);
             final double nextUp2x = ImageCanvas.getHigherZoomLevel(nextUp1x);
             visitingZoomPercentage = (int) Math.round(nextUp2x * 100);
@@ -379,7 +400,7 @@ public class BookmarkManager {
             exportTable.save(file);
             return true;
         } catch (final IOException ioe) {
-            ioe.printStackTrace();
+            SNTUtils.error("saveBookMarksToFile() failure", ioe);
         }
         return false;
     }
@@ -438,7 +459,7 @@ public class BookmarkManager {
         AtomicInteger ai = new AtomicInteger(1);
         xyzctLocations.forEach(loc -> model.getDataList().add( //
                 new Bookmark(model.getUniqueLabel(label + ai.getAndIncrement()), //
-                (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4])));
+                        (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4])));
         resetOrResizeColumns(false, true);
         model.fireTableDataChanged();
     }
@@ -560,7 +581,7 @@ public class BookmarkManager {
      * @return the number of bookmarks currently stored in the manager.
      */
     public int getCount() {
-       return model.getRowCount();
+        return model.getRowCount();
     }
 
     /**
@@ -575,7 +596,10 @@ public class BookmarkManager {
         if (onlySelectedRows && rows.length == 0) // no selection exists: assume all rows
             rows = IntStream.range(0, model.getRowCount()).toArray();
         for (final int row : rows) {
-            final Bookmark b = model.getDataList().get(row);
+            // Convert view index to model index (handles sorted table)
+            final int modelRow = (onlySelectedRows && table.getRowSorter() != null)
+                    ? table.convertRowIndexToModel(row) : row;
+            final Bookmark b = model.getDataList().get(modelRow);
             final PointRoi roi = new PointRoi(b.x, b.y);
             roi.setPosition(b.c, (int) b.z, b.t);
             roi.setName(b.label);
@@ -596,7 +620,10 @@ public class BookmarkManager {
         if (onlySelectedRows && rows.length == 0) // no selection exists: assume all rows
             rows = IntStream.range(0, model.getRowCount()).toArray();
         for (final int row : rows) {
-            final Bookmark b = model.getDataList().get(row);
+            // Convert view index to model index (handles sorted table)
+            final int modelRow = (onlySelectedRows && table.getRowSorter() != null)
+                    ? table.convertRowIndexToModel(row) : row;
+            final Bookmark b = model.getDataList().get(modelRow);
             points.add(SNTPoint.of(b.x, b.y, b.z));
         }
         return points;
@@ -807,4 +834,3 @@ class BookmarkModel extends AbstractTableModel {
     }
 
 }
-
