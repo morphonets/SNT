@@ -2309,6 +2309,7 @@ public class SNT extends MultiDThreePanes implements
 				last_start_point_y * y_spacing, last_start_point_z * z_spacing);
 			p.onPath = currentPath;
 			currentPath.addPointDouble(p.x, p.y, p.z);
+            currentPath.setSWCType(Path.SWC_SOMA);
 			// Branch point will be set when path is connected to parent
 			cancelSearch(false);
 		}

@@ -24,6 +24,7 @@ package sc.fiji.snt.gui.cmds;
 
 import net.imagej.ImageJ;
 import org.scijava.Context;
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.options.OptionsPlugin;
@@ -32,10 +33,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.ui.swing.laf.SwingLookAndFeelService;
 import org.scijava.widget.Button;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTService;
-import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 
@@ -49,6 +47,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static sc.fiji.snt.gui.cmds.CommonDynamicCmd.HEADER_HTML;
+
 /**
  * Command for (re)setting SNT Preferences.
  *
@@ -57,7 +57,10 @@ import java.util.stream.Collectors;
 @Plugin(type = Command.class, initializer = "init", label = "SNT Preferences")
 public class PrefsCmd extends OptionsPlugin {
 
-	@Parameter
+    private static final String SOMA_DISPLAY_DEFAULT = "Default (Circular)";
+    private static final String SOMA_DISPLAY_TRIANGLE = "Triangular";
+
+    @Parameter
 	private PrefService prefService;
 
 	@Parameter
@@ -66,29 +69,43 @@ public class PrefsCmd extends OptionsPlugin {
 	@Parameter(required = false)
 	private SwingLookAndFeelService lafService;
 
-	@Parameter(label = "Look and feel (L&F)", required = false, persist = false,
-			description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.",
-			initializer = "initLookAndFeel")
-	private String lookAndFeel;
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "I. IO and Performance:")
+    private String HEADER1;
 
-	@Parameter(label="Managing Themes...", callback="lafHelp")
-	private Button lafHelpButton;
+    @Parameter(label="Use compressed .TRACES files",
+            description="Whether Gzip compression should be use when saving .traces files")
+    private boolean compressTraces;
 
-	@Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
-	private boolean persistentWinLoc;
+    @Parameter(label="No. parallel threads",
+            description="<HTML><div WIDTH=500>The max. no. of parallel threads to be used by SNT, as specified in IJ's"
+                    + "Edit>Options>Memory &amp; Threads... Set it to 0 to use the available processors on your computer")
+    private int nThreads;
+
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "II. Display and Appearance")
+    private String HEADER2;
 
 	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, adopt 2D or 3D canvases?")
 	private boolean force2DDisplayCanvas;
 
-	@Parameter(label="Use compression when saving traces", description="Wheter Gzip compression should be use when saving .traces files")
-	private boolean compressTraces;
+    @Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
+    private boolean persistentWinLoc;
 
-	@Parameter(label="No. parallel threads",
-			description="<HTML><div WIDTH=500>The max. no. of parallel threads to be used by SNT, as specified in "
-					+ "IJ's Edit>Options>Memory &amp; Threads... Set it to 0 to use the available processors on your computer")
-	private int nThreads;
+    @Parameter(label="Soma display", choices = {SOMA_DISPLAY_DEFAULT, SOMA_DISPLAY_TRIANGLE},
+            description="How single-node soma-tagged paths should be displayed in the tracing image.")
+    private String somaDisplay;
 
-	@Parameter(label="Reset All Preferences...", callback="reset")
+    @Parameter(label = "Look and feel (L&F)", required = false, persist = false,
+            description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.",
+            initializer = "initLookAndFeel")
+    private String lookAndFeel;
+
+    @Parameter(label="Managing Themes...", callback="lafHelp")
+    private Button lafHelpButton;
+
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "III. Defaults")
+    private String HEADER3;
+
+    @Parameter(label="Reset All Preferences...", callback="reset")
 	private Button resetButton;
 
 	private SNT snt;
@@ -100,7 +117,13 @@ public class PrefsCmd extends OptionsPlugin {
 	 */
 	public void run() {
 		super.run();
-		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
+
+        final int somaDisplayOption = getSomaDisplayOption(somaDisplay);
+        PathNodeCanvas.setSomaRenderMode(somaDisplayOption);
+        SwingUtilities.invokeLater(() -> snt.repaintAllPanes());
+        snt.getPrefs().setSomaDisplayTriangle(somaDisplayOption==PathNodeCanvas.SOMA_RENDER_TRIANGLE);
+
+        snt.getPrefs().setSaveWinLocations(persistentWinLoc);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
 		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
@@ -120,13 +143,22 @@ public class PrefsCmd extends OptionsPlugin {
 		}
 	}
 
-	private void init() {
+    private int getSomaDisplayOption(final String choice) {
+        return (SOMA_DISPLAY_TRIANGLE.equals(choice)) ? PathNodeCanvas.SOMA_RENDER_TRIANGLE : PathNodeCanvas.SOMA_RENDER_DEFAULT;
+    }
+
+    private String getSomaDisplayChoice(final int option) {
+        return (option == PathNodeCanvas.SOMA_RENDER_TRIANGLE) ? SOMA_DISPLAY_TRIANGLE : SOMA_DISPLAY_DEFAULT;
+    }
+
+    private void init() {
 		try {
 			snt = sntService.getInstance();
 			persistentWinLoc = snt.getPrefs().isSaveWinLocations();
 			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
+            somaDisplay = getSomaDisplayChoice(PathNodeCanvas.getSomaRenderMode());
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}

@@ -70,6 +70,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final int ENFORCE_DEFAULT_PATH_COLORS = 2048;
 	private static final int DEBUG = 4096;
     private static final int COMPRESSED_XML = 8192;
+    private static final int SOMA_TRIANGLE = 16384;
 
     /** Pref keys */
     private static final int UNSET_PREFS = -1;
@@ -371,7 +372,25 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setPref(COMPRESSED_XML, bool);
 	}
 
-	/**
+    /**
+     * Sets whether single-node paths tagged as are rendered w/ triangular shape.
+     *
+     * @return true if triangular shape is enable, false otherwise
+     */
+    public boolean isSomaDisplayTriangle() {
+        return getPref(SOMA_TRIANGLE);
+    }
+
+    /**
+     * Sets whether single-node paths tagged as soma should render w/ triangular shape.
+     *
+     * @param bool true to enable triangular shape, false for default representation
+     */
+    public void setSomaDisplayTriangle(final boolean bool) {
+        setPref(SOMA_TRIANGLE, bool);
+    }
+
+    /**
 	 * Checks if window locations should be saved and restored.
 	 *
 	 * @return true if window locations are saved, false otherwise

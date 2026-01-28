@@ -3811,9 +3811,11 @@ public class SNTUI extends JDialog {
 	}
 
 	protected void displayOnStarting() {
-		SwingUtilities.invokeLater(() -> {
+        if (plugin.getPrefs().isSomaDisplayTriangle())
+            PathNodeCanvas.setSomaRenderMode(PathNodeCanvas.SOMA_RENDER_TRIANGLE);
+        SwingUtilities.invokeLater(() -> {
 			if (plugin.getPrefs().isSaveWinLocations())
-				arrangeDialogs();
+                arrangeDialogs();
 			arrangeCanvases(false);
 			resetState();
 			updateSettingsString();
