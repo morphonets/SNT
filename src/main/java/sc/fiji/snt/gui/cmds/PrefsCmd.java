@@ -194,7 +194,8 @@ public class PrefsCmd extends OptionsPlugin {
 				"sc.fiji.snt.plugin.ij1", //
 				"sc.fiji.snt.tracing", //
 				"sc.fiji.snt.tracing.artist", //
-				"sc.fiji.snt.tracing.cost", //
+                "sc.fiji.snt.tracing.auto", //
+                "sc.fiji.snt.tracing.cost", //
 				"sc.fiji.snt.tracing.heuristic", //
 				"sc.fiji.snt.tracing.image", //
 				"sc.fiji.snt.util", //

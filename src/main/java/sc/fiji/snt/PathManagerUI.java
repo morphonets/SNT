@@ -1529,8 +1529,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     }
 
-    @SuppressWarnings("unused")
-    private static class TreeTransferHandler extends TransferHandler {
+	private static class TreeTransferHandler extends TransferHandler {
 
         private static final long serialVersionUID = 1L;
         DataFlavor nodesFlavor;
@@ -1828,15 +1827,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return null;
     }
 
-    protected SNTTable getTable() {
-        if (table == null || !tableIsBeingDisplayed()) {
-            // Create a new table if it does not exist or is cached but it has been closed.
-            // Resetting the table on the latter scenario improves GUI usability.
-            // TODO: add a window listener that prompts the user to save contents before closing it
-            table = new SNTTable();
-        }
-        return table;
-    }
+	protected SNTTable getTable() {
+		if (table == null || !tableIsBeingDisplayed()) {
+			// Create a new table if it does not exist or is cached but it has been closed.
+			// Resetting the table on the latter scenario improves GUI usability.
+			table = new SNTTable();
+		}
+		return table;
+	}
 
     /**
      * Gets the SNT instance associated with this Path Manager.
@@ -2063,29 +2061,29 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         if (interactiveUI) refreshManager(false, false, paths);
     }
 
-    /**
-     * Selects paths matching a text-based criteria, or a list of SWC type flags
-     *
-     * @param query The matching text, as it would have been typed in the "Text filtering" box.
-     *              If query encodes an integer list (e.g., "[1,3,5]"), paths are selected based on their SWC type flag
-     */
-    public void applySelectionFilter(final String query) throws IllegalArgumentException {
-        if (query != null && query.startsWith("[") && query.endsWith("]")) {
-            final String q =  query.substring( 1, query.length() - 1);
-            final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).toList();
-            if (!types.isEmpty()) {
-                final Collection<Path> paths = searchableBar.getPaths();
-                paths.removeIf(path -> !types.contains(path.getSWCType()));
-                setSelectedPaths(paths, this);
-            }
-            return;
-        }
-        final List<Integer> hits = searchableBar.getSearchable().findAll(query);
-        if (hits != null && !hits.isEmpty()) {
-            final int[] array = hits.stream().mapToInt(i -> i).toArray();
-            tree.addSelectionRows(array);
-        }
-    }
+	/**
+	 * Selects paths matching a text-based criteria, or a list of SWC type flags
+	 *
+	 * @param query The matching text, as it would have been typed in the "Text filtering" box.
+	 *              If query encodes an integer list (e.g., "[1,3,5]"), paths are selected based on their SWC type flag
+	 */
+	public void applySelectionFilter(final String query) throws IllegalArgumentException {
+		if (query != null && query.startsWith("[") && query.endsWith("]")) {
+			final String q =  query.substring( 1, query.length() - 1);
+			final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).toList();
+			if (!types.isEmpty()) {
+				final Collection<Path> paths = searchableBar.getPaths();
+				paths.removeIf(path -> !types.contains(path.getSWCType()));
+                tree.setSelectedPaths(paths);
+			}
+			return;
+		}
+		final List<Integer> hits = searchableBar.getSearchable().findAll(query);
+		if (hits != null && !hits.isEmpty()) {
+			final int[] array = hits.stream().mapToInt(i -> i).toArray();
+			tree.addSelectionRows(array);
+		}
+	}
 
     /**
      * Selects paths matching a morphometric criteria.
@@ -2873,12 +2871,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private void selectChildren(final List<Path> paths, final boolean recursive) {
             final ListIterator<Path> iter = paths.listIterator();
-            while (iter.hasNext()) {
+            while(iter.hasNext()){
                 final Path p = iter.next();
                 appendChildren(iter, p, recursive);
             }
-            setSelectedPaths(paths, PathManagerUI.this);
-            refreshManager(true, true, paths);
+            refreshManager(true, false, paths); // refreshViewers=false to avoid clearing selection
+            tree.setSelectedPaths(paths);
         }
 
         private void appendChildren(final ListIterator<Path> iter, final Path p, final boolean recursive) {
@@ -4570,27 +4568,26 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
-        @SuppressWarnings("unused")
-        private String getDescription(final Collection<Path> selectedPaths) {
-            String description;
-            final int n = selectedPaths.size();
-            if (n == getPathAndFillManager().getPathsFiltered().size()) {
-                description = "All Paths";
-            }
-            else if (n == 1) {
-                description = selectedPaths.iterator().next().getName();
-            }
-            else if (n > 1 && allPathNamesContain(selectedPaths, getSearchable()
-                    .getSearchingText()))
-            {
-                description = "Filter [" + getSearchable().getSearchingText() + "]";
-            }
-            else {
-                description = "Path IDs [" + Path.pathsToIDListString(new ArrayList<>(
-                        selectedPaths)) + "]";
-            }
-            return description;
-        }
+		private String getDescription(final Collection<Path> selectedPaths) {
+			String description;
+			final int n = selectedPaths.size();
+			if (n == getPathAndFillManager().getPathsFiltered().size()) {
+				description = "All Paths";
+			}
+			else if (n == 1) {
+				description = selectedPaths.iterator().next().getName();
+			}
+			else if (n > 1 && allPathNamesContain(selectedPaths, getSearchable()
+				.getSearchingText()))
+			{
+				description = "Filter [" + getSearchable().getSearchingText() + "]";
+			}
+			else {
+				description = "Path IDs [" + Path.pathsToIDListString(new ArrayList<>(
+					selectedPaths)) + "]";
+			}
+			return description;
+		}
 
     }
 
@@ -4918,7 +4915,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
-        @SuppressWarnings("unused")
         private JButton closeToolbarButton() {
             final JButton button = new JButton(IconFactory.buttonIcon('\uf057', false));
             button.setActionCommand("Close Toolbar");
@@ -4970,7 +4966,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             // Create options for the user to choose from
             final String[] options = (paths.size() == 1) ?
                     new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node",
-                            "Smallest radius node", "Largest‑radius node"}
+                            "Smallest radius node", "Largest-radius node"}
                     : new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node"};
             final String prevChoice = plugin.getPrefs().getTemp("gtChoice", options[0]);
             final String choice = guiUtils.getChoice("Navigate to which node(s) of selected path(s)?",
@@ -4996,7 +4992,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         final Path.PathNode thinnest = path.getNode("min radius");
                         if (thinnest != null) placeholder.addNode(thinnest);
                     }
-                    case "Largest‑radius node" -> {
+                    case "Largest-radius node" -> {
                         final Path.PathNode widest = path.getNode("max radius");
                         if (widest != null) placeholder.addNode(widest);
                     }

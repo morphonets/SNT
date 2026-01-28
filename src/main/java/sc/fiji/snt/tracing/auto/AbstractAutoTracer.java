@@ -410,7 +410,7 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         if (strategy != ROI_UNSET && roi == null) {
             throw new IllegalArgumentException("ROI required for non-UNSET strategy");
         }
-        if (strategy == ROI_EDGE && roi.isArea()) {
+        if (strategy == ROI_EDGE && !roi.isArea()) {
             throw new IllegalArgumentException("Area ROI required for ROI_EDGE strategy");
         }
         this.somaRoi = roi;
