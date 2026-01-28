@@ -27,14 +27,21 @@ import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import net.imagej.ImgPlus;
+import net.imagej.ops.OpService;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.labeling.ConnectedComponents;
 import net.imglib2.algorithm.morphology.distance.DistanceTransform;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.roi.labeling.ImgLabeling;
+import net.imglib2.roi.labeling.LabelRegion;
+import net.imglib2.roi.labeling.LabelRegions;
 import net.imglib2.type.logic.BitType;
+import net.imglib2.type.logic.BoolType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
@@ -43,8 +50,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 
-import java.awt.*;
+import java.awt.Polygon;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -53,6 +61,14 @@ import java.util.List;
  * Provides methods to detect the soma (cell body) in fluorescent images using
  * a combined EDT-intensity approach, flood fill the region, extract contours,
  * and convert to ImageJ ROIs.
+ * </p>
+ * <p>
+ * Three detection modes are available:
+ * <ul>
+ *   <li>{@link #detectSoma} - Detect single soma (brightest/thickest region)</li>
+ *   <li>{@link #detectSomaAt} - Detect soma at a specific seed point</li>
+ *   <li>{@link #detectAllSomas} - Detect all somas in the image</li>
+ * </ul>
  * </p>
  *
  * @author Tiago Ferreira
@@ -73,9 +89,14 @@ public class SomaUtils {
      */
     public static final String OUTPUT_CIRCLE = "Circle";
 
+    /** Default minimum soma radius in voxels for filtering */
+    private static final double DEFAULT_MIN_RADIUS = 3.0;
+
     private SomaUtils() {
         // Static utility class
     }
+
+    // ==================== Single Soma Detection ====================
 
     /**
      * Full soma detection using ImgPlus with spacing extracted automatically.
@@ -110,7 +131,9 @@ public class SomaUtils {
             rai = source;
         }
 
-        @SuppressWarnings("unchecked") final RandomAccessibleInterval<? extends RealType<?>> typedRai = (RandomAccessibleInterval<? extends RealType<?>>) rai;
+        @SuppressWarnings("unchecked")
+        final RandomAccessibleInterval<? extends RealType<?>> typedRai =
+                (RandomAccessibleInterval<? extends RealType<?>>) rai;
 
         // Call base method
         final SomaResult baseResult = detectSoma(typedRai, threshold, spacing);
@@ -145,46 +168,434 @@ public class SomaUtils {
      * @param spacing   voxel spacing [x, y], or null for unit spacing
      * @return SomaResult containing center, mask, contour, and radius; or null if detection fails
      */
-    public static SomaResult detectSoma(final RandomAccessibleInterval<? extends RealType<?>> source, final double threshold, final double[] spacing) {
+    public static SomaResult detectSoma(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing) {
 
         if (source == null || source.numDimensions() < 2) {
             return null;
         }
 
         // Effective spacing
-        final double[] effectiveSpacing = (spacing != null && spacing.length >= 2) ? spacing : new double[]{1.0, 1.0};
+        final double[] effectiveSpacing = (spacing != null && spacing.length >= 2)
+                ? spacing : new double[]{1.0, 1.0};
 
-        // Find soma center
+        // Find soma center using EDT × intensity scoring
         final long[] center = AbstractAutoTracer.findRoot(source, threshold, effectiveSpacing);
         if (center == null) return null;
 
         // Determine effective threshold
         final double effectiveThreshold = resolveThreshold(source, threshold);
 
+        return buildSomaResult(source, center[0], center[1], effectiveThreshold);
+    }
+
+    // ==================== Seed-based Detection ====================
+
+    /**
+     * Detects soma at a specific seed point.
+     * <p>
+     * Useful for interactive detection where user clicks near a soma.
+     * </p>
+     *
+     * @param source    input image (2D)
+     * @param seedX     X coordinate of seed point (voxels)
+     * @param seedY     Y coordinate of seed point (voxels)
+     * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param spacing   voxel spacing [x, y], or null for unit spacing
+     * @return SomaResult, or null if seed is in background or detection fails
+     */
+    public static SomaResult detectSomaAt(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final long seedX,
+            final long seedY,
+            final double threshold,
+            final double[] spacing) {
+
+        if (source == null || source.numDimensions() < 2) {
+            return null;
+        }
+
+        // Bounds check
+        if (seedX < 0 || seedX >= source.dimension(0) ||
+                seedY < 0 || seedY >= source.dimension(1)) {
+            return null;
+        }
+
+        final double effectiveThreshold = resolveThreshold(source, threshold);
+
+        // Check seed is in foreground
+        final RandomAccess<? extends RealType<?>> ra = source.randomAccess();
+        ra.setPosition(new long[]{seedX, seedY});
+        if (ra.get().getRealDouble() <= effectiveThreshold) {
+            return null;
+        }
+
+        return buildSomaResult(source, seedX, seedY, effectiveThreshold);
+    }
+
+    /**
+     * Detects soma at a specific seed point using ImgPlus.
+     *
+     * @param source    input image (2D or 3D ImgPlus)
+     * @param seedX     X coordinate of seed point (voxels)
+     * @param seedY     Y coordinate of seed point (voxels)
+     * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param zSlice    Z-slice to use (0-indexed), or -1 for middle slice
+     * @return SomaResult, or null if seed is in background or detection fails
+     */
+    public static SomaResult detectSomaAt(
+            final ImgPlus<?> source,
+            final long seedX,
+            final long seedY,
+            final double threshold,
+            final int zSlice) {
+
+        if (source == null) {
+            return null;
+        }
+
+        final double[] spacing = ImgUtils.getSpacing(source);
+        final String units = ImgUtils.getSpacingUnits(source);
+
+        final RandomAccessibleInterval<?> rai;
+        final int effectiveZ;
+        if (source.numDimensions() > 2) {
+            effectiveZ = (zSlice >= 0 && zSlice < source.dimension(2))
+                    ? zSlice
+                    : (int) (source.dimension(2) / 2);
+            rai = Views.hyperSlice(source, 2, effectiveZ);
+        } else {
+            effectiveZ = -1;
+            rai = source;
+        }
+
+        @SuppressWarnings("unchecked")
+        final RandomAccessibleInterval<? extends RealType<?>> typedRai =
+                (RandomAccessibleInterval<? extends RealType<?>>) rai;
+
+        final SomaResult baseResult = detectSomaAt(typedRai, seedX, seedY, threshold, spacing);
+        if (baseResult == null) return null;
+
+        return new SomaResult(
+                baseResult.center, baseResult.centroid, baseResult.mask, baseResult.contour,
+                baseResult.radius, baseResult.threshold, effectiveZ, units
+        );
+    }
+
+    /**
+     * Detects all somas using EDT local maxima approach.
+     * Finds local maxima in the distance transform - these correspond to
+     * centers of thick structures (somas), not thin structures (neurites).
+     *
+     * @param source    input image (2D)
+     * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param spacing   voxel spacing [x, y], or null for unit spacing
+     * @param minRadius minimum soma radius in voxels to include (filters small debris)
+     * @return list of SomaResult, sorted by radius (largest first); empty list if none found
+     */
+    public static List<SomaResult> detectAllSomas(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing,
+            final double minRadius) {
+
+        final List<SomaResult> results = new ArrayList<>();
+
+        if (source == null || source.numDimensions() < 2) {
+            return results;
+        }
+
+        final double effectiveThreshold = resolveThreshold(source, threshold);
+        final long width = source.dimension(0);
+        final long height = source.dimension(1);
+
+        // 1. Create binary mask from threshold
+        final Img<BitType> foreground = ArrayImgs.bits(width, height);
+        final Cursor<? extends RealType<?>> srcCursor = Views.flatIterable(source).cursor();
+        final Cursor<BitType> maskCursor = foreground.cursor();
+        while (srcCursor.hasNext()) {
+            srcCursor.fwd();
+            maskCursor.fwd();
+            maskCursor.get().set(srcCursor.get().getRealDouble() > effectiveThreshold);
+        }
+
+        // 2. Compute EDT (invert mask: TRUE = background for EDT)
+        final Img<BitType> inverted = ArrayImgs.bits(width, height);
+        final Cursor<BitType> fc = foreground.cursor();
+        final Cursor<BitType> ic = inverted.cursor();
+        while (fc.hasNext()) {
+            fc.fwd();
+            ic.fwd();
+            ic.get().set(!fc.get().get());
+        }
+
+        final Img<FloatType> edt = ArrayImgs.floats(width, height);
+        DistanceTransform.binaryTransform(inverted, edt, DistanceTransform.DISTANCE_TYPE.EUCLIDIAN);
+
+        // 3. Find local maxima in EDT with minimum value filter
+        final List<long[]> somaCenters = findEDTLocalMaxima(edt, minRadius);
+
+        // 4. Build SomaResult for each local maximum
+        for (final long[] center : somaCenters) {
+            final SomaResult result = buildSomaResult(source, center[0], center[1], effectiveThreshold);
+            if (result != null && result.radius >= minRadius) {
+                results.add(result);
+            }
+        }
+
+        // Sort by radius (largest first)
+        results.sort(Comparator.comparingDouble(SomaResult::radius).reversed());
+
+        return results;
+    }
+
+    /**
+     * Finds local maxima in EDT that exceed minimum radius.
+     * A local maximum indicates a point maximally distant from background - i.e., center of a thick structure.
+     */
+    private static List<long[]> findEDTLocalMaxima(final Img<FloatType> edt, final double minRadius) {
+        final List<long[]> maxima = new ArrayList<>();
+        final long width = edt.dimension(0);
+        final long height = edt.dimension(1);
+        final RandomAccess<FloatType> ra = edt.randomAccess();
+
+        // 8-connected neighborhood offsets
+        final int[][] neighbors = {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}};
+
+        for (long y = 1; y < height - 1; y++) {
+            for (long x = 1; x < width - 1; x++) {
+                ra.setPosition(new long[]{x, y});
+                final double val = ra.get().getRealDouble();
+
+                // Must exceed minimum radius (EDT value = distance to edge ≈ radius)
+                if (val < minRadius) continue;
+
+                // Check if local maximum
+                boolean isMax = true;
+                for (final int[] offset : neighbors) {
+                    ra.setPosition(new long[]{x + offset[0], y + offset[1]});
+                    if (ra.get().getRealDouble() >= val) {
+                        isMax = false;
+                        break;
+                    }
+                }
+
+                if (isMax) {
+                    maxima.add(new long[]{x, y});
+                }
+            }
+        }
+
+        return maxima;
+    }
+
+    /**
+     * Detects all somas using default minimum radius.
+     *
+     * @param source    input image (2D)
+     * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param spacing   voxel spacing [x, y], or null for unit spacing
+     * @return list of SomaResult, sorted by radius (largest first)
+     */
+    public static List<SomaResult> detectAllSomas(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double[] spacing) {
+        return detectAllSomas(source, threshold, spacing, DEFAULT_MIN_RADIUS);
+    }
+
+    /**
+     * Detects all somas using ImgPlus with automatic spacing.
+     *
+     * @param source    input image (2D or 3D ImgPlus)
+     * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param zSlice    Z-slice to use (0-indexed), or -1 for middle slice
+     * @param minRadius minimum soma radius in voxels
+     * @return list of SomaResult, sorted by radius (largest first)
+     */
+    public static List<SomaResult> detectAllSomas(
+            final ImgPlus<?> source,
+            final double threshold,
+            final int zSlice,
+            final double minRadius) {
+
+        if (source == null) {
+            return new ArrayList<>();
+        }
+
+        final double[] spacing = ImgUtils.getSpacing(source);
+        final String units = ImgUtils.getSpacingUnits(source);
+
+        final RandomAccessibleInterval<?> rai;
+        final int effectiveZ;
+        if (source.numDimensions() > 2) {
+            effectiveZ = (zSlice >= 0 && zSlice < source.dimension(2))
+                    ? zSlice
+                    : (int) (source.dimension(2) / 2);
+            rai = Views.hyperSlice(source, 2, effectiveZ);
+        } else {
+            effectiveZ = -1;
+            rai = source;
+        }
+
+        @SuppressWarnings("unchecked")
+        final RandomAccessibleInterval<? extends RealType<?>> typedRai =
+                (RandomAccessibleInterval<? extends RealType<?>>) rai;
+
+        final List<SomaResult> baseResults = detectAllSomas(typedRai, threshold, spacing, minRadius);
+
+        // Enrich with units and Z
+        final List<SomaResult> enrichedResults = new ArrayList<>();
+        for (final SomaResult base : baseResults) {
+            enrichedResults.add(new SomaResult(
+                    base.center, base.centroid, base.mask, base.contour,
+                    base.radius, base.threshold, effectiveZ, units
+            ));
+        }
+
+        return enrichedResults;
+    }
+
+    /**
+     * Detects all somas using ImgPlus with default settings.
+     *
+     * @param source input image (2D or 3D ImgPlus)
+     * @return list of SomaResult, sorted by radius (largest first)
+     */
+    public static List<SomaResult> detectAllSomas(final ImgPlus<?> source) {
+        return detectAllSomas(source, -1d, -1, DEFAULT_MIN_RADIUS);
+    }
+
+    /**
+     * Detects soma within a specific labeled region.
+     */
+    private static SomaResult detectSomaInRegion(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final LabelRegion<?> region,
+            final double threshold,
+            final double[] spacing) {
+
+        // Find the center of this region using EDT × intensity scoring
+        // We iterate only within the region's bounding box for efficiency
+
+        final long[] min = Intervals.minAsLongArray(region);
+        final long[] max = Intervals.maxAsLongArray(region);
+
+        // Create a mask for this region
+        final long width = max[0] - min[0] + 1;
+        final long height = max[1] - min[1] + 1;
+        final Img<BitType> regionMask = ArrayImgs.bits(width, height);
+
+        final Cursor<BoolType> regionCursor = region.cursor();
+        final RandomAccess<BitType> maskRA = regionMask.randomAccess();
+
+        while (regionCursor.hasNext()) {
+            regionCursor.fwd();
+            final long x = regionCursor.getLongPosition(0) - min[0];
+            final long y = regionCursor.getLongPosition(1) - min[1];
+            maskRA.setPosition(new long[]{x, y});
+            maskRA.get().set(true);
+        }
+
+        // Compute EDT within region
+        final Img<BitType> inverted = ArrayImgs.bits(width, height);
+        final Cursor<BitType> mc = regionMask.cursor();
+        final Cursor<BitType> ic = inverted.cursor();
+        while (mc.hasNext()) {
+            mc.fwd();
+            ic.fwd();
+            ic.get().set(!mc.get().get());
+        }
+
+        final Img<FloatType> edt = ArrayImgs.floats(width, height);
+        DistanceTransform.binaryTransform(inverted, edt, DistanceTransform.DISTANCE_TYPE.EUCLIDIAN);
+
+        // Find max EDT × intensity within region
+        final RandomAccess<? extends RealType<?>> srcRA = source.randomAccess();
+        final Cursor<FloatType> edtCursor = edt.localizingCursor();
+
+        final double[] stats = ImgUtils.computeIntensityStats(source);
+        final double minIntensity = stats[0];
+        final double maxIntensity = stats[1];
+        final double intensityRange = maxIntensity - minIntensity;
+
+        double maxScore = Double.NEGATIVE_INFINITY;
+        long bestX = min[0], bestY = min[1];
+
+        while (edtCursor.hasNext()) {
+            edtCursor.fwd();
+            final double edtVal = edtCursor.get().getRealDouble();
+            if (edtVal <= 0) continue;
+
+            final long localX = edtCursor.getLongPosition(0);
+            final long localY = edtCursor.getLongPosition(1);
+            final long globalX = localX + min[0];
+            final long globalY = localY + min[1];
+
+            srcRA.setPosition(new long[]{globalX, globalY});
+            final double intensity = srcRA.get().getRealDouble();
+
+            if (intensity <= threshold) continue;
+
+            final double normIntensity = (intensityRange > 0)
+                    ? (intensity - minIntensity) / intensityRange
+                    : 1.0;
+            final double score = edtVal * normIntensity;
+
+            if (score > maxScore) {
+                maxScore = score;
+                bestX = globalX;
+                bestY = globalY;
+            }
+        }
+
+        if (maxScore <= 0) {
+            return null;
+        }
+
+        return buildSomaResult(source, bestX, bestY, threshold);
+    }
+
+    /**
+     * Builds a SomaResult from a seed point by flood filling and extracting contour.
+     */
+    private static SomaResult buildSomaResult(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final long seedX,
+            final long seedY,
+            final double threshold) {
+
         // Flood fill from center
-        final Img<BitType> mask = floodFillSoma(source, center[0], center[1], effectiveThreshold);
+        final Img<BitType> mask = floodFillSoma(source, seedX, seedY, threshold);
         if (mask == null) return null;
 
         // Prune narrow protrusions (neurites)
-        pruneNarrowRegions(mask, 0.05);  // Keep only where width > 5% of max
+        pruneNarrowRegions(mask, 0.05);
 
         // Extract contour from pruned mask
         final Polygon contour = extractContour(mask);
 
-        // Compute radius (equivalent radius from area)
-        final double areaVoxels = computeMaskArea(mask, null);  // Voxel count
-        final double radiusVoxels = Math.sqrt(areaVoxels / Math.PI);  // Radius in voxels
+        // Compute radius in voxels
+        final double areaVoxels = computeMaskArea(mask, null);
+        final double radiusVoxels = Math.sqrt(areaVoxels / Math.PI);
 
-        // Compute centroid (may differ slightly from center)
-        final double[] centroid = computeMaskCentroid(mask, null); // voxel coords
+        // Compute centroid in voxel coords
+        final double[] centroid = computeMaskCentroid(mask, null);
 
-        return new SomaResult(center, centroid, mask, contour, radiusVoxels, effectiveThreshold, -1, null);
+        return new SomaResult(
+                new long[]{seedX, seedY}, centroid, mask, contour,
+                radiusVoxels, threshold, -1, null
+        );
     }
 
     /**
      * Resolves threshold value, computing Otsu or mean if needed.
      */
-    private static double resolveThreshold(final RandomAccessibleInterval<? extends RealType<?>> source, final double threshold) {
+    private static double resolveThreshold(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold) {
 
         if (threshold < 0) {
             return computeOtsuThreshold(source);
@@ -193,6 +604,8 @@ public class SomaUtils {
         }
         return threshold;
     }
+
+    // ==================== Flood Fill ====================
 
     /**
      * Creates a binary mask of the soma region using flood fill from seed point.
@@ -203,7 +616,11 @@ public class SomaUtils {
      * @param threshold pixels above this value are considered foreground
      * @return binary mask where TRUE = soma region, or null if seed is in background
      */
-    public static Img<BitType> floodFillSoma(final RandomAccessibleInterval<? extends RealType<?>> source, final long seedX, final long seedY, final double threshold) {
+    public static Img<BitType> floodFillSoma(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final long seedX,
+            final long seedY,
+            final double threshold) {
 
         final long width = source.dimension(0);
         final long height = source.dimension(1);
@@ -225,7 +642,12 @@ public class SomaUtils {
     /**
      * Stack-based flood fill implementation (avoids recursion limits).
      */
-    private static void floodFillThreshold(final RandomAccessibleInterval<? extends RealType<?>> source, final Img<BitType> output, final long seedX, final long seedY, final double threshold) {
+    private static void floodFillThreshold(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final Img<BitType> output,
+            final long seedX,
+            final long seedY,
+            final double threshold) {
 
         final long width = source.dimension(0);
         final long height = source.dimension(1);
@@ -237,7 +659,7 @@ public class SomaUtils {
         stack.add(new long[]{seedX, seedY});
 
         while (!stack.isEmpty()) {
-            final long[] pos = stack.removeLast();
+            final long[] pos = stack.remove(stack.size() - 1);
             final long x = pos[0];
             final long y = pos[1];
 
@@ -262,6 +684,8 @@ public class SomaUtils {
             stack.add(new long[]{x, y - 1});
         }
     }
+
+    // ==================== Contour Extraction ====================
 
     /**
      * Extracts the boundary contour from a binary mask using Moore boundary tracing.
@@ -359,6 +783,8 @@ public class SomaUtils {
         return false;
     }
 
+    // ==================== Mask Measurements ====================
+
     /**
      * Computes the centroid of a binary mask.
      *
@@ -411,11 +837,14 @@ public class SomaUtils {
         return count;
     }
 
-    private static Img<BitType> pruneNarrowRegions(
-            final Img<BitType> mask,
-            final double minWidthFraction) {
+    // ==================== Pruning ====================
 
-        // Compute EDT on the mask itself
+    /**
+     * Prunes narrow protrusions from mask using EDT.
+     * Removes pixels where local thickness is below a fraction of maximum thickness.
+     */
+    private static void pruneNarrowRegions(final Img<BitType> mask, final double minWidthFraction) {
+
         final Img<FloatType> edt = ArrayImgs.floats(Intervals.dimensionsAsLongArray(mask));
 
         // Invert mask for EDT (TRUE = background)
@@ -437,7 +866,7 @@ public class SomaUtils {
         }
 
         // Prune pixels with EDT < threshold
-        final double edtThreshold = maxEdt * minWidthFraction;  // e.g., 0.3
+        final double edtThreshold = maxEdt * minWidthFraction;
         final Cursor<BitType> maskCursor = mask.cursor();
         final Cursor<FloatType> edtCursor = edt.cursor();
         while (maskCursor.hasNext()) {
@@ -447,16 +876,12 @@ public class SomaUtils {
                 maskCursor.get().set(false);
             }
         }
-
-        return mask;
     }
+
+    // ==================== Threshold ====================
 
     /**
      * Computes Otsu's threshold using ImageJ Ops.
-     * <p>
-     * Otsu's method finds the threshold that minimizes intra-class variance
-     * (equivalently, maximizes inter-class variance) between foreground and background.
-     * </p>
      *
      * @param source the input image
      * @return Otsu threshold value
@@ -464,16 +889,17 @@ public class SomaUtils {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static double computeOtsuThreshold(final RandomAccessibleInterval<? extends RealType<?>> source) {
         final net.imagej.ops.OpService ops = SNTUtils.getContext().getService(net.imagej.ops.OpService.class);
-        // Use raw types to avoid generic capture issues
         final net.imglib2.histogram.Histogram1d histogram = ops.image().histogram((Iterable) source);
         final RealType<?> thresholdObj = ops.threshold().otsu(histogram);
         return thresholdObj.getRealDouble();
     }
 
+    // ==================== Result Container ====================
+
     /**
      * Container for soma detection results.
      *
-     * @param center       Soma center in voxel coordinates (from findRoot)
+     * @param center       Soma center in voxel coordinates (from findRoot or seed)
      * @param centroid     Mask centroid in voxel coordinates (may differ from center)
      * @param mask         Binary mask of soma region
      * @param contour      Boundary contour polygon
@@ -484,12 +910,6 @@ public class SomaUtils {
      */
     public record SomaResult(long[] center, double[] centroid, Img<BitType> mask, Polygon contour, double radius,
                              double threshold, int zSlice, String spacingUnits) {
-
-        /**
-         * Creates a new SomaResult.
-         */
-        public SomaResult {
-        }
 
         /**
          * Checks if a valid contour was extracted.
@@ -517,17 +937,16 @@ public class SomaUtils {
          * @return the ROI with Z position set (1-indexed), or no position if zSlice is -1
          */
         public Roi toRoiAtDetectedZ(final String outputType) {
-            return toRoiInternal(outputType, zSlice >= 0 ? zSlice + 1 : -1);  // Convert 0-indexed to 1-indexed
+            return toRoiInternal(outputType, zSlice >= 0 ? zSlice + 1 : -1);
         }
 
-        private Roi toRoiInternal(final String outputType, final int zSlice) {
+        private Roi toRoiInternal(final String outputType, final int zPos) {
             final Roi roi;
             switch (outputType) {
                 case OUTPUT_CONTOUR:
                     if (hasContour()) {
                         roi = new PolygonRoi(contour, Roi.POLYGON);
                     } else {
-                        // Fallback to circle if contour extraction failed
                         roi = createCircleRoi();
                     }
                     break;
@@ -539,16 +958,14 @@ public class SomaUtils {
                     roi = createPointRoi();
                     break;
             }
-            if (zSlice > 0) {
-                roi.setPosition(zSlice);
+            if (zPos > 0) {
+                roi.setPosition(zPos);
             }
             return roi;
         }
 
         /**
          * Creates a point ROI at the soma center.
-         *
-         * @return point ROI
          */
         public PointRoi createPointRoi() {
             return new PointRoi(center[0], center[1]);
@@ -556,8 +973,6 @@ public class SomaUtils {
 
         /**
          * Creates a circular ROI using the estimated radius.
-         *
-         * @return oval ROI
          */
         public OvalRoi createCircleRoi() {
             final double cx = (centroid != null) ? centroid[0] : center[0];
@@ -575,47 +990,33 @@ public class SomaUtils {
             return new PolygonRoi(contour, Roi.POLYGON);
         }
 
-        /**
-         * Returns the center X coordinate in voxels.
-         */
+        /** Returns the center X coordinate in voxels. */
         public int getCenterX() {
             return (int) center[0];
         }
 
-        /**
-         * Returns the center Y coordinate in voxels.
-         */
+        /** Returns the center Y coordinate in voxels. */
         public int getCenterY() {
             return (int) center[1];
         }
 
-        /**
-         * Returns the center Z coordinate in voxels, or 0 if 2D.
-         */
+        /** Returns the center Z coordinate in voxels, or 0 if 2D. */
         public int getCenterZ() {
             return (center.length > 2) ? (int) center[2] : 0;
         }
 
-        /**
-         * Returns the estimated soma diameter.
-         */
+        /** Returns the estimated soma diameter in voxels. */
         public double getDiameter() {
             return radius * 2;
         }
 
-        /**
-         * Returns the soma area (number of pixels in mask × pixel area).
-         */
+        /** Returns the soma area in voxels squared. */
         public double getArea() {
             return Math.PI * radius * radius;
         }
 
         /**
          * Creates a single-node Path representing the soma.
-         * <p>
-         * The path contains one point at the soma center with the estimated
-         * radius from the distance transform. The path is typed as {@link Path#SWC_SOMA}.
-         * </p>
          *
          * @param spacing voxel spacing [x, y, z] for physical coordinates, or null for voxels
          * @return a single-node soma path
@@ -629,22 +1030,17 @@ public class SomaUtils {
             final double z = (zSlice >= 0) ? zSlice * sz : ((center.length > 2) ? center[2] * sz : 0);
             final Path path = new Path(sx, sy, sz, getSpacingUnitsOrDefault());
             path.addNode(new PointInImage(x, y, z));
-            path.setRadius(radius * (sx + sy) / 2);  // EDT-based radius
+            path.setRadius(radius * (sx + sy) / 2);
             path.setSWCType(Path.SWC_SOMA);
             path.setName("Soma");
             return path;
         }
 
-        /**
-         * Returns true if spacing units are defined.
-         */
+        /** Returns true if spacing units are defined. */
         public boolean hasSpacingUnits() {
             return spacingUnits != null && !spacingUnits.isEmpty();
         }
 
-        /**
-         * Returns the spacing units, or "? units" if unset.
-         */
         private String getSpacingUnitsOrDefault() {
             return hasSpacingUnits() ? spacingUnits : SNTUtils.getSanitizedUnit("");
         }

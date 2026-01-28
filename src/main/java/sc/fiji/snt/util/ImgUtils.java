@@ -1044,10 +1044,10 @@ public class ImgUtils {
         }
 
         // Log dimension mismatch
-        if (spacing != null && spacing.length != nDims) {
-            SNTUtils.warn("ImgUtils.wrapWithSpacing: Spacing length (" + spacing.length +
-                    ") != image dimensions (" + nDims + "). Using: " + Arrays.toString(validatedSpacing));
-        }
+//        if (spacing != null && spacing.length != nDims) {
+//            SNTUtils.log("ImgUtils.wrapWithSpacing: Spacing length (" + spacing.length +
+//                    ") != image dimensions (" + nDims + "). Using: " + Arrays.toString(validatedSpacing));
+//        }
 
         // Wrap RAI as Img if needed - use raw types to avoid generic binding issues
         final Img img = (rai instanceof Img) ? (Img) rai : ImgView.wrap((RandomAccessibleInterval) rai);

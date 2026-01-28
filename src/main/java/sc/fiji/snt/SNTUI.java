@@ -2965,9 +2965,9 @@ public class SNTUI extends JDialog {
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
 
         menu.addSeparator();
-        final JMenuItem jmiSoma = new JMenuItem("Detect Soma...");
+        final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
-        jmiSoma.setToolTipText("Runs automated detection of soma/cell body");
+        jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Mulitple cells supported.");
         menu.add(jmiSoma);
         jmiSoma.addActionListener(e -> {
             if (plugin.accessToValidImageData())
