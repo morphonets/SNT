@@ -2309,12 +2309,12 @@ public class SNTUI extends JDialog {
 		return viewerPanelBuilder.createViewerPanel(openRecViewer, syncRecViewer);
 	}
 
-	private JPanel sciViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
-		openSciView = new JButton("Open sciview");
-		registerInCommandFinder(openSciView, null, "3D Tab");
-		openSciView.addActionListener(e -> {
-			if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
-				final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+    private JPanel sciViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
+        openSciView = new JButton("Open sciview");
+        registerInCommandFinder(openSciView, null, "3D Tab");
+        openSciView.addActionListener(e -> {
+            if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
+                final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
                 return;
             }
@@ -2366,20 +2366,20 @@ public class SNTUI extends JDialog {
             }
         });
 
-		svSyncPathManager = viewerPanelBuilder.createSyncButton("Sync sciview");
-		svSyncPathManager.addActionListener(e -> {
-			if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
-				guiUtils.error("sciview is not open.");
-				openSciView.setEnabled(true);
-			} else {
-				sciViewSNT.syncPathManagerList();
-				final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "sciview synchronized";
-				showStatus(msg, true);
-			}
-		});
+        svSyncPathManager = viewerPanelBuilder.createSyncButton("Sync sciview");
+        svSyncPathManager.addActionListener(e -> {
+            if (sciViewSNT == null || sciViewSNT.getSciView() == null || sciViewSNT.getSciView().isClosed()) {
+                guiUtils.error("sciview is not open.");
+                openSciView.setEnabled(true);
+            } else {
+                sciViewSNT.syncPathManagerList();
+                final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "sciview synchronized";
+                showStatus(msg, true);
+            }
+        });
 
-		return viewerPanelBuilder.createViewerPanel(openSciView, svSyncPathManager);
-	}
+        return viewerPanelBuilder.createViewerPanel(openSciView, svSyncPathManager);
+    }
 
 	private JPanel bvvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
 		final JButton openBVV = new JButton("Open BVV");
@@ -2963,8 +2963,21 @@ public class SNTUI extends JDialog {
         menu.add(jmiGray);
         jmiGray.addActionListener(e -> runAutotracingOnImage(GWDTTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
-        // Binary autotracing
+
         menu.addSeparator();
+        final JMenuItem jmiSoma = new JMenuItem("Detect Soma...");
+        jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
+        jmiSoma.setToolTipText("Runs automated detection of soma/cell body");
+        menu.add(jmiSoma);
+        jmiSoma.addActionListener(e -> {
+            if (plugin.accessToValidImageData())
+                (new DynamicCmdRunner(SomaDetectorCmd.class, null, RUNNING_CMD)).run();
+            else
+                noValidImageDataErrorExtended();
+        });
+        menu.addSeparator();
+
+        // Binary autotracing
         final JMenuItem jmiBinaryImg = new JMenuItem("Segmented Image...");
         jmiBinaryImg.setIcon(IconFactory.menuIcon('\ue69b', true));
         jmiBinaryImg.setToolTipText("Runs automated tracing on a thresholded/binary image already open");

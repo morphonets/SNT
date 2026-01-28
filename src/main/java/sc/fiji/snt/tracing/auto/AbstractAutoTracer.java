@@ -239,7 +239,7 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         if (Double.isNaN(threshold)) {
             effectiveThreshold = meanIntensity;
         } else if (threshold < 0) {
-            effectiveThreshold = computeOtsuThreshold(source);
+            effectiveThreshold = SomaUtils.computeOtsuThreshold(source);
         } else {
             effectiveThreshold = threshold;
         }
@@ -307,25 +307,6 @@ public abstract class AbstractAutoTracer implements AutoTracer {
         final double rangeBasedThreshold = stats[0] + 0.05 * (stats[1] - stats[0]);
         final double percentileThreshold = ImgUtils.computePercentile(source, 90);
         return(rangeBasedThreshold + percentileThreshold) / 2;
-    }
-
-    /**
-     * Computes Otsu's threshold using ImageJ Ops.
-     * <p>
-     * Otsu's method finds the threshold that minimizes intra-class variance
-     * (equivalently, maximizes inter-class variance) between foreground and background.
-     * </p>
-     *
-     * @param source the input image
-     * @return the optimal threshold value, or the mean intensity if computation fails
-     */
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private static double computeOtsuThreshold(final RandomAccessibleInterval<? extends RealType<?>> source) {
-        final OpService ops = SNTUtils.getContext().getService(OpService.class);
-        // Use raw types to avoid generic capture issues
-        final Histogram1d histogram = ops.image().histogram((Iterable) source);
-        final RealType<?> thresholdObj = ops.threshold().otsu(histogram);
-        return thresholdObj.getRealDouble();
     }
 
     /**
