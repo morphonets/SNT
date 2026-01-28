@@ -1983,18 +1983,17 @@ public class Path implements Comparable<Path>, Cloneable {
 
         int startIndexOfLastDrawnLine = -1;
 
+        PathNodeCanvas previousNode = null;
+        PathNodeCanvas currentNode = null;
+
         for (int i = 0; i < nodeCount; ++i) {
 
-            final PathNodeCanvas currentNode = new PathNodeCanvas(this, i, canvas);
-            PathNodeCanvas previousNode = null;
-            PathNodeCanvas nextNode = null;
-            if (i > 0) {
-                previousNode = new PathNodeCanvas(this, i-1, canvas);
-            } else if (branchPoint != null) {
+            previousNode = currentNode;  // Reuse from previous iteration
+            currentNode = new PathNodeCanvas(this, i, canvas);
+
+            // Only create a new previousNode for special cases
+            if (i == 0 && branchPoint != null) {
                 previousNode = new PathNodeCanvas(branchPoint, i, canvas);
-            }
-            if (i < nodeCount - 1) {
-                nextNode = new PathNodeCanvas(this, i+1, canvas);
             }
 
             final boolean outOfDepthBounds = (either_side >= 0) && (Math.abs(
@@ -2018,25 +2017,20 @@ public class Path implements Comparable<Path>, Cloneable {
                 currentNode.drawDiameter(g2, slice, either_side);
             }
 
-            // If there was a previous point in this path, draw a line from there to here:
-            if (i > 0) {
-                // Don't redraw the line if we drew it the previous time, though:
+            // Draw connection to previous node
+            if (previousNode != null) {
                 if (startIndexOfLastDrawnLine != i - 1) {
                     currentNode.drawConnection(g2, previousNode);
                     startIndexOfLastDrawnLine = i - 1;
                 }
             }
-            else if (branchPoint != null) {
-                final PathNodeCanvas jointNode = new PathNodeCanvas(branchPoint, i, canvas);
+
+            // Handle branch point special case (first node)
+            if (i == 0 && branchPoint != null) {
+                final PathNodeCanvas jointNode = new PathNodeCanvas(branchPoint, 0, canvas);
                 jointNode.setType(PathNodeCanvas.JOINT);
                 jointNode.draw(g2, c);
                 currentNode.setType(PathNodeCanvas.SLAB);
-                currentNode.drawConnection(g2, previousNode);
-            }
-            // If there's a next point in this path, draw a line from here to there:
-            if (nextNode != null) {
-                currentNode.drawConnection(g2, nextNode);
-                startIndexOfLastDrawnLine = i;
             }
         }
     }
