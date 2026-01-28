@@ -1,8 +1,8 @@
 #@SNTService sntService
 
 import sc.fiji.snt.*
-import sc.fiji.snt.analysis.*
 import ij.IJ
+import sc.fiji.snt.tracing.auto.BinaryTracer
 
 /**
  * file: Fully_Automated_Tracing_Timelapse_Demo.groovy
@@ -32,7 +32,7 @@ imp = snt.getImagePlus()
 
 	// Assemble a converter for extraction of paths from this frame. API:
 	// https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/SkeletonConverter.html
-	converter = new SkeletonConverter(imp, frame) // image and frame to be parsed
+	converter = new BinaryTracer(imp, frame) // image and frame to be parsed
 	converter.setPruneByLength(false) // Don't ignore small components...
 	converter.setConnectComponents(false) // Don't merge neighboring components..
 	converter.setMaxConnectDist(2) //.. within 2um of each other

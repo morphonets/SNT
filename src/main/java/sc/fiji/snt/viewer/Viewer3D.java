@@ -957,7 +957,7 @@ public class Viewer3D {
 	public void addTrees(final Collection<Tree> trees, final String color) {
 		final String adjustedC = (color == null) ? "" : color.toLowerCase();
         switch (adjustedC) {
-            case "unique" -> Tree.assignUniqueColors(trees);
+            case "unique" -> TreeUtils.assignUniqueColors(trees);
             case "", "none" -> {}
             default -> trees.forEach(tree -> tree.setColor(color));
         }
@@ -6148,7 +6148,7 @@ public class Viewer3D {
 								failures++;
 							} else if (treesInFile.size() > 1) {
 								addProgressLoad(treesInFile.size());
-								Tree.assignUniqueColors(treesInFile);
+								TreeUtils.assignUniqueColors(treesInFile);
 								for (final Tree tree : treesInFile) {
 									addTree(tree);
 									incrementProgress();
@@ -7179,6 +7179,7 @@ public class Viewer3D {
 			final List<SWCPoint> somaPoints = new ArrayList<>();
 			final List<java.awt.Color> somaColors = new ArrayList<>();
 			final boolean validSoma = tree.validSoma();
+            final Color defaultFallbackColor = getDefColor().alpha(1f);
 
 			for (final Path p : tree.list()) {
 
@@ -7200,15 +7201,18 @@ public class Viewer3D {
 				}
 
 				// Assemble arbor(s)
-				final LineStripPlus line = new LineStripPlus(p.size(), p.getSWCType());
-				final Color fallbackColor = getDefColor().alpha(1f);
+                final int pathSize = p.size();
+                final LineStripPlus line = new LineStripPlus(pathSize, p.getSWCType());
+                final boolean hasNodeColors = p.hasNodeColors();
+                final java.awt.Color pathColor = hasNodeColors ? null : p.getColor();
+                final PointInImage branchPoint = p.getBranchPoint();
 				for (int i = 0; i < p.size(); ++i) {
 					final PointInImage pim = p.getNode(i);
-					final Color color =
-							fromAWTColor(p.hasNodeColors() ? p.getNodeColor(i) : p.getColor(), fallbackColor);
-					final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
-					if (i == 0 && p.getBranchPoint() != null) {
-						final Coord3d joint = new Coord3d(p.getBranchPoint().x, p.getBranchPoint().y, p.getBranchPoint().z);
+                    final Color color = fromAWTColor(
+                            hasNodeColors ? p.getNodeColor(i) : pathColor, defaultFallbackColor);
+                    final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
+					if (i == 0 && branchPoint != null) {
+						final Coord3d joint = new Coord3d(branchPoint.x, branchPoint.y, branchPoint.z);
 						line.add(new Point(joint, color, width));
 					}
 					line.add(new Point(new Coord3d(pim.x, pim.y, pim.z), color, width));

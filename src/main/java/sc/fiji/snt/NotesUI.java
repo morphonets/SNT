@@ -55,6 +55,13 @@ public class NotesUI {
     }
 
     /**
+     * Returns a reference to the underlying editor pane.
+     */
+    public SNTEditorPane getEditor() {
+        return editor;
+    }
+
+    /**
      * Returns the assembled <i>Notepad</i> panel.
      */
     protected JPanel getPanel() {

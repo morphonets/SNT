@@ -28,8 +28,10 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
+import sc.fiji.snt.plugin.BinaryTracerCmd;
 import sc.fiji.snt.util.ImpUtils;
 
+import javax.swing.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -126,8 +128,50 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				super.load();
-				ui.runAutotracingWizard(true);
+                runTracing();
 			}
+
+            private void runTracing() {
+                final String txt = """
+                        The Drosophila ddaC neuron autotrace demo
+                        runs _Auto-trace → Segmented Image..._
+                        with these parameters:
+                        
+                        ```
+                        Intensity img:           None
+                        Roi strategy:            ROI edge
+                        Loop strategy:           Peripheral seg.
+                        Prune small components:  Yes, < 3µm
+                        Bridge gaps:             Yes, within 6µm
+                        Prune single-node paths: Yes
+                        ```
+                        
+                        Tip: Once tracing completes, press 'H' to
+                             toggle paths visibility
+                        """;
+                SwingUtilities.invokeLater( () -> {
+                    ui.getNotesPane().getEditor().setText(txt);
+                    ui.selectTab("notes");
+                });
+                final HashMap<String, Object> inputs = new HashMap<>();
+                inputs.put("useFileChoosers", false);
+                inputs.put("maskImgChoice", "Image being traced (duplicate)");
+                inputs.put("originalImgChoice", "None"); // does not matter: not used by nicking strategy
+                inputs.put("rootChoice", BinaryTracerCmd.ROI_EDGE);
+                inputs.put("roiPlane", false); // does not matter: 2D image
+                inputs.put("loopSolvingChoice", "Peripheral segments (preserves backbone)");
+                inputs.put("pruneByLength", true);
+                inputs.put("lengthThreshold", 3);
+                inputs.put("connectComponents", true);
+                inputs.put("maxConnectDist", 6);
+                inputs.put("cullSingleNodePaths", true);
+                inputs.put("clearExisting", true);
+                inputs.put("assignDistinctColors", true);
+                inputs.put("editMode", false);
+                inputs.put("debugMode", SNTUtils.isDebugMode());
+                inputs.put("headless", true);
+                ui.runCommand(BinaryTracerCmd.class, inputs);
+            }
 		};
 		entry.summary = "Loads a binary (thresholded) image of a Drosophila space-filling neuron (ddaC) and "
 				+ "displays autotracing options for automated reconstuction.";

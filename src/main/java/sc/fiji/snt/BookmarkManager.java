@@ -259,7 +259,7 @@ public class BookmarkManager {
         JMenuItem jmi = new JMenuItem("To CSV File...");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            if (!noBookmarksError()) return;
+            if (noBookmarksError()) return;
             final File saveFile = sntui.saveFile("Export Bookmarks to CSV...",
                     "SNT_Bookmarks.csv", "csv");
             if (saveFile != null) {
@@ -276,7 +276,7 @@ public class BookmarkManager {
         jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            if (!noBookmarksError()) return;
+            if (noBookmarksError()) return;
             final ImagePlus imp = sntui.plugin.getImagePlus();
             if (imp == null) {
                 sntui.guiUtils.error("No image is currently loaded.");
@@ -292,7 +292,7 @@ public class BookmarkManager {
         jmi = new JMenuItem("To ROI Manager");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            if (!noBookmarksError()) return;
+            if (noBookmarksError()) return;
             table.clearSelection();
             toRoiManager();
             recordCmd("clearSelection()");

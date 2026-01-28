@@ -46,12 +46,16 @@ public class Logger {
 	private boolean debug;
 	private final String callerIdentifier;
 
-	/**
-	 * Constructs a new Logger with the specified context and caller identifier.
-	 *
-	 * @param context the SciJava context for dependency injection
-	 * @param callerIdentifier the identifier for the calling class/component
-	 */
+    public Logger(final Class<?> clazz) {
+        this(SNTUtils.getContext(), clazz.getSimpleName());
+    }
+
+    /**
+     * Constructs a new Logger with the specified context and caller identifier.
+     *
+     * @param context the SciJava context for dependency injection
+     * @param callerIdentifier the identifier for the calling class/component
+     */
 	public Logger(final Context context, final String callerIdentifier) {
 		context.inject(this);
 		debug = SNTUtils.isDebugMode() || prefService.getBoolean(ShollAnalysisPrefsCmd.class, "debugMode",

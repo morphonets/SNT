@@ -41,6 +41,8 @@ import java.util.stream.IntStream;
 import javax.swing.*;
 
 import ij.ImagePlus;
+import ij.measure.Calibration;
+import ij.process.ImageStatistics;
 import net.imagej.ImageJ;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
@@ -280,19 +282,21 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		return selectedIndices;
 	}
 
-	private List<FillerThread> getSelectedFills(final String msg) {
-		int[] selectedIndices = getSelectedIndices(msg);
-		final List<FillerThread> fills = new ArrayList<>();
-		final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
-		final RandomAccessibleInterval<? extends RealType<?>> scope = useSecondary ? plugin.getSecondaryData()
-				: plugin.getLoadedData();
-		for (int i : selectedIndices) {
-			FillerThread filler = FillerThread.fromFill(scope, plugin.getImagePlus().getCalibration(),
-					plugin.getStats(), pathAndFillManager.getAllFills().get(i));
-			fills.add(filler);
-		}
-		return fills;
-	}
+    private List<FillerThread> getSelectedFills(final String msg) {
+        int[] selectedIndices = getSelectedIndices(msg);
+        final List<FillerThread> fills = new ArrayList<>(selectedIndices.length);
+        final boolean useSecondary = plugin.isTracingOnSecondaryImageActive();
+        final RandomAccessibleInterval<? extends RealType<?>> scope = useSecondary ? plugin.getSecondaryData()
+                : plugin.getLoadedData();
+        final Calibration calibration = plugin.getImagePlus().getCalibration();
+        final ImageStatistics stats = plugin.getStats();
+        final List<Fill> allFills = pathAndFillManager.getAllFills();
+        for (int i : selectedIndices) {
+            FillerThread filler = FillerThread.fromFill(scope, calibration, stats, allFills.get(i));
+            fills.add(filler);
+        }
+        return fills;
+    }
 
 	private void reload(final String msg) {
 		int[] selectedIndices = getSelectedIndices(msg);
@@ -335,28 +339,29 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		fillTypeLabel.setText(sb.toString());
 	}
 
-	private class FMCellRenderer extends DefaultListCellRenderer {
+    private class FMCellRenderer extends DefaultListCellRenderer {
 
-		private static final long serialVersionUID = 1L;
+        private static final long serialVersionUID = 1L;
+        private Font boldFont;  // Cached bold font
 
-		@Override
-		public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index,
-													  final boolean isSelected, final boolean cellHasFocus)
-		{
+        @Override
+        public Component getListCellRendererComponent(final JList<?> list, final Object value, final int index,
+                                                      final boolean isSelected, final boolean cellHasFocus)
+        {
+            final Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 
-			final Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-
-			final Fill fill = (Fill) value;
-			if (isFillLoaded(fill)) {
-				c.setFont(getFont().deriveFont(Font.BOLD));
-				//setBackground(getBackground().darker()); // Problematic when using Dark themes!?
-			} else if (fill instanceof PrototypeFill) {
-				c.setEnabled(false);
-			}
-			return c;
-		}
-
-	}
+            final Fill fill = (Fill) value;
+            if (isFillLoaded(fill)) {
+                if (boldFont == null || !boldFont.getFamily().equals(getFont().getFamily())) {
+                    boldFont = getFont().deriveFont(Font.BOLD);
+                }
+                c.setFont(boldFont);
+            } else if (fill instanceof PrototypeFill) {
+                c.setEnabled(false);
+            }
+            return c;
+        }
+    }
 
 	private static class PrototypeFill extends Fill {
 		private static final PrototypeFill instance = new PrototypeFill();
@@ -366,9 +371,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 		}
 	}
 
-	private boolean isFillLoaded(Fill fill) {
-		return plugin.getPathAndFillManager().getLoadedFills().containsKey(fill);
-	}
+    private boolean isFillLoaded(Fill fill) {
+        return pathAndFillManager.getLoadedFills().containsKey(fill);
+    }
 
 	protected void adjustListPlaceholder() {
 		if (listModel.isEmpty()) {

@@ -97,7 +97,7 @@ if (actionChoice.contains("secondary layer")) {
 		result.getTitle() + " Loaded")
 } else if (actionChoice.contains("auto-tracing")) {
 	// Run Extract Paths from Segmented Image... command
-	snt.getUI().runAutotracingWizard(result, false)
+	snt.getUI().runAutotracingWizard(result)
 }
 println("done")
 

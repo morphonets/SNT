@@ -572,7 +572,101 @@ public class GuiUtils {
 
 	}
 
-	/* returns true if user does not want to be warned again */
+    /**
+     * Displays a dialog with radio button choices, optional info text, and an optional checkbox.
+     * Useful for operations that require a selection with additional context and options.
+     *
+     * @param title          the dialog title
+     * @param message        the message/prompt shown at the top (can be HTML)
+     * @param choices        array of choices to display as radio buttons
+     * @param defaultChoice  the initially selected choice (must be in choices array)
+     * @param infoText       optional informational text shown below the choices (null to hide)
+     * @param checkboxLabel  optional checkbox label (null to hide checkbox)
+     * @param checkboxDefault default state of checkbox (ignored if checkboxLabel is null)
+     * @return Object array: {selectedChoice (String), checkboxSelected (Boolean)},
+     *         or null if cancelled. checkboxSelected is false if checkbox was hidden.
+     */
+    public Object[] getChoiceWithOptionAndInfo(final String title, final String message,
+                                               final String[] choices, final String defaultChoice,
+                                               final String infoText, final String checkboxLabel, final boolean checkboxDefault) {
+
+        // Build the panel
+        final JPanel panel = new JPanel(new GridBagLayout());
+        final GridBagConstraints gbc = new GridBagConstraints();
+        gbc.anchor = GridBagConstraints.LINE_START;
+        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(2, 0, 2, 0);
+        gbc.weightx = 1.0;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+
+        // Message label
+        if (message != null && !message.isEmpty()) {
+            panel.add(getLabel(message), gbc);
+            gbc.gridy++;
+            gbc.insets = new Insets(8, 0, 2, 0); // Add some space after message
+        }
+
+        // Radio buttons for choices
+        final ButtonGroup buttonGroup = new ButtonGroup();
+        final JRadioButton[] radioButtons = new JRadioButton[choices.length];
+
+        int defaultIndex = 0;
+        for (int i = 0; i < choices.length; i++) {
+            if (choices[i].equals(defaultChoice)) {
+                defaultIndex = i;
+            }
+            radioButtons[i] = new JRadioButton(choices[i]);
+            buttonGroup.add(radioButtons[i]);
+            gbc.insets = new Insets(2, 10, 2, 0); // Indent radio buttons slightly
+            panel.add(radioButtons[i], gbc);
+            gbc.gridy++;
+        }
+        radioButtons[defaultIndex].setSelected(true);
+
+        // Info text (optional)
+        if (infoText != null && !infoText.isEmpty()) {
+            gbc.insets = new Insets(10, 0, 2, 0); // Add space before info
+            final JLabel infoLabel = getLabel(infoText);
+            infoLabel.setEnabled(false); // Dimmed appearance for secondary info
+            panel.add(infoLabel, gbc);
+            gbc.gridy++;
+        }
+
+        // Checkbox (optional)
+        final JCheckBox checkbox;
+        if (checkboxLabel != null && !checkboxLabel.isEmpty()) {
+            checkbox = new JCheckBox();
+            checkbox.setText(getWrappedText(checkbox, checkboxLabel));
+            checkbox.setSelected(checkboxDefault);
+            gbc.insets = new Insets(10, 0, 2, 0); // Add space before checkbox
+            panel.add(checkbox, gbc);
+            gbc.gridy++;
+        } else {
+            checkbox = null;
+        }
+
+        // Show dialog
+        final int result = JOptionPane.showConfirmDialog(parent, panel, title,
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            // Find selected choice
+            String selectedChoice = choices[0];
+            for (int i = 0; i < radioButtons.length; i++) {
+                if (radioButtons[i].isSelected()) {
+                    selectedChoice = choices[i];
+                    break;
+                }
+            }
+            final boolean checkboxSelected = checkbox != null && checkbox.isSelected();
+            return new Object[] { selectedChoice, checkboxSelected };
+        }
+        return null;
+    }
+
+    /* returns true if user does not want to be warned again */
 	public Boolean getPersistentWarning(final String msg, final String title) {
 		return getPersistentDialog(msg, title, JOptionPane.WARNING_MESSAGE);
 	}
@@ -831,25 +925,30 @@ public class GuiUtils {
     }
 
     public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
-		final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
-				+ SNTUtils.formatDouble(defaultRange[1], 3));
-		if (s == null)
-			return null; // user pressed cancel
-		final float[] values = { Float.NaN,Float.NaN };
-		try {
-			// see https://stackoverflow.com/a/51283413
-			final String regex = "([-+]?\\d*\\.?\\d*)\\s*-\\s*([-+]?\\d*\\.?\\d*)";
-			final Pattern pattern = Pattern.compile(regex);
-			final Matcher matcher = pattern.matcher(s);
-			if (matcher.find()) {
-				values[0] = Float.parseFloat(matcher.group(1));
-				values[1] = Float.parseFloat(matcher.group(2));
-			}
-		} catch (final Exception ignored) {
-			// do nothing
-		}
-		return values;
-	}
+        final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
+                + SNTUtils.formatDouble(defaultRange[1], 3));
+        if (s == null)
+            return null; // user pressed cancel
+        final float[] values = { Float.NaN, Float.NaN };
+        try {
+            // Regex that handles scientific notation (e.g., 1.5e-10, 2E+5, -3.14e2)
+            // Pattern breakdown:
+            //   [-+]?           - optional sign
+            //   \\d*\\.?\\d+    - digits with optional decimal point (at least one digit required)
+            //   (?:[eE][-+]?\\d+)?  - optional exponent part (e or E followed by optional sign and digits)
+            final String numberPattern = "[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?";
+            final String regex = "(" + numberPattern + ")\\s*-\\s*(" + numberPattern + ")";
+            final Pattern pattern = Pattern.compile(regex);
+            final Matcher matcher = pattern.matcher(s.trim());
+            if (matcher.find()) {
+                values[0] = Float.parseFloat(matcher.group(1));
+                values[1] = Float.parseFloat(matcher.group(2));
+            }
+        } catch (final NumberFormatException ignored) {
+            // Return NaN values which will be handled by caller
+        }
+        return values;
+    }
 
 	public void adjustComponentThroughPrompt(final Container container) {
 

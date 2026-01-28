@@ -1368,6 +1368,27 @@ public class Path implements Comparable<Path>, Cloneable {
 		// No manual synchronization needed!
 	}
 
+    /**
+     * Assigns a new location to the specified node using raw coordinates.
+     * This is a performance-optimized version of {@link #moveNode(int, PointInImage)}
+     * that avoids object allocation.
+     *
+     * @param index the index of the node to move
+     * @param x the new x coordinate
+     * @param y the new y coordinate
+     * @param z the new z coordinate
+     * @throws IndexOutOfBoundsException if the index is out of range
+     */
+    public void moveNode(final int index, final double x, final double y, final double z) {
+        final PathNode node = getNodeWithChecks(index);
+        node.x = x;
+        node.y = y;
+        node.z = z;
+        if (getFitted() != null && !isFittedVersionOfAnotherPath() && index < getFitted().size()) {
+            getFitted().moveNode(index, x, y, z);
+        }
+    }
+
 	/**
 	 * Gets the first node index associated with the specified image coordinates.
 	 * Returns -1 if no such node was found.
@@ -1945,70 +1966,80 @@ public class Path implements Comparable<Path>, Cloneable {
 			snt.getDrawDiameters(), sliceZeroIndexed, eitherSideParameter);
 	}
 
-	public void drawPathAsPoints(final TracerCanvas canvas, final Graphics2D g2,
-		final java.awt.Color c, final boolean highContrast,
-		boolean drawDiameter, final int slice, final int either_side)
-	{
+    public void drawPathAsPoints(final TracerCanvas canvas, final Graphics2D g2,
+                                 final java.awt.Color c, final boolean highContrast,
+                                 boolean drawDiameter, final int slice, final int either_side)
+    {
+        final int nodeCount = nodes.size();
+        if (nodeCount == 0) return;
 
-		int startIndexOfLastDrawnLine = -1;
+        // Pre-compute values constant across the loop
+        final BasicStroke connectionStroke = new BasicStroke(
+                (float) (canvas.nodeDiameter() / 3), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
+        final PointInImage branchPoint = getBranchPoint();
+        final int editableNodeIndex = getEditableNodeIndex();
+        final int defaultTransparency = canvas.getDefaultTransparency();
+        final int outOfBoundsTransparency = canvas.getOutOfBoundsTransparency();
 
-		for (int i = 0; i < nodes.size(); ++i) {
+        int startIndexOfLastDrawnLine = -1;
 
-			final PathNodeCanvas currentNode = new PathNodeCanvas(this, i, canvas);
-			PathNodeCanvas previousNode = null;
-			PathNodeCanvas nextNode = null;
-			if (i > 0) {
-				previousNode = new PathNodeCanvas(this, i-1, canvas);
-			} else if (getBranchPoint() != null) {
-				previousNode = new PathNodeCanvas(getBranchPoint(), i, canvas);
-			}
-			if (i < nodes.size() - 1) {
-				nextNode = new PathNodeCanvas(this, i+1, canvas);
-			}
+        for (int i = 0; i < nodeCount; ++i) {
 
-			final boolean outOfDepthBounds = (either_side >= 0) && (Math.abs(
-					currentNode.getSlice() - slice) > either_side);
+            final PathNodeCanvas currentNode = new PathNodeCanvas(this, i, canvas);
+            PathNodeCanvas previousNode = null;
+            PathNodeCanvas nextNode = null;
+            if (i > 0) {
+                previousNode = new PathNodeCanvas(this, i-1, canvas);
+            } else if (branchPoint != null) {
+                previousNode = new PathNodeCanvas(branchPoint, i, canvas);
+            }
+            if (i < nodeCount - 1) {
+                nextNode = new PathNodeCanvas(this, i+1, canvas);
+            }
 
-			// Draw node
-			if (!outOfDepthBounds) {
-				currentNode.setEditable(getEditableNodeIndex() == i);
-				currentNode.draw(g2, c);
-			}
+            final boolean outOfDepthBounds = (either_side >= 0) && (Math.abs(
+                    currentNode.getSlice() - slice) > either_side);
 
-			// Options for drawing inter-node segments and node diameter. Color
-			// will be whatever has been set by PathNodeCanvas#draw(). If 2D canvas,
-			// out-of-bounds transparency is ignored
-			g2.setStroke(new BasicStroke((float) (canvas.nodeDiameter() / 3), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-			g2.setColor(SNTColor.alphaColor(g2.getColor(),
-					(outOfDepthBounds) ? canvas.getOutOfBoundsTransparency() : canvas.getDefaultTransparency()));
+            // Draw node
+            if (!outOfDepthBounds) {
+                currentNode.setEditable(editableNodeIndex == i);
+                currentNode.draw(g2, c);
+            }
 
-			// We are within Z-bounds and have been asked to draw the diameters, just do it in XY
-			if (drawDiameter && !outOfDepthBounds) {
-				currentNode.drawDiameter(g2, slice, either_side);
-			}
+            // Options for drawing inter-node segments and node diameter. Color
+            // will be whatever has been set by PathNodeCanvas#draw(). If 2D canvas,
+            // out-of-bounds transparency is ignored
+            g2.setStroke(connectionStroke);
+            g2.setColor(SNTColor.alphaColor(g2.getColor(),
+                    (outOfDepthBounds) ? outOfBoundsTransparency : defaultTransparency));
 
-			// If there was a previous point in this path, draw a line from there to here:
-			if (i > 0) {
-				// Don't redraw the line if we drew it the previous time, though:
-				if (startIndexOfLastDrawnLine != i - 1) {
-					currentNode.drawConnection(g2, previousNode);
-					startIndexOfLastDrawnLine = i - 1;
-				}
-			}
-			else if (getStartJoinsPoint() != null) {
-				final PathNodeCanvas jointNode = new PathNodeCanvas(getStartJoinsPoint(), i, canvas);
-				jointNode.setType(PathNodeCanvas.JOINT);
-				jointNode.draw(g2, c);
-				currentNode.setType(PathNodeCanvas.SLAB);
-				currentNode.drawConnection(g2, previousNode);
-			}
-			// If there's a next point in this path, draw a line from here to there:
-			if (nextNode != null) {
-				currentNode.drawConnection(g2, nextNode);
-				startIndexOfLastDrawnLine = i;
-			}
-		}
-	}
+            // We are within Z-bounds and have been asked to draw the diameters, just do it in XY
+            if (drawDiameter && !outOfDepthBounds) {
+                currentNode.drawDiameter(g2, slice, either_side);
+            }
+
+            // If there was a previous point in this path, draw a line from there to here:
+            if (i > 0) {
+                // Don't redraw the line if we drew it the previous time, though:
+                if (startIndexOfLastDrawnLine != i - 1) {
+                    currentNode.drawConnection(g2, previousNode);
+                    startIndexOfLastDrawnLine = i - 1;
+                }
+            }
+            else if (branchPoint != null) {
+                final PathNodeCanvas jointNode = new PathNodeCanvas(branchPoint, i, canvas);
+                jointNode.setType(PathNodeCanvas.JOINT);
+                jointNode.draw(g2, c);
+                currentNode.setType(PathNodeCanvas.SLAB);
+                currentNode.drawConnection(g2, previousNode);
+            }
+            // If there's a next point in this path, draw a line from here to there:
+            if (nextNode != null) {
+                currentNode.drawConnection(g2, nextNode);
+                startIndexOfLastDrawnLine = i;
+            }
+        }
+    }
 
 	/**
 	 * Sets the node colors.

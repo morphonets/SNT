@@ -111,7 +111,7 @@ public class Viewer2D extends TreeColorMapper {
 		}
 	}
 
-	private void addPaths(final ArrayList<Path> paths) {
+	private void addPaths(final List<Path> paths) {
 		this.paths = paths;
 		plotPaths();
 	}
@@ -166,74 +166,73 @@ public class Viewer2D extends TreeColorMapper {
 		series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.NONE));
 	}
 
-	private void plotPaths() {
-		if (paths == null || paths.isEmpty()) {
-			throw new IllegalArgumentException("No paths to plot");
-		}
-		initPlot();
-		for (final Path p : paths) {
-			final XYSeries series = plot.addXYSeries();
-			series.setLegendVisible(false);
-			series.setLabel(p.getName());
-			final List<Double> xc = new ArrayList<>();
-			final List<Double> yc = new ArrayList<>();
-			if (p.getBranchPoint() != null) {
-				xc.add(p.getBranchPoint().x);
-				yc.add(p.getBranchPoint().y);
-			}
-			for (int node = 0; node < p.size(); node++) {
-				final PointInImage pim = p.getNode(node);
-				xc.add(pim.x);
-				yc.add(pim.y);
-			}
-			series.setValues(xc, yc);
-			final ColorRGB color = (p.getColor() == null) ? defaultColor
-				: new ColorRGB(p.getColor().getRed(), p.getColor().getGreen(), p
-					.getColor().getBlue());
-			series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID,
-				MarkerStyle.NONE));
-		}
-		plotColoredNodePathsFast(); // will do nothing if no color nodes exist
-	}
+    private void plotPaths() {
+        if (paths == null || paths.isEmpty()) {
+            throw new IllegalArgumentException("No paths to plot");
+        }
+        initPlot();
+        for (final Path p : paths) {
+            final XYSeries series = plot.addXYSeries();
+            series.setLegendVisible(false);
+            series.setLabel(p.getName());
 
-	private Map<Color, List<PointInImage>> getNodesColorMapFast() {
-		final Map<Color, List<PointInImage>> map = new HashMap<>();
-		for (final Path p : paths) {
-			if (!p.hasNodeColors()) continue;
-			final Color[] pathColors = p.getNodeColors();
-			for (int node = 0; node < pathColors.length; node++) {
-				if (pathColors[node] == null)
-					continue;
-				final PointInImage pim = p.getNode(node);
-				if (map.get(pathColors[node]) == null) {
-					final List<PointInImage> pims = new ArrayList<>();
-					pims.add(pim);
-					map.put(pathColors[node], pims);
-				} else {
-					map.get(pathColors[node]).add(pim);
-				}
-			}
-		}
-		return map;
-	}
+            final int capacity = p.size() + (p.getBranchPoint() != null ? 1 : 0);
+            final List<Double> xc = new ArrayList<>(capacity);
+            final List<Double> yc = new ArrayList<>(capacity);
 
-	private void plotColoredNodePathsFast() {
-		getNodesColorMapFast().forEach( (c, pimList) -> {
-			final XYSeries series = plot.addXYSeries();
-			series.setLegendVisible(false);
-			series.setLabel(c.toString());
-			final List<Double> xc = new ArrayList<>();
-			final List<Double> yc = new ArrayList<>();
-			pimList.forEach( pim -> {
-				xc.add(pim.getX());
-				yc.add(pim.getY());
-			});
-			series.setValues(xc, yc);
-			final ColorRGB cc = new ColorRGB(c.getRed(), c.getGreen(), c.getBlue());
-			series.setStyle(plotService.newSeriesStyle(cc, LineStyle.NONE,
-				MarkerStyle.FILLEDCIRCLE));
-		});
-	}
+            final PointInImage branchPoint = p.getBranchPoint();
+            if (branchPoint != null) {
+                xc.add(branchPoint.x);
+                yc.add(branchPoint.y);
+            }
+            for (int node = 0; node < p.size(); node++) {
+                final PointInImage pim = p.getNode(node);
+                xc.add(pim.x);
+                yc.add(pim.y);
+            }
+            series.setValues(xc, yc);
+
+            final Color pathColor = p.getColor();
+            final ColorRGB color = (pathColor == null) ? defaultColor
+                    : new ColorRGB(pathColor.getRed(), pathColor.getGreen(), pathColor.getBlue());
+            series.setStyle(plotService.newSeriesStyle(color, LineStyle.SOLID, MarkerStyle.NONE));
+        }
+        plotColoredNodePathsFast();
+    }
+
+    private Map<Color, List<PointInImage>> getNodesColorMapFast() {
+        final Map<Color, List<PointInImage>> map = new HashMap<>();
+        for (final Path p : paths) {
+            if (!p.hasNodeColors()) continue;
+            final Color[] pathColors = p.getNodeColors();
+            for (int node = 0; node < pathColors.length; node++) {
+                final Color c = pathColors[node];
+                if (c == null) continue;
+                map.computeIfAbsent(c, color -> new ArrayList<>()).add(p.getNode(node));
+            }
+        }
+        return map;
+    }
+
+    private void plotColoredNodePathsFast() {
+        getNodesColorMapFast().forEach((c, pimList) -> {
+            final XYSeries series = plot.addXYSeries();
+            series.setLegendVisible(false);
+            series.setLabel(c.toString());
+
+            final int size = pimList.size();
+            final List<Double> xc = new ArrayList<>(size);
+            final List<Double> yc = new ArrayList<>(size);
+            for (final PointInImage pim : pimList) {
+                xc.add(pim.getX());
+                yc.add(pim.getY());
+            }
+            series.setValues(xc, yc);
+
+            final ColorRGB cc = new ColorRGB(c.getRed(), c.getGreen(), c.getBlue());
+            series.setStyle(plotService.newSeriesStyle(cc, LineStyle.NONE, MarkerStyle.FILLEDCIRCLE));
+        });
+    }
 
 	protected void addColorBarLegend(final String colorTable, final double min,
 			final double max)
