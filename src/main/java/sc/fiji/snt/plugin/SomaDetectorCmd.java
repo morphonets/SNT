@@ -57,9 +57,9 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
     private static final String OUTPUT_PATH = "Single-node path";
 
     private static final String SCOPE_ALL = "All somata in image";
-    private static final String SCOPE_BRIGHTEST = "Brightest soma only";
+    private static final String SCOPE_BRIGHTEST = "Brightest/largest soma only";
 
-    @Parameter(label = "Output type", choices = {OUTPUT_PATH, OUTPUT_POINT_ROI, OUTPUT_AREA_ROI, OUTPUT_CIRCLE_ROI},
+    @Parameter(label = "Output type", choices = {OUTPUT_PATH, OUTPUT_AREA_ROI, OUTPUT_CIRCLE_ROI, OUTPUT_POINT_ROI},
             style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
             description = "<HTML>Type of output:<br>" +
                     "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>" +
@@ -73,7 +73,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             callback = "scopeChoiceChanged",
             description = "<HTML>Detection scope:<br>" +
                     "<b>All somata</b>: Detect all cell bodies in image<br>" +
-                    "<b>Brightest only</b>: Detect single brightest/thickest soma")
+                    "<b>Brightest only</b>: Detect single brightest/largest soma")
     private String scopeChoice;
 
     @Parameter(label = "Threshold", min = "-1", required = false,
@@ -83,9 +83,9 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
 
     @Parameter(label = "Min. radius", min = "1", required = false,
             description = "<HTML>Minimum soma radius <b>in pixels</b>.<br>" +
-                    "Only applies when detecting all somata.<br>" +
+                    "Only applies when detecting <b>" + SCOPE_ALL +"</b>.<br>" +
                     "Smaller detections are filtered out as noise.<br>" +
-                    "Default: 10")
+                    "Default: 10 pixels")
     private double minRadius = 10;
 
     private ImagePlus imp;
@@ -99,6 +99,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         if (imp == null || img == null) {
             error("No valid image data available.");
         }
+        getInfo().setLabel(String.format("Detect Soma [C=%d;T=%d]...", snt.getChannel(), snt.getFrame()));
         scopeChoiceChanged();
     }
 

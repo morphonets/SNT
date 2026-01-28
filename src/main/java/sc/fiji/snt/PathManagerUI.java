@@ -4203,7 +4203,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 } else {
                     sb.append("<b>✓ No issues detected</b><br><br>");
                     sb.append("All ").append(analysis.totalPaths).append(" path(s) in ")
-                            .append(analysis.currentTreeCount).append(" tree(s) appear correctly connected.<br><br>");
+                            .append(analysis.currentTreeCount).append(" tree(s) appear to have valid connections.<br><br>");
                     sb.append("Rebuild anyway? This will reset all tree IDs and recalculate orders.");
                 }
 

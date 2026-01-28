@@ -58,7 +58,7 @@ import java.util.List;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Automated Tracing: Tree from Grayscale Image (GWDT)...", initializer = "init")
+@Plugin(type = Command.class, label = "Autotracing Grayscale Data (GWDT)...", initializer = "init")
 public class GWDTTracerCmd extends CommonDynamicCmd {
 
     // ROI strategy constants
@@ -69,8 +69,9 @@ public class GWDTTracerCmd extends CommonDynamicCmd {
     private static final String IMG_TRACED_CHOICE = "Image being traced";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private final String msg1 = "<HTML>This command traces neurons directly from grayscale images using Gray-Weighted<br>" +
-            "Distance Transform (GWDT) and Fast Marching. It does not require binarization.";
+    private final String msg1 = "<HTML>This command traces neurons directly from grayscale images (no binarization<br>" +
+            "required). Results can be refined using edit commands in Path Manager and<br>" +
+            "image context menu.";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER1 = "<HTML>&nbsp;<br><b>I. Input Image";
