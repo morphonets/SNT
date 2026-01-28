@@ -915,7 +915,8 @@ public class SNTUI extends JDialog {
 	private interface UIState {
 		void enter();
 		int getStateId();
-	}
+        default void exit() {}
+    }
 
 	// State registry
 	private final Map<Integer, UIState> states = new HashMap<>();
@@ -950,9 +951,15 @@ public class SNTUI extends JDialog {
 	 */
 	public void changeState(final int newState) {
 		if (newState == currentState || plugin == null) return; // plugin may be null when exiting
+
+        // Call exit() on current state
+        UIState oldState = states.get(currentState);
+        if (oldState != null) oldState.exit();
+
 		currentState = newState;
 		
 		SwingUtilities.invokeLater(() -> {
+            if (currentState != newState) return; // Verify state hasn't changed since we queued this
 			UIState state = states.get(newState);
 			if (state != null) {
 				state.enter();
@@ -1087,11 +1094,37 @@ public class SNTUI extends JDialog {
 	}
 
 	private class RunningCmdState implements UIState {
+        private static final String[] BRAILLE = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
+        private static final String[] SPINNER_FRAMES;
+        static {
+            SPINNER_FRAMES = new String[BRAILLE.length];
+            for (int i = 0; i < BRAILLE.length; i++) {
+                SPINNER_FRAMES[i] = "<html><strong>Running Command... <span style='font-size:1.1em'>"
+                        + BRAILLE[i] + " " + BRAILLE[i] + " " + BRAILLE[i] + "</span></strong></html>";
+            }
+        }
+        Timer runningAnimationTimer;
+        private int spinnerIndex = 0;
+
 		@Override
 		public void enter() {
 			updateStatusText("Running Command...");
 			disableEverything();
+            spinnerIndex = 0;
+            runningAnimationTimer = new Timer(150, e -> {
+                spinnerIndex = (spinnerIndex + 1) % SPINNER_FRAMES.length;
+                statusText.setText(SPINNER_FRAMES[spinnerIndex]);
+            });
+            runningAnimationTimer.start();
 		}
+
+        @Override
+        public void exit() {
+            if (runningAnimationTimer != null) {
+                runningAnimationTimer.stop();
+                runningAnimationTimer = null;
+            }
+        }
 
 		@Override
 		public int getStateId() {
@@ -4284,7 +4317,7 @@ public class SNTUI extends JDialog {
             }
         }
 		if (activeWorker != null && !activeWorker.isDone()) activeWorker.kill();
-		changeState(WAITING_TO_START_PATH);
+        changeState(plugin.tracingHalted ? TRACING_PAUSED : WAITING_TO_START_PATH);
 	}
 
 	protected void launchSigmaPaletteAround(final int x, final int y) {

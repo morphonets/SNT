@@ -448,8 +448,11 @@ public class DemoRunner {
 	}
 
 	private void exit() {
-		ui.changeState(priorUIState);
-		ui.showStatus(null, true);
+        if (priorUIState == SNTUI.TRACING_PAUSED && ui.getState() != SNTUI.TRACING_PAUSED) {
+            return; // Don't restore TRACING_PAUSED if we're no longer in that state
+        }
+        ui.changeState(priorUIState);
+        ui.showStatus(null, true);
 	}
 
 	public Demo getChoice() {

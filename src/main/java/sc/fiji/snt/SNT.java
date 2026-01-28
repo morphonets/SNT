@@ -1040,7 +1040,7 @@ public class SNT extends MultiDThreePanes implements
 		fillerSet.clear();
 		pathAndFillManager.getLoadedFills().clear();
 		fillerThreadPool = null;
-		changeUIState(SNTUI.WAITING_TO_START_PATH);
+        changeUIState(tracingHalted ? SNTUI.TRACING_PAUSED : SNTUI.WAITING_TO_START_PATH);
 		if (getUI() != null)
 			getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
@@ -1048,6 +1048,7 @@ public class SNT extends MultiDThreePanes implements
 	protected synchronized void discardFill() {
 		if (fillerSet.isEmpty()) {
 			SNTUtils.log("No Fill(s) to discard...");
+            return;
 		}
 		for (FillerThread filler : fillerSet) {
 			removeThreadToDraw(filler);
@@ -1055,9 +1056,9 @@ public class SNT extends MultiDThreePanes implements
 		fillerSet.clear();
 		pathAndFillManager.getLoadedFills().clear();
 		fillerThreadPool = null;
-		changeUIState(SNTUI.WAITING_TO_START_PATH);
-		if (getUI() != null)
-			getUI().getFillManager().changeState(FillManagerUI.State.READY);
+        changeUIState(tracingHalted ? SNTUI.TRACING_PAUSED : SNTUI.WAITING_TO_START_PATH);
+        if (getUI() != null)
+            getUI().getFillManager().changeState(FillManagerUI.State.READY);
 	}
 
 	protected synchronized void stopFilling() {

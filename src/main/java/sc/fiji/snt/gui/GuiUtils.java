@@ -434,20 +434,6 @@ public class GuiUtils {
 		});
 		list.setSelectedIndex(defIdx);
 		list.ensureIndexIsVisible(defIdx);
-		list.setCellRenderer(new DefaultListCellRenderer() {
-
-			private static final long serialVersionUID = -810009340376431810L;
-
-			@Override
-			public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
-					boolean cellHasFocus) {
-				final Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-				if (isSelected)
-					c.setFont(c.getFont().deriveFont(Font.BOLD));
-				return c;
-			}
-		} );
-
 		ta.setText(descriptions[defIdx]);
 		ta.setCaretPosition(0);
 		ta.setBackground(list.getBackground());
