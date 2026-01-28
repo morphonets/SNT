@@ -96,7 +96,8 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * Auto-tracing:
 
-  * Generation of traces from thresholded/filtered images
+  * Generation of traces directlry from grayscale (raw) and thresholded (filtered) images
+  * Automated soma detection
   * Machine learning: Built-in routines for training random forest classifiers on previously traced paths ([LabKit](https://github.com/juglab/labkit-ui)/[Trainable Weka segmentation](https://github.com/fiji/Trainable_Segmentation) bridges)
 
 * Tracing can be interleaved with image processing routines
