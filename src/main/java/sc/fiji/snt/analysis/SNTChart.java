@@ -105,7 +105,7 @@ public class SNTChart extends ChartPanel {
 	private String title;
     private boolean equalizedXY;
 
-	static double scalingFactor = 1;
+	private static double scalingFactor = 1;
 
     public SNTChart(final String title, final JFreeChart chart) {
 		this(title, chart, new Dimension((int)(400 * scalingFactor), (int)(400 * scalingFactor)));
@@ -531,7 +531,7 @@ public class SNTChart extends ChartPanel {
 		final Color[] baseColors = new Color[colors.length];
 		for (int i = 0; i < colors.length; i++) {
 			final ColorRGB crgb = Colors.getColor(colors[i]);
-			baseColors[i] = new Color(crgb.getRed(), crgb.getGreen(), crgb.getBlue());
+			baseColors[i] = toAwtColor(crgb);
 		}
 		if (n < baseColors.length) {
 			return Arrays.copyOfRange(baseColors, 0, n);
@@ -547,8 +547,7 @@ public class SNTChart extends ChartPanel {
 		final Color[] colors = new Color[n];
 		for (int i = 0; i < n; i++) {
 			final int idx = Math.round((float) ((colortable.getLength() - 1) * i) / n);
-			colors[i] = new Color(colortable.get(ColorTable.RED, idx), colortable.get(ColorTable.GREEN, idx),
-					colortable.get(ColorTable.BLUE, idx));
+			colors[i] = colorFromTable(colortable, idx);
 		}
 		return colors;
 	}
@@ -780,7 +779,8 @@ public class SNTChart extends ChartPanel {
                 saveAsPNG(file, 1);
             }
             return true;
-        } catch (final IOException ignored) {
+        } catch (final IOException e) {
+            SNTUtils.log("Failed to save chart: " + e.getMessage());
             return false;
         }
     }
@@ -802,7 +802,8 @@ public class SNTChart extends ChartPanel {
                 saveAsPNG(filePath, scalingFactor);
             }
             return true;
-        } catch (final IOException ignored) {
+        } catch (final IOException e) {
+            SNTUtils.log("Failed to save chart: " + e.getMessage());
             return false;
         }
     }
@@ -1096,8 +1097,7 @@ public class SNTChart extends ChartPanel {
 
 	private Color getColorFromString(final String string) {
 		if (string == null) return Color.BLACK;
-		final ColorRGB c = new ColorRGB(string);
-		return new Color(c.getRed(), c.getGreen(), c.getBlue());
+		return toAwtColor(new ColorRGB(string));
 	}
 
 	public void applyStyle(final SNTChart template) {
@@ -1108,8 +1108,6 @@ public class SNTChart extends ChartPanel {
 		setOutlineVisible(template.isOutlineVisible());
 
 		// colors (non-exhaustive)
-		setBackground(template.getBackground());
-		setForeground(template.getForeground());
 		setBackground(template.getBackground());
 		setForeground(template.getForeground());
 		getChart().setBackgroundPaint(template.getChart().getBackgroundPaint());
@@ -1161,9 +1159,9 @@ public class SNTChart extends ChartPanel {
 		}
 		final Stroke lineStroke = (lineColor == null) ? null : new BasicStroke(1f);
 		final Color lColor = (lineColor == null) ? null :
-				SNTColor.alphaColor(new Color(lineColor.getRed(), lineColor.getGreen(), lineColor.getBlue()), 50);
+				SNTColor.alphaColor(toAwtColor(lineColor), 50);
 		final Color fColor = (fillColor == null) ? null :
-				SNTColor.alphaColor(new Color(fillColor.getRed(), fillColor.getGreen(), fillColor.getBlue()), 25);
+				SNTColor.alphaColor(toAwtColor(fillColor), 25);
 		final XYPolygonAnnotation annot = new XYPolygonAnnotation(cc, lineStroke, lColor, fColor);
 		//annot.setToolTipText("Polygon2D");
 		getXYPlot().getRenderer().addAnnotation(annot);
@@ -1926,8 +1924,7 @@ public class SNTChart extends ChartPanel {
 		}
 		final LookupPaintScale paintScale = new LookupPaintScale(min, max, Color.BLACK);
 		for (int i = 0; i < colorTable.getLength(); i++) {
-			final Color color = new Color(colorTable.get(ColorTable.RED, i), colorTable.get(ColorTable.GREEN, i),
-					colorTable.get(ColorTable.BLUE, i));
+			final Color color = colorFromTable(colorTable, i);
 
 			final double value = min + (i * (max - min)  / colorTable.getLength());
 			paintScale.add(value, color);
@@ -2180,8 +2177,7 @@ public class SNTChart extends ChartPanel {
 			return new Color[]{SNTColor.alphaColor(Color.LIGHT_GRAY, 75)};
 		final Color[] palette = new Color[colorTable.getLength()];
 		for (int i = 0; i < colorTable.getLength(); i++) {
-			palette[i] = SNTColor.alphaColor(new Color(colorTable.get(ColorTable.RED, i), colorTable.get(ColorTable.GREEN, i),
-					colorTable.get(ColorTable.BLUE, i)), 75);
+			palette[i] = SNTColor.alphaColor(colorFromTable(colorTable, i), 75);
 		}
 		return palette;
 	}
@@ -2363,6 +2359,16 @@ public class SNTChart extends ChartPanel {
 	public static SNTChart getHistogram(final SNTTable table, final boolean polar) {
 		return getHistogram(table, IntStream.range(0, table.getColumnCount()).toArray(), polar);
 	}
+
+    private static Color toAwtColor(ColorRGB c) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue());
+    }
+
+    private static Color colorFromTable(ColorTable table, int index) {
+        return new Color(table.get(ColorTable.RED, index),
+                table.get(ColorTable.GREEN, index),
+                table.get(ColorTable.BLUE, index));
+    }
 
 	/* IDE debug method */
 	public static void main(final String[] args) {

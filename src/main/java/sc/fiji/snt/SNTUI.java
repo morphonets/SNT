@@ -3240,11 +3240,13 @@ public class SNTUI extends JDialog {
         final JMenuItem consoleJMI = new JMenuItem("Toggle Fiji Console", IconFactory.menuIcon(GLYPH.CODE));
         consoleJMI.addActionListener(e -> {
             try {
-                final Window console = GuiUtils.getConsole();
-                if (console == null || !console.isVisible()) {
+                Window console = GuiUtils.getConsole();
+                if (console == null) {
                     plugin.getContext().getService(UIService.class).getDefaultUI().getConsolePane().show();
-                } else {
-                    console.setVisible(false);
+                    console = GuiUtils.getConsole(); // Get the newly created console
+                }
+                if (console != null) {
+                    console.setVisible(!console.isVisible());
                 }
             } catch (final Exception ex) {
                 guiUtils.error(

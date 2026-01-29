@@ -281,6 +281,10 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 			guiUtils.error("There are no traced paths.");
 			return;
 		}
+        if (filteringSNTColor == null) {
+            guiUtils.error("Chosen color is invalid/unknown.");
+            return;
+        }
 		final Color filteringColor = filteringSNTColor.color();
 		for (final Iterator<Path> iterator = filteredPaths.iterator(); iterator.hasNext(); ) {
 			final Color color = iterator.next().getColor();
@@ -365,7 +369,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		s = s.toLowerCase();
 		if (!s.contains("-")) s = s + "-"+ s;
 
-		double min = Double.MIN_VALUE;
+		double min = -Double.MAX_VALUE;
 		double max = Double.MAX_VALUE;
 		if (s.contains("min") || s.contains("max")) {
 			final PathStatistics stats = new PathStatistics(filteredPaths, null);
@@ -465,7 +469,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		}
 		pmui.setSelectedPaths(paths, this);
 		logSelectionCount(paths.size());
-		// refreshManager(true, true);
 	}
 
 	private JButton createMorphoFilteringButton() {

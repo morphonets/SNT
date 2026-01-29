@@ -793,7 +793,7 @@ class BookmarkTable extends JTable {
             setHorizontalAlignment(SwingConstants.CENTER);
             if (value instanceof Color color) {
                 setIcon(IconFactory.accentIcon(color, true));
-                setToolTipText(String.format("Tag: %s (click to change)", SNTColor.colorToString(color)));
+                setToolTipText(String.format("Tag: %s (click to change)", ColorCellEditor.getColorName(color)));
             } else {
                 setIcon(null);
                 setToolTipText("No tag (click to assign)");
@@ -809,6 +809,31 @@ class BookmarkTable extends JTable {
         private final JButton editorButton;
         private final JPopupMenu colorChooserPopMenu;
         private Color currentColor;
+
+        private static HashMap<String, Color> PRESET_TAGS;
+
+        private static HashMap<String, Color> getPresetTags() {
+            if (PRESET_TAGS == null) {
+                PRESET_TAGS = new LinkedHashMap<>(); // LinkedHashMap keeps insertion order
+                PRESET_TAGS.put("Red", new Color(255, 101, 101));
+                PRESET_TAGS.put("Orange", new Color(255, 164, 91));
+                PRESET_TAGS.put("Yellow", new Color(255, 214, 84));
+                PRESET_TAGS.put("Green", new Color(104, 210, 124));
+                PRESET_TAGS.put("Blue", new Color(77, 160, 255));
+                PRESET_TAGS.put("Purple", new Color(215, 93, 231));
+                PRESET_TAGS.put("Gray", new Color(165, 165, 169));
+            }
+            return PRESET_TAGS;
+        }
+
+        private static String getColorName(Color color) {
+            for (final Map.Entry<String, Color> entry : getPresetTags().entrySet()) {
+                if (entry.getValue().getRGB() == color.getRGB()) {
+                    return entry.getKey();
+                }
+            }
+            return SNTColor.colorToString(color); // fallback for custom colors
+        }
 
         ColorCellEditor() {
             editorButton = new JButton();
@@ -827,21 +852,8 @@ class BookmarkTable extends JTable {
         }
 
         private JPopupMenu createColorChooserPopMenu() {
-            // Preset colors for quick selection (LinkedHashMap preserves insertion order)
-            final LinkedHashMap<String, Color> presets = new LinkedHashMap<>();
-            presets.put("Red", Color.RED);
-            presets.put("Orange", Color.ORANGE);
-            presets.put("Yellow", Color.YELLOW);
-            presets.put("Green", Color.GREEN);
-            presets.put("Cyan", Color.CYAN);
-            presets.put("Blue", Color.BLUE);
-            presets.put("Magenta", Color.MAGENTA);
-            presets.put("Pink", Color.PINK);
-            presets.put("Light Gray", Color.LIGHT_GRAY);
-            presets.put("Gray", Color.GRAY);
-            presets.put("Dark Gray", Color.DARK_GRAY);
             final JPopupMenu popup = new JPopupMenu();
-            presets.forEach((label, color) -> {
+            getPresetTags().forEach((label, color) -> {
                 final JMenuItem item = new JMenuItem(label);
                 if (color != null) item.setIcon(IconFactory.nodeIcon(color));
                 item.addActionListener(ev -> {currentColor = color;fireEditingStopped();});

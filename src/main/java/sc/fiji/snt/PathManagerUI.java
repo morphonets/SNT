@@ -2730,7 +2730,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String COMBINE_CMD = "Combine...";
         private static final String CONCATENATE_CMD = "Concatenate...";
         private static final String REVERSE_CMD = "Reverse...";
-        private static final String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Paths(s) Into Shared Root...";
+        private static final String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Path(s) Into Shared Root...";
         private static final String REBUILD_CMD = "Rebuild...";
         private static final String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
         private static final String CUSTOM_TAG_CMD = "Other...";
@@ -4093,9 +4093,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("You must have at least two primary paths selected.");
                     return;
                 }
-                List<Path> primaryPaths = new ArrayList<>();
-                List<PointInImage> rootNodes = new ArrayList<>();
-                for (Path path : selectedPaths) {
+                final List<Path> primaryPaths = new ArrayList<>();
+                final List<PointInImage> rootNodes = new ArrayList<>();
+                for (final Path path : selectedPaths) {
                     if (path.isPrimary()) {
                         primaryPaths.add(path);
                         rootNodes.add(path.getNode(0));
@@ -4124,7 +4124,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 newSoma.addNode(centroid);
                 pathAndFillManager.addPath(newSoma, false, true);
                 // Now connect all of root nodes to it
-                centroid.onPath = newSoma;
                 primaryPaths.forEach(primaryPath -> {
                     primaryPath.insertNode(0, centroid);
                     primaryPath.setBranchFrom(newSoma, centroid);
@@ -4424,6 +4423,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         "Invalid Input");
                 return;
             }
+            if (!guiUtils.getConfirmation("Downsample " + selectedPaths.size() + " path(s)? " +
+                    "This operation cannot be undone.", "Confirm Downsample?")) {
+                return;
+            }
             for (final Path p : selectedPaths) {
                 Path pathToUse = p;
                 if (p.getUseFitted()) {
@@ -4433,7 +4436,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
             // Make sure that the 3D viewer and the stacks are redrawn:
             if (plugin.univ != null) {
-                pathAndFillManager.getPaths().forEach( p -> {
+                selectedPaths.forEach(p -> {
                     p.removeFrom3DViewer(plugin.univ);
                     //noinspection deprecation
                     p.addTo3DViewer(plugin.univ, p.getColor(), null);
@@ -4666,6 +4669,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             // assemble combo box
             arborChoiceCombo.setToolTipText("Jump to an arbor (rooted structure)");
+            arborChoiceCombo.setPrototypeDisplayValue("XXXXXXXXXXXXXX"); // 14 chars - safe cross-platform!?
             arborChoiceCombo.addActionListener(e -> {
                 if (navSyncGuard) return;
                 readArborChoice();
@@ -4915,14 +4919,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
-        private JButton closeToolbarButton() {
-            final JButton button = new JButton(IconFactory.buttonIcon('\uf057', false));
-            button.setActionCommand("Close Toolbar");
-            button.addActionListener( e -> setVisible(false));
-            button.setToolTipText("Close toolbar");
-            return button;
-        }
-
         void sortArbors() {
             if (tree.getModel() != fullTreeModel) {
                 restoreFullModelState();
@@ -4980,7 +4976,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     case "First node" -> placeholder.addNode(path.getNode(0));
                     case "First branch-point" -> {
                         final TreeSet<Integer> junctions = path.findJunctionIndices();
-                        if (junctions.size() > 1) placeholder.addNode(path.getNode(junctions.higher(0)));
+                        if (junctions.size() > 1) {
+                            final var it = junctions.iterator();
+                            it.next(); // skip first (root)
+                            placeholder.addNode(path.getNode(it.next()));
+                        }
                     }
                     case "Last branch-point" -> {
                         final TreeSet<Integer> junctions = path.findJunctionIndices(); // sorted
@@ -5009,11 +5009,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private boolean canExecuteZoomOperation(final Collection<Path> paths) {
-            if (paths == null) {
-                guiUtils.error("No arbor/rooted structure selected.");
-                return false;
-            }
-            if (paths.isEmpty()) {
+            if (paths == null || paths.isEmpty()) {
                 guiUtils.error("No path(s) selected.");
                 return false;
             }
@@ -5025,14 +5021,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private void zoomToBoundingBox(final Collection<Path> paths) {
-            if (canExecuteZoomOperation(paths)) {
-                final double zoom = ImpUtils.zoomTo(plugin.getImagePlus(), paths);
-                plugin.setCanvasLabelAllPanes((zoom == 0)? "Selected paths already in view" :
-                        String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
-                final Timer timer = new Timer(600, ae -> plugin.setCanvasLabelAllPanes(null));
-                timer.setRepeats(false);
-                timer.start();
+            if (!canExecuteZoomOperation(paths)) return;
+
+            final double prevMag = plugin.getImagePlus().getCanvas().getMagnification();
+            final double zoom = ImpUtils.zoomTo(plugin.getImagePlus(), paths);
+            plugin.setCanvasLabelAllPanes((zoom == prevMag) ? "Selected paths already in view" :
+                    String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
+
+            // Sync side views to same zoom level if enabled
+            if (!plugin.getSinglePane() && !plugin.isZoomAllPanesDisabled()) {
+                final ImagePlus zyImp = plugin.getImagePlus(SNT.ZY_PLANE);
+                if (zyImp != null)
+                    ImpUtils.zoomTo(zyImp, zoom, paths, RoiConverter.ZY_PLANE);
+                final ImagePlus xzImp = plugin.getImagePlus(SNT.XZ_PLANE);
+                if (xzImp != null)
+                    ImpUtils.zoomTo(xzImp, zoom, paths, RoiConverter.XZ_PLANE);
             }
+            final Timer timer = new Timer(600, ae -> plugin.setCanvasLabelAllPanes(null));
+            timer.setRepeats(false);
+            timer.start();
         }
 
         void restoreFullModelState() {

@@ -1337,19 +1337,23 @@ public class GuiUtils {
 		{ // Dialog
 			// dismissed
 			blinkTimer.stop();
-		}
-		blinkingComponent.setForeground(prevColor);
-	}
+        }
+        blinkingComponent.setForeground(prevColor);
+    }
 
-	public static Color errorColor() {
-		return new Color(229,62,77);
-	}
+    private static final Color LINK_COLOR = new Color(0, 128, 255);
+    private static final Color ERROR_COLOR = new Color(229, 62, 77);
+    private static final Color WARNING_COLOR = new Color(254, 210, 132);
 
-	public static Color warningColor() {
-		return new Color(254, 210, 132);
-	}
+    public static Color errorColor() {
+        return ERROR_COLOR;
+    }
 
-	public static JLabel shortSmallMsg(final String msg) {
+    public static Color warningColor() {
+        return WARNING_COLOR;
+    }
+
+    public static JLabel shortSmallMsg(final String msg) {
 		final JLabel label = new JLabel(msg);
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
 		return label;
@@ -1581,12 +1585,12 @@ public class GuiUtils {
 		label.setHorizontalAlignment(SwingConstants.LEFT);
 		label.setEnabled(enabled);
 		if (uri != null && Desktop.isDesktopSupported()) {
-			label.addMouseListener(new MouseAdapter() {
-				@Override
-				public void mouseEntered(final MouseEvent e) {
-					label.setForeground(new Color(0, 128, 255));
-					label.setCursor(new Cursor(Cursor.HAND_CURSOR));
-				}
+            label.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseEntered(final MouseEvent e) {
+                    label.setForeground(LINK_COLOR);
+                    label.setCursor(new Cursor(Cursor.HAND_CURSOR));
+                }
 
 				@Override
 				public void mouseExited(final MouseEvent e) {
@@ -1696,28 +1700,26 @@ public class GuiUtils {
 	public static void removeIcon(final Object rootPaneContainerOrWindow) {
 		if (rootPaneContainerOrWindow instanceof RootPaneContainer)
 			((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
-		else if (rootPaneContainerOrWindow instanceof Window)
-			((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
-	}
+        else if (rootPaneContainerOrWindow instanceof Window)
+            ((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
+    }
 
-	public static Color getSelectionColor() {
-		try {
-			return UIManager.getColor("Tree.selectionBackground");
-		}
-		catch (final Exception ignored) {
-			return new Color(75, 110, 175);
-		}
-	}
+    private static final Color FALLBACK_SELECTION_COLOR = new Color(75, 110, 175);
 
-	public static Color getDisabledComponentColor() {
+    public static Color getSelectionColor() {
+        final Color c = UIManager.getColor("Tree.selectionBackground");
+        return (c != null) ? c : FALLBACK_SELECTION_COLOR;
+    }
+
+    public static Color getDisabledComponentColor() {
 		if (disabledColor == null) {
-			try {
-				disabledColor = UIManager.getColor("MenuItem.disabledForeground");
-			} catch (final Exception ignored) {
-				disabledColor = Color.GRAY; // e.g. headless moce
-			}
-		}
-		return disabledColor;
+            try {
+                disabledColor = UIManager.getColor("MenuItem.disabledForeground");
+            } catch (final Exception ignored) {
+                disabledColor = Color.GRAY; // e.g. headless mode
+            }
+        }
+        return disabledColor;
 	}
 
 	public static JSpinner integerSpinner(final int value, final int min,
@@ -1988,79 +1990,44 @@ public class GuiUtils {
 		timer.start();
 	}
 
-	public static void tile(final List<? extends Window> windowList) {
-		if (windowList == null || windowList.isEmpty()) return;
-		// make list immutable in case windowList is being modified programmatically (e.g., in a script)
-		final List<? extends Window> wList = Collections.unmodifiableList(windowList);
-		// FIXME: This is all taken from ij1.
-		final Rectangle screen = ij.gui.GUI.getMaxWindowBounds(ij.IJ.getApplet());
-		final int XSTART = 4, YSTART = 94, GAP = 2;
-		final int titlebarHeight = 40;
-		int minWidth = Integer.MAX_VALUE;
-		int minHeight = Integer.MAX_VALUE;
-		double totalWidth = 0;
-		double totalHeight = 0;
-		for (final Window window : wList) {
-			final Dimension d = window.getSize();
-			final int w = d.width;
-			final int h = d.height + titlebarHeight;
-			if (w < minWidth)
-				minWidth = w;
-			if (h < minHeight)
-				minHeight = h;
-			totalWidth += w;
-			totalHeight += h;
-		}
-		final int nPics = wList.size();
-		final double averageWidth = totalWidth / nPics;
-		final double averageHeight = totalHeight / nPics;
-		int tileWidth = (int) averageWidth;
-		int tileHeight = (int) averageHeight;
-		final int hspace = screen.width - 2 * GAP;
-		if (tileWidth > hspace)
-			tileWidth = hspace;
-		final int vspace = screen.height - YSTART;
-		if (tileHeight > vspace)
-			tileHeight = vspace;
-		int hloc, vloc;
-		boolean theyFit;
-		do {
-			hloc = XSTART;
-			vloc = YSTART;
-			theyFit = true;
-			int i = 0;
-			do {
-				i++;
-				if (hloc + tileWidth > screen.width) {
-					hloc = XSTART;
-					vloc = vloc + tileHeight;
-					if (vloc + tileHeight > screen.height)
-						theyFit = false;
-				}
-				hloc = hloc + tileWidth + GAP;
-			} while (theyFit && (i < nPics));
-			if (!theyFit) {
-				tileWidth = (int) (tileWidth * 0.98 + 0.5);
-				tileHeight = (int) (tileHeight * 0.98 + 0.5);
-			}
-		} while (!theyFit);
-		hloc = XSTART;
-		vloc = YSTART;
-		for (final Window window : wList) {
-			if (hloc + tileWidth > screen.width) {
-				hloc = XSTART;
-				vloc = vloc + tileHeight;
-			}
-			window.setLocation(hloc + screen.x, vloc + screen.y);
-			window.toFront();
-			hloc += tileWidth + GAP;
-		}
-        SwingUtilities.invokeLater(() -> windowList.forEach(w -> w.setVisible(true)));
+    public static void tile(final List<? extends Window> windowList) {
+        if (windowList == null || windowList.isEmpty()) return;
+
+        final List<? extends Window> windows = List.copyOf(windowList);
+        final int n = windows.size();
+
+        // Get screen bounds
+        final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        final Rectangle screen = ge.getMaximumWindowBounds();
+
+        // Calculate grid dimensions
+        final int cols = (int) Math.ceil(Math.sqrt(n));
+        final int rows = (int) Math.ceil((double) n / cols);
+
+        // Calculate tile size with small gap
+        final int gap = 2;
+        final int tileWidth = (screen.width - (cols + 1) * gap) / cols;
+        final int tileHeight = (screen.height - (rows + 1) * gap) / rows;
+
+        // Position windows in grid
+        for (int i = 0; i < n; i++) {
+            final int col = i % cols;
+            final int row = i / cols;
+            final int x = screen.x + gap + col * (tileWidth + gap);
+            final int y = screen.y + gap + row * (tileHeight + gap);
+
+            final Window window = windows.get(i);
+            window.setBounds(x, y, tileWidth, tileHeight);
+            window.toFront();
+        }
+
+        SwingUtilities.invokeLater(() -> windows.forEach(w -> w.setVisible(true)));
     }
 
-	public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
-		final JDialog dialog = new HTMLDialog(msg, title, modal);
-		dialog.setVisible(true);
+
+    public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
+        final JDialog dialog = new HTMLDialog(msg, title, modal);
+        dialog.setVisible(true);
 		return dialog;
 	}
 
