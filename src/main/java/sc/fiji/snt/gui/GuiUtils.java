@@ -778,12 +778,9 @@ public class GuiUtils {
 	 */
 	public Color getColor(final String title, final Color defaultValue, final String... panes) {
 		assert SwingUtilities.isEventDispatchThread();
-		if (colorChooser == null) {
-			colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
-			colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
-		}
+        colorChooser(defaultValue);
 
-		// remove spurious panes
+        // remove spurious panes
 		List<String> allowedPanels;
 		if (panes != null) {
 			allowedPanels = Arrays.asList(panes);
@@ -818,7 +815,7 @@ public class GuiUtils {
 		return ok.getColor();
 	}
 
-	public Double getDouble(final String promptMsg, final String promptTitle,
+    public Double getDouble(final String promptMsg, final String promptTitle,
 		final Number defaultValue)
 	{
 		try {
@@ -1645,13 +1642,21 @@ public class GuiUtils {
 		return null;
 	}
 
+    public static JColorChooser colorChooser(final Color defaultValue) {
+        if (colorChooser == null) {
+            colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
+            colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
+        }
+        return colorChooser;
+    }
+
 	public static void setRenderingHints(final Graphics2D g2 ) {
 		g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON );
 		g2.setRenderingHint( RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_NORMALIZE );
 		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 	}
 
-		public static GridBagConstraints defaultGbc() {
+    public static GridBagConstraints defaultGbc() {
 		final GridBagConstraints cp = new GridBagConstraints();
 		cp.anchor = GridBagConstraints.LINE_START;
 		cp.gridwidth = GridBagConstraints.REMAINDER;

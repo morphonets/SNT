@@ -29,15 +29,19 @@ import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
+import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInCanvas;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
@@ -102,6 +106,8 @@ public class BookmarkManager {
         gbc.gridy++;
         gbc.weighty = 0.0;
         container.add(assembleToolbar(), gbc);
+        // Initialize column widths after layout is complete
+        SwingUtilities.invokeLater(() -> resetOrResizeColumns(false, true));
         return container;
     }
 
@@ -112,6 +118,9 @@ public class BookmarkManager {
             @Override
             public void mousePressed(final MouseEvent me) {
                 if (me.getClickCount() == 2) {
+                    // Ignore double-click on Tag column (column 0) - let the editor handle it
+                    final int col = table.columnAtPoint(me.getPoint());
+                    if (col == 0) return;
                     if (noBookmarksError()) return;
                     final int row = table.getSelectedRow();
                     if (row == -1) {
@@ -138,7 +147,7 @@ public class BookmarkManager {
             }
         }
         if (resize) { // https://stackoverflow.com/a/26046778
-            final float[] columnWidthPercentage = {0.63f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
+            final float[] columnWidthPercentage = {0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
             final int tW = table.getColumnModel().getTotalColumnWidth();
             TableColumn column;
             final TableColumnModel jTableColumnModel = table.getColumnModel();
@@ -164,21 +173,17 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Remove All...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-        mi.addActionListener(e -> {
-            if (!noBookmarksError() && sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
-                reset();
-                recordCmd("reset()");
-            }
-        });
-        pMenu.add(mi);
-        mi = new JMenuItem("Remove Selected Row(s)", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
-            final int[] viewRows = table.getSelectedRows();
-            if (viewRows.length == 0) {
-                sntui.guiUtils.error("No bookmark selected.");
-                return;
+            final int[] viewRows = getSelectedRowsAllIfNone();
+            if (viewRows.length == table.getRowCount()) {
+                if (!sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
+                    return;
+                }
+                reset();
+                recordCmd("reset()");
+                return; // Don't continue to delete rows that no longer exist
             }
             // Convert view indices to model indices (handles sorted table)
             final int[] modelRows = Arrays.stream(viewRows)
@@ -192,7 +197,28 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Rename Selected Bookmark...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
+        mi = new JMenuItem("Set Tag...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final Color newColor = sntui.guiUtils.getColor("Choose Tag Color", null, (String[]) null);
+            if (newColor == null) return;
+            for (final int viewRow : getSelectedRowsAllIfNone()) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                model.setValueAt(newColor, modelRow, 0);
+            }
+        });
+        pMenu.add(mi);
+        mi = new JMenuItem("Clear Tag", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            for (final int viewRow : getSelectedRowsAllIfNone()) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                model.setValueAt(null, modelRow, 0);
+            }
+        });
+        pMenu.add(mi);
+        pMenu.addSeparator();
+        mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final int row = table.getSelectedRow();
@@ -201,18 +227,26 @@ public class BookmarkManager {
             } else {
                 if (table.getRowCount() > 10)
                     table.scrollRectToVisible(new Rectangle(table.getCellRect(row, 0, true)));
-                table.editCellAt(row, 0);
+                table.editCellAt(row, 1); // Column 1 is now Label
             }
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Reset Columns", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        mi = new JMenuItem("Resize Columns", IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
         mi.addActionListener(e -> {
             resetOrResizeColumns(true, true);
             recordComment("Bookmark Manager: resizeColumns()");
         });
         pMenu.add(mi);
         return pMenu;
+    }
+
+    private int[] getSelectedRowsAllIfNone() {
+        int[] viewRows = table.getSelectedRows();
+        if (viewRows.length == 0) {
+            viewRows = IntStream.range(0, table.getRowCount()).toArray();
+        }
+        return viewRows;
     }
 
     private void recordCmd(final String cmd) {
@@ -389,6 +423,7 @@ public class BookmarkManager {
     private boolean saveBookMarksToFile(final File file) {
         final SNTTable exportTable = new SNTTable();
         for (final Bookmark b : model.getDataList()) {
+            exportTable.appendToLastRow("Tag", (b.category == null) ? "" : String.format("#%06X", b.category.getRGB() & 0xFFFFFF));
             exportTable.appendToLastRow("Label", b.label);
             exportTable.appendToLastRow("X", b.x);
             exportTable.appendToLastRow("Y", b.y);
@@ -477,12 +512,13 @@ public class BookmarkManager {
             final String label = String.format("%s %s", path.getName(), suffix);
             final int c = path.getChannel();
             final int t = path.getFrame();
+            final Color tag = path.getColor(); // Use path color as bookmark tag
             int counter = 1;
             for (final int nodeIndex : set) {
                 final PointInCanvas node = path.getPointInCanvas(nodeIndex);
                 final String l = (set.size()==1) ? label : label + "#" + counter++;
                 model.getDataList().add(new Bookmark(model.getUniqueLabel(l),
-                        (int) node.getX(), (int) node.getY(), (int) node.getZ(), c, t));
+                        (int) node.getX(), (int) node.getY(), (int) node.getZ(), c, t, tag));
             }
         });
         resetOrResizeColumns(false, true);
@@ -601,6 +637,9 @@ public class BookmarkManager {
                     ? table.convertRowIndexToModel(row) : row;
             final Bookmark b = model.getDataList().get(modelRow);
             final PointRoi roi = new PointRoi(b.x, b.y);
+            if (b.category != null) {
+                roi.setStrokeColor(b.category);
+            }
             roi.setPosition(b.c, (int) b.z, b.t);
             roi.setName(b.label);
             rois.add(roi);
@@ -672,22 +711,29 @@ class Bookmark extends PointInCanvas {
     String label;
     final int c;
     int t;
+    Color category; // Color-based category for grouping
 
     Bookmark(final String label, double x, double y, double z, int c, int t) {
+        this(label, x, y, z, c, t, null);
+    }
+
+    Bookmark(final String label, double x, double y, double z, int c, int t, final Color category) {
         super(x, y, z);
         this.label = label;
         this.c = c;
         this.t = t;
+        this.category = category;
     }
 
     Object get(final int entry) {
         return switch (entry) {
-            case 0 -> label;
-            case 1 -> x;
-            case 2 -> y;
-            case 3 -> z;
-            case 4 -> c;
-            case 5 -> t;
+            case 0 -> category;
+            case 1 -> label;
+            case 2 -> x;
+            case 3 -> y;
+            case 4 -> z;
+            case 5 -> c;
+            case 6 -> t;
             default -> null;
         };
     }
@@ -714,6 +760,11 @@ class BookmarkTable extends JTable {
         setRowSelectionAllowed(true);
         setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         setDefaultEditor(String.class, new CellEditor());
+        // Set up color column renderer and editor
+        setDefaultRenderer(Color.class, new ColorCellRenderer());
+        setDefaultEditor(Color.class, new ColorCellEditor());
+        // Set icon header for Tag column
+        getColumnModel().getColumn(0).setHeaderRenderer(new IconHeaderRenderer());
     }
 
     JScrollPane getContainer() {
@@ -725,18 +776,158 @@ class BookmarkTable extends JTable {
     @Override
     public boolean editCellAt(int row, int column, EventObject e) {
         final boolean result = super.editCellAt(row, column, e);
-        final JTextField editor = (JTextField) getEditorComponent();
-        if (editor != null) {
-            editor.requestFocus();
-            editor.selectAll();
+        final Component editor = getEditorComponent();
+        if (editor instanceof JTextField textField) {
+            textField.requestFocus();
+            textField.selectAll();
         }
         return result;
+    }
+
+    /** Renderer for the Tag/Color column */
+    private static class ColorCellRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus, int row, int column) {
+            super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
+            setHorizontalAlignment(SwingConstants.CENTER);
+            if (value instanceof Color color) {
+                setIcon(IconFactory.accentIcon(color, true));
+                setToolTipText(String.format("Tag: %s (click to change)", SNTColor.colorToString(color)));
+            } else {
+                setIcon(null);
+                setToolTipText("No tag (click to assign)");
+            }
+            return this;
+        }
+    }
+
+    /**
+     * Editor for the Tag/Color column - shows color chooser on click
+     */
+    private class ColorCellEditor extends AbstractCellEditor implements javax.swing.table.TableCellEditor {
+        private final JButton editorButton;
+        private final JPopupMenu colorChooserPopMenu;
+        private Color currentColor;
+
+        ColorCellEditor() {
+            editorButton = new JButton();
+            editorButton.setBorderPainted(false);
+            editorButton.setContentAreaFilled(false);
+            colorChooserPopMenu = createColorChooserPopMenu();
+            final long[] lastShowTime = {0}; // Track when popup was last shown
+            editorButton.addActionListener(e -> {
+                // Prevent double-click from showing popup twice (within 500ms)
+                final long now = System.currentTimeMillis();
+                if (now - lastShowTime[0] > 500) {
+                    lastShowTime[0] = now;
+                    colorChooserPopMenu.show(editorButton, 0, editorButton.getHeight());
+                }
+            });
+        }
+
+        private JPopupMenu createColorChooserPopMenu() {
+            // Preset colors for quick selection (LinkedHashMap preserves insertion order)
+            final LinkedHashMap<String, Color> presets = new LinkedHashMap<>();
+            presets.put("Red", Color.RED);
+            presets.put("Orange", Color.ORANGE);
+            presets.put("Yellow", Color.YELLOW);
+            presets.put("Green", Color.GREEN);
+            presets.put("Cyan", Color.CYAN);
+            presets.put("Blue", Color.BLUE);
+            presets.put("Magenta", Color.MAGENTA);
+            presets.put("Pink", Color.PINK);
+            presets.put("Light Gray", Color.LIGHT_GRAY);
+            presets.put("Gray", Color.GRAY);
+            presets.put("Dark Gray", Color.DARK_GRAY);
+            final JPopupMenu popup = new JPopupMenu();
+            presets.forEach((label, color) -> {
+                final JMenuItem item = new JMenuItem(label);
+                if (color != null) item.setIcon(IconFactory.nodeIcon(color));
+                item.addActionListener(ev -> {currentColor = color;fireEditingStopped();});
+                popup.add(item);
+            });
+            final JMenuItem customItem = new JMenuItem("Other...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+            customItem.addActionListener(ev -> {
+                final Color chosen = getCustomColor((currentColor == null) ? Color.GRAY : currentColor);
+                if (chosen != null)
+                    currentColor = chosen;
+                fireEditingStopped();
+            });
+            final JMenuItem removeItem = new JMenuItem("Remove Tag", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+            removeItem.addActionListener(ev -> {
+                currentColor = null;
+                fireEditingStopped();
+            });
+            popup.add(customItem);
+            popup.addSeparator();
+            popup.add(removeItem);
+            return popup;
+        }
+
+        private Color getCustomColor(final Color initialColor) {
+            final Color[] result = new Color[1];// holder for result
+            final JColorChooser chooser = GuiUtils.colorChooser(initialColor);
+            final JDialog dialog = JColorChooser.createDialog(
+                    SwingUtilities.getWindowAncestor(BookmarkTable.this),// parent
+                    "Choose Tag Color", // title
+                    true,               // modal
+                    chooser,            // the chooser instance
+                    e -> result[0] = chooser.getColor(),         // OK button listener
+                    e -> result[0] = null      // Cancel button listener
+            );
+            dialog.setVisible(true);
+            return result[0];
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            return currentColor;
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value,
+                                                     boolean isSelected, int row, int column) {
+            currentColor = (value instanceof Color) ? (Color) value : null;
+            if (currentColor != null) {
+                editorButton.setIcon(IconFactory.accentIcon(currentColor, true));
+            } else {
+                editorButton.setIcon(null);
+            }
+            return editorButton;
+        }
+    }
+
+    /** Renderer for the Tag column header - displays icon instead of text */
+    private static class IconHeaderRenderer extends DefaultTableCellRenderer {
+        IconHeaderRenderer() {
+            setHorizontalAlignment(SwingConstants.CENTER);
+            setIcon(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, .9f));
+            setToolTipText("Tag (click to sort by category)");
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                                                       boolean isSelected, boolean hasFocus, int row, int column) {
+            // Keep default header styling but use icon instead of text
+            if (table != null) {
+                JTableHeader header = table.getTableHeader();
+                if (header != null) {
+                    setForeground(header.getForeground());
+                    setBackground(header.getBackground());
+                    setFont(header.getFont());
+                }
+            }
+            setText(""); // No text, just the icon
+            setBorder(UIManager.getBorder("TableHeader.cellBorder"));
+            return this;
+        }
     }
 }
 
 class BookmarkModel extends AbstractTableModel {
 
-    private final String[] HEADER = {"Label", "X", "Y", "Z", "C", "T"};
+    private final String[] HEADER = {"Tag", "Label", "X", "Y", "Z", "C", "T"};
     private List<Bookmark> dataList = new ArrayList<>();
 
     List<Bookmark> getDataList() {
@@ -761,21 +952,35 @@ class BookmarkModel extends AbstractTableModel {
 
     void populateFromFile(final File file) throws IOException {
         final SNTTable table = new SNTTable(file.getAbsolutePath());
-        final int lIdx = table.getColumnIndex(getHeader()[0]);
-        final int xIdx = table.getColumnIndex(getHeader()[1]);
-        final int yIdx = table.getColumnIndex(getHeader()[2]);
-        final int zIdx = table.getColumnIndex(getHeader()[3]);
-        final int cIdx = table.getColumnIndex(getHeader()[4]);
-        final int tIdx = table.getColumnIndex(getHeader()[5]);
+        final int tagIdx = table.getColumnIndex(getHeader()[0]);
+        final int lIdx = table.getColumnIndex(getHeader()[1]);
+        final int xIdx = table.getColumnIndex(getHeader()[2]);
+        final int yIdx = table.getColumnIndex(getHeader()[3]);
+        final int zIdx = table.getColumnIndex(getHeader()[4]);
+        final int cIdx = table.getColumnIndex(getHeader()[5]);
+        final int tIdx = table.getColumnIndex(getHeader()[6]);
 
         if (lIdx == -1 || xIdx == -1 || yIdx == -1 || zIdx == -1)
             throw new IOException("Unexpected column header(s) in CSV file.");
         final List<Bookmark> dataList = new ArrayList<>();
         for (int i = 0; i < table.getRowCount(); i++) {
+            Color category = null;
+            if (tagIdx != -1) {
+                final Object tagValue = table.get(tagIdx, i);
+                if (tagValue instanceof String tagStr && !tagStr.isEmpty()) {
+                    try {
+                        final ColorRGB c = SNTColor.valueOf(tagStr);
+                        category = new Color(c.getRed(), c.getGreen(), c.getBlue());
+                    } catch (final IllegalArgumentException ignored) {
+                        // Invalid color string, leave as null
+                    }
+                }
+            }
             dataList.add(new Bookmark((String) table.get(lIdx, i), // label
                     (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i), // x,y,z
                     (cIdx == -1) ? 1 : (int) ((double) table.get(cIdx, i)), // c
-                    (tIdx == -1) ? 1 : (int) ((double) table.get(tIdx, i)) // t
+                    (tIdx == -1) ? 1 : (int) ((double) table.get(tIdx, i)), // t
+                    category // category color
             ));
         }
         setDataList(dataList);
@@ -812,13 +1017,19 @@ class BookmarkModel extends AbstractTableModel {
 
     @Override
     public boolean isCellEditable(final int row, final int col) {
-        return 0 == col && getValueAt(row, col) != null;
+        // Tag (column 0) and Label (column 1) are editable
+        return (col == 0 || col == 1) && row < dataList.size();
     }
 
     @Override
     public void setValueAt(final Object aValue, final int rowIndex, final int columnIndex) {
-        if (0 == columnIndex && !Objects.equals(aValue, dataList.get(rowIndex).label)) {
+        if (columnIndex == 0) {
+            // Tag/Category column - expects Color
+            dataList.get(rowIndex).category = (Color) aValue;
+            fireTableCellUpdated(rowIndex, columnIndex);
+        } else if (columnIndex == 1 && !Objects.equals(aValue, dataList.get(rowIndex).label)) {
             dataList.get(rowIndex).label = getUniqueLabel((String) aValue);
+            fireTableCellUpdated(rowIndex, columnIndex);
         } else {
             super.setValueAt(aValue, rowIndex, columnIndex);
         }
@@ -827,8 +1038,9 @@ class BookmarkModel extends AbstractTableModel {
     @Override
     public Class<?> getColumnClass(int column) {
         return switch (column) {
-            case 0 -> String.class;
-            case 1, 2, 3 -> Double.class;
+            case 0 -> Color.class;
+            case 1 -> String.class;
+            case 2, 3, 4 -> Double.class;
             default -> Integer.class;
         };
     }
