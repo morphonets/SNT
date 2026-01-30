@@ -2294,7 +2294,7 @@ public class SNTChart extends ChartPanel {
 	 */
 	public static SNTChart getHistogram(final SNTTable table, final Collection<String> columnHeaders, final boolean polar) {
 		final List<Integer> columnIndices = new ArrayList<>();
-		final List<String> allHeaders = table.geColumnHeaders();
+		final List<String> allHeaders = table.getColumnHeaders();
 		for (final String columnHeader : columnHeaders) {
 			columnIndices.add(allHeaders.indexOf(columnHeader));
 		}
@@ -2335,7 +2335,7 @@ public class SNTChart extends ChartPanel {
 				hdpMap.put(table.getColumnHeader(colIdx), hdp);
 			} catch (final IndexOutOfBoundsException ex) {
 				throw new IllegalArgumentException("Invalid column header. Available headers: "
-						+ table.geColumnHeaders().toString());
+						+ table.getColumnHeaders().toString());
 			} finally {
 				if (isSummarized) table.summarize();
 			}

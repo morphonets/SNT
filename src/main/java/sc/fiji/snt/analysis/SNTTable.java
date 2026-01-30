@@ -285,11 +285,11 @@ public class SNTTable extends DefaultGenericTable {
 			tableIO = context.getService(IOService.class).getInstance(DefaultTableIOPlugin.class);
 	}
 
-	public List<String> geColumnHeaders() {
-		return geColumnHeaders(null);
+	public List<String> getColumnHeaders() {
+		return getColumnHeaders(null);
 	}
 
-	public List<String> geColumnHeaders(final String pattern) {
+	public List<String> getColumnHeaders(final String pattern) {
 		final List<String> headers = new ArrayList<>();
 		for (int i = 0; i < getColumnCount(); i++) {
 			final String header = getColumnHeader(i);

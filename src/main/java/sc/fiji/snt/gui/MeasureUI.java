@@ -245,7 +245,6 @@ public class MeasureUI extends JFrame {
 			metricList.setComponentPopupMenu(listPopupMenu());
 			metricList.setPrototypeCellValue(prototypeMetric);
 			metricList.getCheckBoxListSelectionModel().addListSelectionListener(e -> {
-				// FIXME: this is slow, but fast enough for a reasonable no. of metrics!?
 				if (!e.getValueIsAdjusting()) {
 					final List<Object> selectedMetrics = new ArrayList<>(
 							Arrays.asList(metricList.getCheckBoxListSelectedValues()));
@@ -388,7 +387,7 @@ public class MeasureUI extends JFrame {
 				final boolean isSummarized = table.isSummarized();
 				table.removeSummary();
 				final List<String> choices = new GuiUtils(this).getMultipleChoices("Which metrics",
-						table.geColumnHeaders().toArray(new String[0]), null);
+						table.getColumnHeaders().toArray(new String[0]), null);
 				if (choices == null || choices.isEmpty()) return;
 				SNTChart.getHistogram(table, choices, false).show();
 				if (isSummarized) {
@@ -425,7 +424,7 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void showDetails(final Collection<Tree> trees) {
-			final StringBuilder sb = new StringBuilder("<HMTL><div align='center'>");
+			final StringBuilder sb = new StringBuilder("<HTML><div align='center'>");
 			sb.append("<table><tbody>");
 			sb.append("<tr style='border-top:1px solid; border-bottom:1px solid; '>");
 			sb.append("<td style='text-align: center;'><b>&nbsp;#&nbsp;</b></td>");
@@ -531,24 +530,33 @@ public class MeasureUI extends JFrame {
 		}
 
 		private void addMetricsToStatsTableModel(final List<?> metrics) {
-			final List<Integer> metricIndicesToRemove = new ArrayList<>();
-			final List<Object> existingMetrics = new ArrayList<>();
+			final Set<Object> selectedMetricsSet = new HashSet<>(metrics);
+			final Set<Object> existingMetricsSet = new HashSet<>();
+			final List<Integer> rowsToRemove = new ArrayList<>();
+
+			// Identify rows to remove and existing metrics
 			for (int i = 0; i < statsTableModel.getRowCount(); ++i) {
 				final Object existingMetric = statsTableModel.getValueAt(i, 0);
-				if (!metrics.contains(existingMetric)) {
-					metricIndicesToRemove.add(i);
+				if (!selectedMetricsSet.contains(existingMetric)) {
+					rowsToRemove.add(i);
 				} else {
-					existingMetrics.add(existingMetric);
+					existingMetricsSet.add(existingMetric);
 				}
 			}
-			removeRows(statsTableModel, metricIndicesToRemove);
-			metrics.removeAll(existingMetrics);
-			final boolean[] defChoices = getLastChosenStats();
-			for (final Object metric : metrics)
-				statsTableModel.addRow(new Object[] { metric, defChoices[0], defChoices[1], defChoices[2],
-						defChoices[3], defChoices[4], defChoices[5] });
-		}
 
+			// Batch table updates to minimize UI repaints
+			// Remove rows in reverse order (already done in removeRows)
+			removeRows(statsTableModel, rowsToRemove);
+
+			// Add only new metrics (not already in table)
+			final boolean[] defChoices = getLastChosenStats();
+			for (final Object metric : metrics) {
+				if (!existingMetricsSet.contains(metric)) {
+					statsTableModel.addRow(new Object[] { metric, defChoices[0], defChoices[1],
+							defChoices[2], defChoices[3], defChoices[4], defChoices[5] });
+				}
+			}
+		}
 
 		private boolean[] getLastChosenStats() {
 			final boolean[] bools = new boolean[allFlags.length];
