@@ -340,7 +340,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         final Tree newTree = destinationGraph.getTreeWithSamePathStructure();
 //		enableEditMode(false);
         tracerPlugin.setEditingPath(null);
-        final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
+        final Calibration cal = tracerPlugin.getCalibration(); // snt the instance of the plugin
         newTree.list().forEach(p -> p.setSpacing(cal));
         final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
         pathAndFillManager.enableUIupdates = false;
@@ -1374,7 +1374,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         editingGraph.setRoot(newRoot);
         final Tree newTree = editingGraph.getTreeWithSamePathStructure();
         tracerPlugin.setEditingPath(null);
-        final Calibration cal = tracerPlugin.getImagePlus().getCalibration();
+        final Calibration cal = tracerPlugin.getCalibration();
         pathAndFillManager.deletePaths(editingTree.list());
         newTree.list().forEach(p -> {
             p.setSpacing(cal);
@@ -1413,7 +1413,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         final Tree descendentTree = descendantGraph.getTreeWithSamePathStructure();
 //		enableEditMode(false);
         tracerPlugin.setEditingPath(null);
-        final Calibration cal = tracerPlugin.getImagePlus().getCalibration(); // snt the instance of the plugin
+        final Calibration cal = tracerPlugin.getCalibration(); // snt the instance of the plugin
         ancestorTree.list().forEach(p -> p.setSpacing(cal));
         descendentTree.list().forEach(p -> p.setSpacing(cal));
         final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;

@@ -1336,7 +1336,7 @@ public class PathAndFillManager extends DefaultHandler implements
         for (int ind : selectedIndices) {
             Fill fill = allFills.get(ind);
             FillerThread filler = FillerThread.fromFill(
-                    scope, plugin.getImagePlus().getCalibration(),
+                    scope, plugin.getCalibration(),
                     plugin.getStats(), fill);
             loadedFills.put(fill, filler);
             plugin.addFillerThread(filler);

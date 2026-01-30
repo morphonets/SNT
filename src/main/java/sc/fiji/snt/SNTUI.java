@@ -1392,7 +1392,7 @@ public class SNTUI extends JDialog {
 				|| plugin.getDepth() != imp.getNSlices() || plugin.getChannel() > imp.getNChannels()
 				|| plugin.getFrame() > imp.getNFrames())
 			return true;
-		final Calibration cal = plugin.getImagePlus().getCalibration();
+		final Calibration cal = imp.getCalibration();
 		return (plugin.getPixelWidth() != cal.pixelWidth || plugin.getPixelHeight() != cal.pixelHeight
 				|| plugin.getPixelDepth() != cal.pixelDepth);
 	}

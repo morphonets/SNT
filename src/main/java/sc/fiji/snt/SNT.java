@@ -3889,7 +3889,7 @@ public class SNT extends MultiDThreePanes implements
         };
 	}
 
-    private Calibration getCalibration() {
+    public Calibration getCalibration() {
         final Calibration calibration = new Calibration();
         calibration.pixelWidth = x_spacing;
         calibration.pixelHeight = y_spacing;

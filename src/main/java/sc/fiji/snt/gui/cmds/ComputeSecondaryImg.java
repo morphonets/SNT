@@ -398,20 +398,14 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 					"Single-scale Filter Chosen");
 		}
 		final RandomAccessibleInterval<T> in = getInputData();
-		final Calibration cal = sntService.getInstance().getImagePlus().getCalibration();
+		final Calibration cal = sntService.getInstance().getCalibration();
 		final double[] spacing = new double[]{cal.pixelWidth, cal.pixelHeight, cal.pixelDepth};
-		final U type;
-		switch (outputType) {
-			case FLOAT:
-				type = (U) new FloatType();
-				break;
-			case DOUBLE:
-				type = (U) new DoubleType();
-				break;
-			default:
-				throw new IllegalArgumentException("Unknown output type");
-		}
-		final int cellDim = 32; // side length for cell
+		final U type = switch (outputType) {
+            case FLOAT -> (U) new FloatType();
+            case DOUBLE -> (U) new DoubleType();
+            default -> throw new IllegalArgumentException("Unknown output type");
+        };
+        final int cellDim = 32; // side length for cell
 		final Img<U> out;
 		switch (filter) {
 			case FRANGI:

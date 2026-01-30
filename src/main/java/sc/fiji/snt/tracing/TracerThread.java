@@ -57,7 +57,7 @@ public class TracerThread extends SearchThread {
 	{
 		this(snt, snt.getLoadedData(), start_x, start_y, start_z, goal_x, goal_y, goal_z,
 				new Reciprocal(snt.getStats().min, snt.getStats().max),
-				new Euclidean(snt.getImagePlus().getCalibration()));
+				new Euclidean(snt.getCalibration()));
 	}
 
 	public TracerThread(final SNT snt, final int start_x, final int start_y, final int start_z,
