@@ -84,7 +84,7 @@ import ij.plugin.ImagesToStack;
 import net.imglib2.display.ColorTable;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
-import sc.fiji.snt.gui.SaveMeasurementsCmd;
+import sc.fiji.snt.gui.cmds.SaveMeasurementsCmd;
 import sc.fiji.snt.util.SNTColor;
 
 /**
@@ -1609,7 +1609,7 @@ public class SNTChart extends ChartPanel {
         jmi.addActionListener( e -> {
             try {
                 SNTUtils.getContext().getService(CommandService.class)
-                        .run(SaveMeasurementsCmd.class, true, (Map<String, Object>) null);
+                        .run(SaveMeasurementsCmd.class, true, Map.of( "sntChartsOnly", true));
             } catch (final Exception ex) {
                 new GuiUtils(frame).error("Could not proceed with operation. " +
                         "Please run \"Save Tables & Analysis Plots...\" manually.", "Command Not Found");
