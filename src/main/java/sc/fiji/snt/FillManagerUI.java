@@ -216,16 +216,16 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         addSeparator(" Performance Impacting Options:", c);
 
         splitFillsCheckbox = new JCheckBox("One fill per path", plugin.getPrefs().getBoolean(SNTPrefs.SPLIT_FILLS_KEY, true));
-        splitFillsCheckbox.setToolTipText( "When enabled, each path is filled independently, allowing unique labels in exported images.\n" +
+        splitFillsCheckbox.setToolTipText( "When enabled, each path is filled independently, allowing unique\nlabels in exported images. " +
                 "Disable for faster bulk filling of many paths.");
         splitFillsCheckbox.addActionListener(e -> plugin.getPrefs().set(SNTPrefs.SPLIT_FILLS_KEY, splitFillsCheckbox.isSelected()));
 
         storeExtraNodesCheckbox = new JCheckBox("Store above-threshold nodes");
         storeExtraNodesCheckbox.addActionListener(e -> plugin.setStoreExtraFillNodes(storeExtraNodesCheckbox.isSelected()));
-        storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with the same fill,\nbut may impact performance");
+        storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with\nthe same fill, but may impact performance");
 
         transparentCheckbox = new JCheckBox("Transparent overlay");
-        transparentCheckbox.setToolTipText("Enabling this option allows you better inspect fills,\nbut may slow down filling");
+        transparentCheckbox.setToolTipText("Enabling this option allows you to better\ninspect fills, but may slow down filling");
         transparentCheckbox.addActionListener(e -> plugin.setFillTransparent(transparentCheckbox.isSelected()));
 
         final int prevLeftMargin = c.insets.left;
@@ -279,6 +279,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         add(SNTUI.InternalUtils.buttonPanel(deleteFills, reloadFill, exportFills), c);
         ++c.gridy;
 
+        updateThresholdWidget(plugin.getFillThreshold());// update widgets before displaying dialog
         pack();
         adjustListPlaceholder();
         changeState(State.READY);

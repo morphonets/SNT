@@ -215,7 +215,7 @@ public class SNT extends MultiDThreePanes implements
 	private boolean drawDiameters;
 
 	private boolean manualOverride = false;
-	private double fillThresholdDistance = 0.1d;
+	private double fillThresholdDistance;
 
 	/*
 	 * Just for convenience, keep cast references to the superclass's
@@ -2449,6 +2449,11 @@ public class SNT extends MultiDThreePanes implements
 		if (ui != null)
 			ui.getFillManager().updateThresholdWidget(fillThresholdDistance);
 		fillerSet.forEach(f -> f.setThreshold(fillThresholdDistance)); // fillerSet never null
+	}
+
+	public double getFillThreshold() {
+		if (fillThresholdDistance == 0d) fillThresholdDistance = 0.03d;
+		return fillThresholdDistance;
 	}
 
 	public void setStoreExtraFillNodes(final boolean storeExtraFillNodes) {
