@@ -90,6 +90,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
     private JPopupMenu exportFillsMenu;
     private final JCheckBox transparentCheckbox;
     private final JCheckBox storeExtraNodesCheckbox;
+    private final JCheckBox splitFillsCheckbox;
 
 
     /**
@@ -109,7 +110,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         listModel = new DefaultListModel<>();
         fillList = new JList<>(listModel);
         fillList.setCellRenderer(new FMCellRenderer());
-        fillList.setVisibleRowCount(5);
+        fillList.setVisibleRowCount(7);
         fillList.setPrototypeCellValue(PrototypeFill.instance);
         fillList.setComponentPopupMenu(createListPopupMenu());
         gUtils = new GuiUtils(this);
@@ -147,16 +148,18 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
         final JPanel distancePanel = new JPanel(new GridBagLayout());
         final GridBagConstraints gdb = GuiUtils.defaultGbc();
-        cursorThresholdChoice = new JRadioButton("Set by clicking on traced structure (preferred)"); // placeholder default
+        gdb.insets = new Insets(0, MARGIN, 0, MARGIN);  // Consistent left margin
+        gdb.anchor = GridBagConstraints.LINE_START;
 
-        final JPanel t1Panel = leftAlignedPanel();
-        t1Panel.add(cursorThresholdChoice);
-        distancePanel.add(t1Panel, gdb);
-        ++gdb.gridy;
+        // Row 1: Cursor threshold choice
+        cursorThresholdChoice = new JRadioButton("Set by clicking on traced structure (preferred)");
+        distancePanel.add(cursorThresholdChoice, gdb);
+        gdb.gridy++;
 
+        // Row 2: Manual threshold with text field and apply button
         manualThresholdChoice = new JRadioButton("Specify manually:");
         manualThresholdInputField = new JTextField("", 6);
-        manualThresholdInputField.addActionListener(this); // respond to Enter key
+        manualThresholdInputField.addActionListener(this);
         manualThresholdInputField.addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusGained(java.awt.event.FocusEvent e) {
@@ -167,30 +170,34 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         });
         manualThresholdApplyButton = GuiUtils.Buttons.smallButton("Apply");
         manualThresholdApplyButton.addActionListener(this);
-        final JPanel t2Panel = leftAlignedPanel();
-        t2Panel.add(manualThresholdChoice);
-        t2Panel.add(manualThresholdInputField);
-        t2Panel.add(manualThresholdApplyButton);
-        distancePanel.add(t2Panel, gdb);
-        ++gdb.gridy;
 
+        final JPanel manualPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        manualPanel.add(manualThresholdChoice);
+        manualPanel.add(manualThresholdInputField);
+        manualPanel.add(manualThresholdApplyButton);
+        distancePanel.add(manualPanel, gdb);
+        gdb.gridy++;
+
+        // Row 3: Explored threshold with apply button
         exploredThresholdChoice = new JRadioButton("Use explored maximum");
         exploredThresholdApplyButton = GuiUtils.Buttons.smallButton("Apply");
         exploredThresholdApplyButton.addActionListener(this);
-        final JPanel t3Panel = leftAlignedPanel();
-        t3Panel.add(exploredThresholdChoice);
-        t3Panel.add(exploredThresholdApplyButton);
-        distancePanel.add(t3Panel, gdb);
-        ++gdb.gridy;
 
+        final JPanel exploredPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
+        exploredPanel.add(exploredThresholdChoice);
+        exploredPanel.add(exploredThresholdApplyButton);
+        distancePanel.add(exploredPanel, gdb);
+        gdb.gridy++;
+
+        // Row 4: Defaults button
         final JButton defaults = GuiUtils.Buttons.smallButton("Defaults");
-        defaults.addActionListener( e -> {
+        defaults.addActionListener(e -> {
             plugin.setFillThreshold(-1);
             cursorThresholdChoice.setSelected(true);
         });
-        final JPanel defaultsPanel = leftAlignedPanel();
-        defaultsPanel.add(defaults);
-        distancePanel.add(defaultsPanel, gdb);
+        gdb.fill = GridBagConstraints.NONE;  // Don't stretch to fill width
+        distancePanel.add(defaults, gdb);
+
         add(distancePanel, c);
         ++c.gridy;
 
@@ -208,21 +215,28 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
         addSeparator(" Performance Impacting Options:", c);
 
+        splitFillsCheckbox = new JCheckBox("One fill per path", plugin.getPrefs().getBoolean(SNTPrefs.SPLIT_FILLS_KEY, true));
+        splitFillsCheckbox.setToolTipText( "When enabled, each path is filled independently, allowing unique labels in exported images.\n" +
+                "Disable for faster bulk filling of many paths.");
+        splitFillsCheckbox.addActionListener(e -> plugin.getPrefs().set(SNTPrefs.SPLIT_FILLS_KEY, splitFillsCheckbox.isSelected()));
+
+        storeExtraNodesCheckbox = new JCheckBox("Store above-threshold nodes");
+        storeExtraNodesCheckbox.addActionListener(e -> plugin.setStoreExtraFillNodes(storeExtraNodesCheckbox.isSelected()));
+        storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with the same fill,\nbut may impact performance");
+
         transparentCheckbox = new JCheckBox("Transparent overlay");
         transparentCheckbox.setToolTipText("Enabling this option allows you better inspect fills,\nbut may slow down filling");
         transparentCheckbox.addActionListener(e -> plugin.setFillTransparent(transparentCheckbox.isSelected()));
-        final JPanel transparencyPanel = leftAlignedPanel();
-        transparencyPanel.add(transparentCheckbox);
-        add(transparencyPanel, c);
-        c.gridy++;
-        storeExtraNodesCheckbox = new JCheckBox(" Store above-threshold nodes");
-        storeExtraNodesCheckbox.addActionListener(e -> plugin.setStoreExtraFillNodes(storeExtraNodesCheckbox.isSelected()));
-        storeExtraNodesCheckbox.setToolTipText("Enabling this option lets you resume progress with the same fill,\nbut may impact performance");
-        final JPanel storeExtraNodesPanel = leftAlignedPanel();
-        storeExtraNodesPanel.add(storeExtraNodesCheckbox);
-        add(storeExtraNodesPanel, c);
-        c.gridy++;
 
+        final int prevLeftMargin = c.insets.left;
+        c.insets.left = MARGIN;
+        add(splitFillsCheckbox, c);
+        c.gridy++;
+        add(storeExtraNodesCheckbox, c);
+        c.gridy++;
+        add(transparentCheckbox, c);
+        ++c.gridy;
+        c.insets.left = prevLeftMargin;
         GuiUtils.addSeparator((JComponent) getContentPane(), " Stored Fill(s):", true, c);
         ++c.gridy;
 
@@ -249,7 +263,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         });
         reloadFill = new JButton("Reload");
         reloadFill.addActionListener(e -> {
-            if (!noFillsError()) reload("Reload");
+            if (!noFillsError() && !noValidImgError()) reload("Reload");
         });
 
         assembleExportFillsMenu();
@@ -325,8 +339,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
     }
 
     protected void updateSettingsString() {
-        String sb = "Image: " + ((plugin.isTracingOnSecondaryImageActive()) ? "Secondary" : "Main") +
-                "; Cost func.: " + plugin.getCostType();
+        final String sb = "<HTML>Image: <i>" + ((plugin.isTracingOnSecondaryImageActive()) ? "Secondary" : "Main") +
+                "</i> · Cost ƒ(x): <i>" + plugin.getCostType();
         fillTypeLabel.setText(sb);
     }
 
@@ -486,6 +500,18 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         plugin.setFillTransparent(transparent);
     }
 
+    /**
+     * Sets whether each path should be filled independently.
+     *
+     * @param split true to enable "one fill per path", false for bulk filling
+     */
+    public void setSplitFills(final boolean split) {
+        if (this.splitFillsCheckbox != null) {
+            SwingUtilities.invokeLater(() -> this.splitFillsCheckbox.setSelected(split));
+        }
+        plugin.getPrefs().set(SNTPrefs.SPLIT_FILLS_KEY, split);
+    }
+
     /* (non-Javadoc)
      * @see PathAndFillListener#setPathList(java.lang.String[], Path, boolean)
      */
@@ -643,9 +669,12 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
                 return;
             }
             try {
+                final boolean split = plugin.getPrefs().getBoolean(SNTPrefs.SPLIT_FILLS_KEY, splitFillsCheckbox != null
+                        && splitFillsCheckbox.isSelected());
                 if (plugin.fillerSet.isEmpty()) {
                     if (plugin.getUI().getPathManager().selectionExists()) {
-                        plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)));
+                        plugin.initPathsToFill(
+                                new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(false)), split);
                         applyCheckboxSelections();
                         plugin.startFilling();
                     } else {
@@ -653,7 +682,8 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
                                 + "fill all paths? Alternatively, you can dismiss this prompt, select a subset in the Path "
                                 + "Manager list, and rerun. ", "Fill All Paths?", "Yes. Fill All", "No. I'll Select A Subset");
                         if (ans == JOptionPane.YES_OPTION) {
-                            plugin.initPathsToFill(new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)));
+                            plugin.initPathsToFill(
+                                    new HashSet<>(plugin.getUI().getPathManager().getSelectedPaths(true)), split);
                             applyCheckboxSelections();
                             plugin.startFilling();
                         }

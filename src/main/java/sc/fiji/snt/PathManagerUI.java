@@ -3648,7 +3648,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
                 if (noValidImageDataError()) return;
-                plugin.initPathsToFill(new HashSet<>(selectedPaths));
+                plugin.initPathsToFill(new HashSet<>(selectedPaths), 
+                        plugin.getPrefs().getBoolean(SNTPrefs.SPLIT_FILLS_KEY, true));
             }
 
             @Override

@@ -2600,8 +2600,8 @@ public class SNT extends MultiDThreePanes implements
  		final FillConverter converter = new FillConverter(fillerSet);
  		converter.convertLabels(out);
 		final ImagePlus imp = ImgUtils.raiToImp(out, "Fill");
-		imp.copyScale(getImagePlus());
-		imp.resetDisplayRange();
+		imp.setCalibration(getCalibration());
+		imp.setDisplayRange(0, fillerSet.size());
 		ImpUtils.setLut(imp, "glasbey_on_dark");
 		return imp;
 	}
@@ -2637,7 +2637,7 @@ public class SNT extends MultiDThreePanes implements
 		changeUIState(SNTUI.FILLING_PATHS);
 	}
 
-	public synchronized void initPathsToFill(final Set<Path> fromPaths) {
+	public synchronized void initPathsToFill(final Set<Path> fromPaths, final boolean splitFillerThreads) {
 		fillerSet.clear();
 		pathAndFillManager.getLoadedFills().clear();
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
@@ -2672,17 +2672,34 @@ public class SNT extends MultiDThreePanes implements
 			default:
 				throw new IllegalArgumentException("BUG: Unrecognized cost function " + costType);
 		}
-		final FillerThread filler = new FillerThread(
-				data,
-				getCalibration(),
-				fillThresholdDistance,
-				1000,
-				costFunction);
-		addThreadToDraw(filler);
-		filler.addProgressListener(this);
-		if (getUI() != null) filler.addProgressListener(ui.getFillManager());
-		filler.setSourcePaths(fromPaths);
-		fillerSet.add(filler);
+		if (splitFillerThreads) {
+			// Create one FillerThread per path for unique labels
+			for (final Path path : fromPaths) {
+				final FillerThread filler = new FillerThread(
+						data,
+						getCalibration(),
+						fillThresholdDistance,
+						1000,
+						costFunction);
+				addThreadToDraw(filler);
+				filler.addProgressListener(this);
+				if (getUI() != null) filler.addProgressListener(ui.getFillManager());
+				filler.setSourcePaths(Collections.singleton(path));  // One path per filler
+				fillerSet.add(filler);
+			}
+		} else {
+			final FillerThread filler = new FillerThread(
+					data,
+					getCalibration(),
+					fillThresholdDistance,
+					1000,
+					costFunction);
+			addThreadToDraw(filler);
+			filler.addProgressListener(this);
+			if (getUI() != null) filler.addProgressListener(ui.getFillManager());
+			filler.setSourcePaths(fromPaths);
+			fillerSet.add(filler);
+		}
 		if (getUI() != null) ui.setFillListVisible(true);
 		changeUIState(SNTUI.FILLING_PATHS);
 	}

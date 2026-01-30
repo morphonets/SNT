@@ -52,6 +52,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
 	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";
 	public static final String AUTOSAVE_KEY = "tracespath";
+	public static final String SPLIT_FILLS_KEY = "splitfills";
 
     /** Boolean identifiers */
 	private static final int DRAW_DIAMETERS = 1;
