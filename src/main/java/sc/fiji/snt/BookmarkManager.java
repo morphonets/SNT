@@ -128,8 +128,18 @@ public class BookmarkManager {
                         return;
                     }
                     final ImagePlus imp = sntui.plugin.getImagePlus();
-                    if (imp == null) sntui.guiUtils.error("No image is currently open.");
-                    else goTo(row, imp);
+                    if (imp == null) {
+                        sntui.guiUtils.error("No image is currently open.");
+                    } else {
+                        goTo(row, imp);
+                        // Sync side views to same zoom level if enabled
+                        if (!sntui.plugin.getSinglePane()) {
+                            final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
+                            if (zyImp != null) goTo(row, zyImp, SNT.ZY_PLANE);
+                            final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
+                            if (xzImp != null) goTo(row, xzImp, SNT.XZ_PLANE);
+                        }
+                    }
                 }
             }
         });
@@ -400,15 +410,43 @@ public class BookmarkManager {
         return tb;
     }
 
-    private void goTo(final int row, final ImagePlus imp) {
+    private void goTo(final int row, final ImagePlus imp, final int plane) {
         assert imp != null;
         final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
-        if (b.x > imp.getWidth() || b.y > imp.getHeight()) {
-            sntui.guiUtils.error("Location is outside image XY dimensions");
+
+        // Transform coordinates based on plane
+        final double viewX, viewY;
+        viewY = switch (plane) {
+            case SNT.ZY_PLANE -> {
+                viewX = b.z;
+                yield b.y;
+            }
+            case SNT.XZ_PLANE -> {
+                viewX = b.x;
+                yield b.z;
+            }
+            default -> {
+                viewX = b.x;
+                yield b.y;
+            }
+        };
+
+        if (viewX > imp.getWidth() || viewY > imp.getHeight()) {
+            // Only show error for the main XY plane
+            if (plane == SNT.XY_PLANE) {
+                sntui.guiUtils.error("Location is outside image XY dimensions");
+            }
             return;
         }
-        imp.setPosition(b.c, (int) b.z, b.t);
-        ImpUtils.zoomTo(imp, (double) visitingZoomPercentage / 100, (int) b.x, (int) b.y);
+        if (plane == SNT.XY_PLANE) {
+            imp.setPosition(b.c, (int) b.z, b.t);
+        }
+        // Side views don't need setPosition - they show all Z by definition
+        ImpUtils.zoomTo(imp, (double) visitingZoomPercentage / 100, (int) viewX, (int) viewY);
+    }
+
+    private void goTo(final int row, final ImagePlus imp) {
+        goTo(row, imp, SNT.XY_PLANE);
     }
 
     private void loadBookmarksFromFile(final File file) {

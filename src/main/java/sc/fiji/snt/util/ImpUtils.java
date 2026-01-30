@@ -474,13 +474,45 @@ public class ImpUtils {
     public static void zoomTo(final ImagePlus imp, final double zoomMagnification, final int x, final int y) {
         final ImageCanvas canvas = imp.getCanvas();
         if (canvas == null) return;
+
+        // Save window and canvas size
+        final ImageWindow win = imp.getWindow();
+        final Dimension windowSize = (win != null) ? win.getSize() : null;
+        final Dimension canvasSize = canvas.getSize();
+
         final double currentMag = canvas.getMagnification();
         if (currentMag < zoomMagnification) {
-            // Zoom in on location. This will likely resize the ImageWindow
+            // Zoom in on location
             Zoom.set(imp, zoomMagnification, x, y);
         } else if (canvas.getSrcRect().width < imp.getWidth() || canvas.getSrcRect().height < imp.getHeight()) {
-            // the image is already zoomed in. Do not resize ImageWindow
+            // Image is already zoomed in - just pan to location
             Zoom.set(imp, currentMag, x, y);
+        }
+
+        // Restore window size if it shrank
+        if (win != null && windowSize != null) {
+            final Dimension newSize = win.getSize();
+            if (newSize.width < windowSize.width || newSize.height < windowSize.height) {
+                win.setSize(windowSize);
+                canvas.setSize(canvasSize);
+
+                // Manually set source rectangle to center on point
+                final double mag = canvas.getMagnification();
+                int srcWidth = (int) (canvasSize.width / mag);
+                int srcHeight = (int) (canvasSize.height / mag);
+                int srcX = x - srcWidth / 2;
+                int srcY = y - srcHeight / 2;
+
+                // Clamp to image bounds
+                srcX = Math.max(0, Math.min(srcX, imp.getWidth() - srcWidth));
+                srcY = Math.max(0, Math.min(srcY, imp.getHeight() - srcHeight));
+
+                Rectangle newSrcRect = new Rectangle(srcX, srcY, srcWidth, srcHeight);
+                canvas.setSourceRect(newSrcRect);
+                canvas.setMagnification(mag);
+                canvas.repaint();
+                imp.updateAndDraw();
+            }
         }
     }
 

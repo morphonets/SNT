@@ -5029,7 +5029,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
 
             // Sync side views to same zoom level if enabled
-            if (!plugin.getSinglePane() && !plugin.isZoomAllPanesDisabled()) {
+            if (!plugin.getSinglePane()) {
                 final ImagePlus zyImp = plugin.getImagePlus(SNT.ZY_PLANE);
                 if (zyImp != null)
                     ImpUtils.zoomTo(zyImp, zoom, paths, RoiConverter.ZY_PLANE);
