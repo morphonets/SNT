@@ -142,11 +142,11 @@ public class SNTChart extends ChartPanel {
 			setPreferredSize(preferredSize);
 		}
 		try {
-			setDefaultDirectoryForSaveAs(SNTPrefs.lastknownDir());
+			setDefaultDirectoryForSaveAs(SNTPrefs.lastKnownDir());
 		} catch (final Exception ignored) {
 			// Workaround reports of System.getProperty("user.home") not being a valid directory
 			// (presumably due to modified PATH variables [reported from S Windows 10/11])
-			SNTUtils.log("SNTChart: Could not set default directory: " + SNTPrefs.lastknownDir());
+			SNTUtils.log("SNTChart: Could not set default directory: " + SNTPrefs.lastKnownDir());
 		}
 		addChartMouseListener(new ChartListener());
 	}
@@ -1252,7 +1252,7 @@ public class SNTChart extends ChartPanel {
 	/** {@inheritDoc} */
 	@Override
 	public File getDefaultDirectoryForSaveAs() {
-		return (super.getDefaultDirectoryForSaveAs() == null) ? SNTPrefs.lastknownDir()
+		return (super.getDefaultDirectoryForSaveAs() == null) ? SNTPrefs.lastKnownDir()
 				: super.getDefaultDirectoryForSaveAs();
 	}
 

@@ -1343,8 +1343,6 @@ public class PathAndFillManager extends DefaultHandler implements
         }
     }
 
-    // FIXME: should probably use XMLStreamWriter instead of this ad-hoc
-    // approach:
     protected synchronized void writeXML(final String fileName,
                                          final boolean compress) throws IOException
     {

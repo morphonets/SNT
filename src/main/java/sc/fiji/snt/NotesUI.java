@@ -71,9 +71,9 @@ public class NotesUI {
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Notepad:", true, gbc);
         gbc.gridy++;
         final String msg = """
-                This pane allows you to jot down notes during a tracing session.
-                Similarly to Bookmarks, notes are not autosaved and must be \
-                exported manually. Markdown syntax is supported.
+                This pane allows you to jot down notes during a tracing session. \
+                Notes can be saved to the workspace directory using the toolbar button \
+                or via File>Save Session. Markdown syntax is supported.
                 """;
         gbc.weighty = 0.0;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);
@@ -84,7 +84,6 @@ public class NotesUI {
         container.add(editor.getScrollPane(), gbc);
         return container;
     }
-
 
     private JComponent getToolBar() {
         final JButton open = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.IMPORT, 1f));
@@ -109,13 +108,11 @@ public class NotesUI {
             if (file != null) exportNotes(file);
         });
         final JButton save = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SAVE, 1f));
-        save.setToolTipText("Save to last saved path");
+        save.setToolTipText("Save to workspace");
         save.addActionListener(e -> {
             if (noNotesError()) return;
-            if (editor.getFile() != null && !editor.fileChanged())
-                sntui.guiUtils.error("Notepad unchanged. No changes to save.");
-            else if (editor.getFile() != null) exportNotes(editor.getFile());
-            else export.doClick();
+            final String prefix = sntui.getImageFilenamePrefix();
+            exportNotes(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_notes.md"));
         });
         final JButton syntax = new JButton(IconFactory.buttonIcon('\uf1c9', false, IconFactory.defaultColor()));
         syntax.setToolTipText("Toggle cheatsheet for Markdown syntax");
@@ -145,7 +142,7 @@ public class NotesUI {
         settingsStamp.setToolTipText("Insert computation settings");
         settingsStamp.addActionListener(e -> {
             editor.append("**Computation Settings:**");
-            editor.append("\n```\n" + sntui.geSettingsString() +"\n```\n");
+            editor.append("\n```\n" + computationSettings() +"\n```\n");
             editor.requestFocusInWindow();
         });
         toolbar.add(settingsStamp);
@@ -163,7 +160,7 @@ public class NotesUI {
         final JButton filenameStamp = new JButton(IconFactory.buttonIcon('\uf15c', true, IconFactory.defaultColor()));
         filenameStamp.setToolTipText("Insert filename of .TRACES file");
         filenameStamp.addActionListener(e -> {
-            final File file = sntui.getAutosaveFile();
+            final File file = sntui.getPrefs().getAutosaveFile();
             if (file == null) {
                 sntui.error("Current tracings do not seem to be associated with a TRACES file.");
             } else {
@@ -196,6 +193,18 @@ public class NotesUI {
         } finally {
             noRecordComment();
         }
+    }
+
+    public void load(final File file) {
+        loadNotesFromFile(file);
+    }
+
+    public void save(final File file) {
+        exportNotes(file);
+    }
+
+    public String computationSettings() {
+        return sntui.geSettingsString();
     }
 
     private void loadNotesFromFile(final File file) {

@@ -91,11 +91,12 @@ public class BookmarkManager {
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Bookmarks:", true, gbc);
         gbc.gridy++;
         final String msg = """
-                This pane stores image locations that you can use to quickly (re)visit while \
-                tracing. Bookmarks are not saved by default and must be exported manually.
+                This pane stores image locations that you can quickly (re)visit while \
+                tracing. Bookmarks can be saved to the workspace directory using the \
+                toolbar button or via File>Save Session.
                 
-                To create a bookmark: Right-click on the image and choose "Bookmark Cursor Location" \
-                from the contextual menu (or press Shift+B).
+                To create a bookmark: Right-click on the image and choose "Bookmark Cursor \
+                Location" from the contextual menu (or press Shift+B).
                 To visit a bookmarked location: Double-click on its entry.
                 """;
         gbc.weighty = 0.0;
@@ -271,7 +272,16 @@ public class BookmarkManager {
 
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        JMenuItem jmi = new JMenuItem("From CSV File...");
+        JMenuItem jmi = new JMenuItem("From Workspace...");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            final String prefix = sntui.getImageFilenamePrefix();
+            final File ref = new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv");
+            final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
+            if (file != null) loadBookmarksFromFile(file);
+        });
+        menu.addSeparator();
+        jmi = new JMenuItem("From CSV File...");
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final File file = sntui.openFile("csv");
@@ -315,22 +325,16 @@ public class BookmarkManager {
 
     private JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        JMenuItem jmi = new JMenuItem("To CSV File...");
+        JMenuItem jmi = new JMenuItem("To Workspace...");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            final File saveFile = sntui.saveFile("Export Bookmarks to CSV...",
-                    "SNT_Bookmarks.csv", "csv");
-            if (saveFile != null) {
-                recordCmd("save(\"" + saveFile.getAbsolutePath() + "\")");
-                if (saveBookMarksToFile(saveFile)) {
-                    sntui.showStatus("Export complete.", true);
-                } else {
-                    sntui.showStatus("Exporting failed.", true);
-                    sntui.guiUtils.error("Exporting failed. See Console for details.");
-                }
-            }
+            final String prefix = sntui.getImageFilenamePrefix();
+            saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
         });
+        menu.addSeparator();
+        jmi = new JMenuItem("To CSV File...");
+        menu.add(jmi);
+        jmi.addActionListener(e -> saveToUserChosenFile(null));
         jmi = new JMenuItem("To Image Overlay");
         jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
         menu.add(jmi);
@@ -358,6 +362,21 @@ public class BookmarkManager {
             recordCmd("toRoiManager()");
         });
         return menu;
+    }
+
+    private void saveToUserChosenFile(final File file) {
+        if (noBookmarksError()) return;
+        final File saveFile = (file == null) ? sntui.saveFile("Export Bookmarks to CSV...",
+                "SNT_Bookmarks.csv", "csv") : file;
+        if (saveFile != null) {
+            recordCmd("save(\"" + saveFile.getAbsolutePath() + "\")");
+            if (saveBookMarksToFile(saveFile)) {
+                sntui.showStatus("Export complete.", true);
+            } else {
+                sntui.showStatus("Exporting failed.", true);
+                sntui.guiUtils.error("Exporting failed. See Console for details.");
+            }
+        }
     }
 
     void resetVisitingZoom() {
@@ -461,6 +480,7 @@ public class BookmarkManager {
     private boolean saveBookMarksToFile(final File file) {
         final SNTTable exportTable = new SNTTable();
         for (final Bookmark b : model.getDataList()) {
+            exportTable.insertRow(null);
             exportTable.appendToLastRow("Tag", (b.category == null) ? "" : String.format("#%06X", b.category.getRGB() & 0xFFFFFF));
             exportTable.appendToLastRow("Label", b.label);
             exportTable.appendToLastRow("X", b.x);

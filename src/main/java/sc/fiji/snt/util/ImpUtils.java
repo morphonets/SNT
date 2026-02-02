@@ -185,6 +185,16 @@ public class ImpUtils {
         IJ.redirectErrorMessages(redirecting);
     }
 
+    /**
+     * Returns the file path of an image.
+     * @param imp the image to be parsed
+     * @return the absolute file path of the image or "unknown" if not known
+     */
+    public static String getFilePath(final ImagePlus imp) {
+        return  (imp != null && (imp.getOriginalFileInfo() != null && imp.getOriginalFileInfo().directory != null))
+                ? imp.getOriginalFileInfo().directory + imp.getOriginalFileInfo().fileName
+                : "unknown";
+    }
     public static boolean sameXYZDimensions(final ImagePlus imp1, final ImagePlus imp2) {
         return imp1.getWidth() == imp2.getWidth() && imp1.getHeight() == imp2.getHeight()
                 && imp1.getNSlices() == imp2.getNSlices();

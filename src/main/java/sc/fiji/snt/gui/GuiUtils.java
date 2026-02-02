@@ -1084,14 +1084,19 @@ public class GuiUtils {
 
 	public File getFile(final File file, final String extensionWithoutPeriod) {
 		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
-		fileChooser.setDialogTitle("Choose " + extensionWithoutPeriod.toUpperCase() + " File");
-		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.setDialogTitle("/".equals(extensionWithoutPeriod) ? "Choose Directory" : "Choose " + extensionWithoutPeriod.toUpperCase() + " File");
+		fileChooser.setFileSelectionMode("/".equals(extensionWithoutPeriod) ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY);
 		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
 		fileChooser.setMultiSelectionEnabled(false);
 		fileChooser.addChoosableFileFilter(
-				new FileNameExtensionFilter(extensionWithoutPeriod.toUpperCase() , extensionWithoutPeriod));
-		if (file != null)
-			fileChooser.setSelectedFile(file);
+				new FileNameExtensionFilter(extensionWithoutPeriod.toUpperCase(), extensionWithoutPeriod));
+		if (file != null) {
+			if ("/".equals(extensionWithoutPeriod)) {
+				fileChooser.setCurrentDirectory(file);
+			} else {
+				fileChooser.setSelectedFile(file);
+			}
+		}
 		fileChooser.setMultiSelectionEnabled(false);
 		return (File) getOpenFileChooserResult(fileChooser);
 	}
@@ -1861,7 +1866,7 @@ public class GuiUtils {
 	public static JFileChooser getDnDFileChooser() {
 		final FileChooser fileChooser = new FileChooser();
 		fileChooser.setAcceptAllFileFilterUsed(true);
-		fileChooser.setCurrentDirectory(SNTPrefs.lastknownDir());
+		fileChooser.setCurrentDirectory(SNTPrefs.lastKnownDir());
 		new FileDrop(fileChooser, files -> {
 			if (files.length == 0) { // Is this even possible?
 				fileChooser.error("Dropped file(s) not recognized.");

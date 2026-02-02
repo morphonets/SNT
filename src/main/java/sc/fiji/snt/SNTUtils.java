@@ -82,7 +82,7 @@ public class SNTUtils {
 	 * support colons in filenames
 	 */
 	private static final String TIMESTAMP_PATTERN = "'_D'yyyy-MM-dd'T'HH-mm-ss";
-	private static final String TIMESTAMP_REGEX = "(.+?)_D(\\d{4}-\\d{2}-\\d{2})T(\\d{2}-\\d{2}-\\d{2})";
+	public static final String TIMESTAMP_REGEX = "(.+?)_D(\\d{4}-\\d{2}-\\d{2})T(\\d{2}-\\d{2}-\\d{2})";
 	private static Context context;
 	private static volatile LogService logService;  // Make volatile for thread safety
 
@@ -467,35 +467,70 @@ public class SNTUtils {
 		final String lName = file.getName().toLowerCase();
 		return (lName.endsWith("swc") || lName.endsWith(".traces") || lName.endsWith(".json") || lName.endsWith(".ndf"));
 	}
+	/**
+	 * Returns timestamped backup copies of traces files in the specified location.
+	 * Searches both the given directory (legacy behavior) and the
+	 * snt_backups subdirectory implemented in SNTv5.
+	 *
+	 * @param location the directory to search for backup files
+	 * @param baseName the base filename prefix to match (e.g., "OP_1" to match "OP_1_2026-01-30_10-00-00.traces"),
+	 *                 or null to match all traces files with timestamps
+	 * @return list of backup files (never null, may be empty), sorted most recent first
+	 */
+	public static List<File> getBackupCopies(final File location, final String baseName) {
+		final List<File> copies = new ArrayList<>();
+		if (location == null || !location.isDirectory() || !location.canRead()) {
+			return copies;
+		}
+		final Pattern p = Pattern.compile(TIMESTAMP_REGEX);
+
+		// Search in specified directory (legacy location)
+		addMatchingBackups(copies, location, baseName, p);
+
+		// Search in snt_backups subdirectory (new location)
+		final File backupsDir = new File(location, "snt_backups");
+		if (backupsDir.isDirectory() && backupsDir.canRead()) {
+			addMatchingBackups(copies, backupsDir, baseName, p);
+		}
+
+		// Sort by timestamp (most recent first)
+		copies.sort((a, b) -> b.getName().compareTo(a.getName()));
+
+		return copies;
+	}
 
 	/**
-	 * Retrieves a list of time-stamped backup files associated with a TRACES file
+	 * Returns all timestamped backup copies in the specified location.
+	 * Convenience method that matches all traces files with timestamps.
 	 *
-	 * @param tracesFile the TRACES file
-	 * @return the list of backup files. An empty list is retrieved if none could be
-	 *         found.
+	 * @param location the directory to search for backup files
+	 * @return list of backup files (never null, may be empty), sorted most recent first
 	 */
-	public static List<File> getBackupCopies(final File tracesFile) {
-		final List<File> copies = new ArrayList<>();
-		if (tracesFile == null)
-			return copies;
-		final File dir = tracesFile.getParentFile();
-		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
-			return copies;
+	public static List<File> getBackupCopies(final File location) {
+		return getBackupCopies(location, null);
+	}
+
+	private static void addMatchingBackups(final List<File> copies, final File dir,
+										   final String baseName, final Pattern timestampPattern) {
+		final File[] candidates;
+		if (baseName != null && !baseName.isBlank()) {
+			candidates = getReconstructionFiles(dir, baseName);
+		} else {
+			// Match all .traces files
+			candidates = dir.listFiles((d, name) ->
+					name.endsWith(".traces") || name.endsWith(".traces.gz"));
 		}
-		final File[] candidates = getReconstructionFiles(dir, stripExtension(tracesFile.getName()));
-		if (candidates == null)
-			return copies;
-		Pattern p = Pattern.compile(SNTUtils.TIMESTAMP_REGEX);
+		if (candidates == null) return;
+
 		for (final File candidate : candidates) {
 			try {
-				if (p.matcher(candidate.getName()).find())
+				if (timestampPattern.matcher(candidate.getName()).find()) {
 					copies.add(candidate);
-			} catch (final Exception ex) {
-                ex.printStackTrace();
+				}
+			} catch (final Exception ignored) {
+				// Skip problematic files
 			}
 		}
-		return copies;
 	}
 
 	public static String getTimeStamp() {
@@ -503,7 +538,7 @@ public class SNTUtils {
 	}
 
 	public static String extractReadableTimeStamp(final File file) {
-		final Pattern p = Pattern.compile(SNTUtils.TIMESTAMP_REGEX);
+		final Pattern p = Pattern.compile(TIMESTAMP_REGEX);
 		final Matcher m = p.matcher(file.getName());
 		if (m.find()) {
 			// NB: m.group(0) returns the full match

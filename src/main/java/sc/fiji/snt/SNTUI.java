@@ -130,7 +130,7 @@ public class SNTUI extends JDialog {
 	private final FillManagerUI fmUI;
 	private final BookmarkManager bookmarkManager;
     private final NotesUI notesui;
-
+	private final DelineationsManager delineationsManager;
 	/* Reconstruction Viewer */
 	protected Viewer3D recViewer;
 	protected Frame recViewerFrame;
@@ -218,7 +218,8 @@ public class SNTUI extends JDialog {
 		commandFinder.register(getTracingCanvasPopupMenu(), new ArrayList<>(Collections.singletonList("Image Contextual Menu")));
         bookmarkManager = new BookmarkManager(this);
         notesui = new NotesUI(this);
-        initializeStates();
+		delineationsManager = new DelineationsManager(this);
+		initializeStates();
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
 		addWindowListener(new WindowAdapter() {
 
@@ -356,8 +357,7 @@ public class SNTUI extends JDialog {
 		// new tabs, so we'll discard it from preferred width calculation
 		final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
 
-		final DelineationsManager delineationManager = new DelineationsManager(this);
-		tabbedPane.addTab("Delineations", delineationManager.getPanel());
+		tabbedPane.addTab("Delineations", delineationsManager.getPanel());
 
 		// Bookmarks and notes
 		tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
@@ -669,6 +669,15 @@ public class SNTUI extends JDialog {
         return notesui;
     }
 
+	/**
+	 * Gets the Delineations Manager pane.
+	 *
+	 * @return the {@link DelineationsManager} associated with this UI
+	 */
+	public DelineationsManager getDelineationsManager() {
+		return delineationsManager;
+	}
+
     /**
      * Launches the autotracing wizard for the active image.
      * <p>
@@ -865,9 +874,9 @@ public class SNTUI extends JDialog {
 			msg = "There are unsaved measurements. Do you really want to quit?";
 		if (!guiUtils.getConfirmation(msg, "Really Quit?"))
 			return;
-		commandFinder.dispose();
 		abortCurrentOperation();
-		setAutosaveFile(null); // forget last saved file
+		getPrefs().setAutosaveFile(null); // forget last saved file
+		commandFinder.dispose();
 		pmUI.dispose();
 		fmUI.dispose();
 		if (recViewer != null) recViewer.dispose();
@@ -2873,11 +2882,29 @@ public class SNTUI extends JDialog {
 		final JMenuItem saveTable = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.TABLE);
 		saveTable.addActionListener(e -> (new DynamicCmdRunner(SaveMeasurementsCmd.class, null, getState())).run());
 		fileMenu.add(saveTable);
-		final JMenuItem restoreMenuItem = new JMenuItem("Restore Snapshot Backup...");
-		restoreMenuItem.setToolTipText("Restores data from existing timecoded backups stored on disk");
-		restoreMenuItem.setIcon(IconFactory.menuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+
+		fileMenu.addSeparator();
+		final JMenuItem saveCopyMenuItem = new JMenuItem("Backup Tracings", IconFactory.menuIcon('\uf1cd', false));
+		saveCopyMenuItem.setToolTipText("Saves paths to a timestamped backup file (workspace directory)");
+		saveCopyMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
+				java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
+		saveCopyMenuItem.addActionListener(e -> saveToXML(true));
+		fileMenu.add(saveCopyMenuItem);
+		final JMenuItem restoreMenuItem = new JMenuItem("Revert to Backup...", IconFactory.menuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+		restoreMenuItem.setToolTipText("Restores data from existing backups in the workspace directory");
 		restoreMenuItem.addActionListener(e -> revertFromBackup());
 		fileMenu.add(restoreMenuItem);
+		final JMenuItem manageBackups = new JMenuItem("Manage Backups...", IconFactory.menuIcon('\ue2c5', true));
+		manageBackups.addActionListener(e -> (new DynamicCmdRunner(BackupManagerCmd.class, null, getState())).run());
+		fileMenu.add(manageBackups);
+
+		fileMenu.addSeparator();
+		final JMenuItem saveSession = new JMenuItem("Save Session...", IconFactory.menuIcon('\uf574', true));
+		saveSession.addActionListener(e -> (new DynamicCmdRunner(SaveSessionCmd.class, null, getState())).run());
+		fileMenu.add(saveSession);
+		final JMenuItem restoreSession = new JMenuItem("Restore Session...", IconFactory.menuIcon('\uf56d', true));
+		restoreSession.addActionListener(e -> (new DynamicCmdRunner(RestoreSessionCmd.class, null, getState())).run());
+		fileMenu.add(restoreSession);
 
 		fileMenu.addSeparator();
 		final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2", IconFactory.menuIcon('T', false));
@@ -2946,12 +2973,6 @@ public class SNTUI extends JDialog {
 				KeyStroke.getKeyStroke(KeyEvent.VK_S, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
 		saveMenuItem.addActionListener(e -> saveToXML(false));
 		exportSubmenu.add(saveMenuItem);
-		final JMenuItem saveCopyMenuItem = new JMenuItem("Save Snapshot Backup");
-		saveCopyMenuItem.setToolTipText("Saves data to a timestamped backup file on main file's directory");
-		saveCopyMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
-				java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
-		exportSubmenu.add(saveCopyMenuItem);
-		saveCopyMenuItem.addActionListener(e -> saveToXML(true));
 		final JMenuItem saveAsMenuItem = new JMenuItem("Save As...");
 		exportSubmenu.add(saveAsMenuItem);
 		saveAsMenuItem.addActionListener(e -> {
@@ -3377,53 +3398,92 @@ public class SNTUI extends JDialog {
 	private JMenu showFolderMenu(final ScriptInstaller installer) {
 		final JMenu menu = new JMenu("Reveal Directory");
 		menu.setIcon(IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
-		final String[] labels = { "Current TRACES File", "Image Being Traced", "Fiji Scripts", "Last Accessed Folder",
-				"Secondary Layer Image", "Snapshot Backup(s)" };
+		final String[] labels = {"Current Workspace", "Change Workspace...", "-", //
+				"Backup(s)", "Sessions", "-", //
+				"Current TRACES File", "Image Being Traced", "Last Accessed Folder", "Secondary Layer Image", "-", //
+				"Fiji Scripts"};
 		Arrays.stream(labels).forEach(label -> {
-			final JMenuItem jmi = new JMenuItem(label);
-			menu.add(jmi);
-			jmi.addActionListener(e -> {
-				File f = null;
-				boolean proceed = true;
-                switch (label) {
-                    case "Fiji Scripts" -> f = installer.getScriptsDir();
-                    case "Image Being Traced" -> {
-                        if (!plugin.accessToValidImageData()) {
-                            noValidImageDataError();
-                            proceed = false;
-                        }
-                        try {
-                            f = new File(plugin.getImagePlus().getOriginalFileInfo().getFilePath());
-                        } catch (final Exception ignored) {
-                            // do nothing
-                        }
-                    }
-                    case "Last Accessed Folder" -> f = plugin.getPrefs().getRecentDir();
-                    case "Snapshot Backup(s)" -> {
-                        f = getAutosaveFile();
-                        if (SNTUtils.getBackupCopies(f).isEmpty()) {
-                            guiUtils.error("No Snapshot Backup(s) seem to exist for current tracings.");
-                            proceed = false;
-                        }
-                    }
-                    case "Secondary Layer Image" -> {
-                        f = plugin.getFilteredImageFile();
-                        proceed = !noSecondaryDataAvailableError();
-                    }
-                    case "Current TRACES File" -> {
-                        f = getAutosaveFile();
-                        if (f == null) {
-                            guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
-                            proceed = false;
-                        }
-                    }
-                    default -> {
-                    }
-                }
-				if (proceed) guiUtils.showDirectory(f);
-			});
+			if ("-".equals(label)) {
+				menu.addSeparator();
+			} else {
+				final JMenuItem jmi = new JMenuItem(label);
+				menu.add(jmi);
+				if ("Change Workspace...".equals(label)) {
+					jmi.addActionListener(e -> promptUserForWorkspaceChange());
+				} else {
+					jmi.addActionListener(e -> {
+						File f = null;
+						boolean proceed = true;
+						switch (label) {
+							case "Current Workspace" -> f = plugin.getPrefs().getWorkspaceDir();
+							case "Backup(s)" -> f = plugin.getPrefs().getQuickBackupDir();
+							case "Sessions" -> f = plugin.getPrefs().getSessionsDir();
+							case "Current TRACES File" -> {
+								f = getPrefs().getAutosaveFile();
+								if (f == null) {
+									guiUtils.error("Current tracings do not seem to be associated with a TRACES file.");
+									proceed = false;
+								}
+							}
+							case "Image Being Traced" -> {
+								if (!plugin.accessToValidImageData()) {
+									noValidImageDataError();
+									proceed = false;
+								}
+								try {
+									f = new File(plugin.getImagePlus().getOriginalFileInfo().getFilePath());
+								} catch (final Exception ignored) {
+									// do nothing
+								}
+							}
+							case "Last Accessed Folder" -> f = plugin.getPrefs().getRecentDir();
+							case "Secondary Layer Image" -> {
+								f = plugin.getFilteredImageFile();
+								proceed = !noSecondaryDataAvailableError();
+							}
+							case "Fiji Scripts" -> f = installer.getScriptsDir();
+							default -> {
+							}
+						}
+						if (proceed) guiUtils.showDirectory(f);
+
+					});
+				}
+			}
 		});
 		return menu;
+	}
+
+	private void promptUserForWorkspaceChange() {
+		final File newDir = guiUtils.getFile(plugin.getPrefs().getWorkspaceDir(), "/");
+		if (newDir == null) {
+			return; // User cancelled
+		}
+		final File currentDir = plugin.getPrefs().getWorkspaceDir();
+		if (newDir.equals(currentDir)) {
+			guiUtils.centeredMsg("Workspace directory unchanged.", "No Change");
+			return;
+		}
+		if (!newDir.exists()) {
+			if (!guiUtils.getConfirmation(
+					"Directory does not exist. Create it?\n" + newDir.getAbsolutePath(),
+					"Create Directory?")) {
+				return;
+			}
+			if (!newDir.mkdirs()) {
+				error("Could not create directory:\n" + newDir.getAbsolutePath());
+				return;
+			}
+		}
+		if (!newDir.canWrite()) {
+			error("Directory is not writable:\n" + newDir.getAbsolutePath());
+			return;
+		}
+
+		plugin.getPrefs().setWorkspaceDir(newDir);
+		guiUtils.centeredMsg("Workspace changed to:\n" + newDir.getAbsolutePath() +
+						"\n\nBackups and session data will now be saved here.",
+				"Workspace Updated");
 	}
 
 	private JPanel renderingPanel() {
@@ -4955,24 +5015,8 @@ public class SNTUI extends JDialog {
 		});
 	}
 
-	protected File getAutosaveFile() {
-		final String autosavePath = plugin.getPrefs().getTemp(SNTPrefs.AUTOSAVE_KEY, null);
-		return (autosavePath == null) ? null : new File(autosavePath);
-	}
-
-	private void setAutosaveFile(final File file) {
-		plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY,
-				(file != null && SNTUtils.fileAvailable(file)) ? file.getAbsolutePath() : null);
-	}
-
 	private void revertFromBackup() {
-		final File autosaveFile = getAutosaveFile();
-		if (autosaveFile == null) {
-			error("Current tracings have not been loaded from disk or the location of the data in the file system is not known."
-					+ " Please load backup tracings manually.");
-			return;
-		}
-		final List<File> copies = SNTUtils.getBackupCopies(autosaveFile); // list never null
+		final List<File> copies = SNTUtils.getBackupCopies(plugin.getPrefs().getQuickBackupDir()); // list never null
 		if (copies.isEmpty()) {
 			error("No time-stamped backups seem to exist for current data. Please create one first.");
 			return;
@@ -4985,33 +5029,44 @@ public class SNTUI extends JDialog {
 		if (choice == null)
 			return; // user pressed cancel
 		plugin.loadTracesFile(map.get(choice));
-		if (guiUtils.getConfirmation(
+		final File mainFile = plugin.getPrefs().getAutosaveFile();
+		if (SNTUtils.fileAvailable(mainFile) && guiUtils.getConfirmation(
 				"Data restored from snapshot backup. Shall this state now be saved to the main file, overriding its contents? "
 						+ "Alternatively, you can dismiss this prompt and save data manually later on.",
 				"Data Restored. Override Main File?", "Yes. Override main file.", "No. Do nothing.")) {
-			saveToXML(autosaveFile, false);
+			saveToXML(mainFile, false);
 		}
+	}
+
+	protected String getImageFilenamePrefix() {
+		if (plugin.accessToValidImageData())
+			return "display_canvas";
+		final ImagePlus imp = plugin.getImagePlus();
+		if (imp != null && imp.getTitle() != null && !imp.getTitle().isBlank()) {
+			return imp.getTitle().replaceAll("[^a-zA-Z0-9.-]", "_");
+		}
+		return "display_canvas";
 	}
 
 	protected void saveToXML(final boolean timeStampedCopy) {
 		if (noPathsError() || notReadyToSaveError()) return; // do not create empty files
-		boolean successfull = false;
-		File targetFile = getAutosaveFile();
 		if (timeStampedCopy) {
-			if (targetFile == null) {
-				if (guiUtils.getConfirmation(
-						"Traces must be saved at least once before a time-stamped backup is made. Save traces to main file now?",
-						"No Main File Exists")) {
-					saveToXML(false);
-				}
-				return;
-			}
 			final String suffix = SNTUtils.getTimeStamp();
-			final String fName = SNTUtils.stripExtension(targetFile.getName());
-			targetFile = new File(targetFile.getParentFile(), fName + suffix + ".traces");
+			final String fName = getImageFilenamePrefix();
+			final File targetFile = new File(plugin.getPrefs().getQuickBackupDir(), fName + "_" + suffix + ".traces");
+            try {
+                pathAndFillManager.writeXML(targetFile.getAbsolutePath(), plugin.getPrefs().isSaveCompressedTraces());
+				plugin.discreteMsg("Backup added to workspace...");
+			} catch (final IOException e) {
+                error("Backup could not be saved: " + e);
+				SNTUtils.error("Backup could not be saved", e);
+            }
+			return;
 		}
+		File targetFile = plugin.getPrefs().getAutosaveFile();
+		boolean successfull = false;
 		try {
-			if (!timeStampedCopy && (targetFile == null || !targetFile.exists() || !targetFile.canWrite())) {
+			if (targetFile == null || !targetFile.exists() || !targetFile.canWrite()) {
 				targetFile = saveFile("Save Traces As...", null, "traces");
 			}
 			if (targetFile != null)
@@ -5022,8 +5077,7 @@ public class SNTUI extends JDialog {
 		if (successfull) {
 			SNTUtils.log(String.format("Saved to %s...", targetFile.getName()));
 			plugin.discreteMsg(String.format("Saved to %s...", targetFile.getName()));
-			if (!timeStampedCopy)
-				plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY, targetFile.getAbsolutePath());
+			plugin.getPrefs().setTemp(SNTPrefs.AUTOSAVE_KEY, targetFile.getAbsolutePath());
 		} else {
 			plugin.discreteMsg("File could not be saved! Please use File> menu instead.");
 		}
@@ -5196,7 +5250,7 @@ public class SNTUI extends JDialog {
                         succeed = loadSWCFile(file);
                     } else if (type == TRACES) {
                         succeed = plugin.loadTracesFile(file);
-                        setAutosaveFile(file);
+                        getPrefs().setAutosaveFile(file);
                     } else {
                         if (file == null)
                             file = openReconstructionFile(null);

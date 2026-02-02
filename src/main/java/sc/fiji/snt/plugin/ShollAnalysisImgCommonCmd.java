@@ -993,7 +993,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	@SuppressWarnings("unused")
 	private void saveChoiceChanged() {
 		if (save && saveDir == null)
-			saveDir = SNTPrefs.lastknownDir();
+			saveDir = SNTPrefs.lastKnownDir();
 	}
 
 	private void saveOptionsChanged() {

@@ -33,12 +33,14 @@ import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.ui.swing.laf.SwingLookAndFeelService;
 import org.scijava.widget.Button;
+import org.scijava.widget.FileWidget;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 
 import javax.swing.*;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.Arrays;
@@ -72,16 +74,20 @@ public class PrefsCmd extends OptionsPlugin {
     @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "I. IO and Performance:")
     private String HEADER1;
 
-    @Parameter(label="Use compressed .TRACES files",
-            description="Whether Gzip compression should be use when saving .traces files")
-    private boolean compressTraces;
-
     @Parameter(label="No. parallel threads",
             description="<HTML><div WIDTH=500>The max. no. of parallel threads to be used by SNT, as specified in IJ's"
                     + "Edit>Options>Memory &amp; Threads... Set it to 0 to use the available processors on your computer")
     private int nThreads;
 
-    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "II. Display and Appearance")
+	@Parameter(label="Workspace directory", style = FileWidget.DIRECTORY_STYLE,
+			description="<HTML>The workspace directory for saving/restoring sessions and backups")
+	private File workspaceDirectory;
+
+	@Parameter(label="Use compressed .TRACES files",
+			description="Whether Gzip compression should be use when saving .traces files")
+	private boolean compressTraces;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "II. Display and Appearance")
     private String HEADER2;
 
 	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, adopt 2D or 3D canvases?")
@@ -117,13 +123,14 @@ public class PrefsCmd extends OptionsPlugin {
 	 */
 	public void run() {
 		super.run();
+		if (snt == null) return;
 
         final int somaDisplayOption = getSomaDisplayOption(somaDisplay);
         PathNodeCanvas.setSomaRenderMode(somaDisplayOption);
         SwingUtilities.invokeLater(() -> snt.repaintAllPanes());
         snt.getPrefs().setSomaDisplayTriangle(somaDisplayOption==PathNodeCanvas.SOMA_RENDER_TRIANGLE);
-
-        snt.getPrefs().setSaveWinLocations(persistentWinLoc);
+		applyWorkspaceChange();
+		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
 		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
@@ -143,6 +150,27 @@ public class PrefsCmd extends OptionsPlugin {
 		}
 	}
 
+	private void applyWorkspaceChange() {
+		if (workspaceDirectory == null) {
+			return; // do nothing
+		}
+		final File currentDir = snt.getPrefs().getWorkspaceDir();
+		if (workspaceDirectory.equals(currentDir)) {
+			return; // do nothing
+		}
+		if (!workspaceDirectory.exists()) {
+			if (!workspaceDirectory.mkdirs()) {
+				snt.getUI().error("Could not create directory:\n" + workspaceDirectory.getAbsolutePath());
+				return;
+			}
+		}
+		if (!workspaceDirectory.canWrite()) {
+			snt.getUI().error("Directory is not writable:\n" + workspaceDirectory.getAbsolutePath());
+			return;
+		}
+		snt.getPrefs().setWorkspaceDir(workspaceDirectory);
+	}
+
     private int getSomaDisplayOption(final String choice) {
         return (SOMA_DISPLAY_TRIANGLE.equals(choice)) ? PathNodeCanvas.SOMA_RENDER_TRIANGLE : PathNodeCanvas.SOMA_RENDER_DEFAULT;
     }
@@ -159,6 +187,7 @@ public class PrefsCmd extends OptionsPlugin {
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();
             somaDisplay = getSomaDisplayChoice(PathNodeCanvas.getSomaRenderMode());
+			workspaceDirectory = snt.getPrefs().getWorkspaceDir();
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}
@@ -186,6 +215,10 @@ public class PrefsCmd extends OptionsPlugin {
 		final boolean confirm = new GuiUtils().getConfirmation(
 			"Reset preferences to defaults? (a restart may be required)", "Reset?");
 		if (confirm) {
+			if (snt != null) {
+				snt.getPrefs().setWorkspaceDir(null);
+				workspaceDirectory = snt.getPrefs().getWorkspaceDir();
+			}
 			clearAll();
 			init(); // update prompt;
 			new GuiUtils().centeredMsg("Preferences reset. You should now restart"

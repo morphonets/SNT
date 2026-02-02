@@ -82,7 +82,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String FILLWIN_LOC = "tracing.snt.fwloc";
 	private static final String FILTERED_IMG_PATH = "tracing.snt.fipath";
 	private static final String VERSION_CHECK = "tracing.snt.version";
-    /** recent directory */
+	private static final String WORKSPACE_KEY = "tracing.snt.workspace";
+
+	/** recent directory */
 	private static File recentDir;
     /** temp preferences (forgotten after the program exits) */
     private volatile static HashSet<String> tempKeys;
@@ -93,6 +95,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private boolean ij1ReverseSliderOrder;
 	private boolean ij1PointerCursor;
 	private int resFactor3Dcontent = -1;
+	private File workspaceDirectory;
 
 	/**
 	 * Constructs a new SNTPrefs instance for the specified SNT instance.
@@ -222,6 +225,16 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		final String k = "snt." + key;
 		Prefs.set(k, value);
 		tempKeys.add(k);
+	}
+
+	public File getAutosaveFile() {
+		final String autosavePath = getTemp(SNTPrefs.AUTOSAVE_KEY, null);
+		return (autosavePath == null) ? null : new File(autosavePath);
+	}
+
+	public void setAutosaveFile(final File file) {
+		setTemp(SNTPrefs.AUTOSAVE_KEY,
+				(file != null && SNTUtils.fileAvailable(file)) ? file.getAbsolutePath() : null);
 	}
 
 	private static void wipeSessionPrefs() {
@@ -533,10 +546,50 @@ public class SNTPrefs { // TODO: Adopt PrefService
 					// ignored;
 				}
 		}
-		return lastknownDir();
+		return lastKnownDir();
 	}
 
-	public static File lastknownDir() {
+	public File getWorkspaceDir() {
+		if (workspaceDirectory == null || !workspaceDirectory.isDirectory()) {
+			final String saved = get(WORKSPACE_KEY, null);
+			if (saved != null) {
+				final File f = new File(saved);
+				if (f.isDirectory())
+					workspaceDirectory = f;
+			}
+			if (workspaceDirectory == null) {
+				setWorkspaceDir(null);
+			}
+		}
+		return workspaceDirectory;
+	}
+
+	public void setWorkspaceDir(final File dir) {
+		if (dir == null ) {
+			workspaceDirectory = new File(System.getProperty("user.home"), "SNT_workspace");
+		} else if (!dir.isDirectory()) {
+			throw new IllegalArgumentException("Not a directory: " + dir);
+		} else {
+			this.workspaceDirectory = dir;
+		}
+		set(WORKSPACE_KEY, workspaceDirectory.getAbsolutePath());
+	}
+
+	public File getQuickBackupDir() {
+		if (!getWorkspaceDir().exists()) workspaceDirectory.mkdirs();  // Ensure it exists
+		final File result = new File(workspaceDirectory, "snt_backups");
+		result.mkdirs();
+		return result;
+	}
+
+	public File getSessionsDir() {
+		if (!getWorkspaceDir().exists()) workspaceDirectory.mkdirs();  // Ensure it exists
+		final File result = new File(workspaceDirectory, "sessions");
+		result.mkdirs();
+		return result;
+	}
+
+	public static File lastKnownDir() {
 		if (recentDir == null) {
 			try {
 				recentDir = new File(ij.io.OpenDialog.getDefaultDirectory());

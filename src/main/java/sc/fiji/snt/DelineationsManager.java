@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.io.RoiEncoder;
 import ij.plugin.frame.RoiManager;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -37,9 +38,15 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * Implements the <i>Delineation Analysis</i> pane.
@@ -674,6 +681,15 @@ public class DelineationsManager {
         });
     }
 
+    public List<Roi> getDelineationROIs() {
+        return getValidDelineationROIs();
+    }
+
+    public boolean saveROIs(final File file) {
+        final List<Roi> rois = getDelineationROIs();
+        return !rois.isEmpty() && saveRoisToZip(rois, file);
+    }
+
     private void toRoiManager(final List<Roi> rois) {
         if (noAssignmentsExistError()) return;
         if (!rois.isEmpty()) {
@@ -812,6 +828,27 @@ public class DelineationsManager {
         })));
         for (int i = 0; i < n; i++) delineations.get(i).updateWidget();
         sntui.plugin.updateAllViewers();
+    }
+
+    private static boolean saveRoisToZip(final List<Roi> rois, final File file) {
+        try (final ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(file))) {
+            int count = 0;
+            for (final Roi roi : rois) {
+                String name = roi.getName();
+                if (name == null || name.isEmpty()) {
+                    name = String.format("roi_%04d", count);
+                }
+                zos.putNextEntry(new ZipEntry(name + ".roi"));
+                byte[] bytes = RoiEncoder.saveAsByteArray(roi);
+                zos.write(bytes);
+                zos.closeEntry();
+                count++;
+            }
+            return true;
+        } catch (final IOException e) {
+            SNTUtils.error("Failed to save ROIs", e);
+            return false;
+        }
     }
 
     private class Delineation {

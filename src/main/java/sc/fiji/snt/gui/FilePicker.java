@@ -68,9 +68,9 @@ public class FilePicker extends JPanel {
 		fallbackFile = initialFile;
         if (initialFile == null) {
             if (allowedExtensions == null || allowedExtensions.length == 0)
-                fallbackFile = new File(SNTPrefs.lastknownDir(), "SNT_data");
+                fallbackFile = new File(SNTPrefs.lastKnownDir(), "SNT_data");
             else
-                fallbackFile = new File(SNTPrefs.lastknownDir(), "SNT_data." + allowedExtensions[0]);
+                fallbackFile = new File(SNTPrefs.lastKnownDir(), "SNT_data." + allowedExtensions[0]);
         }
         textField.setText(fallbackFile.getAbsolutePath());
         final JButton button = new JButton("Browse...");

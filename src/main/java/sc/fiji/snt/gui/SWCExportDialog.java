@@ -127,7 +127,7 @@ public class SWCExportDialog extends JDialog {
 
 	private File getLastExportFile(final SNTPrefs prefs) {
 		final String pref = prefs.get("swce.lastpath", "");
-		return (pref.isEmpty()) ? new File(SNTPrefs.lastknownDir(), "SNT.swc") : new File(pref);
+		return (pref.isEmpty()) ? new File(SNTPrefs.lastKnownDir(), "SNT.swc") : new File(pref);
 	}
 
 	private void savePrefs(final SNTPrefs prefs) {

@@ -283,6 +283,7 @@ public class SNTService extends AbstractService implements ImageJService {
 			try {
 				getPathAndFillManager().writeXML(saveFile.getAbsolutePath(),
 						plugin.getPrefs().isSaveCompressedTraces());
+				plugin.setUnsavedChanges(false);
 			} catch (final IOException ioe) {
 				ioe.printStackTrace();
 				return false;
