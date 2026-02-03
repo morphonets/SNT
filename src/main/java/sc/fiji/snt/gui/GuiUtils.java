@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -292,12 +292,12 @@ public class GuiUtils {
 
 	public Result yesNoPrompt(final String message, final String title) {
 		final int result = yesNoDialog(message, (title == null) ? SNTUtils.getReadableVersion() : title);
-        return switch (result) {
-            case JOptionPane.YES_OPTION -> Result.YES_OPTION;
-            case JOptionPane.NO_OPTION -> Result.NO_OPTION;
-            case JOptionPane.CANCEL_OPTION -> Result.CANCEL_OPTION;
-            default -> Result.CLOSED_OPTION;
-        };
+		return switch (result) {
+			case JOptionPane.YES_OPTION -> Result.YES_OPTION;
+			case JOptionPane.NO_OPTION -> Result.NO_OPTION;
+			case JOptionPane.CANCEL_OPTION -> Result.CANCEL_OPTION;
+			default -> Result.CLOSED_OPTION;
+		};
 	}
 
 	private int yesNoDialog(final Object[] components, final String title, final String[] buttonLabels) {
@@ -355,7 +355,7 @@ public class GuiUtils {
 	}
 
 	public String getChoice(final String message, final String title, final String[] choices,
-			final String defaultChoice) {
+							final String defaultChoice) {
 		return (String) JOptionPane.showInputDialog(parent, //
 				getWrappedText(new JLabel(), message), title, JOptionPane.QUESTION_MESSAGE, null, choices,
 				(defaultChoice == null) ? choices[0] : defaultChoice);
@@ -378,7 +378,7 @@ public class GuiUtils {
 	}
 
 	public String[] getChoiceWithInput(final String message, final String title, final String[] choices,
-			final String defaultChoice, final String defaultInput) {
+									   final String defaultChoice, final String defaultInput) {
 		final JComboBox<String> combo = new JComboBox<>(choices);
 		combo.setSelectedItem(defaultChoice);
 		final JTextField input = new JTextField(defaultInput);
@@ -393,7 +393,7 @@ public class GuiUtils {
 	}
 
 	public Object[] getChoiceAndDouble(final String message, final String title, final String[] choices,
-			final String defaultChoice, final Double defaultValue) {
+									   final String defaultChoice, final Double defaultValue) {
 		final String[] result = getChoiceWithInput(message, title, choices, defaultChoice,
 				String.valueOf(defaultValue));
 		if (result != null) {
@@ -409,7 +409,7 @@ public class GuiUtils {
 	}
 
 	public String getChoice(final String message, final String title, final String[] choices,
-			final String[] descriptions, final String defaultChoice) {
+							final String[] descriptions, final String defaultChoice) {
 		final JTextArea ta = new JTextArea();
 		ta.setRows(6);
 		ta.setWrapStyleWord(true);
@@ -423,9 +423,9 @@ public class GuiUtils {
 		final DefaultListModel<String> listModel = new DefaultListModel<>();
 		listModel.addAll(List.of(choices));
 		final JList<String> list = new JList<>(listModel) {
-				@Override // see ListSearchable.java
-				public int getNextMatch(final String prefix, final int startIndex, final Position.Bias bias) {
-					return -1;
+			@Override // see ListSearchable.java
+			public int getNextMatch(final String prefix, final int startIndex, final Position.Bias bias) {
+				return -1;
 			}
 		};
 		list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -523,8 +523,8 @@ public class GuiUtils {
 	}
 
 	public Object[] getMultipleChoicesAndChoice(final String title,
-			final String[] choices1, final String defaultChoice1, final boolean multipleSelectionAllowed1,
-			final String[] choices2, final String defaultChoice2) {
+												final String[] choices1, final String defaultChoice1, final boolean multipleSelectionAllowed1,
+												final String[] choices2, final String defaultChoice2) {
 		final JList<String> list1 = getJList(choices1, defaultChoice1);
 		list1.setSelectionMode((multipleSelectionAllowed1) ? ListSelectionModel.MULTIPLE_INTERVAL_SELECTION : ListSelectionModel.SINGLE_SELECTION);
 		final JComboBox<String> combo = new JComboBox<>(choices2);
@@ -545,7 +545,7 @@ public class GuiUtils {
 	}
 
 	public boolean[] getConfirmationAndOption(final String msg, final String title, final String checkboxLabel,
-			final boolean checkboxDefault, final String[] yesNoButtonLabels) {
+											  final boolean checkboxDefault, final String[] yesNoButtonLabels) {
 		final JCheckBox checkbox = new JCheckBox();
 		checkbox.setText(getWrappedText(checkbox, checkboxLabel));
 		checkbox.setSelected(checkboxDefault);
@@ -556,106 +556,106 @@ public class GuiUtils {
 	}
 
 	public boolean[] getConfirmationAndOption(final String msg, final String title, final String checkboxLabel,
-			final boolean checkboxDefault) {
+											  final boolean checkboxDefault) {
 		return getConfirmationAndOption(msg, title, checkboxLabel, checkboxDefault, null);
 
 	}
 
-    /**
-     * Displays a dialog with radio button choices, optional info text, and an optional checkbox.
-     * Useful for operations that require a selection with additional context and options.
-     *
-     * @param title          the dialog title
-     * @param message        the message/prompt shown at the top (can be HTML)
-     * @param choices        array of choices to display as radio buttons
-     * @param defaultChoice  the initially selected choice (must be in choices array)
-     * @param infoText       optional informational text shown below the choices (null to hide)
-     * @param checkboxLabel  optional checkbox label (null to hide checkbox)
-     * @param checkboxDefault default state of checkbox (ignored if checkboxLabel is null)
-     * @return Object array: {selectedChoice (String), checkboxSelected (Boolean)},
-     *         or null if cancelled. checkboxSelected is false if checkbox was hidden.
-     */
-    public Object[] getChoiceWithOptionAndInfo(final String title, final String message,
-                                               final String[] choices, final String defaultChoice,
-                                               final String infoText, final String checkboxLabel, final boolean checkboxDefault) {
+	/**
+	 * Displays a dialog with radio button choices, optional info text, and an optional checkbox.
+	 * Useful for operations that require a selection with additional context and options.
+	 *
+	 * @param title          the dialog title
+	 * @param message        the message/prompt shown at the top (can be HTML)
+	 * @param choices        array of choices to display as radio buttons
+	 * @param defaultChoice  the initially selected choice (must be in choices array)
+	 * @param infoText       optional informational text shown below the choices (null to hide)
+	 * @param checkboxLabel  optional checkbox label (null to hide checkbox)
+	 * @param checkboxDefault default state of checkbox (ignored if checkboxLabel is null)
+	 * @return Object array: {selectedChoice (String), checkboxSelected (Boolean)},
+	 *         or null if cancelled. checkboxSelected is false if checkbox was hidden.
+	 */
+	public Object[] getChoiceWithOptionAndInfo(final String title, final String message,
+											   final String[] choices, final String defaultChoice,
+											   final String infoText, final String checkboxLabel, final boolean checkboxDefault) {
 
-        // Build the panel
-        final JPanel panel = new JPanel(new GridBagLayout());
-        final GridBagConstraints gbc = new GridBagConstraints();
-        gbc.anchor = GridBagConstraints.LINE_START;
-        gbc.gridwidth = GridBagConstraints.REMAINDER;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(2, 0, 2, 0);
-        gbc.weightx = 1.0;
-        gbc.gridx = 0;
-        gbc.gridy = 0;
+		// Build the panel
+		final JPanel panel = new JPanel(new GridBagLayout());
+		final GridBagConstraints gbc = new GridBagConstraints();
+		gbc.anchor = GridBagConstraints.LINE_START;
+		gbc.gridwidth = GridBagConstraints.REMAINDER;
+		gbc.fill = GridBagConstraints.HORIZONTAL;
+		gbc.insets = new Insets(2, 0, 2, 0);
+		gbc.weightx = 1.0;
+		gbc.gridx = 0;
+		gbc.gridy = 0;
 
-        // Message label
-        if (message != null && !message.isEmpty()) {
-            panel.add(getLabel(message), gbc);
-            gbc.gridy++;
-            gbc.insets = new Insets(8, 0, 2, 0); // Add some space after message
-        }
+		// Message label
+		if (message != null && !message.isEmpty()) {
+			panel.add(getLabel(message), gbc);
+			gbc.gridy++;
+			gbc.insets = new Insets(8, 0, 2, 0); // Add some space after message
+		}
 
-        // Radio buttons for choices
-        final ButtonGroup buttonGroup = new ButtonGroup();
-        final JRadioButton[] radioButtons = new JRadioButton[choices.length];
+		// Radio buttons for choices
+		final ButtonGroup buttonGroup = new ButtonGroup();
+		final JRadioButton[] radioButtons = new JRadioButton[choices.length];
 
-        int defaultIndex = 0;
-        for (int i = 0; i < choices.length; i++) {
-            if (choices[i].equals(defaultChoice)) {
-                defaultIndex = i;
-            }
-            radioButtons[i] = new JRadioButton(choices[i]);
-            buttonGroup.add(radioButtons[i]);
-            gbc.insets = new Insets(2, 10, 2, 0); // Indent radio buttons slightly
-            panel.add(radioButtons[i], gbc);
-            gbc.gridy++;
-        }
-        radioButtons[defaultIndex].setSelected(true);
+		int defaultIndex = 0;
+		for (int i = 0; i < choices.length; i++) {
+			if (choices[i].equals(defaultChoice)) {
+				defaultIndex = i;
+			}
+			radioButtons[i] = new JRadioButton(choices[i]);
+			buttonGroup.add(radioButtons[i]);
+			gbc.insets = new Insets(2, 10, 2, 0); // Indent radio buttons slightly
+			panel.add(radioButtons[i], gbc);
+			gbc.gridy++;
+		}
+		radioButtons[defaultIndex].setSelected(true);
 
-        // Info text (optional)
-        if (infoText != null && !infoText.isEmpty()) {
-            gbc.insets = new Insets(10, 0, 2, 0); // Add space before info
-            final JLabel infoLabel = getLabel(infoText);
-            infoLabel.setEnabled(false); // Dimmed appearance for secondary info
-            panel.add(infoLabel, gbc);
-            gbc.gridy++;
-        }
+		// Info text (optional)
+		if (infoText != null && !infoText.isEmpty()) {
+			gbc.insets = new Insets(10, 0, 2, 0); // Add space before info
+			final JLabel infoLabel = getLabel(infoText);
+			infoLabel.setEnabled(false); // Dimmed appearance for secondary info
+			panel.add(infoLabel, gbc);
+			gbc.gridy++;
+		}
 
-        // Checkbox (optional)
-        final JCheckBox checkbox;
-        if (checkboxLabel != null && !checkboxLabel.isEmpty()) {
-            checkbox = new JCheckBox();
-            checkbox.setText(getWrappedText(checkbox, checkboxLabel));
-            checkbox.setSelected(checkboxDefault);
-            gbc.insets = new Insets(10, 0, 2, 0); // Add space before checkbox
-            panel.add(checkbox, gbc);
-            gbc.gridy++;
-        } else {
-            checkbox = null;
-        }
+		// Checkbox (optional)
+		final JCheckBox checkbox;
+		if (checkboxLabel != null && !checkboxLabel.isEmpty()) {
+			checkbox = new JCheckBox();
+			checkbox.setText(getWrappedText(checkbox, checkboxLabel));
+			checkbox.setSelected(checkboxDefault);
+			gbc.insets = new Insets(10, 0, 2, 0); // Add space before checkbox
+			panel.add(checkbox, gbc);
+			gbc.gridy++;
+		} else {
+			checkbox = null;
+		}
 
-        // Show dialog
-        final int result = JOptionPane.showConfirmDialog(parent, panel, title,
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+		// Show dialog
+		final int result = JOptionPane.showConfirmDialog(parent, panel, title,
+				JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
 
-        if (result == JOptionPane.OK_OPTION) {
-            // Find selected choice
-            String selectedChoice = choices[0];
-            for (int i = 0; i < radioButtons.length; i++) {
-                if (radioButtons[i].isSelected()) {
-                    selectedChoice = choices[i];
-                    break;
-                }
-            }
-            final boolean checkboxSelected = checkbox != null && checkbox.isSelected();
-            return new Object[] { selectedChoice, checkboxSelected };
-        }
-        return null;
-    }
+		if (result == JOptionPane.OK_OPTION) {
+			// Find selected choice
+			String selectedChoice = choices[0];
+			for (int i = 0; i < radioButtons.length; i++) {
+				if (radioButtons[i].isSelected()) {
+					selectedChoice = choices[i];
+					break;
+				}
+			}
+			final boolean checkboxSelected = checkbox != null && checkbox.isSelected();
+			return new Object[] { selectedChoice, checkboxSelected };
+		}
+		return null;
+	}
 
-    /* returns true if user does not want to be warned again */
+	/* returns true if user does not want to be warned again */
 	public Boolean getPersistentWarning(final String msg, final String title) {
 		return getPersistentDialog(msg, title, JOptionPane.WARNING_MESSAGE);
 	}
@@ -675,7 +675,7 @@ public class GuiUtils {
 	}
 
 	public String getString(final String promptMsg, final String promptTitle,
-		final String defaultValue)
+							final String defaultValue)
 	{
 		return (String) getObj(promptMsg, promptTitle, defaultValue);
 	}
@@ -710,7 +710,7 @@ public class GuiUtils {
 	}
 
 	public String[] getStrings(final String promptTitle, final Map<String, List<String>> choicesMap,
-			final String... defaultChoices) {
+							   final String... defaultChoices) {
 		final List<JComboBox<String>> fields = new ArrayList<>(choicesMap.size());
 		final JPanel panel = new JPanel(new GridBagLayout());
 		final GridBagConstraints c = new GridBagConstraints();
@@ -743,7 +743,7 @@ public class GuiUtils {
 	}
 
 	public Set<String> getStringSet(final String promptMsg, final String promptTitle,
-			final Collection<String> defaultValues) {
+									final Collection<String> defaultValues) {
 		final String userString = getString(promptMsg, promptTitle, toString(defaultValues));
 		if (userString == null)
 			return null;
@@ -758,7 +758,7 @@ public class GuiUtils {
 	 * @see #getColor(String, Color, String...)
 	 */
 	public ColorRGB getColorRGB(final String title, final ColorRGB defaultValue,
-		final String... panes)
+								final String... panes)
 	{
 		final Color def = (defaultValue == null) ? null : new Color(defaultValue.getRed(), defaultValue.getGreen(),
 				defaultValue.getBlue());
@@ -781,15 +781,15 @@ public class GuiUtils {
 	 */
 	public Color getColor(final String title, final Color defaultValue, final String... panes) {
 		assert SwingUtilities.isEventDispatchThread();
-        colorChooser(defaultValue);
+		colorChooser(defaultValue);
 
-        // remove spurious panes
+		// remove spurious panes
 		List<String> allowedPanels;
 		if (panes != null) {
 			allowedPanels = Arrays.asList(panes);
 			for (final AbstractColorChooserPanel accp : colorChooser.getChooserPanels()) {
 				if (!allowedPanels.contains(accp.getDisplayName()) && colorChooser
-					.getChooserPanels().length > 1) colorChooser.removeChooserPanel(accp);
+						.getChooserPanels().length > 1) colorChooser.removeChooserPanel(accp);
 			}
 		}
 
@@ -818,13 +818,13 @@ public class GuiUtils {
 		return ok.getColor();
 	}
 
-    public Double getDouble(final String promptMsg, final String promptTitle,
-		final Number defaultValue)
+	public Double getDouble(final String promptMsg, final String promptTitle,
+							final Number defaultValue)
 	{
 		try {
 			final NumberFormat nf = NumberFormat.getInstance(Locale.US);
 			final Number number = nf.parse((String) getObj(promptMsg, promptTitle,
-				defaultValue));
+					defaultValue));
 			return number.doubleValue();
 		}
 		catch (final NullPointerException ignored) {
@@ -835,106 +835,106 @@ public class GuiUtils {
 		}
 	}
 
-    public Integer getPercentage(final String promptMsg, final String promptTitle,
-                          final int defaultValue) {
-        return getInt(promptMsg, promptTitle, defaultValue, 0, 100);
-    }
+	public Integer getPercentage(final String promptMsg, final String promptTitle,
+								 final int defaultValue) {
+		return getInt(promptMsg, promptTitle, defaultValue, 0, 100);
+	}
 
-    public Integer getInt(final String promptMsg, final String promptTitle,
-                                 final int defaultValue, final int min, final int max) {
-        final JSlider slider = new JSlider(min, max, defaultValue);
-        slider.setPaintLabels(true);
-        slider.setPaintTicks(true);
-        slider.setMajorTickSpacing( (max - min) / 5);
-        slider.setMinorTickSpacing( (max - min) / 5 / 2);
-        final JComponent[] inputs = new JComponent[] { getLabel(promptMsg), slider };
-        final int result = JOptionPane.showConfirmDialog(null, inputs, promptTitle, JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE);
-        if (result == JOptionPane.OK_OPTION) {
-            return slider.getValue();
-        }
-        return null;
-    }
+	public Integer getInt(final String promptMsg, final String promptTitle,
+						  final int defaultValue, final int min, final int max) {
+		final JSlider slider = new JSlider(min, max, defaultValue);
+		slider.setPaintLabels(true);
+		slider.setPaintTicks(true);
+		slider.setMajorTickSpacing( (max - min) / 5);
+		slider.setMinorTickSpacing( (max - min) / 5 / 2);
+		final JComponent[] inputs = new JComponent[] { getLabel(promptMsg), slider };
+		final int result = JOptionPane.showConfirmDialog(null, inputs, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			return slider.getValue();
+		}
+		return null;
+	}
 
-    public Number[] getTwoNumbers(final String promptMsg, final String promptTitle,
-                                  final Number[] defaultValues, final String[] labels, final int decimalPlaces) {
-        if (labels.length != 2 && defaultValues.length != 2) {
-            throw new IllegalArgumentException("length of defaultValues/labels is not 2");
-        }
-        final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
-                SNTPoint.of(defaultValues[0], defaultValues[1], -1), labels, decimalPlaces);
-        return (result == null) ? null : new Number[]{result.getX(), result.getY()};
-    }
+	public Number[] getTwoNumbers(final String promptMsg, final String promptTitle,
+								  final Number[] defaultValues, final String[] labels, final int decimalPlaces) {
+		if (labels.length != 2 && defaultValues.length != 2) {
+			throw new IllegalArgumentException("length of defaultValues/labels is not 2");
+		}
+		final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
+				SNTPoint.of(defaultValues[0], defaultValues[1], -1), labels, decimalPlaces);
+		return (result == null) ? null : new Number[]{result.getX(), result.getY()};
+	}
 
-    public Number[] getThreeNumbers(final String promptMsg, final String promptTitle,
-                                    final Number[] defaultValues, final String[] labels, final int decimalPlaces) {
-        if (labels.length != 3 && defaultValues.length != 3) {
-            throw new IllegalArgumentException("length of defaultValues/labels is not 3");
-        }
-        final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
-                SNTPoint.of(defaultValues), labels, decimalPlaces);
-        return (result == null) ? null : new Number[]{result.getX(), result.getY(), result.getZ()};
-    }
+	public Number[] getThreeNumbers(final String promptMsg, final String promptTitle,
+									final Number[] defaultValues, final String[] labels, final int decimalPlaces) {
+		if (labels.length != 3 && defaultValues.length != 3) {
+			throw new IllegalArgumentException("length of defaultValues/labels is not 3");
+		}
+		final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
+				SNTPoint.of(defaultValues), labels, decimalPlaces);
+		return (result == null) ? null : new Number[]{result.getX(), result.getY(), result.getZ()};
+	}
 
-    public SNTPoint getCoordinates(final String promptMsg, final String promptTitle,
-                                   final SNTPoint defaultValue, final int decimalPlaces) {
-        return getCoordinatesInternal(promptMsg, promptTitle,
-                defaultValue, new String[]{"X", "Y", "Z"}, decimalPlaces);
-    }
+	public SNTPoint getCoordinates(final String promptMsg, final String promptTitle,
+								   final SNTPoint defaultValue, final int decimalPlaces) {
+		return getCoordinatesInternal(promptMsg, promptTitle,
+				defaultValue, new String[]{"X", "Y", "Z"}, decimalPlaces);
+	}
 
-    public SNTPoint getCoordinatesInternal(final String promptMsg, final String promptTitle, final SNTPoint defaultValue,
-                                           String[] labels, final int decimalPlaces) {
-        if (labels.length < 2 || labels.length > 3) {
-            throw new IllegalArgumentException("Only 2 or 3 values can be retrieved");
-        }
-        final JPanel panel = new JPanel(new FlowLayout());
-        final SNTPoint def = (defaultValue == null) ? SNTPoint.of(0, 0, 0) : defaultValue;
-        panel.add(new JLabel(promptMsg));
-        final boolean twoD = labels.length == 2;
-        final double[] values = (twoD) ? new double[]{def.getX(), def.getY()} : new double[]{def.getX(), def.getY(), def.getZ()};
-        final JSpinner[] spinners = new JSpinner[(twoD) ? 2 : 3];
-        for (int i = 0; i < spinners.length; i++) {
-            panel.add(new JLabel(labels[i]));
-            spinners[i] = (decimalPlaces == 0) ?
-                    GuiUtils.integerSpinner((int) values[i], -10000, 10000, 10, true) :
-                    GuiUtils.doubleSpinner(values[i], -10000, 10000, 10, decimalPlaces);
-            panel.add(spinners[i]);
-        }
-        final int result = JOptionPane.showConfirmDialog(null, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE);
-        if (result == JOptionPane.OK_OPTION) {
-            return (twoD) ?
-                    SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), -1)
-                    : SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), (Number) spinners[2].getValue());
-        }
-        return null;
-    }
+	public SNTPoint getCoordinatesInternal(final String promptMsg, final String promptTitle, final SNTPoint defaultValue,
+										   String[] labels, final int decimalPlaces) {
+		if (labels.length < 2 || labels.length > 3) {
+			throw new IllegalArgumentException("Only 2 or 3 values can be retrieved");
+		}
+		final JPanel panel = new JPanel(new FlowLayout());
+		final SNTPoint def = (defaultValue == null) ? SNTPoint.of(0, 0, 0) : defaultValue;
+		panel.add(new JLabel(promptMsg));
+		final boolean twoD = labels.length == 2;
+		final double[] values = (twoD) ? new double[]{def.getX(), def.getY()} : new double[]{def.getX(), def.getY(), def.getZ()};
+		final JSpinner[] spinners = new JSpinner[(twoD) ? 2 : 3];
+		for (int i = 0; i < spinners.length; i++) {
+			panel.add(new JLabel(labels[i]));
+			spinners[i] = (decimalPlaces == 0) ?
+					GuiUtils.integerSpinner((int) values[i], -10000, 10000, 10, true) :
+					GuiUtils.doubleSpinner(values[i], -10000, 10000, 10, decimalPlaces);
+			panel.add(spinners[i]);
+		}
+		final int result = JOptionPane.showConfirmDialog(null, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE);
+		if (result == JOptionPane.OK_OPTION) {
+			return (twoD) ?
+					SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), -1)
+					: SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), (Number) spinners[2].getValue());
+		}
+		return null;
+	}
 
-    public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
-        final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
-                + SNTUtils.formatDouble(defaultRange[1], 3));
-        if (s == null)
-            return null; // user pressed cancel
-        final float[] values = { Float.NaN, Float.NaN };
-        try {
-            // Regex that handles scientific notation (e.g., 1.5e-10, 2E+5, -3.14e2)
-            // Pattern breakdown:
-            //   [-+]?           - optional sign
-            //   \\d*\\.?\\d+    - digits with optional decimal point (at least one digit required)
-            //   (?:[eE][-+]?\\d+)?  - optional exponent part (e or E followed by optional sign and digits)
-            final String numberPattern = "[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?";
-            final String regex = "(" + numberPattern + ")\\s*-\\s*(" + numberPattern + ")";
-            final Pattern pattern = Pattern.compile(regex);
-            final Matcher matcher = pattern.matcher(s.trim());
-            if (matcher.find()) {
-                values[0] = Float.parseFloat(matcher.group(1));
-                values[1] = Float.parseFloat(matcher.group(2));
-            }
-        } catch (final NumberFormatException ignored) {
-            // Return NaN values which will be handled by caller
-        }
-        return values;
-    }
+	public float[] getRange(final String promptMsg, final String promptTitle, final float[] defaultRange) {
+		final String s = getString(promptMsg, promptTitle, SNTUtils.formatDouble(defaultRange[0], 3) + "-"
+				+ SNTUtils.formatDouble(defaultRange[1], 3));
+		if (s == null)
+			return null; // user pressed cancel
+		final float[] values = { Float.NaN, Float.NaN };
+		try {
+			// Regex that handles scientific notation (e.g., 1.5e-10, 2E+5, -3.14e2)
+			// Pattern breakdown:
+			//   [-+]?           - optional sign
+			//   \\d*\\.?\\d+    - digits with optional decimal point (at least one digit required)
+			//   (?:[eE][-+]?\\d+)?  - optional exponent part (e or E followed by optional sign and digits)
+			final String numberPattern = "[-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?";
+			final String regex = "(" + numberPattern + ")\\s*-\\s*(" + numberPattern + ")";
+			final Pattern pattern = Pattern.compile(regex);
+			final Matcher matcher = pattern.matcher(s.trim());
+			if (matcher.find()) {
+				values[0] = Float.parseFloat(matcher.group(1));
+				values[1] = Float.parseFloat(matcher.group(2));
+			}
+		} catch (final NumberFormatException ignored) {
+			// Return NaN values which will be handled by caller
+		}
+		return values;
+	}
 
 	public void adjustComponentThroughPrompt(final Container container) {
 
@@ -1081,7 +1081,7 @@ public class GuiUtils {
 
 	public File[] getReconstructionFiles(final File selectedFile) {
 		final JFileChooser fileChooser = getReconstructionFileChooser(null);
-        if (selectedFile != null) fileChooser.setSelectedFile(selectedFile);
+		if (selectedFile != null) fileChooser.setSelectedFile(selectedFile);
 		return (File[])getOpenFileChooserResult(fileChooser);
 	}
 
@@ -1121,14 +1121,14 @@ public class GuiUtils {
 
 	public File getReconstructionFile(final File file, final String extension) {
 		FileNameExtensionFilter filter = switch (extension) {
-            case "swc" -> new FileNameExtensionFilter("SWC files (.swc)", "swc");
-            case "traces" -> new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
-            case "json" -> new FileNameExtensionFilter("JSON files (.json)", "json");
-            case "ndf" -> new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
-            case "labels" -> new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
-            case null, default -> null;
-        };
-        final JFileChooser fileChooser = getReconstructionFileChooser(filter);
+			case "swc" -> new FileNameExtensionFilter("SWC files (.swc)", "swc");
+			case "traces" -> new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
+			case "json" -> new FileNameExtensionFilter("JSON files (.json)", "json");
+			case "ndf" -> new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
+			case "labels" -> new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
+			case null, default -> null;
+		};
+		final JFileChooser fileChooser = getReconstructionFileChooser(filter);
 		fileChooser.setSelectedFile(file);
 		if (extension == null)
 			fileChooser.setDialogTitle("Choose Reconstruction File");
@@ -1145,8 +1145,8 @@ public class GuiUtils {
 		fileChooser.setDialogTitle("Choose Reconstruction File(s)");
 		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
-        fileChooser.addChoosableFileFilter(Objects.requireNonNullElseGet(filter, () -> new FileNameExtensionFilter(
-                "Reconstruction files (.traces, .swc, .json, .ndf)", "traces", "swc", "json", "ndf")));
+		fileChooser.addChoosableFileFilter(Objects.requireNonNullElseGet(filter, () -> new FileNameExtensionFilter(
+				"Reconstruction files (.traces, .swc, .json, .ndf)", "traces", "swc", "json", "ndf")));
 		fileChooser.setMultiSelectionEnabled(true);
 		return fileChooser;
 	}
@@ -1189,11 +1189,11 @@ public class GuiUtils {
 	}
 
 	private Object getObj(final String promptMsg, final String promptTitle,
-		final Object defaultValue)
+						  final Object defaultValue)
 	{
 		final String wrappedText = (parent == null) ? promptMsg : getWrappedText(new JLabel(), promptMsg);
 		return JOptionPane.showInputDialog(parent, wrappedText, promptTitle,
-			JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
+				JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
 	}
 
 	public void centeredMsg(final String msg, final String title) {
@@ -1212,19 +1212,19 @@ public class GuiUtils {
 	}
 
 	public JDialog dialog(final String msg, final JComponent component,
-		final String title)
+						  final String title)
 	{
 		final Object[] params = { getLabel(msg), component };
 		final JOptionPane optionPane = new JOptionPane(params,
-			JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
-		final JDialog dialog = optionPane.createDialog(title);
+				JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
+		final JDialog dialog = optionPane.createDialog(parent, title);
 		if (parent != null) dialog.setLocationRelativeTo(parent);
 		return dialog;
 	}
 
 	private int centeredDialog(final String msg, final String title, final int type) {
 		final JOptionPane optionPane = new JOptionPane(getLabel(msg), type, JOptionPane.DEFAULT_OPTION);
-		final JDialog d = optionPane.createDialog(title);
+		final JDialog d = optionPane.createDialog(parent, title);
 		if (parent != null) {
 			centerOnParent(parent, d); // we could also use d.setLocationRelativeTo(parent);
 		}
@@ -1353,15 +1353,15 @@ public class GuiUtils {
 	}
 
 	private String getWrappedText(final JComponent c, final String text) {
-        if (text.startsWith("<")) return text; // <HTML>
+		if (text.startsWith("<")) return text; // <HTML>
 		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
 		final int max = (parent == null) ? 600 : parent.getWidth();
 		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" +
-			text;
+				text;
 	}
 
 	public void blinkingError(final JComponent blinkingComponent,
-		final String msg)
+							  final String msg)
 	{
 		final Color prevColor = blinkingComponent.getForeground();
 		final Color flashColor = errorColor();
@@ -1386,48 +1386,48 @@ public class GuiUtils {
 		});
 		blinkTimer.start();
 		if (centeredDialog(msg, "Ongoing Operation",
-			JOptionPane.WARNING_MESSAGE) > Integer.MIN_VALUE)
+				JOptionPane.WARNING_MESSAGE) > Integer.MIN_VALUE)
 		{ // Dialog
 			// dismissed
 			blinkTimer.stop();
-        }
-        blinkingComponent.setForeground(prevColor);
-    }
+		}
+		blinkingComponent.setForeground(prevColor);
+	}
 
-    private static final Color LINK_COLOR = new Color(0, 128, 255);
-    private static final Color ERROR_COLOR = new Color(229, 62, 77);
-    private static final Color WARNING_COLOR = new Color(254, 210, 132);
+	private static final Color LINK_COLOR = new Color(0, 128, 255);
+	private static final Color ERROR_COLOR = new Color(229, 62, 77);
+	private static final Color WARNING_COLOR = new Color(254, 210, 132);
 
-    public static Color errorColor() {
-        return ERROR_COLOR;
-    }
+	public static Color errorColor() {
+		return ERROR_COLOR;
+	}
 
-    public static Color warningColor() {
-        return WARNING_COLOR;
-    }
+	public static Color warningColor() {
+		return WARNING_COLOR;
+	}
 
-    public static JLabel shortSmallMsg(final String msg) {
+	public static JLabel shortSmallMsg(final String msg) {
 		final JLabel label = new JLabel(msg);
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
 		return label;
 	}
 
-    public static JTextArea longSmallMsg(final String msg, final Component parent) {
-        final JTextArea ta = new JTextArea();
-        ta.setBackground(parent.getBackground());
-        ta.setEditable(false);
-        ta.setMargin(null);
-        ta.setBorder(null);
-        ta.setLineWrap(true);
-        ta.setWrapStyleWord(true);
-        ta.setFocusable(false);
-        ta.setEnabled(false);
-        ta.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
-        ta.setText(msg);
-        return ta;
-    }
+	public static JTextArea longSmallMsg(final String msg, final Component parent) {
+		final JTextArea ta = new JTextArea();
+		ta.setBackground(parent.getBackground());
+		ta.setEditable(false);
+		ta.setMargin(null);
+		ta.setBorder(null);
+		ta.setLineWrap(true);
+		ta.setWrapStyleWord(true);
+		ta.setFocusable(false);
+		ta.setEnabled(false);
+		ta.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+		ta.setText(msg);
+		return ta;
+	}
 
-    private static class SpinningIconLabel extends JLabel {
+	private static class SpinningIconLabel extends JLabel {
 		double angle = 0;
 		double scale = 1.0;
 		final Timer timer;
@@ -1435,14 +1435,14 @@ public class GuiUtils {
 		SpinningIconLabel(final Icon icon) {
 			super(icon);
 			timer = new Timer(16, e -> {
-                angle += 0.1;
-                scale -= 0.01;
-                if (scale <= 0) {
-                    angle = 0;
-                    scale = 1.0;
-                }
-                repaint();
-            });
+				angle += 0.1;
+				scale -= 0.01;
+				if (scale <= 0) {
+					angle = 0;
+					scale = 1.0;
+				}
+				repaint();
+			});
 			addMouseListener(new MouseAdapter() {
 				@Override
 				public void mouseClicked(final MouseEvent e) {
@@ -1589,13 +1589,13 @@ public class GuiUtils {
 	}
 
 	public static void addSeparator(final JComponent component,
-			final String heading, final boolean vgap, final GridBagConstraints c)
-		{
-			addSeparator(component, leftAlignedLabel(heading, null, true), vgap, c);
-		}
+									final String heading, final boolean vgap, final GridBagConstraints c)
+	{
+		addSeparator(component, leftAlignedLabel(heading, null, true), vgap, c);
+	}
 
 	public static void addSeparator(final JComponent component,
-		final JLabel label, final boolean vgap, final GridBagConstraints c)
+									final JLabel label, final boolean vgap, final GridBagConstraints c)
 	{
 		final int previousTopGap = c.insets.top;
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
@@ -1632,18 +1632,18 @@ public class GuiUtils {
 	}
 
 	public static JLabel leftAlignedLabel(final String text, final String uri,
-		final boolean enabled)
+										  final boolean enabled)
 	{
 		final JLabel label = new JLabel(text);
 		label.setHorizontalAlignment(SwingConstants.LEFT);
 		label.setEnabled(enabled);
 		if (uri != null && Desktop.isDesktopSupported()) {
-            label.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseEntered(final MouseEvent e) {
-                    label.setForeground(LINK_COLOR);
-                    label.setCursor(new Cursor(Cursor.HAND_CURSOR));
-                }
+			label.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseEntered(final MouseEvent e) {
+					label.setForeground(LINK_COLOR);
+					label.setCursor(new Cursor(Cursor.HAND_CURSOR));
+				}
 
 				@Override
 				public void mouseExited(final MouseEvent e) {
@@ -1661,13 +1661,13 @@ public class GuiUtils {
 	}
 
 	public void searchForum(final String query) {
-			String url;
-			try {
-				url = "https://forum.image.sc/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
-			} catch (final Exception ignored) {
-				url = query.trim().replace(" ", "%20");
-			}
-			openURL(url);
+		String url;
+		try {
+			url = "https://forum.image.sc/search?q=" + URLEncoder.encode(query, StandardCharsets.UTF_8);
+		} catch (final Exception ignored) {
+			url = query.trim().replace(" ", "%20");
+		}
+		openURL(url);
 	}
 
 	public static void openURL(final String uri) {
@@ -1699,13 +1699,13 @@ public class GuiUtils {
 		return null;
 	}
 
-    public static JColorChooser colorChooser(final Color defaultValue) {
-        if (colorChooser == null) {
-            colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
-            colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
-        }
-        return colorChooser;
-    }
+	public static JColorChooser colorChooser(final Color defaultValue) {
+		if (colorChooser == null) {
+			colorChooser = new JColorChooser(defaultValue != null ? defaultValue : Color.WHITE);
+			colorChooser.setPreviewPanel(new JPanel()); // remove preview pane
+		}
+		return colorChooser;
+	}
 
 	public static void setRenderingHints(final Graphics2D g2 ) {
 		g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON );
@@ -1713,7 +1713,7 @@ public class GuiUtils {
 		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 	}
 
-    public static GridBagConstraints defaultGbc() {
+	public static GridBagConstraints defaultGbc() {
 		final GridBagConstraints cp = new GridBagConstraints();
 		cp.anchor = GridBagConstraints.LINE_START;
 		cp.gridwidth = GridBagConstraints.REMAINDER;
@@ -1753,30 +1753,30 @@ public class GuiUtils {
 	public static void removeIcon(final Object rootPaneContainerOrWindow) {
 		if (rootPaneContainerOrWindow instanceof RootPaneContainer)
 			((RootPaneContainer) rootPaneContainerOrWindow).getRootPane().putClientProperty(FlatClientProperties.TITLE_BAR_SHOW_ICON, false);
-        else if (rootPaneContainerOrWindow instanceof Window)
-            ((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
-    }
+		else if (rootPaneContainerOrWindow instanceof Window)
+			((Window)rootPaneContainerOrWindow).setIconImage(new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB_PRE));
+	}
 
-    private static final Color FALLBACK_SELECTION_COLOR = new Color(75, 110, 175);
+	private static final Color FALLBACK_SELECTION_COLOR = new Color(75, 110, 175);
 
-    public static Color getSelectionColor() {
-        final Color c = UIManager.getColor("Tree.selectionBackground");
-        return (c != null) ? c : FALLBACK_SELECTION_COLOR;
-    }
+	public static Color getSelectionColor() {
+		final Color c = UIManager.getColor("Tree.selectionBackground");
+		return (c != null) ? c : FALLBACK_SELECTION_COLOR;
+	}
 
-    public static Color getDisabledComponentColor() {
+	public static Color getDisabledComponentColor() {
 		if (disabledColor == null) {
-            try {
-                disabledColor = UIManager.getColor("MenuItem.disabledForeground");
-            } catch (final Exception ignored) {
-                disabledColor = Color.GRAY; // e.g. headless mode
-            }
-        }
-        return disabledColor;
+			try {
+				disabledColor = UIManager.getColor("MenuItem.disabledForeground");
+			} catch (final Exception ignored) {
+				disabledColor = Color.GRAY; // e.g. headless mode
+			}
+		}
+		return disabledColor;
 	}
 
 	public static JSpinner integerSpinner(final int value, final int min,
-		final int max, final int step, final boolean allowEditing)
+										  final int max, final int step, final boolean allowEditing)
 	{
 		final int maxDigits = Integer.toString(max).length();
 		final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
@@ -1797,16 +1797,16 @@ public class GuiUtils {
 	}
 
 	public static JSpinner doubleSpinner(final double value, final double min,
-		final double max, final double step, final int nDecimals)
+										 final double max, final double step, final int nDecimals)
 	{
 		final int maxDigits = SNTUtils.formatDouble(max, nDecimals).length();
 		final SpinnerModel model = new SpinnerNumberModel(value, min, max, step);
 		final JSpinner spinner = new JSpinner(model);
 		final JFormattedTextField textfield = ((DefaultEditor) spinner.getEditor())
-			.getTextField();
+				.getTextField();
 		textfield.setColumns(maxDigits);
 		final NumberFormatter formatter = (NumberFormatter) textfield
-			.getFormatter();
+				.getFormatter();
 		final StringBuilder decString = new StringBuilder();
 		while (decString.length() < nDecimals)
 			decString.append("0");
@@ -1828,15 +1828,15 @@ public class GuiUtils {
 	}
 
 	public static void enableComponents(final java.awt.Container container,
-		final boolean enable)
+										final boolean enable)
 	{
 		final Component[] components = container.getComponents();
 		for (final Component component : components) {
 			if (!(component instanceof JPanel)) component.setEnabled(enable); // otherwise
-																																				// JPanel
-																																				// background
-																																				// will
-																																				// change
+			// JPanel
+			// background
+			// will
+			// change
 			if (component instanceof java.awt.Container) {
 				enableComponents((java.awt.Container) component, enable);
 			}
@@ -1973,22 +1973,22 @@ public class GuiUtils {
 		boolean success;
 		storeExistingLookAndFeel();
 		switch (lookAndFeelName) {
-		case (LAF_LIGHT):
-			success = FlatLightLaf.setup();
-			break;
-		case (LAF_LIGHT_INTJ):
-			success = FlatIntelliJLaf.setup();
-			break;
-		case (LAF_DARK):
-			success = FlatDarkLaf.setup();
-			break;
-		case (LAF_DARCULA):
-			success = FlatDarculaLaf.setup();
-			break;
-		default:
-			success = setSystemLookAndFeel();
-			if (!success) existingLaf = null;
-			break;
+			case (LAF_LIGHT):
+				success = FlatLightLaf.setup();
+				break;
+			case (LAF_LIGHT_INTJ):
+				success = FlatIntelliJLaf.setup();
+				break;
+			case (LAF_DARK):
+				success = FlatDarkLaf.setup();
+				break;
+			case (LAF_DARCULA):
+				success = FlatDarculaLaf.setup();
+				break;
+			default:
+				success = setSystemLookAndFeel();
+				if (!success) existingLaf = null;
+				break;
 		}
 		if (!success) return false;
 		if (componentsToUpdate == null) {
@@ -1998,11 +1998,11 @@ public class GuiUtils {
 				for (final Component component : componentsToUpdate) {
 					if (component == null)
 						continue;
-				final Window window = (component instanceof Window) ? (Window) component
-						: SwingUtilities.windowForComponent(component);
-				try {
-                    SwingUtilities.updateComponentTreeUI(Objects.requireNonNullElse(window, component));
-				} catch (final Exception ex) {
+					final Window window = (component instanceof Window) ? (Window) component
+							: SwingUtilities.windowForComponent(component);
+					try {
+						SwingUtilities.updateComponentTreeUI(Objects.requireNonNullElse(window, component));
+					} catch (final Exception ex) {
 						SNTUtils.error("", ex);
 					}
 				}
@@ -2043,44 +2043,44 @@ public class GuiUtils {
 		timer.start();
 	}
 
-    public static void tile(final List<? extends Window> windowList) {
-        if (windowList == null || windowList.isEmpty()) return;
+	public static void tile(final List<? extends Window> windowList) {
+		if (windowList == null || windowList.isEmpty()) return;
 
-        final List<? extends Window> windows = List.copyOf(windowList);
-        final int n = windows.size();
+		final List<? extends Window> windows = List.copyOf(windowList);
+		final int n = windows.size();
 
-        // Get screen bounds
-        final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        final Rectangle screen = ge.getMaximumWindowBounds();
+		// Get screen bounds
+		final GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+		final Rectangle screen = ge.getMaximumWindowBounds();
 
-        // Calculate grid dimensions
-        final int cols = (int) Math.ceil(Math.sqrt(n));
-        final int rows = (int) Math.ceil((double) n / cols);
+		// Calculate grid dimensions
+		final int cols = (int) Math.ceil(Math.sqrt(n));
+		final int rows = (int) Math.ceil((double) n / cols);
 
-        // Calculate tile size with small gap
-        final int gap = 2;
-        final int tileWidth = (screen.width - (cols + 1) * gap) / cols;
-        final int tileHeight = (screen.height - (rows + 1) * gap) / rows;
+		// Calculate tile size with small gap
+		final int gap = 2;
+		final int tileWidth = (screen.width - (cols + 1) * gap) / cols;
+		final int tileHeight = (screen.height - (rows + 1) * gap) / rows;
 
-        // Position windows in grid
-        for (int i = 0; i < n; i++) {
-            final int col = i % cols;
-            final int row = i / cols;
-            final int x = screen.x + gap + col * (tileWidth + gap);
-            final int y = screen.y + gap + row * (tileHeight + gap);
+		// Position windows in grid
+		for (int i = 0; i < n; i++) {
+			final int col = i % cols;
+			final int row = i / cols;
+			final int x = screen.x + gap + col * (tileWidth + gap);
+			final int y = screen.y + gap + row * (tileHeight + gap);
 
-            final Window window = windows.get(i);
-            window.setBounds(x, y, tileWidth, tileHeight);
-            window.toFront();
-        }
+			final Window window = windows.get(i);
+			window.setBounds(x, y, tileWidth, tileHeight);
+			window.toFront();
+		}
 
-        SwingUtilities.invokeLater(() -> windows.forEach(w -> w.setVisible(true)));
-    }
+		SwingUtilities.invokeLater(() -> windows.forEach(w -> w.setVisible(true)));
+	}
 
 
-    public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
-        final JDialog dialog = new HTMLDialog(msg, title, modal);
-        dialog.setVisible(true);
+	public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
+		final JDialog dialog = new HTMLDialog(msg, title, modal);
+		dialog.setVisible(true);
 		return dialog;
 	}
 
@@ -2092,8 +2092,8 @@ public class GuiUtils {
 			final JTextField rowField;
 			final JList<String> titles;
 			final JCheckBox checkbox;
-            final JTextField titleField;
-            final Map<String, SNTChart> charts;
+			final JTextField titleField;
+			final Map<String, SNTChart> charts;
 
 			boolean pauseSyncFields;
 			private int nRows;
@@ -2118,9 +2118,9 @@ public class GuiUtils {
 				rowField = intField();
 				titles = getJList(charts.keySet().toArray(new String[0]), null);
 				checkbox = new JCheckBox("Label panels", false);
-                titleField = new JTextField();
-                GuiUtils.addClearButton(titleField);
-                GuiUtils.addPlaceholder(titleField, "Combined Charts");
+				titleField = new JTextField();
+				GuiUtils.addClearButton(titleField);
+				GuiUtils.addPlaceholder(titleField, "Combined Charts");
 			}
 
 			JTextField intField() {
@@ -2141,11 +2141,11 @@ public class GuiUtils {
 				final GridBagConstraints c = defaultGbc();
 				c.fill = GridBagConstraints.HORIZONTAL;
 				c.gridwidth = 1;
-                contentPane.add(leftAlignedLabel("Title for montage:", true), c);
-                ++c.gridy;
-                contentPane.add(titleField, c);
-                ++c.gridy;
-                contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
+				contentPane.add(leftAlignedLabel("Title for montage:", true), c);
+				++c.gridy;
+				contentPane.add(titleField, c);
+				++c.gridy;
+				contentPane.add(leftAlignedLabel("Charts to be combined:", true), c);
 				++c.gridy;
 				contentPane.add(getScrollPane(titles), c);
 				++c.gridy;
@@ -2203,8 +2203,8 @@ public class GuiUtils {
 					}
 					final Collection<SNTChart> selection = (titles.getSelectedIndices().length == 0) ? charts.values()
 							: charts.entrySet().stream()
-									.filter(entry -> titles.getSelectedValuesList().contains(entry.getKey()))
-									.map(Map.Entry::getValue).collect(Collectors.toList());
+							.filter(entry -> titles.getSelectedValuesList().contains(entry.getKey()))
+							.map(Map.Entry::getValue).collect(Collectors.toList());
 					if (selection.isEmpty()) {
 						error("No charts selected from list.");
 						return;
@@ -2279,10 +2279,10 @@ public class GuiUtils {
 			final JCheckBoxMenuItem jcbmi = new JCheckBoxMenuItem(option, "Compact".equals(option));
 			jcbmi.addItemListener(e -> {
 				if ("Relaxed".equals(option)) {
-                    tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", SwingConstants.TOP);
-                } else {
-                    tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", SwingConstants.LEFT);
-                }
+					tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", SwingConstants.TOP);
+				} else {
+					tabbedPane.putClientProperty("JTabbedPane.tabIconPlacement", SwingConstants.LEFT);
+				}
 			});
 			group.add(jcbmi);
 			popup.add(jcbmi);
@@ -2372,9 +2372,9 @@ public class GuiUtils {
 			editorPane.setEditorKit(kit);
 			final StyleSheet styleSheet = kit.getStyleSheet();
 			styleSheet.addRule("body{font-family:Verdana,sans-serif; font-size:11.5pt; margin:5px 10px 5px 10px;}"); // top
-																														// right
-																														// bottom
-																														// left
+			// right
+			// bottom
+			// left
 			styleSheet.addRule("h1{font-size:18pt;}");
 			styleSheet.addRule("h2{font-size:15pt;}");
 			styleSheet.addRule("dl dt{font-face:bold;}");
@@ -2401,7 +2401,7 @@ public class GuiUtils {
 			final Dimension screenD = Toolkit.getDefaultToolkit().getScreenSize();
 			final Dimension dialogD = getPreferredSize();
 			final int maxWidth = (int) (Math.min(0.70 * screenD.width, 800)); // max 70% of screen width, but not more
-																				// then 800 pxl
+			// then 800 pxl
 			if (maxWidth > 400 && dialogD.width > maxWidth)
 				dialogD.width = maxWidth;
 			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
@@ -2431,7 +2431,7 @@ public class GuiUtils {
 		public void hyperlinkUpdate(final HyperlinkEvent e) {
 			if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
 				final String url = e.getDescription(); // getURL does not work for relative links within document such
-														// as "#top"
+				// as "#top"
 				if (url == null)
 					return;
 				if (url.startsWith("#"))
@@ -2455,7 +2455,7 @@ public class GuiUtils {
 	}
 
 	private class FloatingDialog extends JDialog implements ComponentListener,
-		WindowListener
+			WindowListener
 	{
 
 		private static final long serialVersionUID = 1L;
@@ -2486,7 +2486,7 @@ public class GuiUtils {
 		private void centerOnParent() {
 			if (parent == null) return;
 			final Point p = new Point(parent.getWidth() / 2 - getWidth() / 2, parent
-				.getHeight() / 2 - getHeight() / 2);
+					.getHeight() / 2 - getHeight() / 2);
 			setLocation(p.x + parent.getX(), p.y + parent.getY());
 		}
 
@@ -2592,7 +2592,7 @@ public class GuiUtils {
 
 		public static JMenuItem devResourcePythonAPI() {
 			final JMenuItem jmi = openURL("Python API (PySNT)", "https://pysnt.readthedocs.io/en/latest/");
-            jmi.setIcon(IconFactory.menuIcon(GLYPH.CODE2));
+			jmi.setIcon(IconFactory.menuIcon(GLYPH.CODE2));
 			return jmi;
 		}
 
@@ -2718,7 +2718,7 @@ public class GuiUtils {
 				mi.setText("Find Command/Action...");
 				mi.getAction().putValue(Action.ACCELERATOR_KEY, null);
 				mi.addActionListener(e -> new GuiUtils().centeredMsg("You can search for commands "
-                        + "and actions from the Command Palette, by using the global shortcut "
+						+ "and actions from the Command Palette, by using the global shortcut "
 						+ cmdFinder.getAcceleratorString() + ".", "Tip: Shortcut to Remember"));
 				helpMenu.add(mi);
 				helpMenu.addSeparator();
@@ -2767,8 +2767,8 @@ public class GuiUtils {
 			helpMenu.addSeparator();
 			helpMenu.add(devResourceJavaAPI());
 			helpMenu.add(devResourcePythonAPI());
-            helpMenu.add(devResourceMain());
-            helpMenu.addSeparator();
+			helpMenu.add(devResourceMain());
+			helpMenu.addSeparator();
 
 			mi = openURL("Complementary Tools",  URL + "comp-tools");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.COGS));
@@ -2866,19 +2866,19 @@ public class GuiUtils {
 
 		private Buttons() {}
 
-        public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
-            return new OptionsButton(IconFactory.dropdownMenuIcon(glyph, scalingFactor), menu);
-        }
+		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
+			return new OptionsButton(IconFactory.dropdownMenuIcon(glyph, scalingFactor), menu);
+		}
 
-        public static class OptionsButton extends JButton {
-            public final JPopupMenu popupMenu;
+		public static class OptionsButton extends JButton {
+			public final JPopupMenu popupMenu;
 
-            private OptionsButton(final Icon icon, final JPopupMenu popupMenu) {
-                super(icon);
-                this.popupMenu = popupMenu;
-                addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
-            }
-        }
+			private OptionsButton(final Icon icon, final JPopupMenu popupMenu) {
+				super(icon);
+				this.popupMenu = popupMenu;
+				addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
+			}
+		}
 
 		public static JButton help(final String url) {
 			final JButton button = new JButton();
@@ -2891,11 +2891,11 @@ public class GuiUtils {
 			return undo(null);
 		}
 
-        public static JButton undo(final Action action) {
-            final JButton button = (action == null) ? new JButton() : new JButton(action);
-            makeSmallBorderless(button, GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
-            return button;
-        }
+		public static JButton undo(final Action action) {
+			final JButton button = (action == null) ? new JButton() : new JButton(action);
+			makeSmallBorderless(button, GLYPH.UNDO, UIManager.getColor("Spinner.buttonArrowColor"));
+			return button;
+		}
 
 		public static JButton show(final Color color) {
 			final JButton button = new JButton();
@@ -2949,23 +2949,23 @@ public class GuiUtils {
 			return button;
 		}
 
-        public static JButton toolbarButton(final Action action, final String tooltipText) {
-            final JButton button = new JButton(action);
-            button.setText(null);
-            button.setToolTipText(tooltipText);
-            button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
-            return button;
-        }
+		public static JButton toolbarButton(final Action action, final String tooltipText) {
+			final JButton button = new JButton(action);
+			button.setText(null);
+			button.setToolTipText(tooltipText);
+			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+			return button;
+		}
 
-        public static JToggleButton toolbarToggleButton(final Action action, final String tooltipText,
-                                                        final IconFactory.GLYPH glyph1, final IconFactory.GLYPH glyph2) {
-            final JToggleButton button = new JToggleButton(action);
-            IconFactory.assignIcon(button, glyph1, glyph2);
-            button.setText(null);
-            button.setToolTipText(tooltipText);
-            button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
-            return button;
-        }
+		public static JToggleButton toolbarToggleButton(final Action action, final String tooltipText,
+														final IconFactory.GLYPH glyph1, final IconFactory.GLYPH glyph2) {
+			final JToggleButton button = new JToggleButton(action);
+			IconFactory.assignIcon(button, glyph1, glyph2);
+			button.setText(null);
+			button.setToolTipText(tooltipText);
+			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
+			return button;
+		}
 
 		public static JButton toolbarButton(final IconFactory.GLYPH glyph, final Color color, final float scalingFactor) {
 			final JButton button = toolbarButton("");
