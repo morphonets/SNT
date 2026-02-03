@@ -326,8 +326,9 @@ public class StrahlerCmd extends ContextCommand {
 			final SNTChart chart;
 			if (boxplotElseHistogram)
 				chart = groupedStats.getBoxPlot(normMetric);
-			else if (normMetric.contains("angle"))
-				chart = groupedStats.getPolarHistogram(normMetric);
+			// TODO: With some cells polar histograms are failing. Disable for now
+//			else if (normMetric.contains("angle"))
+//				chart = groupedStats.getPolarHistogram(normMetric);
 			else
 				chart = groupedStats.getHistogram(normMetric);
 			if (singleChart) {
