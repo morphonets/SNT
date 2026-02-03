@@ -537,12 +537,13 @@ public class DemoRunner {
 
 		protected boolean prepNonImgLoading() {
             assert snt != null;
-            if ((snt.getPathAndFillManager().size() > 0 || snt.getImagePlus() != null)
+            if ((snt.getPathAndFillManager().size() > 0 || snt.accessToValidImageData())
 					&& !directLoading && !new GuiUtils(ui).getConfirmation(
 							"Any loaded image will be disposed and any existing paths will be deleted. Proceed?",
 							"Dispose Existing Data?"))
 				return false;
 			try {
+				snt.invalidateCaches();
 				if (snt.getImagePlus() != null)
 					snt.getImagePlus().close();
 				if (snt.getImagePlus() != null) { // Presumably user did not resolve 'Save Changes?' prompt
