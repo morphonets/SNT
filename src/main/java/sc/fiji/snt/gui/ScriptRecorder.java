@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -23,9 +23,6 @@
 package sc.fiji.snt.gui;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-import org.fife.ui.rtextarea.RTextScrollPane;
-import org.scijava.ui.swing.script.EditorPane;
-import sc.fiji.snt.SNTUtils;
 
 import javax.swing.*;
 import javax.swing.text.BadLocationException;
@@ -48,6 +45,8 @@ public class ScriptRecorder extends JDialog {
 	private JComboBox<LANG> combo;
 	private LANG currentLang;
 	private static final boolean[] createOptions = {true, true};
+	private boolean paused = false;
+	private JToggleButton pauseButton;
 
 	enum LANG {
 		BEANSHELL(".bsh", "//", true), GROOVY(".groovy", "//", false), PYTHON(".py", "#", false);
@@ -64,11 +63,11 @@ public class ScriptRecorder extends JDialog {
 
 		@Override
 		public String toString() {
-            return switch (this) {
-                case BEANSHELL -> "BeanShell [.bsh]";
-                case GROOVY -> "Groovy [.groovy]";
-                case PYTHON -> "Python (Jython) [.py]";
-            };
+			return switch (this) {
+				case BEANSHELL -> "BeanShell [.bsh]";
+				case GROOVY -> "Groovy [.groovy]";
+				case PYTHON -> "Python (Jython) [.py]";
+			};
 		}
 
 		public static LANG[] list() {
@@ -148,25 +147,48 @@ public class ScriptRecorder extends JDialog {
 			requestFocusInWindow();
 		})));
 		tb.addSeparator();
+		tb.add(pauseButton());
+		tb.addSeparator();
 		tb.add(createButton());
 		return tb;
+	}
+
+	private JToggleButton pauseButton() {
+		pauseButton = new JToggleButton();
+		updatePauseButtonState();
+		pauseButton.addActionListener(e -> {
+			paused = pauseButton.isSelected();
+			recordCommentInternal("Recording " + ((paused) ? "paused..." : "resumed"));
+			updatePauseButtonState();
+		});
+		return pauseButton;
+	}
+
+	private void updatePauseButtonState() {
+		if (paused) {
+			pauseButton.setIcon(IconFactory.buttonIcon('\uf144', false));
+			pauseButton.setToolTipText("Resume recording");
+		} else {
+			pauseButton.setIcon(IconFactory.buttonIcon('\uf28b', false));
+			pauseButton.setToolTipText("Pause recording");
+		}
 	}
 
 	private void setLanguage(final LANG lang) {
 		final LANG oldLang = currentLang;
 		currentLang = lang;
 		switch (currentLang) {
-		case BEANSHELL:
-			editor.setSyntaxEditingStyle(RSyntaxTextArea.SYNTAX_STYLE_JAVA);
-			break;
-		case GROOVY:
-			editor.setSyntaxEditingStyle(RSyntaxTextArea.SYNTAX_STYLE_GROOVY);
-			break;
-		case PYTHON:
-			editor.setSyntaxEditingStyle(RSyntaxTextArea.SYNTAX_STYLE_PYTHON);
-			break;
-		default:
-			throw new IllegalArgumentException("Unknown language");
+			case BEANSHELL:
+				editor.setSyntaxEditingStyle(RSyntaxTextArea.SYNTAX_STYLE_JAVA);
+				break;
+			case GROOVY:
+				editor.setSyntaxEditingStyle(RSyntaxTextArea.SYNTAX_STYLE_GROOVY);
+				break;
+			case PYTHON:
+				editor.setSyntaxEditingStyle(RSyntaxTextArea.SYNTAX_STYLE_PYTHON);
+				break;
+			default:
+				throw new IllegalArgumentException("Unknown language");
 		}
 		combo.setSelectedItem(currentLang);
 		if (oldLang != null)
@@ -251,6 +273,10 @@ public class ScriptRecorder extends JDialog {
 	}
 
 	public void recordCmd(final String str, final boolean suppressNextLine) {
+		if (!paused) recordCmdInternal(str, suppressNextLine);
+	}
+
+	private void recordCmdInternal(final String str, final boolean suppressNextLine) {
 		final String sfx = ((currentLang.semiColon) ? ";\n" : "\n");
 		SwingUtilities.invokeLater(() -> {
 			if (currentLang == LANG.PYTHON) {
@@ -263,14 +289,40 @@ public class ScriptRecorder extends JDialog {
 		});
 	}
 
-	public void recordComment(final String str) {
+	private void recordCommentInternal(final String str) {
 		for (final String line : str.split("\n"))
-			recordCmd(currentLang.commentSeq + " " + line);
+			recordCmdInternal(currentLang.commentSeq + " " + line, false);
 		editor.setCaretPosition(editor.getText().length()); // caret ALWAYS_UPDATE not working!?
+	}
+
+	public void recordComment(final String str) {
+		if (!paused) recordCommentInternal(str);
 	}
 
 	public void reset() {
 		editor.setText("");
+	}
+
+	/**
+	 * Returns whether recording is currently paused.
+	 *
+	 * @return true if recording is paused, false otherwise
+	 */
+	public boolean isPaused() {
+		return paused;
+	}
+
+	/**
+	 * Sets the pause state of the recorder.
+	 *
+	 * @param paused true to pause recording, false to resume
+	 */
+	public void setPaused(final boolean paused) {
+		this.paused = paused;
+		if (pauseButton != null) {
+			pauseButton.setSelected(paused);
+			updatePauseButtonState();
+		}
 	}
 
 	/**
