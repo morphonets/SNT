@@ -111,6 +111,8 @@ public class NotesUI {
         save.setToolTipText("Save to workspace");
         save.addActionListener(e -> {
             if (noNotesError()) return;
+            final File workspaceDir = sntui.getOrPromptForWorkspace();
+            if (workspaceDir == null) return;
             final String prefix = sntui.getImageFilenamePrefix();
             exportNotes(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_notes.md"));
         });

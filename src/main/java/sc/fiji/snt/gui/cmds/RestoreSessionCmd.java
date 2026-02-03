@@ -48,7 +48,7 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
     @Parameter
     private IOService ioService;
 
-    @Parameter(label = "Session", persist = false, style = FileWidget.DIRECTORY_STYLE,
+    @Parameter(required = false, label = "Session", persist = false, style = FileWidget.DIRECTORY_STYLE,
             description = "The session folder to restore from")
     private File sessionDir;
 
@@ -79,7 +79,7 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
             return; // error message was already displayed
         }
         if (sessionDir == null || !SNTUtils.fileAvailable(sessionDir)) {
-            error("Invalid directory.");
+            error("Invalid session directory.");
             return;
         }
 

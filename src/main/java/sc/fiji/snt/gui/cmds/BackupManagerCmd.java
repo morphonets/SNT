@@ -73,7 +73,7 @@ public class BackupManagerCmd extends CommonDynamicCmd {
     @Parameter(required = false, label = "<HTML><br><b>Filter:", visibility = ItemVisibility.MESSAGE)
     private String HEADER3;
 
-    @Parameter(label = "Image", choices = {}, style = ChoiceWidget.LIST_BOX_STYLE,
+    @Parameter(required = false, label = "Image", choices = {}, style = ChoiceWidget.LIST_BOX_STYLE,
             description = "Select which image's backups to manage", callback="updateFilteredInfo")
     private String selectedImage;
 
@@ -117,7 +117,13 @@ public class BackupManagerCmd extends CommonDynamicCmd {
             return;
         }
 
-        backupDir = snt.getPrefs().getQuickBackupDir();
+        final File workspaceDir = ui.getOrPromptForWorkspace();
+        if (workspaceDir == null) {
+            cancel();
+            getInputs().keySet().forEach(this::resolveInput);
+            return;
+        }
+        backupDir = snt.getPrefs().getBackupDir();
         scanBackups();
         updateSummary();
         updateImageChoices();
@@ -347,4 +353,5 @@ public class BackupManagerCmd extends CommonDynamicCmd {
     public void run() {
         // Dialog handles everything via buttons/callbacks
     }
+
 }

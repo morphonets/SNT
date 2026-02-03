@@ -84,19 +84,13 @@ public class SaveSessionCmd extends CommonDynamicCmd {
     private void init() {
         super.init(true);
         if (snt == null) return;
-
-        sessionDir = snt.getPrefs().getSessionsDir();
-        if (sessionDir == null || !sessionDir.exists() || !sessionDir.canWrite()) {
-            if (new GuiUtils(ui).getConfirmation(
-                    "Workspace directory is not available. Create new one at default location?",
-                    "Workspace Not Found")) {
-                snt.getPrefs().setWorkspaceDir(null); // reset location
-                sessionDir = snt.getPrefs().getSessionsDir();
-            } else {
-                cancel(); // User declined, abort command
-                return;
-            }
+        final File workspaceDir = ui.getOrPromptForWorkspace();
+        if (workspaceDir == null) {
+            cancel();
+            getInputs().keySet().forEach(this::resolveInput);
+            return;
         }
+        sessionDir = snt.getPrefs().getSessionsDir();
         final String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new Date());
         sessionDir = new File(sessionDir, "SNT_Session_" + timestamp);
         sessionDir.mkdirs();
@@ -104,7 +98,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
 
     @Override
     public void run() {
-        if (isCanceled() || snt == null || ui == null) {
+        if (sessionDir == null || isCanceled() || snt == null || ui == null) {
             return; // error message was already displayed
         }
         if (!sessionDir.exists()) {
@@ -127,13 +121,10 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         if (failures > 0) {
             error(String.format("%d item(s) could not be saved. See Console for details.", failures));
         } else {
-            if (new GuiUtils(ui).getConfirmation("Session saved to:\n" + sessionDir.getAbsolutePath(),
+            final GuiUtils gUtils = new GuiUtils(ui);
+            if (gUtils.getConfirmation("Session saved to:\n" + sessionDir.getAbsolutePath(),
                     "Session Saved", "Open Folder", "OK")) {
-                try {
-                    FileChooser.reveal(sessionDir);
-                } catch (final IOException ioe) {
-                    msg(ioe.getMessage(), "Folder Could Not Be Open");
-                }
+                gUtils.showDirectory(sessionDir);
             }
         }
         resetUI();

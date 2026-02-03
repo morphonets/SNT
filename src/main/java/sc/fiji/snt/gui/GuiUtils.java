@@ -31,7 +31,6 @@ import com.jidesoft.utils.ProductNames;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.CommandService;
 import org.scijava.ui.DialogPrompt.Result;
-import org.scijava.ui.awt.AWTWindows;
 import org.scijava.ui.swing.SwingDialog;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.PlatformUtils;
@@ -320,9 +319,13 @@ public class GuiUtils {
 	private void makeVisible(final JDialog dialog, final boolean forceBringToFront) {
 		// work around a bug in openjdk and macOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
-		dialog.setAlwaysOnTop(forceBringToFront && PlatformUtils.isMac());
+		if (forceBringToFront) {
+			final Window owner = dialog.getOwner();
+			if (owner != null) owner.toFront();
+		}
 		dialog.setVisible(true);
 		dialog.toFront();
+		dialog.requestFocus();
 	}
 
 	public boolean getConfirmation(final String msg, final String title) {
@@ -1223,11 +1226,56 @@ public class GuiUtils {
 		final JOptionPane optionPane = new JOptionPane(getLabel(msg), type, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = optionPane.createDialog(title);
 		if (parent != null) {
-			AWTWindows.centerWindow(parent.getBounds(), d); // we could also use d.setLocationRelativeTo(parent);
+			centerOnParent(parent, d); // we could also use d.setLocationRelativeTo(parent);
 		}
 		makeVisible(d, true);
 		final Object result = optionPane.getValue();
 		return (result instanceof Integer) ? (Integer) result : SwingDialog.UNKNOWN_OPTION;
+	}
+
+	public static void centerOnParent(final Component parent, final Window dialog) {
+		if (parent == null || !parent.isShowing()) {
+			dialog.setLocationRelativeTo(null);
+			return;
+		}
+		centerOnParent(parent.getBounds(), parent.getGraphicsConfiguration(), dialog);
+	}
+
+	public static void centerOnParent(final Rectangle parentBounds, final Window dialog) {
+		if (parentBounds == null) {
+			dialog.setLocationRelativeTo(null);
+			return;
+		}
+		// Get screen containing the center of the bounding rectangle
+		final GraphicsConfiguration gc = getGraphicsConfigurationAt(
+				parentBounds.x + parentBounds.width / 2,
+				parentBounds.y + parentBounds.height / 2);
+		centerOnParent(parentBounds, gc, dialog);
+	}
+
+	private static void centerOnParent(final Rectangle parentBounds, final GraphicsConfiguration gc, final Window dialog) {
+		final Dimension dialogSize = dialog.getSize();
+
+		int x = parentBounds.x + (parentBounds.width - dialogSize.width) / 2;
+		int y = parentBounds.y + (parentBounds.height - dialogSize.height) / 2;
+
+		// Ensure dialog stays within screen bounds
+		final Rectangle screenBounds = gc.getBounds();
+		x = Math.max(screenBounds.x, Math.min(x, screenBounds.x + screenBounds.width - dialogSize.width));
+		y = Math.max(screenBounds.y, Math.min(y, screenBounds.y + screenBounds.height - dialogSize.height));
+
+		dialog.setLocation(x, y);
+	}
+
+	private static GraphicsConfiguration getGraphicsConfigurationAt(int x, int y) {
+		for (GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+			GraphicsConfiguration gc = gd.getDefaultConfiguration();
+			if (gc.getBounds().contains(x, y)) {
+				return gc;
+			}
+		}
+		// Fallback to default screen
+		return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
 	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {
@@ -2284,7 +2332,7 @@ public class GuiUtils {
 			throw new IllegalArgumentException("dialogToCenter must not be null");
 		}
 		if (windows == null || windows.length == 0) {
-			AWTWindows.centerWindow(dialogToCenter);
+			centerOnParent((Component)null, dialogToCenter);
 			return;
 		}
 		// the bounding rectangle that encompasses all windows
@@ -2292,7 +2340,7 @@ public class GuiUtils {
 		for (final Window w : windows) {
 			if (w != null) boundingRect = boundingRect.union(w.getBounds());
 		}
-		AWTWindows.centerWindow(boundingRect, dialogToCenter);
+		centerOnParent(boundingRect, dialogToCenter);
 	}
 
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
@@ -2310,10 +2358,7 @@ public class GuiUtils {
 
 		@Override
 		public void setVisible(final boolean b) {
-			if (parent != null)
-				setLocationRelativeTo(parent);
-			else
-				AWTWindows.centerWindow(this);
+			setLocationRelativeTo(parent);
 			super.setVisible(b);
 		}
 

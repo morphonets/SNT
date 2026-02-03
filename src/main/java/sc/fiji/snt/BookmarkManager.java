@@ -272,11 +272,13 @@ public class BookmarkManager {
 
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        JMenuItem jmi = new JMenuItem("From Workspace...");
+        JMenuItem jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
         menu.add(jmi);
         jmi.addActionListener(e -> {
+            final File workspaceDir = sntui.getOrPromptForWorkspace();
+            if (workspaceDir == null) return;
             final String prefix = sntui.getImageFilenamePrefix();
-            final File ref = new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv");
+            final File ref = new File(workspaceDir, prefix + "_bookmarks.csv");
             final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
             if (file != null) loadBookmarksFromFile(file);
         });
@@ -325,9 +327,11 @@ public class BookmarkManager {
 
     private JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        JMenuItem jmi = new JMenuItem("To Workspace...");
+        JMenuItem jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
         menu.add(jmi);
         jmi.addActionListener(e -> {
+            final File workspaceDir = sntui.getOrPromptForWorkspace();
+            if (workspaceDir == null) return;
             final String prefix = sntui.getImageFilenamePrefix();
             saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
         });
@@ -472,7 +476,7 @@ public class BookmarkManager {
         try {
             model.populateFromFile(file);
         } catch (final Exception ex) {
-            sntui.guiUtils.error(ex.getMessage());
+            sntui.guiUtils.error(ex.getMessage() + ".");
             SNTUtils.error("loadBookmarksFromFile() failure", ex);
         }
     }

@@ -37,7 +37,6 @@ import ij.Prefs;
 import ij.io.FileInfo;
 import ij3d.Content;
 import ij3d.ContentConstants;
-import sc.fiji.snt.gui.GuiUtils;
 
 /**
  * Class handling SNT preferences.
@@ -512,7 +511,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		// If Fiji is using FlatLaf (default of v430 is light) used that as default, otherwise use System L&F
 		final LookAndFeel currentLaf = GraphicsEnvironment.isHeadless() ? null : UIManager.getLookAndFeel();
 		return (currentLaf instanceof FlatLaf && !((FlatLaf) currentLaf).isDark()) ? currentLaf.getName()
-				: GuiUtils.LAF_DEFAULT;
+				: sc.fiji.snt.gui.GuiUtils.LAF_DEFAULT;
 	}
 
 	private static void clearLegacyPrefs() {
@@ -558,7 +557,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 					workspaceDirectory = f;
 			}
 			if (workspaceDirectory == null) {
-				setWorkspaceDir(null);
+				setWorkspaceDir(null); // reset to default location
 			}
 		}
 		return workspaceDirectory;
@@ -575,15 +574,44 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		set(WORKSPACE_KEY, workspaceDirectory.getAbsolutePath());
 	}
 
-	public File getQuickBackupDir() {
-		if (!getWorkspaceDir().exists()) workspaceDirectory.mkdirs();  // Ensure it exists
+	/**
+	 * Returns the backup directory, or null if workspace doesn't exist.
+	 * Does NOT create directories.
+	 */
+	public File getBackupDir() {
+		if (!getWorkspaceDir().exists()) {
+			return null;
+		}
 		final File result = new File(workspaceDirectory, "snt_backups");
 		result.mkdirs();
 		return result;
 	}
 
+	/**
+	 * Creates workspace directory if it doesn't exist.
+	 * @return true if directory exists or was created successfully
+	 */
+	public boolean ensureWorkspaceExists() {
+		if (workspaceDirectory.exists()) return true;
+		return workspaceDirectory.mkdirs();
+	}
+
+	/**
+	 * @return true if workspace directory exists and has write permissions.
+	 */
+	public boolean workspaceIsValid() {
+		final File ws = getWorkspaceDir();
+		return ws != null && ws.exists() && ws.canWrite();
+	}
+
+	/**
+	 * Returns the sessions directory, or null if workspace doesn't exist.
+	 * Does NOT create directories.
+	 */
 	public File getSessionsDir() {
-		if (!getWorkspaceDir().exists()) workspaceDirectory.mkdirs();  // Ensure it exists
+		if (!getWorkspaceDir().exists()) {
+			return null;
+		}
 		final File result = new File(workspaceDirectory, "sessions");
 		result.mkdirs();
 		return result;

@@ -160,12 +160,12 @@ public class PrefsCmd extends OptionsPlugin {
 		}
 		if (!workspaceDirectory.exists()) {
 			if (!workspaceDirectory.mkdirs()) {
-				snt.getUI().error("Could not create directory:\n" + workspaceDirectory.getAbsolutePath());
+				snt.getUI().error("Could not create directory:<br>" + workspaceDirectory.getAbsolutePath());
 				return;
 			}
 		}
 		if (!workspaceDirectory.canWrite()) {
-			snt.getUI().error("Directory is not writable:\n" + workspaceDirectory.getAbsolutePath());
+			snt.getUI().error("Directory is not writable:<br>" + workspaceDirectory.getAbsolutePath());
 			return;
 		}
 		snt.getPrefs().setWorkspaceDir(workspaceDirectory);

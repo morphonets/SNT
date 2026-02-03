@@ -280,6 +280,10 @@ public class IconFactory {
         return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 0.9f, defaultColor(), solid);
     }
 
+    public static Icon menuIcon(final char symbol, final boolean solid, final Color color) {
+        return new FADerivedIcon(symbol, FADerivedIcon.defSize() * 1f, color, solid);
+    }
+
     public static Icon listIcon(final JList<?> list, final GLYPH entry) {
         return new FADerivedIcon(entry.id, list.getFont().getSize() * 0.9f, list.getForeground(), entry.solid);
     }

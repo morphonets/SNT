@@ -103,6 +103,7 @@ public class SNTUI extends JDialog {
 	private JButton completePath;
 	private JButton rebuildCanvasButton;
 	private JCheckBox debugCheckBox;
+	private JButton workspaceIndicator;
 
 	// UI controls for auto-tracing
 	private JComboBox<String> searchAlgoChoice;
@@ -248,7 +249,7 @@ public class SNTUI extends JDialog {
 		++c1.gridy;
 		tab1.add(snappingPanel(), c1);
 		++c1.gridy;
-		InternalUtils.addSeparatorWithURL(tab1, "Auto-tracing:", true, c1);
+		InternalUtils.addSeparatorWithURL(tab1, "Interactive Tracing:", true, c1);
 		++c1.gridy;
 		tab1.add(aStarPanel(), c1);
 		++c1.gridy;
@@ -1133,7 +1134,8 @@ public class SNTUI extends JDialog {
                 runningAnimationTimer.stop();
                 runningAnimationTimer = null;
             }
-        }
+			updateStatusText((plugin.tracingHalted) ? "Tracing functions disabled..." : "Click somewhere to start a new path...");
+		}
 
 		@Override
 		public int getStateId() {
@@ -2885,7 +2887,7 @@ public class SNTUI extends JDialog {
 
 		fileMenu.addSeparator();
 		final JMenuItem saveCopyMenuItem = new JMenuItem("Backup Tracings", IconFactory.menuIcon('\uf1cd', false));
-		saveCopyMenuItem.setToolTipText("Saves paths to a timestamped backup file (workspace directory)");
+		saveCopyMenuItem.setToolTipText("Saves paths to a timestamped backup file in the workspace directory");
 		saveCopyMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
 				java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
 		saveCopyMenuItem.addActionListener(e -> saveToXML(true));
@@ -3205,21 +3207,34 @@ public class SNTUI extends JDialog {
         final JMenu viewMenu = new JMenu("View");
         final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
                 IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS2));
-        arrangeDialogsMenuItem.addActionListener(e -> {
-            final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
-            final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
-            if (w == -1 || h == -1) {
-                error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
-                return;
-            }
-            java.awt.Rectangle bounds = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
-            setBounds(bounds.x, bounds.y, w, h);
-            pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, getLocation().y, w, h);
-            fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, getLocation().y);
-            final Window console = GuiUtils.getConsole();
-            if (console != null)
-                console.setBounds(getLocation().x, bounds.height - h / 3, w * 2, h / 3);
-        });
+		arrangeDialogsMenuItem.addActionListener(e -> {
+			final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
+			final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
+			if (w == -1 || h == -1) {
+				error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
+				return;
+			}
+
+			// Get the screen where SNTUI is currently located
+			final GraphicsConfiguration gc = getGraphicsConfiguration();
+			final Rectangle screenBounds = gc.getBounds();
+			final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+
+			// Calculate usable area (excluding taskbar, dock, etc.)
+			final int usableX = screenBounds.x + insets.left;
+			final int usableY = screenBounds.y + insets.top;
+			final int usableWidth = screenBounds.width - insets.left - insets.right;
+			final int usableHeight = screenBounds.height - insets.top - insets.bottom;
+
+			// Position dialogs on the same screen
+			setBounds(usableX, usableY, w, h);
+			pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, usableY, w, h);
+			fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, usableY);
+			final Window console = GuiUtils.getConsole();
+			if (console != null) {
+				console.setBounds(usableX, usableY + usableHeight - h / 3, w * 2, h / 3);
+			}
+		});
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
         arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
@@ -3409,15 +3424,18 @@ public class SNTUI extends JDialog {
 				final JMenuItem jmi = new JMenuItem(label);
 				menu.add(jmi);
 				if ("Change Workspace...".equals(label)) {
+					jmi.setIcon(IconFactory.menuIcon('\ue066', true, GuiUtils.getDisabledComponentColor()));
 					jmi.addActionListener(e -> promptUserForWorkspaceChange());
 				} else {
+					if ("Current Workspace".equals(label))
+						jmi.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.defaultColor()));
 					jmi.addActionListener(e -> {
 						File f = null;
 						boolean proceed = true;
 						switch (label) {
-							case "Current Workspace" -> f = plugin.getPrefs().getWorkspaceDir();
-							case "Backup(s)" -> f = plugin.getPrefs().getQuickBackupDir();
-							case "Sessions" -> f = plugin.getPrefs().getSessionsDir();
+							case "Current Workspace" -> f = getOrPromptForWorkspace();
+							case "Backup(s)" -> f = (getOrPromptForWorkspace() == null) ? null : plugin.getPrefs().getBackupDir();
+							case "Sessions" ->  f = (getOrPromptForWorkspace() == null) ? null : plugin.getPrefs().getSessionsDir();
 							case "Current TRACES File" -> {
 								f = getPrefs().getAutosaveFile();
 								if (f == null) {
@@ -3445,7 +3463,7 @@ public class SNTUI extends JDialog {
 							default -> {
 							}
 						}
-						if (proceed) guiUtils.showDirectory(f);
+						if (proceed && f != null) guiUtils.showDirectory(f);
 
 					});
 				}
@@ -3455,34 +3473,43 @@ public class SNTUI extends JDialog {
 	}
 
 	private void promptUserForWorkspaceChange() {
-		final File newDir = guiUtils.getFile(plugin.getPrefs().getWorkspaceDir(), "/");
+		File newDir = guiUtils.getFile(plugin.getPrefs().getWorkspaceDir(), "/");
 		if (newDir == null) {
+			updateWorkspaceIndicator();
 			return; // User cancelled
 		}
+		final String newDirName = newDir.getName().toLowerCase();
+		if (!newDirName.endsWith("workspace") && !newDirName.contains("snt")) {
+			newDir = new File(newDir, "SNT_workspace");
+		}
 		final File currentDir = plugin.getPrefs().getWorkspaceDir();
-		if (newDir.equals(currentDir)) {
+		if (currentDir != null && newDir.exists() && newDir.getAbsolutePath().equals(currentDir.getAbsolutePath())) {
 			guiUtils.centeredMsg("Workspace directory unchanged.", "No Change");
 			return;
 		}
 		if (!newDir.exists()) {
 			if (!guiUtils.getConfirmation(
-					"Directory does not exist. Create it?\n" + newDir.getAbsolutePath(),
+					"Directory does not exist. Create it?<br>" + newDir.getAbsolutePath(),
 					"Create Directory?")) {
+				updateWorkspaceIndicator();
 				return;
 			}
 			if (!newDir.mkdirs()) {
-				error("Could not create directory:\n" + newDir.getAbsolutePath());
+				error("Could not create directory:<br>" + newDir.getAbsolutePath());
+				updateWorkspaceIndicator();
 				return;
 			}
 		}
 		if (!newDir.canWrite()) {
-			error("Directory is not writable:\n" + newDir.getAbsolutePath());
+			error("Directory is not writable:<br>" + newDir.getAbsolutePath());
+			updateWorkspaceIndicator();
 			return;
 		}
-
 		plugin.getPrefs().setWorkspaceDir(newDir);
-		guiUtils.centeredMsg("Workspace changed to:\n" + newDir.getAbsolutePath() +
-						"\n\nBackups and session data will now be saved here.",
+		plugin.getPrefs().ensureWorkspaceExists();
+		updateWorkspaceIndicator();
+		guiUtils.centeredMsg("Workspace changed to:<br>" + newDir.getAbsolutePath() +
+						"<br>Backups and session data will now be saved here.",
 				"Workspace Updated");
 	}
 
@@ -3794,21 +3821,46 @@ public class SNTUI extends JDialog {
 		return hideWindowsPanel;
 	}
 
-	private JLabel statusBar() {
+	private JToolBar statusBar() {
+		final JToolBar toolbar = new JToolBar();
+
+		// Workspace indicator (left side)
+		workspaceIndicator = new JButton();
+		workspaceIndicator.addActionListener( e -> {
+			if (getPrefs().workspaceIsValid())
+				guiUtils.showDirectory(getPrefs().getWorkspaceDir());
+			else
+				getOrPromptForWorkspace();
+		});
+		updateWorkspaceIndicator();
+		toolbar.add(workspaceIndicator);
+		toolbar.addSeparator();
+
+		// Status text (center)
 		statusBarText = new JLabel("Ready to trace...");
-		statusBarText.setBorder(BorderFactory.createEmptyBorder(InternalUtils.MARGIN, InternalUtils.MARGIN,
-				InternalUtils.MARGIN, 0));
 		refreshStatus();
 		statusBarText.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mousePressed(final MouseEvent e) {
 				if (e.getClickCount() == 2) {
 					refreshStatus();
+					updateWorkspaceIndicator();
 					if (recorder != null) recorder.recordCmd("snt.getUI().showStatus(\"\", true)");
 				}
 			}
 		});
-		return statusBarText;
+		toolbar.add(statusBarText);
+		return toolbar;
+	}
+
+	private void updateWorkspaceIndicator() {
+		if (plugin.getPrefs().workspaceIsValid()) {
+			workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, IconFactory.defaultColor()));
+			workspaceIndicator.setToolTipText("Current workspace:\n" + plugin.getPrefs().getWorkspaceDir().getAbsolutePath() + "\nClick to change");
+		} else {
+			workspaceIndicator.setIcon(IconFactory.menuIcon('\ue066', true, GuiUtils.getDisabledComponentColor()));
+			workspaceIndicator.setToolTipText("Workspace unavailable.\nClick to configure");
+		}
 	}
 
 	boolean setFastMarchSearchEnabled(final boolean enable) {
@@ -3906,6 +3958,57 @@ public class SNTUI extends JDialog {
 		GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
 	}
 
+	/**
+	 * Returns the workspace directory, prompting user to create it if it doesn't exist.
+	 * @return workspace directory, or null if user declined creation
+	 */
+	public File getOrPromptForWorkspace() {
+		final File f = plugin.getPrefs().getWorkspaceDir();
+		if (f != null && f.exists() && f.canWrite()) {
+			return f; // Workspace is valid, nothing to do
+		}
+		final File defaultDir = new File(System.getProperty("user.home"), "SNT_workspace");
+		final String CHOICE_0 = "Create directory at default location (home folder)";
+		final String CHOICE_1 = "Choose new location...";
+		final String CHOICE_2 = "Continue without";
+		final String[] options = {CHOICE_0, CHOICE_1, CHOICE_2};
+		String msg = "Backup and session features require a workspace, but ";
+		if (f == null)
+			msg += "no workspace directory is configured";
+		else
+			msg += "the workspace directory is no longer available at <i>" + f.getAbsolutePath() +"</i>";
+		msg += ". What would you like to do?";
+		// Show dialog
+		final Object[] result = guiUtils.getChoiceWithOptionAndInfo(
+				"Workspace Not Available",
+				msg,
+				options, CHOICE_0,
+				null, // no "info text"
+				"Do not remind me again", true); // Default checkbox to true
+
+		if (result == null) return null; // Dialog closed/canceled
+		final String choice = (String) result[0];
+		final boolean doNotRemind = (boolean) result[1];
+		switch (choice) {
+			case CHOICE_0 -> {
+				plugin.getPrefs().setWorkspaceDir(null);
+				plugin.getPrefs().ensureWorkspaceExists();
+				if (plugin.getPrefs().ensureWorkspaceExists()) {
+					guiUtils.tempMsg("Workspace created at:<br>" + defaultDir.getAbsolutePath());
+				} else {
+					guiUtils.error("Could not create default workspace at:<br>" + defaultDir.getAbsolutePath());
+				}
+				updateWorkspaceIndicator();
+			}
+			case CHOICE_1 -> promptUserForWorkspaceChange();
+			default -> {
+				if (doNotRemind)
+					plugin.getPrefs().set("snt.workspace.skipReminder", true);
+			}
+		}
+		return plugin.getPrefs().getWorkspaceDir();
+	}
+
 	protected void displayOnStarting() {
         if (plugin.getPrefs().isSomaDisplayTriangle())
             PathNodeCanvas.setSomaRenderMode(PathNodeCanvas.SOMA_RENDER_TRIANGLE);
@@ -3928,6 +4031,11 @@ public class SNTUI extends JDialog {
 			guiUtils.notifyIfNewVersion(0);
 			getPrefs().set("def-gui-width", ""+getWidth());
 			getPrefs().set("def-gui-height", ""+getHeight());
+			// check for workspace validity only if user previously wants to be reminded
+			if (plugin.getPrefs().getBoolean("snt.workspace.skipReminder", false)) {
+				getOrPromptForWorkspace();
+			}
+
 		});
 	}
 
@@ -4348,7 +4456,7 @@ public class SNTUI extends JDialog {
             case (TRACING_PAUSED) -> {
                 if (!plugin.accessToValidImageData()) {
                     showStatus("All tasks terminated", true);
-                    return;
+					return;
                 }
                 showStatus("Tracing is now active...", true);
                 plugin.pauseTracing(false, false); // will change UI state
@@ -4829,7 +4937,7 @@ public class SNTUI extends JDialog {
 	
 		@Override
 		protected void done() {
-			showStatus("Command terminated...", false);
+			showStatus("Command terminated...", true);
 			if (run && preRunState != SNTUI.this.getState())
 				changeState(preRunState);
 		}
@@ -5016,9 +5124,9 @@ public class SNTUI extends JDialog {
 	}
 
 	private void revertFromBackup() {
-		final List<File> copies = SNTUtils.getBackupCopies(plugin.getPrefs().getQuickBackupDir()); // list never null
+		final List<File> copies = SNTUtils.getBackupCopies(plugin.getPrefs().getBackupDir()); // list never null
 		if (copies.isEmpty()) {
-			error("No time-stamped backups seem to exist for current data. Please create one first.");
+			error("No time-stamped backups seem to exist. Please create one first.");
 			return;
 		}
 		final HashMap<String, File> map = new HashMap<>(copies.size());
@@ -5051,9 +5159,17 @@ public class SNTUI extends JDialog {
 	protected void saveToXML(final boolean timeStampedCopy) {
 		if (noPathsError() || notReadyToSaveError()) return; // do not create empty files
 		if (timeStampedCopy) {
+			if (getOrPromptForWorkspace() == null) {
+				return;
+			}
+			final File backupDir = getPrefs().getBackupDir();
+			if (backupDir == null || !backupDir.exists()) {
+				error("Backup cancelled: No workspace configured/backup folder not found.");
+				return;
+			}
 			final String suffix = SNTUtils.getTimeStamp();
 			final String fName = getImageFilenamePrefix();
-			final File targetFile = new File(plugin.getPrefs().getQuickBackupDir(), fName + "_" + suffix + ".traces");
+			final File targetFile = new File(backupDir, fName + "_" + suffix + ".traces");
             try {
                 pathAndFillManager.writeXML(targetFile.getAbsolutePath(), plugin.getPrefs().isSaveCompressedTraces());
 				plugin.discreteMsg("Backup added to workspace...");
@@ -5070,7 +5186,7 @@ public class SNTUI extends JDialog {
 				targetFile = saveFile("Save Traces As...", null, "traces");
 			}
 			if (targetFile != null)
-				successfull = saveToXML(targetFile, !timeStampedCopy);
+				successfull = saveToXML(targetFile, true);
 		} catch (final SecurityException ignored) {
 			// do nothing
 		}
