@@ -169,7 +169,6 @@ public class SNTSearchableBar extends SearchableBar {
 
 	private Icon getSubFilteringStatusIcon() {
 		if (subFilteringStatusIcon == null) {
-            getSearchField();
             subFilteringStatusIcon = IconFactory.get(IconFactory.GLYPH.FILTER, _statusLabel.getFont().getSize(),
 					SearchField.iconColor()); // SearchField is initialized by the time this is called
 		}

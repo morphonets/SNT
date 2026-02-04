@@ -2832,7 +2832,7 @@ public class SNTUI extends JDialog {
         menuBar.add(GuiUtils.MenuItems.helpMenu(commandFinder));
         menuBar.add(Box.createHorizontalGlue());
         menuBar.add(commandFinder.getMenuItem(true));
-        return menuBar;
+		return menuBar;
     }
 
 	@SuppressWarnings("deprecation")
@@ -3823,8 +3823,20 @@ public class SNTUI extends JDialog {
 
 	private JToolBar statusBar() {
 		final JToolBar toolbar = new JToolBar();
+		// Hints button
+		final JButton hintsIndicator = new JButton(IconFactory.menuIcon('\uf0eb', false, IconFactory.defaultColor()));
+		final int[] hintIndex = {0};
+		final GuiUtils hintsGUtils = new GuiUtils(hintsIndicator);
+		final List<String> hints = hintsGUtils.loadHints();
+		hintsIndicator.setToolTipText("Click for a hint");
+		hintsIndicator.addActionListener( e -> {
+			hintsGUtils.showHint(hints.get(hintIndex[0]));
+			hintIndex[0] = (hintIndex[0] + 1) % hints.size();
+		});
+		toolbar.add(hintsIndicator);
+		toolbar.addSeparator();
 
-		// Workspace indicator (left side)
+		// Workspace indicator
 		workspaceIndicator = new JButton();
 		workspaceIndicator.addActionListener( e -> {
 			if (getPrefs().workspaceIsValid())
@@ -3992,9 +4004,11 @@ public class SNTUI extends JDialog {
 		switch (choice) {
 			case CHOICE_0 -> {
 				plugin.getPrefs().setWorkspaceDir(null);
-				plugin.getPrefs().ensureWorkspaceExists();
 				if (plugin.getPrefs().ensureWorkspaceExists()) {
-					guiUtils.tempMsg("Workspace created at:<br>" + defaultDir.getAbsolutePath());
+					final String s1 = defaultDir.getAbsolutePath();
+					final int max = 28;
+					final String s2 = s1.length() <= max ? s1 : "..." + s1.substring(s1.length() - max + 3);
+					showStatus("Workspace created: " + s2, true);
 				} else {
 					guiUtils.error("Could not create default workspace at:<br>" + defaultDir.getAbsolutePath());
 				}

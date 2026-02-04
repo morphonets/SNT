@@ -64,8 +64,7 @@ import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -91,10 +90,11 @@ public class GuiUtils {
 	private static SplashScreen splashScreen;
 	private static LookAndFeel existingLaf;
 	private Component parent;
-	private JidePopup popup;
 	private boolean popupExceptionTriggered;
 	private static JColorChooser colorChooser;
 	private static Color disabledColor;
+	private JidePopup tipPopup;
+	private JidePopup popup;
 
 	public GuiUtils(final Component parent) {
 		setParent(parent);
@@ -127,43 +127,89 @@ public class GuiUtils {
 		centeredDialog(msg, title, JOptionPane.ERROR_MESSAGE);
 	}
 
-	public void notifyIfNewVersion(final int delay) {
-		final Timer timer = new Timer(delay, e -> {
+	public void notifyIfNewVersion(final int msDelayBeforeShow) {
+		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
 				final String s = """
 						<HTML>
 						&nbsp;<b>SNT was updated: Click this notification to find out what is new!</b>
 						<br>&nbsp;Tip: You may want to run <i>File › Reset and Restart...</i> to clear outdated settings.
 						""";
-				showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true);
+				showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true, -1);
 			}
 		});
 		timer.setRepeats(false);
 		timer.start();
 	}
 
-	public void showNotification(final String msg, final Number msDelay) {
+	private JidePopup assembleNotification(final String msg, final Number msDelay) {
 		StringBuilder parsedMsg;
 		if (!msg.startsWith("<HTML>")) {
 			final String[] lines = msg.split("\n");
-			parsedMsg = new StringBuilder("<HTML><b>" + lines[0] + "</b>");
+			parsedMsg = new StringBuilder("<HTML><div style='width:300px;font-family:sans-serif'><b>" + lines[0] + "</b>");
 			for (int i = 1; i < lines.length; i++) {
 				parsedMsg.append("<br>").append(lines[i]);
 			}
 		}
 		else
 			parsedMsg = new StringBuilder(msg);
-		showNotification(new JLabel(parsedMsg.toString()), msDelay.intValue());
+		return assembleNotification(new JLabel(parsedMsg.toString()), false, msDelay.intValue());
 	}
 
-	public void showNotification(final JLabel msg, final int msDelay) {
-		final Timer timer = new Timer(msDelay, e -> showNotification(msg, false));
-		timer.setRepeats(false);
-		timer.start();
+	public void showHint(final String tip) {
+		if (tipPopup != null && tipPopup.isPopupVisible()) {
+			tipPopup.hidePopupImmediately();
+		}
+		tipPopup = assembleNotification(tip, -1);
+		SwingUtilities.invokeLater(() -> {
+			if (parent != null) {
+				final Point p = parent.getLocationOnScreen();
+				tipPopup.showPopup(p.x + parent.getWidth(), p.y);
+			} else {
+				tipPopup.showPopup(SwingConstants.NORTH_EAST);
+			}
+		});
 	}
 
-	private void showNotification(final JLabel msg, final boolean disposeOnClick) {
+	public List<String> loadHints() {
+		final List<String> tips = new ArrayList<>();
+		final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+		try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                Objects.requireNonNull(classloader.getResourceAsStream(("gui/hints.txt")))))) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				line = line.trim();
+				if (!line.isEmpty() && !line.startsWith("#")) { // Skip empty lines and comments
+					tips.add(line.replace("ctrlKey()", ctrlKey()));
+				}
+			}
+		} catch (final Exception e) {
+			SNTUtils.error("Failed to load tips", e);
+			tips.add("No tips available"); // Fallback
+		}
+		Collections.shuffle(tips);
+		return tips;
+	}
 
+	private JidePopup showNotification(final JLabel msg, final boolean disposeOnClick, final int displayDuration) {
+		final JidePopup popup = assembleNotification(msg, disposeOnClick, displayDuration);
+		popup.DISTANCE_TO_SCREEN_BORDER = 100; // workaround dock on the left side on macOS
+		SwingUtilities.invokeLater(() -> {
+			if (parent != null) {
+				popup.showPopup(SwingConstants.SOUTH_WEST, parent);
+			} else {
+				Rectangle screenBounds = GraphicsEnvironment.getLocalGraphicsEnvironment()
+						.getDefaultScreenDevice().getDefaultConfiguration().getBounds();
+				int margin = 20;
+				int x = screenBounds.x + screenBounds.width - popup.getPreferredSize().width - margin;
+				int y = screenBounds.y + margin;
+				popup.showPopup(x, y);
+			}
+		});
+		return popup;
+	}
+
+	private JidePopup assembleNotification(final JLabel msg, final boolean disposeOnClick, final int displayDuration) {
 		final JidePopup popup = new JidePopup();
 		popup.setOwner(parent);
 		popup.setAttachable(false);
@@ -172,7 +218,7 @@ public class GuiUtils {
 		popup.setTransient(false);
 		popup.setResizable(false);
 		popup.setDefaultMoveOperation(JidePopup.DO_NOTHING_ON_MOVED);
-		popup.setTimeout(180000); // 3 minutes
+		popup.setTimeout(displayDuration > 0 ? displayDuration : 180000); // 3 minutes
 		popup.setFocusable(false);
 		popup.setEnsureInOneScreen(true);
 
@@ -198,13 +244,7 @@ public class GuiUtils {
 				}
 			});
 		}
-		popup.DISTANCE_TO_SCREEN_BORDER = 100; // workaround dock on the left side on macOS
-		SwingUtilities.invokeLater(() -> {
-			if (parent == null)
-				popup.showPopup(SwingConstants.NORTH_EAST);
-			else
-				popup.showPopup(SwingConstants.SOUTH_WEST, parent);
-		});
+		return popup;
 	}
 
 	public static void applyRoundCorners(final JComponent component) {
@@ -259,6 +299,21 @@ public class GuiUtils {
 
 	public static boolean isLegacy3DViewerAvailable() {
 		return Types.load("ij3d.Image3DUniverse") != null;
+	}
+
+	/**
+	 * Displays a floating notification in the upper corner of the active screen
+	 * @param msg The message to be displayed
+	 * @param msDelayBeforeShow the amount (in ms) of time before notification shouls be displayed
+	 */
+	public static void notify(final String msg, final int msDelayBeforeShow) {
+		final GuiUtils guiUtils = new GuiUtils(null);
+		final Timer timer = new Timer(msDelayBeforeShow, e -> {
+			Toolkit.getDefaultToolkit().beep(); // System beep
+			guiUtils.showNotification(guiUtils.getLabel(msg), true, -1);
+		});
+		timer.setRepeats(false);
+		timer.start();
 	}
 
 	private JidePopup getPopup(final String msg) {
@@ -2714,12 +2769,7 @@ public class GuiUtils {
 		public static JMenu helpMenu(final SNTCommandFinder cmdFinder) {
 			final JMenu helpMenu = new JMenu("Help");
 			if (cmdFinder != null) {
-				final AbstractButton mi = cmdFinder.getMenuItem(false);
-				mi.setText("Find Command/Action...");
-				mi.getAction().putValue(Action.ACCELERATOR_KEY, null);
-				mi.addActionListener(e -> new GuiUtils().centeredMsg("You can search for commands "
-						+ "and actions from the Command Palette, by using the global shortcut "
-						+ cmdFinder.getAcceleratorString() + ".", "Tip: Shortcut to Remember"));
+				final JMenuItem mi = (JMenuItem) cmdFinder.getMenuItem(false);
 				helpMenu.add(mi);
 				helpMenu.addSeparator();
 			}

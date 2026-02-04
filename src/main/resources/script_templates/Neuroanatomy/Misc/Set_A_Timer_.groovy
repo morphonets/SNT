@@ -7,4 +7,4 @@ info:       Countdown timer with notification using SNT
 """
 
 import sc.fiji.snt.gui.GuiUtils;
-new GuiUtils().showNotification("<HTML><b>${message}</b><br>Time (${minutes}m) is up!", (int) (minutes*60*1000)) // ms
+GuiUtils.notify("<HTML><b>${message}</b><br>Time (${minutes}m) is up!", (int) (minutes*60*1000)) // ms

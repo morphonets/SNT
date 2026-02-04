@@ -314,7 +314,9 @@ public class SaveSessionCmd extends CommonDynamicCmd {
             if (imp != null) {
                 pw.println("## Computation Settings");
                 pw.println();
+                pw.println("```");
                 pw.println(ui.getNotesPane().computationSettings());
+                pw.println("```");
                 pw.println();
             }
 

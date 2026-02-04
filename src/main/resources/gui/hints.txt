@@ -1,0 +1,50 @@
+# SNT Tips
+# Lines starting with # are comments and will be ignored
+# 'ctrlKey()'' will be replaced by 'Cmd' on macOS; 'Ctrl' on linux/Windows
+
+# Navigation & Basic Shortcuts
+Press G to select the path nearest to the cursor
+Hold Shift+G to add multiple paths to your selection
+Press H to temporarily hide all paths while held down
+Use the Command Palette (ctrlKey()+Shift+P) to quickly find any action
+Press Enter to shuttle focus between the tracing image and the SNT window
+Double-click on a bookmark to navigate directly to that location
+Press Shift+B to bookmark the cursor location
+Most shortcuts are single keystrokes and are highlighted in menus/dialogs.
+
+# Tracing
+Enable cursor snapping (S) to auto-snap to the brightest voxel nearby
+Press V to auto-click on the brightest voxel above/below the cursor
+Press Y twice to quickly finish a path without confirmation dialogs
+Press N twice to cancel a path including the start node
+Use Alt+Click on an existing path to start a branch from that point
+Press Shift+P to pause tracing operations temporarily
+Overlay a MIP at low opacity (Options tab) to see the full structure while tracing
+
+# Path Editing
+Press Shift+E to enter Edit Mode for the selected path
+In Edit Mode: D deletes, M moves, I inserts, and B brings nodes to the current Z-plane
+Press R in Edit Mode to change the radius of the active node
+Press L in Edit Mode to lock a node and prevent accidental changes
+Press X in Edit Mode to split a tree at the active node
+
+# Analysis
+Use Quick Measurements for instant metrics without prompts
+Color-code paths by morphometric properties via Path Manager→Analyze→Color Mapping
+Run Sholl Analysis from any node using Alt+Shift+A
+Create dendrograms using Analsis→Utilities→Create Dendrogram
+Use Path Profiler to visualize intensity gradients along traced neurites
+Compare cell groups statistically via Utilities→Compare Reconstructions...
+
+# Visualization
+Press 1/2/3 to toggle visibility filters for paths
+Use the Reconstruction Viewer (3D tab) for interactive 3D visualization
+Export publication-quality figures via Reconstruction Plotter (supports PDF/SVG)
+Use Create Figure to generate multi-panel montages of reconstructions
+
+# Data Management
+Save timestamped backups with ctrlKey()+Shift+S (Backup Tracings)
+Use File→Revert to Backup... to restore from previous saves
+Load demo datasets (File→Load Demo Dataset) to practice or test features
+Drag and drop SWC/TRACES files directly into the Path Manager to import them
+Use the Script Recorder (Scripts menu) to generate code from GUI actions

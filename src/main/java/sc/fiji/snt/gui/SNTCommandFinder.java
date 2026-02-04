@@ -479,7 +479,7 @@ public class SNTCommandFinder {
     }
 
     public void attach(final JDialog dialog) {
-        final int condition = JPanel.WHEN_IN_FOCUSED_WINDOW;
+        final int condition = JPanel.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT; //JPanel.WHEN_IN_FOCUSED_WINDOW;
         final InputMap inputMap = ((JPanel) dialog.getContentPane()).getInputMap(condition);
         final ActionMap actionMap = ((JPanel) dialog.getContentPane()).getActionMap();
         inputMap.put(ACCELERATOR, NAME);
@@ -506,6 +506,7 @@ public class SNTCommandFinder {
             return button;
         }
         final JMenuItem jmi = new JMenuItem(getAction());
+        jmi.setToolTipText("Find Command/Action...");
         jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEARCH));
         return jmi;
     }
@@ -641,7 +642,7 @@ public class SNTCommandFinder {
             toolbar.setFocusable(false);
             toolbar.setFloatable(false);
             toolbar.add(Box.createHorizontalGlue());
-            toolbar.add(proTip());
+            toolbar.add(proHint());
             toolbar.add(Box.createHorizontalGlue());
             toolbar.add(pinButton());
             toolbar.add(lockButton());
@@ -662,7 +663,7 @@ public class SNTCommandFinder {
                 menuBar.add(b);
             });
             menuBar.add(Box.createHorizontalGlue());
-            menuBar.add(proTip());
+            menuBar.add(proHint());
             if (frame.isUndecorated())
                 new ComponentMover(frame, menuBar); // make frame draggable through menuBar
             return menuBar;
@@ -685,8 +686,8 @@ public class SNTCommandFinder {
             return button;
         }
 
-        JLabel proTip() {
-            final JLabel label = new JLabel("TIP: Arrows to navigate, Enter to select, Esc to close");
+        JLabel proHint() {
+            final JLabel label = new JLabel("HINT: Arrows to navigate, Enter to select, Esc to close");
             label.setFont(label.getFont().deriveFont((float) (label.getFont().getSize() * .85)));
             label.setForeground(ToolbarIcons.COLOR);
             label.setFocusable(false);

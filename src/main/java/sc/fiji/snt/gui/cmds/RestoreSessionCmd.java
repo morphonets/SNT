@@ -33,6 +33,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 
 import java.io.File;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Objects;
 
 /**
  * Restores a tracing session including traces, bookmarks, and notes.
@@ -70,7 +73,16 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
     @SuppressWarnings("unused")
     private void init() {
         super.init(true);
-        if (snt != null) sessionDir = snt.getPrefs().getSessionsDir(); // sessionDir never null
+        if (snt == null) return;
+        final File workspaceDir = ui.getOrPromptForWorkspace();
+        if (snt.getPrefs().workspaceIsValid()) {
+            final File sessionsDir = snt.getPrefs().getSessionsDir();
+            final File latestSession = Arrays.stream(Objects.requireNonNull(sessionsDir.listFiles()))
+                    .filter(f -> f.isDirectory() && f.getName().startsWith("SNT_Session_"))
+                    .max(Comparator.comparing(File::getName))
+                    .orElse(null);
+            sessionDir = (latestSession == null) ? sessionsDir : latestSession;
+        }
     }
 
     @Override
@@ -181,8 +193,7 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
         // Show a hint about the original image
         final GuiUtils guiUtils = new GuiUtils(snt.getUI());
         final boolean show = guiUtils.getConfirmation(
-                "This session contains image information. Would you like to view it?\n" +
-                        "(This can help you verify you're working with the correct image)",
+                "This session contains image information. Would you like to view it?",
                 "Session Information Available");
 
         if (show) {
