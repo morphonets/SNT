@@ -473,8 +473,36 @@ public class SNTCommandFinder {
             autoHide();
         } else {
             table.clearSelection();
+            centerOnActiveScreen();
             frame.setVisible(true);
             searchField.requestFocus();
+        }
+    }
+
+    private void centerOnActiveScreen() {
+        final Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+        if (activeWindow != null) {
+            final GraphicsConfiguration gc = activeWindow.getGraphicsConfiguration();
+            final Rectangle screenBounds = gc.getBounds();
+            final int x = screenBounds.x + (screenBounds.width - frame.getWidth()) / 2;
+            final int y = screenBounds.y + (screenBounds.height - frame.getHeight()) / 2;
+            frame.setLocation(x, y);
+        } else if (sntui != null) {
+            GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
+        } else if (viewer3D != null) {
+            GuiUtils.centerWindow(frame, viewer3D.getFrame(), viewer3D.getManagerPanel().getWindow());
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private void centerOnParentScreen() {
+        final Window parent = (sntui != null) ? sntui : (viewer3D != null) ? viewer3D.getFrame() : null;
+        if (parent != null) {
+            final GraphicsConfiguration gc = parent.getGraphicsConfiguration();
+            final Rectangle screenBounds = gc.getBounds();
+            final int x = screenBounds.x + (screenBounds.width - frame.getWidth()) / 2;
+            final int y = screenBounds.y + (screenBounds.height - frame.getHeight()) / 2;
+            frame.setLocation(x, y);
         }
     }
 

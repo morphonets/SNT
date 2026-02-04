@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
-import ij.io.RoiEncoder;
 import ij.plugin.frame.RoiManager;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.annotation.BrainAnnotation;
@@ -38,15 +37,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.util.List;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 /**
  * Implements the <i>Delineation Analysis</i> pane.
@@ -99,7 +92,8 @@ public class DelineationsManager {
         final String msg = """
                 Delineations allow measuring proportions of paths within other structures defined by ROIs \
                 or neuropil annotations (e.g., cortical layers, biomarkers, or counterstaining landmarks). \
-                Delineations are not saved by default and must be exported manually.
+                Delineation ROIs can be exported using the gear menu or saved to the workspace directory \
+                using File>Save Session.
                 
                 To create a delineation: Right-click on the image and pause SNT. Then, create an area ROI \
                 and click on an unset "Assign" button. Alternatively, use the import options in the gear menu.
@@ -685,11 +679,6 @@ public class DelineationsManager {
         return getValidDelineationROIs();
     }
 
-    public boolean saveROIs(final File file) {
-        final List<Roi> rois = getDelineationROIs();
-        return !rois.isEmpty() && saveRoisToZip(rois, file);
-    }
-
     private void toRoiManager(final List<Roi> rois) {
         if (noAssignmentsExistError()) return;
         if (!rois.isEmpty()) {
@@ -828,27 +817,6 @@ public class DelineationsManager {
         })));
         for (int i = 0; i < n; i++) delineations.get(i).updateWidget();
         sntui.plugin.updateAllViewers();
-    }
-
-    private static boolean saveRoisToZip(final List<Roi> rois, final File file) {
-        try (final ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(file))) {
-            int count = 0;
-            for (final Roi roi : rois) {
-                String name = roi.getName();
-                if (name == null || name.isEmpty()) {
-                    name = String.format("roi_%04d", count);
-                }
-                zos.putNextEntry(new ZipEntry(name + ".roi"));
-                byte[] bytes = RoiEncoder.saveAsByteArray(roi);
-                zos.write(bytes);
-                zos.closeEntry();
-                count++;
-            }
-            return true;
-        } catch (final IOException e) {
-            SNTUtils.error("Failed to save ROIs", e);
-            return false;
-        }
     }
 
     private class Delineation {

@@ -889,7 +889,10 @@ public class Bvv {
          */
         public void addAnnotations(final Collection<SNTPoint> points, final float radius, final Color color) {
             if (points != null) {
-                for (SNTPoint p : points) annotations.add(new Annotation(p, radius, color));
+                for (SNTPoint p : points) {
+                    final Color pColor = (p instanceof Path.PathNode pn) ? pn.getColor() : null;
+                    annotations.add(new Annotation(p, radius, (pColor == null) ? color : pColor));
+                }
             }
             updateScene();
         }
@@ -1848,9 +1851,9 @@ public class Bvv {
                         if (pos.isEmpty()) {
                             guiUtils.error("Bookmark Manager is empty.");
                         } else {
-                            final Color c = guiUtils.getColor("Bookmarks Color", Color.RED, (String[])null);
-                            if (c == null) return;
-                            annotations().setAnnotations(pos, (float) 3f * renderingOptions.getMinThickness(), c);
+                            Color c = guiUtils.getColor("Fallback Color for Untagged Bookmarks", Color.RED, (String[])null);
+                            if (c == null) c = Color.MAGENTA;
+                            annotations().setAnnotations(pos, 3.5f * renderingOptions.minThickness, c);
                             bvv.getViewer().showMessage(String.format("%d Bookmarks annotated", pos.size()));
                         }
                     } catch (NullPointerException ex) {

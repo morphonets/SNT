@@ -316,7 +316,7 @@ public class MultiDThreePanes implements PaneOwner {
 	}
 
 	protected boolean isDummy() {
-		return xy.getWidth() == 1 && xy.getHeight() == 1;
+		return xy != null && xy.getWidth() == 1 && xy.getHeight() == 1;
 	}
 
 	private void initialize(final int frame) {

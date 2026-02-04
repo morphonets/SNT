@@ -262,7 +262,7 @@ public class SNTUI extends JDialog {
 		tab1.add(settingsPanel(), c1);
 		c1.weighty = 0;
 		++c1.gridy;
-		InternalUtils.addSeparatorWithURL(tab1, "Filters for Visibility of Paths:", true, c1);
+		InternalUtils.addSeparatorWithURL(tab1, "Path Display Filters:", true, c1);
 		++c1.gridy;
 		tab1.add(renderingPanel(), c1);
 		++c1.gridy;
@@ -971,7 +971,9 @@ public class SNTUI extends JDialog {
 		SwingUtilities.invokeLater(() -> {
             if (currentState != newState) return; // Verify state hasn't changed since we queued this
 			UIState state = states.get(newState);
-			if (state != null) {
+			if (plugin == null) {
+				SNTUtils.log("SNT resources disposed");
+			} else if (state != null) {
 				state.enter();
 				SNTUtils.log("UI state: " + getState(currentState));
 				plugin.updateTracingViewers(true);
@@ -1342,7 +1344,7 @@ public class SNTUI extends JDialog {
 		});
 		positionPanel.add(applyPositionButton);
 
-		final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load CT position of new paths", plugin.autoCT);
+		final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load channel/frame when starting new paths", plugin.autoCT);
 		commandFinder.register(autoCTcheckbox, "Toggle Auto-load CT Position of New Paths",
 				"Main Tab", "Data Source");
 		GuiUtils.addTooltip(autoCTcheckbox, "Automatically loads the active channel and frame of the starting " +
@@ -1464,6 +1466,7 @@ public class SNTUI extends JDialog {
 				if  (mipCS.isSelected()) warnOnAutoCTcompatibilityOthers();
 			}
 		});
+		mipCS.setToolTipText("Overlay a maximum intensity projection over tracing views");
 		viewsPanel.add(mipCS, gdb);
 		++gdb.gridy;
 
@@ -1957,7 +1960,7 @@ public class SNTUI extends JDialog {
 		c.insets = new Insets(0, 0, 0, 0);
 		c.anchor = GridBagConstraints.LINE_START;
 		c.fill = GridBagConstraints.HORIZONTAL;
-	
+
 		if (!GuiUtils.isLegacy3DViewerAvailable()) {
 			p.add(new JLabel("Viewer not found in your installation."));
 			return p;
@@ -1980,7 +1983,7 @@ public class SNTUI extends JDialog {
 		hm.put(VIEWER_NONE, null);
 		hm.put(VIEWER_WITH_IMAGE, null);
 		hm.put(VIEWER_EMPTY, null);
-		
+
 		// Build choices widget for viewers
 		univChoice.setPrototypeDisplayValue(VIEWER_WITH_IMAGE);
 		for (final Entry<String, Image3DUniverse> entry : hm.entrySet()) {
@@ -2183,7 +2186,7 @@ public class SNTUI extends JDialog {
 
 			@Override
 			public void actionPerformed(final ActionEvent e) {
-				
+
 				if (noPathsError()) return;
 				switch (String.valueOf(actionChoice.getSelectedItem())) {
 				case ApplyLabelsAction.LABEL:
@@ -2254,8 +2257,8 @@ public class SNTUI extends JDialog {
 		c.gridy++;
 		c.gridx = 0;
 		c.gridwidth = 3;
-		final JCheckBox jcbx = new JCheckBox("Disable pop-up errors", ij.IJ.redirectingErrorMessages());
-		jcbx.addActionListener( e -> ij.IJ.redirectErrorMessages(jcbx.isSelected()));
+		final JCheckBox jcbx = new JCheckBox("Quiet mode (log errors to Console)", ij.IJ.redirectingErrorMessages());
+		jcbx.addActionListener(e -> ij.IJ.redirectErrorMessages(jcbx.isSelected()));
 		jcbx.setToolTipText("""
                 Interactions with the Viewer's canvas may trigger warnings
                 and errors that are displayed in pop-up dialogs. Activate
@@ -2573,7 +2576,7 @@ public class SNTUI extends JDialog {
 	private JPanel secondaryDataPanel() {
 		secLayerActivateCheckbox = new JCheckBox(InternalUtils.hotKeyLabel("Trace/Fill on Secondary Layer", "L"));
 		GuiUtils.addTooltip(secLayerActivateCheckbox,
-				"Whether auto-tracing should be computed on a filtered flavor of current image");
+				"Use filtered/processed image for path computation\nwhile displaying paths on the original image");
 		secLayerActivateCheckbox.addActionListener(listener);
 		registerInCommandFinder(secLayerActivateCheckbox, "Toggle Secondary Layer", "Main Tab");
 		// Options for externalImagePanel
@@ -2644,7 +2647,7 @@ public class SNTUI extends JDialog {
 
 		// row 2
 		c.insets.left *= 2;
-		secLayerImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Render in overlay at "),
+		secLayerImgOverlayCSpinner = new CheckboxSpinner(new JCheckBox("Overlay at "),
 				GuiUtils.integerSpinner(20, 10, 80, 1, true));
 		registerInCommandFinder(secLayerImgOverlayCSpinner.getCheckBox(), "Toggle Secondary Layer Overlay",
 				"Main Tab");
@@ -3524,7 +3527,7 @@ public class SNTUI extends JDialog {
 
 		partsNearbyCSpinner = new CheckboxSpinner(new JCheckBox(InternalUtils.hotKeyLabel("2. Only nodes within ", "2")),
 				GuiUtils.integerSpinner(1, 1, 80, 1, true));
-		partsNearbyCSpinner.appendLabel("nearby Z-slices");
+		partsNearbyCSpinner.appendLabel("Z-slices");
 		partsNearbyCSpinner.setToolTipText("See Options pane for display settings of out-of-plane nodes");
 		partsNearbyCSpinner.getCheckBox().addItemListener(e -> plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(),
                 (int) partsNearbyCSpinner.getValue()));
@@ -3573,7 +3576,7 @@ public class SNTUI extends JDialog {
 			}
 		});
 		registerInCommandFinder(colorChooser1, "Default color for deselected paths", "Main Tab");
-		final JCheckBox jcheckbox = new JCheckBox("Enforce default colors (ignore color tags)", !plugin.displayCustomPathColors);
+		final JCheckBox jcheckbox = new JCheckBox("Override color tags with default colors", !plugin.displayCustomPathColors);
 		GuiUtils.addTooltip(jcheckbox,
 				"Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
 						"NB: This option does not affect color-coded paths, or paths with multi-color nodes");
@@ -4419,6 +4422,7 @@ public class SNTUI extends JDialog {
 		resetState();
 		arrangeCanvases(false);
 		promptForAutoTracingAsAppropriate();
+		listener.tracingImageID = (plugin.getImagePlus() == null) ? 0 : plugin.getImagePlus().getID();
 	}
 
 	protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
@@ -4629,6 +4633,8 @@ public class SNTUI extends JDialog {
 	private class GuiListener
 			implements ActionListener, ItemListener, ImageListener {
 
+		int tracingImageID;
+
 		// Action command interface
 		private interface UIAction {
 			boolean canHandle(Object source);
@@ -4752,14 +4758,36 @@ public class SNTUI extends JDialog {
 		/* ImageListener */
 		@Override
 		public void imageClosed(final ImagePlus imp) {
-			if (plugin.isCachedData(imp)) {
-				plugin.ctSlice3d = null;
-			} else if (imp == plugin.getImagePlus() || plugin.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
-				// HACK: somehow with some IJ versions plugin.isDisplayCanvas(imp) is not enough because image
-				// properties of the closed image get lost!? so we need to check the title as well (as fragile as it is)
-				plugin.pauseTracing(imp == plugin.getImagePlus(), false);
-				SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
+
+			// Case 1: A display canvas was closed. Do nothing
+			if (plugin.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
+				return;
 			}
+			// Case 2: Image assembled from cached data was closed: nullify it
+			else if (plugin.isCachedData(imp)) {
+				plugin.flushImageData();
+				listener.tracingImageID = 0; // reset image; ids are always negative
+			}
+			// Case 3: Main image closed but cached data exists
+			else if (imp.getID() == listener.tracingImageID && plugin.ctSlice3d != null) {
+				// IJ quirk: imp == plugin.getImagePlus() fails. Use unique id instead
+				if (guiUtils.getConfirmation("The tracing image was closed. " +
+						"Reopen from cached data to continue editing?", "Continue Tracing?")) {
+					plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+					plugin.initialize(plugin.getLoadedDataAsImp()); // will update listener.tracingImageID
+					return;
+				} else {
+					plugin.flushImageData();
+				}
+				// Either no cached data, or user chose to discard
+				listener.tracingImageID = 0; // reset
+			}
+			// Case 4: unrelated, Non-SNT image
+			else {
+				return;
+			}
+			plugin.pauseTracing(!plugin.accessToValidImageData(), false);
+			SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
 		}
 
 		/*
@@ -5259,8 +5287,8 @@ public class SNTUI extends JDialog {
 			final Boolean prompt = guiUtils.getPersistentWarning(
 					"Reminder: Multipoint ROIs marking spines or varicosities along neurites are not "
 							+ "saved by SNT. Those should be saved independently, either by:<ul>"
-							+ "<li>Storing the ROIs in the image overlay and saving the image as TIFF (NB: the active "
-							+ "selection is always saved in the image header when the image is saved as TIFF)</li>"
+							+ "<li>Using the File> Save Session... command</li>"
+							+ "<li>Storing the ROIs in the image overlay and saving the image as TIFF</li>"
 							+ "<li>Using ROI Manager's <i>Save</i> command</li></ul>",
 					"Possible Loss of ROI Markers");
 			if (prompt != null) // do nothing if user dismissed the dialog

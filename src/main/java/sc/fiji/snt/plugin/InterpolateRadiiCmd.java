@@ -75,8 +75,7 @@ public class InterpolateRadiiCmd extends CommonDynamicCmd {
 	@Parameter(required = false, persist = false, description = desc, visibility = ItemVisibility.MESSAGE)
 	private String MSG_2 = HEADER //
 			+ "<b>Definition of invalid radii</b>: Here you can set the condition " +
-			"defining invalid radii (NB: threshold values assume spatially- calibrated " +
-			"units):";
+			"defining invalid radii. Threshold values assume spatially- calibrated units:";
 	@Parameter(required = false, label = "Criterion", description = desc, choices = {" ", "<", "≤", "=", "≠", ">", "≥"}, callback="updateLabel")
 	private String thresholdCriterion;
 

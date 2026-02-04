@@ -23,7 +23,12 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import ij.ImagePlus;
 import ij.gui.Overlay;
@@ -31,6 +36,7 @@ import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.io.RoiEncoder;
 import ij.measure.Measurements;
 import ij.plugin.RoiEnlarger;
 import ij.process.FloatPolygon;
@@ -683,4 +689,24 @@ public class RoiConverter {
 		return new PointRoi(fp);
 	}
 
+	public static boolean saveRoisToZip(final List<Roi> rois, final File file) {
+		try (final ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(file))) {
+			int count = 0;
+			for (final Roi roi : rois) {
+				String name = roi.getName();
+				if (name == null || name.isEmpty()) {
+					name = String.format("roi_%04d", count);
+				}
+				zos.putNextEntry(new ZipEntry(name + ".roi"));
+				byte[] bytes = RoiEncoder.saveAsByteArray(roi);
+				zos.write(bytes);
+				zos.closeEntry();
+				count++;
+			}
+			return true;
+		} catch (final IOException e) {
+			SNTUtils.error("Failed to save ROIs", e);
+			return false;
+		}
+	}
 }

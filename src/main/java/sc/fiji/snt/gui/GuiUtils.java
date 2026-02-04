@@ -374,13 +374,15 @@ public class GuiUtils {
 	private void makeVisible(final JDialog dialog, final boolean forceBringToFront) {
 		// work around a bug in openjdk and macOS in which prompts
 		// are not frontmost if the component hierarchy is > 3
-		if (forceBringToFront) {
-			final Window owner = dialog.getOwner();
-			if (owner != null) owner.toFront();
+		if (forceBringToFront && PlatformUtils.isMac()) {
+			dialog.setAlwaysOnTop(true);
 		}
 		dialog.setVisible(true);
 		dialog.toFront();
 		dialog.requestFocus();
+		if (forceBringToFront && PlatformUtils.isMac()) {
+			dialog.setAlwaysOnTop(false);
+		}
 	}
 
 	public boolean getConfirmation(final String msg, final String title) {

@@ -33,10 +33,7 @@ import org.scijava.util.ColorRGB;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
-import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInCanvas;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.util.*;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -485,7 +482,7 @@ public class BookmarkManager {
         final SNTTable exportTable = new SNTTable();
         for (final Bookmark b : model.getDataList()) {
             exportTable.insertRow(null);
-            exportTable.appendToLastRow("Tag", (b.category == null) ? "" : String.format("#%06X", b.category.getRGB() & 0xFFFFFF));
+            exportTable.appendToLastRow("Tag", (b.getColor() == null) ? "" : String.format("#%06X", b.getColor().getRGB() & 0xFFFFFF));
             exportTable.appendToLastRow("Label", b.label);
             exportTable.appendToLastRow("X", b.x);
             exportTable.appendToLastRow("Y", b.y);
@@ -574,11 +571,13 @@ public class BookmarkManager {
             final String label = String.format("%s %s", path.getName(), suffix);
             final int c = path.getChannel();
             final int t = path.getFrame();
-            final Color tag = path.getColor(); // Use path color as bookmark tag
+            final Color defaultTag = path.getColor(); // Use path color as bookmark tag
+            final boolean hasNodeColors = path.hasNodeColors();
             int counter = 1;
             for (final int nodeIndex : set) {
                 final PointInCanvas node = path.getPointInCanvas(nodeIndex);
                 final String l = (set.size()==1) ? label : label + "#" + counter++;
+                final Color tag = (hasNodeColors) ? path.getNodeColor(nodeIndex) : defaultTag;
                 model.getDataList().add(new Bookmark(model.getUniqueLabel(l),
                         (int) node.getX(), (int) node.getY(), (int) node.getZ(), c, t, tag));
             }
@@ -637,13 +636,13 @@ public class BookmarkManager {
                 final FloatPolygon fp = roi.getFloatPolygon();
                 for (int i = 0; i < fp.npoints; i++) {
                     final Bookmark b = new Bookmark(roi.getName(), fp.xpoints[i], fp.ypoints[i],
-                            roi.getZPosition(), roi.getCPosition(), roi.getTPosition());
+                            roi.getZPosition(), roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
                     model.getDataList().add(b);
                 }
             } else {
                 final double[] centroid = roi.getContourCentroid();
                 final Bookmark b = new Bookmark(roi.getName(), centroid[0], centroid[1],
-                        roi.getZPosition(), roi.getCPosition(), roi.getTPosition());
+                        roi.getZPosition(), roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
                 model.getDataList().add(b);
             }
         }
@@ -699,8 +698,8 @@ public class BookmarkManager {
                     ? table.convertRowIndexToModel(row) : row;
             final Bookmark b = model.getDataList().get(modelRow);
             final PointRoi roi = new PointRoi(b.x, b.y);
-            if (b.category != null) {
-                roi.setStrokeColor(b.category);
+            if (b.getColor() != null) {
+                roi.setStrokeColor(b.getColor());
             }
             roi.setPosition(b.c, (int) b.z, b.t);
             roi.setName(b.label);
@@ -725,7 +724,7 @@ public class BookmarkManager {
             final int modelRow = (onlySelectedRows && table.getRowSorter() != null)
                     ? table.convertRowIndexToModel(row) : row;
             final Bookmark b = model.getDataList().get(modelRow);
-            points.add(SNTPoint.of(b.x, b.y, b.z));
+            points.add(b);
         }
         return points;
     }
@@ -736,14 +735,16 @@ public class BookmarkManager {
      * @param onlySelectedRows if true, only selected rows are included; otherwise, all ROIs in the manager are included
      * @return the list of Points representing the bookmarks
      */
+    @SuppressWarnings("unchecked")
     public List<SNTPoint> getPositions(final boolean onlySelectedRows) {
         final ij.measure.Calibration cal = sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
-        List<SNTPoint> pixelPoints = getPixelPositions(onlySelectedRows);
-        final List<SNTPoint> calPoints = new ArrayList<>(pixelPoints.size());
-        for (SNTPoint pxP : pixelPoints) {
-            calPoints.add(SNTPoint.of(cal.getX(pxP.getX()), cal.getY(pxP.getY()), cal.getZ(pxP.getZ())));
+        final List<Path.PathNode> pixelPoints = (List<Path.PathNode>) (List<?>) getPixelPositions(onlySelectedRows);
+        for (final Path.PathNode pxP : pixelPoints) {
+            pxP.x = cal.getX(pxP.getX());
+            pxP.y = cal.getY(pxP.getY());
+            pxP.z = cal.getZ(pxP.getZ());
         }
-        return calPoints;
+        return (List<SNTPoint>) (List<?>) pixelPoints;  // spatially calibrated positions
     }
 
     /**
@@ -769,11 +770,10 @@ public class BookmarkManager {
     }
 }
 
-class Bookmark extends PointInCanvas {
+class Bookmark extends Path.PathNode {
     String label;
     final int c;
     int t;
-    Color category; // Color-based category for grouping
 
     Bookmark(final String label, double x, double y, double z, int c, int t) {
         this(label, x, y, z, c, t, null);
@@ -784,12 +784,12 @@ class Bookmark extends PointInCanvas {
         this.label = label;
         this.c = c;
         this.t = t;
-        this.category = category;
+        setColor(category);
     }
 
     Object get(final int entry) {
         return switch (entry) {
-            case 0 -> category;
+            case 0 -> getColor();
             case 1 -> label;
             case 2 -> x;
             case 3 -> y;
@@ -1099,7 +1099,7 @@ class BookmarkModel extends AbstractTableModel {
     public void setValueAt(final Object aValue, final int rowIndex, final int columnIndex) {
         if (columnIndex == 0) {
             // Tag/Category column - expects Color
-            dataList.get(rowIndex).category = (Color) aValue;
+            dataList.get(rowIndex).setColor((Color) aValue);
             fireTableCellUpdated(rowIndex, columnIndex);
         } else if (columnIndex == 1 && !Objects.equals(aValue, dataList.get(rowIndex).label)) {
             dataList.get(rowIndex).label = getUniqueLabel((String) aValue);

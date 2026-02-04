@@ -40,6 +40,8 @@ import javax.swing.*;
 
 import ij.ImagePlus;
 import net.imagej.ImageJ;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.tracing.FillerThread;
@@ -712,10 +714,11 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private boolean noValidImgError() {
-        final boolean noValidImg = !plugin.accessToValidImageData();
-        if (noValidImg)
+        final RandomAccessibleInterval<? extends RealType<?>> data = plugin.isTracingOnSecondaryImageActive() ? plugin.getSecondaryData()
+                : plugin.getLoadedData();
+        if (data == null)
             gUtils.error("Filling requires valid image data to be loaded.");
-        return noValidImg;
+        return data == null;
     }
 
     private boolean noPathsError() {
@@ -740,7 +743,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
         @Override
         public void execute() {
-            ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
+            final ImagePlus imp = exportAsImp(FillConverter.ResultType.DISTANCE);
             if (imp != null) {
                 ij.IJ.run(imp,
                         "Calibration Bar...",
@@ -846,8 +849,9 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private ImagePlus exportAsImp(final FillConverter.ResultType resultType) {
-        if (noFillsError())
+        if (noFillsError() || noValidImgError()) {
             return null;
+        }
         // Determine which fills to export (selected or all)
         final int[] selectedIndices = getSelectedIndices("export");
         if (selectedIndices.length == 0) {

@@ -505,6 +505,8 @@ public class DemoRunner {
 		}
 
 		public void load() {
+			assert snt != null;
+			assert ui != null;
 			try {
 				final ImagePlus imp = getImage();
 				if (imp == null) {
@@ -514,7 +516,6 @@ public class DemoRunner {
 					return;
 				}
 				resetPaths();
-				snt.flushSecondaryData();
 				snt.initialize(imp);
 				if (tracingsURL != null) {
 					snt.getPathAndFillManager().loadGuessingType(tracingsURL);
@@ -543,14 +544,13 @@ public class DemoRunner {
 							"Dispose Existing Data?"))
 				return false;
 			try {
-				snt.invalidateCaches();
 				if (snt.getImagePlus() != null)
 					snt.getImagePlus().close();
 				if (snt.getImagePlus() != null) { // Presumably user did not resolve 'Save Changes?' prompt
 					new GuiUtils(ui).error("Loading of demo aborted. Please resolve any unsaved changes and retry.");
 					return false;
 				}
-				snt.flushSecondaryData();
+				snt.flushImageData();
 				snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
 				snt.getPathAndFillManager().clear(); // will reset spatial calibration
 				return true;

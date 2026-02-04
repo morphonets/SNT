@@ -491,10 +491,12 @@ public class SNT extends MultiDThreePanes implements
         }
     }
 
-	public void invalidateCaches() {
+	public void flushImageData() {
+		xy = null;
 		ctSlice3d =null;
 		colorImage = null;
 		labelData = null;
+		flushSecondaryData();
 	}
 
     private double getAxisScale(final ImgPlus<?> imgPlus, final AxisType axisType, final int dimFallback) {
@@ -640,13 +642,13 @@ public class SNT extends MultiDThreePanes implements
 
     /**
      * Checks whether valid image data exists.
-     *
-     * @return true if a tracing image exists or the last C,T position traced remains
-     * cached in memory. False otherwise.
+	 *
+	 * @return true if a tracing image exists, or (for headless/API usage)
+	 *         cached pixel data remains in memory.
      */
     public boolean accessToValidImageData() {
-        return (getImagePlus() != null && !isDisplayCanvas(xy)) || ctSlice3d != null;
-    }
+		return ctSlice3d != null || (xy != null && !isDisplayCanvas(xy) && !isDummy());
+	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
 		imp.setProperty("Info", "SNT Display Canvas\n");
@@ -864,15 +866,23 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void startUI() {
-		try {
-			GuiUtils.setLookAndFeel();
-			final SNT thisPlugin = this;
-			ui = new SNTUI(thisPlugin);
-			guiUtils = new GuiUtils(ui);
-			ui.displayOnStarting();
-		} catch (final Exception e) {
-			e.printStackTrace();
+		if (SwingUtilities.isEventDispatchThread()) {
+			startUIOnEDT();
+		} else {
+			try {
+				SwingUtilities.invokeAndWait(this::startUIOnEDT);
+			} catch (final Throwable e) {
+				throw new RuntimeException("Failed to start UI", e);
+			}
 		}
+	}
+
+	private void startUIOnEDT() {
+		GuiUtils.setLookAndFeel();
+		final SNT thisPlugin = this;
+		ui = new SNTUI(thisPlugin);
+		guiUtils = new GuiUtils(ui);
+		ui.displayOnStarting();
 	}
 
 	public boolean loadTracings(final File file) {
@@ -2716,6 +2726,10 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected <T extends RealType<T>> boolean invalidStatsError(final boolean isSecondary) {
+		if (isSecondary && getSecondaryData() == null || !isSecondary && getLoadedData() == null) {
+			error("This option requires valid image data to be loaded.");
+			return true;
+		}
 		final boolean invalidStats = (isSecondary) ? getStatsSecondary().max == 0 : getStats().max == 0;
 		final boolean compute = invalidStats && getUI() != null && new GuiUtils(getActiveWindow()).getConfirmation(
 				"Statistics for the " + (isSecondary ? "Secondary Layer" : "main image") //
@@ -3125,10 +3139,6 @@ public class SNT extends MultiDThreePanes implements
                     return null;
                 }
 				imp = xy;
-                if (imp == null && ctSlice3d != null) {
-                    // Image was closed. Retrieve cached version
-                    return getLoadedDataAsImp();
-                }
 				break;
 			case XZ_PLANE:
 				imp = xz;

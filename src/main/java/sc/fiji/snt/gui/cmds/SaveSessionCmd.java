@@ -24,6 +24,7 @@ package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
 import ij.gui.PlotWindow;
+import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.plugin.frame.RoiManager;
 import org.scijava.ItemVisibility;
@@ -31,15 +32,16 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -114,7 +116,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         if (saveNotes) saveNotesFile();
         if (saveTables) saveAllTables();
         if (saveCharts) saveAllCharts();
-        if (saveROIs) saveROIs();
+        if (saveROIs) saveROIs(imp);
         if (saveSessionInfo) saveSessionInfoFile(imp);
 
         // Report results
@@ -245,30 +247,50 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         return roisDir;
     }
 
-    private void saveROIs() {
-        if (ui.getDelineationsManager() != null && !ui.getDelineationsManager().getDelineationROIs().isEmpty()) {
-            final File outDir = outputROIsDir();
-            if (outDir == null)
-                return; // no ROI can be saved. Exit immediately
-            final File outFile = new File(outDir, "ROIs-delineations.zip");
-            if (!ui.getDelineationsManager().saveROIs(outFile)) {
-                SNTUtils.error("Could not save delineation ROIs");
+    private void saveROIs(final ImagePlus imp) {
+        final File outDir = outputROIsDir();
+        if (outDir == null) return; // no ROI can be saved. Exit immediately
+
+        // Delineations
+        if (ui.getDelineationsManager() != null) {
+            final List<Roi> rois = ui.getDelineationsManager().getDelineationROIs();
+            if (rois != null && !rois.isEmpty()) {
+                final File outFile1 = new File(outDir, "ROIs-delineations.zip");
+                if (!RoiConverter.saveRoisToZip(rois, outFile1)) {
+                    SNTUtils.error("Could not save delineations ROIs");
+                    failures++;
+                }
+            }
+        }
+
+        // Image Overlay
+        if (imp != null && imp.getOverlay() != null && imp.getOverlay().size() > 0) {
+            final File outFile2 = new File(outDir, "ROIs-overlay.zip");
+            if (!RoiConverter.saveRoisToZip(Arrays.asList(imp.getOverlay().toArray()), outFile2)) {
+                SNTUtils.error("Could not save overlay ROIs");
                 failures++;
             }
         }
+
+        // Active ROI
+        if (imp != null && imp.getRoi() != null) {
+            final File outFile3 = new File(outDir, "ROI-active.zip");
+            if (!RoiConverter.saveRoisToZip(List.of(imp.getRoi() ), outFile3)) {
+                SNTUtils.error("Could not save active ROI");
+                failures++;
+            }
+        }
+        // ROI Manager
         final RoiManager rm = RoiManager.getInstance();
         if (rm == null || rm.getCount() == 0) {
             return;
         }
         final int[] selected = rm.getSelectedIndexes();
         rm.deselect();
-        final File outDir = outputROIsDir();
-        if (outDir == null) return;
-        final File outFile = new File(outDir, "ROIs-RM.zip");
-        if (!rm.save(outFile.getAbsolutePath())) {
-            SNTUtils.error("Could not save RM ROIs");
+        final File outFile4 = new File(outDir, "ROIs-RM.zip");
+        if (!rm.save(outFile4.getAbsolutePath())) {
+            SNTUtils.error("Could not save ROI Manager ROIs");
             failures++;
-            return;
         }
         rm.setSelectedIndexes(selected);
     }
