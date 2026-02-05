@@ -68,7 +68,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
                     "<b>Circular ROI</b>: Circle w/ radius from distance transform")
     private String outputChoice;
 
-    @Parameter(label = "Scope", choices = {SCOPE_ALL, SCOPE_BRIGHTEST},
+    @Parameter(label = "Scope", choices = {SCOPE_BRIGHTEST, SCOPE_ALL},
             style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
             callback = "scopeChoiceChanged",
             description = "<HTML>Detection scope:<br>" +
@@ -155,7 +155,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         final List<SomaUtils.SomaResult> results = SomaUtils.detectAllSomas(img, threshold, zSlice, minRadius);
         if (results.isEmpty()) {
             snt.setCanvasLabelAllPanes(null);
-            error("No somata detected. Try adjusting the threshold.");
+            error("No somata detected. Try adjusting the threshold and/or min. radius.");
             return;
         }
         if (OUTPUT_PATH.equals(outputChoice)) {

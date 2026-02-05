@@ -268,6 +268,7 @@ public class OBJMesh {
 	}
 
 	/** @deprecated use {@link #label} instead */
+	@Deprecated
 	public String getLabel() {
 		return label();
 	}

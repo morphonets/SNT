@@ -877,28 +877,26 @@ class InteractiveTracerCanvas extends TracerCanvas {
     }
 
     private void showHelpOnCountingSpines() {
-        final String HELP_MSG = "<html>" //
-                + "<b>Counting Spines/Varicosities:</b>" //
+        final String HELP_MSG = "<HTML><div WIDTH=550>" //
+                + "<b>Counting Spines/Varicosities Along Paths:</b>" //
                 + "<ul>" //
-                + "<li> Click over the features to be counted. Point placement may not need to be accurate, " //
-                + "but w/ 3D images it should reflect the features' Z-plane</li>" //
-                + "<li> Once you have performed the count, select the Path(s) associated with the features " //
-                + "(or select none, if all Paths are to be considered) and run Path Manager's " //
-                + "<i>Analyze&rarr; Spine/Varicosity Utilities&rarr; Extract Counts from Multipoint ROIs...</i></li>" //
-                + "<li> Note that SNT only keeps a tally of the features, so you may want to save the multipoint ROis " //
-                + "in the ROI Manager during extraction</li>" //
+                + "<li>Click on features to count. In 3D images, ensure points reflect the correct Z-plane</li>" //
+                + "<li>After counting, select the associated Path(s) (or none to include all), then run " //
+                + "<i>Analyze → Spine/Varicosity Utilities → Extract Counts from Multipoint ROIs...</i></li>" //
+                + "<li>Note: SNT only tallies features. Consider storing clicked locations in ROI Manager "
+                + "(or Bookmarks pane) for further analyses</li>" //
                 + "</ul>" //
                 + "<br>" //
-                + "<b>Multipoint Tool Usage:</b>" //
+                + "<b>Multipoint Tool:</b>" //
                 + "<ul>" //
-                + "<li> Click on a point and drag to move it</li>" //
-                + "<li> Alt-click on a point to delete it</li>" //
-                + "<li> To delete multiple points, create an area selection while holding down the Alt key</li>" //
-                + "<li> Use <i>Edit&rarr; Selection&rarr; Select None</i> to delete a multipoint selection</li>" //
-                + "<li> Use <i>Edit&rarr; Selection&rarr; Restore Selection</i> to restore a deleted multipoint selection</li>" //
-                + "<li> Double-click on the Multipoint tool for further options and help</li>" //
+                + "<li>Click and drag a point to move it</li>" //
+                + "<li>Alt+click, or " + GuiUtils.ctrlKey() + "+click on a point to delete it</li>" //
+                + "<li>To delete multiple points, hold Alt and create an area ROI over them</li>" //
+                + "<li><i>Edit → Selection → Select None</i> (" + GuiUtils.ctrlKey() + "+Shift+A) to clear a multipoint selection</li>" //
+                + "<li><i>Edit → Selection → Restore Selection</i> (" + GuiUtils.ctrlKey() + "+Shift+E) to undo deletion</li>" //
+                + "<li>Double-click the Multipoint tool in the main ImageJ toolbar for more options</li>" //
                 + "</ul>" //
-                + " <br>";
+                + "<br>";
         getGuiUtils().showHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities", false);
     }
 

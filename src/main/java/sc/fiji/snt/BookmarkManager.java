@@ -93,7 +93,10 @@ public class BookmarkManager {
                 toolbar button or via File>Save Session.
                 
                 To create a bookmark: Right-click on the image and choose "Bookmark Cursor \
-                Location" from the contextual menu (or press Shift+B).
+                Location" from the contextual menu (or press Shift+B). To bookmark crossovers \
+                and other positions along paths use the menu in the navigation toolbar of the \
+                Path Manager.
+                
                 To visit a bookmarked location: Double-click on its entry.
                 """;
         gbc.weighty = 0.0;
