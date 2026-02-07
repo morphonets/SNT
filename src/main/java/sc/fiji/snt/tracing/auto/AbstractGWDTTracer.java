@@ -100,6 +100,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     // Storage backend (created by subclass)
     protected StorageBackend storage;
+    
+    // Reusable arrays for hot path optimization (reduces allocations)
+    private int[] deltaCache;
+    private long[] neighborPosCache;
 
     /**
      * Creates a new GWDTTracer.
@@ -134,6 +138,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log("Spacing length (" + spacing.length + ") != source dimensions (" + nDims +
                     "). Using: " + Arrays.toString(this.spacing));
         }
+
+        // Initialize reusable arrays for hot path optimization
+        this.deltaCache = new int[nDims];
+        this.neighborPosCache = new long[nDims];
 
         computeIntensityRange();
     }
@@ -414,39 +422,41 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     /**
      * Add neighbors to Fast Marching heap.
+     * Uses cached arrays to reduce allocations in hot path.
      */
     protected void addNeighborsToHeap(final long[] pos, final RandomAccess<T> srcRA,
                                      final PriorityQueue<long[]> heap, final double threshold) {
         final int nDims = dims.length;
-        final int[] delta = new int[nDims];
-        final long[] neighborPos = new long[nDims];
         final long currentIdx = posToIndex(pos);
         final double currentDist = storage.getDistance(currentIdx);
+        
+        // Reuse cached arrays to avoid allocations
+        Arrays.fill(deltaCache, 0);
 
-        iterateNeighbors(delta, 0, nDims, () -> {
+        iterateNeighbors(deltaCache, 0, nDims, () -> {
             // Check connectivity
             int offset = 0;
             for (int d = 0; d < nDims; d++) {
-                offset += Math.abs(delta[d]);
+                offset += Math.abs(deltaCache[d]);
             }
             if (offset == 0 || offset > cnnType) return;
 
             // Compute neighbor position
             boolean inBounds = true;
             for (int d = 0; d < nDims; d++) {
-                neighborPos[d] = pos[d] + delta[d];
-                if (neighborPos[d] < 0 || neighborPos[d] >= dims[d]) {
+                neighborPosCache[d] = pos[d] + deltaCache[d];
+                if (neighborPosCache[d] < 0 || neighborPosCache[d] >= dims[d]) {
                     inBounds = false;
                     break;
                 }
             }
             if (!inBounds) return;
 
-            final long neighborIdx = posToIndex(neighborPos);
+            final long neighborIdx = posToIndex(neighborPosCache);
             if (storage.getState(neighborIdx) == ALIVE) return;
 
             // Check threshold
-            srcRA.setPosition(neighborPos);
+            srcRA.setPosition(neighborPosCache);
             final double intensity = srcRA.get().getRealDouble();
             if (intensity <= threshold) return;
 
@@ -457,7 +467,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             // Edge cost
             double euclideanDist = 0;
             for (int d = 0; d < nDims; d++) {
-                final double dd = delta[d] * spacing[d];
+                final double dd = deltaCache[d] * spacing[d];
                 euclideanDist += dd * dd;
             }
             euclideanDist = Math.sqrt(euclideanDist);
@@ -2066,9 +2076,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     }
                 }
 
-                tree.add(path);
                 segmentToPath.put(segment, path);
-
+                tree.add(path);
                 processed.add(segment);
                 madeProgress = true;
             }

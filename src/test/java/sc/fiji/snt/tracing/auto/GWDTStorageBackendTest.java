@@ -48,7 +48,7 @@ import static org.junit.Assert.*;
  *
  * @author Tiago Ferreira
  */
-@Ignore("Takes several minutes (~7min) to run")
+@Ignore("Takes several (~6) minutes to run")
 public class GWDTStorageBackendTest {
 
     private ImagePlus testImage;
