@@ -26,67 +26,82 @@ import ij.ImagePlus;
 import net.imagej.ImgPlus;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
-import sc.fiji.snt.Tree;
-import sc.fiji.snt.tracing.auto.gwdt.ArrayStorageBackend;
+import sc.fiji.snt.tracing.auto.gwdt.DiskBackedStorageBackend;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.util.Arrays;
-import java.util.List;
 
 /**
- * In-memory GWDT tracer using array storage.
+ * Disk-backed GWDT tracer for very large images.
  * <p>
- * Fast but memory-intensive. Best for images < 500MB.
- * Uses APP2-style algorithm: Gray-Weighted Distance Transform,
- * Fast Marching, and hierarchical pruning.
+ * Uses disk-based caching to process images of arbitrary size with
+ * bounded memory usage (~500MB-1GB). Temporary files are automatically
+ * created in the system temp directory and deleted after tracing.
+ * </p>
+ * <p>
+ * Trade-offs:
+ * <ul>
+ *   <li>Memory: Constant (~500MB-1GB) regardless of image size</li>
+ *   <li>Speed: 2-5× slower than {@link GWDTTracer} due to disk I/O</li>
+ *   <li>Disk: Requires ~25 bytes per voxel temporary storage</li>
+ *   <li>Best for: Images > 2GB or systems with limited RAM</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Example use cases:
+ * <ul>
+ *   <li>Whole-brain light-sheet images (4096×4096×1000)</li>
+ *   <li>High-resolution tile scans</li>
+ *   <li>Processing on laptops with limited RAM</li>
+ * </ul>
  * </p>
  *
  * @param <T> pixel type
  * @author Tiago Ferreira
  * @see AbstractGWDTTracer
- * @see <a href="https://pubmed.ncbi.nlm.nih.gov/23603332/">PMID: 23603332</a>
+ * @see GWDTTracer
  */
-public class GWDTTracer<T extends RealType<T>> extends AbstractGWDTTracer<T> {
+public class DiskBackedGWDTTracer<T extends RealType<T>> extends AbstractGWDTTracer<T> {
 
     /**
-     * Creates a new GWDTTracer.
+     * Creates a new DiskBackedGWDTTracer.
      *
      * @param source  the grayscale image to trace
      * @param spacing voxel dimensions [x, y, z] in physical units
      */
-    public GWDTTracer(final RandomAccessibleInterval<T> source, final double[] spacing) {
+    public DiskBackedGWDTTracer(final RandomAccessibleInterval<T> source, final double[] spacing) {
         super(source, spacing);
     }
 
     /**
-     * Creates a new GWDTTracer from an ImgPlus.
+     * Creates a new DiskBackedGWDTTracer from an ImgPlus.
      *
      * @param source the grayscale image to trace
      */
-    public GWDTTracer(final ImgPlus<T> source) {
+    public DiskBackedGWDTTracer(final ImgPlus<T> source) {
         this(source, ImgUtils.getSpacing(source));
     }
 
     /**
-     * Creates a new GWDTTracer with isotropic spacing (1.0 for each dimension).
+     * Creates a new DiskBackedGWDTTracer with isotropic spacing (1.0 for each dimension).
      */
-    public GWDTTracer(final RandomAccessibleInterval<T> source) {
+    public DiskBackedGWDTTracer(final RandomAccessibleInterval<T> source) {
         this(source, createIsotropicSpacing(source.numDimensions()));
     }
 
     /**
-     * Creates a new GWDTTracer from an ImagePlus.
+     * Creates a new DiskBackedGWDTTracer from an ImagePlus.
      *
      * @param source the grayscale image to trace
      */
-    public GWDTTracer(final ImagePlus source) {
+    public DiskBackedGWDTTracer(final ImagePlus source) {
         this(ImgUtils.getCtSlice(source), getSpacing(source, source.getNSlices() > 1 ? 3 : 2));
     }
 
     @Override
     protected StorageBackend createStorageBackend() {
-        return new ArrayStorageBackend(dims);
+        return new DiskBackedStorageBackend(dims);
     }
 
     private static double[] createIsotropicSpacing(final int nDims) {
@@ -112,43 +127,25 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractGWDTTracer<T> {
         return spacing;
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    public static GWDTTracer<?> create(final ImgPlus<?> source) {
-        return new GWDTTracer(source);
-    }
-
-    @SuppressWarnings({"rawtypes"})
-    public static GWDTTracer<?> create(final ImagePlus source) {
-        return new GWDTTracer(source);
-    }
-
-    public static void main(String[] args) {
-        ImagePlus imp = new sc.fiji.snt.SNTService().demoImage("OP1");
-        //imp = sc.fiji.snt.util.ImpUtils.getMIP(imp);
-        final GWDTTracer<?> tracer = new GWDTTracer<>(imp);
-        tracer.setSeedPhysical(new double[]{11.208050, 141.749, 0.000});
-        tracer.setVerbose(true);
-        final List<Tree> trees = tracer.traceTrees();
-        System.out.println("Trees: " + (trees != null ? trees.size() : 0));
-        if (trees != null && !trees.isEmpty()) {
-            final sc.fiji.snt.viewer.Viewer3D viewer = new sc.fiji.snt.viewer.Viewer3D();
-            trees.forEach(tree -> tree.setColor("red"));
-            viewer.addTrees(trees, "red");
-            final Tree ref = new sc.fiji.snt.SNTService().demoTree("OP1");
-            ref.translate(1, 1, 0);
-            ref.setColor("blue");
-            viewer.add(ref);
-            viewer.show();
-        }
-    }
-
     @Override
     protected double[] getSpacing() {
-        return super.spacing;
+        return spacing;
     }
 
     @Override
     protected long[] getDimensions() {
-        return super.dims;
+        return dims;
     }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static DiskBackedGWDTTracer<?> create(final ImgPlus<?> source) {
+        return new DiskBackedGWDTTracer(source);
+    }
+
+    @SuppressWarnings({"rawtypes"})
+    public static DiskBackedGWDTTracer<?> create(final ImagePlus source) {
+        return new DiskBackedGWDTTracer(source);
+    }
+
+
 }

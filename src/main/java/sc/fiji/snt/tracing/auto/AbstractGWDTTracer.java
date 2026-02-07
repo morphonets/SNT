@@ -32,10 +32,13 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
 
 import java.util.*;
@@ -1900,6 +1903,364 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     }
                 }
             }
+        }
+    }
+
+    // ==================== Tree Building Methods ====================
+
+    /**
+     * Traces the neuron and returns a Tree.
+     *
+     * @return the traced neuron morphology, or null if tracing fails
+     */
+    public Tree trace() {
+        final List<Tree> trees = traceTrees();
+        if (trees == null || trees.isEmpty()) {
+            return null;
+        }
+        // If multiple trees, merge them (should only happen with ROI_EDGE)
+        if (trees.size() == 1) {
+            return trees.getFirst();
+        }
+        final Tree merged = new Tree();
+        trees.forEach(t -> merged.list().addAll(t.list()));
+        return merged;
+    }
+
+    /**
+     * Traces the neuron and returns a list of Trees.
+     * <p>
+     * With {@link #ROI_EDGE} strategy, returns separate trees for each neurite
+     * exiting the soma ROI. With other strategies, returns a single tree.
+     * </p>
+     *
+     * @return list of traced trees, or empty list if tracing fails
+     */
+    public List<Tree> traceTrees() {
+        final DirectedWeightedGraph graph = traceToGraph();
+        if (graph == null || graph.vertexSet().size() < 2) {
+            log("Tracing failed: No meaningful vertices exist");
+            return Collections.emptyList();
+        }
+        final List<Tree> trees = tracedTrees(graph);
+        if (verbose) {
+            int totalPaths = 0;
+            for (final Tree t : trees) totalPaths += t.size();
+            log(String.format("Traced %d tree(s) with %d path(s)", trees.size(), totalPaths));
+        }
+        return trees;
+    }
+
+    /**
+     * Converts the traced graph to Tree(s) based on soma ROI strategy.
+     */
+    private List<Tree> tracedTrees(final DirectedWeightedGraph graph) {
+
+        // Use APP2-style segment ordering for proper path organization
+        // This ensures main trunk is a single path (root → furthest tip)
+        final Tree segmentOrderedTree = buildTreeWithSegmentOrdering(graph);
+
+        // Apply soma ROI strategy
+        if (somaRoi == null || rootStrategy == ROI_UNSET) {
+            return Collections.singletonList(segmentOrderedTree);
+        }
+
+        return switch (rootStrategy) {
+            case ROI_EDGE -> splitAtSomaBoundary(graph);
+            case ROI_CENTROID -> {
+                collapseSomaToRoiCentroid(graph);
+                yield Collections.singletonList(buildTreeWithSegmentOrdering(graph));
+            }
+            case ROI_CENTROID_WEIGHTED -> {
+                collapseSomaToWeightedCentroid(graph);
+                yield Collections.singletonList(buildTreeWithSegmentOrdering(graph));
+            }
+            default -> Collections.singletonList(segmentOrderedTree);
+        };
+    }
+
+    /**
+     * Builds a Tree from the graph using APP2's segment-based organization.
+     * <p>
+     * This ensures paths are organized as a human annotator would trace:
+     * - Main trunk: root → furthest distal tip (single path)
+     * - Branches: each branch point → its furthest tip
+     * - Sorted by length (longest first)
+     * </p>
+     */
+    private Tree buildTreeWithSegmentOrdering(final DirectedWeightedGraph graph) {
+        final SWCPoint root = findGraphRoot(graph);
+        if (root == null) return graph.getTree();
+
+        // Step 1: Compute ownership - which leaf "owns" each node
+        // A node is owned by the leaf that has the longest intensity path through it
+        final Map<SWCPoint, SWCPoint> nodeOwner = new HashMap<>();  // node -> owning leaf
+        final Map<SWCPoint, Double> nodeDistToLeaf = new HashMap<>();  // node -> intensity dist to its leaf
+
+        computeNodeOwnership(graph, nodeOwner, nodeDistToLeaf);
+
+        // Step 2: Build segments - group nodes by owner
+        final Map<SWCPoint, HierarchySegment> leafToSegment = new HashMap<>();
+        buildHierarchySegments(graph, nodeOwner, nodeDistToLeaf, leafToSegment);
+
+        // Step 3: Sort segments by length (longest first) and build paths
+        final List<HierarchySegment> segments = new ArrayList<>(leafToSegment.values());
+        segments.sort((a, b) -> Double.compare(b.length, a.length));
+
+        // Step 4: Build Tree with properly ordered paths
+        return buildTreeFromSegments(graph, segments);
+    }
+
+    /**
+     * Builds a Tree from segments, processing longest segments first.
+     * This ensures the main trunk is a single continuous path.
+     */
+    private Tree buildTreeFromSegments(
+            final DirectedWeightedGraph graph,
+            final List<HierarchySegment> segments) {
+
+        final Tree tree = new Tree();
+        if (segments.isEmpty()) return tree;
+
+        final Map<HierarchySegment, Path> segmentToPath = new HashMap<>();
+
+        // Track which segments have been processed
+        final Set<HierarchySegment> processed = new HashSet<>();
+
+        // Process segments in order (longest first)
+        // But we need to ensure parent segment is processed before child
+        boolean madeProgress = true;
+        while (madeProgress && processed.size() < segments.size()) {
+            madeProgress = false;
+
+            for (final HierarchySegment segment : segments) {
+                if (processed.contains(segment)) continue;
+
+                // Can only process if parent is already processed (or no parent = root segment)
+                if (segment.parent != null && !processed.contains(segment.parent)) {
+                    continue;
+                }
+
+                // Create path for this segment
+                final Path path = createPathFromSegment(segment);
+                if (path == null || path.size() == 0) {
+                    processed.add(segment);
+                    continue;
+                }
+
+                // Set parent path relationship
+                if (segment.parent != null) {
+                    final Path parentPath = segmentToPath.get(segment.parent);
+                    if (parentPath != null) {
+                        // Find connection point - the node just before this segment starts
+                        final SWCPoint connectionNode = segment.segmentRoot;
+                        final Set<SWCWeightedEdge> inEdges = graph.incomingEdgesOf(connectionNode);
+                        if (!inEdges.isEmpty()) {
+                            final SWCPoint parentNode = graph.getEdgeSource(inEdges.iterator().next());
+                            if (parentNode != null) {
+                                // Create PointInImage for the branch point
+                                final PointInImage branchPoint = new PointInImage(parentNode.x, parentNode.y, parentNode.z);
+                                path.setBranchFrom(parentPath, branchPoint);
+                            }
+                        }
+                    }
+                }
+
+                tree.add(path);
+                segmentToPath.put(segment, path);
+
+                processed.add(segment);
+                madeProgress = true;
+            }
+        }
+
+        return tree;
+    }
+
+    /**
+     * Creates a Path from a HierarchySegment.
+     * Nodes are added from segmentRoot toward leaf (root-to-tip direction).
+     */
+    private Path createPathFromSegment(final HierarchySegment segment) {
+        if (segment.nodes.isEmpty()) return null;
+
+        final Path path = new Path(
+                spacing[0],  // x spacing
+                spacing[1],  // y spacing
+                dims.length > 2 ? spacing[2] : 1.0,  // z spacing
+                ""  // units
+        );
+
+        // Nodes are stored leaf-to-root, but we need root-to-leaf for the path
+        // Reverse to get segmentRoot first, leaf last
+        final List<SWCPoint> orderedNodes = new ArrayList<>(segment.nodes);
+        Collections.reverse(orderedNodes);
+
+        for (final SWCPoint node : orderedNodes) {
+            path.addPointDouble(node.x, node.y, node.z);
+            // Set radius if available
+            if (path.size() > 0) {
+                path.setRadius(node.radius, path.size() - 1);
+            }
+        }
+
+        return path;
+    }
+
+    /**
+     * Computes node ownership: which leaf owns each node based on longest intensity path.
+     * <p>
+     * APP2 assigns each node to the leaf that has the longest total intensity
+     * along the path from leaf to that node.
+     * </p>
+     */
+    private void computeNodeOwnership(
+            final DirectedWeightedGraph graph,
+            final Map<SWCPoint, SWCPoint> nodeOwner,
+            final Map<SWCPoint, Double> nodeDistToLeaf) {
+
+        final SWCPoint root = findGraphRoot(graph);
+        if (root == null) return;
+
+        // Find all leaves (nodes with no children, excluding root)
+        final List<SWCPoint> leaves = new ArrayList<>();
+        for (final SWCPoint v : graph.vertexSet()) {
+            if (graph.outDegreeOf(v) == 0 && !v.equals(root)) {
+                leaves.add(v);
+            }
+        }
+
+        final RandomAccess<? extends RealType<?>> ra = source.randomAccess();
+
+        // For each leaf, trace back to root and compute intensity distances
+        for (final SWCPoint leaf : leaves) {
+            SWCPoint current = leaf;
+            double distFromLeaf = 0;
+
+            final Set<SWCPoint> visited = new HashSet<>();
+
+            while (current != null && !visited.contains(current)) {
+                visited.add(current);
+
+                // Update ownership if this path is longer
+                final double existingDist = nodeDistToLeaf.getOrDefault(current, -1.0);
+                if (distFromLeaf > existingDist) {
+                    nodeOwner.put(current, leaf);
+                    nodeDistToLeaf.put(current, distFromLeaf);
+                }
+
+                // Get normalized intensity at current node
+                final long[] pos = new long[dims.length];
+                pos[0] = Math.round(current.x / spacing[0]);
+                pos[1] = Math.round(current.y / spacing[1]);
+                if (dims.length > 2) pos[2] = Math.round(current.z / spacing[2]);
+
+                double intensity = 0;
+                if (isInBounds(pos)) {
+                    ra.setPosition(pos);
+                    intensity = ra.get().getRealDouble();
+                }
+
+                // Normalize intensity
+                final double normalizedIntensity = (maxIntensity > 0) ? intensity / maxIntensity : 0;
+                distFromLeaf += normalizedIntensity;
+
+                // Move to parent
+                final Set<SWCWeightedEdge> inEdges = graph.incomingEdgesOf(current);
+                if (inEdges.isEmpty()) break;
+                current = graph.getEdgeSource(inEdges.iterator().next());
+            }
+        }
+    }
+
+    /**
+     * Builds hierarchy segments by grouping nodes by their owning leaf.
+     * Each segment contains all nodes owned by a particular leaf.
+     */
+    private void buildHierarchySegments(
+            final DirectedWeightedGraph graph,
+            final Map<SWCPoint, SWCPoint> nodeOwner,
+            final Map<SWCPoint, Double> nodeDistToLeaf,
+            final Map<SWCPoint, HierarchySegment> leafToSegment) {
+
+        final SWCPoint root = findGraphRoot(graph);
+
+        // Group nodes by owning leaf
+        final Map<SWCPoint, List<SWCPoint>> leafNodes = new HashMap<>();
+        for (final Map.Entry<SWCPoint, SWCPoint> entry : nodeOwner.entrySet()) {
+            final SWCPoint node = entry.getKey();
+            final SWCPoint leaf = entry.getValue();
+            leafNodes.computeIfAbsent(leaf, k -> new ArrayList<>()).add(node);
+        }
+
+        // Create segments
+        for (final Map.Entry<SWCPoint, List<SWCPoint>> entry : leafNodes.entrySet()) {
+            final SWCPoint leaf = entry.getKey();
+            final List<SWCPoint> nodes = entry.getValue();
+
+            // Sort nodes by distance from leaf (closest first)
+            nodes.sort((a, b) -> Double.compare(
+                    nodeDistToLeaf.getOrDefault(a, 0.0),
+                    nodeDistToLeaf.getOrDefault(b, 0.0)
+            ));
+
+            // Find segment root (the node in this segment closest to root, i.e., furthest from leaf)
+            SWCPoint segmentRoot = null;
+            if (!nodes.isEmpty()) {
+                segmentRoot = nodes.get(nodes.size() - 1);  // Last = furthest from leaf
+            }
+
+            // Compute segment length (intensity-weighted)
+            final double segmentLength = nodeDistToLeaf.getOrDefault(leaf, 0.0);
+
+            final HierarchySegment segment = new HierarchySegment(leaf, segmentRoot, nodes, segmentLength);
+            leafToSegment.put(leaf, segment);
+        }
+
+        // Establish parent-child relationships between segments
+        for (final HierarchySegment segment : leafToSegment.values()) {
+            if (segment.segmentRoot == null || segment.segmentRoot.equals(root)) {
+                continue;  // Root segment has no parent
+            }
+
+            // Find parent: walk back from segmentRoot to find first node owned by different leaf
+            final Set<SWCWeightedEdge> inEdges = graph.incomingEdgesOf(segment.segmentRoot);
+            if (inEdges.isEmpty()) continue;
+
+            SWCPoint parent = graph.getEdgeSource(inEdges.iterator().next());
+            while (parent != null && nodeOwner.get(parent) == segment.leaf) {
+                final Set<SWCWeightedEdge> parentInEdges = graph.incomingEdgesOf(parent);
+                if (parentInEdges.isEmpty()) break;
+                parent = graph.getEdgeSource(parentInEdges.iterator().next());
+            }
+
+            if (parent != null) {
+                final SWCPoint parentLeaf = nodeOwner.get(parent);
+                if (parentLeaf != null && leafToSegment.containsKey(parentLeaf)) {
+                    segment.parent = leafToSegment.get(parentLeaf);
+                }
+            }
+        }
+    }
+
+    /**
+     * Represents a hierarchical segment as defined by APP2.
+     * Each segment connects a leaf to its "ownership boundary" - the point where
+     * another leaf's influence takes over.
+     */
+    protected static class HierarchySegment {
+        final SWCPoint leaf;           // The leaf node that "owns" this segment
+        final SWCPoint segmentRoot;    // Where this segment connects to parent segment
+        final List<SWCPoint> nodes;    // All nodes in this segment (leaf to segmentRoot)
+        final double length;           // Intensity-based length
+        HierarchySegment parent;       // Parent segment (null for root segment)
+
+        HierarchySegment(SWCPoint leaf, SWCPoint segmentRoot, List<SWCPoint> nodes, double length) {
+            this.leaf = leaf;
+            this.segmentRoot = segmentRoot;
+            this.nodes = nodes;
+            this.length = length;
+            this.parent = null;
         }
     }
 }
