@@ -30,8 +30,6 @@ import sc.fiji.snt.tracing.auto.gwdt.SparseStorageBackend;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 
-import java.util.Arrays;
-
 /**
  * Sparse GWDT tracer using hash map storage for memory efficiency.
  * <p>
@@ -46,11 +44,14 @@ import java.util.Arrays;
  *   <li>Best for: Thin structures, lots of background, limited RAM</li>
  * </ul>
  * </p>
+ /**
  * <p>
- * Example: A 1024×1024×100 16-bit image with sparse labeling:
+ * Example: A 1024×1024×100 16-bit image:
  * <ul>
- *   <li>GWDTTracer: ~2GB RAM</li>
- *   <li>SparseGWDTTracer: ~50-200MB RAM (depending on structure density)</li>
+ *   <li>GWDTTracer (array): ~2.5GB RAM</li>
+ *   <li>SparseGWDTTracer: ~100-500MB RAM for sparse structures (5-10% foreground),
+ *       up to ~4GB for dense structures (>40% foreground)</li>
+ *   <li>DiskBackedGWDTTracer: ~500MB RAM + ~100GB temporary disk</li>
  * </ul>
  * </p>
  *
@@ -99,39 +100,6 @@ public class SparseGWDTTracer<T extends RealType<T>> extends AbstractGWDTTracer<
     @Override
     protected StorageBackend createStorageBackend() {
         return new SparseStorageBackend(dims);
-    }
-
-    private static double[] createIsotropicSpacing(final int nDims) {
-        final double[] spacing = new double[nDims];
-        Arrays.fill(spacing, 1.0);
-        return spacing;
-    }
-
-    private static double[] getSpacing(final ImagePlus imp, final int nDims) {
-        final double[] spacing;
-        if (nDims == 2) {
-            spacing = new double[]{
-                    imp.getCalibration().pixelWidth,
-                    imp.getCalibration().pixelHeight
-            };
-        } else {
-            spacing = new double[]{
-                    imp.getCalibration().pixelWidth,
-                    imp.getCalibration().pixelHeight,
-                    imp.getCalibration().pixelDepth
-            };
-        }
-        return spacing;
-    }
-
-    @Override
-    protected double[] getSpacing() {
-        return spacing;
-    }
-
-    @Override
-    protected long[] getDimensions() {
-        return dims;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

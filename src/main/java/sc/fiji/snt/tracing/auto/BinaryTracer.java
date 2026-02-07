@@ -239,7 +239,7 @@ public class BinaryTracer implements AutoTracer {
      */
     public static void skeletonizeTimeLapse(final ImagePlus imp, final boolean erodeIsolatedPixels) {
         final ImagePlus[] imps = new ImagePlus[imp.getNFrames()];
-        for (int f = 1; f < imp.getNFrames(); f++) {
+        for (int f = 1; f <= imp.getNFrames(); f++) {
             final ImagePlus extracted = new Duplicator().run(imp, 1, imp.getNChannels(), 1, imp.getNSlices(), f, f);
             skeletonize(extracted, imp.getProcessor().getMinThreshold(), imp.getProcessor().getMaxThreshold(),
                     erodeIsolatedPixels);
@@ -495,7 +495,10 @@ public class BinaryTracer implements AutoTracer {
         graphs.forEach(g -> {
             final SWCPoint refRoot = getNearestPoint(g.vertexSet(), newRoot);
             g.addVertex(newRoot);
-            g.addEdge(refRoot, newRoot);
+            final SWCWeightedEdge edge = g.addEdge(newRoot, refRoot);
+            if (edge != null) {
+                g.setEdgeWeight(edge, newRoot.distanceTo(refRoot));
+            }
             g.setRoot(newRoot);
             g.updateVertexProperties();
         });

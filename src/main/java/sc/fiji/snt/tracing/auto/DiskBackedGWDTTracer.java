@@ -30,8 +30,6 @@ import sc.fiji.snt.tracing.auto.gwdt.DiskBackedStorageBackend;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 
-import java.util.Arrays;
-
 /**
  * Disk-backed GWDT tracer for very large images.
  * <p>
@@ -102,39 +100,6 @@ public class DiskBackedGWDTTracer<T extends RealType<T>> extends AbstractGWDTTra
     @Override
     protected StorageBackend createStorageBackend() {
         return new DiskBackedStorageBackend(dims);
-    }
-
-    private static double[] createIsotropicSpacing(final int nDims) {
-        final double[] spacing = new double[nDims];
-        Arrays.fill(spacing, 1.0);
-        return spacing;
-    }
-
-    private static double[] getSpacing(final ImagePlus imp, final int nDims) {
-        final double[] spacing;
-        if (nDims == 2) {
-            spacing = new double[]{
-                    imp.getCalibration().pixelWidth,
-                    imp.getCalibration().pixelHeight
-            };
-        } else {
-            spacing = new double[]{
-                    imp.getCalibration().pixelWidth,
-                    imp.getCalibration().pixelHeight,
-                    imp.getCalibration().pixelDepth
-            };
-        }
-        return spacing;
-    }
-
-    @Override
-    protected double[] getSpacing() {
-        return spacing;
-    }
-
-    @Override
-    protected long[] getDimensions() {
-        return dims;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

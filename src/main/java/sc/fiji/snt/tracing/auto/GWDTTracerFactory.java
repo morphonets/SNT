@@ -62,17 +62,13 @@ public class GWDTTracerFactory {
 
     // Default fallback thresholds in MB (used if RAM detection fails)
     private static final long DEFAULT_SPARSE_THRESHOLD_MB = 1000;
-    private static final long DEFAULT_DISK_THRESHOLD_MB = 5000;
+    private static final long DEFAULT_DISK_THRESHOLD_MB = 4000;
 
     // Memory allocation strategy: percentage of available heap
-    // Conservative: use only 20% of max heap for working memory
-    private static final double MAX_HEAP_FRACTION = 0.20;
+    // Conservative: use only 30% of max heap for working memory
+    private static final double MAX_HEAP_FRACTION = 0.30;
 
-    // Minimum free memory required (in MB) to attempt array/sparse storage
-    private static final long MIN_FREE_MB_FOR_ARRAY = 200;
-    private static final long MIN_FREE_MB_FOR_SPARSE = 100;
-
-    // Memory estimation factor: working memory = source size × this factor
+    // Memory estimation factor: working memory = source size × this factor.
     // Factor includes: GWDT (8 bytes) + distances (8) + parents (4) + state (1) = 21 bytes
     // Plus overhead for source image access, so we use 25 as conservative estimate
     private static final int MEMORY_FACTOR = 25;
@@ -190,7 +186,6 @@ public class GWDTTracerFactory {
      * @param source the grayscale image to trace
      * @return optimal tracer implementation
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     public static AbstractGWDTTracer<?> createOptimal(final ImgPlus<?> source) {
         return createOptimal(source, ImgUtils.getSpacing(source));
     }
@@ -201,7 +196,6 @@ public class GWDTTracerFactory {
      * @param source the grayscale image to trace
      * @return optimal tracer implementation
      */
-    @SuppressWarnings({"rawtypes"})
     public static AbstractGWDTTracer<?> createOptimal(final ImagePlus source) {
         final RandomAccessibleInterval<?> rai = ImgUtils.getCtSlice(source);
         final double[] spacing = getSpacing(source, source.getNSlices() > 1 ? 3 : 2);

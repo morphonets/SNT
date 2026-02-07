@@ -31,7 +31,6 @@ import sc.fiji.snt.tracing.auto.gwdt.ArrayStorageBackend;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -89,29 +88,6 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractGWDTTracer<T> {
         return new ArrayStorageBackend(dims);
     }
 
-    private static double[] createIsotropicSpacing(final int nDims) {
-        final double[] spacing = new double[nDims];
-        Arrays.fill(spacing, 1.0);
-        return spacing;
-    }
-
-    private static double[] getSpacing(final ImagePlus imp, final int nDims) {
-        final double[] spacing;
-        if (nDims == 2) {
-            spacing = new double[]{
-                    imp.getCalibration().pixelWidth,
-                    imp.getCalibration().pixelHeight
-            };
-        } else {
-            spacing = new double[]{
-                    imp.getCalibration().pixelWidth,
-                    imp.getCalibration().pixelHeight,
-                    imp.getCalibration().pixelDepth
-            };
-        }
-        return spacing;
-    }
-
     @SuppressWarnings({"unchecked", "rawtypes"})
     public static GWDTTracer<?> create(final ImgPlus<?> source) {
         return new GWDTTracer(source);
@@ -140,15 +116,5 @@ public class GWDTTracer<T extends RealType<T>> extends AbstractGWDTTracer<T> {
             viewer.add(ref);
             viewer.show();
         }
-    }
-
-    @Override
-    protected double[] getSpacing() {
-        return super.spacing;
-    }
-
-    @Override
-    protected long[] getDimensions() {
-        return super.dims;
     }
 }

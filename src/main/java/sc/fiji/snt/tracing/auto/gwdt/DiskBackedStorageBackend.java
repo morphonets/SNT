@@ -30,7 +30,7 @@ import net.imglib2.cache.img.DiskCachedCellImgOptions;
 import net.imglib2.img.Img;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.ByteType;
-import net.imglib2.type.numeric.integer.IntType;
+import net.imglib2.type.numeric.integer.LongType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
@@ -76,7 +76,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
     // Disk-backed images
     private Img<DoubleType> gwdtImage;
     private Img<DoubleType> distances;
-    private Img<IntType> parents;
+    private Img<LongType> parents;
     private Img<ByteType> state;
 
     private double maxGWDT;
@@ -85,6 +85,8 @@ public class DiskBackedStorageBackend implements StorageBackend {
     // Cache configuration
     private static final int DEFAULT_CELL_SIZE = 64;  // 64^3 cells
     private static final int DEFAULT_CACHE_SIZE = 1000;  // ~1000 cells in RAM
+    private final int cellSize;
+    private final int cacheSize;
 
     // Temp directory for disk cache
     private File tempDir;
@@ -106,6 +108,8 @@ public class DiskBackedStorageBackend implements StorageBackend {
      */
     public DiskBackedStorageBackend(long[] dims, int cellSize, int cacheSize) {
         this.dims = dims.clone();
+        this.cellSize = cellSize > 0 ? cellSize : DEFAULT_CELL_SIZE;
+        this.cacheSize = cacheSize > 0 ? cacheSize : DEFAULT_CACHE_SIZE;
         try {
             this.tempDir = Files.createTempDirectory("gwdt-cache-").toFile();
             tempDir.deleteOnExit();
@@ -287,12 +291,12 @@ public class DiskBackedStorageBackend implements StorageBackend {
         final DiskCachedCellImgOptions options = createCacheOptions();
 
         this.distances = new DiskCachedCellImgFactory<>(new DoubleType(), options).create(dims);
-        this.parents = new DiskCachedCellImgFactory<>(new IntType(), options).create(dims);
+        this.parents = new DiskCachedCellImgFactory<>(new LongType(), options).create(dims);
         this.state = new DiskCachedCellImgFactory<>(new ByteType(), options).create(dims);
 
         // Initialize all to defaults
         for (final DoubleType t : distances) t.set(Double.MAX_VALUE);
-        for (final IntType t : parents) t.set(-1);
+        for (final LongType t : parents) t.set(-1);
         // state defaults to 0 (FAR)
         
         // Initialize ALIVE tracking if enabled (critical for disk-backed performance)
@@ -324,17 +328,17 @@ public class DiskBackedStorageBackend implements StorageBackend {
     @Override
     public void setParent(long index, long parentIndex) {
         final long[] pos = indexToPos(index);
-        final RandomAccess<IntType> ra = parents.randomAccess();
+        final RandomAccess<LongType> ra = parents.randomAccess();
         ra.setPosition(pos);
-        ra.get().set((int) parentIndex);
+        ra.get().set(parentIndex);
     }
 
     @Override
     public long getParent(long index) {
         final long[] pos = indexToPos(index);
-        final RandomAccess<IntType> ra = parents.randomAccess();
+        final RandomAccess<LongType> ra = parents.randomAccess();
         ra.setPosition(pos);
-        return ra.get().getInteger();
+        return ra.get().get();
     }
 
     @Override
@@ -441,7 +445,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
         SNTUtils.log("Creating edges from parent pointers...");
 
         // Create edges based on parent pointers
-        final RandomAccess<IntType> parentRA = parents.randomAccess();
+        final RandomAccess<LongType> parentRA = parents.randomAccess();
         int edgesCreated = 0;
         for (final Map.Entry<Long, SWCPoint> entry : indexToNode.entrySet()) {
             final long idx = entry.getKey();
@@ -449,7 +453,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
 
             indexToPos(idx, pos);
             parentRA.setPosition(pos);
-            final long parentIdx = parentRA.get().getInteger();
+            final long parentIdx = parentRA.get().get();
 
             // Skip if root
             if (parentIdx == idx || parentIdx < 0) continue;
@@ -470,11 +474,11 @@ public class DiskBackedStorageBackend implements StorageBackend {
     @Override
     public long estimateMemoryUsage() {
         // Disk-backed uses fixed cache size
-        final long cellSize = DEFAULT_CELL_SIZE * DEFAULT_CELL_SIZE * DEFAULT_CELL_SIZE;
-        final long cacheSize = DEFAULT_CACHE_SIZE;
+        final long cellVolume = (long) cellSize * cellSize * (dims.length > 2 ? cellSize : 1);
+        final long boundedCacheSize = cacheSize;
         
-        // GWDT (8) + distances (8) + parents (4) + state (1) = 21 bytes per voxel in cache
-        return cellSize * cacheSize * 21;
+        // GWDT (8) + distances (8) + parents (8) + state (1) = 25 bytes per voxel in cache
+        return cellVolume * boundedCacheSize * 25;
     }
 
     @Override
@@ -530,9 +534,9 @@ public class DiskBackedStorageBackend implements StorageBackend {
      */
     private DiskCachedCellImgOptions createCacheOptions() {
         return DiskCachedCellImgOptions.options()
-                .cellDimensions(DEFAULT_CELL_SIZE, DEFAULT_CELL_SIZE, dims.length > 2 ? DEFAULT_CELL_SIZE : 1)
+                .cellDimensions(cellSize, cellSize, dims.length > 2 ? cellSize : 1)
                 .cacheType(DiskCachedCellImgOptions.CacheType.BOUNDED)
-                .maxCacheSize(DEFAULT_CACHE_SIZE)
+                .maxCacheSize(cacheSize)
                 .tempDirectory(tempDir.toPath());
     }
 

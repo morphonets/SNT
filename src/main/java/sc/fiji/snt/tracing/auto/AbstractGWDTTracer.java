@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.tracing.auto;
 
+import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
@@ -153,6 +154,36 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Subclasses override to specify array, sparse, or disk-backed storage.
      */
     protected abstract StorageBackend createStorageBackend();
+
+    @Override
+    protected double[] getSpacing() {
+        return spacing;
+    }
+
+    @Override
+    protected long[] getDimensions() {
+        return dims;
+    }
+
+    protected static double[] createIsotropicSpacing(final int nDims) {
+        final double[] spacing = new double[nDims];
+        Arrays.fill(spacing, 1.0);
+        return spacing;
+    }
+
+    protected static double[] getSpacing(final ImagePlus imp, final int nDims) {
+        if (nDims == 2) {
+            return new double[]{
+                    imp.getCalibration().pixelWidth,
+                    imp.getCalibration().pixelHeight
+            };
+        }
+        return new double[]{
+                imp.getCalibration().pixelWidth,
+                imp.getCalibration().pixelHeight,
+                imp.getCalibration().pixelDepth
+        };
+    }
 
     /**
      * Sets the background threshold. Pixels at or below this value are considered background.
@@ -502,7 +533,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
                 final double gwdt = storage.getGWDT(bridgeIdx);
                 final double maxGWDT = storage.getMaxGWDT();
-                final double gwdtCost = (maxGWDT > 0) ? (maxGWDT - gwdt) / maxGWDT : 0;
+                final double gwdtCost = computeGWDTTraversalCost(gwdt, maxGWDT);
+                if (!Double.isFinite(gwdtCost)) return;
 
                 final double stepDist = 2.0 * euclideanDist;
                 final double gapPenalty = 0.5 * euclideanDist;
@@ -527,7 +559,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             final double maxGWDT = storage.getMaxGWDT();
 
             // Edge cost
-            final double gwdtCost = (maxGWDT > 0) ? (maxGWDT - gwdt) / maxGWDT : 0;
+            final double gwdtCost = computeGWDTTraversalCost(gwdt, maxGWDT);
+            if (!Double.isFinite(gwdtCost)) return;
             final double edgeCost = euclideanDist + gwdtCost;
             final double newDist = currentDist + edgeCost;
 
@@ -1031,9 +1064,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     if (isInBounds(voxelPos)) {
                         ra.setPosition(voxelPos);
                         double intensity = ra.get().getRealDouble();
-                        // Normalize to 0-1 range (APP2 divides by 255)
-                        double normalizedIntensity = intensity / maxIntensity;
-                        pathLength += normalizedIntensity;
+                        pathLength += normalizeIntensity(intensity);
                     }
 
                     // Move to parent
@@ -1257,13 +1288,17 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      */
     protected void computeIntensityRange() {
         double min = Double.MAX_VALUE;
-        double max = 0;
+        double max = Double.NEGATIVE_INFINITY;
         final Cursor<T> cursor = Views.flatIterable(source).cursor();
         while (cursor.hasNext()) {
             cursor.fwd();
             final double v = cursor.get().getRealDouble();
             if (v > max) max = v;
             if (v < min) min = v;
+        }
+        if (min == Double.MAX_VALUE || max == Double.NEGATIVE_INFINITY) {
+            min = 0;
+            max = 0;
         }
         this.minIntensity = min;
         this.maxIntensity = max;
@@ -1390,6 +1425,21 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                                 " (valid range: 0.." + (dims[d] - 1) + ")");
             }
         }
+    }
+
+    private double normalizeIntensity(final double intensity) {
+        return (maxIntensity > 0 && Double.isFinite(maxIntensity)) ? intensity / maxIntensity : 0.0;
+    }
+
+    private double computeGWDTTraversalCost(final double gwdt, final double maxGWDT) {
+        if (!Double.isFinite(gwdt) || gwdt == Double.MAX_VALUE) {
+            return Double.POSITIVE_INFINITY;
+        }
+        if (!(maxGWDT > 0) || !Double.isFinite(maxGWDT)) {
+            return Double.POSITIVE_INFINITY;
+        }
+        final double clampedGWDT = Math.max(0.0, Math.min(gwdt, maxGWDT));
+        return (maxGWDT - clampedGWDT) / maxGWDT;
     }
 
     protected long posToIndex(final long[] pos) {
@@ -1584,9 +1634,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                         intensity = ra.get().getRealDouble();
                     }
 
-                    // APP2: normalize intensity to 0-1 range
-                    double normalizedIntensity = intensity / maxIntensity;
-                    distances.put(child, currentDist + normalizedIntensity);
+                    // APP2: normalize intensity to 0-1
+                    distances.put(child, currentDist + normalizeIntensity(intensity));
                     queue.add(child);
                 }
             }
@@ -1743,7 +1792,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     if (isInBounds(voxelPos)) {
                         ra.setPosition(voxelPos);
                         double intensity = ra.get().getRealDouble();
-                        branchLength += intensity / maxIntensity;
+                        branchLength += normalizeIntensity(intensity);
                     }
 
                     // Stop at root
@@ -2240,7 +2289,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 }
 
                 // Normalize intensity
-                final double normalizedIntensity = (maxIntensity > 0) ? intensity / maxIntensity : 0;
+                final double normalizedIntensity = normalizeIntensity(intensity);
                 distFromLeaf += normalizedIntensity;
 
                 // Move to parent

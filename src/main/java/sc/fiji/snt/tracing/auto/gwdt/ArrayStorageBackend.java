@@ -24,7 +24,7 @@ package sc.fiji.snt.tracing.auto.gwdt;
 
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.Img;
-import net.imglib2.type.numeric.integer.IntType;
+import net.imglib2.type.numeric.integer.LongType;
 import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.type.numeric.integer.ByteType;
 import net.imglib2.Cursor;
@@ -50,7 +50,7 @@ public class ArrayStorageBackend implements StorageBackend {
     private final long[] dims;
     private Img<DoubleType> gwdtImage;
     private Img<DoubleType> distances;
-    private Img<IntType> parents;
+    private Img<LongType> parents;
     private Img<ByteType> state;
     private double maxGWDT;
     private int cnnType = 2;  // APP2's cnn_type: 1=6-conn, 2=18-conn (default), 3=26-conn
@@ -271,12 +271,12 @@ public class ArrayStorageBackend implements StorageBackend {
     @Override
     public void initializeFastMarching(long[] dims, long seedIndex) {
         this.distances = ArrayImgs.doubles(dims);
-        this.parents = ArrayImgs.ints(dims);
+        this.parents = ArrayImgs.longs(dims);
         this.state = ArrayImgs.bytes(dims);
 
         // Initialize all to defaults
         for (final DoubleType t : distances) t.set(Double.MAX_VALUE);
-        for (final IntType t : parents) t.set(-1);
+        for (final LongType t : parents) t.set(-1);
         // state defaults to 0 (FAR)
         
         // Initialize ALIVE tracking if enabled
@@ -306,17 +306,17 @@ public class ArrayStorageBackend implements StorageBackend {
     @Override
     public void setParent(long index, long parentIndex) {
         final long[] pos = indexToPos(index);
-        final RandomAccess<IntType> ra = parents.randomAccess();
+        final RandomAccess<LongType> ra = parents.randomAccess();
         ra.setPosition(pos);
-        ra.get().set((int) parentIndex);
+        ra.get().set(parentIndex);
     }
 
     @Override
     public long getParent(long index) {
         final long[] pos = indexToPos(index);
-        final RandomAccess<IntType> ra = parents.randomAccess();
+        final RandomAccess<LongType> ra = parents.randomAccess();
         ra.setPosition(pos);
-        return ra.get().getInteger();
+        return ra.get().get();
     }
 
     @Override
@@ -345,7 +345,7 @@ public class ArrayStorageBackend implements StorageBackend {
         final DirectedWeightedGraph graph = new DirectedWeightedGraph();
 
         final RandomAccess<ByteType> stateRA = state.randomAccess();
-        final RandomAccess<IntType> parentRA = parents.randomAccess();
+        final RandomAccess<LongType> parentRA = parents.randomAccess();
 
         // Map from linear index to SWCPoint
         final Map<Long, SWCPoint> indexToNode = new HashMap<>();
@@ -415,7 +415,7 @@ public class ArrayStorageBackend implements StorageBackend {
 
             indexToPos(idx, pos);
             parentRA.setPosition(pos);
-            final long parentIdx = parentRA.get().getInteger();
+            final long parentIdx = parentRA.get().get();
 
             // Skip if this is the root (parent points to itself)
             if (parentIdx == idx || parentIdx < 0) {
@@ -455,8 +455,8 @@ public class ArrayStorageBackend implements StorageBackend {
     public long estimateMemoryUsage() {
         long totalVoxels = 1;
         for (long d : dims) totalVoxels *= d;
-        // GWDT (8) + distances (8) + parents (4) + state (1) = 21 bytes per voxel
-        return totalVoxels * 21;
+        // GWDT (8) + distances (8) + parents (8) + state (1) = 25 bytes per voxel
+        return totalVoxels * 25;
     }
 
     @Override
