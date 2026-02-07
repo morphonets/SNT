@@ -35,12 +35,11 @@ import net.imglib2.view.Views;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.SWCPoint;
 
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.PriorityQueue;
+import java.util.*;
+
 
 /**
  * In-memory array storage backend using ImgLib2 ArrayImgs.
@@ -55,6 +54,10 @@ public class ArrayStorageBackend implements StorageBackend {
     private Img<ByteType> state;
     private double maxGWDT;
     private int cnnType = 2;  // APP2's cnn_type: 1=6-conn, 2=18-conn (default), 3=26-conn
+    
+    // ALIVE index tracking for efficient graph building
+    private Set<Long> aliveIndices = null;
+    private boolean trackAlive = true;  // ON by default for array storage
 
     public ArrayStorageBackend(long[] dims) {
         this.dims = dims.clone();
@@ -275,6 +278,13 @@ public class ArrayStorageBackend implements StorageBackend {
         for (final DoubleType t : distances) t.set(Double.MAX_VALUE);
         for (final IntType t : parents) t.set(-1);
         // state defaults to 0 (FAR)
+        
+        // Initialize ALIVE tracking if enabled
+        if (trackAlive) {
+            // Estimate: typical tree is 0.1-1% of voxels
+            int expectedSize = (int) Math.min(100000, computeTotalVoxels(dims) / 100);
+            aliveIndices = new HashSet<>(expectedSize);
+        }
     }
 
     @Override
@@ -315,6 +325,11 @@ public class ArrayStorageBackend implements StorageBackend {
         final RandomAccess<ByteType> ra = state.randomAccess();
         ra.setPosition(pos);
         ra.get().set(stateValue);
+        
+        // Track ALIVE indices if enabled
+        if (trackAlive && stateValue == AbstractGWDTTracer.ALIVE) {
+            aliveIndices.add(index);
+        }
     }
 
     @Override
@@ -329,30 +344,26 @@ public class ArrayStorageBackend implements StorageBackend {
     public DirectedWeightedGraph buildGraph(long[] dims, double[] spacing, double threshold) {
         final DirectedWeightedGraph graph = new DirectedWeightedGraph();
 
-        // Iterate through all voxels to find nodes that are part of the tree
-        final long totalVoxels = computeTotalVoxels(dims);
         final RandomAccess<ByteType> stateRA = state.randomAccess();
         final RandomAccess<IntType> parentRA = parents.randomAccess();
-        final RandomAccess<DoubleType> distRA = distances.randomAccess();
 
         // Map from linear index to SWCPoint
         final Map<Long, SWCPoint> indexToNode = new HashMap<>();
 
-        // First pass: create nodes for all ALIVE voxels
         final long[] pos = new long[dims.length];
-        for (long idx = 0; idx < totalVoxels; idx++) {
-            indexToPos(idx, pos);
-            stateRA.setPosition(pos);
-
-            if (stateRA.get().get() == AbstractGWDTTracer.ALIVE) { // 0 = ALIVE constant from AbstractGWDTTracer
+        
+        // Use tracked ALIVE indices if available, otherwise full scan
+        if (trackAlive && aliveIndices != null && !aliveIndices.isEmpty()) {
+            SNTUtils.log("Building graph from " + aliveIndices.size() + " tracked ALIVE nodes");
+            
+            // First pass: create nodes for tracked ALIVE voxels only
+            for (long idx : aliveIndices) {
+                indexToPos(idx, pos);
+                
                 // Convert voxel position to physical coordinates
                 final double x = pos[0] * spacing[0];
                 final double y = pos[1] * spacing[1];
                 final double z = (dims.length > 2) ? pos[2] * spacing[2] : 0;
-
-                // Get distance for this node (can be used for radius estimation later)
-                distRA.setPosition(pos);
-                final double dist = distRA.get().getRealDouble();
 
                 // Create SWCPoint with temporary radius (will be recalculated later)
                 final SWCPoint node = new SWCPoint(
@@ -365,6 +376,35 @@ public class ArrayStorageBackend implements StorageBackend {
 
                 indexToNode.put(idx, node);
                 graph.addVertex(node);
+            }
+        } else {
+            SNTUtils.log("Building graph with full-volume scan (tracking " + 
+                    (trackAlive ? "not initialized" : "disabled") + ")");
+            
+            // First pass: create nodes for all ALIVE voxels (full scan)
+            final long totalVoxels = computeTotalVoxels(dims);
+            for (long idx = 0; idx < totalVoxels; idx++) {
+                indexToPos(idx, pos);
+                stateRA.setPosition(pos);
+
+                if (stateRA.get().get() == AbstractGWDTTracer.ALIVE) {
+                    // Convert voxel position to physical coordinates
+                    final double x = pos[0] * spacing[0];
+                    final double y = pos[1] * spacing[1];
+                    final double z = (dims.length > 2) ? pos[2] * spacing[2] : 0;
+
+                    // Create SWCPoint with temporary radius (will be recalculated later)
+                    final SWCPoint node = new SWCPoint(
+                            -1,  // id (will be set by graph)
+                            2,   // type (dendrite by default)
+                            x, y, z,
+                            1.0, // temporary radius
+                            -1   // parent id (will be set below)
+                    );
+
+                    indexToNode.put(idx, node);
+                    graph.addVertex(node);
+                }
             }
         }
 
@@ -423,6 +463,15 @@ public class ArrayStorageBackend implements StorageBackend {
     public String getBackendType() {
         return "Array (in-memory)";
     }
+    
+    @Override
+    public void setTrackAliveIndices(boolean track) {
+        this.trackAlive = track;
+    }
+    
+    public Set<Long> getAliveIndices() {
+        return aliveIndices;
+    }
 
     @Override
     public void dispose() {
@@ -431,6 +480,10 @@ public class ArrayStorageBackend implements StorageBackend {
         distances = null;
         parents = null;
         state = null;
+        if (aliveIndices != null) {
+            aliveIndices.clear();
+            aliveIndices = null;
+        }
     }
 
     private long[] indexToPos(long idx) {

@@ -166,6 +166,32 @@ public interface StorageBackend {
     String getBackendType();
 
     /**
+     * Enable or disable tracking of ALIVE indices during Fast Marching.
+     * <p>
+     * When enabled, the backend maintains a set of linear indices that have
+     * been marked as ALIVE. This allows {@link #buildGraph} to iterate only
+     * touched voxels instead of scanning the entire volume, providing dramatic
+     * speedup for large sparse images.
+     * </p>
+     * <p>
+     * Memory cost: ~24 bytes per ALIVE voxel
+     * </p>
+     * <p>
+     * Recommended settings:
+     * <ul>
+     *   <li>ArrayStorageBackend: ON (default) - moderate speedup, low cost</li>
+     *   <li>SparseStorageBackend: OFF (default) - already iterates keys only</li>
+     *   <li>DiskBackedStorageBackend: ON (default) - essential for performance</li>
+     * </ul>
+     * </p>
+     *
+     * @param track true to track ALIVE indices, false to use full-volume scan
+     */
+    default void setTrackAliveIndices(boolean track) {
+        // Default: no-op for backwards compatibility
+    }
+
+    /**
      * Clean up resources (close files, free memory, delete temp files).
      * <p>
      * Called automatically after tracing completes. Implementations should

@@ -74,6 +74,10 @@ public class SparseStorageBackend implements StorageBackend {
     // Statistics for compression reporting
     private long gwdtEntriesStored = 0;
     private long fmEntriesStored = 0;
+    
+    // ALIVE index tracking (disabled by default - already optimized via hash map keys)
+    private boolean trackAlive = false;
+    private Set<Long> aliveIndices = null;
 
     public SparseStorageBackend(long[] dims) {
         this.dims = dims.clone();
@@ -221,6 +225,12 @@ public class SparseStorageBackend implements StorageBackend {
         stateMap.defaultReturnValue(AbstractGWDTTracer.FAR);
 
         fmEntriesStored = 0;
+        
+        // Initialize ALIVE tracking if enabled (usually not needed for sparse)
+        if (trackAlive) {
+            int expectedSize = (int) Math.min(100000, computeTotalVoxels() / 1000);
+            this.aliveIndices = new HashSet<>(expectedSize);
+        }
     }
 
     @Override
@@ -259,6 +269,11 @@ public class SparseStorageBackend implements StorageBackend {
         } else {
             stateMap.put(index, stateValue);
         }
+        
+        // Track ALIVE indices if enabled (usually not needed - stateMap.keySet() suffices)
+        if (stateValue == AbstractGWDTTracer.ALIVE && trackAlive && aliveIndices != null) {
+            aliveIndices.add(index);
+        }
     }
 
     @Override
@@ -277,7 +292,6 @@ public class SparseStorageBackend implements StorageBackend {
         // Map from linear index to SWCPoint
         final Map<Long, SWCPoint> indexToNode = new HashMap<>();
 
-        // Only iterate through ALIVE nodes (stored in stateMap)
         int nodeId = 1;
         final long[] pos = new long[dims.length];
 
@@ -290,9 +304,24 @@ public class SparseStorageBackend implements StorageBackend {
         graph.addVertex(rootNode);
         indexToNode.put(seedIndex, rootNode);
 
+        // Use tracked ALIVE indices if available, otherwise iterate hash map keys
+        final Collection<Long> indicesToProcess;
+        if (trackAlive && aliveIndices != null && !aliveIndices.isEmpty()) {
+            indicesToProcess = aliveIndices;
+            SNTUtils.log("Building graph from " + aliveIndices.size() + " tracked ALIVE nodes");
+        } else {
+            // Fall back to iterating stateMap keys (already optimized for sparse)
+            indicesToProcess = new ArrayList<>();
+            for (long idx : stateMap.keySet()) {
+                if (stateMap.get(idx) == AbstractGWDTTracer.ALIVE) {
+                    indicesToProcess.add(idx);
+                }
+            }
+            SNTUtils.log("Building graph from " + indicesToProcess.size() + " ALIVE nodes (via stateMap iteration)");
+        }
+
         // Create nodes for all other ALIVE voxels
-        for (final long idx : stateMap.keySet()) {
-            if (stateMap.get(idx) != AbstractGWDTTracer.ALIVE) continue;
+        for (final long idx : indicesToProcess) {
             if (idx == seedIndex) continue; // Already created root
 
             indexToPos(idx, pos);
@@ -348,6 +377,10 @@ public class SparseStorageBackend implements StorageBackend {
     public String getBackendType() {
         return "Sparse (hash map)";
     }
+    
+    public Set<Long> getAliveIndices() {
+        return aliveIndices;
+    }
 
     @Override
     public void dispose() {
@@ -360,6 +393,11 @@ public class SparseStorageBackend implements StorageBackend {
         distanceMap = null;
         parentMap = null;
         stateMap = null;
+        
+        if (aliveIndices != null) {
+            aliveIndices.clear();
+            aliveIndices = null;
+        }
     }
 
     // ==================== Utility Methods ====================
@@ -369,6 +407,13 @@ public class SparseStorageBackend implements StorageBackend {
      */
     public void setConnectivityType(final int type) {
         this.cnnType = Math.max(1, Math.min(3, type));
+    }
+    
+    @Override
+    public void setTrackAliveIndices(boolean track) {
+        this.trackAlive = track;
+        // Note: Sparse backend already iterates stateMap keys efficiently,
+        // so tracking provides minimal benefit. Included for API uniformity.
     }
 
     /**

@@ -88,6 +88,10 @@ public class DiskBackedStorageBackend implements StorageBackend {
 
     // Temp directory for disk cache
     private File tempDir;
+    
+    // ALIVE index tracking (ENABLED by default - critical for disk-backed performance)
+    private boolean trackAlive = true;
+    private Set<Long> aliveIndices = null;
 
     public DiskBackedStorageBackend(long[] dims) {
         this(dims, DEFAULT_CELL_SIZE, DEFAULT_CACHE_SIZE);
@@ -290,6 +294,13 @@ public class DiskBackedStorageBackend implements StorageBackend {
         for (final DoubleType t : distances) t.set(Double.MAX_VALUE);
         for (final IntType t : parents) t.set(-1);
         // state defaults to 0 (FAR)
+        
+        // Initialize ALIVE tracking if enabled (critical for disk-backed performance)
+        if (trackAlive) {
+            int expectedSize = (int) Math.min(100000, computeTotalVoxels() / 1000);
+            this.aliveIndices = new HashSet<>(expectedSize);
+            SNTUtils.log("ALIVE index tracking enabled");
+        }
 
         SNTUtils.log("Fast Marching structures initialized");
     }
@@ -332,6 +343,11 @@ public class DiskBackedStorageBackend implements StorageBackend {
         final RandomAccess<ByteType> ra = state.randomAccess();
         ra.setPosition(pos);
         ra.get().set(stateValue);
+        
+        // Track ALIVE indices if enabled
+        if (stateValue == AbstractGWDTTracer.ALIVE && trackAlive && aliveIndices != null) {
+            aliveIndices.add(index);
+        }
     }
 
     @Override
@@ -366,32 +382,58 @@ public class DiskBackedStorageBackend implements StorageBackend {
         graph.addVertex(rootNode);
         indexToNode.put(seedIndex, rootNode);
 
-        // Scan all voxels to find ALIVE nodes
-        // For disk-backed, we use cursor for sequential access (more cache-friendly)
-        final Cursor<ByteType> stateCursor = state.localizingCursor();
-        final RandomAccess<IntType> parentRA = parents.randomAccess();
-
         long nodesFound = 0;
-        while (stateCursor.hasNext()) {
-            stateCursor.fwd();
-            if (stateCursor.get().get() != AbstractGWDTTracer.ALIVE) continue;
+        
+        // Use tracked ALIVE indices if available, otherwise full cursor scan
+        if (trackAlive && aliveIndices != null && !aliveIndices.isEmpty()) {
+            SNTUtils.log("Building graph from " + aliveIndices.size() + " tracked ALIVE nodes (optimized)");
+            
+            // Only iterate tracked indices - MUCH faster than full scan
+            for (long idx : aliveIndices) {
+                if (idx == seedIndex) continue; // Already created root
+                
+                indexToPos(idx, pos);
+                final double x = pos[0] * spacing[0];
+                final double y = pos[1] * spacing[1];
+                final double z = (dims.length > 2) ? pos[2] * spacing[2] : 0;
 
-            stateCursor.localize(pos);
-            final long idx = posToIndex(pos);
+                final SWCPoint node = new SWCPoint(nodeId++, 2, x, y, z, 1.0, -1);
+                graph.addVertex(node);
+                indexToNode.put(idx, node);
+                
+                nodesFound++;
+                if (nodesFound % 10000 == 0) {
+                    SNTUtils.log("  Processed " + nodesFound + " nodes...");
+                }
+            }
+        } else {
+            SNTUtils.log("Building graph with full-volume scan (tracking " + 
+                    (trackAlive ? "not initialized" : "disabled") + ")");
+            
+            // Fall back to full cursor scan (slow for disk-backed!)
+            final Cursor<ByteType> stateCursor = state.localizingCursor();
 
-            if (idx == seedIndex) continue; // Already created root
+            while (stateCursor.hasNext()) {
+                stateCursor.fwd();
+                if (stateCursor.get().get() != AbstractGWDTTracer.ALIVE) continue;
 
-            final double x = pos[0] * spacing[0];
-            final double y = pos[1] * spacing[1];
-            final double z = (dims.length > 2) ? pos[2] * spacing[2] : 0;
+                stateCursor.localize(pos);
+                final long idx = posToIndex(pos);
 
-            final SWCPoint node = new SWCPoint(nodeId++, 2, x, y, z, 1.0, -1);
-            graph.addVertex(node);
-            indexToNode.put(idx, node);
+                if (idx == seedIndex) continue; // Already created root
 
-            nodesFound++;
-            if (nodesFound % 10000 == 0) {
-                SNTUtils.log("  Found " + nodesFound + " nodes...");
+                final double x = pos[0] * spacing[0];
+                final double y = pos[1] * spacing[1];
+                final double z = (dims.length > 2) ? pos[2] * spacing[2] : 0;
+
+                final SWCPoint node = new SWCPoint(nodeId++, 2, x, y, z, 1.0, -1);
+                graph.addVertex(node);
+                indexToNode.put(idx, node);
+
+                nodesFound++;
+                if (nodesFound % 10000 == 0) {
+                    SNTUtils.log("  Found " + nodesFound + " nodes...");
+                }
             }
         }
 
@@ -399,6 +441,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
         SNTUtils.log("Creating edges from parent pointers...");
 
         // Create edges based on parent pointers
+        final RandomAccess<IntType> parentRA = parents.randomAccess();
         int edgesCreated = 0;
         for (final Map.Entry<Long, SWCPoint> entry : indexToNode.entrySet()) {
             final long idx = entry.getKey();
@@ -439,6 +482,10 @@ public class DiskBackedStorageBackend implements StorageBackend {
         return "Disk-backed (out-of-core)";
     }
 
+    public Set<Long> getAliveIndices() {
+        return aliveIndices;
+    }
+
     @Override
     public void dispose() {
         SNTUtils.log("Cleaning up disk-backed storage...");
@@ -448,6 +495,11 @@ public class DiskBackedStorageBackend implements StorageBackend {
         distances = null;
         parents = null;
         state = null;
+        
+        if (aliveIndices != null) {
+            aliveIndices.clear();
+            aliveIndices = null;
+        }
 
         // Delete temp directory
         if (tempDir != null && tempDir.exists()) {
@@ -491,6 +543,14 @@ public class DiskBackedStorageBackend implements StorageBackend {
      */
     public void setConnectivityType(final int type) {
         this.cnnType = Math.max(1, Math.min(3, type));
+    }
+    
+    @Override
+    public void setTrackAliveIndices(boolean track) {
+        this.trackAlive = track;
+        if (!track) {
+            SNTUtils.log("Warning: Disabling ALIVE tracking in disk-backed storage will cause very slow buildGraph()");
+        }
     }
 
     /**
