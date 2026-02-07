@@ -104,6 +104,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     // Reusable arrays for hot path optimization (reduces allocations)
     private int[] deltaCache;
     private long[] neighborPosCache;
+    private long[] bridgePosCache;
 
     /**
      * Creates a new GWDTTracer.
@@ -142,6 +143,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         // Initialize reusable arrays for hot path optimization
         this.deltaCache = new int[nDims];
         this.neighborPosCache = new long[nDims];
+        this.bridgePosCache = new long[nDims];
 
         computeIntensityRange();
     }
@@ -292,10 +294,14 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * For 2D images, only x and y are used (z is ignored if provided).
      */
     public void setSeed(final long[] voxelCoords) {
+        if (voxelCoords == null || voxelCoords.length == 0) {
+            throw new IllegalArgumentException("Seed coordinates cannot be null or empty.");
+        }
         // Use the minimum of provided coords and image dimensions
         final int nDims = Math.min(voxelCoords.length, dims.length);
         this.seedVoxel = new long[dims.length];
         System.arraycopy(voxelCoords, 0, this.seedVoxel, 0, nDims);
+        validateSeedInBounds(this.seedVoxel);
     }
 
     /**
@@ -303,12 +309,19 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * For 2D images, only x and y are used (z is ignored if provided).
      */
     public void setSeedPhysical(final double[] physicalCoords) {
+        if (physicalCoords == null || physicalCoords.length == 0) {
+            throw new IllegalArgumentException("Seed coordinates cannot be null or empty.");
+        }
         // Use the minimum of provided coords and image dimensions
         final int nDims = Math.min(physicalCoords.length, dims.length);
         this.seedVoxel = new long[dims.length];
         for (int d = 0; d < nDims; d++) {
+            if (!Double.isFinite(physicalCoords[d])) {
+                throw new IllegalArgumentException("Seed coordinate at dimension " + d + " is not finite.");
+            }
             this.seedVoxel[d] = Math.round(physicalCoords[d] / spacing[d]);
         }
+        validateSeedInBounds(this.seedVoxel);
         log("Seed voxel: " + Arrays.toString(seedVoxel));
     }
 
@@ -317,6 +330,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         if (seedVoxel == null) {
             throw new IllegalStateException("Seed point not set. Call setSeed() first.");
         }
+        validateSeedInBounds(seedVoxel);
 
         // Create storage backend
         storage = createStorageBackend();
@@ -345,9 +359,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log("Graph: " + graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
 
             // Step 5-8: Pruning, smoothing, etc (same as before, using graph)
-            recalculateRadiiFromImage(graph);
-            darkNodeAndSegmentPruning(graph);
-            hierarchicalPrune(graph);
+            recalculateRadiiFromImage(graph, threshold);
+            darkNodeAndSegmentPruning(graph, threshold);
+            hierarchicalPrune(graph, threshold);
             removeDisconnectedComponents(graph);
 
             if (smoothEnabled) {
@@ -429,6 +443,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         final int nDims = dims.length;
         final long currentIdx = posToIndex(pos);
         final double currentDist = storage.getDistance(currentIdx);
+        srcRA.setPosition(pos);
+        final double currentIntensity = srcRA.get().getRealDouble();
         
         // Reuse cached arrays to avoid allocations
         Arrays.fill(deltaCache, 0);
@@ -458,13 +474,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             // Check threshold
             srcRA.setPosition(neighborPosCache);
             final double intensity = srcRA.get().getRealDouble();
-            if (intensity <= threshold) return;
-
-            // Compute distance via GWDT
-            final double gwdt = storage.getGWDT(neighborIdx);
-            final double maxGWDT = storage.getMaxGWDT();
-
-            // Edge cost
+            // Base geometric distance (one step in the current direction)
             double euclideanDist = 0;
             for (int d = 0; d < nDims; d++) {
                 final double dd = deltaCache[d] * spacing[d];
@@ -472,6 +482,51 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             }
             euclideanDist = Math.sqrt(euclideanDist);
 
+            if (intensity <= threshold) {
+                if (!allowGap || currentIntensity <= threshold) return;
+
+                // Gap bridging: allow bright -> dark -> bright across one dark voxel.
+                for (int d = 0; d < nDims; d++) {
+                    bridgePosCache[d] = pos[d] + 2L * deltaCache[d];
+                    if (bridgePosCache[d] < 0 || bridgePosCache[d] >= dims[d]) {
+                        return;
+                    }
+                }
+
+                final long bridgeIdx = posToIndex(bridgePosCache);
+                if (storage.getState(bridgeIdx) == ALIVE) return;
+
+                srcRA.setPosition(bridgePosCache);
+                final double bridgeIntensity = srcRA.get().getRealDouble();
+                if (bridgeIntensity <= threshold) return;
+
+                final double gwdt = storage.getGWDT(bridgeIdx);
+                final double maxGWDT = storage.getMaxGWDT();
+                final double gwdtCost = (maxGWDT > 0) ? (maxGWDT - gwdt) / maxGWDT : 0;
+
+                final double stepDist = 2.0 * euclideanDist;
+                final double gapPenalty = 0.5 * euclideanDist;
+                final double edgeCost = stepDist + gwdtCost + gapPenalty;
+                final double newDist = currentDist + edgeCost;
+
+                if (newDist < storage.getDistance(bridgeIdx)) {
+                    storage.setDistance(bridgeIdx, newDist);
+                    storage.setParent(bridgeIdx, currentIdx);
+
+                    if (storage.getState(bridgeIdx) == FAR) {
+                        storage.setState(bridgeIdx, TRIAL);
+                    }
+
+                    heap.offer(new long[]{bridgeIdx, Double.doubleToRawLongBits(newDist)});
+                }
+                return;
+            }
+
+            // Compute distance via GWDT
+            final double gwdt = storage.getGWDT(neighborIdx);
+            final double maxGWDT = storage.getMaxGWDT();
+
+            // Edge cost
             final double gwdtCost = (maxGWDT > 0) ? (maxGWDT - gwdt) / maxGWDT : 0;
             final double edgeCost = euclideanDist + gwdtCost;
             final double newDist = currentDist + edgeCost;
@@ -630,12 +685,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Recalculates radii for all nodes using image-based method (like APP2).
      * This is critical for accurate coverage detection during pruning.
      */
-    protected void recalculateRadiiFromImage(final DirectedWeightedGraph graph) {
+    protected void recalculateRadiiFromImage(final DirectedWeightedGraph graph, final double effectiveThreshold) {
         final RandomAccess<T> srcRA = source.randomAccess();
 
         // Use a threshold slightly above background for radius calculation
         // APP2 uses max(40, bkg_thresh)
-        final double radiusThreshold = Math.max(40, backgroundThreshold);
+        final double radiusThreshold = Math.max(40, effectiveThreshold);
 
         int count = 0;
         double sumOldRadius = 0, sumNewRadius = 0;
@@ -680,6 +735,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
         // For 2D-like images (thin Z), use 2D radius calculation
         final boolean is2D = dims.length < 3 || dims[2] <= 3;
+        final long[] samplePos = new long[dims.length];
 
         for (int r = 1; r <= maxRadius; r++) {
             int totalCount = 0;
@@ -704,7 +760,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                         if (dist > r - 1 && dist <= r) {
                             totalCount++;
 
-                            srcRA.setPosition(new long[]{x, y, dims.length > 2 ? z : 0});
+                            samplePos[0] = x;
+                            samplePos[1] = y;
+                            if (dims.length > 2) samplePos[2] = z;
+                            srcRA.setPosition(samplePos);
                             final double intensity = srcRA.get().getRealDouble();
 
                             if (intensity <= threshold) {
@@ -735,12 +794,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * - Delete if average intensity <= background threshold, OR
      * - Delete if >= 20% of nodes are dark (intensity <= threshold)
      */
-    protected void darkNodeAndSegmentPruning(final DirectedWeightedGraph graph) {
+    protected void darkNodeAndSegmentPruning(final DirectedWeightedGraph graph, final double effectiveThreshold) {
         final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
         final RandomAccess<T> srcRA = source.randomAccess();
-        final double threshold = backgroundThreshold;
+        final double threshold = effectiveThreshold;
 
         // Phase 1: Dark Node Pruning (iterative leaf trimming)
         int totalDarkNodesPruned = 0;
@@ -882,7 +941,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * 5. If coverage > threshold, prune segment and children
      * </p>
      */
-    protected void hierarchicalPrune(final DirectedWeightedGraph graph) {
+    protected void hierarchicalPrune(final DirectedWeightedGraph graph, final double effectiveThreshold) {
         final SWCPoint root = findGraphRoot(graph);
         if (root == null) return;
 
@@ -1101,7 +1160,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         pruneShortTerminalBranches(graph, intensityLengthThresh);  // Same threshold
 
         // Prune dark terminal branches (low intensity)
-        pruneDarkTerminalBranches(graph, backgroundThreshold);
+        pruneDarkTerminalBranches(graph, effectiveThreshold);
     }
 
     /**
@@ -1321,6 +1380,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     protected double getEffectiveThreshold() {
         return (backgroundThreshold >= 0) ? backgroundThreshold : estimateBackgroundThreshold(source);
+    }
+
+    private void validateSeedInBounds(final long[] seed) {
+        for (int d = 0; d < dims.length; d++) {
+            if (seed[d] < 0 || seed[d] >= dims[d]) {
+                throw new IllegalArgumentException(
+                        "Seed coordinate out of bounds at dimension " + d + ": " + seed[d] +
+                                " (valid range: 0.." + (dims[d] - 1) + ")");
+            }
+        }
     }
 
     protected long posToIndex(final long[] pos) {
