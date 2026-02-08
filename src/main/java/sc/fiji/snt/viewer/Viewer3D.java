@@ -1744,7 +1744,7 @@ public class Viewer3D {
         if (annot == null) return false;
         for (final Entry<String, Annotation3D> entry : plottedAnnotations.entrySet()) {
             if (entry.getValue() == annot) {
-                return removeAnnotation(entry.getKey(), entry.getKey());
+                return removeAnnotation(entry.getKey(), entry.getValue().getLabel());
             }
         }
         return false;
@@ -2295,9 +2295,12 @@ public class Viewer3D {
      *                 "perspective" or "overview"; "default" or "".
      */
     public void setViewMode(final String viewMode) {
+        setViewMode(resolveViewMode(viewMode));
+    }
+
+    private ViewMode resolveViewMode(final String viewMode) {
         if (viewMode == null || viewMode.trim().isEmpty()) {
-            setViewMode(ViewMode.DEFAULT);
-            return;
+            return ViewMode.DEFAULT;
         }
         final String vMode = viewMode.toLowerCase();
 
@@ -2307,32 +2310,24 @@ public class Viewer3D {
                 .filter(i -> axesLabels[i] != null && axesLabels[i].toLowerCase().contains(vMode))
                 .findFirst()
                 .orElse(-1);
-        if (axisLabelIndex > -1) {
-            switch (axisLabelIndex) {
-                case 0:
-                    setViewMode(ViewMode.XY);
-                    break;
-                case 1:
-                    setViewMode(ViewMode.XZ);
-                    break;
-                case 2:
-                    setViewMode(ViewMode.YZ);
-                    break;
-            }
-            return;
-        }
+        if (axisLabelIndex == 0) return ViewMode.XY;
+        if (axisLabelIndex == 1) return ViewMode.XZ;
+        if (axisLabelIndex == 2) return ViewMode.YZ;
+
         // otherwise fallback to defaults
         if (vMode.contains("xz") || vMode.contains("side") || vMode.contains("sag")) { // sagittal kept for backwards compatibility
-            setViewMode(ViewMode.XZ);
-        } else if (vMode.contains("xy") || vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
-            setViewMode(ViewMode.XY);
-        } else if (vMode.contains("yz")) {
-            setViewMode(ViewMode.YZ);
-        } else if (vMode.contains("pers") || vMode.contains("ove")) {
-            setViewMode(ViewMode.PERSPECTIVE);
-        } else {
-            setViewMode(ViewMode.DEFAULT);
+            return ViewMode.XZ;
         }
+        if (vMode.contains("xy") || vMode.contains("top") || vMode.contains("cor")) { // coronal kept for backwards compatibility
+            return ViewMode.XY;
+        }
+        if (vMode.contains("yz")) {
+            return ViewMode.YZ;
+        }
+        if (vMode.contains("pers") || vMode.contains("ove")) {
+            return ViewMode.PERSPECTIVE;
+        }
+        return ViewMode.DEFAULT;
     }
 
     /**
@@ -2555,7 +2550,7 @@ public class Viewer3D {
         if (frame != null && frame.allenNavigator != null) {
             frame.allenNavigator.meshLoaded(label);
         }
-        if (objMesh != null && viewUpdatesEnabled) validate();
+        if (viewUpdatesEnabled) validate();
         return objMesh;
     }
 
@@ -4611,149 +4606,174 @@ public class Viewer3D {
             }
             return prefs.retrieveAllIfNoneSelected;
         }
+        
+
+        private void runMeasureOptionsAction() {
+            if (measureUI != null) {
+                measureUI.dispose();
+                measureUI = null;
+            }
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            measureUI = new MeasureUI(trees);
+            initTable();
+            measureUI.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(final WindowEvent e) {
+                    measureUI = null;
+                }
+            });
+            measureUI.setTable(table);
+            measureUI.setVisible(true);
+        }
+
+        private void runMeasureQuickAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            initTable();
+            trees.forEach(tree -> {
+                final TreeStatistics tStats = new TreeStatistics(tree);
+                tStats.setContext(SNTUtils.getContext());
+                tStats.setTable(table);
+                tStats.summarize(tree.getLabel(), true); // will display table
+            });
+        }
+
+        private void runBranchPropertiesAnalysisAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            inputs.put("calledFromPathManagerUI", false);
+            runCmd(DistributionBPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
+
+        private void runCellPropertiesAnalysisAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            inputs.put("calledFromPathManagerUI", false);
+            runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
+
+        private void runConvexHullAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            inputs.put("calledFromRecViewerInstance", true);
+            initTable();
+            inputs.put("table", table);
+            runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
+        }
+
+        private void runDendrogramAction() {
+            final Tree tree = getSingleSelectionTreeWithPromptForType();
+            if (tree == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("tree", tree);
+            runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
+
+        private void runPersistenceAnalysisAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            runCmd(PersistenceAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
+
+        private void runRootAngleAnalysisAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            runCmd(RootAngleAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
+        }
+
+        private void runShollAnalysisAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final Map<String, Object> input = new HashMap<>();
+            if (trees.size() == 1) {
+                input.put("snt", null);
+                input.put("tree", trees.getFirst());
+                runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
+            } else {
+                input.put("treeList", trees);
+                runCmd(ShollAnalysisBulkTreeCmd.class, input, CmdWorker.DO_NOTHING, true, true);
+            }
+        }
+
+        private void runStrahlerAnalysisAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final HashMap<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            runCmd(StrahlerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
+
+        private void runAnnotationGraphAction() {
+            final List<Tree> trees = getSelectedTrees();
+            if (trees == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("trees", trees);
+            runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
+
+        private void runBrainAreaAnalysisAction() {
+            final Tree tree = getSingleSelectionTree();
+            if (tree == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("tree", tree);
+            runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
+        }
 
         private JPopupMenu measureMenu() {
             final JPopupMenu measureMenu = new JPopupMenu();
             GuiUtils.addSeparator(measureMenu, "Tabular Results:");
             JMenuItem mi = GuiUtils.MenuItems.measureOptions();
-            mi.addActionListener(e -> {
-                if (measureUI != null) {
-                    measureUI.dispose();
-                    measureUI = null;
-                }
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                measureUI = new MeasureUI(trees);
-                initTable();
-                measureUI.addWindowListener(new WindowAdapter() {
-                    @Override
-                    public void windowClosing(final WindowEvent e) {
-                        measureUI = null;
-                    }
-                });
-                measureUI.setTable(table);
-                measureUI.setVisible(true);
-            });
+            mi.addActionListener(e -> runMeasureOptionsAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.measureQuick();
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                initTable();
-                trees.forEach(tree -> {
-                    final TreeStatistics tStats = new TreeStatistics(tree);
-                    tStats.setContext(SNTUtils.getContext());
-                    tStats.setTable(table);
-                    tStats.summarize(tree.getLabel(), true); // will display table
-                });
-            });
+            mi.addActionListener(e -> runMeasureQuickAction());
             measureMenu.add(mi);
             GuiUtils.addSeparator(measureMenu, "Distribution Analyses:");
             mi = new JMenuItem("Branch Properties...", IconFactory.menuIcon(GLYPH.CHART));
             mi.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                inputs.put("calledFromPathManagerUI", false);
-                runCmd(DistributionBPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runBranchPropertiesAnalysisAction());
             measureMenu.add(mi);
             mi = new JMenuItem("Cell Properties...", IconFactory.menuIcon(GLYPH.CHART));
             mi.setToolTipText("Computes distributions of metrics from individual cells");
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                inputs.put("calledFromPathManagerUI", false);
-                runCmd(DistributionCPCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runCellPropertiesAnalysisAction());
             measureMenu.add(mi);
             GuiUtils.addSeparator(measureMenu, "Specialized Analyses:");
             final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
-            convexHullMenuItem.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                inputs.put("calledFromRecViewerInstance", true);
-                initTable();
-                inputs.put("table", table);
-                runCmd(ConvexHullCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
-            });
+            convexHullMenuItem.addActionListener(e -> runConvexHullAction());
             measureMenu.add(convexHullMenuItem);
             mi = GuiUtils.MenuItems.createDendrogram();
-            mi.addActionListener(e -> {
-                final Tree tree = getSingleSelectionTreeWithPromptForType();
-                if (tree == null) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("tree", tree);
-                runCmd(GraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runDendrogramAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.persistenceAnalysis();
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final HashMap<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                runCmd(PersistenceAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runPersistenceAnalysisAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.rootAngleAnalysis();
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final HashMap<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                runCmd(RootAngleAnalyzerCmd.class, inputs, CmdWorker.DO_NOTHING, true, true);
-            });
+            mi.addActionListener(e -> runRootAngleAnalysisAction());
             measureMenu.add(mi);
 
             mi = GuiUtils.MenuItems.shollAnalysis();
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final Map<String, Object> input = new HashMap<>();
-                if (trees.size() == 1) {
-                    input.put("snt", null);
-                    input.put("tree", trees.getFirst());
-                    runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
-                } else {
-                    input.put("treeList", trees);
-                    runCmd(ShollAnalysisBulkTreeCmd.class, input, CmdWorker.DO_NOTHING, true, true);
-                }
-            });
+            mi.addActionListener(e -> runShollAnalysisAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.strahlerAnalysis();
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final HashMap<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                runCmd(StrahlerCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runStrahlerAnalysisAction());
             measureMenu.add(mi);
             GuiUtils.addSeparator(measureMenu, "Atlas-based Analyses:");
             mi = GuiUtils.MenuItems.createAnnotationGraph();
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees();
-                if (trees == null || trees.isEmpty()) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("trees", trees);
-                runCmd(AnnotationGraphGeneratorCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runAnnotationGraphAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.brainAreaAnalysis();
-            mi.addActionListener(e -> {
-                final Tree tree = getSingleSelectionTree();
-                if (tree == null) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("tree", tree);
-                runCmd(BrainAnnotationCmd.class, inputs, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runBrainAreaAnalysisAction());
             measureMenu.add(mi);
             GuiUtils.addSeparator(measureMenu, "Data Export:");
             mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
@@ -4769,248 +4789,270 @@ public class Viewer3D {
             if (table == null) table =  new SNTTable();
         }
 
+        private void customizeSelectedMeshesAllParametersAction() {
+            final List<String> keys = getSelectedMeshLabels();
+            if (keys == null) return;
+            if (cmdService == null)
+                SNTUtils.getContext().inject(Viewer3D.this);
+            class getMeshColors extends SwingWorker<Object, Object> {
+
+                CommandModule cmdModule;
+
+                @Override
+                public Object doInBackground() {
+                    try {
+                        cmdModule = cmdService.run(CustomizeObjCmd.class, true).get();
+                    }
+                    catch (InterruptedException | ExecutionException ignored) {
+                        return null;
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    if (cmdModule == null || cmdModule.isCanceled()) {
+                        return; // user pressed cancel or chose nothing
+                    }
+                    final ColorRGBA[] colors = (ColorRGBA[]) cmdModule.getInput("colors");
+                    if (colors == null) return;
+                    final Color surfaceColor = (colors[0]==null) ? null : fromColorRGB(colors[0]);
+                    for (final String label : keys) {
+                        if (surfaceColor != null) plottedObjs.get(label).setColor(surfaceColor);
+                        if (colors[1] != null) plottedObjs.get(label).objMesh.setBoundingBoxColor(colors[1]);
+                    }
+                }
+            }
+            (new getMeshColors()).execute();
+        }
+
+        private void customizeSelectedMeshesColorAction() {
+            final List<String> keys = getSelectedMeshLabels();
+            if (keys == null) return;
+            final ColorRGB c = new AnnotPrompt().getPromptColor("Mesh(es) Color");
+            if (c == null) {
+                return; // user pressed cancel
+            }
+            final Color color = fromColorRGB(c);
+            for (final String label : keys) {
+                final RemountableDrawableVBO obj = plottedObjs.get(label);
+                color.a = obj.getColor().a;
+                obj.setColor(color);
+            }
+        }
+
+        private void customizeSelectedMeshesTransparencyAction() {
+            final List<String> keys = getSelectedMeshLabels();
+            if (keys == null) return;
+            final Double t = new AnnotPrompt().getPromptTransparency("Mesh(es) Transparency...");
+            if (t == null) {
+                return; // user pressed cancel
+            }
+            final float fValue = 1 - (t.floatValue() / 100);
+            for (final String label : keys) {
+                plottedObjs.get(label).getColor().a = fValue;
+            }
+        }
+
         private void addCustomizeMeshCommands(final JPopupMenu menu) {
             GuiUtils.addSeparator(menu, "Customize:");
             JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.menuIcon(GLYPH.SLIDERS));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedMeshLabels();
-                if (keys == null) return;
-                if (cmdService == null)
-                    SNTUtils.getContext().inject(Viewer3D.this);
-                class getMeshColors extends SwingWorker<Object, Object> {
-
-                    CommandModule cmdModule;
-
-                    @Override
-                    public Object doInBackground() {
-                        try {
-                            cmdModule = cmdService.run(CustomizeObjCmd.class, true).get();
-                        }
-                        catch (InterruptedException | ExecutionException ignored) {
-                            return null;
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    protected void done() {
-                        if (cmdModule == null || cmdModule.isCanceled()) {
-                            return; // user pressed cancel or chose nothing
-                        }
-                        final ColorRGBA[] colors = (ColorRGBA[]) cmdModule.getInput("colors");
-                        if (colors == null) return;
-                        final Color surfaceColor = (colors[0]==null) ? null : fromColorRGB(colors[0]);
-                        for (final String label : keys) {
-                            if (surfaceColor != null) plottedObjs.get(label).setColor(surfaceColor);
-                            if (colors[1] != null) plottedObjs.get(label).objMesh.setBoundingBoxColor(colors[1]);
-                        }
-                    }
-                }
-                (new getMeshColors()).execute();
-            });
+            mi.addActionListener(e -> customizeSelectedMeshesAllParametersAction());
             menu.add(mi);
 
             // Mesh customizations
             mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedMeshLabels();
-                if (keys == null) return;
-                final ColorRGB c = new AnnotPrompt().getPromptColor("Mesh(es) Color");
-                if (c == null) {
-                    return; // user pressed cancel
-                }
-                final Color color = fromColorRGB(c);
-                for (final String label : keys) {
-                    final RemountableDrawableVBO obj = plottedObjs.get(label);
-                    color.a = obj.getColor().a;
-                    obj.setColor(color);
-                }
-            });
+            mi.addActionListener(e -> customizeSelectedMeshesColorAction());
             menu.add(mi);
             mi = new JMenuItem("Transparency...", IconFactory.menuIcon(
                     GLYPH.ADJUST));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedMeshLabels();
-                if (keys == null) return;
-                final Double t = new AnnotPrompt().getPromptTransparency("Mesh(es) Transparency...");
-                if (t == null) {
-                    return; // user pressed cancel
-                }
-                final float fValue = 1 - (t.floatValue() / 100);
-                for (final String label : keys) {
-                    plottedObjs.get(label).getColor().a = fValue;
-                }
-            });
+            mi.addActionListener(e -> customizeSelectedMeshesTransparencyAction());
             menu.add(mi);
+        }
+
+        private void customizeSelectedTreesAllParametersAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null) return;
+            if (cmdService == null)
+                SNTUtils.getContext().inject(Viewer3D.this);
+            class getTreeColors extends SwingWorker<Object, Object> {
+
+                CommandModule cmdModule;
+
+                @Override
+                public Object doInBackground() {
+                    try {
+                        cmdModule = cmdService.run(CustomizeTreeCmd.class, true).get();
+                    }
+                    catch (final InterruptedException | ExecutionException ignored) {
+                        return null;
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    if (cmdModule != null && cmdModule.isCanceled()) {
+                        return; // user pressed cancel or chose nothing
+                    }
+                    assert cmdModule != null;
+                    @SuppressWarnings("unchecked")
+                    final HashMap<String, ColorRGBA> colorMap = (HashMap<String, ColorRGBA>) cmdModule.getInput("colorMap");
+                    @SuppressWarnings("unchecked")
+                    final HashMap<String, Double> sizeMap = (HashMap<String, Double>) cmdModule.getInput("sizeMap");
+                    if (colorMap == null || sizeMap == null) {
+                        guiUtils.error("Command execution failed.");
+                        return;
+                    }
+//						final boolean reflectLight = (boolean) cmdModule.getInput("reflectLight");
+//						final boolean faceDisplayed = (boolean) cmdModule.getInput("faceDisplayed");
+//						final boolean wireframeDisplayed = (boolean) cmdModule.getInput("wireframeDisplayed");
+
+                    final Color sColor = fromColorRGB(colorMap.get("soma"));
+                    final Color dColor = fromColorRGB(colorMap.get("dendrite"));
+                    final Color aColor = fromColorRGB(colorMap.get("axon"));
+                    final double sSize = sizeMap.get("soma");
+                    final double dSize = sizeMap.get("dendrite");
+                    final double aSize = sizeMap.get("axon");
+                    for (final String label : keys) {
+                        final ShapeTree tree = plottedTrees.get(label);
+                        if (tree.somaSubShape != null) {
+                            if (sColor != null) tree.setSomaColor(sColor);
+                            if (sSize > -1) tree.setSomaRadius((float) sSize);
+                        }
+                        if (tree.treeSubShape != null) {
+                            if (dColor != null) tree.setArborColor(dColor, Path.SWC_DENDRITE);
+                            if (aColor != null) tree.setArborColor(aColor, Path.SWC_AXON);
+                            if (dSize > -1) tree.setThickness((float) dSize, Path.SWC_DENDRITE);
+                            if (aSize > -1) tree.setThickness((float) aSize, Path.SWC_AXON);
+                        }
+//							tree.setReflectLight(reflectLight);
+//							tree.setFaceDisplayed(faceDisplayed);
+//							tree.setWireframeDisplayed(wireframeDisplayed);
+                    }
+                }
+            }
+            (new getTreeColors()).execute();
+        }
+
+        private void customizeSelectedTreesColorAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null || !okToApplyColor(keys)) return;
+            final ColorRGB c = new AnnotPrompt().getPromptColor("Tree(s) Color...");
+            if (c != null)
+                applyColorToPlottedTrees(keys, c);
+        }
+
+        private void applyColorMappingToSelectedTreesAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("treeLabels", keys);
+            runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
+        }
+
+        private void removeSelectedTreeColorMappingsAction() {
+            final List<Tree> trees = getSelectedTrees(true);
+            if (trees != null) {
+                trees.forEach(sc.fiji.snt.analysis.ColorMapper::unMap);
+                displayMsg("Color mappings removed");
+            }
+        }
+
+        private void assignUniqueColorsToSelectedTreesAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null || !okToApplyColor(keys)) return;
+            final ColorRGB[] colors = SNTColor.getDistinctColors(keys.size());
+            final int[] counter = new int[] { 0 };
+            plottedTrees.forEach((k, shapeTree) -> {
+                shapeTree.setArborColor(colors[counter[0]], ShapeTree.ANY);
+                shapeTree.setSomaColor(colors[counter[0]]);
+                counter[0]++;
+            });
+            displayMsg("Unique colors assigned");
+        }
+
+        private void setSelectedTreeThicknessAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null) return;
+            String msg = "<HTML><body><div style='width:500;'>" +
+                    "Please specify a constant thickness value [ranging from 1 (thinnest) to 8"
+                    + " (thickest)] to be applied to selected " + keys.size() + " reconstruction(s).";
+            if (isSNTInstance()) {
+                msg += " This value will only affect how Paths are displayed " +
+                        "in the Reconstruction Viewer.";
+            }
+            final Double thickness = guiUtils.getDouble(msg, "Path Thickness",
+                    getDefaultThickness());
+            if (thickness == null) {
+                return; // user pressed cancel
+            }
+            if (Double.isNaN(thickness) || thickness <= 0) {
+                guiUtils.error("Invalid thickness value.");
+                return;
+            }
+            setTreeThickness(keys, thickness.floatValue(), null);
+        }
+
+        private void setSelectedSomaRadiusAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null) return;
+            String msg = "Please specify a constant radius (in physical units) to be applied to the soma(s) of selected reconstruction(s).";
+            if (isSNTInstance()) {
+                msg += " This value will only affect how Paths are displayed " +
+                        "in the Reconstruction Viewer.";
+            }
+            final Double radius = guiUtils.getDouble(msg, "Soma radius", 10);
+            if (radius == null) {
+                return; // user pressed cancel
+            }
+            if (Double.isNaN(radius) || radius <= 0) {
+                guiUtils.error("Invalid radius.");
+                return;
+            }
+            setSomasDisplayed(keys, true);
+            setSomaRadius(keys, radius.floatValue());
+        }
+
+        private void translateSelectedTreesAction() {
+            final List<String> keys = getSelectedTreeLabels();
+            if (keys == null) return;
+            final Map<String, Object> inputs = new HashMap<>();
+            inputs.put("treeLabels", keys);
+            runCmd(TranslateReconstructionsCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
         }
 
         private void addCustomizeTreeCommands(final JPopupMenu menu) {
 
             JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.menuIcon(GLYPH.SLIDERS));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null) return;
-                if (cmdService == null)
-                    SNTUtils.getContext().inject(Viewer3D.this);
-                class getTreeColors extends SwingWorker<Object, Object> {
-
-                    CommandModule cmdModule;
-
-                    @Override
-                    public Object doInBackground() {
-                        try {
-                            cmdModule = cmdService.run(CustomizeTreeCmd.class, true).get();
-                        }
-                        catch (final InterruptedException | ExecutionException ignored) {
-                            return null;
-                        }
-                        return null;
-                    }
-
-                    @Override
-                    protected void done() {
-                        if (cmdModule != null && cmdModule.isCanceled()) {
-                            return; // user pressed cancel or chose nothing
-                        }
-                        assert cmdModule != null;
-                        @SuppressWarnings("unchecked")
-                        final HashMap<String, ColorRGBA> colorMap = (HashMap<String, ColorRGBA>) cmdModule.getInput("colorMap");
-                        @SuppressWarnings("unchecked")
-                        final HashMap<String, Double> sizeMap = (HashMap<String, Double>) cmdModule.getInput("sizeMap");
-                        if (colorMap == null || sizeMap == null) {
-                            guiUtils.error("Command execution failed.");
-                            return;
-                        }
-//						final boolean reflectLight = (boolean) cmdModule.getInput("reflectLight");
-//						final boolean faceDisplayed = (boolean) cmdModule.getInput("faceDisplayed");
-//						final boolean wireframeDisplayed = (boolean) cmdModule.getInput("wireframeDisplayed");
-
-                        final Color sColor = fromColorRGB(colorMap.get("soma"));
-                        final Color dColor = fromColorRGB(colorMap.get("dendrite"));
-                        final Color aColor = fromColorRGB(colorMap.get("axon"));
-                        final double sSize = sizeMap.get("soma");
-                        final double dSize = sizeMap.get("dendrite");
-                        final double aSize = sizeMap.get("axon");
-                        for (final String label : keys) {
-                            final ShapeTree tree = plottedTrees.get(label);
-                            if (tree.somaSubShape != null) {
-                                if (sColor != null) tree.setSomaColor(sColor);
-                                if (sSize > -1) tree.setSomaRadius((float) sSize);
-                            }
-                            if (tree.treeSubShape != null) {
-                                if (dColor != null) tree.setArborColor(dColor, Path.SWC_DENDRITE);
-                                if (aColor != null) tree.setArborColor(aColor, Path.SWC_AXON);
-                                if (dSize > -1) tree.setThickness((float) dSize, Path.SWC_DENDRITE);
-                                if (aSize > -1) tree.setThickness((float) aSize, Path.SWC_AXON);
-                            }
-//							tree.setReflectLight(reflectLight);
-//							tree.setFaceDisplayed(faceDisplayed);
-//							tree.setWireframeDisplayed(wireframeDisplayed);
-                        }
-                    }
-                }
-                (new getTreeColors()).execute();
-            });
+            mi.addActionListener(e -> customizeSelectedTreesAllParametersAction());
             menu.add(mi);
 
             mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null || !okToApplyColor(keys)) return;
-                final ColorRGB c = new AnnotPrompt().getPromptColor("Tree(s) Color...");
-                if (c != null)
-                    applyColorToPlottedTrees(keys, c);
-            });
+            mi.addActionListener(e -> customizeSelectedTreesColorAction());
             menu.add(mi);
             final JMenu ccMenu = new JMenu("Color Mapping");
             ccMenu.setIcon(IconFactory.menuIcon(GLYPH.COLOR2));
             menu.add(ccMenu);
             mi = new JMenuItem("Apply Color Mapping...");
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("treeLabels", keys);
-                runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
-            });
+            mi.addActionListener(e -> applyColorMappingToSelectedTreesAction());
             ccMenu.add(mi);
             mi = new JMenuItem("Remove Existing Color Mapping(s)");
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees(true);
-                if (trees != null) {
-                    trees.forEach(sc.fiji.snt.analysis.ColorMapper::unMap);
-                    displayMsg("Color mappings removed");
-                }
-            });
+            mi.addActionListener(e -> removeSelectedTreeColorMappingsAction());
             ccMenu.add(mi);
             ccMenu.addSeparator();
             mi = new JMenuItem("Color Each Cell Uniquely");
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null || !okToApplyColor(keys)) return;
-                final ColorRGB[] colors = SNTColor.getDistinctColors(keys.size());
-                final int[] counter = new int[] { 0 };
-                plottedTrees.forEach((k, shapeTree) -> {
-                    shapeTree.setArborColor(colors[counter[0]], ShapeTree.ANY);
-                    shapeTree.setSomaColor(colors[counter[0]]);
-                    counter[0]++;
-                });
-                displayMsg("Unique colors assigned");
-            });
+            mi.addActionListener(e -> assignUniqueColorsToSelectedTreesAction());
             ccMenu.add(mi);
 
             mi = new JMenuItem("Thickness...", IconFactory.menuIcon(GLYPH.DOTCIRCLE));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null) return;
-                String msg = "<HTML><body><div style='width:500;'>" +
-                        "Please specify a constant thickness value [ranging from 1 (thinnest) to 8"
-                        + " (thickest)] to be applied to selected " + keys.size() + " reconstruction(s).";
-                if (isSNTInstance()) {
-                    msg += " This value will only affect how Paths are displayed " +
-                            "in the Reconstruction Viewer.";
-                }
-                final Double thickness = guiUtils.getDouble(msg, "Path Thickness",
-                        getDefaultThickness());
-                if (thickness == null) {
-                    return; // user pressed cancel
-                }
-                if (Double.isNaN(thickness) || thickness <= 0) {
-                    guiUtils.error("Invalid thickness value.");
-                    return;
-                }
-                setTreeThickness(keys, thickness.floatValue(), null);
-            });
+            mi.addActionListener(e -> setSelectedTreeThicknessAction());
             menu.add(mi);
             mi = new JMenuItem("Soma radius...", IconFactory.menuIcon(GLYPH.CIRCLE));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null) return;
-                String msg = "Please specify a constant radius (in physical units) to be applied to the soma(s) of selected reconstruction(s).";
-                if (isSNTInstance()) {
-                    msg += " This value will only affect how Paths are displayed " +
-                            "in the Reconstruction Viewer.";
-                }
-                final Double radius = guiUtils.getDouble(msg, "Soma radius", 10);
-                if (radius == null) {
-                    return; // user pressed cancel
-                }
-                if (Double.isNaN(radius) || radius <= 0) {
-                    guiUtils.error("Invalid radius.");
-                    return;
-                }
-                setSomasDisplayed(keys, true);
-                setSomaRadius(keys, radius.floatValue());
-            });
+            mi.addActionListener(e -> setSelectedSomaRadiusAction());
             menu.add(mi);
             mi = new JMenuItem("Translate...", IconFactory.menuIcon(GLYPH.MOVE));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedTreeLabels();
-                if (keys == null) return;
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("treeLabels", keys);
-                runCmd(TranslateReconstructionsCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
-            });
+            mi.addActionListener(e -> translateSelectedTreesAction());
             menu.add(mi);
         }
 
@@ -5373,43 +5415,248 @@ public class Viewer3D {
             return legendMenu;
         }
 
+        private void loadMeshFilesAction() {
+            runImportCmd(LoadObjCmd.class, null); // LoadObjCmd will call validate()
+        }
+
+        private void removeSelectedMeshesAction() {
+            final List<String> keys = getSelectedMeshLabels();
+            if (keys == null || keys.isEmpty()) {
+                guiUtils.error("There are no selected meshes.");
+                return;
+            }
+            if (!guiUtils.getConfirmation("Delete " + keys.size() + " mesh(es)?",
+                    "Confirm Deletion"))
+            {
+                return;
+            }
+            setSceneUpdatesEnabled(false);
+            keys.forEach(Viewer3D.this::removeMesh);
+            setSceneUpdatesEnabled(true);
+            updateView();
+        }
+
+        private void removeAllMeshesAction() {
+            if (guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
+                removeAllMeshes();
+        }
+
         private JPopupMenu meshMenu() {
             final JPopupMenu meshMenu = new JPopupMenu();
             GuiUtils.addSeparator(meshMenu, "Add:");
             JMenuItem mi = new JMenuItem("Load OBJ File(s)...", IconFactory
                     .menuIcon(GLYPH.IMPORT));
-            mi.addActionListener(e -> runImportCmd(LoadObjCmd.class, null)); // LoadObjCmd will call validate()
+            mi.addActionListener(e -> loadMeshFilesAction());
             meshMenu.add(mi);
             addCustomizeMeshCommands(meshMenu);
 
             GuiUtils.addSeparator(meshMenu, "Remove:");
             mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(
                     GLYPH.DELETE));
-            mi.addActionListener(e -> {
-                final List<String> keys = getSelectedMeshLabels();
-                if (keys == null || keys.isEmpty()) {
-                    guiUtils.error("There are no selected meshes.");
-                    return;
-                }
-                if (!guiUtils.getConfirmation("Delete " + keys.size() + " mesh(es)?",
-                        "Confirm Deletion"))
-                {
-                    return;
-                }
-                setSceneUpdatesEnabled(false);
-                keys.forEach(k -> removeMesh(k));
-                setSceneUpdatesEnabled(true);
-                updateView();
-            });
+            mi.addActionListener(e -> removeSelectedMeshesAction());
             meshMenu.add(mi);
             mi = new JMenuItem("Remove All...");
             mi.setIcon(IconFactory.menuIcon(GLYPH.TRASH));
-            mi.addActionListener(e -> {
-                if (guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
-                    removeAllMeshes();
-            });
+            mi.addActionListener(e -> removeAllMeshesAction());
             meshMenu.add(mi);
             return meshMenu;
+        }
+
+        private void addCellBasedCrossSectionPlaneAnnotationsAction() {
+            final List<Tree> trees = getSelectedTrees(true);
+            if (trees == null)
+                return;
+            final AnnotPrompt prompt = new AnnotPrompt();
+            final List<String> userAxes = prompt.getPromptPlaneAxes(true);
+            if (userAxes == null)
+                return;
+            setSceneUpdatesEnabled(false);
+            for (final Tree tree : trees) {
+                final BoundingBox3d bounds = tree.getBoundingBox().toBoundingBox3d();
+                for (final String axis : userAxes) {
+                    final PointInImage[] plane = (axis.toLowerCase().contains("soma")) ? prompt.getSomaPlane(bounds, tree, axis) : AnnotPrompt.getPlane(bounds, axis) ;
+                    final Annotation3D annot = annotatePlane(plane[0], plane[1], tree.getLabel() + " [" + axis + "]");
+                    annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(tree.getColor()))), 25);
+                }
+            }
+            setSceneUpdatesEnabled(true);
+        }
+
+        private void addCellBasedSurfaceAnnotationsAction() {
+            final List<Tree> trees = getSelectedTrees(true);
+            if (trees == null)
+                return;
+            final String[] choices = { "Branch points", "Tips" };
+            final String choice = guiUtils.getChoice("Generate surface from which structures?",
+                    "Add Surface...", choices, choices[0]);
+            if (choice == null)
+                return;
+            final List <String> failures = new ArrayList<>();
+            setSceneUpdatesEnabled(false);
+            for (final Tree tree : trees) {
+                if (!tree.is3D()) {
+                    failures.add(tree.getLabel());
+                    continue;
+                }
+                Annotation3D annot;
+                if (choice.startsWith("Branch"))
+                    annot = annotateSurface(new TreeStatistics(tree).getBranchPoints(),
+                            tree.getLabel() + " [BPs surface]", false);
+                else
+                    annot = annotateSurface(new TreeStatistics(tree).getTips(),
+                            tree.getLabel() + " [Tips surface]", false);
+                final ColorRGB color = tree.getColor();
+                if (color != null)
+                    annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 75);
+            }
+            setSceneUpdatesEnabled(true);
+            if (!failures.isEmpty()) {
+                guiUtils.error(("Surfaces cannot be assemble from these 2D reconstructions: "
+                        + failures +". Only 3D reconstructions are supported."));
+            }
+        }
+
+        private void addMeshBasedCrossSectionPlaneAnnotationsAction() {
+            final List<String> meshLabels = getSelectedMeshLabels();
+            if (meshLabels == null)
+                return;
+            final AnnotPrompt prompt = new AnnotPrompt();
+            final List<String> userAxes = prompt.getPromptPlaneAxes(false);
+            if (userAxes == null)
+                return;
+            setSceneUpdatesEnabled(false);
+            for (final String mLabel : meshLabels) {
+                final BoundingBox3d bounds = plottedObjs.get(mLabel).getBounds();
+                for (final String axis : userAxes) {
+                    final PointInImage[] plane = AnnotPrompt.getPlane(bounds, axis);
+                    final Annotation3D annot = annotatePlane(plane[0], plane[1], mLabel + " [" + axis + "]");
+                    annot.setColor(toColorRGB(Utils.contrastColor(plottedObjs.get(mLabel).objMesh.getDrawable().getColor())), 25);
+                }
+            }
+            setSceneUpdatesEnabled(true);
+        }
+
+        private void addMeshBasedSurfaceAnnotationsAction() {
+            final List<String> meshLabels = getSelectedMeshLabels();
+            if (meshLabels == null)
+                return;
+            final String[] choices = { "Left hemisphere", "Right hemisphere", "Both hemispheres" };
+            final String choice = guiUtils.getChoice("Generate surface from which vertices?",
+                    "Add Surface...", choices, choices[0]);
+            if (choice == null)
+                return;
+            setSceneUpdatesEnabled(false);
+            for (final String mLabel : meshLabels) {
+                final String key = choice.split(" ")[0];
+                final Collection<? extends SNTPoint> vertices = plottedObjs.get(mLabel).objMesh.getVertices(key.toLowerCase());
+                final Annotation3D annot = annotateSurface(vertices, mLabel + " [" + (("Both".equals(key)) ? "Full" : key) + " surface]", false);
+                final Color color = plottedObjs.get(mLabel).objMesh.getDrawable().getColor();
+                if (color != null)
+                    annot.setColor(toColorRGB(Utils.contrastColor(color)), 75);
+            }
+            setSceneUpdatesEnabled(true);
+        }
+
+        private void addPrimitiveSphereAnnotationAction() {
+            final AnnotPrompt ap = new AnnotPrompt();
+            if (ap.validPrompt("Sphere Properties...", new String[] { "Center X ", "Center Y ", "Center Z "}, null, true)) {
+                final Annotation3D point = annotatePoint(ap.pim1, "Sphere", ap.color, (float) ap.size);
+                point.setColor(point.getColor(), ap.t);
+            }
+        }
+
+        private void addPrimitiveVectorAnnotationAction() {
+            final AnnotPrompt ap = new AnnotPrompt();
+            if (ap.validPrompt("Vector Properties...", new String[] { "X1 ", "Y1 ", "Z1 " },
+                    new String[] { "X2 ", "Y2 ", "Z2 " }, true)) {
+                final Annotation3D line = annotateLine(List.of(ap.pim1, ap.pim2), "Vector");
+                line.setColor(ap.color, ap.t);
+                line.setSize((float) ap.size);
+            }
+        }
+
+        private void addPrimitivePlaneAnnotationAction() {
+            final AnnotPrompt ap = new AnnotPrompt();
+            if (ap.validPrompt("Plane/Parallelepiped Properties...", new String[] { "Origin X ", "Origin Y ", "Origin Z " },
+                    new String[] { "Origin Opposite X ", "Origin Opposite Y ", "Origin Opposite Z " }, false)) {
+                final Annotation3D annot = annotatePlane(ap.pim1, ap.pim2, "Annot. Plane");
+                annot.setColor(ap.color, ap.t);
+            }
+        }
+
+        private void setSelectedAnnotationsColorAction() {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null)
+                return;
+            final ColorRGB c = new AnnotPrompt().getPromptColor("Annotation(s) Color...");
+            if (c != null)
+                annots.forEach(annot -> annot.setColor(c, -1));
+        }
+
+        private void applySelectedAnnotationsGradientAction() {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null)
+                return;
+            final String[] res = new AnnotPrompt().getPromptGradient();
+            if (res == null)
+                return;
+            final List <String> failures = new ArrayList<>();
+            annots.forEach(annot -> {
+                if (annot.isColorCodeAllowed())
+                    annot.colorCode(res[0], res[1]);
+                else
+                    failures.add(annot.getLabel());
+            });
+            if (!failures.isEmpty())
+                guiUtils.error(("The following annotations do not support color gradients: " + failures));
+        }
+
+        private void setSelectedAnnotationsTransparencyAction() {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null)
+                return;
+            final Double t = new AnnotPrompt().getPromptTransparency("Annotation(s) Transparency...");
+            if (t != null)
+                annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
+        }
+
+        private void adjustSelectedAnnotationSurfaceRenderingAction() {
+            if (noLoadedItemsGuiError()) {
+                return;
+            }
+            if (chart.getScene().getGraph().getAll().stream().noneMatch(g -> g instanceof AbstractEnlightable)) {
+                guiUtils.error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
+                        + "Current scene contains no such objects.");
+                return;
+            }
+            final List<?> selectedKeys = managerList.getSelectedValuesList();
+            if (selectedKeys.size() != 1 || CheckBoxList.ALL_ENTRY.equals(selectedKeys.getFirst())) {
+                guiUtils.error("This command operates on single objects.");
+                return;
+            }
+            final String item = TagUtils.removeAllTags((String) selectedKeys.getFirst());
+            final Drawable d = getDrawableFromObject(item);
+            if (d instanceof AbstractEnlightable)
+                frame.displayLightController((AbstractEnlightable) d);
+            else {
+                guiUtils.error("Selected item does not support surface texture adjustments. "
+                        + "Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported.");
+            }
+        }
+
+        private void removeSelectedAnnotationsAction() {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null || annots.isEmpty()) {
+                guiUtils.error("There are no selected annotations.");
+                return;
+            }
+            if (!guiUtils.getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
+                return;
+            }
+            setSceneUpdatesEnabled(false);
+            annots.forEach(Viewer3D.this::removeAnnotation);
+            setSceneUpdatesEnabled(true);
+            updateView();
         }
 
         private JPopupMenu annotationsMenu() {
@@ -5418,222 +5665,49 @@ public class Viewer3D {
             GuiUtils.addSeparator(annotMenu, "Add:");
             JMenuItem mi = new JMenuItem("Cell-based Cross-section Plane...", IconFactory.menuIcon(GLYPH.SCISSORS));
             mi.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees(true);
-                if (trees == null)
-                    return;
-                final AnnotPrompt prompt = new AnnotPrompt();
-                final List<String> userAxes = prompt.getPromptPlaneAxes(true);
-                if (userAxes == null)
-                    return;
-                setSceneUpdatesEnabled(false);
-                for (final Tree tree : trees) {
-                    final BoundingBox3d bounds = tree.getBoundingBox().toBoundingBox3d();
-                    for (final String axis : userAxes) {
-                        final PointInImage[] plane = (axis.toLowerCase().contains("soma")) ? prompt.getSomaPlane(bounds, tree, axis) : prompt.getPlane(bounds, axis) ;
-                        final Annotation3D annot = annotatePlane(plane[0], plane[1], tree.getLabel() + " [" + axis + "]");
-                        annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(tree.getColor()))), 25);
-                    }
-                }
-                setSceneUpdatesEnabled(true);
-            });
+            mi.addActionListener(e -> addCellBasedCrossSectionPlaneAnnotationsAction());
             annotMenu.add(mi);
             mi = new JMenuItem("Cell-based Surface...", IconFactory.menuIcon(GLYPH.DICE_20));
             mi.setToolTipText("Adds convex-hull tesselations to neuronal arbors");
-            mi.addActionListener(e -> {
-                final List<Tree> trees = getSelectedTrees(true);
-                if (trees == null)
-                    return;
-                final String[] choices = { "Branch points", "Tips" };
-                final String choice = guiUtils.getChoice("Generate surface from which structures?",
-                        "Add Surface...", choices, choices[0]);
-                if (choice == null)
-                    return;
-                final List <String> failures = new ArrayList<>();
-                setSceneUpdatesEnabled(false);
-                for (final Tree tree : trees) {
-                    if (!tree.is3D()) {
-                        failures.add(tree.getLabel());
-                        continue;
-                    }
-                    Annotation3D annot;
-                    if (choice.startsWith("Branch"))
-                        annot = annotateSurface(new TreeStatistics(tree).getBranchPoints(),
-                                tree.getLabel() + " [BPs surface]", false);
-                    else
-                        annot = annotateSurface(new TreeStatistics(tree).getTips(),
-                                tree.getLabel() + " [Tips surface]", false);
-                    final ColorRGB color = tree.getColor();
-                    if (color != null)
-                        annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 75);
-                }
-                setSceneUpdatesEnabled(true);
-                if (!failures.isEmpty()) {
-                    guiUtils.error(("Surfaces cannot be assemble from these 2D reconstructions: "
-                            + failures.toString() +". Only 3D reconstructions are supported."));
-                }
-            });
+            mi.addActionListener(e -> addCellBasedSurfaceAnnotationsAction());
             annotMenu.add(mi);
             mi = new JMenuItem("Mesh-based Cross-section Plane...", IconFactory.menuIcon(GLYPH.SCISSORS));
             mi.setToolTipText("Adds cross-section plane(s) to selected meshes");
-            mi.addActionListener(e -> {
-                final List<String> meshLabels = getSelectedMeshLabels();
-                if (meshLabels == null)
-                    return;
-                final AnnotPrompt prompt = new AnnotPrompt();
-                final List<String> userAxes = prompt.getPromptPlaneAxes(false);
-                if (userAxes == null)
-                    return;
-                setSceneUpdatesEnabled(false);
-                for (final String mLabel : meshLabels) {
-                    final BoundingBox3d bounds = plottedObjs.get(mLabel).getBounds();
-                    for (final String axis : userAxes) {
-                        final PointInImage[] plane = prompt.getPlane(bounds, axis);
-                        final Annotation3D annot = annotatePlane(plane[0], plane[1], mLabel + " [" + axis + "]");
-                        annot.setColor(toColorRGB(Utils.contrastColor(plottedObjs.get(mLabel).objMesh.getDrawable().getColor())), 25);
-                    }
-                }
-                setSceneUpdatesEnabled(true);
-            });
+            mi.addActionListener(e -> addMeshBasedCrossSectionPlaneAnnotationsAction());
             annotMenu.add(mi);
             mi = new JMenuItem("Mesh-based Surface...", IconFactory.menuIcon(GLYPH.DICE_20));
             mi.setToolTipText("Adds convex-hull tesselations to selected meshes");
-            mi.addActionListener(e -> {
-                final List<String> meshLabels = getSelectedMeshLabels();
-                if (meshLabels == null)
-                    return;
-                final String[] choices = { "Left hemisphere", "Right hemisphere", "Both hemispheres" };
-                final String choice = guiUtils.getChoice("Generate surface from which vertices?",
-                        "Add Surface...", choices, choices[0]);
-                if (choice == null)
-                    return;
-                setSceneUpdatesEnabled(false);
-                for (final String mLabel : meshLabels) {
-                    final String key = choice.split(" ")[0];
-                    final Collection<? extends SNTPoint> vertices = plottedObjs.get(mLabel).objMesh.getVertices(key.toLowerCase());
-                    final Annotation3D annot = annotateSurface(vertices, mLabel + " [" + (("Both".equals(key)) ? "Full" : key) + " surface]", false);
-                    final Color color = plottedObjs.get(mLabel).objMesh.getDrawable().getColor();
-                    if (color != null)
-                        annot.setColor(toColorRGB(Utils.contrastColor(color)), 75);
-                }
-                setSceneUpdatesEnabled(true);
-            });
+            mi.addActionListener(e -> addMeshBasedSurfaceAnnotationsAction());
             annotMenu.add(mi);
             final JMenu primitives = new JMenu("Misc");
             primitives.setToolTipText("Adds basic geometry objects to the scene");
             primitives.setIcon(IconFactory.menuIcon(GLYPH.ELLIPSIS));
             annotMenu.add(primitives);
             mi = new JMenuItem("Sphere...", IconFactory.menuIcon(GLYPH.GLOBE));
-            mi.addActionListener(e -> {
-                final AnnotPrompt ap = new AnnotPrompt();
-                if (ap.validPrompt("Sphere Properties...", new String[] { "Center X ", "Center Y ", "Center Z "}, null, true)) {
-                    final Annotation3D point = annotatePoint(ap.pim1, "Sphere", ap.color, (float) ap.size);
-                    point.setColor(point.getColor(), ap.t);
-                }
-            });
+            mi.addActionListener(e -> addPrimitiveSphereAnnotationAction());
             primitives.add(mi);
             mi = new JMenuItem("Vector...", IconFactory.menuIcon(GLYPH.ARROWS_LR));
-            mi.addActionListener(e -> {
-                final AnnotPrompt ap = new AnnotPrompt();
-                if (ap.validPrompt("Vector Properties...", new String[] { "X1 ", "Y1 ", "Z1 " },
-                        new String[] { "X2 ", "Y2 ", "Z2 " }, true)) {
-                    final Annotation3D line = annotateLine(List.of(ap.pim1, ap.pim2), "Vector");
-                    line.setColor(ap.color, ap.t);
-                    line.setSize((float) ap.size);
-                }
-            });
+            mi.addActionListener(e -> addPrimitiveVectorAnnotationAction());
             primitives.add(mi);
             mi = new JMenuItem("Plane/Parallelepiped...", IconFactory.menuIcon(GLYPH.SQUARE));
-            mi.addActionListener(e -> {
-                final AnnotPrompt ap = new AnnotPrompt();
-                if (ap.validPrompt("Plane/Parallelepiped Properties...", new String[] { "Origin X ", "Origin Y ", "Origin Z " },
-                        new String[] { "Origin Opposite X ", "Origin Opposite Y ", "Origin Opposite Z " }, false)) {
-                    final Annotation3D annot = annotatePlane(ap.pim1, ap.pim2, "Annot. Plane");
-                    annot.setColor(ap.color, ap.t);
-                }
-            });
+            mi.addActionListener(e -> addPrimitivePlaneAnnotationAction());
             primitives.add(mi);
             GuiUtils.addSeparator(annotMenu, "Customize:");
             mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
-            mi.addActionListener(e -> {
-                final List<Annotation3D> annots = getSelectedAnnotations();
-                if (annots == null)
-                    return;
-                final ColorRGB c = new AnnotPrompt().getPromptColor("Annotation(s) Color...");
-                if (c != null)
-                    annots.forEach(annot -> annot.setColor(c, -1));
-            });
+            mi.addActionListener(e -> setSelectedAnnotationsColorAction());
             annotMenu.add(mi);
             mi = new JMenuItem("Color Gradient...", IconFactory.menuIcon(GLYPH.COLOR2));
-            mi.addActionListener(e -> {
-                final List<Annotation3D> annots = getSelectedAnnotations();
-                if (annots == null)
-                    return;
-                final String[] res = new AnnotPrompt().getPromptGradient();
-                if (res == null)
-                    return;
-                final List <String> failures = new ArrayList<>();
-                annots.forEach(annot -> {
-                    if (annot.isColorCodeAllowed())
-                        annot.colorCode(res[0], res[1]);
-                    else
-                        failures.add(annot.getLabel());
-                });
-                if (!failures.isEmpty())
-                    guiUtils.error(("The following annotations do not support color gradients: " + failures));
-            });
+            mi.addActionListener(e -> applySelectedAnnotationsGradientAction());
             annotMenu.add(mi);
             mi = new JMenuItem("Transparency...", IconFactory.menuIcon(GLYPH.ADJUST));
-            mi.addActionListener(e -> {
-                final List<Annotation3D> annots = getSelectedAnnotations();
-                if (annots == null)
-                    return;
-                final Double t = new AnnotPrompt().getPromptTransparency("Annotation(s) Transparency...");
-                if (t != null)
-                    annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
-            });
+            mi.addActionListener(e -> setSelectedAnnotationsTransparencyAction());
             annotMenu.add(mi);
             final JMenuItem material = new JMenuItem("Surface Rendering...", IconFactory.menuIcon(GLYPH.CUBES));
-            material.addActionListener(e -> {
-                if (noLoadedItemsGuiError()) {
-                    return;
-                }
-                if (chart.getScene().getGraph().getAll().stream().noneMatch(g -> g instanceof AbstractEnlightable)) {
-                    guiUtils.error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
-                            + "Current scene contains no such objects.");
-                    return;
-                }
-                final List<?> selectedKeys = managerList.getSelectedValuesList();
-                if (selectedKeys.size() != 1 || CheckBoxList.ALL_ENTRY.equals(selectedKeys.get(0))) {
-                    guiUtils.error("This command operates on single objects.");
-                    return;
-                }
-                final String item = TagUtils.removeAllTags((String) selectedKeys.get(0));
-                final Drawable d = getDrawableFromObject(item);
-                if (d instanceof AbstractEnlightable)
-                    frame.displayLightController((AbstractEnlightable) d);
-                else {
-                    guiUtils.error("Selected item does not support surface texture adjustments. "
-                            + "Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported.");
-                }
-            });
+            material.addActionListener(e -> adjustSelectedAnnotationSurfaceRenderingAction());
             annotMenu.add(material);
             GuiUtils.addSeparator(annotMenu, "Remove:");
             mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(GLYPH.DELETE));
-            mi.addActionListener(e -> {
-                final List<Annotation3D> annots = getSelectedAnnotations();
-                if (annots == null || annots.isEmpty()) {
-                    guiUtils.error("There are no selected annotations.");
-                    return;
-                }
-                if (!guiUtils.getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
-                    return;
-                }
-                setSceneUpdatesEnabled(false);
-                annots.forEach(Viewer3D.this::removeAnnotation);
-                setSceneUpdatesEnabled(true);
-                updateView();
-            });
+            mi.addActionListener(e -> removeSelectedAnnotationsAction());
             annotMenu.add(mi);
             mi = new JMenuItem("Remove All...");
             mi.setIcon(IconFactory.menuIcon(GLYPH.TRASH));
@@ -8249,7 +8323,7 @@ public class Viewer3D {
                     .append("-").append(String.format("%.2f", newBounds.getYmax()));
             sb.append(" Z: ").append(String.format("%.2f", newBounds.getZmin()))
                     .append("-").append(String.format("%.2f", newBounds.getZmax()));
-            displayMsg("Zoomed to " + sb.toString());
+            displayMsg("Zoomed to " + sb);
         }
     }
 
