@@ -3023,6 +3023,12 @@ public class SNTUI extends JDialog {
         jmiGray.addActionListener(e -> runAutotracingOnImage(GWDTTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
 
+		final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
+		jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
+		jmiGrayFile.setToolTipText("Runs automated tracing on a grayscale image\n" +
+				"by specifying the path to image.\nLazy loading for large formats supported.");
+		menu.add(jmiGrayFile);
+
         menu.addSeparator();
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
@@ -3043,7 +3049,7 @@ public class SNTUI extends JDialog {
         jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiBinaryImg);
-        final JMenuItem jmiBinaryFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_IMAGE);
+        final JMenuItem jmiBinaryFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_BINARY_IMAGE);
         jmiBinaryFile.setIcon(IconFactory.menuIcon('\ue69b', true));
         jmiBinaryFile.setToolTipText("Runs automated tracing by specifying the path to a thresholded/binary image");
         menu.add(jmiBinaryFile);
@@ -4992,8 +4998,9 @@ public class SNTUI extends JDialog {
 
 		static String getImportActionName(final int type) {
             return switch (type) {
-                case ImportAction.AUTO_TRACE_IMAGE -> "Segmented Image File...";
-                case ImportAction.SWC_DIR -> "Directory of SWCs...";
+                case ImportAction.AUTO_TRACE_BINARY_IMAGE -> "Segmented Image File...";
+				case ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE -> "Grayscale Image (GWDT) File...";
+				case ImportAction.SWC_DIR -> "Directory of SWCs...";
                 case ImportAction.SWC -> "SWC...";
                 case ImportAction.IMAGE -> "From File...";
                 case ImportAction.ANY_RECONSTRUCTION -> "Guess File Type...";
@@ -5008,8 +5015,9 @@ public class SNTUI extends JDialog {
 
 		static int getImportActionType(final String name) {
             return switch (name) {
-                case "Segmented Image File..." -> ImportAction.AUTO_TRACE_IMAGE;
-                case "Directory of SWCs..." -> ImportAction.SWC_DIR; // backwards compatibility
+                case "Grayscale Image (GWDT) File..." -> ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE;
+				case "Segmented Image File..." -> ImportAction.AUTO_TRACE_BINARY_IMAGE;
+				case "Directory of SWCs..." -> ImportAction.SWC_DIR; // backwards compatibility
                 case "e(SWC)...", "SWC..." -> ImportAction.SWC;
                 case "From File..." -> ImportAction.IMAGE;
                 case "Guess File Type..." -> ImportAction.ANY_RECONSTRUCTION;
@@ -5329,9 +5337,10 @@ public class SNTUI extends JDialog {
 		private static final int IMAGE = 4;
 		private static final int ANY_RECONSTRUCTION = 5;
 		private static final int DEMO = 6;
-		private static final int AUTO_TRACE_IMAGE = 7;
-		private static final int NDF = 8;
-		private static final int IMAGE_CLIPBOARD = 9;
+		private static final int AUTO_TRACE_BINARY_IMAGE = 7;
+		private static final int AUTO_TRACE_GRAYSCALE_IMAGE = 8;
+		private static final int NDF = 9;
+		private static final int IMAGE_CLIPBOARD = 10;
 
 		private final int type;
 		private File file;
@@ -5350,12 +5359,13 @@ public class SNTUI extends JDialog {
 			final HashMap<String, Object> inputs = new HashMap<>();
 			final int priorState = currentState;
             switch (type) {
-                case AUTO_TRACE_IMAGE -> {
+                case AUTO_TRACE_BINARY_IMAGE, AUTO_TRACE_GRAYSCALE_IMAGE -> {
                     if (plugin.isSecondaryDataAvailable()) {
                         flushSecondaryDataPrompt();
                     }
                     inputs.put("useFileChoosers", true);
-                    (new DynamicCmdRunner(BinaryTracerCmd.class, inputs, RUNNING_CMD)).run();
+					final Class<? extends Command> cls = (type == AUTO_TRACE_BINARY_IMAGE) ? BinaryTracerCmd.class : GWDTTracerCmd.class;
+					(new DynamicCmdRunner(cls, inputs, RUNNING_CMD)).run();
                 }
                 case DEMO -> {
                     if (plugin.isSecondaryDataAvailable()) {
