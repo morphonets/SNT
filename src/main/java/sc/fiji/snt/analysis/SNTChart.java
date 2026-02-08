@@ -2315,30 +2315,32 @@ public class SNTChart extends ChartPanel {
 		final LinkedHashMap<String, AnalysisUtils.HistogramDatasetPlus> hdpMap = new LinkedHashMap<>();
 		int nBins = 2;
 		final boolean isSummarized = table.isSummarized();
+		final double[] limits = new double[] {Double.MAX_VALUE, Double.NEGATIVE_INFINITY};
 		table.removeSummary();
-		final double[] limits = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
-		for (final int colIdx : columnIndices) {
-			try {
-				final Column<?> col = table.get(colIdx);
-				final DescriptiveStatistics stats = new DescriptiveStatistics();
-				col.forEach(row -> {
-					if (row != null && !Double.isNaN((double) row))
-						stats.addValue((Double) row);
-				});
-				final double max = stats.getMax();
-				final double min = stats.getMin();
-				if (min < limits[0]) limits[0] = min;
-				if (max > limits[1]) limits[1] = max;
-				final AnalysisUtils.HistogramDatasetPlus hdp = new AnalysisUtils.HistogramDatasetPlus(stats, table.getColumnHeader(colIdx));
-				hdp.compute();
-				nBins = Math.max(nBins, hdp.nBins);
-				hdpMap.put(table.getColumnHeader(colIdx), hdp);
-			} catch (final IndexOutOfBoundsException ex) {
-				throw new IllegalArgumentException("Invalid column header. Available headers: "
-						+ table.getColumnHeaders().toString());
-			} finally {
-				if (isSummarized) table.summarize();
+		try {
+			for (final int colIdx : columnIndices) {
+				try {
+					final Column<?> col = table.get(colIdx);
+					final DescriptiveStatistics stats = new DescriptiveStatistics();
+					col.forEach(row -> {
+						if (row != null && !Double.isNaN((double) row))
+							stats.addValue((Double) row);
+					});
+					final double max = stats.getMax();
+					final double min = stats.getMin();
+					if (min < limits[0]) limits[0] = min;
+					if (max > limits[1]) limits[1] = max;
+					final AnalysisUtils.HistogramDatasetPlus hdp = new AnalysisUtils.HistogramDatasetPlus(stats, table.getColumnHeader(colIdx));
+					hdp.compute();
+					nBins = Math.max(nBins, hdp.nBins);
+					hdpMap.put(table.getColumnHeader(colIdx), hdp);
+				} catch (final IndexOutOfBoundsException ex) {
+					throw new IllegalArgumentException("Invalid column header. Available headers: "
+							+ table.getColumnHeaders().toString());
+				}
 			}
+		} finally {
+			if (isSummarized) table.summarize();
 		}
 		final HistogramDataset dataset = new HistogramDataset();
 		dataset.setType(HistogramType.RELATIVE_FREQUENCY);

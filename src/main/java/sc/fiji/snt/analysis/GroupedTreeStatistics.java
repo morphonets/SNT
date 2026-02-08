@@ -219,7 +219,7 @@ public class GroupedTreeStatistics {
 	private SNTChart getHistogram(final String measurement, final boolean polar) {
 		final String normMeasurement = TreeStatistics.getNormalizedMeasurement(measurement);
 		// Retrieve all HistogramDatasetPlus instances
-		final double[] limits = new double[] {Double.MAX_VALUE, Double.MIN_VALUE};
+		final double[] limits = new double[] {Double.MAX_VALUE, Double.NEGATIVE_INFINITY};
 		for (final String groupLabel : getGroups()) {
 			final double groupMax = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMax();
 			final double groupMin = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMin();

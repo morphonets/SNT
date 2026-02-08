@@ -1208,26 +1208,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             fitWorker = new SwingWorker<>() {
 
                 @Override
-                protected Object doInBackground() {
+	                protected Object doInBackground() {
 
-                    try (final ExecutorService es = Executors.newFixedThreadPool(processors)) {
-                        final FittingProgress progress = new FittingProgress(plugin.getUI(),
-                                plugin.statusService, numberOfPathsToFit);
-                        try {
-                            final PathFitter refFitter = pathsToFit.getFirst();
-                            refFitter.readPreferences();
-                            for (int i = 0; i < numberOfPathsToFit; ++i) {
-                                final PathFitter pf = pathsToFit.get(i);
-                                pf.applySettings(refFitter);
-                                pf.setProgressCallback(i, progress);
-                            }
-                            es.invokeAll(pathsToFit);
-                        } catch (final InterruptedException | RuntimeException e) {
-                            msg.dispose();
-                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
-                            e.printStackTrace();
-                        } finally {
-                            progress.done();
+	                    try (final ExecutorService es = Executors.newFixedThreadPool(processors)) {
+	                        final FittingProgress progress = new FittingProgress(plugin.getUI(),
+	                                plugin.statusService, numberOfPathsToFit);
+	                        try {
+	                            final PathFitter refFitter = pathsToFit.getFirst();
+	                            refFitter.readPreferences();
+	                            for (int i = 0; i < numberOfPathsToFit; ++i) {
+	                                final PathFitter pf = pathsToFit.get(i);
+	                                pf.applySettings(refFitter);
+	                                pf.setProgressCallback(i, progress);
+	                            }
+	                            final List<Future<Path>> results = es.invokeAll(pathsToFit);
+	                            for (final Future<Path> result : results) {
+	                                result.get();
+	                            }
+	                        } catch (final InterruptedException e) {
+	                            Thread.currentThread().interrupt();
+	                            msg.dispose();
+	                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
+	                            e.printStackTrace();
+	                        } catch (final ExecutionException | RuntimeException e) {
+	                            msg.dispose();
+	                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
+	                            e.printStackTrace();
+	                        } finally {
+	                            progress.done();
                             try {
                                 es.shutdown();
                             } catch (final Exception ex) {
