@@ -173,14 +173,14 @@ public class MultiViewer2D {
 			throw new IllegalArgumentException("Cannot set legend from null viewers or null colorTable");
 		}
         double legendMin = Double.MAX_VALUE;
-        double legendMax = Double.MIN_VALUE;
+        double legendMax = Double.NEGATIVE_INFINITY;
         if (min >=max) {
 			for (Viewer2D viewer: viewers) {
 				final double[] minMax = viewer.getMinMax();
 				legendMin = Math.min(minMax[0], legendMin);
 				legendMax = Math.max(minMax[1], legendMax);
 			}
-			if (min >= max) return; //range determination failed. Do not add legend
+			if (legendMin >= legendMax) return; // range determination failed. Do not add legend
 		} else {
 			legendMin = min;
 			legendMax = max;

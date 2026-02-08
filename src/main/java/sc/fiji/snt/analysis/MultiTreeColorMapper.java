@@ -197,12 +197,12 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 			for (final MappedTree mt : mappedTrees) {
 				mt.tree.setColor(getColorRGB(mt.value));
 			}
-		} else  {
-			min = Double.MAX_VALUE;
-			max = Double.MIN_VALUE;
-			for (final MappedTree mt : mappedTrees) {
-				final TreeColorMapper tMapper = new TreeColorMapper();
-				tMapper.map(mt.tree, measurement, colorTable);
+			} else  {
+				min = Double.MAX_VALUE;
+				max = Double.NEGATIVE_INFINITY;
+				for (final MappedTree mt : mappedTrees) {
+					final TreeColorMapper tMapper = new TreeColorMapper();
+					tMapper.map(mt.tree, measurement, colorTable);
 				final double[] minMax = tMapper.getMinMax();
 				if (minMax[0] < min) min = minMax[0];
 				if (minMax[1] > max) max = minMax[1];
@@ -249,7 +249,7 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 	private void assignMinMax() {
 		if (Double.isNaN(min) || Double.isNaN(max) || min > max) {
 			min = Double.MAX_VALUE;
-			max = Double.MIN_VALUE;
+			max = Double.NEGATIVE_INFINITY;
 			for (final MappedTree mt : mappedTrees) {
 				if (mt.value < min) min = mt.value;
 				if (mt.value > max) max = mt.value;
@@ -267,7 +267,7 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 		final MultiViewer2D multiViewer = new MultiViewer2D(viewers);
 		if (colorTable != null && !mappedTrees.isEmpty()) {
 			double groupMin = Double.MAX_VALUE;
-			double groupMax = Double.MIN_VALUE;
+			double groupMax = Double.NEGATIVE_INFINITY;
 			for (final MappedTree mt : mappedTrees) {
 				if (mt.value < groupMin) groupMin = mt.value;
 				if (mt.value > groupMax) groupMax = mt.value;

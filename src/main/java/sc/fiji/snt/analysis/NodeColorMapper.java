@@ -138,7 +138,7 @@ public class NodeColorMapper extends ColorMapper {
 	private void resetAutoLimits() {
 		if(autoLimits) {
 			tColorMapper.min = Double.MAX_VALUE;
-			tColorMapper.max = Double.MIN_VALUE;
+			tColorMapper.max = Double.NEGATIVE_INFINITY;
 		}
 	}
 

@@ -158,24 +158,25 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 	@Override
 	public void run() {
 
-		try {
-			if (recViewer == null) {
-				recViewer = sntService.getRecViewer();
-			}
-			final boolean setProgress = recViewer.getManagerPanel() != null;
-
-			// FIXME: This is not suitable for measurements with negative values
-			final boolean validMin = !Double.isNaN(min) && min <= max;
-			final boolean validMax = !Double.isNaN(max) && max > 0 && max >= min;
-
-			if (treeLabels == null) {
-				// No trees to be color coded. Just add the color bar
-				if (!(validMin && validMax)) {
-					error("Invalid Limits " + min + "-" + max);
-					return;
+			try {
+				if (recViewer == null) {
+					recViewer = sntService.getRecViewer();
 				}
-				recViewer.addColorBarLegend(colorTable, min, max);
-				return;
+				final boolean setProgress = recViewer.getManagerPanel() != null;
+
+				final boolean validMin = Float.isFinite(min);
+				final boolean validMax = Float.isFinite(max);
+				final boolean validRange = validMin && validMax && max >= min;
+				final boolean autoLimitsRequested = min == 0f && max == 0f;
+
+				if (treeLabels == null) {
+					// No trees to be color coded. Just add the color bar
+					if (!validRange || autoLimitsRequested) {
+						error("Invalid Limits " + min + "-" + max);
+						return;
+					}
+					recViewer.addColorBarLegend(colorTable, min, max);
+					return;
 			}
 
 			recViewer.setSceneUpdatesEnabled(false);
@@ -183,15 +184,17 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 			boolean pmcSkipped = false;
 			if (treeLabels != null) {
 				pmcSkipped = treeLabels.remove("Path Manager Contents");
-				// Color group of trees
-				if (setProgress) recViewer.getManagerPanel().showProgress(-1, -1);
-				limits = recViewer.colorCode(treeLabels, measurementChoice, colorTable);
-			}
-			recViewer.setSceneUpdatesEnabled(true);
-			if (!validMin) min = (float) limits[0];
-			if (!validMax) max = (float) limits[1];
-			recViewer.addColorBarLegend(colorTable, min, max);
-			if (setProgress) recViewer.getManagerPanel().showProgress(0, 0);
+					// Color group of trees
+					if (setProgress) recViewer.getManagerPanel().showProgress(-1, -1);
+					limits = recViewer.colorCode(treeLabels, measurementChoice, colorTable);
+				}
+				recViewer.setSceneUpdatesEnabled(true);
+				if (autoLimitsRequested || !validRange) {
+					min = (float) limits[0];
+					max = (float) limits[1];
+				}
+				recViewer.addColorBarLegend(colorTable, min, max);
+				if (setProgress) recViewer.getManagerPanel().showProgress(0, 0);
 
 			if (pmcSkipped) {
 				msg("<HTML><i>Path Manager Contents</i> was skipped because its topological type is unknown.<br>" +

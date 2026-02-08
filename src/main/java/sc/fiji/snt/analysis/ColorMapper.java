@@ -46,11 +46,11 @@ public class ColorMapper {
     @Parameter
 	protected LUTService lutService;
     
-    protected Map<String, URL> luts;
+	protected Map<String, URL> luts;
 	protected ColorTable colorTable;
 	protected boolean integerScale;
 	protected double min = Double.MAX_VALUE;
-	protected double max = Double.MIN_VALUE;
+	protected double max = Double.NEGATIVE_INFINITY;
 	private Color nanColor;
 
 	/**
@@ -153,7 +153,7 @@ public class ColorMapper {
 		if (!Double.isNaN(min) && !Double.isNaN(max) && min > max)
 			throw new IllegalArgumentException("min > max");
 		this.min = (Double.isNaN(min)) ? Double.MAX_VALUE : min;
-		this.max = (Double.isNaN(max)) ? Double.MIN_VALUE : max;
+		this.max = (Double.isNaN(max)) ? Double.NEGATIVE_INFINITY : max;
 	}
 
 	/**
