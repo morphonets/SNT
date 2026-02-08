@@ -42,7 +42,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.AbstractAutoTracer;
+import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracer;
+import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.TreeUtils;
 
@@ -303,7 +305,7 @@ public class GWDTTracerCmd extends CommonDynamicCmd {
             snt.setCanvasLabelAllPanes("GWDT Autotracing...");
 
             // Create tracer
-            final GWDTTracer<?> tracer = GWDTTracer.create(chosenImp);
+            final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(chosenImp);
             tracer.setVerbose(debugMode);
             tracer.setBackgroundThreshold(backgroundThreshold);
             tracer.setMinSegmentLengthVoxels(lengthThreshold);

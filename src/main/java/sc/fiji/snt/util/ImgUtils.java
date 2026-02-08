@@ -1178,41 +1178,52 @@ public class ImgUtils {
     }
 
     /**
-     * Opens an image file as an ImgPlus.
+     * Opens an image file using SCIFIO, supporting lazy loading for large formats.
      * <p>
-     * Supports various formats through SCIFIO (TIFF, PNG, JPEG, etc.) and
-     * Bio-Formats if available. URLs are also supported.
+     * Supports standard formats (TIFF, PNG, JPEG) and big data formats with
+     * lazy loading (N5, Zarr, HDF5, OME-TIFF). Large datasets are opened as
+     * virtual/lazy images without loading the entire file into memory.
      * </p>
      *
-     * @param filePathOrUrl path to the file or URL
-     * @return the opened image as ImgPlus, or null if opening fails
-     * @throws IllegalArgumentException if filePathOrUrl is null or empty
+     * @param filePathOrUrl path to image file or URL
+     * @return ImgPlus (may be lazy-loaded for large formats), or null if opening fails
      */
     public static ImgPlus<?> open(final String filePathOrUrl) {
         if (filePathOrUrl == null || filePathOrUrl.isEmpty()) {
             throw new IllegalArgumentException("File path or URL cannot be null or empty");
         }
-
         try {
             final Context context = SNTUtils.getContext();
             final IOService io = context.getService(IOService.class);
-            if (io == null)
+            if (io == null) {
                 throw new IllegalStateException("IOService not available");
-
+            }
+            SNTUtils.log("Opening: " + filePathOrUrl);
             final Object opened = io.open(filePathOrUrl);
             if (opened instanceof Dataset) {
-                return ((Dataset) opened).getImgPlus();
+                final ImgPlus<?> imgPlus = ((Dataset) opened).getImgPlus();
+                SNTUtils.log("Opened as Dataset (SCIFIO): " +
+                        imgPlus.numDimensions() + "D, " +
+                        imgPlus.getImg().getClass().getSimpleName());
+                return imgPlus;
             } else if (opened instanceof ImgPlus) {
-                return (ImgPlus<?>) opened;
+                final ImgPlus<?> imgPlus = (ImgPlus<?>) opened;
+                SNTUtils.log("Opened as ImgPlus: " +
+                        imgPlus.getImg().getClass().getSimpleName());
+                return imgPlus;
             } else if (opened instanceof Img) {
+                SNTUtils.log("Opened as Img, wrapping in ImgPlus");
                 return new ImgPlus<>((Img<?>) opened);
             } else if (opened != null) {
-                throw new IllegalArgumentException("Unsupported type returned: " + opened.getClass().getName());
+                throw new IllegalArgumentException(
+                        "Unsupported type returned by IOService: " +
+                                opened.getClass().getName());
             }
+            SNTUtils.error("Failed to open: " + filePathOrUrl);
             return null;
 
         } catch (final IOException e) {
-            SNTUtils.error("[ERROR] Failed to open: " + filePathOrUrl, e);
+            SNTUtils.error("Failed to open: " + filePathOrUrl, e);
             return null;
         }
     }

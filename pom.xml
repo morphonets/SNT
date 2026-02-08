@@ -147,7 +147,7 @@
 		<flatlaf.version>3.6.1</flatlaf.version> <!-- upstream 3.5.1 -->
 		<rsyntaxtextarea.version>3.6.0</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
 		<annotations.version>26.0.2</annotations.version>
-		<fastutil-core.version>8.5.18</fastutil-core.version>
+		<fastutil.version>8.5.18</fastutil.version>
 		<flatlaf-jide-oss.version>${flatlaf.version}</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
@@ -415,8 +415,8 @@
 		</dependency>
 		<dependency>
 			<groupId>it.unimi.dsi</groupId>
-			<artifactId>fastutil-core</artifactId>
-			<version>${fastutil-core.version}</version>
+			<artifactId>fastutil</artifactId>
+			<version>${fastutil.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>graphics.scenery</groupId>
