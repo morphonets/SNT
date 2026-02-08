@@ -26,6 +26,9 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+
+import javax.swing.SwingUtilities;
 
 import org.scijava.ItemIO;
 import org.scijava.ItemVisibility;
@@ -194,6 +197,16 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 	private ShollTable commonSummaryTable;
 	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
 
+	private static class AnalysisSummary {
+		private final ShollTable table;
+		private final String header;
+
+		AnalysisSummary(final ShollTable table, final String header) {
+			this.table = table;
+			this.header = header;
+		}
+	}
+
 	/* Preferences */
 	private int minDegree;
 	private int maxDegree;
@@ -236,11 +249,20 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 			centerChoice = "Root node(s)";
         dataMode = ShollStats.DataMode.fromString(dataModeChoice);
 
-        logger = new Logger(context(), "Sholl");
+		logger = new Logger(context(), "Sholl");
 		logger.info("Running multithreaded analysis...");
 		readPreferences();
 		commonSummaryTable = new ShollTable();
-		treeList.parallelStream().forEach(tree -> new AnalysisRunner(tree).run());
+		final List<AnalysisSummary> summaries = treeList.parallelStream()
+				.map(tree -> new AnalysisRunner(tree).analyze())
+				.filter(Objects::nonNull)
+				.toList();
+		for (final AnalysisSummary summary : summaries) {
+			summary.table.summarize(commonSummaryTable, summary.header);
+		}
+		if (showAnalysis && !summaries.isEmpty()) {
+			threadService.queue(this::updateDisplayAndSaveCommonSummaryTable);
+		}
 		logger.info("Done.");
 		if (commonSummaryTable == null || commonSummaryTable.isEmpty() || commonSummaryTable.getRowCount() < 1) {
 			cancel("Options were likely invalid and no files were parsed. See Console for details.");
@@ -368,19 +390,29 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 		return save;
 	}
 
+	private void runOnEdt(final Runnable action) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			action.run();
+		} else {
+			SwingUtilities.invokeLater(action);
+		}
+	}
+
 	private void updateDisplayAndSaveCommonSummaryTable() {
-		final Display<?> display = displayService.getDisplay(SUMMARY_TABLE_NAME);
-		if (display != null && display.isDisplaying(commonSummaryTable)) {
-			display.update();
-		}
-		else {
-			displayService.createDisplay(SUMMARY_TABLE_NAME, commonSummaryTable);
-		}
+		runOnEdt(() -> {
+			final Display<?> display = displayService.getDisplay(SUMMARY_TABLE_NAME);
+			if (display != null && display.isDisplaying(commonSummaryTable)) {
+				display.update();
+			}
+			else {
+				displayService.createDisplay(SUMMARY_TABLE_NAME, commonSummaryTable);
+			}
+		});
 		if (commonSummaryTable.hasUnsavedData())
 			saveSummaryTable(); // keep saving table everytime it is updated
 	}
 
-	private class AnalysisRunner implements Runnable {
+	private class AnalysisRunner {
 
 		private final Tree tree;
         private final String TREE_LABEL;
@@ -390,8 +422,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 			TREE_LABEL = tree.getLabel();
 		}
 
-		@Override
-		public void run() {
+		public AnalysisSummary analyze() {
 
 			// Ensure all conditions are met for analysis
 			if (tree == null || tree.isEmpty()) {
@@ -399,7 +430,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 				if (!"None".equals(filterChoice))
 					msg += " or does not contain " + filterChoice;
 				logger.warn(TREE_LABEL + msg);
-				return;
+				return null;
 			}
             TreeParser parser = new TreeParser(tree);
 			parser.setStepSize(adjustedStepSize());
@@ -411,7 +442,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 				parser.setCenter(ShollAnalysisTreeCmd.getCenterFromChoice(centerChoice));
 			} catch (final IllegalArgumentException ex) {
 				logger.warn(TREE_LABEL + " Skipping: Center choice cannot be applied to reconstruction. Try \"Root node(s)\" instead.");
-				return;
+				return null;
 			}
 
 			// parse
@@ -420,11 +451,11 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 				parser.parse();
 			} catch (final Exception ex) {
 				logger.warn(TREE_LABEL + " Exception occurred: " + ex.getMessage());
-				return;
+				return null;
 			}
 			if (!parser.successful()) {
 				logger.warn(TREE_LABEL + " Skipping analysis: Parsing failed. No valid profile retrieved!");
-				return;
+				return null;
 			}
 			final Profile profile = parser.getProfile();
 
@@ -469,7 +500,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 					else
 						logger.warn(TREE_LABEL + " Error while saving linear plot");
 				}
-				if (showAnalysis) lPlot.show();
+				if (showAnalysis) runOnEdt(lPlot::show);
 			}
 			if (plotOutputDescription.toLowerCase().contains("normalized")) {
 				final ShollPlot nPlot = nStats.getPlot(false);
@@ -479,7 +510,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 					else
 						logger.warn(TREE_LABEL + " Error while saving normalized plot");
 				}
-				if (showAnalysis) nPlot.show();
+				if (showAnalysis) runOnEdt(nPlot::show);
 			}
 
             if (plotOutputDescription.toLowerCase().contains("polar")) {
@@ -493,7 +524,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
                     else
                         logger.warn(TREE_LABEL + " Error while saving normalized plot");
                 }
-                if (showAnalysis) polarPlot.show();
+                if (showAnalysis) runOnEdt(polarPlot::show);
             }
 
 			// Tables
@@ -508,16 +539,15 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 					else
 						logger.warn(TREE_LABEL + " Error while saving detailed table");
 				}
-				if (showAnalysis) dTable.show();
+				if (showAnalysis) runOnEdt(dTable::show);
 			}
 
-            final ShollTable sTable = (pStats==null)
-                    ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
+	            final ShollTable sTable = (pStats==null)
+	                    ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
 			String header = TREE_LABEL;
 			if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 			if (!sTable.hasContext()) sTable.setContext(getContext());
-			sTable.summarize(commonSummaryTable, header);
-			threadService.queue(ShollAnalysisBulkTreeCmd.this::updateDisplayAndSaveCommonSummaryTable);
+			return new AnalysisSummary(sTable, header);
 		}
 
 	}
