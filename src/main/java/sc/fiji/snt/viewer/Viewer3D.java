@@ -1332,7 +1332,12 @@ public class Viewer3D {
     public void updateView() {
         if (view != null) {
             view.shoot(); // !? without forceRepaint() dimensions are not updated
-            fitToVisibleObjects(false, false); //TODO: Why not use view.updateBounds()?
+            try {
+                // jzy3d can refresh bounds without forcing a full visible-drawable scan.
+                view.updateBounds();
+            } catch (final Throwable ignored) {
+                fitToVisibleObjects(false, false);
+            }
         }
         if (managerList != null) managerList.update(); // force update the manager list
     }
