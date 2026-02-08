@@ -125,6 +125,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
@@ -530,7 +531,7 @@ public class Viewer3D {
         } catch (final GLException | NullPointerException exc) {
             SNTUtils.error("Rebuild Error", exc);
         }
-        if (frame != null) frame.replaceCurrentChart((AChart) chart);
+        if (frame != null) frame.replaceCurrentChart(chart);
         updateView();
     }
 
@@ -592,17 +593,19 @@ public class Viewer3D {
         dup.view.setViewPoint(view.getViewPoint().clone());
         dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
         dup.updateView();
-        dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
-                frame.getGraphicsConfiguration());
-        dup.frame.setLocationRelativeTo(frame);
-        final int spacer = frame.getInsets().top;
-        dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
-        dup.frame.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(final WindowEvent e) {
-                dup.dispose();
-            }
-        });
+        if (frame != null) {
+            dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
+                    frame.getGraphicsConfiguration());
+            dup.frame.setLocationRelativeTo(frame);
+            final int spacer = frame.getInsets().top;
+            dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
+            dup.frame.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(final WindowEvent e) {
+                    dup.dispose();
+                }
+            });
+        }
         return dup;
     }
 
@@ -741,7 +744,7 @@ public class Viewer3D {
      * @return true, if "Dark Mode" is active
      */
     public boolean isDarkModeOn() {
-        return view.getBackgroundColor() == Color.BLACK;
+        return Color.BLACK.equals(view.getBackgroundColor());
     }
 
     /**
@@ -999,11 +1002,16 @@ public class Viewer3D {
     public void add(final File[] files, final String color) {
         final ColorRGB c = (color == null || color.trim().isEmpty() || "unique".equalsIgnoreCase(color)) ? null
                 : new ColorRGB(color);
+        if (fileDropWorker == null)
+            throw new IllegalStateException("File importing is not available for the current rendering engine.");
         fileDropWorker.importFilesWithoutDrop(files, c);
     }
 
     private GuiUtils guiUtils() {
-        return (frame.manager != null) ? frame.managerPanel.guiUtils : gUtils;
+        if (frame != null && frame.manager != null && frame.managerPanel != null) {
+            return frame.managerPanel.guiUtils;
+        }
+        return gUtils;
     }
 
     /**
@@ -1255,7 +1263,7 @@ public class Viewer3D {
         setSceneUpdatesEnabled(false);
         annotations.forEach(annot -> {
             final String[] labelAndManagerEntry = TagUtils.getUntaggedAndTaggedLabels(annot.getLabel());
-            removeDrawable(getAnnotationDrawables(), labelAndManagerEntry[0], labelAndManagerEntry[1]);
+            removeAnnotation(labelAndManagerEntry[0], labelAndManagerEntry[1]);
         });
         setSceneUpdatesEnabled(updateFlag);
         final Annotation3D annotation = new Annotation3D(this, annotations);
@@ -1648,28 +1656,6 @@ public class Viewer3D {
     }
 
     /**
-     * Returns the Collection of Trees in this viewer.
-     *
-     * @return the rendered Trees (keys being the Tree identifier as per
-     *         {@link #addTree(Tree)})
-     */
-    private Map<String, Shape> getTreeDrawables() {
-        final Map<String, Shape> map = new HashMap<>();
-        plottedTrees.forEach((k, shapeTree) -> {
-            map.put(k, shapeTree.get());
-        });
-        return map;
-    }
-
-    private Map<String, Drawable> getAnnotationDrawables() {
-        final Map<String, Drawable> map = new HashMap<>();
-        plottedAnnotations.forEach((k, annot) -> {
-            map.put(k, annot.getDrawable());
-        });
-        return map;
-    }
-
-    /**
      * Returns the Collection of OBJ meshes imported into this viewer.
      *
      * @return the rendered Meshes (keys being the filename of the imported OBJ
@@ -1750,10 +1736,11 @@ public class Viewer3D {
      *         annotation was not found in this viewer
      */
     public boolean removeAnnotation(final Annotation3D annot) {
-        if (plottedAnnotations.containsValue(annot)) {
-            chart.remove(annot.getDrawable(), viewUpdatesEnabled);
-            deleteItemFromManager(annot.getLabel());
-            return true;
+        if (annot == null) return false;
+        for (final Entry<String, Annotation3D> entry : plottedAnnotations.entrySet()) {
+            if (entry.getValue() == annot) {
+                return removeAnnotation(entry.getKey(), entry.getKey());
+            }
         }
         return false;
     }
@@ -1791,10 +1778,17 @@ public class Viewer3D {
      */
     public void removeAllMeshes() {
         final boolean updateStatus = viewUpdatesEnabled;
-        final Iterator<OBJMesh> it = getMeshes().iterator();
         setSceneUpdatesEnabled(false);
+        final Iterator<Entry<String, RemountableDrawableVBO>> it = plottedObjs.entrySet().iterator();
         while (it.hasNext()) {
-            removeMesh(it.next());
+            final Entry<String, RemountableDrawableVBO> entry = it.next();
+            if (chart != null) {
+                chart.getScene().getGraph().remove(entry.getValue(), false);
+            }
+            deleteItemFromManager(entry.getKey());
+            if (frame != null && frame.allenNavigator != null) {
+                frame.allenNavigator.meshRemoved(entry.getKey());
+            }
             it.remove();
         }
         setSceneUpdatesEnabled(updateStatus);
@@ -1806,11 +1800,14 @@ public class Viewer3D {
      */
     public void removeAllTrees() {
         final boolean updateStatus = viewUpdatesEnabled;
-        final Iterator<Tree> it = getTrees().iterator();
         setSceneUpdatesEnabled(false);
+        final Iterator<Entry<String, ShapeTree>> it = plottedTrees.entrySet().iterator();
         while (it.hasNext()) {
-            final Tree tree = it.next();
-            removeTree(tree);
+            final Entry<String, ShapeTree> entry = it.next();
+            if (chart != null) {
+                chart.getScene().getGraph().remove(entry.getValue().get(), false);
+            }
+            deleteItemFromManager(entry.getKey());
             it.remove();
         }
         setSceneUpdatesEnabled(updateStatus);
@@ -1906,34 +1903,29 @@ public class Viewer3D {
      * @throws IllegalArgumentException if object is not supported
      */
     public void add(final Object object) {
-        if (object == null) {
-            SNTUtils.log("Null object ignored for scene addition");
-            return;
-        }
-        if (object instanceof Tree) {
-            addTree((Tree) object);
-        } else if (object instanceof Path) {
-            final Tree tree = new Tree();
-            tree.add((Path) object);
-            addTree(tree);
-        } else if (object instanceof DirectedWeightedGraph) {
-            final Tree tree = ((DirectedWeightedGraph)object).getTree();
-            tree.setColor(SNTColor.getDistinctColors(1)[0]);
-            addTree(tree);
-        } else if (object instanceof Annotation3D) {
-            addAnnotation((Annotation3D) object);
-        } else if (object instanceof SNTPoint) {
-            annotatePoint((SNTPoint) object, null);
-        } else if (object instanceof OBJMesh) {
-            addMesh((OBJMesh) object);
-        } else if (object instanceof String) {
-            addLabel((String) object);
-        } else if (object instanceof Drawable) {
-            chart.add((Drawable) object, viewUpdatesEnabled);
-        } else if (object instanceof Collection) {
-            addCollection(((Collection<?>) object));
-        } else {
-            throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
+        switch (object) {
+            case null -> {
+                SNTUtils.log("Null object ignored for scene addition");
+                return;
+            }
+            case Tree tree1 -> addTree(tree1);
+            case Path path -> {
+                final Tree tree = new Tree();
+                tree.add(path);
+                addTree(tree);
+            }
+            case DirectedWeightedGraph directedWeightedGraph -> {
+                final Tree tree = directedWeightedGraph.getTree();
+                tree.setColor(SNTColor.getDistinctColors(1)[0]);
+                addTree(tree);
+            }
+            case Annotation3D annotation3D -> addAnnotation(annotation3D);
+            case SNTPoint point -> annotatePoint(point, null);
+            case OBJMesh objMesh -> addMesh(objMesh);
+            case String s -> addLabel(s);
+            case Drawable drawable -> chart.add(drawable, viewUpdatesEnabled);
+            case Collection<?> collection -> addCollection(collection);
+            default -> throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
         }
     }
 
@@ -1975,7 +1967,8 @@ public class Viewer3D {
             case Collection<?> collection -> removeCollection(collection);
             case null, default -> {
                 validate();
-                throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
+                throw new IllegalArgumentException((object == null) ? "Unsupported object: null" :
+                        "Unsupported object: " + object.getClass().getName());
             }
         }
     }
@@ -2075,14 +2068,42 @@ public class Viewer3D {
             final Set<String> visibleKeys = getLabelsCheckedInManager();
             final BoundingBox3d viewBounds = chart.view().getBounds();
             return allDrawablesRendered(viewBounds, plottedObjs, visibleKeys) &&
-                    allDrawablesRendered(viewBounds, getTreeDrawables(), visibleKeys) &&
-                    allDrawablesRendered(viewBounds, getAnnotationDrawables(), visibleKeys);
+                    allTreeDrawablesRendered(viewBounds, visibleKeys) &&
+                    allAnnotationDrawablesRendered(viewBounds, visibleKeys);
         }
         catch (final GLException | ArrayIndexOutOfBoundsException ignored) {
             SNTUtils.log("Upate view failed...");
             return false;
         }
 
+    }
+
+    private boolean allTreeDrawablesRendered(final BoundingBox3d viewBounds, final Set<String> selectedKeys) {
+        for (final Entry<String, ShapeTree> entry : plottedTrees.entrySet()) {
+            final Shape drawable = entry.getValue().get();
+            if (drawable == null) return false;
+            final BoundingBox3d bounds = drawable.getBounds();
+            if (bounds == null || !viewBounds.contains(bounds)) return false;
+            if (selectedKeys.contains(entry.getKey()) && !drawable.isDisplayed()) {
+                drawable.setDisplayed(true);
+                if (!drawable.isDisplayed()) return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean allAnnotationDrawablesRendered(final BoundingBox3d viewBounds, final Set<String> selectedKeys) {
+        for (final Entry<String, Annotation3D> entry : plottedAnnotations.entrySet()) {
+            final Drawable drawable = entry.getValue().getDrawable();
+            if (drawable == null) return false;
+            final BoundingBox3d bounds = drawable.getBounds();
+            if (bounds == null || !viewBounds.contains(bounds)) return false;
+            if (selectedKeys.contains(entry.getKey()) && !drawable.isDisplayed()) {
+                drawable.setDisplayed(true);
+                if (!drawable.isDisplayed()) return false;
+            }
+        }
+        return true;
     }
 
     /** returns true if a drawable was removed */
@@ -3578,7 +3599,7 @@ public class Viewer3D {
                     prefs.getGuiPref("pAxis", "Z (midplane)"));
             if (res == null)
                 return null;
-            prefs.setGuiPref("pAxis", res.get(0));
+            prefs.setGuiPref("pAxis", res.getFirst());
             return res;
         }
 
@@ -4158,7 +4179,7 @@ public class Viewer3D {
                     guiUtils.error("No items are currently selected.");
                     return;
                 }
-                if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.get(0))) {
+                if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.getFirst())) {
                     selection.clear();
                     selection = IntStream.range(0, managerList.getModel().getSize())
                             .mapToObj(managerList.getModel()::getElementAt).collect(Collectors.toList());
@@ -4407,7 +4428,7 @@ public class Viewer3D {
         }
 
         private void selectRows(final Map<String, ?> map) {
-            final int[] indices = new int[map.keySet().size()];
+            final int[] indices = new int[map.size()];
             int i = 0;
             for (final String k : map.keySet()) {
                 indices[i++] = managerList.model.indexOf(k);
@@ -4434,7 +4455,7 @@ public class Viewer3D {
         }
 
         private void show(final Map<String, ?> map) {
-            final int[] indices = new int[map.keySet().size()];
+            final int[] indices = new int[map.size()];
             int i = 0;
             for (final String k : map.keySet()) {
                 indices[i++] = managerList.model.indexOf(k);
@@ -4565,7 +4586,7 @@ public class Viewer3D {
             });
             final List<String> allKeys = new ArrayList<>(map.keySet());
             if ((allowAllIfNone && map.size() == 1)
-                    || (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.toString().equals(selectedKeys.get(0))))
+                    || (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.toString().equals(selectedKeys.getFirst())))
                 return allKeys;
             if (allowAllIfNone && selectedKeys.isEmpty()) {
                 if (isSelectAllIfNoneSelected()) return allKeys;
@@ -4693,7 +4714,7 @@ public class Viewer3D {
                 final Map<String, Object> input = new HashMap<>();
                 if (trees.size() == 1) {
                     input.put("snt", null);
-                    input.put("tree", trees.get(0));
+                    input.put("tree", trees.getFirst());
                     runCmd(ShollAnalysisTreeCmd.class, input, CmdWorker.DO_NOTHING, false, false);
                 } else {
                     input.put("treeList", trees);
@@ -5252,7 +5273,7 @@ public class Viewer3D {
                     return;
                 }
                 setSceneUpdatesEnabled(false);
-                keys.forEach(k -> removeTree(k));
+                keys.forEach(Viewer3D.this::removeTree);
                 setSceneUpdatesEnabled(true);
                 updateView();
             });
@@ -5554,7 +5575,7 @@ public class Viewer3D {
                         failures.add(annot.getLabel());
                 });
                 if (!failures.isEmpty())
-                    guiUtils.error(("The following annotations do not support color gradients: " + failures.toString()));
+                    guiUtils.error(("The following annotations do not support color gradients: " + failures));
             });
             annotMenu.add(mi);
             mi = new JMenuItem("Transparency...", IconFactory.menuIcon(GLYPH.ADJUST));
@@ -5604,7 +5625,7 @@ public class Viewer3D {
                     return;
                 }
                 setSceneUpdatesEnabled(false);
-                annots.forEach(annot -> removeAnnotation(annot));
+                annots.forEach(Viewer3D.this::removeAnnotation);
                 setSceneUpdatesEnabled(true);
                 updateView();
             });
@@ -5799,16 +5820,30 @@ public class Viewer3D {
                         return ABORTED;
                     }
                     if (collection.isEmpty()) {
-                        if (promptForConfirmation && guiUtils != null) guiUtils.error("Dragged file(s) do not contain valid data.");
+                        if (promptForConfirmation && guiUtils != null) {
+                            SwingUtilities.invokeLater(() -> guiUtils.error("Dragged file(s) do not contain valid data."));
+                        }
                         return INVALID;
                     }
                     if (promptForConfirmation && collection.size() > 10 && guiUtils != null) {
-                        assert SwingUtilities.isEventDispatchThread();
-                        final boolean[] confirmSplit = guiUtils.getConfirmationAndOption(
-                                "Are you sure you would like to import " + collection.size() + " files?<br>"
-                                        + "You can press 'Esc' at any time to interrupt import.",
-                                "Proceed with Batch Import?", "Import axons and dendrites separately",
-                                isSplitDendritesFromAxons());
+                        final boolean[][] confirmSplitHolder = new boolean[1][];
+                        try {
+                            SwingUtilities.invokeAndWait(() -> confirmSplitHolder[0] = guiUtils.getConfirmationAndOption(
+                                    "Are you sure you would like to import " + collection.size() + " files?<br>"
+                                            + "You can press 'Esc' at any time to interrupt import.",
+                                    "Proceed with Batch Import?", "Import axons and dendrites separately",
+                                    isSplitDendritesFromAxons()));
+                        } catch (final InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                            return ABORTED;
+                        } catch (final InvocationTargetException ex) {
+                            SNTUtils.error(ex.getMessage(), ex);
+                            return ABORTED;
+                        }
+                        final boolean[] confirmSplit = confirmSplitHolder[0];
+                        if (confirmSplit == null) {
+                            return ABORTED;
+                        }
                         if (!confirmSplit[0]) {
                             return ABORTED;
                         }
@@ -5827,7 +5862,7 @@ public class Viewer3D {
                             case COMPLETED -> {
                                 if (failuresAndSuccesses[1] > 0) validate();
                                 if (failuresAndSuccesses[0] > 0 && guiUtils != null)
-                                    guiUtils.error("" + failuresAndSuccesses[0] + " of "
+                                    guiUtils.error(failuresAndSuccesses[0] + " of "
                                             + (failuresAndSuccesses[0] + failuresAndSuccesses[1])
                                             + " dropped file(s) could not be imported (Console may"
                                             + " have more details if you have enabled \"Debug mode\").");
@@ -6786,7 +6821,7 @@ public class Viewer3D {
         @Override
         public void fireIntervalRemoved(final Object source, final int index0, final int index1) {
             if (getListenersEnabled()) {
-                super.fireIntervalAdded(source, index0, index1);
+                super.fireIntervalRemoved(source, index0, index1);
             }
         }
     }
@@ -7002,7 +7037,7 @@ public class Viewer3D {
                 }
                 case 1 -> {
                     // single point soma: http://neuromorpho.org/SomaFormat.html
-                    somaSubShape = sphere(somaPoints.get(0), color);
+                    somaSubShape = sphere(somaPoints.getFirst(), color);
                     return;
                 }
                 case 3 -> {
@@ -8247,8 +8282,9 @@ public class Viewer3D {
                                  final float thickness, final String compartment)
     {
         final int comp = getSubTreeCompartment(compartment);
+        final Set<String> labelSet = (labels == null) ? null : new HashSet<>(labels);
         plottedTrees.forEach((k, shapeTree) -> {
-            if (labels == null || labels.contains(k)) shapeTree.setThickness(thickness, comp);
+            if (labelSet == null || labelSet.contains(k)) shapeTree.setThickness(thickness, comp);
         });
     }
 
@@ -8297,8 +8333,13 @@ public class Viewer3D {
      * @see #setSomaRadius(float)
      */
     public void setSomaRadius(final Collection<String> labels, final float radius) {
+        if (labels == null) {
+            setSomaRadius(radius);
+            return;
+        }
+        final Set<String> labelSet = new HashSet<>(labels);
         plottedTrees.forEach((k, shapeTree) -> {
-            if (labels.contains(k)) shapeTree.setSomaRadius(radius);
+            if (labelSet.contains(k)) shapeTree.setSomaRadius(radius);
         });
     }
 
@@ -8329,8 +8370,9 @@ public class Viewer3D {
      */
     public void setTreeColor(final Collection<String> labels, final ColorRGB color, final String compartment) {
         final int comp = getSubTreeCompartment(compartment);
+        final Set<String> labelSet = (labels == null) ? null : new HashSet<>(labels);
         plottedTrees.forEach((k, shapeTree) -> {
-            if (labels.contains(k))
+            if (labelSet == null || labelSet.contains(k))
                 shapeTree.setArborColor((color == null) ? defColor : fromColorRGB(color), comp);
         });
     }
@@ -8558,7 +8600,7 @@ public class Viewer3D {
                 case JOGL -> {
                     return new JOGLFactory();
                 }
-                default -> throw new IllegalArgumentException("Not a recognized render option: " + render.toString());
+                default -> throw new IllegalArgumentException("Not a recognized render option: " + render);
             }
 
         }
