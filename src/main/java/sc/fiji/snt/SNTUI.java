@@ -3032,7 +3032,7 @@ public class SNTUI extends JDialog {
         menu.addSeparator();
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
-        jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Mulitple cells supported.");
+        jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.");
         menu.add(jmiSoma);
         jmiSoma.addActionListener(e -> {
             if (plugin.accessToValidImageData())

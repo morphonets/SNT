@@ -630,7 +630,7 @@ public class GuiUtils {
 	 * @param checkboxLabel  optional checkbox label (null to hide checkbox)
 	 * @param checkboxDefault default state of checkbox (ignored if checkboxLabel is null)
 	 * @return Object array: {selectedChoice (String), checkboxSelected (Boolean)},
-	 *         or null if cancelled. checkboxSelected is false if checkbox was hidden.
+	 *         or null if canceled. checkboxSelected is false if checkbox was hidden.
 	 */
 	public Object[] getChoiceWithOptionAndInfo(final String title, final String message,
 											   final String[] choices, final String defaultChoice,

@@ -47,6 +47,7 @@ import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 
@@ -1051,4 +1052,90 @@ public class SomaUtils {
                     center[0], center[1], radius, threshold, hasContour());
         }
     }
+
+    /**
+     * Creates a single-node soma Path from an ImageJ ROI using calibration from a reference Path.
+     *
+     * @param roi           the ROI to convert (must not be null)
+     * @param referencePath a Path from which to extract spacing and units (may be null for pixel units)
+     * @return a single-node soma path, or null if ROI is null
+     * @see #roiToSomaPath(Roi, double[])
+     */
+    public static Path roiToSomaPath(final Roi roi, final Path referencePath) {
+        if (referencePath == null)
+            return roiToSomaPath(roi, (double[]) null);
+        final Path result = roiToSomaPath(roi, referencePath.getCalibration());
+        if (result != null)
+            result.setCTposition(referencePath.getChannel(), referencePath.getFrame());
+        return result;
+    }
+
+    private static Path roiToSomaPath(final Roi roi, final ij.measure.Calibration calibration) {
+        if (calibration == null)
+            return roiToSomaPath(roi, (double[]) null);
+        final double[] spacing = new double[]{calibration.pixelWidth, calibration.pixelHeight, calibration.pixelDepth};
+        final Path path = roiToSomaPath(roi, spacing);
+        if (path != null)
+            path.setSpacing(calibration.pixelWidth, calibration.pixelHeight, calibration.pixelDepth, calibration.getUnit());
+        return path;
+    }
+
+    /**
+     * Creates a single-node soma Path from an ImageJ ROI.
+     * <p>
+     * Converts any ROI to a soma path centered at the ROI's centroid.
+     * For area ROIs (polygon, oval, freehand, etc.), the radius is estimated
+     * from the equivalent circle area. For non-area ROIs (point, line),
+     * no radius is assigned.
+     * </p>
+     *
+     * @param roi     the ROI to convert (must not be null)
+     * @param spacing voxel spacing [x, y, z] for physical coordinates, or null for pixel units
+     * @return a single-node soma path, or null if ROI is null
+     */
+    public static Path roiToSomaPath(final Roi roi, final double[] spacing) {
+        if (roi == null) {
+            return null;
+        }
+        final double sx = (spacing != null && spacing.length > 0) ? spacing[0] : 1.0;
+        final double sy = (spacing != null && spacing.length > 1) ? spacing[1] : 1.0;
+        final double sz = (spacing != null && spacing.length > 2) ? spacing[2] : 1.0;
+        final String units = SNTUtils.getSanitizedUnit("");
+
+        // Get centroid in pixel coordinates
+        final double[] centroid = RoiConverter.get2dCentroid(roi);
+        final double cx, cy;
+        if (centroid != null) {
+            cx = centroid[0];
+            cy = centroid[1];
+        } else {
+            // Fallback for ROIs without contour centroid
+            cx = roi.getBounds().getCenterX();
+            cy = roi.getBounds().getCenterY();
+        }
+
+        // Z position (ROI uses 1-based indexing)
+        final double cz = (roi.getZPosition() > 0) ? roi.getZPosition() - 1 : 0;
+
+        // Convert to physical coordinates
+        final double x = cx * sx;
+        final double y = cy * sy;
+        final double z = cz * sz;
+
+        final Path path = new Path(sx, sy, sz, units);
+        path.addNode(new PointInImage(x, y, z));
+
+        // Assign radius only for area ROIs
+        if (roi.isArea()) {
+            final double area = roi.getStatistics().area;
+            if (area > 0) {
+                final double radiusPixels = Math.sqrt(area / Math.PI);
+                path.setRadius(radiusPixels * (sx + sy) / 2); // Average spacing for anisotropy
+            }
+        }
+        path.setSWCType(Path.SWC_SOMA);
+        path.setName("Soma");
+        return path;
+    }
+
 }

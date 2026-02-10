@@ -126,7 +126,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
         pMenu.add(mi);
         extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
         pMenu.add(extendPathMenuItem);
-        pMenu.add(menuItem(AListener.FORK_NEAREST, listener));
+        mi = menuItem(AListener.FORK_NEAREST, listener);
+        mi.setToolTipText("Branches off a child path at nearest node"); // alternative discovery text for command palette
+        pMenu.add(mi);
         pMenu.addSeparator();
 
         toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE_FORMATTER);

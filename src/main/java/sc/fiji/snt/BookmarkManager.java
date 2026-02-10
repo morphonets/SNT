@@ -30,6 +30,7 @@ import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
 import org.scijava.util.ColorRGB;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -643,7 +644,7 @@ public class BookmarkManager {
                     model.getDataList().add(b);
                 }
             } else {
-                final double[] centroid = roi.getContourCentroid();
+                final double[] centroid = RoiConverter.get2dCentroid(roi);
                 final Bookmark b = new Bookmark(roi.getName(), centroid[0], centroid[1],
                         roi.getZPosition(), roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
                 model.getDataList().add(b);

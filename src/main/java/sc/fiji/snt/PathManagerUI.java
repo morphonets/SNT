@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.TreeSearchable;
 import ij.ImagePlus;
+import ij.gui.Roi;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import org.scijava.command.CommandModule;
@@ -38,6 +39,7 @@ import sc.fiji.snt.gui.*;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.io.SWCExportException;
 import sc.fiji.snt.plugin.*;
+import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.*;
 
 import javax.swing.Timer;
@@ -190,7 +192,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-        jmi.setToolTipText("Merges selected primary path(s) into a common root");
+        jmi.setToolTipText("Connect selected primary paths to a shared root placed at their\n" +
+                "averaged origin, or the centroid of a ROI-defining soma");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.REVERSE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_LR));
@@ -2738,7 +2741,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String COMBINE_CMD = "Combine...";
         private static final String CONCATENATE_CMD = "Concatenate...";
         private static final String REVERSE_CMD = "Reverse...";
-        private static final String MERGE_PRIMARY_PATHS_CMD = "Merge Primary Path(s) Into Shared Root...";
+        private static final String MERGE_PRIMARY_PATHS_CMD = "Create Shared Root (Soma)...";
         private static final String REBUILD_CMD = "Rebuild...";
         private static final String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
         private static final String CUSTOM_TAG_CMD = "Other...";
@@ -4096,6 +4099,37 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private class MergePrimaryPathsCommand implements PathCommand {
+
+            private Roi getRoi() {
+                return (plugin.getImagePlus() == null) ? null : plugin.getImagePlus().getRoi();
+            }
+
+            private Boolean getUseRoiFromUser(final int nPrimaryPaths) {
+                final Object[] result = guiUtils.getChoiceWithOptionAndInfo(
+                        "Create Shared Root", // title
+                        "Place shared root at:", // msg
+                        new String[] {"Averaged origin of selected paths", "Centroid of soma ROI"}, // choices
+                        "Averaged origin of selected paths", // default choice
+                        "The " + nPrimaryPaths + " primary paths will become children of a new " +  // info message
+                        "single- node root path at the chosen location. This operation cannot be undone.",
+                        null, false); // no checkbox
+                if (result == null) return null;
+                return "Centroid of soma ROI".equals(result[0]);
+            }
+
+            private void noRoiError() {
+                final String msg = "No active ROI exists. Make sure the soma ROI is active, or " +
+                        "run Auto-trace > Detect Soma(s)... with ROI output.";
+                final String ttl = "Invalid Merge Condition";
+                if (plugin.accessToValidImageData()) {
+                    if (guiUtils.getConfirmation(msg, ttl, "Run Soma Detection Now", "Dismiss")) {
+                        plugin.getUI().runCommand(SomaDetectorCmd.class, null);
+                    }
+                } else {
+                    guiUtils.error(msg, ttl);
+                }
+            }
+
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
                 if (selectedPaths.size() < 2) {
@@ -4116,23 +4150,38 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             "Invalid Merge Condition");
                     return;
                 }
-                if (!guiUtils.getConfirmation("Merge " + primaryPaths.size() + " selected "
-                        + "primary paths and rebuild Path relationships? (this destructive "
-                        + "operation cannot be undone!)", "Confirm merge?")) {
+                if (mixedCTPathSelectionError(primaryPaths)) {
                     return;
                 }
-                // create a new empty Path with the same properties (i.e., spatial calibration)
-                // of the first path found in the list (In SNT, scaling is set on a per-Path basis).
-                // Assign unique IDs to avoid conflicts with existing IDs
-                final Path newSoma = primaryPaths.getFirst().createPath();
-                newSoma.setIsPrimary(true);
-                newSoma.setName("Root centroid");
-                // Add a node to the newly defined path, corresponding to the centroid of
-                // all other root nodes and add this new single-point path to the manager
+                final Boolean useRoi = getUseRoiFromUser(primaryPaths.size());
+                if (useRoi == null) {
+                    return; // user pressed cancel
+                }
+                // Retrieve the average position of all root node coordinates
                 final PointInImage centroid = SNTPoint.average(rootNodes);
-                newSoma.addNode(centroid);
+                final Path newSoma;
+                if (useRoi) {
+                    final Roi roi = getRoi();
+                    if (roi == null) {
+                        noRoiError();
+                        return;
+                    }
+                    // Create a single-node path from the ROI. Assign the common centroid.
+                    // position to the coordinates of the ROI
+                    newSoma = SomaUtils.roiToSomaPath(roi, primaryPaths.getFirst());
+                    centroid.x = newSoma.getNode(0).x;
+                    centroid.y = newSoma.getNode(0).y;
+                    if (roi.getZPosition() > 0)
+                        centroid.z = newSoma.getNode(0).z;
+                } else {
+                    // Create a single node path from centroid
+                    newSoma = primaryPaths.getFirst().createPath();
+                    newSoma.setIsPrimary(true);
+                    newSoma.setName("Shared root");
+                    newSoma.addNode(centroid);
+                }
                 pathAndFillManager.addPath(newSoma, false, true);
-                // Now connect all of root nodes to it
+                // Now connect all root nodes to it
                 primaryPaths.forEach(primaryPath -> {
                     primaryPath.insertNode(0, centroid);
                     primaryPath.setBranchFrom(newSoma, centroid);
@@ -4618,6 +4667,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         if (invalidImage)
             guiUtils.error("This option requires valid image data to be loaded.");
         return invalidImage;
+    }
+
+    private boolean mixedCTPathSelectionError(final List<Path> selectedPaths) {
+        final int channel = selectedPaths.getFirst().getChannel();
+        final int frame = selectedPaths.getFirst().getFrame();
+        for (final Path path : selectedPaths) {
+            if (path.getChannel() != channel || path.getFrame() != frame) {
+                guiUtils.error(
+                        "Selected paths span multiple channels or frames.\n" +
+                                "All paths must belong to the same channel and frame.",
+                        "Selection Spans Different CT Positions");
+                return true;
+            }
+        }
+        return false;
     }
 
     public static String extractTagsFromPath(final Path p) {

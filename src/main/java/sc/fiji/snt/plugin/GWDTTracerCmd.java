@@ -40,6 +40,7 @@ import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.AbstractAutoTracer;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
@@ -48,7 +49,6 @@ import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.TreeUtils;
 
-import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -427,23 +427,10 @@ public class GWDTTracerCmd extends CommonDynamicCmd {
      * Gets center point from any ROI in physical coordinates.
      */
     private double[] getRoiCentroid(final Roi roi, final ImgPlus<?> imgPlus, final int activeZ) {
-        if (roi == null) return null;
 
-        final double[] pixelCoords;
-
-        if (roi.getType() == Roi.POINT) {
-            // Point ROI: use direct coordinates
-            pixelCoords = new double[]{roi.getXBase(), roi.getYBase()};
-        } else if (roi.isArea()) {
-            // Area ROI: use contour centroid
-            final double[] centroid = roi.getContourCentroid();
-            if (centroid == null || centroid.length < 2) return null;
-            pixelCoords = centroid;
-        } else {
-            // Line or other: use bounds center
-            final Rectangle2D bounds = roi.getFloatBounds();
-            pixelCoords = new double[]{bounds.getCenterX(), bounds.getCenterY()};
-        }
+        final double[] pixelCoords = RoiConverter.get2dCentroid(roi);
+        if (pixelCoords == null)
+            return null;
 
         final double[] spacing = ImgUtils.getSpacing(imgPlus);
         final int zDim = imgPlus.dimensionIndex(Axes.Z);

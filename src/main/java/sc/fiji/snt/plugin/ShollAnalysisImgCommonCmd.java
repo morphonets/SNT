@@ -57,6 +57,7 @@ import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.sholl.Profile;
 import sc.fiji.snt.analysis.sholl.ProfileEntry;
@@ -712,10 +713,9 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			return new ShollPoint(rect.x, rect.y, imp.getZ(), cal);
 		}
 		if (setEndRadius)
-				endRadius = roi.getFeretsDiameter() / 2;
-		final double[] ctd = roi.getContourCentroid();
-		return new ShollPoint((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp
-			.getZ(), cal);
+			endRadius = roi.getFeretsDiameter() / 2;
+		final double[] ctd = RoiConverter.get2dCentroid(roi);
+		return new ShollPoint((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp.getZ(), cal);
 	}
 
 	protected boolean updateHyperStackPosition() {

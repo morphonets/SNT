@@ -486,7 +486,7 @@ public class BinaryTracer implements AutoTracer {
         if (!weightedCentroid || allSomaticEndPoints.size() == 1) {
             // XYZ coordinates of root become the those of the soma ROI centroid
             // (conversion to physical coordinates needed)
-            final double[] xyCentroid = somaRoi.getContourCentroid();
+            final double[] xyCentroid = RoiConverter.get2dCentroid(somaRoi);
             newRoot.x = xyCentroid[0] * pixelWidth;
             newRoot.y = xyCentroid[1] * pixelHeight;
         }
@@ -868,7 +868,7 @@ public class BinaryTracer implements AutoTracer {
             return null;
 
         // Return closest to ROI centroid
-        final double[] centroid = somaRoi.getContourCentroid();
+        final double[] centroid = RoiConverter.get2dCentroid(somaRoi);
         final double cx = centroid[0] * pixelWidth;
         final double cy = centroid[1] * pixelHeight;
 

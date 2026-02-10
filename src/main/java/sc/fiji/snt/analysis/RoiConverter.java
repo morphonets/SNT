@@ -23,6 +23,7 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
+import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -687,6 +688,25 @@ public class RoiConverter {
 				fp.addPoint(fpi.xpoints[i], fpi.ypoints[i]);
 		}
 		return new PointRoi(fp);
+	}
+
+	public static double[] get2dCentroid(final Roi roi) {
+		if (roi == null) return null;
+		final double[] pixelCoords;
+		if (roi.getType() == Roi.POINT) {
+			// Point ROI: use direct coordinates
+			pixelCoords = new double[]{roi.getXBase(), roi.getYBase()};
+		} else if (roi.isArea()) {
+			// Area ROI: use contour centroid
+			final double[] centroid = roi.getContourCentroid();
+			if (centroid == null || centroid.length < 2) return null;
+			pixelCoords = centroid;
+		} else {
+			// Line or other: use bounds center
+			final Rectangle2D bounds = roi.getFloatBounds();
+			pixelCoords = new double[]{bounds.getCenterX(), bounds.getCenterY()};
+		}
+		return pixelCoords;
 	}
 
 	public static boolean saveRoisToZip(final List<Roi> rois, final File file) {
