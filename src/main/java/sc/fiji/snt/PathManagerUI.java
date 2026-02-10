@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -412,20 +412,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.MEASURE_PATHS_CMD);
         jmi.setToolTipText("Measures selected path(s) independently of their connectivity");
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Measure Path(s)...\")");
         measureMenu.add(jmi);
 
         advanced.addSeparator();
         jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
         jmi.setToolTipText("Plots a Path metric against several others");
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Multimetric Plot...\")");
         advanced.add(jmi);
         jmi = new JMenuItem(SinglePathActionListener.NODE_PROFILER, IconFactory.menuIcon(IconFactory.GLYPH.CHART_MAGNIFIED));
         jmi.setToolTipText("Cross-section profiles of single paths");
         jmi.addActionListener(singlePathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Node Profiler...\")");
         advanced.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.PLOT_PROFILE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_LINE));
         jmi.setToolTipText("Multi-channel plots of pixel intensities along selected path(s)");
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Path Profiler...\")");
         advanced.add(jmi);
         advanced.addSeparator();
         advanced.add(getSpineUtilsMenu(multiPathListener));
@@ -499,6 +503,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Extract Counts from Multipoint ROIs...\")");
         menu.add(jmi);
         menu.addSeparator();
         jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
@@ -508,6 +513,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.SPINE_PROFILE_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Density Profiles...\")");
         menu.add(jmi);
         menu.addSeparator();
         jmi = new JMenuItem("Start Spot Spine...");
@@ -527,10 +533,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Match Paths Across Time...\")");
         menu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.GROWTH_ANALYSIS_CMD);
         jmi.setToolTipText("Growth rate and growth phase analysis for matched time-lapse paths");
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Growth Analysis...\")");
         menu.add(jmi);
         menu.addSeparator();
         jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
@@ -540,6 +548,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Time Profile...\")");
         menu.add(jmi);
         menu.addSeparator();
         jmi = GuiUtils.MenuItems.openHelpURL("Time-lapse Utilities Help",
@@ -563,6 +572,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         duplicateMitem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CLONE));
         duplicateMitem.addActionListener(singlePathListener);
         duplicateMitem.setToolTipText("Duplicates a full path and its children or a sub-section");
+        ScriptRecorder.setRecordingCall(duplicateMitem, "snt.getUI().getPathManager().runCommand(\"Duplicate...\")");
         return duplicateMitem;
     }
 
@@ -1211,34 +1221,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             fitWorker = new SwingWorker<>() {
 
                 @Override
-	                protected Object doInBackground() {
+                protected Object doInBackground() {
 
-	                    try (final ExecutorService es = Executors.newFixedThreadPool(processors)) {
-	                        final FittingProgress progress = new FittingProgress(plugin.getUI(),
-	                                plugin.statusService, numberOfPathsToFit);
-	                        try {
-	                            final PathFitter refFitter = pathsToFit.getFirst();
-	                            refFitter.readPreferences();
-	                            for (int i = 0; i < numberOfPathsToFit; ++i) {
-	                                final PathFitter pf = pathsToFit.get(i);
-	                                pf.applySettings(refFitter);
-	                                pf.setProgressCallback(i, progress);
-	                            }
-	                            final List<Future<Path>> results = es.invokeAll(pathsToFit);
-	                            for (final Future<Path> result : results) {
-	                                result.get();
-	                            }
-	                        } catch (final InterruptedException e) {
-	                            Thread.currentThread().interrupt();
-	                            msg.dispose();
-	                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
-	                            e.printStackTrace();
-	                        } catch (final ExecutionException | RuntimeException e) {
-	                            msg.dispose();
-	                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
-	                            e.printStackTrace();
-	                        } finally {
-	                            progress.done();
+                    try (final ExecutorService es = Executors.newFixedThreadPool(processors)) {
+                        final FittingProgress progress = new FittingProgress(plugin.getUI(),
+                                plugin.statusService, numberOfPathsToFit);
+                        try {
+                            final PathFitter refFitter = pathsToFit.getFirst();
+                            refFitter.readPreferences();
+                            for (int i = 0; i < numberOfPathsToFit; ++i) {
+                                final PathFitter pf = pathsToFit.get(i);
+                                pf.applySettings(refFitter);
+                                pf.setProgressCallback(i, progress);
+                            }
+                            final List<Future<Path>> results = es.invokeAll(pathsToFit);
+                            for (final Future<Path> result : results) {
+                                result.get();
+                            }
+                        } catch (final InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            msg.dispose();
+                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
+                            e.printStackTrace();
+                        } catch (final ExecutionException | RuntimeException e) {
+                            msg.dispose();
+                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
+                            e.printStackTrace();
+                        } finally {
+                            progress.done();
                             try {
                                 es.shutdown();
                             } catch (final Exception ex) {
@@ -1540,7 +1550,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     }
 
-	private static class TreeTransferHandler extends TransferHandler {
+    private static class TreeTransferHandler extends TransferHandler {
 
         private static final long serialVersionUID = 1L;
         DataFlavor nodesFlavor;
@@ -1838,14 +1848,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return null;
     }
 
-	protected SNTTable getTable() {
-		if (table == null || !tableIsBeingDisplayed()) {
-			// Create a new table if it does not exist or is cached but it has been closed.
-			// Resetting the table on the latter scenario improves GUI usability.
-			table = new SNTTable();
-		}
-		return table;
-	}
+    protected SNTTable getTable() {
+        if (table == null || !tableIsBeingDisplayed()) {
+            // Create a new table if it does not exist or is cached but it has been closed.
+            // Resetting the table on the latter scenario improves GUI usability.
+            table = new SNTTable();
+        }
+        return table;
+    }
 
     /**
      * Gets the SNT instance associated with this Path Manager.
@@ -2072,29 +2082,29 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         if (interactiveUI) refreshManager(false, false, paths);
     }
 
-	/**
-	 * Selects paths matching a text-based criteria, or a list of SWC type flags
-	 *
-	 * @param query The matching text, as it would have been typed in the "Text filtering" box.
-	 *              If query encodes an integer list (e.g., "[1,3,5]"), paths are selected based on their SWC type flag
-	 */
-	public void applySelectionFilter(final String query) throws IllegalArgumentException {
-		if (query != null && query.startsWith("[") && query.endsWith("]")) {
-			final String q =  query.substring( 1, query.length() - 1);
-			final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).toList();
-			if (!types.isEmpty()) {
-				final Collection<Path> paths = searchableBar.getPaths();
-				paths.removeIf(path -> !types.contains(path.getSWCType()));
+    /**
+     * Selects paths matching a text-based criteria, or a list of SWC type flags
+     *
+     * @param query The matching text, as it would have been typed in the "Text filtering" box.
+     *              If query encodes an integer list (e.g., "[1,3,5]"), paths are selected based on their SWC type flag
+     */
+    public void applySelectionFilter(final String query) throws IllegalArgumentException {
+        if (query != null && query.startsWith("[") && query.endsWith("]")) {
+            final String q =  query.substring( 1, query.length() - 1);
+            final List<Integer> types = Arrays.stream(q.split("\\s*,\\s*")).map(Integer::parseInt).toList();
+            if (!types.isEmpty()) {
+                final Collection<Path> paths = searchableBar.getPaths();
+                paths.removeIf(path -> !types.contains(path.getSWCType()));
                 tree.setSelectedPaths(paths);
-			}
-			return;
-		}
-		final List<Integer> hits = searchableBar.getSearchable().findAll(query);
-		if (hits != null && !hits.isEmpty()) {
-			final int[] array = hits.stream().mapToInt(i -> i).toArray();
-			tree.addSelectionRows(array);
-		}
-	}
+            }
+            return;
+        }
+        final List<Integer> hits = searchableBar.getSearchable().findAll(query);
+        if (hits != null && !hits.isEmpty()) {
+            final int[] array = hits.stream().mapToInt(i -> i).toArray();
+            tree.addSelectionRows(array);
+        }
+    }
 
     /**
      * Selects paths matching a morphometric criteria.
@@ -2712,7 +2722,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private JMenuItem tagAngleMenuItem() {
         final JMenuItem jmi = new JMenuItem("Extension Angle...", IconFactory.menuIcon(IconFactory.GLYPH.ANGLE_RIGHT));
         jmi.setToolTipText("List symbol: '[" + SYM_ANGLE + "]'");
-        ScriptRecorder.setRecordingCall(jmi, null);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Extension Angle...\")");
         jmi.addActionListener(e -> {
             final List<Path> selectedPaths = getSelectedPaths(true);
             if (selectedPaths.isEmpty()) {
@@ -3659,7 +3669,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
                 if (noValidImageDataError()) return;
-                plugin.initPathsToFill(new HashSet<>(selectedPaths), 
+                plugin.initPathsToFill(new HashSet<>(selectedPaths),
                         plugin.getPrefs().getBoolean(SNTPrefs.SPLIT_FILLS_KEY, true));
             }
 
@@ -4111,7 +4121,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         new String[] {"Averaged origin of selected paths", "Centroid of soma ROI"}, // choices
                         "Averaged origin of selected paths", // default choice
                         "The " + nPrimaryPaths + " primary paths will become children of a new " +  // info message
-                        "single- node root path at the chosen location. This operation cannot be undone.",
+                                "single- node root path at the chosen location. This operation cannot be undone.",
                         null, false); // no checkbox
                 if (result == null) return null;
                 return "Centroid of soma ROI".equals(result[0]);
@@ -4629,26 +4639,26 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
-		private String getDescription(final Collection<Path> selectedPaths) {
-			String description;
-			final int n = selectedPaths.size();
-			if (n == getPathAndFillManager().getPathsFiltered().size()) {
-				description = "All Paths";
-			}
-			else if (n == 1) {
-				description = selectedPaths.iterator().next().getName();
-			}
-			else if (n > 1 && allPathNamesContain(selectedPaths, getSearchable()
-				.getSearchingText()))
-			{
-				description = "Filter [" + getSearchable().getSearchingText() + "]";
-			}
-			else {
-				description = "Path IDs [" + Path.pathsToIDListString(new ArrayList<>(
-					selectedPaths)) + "]";
-			}
-			return description;
-		}
+        private String getDescription(final Collection<Path> selectedPaths) {
+            String description;
+            final int n = selectedPaths.size();
+            if (n == getPathAndFillManager().getPathsFiltered().size()) {
+                description = "All Paths";
+            }
+            else if (n == 1) {
+                description = selectedPaths.iterator().next().getName();
+            }
+            else if (n > 1 && allPathNamesContain(selectedPaths, getSearchable()
+                    .getSearchingText()))
+            {
+                description = "Filter [" + getSearchable().getSearchingText() + "]";
+            }
+            else {
+                description = "Path IDs [" + Path.pathsToIDListString(new ArrayList<>(
+                        selectedPaths)) + "]";
+            }
+            return description;
+        }
 
     }
 
