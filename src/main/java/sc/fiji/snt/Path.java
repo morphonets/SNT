@@ -2013,17 +2013,19 @@ public class Path implements Comparable<Path>, Cloneable {
                     (outOfDepthBounds) ? outOfBoundsTransparency : defaultTransparency));
 
             // We are within Z-bounds and have been asked to draw the diameters, just do it in XY
-            if (drawDiameter && !outOfDepthBounds) {
-                currentNode.drawDiameter(g2, slice, either_side);
-            }
+			if (drawDiameter && !outOfDepthBounds && !currentNode.skipDiameterForDirectionArrows()) {
+				currentNode.drawDiameter(g2, slice, either_side);
+			}
 
             // Draw connection to previous node
-            if (previousNode != null) {
-                if (startIndexOfLastDrawnLine != i - 1) {
-                    currentNode.drawConnection(g2, previousNode);
-                    startIndexOfLastDrawnLine = i - 1;
-                }
-            }
+			if (previousNode != null) {
+				if (startIndexOfLastDrawnLine != i - 1) {
+					currentNode.drawConnection(g2, previousNode);
+					startIndexOfLastDrawnLine = i - 1;
+				}
+				// Draw direction arrow (previous points toward current)
+				previousNode.drawDirectionArrow(g2, currentNode);
+			}
 
             // Handle branch point special case (first node)
             if (i == 0 && branchPoint != null) {

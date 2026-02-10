@@ -116,6 +116,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
         pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK)));
         final JMenuItem selectByRoi = getSelectRoiMenuItem();
         pMenu.add(selectByRoi);
+        pMenu.addSeparator();
+        pMenu.add(menuItem(AListener.SHOW_ARROWS, listener, KeyEvent.VK_F));
         pMenu.add(menuItem(AListener.HIDE_ALL, listener, KeyEvent.VK_H));
         pMenu.addSeparator();
         pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK)));
@@ -860,17 +862,32 @@ class InteractiveTracerCanvas extends TracerCanvas {
         toggleEditModeMenuItem.doClick();
     }
 
-    private void hideAllPaths() {
-        tracerPlugin.setAnnotationsVisible(false);
-        final Timer timer = new Timer(500, ae -> tracerPlugin.setAnnotationsVisible(true));
+
+    private void toggleKeyWarning(final String key, final String msg) {
+        final Timer timer = new Timer(500, ae -> {
+            // Restore state after delay
+            if ("H".equals(key)) {
+                tracerPlugin.setAnnotationsVisible(true);
+            } else if ("F".equals(key)) {
+                PathNodeCanvas.setShowDirectionArrows(false);
+                tracerPlugin.repaintAllPanes();
+            }
+        });
         timer.setRepeats(false);
-        if (!tracerPlugin.getPrefs().getTemp("h-key-skipnag", false)) {
-            final Boolean skipNag = getGuiUtils().getPersistentWarning("""
-                                    This action is more easily triggered using its hotkey:
-                                    Paths remain hidden when "H" is pressed and become visible once "H" is released.
-                                    """, "Keyboard Operation");
-            if (skipNag != null) tracerPlugin.getPrefs().setTemp("h-key-skipnag", skipNag);
+        // Trigger the action immediately
+        if ("H".equals(key)) {
+            tracerPlugin.setAnnotationsVisible(false);
+        } else if ("F".equals(key)) {
+            PathNodeCanvas.setShowDirectionArrows(true);
+            tracerPlugin.repaintAllPanes();
         }
+        // Show tip if not suppressed
+        if (!tracerPlugin.getPrefs().getTemp("key-skipnag" + key, false)) {
+            final Boolean skipNag = getGuiUtils().getPersistentWarning(
+                    "Tip: Hold \"" + key + "\" to " + msg + ".", "Keyboard Operation");
+            if (skipNag != null) tracerPlugin.getPrefs().setTemp("key-skipnag" + key, skipNag);
+        }
+
         timer.start();
     }
 
@@ -920,7 +937,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
     private class AListener implements ActionListener, ItemListener {
 
         /* Listed shortcuts are specified in QueueJumpingKeyListener */
-        private static final String HIDE_ALL = "Hide All Paths";
+        private static final String HIDE_ALL = "Hide Paths (Hold H)";
+        private static final String SHOW_ARROWS = "Show Flow (Hold F)";
         private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
         private static final String FORK_NEAREST = "Fork at Nearest Node";
         private static final String BOOKMARK_CURSOR = "Bookmark Cursor Position";
@@ -1019,8 +1037,11 @@ class InteractiveTracerCanvas extends TracerCanvas {
          */
         private boolean handleGeneralCommands(final String command, final ActionEvent e) {
             switch (command) {
+                case SHOW_ARROWS:
+                    toggleKeyWarning("F", "show path flow (start → end)");
+                    return true;
                 case HIDE_ALL:
-                    hideAllPaths();
+                    toggleKeyWarning("H", "temporarily hide paths");
                     return true;
                 case BOOKMARK_CURSOR:
                     bookmarkCursorLocation();

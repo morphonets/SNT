@@ -61,6 +61,10 @@ public class PathNodeCanvas {
     // Static field to control soma rendering mode (default to current behavior)
     private static int somaRenderMode = SOMA_RENDER_DEFAULT;
 
+    // Static field to control direction arrow display (toggled by key press)
+    private static boolean showDirectionArrows = false;
+    private static final int ARROW_INTERVAL = 4; // draw arrow every Nth node
+
     // Static reusable shapes to avoid allocations in render loop
     private static final BasicStroke EDITABLE_STROKE = new BasicStroke(4);
     private static final Line2D.Double REUSABLE_LINE = new Line2D.Double();
@@ -143,6 +147,26 @@ public class PathNodeCanvas {
      */
     public static int getSomaRenderMode() {
         return somaRenderMode;
+    }
+
+    /**
+     * Sets whether direction arrows should be displayed on paths.
+     * When enabled, small arrows are drawn at regular intervals along paths
+     * to indicate path direction (from start to end).
+     *
+     * @param show true to show direction arrows, false to hide them
+     */
+    public static void setShowDirectionArrows(final boolean show) {
+        showDirectionArrows = show;
+    }
+
+    /**
+     * Gets whether direction arrows are currently being displayed.
+     *
+     * @return true if direction arrows are shown
+     */
+    public static boolean isShowDirectionArrows() {
+        return showDirectionArrows;
     }
 
     /**
@@ -336,7 +360,14 @@ public class PathNodeCanvas {
             g.fill(REUSABLE_ELLIPSE);
             g.setStroke(stroke);
         } else {
-            if (path.isSelected()) {
+            if (type == START) {
+                // START nodes rendered as hollow circles (outline only) to indicate direction
+                g.draw(REUSABLE_ELLIPSE);
+                if (path.isSelected()) {
+                    g.setColor(SNTColor.alphaColor(color, 30));
+                    g.fill(REUSABLE_ELLIPSE);
+                }
+            } else if (path.isSelected()) {
                 g.draw(REUSABLE_ELLIPSE);
                 g.setColor(SNTColor.alphaColor(color, 80));
                 g.fill(REUSABLE_ELLIPSE);
@@ -413,6 +444,72 @@ public class PathNodeCanvas {
     protected void drawConnection(final Graphics2D g, final PathNodeCanvas other) {
         REUSABLE_LINE.setLine(x, y, other.x, other.y);
         g.draw(REUSABLE_LINE);
+    }
+
+    /**
+     * Draws a direction arrow pointing from this node toward the next node.
+     * The arrow is drawn as a ">" symbol at the midpoint between nodes.
+     * Only draws if direction arrows are enabled and this is an appropriate node
+     * (every Nth node based on ARROW_INTERVAL).
+     *
+     * @param g    the Graphics2D drawing instance
+     * @param next the next node in the path (toward the end)
+     */
+    protected void drawDirectionArrow(final Graphics2D g, final PathNodeCanvas next) {
+        if (!showDirectionArrows || next == null) return;
+        if (type == HERMIT || type == END) return; // no arrow for single-point or end nodes
+        if (index % ARROW_INTERVAL != 0 && type != START) return; // every Nth node, but always at START
+
+        // Calculate direction vector
+        final double dx = next.x - this.x;
+        final double dy = next.y - this.y;
+        final double len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 4) return; // too short to draw arrow
+
+        // Normalize direction
+        final double nx = dx / len;
+        final double ny = dy / len;
+
+        // Arrow position: midpoint between this node and next
+        final double midX = (this.x + next.x) / 2;
+        final double midY = (this.y + next.y) / 2;
+
+        // Arrow size: scale with magnification via nodeDiameter, with sensible bounds
+        // nodeDiameter already accounts for magnification (returns magnification when mag is 4-16)
+        final double baseSize = canvas.nodeDiameter();
+        final double arrowSize = Math.max(14, Math.min(baseSize * 6.5, len * 0.55));
+
+        // Perpendicular vector for arrow wings
+        final double px = -ny;
+        final double py = nx;
+
+        // Arrow tip is ahead of midpoint, base is behind
+        final double tipX = midX + nx * arrowSize * 0.5;
+        final double tipY = midY + ny * arrowSize * 0.5;
+        final double baseX = midX - nx * arrowSize * 0.5;
+        final double baseY = midY - ny * arrowSize * 0.5;
+
+        // Draw ">" shape: two lines from base corners to tip
+        final double wingSpread = arrowSize * 0.5;
+        final double wingX = baseX + px * wingSpread;
+        final double wingY = baseY + py * wingSpread;
+        final double wingX2 = baseX - px * wingSpread;
+        final double wingY2 = baseY - py * wingSpread;
+
+        REUSABLE_LINE.setLine(wingX, wingY, tipX, tipY);
+        g.draw(REUSABLE_LINE);
+        REUSABLE_LINE.setLine(wingX2, wingY2, tipX, tipY);
+        g.draw(REUSABLE_LINE);
+    }
+
+    /**
+     * Checks if direction arrows are enabled and this node should skip diameter rendering.
+     * When direction arrows are shown, diameter lines are hidden to reduce visual clutter.
+     *
+     * @return true if diameter rendering should be skipped
+     */
+    public boolean skipDiameterForDirectionArrows() {
+        return showDirectionArrows;
     }
 
     private double getSizeInPlane(final double xSize, final double ySize, final double zSize) {

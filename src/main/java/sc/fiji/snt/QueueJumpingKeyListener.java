@@ -124,7 +124,14 @@ class QueueJumpingKeyListener implements KeyListener {
             e.consume();
             return;
         }
-        // Special case #2: Handle space key (pan mode)
+		// Special case #2: Handle 'flow' key
+		if (e.getKeyCode() == KeyEvent.VK_F && canvas != null) {
+			PathNodeCanvas.setShowDirectionArrows(true);
+			tracerPlugin.repaintAllPanes();
+			e.consume();
+			return;
+		}
+        // Special case #3: Handle space key (pan mode)
 		if (e.getKeyCode() == KeyEvent.VK_SPACE) {
 			if (canvas != null) tracerPlugin.panMode = true;
 			waiveKeyPress(e);
@@ -227,7 +234,14 @@ class QueueJumpingKeyListener implements KeyListener {
             e.consume();
             return;
         }
-        // Special case #2: Handle space key (pan mode)
+		// Special case #2: Handle 'flow' key
+		if (e.getKeyCode() == KeyEvent.VK_F && canvas != null) {
+			PathNodeCanvas.setShowDirectionArrows(false);
+			tracerPlugin.repaintAllPanes();
+			e.consume();
+			return;
+		}
+        // Special case #3: Handle space key (pan mode)
         if (e.getKeyCode() == KeyEvent.VK_SPACE && canvas != null) {
             tracerPlugin.panMode = false;
         }
