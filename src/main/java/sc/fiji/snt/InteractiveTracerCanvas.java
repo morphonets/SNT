@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -625,10 +625,24 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
     @Override
     public void mouseReleased(final MouseEvent me) {
+        // When waiting for ROI drawing, let ImageJ handle the event first,
+        // then check if a completed ROI exists for path selection.
+        // On macOS, ROI stays in CONSTRUCTING state until another click,
+        // so we trigger selection on any mouse release while drawing.
+        if (waitingForRoiDrawing) {
+            super.mouseReleased(me);
+            if (getImage().getRoi() != null) {
+                // Small delay to let ImageJ finalize the ROI coordinates
+                SwingUtilities.invokeLater(() -> {
+                    if (waitingForRoiDrawing && getImage().getRoi() != null) {
+                        selectPathsByRoi();
+                    }
+                });
+            }
+            return;
+        }
         if (tracerPlugin.panMode || isEventsDisabled()) {
             super.mouseReleased(me);
-        } else if (waitingForRoiDrawing && getImage().getRoi() != null && getImage().getRoi().getState() != Roi.CONSTRUCTING) { // ROI has been completed
-            selectPathsByRoi();
         } else if (isPopupTrigger(me)) { // somehow on windows (Java 21, IJ 1.44p) MouseEvent#isPopupTrigger() occurs on mouse release!?
             showPopupMenu(me.getX(), me.getY());
         } else {
@@ -707,13 +721,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 else {
                     tracerPlugin.clickForTrace(myOffScreenXD(e.getX()), myOffScreenYD(e
                             .getY()), plane, join);
-				}
-				break;
-		}
+                }
+                break;
+        }
 
-	}
+    }
 
-	private void startSigmaWizard(final int canvasX, final int canvasY) {
+    private void startSigmaWizard(final int canvasX, final int canvasY) {
         tracerPlugin.getUI().launchSigmaPaletteAround(myOffScreenX(canvasX), myOffScreenY(canvasY));
         restoreDefaultCursor();
     }
@@ -884,7 +898,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 + "<li>After counting, select the associated Path(s) (or none to include all), then run " //
                 + "<i>Analyze → Spine/Varicosity Utilities → Extract Counts from Multipoint ROIs...</i></li>" //
                 + "<li>Note: SNT only tallies features. Consider storing clicked locations in ROI Manager "
-                + "(or Bookmarks pane) for further analyses</li>" //
+                + "or Bookmarks pane for further analyses</li>" //
                 + "</ul>" //
                 + "<br>" //
                 + "<b>Multipoint Tool:</b>" //
