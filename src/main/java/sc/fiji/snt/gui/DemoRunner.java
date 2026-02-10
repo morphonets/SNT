@@ -416,7 +416,7 @@ public class DemoRunner {
 		final Demo entry = new Demo(13, "Spot Spine dataset (spine decorated dendrite)") {
 			@Override
 			public ImagePlus getImage() {
-				return  ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
+				return ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");
 			}
 
 			@Override
@@ -515,6 +515,7 @@ public class DemoRunner {
 					ui.changeState(priorUIState);
 					return;
 				}
+				imp.setProperty("snt-ignore-close", true);
 				resetPaths();
 				snt.initialize(imp);
 				if (tracingsURL != null) {
@@ -550,7 +551,6 @@ public class DemoRunner {
 					new GuiUtils(ui).error("Loading of demo aborted. Please resolve any unsaved changes and retry.");
 					return false;
 				}
-				snt.flushImageData();
 				snt.closeAndResetAllPanes(); // closed early on so that spatial calibration reset
 				snt.getPathAndFillManager().clear(); // will reset spatial calibration
 				return true;

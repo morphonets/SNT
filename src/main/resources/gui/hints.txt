@@ -5,6 +5,7 @@
 # Navigation & Basic Shortcuts
 Press G to select the path nearest to the cursor
 Hold Shift+G to add multiple paths to your selection
+Press F to temporarily show path flows (start→end direction)
 Press H to temporarily hide all paths while held down
 Use the Command Palette (ctrlKey()+Shift+P) to quickly find any action
 Press Enter to shuttle focus between the tracing image and the SNT window

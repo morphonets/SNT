@@ -4008,7 +4008,8 @@ public class SNTUI extends JDialog {
 		final String CHOICE_2 = "Continue without";
 		final String[] options = {CHOICE_0, CHOICE_1, CHOICE_2};
 		String msg = "Backup and session features require a workspace, but ";
-		if (f == null)
+		if (f == null || f.toPath().toAbsolutePath().normalize().equals(
+                defaultDir.toPath().toAbsolutePath().normalize()))
 			msg += "no workspace directory is configured";
 		else
 			msg += "the workspace directory is no longer available at <i>" + f.getAbsolutePath() +"</i>";
@@ -4785,19 +4786,20 @@ public class SNTUI extends JDialog {
 			}
 			// Case 2: Image assembled from cached data was closed: nullify it
 			else if (plugin.isCachedData(imp)) {
-				plugin.flushImageData();
+				plugin.flushSecondaryData();
 				listener.tracingImageID = 0; // reset image; ids are always negative
 			}
 			// Case 3: Main image closed but cached data exists
 			else if (imp.getID() == listener.tracingImageID && plugin.ctSlice3d != null) {
 				// IJ quirk: imp == plugin.getImagePlus() fails. Use unique id instead
-				if (guiUtils.getConfirmation("The tracing image was closed. " +
+				if (imp.getProperty("snt-ignore-close")==null && guiUtils.getConfirmation(
+						"The tracing image was closed. " +
 						"Reopen from cached data to continue editing?", "Continue Tracing?")) {
 					plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
 					plugin.initialize(plugin.getLoadedDataAsImp()); // will update listener.tracingImageID
 					return;
 				} else {
-					plugin.flushImageData();
+					plugin.flushSecondaryData();
 				}
 				// Either no cached data, or user chose to discard
 				listener.tracingImageID = 0; // reset

@@ -491,14 +491,6 @@ public class SNT extends MultiDThreePanes implements
         }
     }
 
-	public void flushImageData() {
-		xy = null;
-		ctSlice3d =null;
-		colorImage = null;
-		labelData = null;
-		flushSecondaryData();
-	}
-
     private double getAxisScale(final ImgPlus<?> imgPlus, final AxisType axisType, final int dimFallback) {
         final int d = imgPlus.dimensionIndex(axisType);
         final int dim = d >= 0 ? d : dimFallback;

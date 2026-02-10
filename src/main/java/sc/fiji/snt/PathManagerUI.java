@@ -220,7 +220,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.addSeparator();
 
         jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_LR_TO_LINE));
-        jmi.setToolTipText("Reduces the no. of nodes in selected paths by increasing\ninter-node distance (lossy simplification)");
+        jmi.setToolTipText("Simplifies paths by reducing node count (Ramer-Douglas-Peucker algorithm)");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
         editMenu.addSeparator();
@@ -2753,7 +2753,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String REVERSE_CMD = "Reverse...";
         private static final String MERGE_PRIMARY_PATHS_CMD = "Create Shared Root (Soma)...";
         private static final String REBUILD_CMD = "Rebuild...";
-        private static final String DOWNSAMPLE_CMD = "Ramer-Douglas-Peucker Downsampling...";
+        private static final String DOWNSAMPLE_CMD = "Downsample...";
         private static final String CUSTOM_TAG_CMD = "Other...";
         private static final String REPLACE_TAG_CMD = "Replace...";
         private static final String LENGTH_TAG_CMD = "Length";
@@ -4476,13 +4476,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private void dowsamplePaths(final List<Path> selectedPaths) {
             final double minSep = plugin.getMinimumSeparation();
             final Double userMaxDeviation = guiUtils.getDouble(
-                    "Please specify the maximum permitted distance between nodes:<ul>" +
-                            "<li>This destructive operation cannot be undone!</li>" +
-                            "<li>Paths can only be downsampled: Smaller inter-node distances will not be interpolated</li>" +
-                            "<li>Paths with less than three nodes are ignored</li>" +
-                            "<li>Currently, the smallest voxel dimension is " + SNTUtils
-                            .formatDouble(minSep, 3) + plugin.spacing_units + "</li>",
-                    "Downsampling: " + selectedPaths.size() + " Selected Path(s)", 2 * minSep);
+                    "Maximum distance to remove nodes:<ul>" +
+                            "<li>Smallest voxel size: " + SNTUtils.formatDouble(minSep, 3) + " " + plugin.spacing_units + "</li>" +
+                            "<li>Values below current node spacing have no effect</li>" +
+                            "<li>Paths with fewer than 3 nodes are skipped</li>" +
+                            "<li>This operation cannot be undone</li></ul>",
+                    "Downsample " + selectedPaths.size() + " Path(s)", 2 * minSep);
             if (userMaxDeviation == null) return;
             final double maxDeviation = userMaxDeviation;
             if (Double.isNaN(maxDeviation) || maxDeviation <= 0) {
