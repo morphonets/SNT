@@ -4688,7 +4688,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private void dowsamplePaths(final List<Path> selectedPaths) {
             final double minSep = plugin.getMinimumSeparation();
             final Double userMaxDeviation = guiUtils.getDouble(
-                    "Maximum distance to remove nodes:<ul>" +
+                    "Maximum distance (in " + plugin.spacing_units + ") to remove nodes:<ul>" +
                             "<li>Smallest voxel size: " + SNTUtils.formatDouble(minSep, 3) + " " + plugin.spacing_units + "</li>" +
                             "<li>Values below current node spacing have no effect</li>" +
                             "<li>Paths with fewer than 3 nodes are skipped</li>" +

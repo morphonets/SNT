@@ -185,7 +185,9 @@ public class DemoRunner {
 		final Demo entry = new Demo(3, "Drosophila ddaC neuron (Image only)") {
 			@Override
 			public ImagePlus getImage() {
-				return sntService.demoImage("ddaC");
+				final ImagePlus imp =  sntService.demoImage("ddaC");
+				tagForQuickDisposal(imp);
+				return imp;
 			}
 		};
 		entry.summary = "Same Demo 1 dataset but no autotracing operations are performed.";
@@ -199,7 +201,9 @@ public class DemoRunner {
 		final Demo entry = new Demo(4, "Drosophila OP neuron (Complete 3D reconstruction)") {
 			@Override
 			public ImagePlus getImage() {
-				return sntService.demoImage("OP_1");
+				final ImagePlus imp = sntService.demoImage("OP_1");
+				tagForQuickDisposal(imp);
+				return imp;
 			}
 
 			@Override
@@ -226,7 +230,9 @@ public class DemoRunner {
 		final Demo entry = new Demo(5, "Hippocampal neuron (DIC timelapse)") {
 			@Override
 			public ImagePlus getImage() {
-				return sntService.demoImage("cil701");
+				final ImagePlus imp = sntService.demoImage("cil701");
+				tagForQuickDisposal(imp);
+				return imp;
 			}
 		};
 		entry.summary = "Downloads a timelapse video (19h) of a cultured hippocampal neuron in which neurites have been traced across time. " +
@@ -242,7 +248,9 @@ public class DemoRunner {
 		final Demo entry = new Demo(6, "Hippocampal neuron (Neuronal receptors)") {
 			@Override
 			public ImagePlus getImage() {
-				return sntService.demoImage("Rat_Hippocampal_Neuron");
+				final ImagePlus imp =  sntService.demoImage("Rat_Hippocampal_Neuron");
+				tagForQuickDisposal(imp);
+				return imp;
 			}
 		};
 		entry.summary = "Downloads a cultured hippocampal neuron stained for nAChRs. No reconstructions included.";
@@ -256,7 +264,9 @@ public class DemoRunner {
 		final Demo entry = new Demo(7, "Hippocampal neuron (Synaptic labeling)") {
 			@Override
 			public ImagePlus getImage() {
-				return sntService.demoImage("cil810");
+				final ImagePlus imp = sntService.demoImage("cil810");
+				tagForQuickDisposal(imp);
+				return imp;
 			}
 		};
 		entry.summary = "Downloads a cultured hippocampal neuron stained for pre- and post- synaptic markers. No reconstructions included.";
@@ -270,7 +280,9 @@ public class DemoRunner {
 		final Demo entry = new Demo(8, "L-systems fractal (2D toy neuron)") {
 			@Override
 			public ImagePlus getImage() {
-				return sntService.demoImage("fractal");
+				final ImagePlus imp = sntService.demoImage("fractal");
+				tagForQuickDisposal(imp);
+				return imp;
 			}
 
 			@Override
@@ -332,7 +344,10 @@ public class DemoRunner {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.open("http://wsr.imagej.net/images/mitosis.tif");
-				imp.setPosition(2, 4, 31); // k-fibers channel, mid Z-range, traced time point
+				if (imp != null) {
+					imp.setPosition(2, 4, 31); // k-fibers channel, mid Z-range, traced time point
+					tagForQuickDisposal(imp);
+				}
 				return imp;
 			}
 
@@ -359,7 +374,7 @@ public class DemoRunner {
 		final Demo entry = new Demo(11, "NeuronJ dataset (2D neurites)") {
 			@Override
 			public ImagePlus getImage() {
-				return  ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
+				return ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
 			}
 			@Override
 			public void load() {
@@ -504,6 +519,10 @@ public class DemoRunner {
 			}
 		}
 
+		void tagForQuickDisposal(final ImagePlus imp) {
+			if (imp != null) snt.getPrefs().setTemp("ignore-close-" + imp.getID(), true);
+		}
+
 		public void load() {
 			assert snt != null;
 			assert ui != null;
@@ -515,7 +534,7 @@ public class DemoRunner {
 					ui.changeState(priorUIState);
 					return;
 				}
-				imp.setProperty("snt-ignore-close", true);
+				tagForQuickDisposal(imp);
 				resetPaths();
 				snt.initialize(imp);
 				if (tracingsURL != null) {
@@ -537,7 +556,7 @@ public class DemoRunner {
 			}
 		}
 
-		protected boolean prepNonImgLoading() {
+		boolean prepNonImgLoading() {
             assert snt != null;
             if ((snt.getPathAndFillManager().size() > 0 || snt.accessToValidImageData())
 					&& !directLoading && !new GuiUtils(ui).getConfirmation(
@@ -560,7 +579,7 @@ public class DemoRunner {
 			return false;
 		}
 
-		public String description() {
+		String description() {
 			final StringBuilder sb = new StringBuilder();
 			sb.append(summary);
 			sb.append("\n\n");
@@ -574,11 +593,13 @@ public class DemoRunner {
 			return sb.toString();
 		}
 
-		public ImagePlus getImage() {
-			return sntService.demoImage(name);
+		ImagePlus getImage() {
+			 final ImagePlus imp = sntService.demoImage(name);
+			 tagForQuickDisposal(imp);
+			 return imp;
 		}
 
-		public Tree getTree() {
+		Tree getTree() {
 			return null; // default as several demos don't have associated tree(s)
 		}
 

@@ -643,7 +643,9 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void setIsDisplayCanvas(final ImagePlus imp) {
+		assert imp != null;
 		imp.setProperty("Info", "SNT Display Canvas\n");
+		getPrefs().setTemp("ignore-close-" + imp.getID(), true);
 	}
 
 	protected boolean isDisplayCanvas(final ImagePlus imp) {
@@ -651,9 +653,11 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void setIsCachedData(final ImagePlus imp) {
+		assert imp != null;
 		// NB: somehow setProperty/getProperty does not work with virtual stacks,
 		// so we'll brand the image title instead
 		imp.setTitle(String.format("Cached Data [C%dT%d]", channel, frame));
+		getPrefs().setTemp("ignore-close-" + imp.getID(), true);
 	}
 
 	protected boolean isCachedData(final ImagePlus imp) {

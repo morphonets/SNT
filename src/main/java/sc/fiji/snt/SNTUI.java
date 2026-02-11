@@ -4792,8 +4792,8 @@ public class SNTUI extends JDialog {
 			// Case 3: Main image closed but cached data exists
 			else if (imp.getID() == listener.tracingImageID && plugin.ctSlice3d != null) {
 				// IJ quirk: imp == plugin.getImagePlus() fails. Use unique id instead
-				if (imp.getProperty("snt-ignore-close")==null && guiUtils.getConfirmation(
-						"The tracing image was closed. " +
+				if (!plugin.getPrefs().getTemp("ignore-close-" + imp.getID(), false)
+						&& guiUtils.getConfirmation("The tracing image was closed. " +
 						"Reopen from cached data to continue editing?", "Continue Tracing?")) {
 					plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
 					plugin.initialize(plugin.getLoadedDataAsImp()); // will update listener.tracingImageID
