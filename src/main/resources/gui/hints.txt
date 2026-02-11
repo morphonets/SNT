@@ -33,7 +33,7 @@ Press X in Edit Mode to split a tree at the active node
 Use Quick Measurements for instant metrics without prompts
 Color-code paths by morphometric properties via Path Manager→Analyze→Color Mapping
 Run Sholl Analysis from any node using Alt+Shift+A
-Create dendrograms using Analsis→Utilities→Create Dendrogram
+Create dendrograms using Analysis→Utilities→Create Dendrogram
 Use Path Profiler to visualize intensity gradients along traced neurites
 Compare cell groups statistically via Utilities→Compare Reconstructions...
 

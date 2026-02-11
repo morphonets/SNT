@@ -3073,26 +3073,51 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     }
                 }
 
+                // Analyze for "Orient Tree" option: collect all paths in the tree(s)
+                final Set<Path> treePaths = collectTreePaths(primaryPaths);
+                final PointInImage rootLocation = findTreeRoot(treePaths);
+                final List<Path> misorientedPaths = (rootLocation != null)
+                        ? TreeUtils.findPathsNeedingReversal(treePaths, rootLocation)
+                        : Collections.emptyList();
+                final boolean canOrientTree = !misorientedPaths.isEmpty();
+
                 // Build options
                 final String optionSimple = "Reverse orientation only";
                 final String optionWithChildren = "Reverse and update " + totalChildren + " child branch point(s)";
+                final String optionOrientTree = "Orient tree toward root (" + misorientedPaths.size() + " path(s) need reversal)";
 
-                final String[] options;
-                final String message;
-
+                final List<String> optionList = new ArrayList<>();
+                optionList.add(optionSimple);
                 if (totalChildren > 0) {
-                    options = new String[]{optionSimple, optionWithChildren};
-                    message = String.format(
-                            "<html>Reverse <b>%d</b> primary path(s) affecting <b>%d</b> child path(s)?<br><br>" +
-                                    "Choose how to handle children:<ul>" +
-                                    "<li><b>%s</b>: Flips node order. Children remain attached but<br>" +
-                                    "    their branch point indices become invalid (use with caution).</li>" +
-                                    "<li><b>%s</b>: Flips node order and recalculates all<br>" +
-                                    "    child branch point indices to maintain correct connections.</li>" +
-                                    "</ul></html>",
-                            primaryPaths.size(), totalChildren, optionSimple, "Reverse and update...");
+                    optionList.add(optionWithChildren);
+                }
+                if (canOrientTree) {
+                    optionList.add(optionOrientTree);
+                }
+                final String[] options = optionList.toArray(new String[0]);
+
+                // Build message
+                final String message;
+                if (totalChildren > 0 || canOrientTree) {
+                    final StringBuilder sb = new StringBuilder();
+                    sb.append("Reverse <b>").append(primaryPaths.size()).append("</b> primary path(s)");
+                    if (totalChildren > 0) {
+                        sb.append(" affecting <b>").append(totalChildren).append("</b> child path(s)");
+                    }
+                    sb.append("?<br><br>Choose operation:");
+                    sb.append("<br><b>").append(optionSimple).append("</b>: Flips node order. Children remain attached but ")
+                            .append("their branch point indices become invalid (use with caution).");
+                    if (totalChildren > 0) {
+                        sb.append("<br><b>Reverse and update...</b>: Flips node order and recalculates all ")
+                                .append("child branch point indices to maintain correct connections.");
+                    }
+                    if (canOrientTree) {
+                        sb.append("<br><b>Orient tree toward root</b>: Only reverses paths pointing away from the root ")
+                                .append("(").append(misorientedPaths.size()).append(" of ").append(treePaths.size())
+                                .append(" paths). Child branch points are updated automatically.");
+                    }
+                    message = sb.toString();
                 } else {
-                    options = new String[]{optionSimple};
                     message = String.format(
                             """
                                     Reverse %d primary path(s)?
@@ -3105,29 +3130,75 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final String choice = guiUtils.getChoice(message, "Reverse Path(s)", options, options[0]);
                 if (choice == null) return;
 
-                // Execute reversal
-                final boolean updateChildren = choice.equals(optionWithChildren);
+                // Execute based on choice
                 int reversedCount = 0;
                 int updatedChildrenCount = 0;
 
-                for (final Path p : primaryPaths) {
-                    if (updateChildren) {
+                if (choice.equals(optionOrientTree)) {
+                    // Orient tree: only reverse misoriented paths
+                    for (final Path p : misorientedPaths) {
                         updatedChildrenCount += reverseWithChildrenUpdate(p);
-                    } else {
-                        p.reverse();
+                        reversedCount++;
                     }
-                    reversedCount++;
+                    final String feedback = "Oriented tree: reversed " + reversedCount + " path(s), updated "
+                            + updatedChildrenCount + " child branch point(s)";
+                    displayTmpMsg(feedback);
+                } else {
+                    // Original behavior: reverse all selected primary paths
+                    final boolean updateChildren = choice.equals(optionWithChildren);
+                    for (final Path p : primaryPaths) {
+                        if (updateChildren) {
+                            updatedChildrenCount += reverseWithChildrenUpdate(p);
+                        } else {
+                            p.reverse();
+                        }
+                        reversedCount++;
+                    }
+                    String feedback = "Reversed " + reversedCount + " path(s)";
+                    if (updateChildren && updatedChildrenCount > 0) {
+                        feedback += ", updated " + updatedChildrenCount + " child branch point(s)";
+                    }
+                    displayTmpMsg(feedback);
                 }
-
-                // Feedback
-                String feedback = "Reversed " + reversedCount + " path(s)";
-                if (updateChildren && updatedChildrenCount > 0) {
-                    feedback += ", updated " + updatedChildrenCount + " child branch point(s)";
-                }
-                displayTmpMsg(feedback);
 
                 plugin.updateAllViewers();
                 plugin.setUnsavedChanges(true);
+            }
+
+            /**
+             * Collects all paths in the tree(s) containing the given primary paths.
+             * Includes the primary paths and all their descendants.
+             */
+            private Set<Path> collectTreePaths(final List<Path> primaryPaths) {
+                final Set<Path> allPaths = new HashSet<>();
+                for (final Path primary : primaryPaths) {
+                    allPaths.add(primary);
+                    collectDescendants(primary, allPaths);
+                }
+                return allPaths;
+            }
+
+            /**
+             * Recursively collects all descendants of a path.
+             */
+            private void collectDescendants(final Path path, final Set<Path> collected) {
+                for (final Path child : path.getChildren()) {
+                    collected.add(child);
+                    collectDescendants(child, collected);
+                }
+            }
+
+            /**
+             * Finds the root location for a set of tree paths.
+             * Uses the first node of the primary path (path with no parent).
+             */
+            private PointInImage findTreeRoot(final Set<Path> treePaths) {
+                for (final Path p : treePaths) {
+                    if (p.isPrimary() && p.size() > 0) {
+                        return p.firstNode();
+                    }
+                }
+                return null;
             }
 
             /**
@@ -3219,7 +3290,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("You must have at least two paths selected.");
                     return;
                 }
-
+                if (mixedCTPathSelectionError(selectedPaths)) {
+                    return;
+                }
                 // Order paths by endpoint proximity
                 final List<Path> orderedPaths = TreeUtils.orderByEndpointProximity(selectedPaths);
                 if (orderedPaths.isEmpty()) {
@@ -3812,6 +3885,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("This command requires exactly 2 paths to be selected.");
                     return;
                 }
+                if (mixedCTPathSelectionError(selectedPaths)) {
+                    return;
+                }
                 autoConnect(selectedPaths.get(0), selectedPaths.get(1));
             }
 
@@ -4027,7 +4103,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("You must have at least two paths selected.");
                     return;
                 }
-
+                if (mixedCTPathSelectionError(selectedPaths)) {
+                    return;
+                }
                 if (!guiUtils.getConfirmation("Combine " + n +
                                 " selected paths into one? (this destructive operation cannot be undone!)",
                         "Confirm Destructive Operation?")) {
@@ -4114,17 +4192,36 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return (plugin.getImagePlus() == null) ? null : plugin.getImagePlus().getRoi();
             }
 
-            private Boolean getUseRoiFromUser(final int nPrimaryPaths) {
+            private record DialogResult(boolean useRoi, boolean autoOrient) {}
+
+            private DialogResult getUserChoices(final int nPrimaryPaths, final boolean roiAvailable) {
+                final String[] choices;
+                final String defaultChoice = "Averaged origin of selected paths";
+                if (roiAvailable) {
+                    choices = new String[]{"Averaged origin of selected paths", "Centroid of soma ROI"};
+                } else {
+                    choices = new String[]{"Averaged origin of selected paths"};
+                }
+                final String infoMsg = "The " + nPrimaryPaths + " primary paths will become children of a new " +
+                        "single-node root. This operation cannot be undone.<br><br>" +
+                        "<b>Auto-orient</b>: Reverses paths whose end node is closer to the root than their start node, " +
+                        "ensuring all paths point away from the shared root.";
+                final String checkboxLabel = "Auto-orient paths toward root";
                 final Object[] result = guiUtils.getChoiceWithOptionAndInfo(
                         "Create Shared Root", // title
                         "Place shared root at:", // msg
-                        new String[] {"Averaged origin of selected paths", "Centroid of soma ROI"}, // choices
-                        "Averaged origin of selected paths", // default choice
-                        "The " + nPrimaryPaths + " primary paths will become children of a new " +  // info message
-                                "single- node root path at the chosen location. This operation cannot be undone.",
-                        null, false); // no checkbox
+                        choices,
+                        defaultChoice,
+                        infoMsg,
+                        checkboxLabel,
+                        true); // default checkbox to true
+
                 if (result == null) return null;
-                return "Centroid of soma ROI".equals(result[0]);
+
+                final boolean useRoi = "Centroid of soma ROI".equals(result[0]);
+                final boolean autoOrient = (Boolean) result[1];
+
+                return new DialogResult(useRoi, autoOrient);
             }
 
             private void noRoiError() {
@@ -4147,11 +4244,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     return;
                 }
                 final List<Path> primaryPaths = new ArrayList<>();
-                final List<PointInImage> rootNodes = new ArrayList<>();
                 for (final Path path : selectedPaths) {
                     if (path.isPrimary()) {
                         primaryPaths.add(path);
-                        rootNodes.add(path.getNode(0));
                     }
                 }
                 if (primaryPaths.size() < 2) {
@@ -4163,40 +4258,113 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 if (mixedCTPathSelectionError(primaryPaths)) {
                     return;
                 }
-                final Boolean useRoi = getUseRoiFromUser(primaryPaths.size());
-                if (useRoi == null) {
+
+                // Check if ROI is available
+                final Roi roi = getRoi();
+                final DialogResult dialogResult = getUserChoices(primaryPaths.size(), true); // roi != null to make option dynamic
+                if (dialogResult == null) {
                     return; // user pressed cancel
                 }
-                // Retrieve the average position of all root node coordinates
-                final PointInImage centroid = SNTPoint.average(rootNodes);
+
+                // Determine the root location
+                final PointInImage rootLocation;
                 final Path newSoma;
-                if (useRoi) {
-                    final Roi roi = getRoi();
+
+                if (dialogResult.useRoi()) {
                     if (roi == null) {
                         noRoiError();
                         return;
                     }
-                    // Create a single-node path from the ROI. Assign the common centroid.
-                    // position to the coordinates of the ROI
+                    // Create a single-node path from the ROI
                     newSoma = SomaUtils.roiToSomaPath(roi, primaryPaths.getFirst());
-                    centroid.x = newSoma.getNode(0).x;
-                    centroid.y = newSoma.getNode(0).y;
-                    if (roi.getZPosition() > 0)
-                        centroid.z = newSoma.getNode(0).z;
+                    rootLocation = newSoma.getNode(0);
                 } else {
-                    // Create a single node path from centroid
+                    // Use suggested root location based on path analysis
+                    final PointInImage suggestedRoot = TreeUtils.suggestRootLocation(primaryPaths, null);
+
+                    // If auto-orient is enabled, use the suggested root; otherwise use averaged start nodes
+                    if (dialogResult.autoOrient() && suggestedRoot != null) {
+                        rootLocation = suggestedRoot;
+                    } else {
+                        // Original behavior: average of current start nodes
+                        final List<PointInImage> rootNodes = new ArrayList<>();
+                        for (final Path path : primaryPaths) {
+                            rootNodes.add(path.getNode(0));
+                        }
+                        rootLocation = SNTPoint.average(rootNodes);
+                    }
+
+                    // Create a single node path from the root location
                     newSoma = primaryPaths.getFirst().createPath();
                     newSoma.setIsPrimary(true);
                     newSoma.setName("Shared root");
-                    newSoma.addNode(centroid);
+                    newSoma.addNode(rootLocation);
                 }
+
+                // Auto-orient paths if requested
+                if (dialogResult.autoOrient()) {
+                    final List<Path> pathsToReverse = TreeUtils.findPathsNeedingReversal(primaryPaths, rootLocation);
+                    for (final Path p : pathsToReverse) {
+                        reversePathWithChildren(p);
+                    }
+                }
+
+                // Add the soma path
                 pathAndFillManager.addPath(newSoma, false, true);
-                // Now connect all root nodes to it
-                primaryPaths.forEach(primaryPath -> {
-                    primaryPath.insertNode(0, centroid);
-                    primaryPath.setBranchFrom(newSoma, centroid);
-                });
+
+                // Create a copy of rootLocation for each path to avoid sharing the same object
+                // Now connect all paths to the new soma
+                for (final Path primaryPath : primaryPaths) {
+                    final PointInImage connectionPoint = new PointInImage(rootLocation.x, rootLocation.y, rootLocation.z);
+                    connectionPoint.onPath = newSoma;
+                    primaryPath.insertNode(0, connectionPoint);
+                    primaryPath.setBranchFrom(newSoma, connectionPoint);
+                }
+
                 rebuildRelationShips(); // will call refreshManager()
+            }
+
+            /**
+             * Reverses a path and updates all children's branch point indices.
+             * This ensures parent-child relationships remain valid after reversal.
+             *
+             * @param path the path to reverse
+             */
+            private void reversePathWithChildren(final Path path) {
+                final List<Path> children = path.getChildren();
+                final int oldSize = path.size();
+
+                // Store old branch point indices before reversal
+                final Map<Path, Integer> oldIndices = new HashMap<>();
+                for (final Path child : children) {
+                    oldIndices.put(child, child.getBranchPointIndex());
+                }
+
+                // Reverse the path
+                path.reverse();
+
+                // Update children's branch point indices
+                for (final Path child : children) {
+                    final Integer oldIndex = oldIndices.get(child);
+                    if (oldIndex != null && oldIndex >= 0) {
+                        // Calculate new index: old index i becomes (size - 1 - i)
+                        final int newIndex = oldSize - 1 - oldIndex;
+                        updateChildBranchPointIndex(child, newIndex);
+                    }
+                }
+            }
+
+            /**
+             * Updates a child's branch point index after parent reversal.
+             */
+            private void updateChildBranchPointIndex(final Path child, final int newIndex) {
+                final Path parent = child.getParentPath();
+                if (parent == null || newIndex < 0 || newIndex >= parent.size()) {
+                    return;
+                }
+                final PointInImage newBranchPoint = parent.getNode(newIndex);
+                child.detachFromParent();
+                child.setBranchFrom(parent, newBranchPoint);
             }
 
             @Override
@@ -4259,16 +4427,33 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         sb.append("<li>").append(analysis.disconnectedChildren)
                                 .append(" child path(s) not in parent's children list</li>");
                     }
-                    sb.append("</ul><br>");
+                    sb.append("</ul>");
 
-                    sb.append("Rebuilding will:<ul>")
+                    // Add orientation warning if present  // <-- NEW BLOCK
+                    if (analysis.hasOrientationWarnings()) {
+                        sb.append("<br><b>Orientation warning:</b> ")
+                                .append(analysis.misorientedPaths)
+                                .append(" path(s) may be pointing away from their tree root.<br>")
+                                .append("<i>Use Edit › Reverse... › \"Orient tree toward root\" to fix.</i><br>");
+                    }
+
+                    sb.append("<br>Rebuilding will:<ul>")
                             .append("<li>Reset tree IDs (").append(analysis.currentTreeCount)
                             .append(" tree(s) will be renumbered 1-").append(analysis.currentTreeCount).append(")</li>")
                             .append("<li>Recalculate all path orders</li>")
                             .append("<li>Reestablish parent-child connections</li>")
                             .append("</ul>");
                 } else {
-                    sb.append("<b>✓ No issues detected</b><br><br>");
+                    sb.append("<b>✓ No structural issues detected</b><br><br>");
+
+                    // Still show orientation warning if present
+                    if (analysis.hasOrientationWarnings()) {
+                        sb.append("<b>Orientation warning:</b> ")
+                                .append(analysis.misorientedPaths)
+                                .append(" path(s) may be pointing away from their tree root.<br>")
+                                .append("<i>Use Edit › Reverse... › \"Orient tree toward root\" to fix.</i><br><br>");
+                    }
+
                     sb.append("All ").append(analysis.totalPaths).append(" path(s) in ")
                             .append(analysis.currentTreeCount).append(" tree(s) appear to have valid connections.<br><br>");
                     sb.append("Rebuild anyway? This will reset all tree IDs and recalculate orders.");
@@ -4303,13 +4488,19 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             int inconsistentTreeIds = 0;
             int inconsistentOrders = 0;
             int disconnectedChildren = 0;
+            int misorientedPaths = 0;
             final Set<Integer> treeIds = new HashSet<>();
+            // Group paths by tree for orientation analysis
+            final Map<Integer, List<Path>> pathsByTree = new HashMap<>();
 
             for (final Path p : paths) {
                 if (p == null || p.isFittedVersionOfAnotherPath()) continue;
 
                 // Track tree IDs
                 treeIds.add(p.getTreeID());
+
+                // Group by tree for orientation analysis
+                pathsByTree.computeIfAbsent(p.getTreeID(), k -> new ArrayList<>()).add(p);
 
                 // Check for orphaned paths (not primary but no parent)
                 if (!p.isPrimary() && p.getParentPath() == null) {
@@ -4338,6 +4529,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
 
+            for (final List<Path> treePaths : pathsByTree.values()) {
+                // Find the root of this tree
+                PointInImage rootLocation = null;
+                for (final Path p : treePaths) {
+                    if (p.isPrimary() && p.size() > 0) {
+                        rootLocation = p.firstNode();
+                        break;
+                    }
+                }
+                if (rootLocation != null) {
+                    misorientedPaths += TreeUtils.findPathsNeedingReversal(treePaths, rootLocation).size();
+                }
+            }
+
             // Count actual paths (excluding fitted versions)
             final int totalPaths = (int) paths.stream()
                     .filter(p -> p != null && !p.isFittedVersionOfAnotherPath())
@@ -4354,7 +4559,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     orphanedPaths,
                     inconsistentTreeIds,
                     inconsistentOrders,
-                    disconnectedChildren
+                    disconnectedChildren,
+                    misorientedPaths
             );
         }
 
@@ -4367,14 +4573,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 int orphanedPaths,
                 int inconsistentTreeIds,
                 int inconsistentOrders,
-                int disconnectedChildren) {
+                int disconnectedChildren,
+                int misorientedPaths) {
 
             boolean hasIssues() {
                 return totalIssues() > 0;
             }
 
+            boolean hasOrientationWarnings() {  // <-- NEW METHOD
+                return misorientedPaths > 0;
+            }
+
             int totalIssues() {
                 return orphanedPaths + inconsistentTreeIds + inconsistentOrders + disconnectedChildren;
+                // NB: misorientedPaths is a warning, not counted as an issue for rebuild purposes
             }
         }
 

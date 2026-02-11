@@ -547,4 +547,158 @@ public class TreeUtils {
     private record ChildBranchInfo(Path child, PointInImage branchPoint) {}
 
 
+    /**
+     * Result of analyzing which endpoint cluster (starts vs ends) is tighter.
+     *
+     * @param useStartNodes true if start nodes form the tighter cluster (should be the root)
+     * @param clusterCentroid the centroid of the tighter cluster
+     * @param variance the variance (spread) of the tighter cluster
+     */
+    public record EndpointClusterAnalysis(boolean useStartNodes, PointInImage clusterCentroid, double variance) {}
+
+    /**
+     * Analyzes a collection of paths to determine which endpoint cluster (starts or ends)
+     * is more tightly grouped, suggesting the root location.
+     * <p>
+     * This is useful for auto-orienting paths toward a common root when the user
+     * hasn't specified an explicit root location.
+     *
+     * @param paths the paths to analyze (must have at least 2)
+     * @return analysis result, or null if paths is null or has fewer than 2 paths
+     */
+    public static EndpointClusterAnalysis analyzeEndpointClusters(final Collection<Path> paths) {
+        if (paths == null || paths.size() < 2) return null;
+
+        final List<PointInImage> startNodes = new ArrayList<>();
+        final List<PointInImage> endNodes = new ArrayList<>();
+
+        for (final Path p : paths) {
+            if (p.size() == 0) continue;
+            startNodes.add(p.firstNode());
+            endNodes.add(p.lastNode());
+        }
+
+        if (startNodes.size() < 2) return null;
+
+        final PointInImage startCentroid = SNTPoint.average(startNodes);
+        final PointInImage endCentroid = SNTPoint.average(endNodes);
+
+        final double startVariance = computeVariance(startNodes, startCentroid);
+        final double endVariance = computeVariance(endNodes, endCentroid);
+
+        // Tighter cluster = lower variance = likely the root
+        if (startVariance <= endVariance) {
+            return new EndpointClusterAnalysis(true, startCentroid, startVariance);
+        } else {
+            return new EndpointClusterAnalysis(false, endCentroid, endVariance);
+        }
+    }
+
+    /**
+     * Computes the variance (average squared distance) of points from a centroid.
+     */
+    private static double computeVariance(final List<PointInImage> points, final PointInImage centroid) {
+        if (points.isEmpty()) return Double.MAX_VALUE;
+        double sumSq = 0;
+        for (final PointInImage p : points) {
+            sumSq += p.distanceSquaredTo(centroid);
+        }
+        return sumSq / points.size();
+    }
+
+    /**
+     * Determines which paths need to be reversed so that their start nodes point
+     * toward a given root location.
+     * <p>
+     * A path should be reversed if its end node is closer to the root than its start node.
+     *
+     * @param paths the paths to analyze
+     * @param rootLocation the target root location
+     * @return list of paths that should be reversed (subset of input)
+     */
+    public static List<Path> findPathsNeedingReversal(final Collection<Path> paths, final PointInImage rootLocation) {
+        if (paths == null || rootLocation == null) return Collections.emptyList();
+
+        final List<Path> needsReversal = new ArrayList<>();
+        for (final Path p : paths) {
+            if (p.size() == 0) continue;
+            final double distFromStart = p.firstNode().distanceSquaredTo(rootLocation);
+            final double distFromEnd = p.lastNode().distanceSquaredTo(rootLocation);
+            if (distFromEnd < distFromStart) {
+                needsReversal.add(p);
+            }
+        }
+        return needsReversal;
+    }
+
+    /**
+     * Orients paths so their start nodes point toward a given root location.
+     * Paths are reversed in-place if their end node is closer to the root.
+     * <p>
+     * <b>Note:</b> This method does NOT update child branch points. Callers
+     * must handle child branch point updates separately if paths have children.
+     *
+     * @param paths the paths to orient
+     * @param rootLocation the target root location
+     * @return the number of paths that were reversed
+     */
+    public static int orientPathsTowardRoot(final Collection<Path> paths, final PointInImage rootLocation) {
+        final List<Path> toReverse = findPathsNeedingReversal(paths, rootLocation);
+        for (final Path p : toReverse) {
+            p.reverse();
+        }
+        return toReverse.size();
+    }
+
+    /**
+     * Analyzes paths and suggests auto-orientation based on:
+     * <ol>
+     *   <li>If a reference point (e.g., ROI centroid) is provided, orient toward it</li>
+     *   <li>For 3+ paths: find the tighter endpoint cluster as the root</li>
+     *   <li>For 2 paths: find the closest endpoint pair as the root</li>
+     * </ol>
+     *
+     * @param paths the paths to analyze
+     * @param referencePoint optional reference point (e.g., ROI centroid); can be null
+     * @return the suggested root location, or null if it cannot be determined
+     */
+    public static PointInImage suggestRootLocation(final Collection<Path> paths, final PointInImage referencePoint) {
+        if (paths == null || paths.isEmpty()) return null;
+
+        // If reference point provided, use it
+        if (referencePoint != null) {
+            return referencePoint;
+        }
+
+        final List<Path> pathList = new ArrayList<>(paths);
+
+        // For 3+ paths, use cluster analysis
+        if (pathList.size() >= 3) {
+            final EndpointClusterAnalysis analysis = analyzeEndpointClusters(paths);
+            if (analysis != null) {
+                return analysis.clusterCentroid();
+            }
+        }
+
+        // For 2 paths, find closest endpoints
+        if (pathList.size() == 2) {
+            final Path p1 = pathList.get(0);
+            final Path p2 = pathList.get(1);
+            final EndpointMatch match = findClosestEndpoints(p1, p2);
+            if (match != null) {
+                // The closest endpoints should be the root
+                final PointInImage ep1 = match.p1AtStart() ? p1.firstNode() : p1.lastNode();
+                final PointInImage ep2 = match.p2AtStart() ? p2.firstNode() : p2.lastNode();
+                return SNTPoint.average(List.of(ep1, ep2));
+            }
+        }
+
+        // Fallback: average of start nodes
+        final List<PointInImage> startNodes = new ArrayList<>();
+        for (final Path p : paths) {
+            if (p.size() > 0) startNodes.add(p.firstNode());
+        }
+        return startNodes.isEmpty() ? null : SNTPoint.average(startNodes);
+    }
+
 }
