@@ -3669,6 +3669,13 @@ public class SNT extends MultiDThreePanes implements
 		} else if (xy != null && xy.getImage() != null) {
 			rebuildWindow(xy);
 		}
+		// Clear all image data references to prevent stale state detection
+		xy = null;
+		xz = null;
+		zy = null;
+		ctSlice3d = null;
+		flushSecondaryData();
+		nullifyCanvases(false);
 	}
 
 	private void rebuildWindow(final ImagePlus imp) {
