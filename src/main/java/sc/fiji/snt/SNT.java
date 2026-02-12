@@ -2964,7 +2964,6 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void flushSecondaryData() {
-		// TODO: Is this all we need to do, and is it in the correct order?
 		if (secondaryData instanceof DiskCachedCellImg<?, ?> img) {
             SNTUtils.log("Shutting down IoSync...");
 			img.shutdown();

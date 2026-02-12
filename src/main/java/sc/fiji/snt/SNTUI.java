@@ -916,9 +916,7 @@ public class SNTUI extends JDialog {
 	}
 
 	private void updateRebuildCanvasButton() {
-		final ImagePlus imp = plugin.getImagePlus();
-		final String label = (imp == null || imp.getProcessor() == null || plugin.accessToValidImageData()) ? "Create Canvas"
-				: "Resize Canvas";
+		final String label = (accessToValidImagePlus()) ? "Create Canvas" : "Resize Canvas";
 		rebuildCanvasButton.setText(label);
 	}
 
@@ -1456,7 +1454,7 @@ public class SNTUI extends JDialog {
 		mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
 		mipCS.appendLabel(" % opacity");
 		mipCS.getCheckBox().addActionListener(e -> {
-			if (!plugin.accessToValidImageData()) {
+			if (!accessToValidImagePlus()) {
 				noValidImageDataError();
 				mipCS.setSelected(false);
 			} else if (plugin.is2D()) {
@@ -1587,7 +1585,7 @@ public class SNTUI extends JDialog {
 			plugin.getPrefs().setTemp("pathscaling-nag", !options[1]);
 		}
 		if (reset) {
-			if (plugin.accessToValidImageData()) {
+			if (accessToValidImagePlus()) {
 				plugin.getImagePlus().close();
 				if (plugin.getImagePlus() != null) {
 					// user canceled the "save changes" dialog
@@ -2715,20 +2713,20 @@ public class SNTUI extends JDialog {
 	}
 
 	protected File openFile(final String extensionWithoutPeriod) {
-		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
+		final String suggestFilename = (accessToValidImagePlus()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
 		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extensionWithoutPeriod);
 		return guiUtils.getFile(suggestedFile, extensionWithoutPeriod);
 	}
 
 	protected File openReconstructionFile(final String extension) {
-		final String suggestFilename = (plugin.accessToValidImageData()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
+		final String suggestFilename = (accessToValidImagePlus()) ? plugin.getImagePlus().getTitle() : "SNT_Data";
 		final File suggestedFile = SNTUtils.findClosestPair(new File(plugin.getPrefs().getRecentDir(), suggestFilename), extension);
 		return guiUtils.getReconstructionFile(suggestedFile, extension);
 	}
 
 	private File getProposedSavingFile(final String extensionWithoutDot) {
 		String filename;
-		if (plugin.accessToValidImageData())
+		if (accessToValidImagePlus())
 			filename = SNTUtils.stripExtension(plugin.getImagePlus().getShortTitle());
 		else
 			filename = "SNT_Data";
@@ -3467,7 +3465,7 @@ public class SNTUI extends JDialog {
 								}
 							}
 							case "Image Being Traced" -> {
-								if (!plugin.accessToValidImageData()) {
+								if (!accessToValidImagePlus()) {
 									noValidImageDataError();
 									proceed = false;
 								}
@@ -3956,7 +3954,7 @@ public class SNTUI extends JDialog {
 			}
 
 			final String defaultText;
-			if (!plugin.accessToValidImageData() || plugin.getImagePlus() == null) {
+			if (!accessToValidImagePlus()) {
 				defaultText = "Image data unavailable...";
 			} else {
 				defaultText = "Tracing "
@@ -4081,7 +4079,7 @@ public class SNTUI extends JDialog {
 		if (plugin.getPrefs().getTemp("autotracing-prompt-armed", true)) {
 			final boolean nag = plugin.getPrefs().getTemp("autotracing-nag", true);
 			boolean run = plugin.getPrefs().getTemp("autotracing-run", true);
-			if (plugin.accessToValidImageData() && plugin.getImagePlus().isVisible() && ImpUtils.isBinary(plugin.getImagePlus())) {
+			if (accessToValidImagePlus() && plugin.getImagePlus().isVisible() && ImpUtils.isBinary(plugin.getImagePlus())) {
 				if (nag) {
 					final boolean[] options = guiUtils.getPersistentConfirmation(
 							"Image is eligible for fully automated reconstruction. Would you like to attempt it now?",
@@ -4636,6 +4634,12 @@ public class SNTUI extends JDialog {
 	private void noValidImageDataErrorExtended() {
 		guiUtils.error("This option requires valid image data to be loaded. " +
 				"The image should have bright foreground structures on a dark background.");
+	}
+
+	private boolean accessToValidImagePlus() {
+		final ImagePlus imp = plugin.getImagePlus();
+		return imp != null && imp.getProcessor() != null
+				&& !plugin.isDisplayCanvas(imp) && (imp.getWidth() > 1 || imp.getHeight() > 1);
 	}
 
 	protected void noValidImageDataError() {
@@ -5232,7 +5236,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected String getImageFilenamePrefix() {
-		if (plugin.accessToValidImageData())
+		if (accessToValidImagePlus())
 			return "display_canvas";
 		final ImagePlus imp = plugin.getImagePlus();
 		if (imp != null && imp.getTitle() != null && !imp.getTitle().isBlank()) {

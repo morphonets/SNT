@@ -2891,22 +2891,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private void selectChildren(final List<Path> paths, final boolean recursive) {
-            final ListIterator<Path> iter = paths.listIterator();
-            while(iter.hasNext()){
-                final Path p = iter.next();
-                appendChildren(iter, p, recursive);
+            final List<Path> toAdd = new ArrayList<>();
+            for (final Path p : paths) {
+                if (recursive) {
+                    TreeUtils.collectDescendants(p, toAdd);
+                } else {
+                    TreeUtils.collectChildren(p, toAdd);
+                }
             }
-            refreshManager(true, false, paths); // refreshViewers=false to avoid clearing selection
+            paths.addAll(toAdd);
+            refreshManager(true, false, paths);
             tree.setSelectedPaths(paths);
-        }
-
-        private void appendChildren(final ListIterator<Path> iter, final Path p, final boolean recursive) {
-            if (p.children != null && !p.children.isEmpty()) {
-                p.children.forEach(child -> {
-                    iter.add(child);
-                    if (recursive) appendChildren(iter, child, true);
-                });
-            }
         }
 
         // Constructor
@@ -3061,7 +3056,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
 
                 // Count children across all selected primary paths
-                final int totalChildren = primaryPaths.stream().mapToInt(this::countAllDescendants).sum();
+                final int totalChildren = primaryPaths.stream().mapToInt(TreeUtils::countDescendants).sum();
 
                 // Warn if some selected paths are not primary
                 if (primaryPaths.size() < selectedPaths.size()) {
@@ -3201,17 +3196,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return null;
             }
 
-            /**
-             * Counts all descendants (children, grandchildren, etc.) of a path.
-             */
-            private int countAllDescendants(final Path path) {
-                int count = 0;
-                for (final Path child : path.getChildren()) {
-                    count++; // Count this child
-                    count += countAllDescendants(child); // Count grandchildren recursively
-                }
-                return count;
-            }
 
             /**
              * Reverses a path and updates all children's branch point indices.

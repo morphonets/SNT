@@ -518,7 +518,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		}
 
 		@Override
-		public void execute(KeyEvent e, KeyContext context) {
+		public void execute(final KeyEvent e, final KeyContext context) {
 			switch (context.keyChar) {
 				case 'd', 'D' -> canvas.deleteEditingNode(false);
 				case 'i', 'I' -> canvas.appendLastCanvasPositionToEditingNode(false);
@@ -526,7 +526,7 @@ class QueueJumpingKeyListener implements KeyListener {
 				case 'l', 'L' -> canvas.toggleEditingNode(true);
 				case 'm', 'M' -> canvas.moveEditingNodeToLastCanvasPosition(false);
 				case 'b', 'B' -> canvas.assignLastCanvasZPositionToEditNode(false);
-				case 'c', 'C' -> canvas.connectEditingPathToPreviousEditingPath();
+				case 'c', 'C' -> canvas.connectEditingPathToPreviousEditingPath(false);
 				case 'x', 'X' -> canvas.splitTreeAtEditingNode(false);
 				case 'v', 'V' -> canvas.clickAtMaxPoint(false);
 			}

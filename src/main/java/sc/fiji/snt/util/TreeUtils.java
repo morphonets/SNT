@@ -701,4 +701,165 @@ public class TreeUtils {
         return startNodes.isEmpty() ? null : SNTPoint.average(startNodes);
     }
 
+    /**
+     * Gets the connected tree (component) containing the given path.
+     * This traverses up to the root and then collects all descendants,
+     * ensuring we only get paths that are actually connected via parent-child relationships.
+     * <p>
+     * This is useful when paths may share a tree ID but are not actually connected
+     * (e.g., orphaned paths or paths awaiting relationship rebuild).
+     *
+     * @param path a path in the tree
+     * @return a Tree containing only the connected component
+     */
+    public static Tree getConnectedTree(final Path path) {
+        if (path == null) {
+            return new Tree();
+        }
+        // Find the root of this connected component
+        Path root = path;
+        while (root.getParentPath() != null) {
+            root = root.getParentPath();
+        }
+        // Collect all paths in this connected component
+        final Tree tree = new Tree();
+        collectConnectedPaths(root, tree);
+        return tree;
+    }
+
+    /**
+     * Recursively collects a path and all its descendants into the tree.
+     *
+     * @param path the path to add (along with its descendants)
+     * @param tree the tree to collect paths into
+     */
+    private static void collectConnectedPaths(final Path path, final Tree tree) {
+        tree.add(path);
+        for (final Path child : path.getChildren()) {
+            collectConnectedPaths(child, tree);
+        }
+    }
+
+    /**
+     * Checks if 'target' is in the subtree rooted at 'root'.
+     * This traverses down through all descendants of root.
+     *
+     * @param target the path to search for
+     * @param root   the root of the subtree to search in
+     * @return true if target is root or any descendant of root
+     */
+    public static boolean isInSubtree(final Path target, final Path root) {
+        if (root == null || target == null) {
+            return false;
+        }
+        if (root == target) {
+            return true;
+        }
+        for (final Path child : root.getChildren()) {
+            if (isInSubtree(target, child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if 'potentialDescendant' is a descendant of 'potentialAncestor'.
+     * This is equivalent to checking if potentialDescendant is in the subtree
+     * rooted at potentialAncestor (excluding potentialAncestor itself).
+     *
+     * @param potentialDescendant the path to check if it's a descendant
+     * @param potentialAncestor   the path to check if it's an ancestor
+     * @return true if potentialDescendant is a descendant of potentialAncestor
+     */
+    public static boolean isDescendantOf(final Path potentialDescendant, final Path potentialAncestor) {
+        if (potentialAncestor == null || potentialDescendant == null) {
+            return false;
+        }
+        if (potentialAncestor == potentialDescendant) {
+            return false; // A path is not a descendant of itself
+        }
+        return isInSubtree(potentialDescendant, potentialAncestor);
+    }
+
+    /**
+     * Checks if 'potentialAncestor' is an ancestor of 'potentialDescendant'.
+     * This traverses up the parent chain from potentialDescendant.
+     *
+     * @param potentialAncestor   the path to check if it's an ancestor
+     * @param potentialDescendant the path to check if it has the ancestor
+     * @return true if potentialAncestor is an ancestor of potentialDescendant
+     */
+    public static boolean isAncestorOf(final Path potentialAncestor, final Path potentialDescendant) {
+        if (potentialAncestor == null || potentialDescendant == null) {
+            return false;
+        }
+        Path current = potentialDescendant.getParentPath();
+        while (current != null) {
+            if (current == potentialAncestor) {
+                return true;
+            }
+            current = current.getParentPath();
+        }
+        return false;
+    }
+
+    /**
+     * Returns the maximum path order in the connected tree containing the given path.
+     * Higher values indicate deeper/more developed trees.
+     *
+     * @param path a path in the tree
+     * @return the maximum order value found in the connected tree, or 0 if retrieval fails
+     */
+    public static int getMaxOrder(final Path path) {
+        final Tree tree = getConnectedTree(path);
+        return tree.list().stream()
+                .mapToInt(Path::getOrder)
+                .max()
+                .orElse(0);
+    }
+
+    /**
+     * Counts all descendants (children, grandchildren, etc.) of a path.
+     */
+    public static int countDescendants(final Path path) {
+        if (path == null) return 0;
+        int count = 0;
+        for (final Path child : path.getChildren()) {
+            count++; // Count this child
+            count += countDescendants(child); // Count grandchildren recursively
+        }
+        return count;
+    }
+
+    /**
+     * Collects direct children of a path into the provided collection.
+     */
+    public static void collectChildren(final Path path, final Collection<Path> children) {
+        if (path == null) return;
+        children.addAll(path.getChildren());
+    }
+
+    /**
+     * Collects all descendants (children, grandchildren, etc.) of a path into the provided collection.
+     */
+    public static void collectDescendants(final Path path, final Collection<Path> descendants) {
+        if (path == null) return;
+        for (final Path child : path.getChildren()) {
+            descendants.add(child);
+            collectDescendants(child, descendants);
+        }
+    }
+
+    /**
+     * Gets the root path of the tree containing the given path.
+     */
+    public static Path getRoot(final Path path) {
+        if (path == null) return null;
+        Path root = path;
+        while (root.getParentPath() != null) {
+            root = root.getParentPath();
+        }
+        return root;
+    }
 }

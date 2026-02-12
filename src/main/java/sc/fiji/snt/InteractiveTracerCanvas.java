@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ij.gui.Roi;
 import ij.gui.Toolbar;
 import ij.measure.Calibration;
 
@@ -278,11 +277,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
         pMenu.show(this, x, y);
     }
 
-    protected void connectEditingPathToPreviousEditingPath() {
-        // We need to check again here for two reasons.
-        // 1) In case the user arrived here via the keyboard shortcut instead of the menu item
-        // 2) It is possible for the editable node to change between the time the user opens the right-click menu
-        //    and the moment they select the menu item
+    protected void connectEditingPathToPreviousEditingPath(final boolean showDialog) {
+        // Validate preconditions
         if (!editMode || //
                 tracerPlugin.getEditingPath() == null || //
                 tracerPlugin.getPreviousEditingPath() == null || //
@@ -292,8 +288,101 @@ class InteractiveTracerCanvas extends TracerCanvas {
                     "No Connectable Nodes");
             return;
         }
-        final Path source = tracerPlugin.getEditingPath();
-        connectToEditingPath(source, tracerPlugin.getPreviousEditingPath());
+
+        // Default assignment: current path = child, previous path = parent
+        Path childPath = tracerPlugin.getEditingPath();
+        Path parentPath = tracerPlugin.getPreviousEditingPath();
+
+        // Check for loop creation
+        if (wouldCreateLoop(childPath, parentPath)) {
+            getGuiUtils().error("Cannot connect selected nodes: A loop would be created!",
+                    "Reconstruction Cannot Contain Loops");
+            return;
+        }
+
+        if (showDialog) {
+            // Analyze connection and build prompt
+            final int childNodeIdx = childPath.getEditableNodeIndex();
+            final int parentNodeIdx = parentPath.getEditableNodeIndex();
+            final boolean childAtStart = childNodeIdx == 0;
+            final boolean childAtEnd = childNodeIdx == childPath.size() - 1;
+            final boolean childAtEndpoint = childAtStart || childAtEnd;
+
+            // Build detailed prompt
+            final StringBuilder msgBuilder = new StringBuilder("<HTML>");
+            msgBuilder.append("<b>Connection Summary:</b><br>");
+            msgBuilder.append("<b>Parent:</b> ").append(StringUtils.abbreviate(parentPath.getName(), 30));
+            msgBuilder.append(" (branch at node #").append(parentNodeIdx).append(")<br>");
+            msgBuilder.append("<b>Child:</b> ").append(StringUtils.abbreviate(childPath.getName(), 30));
+            msgBuilder.append(" (connect from node #").append(childNodeIdx).append(")<br>");
+            if (!childAtEndpoint && childPath.size() > 2) { // inform if not at endpoint
+                msgBuilder.append("<b>Note:</b> Child connects from a mid-path node<br>");
+            }
+            msgBuilder.append("<br>"); // spacer
+
+            // Show dialog with checkbox for swapping
+            final boolean[] result = getGuiUtils().getConfirmationAndOption(
+                    msgBuilder.toString(), // message
+                    "Connect Paths", // title
+                    "Swap parent ↔ child", // checkbox label
+                    false,  // checkbox default: don't swap
+                    new String[]{"Connect", "Cancel"}); // yes, no button labels
+
+            if (result == null || !result[0]) {
+                return; // user dismissed, or chose "Cancel"
+            }
+
+            if (result[1]) { // Swap if requested
+                final Path temp = childPath;
+                childPath = parentPath;
+                parentPath = temp;
+                // Re-check loop with swapped roles
+                if (wouldCreateLoop(childPath, parentPath)) {
+                    getGuiUtils().error("Cannot connect with swapped parent ↔ child: A loop would be created!",
+                            "Reconstruction Cannot Contain Loops");
+                    return;
+                }
+            }
+        } else {
+            // Auto-swap heuristics for power users (keyboard shortcut)
+            boolean shouldSwap = false;
+
+            final int childMaxOrder = TreeUtils.getMaxOrder(childPath);
+            final int parentMaxOrder = TreeUtils.getMaxOrder(parentPath);
+
+            if (childMaxOrder != parentMaxOrder) {
+                // Deeper tree (higher max order) is likely the main structure
+                shouldSwap = childMaxOrder > parentMaxOrder;
+            } else {
+                // Same depth: larger path is likely the parent
+                shouldSwap = childPath.size() > parentPath.size();
+            }
+
+            if (shouldSwap) {
+                final Path temp = childPath;
+                childPath = parentPath;
+                parentPath = temp;
+                if (wouldCreateLoop(childPath, parentPath)) {
+                    getGuiUtils().error("Cannot connect: A loop would be created!",
+                            "Reconstruction Cannot Contain Loops");
+                    return;
+                }
+            }
+        }
+        connectToEditingPath(childPath, parentPath);
+    }
+
+    /**
+     * Checks if connecting child to parent would create a loop.
+     */
+    private boolean wouldCreateLoop(final Path child, final Path parent) {
+        if (child == parent) {
+            return true;
+        }
+        if (child.getChildren().isEmpty()) {
+            return false;
+        }
+        return TreeUtils.isInSubtree(parent, child);
     }
 
     private void updateConnectToSecondaryEditingPathMenuItem() {
@@ -313,46 +402,148 @@ class InteractiveTracerCanvas extends TracerCanvas {
     }
 
     /**
-     * Connects two paths by merging the source path into the destination path,
-     * ensuring that no loops are created and the graph structure is properly updated.
-     * Deletes the original paths after merging and incorporates the new path in the UI.
+     * Connects child path to parent path, creating physical connection segment
+     * and proper T-junction topology when needed.
+     * <p>
+     * If the child's selected node is a slab (middle) node, the child path is split
+     * at that point to create proper branching topology.
      *
-     * @param source The source path to be merged into the destination path.
-     * @param destination The destination path where the source path will be merged.
+     * @param child  The path to be connected as a child branch
+     * @param parent The path where the child will branch from
      */
-    private void connectToEditingPath(final Path source, final Path destination) {
-        if (source.getTreeID() == destination.getTreeID()) {
-            getGuiUtils().error("Cannot connect selected nodes: A loop would be created!",
-                    "Reconstruction Cannot Contain Loops");
-            return;
+    private void connectToEditingPath(final Path child, final Path parent) {
+        try {
+            long start = System.currentTimeMillis();
+
+            final int childNodeIdx = child.getEditableNodeIndex();
+            final int parentNodeIdx = parent.getEditableNodeIndex();
+            final PointInImage childPoint = child.getNode(childNodeIdx);
+            final PointInImage parentPoint = parent.getNode(parentNodeIdx);
+
+            // Check if child's selected node is a slab (middle) node
+            final boolean childAtStart = childNodeIdx == 0;
+            final boolean childAtEnd = childNodeIdx == child.size() - 1;
+            final boolean childAtSlab = !childAtStart && !childAtEnd && child.size() > 2;
+
+            // If child node is a slab, we need to split the child path at that point
+            // to create proper T-junction topology
+            Path childSegment1 = null;  // portion from start to slab node
+            Path childSegment2 = null;  // portion from slab node to end
+
+            if (childAtSlab) {
+                // Split child path at the selected slab node
+                // Segment 1: nodes [0, childNodeIdx]
+                childSegment1 = child.createPath();
+                for (int i = 0; i <= childNodeIdx; i++) {
+                    childSegment1.addNode(child.getNode(i));
+                }
+                childSegment1.setName(child.getName() + " (part 1)");
+
+                // Segment 2: nodes [childNodeIdx, end]
+                childSegment2 = child.createPath();
+                for (int i = childNodeIdx; i < child.size(); i++) {
+                    childSegment2.addNode(child.getNode(i));
+                }
+                childSegment2.setName(child.getName() + " (part 2)");
+            }
+
+            // Check if points are spatially close enough
+            final double distance = childPoint.distanceTo(parentPoint);
+            final double threshold = tracerPlugin.getMinimumSeparation() * 2;
+
+            // Determine which path(s) to work with
+            final Path primaryChild = childAtSlab ? childSegment1 : child;
+
+            // If points are far apart, insert a connecting node
+            if (distance > threshold) {
+                final PointInImage connectionPoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
+
+                if (childAtSlab) {
+                    // For slab node, insert connection point at the end of segment1 (the slab node end)
+                    // The slab node is already at the end of segment1, so insert before it
+                    childSegment1.insertNode(childSegment1.size() - 1, connectionPoint);
+                } else if (childAtStart) {
+                    primaryChild.insertNode(0, connectionPoint);
+                } else if (childAtEnd) {
+                    primaryChild.addNode(connectionPoint);
+                }
+            }
+
+            // Get connected components
+            final Tree parentTree = TreeUtils.getConnectedTree(parent);
+
+            // Build the child tree - if split, we need to handle both segments
+            Tree childTree;
+            if (childAtSlab) {
+                // Create a mini-tree with both segments connected at the slab node
+                // Segment1's end connects to parent, segment2 branches from segment1's end
+                childTree = new Tree();
+                childTree.add(childSegment1);
+                childTree.add(childSegment2);
+                // Set segment2 as child of segment1 at the junction point
+                final PointInImage junctionPoint = childSegment1.lastNode();
+                childSegment2.setBranchFrom(childSegment1, junctionPoint);
+            } else {
+                childTree = TreeUtils.getConnectedTree(primaryChild);
+            }
+
+            final DirectedWeightedGraph parentGraph = new DirectedWeightedGraph(parentTree, false);
+            Graphs.addGraph(parentGraph, new DirectedWeightedGraph(childTree, false));
+
+            final SWCPoint parentNode = getMatchingPointInGraph(parent.getNode(parentNodeIdx), parentGraph);
+
+            // Find the connection point on the child side
+            final SWCPoint childConnectionNode;
+            if (childAtSlab) {
+                // Connect to the junction point (end of segment1, which is the slab node)
+                childConnectionNode = getMatchingPointInGraph(childSegment1.lastNode(), parentGraph);
+            } else if (childAtStart) {
+                childConnectionNode = getMatchingPointInGraph(primaryChild.firstNode(), parentGraph);
+            } else {
+                childConnectionNode = getMatchingPointInGraph(primaryChild.lastNode(), parentGraph);
+            }
+
+            // Add edge from parent node to child connection node
+            parentGraph.addEdge(parentNode, childConnectionNode);
+
+            // Set root and rebuild tree structure
+            final PointInImage parentRoot = parentTree.getRoot();
+            parentGraph.setRoot(getMatchingPointInGraph(parentRoot, parentGraph));
+
+            final Tree newTree = parentGraph.getTreeWithSamePathStructure();
+            tracerPlugin.setEditingPath(null);
+
+            final Calibration cal = tracerPlugin.getCalibration();
+            newTree.list().forEach(p -> p.setSpacing(cal));
+
+            final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+
+            // Delete original paths
+            pathAndFillManager.deletePaths(parentTree.list());
+            if (childAtSlab) {
+                // Delete original child (not the segments, they weren't added yet)
+                pathAndFillManager.deletePath(child);
+            } else {
+                pathAndFillManager.deletePaths(childTree.list());
+            }
+
+            // Add new paths
+            newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+
+            SNTUtils.log("Finished merge in " + (System.currentTimeMillis() - start) + "ms");
+            pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+
+        } catch (final IllegalArgumentException e) {
+            getGuiUtils().error(
+                    "Cannot connect these paths. The operation would violate tree structure rules:<br><br>" +
+                            "<i>" + e.getMessage() + "</i><br><br>" +
+                            "Tips:<ul>" +
+                            "<li>Select the parent path first (it becomes the branch point)</li>" +
+                            "<li>Then select the child path (it will be attached)</li>" +
+                            "<li>Use the 'Swap parent ↔ child' option if needed</li></ul>",
+                    "Invalid Connection");
         }
-        long start = System.currentTimeMillis();
-        final Tree destinationTree = getTreeFromID(destination.getTreeID());
-        final Tree sourceTree = getTreeFromID(source.getTreeID());
-        final DirectedWeightedGraph destinationGraph = new DirectedWeightedGraph(destinationTree, false);
-        // Source graph is merged into destination graph
-        Graphs.addGraph(destinationGraph, new DirectedWeightedGraph(sourceTree, false));
-        final SWCPoint destinationNode = getMatchingPointInGraph(destination.getNode(destination.getEditableNodeIndex()),
-                destinationGraph);
-        final SWCPoint sourceNode = getMatchingPointInGraph(source.getNode(source.getEditableNodeIndex()),
-                destinationGraph);
-        // Directed edge from destination node to source node
-        destinationGraph.addEdge(destinationNode, sourceNode);
-        final PointInImage destinationRoot = destinationTree.getRoot();
-        // Set the correct edge directions in the merged graph
-        destinationGraph.setRoot(getMatchingPointInGraph(destinationRoot, destinationGraph));
-        final Tree newTree = destinationGraph.getTreeWithSamePathStructure();
-//		enableEditMode(false);
-        tracerPlugin.setEditingPath(null);
-        final Calibration cal = tracerPlugin.getCalibration(); // snt the instance of the plugin
-        newTree.list().forEach(p -> p.setSpacing(cal));
-        final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
-        pathAndFillManager.enableUIupdates = false;
-        pathAndFillManager.deletePaths(destinationTree.list());
-        pathAndFillManager.deletePaths(sourceTree.list());
-        newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-        SNTUtils.log("Finished merge in " + (System.currentTimeMillis() - start) + "ms");
-        pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
     }
 
     private static String getShortName(final Path p) {
@@ -361,17 +552,19 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
     private JMenuItem helpOnConnectingMenuItem() {
         final String msg = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>" +
-                "  <li>Select parent path. If not yet editable, make it so by choosing <i><u>E</u>dit Path</i> (Shift+E)</li>" +
-                "  <li>Select source node on parent path by hovering cursor over it</li>" +
-                "  <li>Activate child path by pressing 'G' and select its destination node</li>" +
-                "  <li>Link the two highlighted nodes by pressing 'C' (<u>C</u>onnect To... command)</li>" +
-                "</ol>NB:<ol>" +
-                "  <li>The direction of merge matters and it is assumed to be always from parent to child. " +
-                "If child path is oriented in the wrong direction (i.e., moving \"towards\" its parent at the point " +
-                "of merge), it will re-oriented so that single root connectivity is maintained</li>" +
+                "  <li>Select the <b>parent</b> path. Press Shift+E to enter Edit Mode (auto-selects nearest path if needed)</li>" +
+                "  <li>Hover over the node where the child should branch from</li>" +
+                "  <li>Press 'G' to switch to the <b>child</b> path</li>" +
+                "  <li>Select the child's connection node (typically a start or end node)</li>" +
+                "  <li>Press 'C' to connect</li>" +
+                "</ol>Notes:<ul>" +
+                "  <li>A confirmation dialog shows the parent/child assignment with option to swap roles</li>" +
+                "  <li>Child paths are automatically re-oriented to maintain proper tree structure</li>" +
+                "  <li>If connection points are distant, a bridging segment is created automatically</li>" +
+                "  <li>If child's selected node is mid-path, a T-junction is created</li>" +
                 "  <li>Loop-forming connections are not allowed</li>" +
-                "  <li>To concatenate or combine paths, use the respective commands in Path Manager's Edit menu</li>" +
-                "</ol>";
+                "  <li>To concatenate or combine paths end-to-end, use Path Manager's Edit menu</li>" +
+                "</ul>";
         final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_HELP);
         helpItem.addActionListener(e -> {
             final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
@@ -475,10 +668,16 @@ class InteractiveTracerCanvas extends TracerCanvas {
         tracerPlugin.startSholl(centerScaled);
     }
 
-    public void selectNearestPathToMousePointer(final boolean addToExistingSelection) {
+    /**
+     * Selects the path nearest to the current mouse pointer position.
+     *
+     * @param addToExistingSelection if true, adds to current selection; if false, replaces it
+     * @return the selected path, or null if no path could be selected
+     */
+    public Path selectNearestPathToMousePointer(final boolean addToExistingSelection) {
         if (pathAndFillManager.size() == 0) {
             getGuiUtils().tempMsg("Nothing to select: There are no traced paths");
-            return;
+            return null;
         }
 
         final List<PointInCanvas> nodes = new ArrayList<>();
@@ -486,9 +685,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
             // There is only one path, presumably from a just-finished tracing operation.
             // NB: Selection status of such path depends on the "Finishing a path selects
             // it" checkbox in the GUI. We'll force select it.
-            tracerPlugin.selectPath(pathAndFillManager.getPath(0), addToExistingSelection);
-            getGuiUtils().tempMsg(pathAndFillManager.getPath(0) + " selected");
-            return;
+            final Path onlyPath = pathAndFillManager.getPath(0);
+            tracerPlugin.selectPath(onlyPath, addToExistingSelection);
+            getGuiUtils().tempMsg(onlyPath + " selected");
+            return onlyPath;
         } else for (final Path path : pathAndFillManager.getPaths()) {
             if (!path.isSelected()) {
                 nodes.addAll(path.getUnscaledNodesInViewPort(this));
@@ -498,7 +698,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
             if (pathAndFillManager.getSelectedPaths().isEmpty())
                 getGuiUtils().tempMsg("Nothing to select. No paths in view");
             // else the closest path to the pointer is an already pre-selected path in view
-            return;
+            return null;
         }
 
         final double[] p = new double[3];
@@ -509,10 +709,13 @@ class InteractiveTracerCanvas extends TracerCanvas {
         final NearPointInCanvas<PointInCanvas> nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
         if (nearPoint == null) {
             getGuiUtils().tempMsg("No selectable paths in view");
+            return null;
         }
         else {
-            tracerPlugin.selectPath(nearPoint.getPath(), addToExistingSelection);
-            getGuiUtils().tempMsg(getShortName(nearPoint.getPath()) + " selected");
+            final Path selectedPath = nearPoint.getPath();
+            tracerPlugin.selectPath(selectedPath, addToExistingSelection);
+            getGuiUtils().tempMsg(getShortName(selectedPath) + " selected");
+            return selectedPath;
         }
     }
 
@@ -818,8 +1021,22 @@ class InteractiveTracerCanvas extends TracerCanvas {
     }
 
     private void enableEditMode(final boolean enable) {
-        if (enable && !tracerPlugin.editModeAllowed(true)) return;
+        if (enable) {
+            // Get currently selected path, or auto-select nearest if none
+            Path pathToEdit = tracerPlugin.getSingleSelectedPath();
+            if (pathToEdit == null) {
+                pathToEdit = selectNearestPathToMousePointer(false);
+                if (pathToEdit == null) {
+                    return; // selectNearestPathToMousePointer already showed error
+                }
+            }
+            if (!tracerPlugin.editModeAllowed(true, pathToEdit)) return;
+        }
         tracerPlugin.enableEditMode(enable);
+        // Ensure checkbox state matches actual edit mode state
+        if (toggleEditModeMenuItem.isSelected() != enable) {
+            toggleEditModeMenuItem.setSelected(enable);
+        }
     }
 
     public void setTemporaryPathColor(final Color color) {
@@ -995,7 +1212,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 if (handleGeneralCommands(command, e)) {
                     return;
                 }
-                if (handleEditCommands(command)) {
+                if (handleEditCommands(command, e)) {
                     return;
                 }
                 // If we reach here, the command was not recognized
@@ -1092,12 +1309,14 @@ class InteractiveTracerCanvas extends TracerCanvas {
         /**
          * Handles edit-related commands.
          * @param command The action command string
+         * @param e The original action event
          * @return true if the command was handled, false otherwise
          */
-        private boolean handleEditCommands(final String command) {
+        private boolean handleEditCommands(final String command, final ActionEvent e) {
             // Check for connection command first
             if (command.startsWith(NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX)) {
-                connectEditingPathToPreviousEditingPath();
+                final boolean fromMenu = e.getSource() instanceof JMenuItem;
+                connectEditingPathToPreviousEditingPath(fromMenu);
                 return true;
             }
 
@@ -1378,96 +1597,124 @@ class InteractiveTracerCanvas extends TracerCanvas {
     protected void assignTreeRootToEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
         final Path editingPath = tracerPlugin.getEditingPath();
-        final int treeID = editingPath.getTreeID();
-        Tree editingTree;
-        if (pathAndFillManager.multipleTreesExist()) {
-            editingTree = tracerPlugin.getUI().getPathManager().getSingleTree();
-            if (editingTree == null)
-                return; // user pressed cancel
-        } else {
-            editingTree = getTreeFromID(treeID);
+
+        try {
+            long start = System.currentTimeMillis();
+
+            // Use getConnectedTree - it gets exactly the tree containing the editing path
+            final Tree editingTree = TreeUtils.getConnectedTree(editingPath);
+
+            final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+
+            final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
+            final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
+            SWCPoint newRoot = getMatchingPointInGraph(editingNode, editingGraph);
+
+            if (newRoot == null) {
+                SWCPoint nearest = getNearestPointInGraph(editingNode, editingGraph);
+                if (nearest == null) {
+                    pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+                    getGuiUtils().error("Could not find a valid node for the new root.");
+                    return;
+                }
+                final int uniqueId = editingGraph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
+                newRoot = new SWCPoint(uniqueId, nearest.type, editingNode.x, editingNode.y, editingNode.z,
+                        editingPath.getNodeRadius(editingPath.getEditableNodeIndex()), nearest.id);
+                newRoot.setPath(editingPath);
+                editingGraph.addVertex(newRoot);
+                editingGraph.addEdge(nearest, newRoot);
+                if (editingPath.size() == 1)
+                    pathAndFillManager.deletePath(editingPath);
+                else
+                    editingPath.removeNode(editingPath.getEditableNodeIndex());
+            }
+
+            editingGraph.setRoot(newRoot);
+            final Tree newTree = editingGraph.getTreeWithSamePathStructure();
+            tracerPlugin.setEditingPath(null);
+
+            final Calibration cal = tracerPlugin.getCalibration();
+            pathAndFillManager.deletePaths(editingTree.list());
+            newTree.list().forEach(p -> {
+                p.setSpacing(cal);
+                pathAndFillManager.addPath(p, false, true);
+            });
+
+            pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+            SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
+
+        } catch (final IllegalArgumentException e) {
+            getGuiUtils().error("<HTML>Could not re-root tree:<br><i>" + e.getMessage() + "</i>",
+                    "Re-root Failed");
         }
-        long start = System.currentTimeMillis();
-        final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
-        pathAndFillManager.enableUIupdates = false;
-        final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
-        final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
-        SWCPoint newRoot = getMatchingPointInGraph(editingNode, editingGraph);
-        if (newRoot == null) {
-            SWCPoint nearest = getNearestPointInGraph(editingNode, editingGraph);
-            final int uniqueId = editingGraph.vertexSet().stream().mapToInt(v -> v.id).max().orElse(-2) + 1;
-            newRoot = new SWCPoint(uniqueId, nearest.type, editingNode.x, editingNode.y, editingNode.z,
-                    editingPath.getNodeRadius(editingPath.getEditableNodeIndex()), nearest.id);
-            newRoot.setPath(editingPath);
-            editingGraph.addVertex(newRoot);
-            editingGraph.addEdge(nearest, newRoot);
-            if (editingPath.size() == 1)
-                pathAndFillManager.deletePath(editingPath);
-            else
-                editingPath.removeNode(editingPath.getEditableNodeIndex());
-        }
-        editingGraph.setRoot(newRoot);
-        final Tree newTree = editingGraph.getTreeWithSamePathStructure();
-        tracerPlugin.setEditingPath(null);
-        final Calibration cal = tracerPlugin.getCalibration();
-        pathAndFillManager.deletePaths(editingTree.list());
-        newTree.list().forEach(p -> {
-            p.setSpacing(cal);
-            pathAndFillManager.addPath(p, false, true);
-        });
-        pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
-        SNTUtils.log("Finished re-root in " + (System.currentTimeMillis() - start) + "ms");
     }
 
     protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        long start = System.currentTimeMillis();
         final Path editingPath = tracerPlugin.getEditingPath();
-        final Tree editingTree = getTreeFromID(editingPath.getTreeID());
-        final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
-        if (editingTree.getRoot().equals(editingPoint)) {
-            getGuiUtils().tempMsg("Cannot split Tree at root node.");
-            return;
-        }
-        final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
-        final SWCPoint editingVertex = getMatchingPointInGraph(editingPoint, editingGraph);
-        // incomingEdgesOf should never return an empty Set if we've arrived here
-        editingGraph.removeEdge(editingGraph.incomingEdgesOf(editingVertex).iterator().next());
-        final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator = editingGraph.getDepthFirstIterator(
-                editingVertex);
-        final Set<SWCPoint> descendantVertexSet = new HashSet<>();
-        while (depthFirstIterator.hasNext()) {
-            descendantVertexSet.add(depthFirstIterator.next());
-        }
-        final DirectedWeightedSubgraph descendantSubgraph = editingGraph.getSubgraph(descendantVertexSet);
-        final DirectedWeightedGraph descendantGraph = new DirectedWeightedGraph();
-        Graphs.addGraph(descendantGraph, descendantSubgraph);
-        // This also removes all related edges
-        editingGraph.removeAllVertices(descendantVertexSet);
-        final Tree ancestorTree = editingGraph.getTreeWithSamePathStructure();
-        final Tree descendentTree = descendantGraph.getTreeWithSamePathStructure();
-//		enableEditMode(false);
-        tracerPlugin.setEditingPath(null);
-        final Calibration cal = tracerPlugin.getCalibration(); // snt the instance of the plugin
-        ancestorTree.list().forEach(p -> p.setSpacing(cal));
-        descendentTree.list().forEach(p -> p.setSpacing(cal));
-        final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
-        pathAndFillManager.enableUIupdates = false;
-        pathAndFillManager.deletePaths(editingTree.list());
-        ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-        descendentTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-        SNTUtils.log("Finished split in " + (System.currentTimeMillis() - start) + "ms");
-        pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
-    }
 
-    private Tree getTreeFromID(final int treeID) {
-        final Tree tree = new Tree();
-        for (final Path p : pathAndFillManager.getPaths()) {
-            if (treeID == p.getTreeID()) {
-                tree.add(p);
+        try {
+            long start = System.currentTimeMillis();
+
+            // Use getConnectedTree to avoid issues with disconnected paths sharing tree ID
+            final Tree editingTree = TreeUtils.getConnectedTree(editingPath);
+            final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
+
+            if (editingTree.getRoot().equals(editingPoint)) {
+                getGuiUtils().tempMsg("Cannot split tree at root node.");
+                return;
             }
+
+            final DirectedWeightedGraph editingGraph = new DirectedWeightedGraph(editingTree, false);
+            final SWCPoint editingVertex = getMatchingPointInGraph(editingPoint, editingGraph);
+
+            if (editingVertex == null) {
+                getGuiUtils().error("Could not locate the selected node in the tree graph.");
+                return;
+            }
+
+            final Set<SWCWeightedEdge> incomingEdges = editingGraph.incomingEdgesOf(editingVertex);
+            if (incomingEdges.isEmpty()) {
+                getGuiUtils().error("Selected node has no incoming edges. Cannot split here.");
+                return;
+            }
+
+            editingGraph.removeEdge(incomingEdges.iterator().next());
+            final DepthFirstIterator<SWCPoint, SWCWeightedEdge> depthFirstIterator =
+                    editingGraph.getDepthFirstIterator(editingVertex);
+            final Set<SWCPoint> descendantVertexSet = new HashSet<>();
+            while (depthFirstIterator.hasNext()) {
+                descendantVertexSet.add(depthFirstIterator.next());
+            }
+
+            final DirectedWeightedSubgraph descendantSubgraph = editingGraph.getSubgraph(descendantVertexSet);
+            final DirectedWeightedGraph descendantGraph = new DirectedWeightedGraph();
+            Graphs.addGraph(descendantGraph, descendantSubgraph);
+            editingGraph.removeAllVertices(descendantVertexSet);
+
+            final Tree ancestorTree = editingGraph.getTreeWithSamePathStructure();
+            final Tree descendantTree = descendantGraph.getTreeWithSamePathStructure();
+
+            tracerPlugin.setEditingPath(null);
+
+            final Calibration cal = tracerPlugin.getCalibration();
+            ancestorTree.list().forEach(p -> p.setSpacing(cal));
+            descendantTree.list().forEach(p -> p.setSpacing(cal));
+
+            final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
+            pathAndFillManager.enableUIupdates = false;
+            pathAndFillManager.deletePaths(editingTree.list());
+            ancestorTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+            descendantTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
+            pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
+
+            SNTUtils.log("Finished split in " + (System.currentTimeMillis() - start) + "ms");
+
+        } catch (final IllegalArgumentException e) {
+            getGuiUtils().error("<HTML>Could not split tree:<br><i>" + e.getMessage() + "</i>",
+                    "Split Failed");
         }
-        return tree;
     }
 
     private SWCPoint getNearestPointInGraph(final PointInImage point, final DirectedWeightedGraph graph) {

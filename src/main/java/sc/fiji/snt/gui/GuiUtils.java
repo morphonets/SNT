@@ -669,7 +669,8 @@ public class GuiUtils {
 			panel.add(radioButtons[i], gbc);
 			gbc.gridy++;
 		}
-		radioButtons[defaultIndex].setSelected(true);
+		if (defaultIndex < radioButtons.length)
+			radioButtons[defaultIndex].setSelected(true);
 
 		// Info text (optional)
 		if (infoText != null && !infoText.isEmpty()) {
@@ -699,7 +700,7 @@ public class GuiUtils {
 
 		if (result == JOptionPane.OK_OPTION) {
 			// Find selected choice
-			String selectedChoice = choices[0];
+			String selectedChoice = (choices.length == 0) ? null : choices[0];
 			for (int i = 0; i < radioButtons.length; i++) {
 				if (radioButtons[i].isSelected()) {
 					selectedChoice = choices[i];
