@@ -124,8 +124,8 @@ class QueueJumpingKeyListener implements KeyListener {
             e.consume();
             return;
         }
-		// Special case #2: Handle 'flow' key
-		if (e.getKeyCode() == KeyEvent.VK_F && canvas != null) {
+		// Special case #2: Handle the 'Orientation' key
+		if (e.getKeyCode() == KeyEvent.VK_O && canvas != null) {
 			PathNodeCanvas.setShowDirectionArrows(true);
 			tracerPlugin.repaintAllPanes();
 			e.consume();
@@ -234,8 +234,8 @@ class QueueJumpingKeyListener implements KeyListener {
             e.consume();
             return;
         }
-		// Special case #2: Handle 'flow' key
-		if (e.getKeyCode() == KeyEvent.VK_F && canvas != null) {
+		// Special case #2: Handle 'Orientation' key
+		if (e.getKeyCode() == KeyEvent.VK_O && canvas != null) {
 			PathNodeCanvas.setShowDirectionArrows(false);
 			tracerPlugin.repaintAllPanes();
 			e.consume();

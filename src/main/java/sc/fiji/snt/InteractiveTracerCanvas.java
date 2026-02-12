@@ -116,8 +116,8 @@ class InteractiveTracerCanvas extends TracerCanvas {
         final JMenuItem selectByRoi = getSelectRoiMenuItem();
         pMenu.add(selectByRoi);
         pMenu.addSeparator();
-        pMenu.add(menuItem(AListener.SHOW_ARROWS, listener, KeyEvent.VK_F));
         pMenu.add(menuItem(AListener.HIDE_ALL, listener, KeyEvent.VK_H));
+        pMenu.add(menuItem(AListener.SHOW_ARROWS, listener, KeyEvent.VK_O));
         pMenu.addSeparator();
         pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK)));
         pMenu.addSeparator();
@@ -1128,7 +1128,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
             // Restore state after delay
             if ("H".equals(key)) {
                 tracerPlugin.setAnnotationsVisible(true);
-            } else if ("F".equals(key)) {
+            } else if ("O".equals(key)) {
                 PathNodeCanvas.setShowDirectionArrows(false);
                 tracerPlugin.repaintAllPanes();
             }
@@ -1137,7 +1137,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         // Trigger the action immediately
         if ("H".equals(key)) {
             tracerPlugin.setAnnotationsVisible(false);
-        } else if ("F".equals(key)) {
+        } else if ("O".equals(key)) {
             PathNodeCanvas.setShowDirectionArrows(true);
             tracerPlugin.repaintAllPanes();
         }
@@ -1198,7 +1198,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
         /* Listed shortcuts are specified in QueueJumpingKeyListener */
         private static final String HIDE_ALL = "Hide Paths (Hold H)";
-        private static final String SHOW_ARROWS = "Show Flow (Hold F)";
+        private static final String SHOW_ARROWS = "Path Orientation (Hold O)";
         private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
         private static final String FORK_NEAREST = "Fork at Nearest Node";
         private static final String BOOKMARK_CURSOR = "Bookmark Cursor Position";
@@ -1298,7 +1298,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         private boolean handleGeneralCommands(final String command, final ActionEvent e) {
             switch (command) {
                 case SHOW_ARROWS:
-                    toggleKeyWarning("F", "show path flow (start → end)");
+                    toggleKeyWarning("O", "show path orientation (start → end)");
                     return true;
                 case HIDE_ALL:
                     toggleKeyWarning("H", "temporarily hide paths");
