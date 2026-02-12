@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -93,7 +93,7 @@ public class AnalysisUtils {
 
 	/**
 	 * Assembles a label from a measurements metric and a spatial unit
-	 * 
+	 *
 	 * @param standardMetric SNT's supported metric, e.g.,
 	 *                       {@link TreeStatistics#BRANCH_VOLUME}
 	 * @param tree           {@link Tree} from which spatial unit is extracted
@@ -114,8 +114,8 @@ public class AnalysisUtils {
 			} else {
 				return String.format("%s (%s)", standardMetric, unit);
 			}
-		default:
-			return getMetricLabel(standardMetric, unit);
+			default:
+				return getMetricLabel(standardMetric, unit);
 		}
 	}
 
@@ -130,14 +130,14 @@ public class AnalysisUtils {
 	public static String getMetricLabel(final String standardMetric, final String unit) {
 		if (unit == null || unit.isEmpty())
 			return standardMetric;
-        return switch (standardMetric) {
-            case TreeStatistics.BRANCH_LENGTH, TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE, TreeStatistics.DEPTH,
-                 TreeStatistics.HEIGHT, TreeStatistics.INNER_LENGTH, TreeStatistics.INTER_NODE_DISTANCE,
-                 TreeStatistics.LENGTH, TreeStatistics.NODE_RADIUS, TreeStatistics.BRANCH_MEAN_RADIUS,
-                 TreeStatistics.PATH_MEAN_RADIUS, TreeStatistics.PATH_LENGTH, TreeStatistics.PRIMARY_LENGTH,
-                 TreeStatistics.TERMINAL_LENGTH, TreeStatistics.WIDTH, MultiTreeStatistics.AVG_BRANCH_LENGTH,
-                 MultiTreeStatistics.INNER_LENGTH, MultiTreeStatistics.PRIMARY_LENGTH,
-                 MultiTreeStatistics.TERMINAL_LENGTH, ShollAnalyzer.CENTROID_RADIUS, ShollAnalyzer.ENCLOSING_RADIUS,
+		return switch (standardMetric) {
+			case TreeStatistics.BRANCH_LENGTH, TreeStatistics.CONVEX_HULL_CENTROID_ROOT_DISTANCE, TreeStatistics.DEPTH,
+				 TreeStatistics.HEIGHT, TreeStatistics.INNER_LENGTH, TreeStatistics.INTER_NODE_DISTANCE,
+				 TreeStatistics.LENGTH, TreeStatistics.NODE_RADIUS, TreeStatistics.BRANCH_MEAN_RADIUS,
+				 TreeStatistics.PATH_MEAN_RADIUS, TreeStatistics.PATH_LENGTH, TreeStatistics.PRIMARY_LENGTH,
+				 TreeStatistics.TERMINAL_LENGTH, TreeStatistics.WIDTH, MultiTreeStatistics.AVG_BRANCH_LENGTH,
+				 MultiTreeStatistics.INNER_LENGTH, MultiTreeStatistics.PRIMARY_LENGTH,
+				 MultiTreeStatistics.TERMINAL_LENGTH, ShollAnalyzer.CENTROID_RADIUS, ShollAnalyzer.ENCLOSING_RADIUS,
                  ShollAnalyzer.MAX_FITTED_RADIUS, TreeStatistics.SHOLL_MAX_FITTED_RADIUS ->
                     String.format("%s (%s)", standardMetric, unit);
             case TreeStatistics.INTER_NODE_DISTANCE_SQUARED, TreeStatistics.SURFACE_AREA ->
@@ -205,9 +205,9 @@ public class AnalysisUtils {
 	}
 
 	private static JFreeChart createPolarHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
-			final HistogramDatasetPlus datasetPlus, final String description) {
+												   final HistogramDatasetPlus datasetPlus, final String description) {
 
-        final PolarPlot polarPlot = initPolarPlot();
+		final PolarPlot polarPlot = initPolarPlot();
 		polarPlot.setDataset(histoDatasetToSingleXYDataset(datasetPlus.getDataset(), 1, datasetPlus.nBins));
 
 		// Customize series
@@ -232,7 +232,7 @@ public class AnalysisUtils {
 	}
 
 	private static DefaultXYDataset histoDatasetToSingleXYDataset(final HistogramDataset histDataset, final int nSeries,
-			final int nBins) {
+																  final int nBins) {
 		final DefaultXYDataset xyDataset = new DefaultXYDataset();
 		for (int series = 0; series < nSeries; series++) {
 			// for each bar in the histogram, we'll draw the triangle defined by the origin
@@ -290,7 +290,7 @@ public class AnalysisUtils {
 	}
 
 	static void addQuartileMarkers(final XYPlot histogram, final HistogramDatasetPlus hdp,
-									final boolean visibility) {
+								   final boolean visibility) {
 		addQuartileMarkers(histogram, Collections.singletonList(hdp), visibility);
 	}
 
@@ -372,7 +372,7 @@ public class AnalysisUtils {
 			renderer.setSeriesOutlinePaint(j, colors[j]);
 		}
 		final XYToolTipGenerator xyToolTipGenerator = (dataset, series, item) -> String.format("%s (%.3f, %.3f)", dataset.getSeriesKey(series),
-                dataset.getX(series, item).doubleValue(), dataset.getY(series, item).doubleValue());
+				dataset.getX(series, item).doubleValue(), dataset.getY(series, item).doubleValue());
 		renderer.setDefaultToolTipGenerator(xyToolTipGenerator);
 		histogram.setRenderer(curveIdx, renderer);
 	}
@@ -468,10 +468,10 @@ public class AnalysisUtils {
 	}
 
 	private static JFreeChart createHistogram(final String xAxisTitle, final String unit, final DescriptiveStatistics stats,
-			final HistogramDatasetPlus datasetPlus, final String summaryDescription) {
+											  final HistogramDatasetPlus datasetPlus, final String summaryDescription) {
 
 		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(xAxisTitle, unit),
-			"Rel. Frequency", datasetPlus.getDataset());
+				"Rel. Frequency", datasetPlus.getDataset());
 
 		// Customize plot
 		final XYPlot plot = chart.getXYPlot();
@@ -506,7 +506,7 @@ public class AnalysisUtils {
 			((XYPlot) plot).setAxisOffset(new RectangleInsets(0,0, 0, 0));
 		}
 		if (plot instanceof CategoryPlot cPlot) {
-            cPlot.setDomainGridlinesVisible(false);
+			cPlot.setDomainGridlinesVisible(false);
 			cPlot.setRangeGridlinesVisible(true);
 			cPlot.getDomainAxis().setCategoryMargin(0);
 			cPlot.getDomainAxis().setLowerMargin(0.01);
@@ -521,7 +521,7 @@ public class AnalysisUtils {
 	}
 
 	static SNTChart createHistogram(final String normMeasurement, final String unit, final int nSeries,
-			final HistogramDataset dataset, final List<HistogramDatasetPlus> hdps) {
+									final HistogramDataset dataset, final List<HistogramDatasetPlus> hdps) {
 		final JFreeChart chart = ChartFactory.createHistogram(null, getMetricLabel(normMeasurement, unit), "Rel. Frequency", dataset);
 
 		// Customize plot
@@ -549,8 +549,8 @@ public class AnalysisUtils {
 	}
 
 	static SNTChart createPolarHistogram(final String normMeasurement, final String unit, final HistogramDataset dataset, final int nSeries,
-			final int nBins) {
-		final PolarPlot polarPlot = new PolarPlot();
+										 final int nBins) {
+		final PolarPlot polarPlot = initPolarPlot();
 		polarPlot.setDataset(histoDatasetToSingleXYDataset(dataset, nSeries, nBins));
 		final DefaultPolarItemRenderer render = new DefaultPolarItemRenderer();
 		polarPlot.setRenderer(render);
@@ -580,7 +580,7 @@ public class AnalysisUtils {
 	}
 
 	static JFreeChart createCategoryPlot(final String domainTitle,
-			final String rangeTitle, final String unit, final DefaultCategoryDataset dataset) {
+										 final String rangeTitle, final String unit, final DefaultCategoryDataset dataset) {
 		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, getMetricLabel(rangeTitle, unit), dataset,
 				PlotOrientation.HORIZONTAL, // orientation
 				false, // include legend
@@ -598,9 +598,9 @@ public class AnalysisUtils {
 		barRender.setShadowVisible(false);
 		return chart;
 	}
-	
+
 	static JFreeChart createCategoryPlot(final String domainTitle,
-			final String rangeTitle, final String unit, final DefaultCategoryDataset dataset, final int nSeries) {
+										 final String rangeTitle, final String unit, final DefaultCategoryDataset dataset, final int nSeries) {
 		final JFreeChart chart = ChartFactory.createBarChart(null, domainTitle, getMetricLabel(rangeTitle, unit), dataset,
 				PlotOrientation.HORIZONTAL, // orientation
 				true, // include legend
@@ -625,7 +625,7 @@ public class AnalysisUtils {
 		plot.setDomainAxis(domainAxis);
 		applyHistogramStyle(chart, plot);
 		domainAxis.setCategoryMargin(0.25);
-		
+
 		return chart;
 	}
 
@@ -668,8 +668,8 @@ public class AnalysisUtils {
 		return new SNTChart(title, new JFreeChart(null, null, ringPlot, false));
 	}
 
-    private static PolarPlot initPolarPlot() {
-        final PolarPlot polarPlot = new PolarPlot();
+	private static PolarPlot initPolarPlot() {
+		final PolarPlot polarPlot = new PolarPlot();
         polarPlot.setAngleTickUnit(new NumberTickUnit(PolarPlot.DEFAULT_ANGLE_TICK_UNIT_SIZE) {
             @Override
             public String valueToString(double value) {
@@ -677,103 +677,103 @@ public class AnalysisUtils {
             }
         });
         polarPlot.setAxisLocation(PolarAxisLocation.EAST_BELOW);
-        polarPlot.setCounterClockwise(false);
-        polarPlot.setRadiusMinorGridlinesVisible(false);
-        polarPlot.setBackgroundAlpha(0f);
-        polarPlot.setAngleGridlinePaint(Color.DARK_GRAY);
-        polarPlot.setBackgroundPaint(Color.WHITE);
-        polarPlot.setRadiusGridlinePaint(Color.LIGHT_GRAY);
-        polarPlot.setAngleGridlinesVisible(true);
-        polarPlot.setOutlineVisible(false);
-        final NumberAxis rangeAxis = new NumberAxis();
-        rangeAxis.setLabelFont(polarPlot.getAngleLabelFont());
-        rangeAxis.setAxisLineVisible(false);
-        rangeAxis.setTickMarksVisible(false);
-        rangeAxis.setAutoTickUnitSelection(true);
-        rangeAxis.setTickLabelsVisible(true);
-        polarPlot.setAxis(rangeAxis);
-        return polarPlot;
-    }
+		polarPlot.setCounterClockwise(false);
+		polarPlot.setRadiusMinorGridlinesVisible(false);
+		polarPlot.setBackgroundAlpha(0f);
+		polarPlot.setAngleGridlinePaint(Color.DARK_GRAY);
+		polarPlot.setBackgroundPaint(Color.WHITE);
+		polarPlot.setRadiusGridlinePaint(Color.LIGHT_GRAY);
+		polarPlot.setAngleGridlinesVisible(true);
+		polarPlot.setOutlineVisible(false);
+		final NumberAxis rangeAxis = new NumberAxis();
+		rangeAxis.setLabelFont(polarPlot.getAngleLabelFont());
+		rangeAxis.setAxisLineVisible(false);
+		rangeAxis.setTickMarksVisible(false);
+		rangeAxis.setAutoTickUnitSelection(true);
+		rangeAxis.setTickLabelsVisible(true);
+		polarPlot.setAxis(rangeAxis);
+		return polarPlot;
+	}
 
-    private static CustomBoxAndWhiskerRenderer assignRenderer(final CategoryPlot plot, final boolean monochrome, final int nSeries) {
-        plot.setBackgroundPaint(null);
-        plot.setRangePannable(true);
-        plot.setDomainGridlinesVisible(false);
-        plot.setRangeGridlinesVisible(false);
-        plot.setOutlineVisible(false);
-        if (plot.getDataset().getColumnCount() * plot.getDataset().getRowCount() > 4) {
-            plot.getDomainAxis().setCategoryLabelPositions(CategoryLabelPositions.UP_45);
-        }
-        final CustomBoxAndWhiskerRenderer renderer = new CustomBoxAndWhiskerRenderer();
-        plot.setRenderer(renderer);
-        renderer.setPointSize((double) plot.getRangeAxis().getTickLabelFont().getSize2D() / 2);
-        renderer.setDrawOutliers(true);
-        renderer.setItemMargin(0);
-        renderer.setDefaultPaint(Color.BLACK);
-        if (monochrome) {
-            for (int i = 0; i < nSeries; i++) {
-                renderer.setSeriesPaint(i, Color.GRAY);
-                renderer.setSeriesOutlinePaint(i, Color.BLACK);
-                renderer.setSeriesItemLabelPaint(i, Color.BLACK);
-            }
-        } else {
-            final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
-            for (int i = 0; i < nSeries; i++) {
-                final Color color = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue());
-                renderer.setSeriesPaint(i, color);
-                renderer.setSeriesOutlinePaint(i, color);
-                renderer.setSeriesItemLabelPaint(i, color);
-            }
-        }
-        final String tooltipFormat = "<html><body>Max: {5}<br>Q3: {7}<br>Median: {3}<br>Q1: {6}<br>Min: {4}<br>Mean: {2}</body></html>";
-        renderer.setDefaultToolTipGenerator(new BoxAndWhiskerToolTipGenerator(tooltipFormat, NumberFormat.getNumberInstance()));
-        renderer.setUseOutlinePaintForWhiskers(true);
-        renderer.setMaximumBarWidth(0.10);
-        renderer.setMedianVisible(true);
-        renderer.setMeanVisible(true);
-        renderer.setFillBox(false);
-        return renderer;
-    }
+	private static CustomBoxAndWhiskerRenderer assignRenderer(final CategoryPlot plot, final boolean monochrome, final int nSeries) {
+		plot.setBackgroundPaint(null);
+		plot.setRangePannable(true);
+		plot.setDomainGridlinesVisible(false);
+		plot.setRangeGridlinesVisible(false);
+		plot.setOutlineVisible(false);
+		if (plot.getDataset().getColumnCount() * plot.getDataset().getRowCount() > 4) {
+			plot.getDomainAxis().setCategoryLabelPositions(CategoryLabelPositions.UP_45);
+		}
+		final CustomBoxAndWhiskerRenderer renderer = new CustomBoxAndWhiskerRenderer();
+		plot.setRenderer(renderer);
+		renderer.setPointSize((double) plot.getRangeAxis().getTickLabelFont().getSize2D() / 2);
+		renderer.setDrawOutliers(true);
+		renderer.setItemMargin(0);
+		renderer.setDefaultPaint(Color.BLACK);
+		if (monochrome) {
+			for (int i = 0; i < nSeries; i++) {
+				renderer.setSeriesPaint(i, Color.GRAY);
+				renderer.setSeriesOutlinePaint(i, Color.BLACK);
+				renderer.setSeriesItemLabelPaint(i, Color.BLACK);
+			}
+		} else {
+			final ColorRGB[] colors = SNTColor.getDistinctColors(nSeries);
+			for (int i = 0; i < nSeries; i++) {
+				final Color color = new Color(colors[i].getRed(), colors[i].getGreen(), colors[i].getBlue());
+				renderer.setSeriesPaint(i, color);
+				renderer.setSeriesOutlinePaint(i, color);
+				renderer.setSeriesItemLabelPaint(i, color);
+			}
+		}
+		final String tooltipFormat = "<html><body>Max: {5}<br>Q3: {7}<br>Median: {3}<br>Q1: {6}<br>Min: {4}<br>Mean: {2}</body></html>";
+		renderer.setDefaultToolTipGenerator(new BoxAndWhiskerToolTipGenerator(tooltipFormat, NumberFormat.getNumberInstance()));
+		renderer.setUseOutlinePaintForWhiskers(true);
+		renderer.setMaximumBarWidth(0.10);
+		renderer.setMedianVisible(true);
+		renderer.setMeanVisible(true);
+		renderer.setFillBox(false);
+		return renderer;
+	}
 
-    public static SNTChart boxPlot(final String valueAxisLabel, final DefaultBoxAndWhiskerCategoryDataset dataset) {
-        final JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(null, null, valueAxisLabel, dataset, false);
-        assignRenderer((CategoryPlot) chart.getPlot(), true, dataset.getRowCount());
-        final int height = 400;
-        final double width = dataset.getRowCount() * 50;
-        final SNTChart sntChart = new SNTChart("Box-plot", chart, new Dimension((int) width, height));
-        sntChart.setOutlineVisible(false);
-        return sntChart;
-    }
+	public static SNTChart boxPlot(final String valueAxisLabel, final DefaultBoxAndWhiskerCategoryDataset dataset) {
+		final JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(null, null, valueAxisLabel, dataset, false);
+		assignRenderer((CategoryPlot) chart.getPlot(), true, dataset.getRowCount());
+		final int height = 400;
+		final double width = dataset.getRowCount() * 50;
+		final SNTChart sntChart = new SNTChart("Box-plot", chart, new Dimension((int) width, height));
+		sntChart.setOutlineVisible(false);
+		return sntChart;
+	}
 
-    /**
-     * Generates a polar plot
-     *
-     * @param title        the title of the chart. Null allowed
-     * @param seriesData   the data (must be an array with length 2, containing two arrays of equal length,
-     *                     the first containing the x-values and the second containing the y-values)
-     * @param seriesColors the series colors corresponding to the sections of the plot
-     * @return an instance of SNTChart containing the generated polar plot
-     */
-    public static SNTChart polarPlot(final String title, final List<double[][]> seriesData, final List<Color> seriesColors) {
-        final PolarPlot polarPlot = initPolarPlot();
-        final DefaultXYDataset xyDataset = new DefaultXYDataset();
-        for (int i = 0; i < seriesData.size(); i++) {
-            xyDataset.addSeries(String.format("%03d", i), seriesData.get(i));
-        }
-        polarPlot.setDataset(xyDataset);
-        final DefaultPolarItemRenderer renderer = new DefaultPolarItemRenderer();
-        polarPlot.setRenderer(renderer);
-        renderer.setShapesVisible(false);
-        renderer.setConnectFirstAndLastPoint(true);
-        for (int i = 0; i < seriesColors.size(); i++) {
-            final Color color = seriesColors.get(i);
-            renderer.setSeriesFilled(i, true);
-            renderer.setSeriesOutlinePaint(i, color);
-            renderer.setSeriesPaint(i, color);
-            renderer.setSeriesFillPaint(i, color);
-        }
-        return new SNTChart(title, assemblePolarPlotChart(polarPlot, false));
-    }
+	/**
+	 * Generates a polar plot
+	 *
+	 * @param title        the title of the chart. Null allowed
+	 * @param seriesData   the data (must be an array with length 2, containing two arrays of equal length,
+	 *                     the first containing the x-values and the second containing the y-values)
+	 * @param seriesColors the series colors corresponding to the sections of the plot
+	 * @return an instance of SNTChart containing the generated polar plot
+	 */
+	public static SNTChart polarPlot(final String title, final List<double[][]> seriesData, final List<Color> seriesColors) {
+		final PolarPlot polarPlot = initPolarPlot();
+		final DefaultXYDataset xyDataset = new DefaultXYDataset();
+		for (int i = 0; i < seriesData.size(); i++) {
+			xyDataset.addSeries(String.format("%03d", i), seriesData.get(i));
+		}
+		polarPlot.setDataset(xyDataset);
+		final DefaultPolarItemRenderer renderer = new DefaultPolarItemRenderer();
+		polarPlot.setRenderer(renderer);
+		renderer.setShapesVisible(false);
+		renderer.setConnectFirstAndLastPoint(true);
+		for (int i = 0; i < seriesColors.size(); i++) {
+			final Color color = seriesColors.get(i);
+			renderer.setSeriesFilled(i, true);
+			renderer.setSeriesOutlinePaint(i, color);
+			renderer.setSeriesPaint(i, color);
+			renderer.setSeriesFillPaint(i, color);
+		}
+		return new SNTChart(title, assemblePolarPlotChart(polarPlot, false));
+	}
 
 	private static RingPlot getRingPlot(final DefaultPieDataset<String> dataset) {
 		final RingPlot ringPlot = new RingPlot(dataset);
@@ -800,9 +800,9 @@ public class AnalysisUtils {
 
 	private static long countValidSections(final DefaultPieDataset<String> dataset) {
 		return dataset.getKeys().stream().filter(key -> {
-					final Number value = dataset.getValue(key);
-					return value != null && value.doubleValue() > 0 && !Double.isNaN(value.doubleValue());
-				}).count();
+			final Number value = dataset.getValue(key);
+			return value != null && value.doubleValue() > 0 && !Double.isNaN(value.doubleValue());
+		}).count();
 	}
 
 	private static boolean atLeastOneSmallFraction(final DefaultPieDataset<String> dataset) {
@@ -816,7 +816,7 @@ public class AnalysisUtils {
 		return false;
 	}
 
-    static class HistogramDatasetPlus {
+	static class HistogramDatasetPlus {
 		int nBins;
 		long n;
 		double q1, q3, min, max;
@@ -898,145 +898,145 @@ public class AnalysisUtils {
 		}
 	}
 
-    /**
-     * Creates a horizontal timeline chart with one row per neurite showing color-coded growth phases
-     * in sequence, so that each neurite gets one row with colored segments representing different phases.
-     *
-     * @param neuritePhases Map of neurite IDs to their growth phases
-     * @param timeUnits     Units for time axis
-     * @return JFreeChart with horizontal timeline visualization
-     */
-    public static JFreeChart createTimeline(final Map<String, java.util.List<GrowthPhase>> neuritePhases,
-                                            final String timeUnits) {
-        final DefaultXYDataset dataset = new DefaultXYDataset();
-        
-        // Sort neurites by relative proportion of each phase type in priority order (RAPID, STEADY, PLATEAU, LAG, RETRACTION)
-        final List<String> neuriteIds = new ArrayList<>(neuritePhases.keySet());
-        neuriteIds.sort((neurite1, neurite2) -> {
-            double score1 = calculatePhasePriorityScore(neuritePhases.get(neurite1));
-            double score2 = calculatePhasePriorityScore(neuritePhases.get(neurite2));
-            return Double.compare(score2, score1); // Descending order (highest priority first)
-        });
-        
-        final List<String> seriesLabels = new ArrayList<>();
-        int seriesIndex = 0;
-        int plottedNeuriteIndex = 0;
-        for (final String neuriteId : neuriteIds) {
-            final List<GrowthPhase> phases = neuritePhases.get(neuriteId);
-            if (phases.isEmpty()) {
-                continue; // exclude neurites without phases
-            }
-            seriesLabels.add(WordUtils.capitalizeFully(neuriteId).replace("Neurite", ""));
-            for (final GrowthPhase phase : phases) {
-                final double[] xData = {phase.startTime(), phase.endTime()};
-                final double[] yData = {plottedNeuriteIndex, plottedNeuriteIndex}; // Same Y for horizontal line
-                // Create series data
-                final double[][] seriesData = new double[2][];
-                seriesData[0] = xData; // X values (time)
-                seriesData[1] = yData; // Y values (neurite index)
-                final String seriesKey = neuriteId + "_" + phase.type() + "_" + seriesIndex;
-                dataset.addSeries(seriesKey, seriesData);
-                seriesIndex++;
-            }
-            plottedNeuriteIndex++;
-        }
+	/**
+	 * Creates a horizontal timeline chart with one row per neurite showing color-coded growth phases
+	 * in sequence, so that each neurite gets one row with colored segments representing different phases.
+	 *
+	 * @param neuritePhases Map of neurite IDs to their growth phases
+	 * @param timeUnits     Units for time axis
+	 * @return JFreeChart with horizontal timeline visualization
+	 */
+	public static JFreeChart createTimeline(final Map<String, java.util.List<GrowthPhase>> neuritePhases,
+											final String timeUnits) {
+		final DefaultXYDataset dataset = new DefaultXYDataset();
 
-        // Create XY line chart
-        final JFreeChart chart = ChartFactory.createXYLineChart(null, "Time (" + timeUnits + ")",
-                null, dataset, PlotOrientation.VERTICAL, true, true, false);
+		// Sort neurites by relative proportion of each phase type in priority order (RAPID, STEADY, PLATEAU, LAG, RETRACTION)
+		final List<String> neuriteIds = new ArrayList<>(neuritePhases.keySet());
+		neuriteIds.sort((neurite1, neurite2) -> {
+			double score1 = calculatePhasePriorityScore(neuritePhases.get(neurite1));
+			double score2 = calculatePhasePriorityScore(neuritePhases.get(neurite2));
+			return Double.compare(score2, score1); // Descending order (highest priority first)
+		});
 
-        // Customize renderer to draw "horizontal "bars"
-        final XYPlot plot = (XYPlot) chart.getPlot();
-        final XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, false);
-        plot.setRenderer(renderer);
+		final List<String> seriesLabels = new ArrayList<>();
+		int seriesIndex = 0;
+		int plottedNeuriteIndex = 0;
+		for (final String neuriteId : neuriteIds) {
+			final List<GrowthPhase> phases = neuritePhases.get(neuriteId);
+			if (phases.isEmpty()) {
+				continue; // exclude neurites without phases
+			}
+			seriesLabels.add(WordUtils.capitalizeFully(neuriteId).replace("Neurite", ""));
+			for (final GrowthPhase phase : phases) {
+				final double[] xData = {phase.startTime(), phase.endTime()};
+				final double[] yData = {plottedNeuriteIndex, plottedNeuriteIndex}; // Same Y for horizontal line
+				// Create series data
+				final double[][] seriesData = new double[2][];
+				seriesData[0] = xData; // X values (time)
+				seriesData[1] = yData; // Y values (neurite index)
+				final String seriesKey = neuriteId + "_" + phase.type() + "_" + seriesIndex;
+				dataset.addSeries(seriesKey, seriesData);
+				seriesIndex++;
+			}
+			plottedNeuriteIndex++;
+		}
 
-        // Set strokes and colors for each phase segment
-        seriesIndex = 0;
-        for (final String neuriteId : neuriteIds) {
-            final List<GrowthPhase> phases = neuritePhases.get(neuriteId);
-            if (phases.isEmpty()) {
-                continue; // exclude neurites without phases
-            }
-            for (final GrowthPhase phase : phases) {
-                final Color phaseColor = getPhaseColor(phase.type());
-                renderer.setSeriesPaint(seriesIndex, phaseColor);
-                renderer.setSeriesStroke(seriesIndex, new BasicStroke(15.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
-                renderer.setSeriesVisibleInLegend(seriesIndex, false); // Hide individual series from legend
-                seriesIndex++;
-            }
-        }
+		// Create XY line chart
+		final JFreeChart chart = ChartFactory.createXYLineChart(null, "Time (" + timeUnits + ")",
+				null, dataset, PlotOrientation.VERTICAL, true, true, false);
 
-        // Create custom Y-axis with neurite names
-        final SymbolAxis yAxis = new SymbolAxis("Neurite", seriesLabels.toArray(new String[0]));
-        plot.setRangeAxis(yAxis);
-        yAxis.setGridBandsVisible(false);
-        yAxis.setTickMarksVisible(false);
-        yAxis.setMinorTickMarksVisible(false);
-        yAxis.setAxisLineVisible(false);
-        yAxis.setInverted(true);
+		// Customize renderer to draw "horizontal "bars"
+		final XYPlot plot = (XYPlot) chart.getPlot();
+		final XYLineAndShapeRenderer renderer = new XYLineAndShapeRenderer(true, false);
+		plot.setRenderer(renderer);
 
-        // Apply styles
-        addCustomPhaseLegend(chart, plot);
-        applyHistogramStyle(chart, plot);
-        plot.setOutlineVisible(false);
-        return chart;
-    }
+		// Set strokes and colors for each phase segment
+		seriesIndex = 0;
+		for (final String neuriteId : neuriteIds) {
+			final List<GrowthPhase> phases = neuritePhases.get(neuriteId);
+			if (phases.isEmpty()) {
+				continue; // exclude neurites without phases
+			}
+			for (final GrowthPhase phase : phases) {
+				final Color phaseColor = getPhaseColor(phase.type());
+				renderer.setSeriesPaint(seriesIndex, phaseColor);
+				renderer.setSeriesStroke(seriesIndex, new BasicStroke(15.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
+				renderer.setSeriesVisibleInLegend(seriesIndex, false); // Hide individual series from legend
+				seriesIndex++;
+			}
+		}
 
-    /**
-     * Creates a ring plot of growth phases.
-     *
-     * @param title            The plot title
-     * @param phaseFrequencies Map of growth phases  to their frequencies
-     * @return JFreeChart with horizontal timeline visualization
-     */
-    public static SNTChart ringPlot(final String title, final HashMap<GrowthPhaseType, Double> phaseFrequencies) {
-        final HashMap<String, Double> donutData = new HashMap<>(phaseFrequencies.size());
-        final HashMap<String, Color> donutColors = new HashMap<>(phaseFrequencies.size());
-        phaseFrequencies.forEach((phaseType, counts) -> {
-            final String key = WordUtils.capitalizeFully(phaseType.toString());
-            donutData.put(key, counts);
-            donutColors.put(key, getPhaseColor(phaseType));
-        });
-        return ringPlot(title, donutData, donutColors);
-    }
+		// Create custom Y-axis with neurite names
+		final SymbolAxis yAxis = new SymbolAxis("Neurite", seriesLabels.toArray(new String[0]));
+		plot.setRangeAxis(yAxis);
+		yAxis.setGridBandsVisible(false);
+		yAxis.setTickMarksVisible(false);
+		yAxis.setMinorTickMarksVisible(false);
+		yAxis.setAxisLineVisible(false);
+		yAxis.setInverted(true);
 
-    /**
-     * Helper method to get appropriate color for each growth phase type.
-     */
-    private static Color getPhaseColor(final GrowthPhaseType type) {
-        return switch (type) {
-            case LAG -> new Color(255, 248, 191, 255); // Yellow
-            case RAPID -> new Color(193, 229, 97, 255); // Green
-            case STEADY -> new Color(183, 227, 242, 255); // Blue
-            case PLATEAU -> new Color(211, 211, 211, 255);  // Gray
-            case RETRACTION -> new Color(235, 184, 188, 255); // Red
-        };
-    }
+		// Apply styles
+		addCustomPhaseLegend(chart, plot);
+		applyHistogramStyle(chart, plot);
+		plot.setOutlineVisible(false);
+		return chart;
+	}
 
-    /** Add a custom legend showing phase types and their colors. */
-    private static void addCustomPhaseLegend(final JFreeChart chart, final XYPlot plot) {
-        final LegendItemCollection legendItems = new LegendItemCollection();
-        for (final GrowthPhaseType type : GrowthPhaseType.values()) {
-            final Color color = getPhaseColor(type);
-            final LegendItem item = new LegendItem(
-                    WordUtils.capitalizeFully(type.toString()),
-                    null, null, null,
-                    new java.awt.geom.Rectangle2D.Double(0, 0, 12, 12),
-                    color
-            );
-            legendItems.add(item);
-        }
-        replaceLegend(chart, plot, legendItems);
-    }
+	/**
+	 * Creates a ring plot of growth phases.
+	 *
+	 * @param title            The plot title
+	 * @param phaseFrequencies Map of growth phases  to their frequencies
+	 * @return JFreeChart with horizontal timeline visualization
+	 */
+	public static SNTChart ringPlot(final String title, final HashMap<GrowthPhaseType, Double> phaseFrequencies) {
+		final HashMap<String, Double> donutData = new HashMap<>(phaseFrequencies.size());
+		final HashMap<String, Color> donutColors = new HashMap<>(phaseFrequencies.size());
+		phaseFrequencies.forEach((phaseType, counts) -> {
+			final String key = WordUtils.capitalizeFully(phaseType.toString());
+			donutData.put(key, counts);
+			donutColors.put(key, getPhaseColor(phaseType));
+		});
+		return ringPlot(title, donutData, donutColors);
+	}
 
-    /** Add a custom legend showing phase types and their colors. */
-    public static void replaceLegend(final JFreeChart chart, final XYPlot plot, final LegendItemCollection legendItems) {
-        plot.setFixedLegendItems(legendItems);
-        if (chart.getLegend() != null) {
-            chart.getLegend().setVisible(true);
-            chart.getLegend().setPosition(RectangleEdge.BOTTOM);
-        }
-    }
+	/**
+	 * Helper method to get appropriate color for each growth phase type.
+	 */
+	private static Color getPhaseColor(final GrowthPhaseType type) {
+		return switch (type) {
+			case LAG -> new Color(255, 248, 191, 255); // Yellow
+			case RAPID -> new Color(193, 229, 97, 255); // Green
+			case STEADY -> new Color(183, 227, 242, 255); // Blue
+			case PLATEAU -> new Color(211, 211, 211, 255);  // Gray
+			case RETRACTION -> new Color(235, 184, 188, 255); // Red
+		};
+	}
+
+	/** Add a custom legend showing phase types and their colors. */
+	private static void addCustomPhaseLegend(final JFreeChart chart, final XYPlot plot) {
+		final LegendItemCollection legendItems = new LegendItemCollection();
+		for (final GrowthPhaseType type : GrowthPhaseType.values()) {
+			final Color color = getPhaseColor(type);
+			final LegendItem item = new LegendItem(
+					WordUtils.capitalizeFully(type.toString()),
+					null, null, null,
+					new java.awt.geom.Rectangle2D.Double(0, 0, 12, 12),
+					color
+			);
+			legendItems.add(item);
+		}
+		replaceLegend(chart, plot, legendItems);
+	}
+
+	/** Add a custom legend showing phase types and their colors. */
+	public static void replaceLegend(final JFreeChart chart, final XYPlot plot, final LegendItemCollection legendItems) {
+		plot.setFixedLegendItems(legendItems);
+		if (chart.getLegend() != null) {
+			chart.getLegend().setVisible(true);
+			chart.getLegend().setPosition(RectangleEdge.BOTTOM);
+		}
+	}
     
     /**
      * Calculates a priority score for sorting neurites based on weighted phase proportions.
@@ -1045,251 +1045,251 @@ public class AnalysisUtils {
      * 
      * @param phases List of growth phases for a neurite
      * @return Priority score for sorting (higher = more priority, negative for high retraction)
-     */
-    private static double calculatePhasePriorityScore(final List<GrowthPhase> phases) {
-        if (phases.isEmpty()) return 0.0;
-        
-        double rapidTotal = 0.0;
-        double steadyTotal = 0.0;
-        double plateauTotal = 0.0;
-        double lagTotal = 0.0;
-        double retractionTotal = 0.0;
-        double totalDuration = 0.0;
-        
-        // Sum total amounts by phase type and calculate total duration
-        for (final GrowthPhase phase : phases) {
-            double duration = phase.duration();
-            totalDuration += duration;
-            
-            switch (phase.type()) {
-                case RAPID:
-                    rapidTotal += duration;
-                    break;
-                case STEADY:
-                    steadyTotal += duration;
-                    break;
-                case PLATEAU:
-                    plateauTotal += duration;
-                    break;
-                case LAG:
-                    lagTotal += duration;
-                    break;
-                case RETRACTION:
-                    retractionTotal += duration;
-                    break;
-            }
-        }
-        
-        // Avoid division by zero
-        if (totalDuration == 0.0) return 0.0;
-        
-        // Calculate relative proportions (0.0 to 1.0)
-        double rapidProportion = rapidTotal / totalDuration;
-        double steadyProportion = steadyTotal / totalDuration;
-        double plateauProportion = plateauTotal / totalDuration;
-        double lagProportion = lagTotal / totalDuration;
-        double retractionProportion = retractionTotal / totalDuration;
-        
-        // Use weighted scoring with heavy penalty for retraction
-        // Priority order: RAPID > STEADY > PLATEAU > LAG, with RETRACTION heavily penalized
-        double score = (rapidProportion * 10000.0) + 
-                      (steadyProportion * 1000.0) + 
-                      (plateauProportion * 100.0) + 
-                      (lagProportion * 10.0) - 
-                      (retractionProportion * 100000.0); // Very heavy penalty for any retraction
-        
-        // Add duration bonus for tie-breaking within same phase composition ranges
-        // This ensures longer neurites appear before shorter ones when phase proportions are similar
-        double durationBonus = Math.min(100.0, totalDuration * 0.5);
-        
-        return score + durationBonus;
-    }
+	 */
+	private static double calculatePhasePriorityScore(final List<GrowthPhase> phases) {
+		if (phases.isEmpty()) return 0.0;
+
+		double rapidTotal = 0.0;
+		double steadyTotal = 0.0;
+		double plateauTotal = 0.0;
+		double lagTotal = 0.0;
+		double retractionTotal = 0.0;
+		double totalDuration = 0.0;
+
+		// Sum total amounts by phase type and calculate total duration
+		for (final GrowthPhase phase : phases) {
+			double duration = phase.duration();
+			totalDuration += duration;
+
+			switch (phase.type()) {
+				case RAPID:
+					rapidTotal += duration;
+					break;
+				case STEADY:
+					steadyTotal += duration;
+					break;
+				case PLATEAU:
+					plateauTotal += duration;
+					break;
+				case LAG:
+					lagTotal += duration;
+					break;
+				case RETRACTION:
+					retractionTotal += duration;
+					break;
+			}
+		}
+
+		// Avoid division by zero
+		if (totalDuration == 0.0) return 0.0;
+
+		// Calculate relative proportions (0.0 to 1.0)
+		double rapidProportion = rapidTotal / totalDuration;
+		double steadyProportion = steadyTotal / totalDuration;
+		double plateauProportion = plateauTotal / totalDuration;
+		double lagProportion = lagTotal / totalDuration;
+		double retractionProportion = retractionTotal / totalDuration;
+
+		// Use weighted scoring with heavy penalty for retraction
+		// Priority order: RAPID > STEADY > PLATEAU > LAG, with RETRACTION heavily penalized
+		double score = (rapidProportion * 10000.0) +
+				(steadyProportion * 1000.0) +
+				(plateauProportion * 100.0) +
+				(lagProportion * 10.0) -
+				(retractionProportion * 100000.0); // Very heavy penalty for any retraction
+
+		// Add duration bonus for tie-breaking within same phase composition ranges
+		// This ensures longer neurites appear before shorter ones when phase proportions are similar
+		double durationBonus = Math.min(100.0, totalDuration * 0.5);
+
+		return score + durationBonus;
+	}
 
 
-    /**
-     * This modifies the default BoxAndWhiskerRenderer to achieve the following: 1)
-     * Highlight mean w/ a more discrete marker; 2) Do not use far out markers
-     * (their definition is not transparent to the user); 3) Make rendering of
-     * outliers optional. If outliers are chosen to be rendered, then render all
-     * values (the original implementation renders summary values only!?).
-     * <p>
-     * NB: It has not been thoroughly tested. Horizontal plots are not affected
-     * because we're not overriding drawHorizontalItem()
-     * </p>
-     */
-    private static class CustomBoxAndWhiskerRenderer extends BoxAndWhiskerRenderer {
+	/**
+	 * This modifies the default BoxAndWhiskerRenderer to achieve the following: 1)
+	 * Highlight mean w/ a more discrete marker; 2) Do not use far out markers
+	 * (their definition is not transparent to the user); 3) Make rendering of
+	 * outliers optional. If outliers are chosen to be rendered, then render all
+	 * values (the original implementation renders summary values only!?).
+	 * <p>
+	 * NB: It has not been thoroughly tested. Horizontal plots are not affected
+	 * because we're not overriding drawHorizontalItem()
+	 * </p>
+	 */
+	private static class CustomBoxAndWhiskerRenderer extends BoxAndWhiskerRenderer {
 
-        private static final long serialVersionUID = 1L;
-        private double pointSize = 5d;
-        private boolean drawOutliers;
+		private static final long serialVersionUID = 1L;
+		private double pointSize = 5d;
+		private boolean drawOutliers;
 
-        private void setPointSize(final Double pointSize) {
-            this.pointSize = pointSize;
-        }
+		private void setPointSize(final Double pointSize) {
+			this.pointSize = pointSize;
+		}
 
-        private void setDrawOutliers(final boolean drawOutliers) {
-            this.drawOutliers = drawOutliers;
-        }
+		private void setDrawOutliers(final boolean drawOutliers) {
+			this.drawOutliers = drawOutliers;
+		}
 
-        @Override
-        public void drawVerticalItem(final Graphics2D g2, final CategoryItemRendererState state,
-                                     final Rectangle2D dataArea, final CategoryPlot plot, final CategoryAxis domainAxis,
-                                     final ValueAxis rangeAxis, final CategoryDataset dataset, final int row, final int column) {
+		@Override
+		public void drawVerticalItem(final Graphics2D g2, final CategoryItemRendererState state,
+									 final Rectangle2D dataArea, final CategoryPlot plot, final CategoryAxis domainAxis,
+									 final ValueAxis rangeAxis, final CategoryDataset dataset, final int row, final int column) {
 
-            final BoxAndWhiskerCategoryDataset bawDataset = (BoxAndWhiskerCategoryDataset) dataset;
+			final BoxAndWhiskerCategoryDataset bawDataset = (BoxAndWhiskerCategoryDataset) dataset;
 
-            final double categoryEnd = domainAxis.getCategoryEnd(column, getColumnCount(), dataArea,
-                    plot.getDomainAxisEdge());
-            final double categoryStart = domainAxis.getCategoryStart(column, getColumnCount(), dataArea,
-                    plot.getDomainAxisEdge());
-            final double categoryWidth = categoryEnd - categoryStart;
+			final double categoryEnd = domainAxis.getCategoryEnd(column, getColumnCount(), dataArea,
+					plot.getDomainAxisEdge());
+			final double categoryStart = domainAxis.getCategoryStart(column, getColumnCount(), dataArea,
+					plot.getDomainAxisEdge());
+			final double categoryWidth = categoryEnd - categoryStart;
 
-            double xx = categoryStart;
-            final int seriesCount = getRowCount();
-            final int categoryCount = getColumnCount();
+			double xx = categoryStart;
+			final int seriesCount = getRowCount();
+			final int categoryCount = getColumnCount();
 
-            if (seriesCount > 1) {
-                final double seriesGap = dataArea.getWidth() * getItemMargin() / (categoryCount * (seriesCount - 1));
-                final double usedWidth = (state.getBarWidth() * seriesCount) + (seriesGap * (seriesCount - 1));
-                // offset the start of the boxes if the total width used is smaller
-                // than the category width
-                final double offset = (categoryWidth - usedWidth) / 2;
-                xx = xx + offset + (row * (state.getBarWidth() + seriesGap));
-            } else {
-                // offset the start of the box if the box width is smaller than the
-                // category width
-                final double offset = (categoryWidth - state.getBarWidth()) / 2;
-                xx = xx + offset;
-            }
+			if (seriesCount > 1) {
+				final double seriesGap = dataArea.getWidth() * getItemMargin() / (categoryCount * (seriesCount - 1));
+				final double usedWidth = (state.getBarWidth() * seriesCount) + (seriesGap * (seriesCount - 1));
+				// offset the start of the boxes if the total width used is smaller
+				// than the category width
+				final double offset = (categoryWidth - usedWidth) / 2;
+				xx = xx + offset + (row * (state.getBarWidth() + seriesGap));
+			} else {
+				// offset the start of the box if the box width is smaller than the
+				// category width
+				final double offset = (categoryWidth - state.getBarWidth()) / 2;
+				xx = xx + offset;
+			}
 
-            double yyAverage;
+			double yyAverage;
 
-            final Paint itemPaint = getItemPaint(row, column);
-            g2.setPaint(itemPaint);
-            final Stroke s = getItemStroke(row, column);
-            g2.setStroke(s);
+			final Paint itemPaint = getItemPaint(row, column);
+			g2.setPaint(itemPaint);
+			final Stroke s = getItemStroke(row, column);
+			g2.setStroke(s);
 
-            final RectangleEdge location = plot.getRangeAxisEdge();
+			final RectangleEdge location = plot.getRangeAxisEdge();
 
-            final Number yQ1 = bawDataset.getQ1Value(row, column);
-            final Number yQ3 = bawDataset.getQ3Value(row, column);
-            final Number yMax = bawDataset.getMaxRegularValue(row, column);
-            final Number yMin = bawDataset.getMinRegularValue(row, column);
-            Shape box = null;
-            if (yQ1 != null && yQ3 != null && yMax != null && yMin != null) {
+			final Number yQ1 = bawDataset.getQ1Value(row, column);
+			final Number yQ3 = bawDataset.getQ3Value(row, column);
+			final Number yMax = bawDataset.getMaxRegularValue(row, column);
+			final Number yMin = bawDataset.getMinRegularValue(row, column);
+			Shape box = null;
+			if (yQ1 != null && yQ3 != null && yMax != null && yMin != null) {
 
-                final double yyQ1 = rangeAxis.valueToJava2D(yQ1.doubleValue(), dataArea, location);
-                final double yyQ3 = rangeAxis.valueToJava2D(yQ3.doubleValue(), dataArea, location);
-                final double yyMax = rangeAxis.valueToJava2D(yMax.doubleValue(), dataArea, location);
-                final double yyMin = rangeAxis.valueToJava2D(yMin.doubleValue(), dataArea, location);
-                final double xxmid = xx + state.getBarWidth() / 2.0;
-                final double halfW = (state.getBarWidth() / 2.0) * getWhiskerWidth();
+				final double yyQ1 = rangeAxis.valueToJava2D(yQ1.doubleValue(), dataArea, location);
+				final double yyQ3 = rangeAxis.valueToJava2D(yQ3.doubleValue(), dataArea, location);
+				final double yyMax = rangeAxis.valueToJava2D(yMax.doubleValue(), dataArea, location);
+				final double yyMin = rangeAxis.valueToJava2D(yMin.doubleValue(), dataArea, location);
+				final double xxmid = xx + state.getBarWidth() / 2.0;
+				final double halfW = (state.getBarWidth() / 2.0) * getWhiskerWidth();
 
-                // draw the body...
-                box = new Rectangle2D.Double(xx, Math.min(yyQ1, yyQ3), state.getBarWidth(), Math.abs(yyQ1 - yyQ3));
-                if (getFillBox()) {
-                    g2.fill(box);
-                }
+				// draw the body...
+				box = new Rectangle2D.Double(xx, Math.min(yyQ1, yyQ3), state.getBarWidth(), Math.abs(yyQ1 - yyQ3));
+				if (getFillBox()) {
+					g2.fill(box);
+				}
 
-                final Paint outlinePaint = getItemOutlinePaint(row, column);
-                if (getUseOutlinePaintForWhiskers()) {
-                    g2.setPaint(outlinePaint);
-                }
-                // draw the upper shadow...
-                g2.draw(new Line2D.Double(xxmid, yyMax, xxmid, yyQ3));
-                g2.draw(new Line2D.Double(xxmid - halfW, yyMax, xxmid + halfW, yyMax));
+				final Paint outlinePaint = getItemOutlinePaint(row, column);
+				if (getUseOutlinePaintForWhiskers()) {
+					g2.setPaint(outlinePaint);
+				}
+				// draw the upper shadow...
+				g2.draw(new Line2D.Double(xxmid, yyMax, xxmid, yyQ3));
+				g2.draw(new Line2D.Double(xxmid - halfW, yyMax, xxmid + halfW, yyMax));
 
-                // draw the lower shadow...
-                g2.draw(new Line2D.Double(xxmid, yyMin, xxmid, yyQ1));
-                g2.draw(new Line2D.Double(xxmid - halfW, yyMin, xxmid + halfW, yyMin));
+				// draw the lower shadow...
+				g2.draw(new Line2D.Double(xxmid, yyMin, xxmid, yyQ1));
+				g2.draw(new Line2D.Double(xxmid - halfW, yyMin, xxmid + halfW, yyMin));
 
-                g2.setStroke(getItemOutlineStroke(row, column));
-                g2.setPaint(outlinePaint);
-                g2.draw(box);
-            }
+				g2.setStroke(getItemOutlineStroke(row, column));
+				g2.setPaint(outlinePaint);
+				g2.draw(box);
+			}
 
-            g2.setPaint(getArtifactPaint());
+			g2.setPaint(getArtifactPaint());
 
-            // draw mean - SPECIAL AIMS REQUIREMENT...
-            if (isMeanVisible()) {
-                final Number yMean = bawDataset.getMeanValue(row, column);
-                if (yMean != null) {
-                    yyAverage = rangeAxis.valueToJava2D(yMean.doubleValue(), dataArea, location);
-                    final double xxAverage = xx + state.getBarWidth() / 2.0;
-                    final Shape s1 = new Line2D.Double(xxAverage - pointSize, yyAverage, xxAverage + pointSize,
-                            yyAverage);
-                    final Shape s2 = new Line2D.Double(xxAverage, yyAverage - pointSize, xxAverage,
-                            yyAverage + pointSize);
-                    g2.draw(s1);
-                    g2.draw(s2);
-                }
-            }
+			// draw mean - SPECIAL AIMS REQUIREMENT...
+			if (isMeanVisible()) {
+				final Number yMean = bawDataset.getMeanValue(row, column);
+				if (yMean != null) {
+					yyAverage = rangeAxis.valueToJava2D(yMean.doubleValue(), dataArea, location);
+					final double xxAverage = xx + state.getBarWidth() / 2.0;
+					final Shape s1 = new Line2D.Double(xxAverage - pointSize, yyAverage, xxAverage + pointSize,
+							yyAverage);
+					final Shape s2 = new Line2D.Double(xxAverage, yyAverage - pointSize, xxAverage,
+							yyAverage + pointSize);
+					g2.draw(s1);
+					g2.draw(s2);
+				}
+			}
 
-            // draw median...
-            if (isMedianVisible()) {
-                final Number yMedian = bawDataset.getMedianValue(row, column);
-                if (yMedian != null) {
-                    final double yyMedian = rangeAxis.valueToJava2D(yMedian.doubleValue(), dataArea, location);
-                    g2.draw(new Line2D.Double(xx, yyMedian, xx + state.getBarWidth(), yyMedian));
-                }
-            }
+			// draw median...
+			if (isMedianVisible()) {
+				final Number yMedian = bawDataset.getMedianValue(row, column);
+				if (yMedian != null) {
+					final double yyMedian = rangeAxis.valueToJava2D(yMedian.doubleValue(), dataArea, location);
+					g2.draw(new Line2D.Double(xx, yyMedian, xx + state.getBarWidth(), yyMedian));
+				}
+			}
 
-            // draw yOutliers...
-            if (drawOutliers) {
+			// draw yOutliers...
+			if (drawOutliers) {
 
-                g2.setPaint(itemPaint);
+				g2.setPaint(itemPaint);
 
-                // draw outliers
-                final HashMap<Outlier, Integer> outliers = new HashMap<>();
-                final java.util.List<?> yOutliers = bawDataset.getOutliers(row, column);
-                final double xCenter = xx + state.getBarWidth() / 2.0;
-                if (yOutliers != null) {
-                    for (Object yOutlier : yOutliers) {
-                        final Number outlierValue = ((Number) yOutlier);
-                        final double yyOutlier = rangeAxis.valueToJava2D(outlierValue.doubleValue(), dataArea,
-                                location);
-                        final Outlier outlier = new Outlier(xCenter, yyOutlier, pointSize);
-                        outliers.put(outlier, outliers.getOrDefault(outlier, 1));
-                    }
+				// draw outliers
+				final HashMap<Outlier, Integer> outliers = new HashMap<>();
+				final java.util.List<?> yOutliers = bawDataset.getOutliers(row, column);
+				final double xCenter = xx + state.getBarWidth() / 2.0;
+				if (yOutliers != null) {
+					for (Object yOutlier : yOutliers) {
+						final Number outlierValue = ((Number) yOutlier);
+						final double yyOutlier = rangeAxis.valueToJava2D(outlierValue.doubleValue(), dataArea,
+								location);
+						final Outlier outlier = new Outlier(xCenter, yyOutlier, pointSize);
+						outliers.put(outlier, outliers.getOrDefault(outlier, 1));
+					}
 
-                    outliers.forEach((outlier, count) -> {
+					outliers.forEach((outlier, count) -> {
 
-                        if (count == 1) {
-                            drawOutlier(outlier, g2);
-                        } else {
-                            final int leftPoints = count / 2;
-                            final int rightPoints = count - leftPoints;
-                            for (int i = 1; i <= leftPoints; i++) {
-                                final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);
-                                outlier.setPoint(new Point2D.Double(xCenter - offset, outlier.getY()));
-                                drawOutlier(outlier, g2);
-                            }
-                            for (int i = 1; i <= rightPoints; i++) {
-                                final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);
-                                outlier.setPoint(new Point2D.Double(xCenter + offset, outlier.getY()));
-                                drawOutlier(outlier, g2);
-                            }
-                        }
+						if (count == 1) {
+							drawOutlier(outlier, g2);
+						} else {
+							final int leftPoints = count / 2;
+							final int rightPoints = count - leftPoints;
+							for (int i = 1; i <= leftPoints; i++) {
+								final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);
+								outlier.setPoint(new Point2D.Double(xCenter - offset, outlier.getY()));
+								drawOutlier(outlier, g2);
+							}
+							for (int i = 1; i <= rightPoints; i++) {
+								final double offset = Math.min(i * pointSize, state.getBarWidth() / 2);
+								outlier.setPoint(new Point2D.Double(xCenter + offset, outlier.getY()));
+								drawOutlier(outlier, g2);
+							}
+						}
 
-                    });
-                }
-            }
-            // collect entity and tool tip information...
-            if (state.getInfo() != null && box != null) {
-                final EntityCollection entities = state.getEntityCollection();
-                if (entities != null) {
-                    addItemEntity(entities, dataset, row, column, box);
-                }
-            }
+					});
+				}
+			}
+			// collect entity and tool tip information...
+			if (state.getInfo() != null && box != null) {
+				final EntityCollection entities = state.getEntityCollection();
+				if (entities != null) {
+					addItemEntity(entities, dataset, row, column, box);
+				}
+			}
 
-        }
+		}
 
-        private void drawOutlier(final Outlier outlier, final Graphics2D g2) {
-            final Point2D point = outlier.getPoint();
-            final double size = outlier.getRadius();
-            final Ellipse2D dot = new Ellipse2D.Double(point.getX() + size / 2, point.getY(), size, size);
-            g2.fill(dot);
-        }
+		private void drawOutlier(final Outlier outlier, final Graphics2D g2) {
+			final Point2D point = outlier.getPoint();
+			final double size = outlier.getRadius();
+			final Ellipse2D dot = new Ellipse2D.Double(point.getX() + size / 2, point.getY(), size, size);
+			g2.fill(dot);
+		}
 
-    }
+	}
 }

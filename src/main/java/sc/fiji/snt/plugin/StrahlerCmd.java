@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -204,11 +204,11 @@ public class StrahlerCmd extends ContextCommand {
 		series.setValues(sd.analyzer.getAvgFragmentations());
 		series.setStyle(plotService.newSeriesStyle(colors[4], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
-		series.setLabel("Avg. ext. angle (°)");
+		series.setLabel("Avg. ext. angle (Â°)");
 		series.setValues(sd.analyzer.getAvgExtensionAngles(false));
 		series.setStyle(plotService.newSeriesStyle(colors[5], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		series = chart.addLineSeries();
-		series.setLabel("Avg. ext.angle (Rel.) (°)");
+		series.setLabel("Avg. ext.angle (Rel.) (Â°)");
 		series.setValues(sd.analyzer.getAvgExtensionAngles(true));
 		series.setStyle(plotService.newSeriesStyle(colors[6], LineStyle.SOLID, MarkerStyle.CIRCLE));
 		return chart;
@@ -326,9 +326,8 @@ public class StrahlerCmd extends ContextCommand {
 			final SNTChart chart;
 			if (boxplotElseHistogram)
 				chart = groupedStats.getBoxPlot(normMetric);
-			// TODO: With some cells polar histograms are failing. Disable for now
-//			else if (normMetric.contains("angle"))
-//				chart = groupedStats.getPolarHistogram(normMetric);
+			else if (normMetric.contains("angle"))
+				chart = groupedStats.getPolarHistogram(normMetric);
 			else
 				chart = groupedStats.getHistogram(normMetric);
 			if (singleChart) {
@@ -374,8 +373,8 @@ public class StrahlerCmd extends ContextCommand {
 						branches.stream().map(p -> p.getExtensionAngle3D(false)).collect(Collectors.toList()));
 			});
 			data.analyzer.getBranches().forEach((order, branches) ->
-				table.addColumn(label + " Relative Extension Angle Order " + order,
-                    branches.stream().map(data.analyzer::getRelativeExtensionAngle).collect(Collectors.toList())));
+					table.addColumn(label + " Relative Extension Angle Order " + order,
+							branches.stream().map(data.analyzer::getRelativeExtensionAngle).collect(Collectors.toList())));
 		});
 		table.replace(" Order", 0d, Double.NaN);
 		table.fillEmptyCells(Double.NaN);
@@ -408,7 +407,7 @@ public class StrahlerCmd extends ContextCommand {
 	 */
 	public boolean validInput() {
 		initMap();
-		return dataMap.values().stream().allMatch(StrahlerData::parseable);
+		return dataMap.values().stream().anyMatch(StrahlerData::parseable);
 	}
 
 	/**
@@ -446,7 +445,10 @@ public class StrahlerCmd extends ContextCommand {
 			if (row < 0)
 				row = table.insertRow(label);
 			if (data.parseable()) {
-				table.set("Root no.", row, iDF.format(data.analyzer.getRootNumber()));
+				final String rootNoValue = data.isMultiComponent()
+						? iDF.format(data.analyzer.getRootNumber()) + " (" + data.numComponents + " components)"
+						: iDF.format(data.analyzer.getRootNumber());
+				table.set("Root no.", row, rootNoValue);
 				table.set("Avg. bif. ratio", row, dDF.format(data.analyzer.getAvgBifurcationRatio()));
 				table.set("Order:Measurement Pairs: Length (sum)", row, toString(data.analyzer.getLengths(), dDF));
 				table.set("Order:Measurement Pairs: No. of branches", row,
@@ -480,7 +482,7 @@ public class StrahlerCmd extends ContextCommand {
 		else if (metric.contains("contract"))
 			return "Avg. contraction";
 		else if (metric.contains("extension") || metric.contains("angle"))
-			return "Avg. relative extension angle (°)";
+			return "Avg. relative extension angle (Â°)";
 		else
 			throw new IllegalArgumentException("Unrecognized metric");
 	}
@@ -497,20 +499,200 @@ public class StrahlerCmd extends ContextCommand {
 	}
 
 	private static class StrahlerData {
-		final StrahlerAnalyzer analyzer;
-		final Tree tree;
+		StrahlerAnalyzer analyzer;
+		Tree tree;
+		int numComponents;
 
 		StrahlerData(final Tree tree) {
-			this.analyzer = new StrahlerAnalyzer(tree);
 			this.tree = tree;
+			StrahlerAnalyzer primaryAnalyzer = null;
+			int components = 1;
+
+			// First, try to analyze the tree directly
+			try {
+				primaryAnalyzer = new StrahlerAnalyzer(tree);
+				if (primaryAnalyzer.getRootNumber() > 0) {
+					// Tree is valid as-is
+					this.analyzer = primaryAnalyzer;
+					this.numComponents = 1;
+					return;
+				}
+			} catch (final IllegalArgumentException ignored) {
+				// Tree has multiple roots or other topology issues - try splitting
+			}
+
+			// Split into connected components and create aggregate analyzer
+			try {
+				final List<Tree> componentTrees = tree.getGraph().getTrees();
+				if (componentTrees.size() > 1) {
+					// Multiple components found - create analyzers for each valid one
+					final List<StrahlerAnalyzer> validAnalyzers = new ArrayList<>();
+					for (final Tree componentTree : componentTrees) {
+						try {
+							final StrahlerAnalyzer componentAnalyzer = new StrahlerAnalyzer(componentTree);
+							if (componentAnalyzer.getRootNumber() > 0) {
+								validAnalyzers.add(componentAnalyzer);
+							}
+						} catch (final IllegalArgumentException ignored) {
+							// Skip invalid components
+						}
+					}
+
+					if (!validAnalyzers.isEmpty()) {
+						components = validAnalyzers.size();
+						// Use aggregating analyzer that combines results from all components
+						primaryAnalyzer = new AggregatingStrahlerAnalyzer(tree, validAnalyzers);
+					}
+				}
+			} catch (final IllegalArgumentException ignored) {
+				// Could not get graph or components
+			}
+
+			this.analyzer = primaryAnalyzer;
+			this.numComponents = (primaryAnalyzer != null) ? components : 0;
 		}
 
 		boolean parseable() {
+			if (analyzer == null) return false;
 			try {
 				return analyzer.getRootNumber() > 0;
 			} catch (final IllegalArgumentException ignored) {
 				return false;
 			}
+		}
+
+		boolean isMultiComponent() {
+			return numComponents > 1;
+		}
+	}
+
+	/**
+	 * A StrahlerAnalyzer that aggregates results from multiple component analyzers.
+	 * Used when a tree has multiple disconnected components.
+	 */
+	private static class AggregatingStrahlerAnalyzer extends StrahlerAnalyzer {
+		private final List<StrahlerAnalyzer> componentAnalyzers;
+		private final int aggregateMaxOrder;
+
+		AggregatingStrahlerAnalyzer(final Tree originalTree, final List<StrahlerAnalyzer> analyzers) {
+			super(originalTree);
+			this.componentAnalyzers = analyzers;
+			this.aggregateMaxOrder = analyzers.stream()
+					.mapToInt(StrahlerAnalyzer::getRootNumber)
+					.max()
+					.orElse(0);
+		}
+
+		@Override
+		public int getRootNumber() {
+			return aggregateMaxOrder;
+		}
+
+		@Override
+		public int getHighestBranchOrder() {
+			return componentAnalyzers.stream()
+					.mapToInt(StrahlerAnalyzer::getHighestBranchOrder)
+					.max()
+					.orElse(0);
+		}
+
+		@Override
+		public Map<Integer, Double> getLengths() {
+			return aggregateDoubleMaps(a -> a.getLengths());
+		}
+
+		@Override
+		public Map<Integer, Double> getBranchCounts() {
+			return aggregateDoubleMaps(a -> a.getBranchCounts());
+		}
+
+		@Override
+		public Map<Integer, Double> getBranchPointCounts() {
+			return aggregateDoubleMaps(a -> a.getBranchPointCounts());
+		}
+
+		@Override
+		public Map<Integer, Double> getBifurcationRatios() {
+			// Bifurcation ratios should be averaged, not summed
+			return averageDoubleMaps(a -> a.getBifurcationRatios());
+		}
+
+		@Override
+		public double getAvgBifurcationRatio() {
+			return componentAnalyzers.stream()
+					.mapToDouble(StrahlerAnalyzer::getAvgBifurcationRatio)
+					.filter(Double::isFinite)
+					.average()
+					.orElse(Double.NaN);
+		}
+
+		@Override
+		public Map<Integer, Double> getAvgContractions() {
+			return averageDoubleMaps(a -> a.getAvgContractions());
+		}
+
+		@Override
+		public Map<Integer, Double> getAvgFragmentations() {
+			return averageDoubleMaps(a -> a.getAvgFragmentations());
+		}
+
+		@Override
+		public Map<Integer, Double> getAvgExtensionAngles(final boolean relative) {
+			return averageDoubleMaps(a -> a.getAvgExtensionAngles(relative));
+		}
+
+		@Override
+		public Map<Integer, List<Path>> getBranches() {
+			final Map<Integer, List<Path>> result = new TreeMap<>();
+			for (final StrahlerAnalyzer analyzer : componentAnalyzers) {
+				analyzer.getBranches().forEach((order, branches) ->
+						result.computeIfAbsent(order, k -> new ArrayList<>()).addAll(branches));
+			}
+			return result;
+		}
+
+		@Override
+		public double getRelativeExtensionAngle(final Path branch) {
+			// Delegate to the component analyzer that owns this branch
+			for (final StrahlerAnalyzer analyzer : componentAnalyzers) {
+				final double angle = analyzer.getRelativeExtensionAngle(branch);
+				if (!Double.isNaN(angle)) return angle;
+			}
+			return Double.NaN;
+		}
+
+		@Override
+		public void dispose() {
+			componentAnalyzers.forEach(StrahlerAnalyzer::dispose);
+		}
+
+		private Map<Integer, Double> aggregateDoubleMaps(
+				final java.util.function.Function<StrahlerAnalyzer, Map<Integer, Double>> mapExtractor) {
+			final Map<Integer, Double> result = new TreeMap<>();
+			for (final StrahlerAnalyzer analyzer : componentAnalyzers) {
+				mapExtractor.apply(analyzer).forEach((order, value) ->
+						result.merge(order, value, Double::sum));
+			}
+			return result;
+		}
+
+		private Map<Integer, Double> averageDoubleMaps(
+				final java.util.function.Function<StrahlerAnalyzer, Map<Integer, Double>> mapExtractor) {
+			final Map<Integer, List<Double>> collected = new TreeMap<>();
+			for (final StrahlerAnalyzer analyzer : componentAnalyzers) {
+				mapExtractor.apply(analyzer).forEach((order, value) -> {
+					if (value != null && Double.isFinite(value)) {
+						collected.computeIfAbsent(order, k -> new ArrayList<>()).add(value);
+					}
+				});
+			}
+			final Map<Integer, Double> result = new TreeMap<>();
+			collected.forEach((order, values) -> {
+				if (!values.isEmpty()) {
+					result.put(order, values.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN));
+				}
+			});
+			return result;
 		}
 	}
 

@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -356,6 +356,7 @@ public class TreeStatistics extends ContextCommand {
     private final int unfilteredPathsFittedPathsCounter;
     private ConvexHullAnalyzer convexAnalyzer;
     private RootAngleAnalyzer rootAngleAnalyzer;
+    private List<Path> allBranches;
 
 
     /**
@@ -557,7 +558,7 @@ public class TreeStatistics extends ContextCommand {
         }
         return "unknown";
     }
-    
+
     private static String guessSpecialMetrics(final String normGuess) {
         if (normGuess.contains("contrac")) {
             return (normGuess.contains("path")) ? PATH_CONTRACTION : BRANCH_CONTRACTION;
@@ -576,7 +577,7 @@ public class TreeStatistics extends ContextCommand {
         }
         return null;
     }
-    
+
     private static String guessLengthMetrics(final String normGuess) {
         if (!(normGuess.contains("length") || normGuess.contains("cable"))) {
             return null;
@@ -587,7 +588,7 @@ public class TreeStatistics extends ContextCommand {
         if (normGuess.contains("path")) return PATH_LENGTH;
         return BRANCH_LENGTH;
     }
-    
+
     private static String guessAngleMetrics(final String normGuess) {
         if (!normGuess.contains("angle")) {
             return null;
@@ -600,12 +601,12 @@ public class TreeStatistics extends ContextCommand {
         return guessPlaneSpecificAngle(normGuess,
                 BRANCH_EXTENSION_ANGLE, BRANCH_EXTENSION_ANGLE_XY, BRANCH_EXTENSION_ANGLE_XZ, BRANCH_EXTENSION_ANGLE_ZY);
     }
-    
+
     private static String guessExtensionAngleMetrics(final String normGuess) {
         if (normGuess.contains("path")) {
             if (normGuess.contains("rel")) return PATH_EXT_ANGLE_REL;
             return guessPlaneSpecificAngle(normGuess, PATH_EXT_ANGLE, PATH_EXT_ANGLE_XY, PATH_EXT_ANGLE_XZ,
-                                          PATH_EXT_ANGLE_ZY);
+                    PATH_EXT_ANGLE_ZY);
         }
         if (normGuess.contains("term")) {
             return guessPlaneSpecificAngle(normGuess, TERMINAL_EXTENSION_ANGLE, TERMINAL_EXTENSION_ANGLE_XY,
@@ -621,16 +622,16 @@ public class TreeStatistics extends ContextCommand {
         }
         return null;
     }
-    
-    private static String guessPlaneSpecificAngle(final String normGuess, 
-                                                 final String xzAngle, final String zyAngle, 
-                                                 final String xyAngle, final String defaultAngle) {
+
+    private static String guessPlaneSpecificAngle(final String normGuess,
+                                                  final String default3DAngle, final String xyAngle,
+                                                  final String xzAngle, final String zyAngle) {
+        if (normGuess.contains("xy")) return xyAngle;
         if (normGuess.contains("xz")) return xzAngle;
         if (normGuess.contains("zy")) return zyAngle;
-        if (normGuess.contains("xy")) return xyAngle;
-        return defaultAngle;
+        return default3DAngle;
     }
-    
+
     private static String guessNodeMetrics(final String normGuess) {
         if (normGuess.contains("bp") || normGuess.contains("branch points") || normGuess.contains("junctions")) {
             return N_BRANCH_POINTS;
@@ -645,18 +646,18 @@ public class TreeStatistics extends ContextCommand {
         }
         return null;
     }
-    
+
     private static String guessRadiusMetrics(final String normGuess) {
         if (!normGuess.contains("radi")) {
             return null;
         }
-        
+
         if (normGuess.contains("mean") || normGuess.contains("avg") || normGuess.contains("average")) {
             return (normGuess.contains("path")) ? PATH_MEAN_RADIUS : BRANCH_MEAN_RADIUS;
         }
         return NODE_RADIUS;
     }
-    
+
     private static String guessSpineMetrics(final String normGuess) {
         if (!(normGuess.contains("spines") || normGuess.contains("varicosities"))) {
             return null;
@@ -794,6 +795,7 @@ public class TreeStatistics extends ContextCommand {
         primaryBranches = null;
         innerBranches = null;
         terminalBranches = null;
+        allBranches = null;
         tips = null;
         sAnalyzer = null;
         shllAnalyzer = null;
@@ -1282,14 +1284,34 @@ public class TreeStatistics extends ContextCommand {
                     // 1) www.jneurosci.org/content/19/22/9928#F6
                     // 2) https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3373517/
                     // 3) https://journals.physiology.org/doi/full/10.1152/jn.00829.2011
+                    // DCI = (sum of branch orders at tips + nTips) * cableLength / nPrimaryBranches
+                    // where "branch order at tip" = number of branch points between root and tip
+                    // Optimized: compute branch point depth in single traversal instead of O(n²) shortest paths
                     final DirectedWeightedGraph graph = tree.getGraph();
                     final List<SWCPoint> graphTips = graph.getTips();
                     final SWCPoint root = graph.getRoot();
+
+                    // Compute branch point depth for each node in single BFS/DFS traversal
+                    final Map<SWCPoint, Integer> bpDepth = new HashMap<>();
+                    final Deque<SWCPoint> queue = new ArrayDeque<>();
+                    bpDepth.put(root, 0);
+                    queue.add(root);
+                    while (!queue.isEmpty()) {
+                        final SWCPoint node = queue.poll();
+                        final int currentDepth = bpDepth.get(node);
+                        final List<SWCPoint> children = Graphs.successorListOf(graph, node);
+                        // If this node is a branch point, increment depth for children
+                        final int childDepth = (children.size() > 1) ? currentDepth + 1 : currentDepth;
+                        for (final SWCPoint child : children) {
+                            bpDepth.put(child, childDepth);
+                            queue.add(child);
+                        }
+                    }
+
+                    // Sum branch point depths at all tips
                     double sumBranchTipOrders = 0;
                     for (final SWCPoint tip : graphTips) {
-                        for (final SWCPoint vx : graph.getShortestPathVertices(root, tip)) {
-                            if (graph.outDegreeOf(vx) > 1) sumBranchTipOrders++;
-                        }
+                        sumBranchTipOrders += bpDepth.getOrDefault(tip, 0);
                     }
                     stat.addValue((sumBranchTipOrders + graphTips.size()) * getCableLength() / getPrimaryBranches().size());
                 }
@@ -1790,8 +1812,10 @@ public class TreeStatistics extends ContextCommand {
      * @see StrahlerAnalyzer#getBranches()
      */
     public List<Path> getBranches() throws IllegalArgumentException {
+        if (allBranches != null) return allBranches;
         getStrahlerAnalyzer();
-        return sAnalyzer.getBranches().values().stream().flatMap(List::stream).collect(Collectors.toList());
+        allBranches = sAnalyzer.getBranches().values().stream().flatMap(List::stream).collect(Collectors.toList());
+        return allBranches;
     }
 
     /**
@@ -1802,12 +1826,16 @@ public class TreeStatistics extends ContextCommand {
      */
     public double getAvgContraction() throws IllegalArgumentException {
         double contraction = 0;
+        int validCount = 0;
         final List<Path> branches = getBranches();
         for (final Path p : branches) {
             final double pContraction = p.getContraction();
-            if (!Double.isNaN(pContraction)) contraction += pContraction;
+            if (!Double.isNaN(pContraction)) {
+                contraction += pContraction;
+                validCount++;
+            }
         }
-        return contraction / branches.size();
+        return (validCount == 0) ? Double.NaN : contraction / validCount;
     }
 
     /**
@@ -1850,7 +1878,7 @@ public class TreeStatistics extends ContextCommand {
         for (final SWCPoint bp : branchPoints) {
             final List<SWCPoint> children = Graphs.successorListOf(sGraph, bp);
             // Only consider bifurcations
-            if (children.size() > 2) {
+            if (children.size() != 2) {
                 continue;
             }
             final SWCPoint c0 = children.get(0);
@@ -1858,14 +1886,23 @@ public class TreeStatistics extends ContextCommand {
             // Get vector for each parent-child link
             final double[] v0 = new double[]{c0.getX() - bp.getX(), c0.getY() - bp.getY(), c0.getZ() - bp.getZ()};
             final double[] v1 = new double[]{c1.getX() - bp.getX(), c1.getY() - bp.getY(), c1.getZ() - bp.getZ()};
+            // Compute magnitudes
+            final double mag0 = Math.sqrt(v0[0] * v0[0] + v0[1] * v0[1] + v0[2] * v0[2]);
+            final double mag1 = Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]);
+            // Skip if either vector has zero length (coincident points)
+            if (mag0 < 1e-12 || mag1 < 1e-12) {
+                continue;
+            }
             // Dot product
             double dot = 0.0;
             for (int i = 0; i < v0.length; i++) {
                 dot += v0[i] * v1[i];
             }
-            final double cosineAngle = dot / (Math.sqrt(v0[0] * v0[0] + v0[1] * v0[1] + v0[2] * v0[2]) * Math.sqrt(v1[0] * v1[0] + v1[1] * v1[1] + v1[2] * v1[2]));
+            double cosineAngle = dot / (mag0 * mag1);
+            // Clamp to [-1, 1] to avoid NaN from acos due to floating point errors
+            cosineAngle = Math.max(-1.0, Math.min(1.0, cosineAngle));
             final double angleRadians = Math.acos(cosineAngle);
-            final double angleDegrees = angleRadians * (180.0 / Math.PI);
+            final double angleDegrees = Math.toDegrees(angleRadians);
             angles.add(angleDegrees);
         }
         return angles;
@@ -1917,11 +1954,15 @@ public class TreeStatistics extends ContextCommand {
                 tipCounts.add(count);
             }
             double asymmetry;
-            // Make sure we avoid getting NaN
-            if (tipCounts.get(0).equals(tipCounts.get(1))) {
+            final int n1 = tipCounts.get(0);
+            final int n2 = tipCounts.get(1);
+            // Make sure we avoid getting NaN or Infinity
+            // When n1 == n2, asymmetry is 0 by definition
+            // When n1 + n2 <= 2, the denominator would be 0 or negative, so treat as 0
+            if (n1 == n2 || n1 + n2 <= 2) {
                 asymmetry = 0.0;
             } else {
-                asymmetry = (double) Math.abs(tipCounts.get(0) - tipCounts.get(1)) / (tipCounts.get(0) + tipCounts.get(1) - 2);
+                asymmetry = (double) Math.abs(n1 - n2) / (n1 + n2 - 2);
             }
             resultList.add(asymmetry);
         }
@@ -2168,6 +2209,8 @@ public class TreeStatistics extends ContextCommand {
      * @return the set of terminal points
      */
     public Set<PointInImage> getTips() {
+        // Return cached tips if available
+        if (tips != null) return tips;
 
         // retrieve all start/end points
         tips = new HashSet<>();
@@ -2479,6 +2522,7 @@ public class TreeStatistics extends ContextCommand {
         primaryBranches = null;
         innerBranches = null;
         terminalBranches = null;
+        allBranches = null;
         tips = null;
         table = null;
         lastDstats = null;
@@ -2509,7 +2553,7 @@ public class TreeStatistics extends ContextCommand {
             if (sStatistics != null) sStatistics.addValue(Double.NaN);
             else dStatistics.addValue(Double.NaN);
         }
-    
+
         void addValue(final double value) {
             if (Double.isNaN(value)) return;
             if (sStatistics != null) sStatistics.addValue(value);

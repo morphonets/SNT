@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -24,7 +24,6 @@ package sc.fiji.snt.analysis;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -33,11 +32,9 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.jgrapht.Graphs;
-import org.jgrapht.graph.AsSubgraph;
 import org.jogamp.vecmath.Vector3d;
 
 import net.imagej.ImageJ;
@@ -93,8 +90,14 @@ public class StrahlerAnalyzer {
 			allNodes.add(node);
 		}
 
+		// Maps built during classification to avoid O(n²) re-filtering
+		final Map<Integer, Set<SWCPoint>> nodesByOrder = new HashMap<>();
+		final Map<Integer, Set<SWCPoint>> branchPointsByOrder = new HashMap<>();
+		final Map<Integer, Set<SWCPoint>> tipsByOrder = new HashMap<>();
+
 		SNTUtils.log("Assigning order labels...");
-		// NB: We must iterate over vertices in reverse order
+		// NB: We must iterate over vertices in reverse order (tips-to-root)
+		// so children are classified before parents
 		maxOrder = 1;
 		final ListIterator<SWCPoint> listIterator = allNodes.listIterator(allNodes.size());
 		while (listIterator.hasPrevious()) {
@@ -105,62 +108,69 @@ public class StrahlerAnalyzer {
 		}
 
 		// All vertices should have been visited at this point. Do a 2nd pass
-		// if not (perhaps ordering in graph.vertexSet() got scrambled?),
+		// if not (perhaps ordering in graph.vertexSet() got scrambled?)
 		assert unVisitedNodes.isEmpty();
 		while (!unVisitedNodes.isEmpty()) {
 			final ListIterator<SWCPoint> unvisitedIterator = unVisitedNodes.listIterator(unVisitedNodes.size());
 			while (unvisitedIterator.hasPrevious()) {
 				final SWCPoint node = unvisitedIterator.previous();
 				classifyNode(node);
-				if (node.v < 1)
+				if (node.v >= 1) // Fix: remove nodes that HAVE been visited
 					unvisitedIterator.remove();
 			}
 		}
 		SNTUtils.log("Max order: " + maxOrder);
 
+		// Single pass to build all order-based maps and identify branch points/tips
+		SNTUtils.log("Building order maps...");
+		for (final SWCPoint node : graph.vertexSet()) {
+			final int order = (int) node.v;
+			nodesByOrder.computeIfAbsent(order, k -> new HashSet<>()).add(node);
+
+			final int outDegree = graph.outDegreeOf(node);
+			if (outDegree > 1) {
+				branchPointsByOrder.computeIfAbsent(order, k -> new HashSet<>()).add(node);
+			} else if (outDegree == 0) {
+				tipsByOrder.computeIfAbsent(order, k -> new HashSet<>()).add(node);
+			}
+		}
+
+		// Single pass over edges to compute cable length per order
+		SNTUtils.log("Computing cable lengths...");
+		final Map<Integer, Double> cableLengthByOrder = new HashMap<>();
+		for (final SWCWeightedEdge edge : graph.edgeSet()) {
+			final SWCPoint source = graph.getEdgeSource(edge);
+			final SWCPoint target = graph.getEdgeTarget(edge);
+			// Edge belongs to the order of both endpoints (they should match for intra-order edges)
+			if ((int) source.v == (int) target.v) {
+				final int order = (int) source.v;
+				cableLengthByOrder.merge(order, graph.getEdgeWeight(edge), Double::sum);
+			}
+		}
+
 		SNTUtils.log("Assembling maps...");
-		IntStream.rangeClosed(1, maxOrder).forEach(order -> {
+		for (int order = 1; order <= maxOrder; order++) {
+			// Cable length
+			tLengthMap.put(order, cableLengthByOrder.getOrDefault(order, 0.0));
 
-			final Set<SWCPoint> nodes = graph.vertexSet().stream() //
-					.filter(node -> node.v == order) // include only those of this order
-					.collect(Collectors.toCollection(HashSet::new)); // collect output in new list
+			// Branch points count
+			final Set<SWCPoint> bps = branchPointsByOrder.getOrDefault(order, Collections.emptySet());
+			bPointsMap.put(order, (double) bps.size());
 
-			// now measure the group
-			final AsSubgraph<SWCPoint, SWCWeightedEdge> subGraph = new AsSubgraph<>(
-					graph, nodes);
-
-			// Total length
-			double cableLength = 0;
-			for (final SWCWeightedEdge edge : subGraph.edgeSet()) {
-				cableLength += subGraph.getEdgeWeight(edge);
-			}
-			tLengthMap.put(order, cableLength);
-
-			// # N Branch Points
-			double nBPs = 0;
-			for (final SWCPoint node : subGraph.vertexSet()) {
-				if (graph.outDegreeOf(node) > 1) {
-					nBPs++;
-				}
-			}
-			bPointsMap.put(order, nBPs);
-
-			// # N. branches
-			ArrayList<Path>branches = new ArrayList<>();
+			// Build branches from relevant nodes (branch points + tips)
 			final LinkedHashSet<SWCPoint> relevantNodes = new LinkedHashSet<>();
-			relevantNodes.addAll(subGraph.vertexSet().stream()
-					.filter(v -> graph.outDegreeOf(v) > 1).collect(Collectors.toCollection(HashSet::new)));
-			relevantNodes.addAll(subGraph.vertexSet().stream()
-					.filter(v -> graph.outDegreeOf(v) == 0).collect(Collectors.toCollection(HashSet::new)));
-			
-			for (SWCPoint subGraphNode : relevantNodes) {
-				Path p = getPathToFirstRelevantAncestor(subGraphNode);
+			relevantNodes.addAll(bps);
+			relevantNodes.addAll(tipsByOrder.getOrDefault(order, Collections.emptySet()));
+
+			final ArrayList<Path> branches = new ArrayList<>();
+			for (final SWCPoint relevantNode : relevantNodes) {
+				final Path p = getPathToFirstRelevantAncestor(relevantNode);
 				if (p.size() > 1) branches.add(p);
 			}
-			
-			nBranchesMap.put(order, (double)branches.size());
+
+			nBranchesMap.put(order, (double) branches.size());
 			branchesMap.put(order, branches);
-		});
+		}
 	}
 
 	private void classifyNode(final SWCPoint node) {
@@ -169,16 +179,22 @@ public class StrahlerAnalyzer {
 		if (degree == 0) {
 			order = 1;
 		} else if (degree == 1) {
-			order = (int) Graphs.successorListOf(graph, node).get(0).v;
-		} else if (degree > 1) {
+			order = (int) Graphs.successorListOf(graph, node).getFirst().v;
+		} else {
+			// degree > 1: find highest order and its frequency in single pass
 			final List<SWCPoint> children = Graphs.successorListOf(graph, node);
-			final int highestOrder = (int) Collections.max(children, Comparator.comparing(n -> (int) n.v)).v;
-			final long highestOrderFreq = children.stream().filter(c -> (int) c.v == highestOrder).count();
-			if (highestOrderFreq == 1L)
-				order = highestOrder;
-			else if (highestOrderFreq > 1L) {
-				order = highestOrder + 1;
+			int highestOrder = 0;
+			int highestOrderFreq = 0;
+			for (final SWCPoint child : children) {
+				final int childOrder = (int) child.v;
+				if (childOrder > highestOrder) {
+					highestOrder = childOrder;
+					highestOrderFreq = 1;
+				} else if (childOrder == highestOrder) {
+					highestOrderFreq++;
+				}
 			}
+			order = (highestOrderFreq >= 2) ? highestOrder + 1 : highestOrder;
 		}
 		if (order > maxOrder) maxOrder = order;
 		node.v = order;
@@ -191,30 +207,31 @@ public class StrahlerAnalyzer {
 		if (graph == null) compute();
 		return graph;
 	}
-	
+
 	private Path getPathToFirstRelevantAncestor(SWCPoint startVertex) {
 		Path path = startVertex.getPath().createPath();
 		path.setOrder((int) startVertex.v);
 		SWCPoint currentVertex = startVertex;
 
-		List<SWCPoint> reversed = new ArrayList<>();
-		reversed.add(0, currentVertex);
-		
+		List<SWCPoint> ancestors = new ArrayList<>();
+		ancestors.add(currentVertex);
+
 		while (Graphs.vertexHasPredecessors(graph, currentVertex)) {
-			currentVertex = Graphs.predecessorListOf(graph,  currentVertex).get(0);
-			reversed.add(0, currentVertex);
+			currentVertex = Graphs.predecessorListOf(graph,  currentVertex).getFirst();
+			ancestors.add(currentVertex);
 			if (graph.outDegreeOf(currentVertex) > 1) {
 				break;
 			}
 		}
 
-		for (SWCPoint point : reversed) {
-			path.addNode(point);
+		// Iterate in reverse to add nodes root-to-tip
+		for (int i = ancestors.size() - 1; i >= 0; i--) {
+			path.addNode(ancestors.get(i));
 		}
-		
+
 		// Store the mapping between branch and its start vertex
 		branchStartMap.put(path, startVertex);
-		
+
 		return path;
 	}
 
@@ -248,7 +265,7 @@ public class StrahlerAnalyzer {
 	public Map<Integer, Double> getAvgFragmentations() {
 		final Map<Integer, Double> fragMap = new TreeMap<>();
 		getBranches().forEach( (order, branches) -> {
-			final double nNodes = branches.stream().mapToInt(branch -> branch.size()).sum();
+			final double nNodes = branches.stream().mapToInt(Path::size).sum();
 			fragMap.put(order, (branches.isEmpty()) ? Double.NaN : nNodes/branches.size());
 		});
 		return fragMap;
@@ -350,14 +367,7 @@ public class StrahlerAnalyzer {
 		if (mappedNodes == null || mappedNodes.isEmpty()) {
 			compute();
 			for (final SWCPoint node : graph.vertexSet()) {
-				List<SWCPoint> list = mappedNodes.get((int) node.v);
-				if (list == null) {
-					list = new ArrayList<>();
-					list.add(node);
-					mappedNodes.put((int) node.v, list);
-				} else {
-					mappedNodes.get((int) node.v).add(node);
-				}
+				mappedNodes.computeIfAbsent((int) node.v, k -> new ArrayList<>()).add(node);
 			}
 		}
 		return mappedNodes;
@@ -377,7 +387,7 @@ public class StrahlerAnalyzer {
 
 	/**
 	 * Gets a map of relative extension angles for all branches in each Strahler order.
-	 * 
+	 *
 	 * @return map with Strahler order as key and list of relative extension angles as values
 	 */
 	public Map<Integer, List<Double>> getExtensionAngles(final boolean relative) {
@@ -410,7 +420,7 @@ public class StrahlerAnalyzer {
 
 	/**
 	 * Gets the average relative extension angle for branches of a specific Strahler order.
-	 * 
+	 *
 	 * @param order the Strahler order
 	 * @return the average relative extension angle in degrees, or Double.NaN if no valid angles
 	 * @throws IllegalArgumentException if order is invalid
@@ -428,7 +438,7 @@ public class StrahlerAnalyzer {
 
 	/**
 	 * Gets a map of average relative extension angles for all Strahler orders.
-	 * 
+	 *
 	 * @return map with Strahler order as key and average relative extension angle as value
 	 */
 	public Map<Integer, Double> getAvgExtensionAngles(final boolean relative) {
@@ -450,26 +460,26 @@ public class StrahlerAnalyzer {
 		if (branch.size() < 2) {
 			return Double.NaN;
 		}
-		
+
 		// Get the branch's direction vector
 		final Vector3d branchDirection = branch.getExtensionDirection3D();
 		if (branchDirection == null) {
 			return Double.NaN;
 		}
-		
+
 		// Get the branch start vertex from our mapping
 		final SWCPoint branchStart = branchStartMap.get(branch);
-		
+
 		if (branchStart == null) {
 			return Double.NaN;
 		}
-		
+
 		// Get the parent direction by finding the predecessor path
 		final Vector3d parentDirection = getParentDirection(branchStart, graph);
 		if (parentDirection == null) {
 			return Double.NaN;
 		}
-		
+
 		// Use the existing method to compute angle between directions
 		return branch.getExtensionAngle3D(parentDirection);
 	}
@@ -483,33 +493,33 @@ public class StrahlerAnalyzer {
 		if (predecessors.isEmpty()) {
 			return null; // This is a root, no parent
 		}
-		
+
 		// Trace back to get enough points to compute direction
 		final List<SWCPoint> parentSegment = new ArrayList<>();
-		SWCPoint current = predecessors.get(0); // Take the first (should be only one) predecessor
-		
+		SWCPoint current = predecessors.getFirst(); // Take the first (should be only one) predecessor
+
 		// Collect points going backwards until we have enough or hit a branch point
 		while (current != null && parentSegment.size() < 10) { // Use up to 10 points for direction
-			parentSegment.add(0, current); // Add to beginning of list
-			
+			parentSegment.addFirst(current); // Add to beginning of list
+
 			final List<SWCPoint> currentPredecessors = Graphs.predecessorListOf(graph, current);
 			if (currentPredecessors.isEmpty()) {
 				break; // Reached root
 			}
-			
-			current = currentPredecessors.get(0);
-			
+
+			current = currentPredecessors.getFirst();
+
 			// Stop if we hit another branch point (more than one successor)
 			if (graph.outDegreeOf(current) > 1) {
-				parentSegment.add(0, current);
+				parentSegment.addFirst(current);
 				break;
 			}
 		}
-		
+
 		if (parentSegment.size() < 2) {
 			return null; // Not enough points to compute direction
 		}
-		
+
 		// Compute direction using linear regression (same approach as Path.getExtensionDirection3D)
 		return computeDirectionFromPoints(parentSegment);
 	}
@@ -548,7 +558,7 @@ public class StrahlerAnalyzer {
 			System.out.println("# B. ratio order " + order + ": " + ratio);
 		});
 		System.out.println("# Avg B. ratio: " + analyzer.getAvgBifurcationRatio());
-		
+
 		// Demonstrate new relative extension angle functionality
 		System.out.println("\n--- Relative Extension Angles ---");
 		analyzer.getAvgExtensionAngles(true).forEach((order, avgAngle) -> {
@@ -580,10 +590,10 @@ public class StrahlerAnalyzer {
 			});
 		}
 	}
-	
+
 	/**
 	 * Gets statistics about the internal mappings for debugging purposes.
-	 * 
+	 *
 	 * @return map containing mapping statistics
 	 */
 	private Map<String, Integer> getMappingStatistics() {
