@@ -526,7 +526,7 @@ class QueueJumpingKeyListener implements KeyListener {
 				case 'l', 'L' -> canvas.toggleEditingNode(true);
 				case 'm', 'M' -> canvas.moveEditingNodeToLastCanvasPosition(false);
 				case 'b', 'B' -> canvas.assignLastCanvasZPositionToEditNode(false);
-				case 'c', 'C' -> canvas.connectEditingPathToPreviousEditingPath(false);
+				case 'c', 'C' -> canvas.connectEditingPathToPreviousEditingPath(true);
 				case 'x', 'X' -> canvas.splitTreeAtEditingNode(false);
 				case 'v', 'V' -> canvas.clickAtMaxPoint(false);
 			}

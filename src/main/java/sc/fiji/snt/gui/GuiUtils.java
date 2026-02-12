@@ -357,7 +357,7 @@ public class GuiUtils {
 
 	private int yesNoDialog(final Object[] components, final String title, final String[] buttonLabels) {
 		final JOptionPane optionPane = new JOptionPane(components, JOptionPane.QUESTION_MESSAGE,
-				JOptionPane.YES_NO_OPTION, null, buttonLabels);
+				JOptionPane.YES_NO_OPTION, null, buttonLabels, (buttonLabels==null) ? null : buttonLabels[0]);
 		final JDialog d = optionPane.createDialog(parent, title);
 		makeVisible(d, true);
 		d.dispose();

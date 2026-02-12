@@ -41,14 +41,11 @@ import sc.fiji.snt.tracing.artist.SearchArtist;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
+import java.util.*;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A canvas that allows interactive tracing of paths.
@@ -81,6 +78,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
     protected static String EDIT_MODE_LABEL = "Edit Mode";
     protected static String SNT_PAUSED_LABEL = "SNT Paused";
     protected static String TRACING_PAUSED_LABEL = "Tracing Paused";
+
+    // Preview path for connection visualization
+    private Path connectionPreview;
 
     /* fixes for 'failed' clicks, see https://forum.image.sc/t/snt-mouse-clicks-often-fail-when-tracing/115544 */
     private int pressedX, pressedY;
@@ -300,56 +300,28 @@ class InteractiveTracerCanvas extends TracerCanvas {
             return;
         }
 
-        if (showDialog) {
-            // Analyze connection and build prompt
-            final int childNodeIdx = childPath.getEditableNodeIndex();
-            final int parentNodeIdx = parentPath.getEditableNodeIndex();
-            final boolean childAtStart = childNodeIdx == 0;
-            final boolean childAtEnd = childNodeIdx == childPath.size() - 1;
-            final boolean childAtEndpoint = childAtStart || childAtEnd;
+        // Get connection points
+        final int childNodeIdx = childPath.getEditableNodeIndex();
+        final int parentNodeIdx = parentPath.getEditableNodeIndex();
+        final PointInImage childPoint = childPath.getNode(childNodeIdx);
+        final PointInImage parentPoint = parentPath.getNode(parentNodeIdx);
 
-            // Build detailed prompt
-            final StringBuilder msgBuilder = new StringBuilder("<HTML>");
-            msgBuilder.append("<b>Connection Summary:</b><br>");
-            msgBuilder.append("<b>Parent:</b> ").append(StringUtils.abbreviate(parentPath.getName(), 30));
-            msgBuilder.append(" (branch at node #").append(parentNodeIdx).append(")<br>");
-            msgBuilder.append("<b>Child:</b> ").append(StringUtils.abbreviate(childPath.getName(), 30));
-            msgBuilder.append(" (connect from node #").append(childNodeIdx).append(")<br>");
-            if (!childAtEndpoint && childPath.size() > 2) { // inform if not at endpoint
-                msgBuilder.append("<b>Note:</b> Child connects from a mid-path node<br>");
-            }
-            msgBuilder.append("<br>"); // spacer
+        // Create preview path from parent to child (showing direction of connection)
+        connectionPreview = new Path(tracerPlugin.x_spacing, tracerPlugin.y_spacing,
+                tracerPlugin.z_spacing, tracerPlugin.spacing_units);
+        connectionPreview.addNode(parentPoint);
+        connectionPreview.addNode(childPoint);
 
-            // Show dialog with checkbox for swapping
-            final boolean[] result = getGuiUtils().getConfirmationAndOption(
-                    msgBuilder.toString(), // message
-                    "Connect Paths", // title
-                    "Swap parent ↔ child", // checkbox label
-                    false,  // checkbox default: don't swap
-                    new String[]{"Connect", "Cancel"}); // yes, no button labels
+        // Enable direction arrows and repaint to show preview
+        final boolean previousArrowState = PathNodeCanvas.isShowDirectionArrows();
+        PathNodeCanvas.setShowDirectionArrows(true);
+        tracerPlugin.updateTracingViewers(false);
 
-            if (result == null || !result[0]) {
-                return; // user dismissed, or chose "Cancel"
-            }
-
-            if (result[1]) { // Swap if requested
-                final Path temp = childPath;
-                childPath = parentPath;
-                parentPath = temp;
-                // Re-check loop with swapped roles
-                if (wouldCreateLoop(childPath, parentPath)) {
-                    getGuiUtils().error("Cannot connect with swapped parent ↔ child: A loop would be created!",
-                            "Reconstruction Cannot Contain Loops");
-                    return;
-                }
-            }
-        } else {
-            // Auto-swap heuristics for power users (keyboard shortcut)
+        try {
+            // Auto-swap heuristics
             boolean shouldSwap = false;
-
             final int childMaxOrder = TreeUtils.getMaxOrder(childPath);
             final int parentMaxOrder = TreeUtils.getMaxOrder(parentPath);
-
             if (childMaxOrder != parentMaxOrder) {
                 // Deeper tree (higher max order) is likely the main structure
                 shouldSwap = childMaxOrder > parentMaxOrder;
@@ -358,18 +330,58 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 shouldSwap = childPath.size() > parentPath.size();
             }
 
-            if (shouldSwap) {
-                final Path temp = childPath;
-                childPath = parentPath;
-                parentPath = temp;
-                if (wouldCreateLoop(childPath, parentPath)) {
-                    getGuiUtils().error("Cannot connect: A loop would be created!",
-                            "Reconstruction Cannot Contain Loops");
-                    return;
+            if (showDialog) {
+                // Analyze connection for prompt
+                final boolean childAtStart = childNodeIdx == 0;
+                final boolean childAtEnd = childNodeIdx == childPath.size() - 1;
+                final boolean childAtEndpoint = childAtStart || childAtEnd;
+
+                // Build detailed prompt
+                final StringBuilder msgBuilder = new StringBuilder("<HTML>");
+                msgBuilder.append("<b>Connection Summary:</b><br>");
+                msgBuilder.append("<b>Parent:</b> ").append(StringUtils.abbreviate(parentPath.getName(), 30));
+                msgBuilder.append(" (branch at node #").append(parentNodeIdx).append(")<br>");
+                msgBuilder.append("<b>Child:</b> ").append(StringUtils.abbreviate(childPath.getName(), 30));
+                msgBuilder.append(" (connect from node #").append(childNodeIdx).append(")<br>");
+                if (!childAtEndpoint && childPath.size() > 2) {
+                    msgBuilder.append("<b>Note:</b> Child connects from a mid-path node<br>");
+                }
+                msgBuilder.append("<br>");
+
+                // Show dialog with checkbox for swapping
+                final boolean[] result = getGuiUtils().getConfirmationAndOption(
+                        msgBuilder.toString(),
+                        "Connect Paths",
+                        "Swap parent ↔ child",
+                        shouldSwap,
+                        new String[]{"Connect", "Cancel"});
+
+                if (result == null || !result[0]) {
+                    return; // User cancelled
+                }
+
+                if (result[1]) { // Swap if requested
+                    final Path temp = childPath;
+                    childPath = parentPath;
+                    parentPath = temp;
+                    if (wouldCreateLoop(childPath, parentPath)) {
+                        getGuiUtils().error("Cannot connect with swapped parent ↔ child: A loop would be created!",
+                                "Reconstruction Cannot Contain Loops");
+                        return;
+                    }
                 }
             }
+            connectionPreview = null; // Clear preview before executing connection to avoid duplicate rendering
+            connectToEditingPath(childPath, parentPath);
+            // Trigger UI refresh to show updated hierarchy
+            if (tracerPlugin.getUI() != null)
+                tracerPlugin.getUI().getPathManager().setPathList(null, null, false);
+        } finally {
+            // Always restore state and clear preview (in case of early return)
+            connectionPreview = null;
+            PathNodeCanvas.setShowDirectionArrows(previousArrowState);
+            tracerPlugin.updateAllViewers();
         }
-        connectToEditingPath(childPath, parentPath);
     }
 
     /**
@@ -425,124 +437,152 @@ class InteractiveTracerCanvas extends TracerCanvas {
             final boolean childAtEnd = childNodeIdx == child.size() - 1;
             final boolean childAtSlab = !childAtStart && !childAtEnd && child.size() > 2;
 
-            // If child node is a slab, we need to split the child path at that point
-            // to create proper T-junction topology
-            Path childSegment1 = null;  // portion from start to slab node
-            Path childSegment2 = null;  // portion from slab node to end
-
-            if (childAtSlab) {
-                // Split child path at the selected slab node
-                // Segment 1: nodes [0, childNodeIdx]
-                childSegment1 = child.createPath();
-                for (int i = 0; i <= childNodeIdx; i++) {
-                    childSegment1.addNode(child.getNode(i));
-                }
-                childSegment1.setName(child.getName() + " (part 1)");
-
-                // Segment 2: nodes [childNodeIdx, end]
-                childSegment2 = child.createPath();
-                for (int i = childNodeIdx; i < child.size(); i++) {
-                    childSegment2.addNode(child.getNode(i));
-                }
-                childSegment2.setName(child.getName() + " (part 2)");
-            }
-
-            // Check if points are spatially close enough
-            final double distance = childPoint.distanceTo(parentPoint);
-            final double threshold = tracerPlugin.getMinimumSeparation() * 2;
-
-            // Determine which path(s) to work with
-            final Path primaryChild = childAtSlab ? childSegment1 : child;
-
-            // If points are far apart, insert a connecting node
-            if (distance > threshold) {
-                final PointInImage connectionPoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
-
-                if (childAtSlab) {
-                    // For slab node, insert connection point at the end of segment1 (the slab node end)
-                    // The slab node is already at the end of segment1, so insert before it
-                    childSegment1.insertNode(childSegment1.size() - 1, connectionPoint);
-                } else if (childAtStart) {
-                    primaryChild.insertNode(0, connectionPoint);
-                } else if (childAtEnd) {
-                    primaryChild.addNode(connectionPoint);
-                }
-            }
-
-            // Get connected components
-            final Tree parentTree = TreeUtils.getConnectedTree(parent);
-
-            // Build the child tree - if split, we need to handle both segments
-            Tree childTree;
-            if (childAtSlab) {
-                // Create a mini-tree with both segments connected at the slab node
-                // Segment1's end connects to parent, segment2 branches from segment1's end
-                childTree = new Tree();
-                childTree.add(childSegment1);
-                childTree.add(childSegment2);
-                // Set segment2 as child of segment1 at the junction point
-                final PointInImage junctionPoint = childSegment1.lastNode();
-                childSegment2.setBranchFrom(childSegment1, junctionPoint);
-            } else {
-                childTree = TreeUtils.getConnectedTree(primaryChild);
-            }
-
-            final DirectedWeightedGraph parentGraph = new DirectedWeightedGraph(parentTree, false);
-            Graphs.addGraph(parentGraph, new DirectedWeightedGraph(childTree, false));
-
-            final SWCPoint parentNode = getMatchingPointInGraph(parent.getNode(parentNodeIdx), parentGraph);
-
-            // Find the connection point on the child side
-            final SWCPoint childConnectionNode;
-            if (childAtSlab) {
-                // Connect to the junction point (end of segment1, which is the slab node)
-                childConnectionNode = getMatchingPointInGraph(childSegment1.lastNode(), parentGraph);
-            } else if (childAtStart) {
-                childConnectionNode = getMatchingPointInGraph(primaryChild.firstNode(), parentGraph);
-            } else {
-                childConnectionNode = getMatchingPointInGraph(primaryChild.lastNode(), parentGraph);
-            }
-
-            // Add edge from parent node to child connection node
-            parentGraph.addEdge(parentNode, childConnectionNode);
-
-            // Set root and rebuild tree structure
-            final PointInImage parentRoot = parentTree.getRoot();
-            parentGraph.setRoot(getMatchingPointInGraph(parentRoot, parentGraph));
-
-            final Tree newTree = parentGraph.getTreeWithSamePathStructure();
-            tracerPlugin.setEditingPath(null);
-
-            final Calibration cal = tracerPlugin.getCalibration();
-            newTree.list().forEach(p -> p.setSpacing(cal));
-
             final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
             pathAndFillManager.enableUIupdates = false;
 
-            // Delete original paths
-            pathAndFillManager.deletePaths(parentTree.list());
+            final Calibration cal = tracerPlugin.getCalibration();
+
             if (childAtSlab) {
-                // Delete original child (not the segments, they weren't added yet)
-                pathAndFillManager.deletePath(child);
+                // T-JUNCTION: Split child path and handle directly without graph transformation
+                connectWithTJunction(child, parent, childNodeIdx, parentNodeIdx, parentPoint, cal);
             } else {
-                pathAndFillManager.deletePaths(childTree.list());
+                // ENDPOINT CONNECTION: Use direct path manipulation
+                connectAtEndpoint(child, parent, childNodeIdx, childAtStart, parentNodeIdx, parentPoint, cal);
             }
 
-            // Add new paths
-            newTree.list().forEach(p -> pathAndFillManager.addPath(p, false, true));
-
-            SNTUtils.log("Finished merge in " + (System.currentTimeMillis() - start) + "ms");
+            tracerPlugin.setEditingPath(null);
+            SNTUtils.log("Finished connection in " + (System.currentTimeMillis() - start) + "ms");
             pathAndFillManager.enableUIupdates = existingEnableUiUpdates;
 
         } catch (final IllegalArgumentException e) {
             getGuiUtils().error(
-                    "Cannot connect these paths. The operation would violate tree structure rules:<br><br>" +
-                            "<i>" + e.getMessage() + "</i><br><br>" +
-                            "Tips:<ul>" +
-                            "<li>Select the parent path first (it becomes the branch point)</li>" +
-                            "<li>Then select the child path (it will be attached)</li>" +
-                            "<li>Use the 'Swap parent ↔ child' option if needed</li></ul>",
-                    "Invalid Connection");
+                    "<HTML>Cannot connect these paths:<br><br>" +
+                            "<i>" + e.getMessage() + "</i>",
+                    "Connection Failed");
+        }
+    }
+
+    /**
+     * Connects child path to parent at an endpoint (start or end of child).
+     */
+    private void connectAtEndpoint(final Path child, final Path parent,
+                                   final int childNodeIdx, final boolean childAtStart,
+                                   final int parentNodeIdx, final PointInImage parentPoint,
+                                   final Calibration cal) {
+
+        // Check if we need to reverse the child to connect from its start
+        Path childToConnect = child;
+        if (!childAtStart) {
+            // Child connects from end - reverse it so it connects from start
+            childToConnect = child.reversed();
+
+            // Transfer children with updated branch points
+            for (final Path grandchild : new ArrayList<>(child.getChildren())) {
+                final int oldBranchIdx = grandchild.getBranchPointIndex();
+                final int newBranchIdx = child.size() - 1 - oldBranchIdx;
+                grandchild.detachFromParent();
+                grandchild.setBranchFrom(childToConnect, childToConnect.getNode(newBranchIdx));
+            }
+
+            // Remove original and add reversed
+            pathAndFillManager.deletePath(child);
+            pathAndFillManager.addPath(childToConnect, true, true);
+        }
+
+        // Check if we need a bridging node
+        final double distance = childToConnect.firstNode().distanceTo(parentPoint);
+        final double threshold = tracerPlugin.getMinimumSeparation() * 2;
+        if (distance > threshold) {
+            // Insert bridging node at start of child
+            final PointInImage bridgePoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
+            childToConnect.insertNode(0, bridgePoint);
+        }
+
+        // Connect child to parent
+        childToConnect.setBranchFrom(parent, parent.getNode(parentNodeIdx));
+        // Update tree ID to match parent's tree
+        childToConnect.setIDs(childToConnect.getID(), parent.getTreeID());
+        // Also update any grandchildren's tree IDs
+        for (final Path gc : childToConnect.getChildren()) {
+            gc.setIDs(gc.getID(), parent.getTreeID());
+        }
+    }
+
+    /**
+     * Connects child path to parent by splitting child at a mid-path node (T-junction).
+     */
+    private void connectWithTJunction(final Path child, final Path parent,
+                                      final int childNodeIdx, final int parentNodeIdx,
+                                      final PointInImage parentPoint, final Calibration cal) {
+
+        // Store children info before we modify anything
+        final List<Path> grandchildren = new ArrayList<>(child.getChildren());
+        final Map<Path, Integer> grandchildBranchIndices = new HashMap<>();
+        for (final Path gc : grandchildren) {
+            grandchildBranchIndices.put(gc, gc.getBranchPointIndex());
+            gc.detachFromParent();
+        }
+
+        // Create segment 1: nodes [0, childNodeIdx]
+        final Path segment1 = child.createPath();
+        for (int i = 0; i <= childNodeIdx; i++) {
+            segment1.addNode(child.getNode(i));
+        }
+        // Create segment 2: nodes [childNodeIdx, end] - includes junction node for continuity
+        Path segment2 = null;
+        if (childNodeIdx < child.size() - 1) {
+            segment2 = child.createPath();
+            for (int i = childNodeIdx; i < child.size(); i++) {
+                segment2.addNode(child.getNode(i));
+            }
+        }
+
+        // Check if we need a bridging node for the connection to parent
+        final PointInImage junctionPoint = segment1.lastNode();
+        final double distance = junctionPoint.distanceTo(parentPoint);
+        final double threshold = tracerPlugin.getMinimumSeparation() * 2;
+        if (distance > threshold) {
+            // Add bridging node at the END of segment1 (after junction point)
+            // This extends segment1 toward the parent
+            final PointInImage bridgePoint = new PointInImage(parentPoint.x, parentPoint.y, parentPoint.z);
+            segment1.addNode(bridgePoint);
+        }
+
+        // Delete original child path
+        pathAndFillManager.deletePath(child);
+
+        // Add segment1 and connect it to parent
+        pathAndFillManager.addPath(segment1, true, true);
+        segment1.setBranchFrom(parent, parent.getNode(parentNodeIdx));
+        // Update tree ID to match parent's tree
+        segment1.setIDs(segment1.getID(), parent.getTreeID());
+
+        // Add segment2 and connect it to segment1 at the junction (before the bridge if present)
+        if (segment2 != null) {
+            pathAndFillManager.addPath(segment2, true, true);
+            // segment2 branches from segment1 at the junction point
+            // The junction is at index childNodeIdx in segment1 (which has nodes 0..childNodeIdx, possibly + bridge)
+            segment2.setBranchFrom(segment1, segment1.getNode(childNodeIdx));
+            segment2.setIDs(segment2.getID(), parent.getTreeID());
+        }
+
+        // Reassign grandchildren to appropriate segment
+        final int parentTreeID = parent.getTreeID();
+        for (final Path gc : grandchildren) {
+            final int origBranchIdx = grandchildBranchIndices.get(gc);
+
+            if (origBranchIdx <= childNodeIdx) {
+                // Grandchild branches from segment1 portion
+                // Index in segment1 is same as original
+                gc.setBranchFrom(segment1, segment1.getNode(origBranchIdx));
+            } else if (segment2 != null) {
+                // Grandchild branches from segment2 portion
+                // Index in segment2: origBranchIdx - childNodeIdx (since segment2 starts at childNodeIdx)
+                final int newIdx = origBranchIdx - childNodeIdx;
+                gc.setBranchFrom(segment2, segment2.getNode(newIdx));
+            }
+            // Update tree ID to match parent's tree
+            gc.setIDs(gc.getID(), parentTreeID);
         }
     }
 
@@ -987,6 +1027,10 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
         if (editMode && tracerPlugin.getEditingPath() != null) {
             redrawEditingPath(g);
+            if (connectionPreview != null) { // Draw connection preview if active
+                connectionPreview.drawPathAsPoints(this, g, getAnnotationsColor(),
+                        plane, false, sliceZeroIndexed, eitherSideParameter);
+            }
             return; // no need to proceed: only editing path has been updated
         }
 
@@ -997,7 +1041,6 @@ class InteractiveTracerCanvas extends TracerCanvas {
             unconfirmedSegment.drawPathAsPoints(this, g, getUnconfirmedPathColor(),
                     plane, drawDiametersXY, sliceZeroIndexed, eitherSideParameter);
         }
-
 
         final Path currentPathFromTracer = tracerPlugin.getCurrentPath();
 
