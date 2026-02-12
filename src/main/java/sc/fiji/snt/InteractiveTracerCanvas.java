@@ -281,6 +281,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         // Validate preconditions
         if (!editMode || //
                 tracerPlugin.getEditingPath() == null || //
+                tracerPlugin.getEditingPath().getEditableNodeIndex() == -1 || //
                 tracerPlugin.getPreviousEditingPath() == null || //
                 tracerPlugin.getPreviousEditingPath().getEditableNodeIndex() == -1) //
         {
@@ -306,11 +307,22 @@ class InteractiveTracerCanvas extends TracerCanvas {
         final PointInImage childPoint = childPath.getNode(childNodeIdx);
         final PointInImage parentPoint = parentPath.getNode(parentNodeIdx);
 
-        // Create preview path from parent to child (showing direction of connection)
+        /// Create preview path from parent to child (showing direction of connection)
+        // Use canvas (unscaled) coordinates to avoid offset issues between paths
+        final PointInCanvas parentUnscaled = parentPath.getUnscaledNodes().get(parentNodeIdx);
+        final PointInCanvas childUnscaled = childPath.getUnscaledNodes().get(childNodeIdx);
+
         connectionPreview = new Path(tracerPlugin.x_spacing, tracerPlugin.y_spacing,
                 tracerPlugin.z_spacing, tracerPlugin.spacing_units);
-        connectionPreview.addNode(parentPoint);
-        connectionPreview.addNode(childPoint);
+        // Convert canvas coords back to world coords for the preview (with zero offset)
+        connectionPreview.addNode(new PointInImage(
+                parentUnscaled.x * tracerPlugin.x_spacing,
+                parentUnscaled.y * tracerPlugin.y_spacing,
+                parentUnscaled.z * tracerPlugin.z_spacing));
+        connectionPreview.addNode(new PointInImage(
+                childUnscaled.x * tracerPlugin.x_spacing,
+                childUnscaled.y * tracerPlugin.y_spacing,
+                childUnscaled.z * tracerPlugin.z_spacing));
 
         // Enable direction arrows and repaint to show preview
         final boolean previousArrowState = PathNodeCanvas.isShowDirectionArrows();
@@ -470,6 +482,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
                                    final int parentNodeIdx, final PointInImage parentPoint,
                                    final Calibration cal) {
 
+        // Sync canvas offset before any operations
+        TreeUtils.syncCanvasOffset(child, parent);
+
         // Check if we need to reverse the child to connect from its start
         Path childToConnect = child;
         if (!childAtStart) {
@@ -514,6 +529,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
     private void connectWithTJunction(final Path child, final Path parent,
                                       final int childNodeIdx, final int parentNodeIdx,
                                       final PointInImage parentPoint, final Calibration cal) {
+
+        // Sync canvas offset before any operations
+        TreeUtils.syncCanvasOffset(child, parent);
 
         // Store children info before we modify anything
         final List<Path> grandchildren = new ArrayList<>(child.getChildren());

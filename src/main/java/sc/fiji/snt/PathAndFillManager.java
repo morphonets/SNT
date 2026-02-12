@@ -971,12 +971,28 @@ public class PathAndFillManager extends DefaultHandler implements
         }
     }
 
-    private void setSpacingUnitIfNoneExists(final String unit) {
+    private void setSpacingIfNoneExists(final Tree tree) {
         if (allPaths.isEmpty() && (plugin == null || !plugin.accessToValidImageData())) {
-            final String sUnit = SNTUtils.getSanitizedUnit(unit);
-            getBoundingBox(false).setUnit(sUnit);
-            spacing_units = sUnit;
-            if (plugin != null) plugin.spacing_units = sUnit;
+            // Get calibration from tree's first path
+            final Path refPath = (tree == null || tree.isEmpty()) ? null : tree.list().getFirst();
+            if (refPath != null) {
+                final Calibration cal = refPath.getCalibration();
+                x_spacing = cal.pixelWidth;
+                y_spacing = cal.pixelHeight;
+                z_spacing = cal.pixelDepth;
+                spacing_units = SNTUtils.getSanitizedUnit(cal.getUnit());
+            } else if (tree != null) {
+                // Fallback to tree properties for unit only
+                spacing_units = SNTUtils.getSanitizedUnit(
+                        tree.getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT));
+            }
+            getBoundingBox(false).setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
+            if (plugin != null) {
+                plugin.x_spacing = x_spacing;
+                plugin.y_spacing = y_spacing;
+                plugin.z_spacing = z_spacing;
+                plugin.spacing_units = spacing_units;
+            }
         }
     }
 
@@ -999,7 +1015,7 @@ public class PathAndFillManager extends DefaultHandler implements
      */
     public void addTree(final Tree tree, final String commonTag) {
         synchronized (this) {
-            setSpacingUnitIfNoneExists(tree.getProperties().getProperty(TreeProperties.KEY_SPATIAL_UNIT));
+            setSpacingIfNoneExists(tree);
             addTreeInternal(tree, commonTag);
             updateBoundingBox();
         }
@@ -1034,14 +1050,15 @@ public class PathAndFillManager extends DefaultHandler implements
      * @param commonTag a custom name tag to be applied to all Paths
      */
     public void addTrees(final Collection<Tree> trees, final String commonTag) {
+        final Tree firstTree = (trees.isEmpty()) ? null : trees.iterator().next();
         synchronized (this) {
-            setSpacingUnitIfNoneExists(getCommonUnit(trees));
+            setSpacingIfNoneExists(firstTree);
             trees.forEach(tree -> addTreeInternal(tree, commonTag));
             updateBoundingBox();
             checkForAppropriateImageDimensions();
         }
         // Notify listeners AFTER releasing lock to avoid deadlock with EDT
-        final Path firstPath = trees.isEmpty() ? null : trees.iterator().next().get(0);
+        final Path firstPath = (firstTree == null || firstTree.isEmpty()) ? null : firstTree.list().getFirst();
         resetListenersAfterDataChangingOperation(firstPath);
     }
 

@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.util;
 
+import ij.measure.Calibration;
 import org.jogamp.vecmath.Vector3d;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
@@ -862,4 +863,92 @@ public class TreeUtils {
         }
         return root;
     }
+
+    /**
+     * Applies the parent's canvas offset to the child path and all its descendants.
+     * This ensures paths are in the same coordinate space after connection.
+     * Node coordinates are transformed to maintain the same visual position.
+     */
+    public static void syncCanvasOffset(final Path child, final Path parent) {
+        final PointInCanvas parentOffset = parent.getCanvasOffset();
+        final PointInCanvas childOffset = child.getCanvasOffset();
+        // Skip if offsets are already the same
+        if (childOffset.isSameLocation(parentOffset)) {
+            return;
+        }
+        // Calculate the offset difference (in pixel/canvas units)
+        final Calibration cal = child.getCalibration();
+        final double dx = (childOffset.x - parentOffset.x) * cal.pixelWidth;
+        final double dy = (childOffset.y - parentOffset.y) * cal.pixelHeight;
+        final double dz = (childOffset.z - parentOffset.z) * cal.pixelDepth;
+        // Transform node coordinates and apply new offset recursively
+        applyCanvasOffsetRecursively(child, parentOffset, dx, dy, dz);
+    }
+
+    /**
+     * Recursively applies a canvas offset to a path and all its children,
+     * transforming node coordinates to maintain visual position.
+     */
+    private static void applyCanvasOffsetRecursively(final Path path, final PointInCanvas newOffset,
+                                                     final double dx, final double dy, final double dz) {
+        // Transform all node coordinates
+        for (int i = 0; i < path.size(); i++) {
+            final PointInImage node = path.getNode(i);
+            node.x += dx;
+            node.y += dy;
+            node.z += dz;
+        }
+        // Set new offset
+        path.setCanvasOffset(newOffset);
+        // Recurse to children
+        for (final Path child : path.getChildren()) {
+            applyCanvasOffsetRecursively(child, newOffset, dx, dy, dz);
+        }
+    }
+
+    /**
+     * Splits a tree with multiple primary paths into separate trees,
+     * one rooted at each primary path.
+     */
+    public static List<Tree> splitByPrimaryPaths(final Tree tree) {
+        // Find all primary paths
+        final List<Path> primaryPaths = new ArrayList<>();
+        for (final Path p : tree.list()) {
+            if (p.isPrimary()) {
+                primaryPaths.add(p);
+            }
+        }
+
+        if (primaryPaths.size() <= 1) {
+            // No split needed or possible
+            return Collections.singletonList(tree);
+        }
+
+        // For each primary path, collect it and all its descendants
+        final List<Tree> componentTrees = new ArrayList<>();
+        for (final Path primaryPath : primaryPaths) {
+            final Set<Path> componentPaths = new HashSet<>();
+            collectDescendants(primaryPath, tree, componentPaths);
+            if (!componentPaths.isEmpty()) {
+                componentTrees.add(new Tree(componentPaths));
+            }
+        }
+
+        return componentTrees;
+    }
+
+    /**
+     * Recursively collects a path and all paths that branch from it.
+     */
+    private static void collectDescendants(final Path path, final Tree tree, final Set<Path> collected) {
+        if (path == null || collected.contains(path)) return;
+        collected.add(path);
+        // Find all paths that have this path as their parent
+        for (final Path p : tree.list()) {
+            if (p.getParentPath() == path) {
+                collectDescendants(p, tree, collected);
+            }
+        }
+    }
+
 }

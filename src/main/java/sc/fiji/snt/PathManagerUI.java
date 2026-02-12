@@ -26,6 +26,7 @@ import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.TreeSearchable;
 import ij.ImagePlus;
 import ij.gui.Roi;
+import ij.measure.Calibration;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
 import org.scijava.command.CommandModule;
@@ -3307,6 +3308,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final int origId = firstPath.getID();
                 final int origTreeId = firstPath.getTreeID();
 
+                // Sync canvas offsets to first path
+                for (int i = 1; i < orderedPaths.size(); i++) {
+                    TreeUtils.syncCanvasOffset(orderedPaths.get(i), firstPath);
+                }
+
                 // Merge paths
                 final Path mergedPath = TreeUtils.mergePaths(orderedPaths, true);
                 if (mergedPath == null) {
@@ -4025,6 +4031,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
          * Performs the actual connection between parent and child paths.
          */
         private void performConnection(final Path parent, final Path child, final boolean reverseChild) {
+            // Sync canvas offset before any operations
+            TreeUtils.syncCanvasOffset(child, parent);
+
             // Detach child from current parent if needed
             if (child.getParentPath() != null) {
                 child.detachFromParent();
@@ -4099,6 +4108,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 // Use the first selected path as the base
                 final Path basePath = selectedPaths.getFirst();
                 final List<Path> pathsToMerge = new ArrayList<>(selectedPaths.subList(1, n));
+
+                // Sync canvas offsets to base path
+                for (final Path p : pathsToMerge) {
+                    TreeUtils.syncCanvasOffset(p, basePath);
+                }
 
                 // Collect all children that need reparenting
                 final List<Path> allChildren = new ArrayList<>();
@@ -4296,6 +4310,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 // Add the soma path
                 pathAndFillManager.addPath(newSoma, false, true);
 
+                // Sync canvas offsets of all primary paths to the new soma
+                for (final Path primaryPath : primaryPaths) {
+                    TreeUtils.syncCanvasOffset(primaryPath, newSoma);
+                }
+
                 // Create a copy of rootLocation for each path to avoid sharing the same object
                 // Now connect all paths to the new soma
                 for (final Path primaryPath : primaryPaths) {
@@ -4413,12 +4432,27 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     }
                     sb.append("</ul>");
 
-                    // Add orientation warning if present  // <-- NEW BLOCK
+                    // Add orientation warning if present
                     if (analysis.hasOrientationWarnings()) {
                         sb.append("<br><b>Orientation warning:</b> ")
                                 .append(analysis.misorientedPaths)
                                 .append(" path(s) may be pointing away from their tree root.<br>")
                                 .append("<i>Use Edit › Reverse... › \"Orient tree toward root\" to fix.</i><br>");
+                    }
+
+                    // Add spatial calibration/offset warnings if present
+                    if (analysis.hasSpatialWarnings()) {
+                        sb.append("<br><b>Spatial calibration warning:</b><ul>");
+                        if (analysis.inconsistentCalibrations > 0) {
+                            sb.append("<li>").append(analysis.inconsistentCalibrations)
+                                    .append(" path(s) have different voxel spacing than their parent</li>");
+                        }
+                        if (analysis.inconsistentCanvasOffsets > 0) {
+                            sb.append("<li>").append(analysis.inconsistentCanvasOffsets)
+                                    .append(" path(s) have different canvas offset than their parent</li>");
+                        }
+                        sb.append("</ul>");
+                        sb.append("<i>This may cause rendering/connection issues. Consider re-importing affected paths.</i><br>");
                     }
 
                     sb.append("<br>Rebuilding will:<ul>")
@@ -4436,6 +4470,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                                 .append(analysis.misorientedPaths)
                                 .append(" path(s) may be pointing away from their tree root.<br>")
                                 .append("<i>Use Edit › Reverse... › \"Orient tree toward root\" to fix.</i><br><br>");
+                    }
+
+                    // Still show spatial warnings if present
+                    if (analysis.hasSpatialWarnings()) {
+                        sb.append("<b>Spatial calibration warning:</b><ul>");
+                        if (analysis.inconsistentCalibrations > 0) {
+                            sb.append("<li>").append(analysis.inconsistentCalibrations)
+                                    .append(" path(s) have different voxel spacing than their parent</li>");
+                        }
+                        if (analysis.inconsistentCanvasOffsets > 0) {
+                            sb.append("<li>").append(analysis.inconsistentCanvasOffsets)
+                                    .append(" path(s) have different canvas offset than their parent</li>");
+                        }
+                        sb.append("</ul>");
+                        sb.append("<i>This may cause rendering/connection issues.</i><br><br>");
                     }
 
                     sb.append("All ").append(analysis.totalPaths).append(" path(s) in ")
@@ -4473,6 +4522,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             int inconsistentOrders = 0;
             int disconnectedChildren = 0;
             int misorientedPaths = 0;
+            int inconsistentCalibrations = 0;
+            int inconsistentCanvasOffsets = 0;
             final Set<Integer> treeIds = new HashSet<>();
             // Group paths by tree for orientation analysis
             final Map<Integer, List<Path>> pathsByTree = new HashMap<>();
@@ -4511,6 +4562,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 if (p.getParentPath() != null && !p.getParentPath().getChildren().contains(p)) {
                     disconnectedChildren++;
                 }
+
+                // Check for calibration consistency within tree (compare with parent)
+                if (p.getParentPath() != null) {
+                    // Check for calibration consistency within tree (compare with parent)
+                    final Calibration childCal = p.getCalibration();
+                    final Calibration parentCal = p.getParentPath().getCalibration();
+                    if (childCal != null && parentCal != null && !childCal.equals(parentCal)) {
+                        inconsistentCalibrations++;
+                    }
+                    // Check for canvas offset consistency within tree
+                    final PointInCanvas childOffset = p.getCanvasOffset();
+                    final PointInCanvas parentOffset = p.getParentPath().getCanvasOffset();
+                    if (childOffset != null && parentOffset != null && !childOffset.isSameLocation(parentOffset)) {
+                        inconsistentCanvasOffsets++;
+                    }
+                }
             }
 
             for (final List<Path> treePaths : pathsByTree.values()) {
@@ -4544,7 +4611,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     inconsistentTreeIds,
                     inconsistentOrders,
                     disconnectedChildren,
-                    misorientedPaths
+                    misorientedPaths,
+                    inconsistentCalibrations,
+                    inconsistentCanvasOffsets
             );
         }
 
@@ -4558,7 +4627,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 int inconsistentTreeIds,
                 int inconsistentOrders,
                 int disconnectedChildren,
-                int misorientedPaths) {
+                int misorientedPaths,
+                int inconsistentCalibrations,
+                int inconsistentCanvasOffsets) {
 
             boolean hasIssues() {
                 return totalIssues() > 0;
@@ -4568,10 +4639,15 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return misorientedPaths > 0;
             }
 
+            boolean hasSpatialWarnings() {
+                return inconsistentCalibrations > 0 || inconsistentCanvasOffsets > 0;
+            }
+
             int totalIssues() {
                 return orphanedPaths + inconsistentTreeIds + inconsistentOrders + disconnectedChildren;
-                // NB: misorientedPaths is a warning, not counted as an issue for rebuild purposes
+                // NB: misorientedPaths and spatial warnings are warnings, not counted as rebuild issues
             }
+
         }
 
         private class DownsampleCommand implements PathCommand {
