@@ -1263,13 +1263,33 @@ public class SNT extends MultiDThreePanes implements
 		return editModeAllowed(false);
 	}
 
+	/**
+	 * Checks if edit mode can be enabled.
+	 * @param warnUserIfNot if true, shows error messages when edit mode is not allowed
+	 * @return true if edit mode is allowed, false otherwise
+	 */
 	protected boolean editModeAllowed(final boolean warnUserIfNot) {
+		return editModeAllowed(warnUserIfNot, null);
+	}
+
+	/**
+	 * Checks if edit mode can be enabled, optionally using a specific path.
+	 * @param warnUserIfNot if true, shows error messages when edit mode is not allowed
+	 * @param pathToEdit the path to edit, or null to auto-detect from selection
+	 * @return true if edit mode is allowed, false otherwise
+	 */
+	protected boolean editModeAllowed(final boolean warnUserIfNot, final Path pathToEdit) {
 		final boolean uiReady = uiReadyForModeChange() || isEditModeEnabled();
 		if (warnUserIfNot && !uiReady) {
 			discreteMsg("Please finish current operation before editing paths");
 			return false;
 		}
-		detectEditingPath();
+		// Use provided path or detect from selection
+		if (pathToEdit != null) {
+			editingPath = pathToEdit;
+		} else {
+			detectEditingPath();
+		}
 		final boolean pathExists = editingPath != null;
 		if (warnUserIfNot && !pathExists) {
 			discreteMsg("You must select a single path in order to edit it");
@@ -1278,7 +1298,7 @@ public class SNT extends MultiDThreePanes implements
 		final boolean validPath = pathExists && !editingPath.getUseFitted();
 		if (warnUserIfNot && !validPath) {
 			discreteMsg(
-				"Only non-fitted paths can be edited.<br>Run \"Refine›Un-fit Path\" to proceed");
+					"Only non-fitted paths can be edited.<br>Run \"Refine›Un-fit Path\" to proceed");
 			return false;
 		}
 		return uiReady && pathExists && validPath;
@@ -1306,20 +1326,26 @@ public class SNT extends MultiDThreePanes implements
 	protected void enableEditMode(final boolean enable) {
 		if (enable) {
 			changeUIState(SNTUI.EDITING);
-			// We used to automatically enable hiding of out-of-focus nodes.
-			// But without notifying user, this seems not intuitive, so disabling it for now.
-//			if (isUIready() && !getUI().nearbySlices()) getUI().togglePartsChoice();
 		}
 		else {
 			if (ui != null) ui.resetState();
 		}
-		if (enable && pathAndFillManager.getSelectedPaths().size() == 1) {
-			editingPath = getSelectedPaths().iterator().next();
-		}
-		else {
+
+		// Only re-detect editingPath if not already set (e.g., by editModeAllowed)
+		if (enable) {
+			if (editingPath == null && pathAndFillManager.getSelectedPaths().size() == 1) {
+				editingPath = getSelectedPaths().iterator().next();
+			}
+			// If still null, edit mode shouldn't be enabled
+			if (editingPath == null) {
+				if (ui != null) ui.resetState();
+				return;
+			}
+		} else {
 			if (editingPath != null) editingPath.setEditableNode(-1);
 			editingPath = null;
 		}
+
 		setDrawCrosshairsAllPanes(!enable);
 		setLockCursorAllPanes(enable);
 		getXYCanvas().setEditMode(enable);
