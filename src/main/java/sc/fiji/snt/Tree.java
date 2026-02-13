@@ -1428,26 +1428,6 @@ public class Tree implements TreeProperties, Cloneable {
 		return map;
 	}
 
-    /**
-     * Combines all trees into a single Tree container.
-     * <p>
-     * Note that <b>no</b> effort is made to make the merge structure topographylically valid.
-     * This is simply a convenience method to collect paths in a single contained for operations
-     * that do not require an accurate graph structure, e.g., Sholl Analysis.
-     * </p>
-     *
-     * @param trees
-     * @return the merged tree
-     */
-    public static Tree merge(final Collection<Tree> trees) {
-        if (trees == null) return null;
-        if (trees.size() == 1) trees.iterator().next();
-        final Tree holdingTree = new Tree();
-        holdingTree.setLabel("Combined Paths");
-        trees.forEach(tree -> tree.list().addAll(tree.list()));
-        return holdingTree;
-    }
-
 	/**
 	 * Saves this Tree to an SWC file.
 	 *

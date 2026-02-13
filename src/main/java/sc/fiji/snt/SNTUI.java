@@ -56,6 +56,7 @@ import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -3109,7 +3110,7 @@ public class SNTUI extends JDialog {
 			if (trees == null) return;
 			softWarningOnShollPreview();
 			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", Tree.merge(trees));
+			inputs.put("tree", TreeUtils.merge(trees));
 			inputs.put("snt", plugin);
 			new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
 		});

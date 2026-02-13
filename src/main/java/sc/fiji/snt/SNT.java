@@ -2581,7 +2581,7 @@ public class SNT extends MultiDThreePanes implements
             final Collection<Tree> trees = (getUI() == null) ? getPathAndFillManager().getTrees() :
                     getUI().getPathManager().getMultipleTrees();
             if (trees == null) return;
-			input.put("tree", Tree.merge(trees));
+			input.put("tree", TreeUtils.merge(trees));
 			final CommandService cmdService = getContext().getService(CommandService.class);
 			cmdService.run(ShollAnalysisTreeCmd.class, true, input);
 		});
