@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -65,7 +65,7 @@ import sc.fiji.snt.util.SNTColor;
  *
  * @see TreeStatistics
  * @see MultiTreeStatistics
- * 
+ *
  * @author Tiago Ferreira
  */
 public class GroupedTreeStatistics {
@@ -223,8 +223,20 @@ public class GroupedTreeStatistics {
 		for (final String groupLabel : getGroups()) {
 			final double groupMax = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMax();
 			final double groupMin = getGroupStats(groupLabel).getDescriptiveStats(normMeasurement).getMin();
-			if (groupMin < limits[0]) limits[0] = groupMin;
-			if (groupMax > limits[1]) limits[1] = groupMax;
+			if (!Double.isNaN(groupMin) && groupMin < limits[0]) limits[0] = groupMin;
+			if (!Double.isNaN(groupMax) && groupMax > limits[1]) limits[1] = groupMax;
+		}
+		// Validate limits - handle empty data or all-NaN cases
+		if (limits[0] > limits[1] || Double.isInfinite(limits[0]) || Double.isInfinite(limits[1])) {
+			throw new IllegalArgumentException("No valid data for histogram: all values are NaN or data is empty");
+		}
+		// Handle case where all values are identical (min == max)
+		if (limits[0] == limits[1]) {
+			// Expand range slightly to allow histogram creation
+			final double value = limits[0];
+			final double epsilon = (value == 0) ? 1.0 : Math.abs(value) * 0.1;
+			limits[0] = value - epsilon;
+			limits[1] = value + epsilon;
 		}
 		final LinkedHashMap<String, AnalysisUtils.HistogramDatasetPlus> hdpMap = new LinkedHashMap<>();
 		final ArrayList<Integer> bins = new ArrayList<>();
@@ -265,7 +277,7 @@ public class GroupedTreeStatistics {
 			final HDPlus hdp = mstats.new HDPlus(normMeasurement);
 			dataset.add(hdp.valuesAsList(), normMeasurement, label);
 		});
-        return AnalysisUtils.boxPlot(normMeasurement, dataset);
+		return AnalysisUtils.boxPlot(normMeasurement, dataset);
 	}
 
 	/**
@@ -301,7 +313,7 @@ public class GroupedTreeStatistics {
 	 *                    and {@code cutoff} 0.1, BrainAnnotations in
 	 *                    {@code annotations} associated with less than 10% of cable
 	 *                    length are ignored.
-	 * 
+	 *
 	 * @return the box plot
 	 */
 	public SNTChart getBoxPlot(final String feature, final Collection<BrainAnnotation> annotations, final double cutoff, final boolean normalize) {
@@ -321,9 +333,9 @@ public class GroupedTreeStatistics {
 				dataset.add(values, groupLabel, BrainAnnotation.simplifiedString(brainannotation));
 			});
 		});
-        final SNTChart chart = AnalysisUtils.boxPlot(normFeature, dataset);
-        chart.setTitle("Box-plot [Group Comparison]");
-        return chart;
+		final SNTChart chart = AnalysisUtils.boxPlot(normFeature, dataset);
+		chart.setTitle("Box-plot [Group Comparison]");
+		return chart;
 	}
 
 	/**
@@ -355,11 +367,11 @@ public class GroupedTreeStatistics {
 	/**
 	 * Assembles a Flow plot (aka Sankey diagram) for the specified feature using
 	 * "mean" as integration statistic, and no cutoff value.
-	 * 
+	 *
 	 * @see #getFlowPlot(String, Collection, String, double, boolean)
 	 */
 	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
-			final boolean normalize) {
+								final boolean normalize) {
 		return getFlowPlot(feature, annotations, "mean", Double.MIN_VALUE, normalize);
 	}
 
@@ -425,16 +437,16 @@ public class GroupedTreeStatistics {
 	 *                    and {@code cutoff} 0.1, BrainAnnotations in
 	 *                    {@code annotations} associated with less than 10% of cable
 	 *                    length are ignored.
-	 * 
+	 *
 	 * @return the SNTChart holding the flow plot
 	 */
 	public SNTChart getFlowPlot(final String feature, final Collection<BrainAnnotation> annotations,
-			final String statistic, final double cutoff, final boolean normalize) {
+								final String statistic, final double cutoff, final boolean normalize) {
 		final String normFeature = getBoxOrFlowPlotFeature(feature);
 		if (normFeature.equalsIgnoreCase("unknown")) {
 			throw new IllegalArgumentException("Unrecognizable measurement \"" + feature);
 		}
-	
+
 		final TreeMap<String, AnnotatedValues> mappedValues = new TreeMap<>(); // keep groups sorted alphabetically
 		groups.forEach((groupLabel, groupStats) -> {
 			final AnnotatedValues av = new AnnotatedValues(normFeature, cutoff, normalize);
@@ -475,7 +487,7 @@ public class GroupedTreeStatistics {
 	}
 
 	private void applyFlowPlotLegend(final SNTChart chart, final String metric, final String statistic, final double cutoff,
-			final boolean normalize, final boolean singleCell) {
+									 final boolean normalize, final boolean singleCell) {
 		final StringBuilder title = new StringBuilder();
 		if (normalize)
 			title.append("Normalized ");
@@ -510,20 +522,20 @@ public class GroupedTreeStatistics {
 
 	private double getSingleValueFromList(final List<Double> values, final String combineMethod) {
 		switch (combineMethod.toLowerCase()) {
-		case "sum":
-			return values.stream().mapToDouble(Double::doubleValue).sum();
-		case "min":
-			return values.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
-		case "max":
-			return values.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
-		case "mean":
-		case "average":
-		case "avg":
-			return values.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
-		case "median":
-			return org.jfree.data.statistics.Statistics.calculateMedian(values);
-		default:
-			throw new IllegalArgumentException("Unknown method: " + combineMethod);
+			case "sum":
+				return values.stream().mapToDouble(Double::doubleValue).sum();
+			case "min":
+				return values.stream().mapToDouble(Double::doubleValue).min().getAsDouble();
+			case "max":
+				return values.stream().mapToDouble(Double::doubleValue).max().getAsDouble();
+			case "mean":
+			case "average":
+			case "avg":
+				return values.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
+			case "median":
+				return org.jfree.data.statistics.Statistics.calculateMedian(values);
+			default:
+				throw new IllegalArgumentException("Unknown method: " + combineMethod);
 		}
 	}
 
@@ -564,7 +576,7 @@ public class GroupedTreeStatistics {
 			this.cutoff = cutoff;
 			this.normFeature = normFeature;
 		}
-	
+
 		void compute(final Collection<BrainAnnotation> annotations, final Collection<Tree> trees) {
 			map = new TreeMap<>(BrainAnnotation.comparator()); // could also be sorted by flow
 			for (final BrainAnnotation annotation : annotations) {
@@ -578,20 +590,20 @@ public class GroupedTreeStatistics {
 					final boolean includeChildren = annotation.getOntologyDepth() > 0;
 					double value;
 					switch (normFeature) {
-					case LENGTH:
-						value = (normalize) ? analyzer.getCableLengthNorm(annotation, includeChildren)
-								: analyzer.getCableLength(annotation, includeChildren);
-						break;
-					case N_BRANCH_POINTS:
-						value = (normalize) ? analyzer.getNBranchPointsNorm(annotation, includeChildren)
-								: analyzer.getNBranchPoints(annotation, includeChildren);
-						break;
-					case N_TIPS:
-						value = (normalize) ? analyzer.getNTipsNorm(annotation, includeChildren)
-								: analyzer.getNTips(annotation, includeChildren);
-						break;
-					default:
-						throw new IllegalArgumentException("Unrecognized feature");
+						case LENGTH:
+							value = (normalize) ? analyzer.getCableLengthNorm(annotation, includeChildren)
+									: analyzer.getCableLength(annotation, includeChildren);
+							break;
+						case N_BRANCH_POINTS:
+							value = (normalize) ? analyzer.getNBranchPointsNorm(annotation, includeChildren)
+									: analyzer.getNBranchPoints(annotation, includeChildren);
+							break;
+						case N_TIPS:
+							value = (normalize) ? analyzer.getNTipsNorm(annotation, includeChildren)
+									: analyzer.getNTips(annotation, includeChildren);
+							break;
+						default:
+							throw new IllegalArgumentException("Unrecognized feature");
 					}
 					if (value > cutoff)
 						values.add(value);
@@ -665,7 +677,7 @@ public class GroupedTreeStatistics {
 			this.label = label;
 			this.percentage = false;
 		}
-	
+
 		void setExtraDetails(final Object obj) {
 			extraDetails = new StringBuilder(obj.toString());
 		}
@@ -690,7 +702,7 @@ public class GroupedTreeStatistics {
 
 		@Override
 		public String toString() {
-			// defines node labels in 
+			// defines node labels in
 			if (!numericLabels)
 				return label;
 			if (percentage)
