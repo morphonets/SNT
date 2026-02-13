@@ -103,7 +103,7 @@ public class MeasureUI extends JFrame {
 	}
 
 	private MeasureUI(final Context context, final Collection<Tree> trees) {
-		super("SNT Measurements");
+		super("SNT Measurements "); // 	important: distinguish from table title
 		context.inject(this);
 		guiUtils = new GuiUtils(this);
 		panel = new MeasurePanel(trees);

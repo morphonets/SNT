@@ -34,8 +34,6 @@ import org.scijava.ItemIO;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import org.scijava.display.Display;
-import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
@@ -72,8 +70,6 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 
 	@Parameter
 	private CommandService cmdService;
-	@Parameter
-	private DisplayService displayService;
 	@Parameter
 	private PrefService prefService;
 	@Parameter
@@ -195,7 +191,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 	private GuiUtils helper;
 	private Logger logger;
 	private ShollTable commonSummaryTable;
-	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
+	private static final String SUMMARY_TABLE_NAME = "Sholl_Metrics";
 
 	private static class AnalysisSummary {
 		private final ShollTable table;
@@ -253,6 +249,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 		logger.info("Running multithreaded analysis...");
 		readPreferences();
 		commonSummaryTable = new ShollTable();
+		commonSummaryTable.setTitle(SUMMARY_TABLE_NAME);
 		final List<AnalysisSummary> summaries = treeList.parallelStream()
 				.map(tree -> new AnalysisRunner(tree).analyze())
 				.filter(Objects::nonNull)
@@ -400,13 +397,7 @@ public class ShollAnalysisBulkTreeCmd extends CommonDynamicCmd {
 
 	private void updateDisplayAndSaveCommonSummaryTable() {
 		runOnEdt(() -> {
-			final Display<?> display = displayService.getDisplay(SUMMARY_TABLE_NAME);
-			if (display != null && display.isDisplaying(commonSummaryTable)) {
-				display.update();
-			}
-			else {
-				displayService.createDisplay(SUMMARY_TABLE_NAME, commonSummaryTable);
-			}
+			commonSummaryTable.createOrUpdateDisplay();
 		});
 		if (commonSummaryTable.hasUnsavedData())
 			saveSummaryTable(); // keep saving table everytime it is updated

@@ -115,7 +115,7 @@ public class BookmarkManager {
 
     private BookmarkTable assembleTable(final BookmarkModel model) {
         final BookmarkTable table = new BookmarkTable(model);
-        table.setComponentPopupMenu(assembleTablePopupMenu());
+        table.setComponentPopupMenu(assembleTablePopupMenu(table));
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(final MouseEvent me) {
@@ -172,7 +172,7 @@ public class BookmarkManager {
         }
     }
 
-    private JPopupMenu assembleTablePopupMenu() {
+    private JPopupMenu assembleTablePopupMenu(final BookmarkTable table) {
         final JPopupMenu pMenu = new JPopupMenu();
         JMenuItem mi = new JMenuItem("Deselect / Select All", IconFactory.menuIcon(IconFactory.GLYPH.CHECK_DOUBLE));
         mi.addActionListener(e -> {
@@ -250,6 +250,13 @@ public class BookmarkManager {
             recordComment("Bookmark Manager: resizeColumns()");
         });
         pMenu.add(mi);
+        GuiUtils.assignTableSearchable(table, element -> {
+            if (element == null) return "";
+            if (element instanceof Color color) {
+                return BookmarkTable.ColorCellEditor.getColorName(color);
+            }
+            return element.toString();
+        }, pMenu);
         return pMenu;
     }
 
@@ -853,8 +860,8 @@ class BookmarkTable extends JTable {
     /** Renderer for the Tag/Color column */
     private static class ColorCellRenderer extends DefaultTableCellRenderer {
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus, int row, int column) {
+        public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
+                                                       final boolean hasFocus, final int row, final int column) {
             super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
             setHorizontalAlignment(SwingConstants.CENTER);
             if (value instanceof Color color) {
@@ -871,7 +878,7 @@ class BookmarkTable extends JTable {
     /**
      * Editor for the Tag/Color column - shows color chooser on click
      */
-    private class ColorCellEditor extends AbstractCellEditor implements javax.swing.table.TableCellEditor {
+    class ColorCellEditor extends AbstractCellEditor implements javax.swing.table.TableCellEditor {
         private final JButton editorButton;
         private final JPopupMenu colorChooserPopMenu;
         private Color currentColor;
@@ -892,7 +899,7 @@ class BookmarkTable extends JTable {
             return PRESET_TAGS;
         }
 
-        private static String getColorName(Color color) {
+        static String getColorName(Color color) {
             for (final Map.Entry<String, Color> entry : getPresetTags().entrySet()) {
                 if (entry.getValue().getRGB() == color.getRGB()) {
                     return entry.getKey();

@@ -30,10 +30,9 @@ import org.jgrapht.Graphs;
 import org.jgrapht.traverse.DepthFirstIterator;
 import org.scijava.app.StatusService;
 import org.scijava.command.ContextCommand;
-import org.scijava.display.Display;
-import org.scijava.display.DisplayService;
 import org.scijava.plugin.Parameter;
 import org.scijava.table.DefaultGenericTable;
+import org.scijava.table.GenericTable;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -338,14 +337,13 @@ public class TreeStatistics extends ContextCommand {
     private static boolean exactMetricMatch;
     @Parameter
     protected StatusService statusService;
-    @Parameter
-    protected DisplayService displayService;
+
     protected Tree tree;
     protected List<Path> primaryBranches;
     protected List<Path> innerBranches;
     protected List<Path> terminalBranches;
     protected Set<PointInImage> tips;
-    protected DefaultGenericTable table;
+    protected SNTTable table;
     protected LastDstats lastDstats;
     private Tree unfilteredTree;
     private Set<PointInImage> joints;
@@ -818,7 +816,7 @@ public class TreeStatistics extends ContextCommand {
      * default Tree label.
      *
      * @param groupByType if true measurements are grouped by SWC-type flag
-     * @see #setTable(DefaultGenericTable)
+     * @see #setTable(GenericTable)
      */
     public void summarize(final boolean groupByType) {
         summarize(tree.getLabel(), groupByType);
@@ -830,7 +828,7 @@ public class TreeStatistics extends ContextCommand {
      * @param rowHeader   the String to be used as label for the summary
      * @param groupByType if true measurements are grouped by SWC-type flag
      * @see #run()
-     * @see #setTable(DefaultGenericTable)
+     * @see #setTable(GenericTable)
      */
     public void summarize(final String rowHeader, final boolean groupByType) {
         measure(rowHeader, TreeStatistics.getMetrics("quick"), groupByType);
@@ -909,15 +907,15 @@ public class TreeStatistics extends ContextCommand {
             SNTUtils.log(e.getMessage());
         }
         if (summaryStatistics.getN() == 1) {
-            ((SNTTable) table).set(metricHeader + " [Single value]", rowHeader, summaryStatistics.getSum());
+            table.set(metricHeader + " [Single value]", rowHeader, summaryStatistics.getSum());
         } else {
-            ((SNTTable) table).set(metricHeader + " [MIN]", rowHeader, summaryStatistics.getMin());
-            ((SNTTable) table).set(metricHeader + " [MAX]", rowHeader, summaryStatistics.getMax());
-            ((SNTTable) table).set(metricHeader + " [MEAN]", rowHeader, summaryStatistics.getMean());
-            ((SNTTable) table).set(metricHeader + " [STD_DEV]", rowHeader, summaryStatistics.getStandardDeviation());
-            ((SNTTable) table).set(metricHeader + " [N]", rowHeader, summaryStatistics.getN());
+            table.set(metricHeader + " [MIN]", rowHeader, summaryStatistics.getMin());
+            table.set(metricHeader + " [MAX]", rowHeader, summaryStatistics.getMax());
+            table.set(metricHeader + " [MEAN]", rowHeader, summaryStatistics.getMean());
+            table.set(metricHeader + " [STD_DEV]", rowHeader, summaryStatistics.getStandardDeviation());
+            table.set(metricHeader + " [N]", rowHeader, summaryStatistics.getN());
         }
-        ((SNTTable) table).set("SWC Type(s)", rowHeader, getSWCTypesAsString());
+        table.set("SWC Type(s)", rowHeader, getSWCTypesAsString());
     }
 
     /**
@@ -954,8 +952,8 @@ public class TreeStatistics extends ContextCommand {
      * @param table the table to be used by this TreeStatistics instance
      * @param title the title of the table display window
      */
-    public void setTable(final DefaultGenericTable table, final String title) {
-        this.table = table;
+    public void setTable(final GenericTable table, final String title) {
+        this.table = SNTTable.fromGenericTable(table);
         this.tableTitle = title;
     }
 
@@ -974,8 +972,8 @@ public class TreeStatistics extends ContextCommand {
      * @param table the table to be used by this TreeStatistics instance
      * @see #summarize(boolean)
      */
-    public void setTable(final DefaultGenericTable table) {
-        this.table = table;
+    public void setTable(final GenericTable table) {
+        this.table = SNTTable.fromGenericTable(table);
     }
 
     /**
@@ -2045,18 +2043,12 @@ public class TreeStatistics extends ContextCommand {
      * (running headless!?), table is printed to Console.
      */
     public void updateAndDisplayTable() {
+        if (tableTitle == null)
+            tableTitle = "SNT Measurements";
+        table.setTitle(tableTitle);
         try {
-            if (getContext() == null) {
-                SNTUtils.getContext().inject(this);
-            }
-            final String displayName = (tableTitle == null) ? "SNT Measurements" : tableTitle;
-            final Display<?> display = displayService.getDisplay(displayName);
-            if (display != null) {
-                display.update();
-            } else {
-                displayService.createDisplay(displayName, table);
-            }
-        } catch (final Exception ignored) {
+            table.show();
+        } catch (final Throwable ignored) {
             System.out.println(SNTTable.toString(table, 0, table.getRowCount() - 1));
         }
     }

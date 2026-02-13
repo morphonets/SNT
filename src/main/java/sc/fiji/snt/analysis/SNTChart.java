@@ -180,6 +180,7 @@ public class SNTChart extends ChartPanel {
 				}
 			});
 		}
+		GuiUtils.addCloseShortcut(frame);
 		return frame;
 	}
 

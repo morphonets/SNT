@@ -242,7 +242,7 @@ public class GrowthAnalyzerCmd extends CommonDynamicCmd {
             }
         }
         table.summarize();
-        table.show("SNT_Growth_Analysis.csv");
+        table.show("SNT_Growth_Analysis");
     }
 
     /**

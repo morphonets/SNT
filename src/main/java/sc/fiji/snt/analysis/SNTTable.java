@@ -34,6 +34,7 @@ import org.scijava.table.*;
 import org.scijava.table.io.DefaultTableIOPlugin;
 import org.scijava.table.io.TableIOOptions;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.io.*;
 import java.net.URI;
@@ -99,6 +100,18 @@ public class SNTTable extends DefaultGenericTable {
 		}
 		title = loc.getName();
 		hasUnsavedData = false;
+	}
+
+	private SNTTable(final GenericTable source) {
+		super();
+		for (int col = 0; col < source.getColumnCount(); col++) {
+			add(source.get(col));
+		}
+		// Copy row headers if present
+		for (int row = 0; row < source.getRowCount(); row++) {
+			final String rowHeader = source.getRowHeader(row);
+			if (rowHeader != null) setRowHeader(row, rowHeader);
+		}
 	}
 
 	private Table<?, ?> loadTable(final FileLocation fileLocation, final DefaultTableIOPlugin tableIO, final char colDelimiter) throws IOException {
@@ -395,7 +408,7 @@ public class SNTTable extends DefaultGenericTable {
 			final boolean nonNumericColumn = Double.isNaN(min) && Double.isNaN(max);
 			set(col, lastRowIndex + 1, (nonNumericColumn) ? "" : sStas[col].getMean());
 			set(col, lastRowIndex + 2, (nonNumericColumn) ? "" : sStas[col].getStandardDeviation());
-			set(col, lastRowIndex + 3, (nonNumericColumn) ? "" : sStas[col].getN());
+			set(col, lastRowIndex + 3, (nonNumericColumn) ? "" : (double) sStas[col].getN());
 			set(col, lastRowIndex + 4, (nonNumericColumn) ? "" : min);
 			set(col, lastRowIndex + 5, (nonNumericColumn) ? "" : max);
 			set(col, lastRowIndex + 6, (nonNumericColumn) ? "" : sStas[col].getSum());
@@ -431,6 +444,7 @@ public class SNTTable extends DefaultGenericTable {
 	private void createDisplay(final String windowTitle) {
 		initDisplayService();
 		displayService.createDisplay(windowTitle, this);
+		GuiUtils.enhanceTableDisplay(this, windowTitle);
 	}
 
 	/**
@@ -487,6 +501,18 @@ public class SNTTable extends DefaultGenericTable {
 	 */
 	public String getTitle() {
 		return (title == null) ? "SNT Measurements" : title;
+	}
+
+	/**
+	 * Sets the title of the table.
+	 * <p>
+	 * Returns the table's title, or "SNT Measurements" if no title has been set.
+	 * </p>
+	 *
+	 * @return the table title
+	 */
+	public void setTitle(final String title) {
+		this.title = title;
 	}
 
 	/**
@@ -596,4 +622,10 @@ public class SNTTable extends DefaultGenericTable {
 		pw.close();
 	}
 
+	public static SNTTable fromGenericTable(final GenericTable source) {
+		if (source instanceof SNTTable) {
+			return (SNTTable) source;
+		}
+		return new SNTTable(source);
+	}
 }

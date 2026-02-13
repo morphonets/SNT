@@ -201,7 +201,8 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 				ycol.addAll(yValues);
 				table.add(ycol);
 			}
-			uiService.show("SNT_TimeProfile.csv", table);
+			table.setTitle("SNT_TimeProfile");
+			table.show();
 		}
 	}
 
@@ -258,7 +259,8 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 						table.set(metric, row, series.getYValues().get(i));
 					}
 				}
-				uiService.show("SNT_TimeProfile.csv", table);
+				table.setTitle("SNT_TimeProfile");
+				table.show();
 			}
 		}
 	}

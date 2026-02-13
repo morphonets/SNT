@@ -43,7 +43,6 @@ import org.scijava.command.CommandService;
 import org.scijava.command.DynamicCommand;
 import org.scijava.convert.ConvertService;
 import org.scijava.display.Display;
-import org.scijava.display.DisplayService;
 import org.scijava.module.ModuleItem;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
@@ -105,8 +104,6 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private ConvertService convertService;
 	@Parameter
 	private DatasetService datasetService;
-	@Parameter
-	private DisplayService displayService;
 	@Parameter
 	private ImageDisplayService imageDisplayService;
 	@Parameter
@@ -1220,7 +1217,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 					detailedTableDisplay.close();
 				}
 				outputs.add(dTable);
-				detailedTableDisplay = displayService.createDisplay(dTable.getTitle(), dTable);
+				dTable.createOrUpdateDisplay();
 			}
 
 			if (tableOutputDescription.contains("Summary")) {
@@ -1230,14 +1227,9 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 				if (commonSummaryTable == null)
 					commonSummaryTable = new ShollTable();
 				sTable.summarize(commonSummaryTable, imp.getTitle());
-				sTable.setTitle("Sholl Results");
+				sTable.setTitle("Sholl_Results");
 				outputs.add(sTable);
-				final Display<?> display = displayService.getDisplay("Sholl Results");
-				if (display != null && display.isDisplaying(commonSummaryTable)) {
-					display.update();
-				} else {
-					displayService.createDisplay(sTable.getTitle(), commonSummaryTable);
-				}
+				sTable.createOrUpdateDisplay();
 			}
 
 			setProfile(profile);

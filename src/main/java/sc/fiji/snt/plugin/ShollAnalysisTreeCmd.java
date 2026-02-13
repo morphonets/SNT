@@ -36,7 +36,6 @@ import org.scijava.command.Command;
 import org.scijava.command.CommandService;
 import org.scijava.command.DynamicCommand;
 import org.scijava.display.Display;
-import org.scijava.display.DisplayService;
 import org.scijava.menu.MenuConstants;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Menu;
@@ -48,10 +47,7 @@ import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.TreeColorMapper;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -90,12 +86,10 @@ import static sc.fiji.snt.plugin.ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE;
 		initializer = "init")
 public class ShollAnalysisTreeCmd extends DynamicCommand {
 
-	private static final String SUMMARY_TABLE_NAME = "_Sholl_Metrics.csv";
+	private static final String SUMMARY_TABLE_NAME = "Sholl_Metrics";
 
 	@Parameter
 	private CommandService cmdService;
-	@Parameter
-	private DisplayService displayService;
 	@Parameter
 	private PrefService prefService;
 	@Parameter
@@ -447,6 +441,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 		try {
 			final URL url = luts.get(lutChoice);
 			if (url != null) lutTable = lutService.loadLUT(url);
+			if (lutTable == null) lutTable = ColorMaps.get(lutChoice);
 		} catch (final Exception ignored) {
 			// this should never happen?
 		}
@@ -805,14 +800,16 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				if (detailedTableDisplay != null) {
 					detailedTableDisplay.close();
 				}
-				detailedTableDisplay = displayService.createDisplay("Sholl-Profiles",
-					dTable);
+				dTable.show("Sholl-Profiles");
 				outputs.add(dTable);
 			}
 			if (tableOutputDescription.contains("Summary")) {
                 final ShollTable sTable = (pStats==null)
                         ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
-                if (commonSummaryTable == null) commonSummaryTable = new ShollTable();
+                if (commonSummaryTable == null) {
+					commonSummaryTable = new ShollTable();
+					commonSummaryTable.setTitle(SUMMARY_TABLE_NAME);
+				}
 				String header;
 				if (snt == null) {
 					header = file.getName();
@@ -823,7 +820,7 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				}
 				if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
 				sTable.summarize(commonSummaryTable, header);
-				updateAndDisplayCommonSummaryTable();
+				commonSummaryTable.createOrUpdateDisplay();
 			}
 
 			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {
@@ -889,16 +886,6 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 				plot.show();
 			}
 			return plot;
-		}
-
-		private void updateAndDisplayCommonSummaryTable() {
-			final Display<?> display = displayService.getDisplay(SUMMARY_TABLE_NAME);
-			if (display != null && display.isDisplaying(commonSummaryTable)) {
-				display.update();
-			}
-			else {
-				displayService.createDisplay(SUMMARY_TABLE_NAME, commonSummaryTable);
-			}
 		}
 
 		private void showStatus(final String msg) {

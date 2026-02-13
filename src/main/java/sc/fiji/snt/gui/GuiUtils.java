@@ -27,6 +27,8 @@ import com.formdev.flatlaf.icons.FlatClearIcon;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.swing.ListSearchable;
+import com.jidesoft.swing.TableSearchable;
+import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.utils.ProductNames;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.CommandService;
@@ -38,6 +40,7 @@ import org.scijava.util.Types;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
+import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -60,6 +63,7 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
@@ -74,9 +78,11 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.List;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /** Misc. utilities for SNT's GUI. */
 public class GuiUtils {
@@ -2399,6 +2405,358 @@ public class GuiUtils {
 			if (w != null) boundingRect = boundingRect.union(w.getBounds());
 		}
 		centerOnParent(boundingRect, dialogToCenter);
+	}
+
+	public static void addCloseShortcut(final JFrame frame) {
+		// Add Ctrl+W (Linux/Windows) or Cmd+W (Mac) to close window
+		final int closeModifier = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+		frame.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+				.put(KeyStroke.getKeyStroke(KeyEvent.VK_W, closeModifier), "closeWindow");
+		frame.getRootPane().getActionMap().put("closeWindow", new AbstractAction() {
+			@Override
+			public void actionPerformed(final ActionEvent e) {
+				frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING));
+			}
+		});
+	}
+
+	/**
+	 * Enhances a SciJava-managed table display with conveniences (close shortcut, save menu).
+	 * Fails silently if the display cannot be found or enhanced.
+	 *
+	 * @param table the SNTTable being displayed
+	 * @param windowTitle the title of the display window to find
+	 */
+	public static void enhanceTableDisplay(final SNTTable table, final String windowTitle) {
+		SwingUtilities.invokeLater(() -> {
+			try {
+				final JFrame frame = findWindowWithTitle(windowTitle);
+				if (frame == null) return;
+				addCloseShortcut(frame);
+				final JTable jTable = findComponent(frame, JTable.class);
+				if (jTable != null) {
+					final JPopupMenu menu = enhanceTablePopupMenu(table, jTable, windowTitle);
+					assignTableSearchable(jTable, null, menu);
+				}
+
+			} catch (final Throwable ignored) {
+				// Fail silently
+			}
+		});
+	}
+
+	public static void assignTableSearchable(final JTable table,
+											 final Function<Object, String> elementConverter,
+											 final JPopupMenu menu) {
+		final TableSearchable searchable = getSearchable(table, elementConverter);
+		final JCheckBoxMenuItem findItem = new JCheckBoxMenuItem("Find...", IconFactory.menuIcon(GLYPH.SEARCH));
+		findItem.addActionListener(e -> {
+			if (table.getModel() == null || table.getModel().getRowCount() == 0) {
+				GuiUtils.errorPrompt("The table is empty.");
+				findItem.setSelected(false);
+				return;
+			}
+			if (findItem.isSelected()) {
+				searchable.setSearchLabel("Find (Type '?' for help):");
+				searchable.setHideSearchPopupOnEvent(false);
+				table.requestFocusInWindow();
+				searchable.showPopup("");
+			} else {
+				searchable.hidePopup();
+			}
+		});
+		searchable.addSearchableListener(e -> {
+            if (e.getID() == SearchableEvent.SEARCHABLE_END) {
+                findItem.setSelected(false);
+            }
+        });
+		if (menu == null) return;
+		if (menu.getComponentCount() > 0) menu.addSeparator();
+		menu.add(findItem);
+		//menu.addSeparator();
+		final JMenu byColumnMenu = new JMenu("Find in Column");
+		byColumnMenu.setIcon(IconFactory.menuIcon(GLYPH.SEARCH_ARROW));
+		for (int i = 0; i < table.getColumnCount(); i++) {
+			final int colIndex = i;
+			final String header = Objects.toString(table.getColumnName(i), "").trim();
+			if (header.isBlank()) continue;
+			final JCheckBoxMenuItem colItem = new JCheckBoxMenuItem(header);
+			colItem.addActionListener(e -> {
+				searchable.setMainIndex(colIndex);
+				searchable.setSearchLabel("Find ["+ header + "]:");
+				table.requestFocusInWindow();
+				searchable.showPopup("");
+			});
+			byColumnMenu.add(colItem);
+		}
+		menu.add(byColumnMenu);
+	}
+
+	private static TableSearchable getSearchable(final JTable table,
+												 final Function<Object, String> elementConverter) {
+		return new TableSearchable(table) {
+			private boolean helpShowing = false;
+
+			{
+				setBackground(UIManager.getColor("TextField.background"));
+				setForeground(UIManager.getColor("TextField.foreground"));
+				setFromStart(false); // Start from selected row
+				setRepeats(true); // Wrap around so all rows are searchable
+				setCountMatch(false);
+				setMainIndex(-1); // search all columns, not just one
+				setMismatchForeground(errorColor());
+				if (table.getRowCount() > 100) setSearchingDelay(200); //ms
+			}
+
+			@Override
+			protected String convertElementToString(Object element) {
+				if (elementConverter != null) {
+					return elementConverter.apply(element);
+				}
+				return super.convertElementToString(element);
+			}
+
+			@Override
+			protected boolean compare(Object element, final String searchingText) {
+				final String query = Objects.toString(searchingText, "");
+				if ("?".equals(query)) {
+					if (!helpShowing) {
+						helpShowing = true;
+						SwingUtilities.invokeLater(() -> {
+							hidePopup(); // Hide search
+							showSearchHelp();
+							helpShowing = false;
+						});
+					}
+					return false;
+				}
+				switch (query.trim().toLowerCase()) {
+					case "nan" -> { // Match non-numeric or actual NaN
+						if (element == null) return true;
+						if (element instanceof Number n) return Double.isNaN(n.doubleValue());
+						try {
+							Double.parseDouble(element.toString().trim());
+							return false;
+						} catch (final NumberFormatException e) {
+							return true;
+						}
+					}
+					case "empty", "null" -> { // Match empty/null cells
+						return element == null || element.toString().isBlank();
+					}
+					case "inf" -> { // Match infinite values
+						return element instanceof Number n && Double.isInfinite(n.doubleValue());
+					}
+					case "neg" -> {
+						if (element instanceof Number n)
+							return n.doubleValue() < 0;
+						return false;
+					}
+
+					case "pos" -> {
+						if (element instanceof Number n)
+							return n.doubleValue() > 0;
+						return false;
+					}
+
+					case "zero" -> {
+						if (element instanceof Number n)
+							return n.doubleValue() == 0;
+						return false;
+					}
+					default -> {
+						return super.compare(element, searchingText);
+					}
+				}
+			}
+
+			void showSearchHelp() {
+				final String msg = """
+						<html>
+						<b>Search Tips:</b><br>
+						<table cellpadding="4">
+						<tr><td><b>empty</b></td><td>Empty/null cells</td></tr>
+						<tr><td><b>inf</b></td><td>Infinite values</td></tr>
+						<tr><td><b>nan</b></td><td>Non-numeric or NaN cells</td></tr>
+						<tr><td><b>neg</b></td><td>Negative values</td></tr>
+						<tr><td><b>pos</b></td><td>Positive values</td></tr>
+						<tr><td><b>zero</b></td><td>Zero values</td></tr>
+						</table>
+						<br>
+						<i>Press ↓/↑ keys to find next/previous match</i><br>
+						<i>Press Esc to dismiss the search field</i><br>
+						<i>Press any key to dismiss this tooltip</i>
+						</html>
+						""";
+				SwingUtilities.invokeLater(() -> {
+					final JDialog d = new GuiUtils().floatingMsg(msg, false);
+					if (d == null) return;
+					final AWTEventListener listener = new AWTEventListener() {
+						@Override
+						public void eventDispatched(AWTEvent e) {
+							if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
+								d.dispose();
+							}
+						}
+					};
+					Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.KEY_EVENT_MASK);
+					d.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosed(WindowEvent e) {
+							Toolkit.getDefaultToolkit().removeAWTEventListener(listener);
+							table.requestFocusInWindow();
+							showPopup("");
+						}
+					});
+				});
+			}
+		};
+	}
+
+	private static JFrame findWindowWithTitle(final String title) {
+		for (final Window window : Window.getWindows()) {
+			if (window instanceof JFrame && window.isVisible()) {
+				if (title.equals(((JFrame) window).getTitle())) {
+					return (JFrame) window;
+				}
+			}
+		}
+		return null;
+	}
+
+	@SuppressWarnings("unchecked")
+	private static <T> T findComponent(final Container container, final Class<T> type) {
+		for (final Component comp : container.getComponents()) {
+			if (type.isInstance(comp)) {
+				return (T) comp;
+			}
+			if (comp instanceof Container) {
+				final T found = findComponent((Container) comp, type);
+				if (found != null) return found;
+			}
+		}
+		return null;
+	}
+
+	private static JPopupMenu enhanceTablePopupMenu(final SNTTable sntTable, final JTable jTable,
+													final String title) {
+		if (sntTable == null || jTable == null) return null;
+		JPopupMenu menu = jTable.getComponentPopupMenu();
+		if (menu == null) {
+			menu = new JPopupMenu();
+			jTable.setComponentPopupMenu(menu);
+		}
+		if (menu.getComponentCount() > 0) menu.addSeparator();
+		menu.add(copyMenuItem(jTable, true));
+		menu.add(copyMenuItem(jTable, false));
+		if (!hasMenuItem(menu, "Summarize")) {
+			menu.addSeparator();
+			menu.add(summarizeMenuItem(sntTable, jTable));
+		}
+		if (!hasMenuItem(menu, "Save As...")) {
+			if (menu.getComponentCount() > 0) menu.addSeparator();
+			final JMenuItem saveItem = new JMenuItem("Save As...", IconFactory.menuIcon(GLYPH.SAVE));
+			saveItem.addActionListener(e -> {
+				final String ttl = (title == null || title.isBlank()) ? "Tabular_Data" : title;
+				final File f = new File(SNTPrefs.lastKnownDir(), SNTUtils.stripExtension(ttl) + ".csv");
+				final GuiUtils gUtils = new GuiUtils(jTable.getParent());
+				final File out = gUtils.getSaveFile("Save Table", f, "csv");
+				if (out != null) {
+					try {
+						sntTable.save(out);
+					} catch (final IOException ex) {
+						gUtils.error("Could not save table.");
+					}
+				}
+			});
+			menu.add(saveItem);
+		}
+		return menu;
+	}
+
+	private static boolean hasMenuItem(final JPopupMenu menu, final String text) {
+		for (final Component comp : menu.getComponents()) {
+			if (comp instanceof JMenuItem jmi && text.equals(jmi.getText())) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static JMenuItem copyMenuItem(final JTable table, final boolean includeHeaders) {
+		final JMenuItem menuItem = new JMenuItem((includeHeaders) ? "Copy With Headers" : "Copy Without Headers");
+		menuItem.setIcon(IconFactory.menuIcon('\uf0c5', includeHeaders));
+		menuItem.addActionListener(e -> {
+			final StringBuilder sb = new StringBuilder();
+			final int[] selectedRows = table.getSelectedRows();
+			final int[] selectedCols = table.getSelectedColumns();
+			// Use all rows/cols if none selected
+			final int[] rows = (selectedRows.length == 0)
+					? IntStream.range(0, table.getRowCount()).toArray()
+					: selectedRows;
+			final int[] cols = (selectedCols.length == 0)
+					? IntStream.range(0, table.getColumnCount()).toArray()
+					: selectedCols;
+			// Column headers
+			if (includeHeaders) {
+				for (int i = 0; i < cols.length; i++) {
+					if (i > 0) sb.append('\t');
+					sb.append(table.getColumnName(cols[i]));
+				}
+				sb.append('\n');
+			}
+			// Data rows
+			for (final int row : rows) {
+				for (int i = 0; i < cols.length; i++) {
+					if (i > 0) sb.append('\t');
+					try {
+						final Object value = table.getValueAt(row, cols[i]);
+						sb.append(value == null ? "" : value.toString());
+					} catch (final Exception ignored) {
+						// do nothing
+                    }
+				}
+				sb.append('\n');
+			}
+			// Copy to clipboard
+			final StringSelection selection = new StringSelection(sb.toString().stripTrailing());
+			Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+		});
+		return menuItem;
+	}
+
+	private static JMenuItem summarizeMenuItem(final SNTTable sntTable, final JTable jTable) {
+		final JCheckBoxMenuItem mItem = new JCheckBoxMenuItem("Summarize", IconFactory.menuIcon(GLYPH.LIST));
+		mItem.addActionListener(e -> {
+			if (sntTable == null || sntTable.getRowCount() < 2) {
+				GuiUtils.errorPrompt("At least two rows required for statistical summary.");
+				mItem.setSelected(false);
+				return;
+			}
+			if (mItem.isSelected()) {
+				if (sntTable.isSummarized()) sntTable.removeSummary();
+				sntTable.summarize();
+				scrollToBottom(jTable);
+			} else if (sntTable.isSummarized()) {
+				sntTable.removeSummary();
+			}
+		});
+		return mItem;
+	}
+
+	private static void scrollToBottom(final JTable table) {
+		SwingUtilities.invokeLater(() -> {
+			try {
+				final int lastRow = table.getRowCount() - 1;
+				final RowSorter<?> sorter = table.getRowSorter();
+				if (lastRow >= 0 && (sorter == null || lastRow < sorter.getViewRowCount())) {
+					final Rectangle rect = table.getCellRect(lastRow, 0, true);
+					table.scrollRectToVisible(rect);
+				}
+			} catch (final Exception ignored) {
+				// Fail silently - scroll is non-critical
+			}
+		});
 	}
 
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */

@@ -176,7 +176,8 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			addColumn(table, yAxisMetric2, y2Values);
 			addColumn(table, yAxisMetric3, y3Values);
 			addColumn(table, yAxisMetric4, y4Values);
-			uiService.show((anyMetric) ? "SNT_MultiMetrics.csv" : "SNT_DensityProfile.csv", table);
+			table.setTitle((anyMetric) ? "SNT_MultiMetrics" : "SNT_DensityProfile");
+			table.show();
 		}
 
 	}

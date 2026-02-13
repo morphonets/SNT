@@ -21,7 +21,6 @@
  */
 package sc.fiji.snt.plugin;
 
-import ij.ImagePlus;
 import org.scijava.command.Command;
 import org.scijava.menu.MenuConstants;
 import org.scijava.plugin.Menu;

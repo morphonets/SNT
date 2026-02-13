@@ -3295,7 +3295,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
 
                 if (!guiUtils.getConfirmation("Concatenate " + n +
-                                " paths in detected spatial order? (this destructive operation cannot be undone!)",
+                                " paths in detected spatial order? (this operation cannot be undone!)",
                         "Confirm Destructive Operation?")) {
                     return;
                 }
@@ -4100,7 +4100,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     return;
                 }
                 if (!guiUtils.getConfirmation("Combine " + n +
-                                " selected paths into one? (this destructive operation cannot be undone!)",
+                                " selected paths into one? (this operation cannot be undone!)",
                         "Confirm Destructive Operation?")) {
                     return;
                 }
