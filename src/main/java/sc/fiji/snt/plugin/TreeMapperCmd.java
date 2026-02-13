@@ -183,7 +183,7 @@ public class TreeMapperCmd extends CommonDynamicCmd {
 
 	private void setLUTs() {
 		luts = lutService.findLUTs();
-		if (luts.isEmpty()) {
+		if (luts == null || luts.isEmpty()) {
 			error("This command requires at least one LUT to be installed.");
 		}
 		final ArrayList<String> choices = new ArrayList<>();

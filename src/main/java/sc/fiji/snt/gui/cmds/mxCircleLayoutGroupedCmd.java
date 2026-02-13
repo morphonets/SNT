@@ -152,22 +152,17 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
 
     private void setLUTs() {
         luts = lutService.findLUTs();
-        if (luts.isEmpty()) {
+        if (luts == null || luts.isEmpty()) {
             cancel("<HTML>This command requires at least one LUT to be installed.");
         }
-        final ArrayList<String> choices = new ArrayList<>();
-        for (final Map.Entry<String, URL> entry : luts.entrySet()) {
-            choices.add(entry.getKey());
-        }
-
+        final ArrayList<String> choices = new ArrayList<>(luts.keySet());
         // define a valid LUT choice
         Collections.sort(choices);
         if (lutChoice == null || !choices.contains(lutChoice)) {
-            lutChoice = choices.get(0);
+            lutChoice = choices.getFirst();
         }
 
-        final MutableModuleItem<String> input = getInfo().getMutableInput(
-                "lutChoice", String.class);
+        final MutableModuleItem<String> input = getInfo().getMutableInput("lutChoice", String.class);
         input.setChoices(choices);
         input.setValue(this, lutChoice);
         lutChoiceChanged();
@@ -175,9 +170,9 @@ public class mxCircleLayoutGroupedCmd extends DynamicCommand {
 
     private void lutChoiceChanged() {
         try {
+            if (lutChoice == null) lutChoice = "Ice.lut";
             colorTable = lutService.loadLUT(luts.get(lutChoice));
-        }
-        catch (final IOException e) {
+        } catch (final IOException e) {
             e.printStackTrace();
         }
     }

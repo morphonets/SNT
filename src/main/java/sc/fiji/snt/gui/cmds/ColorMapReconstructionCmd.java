@@ -103,19 +103,18 @@ public class ColorMapReconstructionCmd extends CommonDynamicCmd {
 		// see net.imagej.lut.LUTSelector
 		luts = lutService.findLUTs();
 		final ArrayList<String> luTChoices = new ArrayList<>();
-		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
-			luTChoices.add(entry.getKey());
+		if (luts != null) {
+			luTChoices.addAll(luts.keySet());
+			Collections.sort(luTChoices);
 		}
-		Collections.sort(luTChoices);
-		final MutableModuleItem<String> input = getInfo().getMutableInput(
-			"lutChoice", String.class);
+		final MutableModuleItem<String> input = getInfo().getMutableInput("lutChoice", String.class);
 		input.setChoices(luTChoices);
 
 		// we want the LUT ramp to update when the dialog is shown. For this
 		// to happen it seems we've to load the  persisted LUT choice now
 		lutChoice = prefService.get(getClass(), "lutChoice", "mpl-viridis.lut");
-		if (lutChoice == null || lutChoice.isEmpty() || !luTChoices.contains(
-			lutChoice)) lutChoice = luTChoices.get(0);
+		if (lutChoice == null || lutChoice.isEmpty() || !luTChoices.contains(lutChoice))
+			lutChoice = luTChoices.getFirst();
 		lutChoiceChanged();
 
 		List<String> mChoices;

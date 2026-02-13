@@ -865,14 +865,14 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 		// see net.imagej.lut.LUTSelector
 		luts = lutService.findLUTs();
 		final ArrayList<String> choices = new ArrayList<>();
-		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
-			choices.add(entry.getKey());
+		if (luts != null) {
+			choices.addAll(luts.keySet());
+			Collections.sort(choices);
 		}
-		Collections.sort(choices);
 		choices.addFirst("No LUT. Use active ROI color");
 		final MutableModuleItem<String> input = getInfo().getMutableInput("lutChoice", String.class);
 		input.setChoices(choices);
-		input.setValue(this, lutChoice);
+		input.setValue(this, (lutChoice == null) ? choices.getFirst() : lutChoice);
 		lutChoiceChanged();
 	}
 

@@ -122,8 +122,7 @@ public class RootAngleAnalyzerCmd extends CommonDynamicCmd {
 		luts = lutService.findLUTs();
 		final ArrayList<String> choices = new ArrayList<>();
 		if (luts != null) {
-			for (final Map.Entry<String, URL> entry : luts.entrySet())
-				choices.add(entry.getKey());
+			choices.addAll(luts.keySet());
 			Collections.sort(choices);
 		}
 		choices.addFirst("None");
@@ -137,7 +136,7 @@ public class RootAngleAnalyzerCmd extends CommonDynamicCmd {
 
 	private void lutChoiceChanged() {
 		try {
-			if ("None".equals(lutChoice))
+			if (lutChoice == null || "none".equalsIgnoreCase(lutChoice))
 				colorTable = ShollUtils.constantLUT(GuiUtils.getDisabledComponentColor());
 			else
 				colorTable = lutService.loadLUT(luts.get(lutChoice));

@@ -430,15 +430,15 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 
 	private void setLUTs() {
 		// see net.imagej.lut.LUTSelector
+		final MutableModuleItem<String> input = getInfo().getMutableInput("lutChoice", String.class);
 		luts = lutService.findLUTs();
 		final ArrayList<String> choices = new ArrayList<>();
-		for (final Map.Entry<String, URL> entry : luts.entrySet()) {
-			choices.add(entry.getKey());
+		if (luts != null) {
+			choices.addAll(luts.keySet());
+			Collections.sort(choices);
 		}
-		Collections.sort(choices);
-		final MutableModuleItem<String> input = getInfo().getMutableInput(
-			"lutChoice", String.class);
 		input.setChoices(choices);
+		if (lutChoice == null) lutChoice = choices.getFirst();
 		input.setValue(this, lutChoice);
 		lutChoiceChanged();
 	}
