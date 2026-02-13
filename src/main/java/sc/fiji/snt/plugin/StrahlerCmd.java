@@ -33,9 +33,11 @@ import org.scijava.plugin.Plugin;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.TreeUtils;
 
 import java.text.DecimalFormat;
 import java.util.*;
@@ -119,9 +121,9 @@ public class StrahlerCmd extends ContextCommand {
 		}
 		populateSummaryTable(summaryTable);
 		if (newTableRequired) {
-			displayService.createDisplay("SNT Strahler Table", summaryTable);
+			summaryTable.show("SNT Strahler Table");
 		} else {
-			tableDisplay.update();
+			summaryTable.updateDisplay();
 		}
 		if (detailedAnalysis) {
 			final List<SNTChart> charts = new ArrayList<>();
@@ -138,9 +140,9 @@ public class StrahlerCmd extends ContextCommand {
 			}
 			populateDetailedTable(detailedTable);
 			if (newTableRequired) {
-				displayService.createDisplay("SNT Detailed Strahler Table", detailedTable);
+				detailedTable.show("SNT Detailed Strahler Table");
 			} else {
-				tableDisplay.update();
+				detailedTable.updateDisplay();
 			}
 			if (trees.size() == 1) {
 				final SNTChart cChart = SNTChart.combine(charts);
@@ -314,7 +316,7 @@ public class StrahlerCmd extends ContextCommand {
 			if (!data.parseable()) return;
 			// We'll create a histogram per tree being analyzed: For each histogram,
 			// we'll treat Strahler orders as series, each detailing the distribution
-			// of the metric for the order.A quick/hacky way to do this is to artificially
+			// of the metric for the order. A quick/hacky way to do this is to artificially
 			// treat each branch as a tree, so that we can use GroupedTreeStatistics
 			final GroupedTreeStatistics groupedStats = new GroupedTreeStatistics();
 			data.analyzer.getBranches().forEach((order, branches) -> {
@@ -323,21 +325,30 @@ public class StrahlerCmd extends ContextCommand {
 				groupedStats.addGroup(branchesAsTree, "Order " + order);
 			});
 			groupedStats.setMinNBins(6);
-			final SNTChart chart;
-			if (boxplotElseHistogram)
-				chart = groupedStats.getBoxPlot(normMetric);
-			else if (normMetric.contains("angle"))
-				chart = groupedStats.getPolarHistogram(normMetric);
-			else
-				chart = groupedStats.getHistogram(normMetric);
-			if (singleChart) {
-				chart.setTitle("Strahler " + normMetric + ((boxplotElseHistogram) ? " BoxPlot " : " Histogram ") + label);
-			} else {
-				chart.setChartTitle(label);
+			try {
+				final SNTChart chart;
+				if (boxplotElseHistogram) {
+					chart = groupedStats.getBoxPlot(normMetric);
+				} else if (normMetric.contains("angle")) {
+					chart = groupedStats.getPolarHistogram(normMetric);
+				} else {
+					chart = groupedStats.getHistogram(normMetric);
+				}
+				if (singleChart) {
+					chart.setTitle("Strahler " + normMetric + ((boxplotElseHistogram) ? " BoxPlot " : " Histogram ") + label);
+				} else {
+					chart.setChartTitle(label);
+				}
+				charts.add(chart);
+			} catch (final IllegalArgumentException ex) {
+				// Skip this tree if histogram creation fails (e.g., insufficient data)
+				SNTUtils.log("Could not create chart for '" + label + "': " + ex.getMessage());
 			}
-			charts.add(chart);
 		});
-		if (singleChart) {
+		if (charts.isEmpty()) {
+			throw new IllegalArgumentException("No valid charts could be created for metric: " + normMetric);
+		}
+		if (singleChart || charts.size() == 1) {
 			return charts.getFirst();
 		}
 		final SNTChart result = SNTChart.combine(charts);
@@ -521,9 +532,9 @@ public class StrahlerCmd extends ContextCommand {
 				// Tree has multiple roots or other topology issues - try splitting
 			}
 
-			// Split into connected components and create aggregate analyzer
+			// Try to split the tree into subtrees rooted at each primary path
 			try {
-				final List<Tree> componentTrees = tree.getGraph().getTrees();
+				final List<Tree> componentTrees = TreeUtils.splitByPrimaryPaths(tree);
 				if (componentTrees.size() > 1) {
 					// Multiple components found - create analyzers for each valid one
 					final List<StrahlerAnalyzer> validAnalyzers = new ArrayList<>();
@@ -545,7 +556,7 @@ public class StrahlerCmd extends ContextCommand {
 					}
 				}
 			} catch (final IllegalArgumentException ignored) {
-				// Could not get graph or components
+				// Could not split tree
 			}
 
 			this.analyzer = primaryAnalyzer;

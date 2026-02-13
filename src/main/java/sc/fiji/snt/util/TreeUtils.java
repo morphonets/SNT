@@ -925,12 +925,15 @@ public class TreeUtils {
         }
 
         // For each primary path, collect it and all its descendants
+        int counter = 1;
         final List<Tree> componentTrees = new ArrayList<>();
         for (final Path primaryPath : primaryPaths) {
             final Set<Path> componentPaths = new HashSet<>();
             collectDescendants(primaryPath, tree, componentPaths);
             if (!componentPaths.isEmpty()) {
-                componentTrees.add(new Tree(componentPaths));
+                final Tree cTree = new Tree(componentPaths);
+                cTree.setLabel(String.format("%s [Component %d]", tree.getLabel(), counter++));
+                componentTrees.add(cTree);
             }
         }
 
