@@ -3211,7 +3211,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
              * @return the number of children whose branch points were updated
              */
             private int reverseWithChildrenUpdate(final Path path) {
-                final List<Path> children = path.getChildren();
+                final List<Path> children = new ArrayList<>(path.getChildren()); // Copy to avoid ConcurrentModificationException
                 final int oldSize = path.size();
 
                 // Store old branch point indices before reversal
@@ -4334,7 +4334,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
              * @param path the path to reverse
              */
             private void reversePathWithChildren(final Path path) {
-                final List<Path> children = path.getChildren();
+                final List<Path> children = new ArrayList<>(path.getChildren()); // Copy to avoid ConcurrentModificationException
                 final int oldSize = path.size();
 
                 // Store old branch point indices before reversal
