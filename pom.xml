@@ -10,7 +10,7 @@
 
 	<groupId>org.morphonets</groupId>
 	<artifactId>SNT</artifactId>
-	<version>4.9.9-SNAPSHOT</version>
+	<version>5.0.1-SNAPSHOT</version>
 
 	<name>SNT</name>
 	<description>The ImageJ framework for quantitative neuroanatomy</description>
