@@ -135,11 +135,6 @@
 		<scijava.jvm.version>21</scijava.jvm.version>
 		<doclint>none</doclint>
 
-		<!-- TEMP: Avoid javadoc build errors due to JPMS complexity. -->
-		<maven.javadoc.skip>true</maven.javadoc.skip>
-		<arguments>-Dmaven.javadoc.skip=true</arguments>
-		<arg>-Dmaven.javadoc.skip=true</arg>
-
 		<!-- TEMP: Avoid SNTService initialization error in Java21. -->
 		<maven.test.skip>true</maven.test.skip>
 
@@ -154,8 +149,8 @@
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
 		<jide-oss.version>3.7.15</jide-oss.version>
 		<orsonpdf.version>1.9.1</orsonpdf.version>
-        <jfreesvg.version>3.4.4</jfreesvg.version>
-        <scenery.version>0.12.0</scenery.version>
+		<jfreesvg.version>3.4.4</jfreesvg.version>
+		<scenery.version>0.12.0</scenery.version>
 		<sciview.version>0.4.0</sciview.version>
 		<smile.version>4.4.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
@@ -182,6 +177,21 @@
 					<argLine>
 						--add-opens java.base/java.time=ALL-UNNAMED
 					</argLine>
+				</configuration>
+			</plugin>
+			<!--
+				WORKAROUND: jzy3d-native-jogl-awt has an invalid automatic module
+				name ('native' is a Java keyword), causing javadoc generation to fail
+				with "Unable to derive module descriptor". failOnError=false allows
+				the release to proceed. Remove once jzy3d publishes a fixed jar with
+				a valid Automatic-Module-Name in its manifest. See also:
+				https://github.com/jzy3d/jzy3d-api/issues
+			-->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<failOnError>false</failOnError>
 				</configuration>
 			</plugin>
 		</plugins>
@@ -491,13 +501,13 @@
 			<artifactId>orsonpdf</artifactId>
 			<version>${orsonpdf.version}</version>
 			<scope>runtime</scope>
-        </dependency>
-        <dependency>
-        <!-- automatically allow charts to be exported as SVG -->
-            <groupId>org.jfree</groupId>
-            <artifactId>jfreesvg</artifactId>
-            <version>${jfreesvg.version}</version>
-            <scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<!-- automatically allow charts to be exported as SVG -->
+			<groupId>org.jfree</groupId>
+			<artifactId>jfreesvg</artifactId>
+			<version>${jfreesvg.version}</version>
+			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<!-- LAF patches for JIDE-OSS -->
