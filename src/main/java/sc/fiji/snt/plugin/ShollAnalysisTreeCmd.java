@@ -34,7 +34,6 @@ import org.scijava.ItemVisibility;
 import org.scijava.app.StatusService;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import org.scijava.command.DynamicCommand;
 import org.scijava.display.Display;
 import org.scijava.menu.MenuConstants;
 import org.scijava.module.MutableModuleItem;
@@ -63,6 +62,7 @@ import sc.fiji.snt.analysis.sholl.math.PolarProfileStats;
 import sc.fiji.snt.analysis.sholl.math.ShollStats;
 import sc.fiji.snt.analysis.sholl.parsers.TreeParser;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
@@ -84,7 +84,7 @@ import static sc.fiji.snt.plugin.ShollAnalysisPrefsCmd.ALLOWED_MAX_DEGREE;
 		@Menu(label = "Sholl"), //
 		@Menu(label = "Sholl Analysis (From Tracings)...") }, //
 		initializer = "init")
-public class ShollAnalysisTreeCmd extends DynamicCommand {
+public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 
 	private static final String SUMMARY_TABLE_NAME = "Sholl_Metrics";
 
@@ -375,6 +375,12 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
 
 	/* initializer method running before displaying prompt */
 	protected void init() {
+		super.init(false);
+		// backwards compatibility: super.snt is now set from sntService;
+		// sync with local parameter if needed
+		if (this.snt == null) {
+			this.snt = super.snt;
+		}
 		helper = new GuiUtils();
 		logger = new Logger(context(), "Sholl");
 		final boolean calledFromStandAloneRecViewer = snt == null && tree != null;
@@ -694,7 +700,13 @@ public class ShollAnalysisTreeCmd extends DynamicCommand {
                 readPreferences();
                 preferencesChanged = false;
             }
-			runAnalysis();
+			try {
+				runAnalysis();
+			} catch (final Throwable e) {
+				helper.error("Analysis failed: " + e.getMessage(), "Error");
+			} finally {
+				resetUI();
+			}
 		}
 
 		public void runAnalysis() {

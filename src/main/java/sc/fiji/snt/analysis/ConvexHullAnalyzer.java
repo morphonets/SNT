@@ -280,14 +280,15 @@ public class ConvexHullAnalyzer extends ContextCommand {
 	}
 
 	protected double computeBoxivity(final AbstractConvexHull hull) {
+
 		try {
 			if (hull instanceof ConvexHull3D hull3D)
 				return opService.geom().boxivity(hull3D.getMesh()).getRealDouble();
 			else if (hull instanceof ConvexHull2D hull2D)
 				return opService.geom().boxivity(hull2D.getPolygon()).getRealDouble();
 		} catch (final IllegalArgumentException iae) {
-			// BUG:  No matching 'net.imagej.ops.Ops$Geometric$SmallestEnclosingBoundingBox/net.imagej.ops.special.function.UnaryFunctionOp' op
-			iae.printStackTrace();
+			// Known limitation: ImageJ Ops SmallestEnclosingBoundingBox not available for all mesh types
+			SNTUtils.log("Boxivity unavailable (IJ Ops limitation)");
 			return Double.NaN;
 		}
 		throw new IllegalArgumentException("Unsupported type:" + hull.getClass());
