@@ -56,7 +56,7 @@ import org.scijava.prefs.PrefService;
  * 2. Call applyFit() sequentially (modifies path hierarchy)
  * <p>
  * Example:
- * <pre>
+ * {@code
  * List<PathFitter> fitters = paths.stream()
  *     .map(p -> new PathFitter(img, p))
  *     .collect(Collectors.toList());
@@ -66,7 +66,7 @@ import org.scijava.prefs.PrefService;
  *
  * // Sequential application
  * fitters.forEach(PathFitter::applyFit);
- * </pre>
+ * }
  *
  * @author Tiago Ferreira
  * @author Mark Longair

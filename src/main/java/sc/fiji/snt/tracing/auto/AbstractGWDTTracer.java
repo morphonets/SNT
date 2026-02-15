@@ -51,14 +51,12 @@ import java.util.*;
  * <p>
  * Subclasses specify storage backend via {@link #createStorageBackend()}.
  * </p>
- * <p>
  * This implementation follows the APP2 algorithm:
  * <ol>
  *   <li>GWDT - Gray-weighted distance transform on grayscale (no binarization)</li>
  *   <li>Fast Marching - Build initial tree from seed using geodesic distance on GWDT</li>
  *   <li>Hierarchical Pruning - Long-segment-first with intensity-weighted coverage</li>
  * </ol>
- * </p>
  *
  * @param <T> pixel type
  * @author Tiago Ferreira

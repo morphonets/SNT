@@ -37,6 +37,7 @@ import java.util.List;
 
 
 /**
+ * Implements "Choose New Dataset" command for SNTUI.
  * @author Tiago Ferreira
  */
 @Plugin(initializer = "init", type = Command.class, visible = false, label = "Choose New Dataset")

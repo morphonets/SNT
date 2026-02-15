@@ -2935,14 +2935,12 @@ public class Path implements Comparable<Path>, Cloneable {
      * new values using linear interpolation based on remaining valid nodes. Interpolated
      * values are clamped to the specified range to prevent extrapolation artifacts.
      * </p>
-     * <p>
      * If fewer than two nodes have valid radii, a context-appropriate fallback is used:
      * <ul>
      *   <li>All radii above range → {@code maxRadius}</li>
      *   <li>All radii below range → {@code minRadius}</li>
      *   <li>Mixed or NaN values → midpoint of range</li>
      * </ul>
-     * </p>
      *
      * @param minRadius minimum valid radius (inclusive)
      * @param maxRadius maximum valid radius (inclusive)

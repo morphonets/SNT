@@ -75,6 +75,8 @@ import java.util.stream.DoubleStream;
 /**
  * Implements the "Generate Secondary Layer" command.
  *
+ * @param <T> the pixel type of the input image, extending {@link RealType} and {@link NativeType}
+ * @param <U> the pixel type of the output (secondary) image, extending {@link RealType} and {@link NativeType}
  * @author Tiago Ferreira
  * @author Cameron Arshadi
  */

@@ -505,11 +505,7 @@ public class SNTTable extends DefaultGenericTable {
 
 	/**
 	 * Sets the title of the table.
-	 * <p>
-	 * Returns the table's title, or "SNT Measurements" if no title has been set.
-	 * </p>
-	 *
-	 * @return the table title
+	 * @param title the table's title
 	 */
 	public void setTitle(final String title) {
 		this.title = title;

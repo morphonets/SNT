@@ -46,14 +46,12 @@ import java.util.*;
  * Achieves 10-100× memory reduction for sparse neuronal structures.
  * Best for thin structures with lots of background.
  * </p>
- * <p>
  * Trade-offs:
  * <ul>
  *   <li>Memory: 10-100× less than ArrayStorageBackend</li>
  *   <li>Speed: ~1.5-2× slower due to hash lookups vs array indexing</li>
- *   <li>Best for: Sparse images where <10% of voxels are foreground</li>
+ *   <li>Best for: Sparse images where &lt;10% of voxels are foreground</li>
  * </ul>
- * </p>
  *
  * @author Tiago Ferreira
  */

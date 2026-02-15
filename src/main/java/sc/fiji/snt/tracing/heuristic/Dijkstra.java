@@ -23,6 +23,8 @@
 package sc.fiji.snt.tracing.heuristic;
 
 /**
+ * A {@link Heuristic} that always returns zero, reducing A* search to Dijkstra's algorithm.
+ *
  * @author Cameron Arshadi
  */
 public class Dijkstra implements Heuristic {

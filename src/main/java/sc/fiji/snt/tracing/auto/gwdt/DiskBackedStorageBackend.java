@@ -52,7 +52,6 @@ import java.util.*;
  * GWDT and Fast Marching data on disk with LRU caching in memory.
  * Can process images of arbitrary size with bounded memory usage.
  * </p>
- * <p>
  * Trade-offs:
  * <ul>
  *   <li>Memory: Constant (~500MB-1GB) regardless of image size</li>
@@ -60,7 +59,6 @@ import java.util.*;
  *   <li>Disk: Requires ~25 bytes per voxel temporary disk space</li>
  *   <li>Best for: Images > 2GB or when RAM is limited</li>
  * </ul>
- * </p>
  * <p>
  * Temporary files are stored in the system temp directory and automatically
  * deleted when {@link #dispose()} is called.

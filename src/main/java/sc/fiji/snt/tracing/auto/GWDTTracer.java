@@ -36,7 +36,7 @@ import java.util.List;
 /**
  * In-memory GWDT tracer using array storage.
  * <p>
- * Fast but memory-intensive. Best for images < 500MB.
+ * Fast but memory-intensive. Best for images &lt; 1GB.
  * Uses APP2-style algorithm: Gray-Weighted Distance Transform,
  * Fast Marching, and hierarchical pruning.
  * </p>

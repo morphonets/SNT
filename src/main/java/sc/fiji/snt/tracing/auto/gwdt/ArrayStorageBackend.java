@@ -43,7 +43,7 @@ import java.util.*;
 
 /**
  * In-memory array storage backend using ImgLib2 ArrayImgs.
- * Fast but memory-intensive. Best for images < 500MB.
+ * Fast but memory-intensive. Best for images &lt; 1GB.
  */
 public class ArrayStorageBackend implements StorageBackend {
 

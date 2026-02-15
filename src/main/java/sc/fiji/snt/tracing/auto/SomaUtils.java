@@ -63,14 +63,12 @@ import java.util.List;
  * a combined EDT-intensity approach, flood fill the region, extract contours,
  * and convert to ImageJ ROIs.
  * </p>
- * <p>
  * Three detection modes are available:
  * <ul>
  *   <li>{@link #detectSoma} - Detect single soma (brightest/thickest region)</li>
  *   <li>{@link #detectSomaAt} - Detect soma at a specific seed point</li>
  *   <li>{@link #detectAllSomas} - Detect all somas in the image</li>
  * </ul>
- * </p>
  *
  * @author Tiago Ferreira
  * @see AbstractAutoTracer#findRoot(RandomAccessibleInterval, double, double[])

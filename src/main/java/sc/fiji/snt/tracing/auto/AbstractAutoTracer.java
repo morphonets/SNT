@@ -117,14 +117,12 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     /**
      * Finds the thickest point in a foreground structure using the Euclidean
      * Distance Transform (EDT).
-     * <p>
      * This is more robust than simply finding the brightest pixel because:
      * <ul>
      *   <li>Hot pixels/artifacts are typically 1 voxel thick → small EDT value</li>
      *   <li>The soma, being the thickest structure, has the largest EDT value</li>
      *   <li>Less sensitive to intensity variations and uneven illumination</li>
      * </ul>
-     * </p>
      *
      * @param source    the input image
      * @param threshold pixels above this value are considered foreground
@@ -181,7 +179,6 @@ public abstract class AbstractAutoTracer implements AutoTracer {
 
     /**
      * Automatically detects the most likely root point (soma center) in a neuronal image.
-     * <p>
      * This method uses a combined thickness-intensity approach that is robust to common
      * imaging artifacts and variations in signal distribution. The algorithm:
      * <ol>
@@ -190,8 +187,6 @@ public abstract class AbstractAutoTracer implements AutoTracer {
      *   <li>Scores each foreground pixel as: {@code EDT_value × normalized_intensity}</li>
      *   <li>Returns the position with the maximum score</li>
      * </ol>
-     * </p>
-     * <p>
      * This combined scoring naturally favors the soma because:
      * <ul>
      *   <li>Soma is typically the <b>thickest</b> structure → high EDT value</li>
@@ -199,7 +194,6 @@ public abstract class AbstractAutoTracer implements AutoTracer {
      *   <li>Hot pixels/artifacts are tiny → low EDT despite high intensity</li>
      *   <li>Thin neurites have low EDT → low score even if bright</li>
      * </ul>
-     * </p>
      *
      * @param source    the input image (grayscale)
      * @param threshold pixels above this value are considered foreground. If {@code NaN},

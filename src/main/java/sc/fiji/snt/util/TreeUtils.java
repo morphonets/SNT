@@ -191,7 +191,6 @@ public class TreeUtils {
      * angle between their direction vectors is below the threshold, the most aligned
      * child is merged into the parent, creating a longer continuous path.
      * </p>
-     * <p>
      * <b>Algorithm:</b>
      * <ol>
      *   <li>For each path with children, compute the parent's end tangent vector
@@ -202,22 +201,17 @@ public class TreeUtils {
      *       grandchildren to the extended parent, remove child from tree</li>
      *   <li>Repeat until no more merges are possible</li>
      * </ol>
-     * </p>
-     * <p>
      * <b>Criteria for merging:</b> Two paths are merged when:
      * <ul>
      *   <li>The child starts at the parent's endpoint (branch point)</li>
      *   <li>The angle between their direction vectors ≤ {@code angleThreshold}</li>
      *   <li>The child is the <i>most aligned</i> among all siblings</li>
      * </ul>
-     * </p>
-     * <p>
      * <b>Example:</b> A traced axon might be split into 5 paths at 4 branch points:
      * <pre>
      * Before: P1 → P2 → P3 → P4 → P5  (with side branches B1, B2, B3, B4)
      * After:  P1 (merged trunk) with children B1, B2, B3, B4
      * </pre>
-     * </p>
      *
      * @param angleThreshold maximum angle (in degrees) between parent end tangent
      *                       and child start tangent for paths to be considered
@@ -474,14 +468,12 @@ public class TreeUtils {
      * The paths should be pre-ordered and oriented using {@link #orderByEndpointProximity}
      * and {@link #orientPathsForMerging}.
      * </p>
-     * <p>
      * This method handles:
      * <ul>
      *   <li>Appending nodes from each path to the result</li>
      *   <li>Optionally reparenting children of merged paths to the result</li>
      *   <li>Preserving the first path's parent connection (if any)</li>
      * </ul>
-     * </p>
      * <p>
      * <b>Note:</b> This method does NOT delete the original paths from any manager.
      * The caller is responsible for cleanup.

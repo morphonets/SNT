@@ -43,7 +43,9 @@ import sc.fiji.snt.viewer.Viewer3D;
 import java.util.*;
 
 /**
+ * Implements the "Convex Hull Analysis..." command.
  * @author Cameron Arshadi
+ * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, visible = false, label = "Convex Hull Analysis...")
 public class ConvexHullCmd extends ContextCommand {

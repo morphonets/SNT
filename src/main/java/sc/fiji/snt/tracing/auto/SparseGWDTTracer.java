@@ -36,16 +36,13 @@ import sc.fiji.snt.util.ImgUtils;
  * Uses hash maps to store only non-default values, achieving 10-100× memory
  * reduction compared to {@link GWDTTracer} for sparse neuronal structures.
  * </p>
- * <p>
  * Trade-offs:
  * <ul>
  *   <li>Memory: 10-100× less than array storage</li>
  *   <li>Speed: ~1.5-2× slower due to hash lookups</li>
  *   <li>Best for: Thin structures, lots of background, limited RAM</li>
  * </ul>
- * </p>
- /**
- * <p>
+ *
  * Example: A 1024×1024×100 16-bit image:
  * <ul>
  *   <li>GWDTTracer (array): ~2.5GB RAM</li>
@@ -53,7 +50,6 @@ import sc.fiji.snt.util.ImgUtils;
  *       up to ~4GB for dense structures (>40% foreground)</li>
  *   <li>DiskBackedGWDTTracer: ~500MB RAM + ~100GB temporary disk</li>
  * </ul>
- * </p>
  *
  * @param <T> pixel type
  * @author Tiago Ferreira

@@ -57,6 +57,7 @@ import static sc.fiji.snt.util.ImgUtils.outOfBounds;
  * Profile intensities within local neighborhoods around {@link Path}
  * {@link sc.fiji.snt.util.PointInImage}s
  *
+ * @param <T> pixel type
  * @author Cameron Arshadi
  */
 public class ProfileProcessor<T extends RealType<T>> implements Callable<double[]> {

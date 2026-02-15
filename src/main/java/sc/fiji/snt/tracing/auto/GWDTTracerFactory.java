@@ -31,19 +31,16 @@ import sc.fiji.snt.util.ImgUtils;
 
 /**
  * Factory for creating optimal GWDT tracer implementations based on image size.
- * <p>
  * Automatically selects the best storage backend:
  * <ul>
- *   <li><b>Array storage</b>: Images < 1GB - Fast, high memory</li>
+ *   <li><b>Array storage</b>: Images &lt; 1GB - Fast, high memory</li>
  *   <li><b>Sparse storage</b>: Images 1GB-5GB - Balanced, lower memory</li>
- *   <li><b>Disk-backed storage</b>: Images > 5GB - Slow, minimal memory</li>
+ *   <li><b>Disk-backed storage</b>: Images &gt; 5GB - Slow, minimal memory</li>
  * </ul>
- * </p>
  * <p>
  * The thresholds are based on estimated working memory (not source image size):
  * working memory ≈ source size × 10 (for GWDT + Fast Marching data structures).
  * </p>
- * <p>
  * Usage:
  * <pre>{@code
  * // Automatic selection
@@ -54,7 +51,6 @@ import sc.fiji.snt.util.ImgUtils;
  * // Manual selection
  * AbstractGWDTTracer<?> tracer = new SparseGWDTTracer<>(image);
  * }</pre>
- * </p>
  *
  * @author Tiago Ferreira
  */

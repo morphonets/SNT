@@ -37,7 +37,6 @@ import sc.fiji.snt.util.ImgUtils;
  * bounded memory usage (~500MB-1GB). Temporary files are automatically
  * created in the system temp directory and deleted after tracing.
  * </p>
- * <p>
  * Trade-offs:
  * <ul>
  *   <li>Memory: Constant (~500MB-1GB) regardless of image size</li>
@@ -45,15 +44,12 @@ import sc.fiji.snt.util.ImgUtils;
  *   <li>Disk: Requires ~25 bytes per voxel temporary storage</li>
  *   <li>Best for: Images > 2GB or systems with limited RAM</li>
  * </ul>
- * </p>
- * <p>
  * Example use cases:
  * <ul>
  *   <li>Whole-brain light-sheet images (4096×4096×1000)</li>
  *   <li>High-resolution tile scans</li>
  *   <li>Processing on laptops with limited RAM</li>
  * </ul>
- * </p>
  *
  * @param <T> pixel type
  * @author Tiago Ferreira

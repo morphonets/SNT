@@ -31,7 +31,6 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
  * Implementations can use in-memory arrays ({@link ArrayStorageBackend}),
  * disk-backed storage, or sparse representations for memory efficiency.
  * </p>
- * <p>
  * The backend handles storage for:
  * <ul>
  *   <li>GWDT (Gray-Weighted Distance Transform) values</li>
@@ -39,7 +38,6 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
  *   <li>Fast Marching parent pointers</li>
  *   <li>Fast Marching state (FAR/TRIAL/ALIVE)</li>
  * </ul>
- * </p>
  *
  * @author Tiago Ferreira
  */
@@ -176,14 +174,12 @@ public interface StorageBackend {
      * <p>
      * Memory cost: ~24 bytes per ALIVE voxel
      * </p>
-     * <p>
      * Recommended settings:
      * <ul>
      *   <li>ArrayStorageBackend: ON (default) - moderate speedup, low cost</li>
      *   <li>SparseStorageBackend: OFF (default) - already iterates keys only</li>
      *   <li>DiskBackedStorageBackend: ON (default) - essential for performance</li>
      * </ul>
-     * </p>
      *
      * @param track true to track ALIVE indices, false to use full-volume scan
      */

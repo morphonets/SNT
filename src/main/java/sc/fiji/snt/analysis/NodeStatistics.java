@@ -52,7 +52,8 @@ import smile.neighbor.Neighbor;
 /**
  * Computes summary and descriptive statistics from a Collection of nodes, including convenience methods to plot
  * distributions of such data.
- * 
+ *
+ * @param <T> Pixel type
  * @author Tiago Ferreira
  */
 public class NodeStatistics <T extends PointInImage> {
