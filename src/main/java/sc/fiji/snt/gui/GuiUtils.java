@@ -2983,7 +2983,7 @@ public class GuiUtils {
 		}
 
 		public static JMenuItem persistenceAnalysis() {
-			final JMenuItem jmi = new JMenuItem("Persistence Homology...", IconFactory.menuIcon(GLYPH.BARCODE));
+			final JMenuItem jmi = new JMenuItem("Persistent Homology...", IconFactory.menuIcon(GLYPH.BARCODE));
 			jmi.setToolTipText("TMD, TMD variants, and Persistence landscapes");
 			return jmi;
 		}

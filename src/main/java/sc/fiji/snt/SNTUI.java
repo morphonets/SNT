@@ -3091,7 +3091,7 @@ public class SNTUI extends JDialog {
 			inputs.put("trees", trees);
 			new DynamicCmdRunner(PersistenceAnalyzerCmd.class, inputs).run();
 		});
-		ScriptRecorder.setRecordingCall(tmdMenuItem, "snt.getUI().runCommand(\"Persistence Homology...\")");
+		ScriptRecorder.setRecordingCall(tmdMenuItem, "snt.getUI().runCommand(\"Persistent Homology...\")");
 		analysisMenu.add(tmdMenuItem);
 		final JMenuItem rootAnalysisMenuItem = GuiUtils.MenuItems.rootAngleAnalysis();
 		rootAnalysisMenuItem.addActionListener(e -> {

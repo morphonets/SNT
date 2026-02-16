@@ -37,10 +37,10 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * GUI command persistence homology analyses.
+ * GUI command persistent homology analyses.
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, visible = false, label = "Persistence Homology")
+@Plugin(type = Command.class, visible = false, label = "Persistent Homology")
 public class PersistenceAnalyzerCmd extends ContextCommand {
 
 	@Parameter
@@ -96,7 +96,7 @@ public class PersistenceAnalyzerCmd extends ContextCommand {
 		trees.forEach(tree -> {if (!parseTree(tree, table)) failure.set(true);});
 		table.fillEmptyCells(Double.NaN);
 		table.replace("TMD", 0, Double.NaN);
-		table.show(String.format("Persistence Homology Table [%s]", descriptorChoice));
+		table.show(String.format("Persistent Homology Table [%s]", descriptorChoice));
 		if (failure.get())
 			logService.error("Some tree(s) could not be parsed... More details may be available in debug mode");
 	}
