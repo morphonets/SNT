@@ -1685,12 +1685,12 @@ public class PathAndFillManager extends DefaultHandler implements
                         current_path.setSWCType(swcType, false);
                     }
 
-                    if (colorString != null) {
+                    if (colorString != null && !"None".equalsIgnoreCase(colorString) && !colorString.isBlank()) {
                         try {
                             current_path.setColor(SNTColor.fromHex(colorString));
                         } catch (final IllegalArgumentException ignored) {
                             // see https://github.com/morphonets/SNT/issues/260
-                            SNTUtils.log("Could not read color '"+ colorString + "',  " + current_path);
+                            SNTUtils.log("Could not read path color '"+ colorString + "'");
                         }
                     }
                     if (channelString != null && frameString != null) {
