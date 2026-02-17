@@ -872,7 +872,7 @@ public class TreeUtils {
         if (trees.size() == 1) return trees.iterator().next();
         final Tree holdingTree = new Tree();
         holdingTree.setLabel("Combined Paths");
-        trees.forEach(tree -> tree.list().addAll(tree.list()));
+        trees.forEach(tree -> holdingTree.list().addAll(tree.list()));
         return holdingTree;
     }
 

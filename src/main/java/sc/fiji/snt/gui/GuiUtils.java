@@ -2744,18 +2744,42 @@ public class GuiUtils {
 		return mItem;
 	}
 
+	/**
+	 * Scrolls a JTable to show its last row.
+	 * <p>
+	 * This implementation avoids using {@link JTable#getCellRect} with row indices. That
+	 * can trigger "row index is bigger than sorter's row count" warnings when the table's
+	 * {@link RowSorter} hasn't fully synchronized. Instead, we manipulate the viewport.
+	 * </p>
+	 * <p>
+	 * The double {@link SwingUtilities#invokeLater} ensures that:
+	 * <ol>
+	 *   <li>1st pass: {@code revalidate()} triggers layout recalculation for any newly added rows</li>
+	 *   <li>2nd pass: scrolling occurs after layout is complete, so {@code table.getHeight()}
+	 *       reflects the actual table size including new rows</li>
+	 * </ol>
+	 * </p>
+	 *
+	 * @param table the table to scroll (must be inside a {@link JScrollPane})
+	 */
 	private static void scrollToBottom(final JTable table) {
 		SwingUtilities.invokeLater(() -> {
-			try {
-				final int lastRow = table.getRowCount() - 1;
-				final RowSorter<?> sorter = table.getRowSorter();
-				if (lastRow >= 0 && (sorter == null || lastRow < sorter.getViewRowCount())) {
-					final Rectangle rect = table.getCellRect(lastRow, 0, true);
-					table.scrollRectToVisible(rect);
+			table.revalidate();
+			SwingUtilities.invokeLater(() -> {
+				try {
+					final Container parent = table.getParent();
+					if (parent instanceof JViewport viewport) {
+						final int tableHeight = table.getHeight();
+						final int viewHeight = viewport.getHeight();
+						if (tableHeight > viewHeight) {
+							viewport.setViewPosition(new Point(0, tableHeight - viewHeight));
+						}
+					}
+					table.repaint();
+				} catch (final Exception ignored) {
+					// Fail silently
 				}
-			} catch (final Exception ignored) {
-				// Fail silently - scroll is non-critical
-			}
+			});
 		});
 	}
 

@@ -708,7 +708,7 @@ public class SNTUI extends JDialog {
 	private void runSecondaryLayerWizard(final boolean autoCTwarning) {
 		if (!okToReplaceSecLayer())
 			return;
-		if (!plugin.accessToValidImageData()) {
+		if (accessToValidImagePlus()) { // wizard requires image to be open
 			noValidImageDataError();
 			return;
 		}
@@ -1524,7 +1524,7 @@ public class SNTUI extends JDialog {
 			}
 
 			String msg = "";
-			if (plugin.accessToValidImageData()) {
+			if (accessToValidImagePlus()) {
 				msg = "Replace current image with a display canvas and ";
 			} else if (plugin.getPrefs().getTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false)) {
 				msg = "You have loaded paths without loading an image.";
@@ -1534,7 +1534,7 @@ public class SNTUI extends JDialog {
 				resetPathSpacings(msg);
 			}
 
-			if (!plugin.accessToValidImageData()) {
+			if (accessToValidImagePlus()) {
 				// depending on what the user chose in the resetPathSpacings() prompt
 				// we need to check again if the plugin has access to a valid image
 				changeState(LOADING);
@@ -1542,6 +1542,7 @@ public class SNTUI extends JDialog {
 				updateSinglePaneFlag();
 				if (plugin.isUnsavedChanges())
 					plugin.getPathAndFillManager().getBoundingBox(true);
+				plugin.closeAndResetAllPanes(); // flush cashed data as needed
 				plugin.rebuildDisplayCanvases(); // will change UI state
 				arrangeCanvases(false);
 				showStatus("Canvas rebuilt...", true);
@@ -1609,7 +1610,7 @@ public class SNTUI extends JDialog {
 				if (plugin.accessToValidImageData()) {
 					type = "image";
 					sb.append("<li>Use IJ's command Image&rarr;Adjust&rarr;Canvas Size... and press <i>Reload</i> in the Data Source widget of the Options pane</li>");
-					sb.append("<li>Close the current image and create a Display Canvas using the <i>Create Canvas</i> command in the Options pane</li>");
+					sb.append("<li>Close the current image and create a Display Canvas using <i>Create Canvas</i> in the Options pane</li>");
 				}
 				else {
 					sb.append("<li>Use the <i>Create/Resize Canvas</i> commands in the Options pane</li>");
@@ -2472,7 +2473,11 @@ public class SNTUI extends JDialog {
 		bvvSNT = new Bvv(plugin);
 		try {
 			if (choices[0].equals(choice)) {
-				bvvSNT.show(plugin.getImagePlus());
+				final ImagePlus imp = plugin.getImagePlus();
+				if (imp == null)
+					noValidImageDataError();
+				else
+					bvvSNT.show(imp);
 			} else if (choices[1].equals(choice)) {
 				bvvSNT.showLoadedData();
 			} else if (plugin.isSecondaryDataAvailable()) {
