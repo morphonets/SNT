@@ -1686,11 +1686,15 @@ public class PathAndFillManager extends DefaultHandler implements
                     }
 
                     if (colorString != null) {
-                        current_path.setColor(SNTColor.fromHex(colorString));
+                        try {
+                            current_path.setColor(SNTColor.fromHex(colorString));
+                        } catch (final IllegalArgumentException ignored) {
+                            // see https://github.com/morphonets/SNT/issues/260
+                            SNTUtils.log("Could not read color '"+ colorString + "',  " + current_path);
+                        }
                     }
                     if (channelString != null && frameString != null) {
-                        current_path.setCTposition(Integer.parseInt(channelString), Integer
-                                .parseInt(frameString));
+                        current_path.setCTposition(Integer.parseInt(channelString), Integer.parseInt(frameString));
                     }
                     if (spineString != null) {
                         current_path.setSpineOrVaricosityCount(Integer.parseInt(spineString));

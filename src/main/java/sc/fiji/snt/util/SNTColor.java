@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.util;
 
+import ij.plugin.Colors;
 import org.scijava.util.ColorRGB;
 
 import java.awt.*;
@@ -187,15 +188,27 @@ public class SNTColor {
 		final ColorRGB color = ColorRGB.fromHTMLColor(hex.toLowerCase()); // backwards compatibility for v4.2.0 that used capitalized strings
 		if (color != null)
 			return new Color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
-		if (hex.length() < 6) throw new IllegalArgumentException(
-			"Unsupported format. Only (#)RRGGBB(AA) allowed");
+		if (hex.length() < 6) {
+			final Color legacyColor = getLegacyColor(hex);
+			if (legacyColor != null)
+				return legacyColor;
+			throw new IllegalArgumentException("Unsupported format. Only (#)RRGGBB(AA) allowed");
+		}
 		final String input = hex.charAt(0) == '#' ? hex.substring(1) : hex;
-		final int r = Integer.valueOf(input.substring(0, 2), 16);
-		final int g = Integer.valueOf(input.substring(2, 4), 16);
-		final int b = Integer.valueOf(input.substring(4, 6), 16);
-		final int a = (hex.length() < 8) ? 255 : Integer.valueOf(hex.substring(6,
-			8), 16);
+		final int r = Integer.parseInt(input.substring(0, 2), 16);
+		final int g = Integer.parseInt(input.substring(2, 4), 16);
+		final int b = Integer.parseInt(input.substring(4, 6), 16);
+		final int a = (input.length() < 8) ? 255 : Integer.parseInt(input.substring(6, 8), 16);
 		return new Color(r / 255f, g / 255f, b / 255f, a / 255f);
+	}
+
+	private static Color getLegacyColor(String colorName) {
+		// see https://github.com/morphonets/SNT/issues/260
+		if (colorName == null) colorName = "none";
+		Color color = null;
+		color = Colors.getColor(colorName, color);
+		if (color == null) color = Colors.decode(colorName, color);
+		return color;
 	}
 
 	/**
