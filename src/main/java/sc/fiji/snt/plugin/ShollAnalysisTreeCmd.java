@@ -246,7 +246,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 		if (ij.IJ.recording() && !IJ.macroRunning()) {
 			Recorder.recordString("// Please have a look at the example scripts in Templates>Neuroanatomy> for more\n"//
 					+ "// robust ways to automate Sholl. E.g., Sholl_Extensive_Stats_Demo.groovy\n"//
-					+ "// exemplifies how to obtain and analyze profiles in a programmatic way");
+					+ "// exemplifies how to obtain and analyze profiles in a programmatic way\n");
 		}
 		try {
 			runAnalysis();

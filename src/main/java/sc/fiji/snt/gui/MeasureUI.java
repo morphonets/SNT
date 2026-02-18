@@ -35,7 +35,6 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.PathProfiler;
-import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.gui.cmds.FigCreatorCmd;
@@ -46,8 +45,6 @@ import javax.swing.event.PopupMenuListener;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.File;
-import java.io.IOException;
 import java.io.Serial;
 import java.util.List;
 import java.util.*;
@@ -155,24 +152,6 @@ public class MeasureUI extends JFrame {
 			table.createOrUpdateDisplay();
 		else
 			table.updateDisplay();
-	}
-
-	private void saveTable() {
-		if (table == null || table.isEmpty()) {
-			guiUtils.error("Measurements table is empty.");
-			return;
-		}
-		final File dir = (lastDirPath == null) ? new File(System.getProperty("user.home")) : new File(lastDirPath);
-		final File out = guiUtils.getSaveFile("Save Table", new File(dir, "SNT_Measurements.csv"), "csv");
-		if (out == null)
-			return;
-		try {
-			table.save(out);
-		} catch (final IOException e1) {
-			guiUtils.error(e1.getMessage());
-			e1.printStackTrace();
-		}
-		lastDirPath = out.getParent();
 	}
 
 	class MeasurePanel extends JPanel {
@@ -350,52 +329,17 @@ public class MeasureUI extends JFrame {
 			});
 			optionsMenu.add(jcmi4);
 			GuiUtils.addSeparator(optionsMenu, "Measurements Table:");
-			JMenuItem jmi = new JMenuItem("Clear Measurements");
+			JMenuItem jmi = new JMenuItem("Clear Measurements", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
 			jmi.addActionListener(e -> wipeTable());
 			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Save Measurements...");
-			jmi.addActionListener(e -> saveTable());
+			jmi = GuiUtils.MenuItems.save(() -> table, null);
 			jmi.setToolTipText("Save measurements table. Note that tables can always\n"
 					+ "be saved using the 'Save Tables and Analysis Plot' command");
 			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Summarize Existing Results");
-			jmi.addActionListener(e -> {
-				if (table == null || table.isEmpty()) {
-					guiUtils.error("Measurements table is empty.");
-					return;
-				}
-				if (table.getRowCount() == 1) {
-					guiUtils.error("Measurements table contains only one entry.");
-					return;
-				}
-				table.removeSummary();
-				table.summarize();
-				updateTable(false);
-			});
+			jmi = GuiUtils.MenuItems.summarize(() -> table, null);
 			jmi.setToolTipText("Computes Mean, SD, Sum, etc. for existing measurements");
 			optionsMenu.add(jmi);
-			jmi = new JMenuItem("Histogram of Existing Measurements...");
-			jmi.addActionListener(e -> {
-				if (table == null || table.getRowCount() == 0) {
-					guiUtils.error("Measurements table is empty.");
-					return;
-				}
-				if (table.getRowCount() < 2) {
-					guiUtils.error("Data in measurements table is not sufficient to render a histogram.");
-					return;
-				}
-				final boolean isSummarized = table.isSummarized();
-				table.removeSummary();
-				final List<String> choices = new GuiUtils(this).getMultipleChoices("Which metrics",
-						table.getColumnHeaders().toArray(new String[0]), null);
-				if (choices == null || choices.isEmpty()) return;
-				SNTChart.getHistogram(table, choices, false).show();
-				if (isSummarized) {
-					table.summarize();
-					updateTable(false);
-				}
-			});
-			optionsMenu.add(jmi);
+			optionsMenu.add( GuiUtils.MenuItems.distribution(() -> table));
 			GuiUtils.addSeparator(optionsMenu, "Utilities:");
 			jmi = GuiUtils.MenuItems.renderQuick();
 			jmi.addActionListener(e -> {

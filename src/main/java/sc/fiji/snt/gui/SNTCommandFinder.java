@@ -858,6 +858,7 @@ public class SNTCommandFinder {
                 getRootPane().putClientProperty("FlatLaf.fullWindowContent", true);
                 if (SystemInfo.isWindows) {
                     getRootPane().putClientProperty("JRootPane.menuBarEmbedded", true);
+                    getRootPane().putClientProperty("Window.style", "small"); // this may only work on macOS
                 } else if (SystemInfo.isMacOS) {
                     getRootPane().putClientProperty( "apple.awt.windowTitleVisible", false );
                     getRootPane().putClientProperty( "apple.awt.fullWindowContent", true );

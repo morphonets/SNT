@@ -193,7 +193,7 @@ public class ConvexHullCmd extends ContextCommand {
 			if (displays != null && !displays.isEmpty()) {
 				displays.forEach(Display::update);
 			} else {
-				displayService.createDisplay("SNT Measurements", table);
+				table.show("SNT Measurements");
 			}
 		}
 	}

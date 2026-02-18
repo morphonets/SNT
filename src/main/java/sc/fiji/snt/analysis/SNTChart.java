@@ -2324,8 +2324,10 @@ public class SNTChart extends ChartPanel {
 					final Column<?> col = table.get(colIdx);
 					final DescriptiveStatistics stats = new DescriptiveStatistics();
 					col.forEach(row -> {
-						if (row != null && !Double.isNaN((double) row))
-							stats.addValue((Double) row);
+						if (row instanceof Number) {
+							final double v = ((Number) row).doubleValue();
+							if (!Double.isNaN(v)) stats.addValue(v);
+						}
 					});
 					final double max = stats.getMax();
 					final double min = stats.getMin();
@@ -2349,13 +2351,23 @@ public class SNTChart extends ChartPanel {
 		final AtomicInteger index = new AtomicInteger();
 		hdpMap.forEach((label, hdp) ->
 				dataset.addSeries((label==null) ? index.getAndIncrement() : label, hdp.values(), finalNBins, limits[0], limits[1]));
-		final String title = table.getTitle();
 		final String axisLabel = (columnIndices.length == 1) ? table.getColumnHeader(columnIndices[0]) : "";
-		final SNTChart chart = (polar) ?
-				AnalysisUtils.createPolarHistogram(axisLabel, "", dataset, hdpMap.size(), nBins)
-				: AnalysisUtils.createHistogram(axisLabel, "", hdpMap.size(), dataset,
-				new ArrayList<>(hdpMap.values()));
-		chart.setTitle(title);
+
+		SNTChart chart;
+		if (columnIndices.length == 1) {
+			// single series
+			chart = (polar) ?
+					AnalysisUtils.createPolarHistogram(axisLabel, "", hdpMap.firstEntry().getValue().dStats, hdpMap.firstEntry().getValue())
+					: AnalysisUtils.createHistogram(axisLabel, "", hdpMap.firstEntry().getValue().dStats, hdpMap.firstEntry().getValue());
+			chart.setTitle(table.getColumnHeader(columnIndices[0]) + " Frequencies");
+		} else {
+			chart = (polar) ?
+					AnalysisUtils.createPolarHistogram(axisLabel, "", dataset, hdpMap.size(), nBins)
+					: AnalysisUtils.createHistogram(axisLabel, "", hdpMap.size(), dataset,
+					new ArrayList<>(hdpMap.values()));
+			final String title = table.getTitle();
+			chart.setTitle((title==null) ? "Frequencies (Multiple Columns)" : title);
+		}
 		return chart;
 	}
 

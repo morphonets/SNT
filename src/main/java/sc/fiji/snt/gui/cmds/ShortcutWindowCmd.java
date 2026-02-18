@@ -31,7 +31,6 @@ import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.thread.ThreadService;
-import org.scijava.ui.awt.AWTWindows;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.FileDrop;
@@ -266,7 +265,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private JFrame getFrame() {
 		if (frame == null) {
 			frame = new JFrame("Neuroanatomy Commands");
-			frame.getRootPane().putClientProperty("Window.style", "small"); // this may only work on macOS
+			frame.getRootPane().putClientProperty("Window.style", "small");
 		}
 		return frame;
 	}
@@ -289,7 +288,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		//TODO: use ij1 for now because it detects if the location is valid. 
 		final Point loc = ij.Prefs.getLocation(WIN_LOC);
 		if (loc == null) 
-			AWTWindows.centerWindow(frame);
+			GuiUtils.centerWindow(frame);
 		else
 			frame.setLocation(loc);
 		frame.setVisible(true);
@@ -307,7 +306,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	@SuppressWarnings("unused")
 	public static void resetFrameLocation() {
 		ij.Prefs.saveLocation(WIN_LOC, null); // convenience methods for macro access
-		if (frame != null) AWTWindows.centerWindow(frame);
+		if (frame != null) GuiUtils.centerWindow(frame);
 	}
 
 	public static boolean isVisible() {

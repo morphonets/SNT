@@ -79,6 +79,7 @@ import java.text.ParseException;
 import java.util.List;
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -2435,182 +2436,13 @@ public class GuiUtils {
 				addCloseShortcut(frame);
 				final JTable jTable = findComponent(frame, JTable.class);
 				if (jTable != null) {
-					final JPopupMenu menu = enhanceTablePopupMenu(table, jTable, windowTitle);
-					assignTableSearchable(jTable, null, menu);
+					final JPopupMenu menu = enhanceTablePopupMenu(table, jTable);
+					JTables.assignSearchable(jTable, null, menu);
 				}
-
 			} catch (final Throwable ignored) {
 				// Fail silently
 			}
 		});
-	}
-
-	public static void assignTableSearchable(final JTable table,
-											 final Function<Object, String> elementConverter,
-											 final JPopupMenu menu) {
-		final TableSearchable searchable = getSearchable(table, elementConverter);
-		final JCheckBoxMenuItem findItem = new JCheckBoxMenuItem("Find...", IconFactory.menuIcon(GLYPH.SEARCH));
-		findItem.addActionListener(e -> {
-			if (table.getModel() == null || table.getModel().getRowCount() == 0) {
-				GuiUtils.errorPrompt("The table is empty.");
-				findItem.setSelected(false);
-				return;
-			}
-			if (findItem.isSelected()) {
-				searchable.setSearchLabel("Find (Type '?' for help):");
-				searchable.setHideSearchPopupOnEvent(false);
-				table.requestFocusInWindow();
-				searchable.showPopup("");
-			} else {
-				searchable.hidePopup();
-			}
-		});
-		searchable.addSearchableListener(e -> {
-            if (e.getID() == SearchableEvent.SEARCHABLE_END) {
-                findItem.setSelected(false);
-            }
-        });
-		if (menu == null) return;
-		if (menu.getComponentCount() > 0) menu.addSeparator();
-		menu.add(findItem);
-		//menu.addSeparator();
-		final JMenu byColumnMenu = new JMenu("Find in Column");
-		byColumnMenu.setIcon(IconFactory.menuIcon(GLYPH.SEARCH_ARROW));
-		for (int i = 0; i < table.getColumnCount(); i++) {
-			final int colIndex = i;
-			final String header = Objects.toString(table.getColumnName(i), "").trim();
-			if (header.isBlank()) continue;
-			final JCheckBoxMenuItem colItem = new JCheckBoxMenuItem(header);
-			colItem.addActionListener(e -> {
-				searchable.setMainIndex(colIndex);
-				searchable.setSearchLabel("Find ["+ header + "]:");
-				table.requestFocusInWindow();
-				searchable.showPopup("");
-			});
-			byColumnMenu.add(colItem);
-		}
-		menu.add(byColumnMenu);
-	}
-
-	private static TableSearchable getSearchable(final JTable table,
-												 final Function<Object, String> elementConverter) {
-		return new TableSearchable(table) {
-			private boolean helpShowing = false;
-
-			{
-				setBackground(UIManager.getColor("TextField.background"));
-				setForeground(UIManager.getColor("TextField.foreground"));
-				setFromStart(false); // Start from selected row
-				setRepeats(true); // Wrap around so all rows are searchable
-				setCountMatch(false);
-				setMainIndex(-1); // search all columns, not just one
-				setMismatchForeground(errorColor());
-				if (table.getRowCount() > 100) setSearchingDelay(200); //ms
-			}
-
-			@Override
-			protected String convertElementToString(Object element) {
-				if (elementConverter != null) {
-					return elementConverter.apply(element);
-				}
-				return super.convertElementToString(element);
-			}
-
-			@Override
-			protected boolean compare(Object element, final String searchingText) {
-				final String query = Objects.toString(searchingText, "");
-				if ("?".equals(query)) {
-					if (!helpShowing) {
-						helpShowing = true;
-						SwingUtilities.invokeLater(() -> {
-							hidePopup(); // Hide search
-							showSearchHelp();
-							helpShowing = false;
-						});
-					}
-					return false;
-				}
-				switch (query.trim().toLowerCase()) {
-					case "nan" -> { // Match non-numeric or actual NaN
-						if (element == null) return true;
-						if (element instanceof Number n) return Double.isNaN(n.doubleValue());
-						try {
-							Double.parseDouble(element.toString().trim());
-							return false;
-						} catch (final NumberFormatException e) {
-							return true;
-						}
-					}
-					case "empty", "null" -> { // Match empty/null cells
-						return element == null || element.toString().isBlank();
-					}
-					case "inf" -> { // Match infinite values
-						return element instanceof Number n && Double.isInfinite(n.doubleValue());
-					}
-					case "neg" -> {
-						if (element instanceof Number n)
-							return n.doubleValue() < 0;
-						return false;
-					}
-
-					case "pos" -> {
-						if (element instanceof Number n)
-							return n.doubleValue() > 0;
-						return false;
-					}
-
-					case "zero" -> {
-						if (element instanceof Number n)
-							return n.doubleValue() == 0;
-						return false;
-					}
-					default -> {
-						return super.compare(element, searchingText);
-					}
-				}
-			}
-
-			void showSearchHelp() {
-				final String msg = """
-						<html>
-						<b>Search Tips:</b><br>
-						<table cellpadding="4">
-						<tr><td><b>empty</b></td><td>Empty/null cells</td></tr>
-						<tr><td><b>inf</b></td><td>Infinite values</td></tr>
-						<tr><td><b>nan</b></td><td>Non-numeric or NaN cells</td></tr>
-						<tr><td><b>neg</b></td><td>Negative values</td></tr>
-						<tr><td><b>pos</b></td><td>Positive values</td></tr>
-						<tr><td><b>zero</b></td><td>Zero values</td></tr>
-						</table>
-						<br>
-						<i>Press ↓/↑ keys to find next/previous match</i><br>
-						<i>Press Esc to dismiss the search field</i><br>
-						<i>Press any key to dismiss this tooltip</i>
-						</html>
-						""";
-				SwingUtilities.invokeLater(() -> {
-					final JDialog d = new GuiUtils().floatingMsg(msg, false);
-					if (d == null) return;
-					final AWTEventListener listener = new AWTEventListener() {
-						@Override
-						public void eventDispatched(AWTEvent e) {
-							if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
-								d.dispose();
-							}
-						}
-					};
-					Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.KEY_EVENT_MASK);
-					d.addWindowListener(new WindowAdapter() {
-						@Override
-						public void windowClosed(WindowEvent e) {
-							Toolkit.getDefaultToolkit().removeAWTEventListener(listener);
-							table.requestFocusInWindow();
-							showPopup("");
-						}
-					});
-				});
-			}
-		};
 	}
 
 	private static JFrame findWindowWithTitle(final String title) {
@@ -2638,8 +2470,7 @@ public class GuiUtils {
 		return null;
 	}
 
-	private static JPopupMenu enhanceTablePopupMenu(final SNTTable sntTable, final JTable jTable,
-													final String title) {
+	private static JPopupMenu enhanceTablePopupMenu(final SNTTable sntTable, final JTable jTable) {
 		if (sntTable == null || jTable == null) return null;
 		JPopupMenu menu = jTable.getComponentPopupMenu();
 		if (menu == null) {
@@ -2647,29 +2478,18 @@ public class GuiUtils {
 			jTable.setComponentPopupMenu(menu);
 		}
 		if (menu.getComponentCount() > 0) menu.addSeparator();
-		menu.add(copyMenuItem(jTable, true));
-		menu.add(copyMenuItem(jTable, false));
-		if (!hasMenuItem(menu, "Summarize")) {
-			menu.addSeparator();
-			menu.add(summarizeMenuItem(sntTable, jTable));
-		}
+		menu.add(MenuItems.copy(jTable, true));
+		menu.add(MenuItems.copy(jTable, false));
+
+		final boolean addSummarize = !hasMenuItem(menu, "Summarize");
+		final boolean addHistogram = !hasMenuItem(menu, "Frequency Distribution(s)...");
+		if (addSummarize || addHistogram) menu.addSeparator();
+		if (addSummarize) menu.add(MenuItems.summarize(() -> sntTable, jTable));
+		if (addSummarize) menu.add(MenuItems.distribution(() -> sntTable));
+
 		if (!hasMenuItem(menu, "Save As...")) {
 			if (menu.getComponentCount() > 0) menu.addSeparator();
-			final JMenuItem saveItem = new JMenuItem("Save As...", IconFactory.menuIcon(GLYPH.SAVE));
-			saveItem.addActionListener(e -> {
-				final String ttl = (title == null || title.isBlank()) ? "Tabular_Data" : title;
-				final File f = new File(SNTPrefs.lastKnownDir(), SNTUtils.stripExtension(ttl) + ".csv");
-				final GuiUtils gUtils = new GuiUtils(jTable.getParent());
-				final File out = gUtils.getSaveFile("Save Table", f, "csv");
-				if (out != null) {
-					try {
-						sntTable.save(out);
-					} catch (final IOException ex) {
-						gUtils.error("Could not save table.");
-					}
-				}
-			});
-			menu.add(saveItem);
+			menu.add(MenuItems.save(() -> sntTable, jTable));
 		}
 		return menu;
 	}
@@ -2681,106 +2501,6 @@ public class GuiUtils {
 			}
 		}
 		return false;
-	}
-
-	private static JMenuItem copyMenuItem(final JTable table, final boolean includeHeaders) {
-		final JMenuItem menuItem = new JMenuItem((includeHeaders) ? "Copy With Headers" : "Copy Without Headers");
-		menuItem.setIcon(IconFactory.menuIcon('\uf0c5', includeHeaders));
-		menuItem.addActionListener(e -> {
-			final StringBuilder sb = new StringBuilder();
-			final int[] selectedRows = table.getSelectedRows();
-			final int[] selectedCols = table.getSelectedColumns();
-			// Use all rows/cols if none selected
-			final int[] rows = (selectedRows.length == 0)
-					? IntStream.range(0, table.getRowCount()).toArray()
-					: selectedRows;
-			final int[] cols = (selectedCols.length == 0)
-					? IntStream.range(0, table.getColumnCount()).toArray()
-					: selectedCols;
-			// Column headers
-			if (includeHeaders) {
-				for (int i = 0; i < cols.length; i++) {
-					if (i > 0) sb.append('\t');
-					sb.append(table.getColumnName(cols[i]));
-				}
-				sb.append('\n');
-			}
-			// Data rows
-			for (final int row : rows) {
-				for (int i = 0; i < cols.length; i++) {
-					if (i > 0) sb.append('\t');
-					try {
-						final Object value = table.getValueAt(row, cols[i]);
-						sb.append(value == null ? "" : value.toString());
-					} catch (final Exception ignored) {
-						// do nothing
-                    }
-				}
-				sb.append('\n');
-			}
-			// Copy to clipboard
-			final StringSelection selection = new StringSelection(sb.toString().stripTrailing());
-			Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
-		});
-		return menuItem;
-	}
-
-	private static JMenuItem summarizeMenuItem(final SNTTable sntTable, final JTable jTable) {
-		final JCheckBoxMenuItem mItem = new JCheckBoxMenuItem("Summarize", IconFactory.menuIcon(GLYPH.LIST));
-		mItem.addActionListener(e -> {
-			if (sntTable == null || sntTable.getRowCount() < 2) {
-				GuiUtils.errorPrompt("At least two rows required for statistical summary.");
-				mItem.setSelected(false);
-				return;
-			}
-			if (mItem.isSelected()) {
-				if (sntTable.isSummarized()) sntTable.removeSummary();
-				sntTable.summarize();
-				scrollToBottom(jTable);
-			} else if (sntTable.isSummarized()) {
-				sntTable.removeSummary();
-			}
-		});
-		return mItem;
-	}
-
-	/**
-	 * Scrolls a JTable to show its last row.
-	 * <p>
-	 * This implementation avoids using {@link JTable#getCellRect} with row indices. That
-	 * can trigger "row index is bigger than sorter's row count" warnings when the table's
-	 * {@link RowSorter} hasn't fully synchronized. Instead, we manipulate the viewport.
-	 * </p>
-	 * <p>
-	 * The double {@link SwingUtilities#invokeLater} ensures that:
-	 * <ol>
-	 *   <li>1st pass: {@code revalidate()} triggers layout recalculation for any newly added rows</li>
-	 *   <li>2nd pass: scrolling occurs after layout is complete, so {@code table.getHeight()}
-	 *       reflects the actual table size including new rows</li>
-	 * </ol>
-	 * </p>
-	 *
-	 * @param table the table to scroll (must be inside a {@link JScrollPane})
-	 */
-	private static void scrollToBottom(final JTable table) {
-		SwingUtilities.invokeLater(() -> {
-			table.revalidate();
-			SwingUtilities.invokeLater(() -> {
-				try {
-					final Container parent = table.getParent();
-					if (parent instanceof JViewport viewport) {
-						final int tableHeight = table.getHeight();
-						final int viewHeight = viewport.getHeight();
-						if (tableHeight > viewHeight) {
-							viewport.setViewPosition(new Point(0, tableHeight - viewHeight));
-						}
-					}
-					table.repaint();
-				} catch (final Exception ignored) {
-					// Fail silently
-				}
-			});
-		});
 	}
 
 	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
@@ -3000,6 +2720,92 @@ public class GuiUtils {
 
 		private MenuItems() {}
 
+		public static Window getParentWindow(final JMenuItem menuItem) {
+			try {
+				final JPopupMenu popup = (JPopupMenu) menuItem.getParent();
+				return SwingUtilities.getWindowAncestor(popup.getInvoker());
+			} catch (Throwable ignored) {
+				return null;
+			}
+		}
+
+		public static JMenuItem distribution(final Supplier<SNTTable> tableSupplier) {
+			final JMenuItem jmi = new JMenuItem("Frequency Distribution(s)...", IconFactory.menuIcon(GLYPH.CHART));
+			jmi.addActionListener(e -> {
+				final SNTTable table = tableSupplier.get();
+				final GuiUtils gUtils = new GuiUtils(getParentWindow(jmi));
+				if (table == null || table.getRowCount() == 0) {
+					gUtils.error("Measurements table is empty.");
+					return;
+				}
+				if (table.getRowCount() < 2) {
+					gUtils.error("Not enough rows to render a histogram.");
+					return;
+				}
+				final List<String> choices = gUtils.getMultipleChoices("Which Column(s)?",
+						table.getColumnHeaders().toArray(new String[0]), null);
+				if (choices == null) return;
+				if (choices.isEmpty())
+					gUtils.error("At least one column must be chosen.");
+				else
+					SNTChart.getHistogram(table, choices, false).show();
+			});
+			return jmi;
+		}
+
+		public static JMenuItem summarize(final Supplier<SNTTable> tableSupplier, final JTable optionalUnderlyingJTable) {
+			final JCheckBoxMenuItem mItem = new JCheckBoxMenuItem("Summarize", IconFactory.menuIcon(GLYPH.LIST));
+			mItem.addActionListener(e -> {
+				final SNTTable sntTable = tableSupplier.get();
+				if (sntTable == null || sntTable.getRowCount() < 2) {
+					final GuiUtils gUtils = new GuiUtils(getParentWindow(mItem));
+					gUtils.error("At least two rows required for statistical summary.");
+					mItem.setSelected(false);
+					return;
+				}
+				if (mItem.isSelected()) {
+					if (sntTable.isSummarized()) sntTable.removeSummary();
+					sntTable.summarize();
+					if (optionalUnderlyingJTable == null)
+						sntTable.updateDisplay();
+					else
+						JTables.scrollToBottom(optionalUnderlyingJTable);
+				} else {
+					sntTable.removeSummary();
+					sntTable.updateDisplay();
+				}
+			});
+			return mItem;
+		}
+
+		public static JMenuItem save(final Supplier<SNTTable> tableSupplier, final JTable optionalUnderlyingJTable) {
+			final JMenuItem saveItem = new JMenuItem("Save As...", IconFactory.menuIcon(GLYPH.SAVE));
+			saveItem.addActionListener(e -> {
+				final SNTTable sntTable = tableSupplier.get();
+				final String title = sntTable.getTitle();
+				final String ttl = (title == null || title.isBlank()) ? "Tabular_Data" : title;
+				final File f = new File(SNTPrefs.lastKnownDir(), SNTUtils.stripExtension(ttl) + ".csv");
+				final GuiUtils gUtils = new GuiUtils((optionalUnderlyingJTable==null)
+						? null : optionalUnderlyingJTable.getParent());
+				final File out = gUtils.getSaveFile("Save Table", f, "csv");
+				if (out != null) {
+					try {
+						sntTable.save(out);
+					} catch (final IOException ex) {
+						gUtils.error("Could not save table.");
+					}
+				}
+			});
+			return saveItem;
+		}
+
+		private static JMenuItem copy(final JTable table, final boolean includeHeaders) {
+			final JMenuItem menuItem = new JMenuItem((includeHeaders) ? "Copy With Headers" : "Copy Without Headers");
+			menuItem.setIcon(IconFactory.menuIcon('\uf0c5', includeHeaders));
+			menuItem.addActionListener(e -> JTables.copyToClipboard(table, includeHeaders));
+			return menuItem;
+		}
+
 		public static JMenuItem combineCharts() {
 			final JMenuItem jmi = new JMenuItem("Combine Charts Into Montage...", IconFactory.menuIcon(GLYPH.GRID));
 			jmi.setToolTipText("Combines isolated SNT charts (plots, histograms, etc.) into a grid layout");
@@ -3176,6 +2982,12 @@ public class GuiUtils {
 			mi = openURL("Analysis", URL + "analysis");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.CHART));
 			helpMenu.add(mi);
+			mi = openURL("Auto-tracing", URL + "auto-tracing");
+			mi.setIcon(IconFactory.menuIcon(GLYPH.ROBOT));
+			helpMenu.add(mi);
+			mi = openURL("Big Data", URL + "big-data");
+			mi.setIcon(IconFactory.menuIcon('\uf5cd', true));
+			helpMenu.add(mi);
 			mi = openURL("Reconstruction Viewer", URL + "reconstruction-viewer");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
 			helpMenu.add(mi);
@@ -3238,6 +3050,255 @@ public class GuiUtils {
 
 		private static String releaseNotesURL() {
 			return "https://github.com/morphonets/SNT/releases";
+		}
+	}
+
+	public static class JTables {
+
+		private JTables() {}
+
+		public static void copyToClipboard(final JTable table, final boolean includeHeaders) {
+			final StringBuilder sb = new StringBuilder();
+			final int[] selectedRows = table.getSelectedRows();
+			final int[] selectedCols = table.getSelectedColumns();
+			// Use all rows/cols if none selected
+			final int[] rows = (selectedRows.length == 0)
+					? IntStream.range(0, table.getRowCount()).toArray()
+					: selectedRows;
+			final int[] cols = (selectedCols.length == 0)
+					? IntStream.range(0, table.getColumnCount()).toArray()
+					: selectedCols;
+			// Column headers
+			if (includeHeaders) {
+				for (int i = 0; i < cols.length; i++) {
+					if (i > 0) sb.append('\t');
+					sb.append(table.getColumnName(cols[i]));
+				}
+				sb.append('\n');
+			}
+			// Data rows
+			for (final int row : rows) {
+				for (int i = 0; i < cols.length; i++) {
+					if (i > 0) sb.append('\t');
+					try {
+						final Object value = table.getValueAt(row, cols[i]);
+						sb.append(value == null ? "" : value.toString());
+					} catch (final Exception ignored) {
+						// do nothing
+					}
+				}
+				sb.append('\n');
+			}
+			// Copy to clipboard
+			final StringSelection selection = new StringSelection(sb.toString().stripTrailing());
+			Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+		}
+
+		public static void assignSearchable(final JTable table,
+												 final Function<Object, String> elementConverter,
+												 final JPopupMenu menu) {
+			final TableSearchable searchable = getSearchable(table, elementConverter);
+			final JCheckBoxMenuItem findItem = new JCheckBoxMenuItem("Find...", IconFactory.menuIcon(GLYPH.SEARCH));
+			findItem.addActionListener(e -> {
+				if (table.getModel() == null || table.getModel().getRowCount() == 0) {
+					GuiUtils.errorPrompt("The table is empty.");
+					findItem.setSelected(false);
+					return;
+				}
+				if (findItem.isSelected()) {
+					searchable.setSearchLabel("Find (Type '?' for help):");
+					searchable.setHideSearchPopupOnEvent(false);
+					table.requestFocusInWindow();
+					searchable.showPopup("");
+				} else {
+					searchable.hidePopup();
+				}
+			});
+			searchable.addSearchableListener(e -> {
+				if (e.getID() == SearchableEvent.SEARCHABLE_END) {
+					findItem.setSelected(false);
+				}
+			});
+			if (menu == null) return;
+			if (menu.getComponentCount() > 0) menu.addSeparator();
+			menu.add(findItem);
+			//menu.addSeparator();
+			final JMenu byColumnMenu = new JMenu("Find in Column");
+			byColumnMenu.setIcon(IconFactory.menuIcon(GLYPH.SEARCH_ARROW));
+			for (int i = 0; i < table.getColumnCount(); i++) {
+				final int colIndex = i;
+				final String header = Objects.toString(table.getColumnName(i), "").trim();
+				if (header.isBlank()) continue;
+				final JCheckBoxMenuItem colItem = new JCheckBoxMenuItem(header);
+				colItem.addActionListener(e -> {
+					searchable.setMainIndex(colIndex);
+					searchable.setSearchLabel("Find ["+ header + "]:");
+					table.requestFocusInWindow();
+					searchable.showPopup("");
+				});
+				byColumnMenu.add(colItem);
+			}
+			menu.add(byColumnMenu);
+		}
+
+		private static TableSearchable getSearchable(final JTable table,
+													 final Function<Object, String> elementConverter) {
+			return new TableSearchable(table) {
+				private boolean helpShowing = false;
+
+				{
+					setBackground(UIManager.getColor("TextField.background"));
+					setForeground(UIManager.getColor("TextField.foreground"));
+					setFromStart(false); // Start from selected row
+					setRepeats(true); // Wrap around so all rows are searchable
+					setCountMatch(false);
+					setMainIndex(-1); // search all columns, not just one
+					setMismatchForeground(errorColor());
+					if (table.getRowCount() > 100) setSearchingDelay(200); //ms
+				}
+
+				@Override
+				protected String convertElementToString(Object element) {
+					if (elementConverter != null) {
+						return elementConverter.apply(element);
+					}
+					return super.convertElementToString(element);
+				}
+
+				@Override
+				protected boolean compare(Object element, final String searchingText) {
+					final String query = Objects.toString(searchingText, "");
+					if ("?".equals(query)) {
+						if (!helpShowing) {
+							helpShowing = true;
+							SwingUtilities.invokeLater(() -> {
+								hidePopup(); // Hide search
+								showSearchHelp();
+								helpShowing = false;
+							});
+						}
+						return false;
+					}
+					switch (query.trim().toLowerCase()) {
+						case "nan" -> { // Match non-numeric or actual NaN
+							if (element == null) return true;
+							if (element instanceof Number n) return Double.isNaN(n.doubleValue());
+							try {
+								Double.parseDouble(element.toString().trim());
+								return false;
+							} catch (final NumberFormatException e) {
+								return true;
+							}
+						}
+						case "empty", "null" -> { // Match empty/null cells
+							return element == null || element.toString().isBlank();
+						}
+						case "inf" -> { // Match infinite values
+							return element instanceof Number n && Double.isInfinite(n.doubleValue());
+						}
+						case "neg" -> {
+							if (element instanceof Number n)
+								return n.doubleValue() < 0;
+							return false;
+						}
+
+						case "pos" -> {
+							if (element instanceof Number n)
+								return n.doubleValue() > 0;
+							return false;
+						}
+
+						case "zero" -> {
+							if (element instanceof Number n)
+								return n.doubleValue() == 0;
+							return false;
+						}
+						default -> {
+							return super.compare(element, searchingText);
+						}
+					}
+				}
+
+				void showSearchHelp() {
+					final String msg = """
+						<html>
+						<b>Search Tips:</b><br>
+						<table cellpadding="4">
+						<tr><td><b>empty</b></td><td>Empty/null cells</td></tr>
+						<tr><td><b>inf</b></td><td>Infinite values</td></tr>
+						<tr><td><b>nan</b></td><td>Non-numeric or NaN cells</td></tr>
+						<tr><td><b>neg</b></td><td>Negative values</td></tr>
+						<tr><td><b>pos</b></td><td>Positive values</td></tr>
+						<tr><td><b>zero</b></td><td>Zero values</td></tr>
+						</table>
+						<br>
+						<i>Press ↓/↑ keys to find next/previous match</i><br>
+						<i>Press Esc to dismiss the search field</i><br>
+						<i>Press any key to dismiss this tooltip</i>
+						</html>
+						""";
+					SwingUtilities.invokeLater(() -> {
+						final JDialog d = new GuiUtils().floatingMsg(msg, false);
+						if (d == null) return;
+						final AWTEventListener listener = new AWTEventListener() {
+							@Override
+							public void eventDispatched(AWTEvent e) {
+								if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
+									d.dispose();
+								}
+							}
+						};
+						Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.KEY_EVENT_MASK);
+						d.addWindowListener(new WindowAdapter() {
+							@Override
+							public void windowClosed(WindowEvent e) {
+								Toolkit.getDefaultToolkit().removeAWTEventListener(listener);
+								table.requestFocusInWindow();
+								showPopup("");
+							}
+						});
+					});
+				}
+			};
+		}
+
+		/**
+		 * Scrolls a JTable to show its last row.
+		 * <p>
+		 * This implementation avoids using {@link JTable#getCellRect} with row indices. That
+		 * can trigger "row index is bigger than sorter's row count" warnings when the table's
+		 * {@link RowSorter} hasn't fully synchronized. Instead, we manipulate the viewport.
+		 * </p>
+		 * <p>
+		 * The double {@link SwingUtilities#invokeLater} ensures that:
+		 * <ol>
+		 *   <li>1st pass: {@code revalidate()} triggers layout recalculation for any newly added rows</li>
+		 *   <li>2nd pass: scrolling occurs after layout is complete, so {@code table.getHeight()}
+		 *       reflects the actual table size including new rows</li>
+		 * </ol>
+		 * </p>
+		 *
+		 * @param table the table to scroll (must be inside a {@link JScrollPane})
+		 */
+		private static void scrollToBottom(final JTable table) {
+			SwingUtilities.invokeLater(() -> {
+				table.revalidate();
+				SwingUtilities.invokeLater(() -> {
+					try {
+						final Container parent = table.getParent();
+						if (parent instanceof JViewport viewport) {
+							final int tableHeight = table.getHeight();
+							final int viewHeight = viewport.getHeight();
+							if (tableHeight > viewHeight) {
+								viewport.setViewPosition(new Point(0, tableHeight - viewHeight));
+							}
+						}
+						table.repaint();
+					} catch (final Exception ignored) {
+						// Fail silently
+					}
+				});
+			});
 		}
 	}
 
@@ -3334,19 +3395,20 @@ public class GuiUtils {
 
 		public static JButton show(final Color color) {
 			final JButton button = new JButton();
-			makeSmallBorderless(button, GLYPH.EYE, color);
+			makeSmallBorderless(button, GLYPH.EYE, color, getDisabledComponentColor());
 			return button;
 		}
 
-		public static JButton delete() {
+		public static JButton delete(final Color color) {
 			final JButton button = new JButton();
-			makeSmallBorderless(button, GLYPH.TRASH, UIManager.getColor("Spinner.buttonArrowColor"));
+			makeSmallBorderless(button, GLYPH.TRASH, color, getDisabledComponentColor());
 			return button;
 		}
 
 		public static JToggleButton edit() {
 			final JToggleButton button = new JToggleButton();
-			makeSmallBorderless(button, GLYPH.PEN, UIManager.getColor("Spinner.buttonArrowColor"));
+			makeSmallBorderless(button, GLYPH.PEN, UIManager.getColor("Spinner.buttonArrowColor"),
+					getDisabledComponentColor());
 			return button;
 		}
 
@@ -3356,6 +3418,14 @@ public class GuiUtils {
 
 		private static void makeSmallBorderless(final AbstractButton b, final IconFactory.GLYPH glyph, final Color color) {
 			IconFactory.assignIcon(b, glyph, color, .8f);
+			b.setFocusable(false);
+			makeBorderless(b);
+		}
+
+		private static void makeSmallBorderless(final AbstractButton b,
+												final IconFactory.GLYPH glyph,
+												final Color defaultColor, final Color disabledColor) {
+			IconFactory.assignIcon(b, glyph, defaultColor, disabledColor, .8f);
 			b.setFocusable(false);
 			makeBorderless(b);
 		}

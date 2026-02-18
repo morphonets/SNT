@@ -492,7 +492,7 @@ public class DelineationsManager {
         optionsButton.setFocusable(false);
         optionsButton.setToolTipText("Options");
         final JPopupMenu optionsMenu = new JPopupMenu();
-        GuiUtils.addSeparator(optionsMenu, "Input/Output");
+        GuiUtils.addSeparator(optionsMenu, "Input/Output:");
         JMenuItem jmi = new JMenuItem("Import Assignments from Atlas Annotations", IconFactory.menuIcon(IconFactory.GLYPH.ATLAS));
         jmi.setToolTipText("Import delineations from neuropil labels. Previous delineations will be overridden.");
         jmi.addActionListener(e -> delineateFromPrompt());
@@ -552,7 +552,7 @@ public class DelineationsManager {
                 toRoiManager(rois);
         });
         optionsMenu.add(jmi);
-        GuiUtils.addSeparator(optionsMenu, "Rendering of Delineated Paths");
+        GuiUtils.addSeparator(optionsMenu, "Rendering of Delineated Paths:");
         jmi = new JMenuItem("Restore Pre-Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         jmi.addActionListener(e -> removeDelineationColorsFromAllPaths(false));
         optionsMenu.add(jmi);
@@ -562,7 +562,7 @@ public class DelineationsManager {
             sntui.plugin.updateAllViewers();
         });
         optionsMenu.add(jmi);
-        GuiUtils.addSeparator(optionsMenu, "Reset");
+        GuiUtils.addSeparator(optionsMenu, "Reset:");
         jmi = new JMenuItem("Rebuild Assignments", IconFactory.menuIcon(IconFactory.GLYPH.FIRST_AID));
         jmi.addActionListener(e -> {
             if (delineations.stream().allMatch(d -> d.roi == null)) {
@@ -935,7 +935,7 @@ public class DelineationsManager {
         }
 
         private JButton clearButton() {
-            final JButton b = GuiUtils.Buttons.delete();
+            final JButton b = GuiUtils.Buttons.delete(IconFactory.selectedColor());
             b.setToolTipText("Deletes current assignment");
             b.addActionListener(e -> {
                 if (roi == null) return;
@@ -949,6 +949,7 @@ public class DelineationsManager {
 
         private JButton revealButton() {
             final JButton button = GuiUtils.Buttons.show(IconFactory.selectedColor());
+            button.setEnabled(roi != null);
             button.setToolTipText("Show/Hide assigned ROI");
             button.addActionListener(e -> {
                 if (roi == null || roi == DUMMY_ROI) {
@@ -995,11 +996,9 @@ public class DelineationsManager {
         }
 
         private void updateWidget() {
-            final Color color = (roi == null) ? IconFactory.defaultColor() : IconFactory.selectedColor();
-            clearButton.setForeground(color);
             clearButton.setEnabled(roi != null);
-            revealButton.setForeground(color);
             revealButton.setEnabled(roi != null && roi != DUMMY_ROI);
+            final Color color = (roi == null) ? IconFactory.defaultColor() : IconFactory.selectedColor();
             assignButton.setIcon(IconFactory.buttonIcon('\uf359', true, color));
         }
 

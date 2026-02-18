@@ -209,7 +209,28 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Set Tag...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        mi = new JMenuItem("Assign Distinct Tags", IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final int[] rows = getSelectedRowsAllIfNone();
+            final Color[] distinctColors =  ColorMaps.glasbeyColorsAWT(rows.length);
+            int colorIdx = 0;
+            for (final int viewRow : rows) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
+            }
+        });
+        pMenu.add(mi);
+        mi = new JMenuItem("Clear Tag(s)", IconFactory.menuIcon(IconFactory.GLYPH.BROOM));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            for (final int viewRow : getSelectedRowsAllIfNone()) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                model.setValueAt(null, modelRow, 0);
+            }
+        });
+        pMenu.add(mi);
+        mi = new JMenuItem("Set Tag(s)...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final Color newColor = sntui.guiUtils.getColor("Choose Tag Color", null, (String[]) null);
@@ -220,37 +241,39 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
-        mi = new JMenuItem("Clear Tag", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            for (final int viewRow : getSelectedRowsAllIfNone()) {
-                final int modelRow = table.convertRowIndexToModel(viewRow);
-                model.setValueAt(null, modelRow, 0);
-            }
-        });
-        pMenu.add(mi);
         pMenu.addSeparator();
         mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
-            final int row = table.getSelectedRow();
-            if (row == -1) {
+            final int[] rows = table.getSelectedRows();
+            if (rows.length == 0) {
                 sntui.guiUtils.error("No bookmark selected.");
-            } else {
+            } else if (rows.length == 1) {
                 if (table.getRowCount() > 10)
-                    table.scrollRectToVisible(new Rectangle(table.getCellRect(row, 0, true)));
-                table.editCellAt(row, 1); // Column 1 is now Label
+                    table.scrollRectToVisible(new Rectangle(table.getCellRect(rows[0], 0, true)));
+                table.editCellAt(rows[0], 1); // Column 1 is now Label
+            } else {
+                final String seed = sntui.guiUtils.getString(
+                        "Common label to be applied to " + rows.length + " bookmarks:", // msg
+                        "Bulk Renaming", // title
+                        "Bookmark"); // default value
+                if (seed == null) return; // user pressed cancel
+                int idx = 1;
+                for (final int viewRow : rows) {
+                    final int modelRow = table.convertRowIndexToModel(viewRow);
+                    model.setValueAt(String.format("%s %02d", seed, idx++), modelRow, 1);
+                }
             }
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Resize Columns", IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
+        mi = new JMenuItem("Resize/Reset Columns", IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
         mi.addActionListener(e -> {
             resetOrResizeColumns(true, true);
             recordComment("Bookmark Manager: resizeColumns()");
         });
         pMenu.add(mi);
-        GuiUtils.assignTableSearchable(table, element -> {
+        GuiUtils.JTables.assignSearchable(table, element -> {
             if (element == null) return "";
             if (element instanceof Color color) {
                 return BookmarkTable.ColorCellEditor.getColorName(color);
@@ -280,18 +303,8 @@ public class BookmarkManager {
 
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        JMenuItem jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            final File workspaceDir = sntui.getOrPromptForWorkspace();
-            if (workspaceDir == null) return;
-            final String prefix = sntui.getImageFilenamePrefix();
-            final File ref = new File(workspaceDir, prefix + "_bookmarks.csv");
-            final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
-            if (file != null) loadBookmarksFromFile(file);
-        });
-        menu.addSeparator();
-        jmi = new JMenuItem("From CSV File...");
+        GuiUtils.addSeparator(menu, "Import:");
+        JMenuItem jmi  = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final File file = sntui.openFile("csv");
@@ -301,7 +314,7 @@ public class BookmarkManager {
                 sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
             }
         });
-        jmi = new JMenuItem("From Image Overlay");
+        jmi = new JMenuItem("From Image Overlay", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final ImagePlus imp = sntui.plugin.getImagePlus();
@@ -317,7 +330,7 @@ public class BookmarkManager {
             sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
             recordCmd("load(snt.getInstance().getImagePlus().getOverlay().toArray())");
         });
-        jmi = new JMenuItem("From ROI Manager");
+        jmi = new JMenuItem("From ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
         menu.add(jmi);
         jmi.addActionListener(e -> {
             RoiManager rm = RoiManager.getInstance2();
@@ -330,24 +343,27 @@ public class BookmarkManager {
             recordComment("rm = ij.plugin.frame.RoiManager.getInstance2()");
             recordCmd("load(rm.getRoisAsArray())");
         });
-        return menu;
-    }
-
-    private JPopupMenu exportMenu() {
-        final JPopupMenu menu = new JPopupMenu();
-        JMenuItem jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
+        menu.addSeparator();
+        jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final File workspaceDir = sntui.getOrPromptForWorkspace();
             if (workspaceDir == null) return;
             final String prefix = sntui.getImageFilenamePrefix();
-            saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
+            final File ref = new File(workspaceDir, prefix + "_bookmarks.csv");
+            final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
+            if (file != null) loadBookmarksFromFile(file);
         });
-        menu.addSeparator();
-        jmi = new JMenuItem("To CSV File...");
+        return menu;
+    }
+
+    private JPopupMenu exportMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+        GuiUtils.addSeparator(menu, "Export:");
+        JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> saveToUserChosenFile(null));
-        jmi = new JMenuItem("To Image Overlay");
+        jmi = new JMenuItem("To Image Overlay", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
         jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
         menu.add(jmi);
         jmi.addActionListener(e -> {
@@ -364,7 +380,7 @@ public class BookmarkManager {
             recordCmd("clearSelection()");
             recordCmd("toOverlay(snt.getInstance().getImagePlus().getOverlay())");
         });
-        jmi = new JMenuItem("To ROI Manager");
+        jmi = new JMenuItem("To ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
         menu.add(jmi);
         jmi.addActionListener(e -> {
             if (noBookmarksError()) return;
@@ -372,6 +388,15 @@ public class BookmarkManager {
             toRoiManager();
             recordCmd("clearSelection()");
             recordCmd("toRoiManager()");
+        });
+        menu.addSeparator();
+        jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            final File workspaceDir = sntui.getOrPromptForWorkspace();
+            if (workspaceDir == null) return;
+            final String prefix = sntui.getImageFilenamePrefix();
+            saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
         });
         return menu;
     }

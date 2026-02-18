@@ -708,7 +708,7 @@ public class SNTUI extends JDialog {
 	private void runSecondaryLayerWizard(final boolean autoCTwarning) {
 		if (!okToReplaceSecLayer())
 			return;
-		if (accessToValidImagePlus()) { // wizard requires image to be open
+		if (!accessToValidImagePlus()) { // wizard requires image to be open
 			noValidImageDataError();
 			return;
 		}
@@ -917,7 +917,8 @@ public class SNTUI extends JDialog {
 	}
 
 	private void updateRebuildCanvasButton() {
-		final String label = (accessToValidImagePlus()) ? "Create Canvas" : "Resize Canvas";
+		final ImagePlus imp = plugin.getImagePlus();
+		final String label = (imp == null || !plugin.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
 		rebuildCanvasButton.setText(label);
 	}
 
@@ -1531,22 +1532,17 @@ public class SNTUI extends JDialog {
 			} else if (!plugin.getPathAndFillManager().allPathsShareSameSpatialCalibration())
 				msg = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
 			if (!msg.isEmpty()) {
-				resetPathSpacings(msg);
+				if (!okToCreateCanvas(msg)) return;
 			}
-
-			if (accessToValidImagePlus()) {
-				// depending on what the user chose in the resetPathSpacings() prompt
-				// we need to check again if the plugin has access to a valid image
-				changeState(LOADING);
-				showStatus("Resizing Canvas...", false);
-				updateSinglePaneFlag();
-				if (plugin.isUnsavedChanges())
-					plugin.getPathAndFillManager().getBoundingBox(true);
-				plugin.closeAndResetAllPanes(); // flush cashed data as needed
-				plugin.rebuildDisplayCanvases(); // will change UI state
-				arrangeCanvases(false);
-				showStatus("Canvas rebuilt...", true);
-			}
+			changeState(LOADING);
+			showStatus("Resizing Canvas...", false);
+			if (plugin.isUnsavedChanges())
+				plugin.getPathAndFillManager().getBoundingBox(true);
+			plugin.closeAndResetAllPanes(); // flush cashed data as needed
+			updateSinglePaneFlag();
+			plugin.rebuildDisplayCanvases(); // will change UI state
+			arrangeCanvases(false);
+			showStatus("Canvas rebuilt...", true);
 		});
 		final JButton invertLutButton = new JButton(IconFactory.buttonIcon('\uf042', true, IconFactory.defaultColor()));
 		invertLutButton.setToolTipText("Invert LUT of tracing views / Change background of Display Canvas");
@@ -1574,11 +1570,11 @@ public class SNTUI extends JDialog {
 		return viewsPanel;
 	}
 
-	private boolean resetPathSpacings(final String promptReason) {
+	private boolean okToCreateCanvas(final String promptMsg) {
 		final boolean nag = plugin.getPrefs().getTemp("pathscaling-nag", true);
 		boolean reset = plugin.getPrefs().getTemp("pathscaling", true);
 		if (nag) {
-			final boolean[] options = guiUtils.getPersistentConfirmation(promptReason //
+			final boolean[] options = guiUtils.getPersistentConfirmation(promptMsg //
 							+ " Reset spatial calibration of paths?<br>" //
 							+ "This will force paths and display canvas(es) to have unitary spacing (e.g.,"//
 							+ "1px&rarr;1" + GuiUtils.micrometer() + "). Path lengths will be preserved.",//
@@ -1597,8 +1593,9 @@ public class SNTUI extends JDialog {
 				plugin.tracingHalted = true;
 			}
 			plugin.getPathAndFillManager().resetSpatialSettings(true);
+			SNTUtils.log("Spatial calibration reset");
 		}
-		return reset;
+		return true;
 	}
 
 	private void validateImgDimensions() {
@@ -3111,11 +3108,11 @@ public class SNTUI extends JDialog {
 		final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
 		shollMenuItem.addActionListener(e -> {
 			if (noPathsShollError()) return;
-			final Collection<Tree> trees = getPathManager().getMultipleTrees();
-			if (trees == null) return;
+			final Tree tree = getPathManager().getSingleTree();
+			if (tree == null) return;
 			softWarningOnShollPreview();
 			final HashMap<String, Object> inputs = new HashMap<>();
-			inputs.put("tree", TreeUtils.merge(trees));
+			inputs.put("tree", tree);
 			inputs.put("snt", plugin);
 			new DynamicCmdRunner(ShollAnalysisTreeCmd.class, inputs).run();
 		});
@@ -3333,10 +3330,10 @@ public class SNTUI extends JDialog {
 		plotMenuItem.setToolTipText("Renders traced paths as vector graphics (2D)");
 		plotMenuItem.addActionListener( e -> {
 			if (noPathsError()) return;
-			final Tree tree = getPathManager().getSingleTree();
-			if (tree == null) return;
+			final Collection<Tree> trees = getPathManager().getMultipleTrees();
+			if (trees == null) return;
 			final Map<String, Object> input = new HashMap<>();
-			input.put("tree", tree);
+			input.put("tree", TreeUtils.merge(trees));
 			final CommandService cmdService = plugin.getContext().getService(CommandService.class);
 			cmdService.run(PlotterCmd.class, true, input);
 		});
@@ -4792,6 +4789,7 @@ public class SNTUI extends JDialog {
 
 			// Case 1: A display canvas was closed. Do nothing
 			if (plugin.isDisplayCanvas(imp) || "Display Canvas".equals(imp.getTitle())) {
+				SwingUtilities.invokeLater(SNTUI.this::updateRebuildCanvasButton);
 				return;
 			}
 			// Case 2: Image assembled from cached data was closed: nullify it
@@ -5242,7 +5240,7 @@ public class SNTUI extends JDialog {
 	}
 
 	protected String getImageFilenamePrefix() {
-		if (accessToValidImagePlus())
+		if (!accessToValidImagePlus())
 			return "display_canvas";
 		final ImagePlus imp = plugin.getImagePlus();
 		if (imp != null && imp.getTitle() != null && !imp.getTitle().isBlank()) {
@@ -5462,6 +5460,8 @@ public class SNTUI extends JDialog {
 					if (type == SWC) {
 						succeed = loadSWCFile(file);
 					} else if (type == TRACES) {
+						// reset bounding box & spacings of display canvas(es) (if any)
+						if (!accessToValidImagePlus()) plugin.closeAndResetAllPanes();
 						succeed = plugin.loadTracesFile(file);
 						getPrefs().setAutosaveFile(file);
 					} else {

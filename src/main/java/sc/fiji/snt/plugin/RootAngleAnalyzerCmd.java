@@ -214,10 +214,11 @@ public class RootAngleAnalyzerCmd extends CommonDynamicCmd {
 		boolean newTableRequired = summaryTable == null || tableDisplay == null || !tableDisplay.isDisplaying(summaryTable);
 		if (newTableRequired) {
 			summaryTable = new SNTTable();
+			summaryTable.setTitle("SNT Root Angle Table");
 		}
 		populateSummaryTable(summaryTable);
 		if (newTableRequired) {
-			displayService.createDisplay("SNT Root Angle Table", summaryTable);
+			summaryTable.show();
 		} else {
 			tableDisplay.update();
 		}

@@ -381,8 +381,12 @@ public class SNTTable extends DefaultGenericTable {
 		} catch (final NullPointerException ignored) {
 			// do nothing. Empty cell!?
 		} catch (final ClassCastException ignored) {
-			// Cell with text!? We could add Double.NAN, or skip it altogether
-			// skipping for now, in case cells above and below are valid
+			try {
+				final double value = Double.parseDouble(get(col, row).toString().trim());
+				if (!Double.isNaN(value)) stats.addValue(value);
+			} catch (final NumberFormatException ignored2) {
+				// genuinely non-numeric
+			}
 		}
 	}
 
@@ -405,14 +409,14 @@ public class SNTTable extends DefaultGenericTable {
 		for (int col = 0; col < getColumnCount(); col++) {
 			final double min = sStas[col].getMin();
 			final double max = sStas[col].getMax();
-			final boolean nonNumericColumn = Double.isNaN(min) && Double.isNaN(max);
-			set(col, lastRowIndex + 1, (nonNumericColumn) ? "" : sStas[col].getMean());
-			set(col, lastRowIndex + 2, (nonNumericColumn) ? "" : sStas[col].getStandardDeviation());
-			set(col, lastRowIndex + 3, (nonNumericColumn) ? "" : (double) sStas[col].getN());
-			set(col, lastRowIndex + 4, (nonNumericColumn) ? "" : min);
-			set(col, lastRowIndex + 5, (nonNumericColumn) ? "" : max);
-			set(col, lastRowIndex + 6, (nonNumericColumn) ? "" : sStas[col].getSum());
-			set(col, lastRowIndex + 7, (nonNumericColumn) ? "" : sStas[col].getStandardDeviation() / sStas[col].getMean());
+			final boolean nonNumericColumn = sStas[col].getN() == 0;
+			set(col, lastRowIndex + 1, (nonNumericColumn) ? null : sStas[col].getMean());
+			set(col, lastRowIndex + 2, (nonNumericColumn) ? null : sStas[col].getStandardDeviation());
+			set(col, lastRowIndex + 3, (nonNumericColumn) ? null : (double) sStas[col].getN());
+			set(col, lastRowIndex + 4, (nonNumericColumn) ? null : min);
+			set(col, lastRowIndex + 5, (nonNumericColumn) ? null : max);
+			set(col, lastRowIndex + 6, (nonNumericColumn) ? null : sStas[col].getSum());
+			set(col, lastRowIndex + 7, (nonNumericColumn) ? null : sStas[col].getStandardDeviation() / sStas[col].getMean());
 		}
 		hasUnsavedData = true;
 	}
