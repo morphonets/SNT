@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.gui.cmds;
 
+import ij.ImagePlus;
+import ij.gui.Overlay;
+import ij.gui.Roi;
+import ij.plugin.frame.RoiManager;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.io.IOService;
@@ -30,11 +34,13 @@ import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.GuiUtils;
 
 import java.io.File;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -44,6 +50,8 @@ import java.util.Objects;
  */
 @Plugin(type = Command.class, label = "Restore Session...", initializer = "init")
 public class RestoreSessionCmd extends CommonDynamicCmd {
+
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     @Parameter
     private UIService uiService;
@@ -66,6 +74,9 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
 
     @Parameter(required = false, label = "Notes (.md)")
     private boolean restoreNotes = true;
+
+    @Parameter(required = false, label = "ROIs (.zip)")
+    private boolean restoreROIs = true;
 
     private int failures = 0;
     private int successes = 0;
@@ -105,6 +116,7 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
         if (restoreTraces) restoreTracesFile();
         if (restoreBookmarks) restoreBookmarksFile();
         if (restoreNotes) restoreNotesFile();
+        if (restoreROIs) restoreROIsFile();
 
         // Show session info if available
         showSessionInfo();
@@ -180,6 +192,80 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
             snt.getUI().getNotesPane().load(file);
             SNTUtils.log("Restored notes: " + file);
             successes++;
+        } catch (final Exception e) {
+            SNTUtils.error("Failed to restore notes", e);
+            failures++;
+        }
+    }
+
+    private void restoreROIsFile() {
+        final File roisDir = new File(sessionDir, "rois");
+        if (!roisDir.exists()) {
+            SNTUtils.log("No ROIs directory found in session");
+            failures++;
+            return;
+        }
+        try {
+            // Delineations
+            final File delineationROIs = new File(roisDir, "ROIs-delineations.zip");
+            if (delineationROIs.exists()) {
+                final List<Roi> rois = RoiConverter.loadRoisFromZip(delineationROIs);
+                final int result = ui.getDelineationsManager().load(rois);
+                if (result < 1) {
+                    failures++;
+                    SNTUtils.log("Delineation ROIs have no path associations");
+                } else {
+                    successes++;
+                    SNTUtils.log("Restored delineation ROIs");
+                }
+            }
+
+            // ROI Manager
+            RoiManager rm = RoiManager.getInstance2();
+            if (rm == null) rm = new RoiManager();
+            final File rmROIs = new File(roisDir, "ROIs-RM.zip");
+            if (rmROIs.exists()) {
+                if (rm.open(rmROIs.getAbsolutePath())) {
+                    SNTUtils.log("Restored ROI Manager ROIs");
+                    successes++;
+                } else {
+                    SNTUtils.log("Manager ROIs not restored");
+                    failures++;
+                }
+            }
+
+            final ImagePlus imp = snt.getImagePlus();
+            if (imp == null) return;
+
+            // Image Overlay
+            final File overlayROIs = new File(roisDir, "ROIs-overlay.zip");
+            if (overlayROIs.exists()) {
+                final List<Roi> rois = RoiConverter.loadRoisFromZip(overlayROIs);
+                if (rois.isEmpty()) {
+                    SNTUtils.log("Overlay ROIs not restored");
+                    failures++;
+                } else {
+                    final Overlay overlay = new Overlay();
+                    rois.forEach(overlay::add);
+                    imp.setOverlay(overlay);
+                    SNTUtils.log("Restored overlay ROIs");
+                    successes++;
+                }
+            }
+
+            // Active ROI
+            final File activeROI = new File(roisDir, "ROI-active.zip");
+            if (activeROI.exists()) {
+                final List<Roi> rois = RoiConverter.loadRoisFromZip(activeROI);
+                if (rois.isEmpty()) {
+                    SNTUtils.log("Active ROI not restored");
+                    failures++;
+                } else {
+                    imp.setRoi(rois.getFirst());
+                    SNTUtils.log("Restored active ROI");
+                    successes++;
+                }
+            }
         } catch (final Exception e) {
             SNTUtils.error("Failed to restore notes", e);
             failures++;

@@ -182,6 +182,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(jmi);
         editMenu.addSeparator();
 
+        jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        jmi.setToolTipText("Connect selected primary paths to a shared root placed at their\n" +
+                "averaged origin, or the centroid of a ROI-defining soma");
+        jmi.addActionListener(multiPathListener);
+        editMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.COMBINE_CMD, IconFactory.menuIcon('\uf247', true));
         jmi.setToolTipText("<HTML>Merges selected paths into one (<b>without spatial ordering</b>).<br>" +
                 "Children are reparented.");
@@ -190,11 +195,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.CONCATENATE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.TAPE));
         jmi.setToolTipText("<HTML>Joins paths <b>end-to-end</b> in spatial order.<br>" +
                 "Order and orientation are auto-detected from endpoint proximity.<br>Children are reparented.");
-        jmi.addActionListener(multiPathListener);
-        editMenu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.MERGE_PRIMARY_PATHS_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-        jmi.setToolTipText("Connect selected primary paths to a shared root placed at their\n" +
-                "averaged origin, or the centroid of a ROI-defining soma");
         jmi.addActionListener(multiPathListener);
         editMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.REVERSE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_LR));
@@ -2232,7 +2232,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             case (MultiPathActionListener.HISTOGRAM_2D_CMD) -> {
                 final Map<String, Object> input = new HashMap<>();
                 input.put("tree", new Tree(getSelectedPaths(true)));
-                if (plugin.accessToValidImageData()) input.put("dataset", plugin.getDataset());
+                input.put("dataset", plugin.getDataset()); // null safe
                 input.put("measurementChoice1", args[0]);
                 if (args.length > 1) input.put("measurementChoice2", args[1]);
                 if (args.length > 2) input.put("colorMapChoice", args[2]);
@@ -2265,7 +2265,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private void runRoiConverterCmd(final String type, final String view) throws IllegalArgumentException {
         final Map<String, Object> input = new HashMap<>();
         input.put("tree", geSelectedPathsAsTree());
-        input.put("imp", (plugin.accessToValidImageData()) ? plugin.getImagePlus() : null);
+        input.put("imp", plugin.getImagePlus());
         input.put("roiChoice", type);
         input.put("viewChoice", (view==null) ? "XY (default)" : view);
         input.put("useSWCcolors", false);
@@ -2287,7 +2287,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         input.put("measurementChoice", metric);
         input.put("lutChoice", lutName);
         input.put("runFigCreator", false);
-        input.put("dataset", plugin.accessToValidImageData() ? plugin.getDataset() : null);
+        input.put("dataset", plugin.getDataset()); // null safe
         input.put("removeColorCoding", null);
         input.put("onlyConnectivitySafeMetrics", onlyConnectivitySafeMetrics);
         final LUTService lutService = plugin.getContext().getService(LUTService.class);
@@ -2308,7 +2308,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         if (polar1 != null) input.put("polar1", polar1);
         if (metric2 != null) input.put("measurementChoice2", metric2);
         if (polar2 != null) input.put("polar2", polar2);
-        if (plugin.accessToValidImageData()) input.put("dataset", plugin.getDataset());
+        input.put("dataset", plugin.getDataset()); // null safe
         final CommandService cmdService = plugin.getContext().getService(CommandService.class);
         cmdService.run(DistributionBPCmd.class, true, input);
     }
@@ -3494,13 +3494,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             public void execute(List<Path> selectedPaths, String cmd) {
                 final Map<String, Object> input = new HashMap<>();
                 input.put("tree", new Tree(selectedPaths));
-                if (plugin.accessToValidImageData()) {
-                    input.put("imp", plugin.getImagePlus());
-                    if (plugin.is2D())
-                        input.put("viewChoice", "XY (default)");
-                } else {
-                    input.put("imp", null);
-                }
+                input.put("imp", plugin.getImagePlus()); // null safe
+                if (plugin.is2D())
+                    input.put("viewChoice", "XY (default)");
                 plugin.getContext().getService(CommandService.class).run(ROIExporterCmd.class, true, input);
             }
 
@@ -3608,7 +3604,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final Map<String, Object> input = new HashMap<>();
                 input.put("tree", new Tree(selectedPaths));
                 input.put("onlyConnectivitySafeMetrics", true);
-                if (plugin.accessToValidImageData()) input.put("dataset", plugin.getDataset());
+                input.put("dataset", plugin.getDataset()); // null safe
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(TwoDHistCmd.class, true, input);
             }
@@ -4226,7 +4222,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final String msg = "No active ROI exists. Make sure the soma ROI is active, or " +
                         "run Auto-trace > Detect Soma(s)... with ROI output.";
                 final String ttl = "Invalid Merge Condition";
-                if (plugin.accessToValidImageData()) {
+                if (plugin.accessToValidImageData()) { // OK if valid image data is not ImagePlus
                     if (guiUtils.getConfirmation(msg, ttl, "Run Soma Detection Now", "Dismiss")) {
                         plugin.getUI().runCommand(SomaDetectorCmd.class, null);
                     }
@@ -4811,7 +4807,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final Map<String, Object> input = new HashMap<>();
             input.put("trees", List.of(tree));
             input.put("onlyConnectivitySafeMetrics", safeMetricsOnly);
-            input.put("dataset", plugin.accessToValidImageData() ? plugin.getDataset() : null);
+            input.put("dataset", plugin.getDataset()); // null safe
             final CommandService cmdService = plugin.getContext().getService(CommandService.class);
             cmdService.run(TreeMapperCmd.class, true, input); // will call #update() via SNT#updateAllViewers();
         }
@@ -4944,7 +4940,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private boolean noValidImageDataError() {
-        final boolean invalidImage = !plugin.accessToValidImageData();
+        final boolean invalidImage = !plugin.getUI().accessToValidImagePlus();
         if (invalidImage)
             guiUtils.error("This option requires valid image data to be loaded.");
         return invalidImage;

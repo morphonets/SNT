@@ -25,10 +25,12 @@ package sc.fiji.snt.analysis;
 import java.awt.Color;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import ij.ImagePlus;
@@ -37,6 +39,7 @@ import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.io.RoiDecoder;
 import ij.io.RoiEncoder;
 import ij.measure.Measurements;
 import ij.plugin.RoiEnlarger;
@@ -729,4 +732,23 @@ public class RoiConverter {
 			return false;
 		}
 	}
+
+	public static List<Roi> loadRoisFromZip(final File zipFile) {
+		final List<Roi> rois = new ArrayList<>();
+		try (final ZipInputStream zis = new ZipInputStream(new FileInputStream(zipFile))) {
+			ZipEntry entry;
+			while ((entry = zis.getNextEntry()) != null) {
+				if (entry.getName().endsWith(".roi")) {
+					final byte[] bytes = zis.readAllBytes();
+					final Roi roi = RoiDecoder.openFromByteArray(bytes);
+					if (roi != null) rois.add(roi);
+				}
+				zis.closeEntry();
+			}
+		} catch (final IOException e) {
+			SNTUtils.error("Failed to load ROIs", e);
+		}
+		return rois;
+	}
+
 }

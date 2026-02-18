@@ -55,6 +55,8 @@ import java.util.Objects;
 @Plugin(type = Command.class, label = "Save Session...", initializer = "init")
 public class SaveSessionCmd extends CommonDynamicCmd {
 
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
     @Parameter(required = false, label = "<HTML><b>Include:", visibility = ItemVisibility.MESSAGE)
     private String HEADER;
 

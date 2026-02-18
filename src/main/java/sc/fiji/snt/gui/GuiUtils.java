@@ -2879,6 +2879,12 @@ public class GuiUtils {
 			return jmi;
 		}
 
+		public static JCheckBoxMenuItem debugMode() {
+			final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
+			jcmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.STETHOSCOPE));
+			return jcmi;
+		}
+
 		public static JMenuItem rootAngleAnalysis() {
 			final JMenuItem jmi = new JMenuItem("Root Angle Analysis...", IconFactory.menuIcon(GLYPH.ANGLE_DOWN));
 			jmi.setToolTipText("Root angle, mean direction, and centripetal bias analyses");
@@ -3363,15 +3369,16 @@ public class GuiUtils {
 		private Buttons() {}
 
 		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
-			return new OptionsButton(IconFactory.dropdownMenuIcon(glyph, scalingFactor), menu);
+			return new OptionsButton(glyph, scalingFactor, menu);
 		}
 
 		public static class OptionsButton extends JButton {
 			public final JPopupMenu popupMenu;
 
-			private OptionsButton(final Icon icon, final JPopupMenu popupMenu) {
-				super(icon);
+			private OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu popupMenu) {
+				super(IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.defaultColor()));
 				this.popupMenu = popupMenu;
+				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, GuiUtils.getDisabledComponentColor()));
 				addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
 			}
 		}
@@ -3413,7 +3420,7 @@ public class GuiUtils {
 		}
 
 		public static JButton options() {
-			return new JButton(IconFactory.dropdownMenuIcon(GLYPH.OPTIONS, 1f));
+			return new JButton(IconFactory.dropdownMenuIcon(GLYPH.OPTIONS, 1f, IconFactory.defaultColor()));
 		}
 
 		private static void makeSmallBorderless(final AbstractButton b, final IconFactory.GLYPH glyph, final Color color) {

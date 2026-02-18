@@ -302,7 +302,7 @@ public class IconFactory {
         return border;
     }
 
-    public static Icon dropdownMenuIcon(final GLYPH entry, final float scalingFactor) {
+    public static Icon dropdownMenuIcon(final GLYPH entry, final float scalingFactor, final Color color) {
         class DropdownIcon implements Icon {
 
             static final int ICON_GAP = 2;
@@ -310,7 +310,7 @@ public class IconFactory {
             final Icon rightIcon;
 
             DropdownIcon(final GLYPH entry, final float scalingFactor) {
-                leftIcon = new FADerivedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), defaultColor(), entry.solid);
+                leftIcon = new FADerivedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid);
                 rightIcon = UIManager.getIcon("Tree.expandedIcon");
             }
 

@@ -320,7 +320,7 @@ public class MeasureUI extends JFrame {
 			optionsButton.setToolTipText("Options & Utilities");
 			final JPopupMenu optionsMenu = new JPopupMenu();
 			GuiUtils.addSeparator(optionsMenu, "General:");
-			final JCheckBoxMenuItem jcmi4  = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
+			final JCheckBoxMenuItem jcmi4 = GuiUtils.MenuItems.debugMode();
 			jcmi4.addActionListener(e -> {
 				SNTUtils.setDebugMode(jcmi4.isSelected());
 				if (plugin != null && plugin.getUI() != null) {
@@ -352,11 +352,12 @@ public class MeasureUI extends JFrame {
 			jmi.addActionListener(e -> showDetails(trees));
 			optionsMenu.add(jmi);
 			GuiUtils.addSeparator(optionsMenu, "Help:");
-			jmi = new JMenuItem("Quick Guide...");
+			jmi = new JMenuItem("Quick Guide...", IconFactory.menuIcon(IconFactory.GLYPH.INFO));
 			jmi.addActionListener(e -> showHelp());
 			optionsMenu.add(jmi);
-			optionsMenu.add(
-					GuiUtils.MenuItems.openURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics"));
+			jmi = GuiUtils.MenuItems.openURL("Definition of Metrics", "https://imagej.net/plugins/snt/metrics");
+			jmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+			optionsMenu.add(jmi);
 			optionsButton.addMouseListener(new MouseAdapter() {
 
 				@Override

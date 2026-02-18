@@ -3748,9 +3748,9 @@ public class Viewer3D {
         }
 
         private JCheckBoxMenuItem getDebugCheckBox() {
-            debugCheckBox = new JCheckBoxMenuItem("Debug Mode", SNTUtils.isDebugMode() && debugger != null);
+            debugCheckBox = GuiUtils.MenuItems.debugMode();
+            debugCheckBox.setSelected(SNTUtils.isDebugMode() && debugger != null);
             debugCheckBox.setEnabled(!isSNTInstance());
-            debugCheckBox.setIcon(IconFactory.menuIcon(GLYPH.STETHOSCOPE));
             debugCheckBox.setMnemonic('d');
             debugCheckBox.addItemListener(e -> {
                 final boolean debug = debugCheckBox.isSelected();
@@ -3760,12 +3760,11 @@ public class Viewer3D {
                     SNTUtils.setDebugMode(debug);
                 }
                 if (debug) {
-                    switch (ENGINE) {
-                        case JOGL -> {
-                            logGLDetails();
-                            setDebuggerEnabled(debug);
-                        }
-                        default -> SNTUtils.log("Rendering engine: " + ENGINE.toString());
+                    if (Objects.requireNonNull(ENGINE) == Engine.JOGL) {
+                        logGLDetails();
+                        setDebuggerEnabled(debug);
+                    } else {
+                        SNTUtils.log("Rendering engine: " + ENGINE);
                     }
                 }
             });

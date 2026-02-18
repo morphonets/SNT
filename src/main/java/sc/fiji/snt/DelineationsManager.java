@@ -512,34 +512,13 @@ public class DelineationsManager {
                 return;
             }
             if (!resetAuthorizedByUser()) return;
-            expandCapacityTo(rois.size());
-            int outCounter = 0;
-            for (int i = 0; i < rois.size(); i++) {
-                final Roi roi = rois.get(i);
-                final Collection<Path> paths = pafm.getPathsInROI(roi);
-                if (paths.isEmpty()) outCounter++;
-                final Delineation delineation = delineations.get(i);
-                delineation.assignRoi(roi, paths);
-                // if user assigned a label to the ROI being imported, use it
-                if (roi.getName() != null && !roi.getName().isEmpty()) {
-                    delineation.rename(roi.getName());
-                }
-                // if user assigned a color to the ROI being imported, use it
-                Color roiColor = roi.getStrokeColor();
-                if (roiColor == null) roiColor = roi.getFillColor();
-                if (roiColor != null) {
-                    delineation.color = roiColor;
-                    delineation.colorChanged(true, false);
-                }
-            }
-            delineations.forEach(Delineation::updateWidget);
-            sntui.plugin.updateAllViewers();
-            if (outCounter == 0) {
+            final int n = load(rois);
+            if (n == rois.size()) {
                 sntui.guiUtils.centeredMsg(rois.size() + " assignment(s) imported from ROI Manager.",
                         "Delineations Imported");
             } else {
                 sntui.guiUtils.centeredMsg(String.format("%d assignment(s) imported from ROI Manager. " +
-                                "%d ROI(s) were not associated with any paths.", rois.size(), outCounter),
+                                "%d ROI(s) were not associated with any paths.", rois.size(), (rois.size()-n)),
                         "Delineations Imported");
             }
         });
@@ -677,6 +656,39 @@ public class DelineationsManager {
 
     public List<Roi> getDelineationROIs() {
         return getValidDelineationROIs();
+    }
+
+    /**
+     *
+     * @param delineationROIs
+     * @return the number of ROIs successfully imported (i.e., associated with at least one path)
+     */
+    public int load(final List<Roi> delineationROIs) {
+        if (delineationROIs == null || delineationROIs.isEmpty())
+            return 0;
+        expandCapacityTo(delineationROIs.size());
+        int outCounter = 0;
+        for (int i = 0; i < delineationROIs.size(); i++) {
+            final Roi roi = delineationROIs.get(i);
+            final Collection<Path> paths = pafm.getPathsInROI(roi);
+            if (paths.isEmpty()) outCounter++;
+            final Delineation delineation = delineations.get(i);
+            delineation.assignRoi(roi, paths);
+            // if user assigned a label to the ROI being imported, use it
+            if (roi.getName() != null && !roi.getName().isEmpty()) {
+                delineation.rename(roi.getName());
+            }
+            // if user assigned a color to the ROI being imported, use it
+            Color roiColor = roi.getStrokeColor();
+            if (roiColor == null) roiColor = roi.getFillColor();
+            if (roiColor != null) {
+                delineation.color = roiColor;
+                delineation.colorChanged(true, false);
+            }
+        }
+        delineations.forEach(Delineation::updateWidget);
+        sntui.plugin.updateAllViewers();
+        return delineationROIs.size() - outCounter;
     }
 
     private void toRoiManager(final List<Roi> rois) {

@@ -4639,7 +4639,7 @@ public class SNTUI extends JDialog {
 				"The image should have bright foreground structures on a dark background.");
 	}
 
-	private boolean accessToValidImagePlus() {
+	protected boolean accessToValidImagePlus() {
 		final ImagePlus imp = plugin.getImagePlus();
 		return imp != null && imp.getProcessor() != null
 				&& !plugin.isDisplayCanvas(imp) && (imp.getWidth() > 1 || imp.getHeight() > 1);
