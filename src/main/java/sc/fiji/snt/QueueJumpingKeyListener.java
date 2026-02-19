@@ -589,6 +589,10 @@ class QueueJumpingKeyListener implements KeyListener {
 						tracerPlugin.toggleSnapCursor();
 					}
 				}
+				case 'z', 'Z' -> {
+					if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH)
+						tracerPlugin.undoLastSegment();
+				}
 			}
 			e.consume();
 		}

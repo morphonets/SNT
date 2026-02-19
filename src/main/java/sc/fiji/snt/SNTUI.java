@@ -190,7 +190,7 @@ public class SNTUI extends JDialog {
 
 
 	// TODO: Internal preferences: should be migrated to SNTPrefs
-	protected boolean confirmTemporarySegments = true;
+	protected boolean confirmTemporarySegments = false; // the new default in v5
 	protected boolean finishOnDoubleConfimation = true;
 	protected boolean discardOnDoubleCancellation = true;
 	protected boolean askUserConfirmation = true;
@@ -1651,9 +1651,19 @@ public class SNTUI extends JDialog {
 			confirmCheckbox.setEnabled(confirmTemporarySegments);
 			finishCheckbox.setEnabled(confirmTemporarySegments);
 		});
-
 		confirmCheckbox.addItemListener(e -> finishOnDoubleConfimation = (e.getStateChange() == ItemEvent.SELECTED));
-		confirmCheckbox.addItemListener(e -> discardOnDoubleCancellation = (e.getStateChange() == ItemEvent.SELECTED));
+		finishCheckbox.addItemListener(e -> discardOnDoubleCancellation = (e.getStateChange() == ItemEvent.SELECTED));
+
+		// add tooltips
+		GuiUtils.addTooltip(confirmTemporarySegmentsCheckbox,
+				"<html>Whether each traced segment requires explicit confirmation (Y) before being added to the path.<br>" +
+						"When disabled, segments are confirmed automatically. Note that double-click finishes a path directly,<br>" +
+						"and the last confirmed segment can always be undone with the 'Z' key.");
+		GuiUtils.addTooltip(confirmCheckbox,
+				"When confirming segments is enabled: press Y twice in quick succession to finish the path");
+		GuiUtils.addTooltip(finishCheckbox,
+				"When confirming segments is enabled: press N twice in quick succession to cancel the path");
+
 		gdb.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
 		tPanel.add(confirmCheckbox, gdb);
 		++gdb.gridy;

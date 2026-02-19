@@ -914,6 +914,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pressedY = me.getY();
         clickHandledByRelease = false;
 
+        if (me.getButton() == MouseEvent.BUTTON2) {
+            IJ.setKeyDown(KeyEvent.VK_SPACE);
+            super.mousePressed(me);
+            return;
+        }
         if (isPopupTrigger(me)) {
             showPopupMenu(me.getX(), me.getY());
             me.consume();
@@ -924,6 +929,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     @Override
     public void mouseReleased(final MouseEvent me) {
+        if (me.getButton() == MouseEvent.BUTTON2) {
+            IJ.setKeyUp(KeyEvent.VK_SPACE);
+            super.mouseReleased(me);
+            return;
+        }
         if (altDraggingNode) {
             altDraggingNode = false;
             autoEnteredEditMode = false; // commit — don't exit on key release
@@ -950,6 +960,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         } else if (isPopupTrigger(me)) { // somehow on windows (Java 21, IJ 1.44p) MouseEvent#isPopupTrigger() occurs on mouse release!?
             showPopupMenu(me.getX(), me.getY());
         } else {
+            if (me.getButton() == MouseEvent.BUTTON1 && me.getClickCount() == 2
+                    && tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH) {
+                clickHandledByRelease = true; // prevent mouseClicked fallback from firing
+                tracerPlugin.finishedPath();
+                return;
+            }
             // Check if mouse movement is within tolerance to treat as a click.
             // This accommodates slight movement during click (common on trackpads!?)
             final int dx = me.getX() - pressedX;

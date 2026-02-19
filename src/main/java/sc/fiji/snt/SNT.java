@@ -124,7 +124,6 @@ public class SNT extends MultiDThreePanes implements
 	@Parameter
 	private OpService opService;
 
-
 	public enum SearchType {
 		ASTAR, NBASTAR;
 		@Override
@@ -328,6 +327,8 @@ public class SNT extends MultiDThreePanes implements
 	protected Color deselectedColor = DEFAULT_DESELECTED_COLOR;
 	protected boolean displayCustomPathColors = true;
 
+	/* Undo mechanism */
+	protected final Deque<Integer> confirmedSegmentSizes = new ArrayDeque<>();
 
     /**
      * Script-friendly constructor for Instantiating and initializing SNT in
@@ -553,6 +554,35 @@ public class SNT extends MultiDThreePanes implements
 		} else {
 			pathAndFillManager.syncSpatialSettingsWithPlugin();
 		}
+	}
+
+	protected synchronized void undoLastSegment() {
+		if (confirmedSegmentSizes.isEmpty()) {
+			discreteMsg("No segment to undo");
+			return;
+		}
+		if (temporaryPath != null) {
+			discreteMsg("Confirm or cancel the current segment before undoing");
+			return;
+		}
+		final int nodesToRemove = confirmedSegmentSizes.pop();
+		for (int i = 0; i < nodesToRemove; i++)
+			currentPath.removeNode(currentPath.size() - 1);
+
+		if (currentPath.size() == 0) {
+			// Undone back to the very first point — equivalent to cancelling
+			cancelPath();
+			return;
+		}
+		// Restore last_start_point to the new last node
+		final PointInImage last = currentPath.lastNode();
+		last_start_point_x = last.x / x_spacing;
+		last_start_point_y = last.y / y_spacing;
+		last_start_point_z = last.z / z_spacing;
+		lastStartPointSet = true;
+		setPathUnfinished(true);
+		changeUIState(SNTUI.PARTIAL_PATH);
+		updateTracingViewers(true);
 	}
 
 	/**
@@ -1956,8 +1986,11 @@ public class SNT extends MultiDThreePanes implements
 			// Just ignore the request to confirm a path (there isn't one):
 			return;
 
+		final int sizeBefore = currentPath.size();
 		currentPath.add(temporaryPath);
-
+		confirmedSegmentSizes.push(currentPath.size() - sizeBefore); // nodes actually added
+		if (confirmedSegmentSizes.size() > 20)
+			confirmedSegmentSizes.removeLast(); // drop oldest
 		if (manualRadius > 0) {
 			if (currentPath.size() == temporaryPath.size()) {
 				// First segment: stamp node 0 with whatever radius was current at start
@@ -2032,7 +2065,7 @@ public class SNT extends MultiDThreePanes implements
 
 		lastStartPointSet = false;
 		setPathUnfinished(false);
-
+		confirmedSegmentSizes.clear();
 		updateTracingViewers(true);
 	}
 
@@ -2383,6 +2416,7 @@ public class SNT extends MultiDThreePanes implements
 		lastStartPointSet = false;
 		if (activateFinishedPath) selectPath(currentPath, false);
 		setPathUnfinished(false);
+		confirmedSegmentSizes.clear();
 		setCurrentPath(null);
 
 		// ... and change the state of the UI
@@ -2534,6 +2568,7 @@ public class SNT extends MultiDThreePanes implements
 		setPathUnfinished(true);
 		lastStartPointSet = true;
 		startNodeRadius = manualRadius; // -1 if not set, that's fine
+		confirmedSegmentSizes.clear(); // just in case of abnormal prior state
 
 		final Path path = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
 		path.setCTposition(channel, frame);
