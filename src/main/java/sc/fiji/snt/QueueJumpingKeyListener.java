@@ -118,7 +118,11 @@ class QueueJumpingKeyListener implements KeyListener {
 			waiveKeyPress(e);
 			return;
 		}
-        // Special case #1: Handle 'hide' key
+		if (e.getKeyCode() == KeyEvent.VK_ALT) {
+			canvas.onAltKeyDown();
+			return;
+		}
+		// Special case #1: Handle 'hide' key
         if (e.getKeyCode() == KeyEvent.VK_H && canvas != null) {
             tracerPlugin.setAnnotationsVisible(false);
             e.consume();
@@ -228,6 +232,9 @@ class QueueJumpingKeyListener implements KeyListener {
 
 	@Override
 	public void keyReleased(final KeyEvent e) {
+		if (e.getKeyCode() == KeyEvent.VK_ALT) {
+			canvas.onAltKeyUp();
+		}
         // Special case #1: Handle 'hide' key
         if (e.getKeyCode() == KeyEvent.VK_H && canvas != null) {
             tracerPlugin.setAnnotationsVisible(true);

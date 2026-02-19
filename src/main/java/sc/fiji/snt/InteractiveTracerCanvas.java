@@ -86,6 +86,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     /* fixes for 'failed' clicks, see https://forum.image.sc/t/snt-mouse-clicks-often-fail-when-tracing/115544 */
     private int pressedX, pressedY;
     private boolean clickHandledByRelease;
+    private boolean altDraggingNode;
+    private boolean autoEnteredEditMode;
+
     // Squared pixel tolerance for click detection (5 pixels). This accommodates
     // slight mouse/trackpad movement during click, especially on macOS trackpads.
     private static final int CLICK_TOLERANCE_SQ = 25;
@@ -823,6 +826,34 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             super.setCursor(sx, sy, ox, oy);
     }
 
+    protected void onAltKeyDown() {
+        if (editMode) {
+            // already in edit mode: just update cursor if node is active
+            if (!impossibleEdit(false)) setCursor(handCursor);
+            return;
+        }
+        // Auto-enter edit mode if UI is idle and a single path is selected
+        if (tracerPlugin.uiReadyForModeChange() && tracerPlugin.editModeAllowed(false)) {
+            tracerPlugin.enableEditMode(true);
+            autoEnteredEditMode = true;
+            // mouseMoved hasn't fired yet so trigger a fake move to highlight nearest node
+            fakeMouseMoved(false, false);
+            if (!impossibleEdit(false)) setCursor(handCursor);
+        }
+    }
+
+    protected void onAltKeyUp() {
+        if (autoEnteredEditMode && !altDraggingNode) {
+            autoEnteredEditMode = false;
+            tracerPlugin.enableEditMode(false);
+            setCursor(crosshairCursor);
+            return;
+        }
+        autoEnteredEditMode = false;
+        if (!altDraggingNode)
+            setCursor(editMode ? defaultCursor : crosshairCursor);
+    }
+
     @Override
     public void mouseMoved(final MouseEvent e) {
 
@@ -850,11 +881,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         tracerPlugin.mouseMovedTo(last_x_in_pane_precise, last_y_in_pane_precise,
                 plane, shift_key_down, joiner_modifier_down);
+
         if (editMode) {
-            setCursor((tracerPlugin.getEditingNode() == -1) ? defaultCursor
-                    : handCursor);
-        }
-        else {
+            setCursor((tracerPlugin.getEditingNode() == -1) ? defaultCursor : handCursor);
+        } else if (e.isAltDown() && !impossibleEdit(false)) {
+            setCursor(handCursor); // signal: draggable node available
+        } else {
             setCursor(crosshairCursor);
         }
 
@@ -892,6 +924,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     @Override
     public void mouseReleased(final MouseEvent me) {
+        if (altDraggingNode) {
+            altDraggingNode = false;
+            autoEnteredEditMode = false; // commit — don't exit on key release
+            return;
+        }
         // When waiting for ROI drawing, let ImageJ handle the event first,
         // then check if a completed ROI exists for path selection.
         // On macOS, ROI stays in CONSTRUCTING state until another click,
@@ -1000,6 +1037,24 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             return;
         }
         handleCanvasClick(e);
+    }
+
+    @Override
+    public void mouseDragged(final MouseEvent e) {
+        if (editMode && e.isAltDown() && !impossibleEdit(false)) {
+            if (tracerPlugin.getEditingPath().isEditableNodeLocked()) {
+                if (!altDraggingNode) // show message only once, not on every drag event
+                    tempMsg("Node is locked. Unlock it first (L)");
+                return;
+            }
+            altDraggingNode = true;
+            last_x_in_pane_precise = myOffScreenXD(e.getX());
+            last_y_in_pane_precise = myOffScreenYD(e.getY());
+            moveEditingNodeToLastCanvasPosition(false); // silent — no tempMsg per drag event
+            return; // don't pan or do anything else
+        }
+        altDraggingNode = false;
+        super.mouseDragged(e);
     }
 
     /**
@@ -1695,7 +1750,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             editingPath.moveNode(editingNode, new PointInImage((p[0] - offset.x) *
                     editingPath.x_spacing, (p[1] - offset.y) * editingPath.y_spacing,
                     (p[2] - offset.z) * editingPath.z_spacing));
-            redrawEditingPath("Node moved");
+            redrawEditingPath((warnOnFailure) ? "Node moved" : null);
         }
         catch (final IllegalArgumentException exc) {
             tempMsg("Node displacement failed!");
