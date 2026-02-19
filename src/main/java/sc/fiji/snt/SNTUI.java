@@ -106,6 +106,7 @@ public class SNTUI extends JDialog {
 	private JButton rebuildCanvasButton;
 	private JCheckBox debugCheckBox;
 	private JButton workspaceIndicator;
+	private JSpinner assignDiameterSpinner;
 
 	// UI controls for auto-tracing
 	private JComboBox<String> searchAlgoChoice;
@@ -1301,14 +1302,12 @@ public class SNTUI extends JDialog {
 		final JPanel sourcePanel = new JPanel(new GridBagLayout());
 		final boolean hasChannels = imp != null && imp.getNChannels() > 1;
 		final boolean hasFrames = imp != null && imp.getNFrames() > 1;
-		final JPanel positionPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
-		positionPanel.add(GuiUtils.leftAlignedLabel("Channel", true));
+
 		final JSpinner channelSpinner = GuiUtils.integerSpinner(plugin.channel, 1,
 				(hasChannels) ? imp.getNChannels() : 1, 1, true);
-		positionPanel.add(channelSpinner);
-		positionPanel.add(GuiUtils.leftAlignedLabel(" Frame", true));
-		final JSpinner frameSpinner = GuiUtils.integerSpinner(plugin.frame, 1, (hasFrames) ? imp.getNFrames() : 1, 1, true);
-		positionPanel.add(frameSpinner);
+		final JSpinner frameSpinner = GuiUtils.integerSpinner(plugin.frame, 1,
+				(hasFrames) ? imp.getNFrames() : 1, 1, true);
+
 		final JButton applyPositionButton = new JButton("Reload");
 		registerInCommandFinder(applyPositionButton, null, "Main Tab");
 		final ChangeListener spinnerListener = e -> applyPositionButton.setText(
@@ -1343,7 +1342,6 @@ public class SNTUI extends JDialog {
 			final int newT = (int) frameSpinner.getValue();
 			loadImagefromGUI(newC, newT);
 		});
-		positionPanel.add(applyPositionButton);
 
 		final JCheckBox autoCTcheckbox = new JCheckBox("Auto-load channel/frame when starting new paths", plugin.autoCT);
 		commandFinder.register(autoCTcheckbox, "Toggle Auto-load CT Position of New Paths",
@@ -1356,6 +1354,13 @@ public class SNTUI extends JDialog {
 			updateSettingsString();
 			if (plugin.autoCT) warnOnAutoCTcompatibilitySelf();
 		});
+
+		final JPanel positionPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, autoCTcheckbox.getIconTextGap(), 0));
+		positionPanel.add(GuiUtils.leftAlignedLabel("Channel", true));
+		positionPanel.add(channelSpinner);
+		positionPanel.add(GuiUtils.leftAlignedLabel(" Frame", true));
+		positionPanel.add(frameSpinner);
+		positionPanel.add(applyPositionButton);
 
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 		gdb.gridwidth = 1;
@@ -1561,7 +1566,7 @@ public class SNTUI extends JDialog {
 				Stream.of(plugin.getImagePlus(SNT.XY_PLANE), plugin.getImagePlus(SNT.XZ_PLANE), plugin.getImagePlus(SNT.ZY_PLANE))
 						.filter(Objects::nonNull).forEach(ImpUtils::invertLut);
 		});
-		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, InternalUtils.MARGIN, InternalUtils.MARGIN));
+		final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, InternalUtils.MARGIN));
 		buttonPanel.add(invertLutButton);
 		buttonPanel.add(rebuildCanvasButton);
 		buttonPanel.add(refreshPanesButton);
@@ -1684,12 +1689,61 @@ public class SNTUI extends JDialog {
 		diametersCheckBox.addItemListener(e -> plugin.setDrawDiameters(e.getStateChange() == ItemEvent.SELECTED));
 		intPanel.add(diametersCheckBox, gdb);
 		++gdb.gridy;
-		intPanel.add(nodePanel(), gdb);
+
+		// Indent sub-panels to align their labels with the checkbox icon
+		final int indent = diametersCheckBox.getIconTextGap();
+		gdb.insets = new Insets(0, indent, 0, 0);
+
+		intPanel.add(assignDiameterPanel(), gdb);
 		++gdb.gridy;
 		intPanel.add(transparencyDefPanel(), gdb);
 		++gdb.gridy;
 		intPanel.add(transparencyOutOfBoundsPanel(), gdb);
+		++gdb.gridy;
+		intPanel.add(nodePanel(), gdb);
 		return intPanel;
+	}
+
+	private JPanel assignDiameterPanel() {
+		final double step = plugin.getMinimumSeparation();
+		final double initVal = plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0;
+		assignDiameterSpinner = GuiUtils.doubleSpinner(initVal, 0, 999, step, 3);
+		assignDiameterSpinner.addChangeListener(e -> {
+			final double d = (double) assignDiameterSpinner.getValue();
+			final double current = plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0d;
+			if (d == current) return; // programmatic update — nothing to do
+			plugin.manualRadius = (d <= 0) ? -1 : d / 2;
+			plugin.updateAllViewers();
+		});
+		final JButton resetButton = resetButton("Reset Interactive Diameter");
+		resetButton.addActionListener(e -> {
+			plugin.manualRadius = -1;
+			assignDiameterSpinner.setValue(0d);
+			plugin.updateAllViewers();
+			showStatus("Interactive diameter reset", true);
+		});
+		final JPanel p = new JPanel();
+		p.setLayout(new GridBagLayout());
+		final GridBagConstraints c = GuiUtils.defaultGbc();
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.gridwidth = 3;
+		c.ipadx = 0;
+		p.add(GuiUtils.leftAlignedLabel("Assign diameter (Ctrl+mouse wheel): ", true));
+		c.gridx = 1;
+		p.add(assignDiameterSpinner, c);
+		c.fill = GridBagConstraints.NONE;
+		c.gridx = 2;
+		p.add(resetButton);
+		GuiUtils.addTooltip(p, "<html>Diameter assigned to path nodes via Ctrl+scroll wheel on the canvas.<br>"
+				+ "Set to 0 or Reset to disable.");
+		return p;
+	}
+
+	protected void updateAssignDiameterSpinner() {
+		if (assignDiameterSpinner == null) return;
+		assignDiameterSpinner.setValue(plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0d);
 	}
 
 	private JPanel nodePanel() {
@@ -1902,11 +1956,7 @@ public class SNTUI extends JDialog {
 		}
 	}
 	private JPanel miscPanel() {
-		final JPanel miscPanel = new JPanel(new GridBagLayout());
-		final GridBagConstraints gdb = GuiUtils.defaultGbc();
-		miscPanel.add(extraColorsPanel(), gdb);
-		++gdb.gridy;
-
+		// auto-grab focus of image window
 		final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
 				plugin.autoCanvasActivation);
 		registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
@@ -1917,9 +1967,7 @@ public class SNTUI extends JDialog {
                 but may hijack cursor too eagerly from other windows.
                 """);
 		canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
-		miscPanel.add(canvasCheckBox, gdb);
-		++gdb.gridy;
-
+		// nag level
 		final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
 		registerInCommandFinder(askUserConfirmationCheckBox, "Toggle Skip Confirmation Dialogs",
 				"Options Tab");
@@ -1927,8 +1975,7 @@ public class SNTUI extends JDialog {
 				"Whether \"Are you sure?\" type of prompts should precede major operations");
 		askUserConfirmationCheckBox
 				.addItemListener(e -> askUserConfirmation = e.getStateChange() == ItemEvent.DESELECTED);
-		miscPanel.add(askUserConfirmationCheckBox, gdb);
-		++gdb.gridy;
+		// debug
 		debugCheckBox = new JCheckBox("Debug mode", SNTUtils.isDebugMode());
 		debugCheckBox.addItemListener(e -> {
 			final boolean d = e.getStateChange() == ItemEvent.SELECTED;
@@ -1937,9 +1984,22 @@ public class SNTUI extends JDialog {
 				recorder.recordCmd("snt.getUI().setEnableDebugMode(" + d + ")", true);
 		});
 		registerInCommandFinder(debugCheckBox,"Toggle Debug Mode", "Options Tab");
+
+		// assemble panel
+		final JPanel miscPanel = new JPanel(new GridBagLayout());
+		final GridBagConstraints gdb = GuiUtils.defaultGbc();
+		final int indent = canvasCheckBox.getIconTextGap();
+		gdb.insets = new Insets(0, indent, 0, 0);
+		miscPanel.add(extraColorsPanel(), gdb);
+		++gdb.gridy;
+		gdb.insets = new Insets(0, 0, 0, 0);
+		miscPanel.add(canvasCheckBox, gdb);
+		++gdb.gridy;
+		miscPanel.add(askUserConfirmationCheckBox, gdb);
+		++gdb.gridy;
 		miscPanel.add(debugCheckBox, gdb);
 		++gdb.gridy;
-		final JButton prefsButton = new JButton("Preferences...");
+		final JButton prefsButton = new JButton("Additional Options...");
 		prefsButton.addActionListener(e -> (new CmdRunner(PrefsCmd.class)).execute());
 		gdb.fill = GridBagConstraints.NONE;
 		miscPanel.add(prefsButton, gdb);

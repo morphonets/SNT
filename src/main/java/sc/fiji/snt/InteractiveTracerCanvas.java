@@ -44,13 +44,14 @@ import javax.swing.*;
 import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.Ellipse2D;
 import java.util.*;
 import java.util.List;
 
 /**
  * A canvas that allows interactive tracing of paths.
  */
-class InteractiveTracerCanvas extends TracerCanvas {
+class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener {
 
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
@@ -97,6 +98,7 @@ class InteractiveTracerCanvas extends TracerCanvas {
         tracerPlugin = plugin;
         buildPpupMenu();
         super.disablePopupMenu(true); // so that handlePopupMenu is not triggered
+        addMouseWheelListener(this); // explicit registration. ImageCanvas does not implement WheelListener
     }
 
     private void updateForkPointMenuItem(final JMenuItem forkNearestMenuItem) {
@@ -922,6 +924,51 @@ class InteractiveTracerCanvas extends TracerCanvas {
         }
     }
 
+    @Override
+    public void mouseWheelMoved(final MouseWheelEvent e) {
+        if (!e.isControlDown() || isEventsDisabled() || !tracerPlugin.isUIready()) {
+            // Do not consume: re-dispatch to ImageWindow so IJ's zoom/scroll still works
+            getParent().dispatchEvent(e);
+            return;
+        }
+        e.consume(); // maybe not needed?
+
+        // Seed manualRadius: in edit mode, prefer the node's existing radius
+        if (tracerPlugin.manualRadius <= 0) {
+            if (editMode && !impossibleEdit(false)) {
+                final Path ep = tracerPlugin.getEditingPath();
+                final double nodeR = ep.getNodeRadius(ep.getEditableNodeIndex());
+                tracerPlugin.manualRadius = (nodeR > 0) ? nodeR : tracerPlugin.getMinimumSeparation() / 2;
+            } else {
+                tracerPlugin.manualRadius = tracerPlugin.getMinimumSeparation() / 2;
+            }
+        }
+
+        // Step = half a voxel width per notch (fine-grained)
+        final double step = tracerPlugin.getMinimumSeparation() * 0.5 * e.getPreciseWheelRotation();
+        tracerPlugin.manualRadius = Math.max(tracerPlugin.getMinimumSeparation() * 0.5,
+                tracerPlugin.manualRadius - step); // scroll up: larger; down: smaller
+
+        if (editMode) {
+            applyManualRadiusToEditNode();
+            repaint(); // no full viewer update, avoids triggering state resets
+        } else {
+            tracerPlugin.updateAllViewers(); // needed to refresh the cursor circle on all panes
+        }
+
+        // Always sync spinner after any change
+        if (tracerPlugin.getUI() != null)
+            tracerPlugin.getUI().updateAssignDiameterSpinner(); // already called on the EDT
+    }
+
+
+    private void applyManualRadiusToEditNode() {
+        if (impossibleEdit(false)) return;
+        final Path ep = tracerPlugin.getEditingPath();
+        ep.setRadius(tracerPlugin.manualRadius, ep.getEditableNodeIndex());
+        redrawEditingPath((String)null); // suppress msg; tempMsg already shows it
+    }
+
     private boolean selectPathsByRoi() {
         final Collection<Path> paths = pathAndFillManager.getPathsInROI((getImage().getRoi()));
         if (!paths.isEmpty()) {
@@ -1045,6 +1092,9 @@ class InteractiveTracerCanvas extends TracerCanvas {
 
         if (editMode && tracerPlugin.getEditingPath() != null) {
             redrawEditingPath(g);
+            if (tracerPlugin.manualRadius > 0 && last_x_in_pane_precise != Double.MIN_VALUE) {
+                drawManualRadiusCursor(g);
+            }
             if (connectionPreview != null) { // Draw connection preview if active
                 connectionPreview.drawPathAsPoints(this, g, getAnnotationsColor(),
                         plane, false, sliceZeroIndexed, eitherSideParameter);
@@ -1077,8 +1127,30 @@ class InteractiveTracerCanvas extends TracerCanvas {
                 pn.draw(g, getUnconfirmedPathColor());
             }
         }
+        if (tracerPlugin.manualRadius > 0 && last_x_in_pane_precise != Double.MIN_VALUE) {
+            drawManualRadiusCursor(g);
+        }
+    }
 
+    private void drawManualRadiusCursor(final Graphics2D g) {
+        final double mag = getMagnification();
+        // Physical radius → screen pixels (use x-spacing for XY/XZ, z-spacing for ZY x-axis)
+        final double screenRadius = switch (plane) {
+            case MultiDThreePanes.ZY_PLANE -> tracerPlugin.manualRadius / tracerPlugin.z_spacing * mag;
+            default ->                        tracerPlugin.manualRadius / tracerPlugin.x_spacing * mag;
+        };
+        final double sx = myScreenXDprecise(last_x_in_pane_precise);
+        final double sy = myScreenYDprecise(last_y_in_pane_precise);
 
+        final Stroke savedStroke = g.getStroke();
+        final Color savedColor = g.getColor();
+        g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f,
+                new float[]{4f, 3f}, 0f)); // dashed
+        g.setColor(getUnconfirmedPathColor()); // cyan by default — consistent with unconfirmed path
+        g.draw(new Ellipse2D.Double(sx - screenRadius, sy - screenRadius, 2 * screenRadius, 2 * screenRadius));
+        g.setStroke(savedStroke);
+        g.setColor(savedColor);
+        setCursorText(String.format("⌀= %.3f %s", tracerPlugin.manualRadius * 2, tracerPlugin.spacing_units));
     }
 
     private void enableEditMode(final boolean enable) {

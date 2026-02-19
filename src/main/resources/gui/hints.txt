@@ -21,6 +21,7 @@ Press N twice to cancel a path including the start node
 Use Alt+Click on an existing path to start a branch from that point
 Press Shift+P to pause tracing operations temporarily
 Overlay a MIP at low opacity (Options tab) to see the full structure while tracing
+Use Ctrl+mouse wheel to assign diameters to paths
 
 # Path Editing
 Press Shift+E to enter Edit Mode for the selected path

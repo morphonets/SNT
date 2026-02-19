@@ -213,6 +213,8 @@ public class SNT extends MultiDThreePanes implements
 	protected volatile boolean requireShiftToFork;
 	protected volatile boolean autoCT;
 	private boolean drawDiameters;
+	protected double manualRadius;
+	private double startNodeRadius = -1; // manualRadius at the time of startPath()
 
 	private boolean manualOverride = false;
 	private double fillThresholdDistance;
@@ -1956,6 +1958,17 @@ public class SNT extends MultiDThreePanes implements
 
 		currentPath.add(temporaryPath);
 
+		if (manualRadius > 0) {
+			if (currentPath.size() == temporaryPath.size()) {
+				// First segment: stamp node 0 with whatever radius was current at start
+				final double r0 = (startNodeRadius > 0) ? startNodeRadius : manualRadius;
+				currentPath.setRadius(r0, 0);
+				startNodeRadius = -1;
+			}
+			// Stamp the end-node with current manualRadius
+			currentPath.setRadius(manualRadius, currentPath.size() - 1);
+		}
+
 		final PointInImage last = currentPath.lastNode();
 		last_start_point_x = (int) Math.round(last.x / x_spacing);
 		last_start_point_y = (int) Math.round(last.y / y_spacing);
@@ -2351,6 +2364,8 @@ public class SNT extends MultiDThreePanes implements
 			p.onPath = currentPath;
 			currentPath.addPointDouble(p.x, p.y, p.z);
             currentPath.setSWCType(Path.SWC_SOMA);
+			if (manualRadius > 0)
+				currentPath.setRadius(manualRadius, 0);
 			// Branch point will be set when path is connected to parent
 			cancelSearch(false);
 		}
@@ -2359,8 +2374,12 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		removeSphere(targetBallName);
-		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null)
+		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null) {
+			if (manualRadius > 0 && currentPath.hasRadii()) {
+				currentPath.sanitizeRadii(true); // interpolates everything in between
+			}
 			pathAndFillManager.addPath(currentPath, true, false, false);
+		}
 		lastStartPointSet = false;
 		if (activateFinishedPath) selectPath(currentPath, false);
 		setPathUnfinished(false);
@@ -2514,6 +2533,7 @@ public class SNT extends MultiDThreePanes implements
 
 		setPathUnfinished(true);
 		lastStartPointSet = true;
+		startNodeRadius = manualRadius; // -1 if not set, that's fine
 
 		final Path path = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
 		path.setCTposition(channel, frame);
