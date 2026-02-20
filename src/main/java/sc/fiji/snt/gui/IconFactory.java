@@ -364,6 +364,16 @@ public class IconFactory {
         assignIcon(button, defaultGlyph, selectedGlyph, 1f);
     }
 
+    public static void assignIcon(final JMenuItem item, final GLYPH defaultGlyph) {
+        item.setIcon(menuIcon(defaultGlyph));
+        item.setDisabledIcon(menuIcon(defaultGlyph, GuiUtils.getDisabledComponentColor()));
+    }
+
+    public static void assignIcon(final JMenuItem item, final char symbol, final boolean solid, final Color color) {
+        item.setIcon(menuIcon(symbol, solid, color));
+        item.setDisabledIcon(menuIcon(symbol, solid, GuiUtils.getDisabledComponentColor()));
+    }
+
     public static Color defaultColor() {
         if (DEF_COLOR == null)
             DEF_COLOR = UIManager.getColor("Button.foreground");

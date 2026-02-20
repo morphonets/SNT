@@ -590,7 +590,9 @@ class QueueJumpingKeyListener implements KeyListener {
 					}
 				}
 				case 'z', 'Z' -> {
-					if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH)
+					if (tracerPlugin.isEditModeEnabled())
+						canvas.undoLastEditOperation();
+					else if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH)
 						tracerPlugin.undoLastSegment();
 				}
 			}

@@ -521,8 +521,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(e -> plugin.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>()));
         menu.add(jmi);
         menu.addSeparator();
-        jmi = GuiUtils.MenuItems.openHelpURL("Spine/Varicosity Utilities Help",
-                "https://imagej.net/plugins/snt/walkthroughs#spinevaricosity-analysis");
+        final Runnable startCounting = () -> {
+            getSNT().pause(true, true); // FIXME: We should support counting on side panes too
+            if (getSNT().getUIState()==SNTUI.SNT_PAUSED) { // plugin successfully paused
+                ij.IJ.setTool("multipoint");
+            }
+        };
+        jmi = GuiUtils.MenuItems.showHelpOnCountingSpines(PathManagerUI.this, startCounting);
         menu.add(jmi);
         return menu;
     }

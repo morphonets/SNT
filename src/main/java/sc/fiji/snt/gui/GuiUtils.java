@@ -78,6 +78,7 @@ import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.List;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -299,11 +300,6 @@ public class GuiUtils {
 		});
 	}
 
-	public static void showHTMLDialog(final String msg, final String title) {
-		final HTMLDialog dialog = new GuiUtils(null).new HTMLDialog(msg, title, false);
-		SwingUtilities.invokeLater(() -> dialog.setVisible(true));
-	}
-
 	public static boolean isLegacy3DViewerAvailable() {
 		return Types.load("ij3d.Image3DUniverse") != null;
 	}
@@ -363,7 +359,11 @@ public class GuiUtils {
 	}
 
 	private int yesNoDialog(final Object[] components, final String title, final String[] buttonLabels) {
-		final JOptionPane optionPane = new JOptionPane(components, JOptionPane.QUESTION_MESSAGE,
+		return yesNoDialog(components, title, buttonLabels, JOptionPane.QUESTION_MESSAGE);
+	}
+
+	private int yesNoDialog(final Object[] components, final String title, final String[] buttonLabels, final int icon) {
+		final JOptionPane optionPane = new JOptionPane(components, icon,
 				JOptionPane.YES_NO_OPTION, null, buttonLabels, (buttonLabels==null) ? null : buttonLabels[0]);
 		final JDialog d = optionPane.createDialog(parent, title);
 		makeVisible(d, true);
@@ -1261,6 +1261,36 @@ public class GuiUtils {
 				JOptionPane.PLAIN_MESSAGE, null, null, defaultValue);
 	}
 
+	private JDialog htmlOptionPane(final String msg, final String title, final boolean modal) {
+		final JOptionPane op = new JOptionPane(getScrollPane(htmlEditorPane(msg)),
+				JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
+		final JDialog d = op.createDialog(parent, title);
+		d.setModal(modal);
+		d.setResizable(true);
+		if (modal) {
+			makeVisible(d, true);
+		} else {
+			SwingUtilities.invokeLater(() -> makeVisible(d, true));
+		}
+		return d;
+	}
+
+	private JEditorPane htmlEditorPane(final String msg) {
+		final JEditorPane ep = new JEditorPane("text/html", "");
+		ep.setEditable(false);
+		final HTMLEditorKit kit = new HTMLEditorKit();
+		ep.setEditorKit(kit);
+		kit.getStyleSheet().addRule(
+				"body{font-family:Verdana,sans-serif; font-size:11.5pt; margin:5px 10px 5px 10px;}");
+		ep.setText(msg);
+		ep.setCaretPosition(0);
+		ep.addHyperlinkListener(e -> {
+			if (HyperlinkEvent.EventType.ACTIVATED.equals(e.getEventType()))
+				openURL(e.getURL().toString());
+		});
+		return ep;
+	}
+
 	public void centeredMsg(final String msg, final String title) {
 		centeredDialog(msg, title, JOptionPane.PLAIN_MESSAGE);
 	}
@@ -2145,10 +2175,18 @@ public class GuiUtils {
 	}
 
 
+	public static void showHTMLDialog(final String msg, final String title) {
+		SwingUtilities.invokeLater(() -> new GuiUtils(null).htmlOptionPane(msg, title, false));
+	}
+
 	public JDialog showHTMLDialog(final String msg, final String title, final boolean modal) {
-		final JDialog dialog = new HTMLDialog(msg, title, modal);
-		dialog.setVisible(true);
-		return dialog;
+		return htmlOptionPane(msg, title, modal);
+	}
+
+	public boolean yesNoHTMLDialog(final String htmlMsg, final String title,
+								   final String yesLabel, final String noLabel) {
+		return yesNoDialog(new Object[]{getScrollPane(htmlEditorPane(htmlMsg))}, title,
+				new String[]{yesLabel, noLabel}, JOptionPane.PLAIN_MESSAGE) == JOptionPane.YES_OPTION;
 	}
 
 	public void combineSNTChartPrompt() {
@@ -2505,120 +2543,8 @@ public class GuiUtils {
 		return false;
 	}
 
-	/** Tweaked version of ij.gui.HTMLDialog that is aware of parent */
-	private class HTMLDialog extends JDialog implements ActionListener, KeyListener, HyperlinkListener {
 
-		private static final long serialVersionUID = 1L;
-		private JEditorPane editorPane;
-
-		public HTMLDialog(final String message, final String title, final boolean modal) {
-			super();
-			setModal(modal);
-			setTitle(title);
-			init(message);
-		}
-
-		@Override
-		public void setVisible(final boolean b) {
-			setLocationRelativeTo(parent);
-			super.setVisible(b);
-		}
-
-		private void init(String message) {
-			getContentPane().setLayout(new BorderLayout());
-			if (message == null)
-				message = "";
-			editorPane = new JEditorPane("text/html", "");
-			editorPane.setEditable(false);
-			final HTMLEditorKit kit = new HTMLEditorKit();
-			editorPane.setEditorKit(kit);
-			final StyleSheet styleSheet = kit.getStyleSheet();
-			styleSheet.addRule("body{font-family:Verdana,sans-serif; font-size:11.5pt; margin:5px 10px 5px 10px;}"); // top
-			// right
-			// bottom
-			// left
-			styleSheet.addRule("h1{font-size:18pt;}");
-			styleSheet.addRule("h2{font-size:15pt;}");
-			styleSheet.addRule("dl dt{font-face:bold;}");
-			editorPane.setText(message); // display the html text with the above style
-			editorPane.getActionMap().put("insert-break", new AbstractAction() {
-				private static final long serialVersionUID = 1L;
-
-				public void actionPerformed(final ActionEvent e) {
-				}
-			}); // suppress beep on <ENTER> key
-			final JScrollPane scrollPane = getScrollPane(editorPane);
-			getContentPane().add(scrollPane);
-			final JButton button = new JButton("OK");
-			button.addActionListener(this);
-			button.addKeyListener(this);
-			editorPane.addKeyListener(this);
-			editorPane.addHyperlinkListener(this);
-			editorPane.setCaretPosition(0); // scroll to top;
-			final JPanel panel = new JPanel();
-			panel.add(button);
-			getContentPane().add(panel, "South");
-			setForeground(Color.black);
-			pack();
-			final Dimension screenD = Toolkit.getDefaultToolkit().getScreenSize();
-			final Dimension dialogD = getPreferredSize();
-			final int maxWidth = (int) (Math.min(0.70 * screenD.width, 800)); // max 70% of screen width, but not more
-			// then 800 pxl
-			if (maxWidth > 400 && dialogD.width > maxWidth)
-				dialogD.width = maxWidth;
-			if (dialogD.height > 0.80 * screenD.height && screenD.height > 400) // max 80% of screen height
-				dialogD.height = (int) (0.80 * screenD.height);
-			final int minHeight = editorPane.getFontMetrics(editorPane.getFont()).getHeight() * 10 + panel.getPreferredSize().height;
-			if (dialogD.height < minHeight)
-				dialogD.height = minHeight;
-			setPreferredSize(dialogD);
-			pack(); // Important! or preferred dimensions won't apply
-		}
-
-		public void actionPerformed(final ActionEvent e) {
-			dispose();
-		}
-
-		public void keyPressed(final KeyEvent e) {
-			final int keyCode = e.getKeyCode();
-			if (keyCode == KeyEvent.VK_C) {
-				if (editorPane.getSelectedText() == null || editorPane.getSelectedText().isEmpty())
-					editorPane.selectAll();
-				editorPane.copy();
-				editorPane.select(0, 0);
-			} else if (keyCode == KeyEvent.VK_ENTER || keyCode == KeyEvent.VK_W || keyCode == KeyEvent.VK_ESCAPE)
-				dispose();
-		}
-
-		public void hyperlinkUpdate(final HyperlinkEvent e) {
-			if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-				final String url = e.getDescription(); // getURL does not work for relative links within document such
-				// as "#top"
-				if (url == null)
-					return;
-				if (url.startsWith("#"))
-					editorPane.scrollToReference(url.substring(1));
-				else {
-					ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", url);
-				}
-			}
-		}
-
-		@Override
-		public void keyReleased(final KeyEvent arg0) {
-			// DO nothing
-		}
-
-		@Override
-		public void keyTyped(final KeyEvent arg0) {
-			// DO nothing
-		}
-
-	}
-
-	private class FloatingDialog extends JDialog implements ComponentListener,
-			WindowListener
-	{
+	private class FloatingDialog extends JDialog implements ComponentListener, WindowListener {
 
 		private static final long serialVersionUID = 1L;
 
@@ -2951,10 +2877,14 @@ public class GuiUtils {
 			});
 		}
 
-		public static JMenuItem itemWithoutAccelerator() {
+		public static JMenuItem itemWithoutAccelerator(final String text) {
 			class JMenuItemAcc extends JMenuItem {
 				// https://stackoverflow.com/a/1719250
 				private static final long serialVersionUID = 1L;
+
+				public JMenuItemAcc(final String text) {
+					super(text);
+				}
 
 				@Override
 				public void setAccelerator(final KeyStroke keyStroke) {
@@ -2962,7 +2892,7 @@ public class GuiUtils {
 					getInputMap(WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "none");
 				}
 			}
-			return new JMenuItemAcc();
+			return new JMenuItemAcc(text);
 		}
 
 		public static JMenu helpMenu(final SNTCommandFinder cmdFinder) {
@@ -3054,6 +2984,80 @@ public class GuiUtils {
 			final JMenuItem mi = openURL(label, URL);
 			mi.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
 			return mi;
+		}
+
+		public static JMenuItem showHelpOnCountingSpines(final Component parent, final Runnable action) {
+			final String HELP_MSG = "<HTML><div WIDTH=550>" //
+					+ "<b>Counting Spines/Varicosities Along Paths:</b>" //
+					+ "<ol>" //
+					+ "<li>Pause SNT</li>" //
+					+ "<li>Click on features to count. In 3D images, ensure you are on the correct Z-plane before clicking</li>" //
+					+ "<li>After counting, select the ath(s) of interest (or none to include all), then run " //
+					+ "<i>Analyze → Spine/Varicosity Utilities → Extract Counts from Multipoint ROIs...</i></li>" //
+					+ "</ol>" //
+					+ "<b>N.B.:</b>" //
+					+ "<ul>" //
+					+ "<li>Counts should occur in the main tracing view. ZY/XZ views are currently not supported</li>" //
+					+ "<li>SNT only tallies features. Consider storing clicked locations in ROI Manager or Bookmarks pane for further analyses</li>" //
+					+ "</ul>" //
+					+ "<b>Multipoint Tool:</b>" //
+					+ "<ul>" //
+					+ "<li>Click and drag a point to move it</li>" //
+					+ "<li>Alt+click, or " + GuiUtils.ctrlKey() + "+click on a point to delete it</li>" //
+					+ "<li>To delete multiple points, hold Alt and create an area ROI over them</li>" //
+					+ "<li><i>Edit → Selection → Select None</i> (" + GuiUtils.ctrlKey() + "+Shift+A) to clear a multipoint selection</li>" //
+					+ "<li><i>Edit → Selection → Restore Selection</i> (" + GuiUtils.ctrlKey() + "+Shift+E) to undo deletion</li>" //
+					+ "<li>Double-click the Multipoint tool in the main ImageJ toolbar for more options</li>" //
+					+ "</ul>" //
+					+ "<b>See the <a href=\"https://imagej.net/plugins/snt/walkthroughs#spinevaricosity-analysis\">User Manual</a> for further details.";
+
+			final JMenuItem mi = new JMenuItem("Spine/Varicosity Utilities Help", IconFactory.menuIcon(GLYPH.QUESTION));
+			mi.addActionListener(e -> {
+				if (new GuiUtils(parent).yesNoHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities",
+						"Pause SNT & Start Counting", "Dismiss")) {
+					SwingUtilities.invokeLater(action);
+				}
+			});
+			return mi;
+		}
+
+		public static LinkedHashMap<String, Color> colorTagPresets() {
+			final LinkedHashMap<String, Color> tags = new LinkedHashMap<>();
+			tags.put("Red",    new Color(255, 101, 101));
+			tags.put("Orange", new Color(255, 164, 91));
+			tags.put("Yellow", new Color(255, 214, 84));
+			tags.put("Green",  new Color(104, 210, 124));
+			tags.put("Blue",   new Color(77,  160, 255));
+			tags.put("Purple", new Color(215, 93,  231));
+			tags.put("Gray",   new Color(165, 165, 169));
+			return tags;
+		}
+
+		public static JPopupMenu colorTagPopup(final Component parent, final Consumer<Color> onColorChosen) {
+			final JPopupMenu popup = new JPopupMenu();
+			colorTagPresets().forEach((label, color) -> {
+				final JMenuItem item = new JMenuItem(label, IconFactory.nodeIcon(color));
+				item.addActionListener(e -> onColorChosen.accept(color));
+				popup.add(item);
+			});
+			final JMenuItem customItem = new JMenuItem("Other...",
+					IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+			customItem.addActionListener(e -> {
+				final JColorChooser chooser = GuiUtils.colorChooser(Color.GRAY);
+				final JDialog d = JColorChooser.createDialog(
+						SwingUtilities.getWindowAncestor(parent), "Choose Tag Color",
+						true, chooser,
+						ev -> onColorChosen.accept(chooser.getColor()),
+						null);
+				d.setVisible(true);
+			});
+			popup.add(customItem);
+			popup.addSeparator();
+			final JMenuItem removeItem = new JMenuItem("Remove Tag",
+					IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+			removeItem.addActionListener(e -> onColorChosen.accept(null));
+			popup.add(removeItem);
+			return popup;
 		}
 
 		private static String releaseNotesURL() {

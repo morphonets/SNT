@@ -550,6 +550,17 @@ public class BookmarkManager {
         recordCmd("add(" + x + ", " + y + ", " + z  + ", " + imp.getC() + ", " + imp.getT() +")");
     }
 
+    public void add(final Path path, final int nodeIndex) {
+        final PointInCanvas node = path.getPointInCanvas(nodeIndex);
+        final Color tag = path.hasNodeColors() ? path.getNodeColor(nodeIndex) : path.getColor();
+        final String label = model.getUniqueLabel(path.getName() + " #" + nodeIndex);
+        model.getDataList().add(new Bookmark(label,
+                (int) node.getX(), (int) node.getY(), (int) node.getZ(),
+                path.getChannel(), path.getFrame(), tag));
+        recordCmd(String.format("add(\"%s\", %d)", path.getName(), nodeIndex));
+        model.fireTableDataChanged();
+    }
+
     /**
      * Adds a bookmark at the specified coordinates and time/channel positions.
      *
@@ -937,7 +948,10 @@ class BookmarkTable extends JTable {
             editorButton = new JButton();
             editorButton.setBorderPainted(false);
             editorButton.setContentAreaFilled(false);
-            colorChooserPopMenu = createColorChooserPopMenu();
+            colorChooserPopMenu = GuiUtils.MenuItems.colorTagPopup(editorButton, color -> {
+                currentColor = color;
+                fireEditingStopped();
+            });
             final long[] lastShowTime = {0}; // Track when popup was last shown
             editorButton.addActionListener(e -> {
                 // Prevent double-click from showing popup twice (within 500ms)
@@ -947,32 +961,6 @@ class BookmarkTable extends JTable {
                     colorChooserPopMenu.show(editorButton, 0, editorButton.getHeight());
                 }
             });
-        }
-
-        private JPopupMenu createColorChooserPopMenu() {
-            final JPopupMenu popup = new JPopupMenu();
-            getPresetTags().forEach((label, color) -> {
-                final JMenuItem item = new JMenuItem(label);
-                if (color != null) item.setIcon(IconFactory.nodeIcon(color));
-                item.addActionListener(ev -> {currentColor = color;fireEditingStopped();});
-                popup.add(item);
-            });
-            final JMenuItem customItem = new JMenuItem("Other...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
-            customItem.addActionListener(ev -> {
-                final Color chosen = getCustomColor((currentColor == null) ? Color.GRAY : currentColor);
-                if (chosen != null)
-                    currentColor = chosen;
-                fireEditingStopped();
-            });
-            final JMenuItem removeItem = new JMenuItem("Remove Tag", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-            removeItem.addActionListener(ev -> {
-                currentColor = null;
-                fireEditingStopped();
-            });
-            popup.add(customItem);
-            popup.addSeparator();
-            popup.add(removeItem);
-            return popup;
         }
 
         private Color getCustomColor(final Color initialColor) {

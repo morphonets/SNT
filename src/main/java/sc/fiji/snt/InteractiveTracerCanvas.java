@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -35,6 +35,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.tracing.artist.FillerThreadArtist;
 import sc.fiji.snt.tracing.artist.SearchArtist;
@@ -60,9 +61,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private JPopupMenu pMenu;
     private JCheckBoxMenuItem toggleEditModeMenuItem;
     private JMenuItem extendPathMenuItem;
+    private JMenuItem finishPathMenuItem;
+    private JMenuItem undoSegmentMenuItem;
     private JCheckBoxMenuItem togglePauseTracingMenuItem;
     private JCheckBoxMenuItem togglePauseSNTMenuItem;
-    private JCheckBoxMenuItem panMenuItem;
     private JMenuItem connectToSecondaryEditingPath;
     private double last_x_in_pane_precise = Double.MIN_VALUE;
     private double last_y_in_pane_precise = Double.MIN_VALUE;
@@ -86,8 +88,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     /* fixes for 'failed' clicks, see https://forum.image.sc/t/snt-mouse-clicks-often-fail-when-tracing/115544 */
     private int pressedX, pressedY;
     private boolean clickHandledByRelease;
+    private boolean popupTriggered;
     private boolean altDraggingNode;
     private boolean autoEnteredEditMode;
+    private final Deque<Path> editUndoStack = new ArrayDeque<>();
+    private static final int MAX_EDIT_UNDO = 10;
 
     // Squared pixel tolerance for click detection (5 pixels). This accommodates
     // slight mouse/trackpad movement during click, especially on macOS trackpads.
@@ -99,101 +104,107 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     {
         super(imp, plugin, plane, pathAndFillManager);
         tracerPlugin = plugin;
-        buildPpupMenu();
+        buildPopupMenu();
         super.disablePopupMenu(true); // so that handlePopupMenu is not triggered
         addMouseWheelListener(this); // explicit registration. ImageCanvas does not implement WheelListener
     }
 
     private void updateForkPointMenuItem(final JMenuItem forkNearestMenuItem) {
-        // FIXME: We should be setting the accelerator to Alt+Shit+Button1. but KeyEvent.BUTTON1_MASK is never registered!?
-        final String accelerator = (tracerPlugin.requireShiftToFork) ? "  (or Alt+Shift+Click) " : "  (or Alt+Click)";
-        forkNearestMenuItem.setText( AListener.FORK_NEAREST + accelerator);
+        // NB: mouse button gestures cannot be set as Swing accelerators (KeyStroke only supports keyboard keys),
+        // so the shortcut is documented in the label only
+        final String accelerator = (tracerPlugin.requireShiftToFork) ? " (or Alt+Shift+Click)" : " (or Alt+Click)";
+        forkNearestMenuItem.setText(AListener.FORK_NEAREST + accelerator);
     }
 
-    private void buildPpupMenu() {
+    private void buildPopupMenu() {
         pMenu = new JPopupMenu();
         // Required because we are mixing lightweight and heavyweight components?
         pMenu.setLightWeightPopupEnabled(false);
 
         final AListener listener = new AListener();
-        pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyEvent.VK_G));
-        pMenu.add(menuItem(AListener.APPEND_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK)));
+        pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, 0),
+                '\uf076', true, IconFactory.defaultColor()));
+        pMenu.add(menuItem(AListener.APPEND_NEAREST, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK),
+                '\uf076', true, IconFactory.selectedColor()));
         final JMenuItem selectByRoi = getSelectRoiMenuItem();
         pMenu.add(selectByRoi);
         pMenu.addSeparator();
-        pMenu.add(menuItem(AListener.HIDE_ALL, listener, KeyEvent.VK_H));
-        pMenu.add(menuItem(AListener.SHOW_ARROWS, listener, KeyEvent.VK_O));
-        pMenu.addSeparator();
-        pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK)));
+        pMenu.add(menuItem(AListener.HIDE_ALL, listener, KeyStroke.getKeyStroke(KeyEvent.VK_H, 0),
+                IconFactory.GLYPH.EYE));
+        pMenu.add(menuItem(AListener.SHOW_ARROWS, listener, KeyStroke.getKeyStroke(KeyEvent.VK_O, 0),
+                IconFactory.GLYPH.NAVIGATE));
         pMenu.addSeparator();
 
-        JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V);
-        mi.setEnabled(!tracerPlugin.is2D());
+        pMenu.add(menuItem(AListener.BOOKMARK_CURSOR, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_B, KeyEvent.SHIFT_DOWN_MASK),
+                '\uf02e', false, IconFactory.defaultColor()));
+        pMenu.add(menuItem(AListener.START_SHOLL, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK),
+                IconFactory.GLYPH.BULLSEYE));
+        pMenu.addSeparator();
+
+        JMenuItem mi = menuItem(AListener.CLICK_AT_MAX, listener, KeyEvent.VK_V, IconFactory.GLYPH.SUN);
         pMenu.add(mi);
-        extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener);
+        extendPathMenuItem = menuItem(AListener.EXTEND_SELECTED, listener, null, IconFactory.GLYPH.TAPE);
         pMenu.add(extendPathMenuItem);
-        mi = menuItem(AListener.FORK_NEAREST, listener);
+        mi = menuItem(AListener.FORK_NEAREST, listener, null,
+                '\ue13b', true, IconFactory.defaultColor());
         mi.setToolTipText("Branches off a child path at nearest node"); // alternative discovery text for command palette
         pMenu.add(mi);
-        pMenu.addSeparator();
 
-        toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE_FORMATTER);
+        pMenu.addSeparator();
+        undoSegmentMenuItem = menuItem(AListener.UNDO_LAST_SEGMENT, listener, KeyEvent.VK_Z, IconFactory.GLYPH.UNDO);
+        pMenu.add(undoSegmentMenuItem);
+        finishPathMenuItem = menuItem(AListener.FINISH_PATH, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_F, 0),
+                '\uf11e', true, IconFactory.defaultColor());
+        pMenu.add(finishPathMenuItem);
+
+        pMenu.addSeparator();
+        toggleEditModeMenuItem = new JCheckBoxMenuItem(AListener.EDIT_TOGGLE_FORMATTER,
+                IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         toggleEditModeMenuItem.addItemListener(listener);
         toggleEditModeMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift E"));
         toggleEditModeMenuItem.setMnemonic(KeyEvent.VK_E);
         pMenu.add(toggleEditModeMenuItem);
 
-        pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B));
-        connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener);
+        pMenu.add(menuItem(AListener.NODE_MOVE_Z, listener, KeyEvent.VK_B, null));
+        connectToSecondaryEditingPath = menuItem(AListener.NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER, listener,
+                null, null);
         connectToSecondaryEditingPath.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0));
         connectToSecondaryEditingPath.setMnemonic(KeyEvent.VK_C);
         pMenu.add(connectToSecondaryEditingPath);
         pMenu.add(helpOnConnectingMenuItem());
-        pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D));
-        pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I));
-        pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L));
-        pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M));
-        pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R));
-        pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X));
+        pMenu.add(menuItem(AListener.NODE_DELETE, listener, KeyEvent.VK_D, null));
+        pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I, null));
+        pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L, null));
+        pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M, null));
+        pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R, null));
+        pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X, null));
         pMenu.addSeparator();
-        pMenu.add(menuItem(AListener.NODE_RESET, listener));
-        pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener));
-        final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, null);
+        pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener, null, null));
+        final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, null, null);
         jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
                 + "NB: Overall rendering of path may change once tag is applied");
         pMenu.add(jmi);
         pMenu.addSeparator();
 
-        pMenu.add(getCountSpinesMenuItem());
-        pMenu.add(menuItem(AListener.START_SHOLL, listener,
-                KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.SHIFT_DOWN_MASK + KeyEvent.ALT_DOWN_MASK)));
-        pMenu.addSeparator();
-
-        // Add a silly pan entry, just to remind users that the functionality exists.
-        // TODO: Since we are going through the trouble, should it sync all panes?
-        panMenuItem = new JCheckBoxMenuItem("Pan Mode  (or Hold Spacebar & Drag)", tracerPlugin.panMode);
-        panMenuItem.addItemListener( e -> {
-            tracerPlugin.panMode = panMenuItem.isSelected();
-            disableEvents(tracerPlugin.panMode);
-            if (tracerPlugin.panMode) {
-                IJ.setKeyDown(KeyEvent.VK_SPACE);
-            } else {
-                IJ.setKeyUp(KeyEvent.VK_SPACE);
-            }
-        });
-        pMenu.add(panMenuItem);
         togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
+        IconFactory.assignIcon(togglePauseTracingMenuItem, '\uf04c', true, IconFactory.defaultColor());
         togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
         togglePauseTracingMenuItem.setMnemonic(KeyEvent.VK_P);
         togglePauseTracingMenuItem.addItemListener(listener);
         pMenu.add(togglePauseTracingMenuItem);
-        togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE);
+        togglePauseSNTMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_SNT_TOGGLE,
+                IconFactory.menuIcon('\uf04d', true));
         togglePauseSNTMenuItem.addItemListener(listener);
         pMenu.add(togglePauseSNTMenuItem);
     }
 
     private JMenuItem getSelectRoiMenuItem() {
-        final JMenuItem selectByRoi = new JMenuItem("Select Paths by 2D ROI");
+        final JMenuItem selectByRoi = new JMenuItem(AListener.SELECT_BY_ROI);
+        IconFactory.assignIcon(selectByRoi, '\uf248', false, IconFactory.defaultColor());
         selectByRoi.addActionListener( e -> {
             if (pathAndFillManager.size() == 0) {
                 getGuiUtils().error("There are no traced paths.", "Nothing to Select");
@@ -211,71 +222,78 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         return selectByRoi;
     }
 
-    private JMenuItem getCountSpinesMenuItem() {
-        final JMenuItem countSpines = new JMenuItem("Count Spine/Varicosities...");
-        final boolean[] firstTimeCallingCountSpines = {true};
-        countSpines.addActionListener(e -> {
-            if (getPlane() != MultiDThreePanes.XY_PLANE) {
-                getGuiUtils().error("Currently, counting Spine/Varicosities is only supported on main view.");
-                return;
-            }
-            if (!isEventsDisabled())
-                tracerPlugin.pause(true, true); // FIXME: We should support counting on side panes too
-            if (isEventsDisabled()) { // plugin successfully paused
-                IJ.setTool("multipoint");
-                if (firstTimeCallingCountSpines[0]) showHelpOnCountingSpines();
-                firstTimeCallingCountSpines[0] = false;
-            }
-        });
-        return countSpines;
-    }
-
     private void showPopupMenu(final int x, final int y) {
         final Path activePath = tracerPlugin.getSingleSelectedPath();
         final boolean be = uiReadyForModeChange(SNTUI.EDITING);
+        final boolean bp = uiReadyForModeChange(SNTUI.SNT_PAUSED);
+        final boolean tracingActive = !editMode && !tracerPlugin.tracingHalted;
+
         extendPathMenuItem.setText(
                 (activePath != null) ? "Continue Extending " + getShortName(activePath) : AListener.EXTEND_SELECTED);
-        extendPathMenuItem.setEnabled(!(editMode || tracerPlugin.tracingHalted));
-        toggleEditModeMenuItem.setEnabled(be);
-        toggleEditModeMenuItem.setState(be && editMode);
         toggleEditModeMenuItem.setText(String.format(AListener.EDIT_TOGGLE_FORMATTER,
                 (activePath == null) ? " Mode" : getShortName(activePath)));
-        final boolean bp = uiReadyForModeChange(SNTUI.SNT_PAUSED);
-        togglePauseSNTMenuItem.setEnabled(bp);
-        togglePauseSNTMenuItem.setSelected(bp && tracerPlugin
-                .getUIState() == SNTUI.SNT_PAUSED);
-        togglePauseTracingMenuItem.setEnabled(!togglePauseSNTMenuItem.isSelected());
-        togglePauseTracingMenuItem.setEnabled(bp);
+        toggleEditModeMenuItem.setState(be && editMode);
+        togglePauseSNTMenuItem.setSelected(bp && tracerPlugin.getUIState() == SNTUI.SNT_PAUSED);
         togglePauseTracingMenuItem.setSelected(tracerPlugin.tracingHalted);
-        panMenuItem.setSelected(tracerPlugin.panMode);
 
-        // Disable editing commands
         for (final MenuElement me : pMenu.getSubElements()) {
-            if (me instanceof JMenuItem mItem) {
-                final String cmd = mItem.getActionCommand();
+            if (!(me instanceof JMenuItem mItem)) continue;
+            final String cmd = mItem.getActionCommand();
 
-                if (cmd.startsWith(AListener.FORK_NEAREST)) {
-                    updateForkPointMenuItem(mItem);
-                }
+            if (cmd.startsWith(AListener.FORK_NEAREST))
+                updateForkPointMenuItem(mItem);
 
-                if (togglePauseSNTMenuItem.isSelected() && !cmd.equals(
-                        AListener.PAUSE_SNT_TOGGLE))
-                {
-                    mItem.setEnabled(false);
-                }
-                // commands only enabled in "Edit Mode"
-                else if (cmd.equals(AListener.NODE_MOVE_Z)) {
-                    mItem.setEnabled(be && editMode && !tracerPlugin.is2D());
-                }
-                else if (cmd.equals(AListener.NODE_RESET) || cmd.equals(AListener.NODE_DELETE)
-                        || cmd.equals(AListener.NODE_INSERT) || cmd.equals(AListener.NODE_LOCK)
-                        || cmd.equals(AListener.NODE_MOVE) || cmd.equals(AListener.NODE_SET_ROOT)
-                        || cmd.equals(AListener.NODE_SPLIT) || cmd.equals(AListener.NODE_RADIUS)
-                        || cmd.equals(AListener.NODE_COLOR) || cmd.equals(AListener.NODE_CONNECT_HELP)) {
-                    mItem.setEnabled(be && editMode);
-                } else {
-                    mItem.setEnabled(true);
-                }
+            // SNT fully paused: disable everything except the toggle itself
+            if (togglePauseSNTMenuItem.isSelected() && !cmd.equals(AListener.PAUSE_SNT_TOGGLE)) {
+                mItem.setEnabled(false);
+            }
+            // Edit mode toggle
+            else if (mItem == toggleEditModeMenuItem) {
+                mItem.setEnabled(be);
+            }
+            // Pause tracing toggle
+            else if (mItem == togglePauseTracingMenuItem) {
+                mItem.setEnabled(bp);
+            }
+            // Tracing-only commands: disabled in edit mode and when tracing halted
+            else if (extendPathMenuItem == mItem) {
+                mItem.setEnabled(tracingActive );
+            }
+            else if (cmd.equals(AListener.FINISH_PATH)) {
+                mItem.setEnabled(tracingActive && tracerPlugin.currentPath != null);
+            }
+            else if (cmd.equals(AListener.UNDO_LAST_SEGMENT)) {
+                mItem.setEnabled(
+                        tracingActive && !tracerPlugin.confirmedSegmentSizes.isEmpty() // condition 1: tracing mode
+                        || editMode && !editUndoStack.isEmpty() // condition 2: edit mode
+                );
+            }
+            else if (cmd.startsWith(AListener.FORK_NEAREST)) {
+                mItem.setEnabled(!editMode && !tracerPlugin.tracingHalted
+                        && tracerPlugin.getUIState() == SNTUI.WAITING_TO_START_PATH
+                        && pathAndFillManager.size() > 0);
+            }
+            else if (cmd.equals(AListener.CLICK_AT_MAX)) {
+                mItem.setEnabled(tracingActive && !tracerPlugin.is2D());
+            }
+            // Edit mode node commands
+            else if (cmd.equals(AListener.APPEND_NEAREST) || cmd.equals(AListener.SELECT_BY_ROI)) {
+                mItem.setEnabled(!editMode); // In edit mode, only one path selected at any given time
+            }
+            else if (cmd.equals(AListener.NODE_MOVE_Z)) {
+                mItem.setEnabled(be && editMode && !tracerPlugin.is2D());
+            }
+            else if (cmd.equals(AListener.NODE_DELETE) || cmd.equals(AListener.NODE_INSERT)
+                    || cmd.equals(AListener.NODE_LOCK) || cmd.equals(AListener.NODE_MOVE)
+                    || cmd.equals(AListener.NODE_SET_ROOT) || cmd.equals(AListener.NODE_SPLIT)
+                    || cmd.equals(AListener.NODE_RADIUS) || cmd.equals(AListener.NODE_COLOR)
+                    || cmd.equals(AListener.NODE_CONNECT_HELP)) {
+                mItem.setEnabled(be && editMode);
+            }
+            // Everything else always enabled (SELECT_NEAREST, APPEND_NEAREST,
+            // HIDE_ALL, SHOW_ARROWS, BOOKMARK_CURSOR, START_SHOLL, pan, etc.)
+            else {
+                mItem.setEnabled(true);
             }
         }
         updateConnectToSecondaryEditingPathMenuItem();
@@ -298,6 +316,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Default assignment: current path = child, previous path = parent
         Path childPath = tracerPlugin.getEditingPath();
         Path parentPath = tracerPlugin.getPreviousEditingPath();
+        pushEditUndo(); // NB: captures editing path only; undo won't restore the full merge
 
         // Check for loop creation
         if (wouldCreateLoop(childPath, parentPath)) {
@@ -615,11 +634,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private JMenuItem helpOnConnectingMenuItem() {
         final String msg = "<HTML>To connect two paths in <i>Edit Mode</i>:<ol>" +
-                "  <li>Select the <b>parent</b> path. Press Shift+E to enter Edit Mode (auto-selects nearest path if needed)</li>" +
+                "  <li>Press <tt>Shift+E</tt> to enter Edit Mode</li>" +
+                "  <li>Select the <b>parent</b> path using <tt>G</tt> (<u>G</u>roup paths around cursor)</li>" +
                 "  <li>Hover over the node where the child should branch from</li>" +
-                "  <li>Press 'G' to switch to the <b>child</b> path</li>" +
+                "  <li>Press <tt>G</tt> to switch to the <b>child</b> path</li>" +
                 "  <li>Select the child's connection node (typically a start or end node)</li>" +
-                "  <li>Press 'C' to connect</li>" +
+                "  <li>Press <tt>C</tt> to <u>C</u>onnect</li>" +
                 "</ol>Notes:<ul>" +
                 "  <li>A confirmation dialog shows the parent/child assignment with option to swap roles</li>" +
                 "  <li>Child paths are automatically re-oriented to maintain proper tree structure</li>" +
@@ -644,28 +664,34 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         return helpItem;
     }
 
-    private JMenuItem menuItem(final String cmdName) {
-        final JMenuItem mi = GuiUtils.MenuItems.itemWithoutAccelerator();
+
+    private JMenuItem initMenuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
+        final JMenuItem mi = GuiUtils.MenuItems.itemWithoutAccelerator(cmdName);
         mi.setText(cmdName);
-        return mi;
-    }
-
-    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr) {
-        final JMenuItem mi = menuItem(cmdName);
         mi.addActionListener(lstnr);
-        return mi;
-    }
-
-    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
-        final JMenuItem mi = menuItem(cmdName, lstnr);
-        if (keystroke != null)
+        if (keystroke != null) {
             mi.setAccelerator(keystroke);
+            mi.setMnemonic(keystroke.getKeyCode());
+        }
         return mi;
     }
 
-    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keyEventKey) {
-        final JMenuItem mi = menuItem(cmdName, lstnr, KeyStroke.getKeyStroke(keyEventKey, 0));
-        mi.setMnemonic(keyEventKey);
+    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keycode,
+                               final IconFactory.GLYPH glyph) {
+        return menuItem(cmdName, lstnr, KeyStroke.getKeyStroke(keycode, 0), glyph);
+    }
+
+    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke,
+                               final IconFactory.GLYPH glyph) {
+        final JMenuItem mi = initMenuItem(cmdName, lstnr, keystroke);
+        if (glyph != null) IconFactory.assignIcon(mi, glyph);
+        return mi;
+    }
+
+    private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke,
+                               final char symbol, final boolean solid, final Color color) {
+        final JMenuItem mi = initMenuItem(cmdName, lstnr, keystroke);
+        if (symbol != '\u0000') IconFactory.assignIcon(mi, symbol, solid, color);
         return mi;
     }
 
@@ -702,6 +728,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     protected void clickAtMaxPoint(final boolean join_modifier_pressed) {
+        if (!tracerPlugin.accessToValidImageData()) {
+            tempMsg("This option requires valid image data to be loaded.");
+            return;
+        }
         final int x = (int) Math.round(last_x_in_pane_precise);
         final int y = (int) Math.round(last_y_in_pane_precise);
         final int[] p = new int[3];
@@ -864,7 +894,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         last_y_in_pane_precise = myOffScreenYD(e.getY());
 
         boolean shift_key_down = e.isShiftDown();
-        final boolean joiner_modifier_down = (tracerPlugin.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
+        final boolean joiner_modifier_down = !editMode && (
+                (tracerPlugin.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown()
+        );
 
         if (!editMode && tracerPlugin.snapCursor &&
                 plane == MultiDThreePanes.XY_PLANE && !joiner_modifier_down &&
@@ -920,6 +952,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             return;
         }
         if (isPopupTrigger(me)) {
+            popupTriggered = true;
+            clickHandledByRelease = true;
             showPopupMenu(me.getX(), me.getY());
             me.consume();
         } else if (tracerPlugin.panMode || isEventsDisabled() || !tracerPlugin.isUIready()) {
@@ -936,9 +970,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
         if (altDraggingNode) {
             altDraggingNode = false;
-            autoEnteredEditMode = false; // commit — don't exit on key release
+            autoEnteredEditMode = false;  // commit: don't exit on key release
             return;
         }
+        if (popupTriggered) {
+            popupTriggered = false; // avoid simultaneous popupmenu showing and click action on MacOS
+            return;
+        }
+
         // When waiting for ROI drawing, let ImageJ handle the event first,
         // then check if a completed ROI exists for path selection.
         // On macOS, ROI stays in CONSTRUCTING state until another click,
@@ -958,6 +997,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         if (tracerPlugin.panMode || isEventsDisabled()) {
             super.mouseReleased(me);
         } else if (isPopupTrigger(me)) { // somehow on windows (Java 21, IJ 1.44p) MouseEvent#isPopupTrigger() occurs on mouse release!?
+            popupTriggered = true;
             showPopupMenu(me.getX(), me.getY());
         } else {
             if (me.getButton() == MouseEvent.BUTTON1 && me.getClickCount() == 2
@@ -981,6 +1021,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     public void mouseWheelMoved(final MouseWheelEvent e) {
         if (!e.isControlDown() || isEventsDisabled() || !tracerPlugin.isUIready()) {
             // Do not consume: re-dispatch to ImageWindow so IJ's zoom/scroll still works
+            getParent().dispatchEvent(e);
+            return;
+        }
+        final int state = tracerPlugin.getUIState();
+        final boolean validState = editMode || state == SNTUI.WAITING_TO_START_PATH || state == SNTUI.PARTIAL_PATH;
+        if (!validState) {
             getParent().dispatchEvent(e);
             return;
         }
@@ -1046,7 +1092,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Click handling is primarily done in mouseReleased with tolerance check.
         // This method serves as a fallback for edge cases where mouseReleased
         // didn't handle the click (e.g., exact zero movement on some platforms).
-        if (clickHandledByRelease || pMenu.isShowing() || tracerPlugin.panMode ||
+        if (clickHandledByRelease || popupTriggered || tracerPlugin.panMode ||
                 isEventsDisabled() || isPopupTrigger(e))
         {
             super.mouseClicked(e);
@@ -1330,34 +1376,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         togglePauseSNTMenuItem.setSelected(isEventsDisabled());
     }
 
-    private void showHelpOnCountingSpines() {
-        final String HELP_MSG = "<HTML><div WIDTH=550>" //
-                + "<b>Counting Spines/Varicosities Along Paths:</b>" //
-                + "<ul>" //
-                + "<li>Click on features to count. In 3D images, ensure points reflect the correct Z-plane</li>" //
-                + "<li>After counting, select the associated Path(s) (or none to include all), then run " //
-                + "<i>Analyze → Spine/Varicosity Utilities → Extract Counts from Multipoint ROIs...</i></li>" //
-                + "<li>Note: SNT only tallies features. Consider storing clicked locations in ROI Manager "
-                + "or Bookmarks pane for further analyses</li>" //
-                + "</ul>" //
-                + "<br>" //
-                + "<b>Multipoint Tool:</b>" //
-                + "<ul>" //
-                + "<li>Click and drag a point to move it</li>" //
-                + "<li>Alt+click, or " + GuiUtils.ctrlKey() + "+click on a point to delete it</li>" //
-                + "<li>To delete multiple points, hold Alt and create an area ROI over them</li>" //
-                + "<li><i>Edit → Selection → Select None</i> (" + GuiUtils.ctrlKey() + "+Shift+A) to clear a multipoint selection</li>" //
-                + "<li><i>Edit → Selection → Restore Selection</i> (" + GuiUtils.ctrlKey() + "+Shift+E) to undo deletion</li>" //
-                + "<li>Double-click the Multipoint tool in the main ImageJ toolbar for more options</li>" //
-                + "</ul>" //
-                + "<br>";
-        getGuiUtils().showHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities", false);
-    }
-
     /** This class implements ActionListeners for InteractiveTracerCanvas's contextual menu. */
     private class AListener implements ActionListener, ItemListener {
 
         /* Listed shortcuts are specified in QueueJumpingKeyListener */
+        private static final String UNDO_LAST_SEGMENT = "Undo Last Segment";
+        private static final String FINISH_PATH = "Finish Path";
         private static final String HIDE_ALL = "Hide Paths (Hold H)";
         private static final String SHOW_ARROWS = "Path Orientation (Hold O)";
         private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
@@ -1369,7 +1393,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private static final String PAUSE_SNT_TOGGLE = "Pause SNT";
         private static final String PAUSE_TRACING_TOGGLE = "Pause Tracing";
         private static final String EDIT_TOGGLE_FORMATTER = "Edit %s";
-        private final static String NODE_RESET = "  Reset Active Node";
         private final static String NODE_DELETE = "  Delete Active Node";
         private final static String NODE_INSERT = "  Insert New Node at Cursor Position";
         private final static String NODE_LOCK = "  Lock Active Node";
@@ -1382,8 +1405,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private final static String NODE_CONNECT_HELP = "  Connect to Help...";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
-                + "Unselected Crosshair Node";
+                + "...";
         private final static String START_SHOLL = "Sholl Analysis at Nearest Node";
+        private final static String SELECT_BY_ROI = "Lasso Select Paths";
 
         @Override
         public void itemStateChanged(final ItemEvent e) {
@@ -1391,7 +1415,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 enableEditMode(toggleEditModeMenuItem.getState());
             } else if (e.getSource().equals(togglePauseSNTMenuItem)) {
                 final boolean pause = togglePauseSNTMenuItem.isSelected();
-                if (pause) panMenuItem.setSelected(false);
                 tracerPlugin.pause(pause, false);
             } else if (e.getSource().equals(togglePauseTracingMenuItem)) {
                 tracerPlugin.pauseTracing(togglePauseTracingMenuItem.isSelected(), true);
@@ -1431,15 +1454,15 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         /** Handles the extend path menu item action. */
         private void handleExtendPath() {
             if (tracerPlugin.tracingHalted) {
-                getGuiUtils().tempMsg("Tracing functions currently disabled");
+                tempMsg("Tracing functions currently disabled");
                 return;
             }
             if (pathAndFillManager.size() == 0) {
-                getGuiUtils().tempMsg("There are no finished paths to extend");
+                tempMsg("There are no finished paths to extend");
                 return;
             }
             if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
-                getGuiUtils().tempMsg("Please finish current operation before extending path");
+                tempMsg("Please finish current operation before extending path");
                 return;
             }
             final Path activePath = tracerPlugin.getSingleSelectedPath();
@@ -1479,6 +1502,15 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     return true;
                 case START_SHOLL:
                     return handleStartSholl();
+                case FINISH_PATH:
+                    tracerPlugin.finishedPath();
+                    return true;
+                case UNDO_LAST_SEGMENT:
+                    if (tracerPlugin.isEditModeEnabled())
+                        undoLastEditOperation();
+                    else
+                        tracerPlugin.undoLastSegment();
+                    return true;
                 default:
                     // Check for commands that start with specific prefixes
                     if (command.startsWith(FORK_NEAREST)) {
@@ -1498,15 +1530,29 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
 
         private boolean handleForkNearest() {
-            if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
-                getGuiUtils().tempMsg("Please finish current operation before creating branch");
-            } else if (pathAndFillManager.size() == 0) {
-                getGuiUtils().tempMsg("There are no finished paths to branch out from");
-            } else {
-                selectNearestPathToMousePointer(false);
-                tracerPlugin.mouseMovedTo(last_x_in_pane_precise, last_y_in_pane_precise, plane, true, true);
-                tracerPlugin.clickForTrace(last_x_in_pane_precise, last_y_in_pane_precise, plane, true);
+            if (tracerPlugin.tracingHalted) {
+                tempMsg("Tracing functions currently disabled");
+                return true; // handled, just failed
             }
+            if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
+                tempMsg("Please finish current operation before creating branch");
+                return true;
+            }
+            if (pathAndFillManager.size() == 0) {
+                tempMsg("There are no finished paths to branch out from");
+                return true;
+            }
+            selectNearestPathToMousePointer(false);
+            tracerPlugin.mouseMovedTo(last_x_in_pane_precise, last_y_in_pane_precise, plane, true, true);
+            // Verify a valid join point exists before committing
+            final double[] p = new double[3];
+            tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise, last_y_in_pane_precise, plane, p);
+            final PointInImage joinPoint = pathAndFillManager.nearestJoinPointOnSelectedPaths(p[0], p[1], p[2]);
+            if (joinPoint == null) {
+                tempMsg("No fork point found. Move cursor closer to a path node");
+                return true;
+            }
+            tracerPlugin.clickForTrace(last_x_in_pane_precise, last_y_in_pane_precise, plane, true);
             return true;
         }
 
@@ -1531,10 +1577,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
             // Handle specific edit commands
             return switch (command) {
-                case NODE_RESET -> {
-                    tracerPlugin.getEditingPath().setEditableNode(-1);
-                    yield true;
-                }
                 case NODE_DELETE -> {
                     deleteEditingNode(true);
                     yield true;
@@ -1590,6 +1632,23 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void setEditMode(final boolean editMode) {
         this.editMode = editMode;
+        if (!editMode) editUndoStack.clear();
+    }
+
+    private void pushEditUndo() {
+        if (impossibleEdit(false)) return;
+        editUndoStack.push(tracerPlugin.getEditingPath().clone());
+        if (editUndoStack.size() > MAX_EDIT_UNDO)
+            editUndoStack.removeLast();
+    }
+
+    protected void undoLastEditOperation() {
+        if (editUndoStack.isEmpty()) {
+            tempMsg("Nothing to undo");
+            return;
+        }
+        tracerPlugin.getEditingPath().replaceNodes(editUndoStack.pop());
+        redrawEditingPath("Edit undone");
     }
 
     protected void toggleEditingNode(final boolean warnOnFailure) {
@@ -1605,6 +1664,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void deleteEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
+        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
         if (editingPath.size() > 2) {
@@ -1643,6 +1703,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
+        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final int editingNode = editingPath.getEditableNodeIndex();
         final double[] p = new double[3];
@@ -1662,36 +1723,29 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     protected void assignColorToEditingNode() {
-        if (impossibleEdit(true))
-            return;
+        if (impossibleEdit(true)) return;
         final Path edPath = tracerPlugin.getEditingPath();
         final int edNode = edPath.getEditableNodeIndex();
-        final String proposedChoice = Integer.toString(Color.RED.getRGB());
-        final String prevChoice = tracerPlugin.getPrefs().getTemp("editNodeColor", proposedChoice);
-        final Color chosen = guiUtils.getColor("New Color for Node #" + edNode + "?",
-                new Color(Integer.parseInt(prevChoice)), (String[]) null);
-        if (chosen != null) {
+        final JPopupMenu popup = GuiUtils.MenuItems.colorTagPopup(this, chosen -> {
+            pushEditUndo();
             Color[] nodeColors = edPath.getNodeColors();
             if (nodeColors == null) {
                 nodeColors = new Color[edPath.size()];
-                if (edPath.getColor() == null)
-                    edPath.setColor(tracerPlugin.selectedColor.darker());
-                Arrays.fill(nodeColors, edPath.getColor());
+                Arrays.fill(nodeColors, edPath.getColor() != null
+                        ? edPath.getColor() : tracerPlugin.selectedColor.darker());
             }
-            nodeColors[edNode] = chosen;
+            nodeColors[edNode] = chosen; // null = remove tag
             edPath.setNodeColors(nodeColors);
-            String tags = PathManagerUI.extractTagsFromPath(edPath);
-            if (tags.isEmpty()) {
-                edPath.setName(edPath.getName() + " {Tagged node(s)}");
-            } else if (!tags.contains("Tagged node(s)")) {
-                tags += ", " + "Tagged node(s)";
-                edPath.setName(edPath.getName() + "{" + tags + "}");
-            }
-            redrawEditingPath(String.format("Node #%d tagged", edNode));
-            if (tracerPlugin.getUI() != null)
+            redrawEditingPath((chosen == null) ? String.format("Tag removed from node #%d", edNode) : null);
+            if (tracerPlugin.getUI() != null) {
                 tracerPlugin.getUI().getPathManager().update(true);
-            tracerPlugin.getPrefs().setTemp("editNodeColor", Integer.toString(chosen.getRGB()));
-        }
+                final BookmarkManager bm = tracerPlugin.getUI().getBookmarkManager();
+                if (chosen != null) bm.add(edPath, edNode);
+            }
+        });
+        final Point p = MouseInfo.getPointerInfo().getLocation();
+        SwingUtilities.convertPointFromScreen(p, this);
+        popup.show(this, p.x, p.y);
     }
 
     protected void assignRadiusToEditingNode(final boolean warnOnFailure) {
@@ -1747,6 +1801,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         if (Double.isNaN(r) || r < 0d) {
             guiUtils.error("Invalid radius. Must be a positive, floating-point value.");
         } else {
+            pushEditUndo();
             edPath.setRadius(r, edNode);
             redrawEditingPath(String.format("Radius set to %02f", r));
         }
@@ -1756,6 +1811,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
+        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final int editingNode = editingPath.getEditableNodeIndex();
         final double[] p = new double[3];
@@ -1777,6 +1833,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
+        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final int editingNode = editingPath.getEditableNodeIndex();
         final PointInCanvas offset = editingPath.getCanvasOffset();
@@ -1800,6 +1857,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void assignTreeRootToEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
+        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
 
         try {
@@ -1856,6 +1914,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
+        pushEditUndo(); // NB: captures editing path only; undo won't restore the full tree split
         final Path editingPath = tracerPlugin.getEditingPath();
 
         try {

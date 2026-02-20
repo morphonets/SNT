@@ -576,9 +576,10 @@ public class SNT extends MultiDThreePanes implements
 		}
 		// Restore last_start_point to the new last node
 		final PointInImage last = currentPath.lastNode();
-		last_start_point_x = last.x / x_spacing;
-		last_start_point_y = last.y / y_spacing;
-		last_start_point_z = last.z / z_spacing;
+		final PointInCanvas offset = currentPath.getCanvasOffset();
+		last_start_point_x = last.x / x_spacing + offset.x;
+		last_start_point_y = last.y / y_spacing + offset.y;
+		last_start_point_z = last.z / z_spacing + offset.z;
 		lastStartPointSet = true;
 		setPathUnfinished(true);
 		changeUIState(SNTUI.PARTIAL_PATH);
@@ -1986,6 +1987,20 @@ public class SNT extends MultiDThreePanes implements
 			// Just ignore the request to confirm a path (there isn't one):
 			return;
 
+		// If currentPath has a non-zero canvas offset (display canvas scenario),
+		// adjust temporaryPath node coordinates to match currentPath's coordinate system
+		// before merging. Search threads produce nodes in pixel * spacing space, but
+		// extended paths store nodes as (pixel - offset) * spacing.
+		final PointInCanvas offset = currentPath.getCanvasOffset();
+		if (offset.x != 0 || offset.y != 0 || offset.z != 0) {
+			for (int i = 0; i < temporaryPath.size(); i++) {
+				final PointInImage node = temporaryPath.getNodeWithoutChecks(i);
+				node.x -= offset.x * x_spacing;
+				node.y -= offset.y * y_spacing;
+				node.z -= offset.z * z_spacing;
+			}
+		}
+
 		final int sizeBefore = currentPath.size();
 		currentPath.add(temporaryPath);
 		confirmedSegmentSizes.push(currentPath.size() - sizeBefore); // nodes actually added
@@ -2003,9 +2018,9 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		final PointInImage last = currentPath.lastNode();
-		last_start_point_x = (int) Math.round(last.x / x_spacing);
-		last_start_point_y = (int) Math.round(last.y / y_spacing);
-		last_start_point_z = (int) Math.round(last.z / z_spacing);
+		last_start_point_x = last.x / x_spacing + offset.x;
+		last_start_point_y = last.y / y_spacing + offset.y;
+		last_start_point_z = last.z / z_spacing + offset.z;
 
 		{
 			setTemporaryPath(null);
@@ -2365,9 +2380,13 @@ public class SNT extends MultiDThreePanes implements
 		selectPath(path, false);
 		setPathUnfinished(true);
 		setCurrentPath(path);
-		last_start_point_x = (int) Math.round(path.lastNode().x / x_spacing);
-		last_start_point_y = (int) Math.round(path.lastNode().y / y_spacing);
-		last_start_point_z = (int) Math.round(path.lastNode().z / z_spacing);
+		confirmedSegmentSizes.clear();
+		startNodeRadius = manualRadius;
+		final PointInCanvas offset = path.getCanvasOffset();
+		final PointInImage lastNode = path.lastNode();
+		last_start_point_x = lastNode.x / x_spacing + offset.x;
+		last_start_point_y = lastNode.y / y_spacing + offset.y;
+		last_start_point_z = lastNode.z / z_spacing + offset.z;
 		setTemporaryPath(null);
 		changeUIState(SNTUI.PARTIAL_PATH);
 		updateAllViewers();
@@ -2591,7 +2610,7 @@ public class SNT extends MultiDThreePanes implements
 			path.setBranchFrom(joinPoint.onPath, joinPoint);
 			ballColor = Color.GREEN;
 		}
-
+		// offset is irrelevant: newly created paths always have canvasOffset = (0,0,0)
 		last_start_point_x = real_last_start_x / x_spacing;
 		last_start_point_y = real_last_start_y / y_spacing;
 		last_start_point_z = real_last_start_z / z_spacing;
