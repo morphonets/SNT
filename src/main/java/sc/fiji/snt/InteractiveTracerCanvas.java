@@ -267,7 +267,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 mItem.setText((editMode) ? AListener.UNDO_LAST_EDIT : AListener.UNDO_LAST_SEGMENT);
                 mItem.setEnabled(
                         tracingActive && !tracerPlugin.confirmedSegmentSizes.isEmpty() // condition 1: tracing mode
-                        || editMode && !editUndoStack.isEmpty() // condition 2: edit mode
+                                || editMode && !editUndoStack.isEmpty() // condition 2: edit mode
                 );
             }
             else if (cmd.startsWith(AListener.FORK_NEAREST)) {
@@ -724,6 +724,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 plane, shift_pressed, join_modifier_pressed);
     }
 
+    private void triggerRubberBandSearch() {
+        if (tracerPlugin.currentSearchThread != null
+                || tracerPlugin.getUIState() != SNTUI.PARTIAL_PATH
+                || !tracerPlugin.isAstarEnabled())
+            return;
+        tracerPlugin.startRubberBandSearch(last_x_in_pane_precise, last_y_in_pane_precise, plane);
+    }
+
     protected void clickAtMaxPoint(final boolean join_modifier_pressed) {
         if (!tracerPlugin.accessToValidImageData()) {
             tempMsg("This option requires valid image data to be loaded.");
@@ -919,6 +927,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             setCursor(crosshairCursor);
         }
 
+        if (tracerPlugin.rubberBandTracing && !editMode) {
+            triggerRubberBandSearch(); // has its only validators
+        }
     }
 
     @Override

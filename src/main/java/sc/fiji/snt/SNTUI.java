@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -107,6 +107,9 @@ public class SNTUI extends JDialog {
 	private JCheckBox debugCheckBox;
 	private JButton workspaceIndicator;
 	private JSpinner assignDiameterSpinner;
+	private JCheckBox confirmTemporarySegmentsCheckbox;
+	private JRadioButtonMenuItem standardTracingRbmi;
+	private JRadioButtonMenuItem rubberBandTracingRbmi;
 
 	// UI controls for auto-tracing
 	private JComboBox<String> searchAlgoChoice;
@@ -846,6 +849,8 @@ public class SNTUI extends JDialog {
 		if (plugin.getCostType() == SNT.CostType.PROBABILITY) {
 			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
 		}
+		sb.append("\n");
+		sb.append("    Tracing mode: ").append(plugin.rubberBandTracing ? "Live preview" : "Standard");
 		sb.append("\n");
 		sb.append("    Min-Max: ").append(SNTUtils.formatDouble(plugin.getStats().min, 3)).append("-")
 				.append(SNTUtils.formatDouble(plugin.getStats().max, 3));
@@ -1637,7 +1642,7 @@ public class SNTUI extends JDialog {
 		final JPanel tPanel = new JPanel(new GridBagLayout());
 		final GridBagConstraints gdb = GuiUtils.defaultGbc();
 
-		final JCheckBox confirmTemporarySegmentsCheckbox = new JCheckBox("Confirm temporary segments",
+		confirmTemporarySegmentsCheckbox = new JCheckBox("Confirm temporary segments",
 				confirmTemporarySegments);
 		registerInCommandFinder(confirmTemporarySegmentsCheckbox, "Toggle Confirm Temporary Segments",
 				"Options Tab");
@@ -1646,11 +1651,33 @@ public class SNTUI extends JDialog {
 
 		final JCheckBox confirmCheckbox = new JCheckBox("Pressing 'Y' twice finishes path", finishOnDoubleConfimation);
 		final JCheckBox finishCheckbox = new JCheckBox("Pressing 'N' twice cancels path", discardOnDoubleCancellation);
+		final JPanel subOptionsPanel = new JPanel(new GridBagLayout());
+		final GridBagConstraints subGdb = GuiUtils.defaultGbc();
+		subGdb.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
+		subOptionsPanel.add(confirmCheckbox, subGdb);
+		++subGdb.gridy;
+		subOptionsPanel.add(finishCheckbox, subGdb);
+
 		confirmTemporarySegmentsCheckbox.addItemListener(e -> {
-			confirmTemporarySegments = (e.getStateChange() == ItemEvent.SELECTED);
-			confirmCheckbox.setEnabled(confirmTemporarySegments);
-			finishCheckbox.setEnabled(confirmTemporarySegments);
+			final boolean selected = e.getStateChange() == ItemEvent.SELECTED;
+			if (selected && plugin.rubberBandTracing) {
+				if (!guiUtils.getConfirmation(
+						"Enabling segment confirmation will disable Live Preview tracing. Proceed?",
+						"Disable Live Preview Tracing?")) {
+					// User canceled: revert the checkbox
+					confirmTemporarySegmentsCheckbox.setSelected(false);
+					return;
+				}
+				plugin.rubberBandTracing = false;
+				if (standardTracingRbmi != null) standardTracingRbmi.setSelected(true);
+				updateSettingsString();
+			}
+			confirmTemporarySegments = selected;
+			GuiUtils.enableComponents(subOptionsPanel, confirmTemporarySegments);
 		});
+		// Initialize sub-options state
+		GuiUtils.enableComponents(subOptionsPanel, confirmTemporarySegments);
+
 		confirmCheckbox.addItemListener(e -> finishOnDoubleConfimation = (e.getStateChange() == ItemEvent.SELECTED));
 		finishCheckbox.addItemListener(e -> discardOnDoubleCancellation = (e.getStateChange() == ItemEvent.SELECTED));
 
@@ -1664,12 +1691,8 @@ public class SNTUI extends JDialog {
 		GuiUtils.addTooltip(finishCheckbox,
 				"When confirming segments is enabled: press N twice in quick succession to cancel the path");
 
-		gdb.insets.left = (int) new JCheckBox("").getPreferredSize().getWidth();
-		tPanel.add(confirmCheckbox, gdb);
+		tPanel.add(subOptionsPanel, gdb);
 		++gdb.gridy;
-		tPanel.add(finishCheckbox, gdb);
-		++gdb.gridy;
-		gdb.insets.left = 0;
 
 		final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
 				plugin.activateFinishedPath);
@@ -3882,6 +3905,38 @@ public class SNTUI extends JDialog {
 			}
 		});
 		optionsMenu.addSeparator();
+		optionsMenu.add(GuiUtils.leftAlignedLabel("Tracing Mode:", false));
+		final ButtonGroup tracingModeButtonGroup = new ButtonGroup();
+		standardTracingRbmi = new JRadioButtonMenuItem("Standard", !plugin.rubberBandTracing);
+		rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
+		GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse.<br>"
+				+ "Click to confirm each segment. Only recommended for 2D images.");
+		tracingModeButtonGroup.add(standardTracingRbmi);
+		tracingModeButtonGroup.add(rubberBandTracingRbmi);
+		optionsMenu.add(standardTracingRbmi);
+		optionsMenu.add(rubberBandTracingRbmi);
+		standardTracingRbmi.addActionListener(e -> {
+			plugin.rubberBandTracing = false;
+			if (confirmTemporarySegmentsCheckbox != null)
+				confirmTemporarySegmentsCheckbox.setEnabled(true);
+			updateSettingsString();
+			showStatus("Tracing mode: Standard", true);
+		});
+		rubberBandTracingRbmi.addActionListener(e -> {
+			if (!plugin.is2D() && !guiUtils.getConfirmation("Live Preview (Rubber Band) tracing is optimized for 2D images. "
+					+ "It may be too slow with 3D images. Enable it nevertheless?", "3D Image Detected")) {
+				return;
+			}
+			plugin.rubberBandTracing = true;
+			// Rubber band confirms on click: disable segment confirmation
+			if (confirmTemporarySegmentsCheckbox != null) {
+				confirmTemporarySegmentsCheckbox.setSelected(false); // fires ItemListener, sets confirmTemporarySegments=false
+				confirmTemporarySegmentsCheckbox.setEnabled(false);
+			}
+			updateSettingsString();
+			showStatus("Tracing mode: Live Preview (Rubber Band)", true);
+		});
+		optionsMenu.addSeparator();
 		optionsMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Algorithm Settings",
 				"https://imagej.net/plugins/snt/manual#auto-tracing"));
 		aStarPanel = new JPanel(new BorderLayout());
@@ -4080,7 +4135,7 @@ public class SNTUI extends JDialog {
 		final String[] options = {CHOICE_0, CHOICE_1, CHOICE_2};
 		String msg = "Backup and session features require a workspace, but ";
 		if (f == null || f.toPath().toAbsolutePath().normalize().equals(
-                defaultDir.toPath().toAbsolutePath().normalize()))
+				defaultDir.toPath().toAbsolutePath().normalize()))
 			msg += "no workspace directory is configured";
 		else
 			msg += "the workspace directory is no longer available at <i>" + f.getAbsolutePath() +"</i>";
