@@ -102,6 +102,7 @@ class QueueJumpingKeyListener implements KeyListener {
 		keyCommands.add(new PauseTracingCommand());
 		keyCommands.add(new SelectNearestPathCommand());
 		keyCommands.add(new UIToggleCommands());
+		keyCommands.add(new UIUndoCommands());
 
 		// Edit mode specific commands
 		keyCommands.add(new EditModeCommands());
@@ -518,6 +519,22 @@ class QueueJumpingKeyListener implements KeyListener {
 		}
 	}
 
+	private class UIUndoCommands implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.keyChar == 'z' || context.keyChar == 'Z';
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			if (tracerPlugin.isEditModeEnabled())
+				canvas.undoLastEditOperation();
+			else if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH)
+				tracerPlugin.undoLastSegment();
+			e.consume();
+		}
+	}
+
 	private class EditModeCommands implements KeyCommand {
 		@Override
 		public boolean canHandle(KeyEvent e, KeyContext context) {
@@ -536,6 +553,7 @@ class QueueJumpingKeyListener implements KeyListener {
 				case 'c', 'C' -> canvas.connectEditingPathToPreviousEditingPath(true);
 				case 'x', 'X' -> canvas.splitTreeAtEditingNode(false);
 				case 'v', 'V' -> canvas.clickAtMaxPoint(false);
+				case 't', 'T' -> canvas.assignColorToEditingNode();
 			}
 
 			// Handle delete keys
@@ -588,12 +606,6 @@ class QueueJumpingKeyListener implements KeyListener {
 					if (!calledFromUniv(true)) {
 						tracerPlugin.toggleSnapCursor();
 					}
-				}
-				case 'z', 'Z' -> {
-					if (tracerPlugin.isEditModeEnabled())
-						canvas.undoLastEditOperation();
-					else if (tracerPlugin.getUIState() == SNTUI.PARTIAL_PATH)
-						tracerPlugin.undoLastSegment();
 				}
 			}
 			e.consume();

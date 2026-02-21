@@ -92,7 +92,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private boolean altDraggingNode;
     private boolean autoEnteredEditMode;
     private final Deque<Path> editUndoStack = new ArrayDeque<>();
-    private static final int MAX_EDIT_UNDO = 10;
 
     // Squared pixel tolerance for click detection (5 pixels). This accommodates
     // slight mouse/trackpad movement during click, especially on macOS trackpads.
@@ -180,16 +179,18 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I, null));
         pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L, null));
         pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M, null));
-        pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R, null));
-        pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X, null));
-        pMenu.addSeparator();
-        pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener, null, null));
-        final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, null, null);
+        final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_T, 0), null);
         jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
                 + "NB: Overall rendering of path may change once tag is applied");
         pMenu.add(jmi);
-        pMenu.addSeparator();
 
+        // Structural operations (require confirmation, these are not undoable)
+        pMenu.add(menuItem(AListener.NODE_RADIUS, listener, KeyEvent.VK_R, null));
+        pMenu.add(menuItem(AListener.NODE_SET_ROOT, listener, null, null));
+        pMenu.add(menuItem(AListener.NODE_SPLIT, listener, KeyEvent.VK_X, null));
+
+        // Pause tracing/SNT
+        pMenu.addSeparator();
         togglePauseTracingMenuItem = new JCheckBoxMenuItem(AListener.PAUSE_TRACING_TOGGLE);
         IconFactory.assignIcon(togglePauseTracingMenuItem, '\uf04c', true, IconFactory.defaultColor());
         togglePauseTracingMenuItem.setAccelerator(KeyStroke.getKeyStroke("shift P"));
@@ -262,7 +263,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             else if (cmd.equals(AListener.FINISH_PATH)) {
                 mItem.setEnabled(tracingActive && tracerPlugin.currentPath != null);
             }
-            else if (cmd.equals(AListener.UNDO_LAST_SEGMENT)) {
+            else if (undoSegmentMenuItem == mItem) {
+                mItem.setText((editMode) ? AListener.UNDO_LAST_EDIT : AListener.UNDO_LAST_SEGMENT);
                 mItem.setEnabled(
                         tracingActive && !tracerPlugin.confirmedSegmentSizes.isEmpty() // condition 1: tracing mode
                         || editMode && !editUndoStack.isEmpty() // condition 2: edit mode
@@ -316,7 +318,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Default assignment: current path = child, previous path = parent
         Path childPath = tracerPlugin.getEditingPath();
         Path parentPath = tracerPlugin.getPreviousEditingPath();
-        pushEditUndo(); // NB: captures editing path only; undo won't restore the full merge
 
         // Check for loop creation
         if (wouldCreateLoop(childPath, parentPath)) {
@@ -328,8 +329,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Get connection points
         final int childNodeIdx = childPath.getEditableNodeIndex();
         final int parentNodeIdx = parentPath.getEditableNodeIndex();
-        final PointInImage childPoint = childPath.getNode(childNodeIdx);
-        final PointInImage parentPoint = parentPath.getNode(parentNodeIdx);
 
         /// Create preview path from parent to child (showing direction of connection)
         // Use canvas (unscaled) coordinates to avoid offset issues between paths
@@ -379,10 +378,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 msgBuilder.append(" (branch at node #").append(parentNodeIdx).append(")<br>");
                 msgBuilder.append("<b>Child:</b> ").append(StringUtils.abbreviate(childPath.getName(), 30));
                 msgBuilder.append(" (connect from node #").append(childNodeIdx).append(")<br>");
+                msgBuilder.append("<b>Note:</b><br>");
+
                 if (!childAtEndpoint && childPath.size() > 2) {
-                    msgBuilder.append("<b>Note:</b> Child connects from a mid-path node<br>");
+                    msgBuilder.append("&nbsp;&nbsp;- Child connects from a mid-path node<br>");
                 }
-                msgBuilder.append("<br>");
+                msgBuilder.append("&nbsp;&nbsp;- This operation cannot be undone<br><br>");
 
                 // Show dialog with checkbox for swapping
                 final boolean[] result = getGuiUtils().getConfirmationAndOption(
@@ -465,7 +466,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
             final int childNodeIdx = child.getEditableNodeIndex();
             final int parentNodeIdx = parent.getEditableNodeIndex();
-            final PointInImage childPoint = child.getNode(childNodeIdx);
             final PointInImage parentPoint = parent.getNode(parentNodeIdx);
 
             // Check if child's selected node is a slab (middle) node
@@ -476,14 +476,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final boolean existingEnableUiUpdates = pathAndFillManager.enableUIupdates;
             pathAndFillManager.enableUIupdates = false;
 
-            final Calibration cal = tracerPlugin.getCalibration();
-
             if (childAtSlab) {
                 // T-JUNCTION: Split child path and handle directly without graph transformation
-                connectWithTJunction(child, parent, childNodeIdx, parentNodeIdx, parentPoint, cal);
+                connectWithTJunction(child, parent, childNodeIdx, parentNodeIdx, parentPoint);
             } else {
                 // ENDPOINT CONNECTION: Use direct path manipulation
-                connectAtEndpoint(child, parent, childNodeIdx, childAtStart, parentNodeIdx, parentPoint, cal);
+                connectAtEndpoint(child, parent, childAtStart, parentNodeIdx, parentPoint);
             }
 
             tracerPlugin.setEditingPath(null);
@@ -502,9 +500,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
      * Connects child path to parent at an endpoint (start or end of child).
      */
     private void connectAtEndpoint(final Path child, final Path parent,
-                                   final int childNodeIdx, final boolean childAtStart,
-                                   final int parentNodeIdx, final PointInImage parentPoint,
-                                   final Calibration cal) {
+                                   final boolean childAtStart,
+                                   final int parentNodeIdx, final PointInImage parentPoint) {
 
         // Sync canvas offset before any operations
         TreeUtils.syncCanvasOffset(child, parent);
@@ -552,7 +549,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
      */
     private void connectWithTJunction(final Path child, final Path parent,
                                       final int childNodeIdx, final int parentNodeIdx,
-                                      final PointInImage parentPoint, final Calibration cal) {
+                                      final PointInImage parentPoint) {
 
         // Sync canvas offset before any operations
         TreeUtils.syncCanvasOffset(child, parent);
@@ -1109,7 +1106,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     tempMsg("Node is locked. Unlock it first (L)");
                 return;
             }
-            altDraggingNode = true;
+            if (!altDraggingNode) {
+                // First drag event: snapshot before any movement
+                pushEditUndo();
+                altDraggingNode = true;
+            }
             last_x_in_pane_precise = myOffScreenXD(e.getX());
             last_y_in_pane_precise = myOffScreenYD(e.getY());
             moveEditingNodeToLastCanvasPosition(false); // silent — no tempMsg per drag event
@@ -1381,6 +1382,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         /* Listed shortcuts are specified in QueueJumpingKeyListener */
         private static final String UNDO_LAST_SEGMENT = "Undo Last Segment";
+        private static final String UNDO_LAST_EDIT= "Undo Last Edit";
         private static final String FINISH_PATH = "Finish Path";
         private static final String HIDE_ALL = "Hide Paths (Hold H)";
         private static final String SHOW_ARROWS = "Path Orientation (Hold O)";
@@ -1399,9 +1401,9 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private final static String NODE_MOVE = "  Move Active Node to Cursor Position";
         private final static String NODE_MOVE_Z = "  Bring Active Node to Current Z-plane";
         private final static String NODE_RADIUS = "  Set Active Node Radius...";
-        private final static String NODE_COLOR = "  Tag Active Node...";
-        private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root";
-        private final static String NODE_SPLIT = "  Split Tree at Active Node";
+        private final static String NODE_COLOR = "  Tag Active Node";
+        private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
+        private final static String NODE_SPLIT = "  Split Tree at Active Node...";
         private final static String NODE_CONNECT_HELP = "  Connect to Help...";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
@@ -1506,6 +1508,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     tracerPlugin.finishedPath();
                     return true;
                 case UNDO_LAST_SEGMENT:
+                case UNDO_LAST_EDIT:
                     if (tracerPlugin.isEditModeEnabled())
                         undoLastEditOperation();
                     else
@@ -1638,7 +1641,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private void pushEditUndo() {
         if (impossibleEdit(false)) return;
         editUndoStack.push(tracerPlugin.getEditingPath().clone());
-        if (editUndoStack.size() > MAX_EDIT_UNDO)
+        if (editUndoStack.size() > SNTPrefs.MAX_UNDO_STEPS)
             editUndoStack.removeLast();
     }
 
@@ -1811,7 +1814,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
-        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final int editingNode = editingPath.getEditableNodeIndex();
         final double[] p = new double[3];
@@ -1857,7 +1859,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void assignTreeRootToEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        pushEditUndo();
+        if (!getGuiUtils().getConfirmation(
+                "Set active node as tree root? This operation cannot be undone.",
+                "Confirm Re-root"))
+            return;
         final Path editingPath = tracerPlugin.getEditingPath();
 
         try {
@@ -1914,7 +1919,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        pushEditUndo(); // NB: captures editing path only; undo won't restore the full tree split
         final Path editingPath = tracerPlugin.getEditingPath();
 
         try {
@@ -1922,6 +1926,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
             // Use getConnectedTree to avoid issues with disconnected paths sharing tree ID
             final Tree editingTree = TreeUtils.getConnectedTree(editingPath);
+            // Warn user that this operation cannot be undone
+            if (!getGuiUtils().getConfirmation(
+                    "Split tree at active node? This operation cannot be undone.",
+                    "Confirm Split"))
+                return;
             final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
 
             if (editingTree.getRoot().equals(editingPoint)) {

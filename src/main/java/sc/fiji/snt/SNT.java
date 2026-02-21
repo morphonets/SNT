@@ -2004,7 +2004,7 @@ public class SNT extends MultiDThreePanes implements
 		final int sizeBefore = currentPath.size();
 		currentPath.add(temporaryPath);
 		confirmedSegmentSizes.push(currentPath.size() - sizeBefore); // nodes actually added
-		if (confirmedSegmentSizes.size() > 20)
+		if (confirmedSegmentSizes.size() > SNTPrefs.MAX_UNDO_STEPS)
 			confirmedSegmentSizes.removeLast(); // drop oldest
 		if (manualRadius > 0) {
 			if (currentPath.size() == temporaryPath.size()) {

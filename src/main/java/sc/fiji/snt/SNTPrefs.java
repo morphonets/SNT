@@ -52,6 +52,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";
 	public static final String AUTOSAVE_KEY = "tracespath";
 	public static final String SPLIT_FILLS_KEY = "splitfills";
+	public static int MAX_UNDO_STEPS = 20;
 
     /** Boolean identifiers */
 	private static final int DRAW_DIAMETERS = 1;
