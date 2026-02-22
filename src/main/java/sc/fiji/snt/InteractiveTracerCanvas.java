@@ -90,7 +90,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private boolean clickHandledByRelease;
     private boolean popupTriggered;
     private boolean altDraggingNode;
-    private boolean autoEnteredEditMode;
     private final Deque<Path> editUndoStack = new ArrayDeque<>();
 
     // Squared pixel tolerance for click detection (5 pixels). This accommodates
@@ -862,29 +861,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     protected void onAltKeyDown() {
-        if (editMode) {
-            // already in edit mode: just update cursor if node is active
-            if (!impossibleEdit(false)) setCursor(handCursor);
-            return;
-        }
-        // Auto-enter edit mode if UI is idle and a single path is selected
-        if (tracerPlugin.uiReadyForModeChange() && tracerPlugin.editModeAllowed(false)) {
-            tracerPlugin.enableEditMode(true);
-            autoEnteredEditMode = true;
-            // mouseMoved hasn't fired yet so trigger a fake move to highlight nearest node
-            fakeMouseMoved(false, false);
-            if (!impossibleEdit(false)) setCursor(handCursor);
-        }
+        if (editMode && !impossibleEdit(false))
+            setCursor(handCursor);
     }
 
     protected void onAltKeyUp() {
-        if (autoEnteredEditMode && !altDraggingNode) {
-            autoEnteredEditMode = false;
-            tracerPlugin.enableEditMode(false);
-            setCursor(crosshairCursor);
-            return;
-        }
-        autoEnteredEditMode = false;
         if (!altDraggingNode)
             setCursor(editMode ? defaultCursor : crosshairCursor);
     }
@@ -921,8 +902,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         if (editMode) {
             setCursor((tracerPlugin.getEditingNode() == -1) ? defaultCursor : handCursor);
-        } else if (e.isAltDown() && !impossibleEdit(false)) {
-            setCursor(handCursor); // signal: draggable node available
         } else {
             setCursor(crosshairCursor);
         }
@@ -978,7 +957,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
         if (altDraggingNode) {
             altDraggingNode = false;
-            autoEnteredEditMode = false;  // commit: don't exit on key release
             return;
         }
         if (popupTriggered) {
