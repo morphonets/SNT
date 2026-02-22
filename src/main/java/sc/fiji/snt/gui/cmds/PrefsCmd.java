@@ -56,7 +56,7 @@ import static sc.fiji.snt.gui.cmds.CommonDynamicCmd.HEADER_HTML;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, initializer = "init", label = "SNT Preferences")
+@Plugin(type = Command.class, initializer = "init", label = "SNT Settings")
 public class PrefsCmd extends OptionsPlugin {
 
     private static final String SOMA_DISPLAY_DEFAULT = "Default (Circular)";
@@ -82,6 +82,13 @@ public class PrefsCmd extends OptionsPlugin {
 	@Parameter(label="Workspace directory", style = FileWidget.DIRECTORY_STYLE,
 			description="<HTML>The workspace directory for saving/restoring sessions and backups")
 	private File workspaceDirectory;
+
+	@Parameter(label="Next/Prev image: suffix filter",
+			description="<HTML>Comma-separated suffixes.<br>" +
+					"Each entry is matched against the end of the filename (case-insensitive).<br>" +
+					"Only matched files are considered by the <i>File → Save Tracings &amp; Open<br>" +
+					"Next/Previous Image</i> commands")
+	private String nextImgExtensions;
 
 	@Parameter(label="Use compressed .TRACES files",
 			description="Whether Gzip compression should be use when saving .traces files")
@@ -111,7 +118,7 @@ public class PrefsCmd extends OptionsPlugin {
     @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "III. Defaults")
     private String HEADER3;
 
-    @Parameter(label="Reset All Preferences...", callback="reset")
+    @Parameter(label="Reset All Settings...", callback="reset")
 	private Button resetButton;
 
 	private SNT snt;
@@ -134,6 +141,8 @@ public class PrefsCmd extends OptionsPlugin {
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
 		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
+		snt.getPrefs().setNextImgExtensions(nextImgExtensions);
+		applyWorkspaceChange();
 		if (lafService == null) return;
 		final String existingLaf = SNTPrefs.getLookAndFeel();
 		SNTPrefs.setLookAndFeel(lookAndFeel);
@@ -155,7 +164,7 @@ public class PrefsCmd extends OptionsPlugin {
 			return; // do nothing
 		}
 		final File currentDir = snt.getPrefs().getWorkspaceDir();
-		if (workspaceDirectory.equals(currentDir)) {
+		if (workspaceDirectory.equals(currentDir) && workspaceDirectory.exists()) {
 			return; // do nothing
 		}
 		if (!workspaceDirectory.exists()) {
@@ -188,6 +197,7 @@ public class PrefsCmd extends OptionsPlugin {
 			nThreads = SNTPrefs.getThreads();
             somaDisplay = getSomaDisplayChoice(PathNodeCanvas.getSomaRenderMode());
 			workspaceDirectory = snt.getPrefs().getWorkspaceDir();
+			nextImgExtensions = String.join(", ", snt.getPrefs().getNextImgExtensions());
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}
@@ -218,6 +228,8 @@ public class PrefsCmd extends OptionsPlugin {
 			if (snt != null) {
 				snt.getPrefs().setWorkspaceDir(null);
 				workspaceDirectory = snt.getPrefs().getWorkspaceDir();
+				snt.getPrefs().setNextImgExtensions((String)null);
+				nextImgExtensions = String.join(", ", snt.getPrefs().getNextImgExtensions());
 			}
 			clearAll();
 			init(); // update prompt;

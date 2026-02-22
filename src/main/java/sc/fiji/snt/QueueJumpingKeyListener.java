@@ -88,6 +88,8 @@ class QueueJumpingKeyListener implements KeyListener {
 		keyCommands.add(new ZoomUnzoomCommand());
 		keyCommands.add(new SaveCommand());
 		keyCommands.add(new CommandPaletteCommand());
+		keyCommands.add(new OpenNextImageCommand());
+		keyCommands.add(new OpenPreviousImageCommand());
 
 		// Allowlisted keys that should be passed through
 		keyCommands.add(new AllowListedKeysCommand());
@@ -608,6 +610,36 @@ class QueueJumpingKeyListener implements KeyListener {
 					}
 				}
 			}
+			e.consume();
+		}
+	}
+
+	private class OpenNextImageCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.ctrlDown && context.shiftDown
+					&& context.keyCode == KeyEvent.VK_O
+					&& tracerPlugin.getUI() != null;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			tracerPlugin.getUI().saveTracingsAndOpenSiblingImage(true);
+			e.consume();
+		}
+	}
+
+	private class OpenPreviousImageCommand implements KeyCommand {
+		@Override
+		public boolean canHandle(KeyEvent e, KeyContext context) {
+			return context.ctrlDown && context.altDown && !context.shiftDown
+					&& context.keyCode == KeyEvent.VK_O
+					&& tracerPlugin.getUI() != null;
+		}
+
+		@Override
+		public void execute(KeyEvent e, KeyContext context) {
+			tracerPlugin.getUI().saveTracingsAndOpenSiblingImage(false);
 			e.consume();
 		}
 	}

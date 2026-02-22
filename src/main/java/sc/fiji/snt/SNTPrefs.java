@@ -24,7 +24,9 @@ package sc.fiji.snt;
 
 import java.awt.*;
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 
 import javax.swing.*;
 
@@ -83,6 +85,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String FILTERED_IMG_PATH = "tracing.snt.fipath";
 	private static final String VERSION_CHECK = "tracing.snt.version";
 	private static final String WORKSPACE_KEY = "tracing.snt.workspace";
+	private static final String NEXT_IMG_FILTER_KEY = "nextimg";
 
 	/** recent directory */
 	private static File recentDir;
@@ -500,6 +503,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(FILLWIN_LOC, null);
 		Prefs.set(PATHWIN_LOC, null);
 		Prefs.set(FILTERED_IMG_PATH, null);
+		Prefs.set(NEXT_IMG_FILTER_KEY, null);
+		Prefs.set(WORKSPACE_KEY, null);
 		setLookAndFeel(null);
 		setThreads(0);
 		wipeSessionPrefs();
@@ -636,5 +641,57 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		if (file != null) {
 			recentDir = (file.isDirectory()) ? file : file.getParentFile();
 		}
+	}
+
+	/**
+	 * Returns the list of filename suffixes used to identify images when navigating
+	 * to the next/previous image in a folder (see {@link SNTUI). Matching is
+	 * case-insensitive and applied to the end of the filename (i.e., {@code endsWith}).
+	 * Suffixes may include a leading dot (e.g., {@code ".tif"}) or a partial filename
+	 * suffix (e.g., {@code "_max.tif"}).
+	 * @return a non-null, non-empty list of suffixes; defaults to
+	 *         {@code [".tif", ".tiff"]} if no preference has been set
+	 */
+	public List<String> getNextImgExtensions() {
+		final String extString = get(NEXT_IMG_FILTER_KEY, ".tif,.tiff");
+		return List.of(extString.split("[,\\s]+"));
+	}
+
+	/**
+	 * Sets the list of filename suffixes used to identify images when navigating
+	 * to the next/previous image in a folder. Null, blank, and empty entries are
+	 * silently ignored. If the resulting cleaned list is empty or {@code null} is
+	 * passed, the preference is cleared and the default ({@code [".tif", ".tiff"]})
+	 * will be used on the next call to {@link #getNextImgExtensions()}.
+	 *
+	 * @param extensions the list of suffixes to store (e.g., {@code [".tif", ".png"]});
+	 *                   may be {@code null} to reset to defaults
+	 * @see #getNextImgExtensions()
+	 */
+	public void setNextImgExtensions(final List<String> extensions) {
+		if (extensions == null || extensions.isEmpty()) {
+			set(NEXT_IMG_FILTER_KEY, null);
+			return;
+		}
+		final List<String> cleaned = extensions.stream().filter(s -> s != null && !s.isBlank()).toList();
+		set(NEXT_IMG_FILTER_KEY, cleaned.isEmpty() ? null : String.join(",", cleaned));
+	}
+
+	/**
+	 * Convenience method for setting filename suffixes from a comma-separated string.
+	 * Whitespace around entries is trimmed and blank entries are ignored. Delegates to
+	 * {@link #setNextImgExtensions(List)}.
+	 *
+	 * @param csvString a comma-separated string of filename suffixes
+	 *                  (e.g., {@code ".tif, .tiff, .png"}); may be {@code null}
+	 *                  or empty to reset to defaults
+	 * @see #setNextImgExtensions(List)
+	 */
+	public void setNextImgExtensions(final String csvString) {
+		if (csvString == null || csvString.isBlank()) {
+			setNextImgExtensions((List<String>) null);
+			return;
+		}
+		setNextImgExtensions(Arrays.asList(csvString.split("[,\\s]+")));
 	}
 }
