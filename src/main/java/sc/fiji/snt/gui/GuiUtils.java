@@ -3033,8 +3033,17 @@ public class GuiUtils {
 			return tags;
 		}
 
+		public static JMenu colorTagMenu(final Component parent, final Consumer<Color> onColorChosen) {
+			return (JMenu) colorTagMenu(false, parent, onColorChosen);
+		}
+
 		public static JPopupMenu colorTagPopup(final Component parent, final Consumer<Color> onColorChosen) {
-			final JPopupMenu popup = new JPopupMenu();
+			return (JPopupMenu) colorTagMenu(true, parent, onColorChosen);
+		}
+
+		public static JComponent colorTagMenu(final boolean asPopup, final Component parent, final Consumer<Color> onColorChosen) {
+			final JComponent popup = (asPopup) ? new JPopupMenu() : new JMenu();
+
 			colorTagPresets().forEach((label, color) -> {
 				final JMenuItem item = new JMenuItem(label, IconFactory.nodeIcon(color));
 				item.addActionListener(e -> onColorChosen.accept(color));
@@ -3043,18 +3052,23 @@ public class GuiUtils {
 			final JMenuItem customItem = new JMenuItem("Other...",
 					IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
 			customItem.addActionListener(e -> {
+				final Color[] result = {null};
 				final JColorChooser chooser = GuiUtils.colorChooser(Color.GRAY);
 				final JDialog d = JColorChooser.createDialog(
 						SwingUtilities.getWindowAncestor(parent), "Choose Tag Color",
 						true, chooser,
-						ev -> onColorChosen.accept(chooser.getColor()),
-						null);
+						ev -> result[0] = chooser.getColor(), // OK: color assigned
+						null);                                  // Cancel: result stays null
 				d.setVisible(true);
+				if (result[0] != null)  // only fire if user actually confirmed
+					onColorChosen.accept(result[0]);
 			});
 			popup.add(customItem);
-			popup.addSeparator();
-			final JMenuItem removeItem = new JMenuItem("Remove Tag",
-					IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+			if (asPopup)
+				((JPopupMenu)popup).addSeparator();
+			else
+				((JMenu)popup).addSeparator();
+			final JMenuItem removeItem = new JMenuItem("Remove Tag", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
 			removeItem.addActionListener(e -> onColorChosen.accept(null));
 			popup.add(removeItem);
 			return popup;

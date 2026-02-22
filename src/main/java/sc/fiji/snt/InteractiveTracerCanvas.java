@@ -1754,7 +1754,10 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             if (tracerPlugin.getUI() != null) {
                 tracerPlugin.getUI().getPathManager().update(true);
                 final BookmarkManager bm = tracerPlugin.getUI().getBookmarkManager();
-                if (chosen != null) bm.add(edPath, edNode);
+                if (chosen == null)
+                    bm.remove(edPath, edNode);
+                else
+                    bm.add(edPath, edNode);
             }
         });
         final Point p = MouseInfo.getPointerInfo().getLocation();

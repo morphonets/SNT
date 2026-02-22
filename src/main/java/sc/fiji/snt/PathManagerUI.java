@@ -2749,8 +2749,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private static final String APPEND_ALL_CHILDREN_CMD = "Append All Children To Selection";
         private static final String APPEND_DIRECT_CHILDREN_CMD = "Append Direct Children To Selection";
-        private static final String ASSIGN_DISTINCT_COLORS = "Assign Distinct Colors";
-        private static final String ASSIGN_CUSTOM_COLOR = "Choose Other...";
+        private static final String ASSIGN_DISTINCT_COLORS = "Distinct Colors";
+        private static final String ASSIGN_CUSTOM_COLOR = "Other...";
         private static final String COLORS_MENU = "Color";
         private static final String DELETE_CMD = "Delete...";
         private static final String AUTO_CONNECT_CMD = "Auto-connect...";

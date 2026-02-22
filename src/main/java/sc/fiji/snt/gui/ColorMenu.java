@@ -133,8 +133,10 @@ public class ColorMenu extends JMenu {
 	}
 
 	private void addSeparator(final String header) {
-		final JLabel sep = GuiUtils.leftAlignedLabel(header, false);
+		final JMenuItem sep = new JMenuItem(header);
+		sep.setEnabled(false);
 		sep.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, GuiUtils.getDisabledComponentColor()));
+		sep.setDisabledIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, GuiUtils.getDisabledComponentColor()));
 		add(sep);
 	}
 

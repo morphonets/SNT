@@ -185,63 +185,7 @@ public class BookmarkManager {
         });
         pMenu.add(mi);
         pMenu.addSeparator();
-        mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            final int[] viewRows = getSelectedRowsAllIfNone();
-            if (viewRows.length == table.getRowCount()) {
-                if (!sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
-                    return;
-                }
-                reset();
-                recordCmd("reset()");
-                return; // Don't continue to delete rows that no longer exist
-            }
-            // Convert view indices to model indices (handles sorted table)
-            final int[] modelRows = Arrays.stream(viewRows)
-                    .map(table::convertRowIndexToModel)
-                    .boxed()
-                    .sorted(Comparator.reverseOrder()) // Delete from end to preserve indices
-                    .mapToInt(Integer::intValue)
-                    .toArray();
-            for (final int modelRow : modelRows)
-                model.removeRow(modelRow);
-        });
-        pMenu.add(mi);
-        pMenu.addSeparator();
-        mi = new JMenuItem("Assign Distinct Tags", IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            final int[] rows = getSelectedRowsAllIfNone();
-            final Color[] distinctColors =  ColorMaps.glasbeyColorsAWT(rows.length);
-            int colorIdx = 0;
-            for (final int viewRow : rows) {
-                final int modelRow = table.convertRowIndexToModel(viewRow);
-                model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
-            }
-        });
-        pMenu.add(mi);
-        mi = new JMenuItem("Clear Tag(s)", IconFactory.menuIcon(IconFactory.GLYPH.BROOM));
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            for (final int viewRow : getSelectedRowsAllIfNone()) {
-                final int modelRow = table.convertRowIndexToModel(viewRow);
-                model.setValueAt(null, modelRow, 0);
-            }
-        });
-        pMenu.add(mi);
-        mi = new JMenuItem("Set Tag(s)...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            final Color newColor = sntui.guiUtils.getColor("Choose Tag Color", null, (String[]) null);
-            if (newColor == null) return;
-            for (final int viewRow : getSelectedRowsAllIfNone()) {
-                final int modelRow = table.convertRowIndexToModel(viewRow);
-                model.setValueAt(newColor, modelRow, 0);
-            }
-        });
-        pMenu.add(mi);
-        pMenu.addSeparator();
+
         mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
@@ -266,6 +210,57 @@ public class BookmarkManager {
             }
         });
         pMenu.add(mi);
+
+        // Color tags submenu
+        final JMenu tagMenu = GuiUtils.MenuItems.colorTagMenu(sntui, color -> {
+            if (noBookmarksError()) return;
+            for (final int viewRow : getSelectedRowsAllIfNone()) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                model.setValueAt(color, modelRow, 0); // if color is null user chose "Remove Tag"
+            }
+        });
+        tagMenu.setText("Tag");
+        tagMenu.setIcon(IconFactory.menuIcon((IconFactory.GLYPH.TAG)));
+        pMenu.add(tagMenu);
+        mi = new JMenuItem("Distinct Tags", IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final int[] rows = getSelectedRowsAllIfNone();
+            final Color[] distinctColors =  ColorMaps.glasbeyColorsAWT(rows.length);
+            int colorIdx = 0;
+            for (final int viewRow : rows) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
+            }
+        });
+        tagMenu.addSeparator();
+        tagMenu.add(mi);
+        pMenu.addSeparator();
+
+        mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        mi.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final int[] viewRows = getSelectedRowsAllIfNone();
+            if (viewRows.length == table.getRowCount()) {
+                if (!sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
+                    return;
+                }
+                reset();
+                recordCmd("reset()");
+                return; // Don't continue to delete rows that no longer exist
+            }
+            // Convert view indices to model indices (handles sorted table)
+            final int[] modelRows = Arrays.stream(viewRows)
+                    .map(table::convertRowIndexToModel)
+                    .boxed()
+                    .sorted(Comparator.reverseOrder()) // Delete from end to preserve indices
+                    .mapToInt(Integer::intValue)
+                    .toArray();
+            for (final int modelRow : modelRows)
+                model.removeRow(modelRow);
+        });
+        pMenu.add(mi);
+
         pMenu.addSeparator();
         mi = new JMenuItem("Resize/Reset Columns", IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
         mi.addActionListener(e -> {
@@ -559,6 +554,14 @@ public class BookmarkManager {
                 path.getChannel(), path.getFrame(), tag));
         recordCmd(String.format("add(\"%s\", %d)", path.getName(), nodeIndex));
         model.fireTableDataChanged();
+    }
+
+    public void remove(final Path path, final int nodeIndex) {
+        final String label = path.getName() + " #" + nodeIndex;
+        if (model.getDataList().removeIf(bookmark -> bookmark.label.equals(label))) {
+            recordCmd(String.format("remove(\"%s\", %d)", path.getName(), nodeIndex));
+            model.fireTableDataChanged();
+        }
     }
 
     /**
