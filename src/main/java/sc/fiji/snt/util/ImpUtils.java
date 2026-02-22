@@ -138,6 +138,15 @@ public class ImpUtils {
         }
     }
 
+    public static void convertTo16bit(final ImagePlus imp) {
+        if (imp.getType() != ImagePlus.GRAY8) {
+            final boolean doScaling = ImageConverter.getDoScaling();
+            ImageConverter.setDoScaling(true);
+            new ImageConverter(imp).convertToGray16();
+            ImageConverter.setDoScaling(doScaling);
+        }
+    }
+
     public static ImagePlus convertRGBtoComposite(final ImagePlus imp) {
         if (imp.getType() == ImagePlus.COLOR_RGB) {
             imp.hide();

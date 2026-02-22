@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -54,9 +54,13 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";
 	public static final String AUTOSAVE_KEY = "tracespath";
 	public static final String SPLIT_FILLS_KEY = "splitfills";
+	public static final String BVV_RENDER_WIDTH  = "bvv.renderWidth";
+	public static final String BVV_RENDER_HEIGHT = "bvv.renderHeight";
+	public static final String BVV_MAX_RENDER_MILLIS = "bvv.maxRenderMillis";
+	public static final String BVV_MAX_STEP_IN_VOXELS = "bvv.maxStepInVoxels";
 	public static int MAX_UNDO_STEPS = 20;
 
-    /** Boolean identifiers */
+	/** Boolean identifiers */
 	private static final int DRAW_DIAMETERS = 1;
 	private static final int SNAP_CURSOR = 2;
 	private static final int REQUIRE_SHIFT_FOR_FORK = 4;
@@ -65,19 +69,19 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final int USE_THREE_PANE = 32;
 	private static final int USE_3D_VIEWER = 64;
 	private static final int FORCE_2D_DISPLAY_CANVAS = 128;
-    private static final int AUTO_LOAD_CT = 256;
-    // Visibility of paths: NB: Do not store the 'hide deselected' preference as it causes
-    // no paths to be displayed at startup when active, which is unexpected for most users
-    private static final int JUST_ACTIVE_CT = 512;
+	private static final int AUTO_LOAD_CT = 256;
+	// Visibility of paths: NB: Do not store the 'hide deselected' preference as it causes
+	// no paths to be displayed at startup when active, which is unexpected for most users
+	private static final int JUST_ACTIVE_CT = 512;
 	private static final int STORE_WIN_LOCATIONS = 1024;
 	private static final int ENFORCE_DEFAULT_PATH_COLORS = 2048;
 	private static final int DEBUG = 4096;
-    private static final int COMPRESSED_XML = 8192;
-    private static final int SOMA_TRIANGLE = 16384;
+	private static final int COMPRESSED_XML = 8192;
+	private static final int SOMA_TRIANGLE = 16384;
 
-    /** Pref keys */
-    private static final int UNSET_PREFS = -1;
-    private static final String BOOLEANS = "tracing.snt.booleans";
+	/** Pref keys */
+	private static final int UNSET_PREFS = -1;
+	private static final String BOOLEANS = "tracing.snt.booleans";
 	private static final String SNAP_XY = "tracing.snt.xysnap";
 	private static final String SNAP_Z = "tracing.snt.zsnap";
 	private static final String PATHWIN_LOC = "tracing.snt.pwloc";
@@ -89,11 +93,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	/** recent directory */
 	private static File recentDir;
-    /** temp preferences (forgotten after the program exits) */
-    private volatile static HashSet<String> tempKeys;
+	/** temp preferences (forgotten after the program exits) */
+	private volatile static HashSet<String> tempKeys;
 
 	private final SNT snt;
-    private final PrefService prefService;
+	private final PrefService prefService;
 	private int currentBooleans;
 	private boolean ij1ReverseSliderOrder;
 	private boolean ij1PointerCursor;
@@ -117,7 +121,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	protected int get3DViewerResamplingFactor() {
 		if (resFactor3Dcontent == -1) {
 			resFactor3Dcontent = Content.getDefaultResamplingFactor(snt
-				.getImagePlus(), ContentConstants.VOLUME);
+					.getImagePlus(), ContentConstants.VOLUME);
 		}
 		return resFactor3Dcontent;
 	}
@@ -125,7 +129,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	protected void set3DViewerResamplingFactor(final int factor) {
 		if (factor == -1) {
 			resFactor3Dcontent = Content.getDefaultResamplingFactor(snt
-				.getImagePlus(), ContentConstants.VOLUME);
+					.getImagePlus(), ContentConstants.VOLUME);
 		}
 		else {
 			resFactor3Dcontent = factor;
@@ -251,9 +255,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	private void imposeIJ1Prefs() {
 		Prefs.reverseNextPreviousOrder = true; // required for scroll wheel
-																						// z-tracing
+		// z-tracing
 		Prefs.usePointerCursor = false; // required for tracing mode/editing mode
-																		// distinction
+		// distinction
 	}
 
 	private void restoreIJ1Prefs() {
@@ -279,24 +283,24 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.setDrawDiameters(getPref(DRAW_DIAMETERS));
 		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
-        snt.setShowOnlyActiveCTposPaths(getPref(JUST_ACTIVE_CT), false);
+		snt.setShowOnlyActiveCTposPaths(getPref(JUST_ACTIVE_CT), false);
 		if (!SNTUtils.isDebugMode()) SNTUtils.setDebugMode(getPref(DEBUG));
-        snt.cursorSnapWindowXY = withinBoundaries(
-                (int) Prefs.get(SNAP_XY, 4),
-                SNT.MIN_SNAP_CURSOR_WINDOW_XY,
-                SNT.MAX_SNAP_CURSOR_WINDOW_XY);
-        snt.cursorSnapWindowZ = withinBoundaries(
-                (int) Prefs.get(SNAP_Z, 0),
-                SNT.MIN_SNAP_CURSOR_WINDOW_Z,
-                Math.min(SNT.MAX_SNAP_CURSOR_WINDOW_Z, snt.depth));
-        final String fIPath = Prefs.get(FILTERED_IMG_PATH, null);
-        if (fIPath != null) snt.setSecondaryImage(new File(fIPath));
+		snt.cursorSnapWindowXY = withinBoundaries(
+				(int) Prefs.get(SNAP_XY, 4),
+				SNT.MIN_SNAP_CURSOR_WINDOW_XY,
+				SNT.MAX_SNAP_CURSOR_WINDOW_XY);
+		snt.cursorSnapWindowZ = withinBoundaries(
+				(int) Prefs.get(SNAP_Z, 0),
+				SNT.MIN_SNAP_CURSOR_WINDOW_Z,
+				Math.min(SNT.MAX_SNAP_CURSOR_WINDOW_Z, snt.depth));
+		final String fIPath = Prefs.get(FILTERED_IMG_PATH, null);
+		if (fIPath != null) snt.setSecondaryImage(new File(fIPath));
 	}
 
 	private int withinBoundaries(final int value, final int min, final int max) {
 		if (value < min) return min;
-        return Math.min(value, max);
-    }
+		return Math.min(value, max);
+	}
 
 	@Deprecated
 	protected void loadStartupPrefs() {
@@ -332,9 +336,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(SNAP_Z, snt.cursorSnapWindowZ);
 		setPref(DRAW_DIAMETERS, snt.getDrawDiameters());
 		setPref(ENFORCE_DEFAULT_PATH_COLORS, !snt.displayCustomPathColors);
-        setPref(JUST_ACTIVE_CT, snt.showOnlyActiveCTposPaths);
-        setPref(AUTO_LOAD_CT, snt.autoCT);
-        setPref(DEBUG, SNTUtils.isDebugMode());
+		setPref(JUST_ACTIVE_CT, snt.showOnlyActiveCTposPaths);
+		setPref(AUTO_LOAD_CT, snt.autoCT);
+		setPref(DEBUG, SNTUtils.isDebugMode());
 		Prefs.set(BOOLEANS, currentBooleans);
 		if (isSaveWinLocations()) {
 			final SNTUI rd = snt.getUI();
@@ -389,25 +393,25 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		setPref(COMPRESSED_XML, bool);
 	}
 
-    /**
-     * Sets whether single-node paths tagged as are rendered w/ triangular shape.
-     *
-     * @return true if triangular shape is enable, false otherwise
-     */
-    public boolean isSomaDisplayTriangle() {
-        return getPref(SOMA_TRIANGLE);
-    }
+	/**
+	 * Sets whether single-node paths tagged as are rendered w/ triangular shape.
+	 *
+	 * @return true if triangular shape is enable, false otherwise
+	 */
+	public boolean isSomaDisplayTriangle() {
+		return getPref(SOMA_TRIANGLE);
+	}
 
-    /**
-     * Sets whether single-node paths tagged as soma should render w/ triangular shape.
-     *
-     * @param bool true to enable triangular shape, false for default representation
-     */
-    public void setSomaDisplayTriangle(final boolean bool) {
-        setPref(SOMA_TRIANGLE, bool);
-    }
+	/**
+	 * Sets whether single-node paths tagged as soma should render w/ triangular shape.
+	 *
+	 * @param bool true to enable triangular shape, false for default representation
+	 */
+	public void setSomaDisplayTriangle(final boolean bool) {
+		setPref(SOMA_TRIANGLE, bool);
+	}
 
-    /**
+	/**
 	 * Checks if window locations should be saved and restored.
 	 *
 	 * @return true if window locations are saved, false otherwise
@@ -544,12 +548,12 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	public File getRecentDir() {
 		if (recentDir == null && snt.accessToValidImageData()) {
-				try {
-					final FileInfo fInfo = snt.getImagePlus().getOriginalFileInfo();
-					recentDir = new File(fInfo.directory);
-				} catch (final NullPointerException npe) {
-					// ignored;
-				}
+			try {
+				final FileInfo fInfo = snt.getImagePlus().getOriginalFileInfo();
+				recentDir = new File(fInfo.directory);
+			} catch (final NullPointerException npe) {
+				// ignored;
+			}
 		}
 		return lastKnownDir();
 	}

@@ -93,6 +93,7 @@ public class IconFactory {
         CUBES('\uf1b3', true), //
         EYE_DROPPER('\uf1fb', true), //
         GLASSES('\uf530', true), //
+        GAUGE('\uf624', true), //
         RESIZE('\uf424', true), //
         COPY('\uf0c5', false), //
         CROSSHAIR('\uf05b', true), //

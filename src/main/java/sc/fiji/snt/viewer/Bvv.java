@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -23,8 +23,9 @@
 package sc.fiji.snt.viewer;
 
 import bdv.tools.HelpDialog;
+import bdv.tools.InitializeViewerState;
 import bdv.util.AxisOrder;
-import bdv.viewer.ViewerState;
+import bdv.viewer.animate.SimilarityTransformAnimator;
 import bvv.core.BigVolumeViewer;
 import bvv.core.VolumeViewerFrame;
 import bvv.core.VolumeViewerPanel;
@@ -38,10 +39,7 @@ import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.util.ColorRGB;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -71,6 +69,8 @@ public class Bvv {
     private AnnotationOverlay annotationOverlay;
     private BigVolumeViewer currentBvv;
     private BvvHandle bvvHandle;
+    private double[] cal; // Pixel size of the volume being rendered
+    private long[] dims; // Dimensions in pixels of volume being rendered
 
     /**
      * Constructor for standalone BVV instance.
@@ -98,24 +98,7 @@ public class Bvv {
         //options.maxAllowedStepInVoxels(1); // FIXME: function?
     }
 
-    private static AxisOrder getAxisOrder(final ImagePlus imp) {
-        if (imp.getNSlices() == 1 && imp.getNChannels() == 1 && imp.getNFrames() == 1) {
-            return AxisOrder.XY;
-        } else if (imp.getNSlices() > 1 && imp.getNChannels() == 1 && imp.getNFrames() == 1) {
-            return AxisOrder.XYZ;
-        } else if (imp.getNSlices() == 1 && imp.getNChannels() > 1 && imp.getNFrames() == 1) {
-            return AxisOrder.XYC;
-        } else if (imp.getNSlices() == 1 && imp.getNChannels() == 1 && imp.getNFrames() > 1) {
-            return AxisOrder.XYT;
-        } else if (imp.getNSlices() == 1 && imp.getNChannels() > 1 && imp.getNFrames() > 1) {
-            return AxisOrder.XYCT;
-        } else if (imp.getNSlices() > 1 && imp.getNChannels() == 1 && imp.getNFrames() > 1) {
-            return AxisOrder.XYZT;
-        } else {
-            return AxisOrder.XYZCT;
-        }
-    }
-
+    @SuppressWarnings("unused")
     /**
      * Displays the BVV viewer with the specified image.
      *
@@ -125,19 +108,35 @@ public class Bvv {
      * @return the BvvSource representing the displayed image
      */
     public <T extends RealType<T>> BvvSource show(final RandomAccessibleInterval<T> img, final double... calibration) {
-        final double[] cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
+        cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
+        dims = new long[]{img.dimension(0), img.dimension(1), img.dimension(2)};
         final BvvSource source = BvvFunctions.show(img, "SNT Bvv", options.sourceTransform(cal));
         attachControlPanel(source);
-        if (bvvHandle == null)  bvvHandle = source.getBvvHandle();
+        if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         return source;
     }
 
     public <T extends RealType<T>> BvvSource show(final ImgPlus<T> imgPlus) {
-        final double[] cal = new double[Math.min(3, imgPlus.numDimensions())];
+        cal = new double[Math.min(3, imgPlus.numDimensions())];
+        dims = new long[]{imgPlus.dimension(0), imgPlus.dimension(1), imgPlus.dimension(2)};
         for (int d = 0; d < cal.length; d++) {
             cal[d] = imgPlus.averageScale(d);
         }
         return show(imgPlus, cal);  // ImgPlus is a RandomAccessibleInterval<T>
+    }
+
+    private static AxisOrder getAxisOrder(final ImagePlus imp) {
+        final boolean hasZ = imp.getNSlices()   > 1;
+        final boolean hasC = imp.getNChannels() > 1;
+        final boolean hasT = imp.getNFrames()   > 1;
+        if (!hasZ && !hasC && !hasT) return AxisOrder.XY;
+        if ( hasZ && !hasC && !hasT) return AxisOrder.XYZ;
+        if (!hasZ &&  hasC && !hasT) return AxisOrder.XYC;
+        if (!hasZ && !hasC &&  hasT) return AxisOrder.XYT;
+        if ( hasZ &&  hasC && !hasT) return AxisOrder.XYZC;
+        if (!hasZ &&  hasC &&  hasT) return AxisOrder.XYCT;
+        if ( hasZ && !hasC &&  hasT) return AxisOrder.XYZT;
+        return AxisOrder.XYZCT; // hasZ && hasC && hasT
     }
 
     /**
@@ -155,42 +154,183 @@ public class Bvv {
         if (snt == null)
             throw new IllegalArgumentException("This function is only available in snt-aware Bvv instances");
         if (!snt.accessToValidImageData()) throw new IllegalArgumentException("No valid image data available");
-        final RandomAccessibleInterval<T> data = (secondary) ? snt.getSecondaryData() : snt.getLoadedData();
+
+        RandomAccessibleInterval<T> data = (secondary) ? snt.getSecondaryData() : snt.getLoadedData();
+        cal = new double[] {snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
+        dims = new long[]{data.dimension(0), data.dimension(1), data.dimension(2)};
+        final int maxVal = switch (data.getType().getBitsPerPixel()) {
+            case 8  -> 255;
+            case 16 -> 65535;
+            default -> 65535; // 32-bit float handled by toUnsignedShortIfFloat, others fallback to 16-bit range
+        };
+        final double[] minMax = new double[]{0, maxVal}; // safe defaults
+        if (secondary && snt.getStatsSecondary().max > 0) {
+            minMax[0] = snt.getStatsSecondary().min;
+            minMax[1] = snt.getStatsSecondary().max;
+        } else if (snt.getStats().max > 0) {
+            minMax[0] = snt.getStats().min;
+            minMax[1] = snt.getStats().max;
+        }
         final String label = String.format("Tracing Data (%s): C%d, T%d",
                 (secondary) ? "Secondary layer" : "Main image", snt.getChannel(), snt.getFrame());
-        final BvvSource source = BvvFunctions.show(data, label,
-                options.sourceTransform(snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()));
-        if (secondary && snt.getStatsSecondary().max > 0) {
-            source.setDisplayRange(snt.getStatsSecondary().min, snt.getStatsSecondary().max);
-        } else if (snt.getStats().max > 0) {
-            source.setDisplayRange(snt.getStats().min, snt.getStats().max);
-        }
+        final BvvSource source = BvvFunctions.show(
+                ImgUtils.toUnsignedShortIfFloat(data, minMax[0], minMax[1]),
+                label, options.sourceTransform(cal));
+        source.setDisplayRange(minMax[0], minMax[1]);
         attachControlPanel(source);
-        if (bvvHandle == null)  bvvHandle = source.getBvvHandle();
+        if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         return source;
+    }
+
+    private BvvOptions configureBvvOptionsForImage(final ImagePlus imp) {
+        final int nSlices = imp.getNSlices();
+        final int nChannels = imp.getNChannels();
+        final int blockSize = nSlices <= 32 ? 32 : nSlices <= 64 ? 64 : 128;
+        // Read render quality preferences (set via Camera Controls options menu)
+        final SNTPrefs prefs = (snt != null) ? snt.getPrefs() : null;
+        final int renderW = parseIntPref(prefs, SNTPrefs.BVV_RENDER_WIDTH, 512);
+        final int renderH = parseIntPref(prefs, SNTPrefs.BVV_RENDER_HEIGHT, 512);
+        final int maxMillis = parseIntPref(prefs, SNTPrefs.BVV_MAX_RENDER_MILLIS, 30);
+        final double maxStep = parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, 1.0);
+        SNTUtils.log(String.format(
+                "BVV: %d slices, %d ch → blockSize=%d renderRes=%dx%d maxMillis=%d maxStep=%.1f",
+                nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep));
+        return bvv.vistools.Bvv.options()
+                .preferredSize(1024, 1024)
+                .frameTitle("SNT BVV")
+                .maxCacheSizeInMB(300)
+                .ditherWidth(1)
+                .cacheBlockSize(blockSize)
+                .numDitherSamples(1)
+                .renderWidth(renderW)
+                .renderHeight(renderH)
+                .maxRenderMillis(maxMillis)
+                .maxAllowedStepInVoxels(maxStep);
+    }
+
+    private static int parseIntPref(final SNTPrefs prefs, final String key, final int def) {
+        if (prefs == null) return def;
+        try { return Integer.parseInt(prefs.getTemp(key, String.valueOf(def))); }
+        catch (final NumberFormatException ignored) { return def; }
+    }
+
+    private static double parseDoublePref(final SNTPrefs prefs, final String key, final double def) {
+        if (prefs == null) return def;
+        try { return Double.parseDouble(prefs.getTemp(key, String.valueOf(def))); }
+        catch (final NumberFormatException ignored) { return def; }
     }
 
     @SuppressWarnings("UnusedReturnValue")
     private BvvSource showImagePlus(final ImagePlus imp) {
-        final BvvOptions opt = options.axisOrder(getAxisOrder(imp)).sourceTransform(
-                imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth);
+        // ImageJFunctions.wrap* produces dims [W, H, C, Z, T] for hyperstacks,
+        // but AxisOrder constants assume [X, Y, Z, C, T]. For multichannel images
+        // this mismatch causes BVV to treat Z-slices as channels (60 sources → 61 samplers).
+        // Fix: extract each channel as an independent 3D XYZ source.
+        if (imp.getNChannels() > 1) {
+            return showImagePlusMultiChannel(imp);
+        }
+        // Single channel: simple 3D or 4D wrap
+        if (ImagePlus.GRAY32==imp.getType())
+            ImpUtils.convertTo16bit(imp);
+        cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
+        dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
+        final BvvOptions opt = configureBvvOptionsForImage(imp)
+                .axisOrder(getAxisOrder(imp))
+                .sourceTransform(cal);
         final BvvStackSource<?> source = switch (imp.getType()) {
             case ImagePlus.COLOR_256 -> throw new IllegalArgumentException("Unsupported image type (COLOR_256).");
             case ImagePlus.GRAY8 -> BvvFunctions.show(ImageJFunctions.wrapByte(imp), imp.getTitle(), opt);
             case ImagePlus.GRAY16 -> BvvFunctions.show(ImageJFunctions.wrapShort(imp), imp.getTitle(), opt);
-            case ImagePlus.GRAY32 -> BvvFunctions.show(ImageJFunctions.wrapFloat(imp), imp.getTitle(), opt);
+            //case ImagePlus.GRAY32 -> throw new IllegalArgumentException("32 bit images are not supported");
             default -> BvvFunctions.show(ImageJFunctions.wrapRGBA(imp), imp.getTitle(), opt);
         };
+        applyLuts(imp, source);
+        if (bvvHandle == null) bvvHandle = source.getBvvHandle();
+        final BigVolumeViewer bvv = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
+        // initTransform must use canvas dimensions (not frame dimensions which include the card panel)
+        SwingUtilities.invokeLater(() -> {
+            final int cw = bvv.getViewer().getDisplay().getWidth();
+            final int ch = bvv.getViewer().getDisplay().getHeight();
+            InitializeViewerState.initTransform(cw > 0 ? cw : 512, ch > 0 ? ch : 512,
+                    false, bvv.getViewer().state());
+        });
+        // Compute and apply image-derived camera params
+        final double[] cam = computeCamParams(imp);
+        bvvHandle.getViewerPanel().setCamParams(cam[0], cam[1], cam[2]);
+        // Sync overlayRenderer fields before attachControlPanel so CameraControls
+        // reads correct initial values (not the hardwired 2000/1000/1000)
+        if (pathOverlay != null) {
+            pathOverlay.overlayRenderer.dCam     = cam[0];
+            pathOverlay.overlayRenderer.nearClip = cam[1];
+            pathOverlay.overlayRenderer.farClip  = cam[2];
+        }
+        attachControlPanel(source);
+        return source;
+    }
+
+    private BvvSource showImagePlusMultiChannel(final ImagePlus imp) {
+        // Extract each channel as a separate 3D XYZ source to avoid AxisOrder
+        // mismatch between ImageJFunctions' [W,H,C,Z,T] layout and BVV's [X,Y,Z,C] expectation
+        cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
+        dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
+        // Each channelImp has nChannels=1; derive axis order from Z and T only
+        final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
+                : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
+                : imp.getNSlices() > 1 ? AxisOrder.XYZ
+                : AxisOrder.XYT;
+        final BvvOptions baseOpt = configureBvvOptionsForImage(imp)
+                .axisOrder(channelAxisOrder)
+                .sourceTransform(cal);
+        BvvStackSource<?> firstSource = null;
+        for (int c = 1; c <= imp.getNChannels(); c++) {
+            final ImagePlus channelImp = ImpUtils.getChannel(imp, c);
+            if (ImagePlus.GRAY32==channelImp.getType()) ImpUtils.convertTo16bit(channelImp);
+            final String title = imp.getTitle() + " (Ch" + c + ")";
+            final BvvOptions chOpt = (firstSource == null)
+                    ? baseOpt
+                    : baseOpt.addTo(bvvHandle); // add subsequent channels to same window
+            final BvvStackSource<?> chSource = switch (channelImp.getType()) {
+                case ImagePlus.GRAY8 -> BvvFunctions.show(ImageJFunctions.wrapByte(channelImp), title, chOpt);
+                case ImagePlus.GRAY16 -> BvvFunctions.show(ImageJFunctions.wrapShort(channelImp), title, chOpt);
+                default -> BvvFunctions.show(ImageJFunctions.wrapRGBA(channelImp), title, chOpt);
+            };
+            if (firstSource == null) {
+                firstSource = chSource;
+                bvvHandle = chSource.getBvvHandle();
+                final BigVolumeViewer bvv2 = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
+                SwingUtilities.invokeLater(() ->
+                        InitializeViewerState.initTransform(
+                                bvv2.getViewerFrame().getWidth(),
+                                bvv2.getViewerFrame().getHeight(),
+                                false, bvv2.getViewer().state()));
+                final double[] cam = computeCamParams(imp);
+                bvvHandle.getViewerPanel().setCamParams(cam[0], cam[1], cam[2]);
+                // Sync before attachControlPanel so CameraControls reads correct initial values
+                if (pathOverlay != null) {
+                    pathOverlay.overlayRenderer.dCam     = cam[0];
+                    pathOverlay.overlayRenderer.nearClip = cam[1];
+                    pathOverlay.overlayRenderer.farClip  = cam[2];
+                }
+                attachControlPanel(chSource);
+            }
+            // Apply LUT for this channel
+            if (imp.getLuts().length >= c) {
+                final int rgb = imp.getLuts()[c - 1].getRGB(255);
+                chSource.getConverterSetups().getFirst().setColor(new ARGBType(rgb));
+                chSource.getConverterSetups().getFirst().setDisplayRange(
+                        imp.getLuts()[c - 1].min, imp.getLuts()[c - 1].max);
+            }
+        }
+        return firstSource;
+    }
+
+    private void applyLuts(final ImagePlus imp, final BvvStackSource<?> source) {
         if (imp.getLuts().length == imp.getNChannels()) {
             for (int i = 0; i < imp.getNChannels(); i++) {
-                final int rgb = imp.getLuts()[i].getRGB(255);
-                source.getConverterSetups().get(i).setColor(new ARGBType(rgb));
+                source.getConverterSetups().get(i).setColor(new ARGBType(imp.getLuts()[i].getRGB(255)));
                 source.getConverterSetups().get(i).setDisplayRange(imp.getLuts()[i].min, imp.getLuts()[i].max);
             }
         }
-        attachControlPanel(source);
-        if (bvvHandle == null)  bvvHandle = source.getBvvHandle();
-        return source;
     }
 
     private void attachControlPanel(final BvvSource source) {
@@ -201,12 +341,44 @@ public class Bvv {
             initializeAnnotationOverlay(currentBvv);
             pathOverlay.updatePaths();
         }
+        // Initialize brightness from data percentiles (BVV doesn't do this automatically)
+        SwingUtilities.invokeLater(() ->
+                InitializeViewerState.initBrightness(0.001, 0.999,
+                        bvv.getViewer().state(), bvv.getViewer().getConverterSetups()));
         final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
         final BvvActions actions = new BvvActions(bvv);
         bvvFrame.getCardPanel().addCard("Camera Controls",
                 new CameraControls(this, source, pathOverlay.overlayRenderer).getToolbar(actions), true);
         bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
         SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
+    }
+
+    /**
+     * Computes appropriate camera parameters from image physical dimensions.
+     * BVV camera params are in units of screen pixel width; after initTransform
+     * the image is scaled to fill the window (~1024px), so we derive depth
+     * extent in that coordinate space.
+     *
+     * @param imp the image being displayed
+     * @return double[] {dCam, dClipNear, dClipFar}
+     */
+    double[] computeCamParams(final ImagePlus imp) {
+        if (imp == null) return new double[]{2000, 1000, 1000};
+        final double pw = (cal != null && cal[0] > 0) ? cal[0] : imp.getCalibration().pixelWidth;
+        final double ph = (cal != null && cal[1] > 0) ? cal[1] : imp.getCalibration().pixelHeight;
+        final double pd = (cal != null && cal[2] > 0) ? cal[2] : imp.getCalibration().pixelDepth;
+        final double physZ = imp.getNSlices() * pd;
+        // Scale factor so image fills a 1024px window
+        final double scale = 1024.0 / Math.max(imp.getWidth(), imp.getHeight());
+        // Z extent in screen-pixel-width units after initTransform scaling
+        final double zExtent = (physZ / ((pw + ph) /2) ) * scale;
+        // dCam: camera distance: should comfortably exceed the Z extent
+        final double dCam  = Math.max(2000, zExtent * 2.5);
+        // dClip: near and far clipping planes: must span the full Z extent plus margin
+        final double dClip = Math.max(1000, zExtent * 1.5);
+        SNTUtils.log(String.format("BVV camParams: physZ=%.1f zExtent=%.1f → dCam=%.0f dClip=%.0f",
+                physZ, zExtent, dCam, dClip));
+        return new double[]{dCam, dClip, dClip};
     }
 
     /** Initializes the path overlay system for drawing traced paths. */
@@ -261,7 +433,7 @@ public class Bvv {
 
     private JButton optionsButton(final BvvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
+        final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
@@ -562,27 +734,41 @@ public class Bvv {
     /**
      * Primitive Camera controls and camera parameter management
      */
-    private static class CameraControls {
+    private class CameraControls {
 
         private final Bvv bvvInstance;
         private final OverlayRenderer overlayRenderer;
         private final JSpinner dCamSpinner;
         private final JSpinner nearSpinner;
         private final JSpinner farSpinner;
-        private final ViewerState snapshot;
+        private final double[] initialCamParams;
 
         CameraControls(final Bvv bvvInstance, final BvvSource source, final OverlayRenderer overlayRenderer) {
             this.bvvInstance = bvvInstance;
-            snapshot = source.getBvvHandle().getViewerPanel().state().snapshot();
             this.overlayRenderer = overlayRenderer;
-            this.dCamSpinner = GuiUtils.integerSpinner((int) overlayRenderer.dCam, 10, 10000, 50, true);
-            this.nearSpinner = GuiUtils.integerSpinner((int) overlayRenderer.nearClip, 100, 10000, 50, true);
-            this.farSpinner = GuiUtils.integerSpinner((int) overlayRenderer.farClip, 100, 10000, 50, true);
+            // On the first render with valid canvas dimensions, compute a centered
+            // fit-to-viewport transform, apply it, and store it for reset.
+            // This is necessary because initTransform in attachControlPanel runs
+            // before the panel is laid out (width/height are ~1px at that point).
+            final VolumeViewerPanel panel = source.getBvvHandle().getViewerPanel();
+            // No initial transform capture needed, the scale is computed correctly by
+            // BVV but tx/ty are always ~0.5 due to timing. We patch at reset time instead.
+            // Read the camera params that were set by computeCamParams(), stored in overlayRenderer
+            // which was updated by setCamParams() called before attachControlPanel
+            initialCamParams = new double[]{overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip};
+            // Adaptive spinner ranges: max = 5× the initial dCam, step = dCam/20
+            final int dCamMax  = (int) Math.max(10000, initialCamParams[0] * 5);
+            final int clipMax  = (int) Math.max(10000, initialCamParams[1] * 5);
+            final int dCamStep = (int) Math.max(50, initialCamParams[0] / 20);
+            final int clipStep = (int) Math.max(50, initialCamParams[1] / 20);
+            this.dCamSpinner  = GuiUtils.integerSpinner((int) overlayRenderer.dCam,   10, dCamMax, dCamStep, true);
+            this.nearSpinner  = GuiUtils.integerSpinner((int) overlayRenderer.nearClip, 10, clipMax, clipStep, true);
+            this.farSpinner   = GuiUtils.integerSpinner((int) overlayRenderer.farClip,  10, clipMax, clipStep, true);
             setupSpinners();
         }
 
         private double[] defaultCamParams() {
-            return new double[]{2000, 1000, 1000}; // default in BBVOptions: dCam, dClipNear, dClipFar
+            return initialCamParams; // image-derived values, not hardwired
         }
 
         private void setupSpinners() {
@@ -609,17 +795,58 @@ public class Bvv {
             }
         }
 
+        // Notes on Resetting view:
+        // - InitializeViewerState.initTransform() is incompatible with BVV's perspective
+        //   projection: it computes a 2D orthographic screen-space transform, but BVV renders
+        //   in 3D perspective. The method DOES NOT WORK: tried with frame dimensions, canvas dimensions,
+        //   ViewerState snapshots + different timing strategies (invokeLater, ComponentListener,
+        //   renderTransformListeners): All attempts produce tx~0.5, ty~0.5 regardless
+        // - SimilarityTransformAnimator adds cX/cY to the translation at each interpolation step,
+        //   meaning the target transform must NOT already include the screen center offset. Passing
+        //   cX=cY=0 lets the animator use the target translation as-is
+        // - The approach below works: computes the reset transform directly from image physical
+        //   geometry: scale = min(canvasW/physW, canvasH/physH), with translation set to center
+        //   the image in the display
         private Action resetViewAction() {
-            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE)) {
+            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.UNDO)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    bvvInstance.currentBvv.getViewer().state().setViewerTransform(snapshot.getViewerTransform());
+                    final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
+                    final AffineTransform3D current = new AffineTransform3D();
+                    viewerPanel.state().getViewerTransform(current);
+                    final int cw = viewerPanel.getDisplay().getWidth();
+                    final int ch = viewerPanel.getDisplay().getHeight();
+                    // Compute a fit-to-viewport transform directly from image geometry
+                    // initTransform (BDV) is incompatible with BVV's perspective projection
+                    final AffineTransform3D target;
+                    if (cal != null && dims != null && cw > 0 && ch > 0) {
+                        final double px = cal[0] > 0 ? cal[0] : 1;
+                        final double py = cal[1] > 0 ? cal[1] : 1;
+                        final double pz = cal[2] > 0 ? cal[2] : 1;
+                        final double physW = dims[0] * px;
+                        final double physH = dims[1] * py;
+                        final double physZ = dims[2] * pz;
+                        // Scale to fit the largest physical XY dimension into the canvas
+                        final double scale = Math.min(cw / physW, ch / physH);
+                        // Center XY; place Z center at screen Z=0
+                        target = new AffineTransform3D();
+                        target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
+                        target.set(cw / 2.0 - scale * physW / 2.0, 0, 3);
+                        target.set(ch / 2.0 - scale * physH / 2.0, 1, 3);
+                        target.set(-scale * physZ / 2.0,            2, 3);
+                        SNTUtils.log("BVV reset: scale=" + scale + " target=" + target);
+                    } else {
+                        // Fallback: no cal/dims available, use identity (BVV default view)
+                        target = new AffineTransform3D(); // identity
+                    }
+                    viewerPanel.setTransformAnimator(
+                            new SimilarityTransformAnimator(current, target, 0, 0, 200));
                     SwingUtilities.invokeLater(() -> {
                         dCamSpinner.setValue(defaultCamParams()[0]);
                         nearSpinner.setValue(defaultCamParams()[1]);
                         farSpinner.setValue(defaultCamParams()[2]);
                     });
-                    updateCameraParameters(false); // will call repaint()
+                    updateCameraParameters(false);
                 }
             };
         }
@@ -687,14 +914,67 @@ public class Bvv {
         private JButton optionsButton(final BvvActions actions) {
             final JPopupMenu menu = new JPopupMenu();
             final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1f, menu);
-            GuiUtils.addSeparator(menu, "Restore View");
+            addSeparator(menu, IconFactory.GLYPH.GAUGE, "Render Quality");
+            // Render quality presets (renderWidth/Height/maxRenderMillis require restart)
+            final ButtonGroup qualityGroup = new ButtonGroup();
+            final String[][] presets = {
+                    {"Low  (256×256, 15ms)", "256", "256", "15",
+                            "<html>Lowest quality, fastest rendering.<br>Best for quick navigation on slow GPUs."},
+                    {"Med  (512×512, 30ms)", "512", "512", "30",
+                            "<html>Balanced quality and performance.<br>Suitable for most systems (default)."},
+                    {"High (768×768, 60ms)", "768", "768", "60",
+                            "<html>Higher quality rendering with more detail.<br>Recommended for analysis and screenshots."},
+                    {"Max (1024×1024, 100ms)", "1024", "1024", "100",
+                            "<html>Maximum quality, slowest rendering.<br>Best for publication-quality screenshots on high-end GPUs."}
+            };
+            final SNTPrefs prefs = (bvvInstance.snt != null) ? bvvInstance.snt.getPrefs() : null;
+            final String curW = (prefs != null) ? prefs.getTemp(SNTPrefs.BVV_RENDER_WIDTH, "512") : "512";
+            for (final String[] preset : presets) {
+                final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(preset[0], preset[1].equals(curW));
+                rbmi.setToolTipText(preset[4] + "<br><i>Takes effect on next open.</i>");
+                qualityGroup.add(rbmi);
+                menu.add(rbmi);
+                rbmi.addActionListener(e -> {
+                    if (prefs != null) {
+                        prefs.setTemp(SNTPrefs.BVV_RENDER_WIDTH, preset[1]);
+                        prefs.setTemp(SNTPrefs.BVV_RENDER_HEIGHT, preset[2]);
+                        prefs.setTemp(SNTPrefs.BVV_MAX_RENDER_MILLIS, preset[3]);
+                    }
+                    bvvInstance.getViewerFrame().getViewerPanel().showMessage(
+                            "Render quality: " + preset[0] + " (takes effect on next open)");
+                });
+            }
+            // maxAllowedStepInVoxels: takes effect immediately
+            addSeparator(menu, IconFactory.GLYPH.STAIRS, "Ray-Marching Step");
+            final double curStep = parseDoublePref(prefs, SNTPrefs.BVV_MAX_STEP_IN_VOXELS, 1.0);
+            final JSpinner stepSpinner = GuiUtils.doubleSpinner(curStep, 0.1, 8.0, 0.5, 1);
+            stepSpinner.setToolTipText("<html>Ray-marching step size in voxels.<br>"
+                    + "Smaller = higher quality, slower. Larger = faster, lower quality.<br>Default: 1.0");
+            stepSpinner.addChangeListener(e -> {
+                final double step = ((Number) stepSpinner.getValue()).doubleValue();
+                bvvInstance.getViewerFrame().getViewerPanel().setMaxAllowedStepInVoxels(step);
+                if (prefs != null) prefs.setTemp(SNTPrefs.BVV_MAX_STEP_IN_VOXELS, String.valueOf(step));
+                bvvInstance.getViewerFrame().getViewerPanel().requestRepaint();
+            });
+            menu.add(stepSpinner);
+            addSeparator(menu, IconFactory.GLYPH.CLOCK_ROTATE_LEFT, "Restore View");
             menu.add(new JMenuItem(resetViewAction()));
             menu.add(new JMenuItem(actions.loadSettingsAction()));
             menu.add(new JMenuItem(actions.saveSettingsAction()));
-            GuiUtils.addSeparator(menu, "Help");
+            addSeparator(menu, IconFactory.GLYPH.INFO, "Help");
             menu.add(new JMenuItem(actions.showHelpAction()));
             return oButton;
         }
+    }
+
+    private static void addSeparator(final JPopupMenu menu, final IconFactory.GLYPH glyph, final String header) {
+        if (menu.getComponentCount() > 0)
+            menu.addSeparator();
+        final JMenuItem sep = new JMenuItem(header);
+        sep.setEnabled(false);
+        sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.getDisabledComponentColor()));
+        sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.getDisabledComponentColor()));
+        menu.add(sep);
     }
 
     /**
@@ -1164,7 +1444,11 @@ public class Bvv {
         OverlayRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
             this.renderingOptions = renderingOptions;
-            viewerPanel.setCamParams(dCam = 2000, nearClip = 1000, farClip = 1000);
+            // Camera params are set externally via VolumeViewerPanel.setCamParams() after image loading;
+            // store BVV defaults here as initial values. These will be overridden by computeCamParams()
+            dCam = 2000;
+            nearClip = 1000;
+            farClip = 1000;
         }
 
         void updatePaths(final Collection<Tree> trees) {
@@ -1748,7 +2032,7 @@ public class Bvv {
                         renderingOptions.setThicknessMultiplier(multi.floatValue());
                         bvv.getViewer().showMessage(
                                 (1f==renderingOptions.getThicknessMultiplier())
-                                ? "Thickness factor removed" : String.format("%.1f× Thickness", multi.floatValue()));
+                                        ? "Thickness factor removed" : String.format("%.1f× Thickness", multi.floatValue()));
                     }
                 }
             };
@@ -1873,6 +2157,21 @@ public class Bvv {
                     SwingUtilities.invokeLater(() -> hDialog.setVisible(true));
                 }
             };
+        }
+
+        /**
+         * Looks up a named action registered in BVV's keybindings and invokes it.
+         * This avoids direct access to package-private fields like {@code bookmarkEditor}.
+         */
+        @SuppressWarnings("unused")
+        private void invokeRegisteredAction(final String actionName, final java.awt.event.ActionEvent e) {
+            final javax.swing.Action action = bvv.getViewerFrame().getKeybindings()
+                    .getConcatenatedActionMap().get(actionName);
+            if (action != null)
+                action.actionPerformed(new java.awt.event.ActionEvent(
+                        bvv.getViewerFrame(), java.awt.event.ActionEvent.ACTION_PERFORMED, actionName));
+            else
+                SNTUtils.log("BVV action not found: " + actionName);
         }
     }
 

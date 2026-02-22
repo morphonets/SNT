@@ -31,6 +31,9 @@ import net.imagej.axis.AxisType;
 import net.imagej.axis.CalibratedAxis;
 import net.imagej.axis.DefaultLinearAxis;
 import net.imglib2.*;
+import net.imglib2.algorithm.stats.ComputeMinMax;
+import net.imglib2.converter.Converters;
+import net.imglib2.converter.RealUnsignedShortConverter;
 import net.imglib2.display.ColorTable;
 import net.imglib2.img.Img;
 import net.imglib2.img.ImgView;
@@ -41,6 +44,8 @@ import net.imglib2.type.NativeType;
 import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.integer.UnsignedShortType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
@@ -1276,6 +1281,50 @@ public class ImgUtils {
         }
         final CalibratedAxis axis = img.axis(0);
         return axis != null ? axis.unit() : null;
+    }
+
+    /**
+     * Returns a 16-bit view of the given RAI if its pixel type is {@link FloatType},
+     * normalizing values to the full 16-bit range using the data's actual min/max.
+     * Returns the original RAI unchanged for any other type. No data is copied.
+     *
+     * @param rai the source image
+     * @return a 16-bit RAI, or the original RAI if not float
+     */
+    @SuppressWarnings("unchecked")
+    public static <T extends RealType<T>> RandomAccessibleInterval<? extends RealType<?>>
+    toUnsignedShortIfFloat(final RandomAccessibleInterval<T> rai) {
+        if (!(rai.getType() instanceof FloatType))
+            return rai;
+        final FloatType min = new FloatType();
+        final FloatType max = new FloatType();
+        ComputeMinMax.computeMinMax((RandomAccessibleInterval<FloatType>) rai, min, max);
+        final double minVal = min.get();
+        final double maxVal = max.get() > minVal ? max.get() : minVal + 1; // guard against flat images
+        return Converters.convert(
+                (RandomAccessibleInterval<FloatType>) rai,
+                new RealUnsignedShortConverter<>(minVal, maxVal),
+                new UnsignedShortType());
+    }
+
+    /**
+     * Returns a 16-bit view of the given RAI if its pixel type is {@link FloatType},
+     * normalizing to the given min/max range.
+     *
+     * @param rai the source image
+     * @param min the minimum value for normalization (maps to 0)
+     * @param max the maximum value for normalization (maps to 65535)
+     * @return a 16-bit RAI, or the original RAI if not float
+     */
+    public static <T extends RealType<T>> RandomAccessibleInterval<? extends RealType<?>>
+    toUnsignedShortIfFloat(final RandomAccessibleInterval<T> rai,
+                           final double min, final double max) {
+        if (!(rai.getType() instanceof FloatType))
+            return rai;
+        return Converters.convert(
+                (RandomAccessibleInterval<FloatType>) rai,
+                new RealUnsignedShortConverter<>(min, max),
+                new UnsignedShortType());
     }
 
     /**
