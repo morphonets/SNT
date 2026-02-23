@@ -2530,7 +2530,7 @@ public class SNTUI extends JDialog {
             if (!plugin.accessToValidImageData()) {
                 noValidImageDataError();
             } else if (plugin.is2D()) {
-                error("Current image has no depth: BVV can only render three-dimensional images.");
+                error("BVV requires a 3D image: ray-casting cannot render flat (2D) images with no depth.");
             } else {
                 try {
                     initializeBvvFromPrompt();
@@ -2988,16 +2988,6 @@ public class SNTUI extends JDialog {
                 KeyStroke.getKeyStroke(KeyEvent.VK_S, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
         saveMenuItem.addActionListener(e -> saveToXML(false));
         fileMenu.add(saveMenuItem);
-        final JMenuItem saveAsMenuItem = new JMenuItem("Save Tracings As...",
-                IconFactory.menuIcon(GLYPH.EXPORT));
-        saveAsMenuItem.addActionListener(e -> {
-            if (!noPathsError()) {
-                final File saveFile = saveFile("Save Traces As...", null, "traces");
-                if (saveFile != null && saveToXML(saveFile, true))
-                    warnOnPossibleAnnotationLoss();
-            }
-        });
-        fileMenu.add(saveAsMenuItem);
         final JMenuItem saveAndOpenNext = new JMenuItem("Save Tracings & Open Next Image",
                 IconFactory.menuIcon(IconFactory.GLYPH.NEXT));
         saveAndOpenNext.setToolTipText("Saves current tracings alongside the image file,\nthen loads the next image (alphabetically) in the same folder");
@@ -3012,6 +3002,15 @@ public class SNTUI extends JDialog {
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.ALT_DOWN_MASK));
         saveAndOpenPrev.addActionListener(e -> saveTracingsAndOpenSiblingImage(false));
         fileMenu.add(saveAndOpenPrev);
+        final JMenuItem saveAsMenuItem = new JMenuItem("Save Tracings As...", IconFactory.menuIcon(GLYPH.EXPORT));
+        saveAsMenuItem.addActionListener(e -> {
+            if (!noPathsError()) {
+                final File saveFile = saveFile("Save Traces As...", null, "traces");
+                if (saveFile != null && saveToXML(saveFile, true))
+                    warnOnPossibleAnnotationLoss();
+            }
+        });
+        fileMenu.add(saveAsMenuItem);
         fileMenu.add(getExportSWCMenuItem());
         final JMenuItem saveTable = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.TABLE);
         addDynamicCmdAction(saveTable, SaveMeasurementsCmd.class, null, getState());

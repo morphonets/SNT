@@ -21,7 +21,7 @@ Press V to auto-click on the brightest voxel above/below the cursor
 Disable 'Confirm temporary segments' (Options tab) for streamlined tracing: Click to confirm segments; Double-click to finish path
 When 'Confirm temporary segments' is active (Options tab), press Y twice to quickly finish a path
 When 'Confirm temporary segments' is active (Options tab), press N twice to cancel a path including the start node
-Enable 'Rubber Band' tracing mode (Options tab) for a live path preview that follows the cursor
+Enable 'Rubber Band' tracing (Algorithm settings in the Main tab) for a live path preview that follows the cursor
 Use Alt+Click on an existing path to fork a branch from the nearest node
 Press Shift+P to pause tracing operations temporarily
 Overlay a MIP at low opacity (Options tab) to see the full structure while tracing
@@ -43,7 +43,7 @@ Color-code paths by morphometric properties via Path Manager→Analyze→Color M
 Run Sholl Analysis from any node using Alt+Shift+A
 Create dendrograms using Analysis→Utilities→Create Dendrogram
 Use Path Profiler to visualize intensity gradients along traced neurites
-Compare cell groups statistically via Utilities→Compare Reconstructions...
+Compare cell groups statistically via Analysis→Utilities→Compare Reconstructions...
 
 # Visualization
 Press 1/2/3 to toggle visibility filters for paths (Main tab)
@@ -60,4 +60,5 @@ Use File→Revert to Backup... to restore from previous saves
 Use File→Save Tracings & Open Next/Previous Image (ctrlKey()+Shift+O / ctrlKey()+Alt+O) to iterate through a folder of images
 Load demo datasets (File→Load Demo Dataset) to practice or test features
 Drag and drop SWC/TRACES files directly into the Path Manager to import them
+Drag and drop an image file into the Path Manager to load it
 Use the Script Recorder (Scripts menu) to generate code from GUI actions
