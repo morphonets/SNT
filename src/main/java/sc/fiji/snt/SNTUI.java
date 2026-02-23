@@ -2941,12 +2941,10 @@ public class SNTUI extends JDialog {
     private JMenu fileMenu(final ScriptInstaller installer) {
         final JMenu fileMenu = new JMenu("File");
         final JMenu importSubmenu = new JMenu("Load Tracings");
-        importSubmenu.setToolTipText("Import reconstruction file(s");
+        importSubmenu.setToolTipText("Import reconstruction file(s)");
         importSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMPORT));
-        final JMenu exportSubmenu = new JMenu("Save Tracings");
-        exportSubmenu.setToolTipText("Save reconstruction(s)");
-        exportSubmenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
-        // Options to replace image data
+
+        // Choose Tracing Image
         final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
         changeImpMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
         final JMenuItem fromList = GuiUtils.MenuItems.fromOpenImage();
@@ -2963,27 +2961,43 @@ public class SNTUI extends JDialog {
         fromClipboard.setIcon(IconFactory.menuIcon(GLYPH.CLIPBOARD));
         changeImpMenu.add(fromClipboard);
         fileMenu.add(changeImpMenu);
+
+        // Load
         fileMenu.addSeparator();
         fileMenu.add(importSubmenu);
-
         final JMenuItem fromDemo = getImportActionMenuItem(ImportAction.DEMO);
         fromDemo.setIcon(IconFactory.menuIcon(GLYPH.GRADUATION_CAP));
         fromDemo.setToolTipText("Load sample images and/or reconstructions");
-
+        fileMenu.add(fromDemo);
         final JMenuItem loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
         loadLabelsMenuItem.setToolTipText("Load neuropil labels from an AmiraMesh file");
         loadLabelsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
-        loadLabelsMenuItem.addActionListener( e -> {
+        loadLabelsMenuItem.addActionListener(e -> {
             final File openFile = openReconstructionFile("labels");
-            if (openFile != null) { // null if user pressed cancel;
+            if (openFile != null)
                 plugin.loadLabelsFile(openFile.getAbsolutePath());
-            }
         });
         fileMenu.add(loadLabelsMenuItem);
-        fileMenu.add(fromDemo);
-        fileMenu.addSeparator();
 
-        fileMenu.add(exportSubmenu);
+        // Save
+        fileMenu.addSeparator();
+        saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file. "
+                + "This file may be gzip compressed as per options in the Preferences dialog.");
+        saveMenuItem.setAccelerator(
+                KeyStroke.getKeyStroke(KeyEvent.VK_S, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
+        saveMenuItem.addActionListener(e -> saveToXML(false));
+        fileMenu.add(saveMenuItem);
+        final JMenuItem saveAsMenuItem = new JMenuItem("Save Tracings As...",
+                IconFactory.menuIcon(GLYPH.EXPORT));
+        saveAsMenuItem.addActionListener(e -> {
+            if (!noPathsError()) {
+                final File saveFile = saveFile("Save Traces As...", null, "traces");
+                if (saveFile != null && saveToXML(saveFile, true))
+                    warnOnPossibleAnnotationLoss();
+            }
+        });
+        fileMenu.add(saveAsMenuItem);
         final JMenuItem saveAndOpenNext = new JMenuItem("Save Tracings & Open Next Image",
                 IconFactory.menuIcon(IconFactory.GLYPH.NEXT));
         saveAndOpenNext.setToolTipText("Saves current tracings alongside the image file,\nthen loads the next image (alphabetically) in the same folder");
@@ -2998,36 +3012,46 @@ public class SNTUI extends JDialog {
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.ALT_DOWN_MASK));
         saveAndOpenPrev.addActionListener(e -> saveTracingsAndOpenSiblingImage(false));
         fileMenu.add(saveAndOpenPrev);
-
+        fileMenu.add(getExportSWCMenuItem());
         final JMenuItem saveTable = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.TABLE);
         addDynamicCmdAction(saveTable, SaveMeasurementsCmd.class, null, getState());
         fileMenu.add(saveTable);
 
+        // Backup
         fileMenu.addSeparator();
-        final JMenuItem saveCopyMenuItem = new JMenuItem("Backup Tracings", IconFactory.menuIcon('\uf1cd', false));
+        final JMenuItem saveCopyMenuItem = new JMenuItem("Backup Tracings",
+                IconFactory.menuIcon('\uf1cd', false));
         saveCopyMenuItem.setToolTipText("Saves paths to a timestamped backup file in the workspace directory");
         saveCopyMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
         saveCopyMenuItem.addActionListener(e -> saveToXML(true));
         fileMenu.add(saveCopyMenuItem);
-        final JMenuItem restoreMenuItem = new JMenuItem("Revert to Backup...", IconFactory.menuIcon(GLYPH.CLOCK_ROTATE_LEFT));
+        final JMenuItem restoreMenuItem = new JMenuItem("Revert to Backup...",
+                IconFactory.menuIcon(GLYPH.CLOCK_ROTATE_LEFT));
         restoreMenuItem.setToolTipText("Restores data from existing backups in the workspace directory");
         restoreMenuItem.addActionListener(e -> revertFromBackup());
         fileMenu.add(restoreMenuItem);
-        final JMenuItem manageBackups = new JMenuItem("Manage Backups...", IconFactory.menuIcon('\ue2c5', true));
+        final JMenuItem manageBackups = new JMenuItem("Manage Backups...",
+                IconFactory.menuIcon('\ue2c5', true));
         addDynamicCmdAction(manageBackups, BackupManagerCmd.class, null, getState());
         fileMenu.add(manageBackups);
 
+        // Session
         fileMenu.addSeparator();
-        final JMenuItem saveSession = new JMenuItem("Save Session...", IconFactory.menuIcon('\uf574', true));
+        final JMenuItem saveSession = new JMenuItem("Save Session...",
+                IconFactory.menuIcon('\uf574', true));
         addDynamicCmdAction(saveSession, SaveSessionCmd.class, null, getState());
         fileMenu.add(saveSession);
-        final JMenuItem restoreSession = new JMenuItem("Restore Session...", IconFactory.menuIcon('\uf56d', true));
+        final JMenuItem restoreSession = new JMenuItem("Restore Session...",
+                IconFactory.menuIcon('\uf56d', true));
         addDynamicCmdAction(restoreSession, RestoreSessionCmd.class, null, getState());
         fileMenu.add(restoreSession);
 
+        // Utilities
         fileMenu.addSeparator();
-        final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2", IconFactory.menuIcon('T', false));
+        fileMenu.add(showFolderMenu(installer));
+        final JMenuItem sendToTrakEM2 = new JMenuItem("Send to TrakEM2",
+                IconFactory.menuIcon('T', false));
         sendToTrakEM2.addActionListener(e -> {
             if (!plugin.anyListeners())
                 error("TrakEM2 is either not running or not listening to SNT events.");
@@ -3035,19 +3059,39 @@ public class SNTUI extends JDialog {
                 plugin.notifyListeners(new SNTEvent(SNTEvent.SEND_TO_TRAKEM2));
         });
         fileMenu.add(sendToTrakEM2);
-        fileMenu.add(showFolderMenu(installer));
 
+        // System
+        fileMenu.addSeparator();
+        final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...",
+                IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
+        restartMenuItem.setToolTipText("Reset all preferences and restart SNT");
+        restartMenuItem.addActionListener(e -> {
+            CommandService cmdService = plugin.getContext().getService(CommandService.class);
+            exitRequested();
+            if (SNTUtils.getInstance() == null) {
+                PrefsCmd.wipe();
+                SNTPrefs.setFirstRunAfterUpdate(false);
+                cmdService.run(SNTLoaderCmd.class, true);
+            } else {
+                cmdService = null;
+            }
+        });
+        fileMenu.add(restartMenuItem);
+        fileMenu.addSeparator();
+        quitMenuItem = new JMenuItem("Quit", IconFactory.menuIcon(IconFactory.GLYPH.QUIT));
+        quitMenuItem.addActionListener(listener);
+        fileMenu.add(quitMenuItem);
+
+        // Populate Load Tracings submenu
         final JMenuItem importGuessingType = getImportActionMenuItem(ImportAction.ANY_RECONSTRUCTION);
         importGuessingType.setIcon(IconFactory.menuIcon(GLYPH.MAGIC));
         importSubmenu.add(importGuessingType);
-
         importSubmenu.add(getImportActionMenuItem(ImportAction.JSON));
         final JMenuItem importNDF = getImportActionMenuItem(ImportAction.NDF);
-        importNDF.setToolTipText("Imports a  NeuronJ data file");
+        importNDF.setToolTipText("Imports a NeuronJ data file");
         importSubmenu.add(importNDF);
         importSubmenu.add(getImportActionMenuItem(ImportAction.SWC));
         importSubmenu.add(getImportActionMenuItem(ImportAction.TRACES));
-
         final JMenuItem importDirectory = getImportActionMenuItem(ImportAction.SWC_DIR);
         importDirectory.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FOLDER));
         importSubmenu.add(importDirectory);
@@ -3090,45 +3134,6 @@ public class SNTUI extends JDialog {
         ScriptRecorder.setRecordingCall(importNeuroMorpho, "snt.getUI().runCommand(\"NeuroMorpho...\")");
         importSubmenu.add(remoteSubmenu);
 
-        saveMenuItem = new JMenuItem("Save");
-        saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file.\n"
-                + "This file may be gzip compressed as per options in the Preferences dialog.");
-        saveMenuItem.setAccelerator(
-                KeyStroke.getKeyStroke(KeyEvent.VK_S, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
-        saveMenuItem.addActionListener(e -> saveToXML(false));
-        exportSubmenu.add(saveMenuItem);
-        final JMenuItem saveAsMenuItem = new JMenuItem("Save As...");
-        exportSubmenu.add(saveAsMenuItem);
-        saveAsMenuItem.addActionListener(e -> {
-            if (!noPathsError()) {
-                final File saveFile = saveFile("Save Traces As...", null, "traces");
-                if (saveFile != null && saveToXML(saveFile, true))
-                    warnOnPossibleAnnotationLoss();
-            }
-        });
-        final JMenuItem exportAllSWCMenuItem = getExportSWCMenuItem();
-        exportSubmenu.addSeparator();
-        exportSubmenu.add(exportAllSWCMenuItem);
-
-        final JMenuItem restartMenuItem = new JMenuItem("Reset and Restart...", IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
-        restartMenuItem.setToolTipText("Reset all preferences and restart SNT");
-        restartMenuItem.addActionListener( e -> {
-            CommandService cmdService = plugin.getContext().getService(CommandService.class);
-            exitRequested();
-            if (SNTUtils.getInstance() == null) { // exit successful
-                PrefsCmd.wipe();
-                SNTPrefs.setFirstRunAfterUpdate(false);
-                cmdService.run(SNTLoaderCmd.class, true);
-            } else {
-                cmdService = null;
-            }
-        });
-        fileMenu.addSeparator();
-        fileMenu.add(restartMenuItem);
-        fileMenu.addSeparator();
-        quitMenuItem = new JMenuItem("Quit", IconFactory.menuIcon(IconFactory.GLYPH.QUIT));
-        quitMenuItem.addActionListener(listener);
-        fileMenu.add(quitMenuItem);
         return fileMenu;
     }
 
@@ -3527,7 +3532,7 @@ public class SNTUI extends JDialog {
     }
 
     private JMenuItem getExportSWCMenuItem() {
-        final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...");
+        final JMenuItem exportAllSWCMenuItem = new JMenuItem("Export As SWC...", IconFactory.menuIcon(GLYPH.EXPORT));
         exportAllSWCMenuItem.addActionListener( e -> {
             if (plugin.accessToValidImageData() && pathAndFillManager.usingNonPhysicalUnits() && !guiUtils.getConfirmation(
                     "These tracings were obtained from a spatially uncalibrated "

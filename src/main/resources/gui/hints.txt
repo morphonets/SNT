@@ -5,30 +5,37 @@
 # Navigation & Basic Shortcuts
 Press G to select the path nearest to the cursor
 Hold Shift+G to add multiple paths to your selection
-Press F to temporarily show path flows (start→end direction)
+Press O to temporarily show path orientations (start→end direction)
 Press H to temporarily hide all paths while held down
 Use the Command Palette (ctrlKey()+Shift+P) to quickly find any action
 Press Enter to shuttle focus between the tracing image and the SNT window
 Double-click on a bookmark to navigate directly to that location
 Press Shift+B to bookmark the cursor location
-Most shortcuts are single keystrokes and are highlighted in menus/dialogs.
+Most shortcuts are single keystrokes and are highlighted in menus/dialogs
+Hold Spacebar or middle-click (scroll wheel button) to pan the canvas without changing tools
+Press Z to undo the last traced segment or the last edit operation
 
 # Tracing
-Enable cursor snapping (S) to auto-snap to the brightest voxel nearby
+Enable cursor snapping (S) to auto-snap to the brightest nearby voxel
 Press V to auto-click on the brightest voxel above/below the cursor
-Press Y twice to quickly finish a path without confirmation dialogs
-Press N twice to cancel a path including the start node
-Use Alt+Click on an existing path to start a branch from that point
+Disable 'Confirm temporary segments' (Options tab) for streamlined tracing: Click to confirm segments; Double-click to finish path
+When 'Confirm temporary segments' is active (Options tab), press Y twice to quickly finish a path
+When 'Confirm temporary segments' is active (Options tab), press N twice to cancel a path including the start node
+Enable 'Rubber Band' tracing mode (Options tab) for a live path preview that follows the cursor
+Use Alt+Click on an existing path to fork a branch from the nearest node
 Press Shift+P to pause tracing operations temporarily
 Overlay a MIP at low opacity (Options tab) to see the full structure while tracing
-Use Ctrl+mouse wheel to assign diameters to paths
+Use Ctrl+mouse wheel to assign diameters to paths being traced
 
 # Path Editing
-Press Shift+E to enter Edit Mode for the selected path
+Press Shift+E to enter Edit Mode
 In Edit Mode: D deletes, M moves, I inserts, and B brings nodes to the current Z-plane
+In Edit Mode: Alt+drag a node to reposition it
 Press R in Edit Mode to change the radius of the active node
 Press L in Edit Mode to lock a node and prevent accidental changes
 Press X in Edit Mode to split a tree at the active node
+Press C in Edit Mode to connect the active node to a nearby path
+Press T in Edit Mode to tag the active node with a color label
 
 # Analysis
 Use Quick Measurements for instant metrics without prompts
@@ -39,14 +46,18 @@ Use Path Profiler to visualize intensity gradients along traced neurites
 Compare cell groups statistically via Utilities→Compare Reconstructions...
 
 # Visualization
-Press 1/2/3 to toggle visibility filters for paths
+Press 1/2/3 to toggle visibility filters for paths (Main tab)
 Use the Reconstruction Viewer (3D tab) for interactive 3D visualization
 Export publication-quality figures via Reconstruction Plotter (supports PDF/SVG)
 Use Create Figure to generate multi-panel montages of reconstructions
+Use the Reconstruction Viewer (3D tab) for interactive 3D visualization of tracings
+Use sciview (3D tab) for immersive 3D visualization powered by the scenery rendering engine
+Open the Big Volume Viewer (3D tab) for GPU-accelerated volume rendering alongside tracings
 
 # Data Management
-Save timestamped backups with ctrlKey()+Shift+S (Backup Tracings)
+Save tracings with ctrlKey()+S; use ctrlKey()+Shift+S for a timestamped backup
 Use File→Revert to Backup... to restore from previous saves
+Use File→Save Tracings & Open Next/Previous Image (ctrlKey()+Shift+O / ctrlKey()+Alt+O) to iterate through a folder of images
 Load demo datasets (File→Load Demo Dataset) to practice or test features
 Drag and drop SWC/TRACES files directly into the Path Manager to import them
 Use the Script Recorder (Scripts menu) to generate code from GUI actions
