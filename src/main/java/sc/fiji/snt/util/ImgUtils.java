@@ -24,7 +24,9 @@ package sc.fiji.snt.util;
 
 import ij.ImagePlus;
 import ij.measure.Calibration;
+import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
+import net.imagej.DatasetService;
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imagej.axis.AxisType;
@@ -1231,6 +1233,69 @@ public class ImgUtils {
             SNTUtils.error("Failed to open: " + filePathOrUrl, e);
             return null;
         }
+    }
+
+    /**
+     * Saves an image to disk as a TIFF file. This is the save counterpart of
+     * {@link #open(String)}.
+     * <p>
+     * The image is copied into a 32-bit float representation prior to saving,
+     * ensuring compatibility regardless of the source pixel type.
+     * For lower bit-depth output use
+     * {@link #save(RandomAccessibleInterval, String, RealType)}.
+     * </p>
+     *
+     * @param img      the image to save; may be virtual or transformed
+     * @param filePath the destination file path; a {@code .tif} extension is
+     *                 appended automatically if absent
+     * @throws Exception if the image cannot be serialized or written to disk
+     */
+    public static void save(final RandomAccessibleInterval<? extends RealType<?>> img,
+                            final String filePath) throws Exception {
+        save(img, filePath, new FloatType());
+    }
+
+    /**
+     * Saves an image to disk as a TIFF file, converting pixel values to the
+     * specified output type before writing. This is the save counterpart of
+     * {@link #open(String)}.
+     * <p>
+     * The image is materialized into a concrete in-memory {@link Img} of the
+     * requested type, so the caller must ensure sufficient RAM is available.
+     * Conversion is done via {@link RealType#setReal(double)}, which clamps
+     * values to the target type's range automatically (e.g. 16-bit unsigned
+     * values are clamped to [0, 65535]).
+     * </p>
+     * <p>
+     * Typical usage:
+     * <pre>
+     *   ImgUtils.save(rai, "/path/to/out.tif", new UnsignedShortType());
+     *   ImgUtils.save(rai, "/path/to/out.tif", new UnsignedByteType());
+     *   ImgUtils.save(rai, "/path/to/out.tif", new FloatType());
+     * </pre>
+     * </p>
+     *
+     * @param <T>      the output pixel type; must be a {@link NativeType} so
+     *                 that an {@link ArrayImgFactory} can allocate it
+     * @param img      the image to save; may be virtual or transformed
+     * @param filePath the destination file path; a {@code .tif} extension is
+     *                 appended automatically if absent
+     * @param outType  an instance of the desired output pixel type, e.g.
+     *                 {@code new UnsignedShortType()} for 16-bit output
+     * @throws Exception if the image cannot be serialized or written to disk
+     */
+    public static <T extends RealType<T> & NativeType<T>> void save(
+            final RandomAccessibleInterval<? extends RealType<?>> img,
+            final String filePath,
+            final T outType) throws Exception {
+        final String path = (filePath.endsWith(".tif") || filePath.endsWith(".tiff"))
+                ? filePath : filePath + ".tif";
+        final Img<T> output = new ArrayImgFactory<>(outType).create(img);
+        LoopBuilder.setImages(img, output).multiThreaded()
+                .forEachPixel((in, out) -> out.setReal(in.getRealDouble()));
+        final Context ctx = SNTUtils.getContext();
+        final Dataset dataset = ctx.service(DatasetService.class).create(output);
+        ctx.service(DatasetIOService.class).save(dataset, path);
     }
 
     /**
