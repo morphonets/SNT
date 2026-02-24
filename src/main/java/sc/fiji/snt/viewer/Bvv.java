@@ -24,6 +24,7 @@ package sc.fiji.snt.viewer;
 
 import bdv.tools.HelpDialog;
 import bdv.tools.InitializeViewerState;
+import bdv.tools.brightness.ConverterSetup;
 import bdv.util.AxisOrder;
 import bdv.viewer.Source;
 import bdv.viewer.animate.SimilarityTransformAnimator;
@@ -34,6 +35,7 @@ import bvv.core.VolumeViewerPanel;
 import bvv.vistools.*;
 import ij.ImagePlus;
 import net.imagej.ImgPlus;
+import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
 import net.imglib2.RealRandomAccessible;
@@ -129,6 +131,14 @@ public class Bvv {
     }
 
     public <T extends RealType<T>> BvvSource show(final ImgPlus<T> imgPlus) {
+        // Multi-channel: use native hyperSlice path to avoid the Views.permute →
+        // ImageJFunctions.wrap dimension-ordering bug that offsets channels.
+        final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
+        if (chDim >= 0 && imgPlus.dimension(chDim) > 1) {
+            final BvvMultiSource multi = showImgPlusMultiChannel(imgPlus);
+            return multi.getLeader();
+        }
+        // Single-channel path
         cal = new double[Math.min(3, imgPlus.numDimensions())];
         dims = new long[]{imgPlus.dimension(0), imgPlus.dimension(1), imgPlus.dimension(2)};
         for (int d = 0; d < cal.length; d++) {
@@ -143,6 +153,86 @@ public class Bvv {
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
         return source;
+    }
+
+    /**
+     * Displays a multi-channel {@link ImgPlus} by extracting each channel as an
+     * independent 3D XYZ source via {@link Views#hyperSlice}, avoiding the
+     * dimension-ordering ambiguity of {@link net.imglib2.img.display.imagej.ImageJFunctions#wrap}.
+     * Mirrors the logic of {@link #showImagePlusMultiChannel(ImagePlus)}.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private <T extends RealType<T>> BvvMultiSource showImgPlusMultiChannel(final ImgPlus<T> imgPlus) {
+        final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
+        final int nC = (int) imgPlus.dimension(chDim);
+        final int zDimIdx = imgPlus.dimensionIndex(Axes.Z);
+
+        // Spatial calibration from axis metadata (X, Y, Z in that order)
+        final double sx = imgPlus.averageScale(imgPlus.dimensionIndex(Axes.X));
+        final double sy = imgPlus.averageScale(imgPlus.dimensionIndex(Axes.Y));
+        final double sz = zDimIdx >= 0 ? imgPlus.averageScale(zDimIdx) : 1.0;
+        cal = new double[]{sx, sy, sz};
+        final long nZ = zDimIdx >= 0 ? imgPlus.dimension(zDimIdx) : 1;
+        dims = new long[]{imgPlus.dimension(imgPlus.dimensionIndex(Axes.X)),
+                imgPlus.dimension(imgPlus.dimensionIndex(Axes.Y)), nZ};
+
+        final String imageName = (imgPlus.getName() != null && !imgPlus.getName().isBlank())
+                ? imgPlus.getName() : "Volume";
+
+        // Shared option builder: produces the log and handles prefs/blockSize
+        final BvvOptions baseOpt = configureBvvOptionsForImage(nZ, nC)
+                .axisOrder(AxisOrder.XYZ)
+                .sourceTransform(cal);
+
+        final boolean hasExistingWindow = bvvHandle != null;
+        BvvStackSource<?> leaderSource = null;
+        final List<BvvStackSource<?>> followerSources = new ArrayList<>();
+
+        for (int c = 0; c < nC; c++) {
+            // Extract this channel as a pure 3D XYZ RAI, to avoid dimension-order ambiguity
+            final RandomAccessibleInterval<T> channelRai = Views.hyperSlice(imgPlus, chDim, c);
+            final String chTitle = imageName + " (Ch" + (c + 1) + ")";
+            final BvvOptions chOpt = (!hasExistingWindow && leaderSource == null)
+                    ? baseOpt
+                    : baseOpt.addTo(bvvHandle != null ? bvvHandle : leaderSource.getBvvHandle());
+            final BvvStackSource<?> chSource = BvvFunctions.show(
+                    (RandomAccessibleInterval) channelRai, chTitle, chOpt);
+
+            if (leaderSource == null) {
+                leaderSource = chSource;
+                if (!hasExistingWindow) {
+                    bvvHandle = chSource.getBvvHandle();
+                    final BigVolumeViewer bvv2 = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
+                    // initTransform using canvas dimensions (not frame size which includes card panel)
+                    SwingUtilities.invokeLater(() -> {
+                        final int cw = bvv2.getViewer().getDisplay().getWidth();
+                        final int ch = bvv2.getViewer().getDisplay().getHeight();
+                        InitializeViewerState.initTransform(cw > 0 ? cw : 512, ch > 0 ? ch : 512,
+                                false, bvv2.getViewer().state());
+                    });
+                    final double[] cam = computeCamParams(sx, sy, sz, nZ, Math.max(dims[0], dims[1]));
+                    bvvHandle.getViewerPanel().setCamParams(cam[0], cam[1], cam[2]);
+                    if (pathOverlay != null) {
+                        pathOverlay.overlayRenderer.dCam = cam[0];
+                        pathOverlay.overlayRenderer.nearClip = cam[1];
+                        pathOverlay.overlayRenderer.farClip = cam[2];
+                    }
+                    attachControlPanel(chSource);
+                }
+            } else {
+                followerSources.add(chSource);
+            }
+        }
+
+        // Group assignment: must run after all channels are added
+        final int groupIdx = multiSources.size();
+        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size()
+                - (followerSources.size() + 1);
+        assignToNamedGroup(imageName, groupIdx, startIdx, followerSources.size() + 1,
+                bvvHandle.getViewerPanel());
+        final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
+        multiSources.add(multi);
+        return multi;
     }
 
     /**
@@ -174,15 +264,23 @@ public class Bvv {
     private <T extends RealType<T>> List<BvvMultiSource> showImgPlus(final List<ImgPlus<T>> imgs) {
         final List<BvvMultiSource> results = new ArrayList<>();
         for (final ImgPlus<T> img : imgs) {
+            final int sizeBefore = multiSources.size();
             // BvvFunctions.show() always returns BvvStackSource; cast is safe
             final BvvStackSource<?> src = (BvvStackSource<?>) show(img);
-            final int groupIdx = multiSources.size();
-            final int srcIdx = bvvHandle.getViewerPanel().state().getSources().size() - 1;
-            final String title = img.getName() != null && !img.getName().isBlank() ? img.getName() : "SNT Bvv";
-            assignToNamedGroup(title, groupIdx, srcIdx, 1, bvvHandle.getViewerPanel());
-            final BvvMultiSource multi = new BvvMultiSource(src);
-            multiSources.add(multi);
-            results.add(multi);
+            if (multiSources.size() > sizeBefore) {
+                // show(img) routed through showImagePlusMultiChannel: group assignment and
+                // multiSources entry were already handled, we just need to collect the result
+                results.add(multiSources.getLast());
+            } else {
+                // Single-channel path: manage group and multiSources here
+                final int groupIdx = multiSources.size();
+                final int srcIdx = bvvHandle.getViewerPanel().state().getSources().size() - 1;
+                final String title = img.getName() != null && !img.getName().isBlank() ? img.getName() : "SNT Bvv";
+                assignToNamedGroup(title, groupIdx, srcIdx, 1, bvvHandle.getViewerPanel());
+                final BvvMultiSource multi = new BvvMultiSource(src);
+                multiSources.add(multi);
+                results.add(multi);
+            }
         }
         return results;
     }
@@ -226,8 +324,115 @@ public class Bvv {
         return Collections.unmodifiableList(multiSources);
     }
 
+    /**
+     * Script-friendly method for setting per-channel colors
+     *
+     * @param colorNames  color representations (HTML/css values, or hex)
+     * @see #setChannelColors(Color...)
+     */
+    public void setChannelColors(final String... colorNames) {
+        setChannelColors(Arrays.stream(colorNames).map(SNTColor::fromString).toArray(Color[]::new));
+    }
 
-    // Static factory methods
+    /**
+     * Sets per-channel colors for a specific source group. Each color is applied
+     * to the corresponding channel in order; extra colors are ignored, and channels
+     * without a supplied color are left unchanged.
+     * <p>
+     * Typical Groovy/PySNT usage:
+     * <pre>
+     *   def bvv = Bvv.open([reference, moving])
+     *   bvv.setChannelColors(bvv.getMultiSources().get(0), Color.RED, Color.GREEN, Color.BLUE)
+     * </pre>
+     * </p>
+     *
+     * @param group  the target source group, obtained from {@link #getMultiSources()}
+     * @param colors one color per channel, in channel order
+     */
+    public void setChannelColors(final BvvMultiSource group, final Color... colors) {
+        if (colors == null || colors.length == 0 || bvvHandle == null) return;
+        applyChannelColors(group, colors);
+        repaint();
+    }
+
+    private void applyChannelColors(final BvvMultiSource group, final Color... colors) {
+        final List<ConverterSetup> setups = getConverterSetups(group);
+        for (int i = 0; i < Math.min(colors.length, setups.size()); i++) {
+            if (colors[i] != null)
+                setups.get(i).setColor(new ARGBType(colors[i].getRGB()));
+        }
+    }
+
+    /**
+     * Sets per-channel colors, applying the supplied color pattern to
+     * <em>every</em> source group. Colors are applied by channel index within
+     * each group; extra colors beyond a group's channel count are ignored for
+     * that group, and channels without a corresponding color are left unchanged.
+     * <p>
+     * This is the most convenient entry point for scripts: when all loaded images
+     * share the same channel semantics.
+     * </p>
+     * <p>
+     * Typical Groovy/PySNT usage:
+     * <pre>
+     *   def bvv = Bvv.open(reference, moving) // two 3-channel images
+     *   bvv.setChannelColors(Color.RED, Color.GREEN, Color.BLUE) // applied to both
+     * </pre>
+     * </p>
+     *
+     * @param colors one color per channel position (applied to every group)
+     */
+    public void setChannelColors(final Color... colors) {
+        if (colors == null || colors.length == 0 || bvvHandle == null) return;
+        for (final BvvMultiSource group : multiSources)
+            applyChannelColors(group, colors);
+        repaint();
+    }
+
+    /**
+     * Sets the display range (min/max intensity) for all channels of a specific
+     * source group.
+     *
+     * @param group the target source group, obtained from {@link #getMultiSources()}
+     * @param min   the minimum intensity value (maps to black)
+     * @param max   the maximum intensity value (maps to full color)
+     */
+    public void setDisplayRange(final BvvMultiSource group, final double min, final double max) {
+        if (bvvHandle == null) return;
+        for (final ConverterSetup setup : getConverterSetups(group))
+            setup.setDisplayRange(min, max);
+        repaint();
+    }
+
+    /**
+     * Returns the {@link ConverterSetup} list for all channels in a
+     * {@link BvvMultiSource}, in channel order. Uses the viewer's internal group
+     * state to determine which source indices belong to the group.
+     */
+    private List<ConverterSetup> getConverterSetups(final BvvMultiSource group) {
+        final int groupIdx = multiSources.indexOf(group);
+        if (groupIdx < 0 || bvvHandle == null) return Collections.emptyList();
+        try {
+            final java.lang.reflect.Field stateField = VolumeViewerPanel.class.getDeclaredField("state");
+            stateField.setAccessible(true);
+            final bdv.viewer.state.ViewerState internalState =
+                    (bdv.viewer.state.ViewerState) stateField.get(bvvHandle.getViewerPanel());
+            final List<Integer> sourceIds = new ArrayList<>(
+                    internalState.getSourceGroups().get(groupIdx).getSourceIds());
+            Collections.sort(sourceIds);
+            final List<ConverterSetup> allSetups = bvvHandle.getSetupAssignments().getConverterSetups();
+            final List<ConverterSetup> result = new ArrayList<>(sourceIds.size());
+            for (final int id : sourceIds) {
+                if (id < allSetups.size()) result.add(allSetups.get(id));
+            }
+            return result;
+        } catch (final Exception ex) {
+            SNTUtils.log("Could not retrieve converter setups for group " + groupIdx + ": " + ex.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+
 
     /**
      * Convenience factory: creates a standalone BVV viewer and displays one or more
@@ -309,8 +514,12 @@ public class Bvv {
                 case ImagePlus imp -> bvv.showImagePlus(imp); // manages multiSources internally
                 case ImgPlus<?> img -> bvv.showImgPlus(Collections.singletonList((ImgPlus) img)); // manages multiSources internally
                 case RandomAccessibleInterval<?> rai -> {
-                    // show(RAI, cal) doesn't manage multiSources; wrap explicitly
+                    // show(RAI, cal) doesn't manage multiSources or groups; handle both here
                     final BvvStackSource<?> src = (BvvStackSource<?>) bvv.show((RandomAccessibleInterval) rai, (double[]) null);
+                    final int groupIdx = bvv.multiSources.size();
+                    final int srcIdx = bvv.bvvHandle.getViewerPanel().state().getSources().size() - 1;
+                    bvv.assignToNamedGroup("RAI " + (groupIdx + 1), groupIdx, srcIdx, 1,
+                            bvv.bvvHandle.getViewerPanel());
                     bvv.multiSources.add(new BvvMultiSource(src));
                 }
                 case null -> throw new IllegalArgumentException("Null entries are not supported.");
@@ -405,8 +614,10 @@ public class Bvv {
     }
 
     private BvvOptions configureBvvOptionsForImage(final ImagePlus imp) {
-        final int nSlices = imp.getNSlices();
-        final int nChannels = imp.getNChannels();
+        return configureBvvOptionsForImage(imp.getNSlices(), imp.getNChannels());
+    }
+
+    private BvvOptions configureBvvOptionsForImage(final long nSlices, final int nChannels) {
         final int blockSize = nSlices <= 32 ? 32 : nSlices <= 64 ? 64 : 128;
         // Read render quality preferences (set via Camera Controls options menu)
         final SNTPrefs prefs = (snt != null) ? snt.getPrefs() : null;
@@ -496,6 +707,9 @@ public class Bvv {
         }
         attachControlPanel(source);
         // Wrap single-channel source as BvvMultiSource so show(List) can track it uniformly
+        final int groupIdx = multiSources.size();
+        final int srcIdx = bvvHandle.getViewerPanel().state().getSources().size() - 1;
+        assignToNamedGroup(imp.getTitle(), groupIdx, srcIdx, 1, bvvHandle.getViewerPanel());
         final BvvMultiSource multi = new BvvMultiSource(source);
         multiSources.add(multi);
         return source;
@@ -656,15 +870,27 @@ public class Bvv {
         final double pw = (cal != null && cal[0] > 0) ? cal[0] : imp.getCalibration().pixelWidth;
         final double ph = (cal != null && cal[1] > 0) ? cal[1] : imp.getCalibration().pixelHeight;
         final double pd = (cal != null && cal[2] > 0) ? cal[2] : imp.getCalibration().pixelDepth;
-        final double physZ = imp.getNSlices() * pd;
-        // Scale factor so image fills a 1024px window
-        final double scale = 1024.0 / Math.max(imp.getWidth(), imp.getHeight());
-        // Z extent in screen-pixel-width units after initTransform scaling
-        final double zExtent = (physZ / ((pw + ph) / 2)) * scale;
-        // dCam: camera distance: should comfortably exceed the Z extent
-        final double dCam = Math.max(2000, zExtent * 2.5);
-        // dClip: near and far clipping planes: must span the full Z extent plus margin
-        final double dClip = Math.max(1000, zExtent * 1.5);
+        return computeCamParams(pw, ph, pd, imp.getNSlices(), Math.max(imp.getWidth(), imp.getHeight()));
+    }
+
+    /**
+     * Computes appropriate camera parameters from raw physical dimensions.
+     * Shared by {@link #computeCamParams(ImagePlus)} and {@link #showImgPlusMultiChannel}.
+     *
+     * @param sx    pixel width (calibrated)
+     * @param sy    pixel height (calibrated)
+     * @param sz    pixel depth (calibrated)
+     * @param nZ    number of Z slices
+     * @param maxXY largest spatial dimension in pixels (max of width, height)
+     * @return double[] {dCam, dClipNear, dClipFar}
+     */
+    private double[] computeCamParams(final double sx, final double sy, final double sz,
+                                      final long nZ, final long maxXY) {
+        final double physZ   = nZ * sz;
+        final double scale   = 1024.0 / maxXY;
+        final double zExtent = (physZ / ((sx + sy) / 2)) * scale;
+        final double dCam    = Math.max(2000, zExtent * 2.5);
+        final double dClip   = Math.max(1000, zExtent * 1.5);
         SNTUtils.log(String.format("BVV camParams: physZ=%.1f zExtent=%.1f → dCam=%.0f dClip=%.0f",
                 physZ, zExtent, dCam, dClip));
         return new double[]{dCam, dClip, dClip};

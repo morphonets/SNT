@@ -179,6 +179,16 @@ public class SNTColor {
     }
 
 	/**
+	 * Returns an AWT Color from any css-valid co
+	 *
+	 * @param colorName the input string
+	 * @return the converted AWT color
+	 */
+	public static Color fromString(final String colorName) {
+		return fromHex(colorName); // historical: fromHex now accepts any string, not just hex encoding
+	}
+
+	/**
 	 * Returns an AWT Color from a (#)RRGGBB(AA) hex string.
 	 *
 	 * @param hex the input string

@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -239,13 +239,18 @@ public class ImgUtils {
         final ImagePlus imp = wrapped.duplicate();
         imp.setTitle(impName);
 
-        // Fix dimension interpretation: wrap() often misinterprets Z as channels
-        // For 3D single-channel images, ensure Z is slices not channels
-        final int stackSize = imp.getStackSize();
-        if (stackSize > 1 && imp.getNChannels() > 1 && imp.getNSlices() == 1) {
-            // Likely Z was interpreted as channels - fix it
-            imp.setDimensions(1, stackSize, 1); // nChannels=1, nSlices=Z, nFrames=1
+        // Fix dimension interpretation: ImageJFunctions.wrap() maps dimensions naively
+        // by index (dim2>C, dim3>Z) regardless of axis metadata, so any axis order
+        // other than XYCZT produces wrong C/Z/T values. Always derive them from the
+        // ImgPlus axis metadata instead.
+        int nC = 1, nZ = 1, nT = 1;
+        for (int d = 0; d < img.numDimensions(); d++) {
+            final AxisType type = img.axis(d).type();
+            if      (type == Axes.CHANNEL) nC = (int) img.dimension(d);
+            else if (type == Axes.Z)       nZ = (int) img.dimension(d);
+            else if (type == Axes.TIME)    nT = (int) img.dimension(d);
         }
+        imp.setDimensions(nC, nZ, nT);
 
         // Transfer calibration including origins
         final Calibration cal = getCalibration(img);
@@ -725,7 +730,7 @@ public class ImgUtils {
         // Always remove channel dimension if it exists
         if (channelDim >= 0) {
             long numChannels = imgPlus.dimension(channelDim);
-            extractedChannel = channel < 0 ? 0 : channel;  // Negative → default to 0
+            extractedChannel = Math.max(channel, 0);  // Negative -> default to 0
             if (extractedChannel >= numChannels) {
                 throw new IllegalArgumentException(
                         "Channel index " + extractedChannel + " out of bounds [0, " + numChannels + ")");
@@ -743,7 +748,7 @@ public class ImgUtils {
         // Always remove time dimension if it exists
         if (timeDim >= 0) {
             long numTimepoints = imgPlus.dimension(timeDim);
-            extractedTime = Math.max(time, 0);  // Negative → default to 0
+            extractedTime = Math.max(time, 0);  // Negative -> default to 0
             if (extractedTime >= numTimepoints) {
                 throw new IllegalArgumentException(
                         "Time index " + extractedTime + " out of bounds [0, " + numTimepoints + ")");
@@ -1143,7 +1148,7 @@ public class ImgUtils {
      * @return the approximate percentile value
      */
     public static double computePercentile(final RandomAccessibleInterval<? extends RealType<?>> source,
-                                            final double percentile) {
+                                           final double percentile) {
 
         final long totalPixels = source.size();
         final int maxSamples = 100_000;
@@ -1152,7 +1157,7 @@ public class ImgUtils {
         final List<Double> samples = new ArrayList<>();
         final Random rand = new Random(42);  // Fixed seed for reproducibility
 
-        final Cursor<? extends RealType<?>> cursor = Views.iterable(source).cursor();
+        final Cursor<? extends RealType<?>> cursor = source.cursor();
         while (cursor.hasNext()) {
             cursor.fwd();
             if (sampleRate >= 1.0 || rand.nextDouble() < sampleRate) {
@@ -1212,11 +1217,12 @@ public class ImgUtils {
                 SNTUtils.log("Opened as Dataset (SCIFIO): " +
                         imgPlus.numDimensions() + "D, " +
                         imgPlus.getImg().getClass().getSimpleName());
+                SNTUtils.log(axisReport(imgPlus));
                 return imgPlus;
-            } else if (opened instanceof ImgPlus) {
-                final ImgPlus<?> imgPlus = (ImgPlus<?>) opened;
+            } else if (opened instanceof ImgPlus<?> imgPlus) {
                 SNTUtils.log("Opened as ImgPlus: " +
                         imgPlus.getImg().getClass().getSimpleName());
+                SNTUtils.log(axisReport(imgPlus));
                 return imgPlus;
             } else if (opened instanceof Img) {
                 SNTUtils.log("Opened as Img, wrapping in ImgPlus");
@@ -1381,6 +1387,7 @@ public class ImgUtils {
      * @param max the maximum value for normalization (maps to 65535)
      * @return a 16-bit RAI, or the original RAI if not float
      */
+    @SuppressWarnings("unchecked")
     public static <T extends RealType<T>> RandomAccessibleInterval<? extends RealType<?>>
     toUnsignedShortIfFloat(final RandomAccessibleInterval<T> rai,
                            final double min, final double max) {
@@ -1403,6 +1410,108 @@ public class ImgUtils {
      *                     or -1 if no time axis existed or no timepoint was extracted
      */
     public record SliceResult<T extends RealType<T>>(ImgPlus<T> img, int channelIndex, int timeIndex) {
+    }
+
+    /**
+     * Builds a one-line diagnostic string listing all axes of an {@link ImgPlus}
+     * with their type, size, and scale. Used by {@link #open(String)} to report
+     * the axis layout of freshly opened images.
+     *
+     * @param img the image to describe
+     * @return a human-readable axis summary, e.g.
+     *         {@code "Axes: [X 512 (1.0µm)] [Y 512 (1.0µm)] [Z 60 (2.0µm)] [Channel 3 (1.0)]"}
+     */
+    public static String axisReport(final ImgPlus<?> img) {
+        final StringBuilder sb = new StringBuilder("Axes: ");
+        for (int d = 0; d < img.numDimensions(); d++) {
+            final CalibratedAxis axis = img.axis(d);
+            final String unit = (axis.unit() != null && !axis.unit().isBlank()) ? axis.unit() : "px";
+            sb.append(String.format("[%s %d (%.3g%s)]",
+                    axis.type().getLabel(),
+                    img.dimension(d),
+                    axis.averageScale(0, 1),
+                    unit));
+            if (d < img.numDimensions() - 1) sb.append(' ');
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Returns a new {@link ImgPlus} with two axes swapped. The underlying data
+     * is a lazy permuted view (no pixel data is copied). Axis metadata (type,
+     * scale, unit) is reordered to match the new dimension order.
+     * <p>
+     * Example: swap Z and Channel in an XYZCT image:
+     * <pre>
+     *   ImgPlus<?> xyzct = ImgUtils.open("image.tif");
+     *   ImgPlus<?> xyczT = ImgUtils.swapAxes(xyzct, Axes.Z, Axes.CHANNEL);
+     * </pre>
+     * </p>
+     *
+     * @param <T>   the pixel type
+     * @param img   the source image
+     * @param axis1 the first axis type to swap
+     * @param axis2 the second axis type to swap
+     * @return a new ImgPlus with the two axes permuted
+     * @throws IllegalArgumentException if either axis type is not found in the image
+     */
+    public static <T extends net.imglib2.type.Type<T>> ImgPlus<T> swapAxes(final ImgPlus<T> img,
+                                                                           final AxisType axis1,
+                                                                           final AxisType axis2) {
+        final int d1 = img.dimensionIndex(axis1);
+        final int d2 = img.dimensionIndex(axis2);
+        if (d1 < 0)
+            throw new IllegalArgumentException("Axis not found: " + axis1.getLabel());
+        if (d2 < 0)
+            throw new IllegalArgumentException("Axis not found: " + axis2.getLabel());
+        if (d1 == d2) return img; // nothing to do
+
+        final RandomAccessibleInterval<T> permuted = Views.permute(img, d1, d2);
+        // ImgView.wrap(RAI) requires T extends Type<T>; the two-arg overload has no such bound
+        final Img<T> permutedImg = ImgView.wrap(permuted, img.getImg().factory());
+
+        // Build new CalibratedAxis array with the two axes swapped
+        final CalibratedAxis[] axes = new CalibratedAxis[img.numDimensions()];
+        for (int d = 0; d < img.numDimensions(); d++) {
+            axes[d] = img.axis(d).copy();
+        }
+        final CalibratedAxis tmp = axes[d1];
+        axes[d1] = axes[d2];
+        axes[d2] = tmp;
+
+        return new ImgPlus<>(permutedImg, img.getName(), axes);
+    }
+
+    /**
+     * Reorders the axes of an {@link ImgPlus} to the canonical XYZCT order
+     * expected by BVV and most ImageJ tools, applying swaps as needed.
+     * Axes not present in the image are left in place. No pixel data is copied.
+     * <p>
+     * This is useful when SCIFIO opens an image with axis order XYCZT (as
+     * ImageJ saves it) but BVV expects XYZCT, causing Z and C to be misinterpreted.
+     * </p>
+     *
+     * @param <T> the pixel type
+     * @param img the source image; may have any axis order
+     * @return a new ImgPlus reordered to XYZCT (axes already in canonical order
+     *         are returned unchanged)
+     */
+    public static <T extends net.imglib2.type.Type<T>> ImgPlus<T> permuteToXYZCT(final ImgPlus<T> img) {
+        // The canonical target order for BVV: X, Y, Z, Channel, Time
+        final AxisType[] canonical = {Axes.X, Axes.Y, Axes.Z, Axes.CHANNEL, Axes.TIME};
+        ImgPlus<T> result = img;
+        // Walk canonical positions; if the axis at position i isn't the right one, find
+        // the correct axis and swap it into place (selection-sort style)
+        for (int i = 0; i < canonical.length; i++) {
+            final int target = result.dimensionIndex(canonical[i]);
+            if (target < 0 || target == i) continue; // axis absent or already in place
+            // Find what is currently at position i and swap
+            final AxisType current = result.axis(i).type();
+            result = swapAxes(result, canonical[i], current);
+        }
+        if (result != img)
+            SNTUtils.log("Permuted axes > " + axisReport(result));
+        return result;
     }
 
 }
