@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -22,10 +22,15 @@
 
 package sc.fiji.snt.viewer;
 
+import bdv.img.imaris.Imaris;
+import bdv.spimdata.SpimDataMinimal;
+import bdv.spimdata.XmlIoSpimDataMinimal;
 import bdv.tools.HelpDialog;
 import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.util.AxisOrder;
+import mpicbg.spim.data.SpimDataException;
+import mpicbg.spim.data.generic.AbstractSpimData;
 import bdv.viewer.Source;
 import bdv.viewer.animate.SimilarityTransformAnimator;
 import bdv.viewer.state.SourceGroup;
@@ -144,6 +149,7 @@ public class Bvv {
         for (int d = 0; d < cal.length; d++) {
             cal[d] = imgPlus.averageScale(d);
         }
+        checkVolumeSize(dims[0], dims[1], dims[2]);
         // Bypass show(RAI, cal) to preserve the image name and assign the source to a named group
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options)
                 .sourceTransform(cal);
@@ -175,11 +181,12 @@ public class Bvv {
         final long nZ = zDimIdx >= 0 ? imgPlus.dimension(zDimIdx) : 1;
         dims = new long[]{imgPlus.dimension(imgPlus.dimensionIndex(Axes.X)),
                 imgPlus.dimension(imgPlus.dimensionIndex(Axes.Y)), nZ};
+        checkVolumeSize(dims[0], dims[1], nZ);
 
         final String imageName = (imgPlus.getName() != null && !imgPlus.getName().isBlank())
-                ? imgPlus.getName() : "Volume";
+                ? imgPlus.getName() : "SNT Bvv";
 
-        // Shared option builder: produces the log and handles prefs/blockSize
+        // Shared option builder — produces the log and handles prefs/blockSize
         final BvvOptions baseOpt = configureBvvOptionsForImage(nZ, nC)
                 .axisOrder(AxisOrder.XYZ)
                 .sourceTransform(cal);
@@ -189,7 +196,7 @@ public class Bvv {
         final List<BvvStackSource<?>> followerSources = new ArrayList<>();
 
         for (int c = 0; c < nC; c++) {
-            // Extract this channel as a pure 3D XYZ RAI, to avoid dimension-order ambiguity
+            // Extract this channel as a pure 3D XYZ RAI — no dimension-order ambiguity
             final RandomAccessibleInterval<T> channelRai = Views.hyperSlice(imgPlus, chDim, c);
             final String chTitle = imageName + " (Ch" + (c + 1) + ")";
             final BvvOptions chOpt = (!hasExistingWindow && leaderSource == null)
@@ -268,8 +275,8 @@ public class Bvv {
             // BvvFunctions.show() always returns BvvStackSource; cast is safe
             final BvvStackSource<?> src = (BvvStackSource<?>) show(img);
             if (multiSources.size() > sizeBefore) {
-                // show(img) routed through showImagePlusMultiChannel: group assignment and
-                // multiSources entry were already handled, we just need to collect the result
+                // show(img) routed through showImagePlusMultiChannel: group assignment
+                // and multiSources entry were already handled — just collect the result
                 results.add(multiSources.getLast());
             } else {
                 // Single-channel path: manage group and multiSources here
@@ -364,28 +371,36 @@ public class Bvv {
     }
 
     /**
-     * Sets per-channel colors, applying the supplied color pattern to
-     * <em>every</em> source group. Colors are applied by channel index within
-     * each group; extra colors beyond a group's channel count are ignored for
-     * that group, and channels without a corresponding color are left unchanged.
+     * Sets per-channel colors across all source groups, assigning colors
+     * sequentially by global channel order across all groups. For example,
+     * with two 3-channel images and colors [R, G, B, C, M, Y], image 1 gets
+     * R/G/B and image 2 gets C/M/Y. With a single multi-channel image or a
+     * dataset where each setup is its own group (e.g. IMS), colors are assigned
+     * one-to-one in load order.
      * <p>
-     * This is the most convenient entry point for scripts: when all loaded images
-     * share the same channel semantics.
+     * To apply the same color pattern to every group independently, call
+     * {@link #setChannelColors(BvvMultiSource, Color...)} per group.
      * </p>
      * <p>
      * Typical Groovy/PySNT usage:
      * <pre>
-     *   def bvv = Bvv.open(reference, moving) // two 3-channel images
-     *   bvv.setChannelColors(Color.RED, Color.GREEN, Color.BLUE) // applied to both
+     *   def bvv = Bvv.open(img)
+     *   bvv.setChannelColors(Color.RED, Color.GREEN, Color.BLUE)
      * </pre>
      * </p>
      *
-     * @param colors one color per channel position (applied to every group)
+     * @param colors colors assigned sequentially across all channels in all groups
      */
     public void setChannelColors(final Color... colors) {
         if (colors == null || colors.length == 0 || bvvHandle == null) return;
-        for (final BvvMultiSource group : multiSources)
-            applyChannelColors(group, colors);
+        int colorIdx = 0;
+        for (final BvvMultiSource group : multiSources) {
+            final List<ConverterSetup> setups = getConverterSetups(group);
+            for (int i = 0; i < setups.size() && colorIdx < colors.length; i++, colorIdx++) {
+                if (colors[colorIdx] != null)
+                    setups.get(i).setColor(new ARGBType(colors[colorIdx].getRGB()));
+            }
+        }
         repaint();
     }
 
@@ -552,6 +567,142 @@ public class Bvv {
         final Bvv bvv = new Bvv(snt);
         bvv.showLoadedData();
         return bvv;
+    }
+
+    /**
+     * Convenience factory: creates a standalone BVV viewer and displays a
+     * {@link AbstractSpimData} dataset using BVV's pyramid-aware GPU cache manager.
+     * Unlike the {@link ImgPlus}/{@link ImagePlus} paths, this does <em>not</em>
+     * attempt to upload the entire volume at once — data is streamed as tiles on
+     * demand, making it suitable for out-of-core datasets.
+     * <p>
+     * The caller is responsible for constructing the {@link AbstractSpimData}
+     * object, typically via an XML/HDF5 loader:
+     * <pre>
+     *   import bdv.spimdata.XmlIoSpimDataMinimal
+     *   spimData = new XmlIoSpimDataMinimal().load("/path/to/dataset.xml")
+     *   def bvv = Bvv.open(spimData)
+     * </pre>
+     * or via Bio-Formats/IMS loaders that produce a {@link AbstractSpimData} with
+     * a multiresolution pyramid.
+     * </p>
+     *
+     * @param spimData the dataset to display
+     * @return the fully initialised {@link Bvv} instance
+     */
+    public static Bvv open(final AbstractSpimData<?> spimData) {
+        final Bvv bvv = new Bvv();
+        bvv.show(spimData);
+        return bvv;
+    }
+
+    /**
+     * Convenience factory: opens a file path into a BVV viewer, choosing the
+     * most appropriate loading strategy based on the file extension:
+     * <ul>
+     *   <li><b>.ims</b> — Imaris HDF5: creates a BDV XML sidecar file next to
+     *       the {@code .ims} file (using the same base name, e.g.
+     *       {@code dataset.xml}), then loads it via {@link XmlIoSpimDataMinimal}.
+     *       BVV's pyramid-aware GPU cache manager is used, so the full volume is
+     *       never loaded into RAM. If the directory is not writable, an
+     *       {@link IllegalArgumentException} is thrown with instructions to
+     *       create the XML manually using
+     *       {@code Plugins > BigDataViewer > Create XML for Imaris file}.</li>
+     *   <li><b>.xml</b> — BDV XML/HDF5: loaded directly via
+     *       {@link XmlIoSpimDataMinimal} and displayed using BVV's cache
+     *       manager.</li>
+     *   <li><b>anything else</b> — delegated to {@link ImgUtils#open(String)}
+     *       and displayed via the standard {@link ImgPlus} path. Very large
+     *       flat volumes will fail with a descriptive error rather than a GL
+     *       crash.</li>
+     * </ul>
+     *
+     * @param filePathOrUrl the file path or URL to open
+     * @return the fully initialised {@link Bvv} instance
+     * @throws IllegalArgumentException if an {@code .ims} file's directory is
+     *                                  not writable, or if the file cannot be opened
+     */
+    public static Bvv open(final String filePathOrUrl) {
+        final File file = new File(filePathOrUrl);
+        final String lower = file.getName().toLowerCase();
+
+        if (lower.endsWith(".ims")) {
+            // Derive the canonical sidecar path (same base name, .xml extension)
+            final String basePath = file.getAbsolutePath();
+            final String xmlPath = basePath.substring(0, basePath.length() - 4) + ".xml";
+            try {
+                if (new File(xmlPath).exists()) {
+                    // Sidecar already present — load it directly without re-creating
+                    SNTUtils.log("BVV: reusing existing XML sidecar: " + xmlPath);
+                    final AbstractSpimData<?> spimData = new XmlIoSpimDataMinimal().load(xmlPath);
+                    return open(spimData);
+                }
+                // No sidecar yet — check write permission before attempting to create one
+                final File dir = file.getParentFile();
+                if (dir != null && !dir.canWrite()) {
+                    throw new IllegalArgumentException(
+                            "Cannot write to directory: " + dir.getAbsolutePath() + "\n" +
+                                    "Create the BDV XML file manually via " +
+                                    "Plugins > BigDataViewer > Create XML for Imaris file, " +
+                                    "then use Bvv.open(\"/path/to/dataset.xml\").");
+                }
+                final SpimDataMinimal spimData = Imaris.openIms(file.getAbsolutePath());
+                new XmlIoSpimDataMinimal().save(spimData, xmlPath);
+                SNTUtils.log("BVV: created XML sidecar: " + xmlPath);
+                return open(spimData);
+            } catch (final IOException | SpimDataException e) {
+                throw new IllegalArgumentException("Could not open IMS file: " + e.getMessage(), e);
+            }
+        }
+
+        if (lower.endsWith(".xml")) {
+            try {
+                final AbstractSpimData<?> spimData = new XmlIoSpimDataMinimal().load(filePathOrUrl);
+                return open(spimData);
+            } catch (final SpimDataException e) {
+                throw new IllegalArgumentException("Could not open XML file: " + e.getMessage(), e);
+            }
+        }
+
+        // Fallback: open as ImgPlus (includes size check before reaching BVV)
+        final ImgPlus<?> img = ImgUtils.open(filePathOrUrl);
+        if (img == null)
+            throw new IllegalArgumentException("Could not open file: " + filePathOrUrl);
+        final Bvv bvv = new Bvv();
+        //noinspection unchecked,rawtypes
+        bvv.show((ImgPlus) img);
+        return bvv;
+    }
+
+    /**
+     * Displays a {@link AbstractSpimData} dataset using BVV's pyramid-aware GPU
+     * cache manager. Each setup (channel/angle) is added as a source and wrapped
+     * in a {@link BvvMultiSource}. Unlike the {@link ImgPlus}/{@link ImagePlus}
+     * paths, the full volume is never loaded into RAM or GPU at once.
+     *
+     * @param spimData the dataset to display
+     * @return list of {@link BvvMultiSource}, one per BDV setup, in setup order
+     */
+    @SuppressWarnings("unchecked")
+    public List<BvvMultiSource> show(final AbstractSpimData<?> spimData) {
+        final List<BvvStackSource<?>> sources = BvvFunctions.show(spimData, options);
+        final List<BvvMultiSource> results = new ArrayList<>(sources.size());
+        for (int i = 0; i < sources.size(); i++) {
+            final BvvStackSource<?> src = sources.get(i);
+            if (bvvHandle == null) {
+                bvvHandle = src.getBvvHandle();
+                attachControlPanel(src);
+            }
+            final int groupIdx = multiSources.size();
+            final int srcIdx = bvvHandle.getViewerPanel().state().getSources().size() - (sources.size() - i);
+            final String name = src.getSources().isEmpty() ? "Setup " + (i + 1)
+                    : src.getSources().getFirst().getSpimSource().getName();
+            assignToNamedGroup(name, groupIdx, srcIdx, 1, bvvHandle.getViewerPanel());
+            final BvvMultiSource multi = new BvvMultiSource(src);
+            multiSources.add(multi);
+            results.add(multi);
+        }
+        return results;
     }
 
     private static AxisOrder getAxisOrder(final ImagePlus imp) {
@@ -894,6 +1045,27 @@ public class Bvv {
         SNTUtils.log(String.format("BVV camParams: physZ=%.1f zExtent=%.1f → dCam=%.0f dClip=%.0f",
                 physZ, zExtent, dCam, dClip));
         return new double[]{dCam, dClip, dClip};
+    }
+
+    /**
+     * Checks whether a volume's per-channel voxel count is within BVV's texture
+     * capacity. BVV's {@code DefaultSimpleStackManager} computes the texture buffer
+     * size as {@code width * height * depth * 2} using a 32-bit signed int; values
+     * beyond ~1 billion voxels cause integer overflow and a fatal GL crash.
+     *
+     * @throws IllegalArgumentException if the volume exceeds ~1 Gvox/channel
+     */
+    private static void checkVolumeSize(final long width, final long height, final long depth) {
+        // BVV allocates width*height*depth*2 bytes as a signed int; max safe value is
+        // Integer.MAX_VALUE = 2^31-1, so the voxel limit is (2^31-1)/2 ≈ 1.07 Gvox.
+        final long voxels = width * height * depth;
+        if (voxels * 2L > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(String.format(
+                    "Volume too large for BVV's texture manager: %dx%dx%d = %.2f Gvox/channel " +
+                            "(limit ~1.07 Gvox). For tiled datasets, open the native " +
+                            "BDV/HDF5 or IMS source directly to use BVV's pyramid-aware cache.",
+                    width, height, depth, voxels / 1e9));
+        }
     }
 
     /** Initializes the path overlay system for drawing traced paths. */
@@ -2437,7 +2609,7 @@ public class Bvv {
             return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = guiUtils.getFile(snt.getPrefs().getRecentDir(), "xml");
+                    final File f = guiUtils.getFile(getDefaultDir(), "xml");
                     if (SNTUtils.fileAvailable(f)) {
                         try {
                             bvv.loadSettings(f.getAbsolutePath());
@@ -2454,7 +2626,7 @@ public class Bvv {
             return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = guiUtils.getSaveFile("Save BVV Settings...", snt.getPrefs().getRecentDir(), "xml");
+                    final File f = guiUtils.getSaveFile("Save BVV Settings...", getDefaultDir(), "xml");
                     if (SNTUtils.fileAvailable(f)) {
                         try {
                             bvv.saveSettings(f.getAbsolutePath());
@@ -2497,7 +2669,7 @@ public class Bvv {
             return new AbstractAction("Import Reconstructions...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File[] files = guiUtils.getReconstructionFiles(snt.getPrefs().getRecentDir());
+                    final File[] files = guiUtils.getReconstructionFiles(getDefaultDir());
                     if (files == null || files.length == 0) return;
                     int failureCounter = 0;
                     final ColorRGB[] colors = SNTColor.getDistinctColors(files.length);

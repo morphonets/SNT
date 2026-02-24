@@ -208,7 +208,8 @@ public class ScriptInstaller implements MenuKeyListener {
         return switch (menuName) {
             case "Analysis" -> IconFactory.menuIcon(GLYPH.CHART);
             case "Batch" -> IconFactory.menuIcon(GLYPH.COG);
-            case "Demos" -> IconFactory.menuIcon(GLYPH.GRADUATION_CAP);
+			case "Big Data" -> IconFactory.menuIcon(GLYPH.DATABASE);
+			case "Demos" -> IconFactory.menuIcon(GLYPH.GRADUATION_CAP);
             case "Full List" -> IconFactory.menuIcon(GLYPH.LIST);
             case "Misc" -> IconFactory.menuIcon(GLYPH.ELLIPSIS);
             case "Render" -> IconFactory.menuIcon(GLYPH.CUBE);
@@ -268,8 +269,8 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Misc", "Render", "Skeletons_and_ROIs", "Tracing", "Time-lapses");
-		menus.insert(getDemosMenu(), 2);
+		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Big_Data", "Misc", "Render", "Skeletons_and_ROIs", "Tracing", "Time-lapses");
+		menus.insert(getDemosMenu(), 3);
 		return menus;
 	}
 
