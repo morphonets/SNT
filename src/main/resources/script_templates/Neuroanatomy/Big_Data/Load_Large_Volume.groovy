@@ -1,5 +1,7 @@
-#@File(label="File to render", description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file
+#@File(label="Main file to render (required)", description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file1
+#@File(label="Secondary: File to render (optional)", required=false, description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file2
 #@UIService ui
+
 /**
  * Exemplifies how to open a large (out-of-core) volumetric image in SNT's BVV
  * (BigVolumeViewer). GPU rendering and out-of-core data streaming are handled
@@ -36,9 +38,10 @@
 import sc.fiji.snt.viewer.Bvv
 
 try {
-    bvv = Bvv.open(file.getAbsolutePath())
+    def paths = [file1, file2].findAll { it != null }.collect { it.getAbsolutePath() }
+    bvv = Bvv.open(paths as String[])
 } catch (Exception e) {
-    ui.showDialog("An error occured: " + e.getMessage(), "Error")
+    ui.showDialog("An error occurred: " + e.getMessage(), "Error")
     e.printStackTrace()
 }
 
