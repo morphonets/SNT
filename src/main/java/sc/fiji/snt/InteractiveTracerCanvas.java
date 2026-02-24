@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
+ * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -91,6 +91,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private boolean popupTriggered;
     private boolean altDraggingNode;
     private final Deque<Path> editUndoStack = new ArrayDeque<>();
+    private boolean scrollRadiusUndoPushed; // true once undo is pushed for the current scroll gesture
+    private Timer scrollRadiusUndoResetTimer; // resets the flag after scroll gesture ends
 
     // Squared pixel tolerance for click detection (5 pixels). This accommodates
     // slight mouse/trackpad movement during click, especially on macOS trackpads.
@@ -257,7 +259,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             }
             // Tracing-only commands: disabled in edit mode and when tracing halted
             else if (extendPathMenuItem == mItem) {
-                mItem.setEnabled(tracingActive );
+                mItem.setEnabled(tracingActive);
             }
             else if (cmd.equals(AListener.FINISH_PATH)) {
                 mItem.setEnabled(tracingActive && tracerPlugin.currentPath != null);
@@ -496,6 +498,16 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     /**
+     * Recursively updates the tree ID of a path and all its descendants.
+     */
+    private void updateTreeIDRecursively(final Path root, final int treeID) {
+        root.setIDs(root.getID(), treeID);
+        for (final Path child : root.getChildren()) {
+            updateTreeIDRecursively(child, treeID);
+        }
+    }
+
+    /**
      * Connects child path to parent at an endpoint (start or end of child).
      */
     private void connectAtEndpoint(final Path child, final Path parent,
@@ -535,12 +547,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         // Connect child to parent
         childToConnect.setBranchFrom(parent, parent.getNode(parentNodeIdx));
-        // Update tree ID to match parent's tree
-        childToConnect.setIDs(childToConnect.getID(), parent.getTreeID());
-        // Also update any grandchildren's tree IDs
-        for (final Path gc : childToConnect.getChildren()) {
-            gc.setIDs(gc.getID(), parent.getTreeID());
-        }
+        // Recursively update tree ID for child and all descendants
+        updateTreeIDRecursively(childToConnect, parent.getTreeID());
     }
 
     /**
@@ -592,8 +600,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // Add segment1 and connect it to parent
         pathAndFillManager.addPath(segment1, true, true);
         segment1.setBranchFrom(parent, parent.getNode(parentNodeIdx));
-        // Update tree ID to match parent's tree
-        segment1.setIDs(segment1.getID(), parent.getTreeID());
+        // Recursively update tree ID for segment1 and its subtree
+        updateTreeIDRecursively(segment1, parent.getTreeID());
 
         // Add segment2 and connect it to segment1 at the junction (before the bridge if present)
         if (segment2 != null) {
@@ -601,11 +609,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             // segment2 branches from segment1 at the junction point
             // The junction is at index childNodeIdx in segment1 (which has nodes 0..childNodeIdx, possibly + bridge)
             segment2.setBranchFrom(segment1, segment1.getNode(childNodeIdx));
-            segment2.setIDs(segment2.getID(), parent.getTreeID());
+            // Recursively update tree ID for segment2 and its subtree
+            updateTreeIDRecursively(segment2, parent.getTreeID());
         }
 
         // Reassign grandchildren to appropriate segment
-        final int parentTreeID = parent.getTreeID();
         for (final Path gc : grandchildren) {
             final int origBranchIdx = grandchildBranchIndices.get(gc);
 
@@ -619,8 +627,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 final int newIdx = origBranchIdx - childNodeIdx;
                 gc.setBranchFrom(segment2, segment2.getNode(newIdx));
             }
-            // Update tree ID to match parent's tree
-            gc.setIDs(gc.getID(), parentTreeID);
+            // Tree ID already propagated recursively above; no need to update grandchildren here
         }
     }
 
@@ -663,7 +670,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private JMenuItem initMenuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
         final JMenuItem mi = GuiUtils.MenuItems.itemWithoutAccelerator(cmdName);
-        mi.setText(cmdName);
         mi.addActionListener(lstnr);
         if (keystroke != null) {
             mi.setAccelerator(keystroke);
@@ -1016,7 +1022,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             getParent().dispatchEvent(e);
             return;
         }
-        e.consume(); // maybe not needed?
+        e.consume(); // prevent ImageCanvas from processing the wheel event (e.g., zoom)
 
         // Seed manualRadius: in edit mode, prefer the node's existing radius
         if (tracerPlugin.manualRadius <= 0) {
@@ -1049,6 +1055,15 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private void applyManualRadiusToEditNode() {
         if (impossibleEdit(false)) return;
+        if (!scrollRadiusUndoPushed) {
+            pushEditUndo();
+            scrollRadiusUndoPushed = true;
+        }
+        // Reset the debounce timer so the flag clears ~600ms after the last scroll tick
+        if (scrollRadiusUndoResetTimer != null) scrollRadiusUndoResetTimer.stop();
+        scrollRadiusUndoResetTimer = new Timer(600, ae -> scrollRadiusUndoPushed = false);
+        scrollRadiusUndoResetTimer.setRepeats(false);
+        scrollRadiusUndoResetTimer.start();
         final Path ep = tracerPlugin.getEditingPath();
         ep.setRadius(tracerPlugin.manualRadius, ep.getEditableNodeIndex());
         redrawEditingPath((String)null); // suppress msg; tempMsg already shows it
@@ -1624,7 +1639,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void setEditMode(final boolean editMode) {
         this.editMode = editMode;
-        if (!editMode) editUndoStack.clear();
+        if (!editMode) {
+            editUndoStack.clear();
+            scrollRadiusUndoPushed = false;
+            if (scrollRadiusUndoResetTimer != null) {
+                scrollRadiusUndoResetTimer.stop();
+                scrollRadiusUndoResetTimer = null;
+            }
+        }
     }
 
     private void pushEditUndo() {
@@ -1639,7 +1661,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             tempMsg("Nothing to undo");
             return;
         }
-        tracerPlugin.getEditingPath().replaceNodes(editUndoStack.pop());
+        final Path editingPath = tracerPlugin.getEditingPath();
+        if (editingPath == null) {
+            editUndoStack.clear();
+            tempMsg("Nothing to undo");
+            return;
+        }
+        editingPath.replaceNodes(editUndoStack.pop());
         redrawEditingPath("Edit undone");
     }
 
@@ -1656,7 +1684,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void deleteEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
-        pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
         if (editingPath.size() > 2) {
@@ -1664,6 +1691,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 tempMsg("Cannot delete junction node. Try to split instead.");
                 return;
             }
+            // Only push undo after validation passes
+            pushEditUndo();
             try {
                 editingPath.removeNode(editingPath.getEditableNodeIndex());
                 redrawEditingPath("Node deleted");
@@ -1672,7 +1701,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 tempMsg("Node deletion failed!");
             }
         }
-        else if (new GuiUtils(this.getParent()).getConfirmation("Delete " +
+        else if (getGuiUtils().getConfirmation("Delete " +
                 editingPath + "?", "Delete Path?"))
         {
             boolean rebuild = false;

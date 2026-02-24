@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- *
+ * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -159,7 +159,7 @@ public class SNTUI extends JDialog {
      * pending operations, thus 'ready to trace'
      */
     public static final int READY = 0;
-    static final int WAITING_TO_START_PATH = 0; /* legacy flag */
+    static final int WAITING_TO_START_PATH = READY; /* legacy flag */
     static final int PARTIAL_PATH = 1;
     static final int SEARCHING = 2;
     static final int QUERY_KEEP = 3;
@@ -750,9 +750,6 @@ public class SNTUI extends JDialog {
         inputs.put("filter", filter);
         inputs.put("sizeOfStructuresString", Arrays.toString(scales).replace("[", "").replace("]", ""));
         inputs.put("calledFromScript", true);
-        final Object syncObject = new Object();
-        inputs.put("syncObject", syncObject);
-        (new DynamicCmdRunner(ComputeSecondaryImg.class, inputs, RUNNING_CMD)).run();
         final CountDownLatch latch = new CountDownLatch(1);
         inputs.put("latch", latch);
         (new DynamicCmdRunner(ComputeSecondaryImg.class, inputs, RUNNING_CMD)).run();
@@ -803,7 +800,6 @@ public class SNTUI extends JDialog {
      * @param state  whether the filter should be active or not.
      */
     public void setVisibilityFilter(final String filter, final boolean state) {
-        assert SwingUtilities.isEventDispatchThread();
         final String normFilter = filter.toLowerCase();
         SwingUtilities.invokeLater( () -> {
             if (normFilter.contains("selected")) {
@@ -847,13 +843,13 @@ public class SNTUI extends JDialog {
         sb.append("\n");
         sb.append("    Cost function: ").append(plugin.getCostType());
         if (plugin.getCostType() == SNT.CostType.PROBABILITY) {
-			sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
-		}
-		sb.append("\n");
-		sb.append("    Tracing mode: ").append(plugin.rubberBandTracing ? "Live preview" : "Standard");
-		sb.append("\n");
-		sb.append("    Min-Max: ").append(SNTUtils.formatDouble(plugin.getStats().min, 3)).append("-")
-				.append(SNTUtils.formatDouble(plugin.getStats().max, 3));
+            sb.append("; Z-fudge: ").append(SNTUtils.formatDouble(plugin.getOneMinusErfZFudge(), 3));
+        }
+        sb.append("\n");
+        sb.append("    Tracing mode: ").append(plugin.rubberBandTracing ? "Live preview" : "Standard");
+        sb.append("\n");
+        sb.append("    Min-Max: ").append(SNTUtils.formatDouble(plugin.getStats().min, 3)).append("-")
+                .append(SNTUtils.formatDouble(plugin.getStats().max, 3));
         sb.append("\n");
         if (plugin.getSecondaryData() != null) {
             sb.append("Secondary layer: Active");
@@ -922,6 +918,33 @@ public class SNTUI extends JDialog {
         quitMenuItem.setEnabled(false);
     }
 
+    /**
+     * Factory for UIState instances whose {@code enter()} follows the common pattern of
+     * updating the status label, optionally posting a status-bar message, optionally
+     * calling {@link #disableEverything()}, and running an optional extra action.
+     *
+     * @param stateId      the state constant (e.g. {@link #LOADING})
+     * @param statusMsg    text for the status label
+     * @param statusBarMsg text for the status bar, or {@code null} to skip
+     * @param disableAll   whether to call {@link #disableEverything()}
+     * @param extra        additional work to run in {@code enter()}, or {@code null}
+     */
+    private UIState simpleState(final int stateId, final String statusMsg,
+                                final String statusBarMsg, final boolean disableAll,
+                                final Runnable extra) {
+        return new UIState() {
+            @Override
+            public void enter() {
+                updateStatusText(statusMsg);
+                if (statusBarMsg != null) showStatus(statusBarMsg, false);
+                if (disableAll) disableEverything();
+                if (extra != null) extra.run();
+            }
+            @Override
+            public int getStateId() { return stateId; }
+        };
+    }
+
     private void updateRebuildCanvasButton() {
         final ImagePlus imp = plugin.getImagePlus();
         final String label = (imp == null || !plugin.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
@@ -948,13 +971,13 @@ public class SNTUI extends JDialog {
         states.put(FILLING_PATHS, new FillingPathsState());
         states.put(FITTING_PATHS, new FittingPathsState());
         states.put(RUNNING_CMD, new RunningCmdState());
-        states.put(CACHING_DATA, new CachingDataState());
-        states.put(CALCULATING_HESSIAN_I, new CalculatingHessianIState());
-        states.put(CALCULATING_HESSIAN_II, new CalculatingHessianIIState());
-        states.put(WAITING_FOR_SIGMA_POINT_I, new WaitingForSigmaPointIState());
-        states.put(WAITING_FOR_SIGMA_CHOICE, new WaitingForSigmaChoiceState());
-        states.put(LOADING, new LoadingState());
-        states.put(SAVING, new SavingState());
+        states.put(CACHING_DATA,          simpleState(CACHING_DATA,          "Caching data. This could take a while...", null, true, null));
+        states.put(CALCULATING_HESSIAN_I, simpleState(CALCULATING_HESSIAN_I, "Calculating Hessian...",                   "Computing Hessian for main image...",    true, null));
+        states.put(CALCULATING_HESSIAN_II,simpleState(CALCULATING_HESSIAN_II,"Calculating Hessian (II Image)..",         "Computing Hessian (secondary image)...", true, null));
+        states.put(WAITING_FOR_SIGMA_POINT_I, simpleState(WAITING_FOR_SIGMA_POINT_I, "Click on a representative structure...", "Adjusting Hessian (main image)...", false, null));
+        states.put(WAITING_FOR_SIGMA_CHOICE,  simpleState(WAITING_FOR_SIGMA_CHOICE,  "Close 'Pick Sigma &amp; Max' to continue...", null, false, null));
+        states.put(LOADING, simpleState(LOADING, "Loading...", null, true, null));
+        states.put(SAVING,  simpleState(SAVING,  "Saving...",  null, true, null));
         states.put(EDITING, new EditingState());
         states.put(SNT_PAUSED, new SntPausedState());
     }
@@ -1149,98 +1172,6 @@ public class SNTUI extends JDialog {
         @Override
         public int getStateId() {
             return RUNNING_CMD;
-        }
-    }
-
-    private class CachingDataState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Caching data. This could take a while...");
-            disableEverything();
-        }
-
-        @Override
-        public int getStateId() {
-            return CACHING_DATA;
-        }
-    }
-
-    private class CalculatingHessianIState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Calculating Hessian...");
-            showStatus("Computing Hessian for main image...", false);
-            disableEverything();
-        }
-
-        @Override
-        public int getStateId() {
-            return CALCULATING_HESSIAN_I;
-        }
-    }
-
-    private class CalculatingHessianIIState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Calculating Hessian (II Image)..");
-            showStatus("Computing Hessian (secondary image)...", false);
-            disableEverything();
-        }
-
-        @Override
-        public int getStateId() {
-            return CALCULATING_HESSIAN_II;
-        }
-    }
-
-    private class WaitingForSigmaPointIState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Click on a representative structure...");
-            showStatus("Adjusting Hessian (main image)...", false);
-        }
-
-        @Override
-        public int getStateId() {
-            return WAITING_FOR_SIGMA_POINT_I;
-        }
-    }
-
-    private class WaitingForSigmaChoiceState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Close 'Pick Sigma &amp; Max' to continue...");
-        }
-
-        @Override
-        public int getStateId() {
-            return WAITING_FOR_SIGMA_CHOICE;
-        }
-    }
-
-    private class LoadingState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Loading...");
-            disableEverything();
-        }
-
-        @Override
-        public int getStateId() {
-            return LOADING;
-        }
-    }
-
-    private class SavingState implements UIState {
-        @Override
-        public void enter() {
-            updateStatusText("Saving...");
-            disableEverything();
-        }
-
-        @Override
-        public int getStateId() {
-            return SAVING;
         }
     }
 
@@ -1664,22 +1595,22 @@ public class SNTUI extends JDialog {
         ++subGdb.gridy;
         subOptionsPanel.add(finishCheckbox, subGdb);
 
-		confirmTemporarySegmentsCheckbox.addItemListener(e -> {
-			final boolean selected = e.getStateChange() == ItemEvent.SELECTED;
-			if (selected && plugin.rubberBandTracing) {
-				if (!guiUtils.getConfirmation(
-						"Enabling segment confirmation will disable Live Preview tracing. Proceed?",
-						"Disable Live Preview Tracing?")) {
-					// User canceled: revert the checkbox
-					confirmTemporarySegmentsCheckbox.setSelected(false);
-					return;
-				}
+        confirmTemporarySegmentsCheckbox.addItemListener(e -> {
+            final boolean selected = e.getStateChange() == ItemEvent.SELECTED;
+            if (selected && plugin.rubberBandTracing) {
+                if (!guiUtils.getConfirmation(
+                        "Enabling segment confirmation will disable Live Preview tracing. Proceed?",
+                        "Disable Live Preview Tracing?")) {
+                    // User canceled or dismissed: revert via invokeLater to avoid re-entrant ItemListener call
+                    SwingUtilities.invokeLater(() -> confirmTemporarySegmentsCheckbox.setSelected(false));
+                    return;
+                }
                 plugin.rubberBandTracing = false;
                 if (standardTracingRbmi != null) standardTracingRbmi.setSelected(true);
-                updateSettingsString();
             }
             confirmTemporarySegments = selected;
             GuiUtils.enableComponents(subOptionsPanel, confirmTemporarySegments);
+            updateSettingsString();
         });
         // Initialize sub-options state
         GuiUtils.enableComponents(subOptionsPanel, confirmTemporarySegments);
@@ -2431,7 +2362,7 @@ public class SNTUI extends JDialog {
             }
             if (recViewer == null) {
                 new RecWorker().execute();
-            } else { // button should be now disable. Code below is moot.
+            } else if (recViewerFrame != null) { // button should be now disabled. Code below is moot.
                 recViewerFrame.setVisible(true);
                 recViewerFrame.toFront();
             }
@@ -2564,22 +2495,25 @@ public class SNTUI extends JDialog {
             noSecondaryDataAvailableError();
             return;
         }
-        bvvSNT = new Bvv(plugin);
+        final Bvv newBvv = new Bvv(plugin);
         try {
             if (choices[0].equals(choice)) {
                 final ImagePlus imp = plugin.getImagePlus();
-                if (imp == null)
+                if (imp == null) {
                     noValidImageDataError();
-                else
-                    bvvSNT.show(imp);
+                    return;
+                }
+                newBvv.show(imp);
             } else if (choices[1].equals(choice)) {
-                bvvSNT.showLoadedData();
+                newBvv.showLoadedData();
             } else if (plugin.isSecondaryDataAvailable()) {
-                bvvSNT.showSecondaryData();
+                newBvv.showSecondaryData();
             } else {
-                bvvSNT = null;
                 noSecondaryDataAvailableError();
+                return;
             }
+            // Only promote to field once show() succeeded
+            bvvSNT = newBvv;
             if (bvvSNT.getViewerFrame() != null) {
                 bvvSNT.getViewerFrame().addWindowListener(new WindowAdapter() {
                     @Override
@@ -2839,8 +2773,7 @@ public class SNTUI extends JDialog {
         return guiUtils.getSaveFile(promptMsg, fFile, extensionWithoutDot);
     }
 
-    private void loadCachedDataImage(final boolean warnUserOnMemory,
-                                     final File file) { // FIXME: THIS is likely all outdated now
+    private void loadCachedDataImage(final boolean warnUserOnMemory, final File file) {
         if (file == null) {
             throw new IllegalArgumentException("Secondary image File is null");
         }
@@ -2981,7 +2914,7 @@ public class SNTUI extends JDialog {
 
         // Save
         fileMenu.addSeparator();
-        saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.SAVE));
         saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file. "
                 + "This file may be gzip compressed as per options in the Preferences dialog.");
         saveMenuItem.setAccelerator(
@@ -3927,39 +3860,44 @@ public class SNTUI extends JDialog {
             }
         });
         optionsMenu.addSeparator();
-		optionsMenu.add(GuiUtils.leftAlignedLabel("Tracing Mode:", false));
-		final ButtonGroup tracingModeButtonGroup = new ButtonGroup();
-		standardTracingRbmi = new JRadioButtonMenuItem("Standard", !plugin.rubberBandTracing);
-		rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
-		GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse.<br>"
-				+ "Click to confirm each segment. Only recommended for 2D images.");
-		tracingModeButtonGroup.add(standardTracingRbmi);
-		tracingModeButtonGroup.add(rubberBandTracingRbmi);
-		optionsMenu.add(standardTracingRbmi);
+        optionsMenu.add(GuiUtils.leftAlignedLabel("Tracing Mode:", false));
+        final ButtonGroup tracingModeButtonGroup = new ButtonGroup();
+        standardTracingRbmi = new JRadioButtonMenuItem("Standard", !plugin.rubberBandTracing);
+        rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
+        GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse.<br>"
+                + "Click to confirm each segment. Only recommended for 2D images.");
+        tracingModeButtonGroup.add(standardTracingRbmi);
+        tracingModeButtonGroup.add(rubberBandTracingRbmi);
+        optionsMenu.add(standardTracingRbmi);
         optionsMenu.add(rubberBandTracingRbmi);
         standardTracingRbmi.addActionListener(e -> {
             plugin.rubberBandTracing = false;
-            if (confirmTemporarySegmentsCheckbox != null)
-                confirmTemporarySegmentsCheckbox.setEnabled(true);
+            if (confirmTemporarySegmentsCheckbox != null) {
+                // Uncheck (but keep enabled): confirmTemporarySegments is incompatible with standard mode.
+                // setSelected(false) fires the ItemListener, which updates confirmTemporarySegments
+                // and disables the sub-options panel automatically.
+                confirmTemporarySegmentsCheckbox.setSelected(false);
+            }
             updateSettingsString();
-			showStatus("Tracing mode: Standard", true);
-		});
-		rubberBandTracingRbmi.addActionListener(e -> {
-			if (!plugin.is2D() && !guiUtils.getConfirmation("Live Preview (Rubber Band) tracing is optimized for 2D images. "
-					+ "It may be too slow with 3D images. Enable it nevertheless?", "3D Image Detected")) {
-				return;
-			}
-			plugin.rubberBandTracing = true;
-			// Rubber band confirms on click: disable segment confirmation
-			if (confirmTemporarySegmentsCheckbox != null) {
-				confirmTemporarySegmentsCheckbox.setSelected(false); // fires ItemListener, sets confirmTemporarySegments=false
-				confirmTemporarySegmentsCheckbox.setEnabled(false);
-			}
-			updateSettingsString();
-			showStatus("Tracing mode: Live Preview (Rubber Band)", true);
-		});
-		optionsMenu.addSeparator();
-		optionsMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Algorithm Settings",
+            showStatus("Tracing mode: Standard", true);
+        });
+        rubberBandTracingRbmi.addActionListener(e -> {
+            if (!plugin.is2D() && !guiUtils.getConfirmation("Live Preview (Rubber Band) tracing is optimized for 2D images. "
+                    + "It may be too slow with 3D images. Enable it nevertheless?", "3D Image Detected")) {
+                // Revert ButtonGroup selection: the radio was already selected by Swing before the listener ran
+                standardTracingRbmi.setSelected(true);
+                return;
+            }
+            plugin.rubberBandTracing = true;
+            // Rubber band confirms on click: disable segment confirmation, but keep checkbox enabled
+            if (confirmTemporarySegmentsCheckbox != null) {
+                confirmTemporarySegmentsCheckbox.setSelected(false); // fires ItemListener, sets confirmTemporarySegments=false
+            }
+            updateSettingsString();
+            showStatus("Tracing mode: Live Preview (Rubber Band)", true);
+        });
+        optionsMenu.addSeparator();
+        optionsMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Algorithm Settings",
                 "https://imagej.net/plugins/snt/manual#auto-tracing"));
         aStarPanel = new JPanel(new BorderLayout());
         aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
@@ -4745,7 +4683,7 @@ public class SNTUI extends JDialog {
         assert SwingUtilities.isEventDispatchThread();
         secLayerActivateCheckbox.setSelected(enable);
         updateSettingsString();
-        showStatus("Tracing on scondary layer enabled", true);
+        showStatus("Tracing on secondary layer enabled", true);
     }
 
     boolean noSecondaryDataAvailableError() {
@@ -5704,18 +5642,18 @@ public class SNTUI extends JDialog {
 
     private boolean loadSWCFile(final File file) {
         final SWCImportDialog importDialog = new SWCImportDialog(this, file);
-        boolean success;
         if (importDialog.succeeded()) {
             final File f = importDialog.getFile();
             final double[] offsets = importDialog.getOffsets();
             final double[] scales = importDialog.getScalingFactors();
-            success = pathAndFillManager.importSWC(f.getAbsolutePath(), importDialog.isAssumePixelCoordinates(),
+            final boolean success = pathAndFillManager.importSWC(f.getAbsolutePath(),
+                    importDialog.isAssumePixelCoordinates(),
                     offsets[0], offsets[1], offsets[2], scales[0], scales[1], scales[2], scales[3],
                     importDialog.isReplacePaths());
             if (!success)
                 guiUtils.error(f.getAbsolutePath() + " does not seem to contain valid SWC data.");
+            return success;
         }
-
         return false;
     }
 
