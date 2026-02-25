@@ -55,6 +55,7 @@ import net.imglib2.view.Views;
 import org.jdom2.JDOMException;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.*;
+import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -88,6 +89,7 @@ public class Bvv {
     private double[] cal; // Pixel size of the volume being rendered
     private long[] dims; // Dimensions in pixels of volume being rendered
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
+    private BookmarkManager markerManager; // lazily initialised on first use
 
     /**
      * Constructor for standalone BVV instance.
@@ -420,6 +422,20 @@ public class Bvv {
     }
 
     /**
+     * Returns the {@link BookmarkManager} used for placing and managing markers
+     * in this BVV instance. The manager is created lazily on first call.
+     * Use {@link BookmarkManager#showPanel()} to display the floating marker panel,
+     * and {@link BookmarkManager#save(File)} to persist markers to CSV.
+     *
+     * @return the marker manager (never null)
+     */
+    public BookmarkManager getMarkerManager() {
+        if (markerManager == null) markerManager = new BookmarkManager(this);
+        return markerManager;
+    }
+
+
+    /**
      * Returns the {@link ConverterSetup} list for all channels in a
      * {@link BvvMultiSource}, in channel order. Uses the viewer's internal group
      * state to determine which source indices belong to the group.
@@ -723,6 +739,25 @@ public class Bvv {
                 ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
         final List<BvvStackSource<?>> sources = BvvFunctions.show(spimData, opts);
         if (sources.isEmpty()) return Collections.emptyList();
+
+        // Populate dims/cal from the first setup's metadata so the marker bounds
+        // check works for SpimData sources (where these are otherwise never set)
+        if (dims == null || cal == null) {
+            try {
+                final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
+                if (!setups.isEmpty()) {
+                    final var setup = setups.getFirst();
+                    if (setup.hasSize()) {
+                        final var sz = setup.getSize();
+                        dims = new long[]{sz.dimension(0), sz.dimension(1), sz.dimension(2)};
+                    }
+                    if (setup.hasVoxelSize()) {
+                        final var vs = setup.getVoxelSize();
+                        cal = new double[]{vs.dimension(0), vs.dimension(1), vs.dimension(2)};
+                    }
+                }
+            } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
+        }
 
         // Derive a display name from the SpimData base path
         String datasetName = null;
@@ -1049,6 +1084,12 @@ public class Bvv {
             bvvFrame.getCardPanel().addCard("Camera Controls",
                     new CameraControls(this, source, pathOverlay.overlayRenderer).getToolbar(actions), true);
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
+            // Register M key to place a marker at the current mouse position
+            final javax.swing.InputMap imap = bvvFrame.getViewerPanel()
+                    .getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW);
+            final javax.swing.ActionMap amap = bvvFrame.getViewerPanel().getActionMap();
+            imap.put(javax.swing.KeyStroke.getKeyStroke('m'), "snt-add-marker");
+            amap.put("snt-add-marker", actions.addMarkerAction());
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
@@ -1227,6 +1268,18 @@ public class Bvv {
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
+        final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
+                actions.showMarkerManagerAction(),
+                "<html>Show/hide the Marker Manager.<br>"
+                        + "Press M in the viewer to place a marker at the cursor position.",
+                IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
+        // Keep button state in sync with frame visibility
+        getMarkerManager().getBvvPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override public void componentShown(java.awt.event.ComponentEvent e) { markerButton.setSelected(true); }
+            @Override public void componentHidden(java.awt.event.ComponentEvent e) { markerButton.setSelected(false); }
+        });
+        toolbar.add(markerButton);
+        toolbar.addSeparator();
         final JButton optionsButton = optionsButton(actions);
         toolbar.add(optionsButton);
         return toolbar;
@@ -1236,6 +1289,7 @@ public class Bvv {
         final JPopupMenu menu = new JPopupMenu();
         final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
         menu.add(new JMenuItem(actions.importAction()));
+        menu.addSeparator();
         if (snt != null) {
             menu.addSeparator();
             menu.add(new JMenuItem(actions.loadBookmarksAction()));
@@ -1325,6 +1379,39 @@ public class Bvv {
         if (currentBvv != null) {
             currentBvv.getViewer().requestRepaint();
         }
+    }
+
+    /**
+     * Resets the viewer to a fit-to-viewport transform, centering the loaded
+     * volume in the canvas. Equivalent to the Reset button in Camera Controls.
+     * No-op if no volume has been loaded.
+     */
+    public void resetView() {
+        if (currentBvv == null || bvvHandle == null) return;
+        final VolumeViewerPanel viewerPanel = currentBvv.getViewer();
+        final AffineTransform3D current = new AffineTransform3D();
+        viewerPanel.state().getViewerTransform(current);
+        final int cw = viewerPanel.getDisplay().getWidth();
+        final int ch = viewerPanel.getDisplay().getHeight();
+        final AffineTransform3D target;
+        if (cal != null && dims != null && cw > 0 && ch > 0) {
+            final double px = cal[0] > 0 ? cal[0] : 1;
+            final double py = cal[1] > 0 ? cal[1] : 1;
+            final double pz = cal[2] > 0 ? cal[2] : 1;
+            final double physW = dims[0] * px;
+            final double physH = dims[1] * py;
+            final double physZ = dims[2] * pz;
+            final double scale = Math.min(cw / physW, ch / physH);
+            target = new AffineTransform3D();
+            target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
+            target.set(cw / 2.0 - scale * physW / 2.0, 0, 3);
+            target.set(ch / 2.0 - scale * physH / 2.0, 1, 3);
+            target.set(-scale * physZ / 2.0, 2, 3);
+        } else {
+            target = new AffineTransform3D();
+        }
+        viewerPanel.setTransformAnimator(
+                new SimilarityTransformAnimator(current, target, 0, 0, 200));
     }
 
     /**
@@ -1786,7 +1873,7 @@ public class Bvv {
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
         private SNTPoint canvasOffset;
-        private Color fallbackColor = Color.MAGENTA;
+        public Color fallbackColor = Color.MAGENTA;
         private float clippingDistance;
 
         /**
@@ -1993,6 +2080,11 @@ public class Bvv {
 
         public boolean isVisible() {
             return !annRenderer.hide;
+        }
+
+        /** Returns the number of annotations currently in the overlay. */
+        public int getCount() {
+            return annotations.size();
         }
 
         /**
@@ -2768,18 +2860,18 @@ public class Bvv {
             return new AbstractAction("Show/hide All Annotations") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (pathOverlay == null || pathOverlay.sntBvv.getRenderedTrees().isEmpty()) {
+                    final boolean hasAnnotations = (pathOverlay != null && !pathOverlay.sntBvv.getRenderedTrees().isEmpty())
+                            || (annotationOverlay != null && annotationOverlay.isVisible());
+                    if (!hasAnnotations && (annotationOverlay == null || annotationOverlay.getCount() == 0)) {
                         bvv.getViewer().showMessage("No annotations exist.");
                         return;
                     }
-                    if (e.getSource() instanceof AbstractButton toggleButton) {
-                        pathOverlay.disableRendering(toggleButton.isSelected());
-                        if (annotationOverlay != null) annotationOverlay.setVisible(toggleButton.isSelected());
-                    } else {
-                        pathOverlay.disableRendering(!pathOverlay.isRenderingEnable());
-                        if (annotationOverlay != null) annotationOverlay.setVisible(!annotationOverlay.isVisible());
-                    }
-                    bvv.getViewer().showMessage((pathOverlay.isRenderingEnable()) ? "Annotations visible" : "Annotations hidden");
+                    // When the toggle button is selected, we are in "hide" state
+                    final boolean hide = (e.getSource() instanceof AbstractButton btn)
+                            ? btn.isSelected() : pathOverlay == null || pathOverlay.isRenderingEnable();
+                    if (pathOverlay != null) pathOverlay.disableRendering(hide);
+                    if (annotationOverlay != null) annotationOverlay.setVisible(!hide);
+                    bvv.getViewer().showMessage(hide ? "Annotations hidden" : "Annotations visible");
                 }
             };
         }
@@ -2944,6 +3036,50 @@ public class Bvv {
                 }
             };
         }
+
+        /**
+         * Places a marker at the current mouse position in world coordinates.
+         * Delegates to {@link BookmarkManager#add(double, double, double)}.
+         * Wired to the {@code M} key in the BVV viewer.
+         */
+        Action addMarkerAction() {
+            return new AbstractAction("Add Marker") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final RealPoint pos = new RealPoint(3);
+                    bvv.getViewer().getGlobalMouseCoordinates(pos);
+                    final double x = pos.getDoublePosition(0);
+                    final double y = pos.getDoublePosition(1);
+                    final double z = pos.getDoublePosition(2);
+                    // Validate against image bounds: coordinates outside the volume indicate
+                    // the view was rotated when M was pressed; the focal-plane projection
+                    // is then meaningless. Prompt the user to use a principal-axis view.
+                    if (dims != null && cal != null) {
+                        final double maxX = dims[0] * cal[0];
+                        final double maxY = dims[1] * cal[1];
+                        final double maxZ = dims[2] * cal[2];
+                        if (x < 0 || y < 0 || z < 0 || x > maxX || y > maxY || z > maxZ) {
+                            bvv.getViewer().showMessage(
+                                    "Outside image bounds: Align view to a principal axis before placing a marker.");
+                            return;
+                        }
+                    }
+                    getMarkerManager().add(x, y, z);
+                    bvv.getViewer().showMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
+                }
+            };
+        }
+
+        Action showMarkerManagerAction() {
+            return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    getMarkerManager().toggleBvvPanel();
+                }
+            };
+        }
+
+
 
         Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {

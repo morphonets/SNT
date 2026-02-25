@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -35,6 +35,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.*;
+import sc.fiji.snt.viewer.Bvv;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -62,33 +63,105 @@ public class BookmarkManager {
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     private final SNTUI sntui;
+    private final Bvv bvv;
+    private final GuiUtils guiUtils;
     private final BookmarkModel model;
     private final BookmarkTable table;
     private int visitingZoomPercentage;
+    private JFrame bvvFrame; // floating panel for BVV mode
 
 
     /**
-     * Implements the <i>Bookmark Manager</i> pane.
-     * This class manages bookmarks for image locations, allowing users to quickly revisit specific locations.
-     * Bookmarks can be imported/exported and do not persist across sessions.
-     *
-     * @see SNTUI
-     * @see Bookmark
+     * SNT constructor: implements the <i>Bookmark Manager</i> pane embedded in SNT's UI.
      */
     public BookmarkManager(final SNTUI sntui) {
         this.sntui = sntui;
-        model = new BookmarkModel();
+        this.bvv = null;
+        this.guiUtils = sntui.guiUtils;
+        model = new BookmarkModel(false);
         table = assembleTable(model);
         resetVisitingZoom();
     }
 
+    /**
+     * BVV constructor: implements a standalone marker manager for a BVV viewer.
+     * Markers are rendered as spheres in the BVV overlay and can be placed with
+     * the {@code M} key. The manager is displayed as a floating panel.
+     *
+     * @param bvv the BVV viewer instance to attach to
+     */
+    public BookmarkManager(final Bvv bvv) {
+        this.sntui = null;
+        this.bvv = bvv;
+        this.guiUtils = new GuiUtils(bvv.getViewerFrame());
+        model = new BookmarkModel(true);
+        table = assembleTable(model);
+        // Sync overlay whenever the model changes
+        model.addTableModelListener(e -> syncBvvOverlay());
+    }
+
+    /** In BVV mode: pushes all markers to the annotation overlay. */
+    private void syncBvvOverlay() {
+        if (bvv == null || bvv.annotations() == null) return;
+        final List<SNTPoint> points = new ArrayList<>();
+        final List<Float> sizes = new ArrayList<>();
+        final List<Color> colors = new ArrayList<>();
+        for (final Bookmark b : model.getDataList()) {
+            points.add(b);
+            sizes.add(b.size > 0 ? b.size : bvv.getRenderingOptions().getMinThickness());
+            colors.add(b.getColor() != null ? b.getColor() : bvv.getRenderingOptions().fallbackColor);
+        }
+        bvv.annotations().clear();
+        for (int i = 0; i < points.size(); i++)
+            bvv.annotations().addAnnotation(points.get(i), sizes.get(i), colors.get(i));
+    }
+
+    /** Returns the floating JFrame for BVV mode, creating it on first call. */
+    public JFrame getBvvPanel() {
+        if (bvvFrame == null) {
+            bvvFrame = new JFrame("BVV Markers");
+            bvvFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+            bvvFrame.add(getPanel());
+            bvvFrame.pack();
+            // Ensure the frame is tall enough to show at least 5 table rows
+            final int minHeight = table.getRowHeight() * 5
+                    + table.getTableHeader().getPreferredSize().height + 120; // 120 for toolbar + description
+            if (bvvFrame.getHeight() < minHeight)
+                bvvFrame.setSize(bvvFrame.getWidth(), minHeight);
+            bvvFrame.setMinimumSize(new Dimension(bvvFrame.getWidth(), minHeight));
+            bvvFrame.setLocationRelativeTo(bvv.getViewerFrame());
+        }
+        return bvvFrame;
+    }
+
+    /** Shows or hides the floating BVV marker panel. */
+    public void toggleBvvPanel() {
+        final JFrame f = getBvvPanel();
+        f.setVisible(!f.isVisible());
+        // Always return focus to the BVV viewer so M and other shortcuts keep working
+        if (bvv != null && bvv.getViewerFrame() != null)
+            bvv.getViewerFrame().getViewerPanel().requestFocusInWindow();
+    }
+
+    /** Alias for {@link #toggleBvvPanel()} — shows the marker panel. */
+    public void showPanel() {
+        final JFrame f = getBvvPanel();
+        if (!f.isVisible()) f.setVisible(true);
+        else f.toFront();
+    }
+
     protected JPanel getPanel() {
-        final JPanel container = SNTUI.InternalUtils.getTab();
+        final JPanel container = (sntui != null)
+                ? SNTUI.InternalUtils.getTab() : new JPanel(new GridBagLayout());
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
-        SNTUI.InternalUtils.addSeparatorWithURL(container, "Bookmarks:", true, gbc);
-        gbc.gridy++;
-        final String msg = """
+        if (sntui != null) {
+            SNTUI.InternalUtils.addSeparatorWithURL(container, "Bookmarks:", true, gbc);
+            gbc.gridy++;
+        }
+        final String msg = (bvv != null)
+                ? "Place markers with the M key. Double-click a row to fly to that location. Color and size are applied to the BVV overlay in real time."
+                : """
                 This pane stores image locations that you can quickly (re)visit while \
                 tracing. Bookmarks can be saved to the workspace directory using the \
                 toolbar button or via File>Save Session.
@@ -116,30 +189,41 @@ public class BookmarkManager {
     private BookmarkTable assembleTable(final BookmarkModel model) {
         final BookmarkTable table = new BookmarkTable(model);
         table.setComponentPopupMenu(assembleTablePopupMenu(table));
+        if (bvv != null) {
+            // Prevent the table's searchable from consuming BVV shortcuts.
+            // NONE means "do nothing" — the keystroke falls through to the BVV viewer.
+            for (final char key : new char[]{'m', 'M', 'b', 'B', 'p', 'P', 'r', 'R', 's', 'S', 'f', 'F'}) {
+                table.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+                        .put(javax.swing.KeyStroke.getKeyStroke(key), "none");
+            }
+        }
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(final MouseEvent me) {
                 if (me.getClickCount() == 2) {
-                    // Ignore double-click on Tag column (column 0) - let the editor handle it
                     final int col = table.columnAtPoint(me.getPoint());
-                    if (col == 0) return;
+                    if (col == 0) return; // let color editor handle tag column
                     if (noBookmarksError()) return;
                     final int row = table.getSelectedRow();
                     if (row == -1) {
-                        sntui.guiUtils.error("No bookmark selected.");
+                        guiUtils.error("No bookmark selected.");
                         return;
                     }
-                    final ImagePlus imp = sntui.plugin.getImagePlus();
-                    if (imp == null) {
-                        sntui.guiUtils.error("No image is currently open.");
+                    if (bvv != null) {
+                        // BVV mode: animate camera to marker world position
+                        flyTo(row);
                     } else {
-                        goTo(row, imp);
-                        // Sync side views to same zoom level if enabled
-                        if (!sntui.plugin.getSinglePane()) {
-                            final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
-                            if (zyImp != null) goTo(row, zyImp, SNT.ZY_PLANE);
-                            final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
-                            if (xzImp != null) goTo(row, xzImp, SNT.XZ_PLANE);
+                        final ImagePlus imp = sntui.plugin.getImagePlus();
+                        if (imp == null) {
+                            sntui.guiUtils.error("No image is currently open.");
+                        } else {
+                            goTo(row, imp);
+                            if (!sntui.plugin.getSinglePane()) {
+                                final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
+                                if (zyImp != null) goTo(row, zyImp, SNT.ZY_PLANE);
+                                final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
+                                if (xzImp != null) goTo(row, xzImp, SNT.XZ_PLANE);
+                            }
                         }
                     }
                 }
@@ -151,23 +235,24 @@ public class BookmarkManager {
     private void resetOrResizeColumns(final boolean reset, final boolean resize) {
         assert table != null;
         assert model != null;
-        if (reset) { // https://stackoverflow.com/q/63420045
+        if (reset) {
             final TableColumnModel tcm = table.getColumnModel();
             for (int i = 0; i < model.getColumnCount() - 1; i++) {
                 int location = tcm.getColumnIndex(model.getColumnName(i));
                 tcm.moveColumn(location, i);
             }
         }
-        if (resize) { // https://stackoverflow.com/a/26046778
-            final float[] columnWidthPercentage = {0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
+        if (resize) {
+            // SNT: {Tag, Label, X, Y, Z, C, T} — BVV: {Tag, Label, X, Y, Z, Size}
+            final float[] columnWidthPercentage = (bvv != null)
+                    ? new float[]{0.05f, 0.50f, 0.12f, 0.12f, 0.12f, 0.09f}   // BVV: Tag|Label|X|Y|Z|Size
+                    : new float[]{0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f}; // SNT: Tag|Label|X|Y|Z|C|T
             final int tW = table.getColumnModel().getTotalColumnWidth();
-            TableColumn column;
             final TableColumnModel jTableColumnModel = table.getColumnModel();
-            int cantCols = jTableColumnModel.getColumnCount();
+            final int cantCols = jTableColumnModel.getColumnCount();
             for (int i = 0; i < cantCols; i++) {
-                column = jTableColumnModel.getColumn(i);
-                int pWidth = Math.round(columnWidthPercentage[i] * tW);
-                column.setPreferredWidth(pWidth);
+                final TableColumn column = jTableColumnModel.getColumn(i);
+                column.setPreferredWidth(Math.round(columnWidthPercentage[i] * tW));
             }
         }
     }
@@ -191,13 +276,13 @@ public class BookmarkManager {
             if (noBookmarksError()) return;
             final int[] rows = table.getSelectedRows();
             if (rows.length == 0) {
-                sntui.guiUtils.error("No bookmark selected.");
+                guiUtils.error("No bookmark selected.");
             } else if (rows.length == 1) {
                 if (table.getRowCount() > 10)
                     table.scrollRectToVisible(new Rectangle(table.getCellRect(rows[0], 0, true)));
                 table.editCellAt(rows[0], 1); // Column 1 is now Label
             } else {
-                final String seed = sntui.guiUtils.getString(
+                final String seed = guiUtils.getString(
                         "Common label to be applied to " + rows.length + " bookmarks:", // msg
                         "Bulk Renaming", // title
                         "Bookmark"); // default value
@@ -242,7 +327,7 @@ public class BookmarkManager {
             if (noBookmarksError()) return;
             final int[] viewRows = getSelectedRowsAllIfNone();
             if (viewRows.length == table.getRowCount()) {
-                if (!sntui.guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
+                if (!guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
                     return;
                 }
                 reset();
@@ -287,13 +372,13 @@ public class BookmarkManager {
     }
 
     private void recordCmd(final String cmd) {
-        if (null != sntui.getRecorder(false))
-            sntui.getRecorder(false).recordCmd("snt.getUI().getBookmarkManager()." + cmd);
+        if (sntui == null || sntui.getRecorder(false) == null) return;
+        sntui.getRecorder(false).recordCmd("snt.getUI().getBookmarkManager()." + cmd);
     }
 
     private void recordComment(final String comment) {
-        if (null != sntui.getRecorder(false))
-            sntui.getRecorder(false).recordComment(comment);
+        if (sntui == null || sntui.getRecorder(false) == null) return;
+        sntui.getRecorder(false).recordComment(comment);
     }
 
     private JPopupMenu importMenu() {
@@ -302,53 +387,56 @@ public class BookmarkManager {
         JMenuItem jmi  = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            final File file = sntui.openFile("csv");
+            final File file = (sntui != null) ? sntui.openFile("csv")
+                    : guiUtils.getFile(null, "csv");
             if (file != null) {
                 recordCmd("load(\"" + file.getAbsolutePath() + "\")");
                 loadBookmarksFromFile(file);
+                if (sntui != null) sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
+            }
+        });
+        if (sntui != null) {
+            jmi = new JMenuItem("From Image Overlay", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
+            menu.add(jmi);
+            jmi.addActionListener(e -> {
+                final ImagePlus imp = sntui.plugin.getImagePlus();
+                if (imp == null) {
+                    sntui.guiUtils.error("No image is currently loaded.");
+                    return;
+                }
+                if (imp.getOverlay() == null || imp.getOverlay().size() == 0) {
+                    sntui.guiUtils.error("Image Overlay contains no ROIs.");
+                    return;
+                }
+                load(imp.getOverlay().toArray());
                 sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
-            }
-        });
-        jmi = new JMenuItem("From Image Overlay", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            final ImagePlus imp = sntui.plugin.getImagePlus();
-            if (imp == null) {
-                sntui.guiUtils.error("No image is currently loaded.");
-                return;
-            }
-            if (imp.getOverlay() == null || imp.getOverlay().size() == 0) {
-                sntui.guiUtils.error("Image Overlay contains no ROIs.");
-                return;
-            }
-            load(imp.getOverlay().toArray());
-            sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
-            recordCmd("load(snt.getInstance().getImagePlus().getOverlay().toArray())");
-        });
-        jmi = new JMenuItem("From ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            RoiManager rm = RoiManager.getInstance2();
-            if (rm == null || rm.getCount() == 0) {
-                sntui.guiUtils.error("ROI Manager is either closed or empty.");
-                return;
-            }
-            load(rm.getRoisAsArray());
-            sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
-            recordComment("rm = ij.plugin.frame.RoiManager.getInstance2()");
-            recordCmd("load(rm.getRoisAsArray())");
-        });
-        menu.addSeparator();
-        jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            final File workspaceDir = sntui.getOrPromptForWorkspace();
-            if (workspaceDir == null) return;
-            final String prefix = sntui.getImageFilenamePrefix();
-            final File ref = new File(workspaceDir, prefix + "_bookmarks.csv");
-            final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
-            if (file != null) loadBookmarksFromFile(file);
-        });
+                recordCmd("load(snt.getInstance().getImagePlus().getOverlay().toArray())");
+            });
+            jmi = new JMenuItem("From ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
+            menu.add(jmi);
+            jmi.addActionListener(e -> {
+                RoiManager rm = RoiManager.getInstance2();
+                if (rm == null || rm.getCount() == 0) {
+                    sntui.guiUtils.error("ROI Manager is either closed or empty.");
+                    return;
+                }
+                load(rm.getRoisAsArray());
+                sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
+                recordComment("rm = ij.plugin.frame.RoiManager.getInstance2()");
+                recordCmd("load(rm.getRoisAsArray())");
+            });
+            menu.addSeparator();
+            jmi = new JMenuItem("From Workspace...", IconFactory.menuIcon('\ue066', true));
+            menu.add(jmi);
+            jmi.addActionListener(e -> {
+                final File workspaceDir = sntui.getOrPromptForWorkspace();
+                if (workspaceDir == null) return;
+                final String prefix = sntui.getImageFilenamePrefix();
+                final File ref = new File(workspaceDir, prefix + "_bookmarks.csv");
+                final File file = (ref.exists()) ? ref : sntui.guiUtils.getFile(ref, ".csv");
+                if (file != null) loadBookmarksFromFile(file);
+            });
+        }
         return menu;
     }
 
@@ -358,60 +446,64 @@ public class BookmarkManager {
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> saveToUserChosenFile(null));
-        jmi = new JMenuItem("To Image Overlay", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
-        jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            final ImagePlus imp = sntui.plugin.getImagePlus();
-            if (imp == null) {
-                sntui.guiUtils.error("No image is currently loaded.");
-                return;
-            }
-            table.clearSelection();
-            if (imp.getOverlay() == null) imp.setOverlay(new Overlay());
-            toOverlay(imp.getOverlay());
-            sntui.showStatus(model.getDataList().size() + " bookmarks exported to the Image Overlay", true);
-            recordCmd("clearSelection()");
-            recordCmd("toOverlay(snt.getInstance().getImagePlus().getOverlay())");
-        });
-        jmi = new JMenuItem("To ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            table.clearSelection();
-            toRoiManager();
-            recordCmd("clearSelection()");
-            recordCmd("toRoiManager()");
-        });
-        menu.addSeparator();
-        jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
-        menu.add(jmi);
-        jmi.addActionListener(e -> {
-            final File workspaceDir = sntui.getOrPromptForWorkspace();
-            if (workspaceDir == null) return;
-            final String prefix = sntui.getImageFilenamePrefix();
-            saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
-        });
+        if (sntui != null) {
+            jmi = new JMenuItem("To Image Overlay", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
+            jmi.setToolTipText("The Image Overlay is automatically saved in the image header of TIFF images");
+            menu.add(jmi);
+            jmi.addActionListener(e -> {
+                if (noBookmarksError()) return;
+                final ImagePlus imp = sntui.plugin.getImagePlus();
+                if (imp == null) {
+                    sntui.guiUtils.error("No image is currently loaded.");
+                    return;
+                }
+                table.clearSelection();
+                if (imp.getOverlay() == null) imp.setOverlay(new Overlay());
+                toOverlay(imp.getOverlay());
+                sntui.showStatus(model.getDataList().size() + " bookmarks exported to the Image Overlay", true);
+                recordCmd("clearSelection()");
+                recordCmd("toOverlay(snt.getInstance().getImagePlus().getOverlay())");
+            });
+            jmi = new JMenuItem("To ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
+            menu.add(jmi);
+            jmi.addActionListener(e -> {
+                if (noBookmarksError()) return;
+                table.clearSelection();
+                toRoiManager();
+                recordCmd("clearSelection()");
+                recordCmd("toRoiManager()");
+            });
+            menu.addSeparator();
+            jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
+            menu.add(jmi);
+            jmi.addActionListener(e -> {
+                final File workspaceDir = sntui.getOrPromptForWorkspace();
+                if (workspaceDir == null) return;
+                final String prefix = sntui.getImageFilenamePrefix();
+                saveToUserChosenFile(new File(sntui.getPrefs().getWorkspaceDir(), prefix + "_bookmarks.csv"));
+            });
+        }
         return menu;
     }
 
     private void saveToUserChosenFile(final File file) {
         if (noBookmarksError()) return;
-        final File saveFile = (file == null) ? sntui.saveFile("Export Bookmarks to CSV...",
-                "SNT_Bookmarks.csv", "csv") : file;
+        final File saveFile = (file != null) ? file
+                : (sntui != null) ? sntui.saveFile("Export Bookmarks to CSV...", "SNT_Bookmarks.csv", "csv")
+                : guiUtils.getSaveFile("Export Markers to CSV...", null, "csv");
         if (saveFile != null) {
             recordCmd("save(\"" + saveFile.getAbsolutePath() + "\")");
             if (saveBookMarksToFile(saveFile)) {
-                sntui.showStatus("Export complete.", true);
+                if (sntui != null) sntui.showStatus("Export complete.", true);
             } else {
-                sntui.showStatus("Exporting failed.", true);
-                sntui.guiUtils.error("Exporting failed. See Console for details.");
+                if (sntui != null) sntui.showStatus("Exporting failed.", true);
+                guiUtils.error("Exporting failed. See Console for details.");
             }
         }
     }
 
     void resetVisitingZoom() {
+        if (sntui == null) return;
         try {
             final ImagePlus imp = sntui.plugin.getImagePlus();
             final ImageCanvas canvas = (imp == null) ? null : imp.getCanvas();
@@ -433,32 +525,101 @@ public class BookmarkManager {
         impButton.setToolTipText("Import bookmarks");
         final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export bookmarks");
-        final JSpinner spinner = GuiUtils.integerSpinner(Math.clamp(visitingZoomPercentage, 25, 3200),
-                25, 3200, 50, true);
-        spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
-        spinner.setToolTipText("The preferred zoom level (between 25 and 3200%) for visiting a bookmarked location");
-        final JButton autoButton = GuiUtils.Buttons.undo();
-        autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
-        autoButton.addActionListener(e -> {
-            if (null == sntui.plugin.getImagePlus()) {
-                sntui.showStatus("Current zoom unknown: No image is loaded...", true);
-            } else {
-                resetVisitingZoom();
-                visitingZoomPercentage = Math.clamp(visitingZoomPercentage, 25, 3200);
-                spinner.setValue(visitingZoomPercentage);
-            }
-        });
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.add(impButton);
         tb.addSeparator();
         tb.add(expButton);
-        tb.addSeparator();
-        tb.add(Box.createHorizontalGlue());
-        tb.add(new JLabel("Preferred zoom level (%): "));
-        tb.add(spinner);
-        tb.add(autoButton);
+        if (bvv != null) {
+            tb.add(Box.createHorizontalGlue());
+            // Navigation: Prev / Next / Reset
+            tb.addSeparator();
+            final JButton prevButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.NEXT));
+            prevButton.setToolTipText("Fly to previous marker");
+            prevButton.addActionListener(e -> {
+                final int row = table.getSelectedRow();
+                final int target = (row <= 0) ? table.getRowCount() - 1 : row - 1;
+                if (target >= 0) { table.setRowSelectionInterval(target, target); flyTo(target); }
+            });
+            final JButton nextButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.PREVIOUS));
+            nextButton.setToolTipText("Fly to next marker");
+            nextButton.addActionListener(e -> {
+                final int row = table.getSelectedRow();
+                final int target = (row < 0 || row >= table.getRowCount() - 1) ? 0 : row + 1;
+                if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
+            });
+            final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.EXPAND));
+            resetButton.setToolTipText("Reset view to fit volume");
+            resetButton.addActionListener(e -> bvv.resetView());
+            final JButton helpButton = GuiUtils.Buttons.help(null);
+            helpButton.addActionListener(e -> displayMarkerHelp());
+            tb.add(prevButton);
+            tb.add(nextButton);
+            tb.addSeparator();
+            tb.add(resetButton);
+            tb.addSeparator();
+            tb.add(Box.createHorizontalGlue());
+            tb.add(helpButton);
+        }
+        if (sntui != null) {
+            tb.addSeparator();
+            tb.add(Box.createHorizontalGlue());
+            final JSpinner spinner = GuiUtils.integerSpinner(Math.clamp(visitingZoomPercentage, 25, 3200),
+                    25, 3200, 50, true);
+            spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
+            spinner.setToolTipText("The preferred zoom level (between 25 and 3200%) for visiting a bookmarked location");
+            final JButton autoButton = GuiUtils.Buttons.undo();
+            autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
+            autoButton.addActionListener(e -> {
+                if (null == sntui.plugin.getImagePlus()) {
+                    sntui.showStatus("Current zoom unknown: No image is loaded...", true);
+                } else {
+                    resetVisitingZoom();
+                    visitingZoomPercentage = Math.clamp(visitingZoomPercentage, 25, 3200);
+                    spinner.setValue(visitingZoomPercentage);
+                }
+            });
+            tb.add(new JLabel("Preferred zoom level (%): "));
+            tb.add(spinner);
+            tb.add(autoButton);
+        }
         return tb;
+    }
+
+    private void displayMarkerHelp() {
+        final String MARKER_HELP_MSG =
+                "<html><body style='width:350px; font-family:sans-serif'>" +
+                        "<h3>Placing Markers (M key)</h3>" +
+                        "Press <b>M</b> in the BVV viewer to place a marker at the current cursor position. " +
+                        "Markers are rendered as spheres at 3D world coordinates and listed in this table." +
+                        "<h3>Important: View Orientation</h3>" +
+                        "Marker coordinates are computed by projecting the 2D cursor position onto the " +
+                        "<em>focal plane</em> — the plane at the centre of the volume that faces the camera. " +
+                        "This projection is only accurate when the view is aligned to a principal axis " +
+                        "(X&ndash;Y, X&ndash;Z, or Y&ndash;Z), because the focal plane then cuts cleanly " +
+                        "through the volume. When the volume is rotated to an oblique angle the focal plane " +
+                        "may not intersect the data at all, and the resulting coordinates can fall far outside " +
+                        "the image bounds. Markers placed in that situation are automatically rejected." +
+                        "<p><b>Tip:</b> Use the <em>Reset</em> button to restore the default axis-aligned view " +
+                        "before placing markers, then rotate freely to inspect them.</p>" +
+                        "<h3>Navigation</h3>" +
+                        "Double-click a row to fly to that marker. Use the <b>&uarr;</b> / <b>&darr;</b> " +
+                        "buttons to step through markers in order without touching the table with the mouse." +
+                        "</body></html>";
+        new GuiUtils((table==null) ? null : table.getParent())
+                .showHTMLDialog(MARKER_HELP_MSG, "About Markers", false);
+    }
+
+    private boolean noBookmarksError() {
+        final List<Bookmark> list = model.getDataList();
+        if (list.isEmpty()) {
+            final String msg = (bvv != null)
+                    ? "No markers exist. Use the M key to place markers."
+                    : "No bookmarks exist. To create one, right-click on the image and choose \"Bookmark cursor location\" (Shift+B).";
+            guiUtils.error(msg);
+            return true;
+        }
+        return false;
     }
 
     private void goTo(final int row, final ImagePlus imp, final int plane) {
@@ -500,13 +661,75 @@ public class BookmarkManager {
         goTo(row, imp, SNT.XY_PLANE);
     }
 
+    /** BVV mode: animates the camera to the world position of the selected marker row. */
+    private void flyTo(final int row) {
+        if (bvv == null) return;
+        final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
+        final net.imglib2.realtransform.AffineTransform3D current = new net.imglib2.realtransform.AffineTransform3D();
+        bvv.getViewerPanel().state().getViewerTransform(current);
+        // Build a target transform that centres on the bookmark world position
+        final net.imglib2.realtransform.AffineTransform3D target = current.copy();
+        target.set(target.get(0, 3) - b.getX() * current.get(0, 0),  0, 3);
+        target.set(target.get(1, 3) - b.getY() * current.get(1, 1),  1, 3);
+        target.set(target.get(2, 3) - b.getZ() * current.get(2, 2),  2, 3);
+        bvv.getViewerPanel().setTransformAnimator(
+                new bdv.viewer.animate.SimilarityTransformAnimator(current, target, 0, 0, 300));
+        bvv.getViewer().getViewer().showMessage(String.format("Flying to %s", b.label));
+    }
+
     private void loadBookmarksFromFile(final File file) {
         try {
             model.populateFromFile(file);
         } catch (final Exception ex) {
-            sntui.guiUtils.error(ex.getMessage() + ".");
+            guiUtils.error(ex.getMessage() + ".");
             SNTUtils.error("loadBookmarksFromFile() failure", ex);
         }
+    }
+
+    /**
+     * BVV mode: adds a marker at the specified world coordinates.
+     * The marker is auto-labelled and immediately rendered in the BVV overlay.
+     *
+     * @param x world x-coordinate
+     * @param y world y-coordinate
+     * @param z world z-coordinate
+     */
+    public void add(final double x, final double y, final double z) {
+        // Inherit color, size, and label stem from the previous entry for continuity
+        final List<Bookmark> data = model.getDataList();
+        final Color inheritedColor = data.isEmpty() ? null : data.getLast().getColor();
+        final float inheritedSize  = data.isEmpty() ? 0f   : data.getLast().size;
+        // Strip trailing (N) or bare number suffixes to recover the base label,
+        // e.g. "Terminal (3)" > "Terminal", "Marker (2) (2)" > "Marker"
+        final String inheritedLabel;
+        if (data.isEmpty()) {
+            inheritedLabel = "Marker";
+        } else {
+            final String prev = data.getLast().label;
+            inheritedLabel = prev.replaceAll("(\\s*\\(\\d+\\))+$", "").replaceAll("\\s*\\d+$", "").strip();
+        }
+        final String label = model.getUniqueLabel(inheritedLabel.isBlank() ? "Marker" : inheritedLabel);
+        final Bookmark b = new Bookmark(label, x, y, z, 1, 1, inheritedColor);
+        b.size = inheritedSize;
+        model.getDataList().add(b);
+        model.fireTableDataChanged();
+    }
+
+    /**
+     * BVV mode: adds a marker at the specified world coordinates with a color and size.
+     *
+     * @param x     world x-coordinate
+     * @param y     world y-coordinate
+     * @param z     world z-coordinate
+     * @param color the marker color, or {@code null} for the viewer default
+     * @param size  the sphere radius in world units; 0 uses the viewer default
+     */
+    public void add(final double x, final double y, final double z, final Color color, final float size) {
+        final String label = model.getUniqueLabel("Marker");
+        final Bookmark b = new Bookmark(label, x, y, z, 1, 1, color);
+        b.size = size;
+        model.getDataList().add(b);
+        model.fireTableDataChanged();
     }
 
     private boolean saveBookMarksToFile(final File file) {
@@ -518,24 +741,18 @@ public class BookmarkManager {
             exportTable.appendToLastRow("X", b.x);
             exportTable.appendToLastRow("Y", b.y);
             exportTable.appendToLastRow("Z", b.z);
-            exportTable.appendToLastRow("C", b.c);
-            exportTable.appendToLastRow("T", b.t);
+            if (bvv != null) {
+                exportTable.appendToLastRow("Size", b.size);
+            } else {
+                exportTable.appendToLastRow("C", b.c);
+                exportTable.appendToLastRow("T", b.t);
+            }
         }
         try {
             exportTable.save(file);
             return true;
         } catch (final IOException ioe) {
             SNTUtils.error("saveBookMarksToFile() failure", ioe);
-        }
-        return false;
-    }
-
-    private boolean noBookmarksError() {
-        final List<Bookmark> list = model.getDataList();
-        if (list.isEmpty()) {
-            sntui.guiUtils.error("No bookmarks exist. To create one, right-click on the image and choose "//
-                    + "\"Bookmark cursor location\" (Shift+B).");
-            return true;
         }
         return false;
     }
@@ -824,6 +1041,7 @@ class Bookmark extends Path.PathNode {
     String label;
     final int c;
     int t;
+    float size; // sphere radius in world units; 0 means "use viewer default"
 
     Bookmark(final String label, double x, double y, double z, int c, int t) {
         this(label, x, y, z, c, t, null);
@@ -844,8 +1062,9 @@ class Bookmark extends Path.PathNode {
             case 2 -> x;
             case 3 -> y;
             case 4 -> z;
-            case 5 -> c;
+            case 5 -> c;  // SNT mode: channel; BVV mode: size (accessed via separate index)
             case 6 -> t;
+            case 7 -> size; // BVV size column
             default -> null;
         };
     }
@@ -1028,8 +1247,16 @@ class BookmarkTable extends JTable {
 
 class BookmarkModel extends AbstractTableModel {
 
-    private final String[] HEADER = {"Tag", "Label", "X", "Y", "Z", "C", "T"};
+    private static final String[] SNT_HEADER = {"Tag", "Label", "X", "Y", "Z", "C", "T"};
+    private static final String[] BVV_HEADER = {"Tag", "Label", "X", "Y", "Z", "Size"};
+    private final String[] HEADER;
+    private final boolean bvvMode;
     private List<Bookmark> dataList = new ArrayList<>();
+
+    BookmarkModel(final boolean bvvMode) {
+        this.bvvMode = bvvMode;
+        this.HEADER = bvvMode ? BVV_HEADER : SNT_HEADER;
+    }
 
     List<Bookmark> getDataList() {
         return dataList;
@@ -1045,21 +1272,30 @@ class BookmarkModel extends AbstractTableModel {
     }
 
     String getUniqueLabel(final String candidate) {
-        if (null == candidate || candidate.isBlank())
-            return String.format("Bookmark %02d", 1 + getDataList().size());
-        if (getDataList().stream().anyMatch(b -> candidate.equalsIgnoreCase(b.label))) return candidate + " (2)";
-        return candidate;
+        final String base = (candidate == null || candidate.isBlank())
+                ? (bvvMode ? "Marker" : String.format("Bookmark %02d", 1 + getDataList().size()))
+                : candidate;
+        if (getDataList().stream().noneMatch(b -> base.equalsIgnoreCase(b.label)))
+            return base;
+        int i = 2;
+        while (true) {
+            final String attempt = base + " (" + i + ")";
+            if (getDataList().stream().noneMatch(b -> attempt.equalsIgnoreCase(b.label)))
+                return attempt;
+            i++;
+        }
     }
 
     void populateFromFile(final File file) throws IOException {
         final SNTTable table = new SNTTable(file.getAbsolutePath());
-        final int tagIdx = table.getColumnIndex(getHeader()[0]);
-        final int lIdx = table.getColumnIndex(getHeader()[1]);
-        final int xIdx = table.getColumnIndex(getHeader()[2]);
-        final int yIdx = table.getColumnIndex(getHeader()[3]);
-        final int zIdx = table.getColumnIndex(getHeader()[4]);
-        final int cIdx = table.getColumnIndex(getHeader()[5]);
-        final int tIdx = table.getColumnIndex(getHeader()[6]);
+        final int tagIdx = table.getColumnIndex(HEADER[0]);
+        final int lIdx   = table.getColumnIndex(HEADER[1]);
+        final int xIdx   = table.getColumnIndex(HEADER[2]);
+        final int yIdx   = table.getColumnIndex(HEADER[3]);
+        final int zIdx   = table.getColumnIndex(HEADER[4]);
+        final int sizeIdx = bvvMode ? table.getColumnIndex("Size") : -1;
+        final int cIdx = bvvMode ? -1 : table.getColumnIndex(HEADER[5]);
+        final int tIdx = bvvMode ? -1 : table.getColumnIndex(HEADER[6]);
 
         if (lIdx == -1 || xIdx == -1 || yIdx == -1 || zIdx == -1)
             throw new IOException("Unexpected column header(s) in CSV file.");
@@ -1072,17 +1308,17 @@ class BookmarkModel extends AbstractTableModel {
                     try {
                         final ColorRGB c = SNTColor.valueOf(tagStr);
                         category = new Color(c.getRed(), c.getGreen(), c.getBlue());
-                    } catch (final IllegalArgumentException ignored) {
-                        // Invalid color string, leave as null
-                    }
+                    } catch (final IllegalArgumentException ignored) {}
                 }
             }
-            dataList.add(new Bookmark((String) table.get(lIdx, i), // label
-                    (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i), // x,y,z
-                    (cIdx == -1) ? 1 : (int) ((double) table.get(cIdx, i)), // c
-                    (tIdx == -1) ? 1 : (int) ((double) table.get(tIdx, i)), // t
-                    category // category color
-            ));
+            final Bookmark b = new Bookmark((String) table.get(lIdx, i),
+                    (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i),
+                    (cIdx == -1) ? 1 : (int) ((double) table.get(cIdx, i)),
+                    (tIdx == -1) ? 1 : (int) ((double) table.get(tIdx, i)),
+                    category);
+            if (sizeIdx != -1 && table.get(sizeIdx, i) instanceof Number n)
+                b.size = n.floatValue();
+            dataList.add(b);
         }
         setDataList(dataList);
     }
@@ -1109,28 +1345,31 @@ class BookmarkModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(final int row, final int col) {
-        Object value = null;
-        if (row < dataList.size()) {
-            value = dataList.get(row).get(col);
-        }
-        return value;
+        if (row >= dataList.size()) return null;
+        if (bvvMode && col == 5) return dataList.get(row).size; // Size column
+        return dataList.get(row).get(col);
     }
 
     @Override
     public boolean isCellEditable(final int row, final int col) {
-        // Tag (column 0) and Label (column 1) are editable
-        return (col == 0 || col == 1) && row < dataList.size();
+        if (row >= dataList.size()) return false;
+        if (bvvMode) return col == 0 || col == 1 || col == 5; // Tag, Label, Size
+        return col == 0 || col == 1; // Tag, Label
     }
 
     @Override
     public void setValueAt(final Object aValue, final int rowIndex, final int columnIndex) {
         if (columnIndex == 0) {
-            // Tag/Category column - expects Color
             dataList.get(rowIndex).setColor((Color) aValue);
             fireTableCellUpdated(rowIndex, columnIndex);
         } else if (columnIndex == 1 && !Objects.equals(aValue, dataList.get(rowIndex).label)) {
             dataList.get(rowIndex).label = getUniqueLabel((String) aValue);
             fireTableCellUpdated(rowIndex, columnIndex);
+        } else if (bvvMode && columnIndex == 5) {
+            try {
+                dataList.get(rowIndex).size = Float.parseFloat(String.valueOf(aValue));
+                fireTableCellUpdated(rowIndex, columnIndex);
+            } catch (final NumberFormatException ignored) {}
         } else {
             super.setValueAt(aValue, rowIndex, columnIndex);
         }
@@ -1138,9 +1377,10 @@ class BookmarkModel extends AbstractTableModel {
 
     @Override
     public Class<?> getColumnClass(int column) {
+        if (column == 0) return Color.class;
+        if (column == 1) return String.class;
+        if (bvvMode && column == 5) return Float.class;
         return switch (column) {
-            case 0 -> Color.class;
-            case 1 -> String.class;
             case 2, 3, 4 -> Double.class;
             default -> Integer.class;
         };
