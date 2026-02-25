@@ -335,13 +335,19 @@ public class SNT extends MultiDThreePanes implements
 	 * Script-friendly constructor for Instantiating and initializing SNT in
 	 * 'Tracing Mode' (typically headless operations). The channel/frame to
 	 * be traced is assumed to be the image's active CT position.
+	 * <p>
+	 *     Note that the image is not displayed. For interactive display of the image call
+	 *     {@link #initialize(ImagePlus)}/{@link #startUI()} directly.
+	 * </p>
 	 *
 	 * @param sourceImage the source image
 	 * @throws IllegalArgumentException If sourceImage is of type 'RGB'
 	 */
 	public SNT(final ImagePlus sourceImage) throws IllegalArgumentException {
 		this(SNTUtils.getContext(), sourceImage);
-		initialize(true, sourceImage.getChannel(), sourceImage.getFrame());
+		// NB: Previous versions called: initialize(true, sourceImage.getChannel(), sourceImage.getFrame());
+		// which caused the image to be displayed even in non-interactive scripts. This call was removed
+		// for consistency: callers wanting full UI should use startUI() or initialize(imp) explicitly
 	}
 
 	/**

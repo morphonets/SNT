@@ -347,13 +347,11 @@ public class Bvv {
      * Sets per-channel colors for a specific source group. Each color is applied
      * to the corresponding channel in order; extra colors are ignored, and channels
      * without a supplied color are left unchanged.
-     * <p>
-     * Typical Groovy/PySNT usage:
+     * Typical script usage:
      * <pre>
      *   def bvv = Bvv.open([reference, moving])
      *   bvv.setChannelColors(bvv.getMultiSources().get(0), Color.RED, Color.GREEN, Color.BLUE)
      * </pre>
-     * </p>
      *
      * @param group  the target source group, obtained from {@link #getMultiSources()}
      * @param colors one color per channel, in channel order
@@ -383,13 +381,11 @@ public class Bvv {
      * To apply the same color pattern to every group independently, call
      * {@link #setChannelColors(BvvMultiSource, Color...)} per group.
      * </p>
-     * <p>
-     * Typical Groovy/PySNT usage:
+     * Typical script usage:
      * <pre>
      *   def bvv = Bvv.open(img)
      *   bvv.setChannelColors(Color.RED, Color.GREEN, Color.BLUE)
      * </pre>
-     * </p>
      *
      * @param colors colors assigned sequentially across all channels in all groups
      */
@@ -594,6 +590,7 @@ public class Bvv {
      * <p>
      * The caller is responsible for constructing the {@link AbstractSpimData}
      * object, typically via an XML/HDF5 loader:
+     * </p>
      * <pre>
      *   import bdv.spimdata.XmlIoSpimDataMinimal
      *   spimData = new XmlIoSpimDataMinimal().load("/path/to/dataset.xml")
@@ -601,7 +598,6 @@ public class Bvv {
      * </pre>
      * or via Bio-Formats/IMS loaders that produce a {@link AbstractSpimData} with
      * a multiresolution pyramid.
-     * </p>
      *
      * @param spimData the dataset to display
      * @return the fully initialised {@link Bvv} instance

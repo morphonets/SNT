@@ -649,7 +649,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	/**
 	 * Returns the list of filename suffixes used to identify images when navigating
-	 * to the next/previous image in a folder (see {@link SNTUI). Matching is
+	 * to the next/previous image in a folder (see {@link SNTUI}). Matching is
 	 * case-insensitive and applied to the end of the filename (i.e., {@code endsWith}).
 	 * Suffixes may include a leading dot (e.g., {@code ".tif"}) or a partial filename
 	 * suffix (e.g., {@code "_max.tif"}).

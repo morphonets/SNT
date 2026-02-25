@@ -1272,14 +1272,12 @@ public class ImgUtils {
      * values to the target type's range automatically (e.g. 16-bit unsigned
      * values are clamped to [0, 65535]).
      * </p>
-     * <p>
      * Typical usage:
      * <pre>
      *   ImgUtils.save(rai, "/path/to/out.tif", new UnsignedShortType());
      *   ImgUtils.save(rai, "/path/to/out.tif", new UnsignedByteType());
      *   ImgUtils.save(rai, "/path/to/out.tif", new FloatType());
      * </pre>
-     * </p>
      *
      * @param <T>      the output pixel type; must be a {@link NativeType} so
      *                 that an {@link ArrayImgFactory} can allocate it
@@ -1440,13 +1438,13 @@ public class ImgUtils {
      * Returns a new {@link ImgPlus} with two axes swapped. The underlying data
      * is a lazy permuted view (no pixel data is copied). Axis metadata (type,
      * scale, unit) is reordered to match the new dimension order.
-     * <p>
      * Example: swap Z and Channel in an XYZCT image:
      * <pre>
+     *   {@code
      *   ImgPlus<?> xyzct = ImgUtils.open("image.tif");
      *   ImgPlus<?> xyczT = ImgUtils.swapAxes(xyzct, Axes.Z, Axes.CHANNEL);
+     *   }
      * </pre>
-     * </p>
      *
      * @param <T>   the pixel type
      * @param img   the source image
