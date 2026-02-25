@@ -1,5 +1,5 @@
 #@File(label="Main file to render (required)", description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file1
-#@File(label="Secondary: File to render (optional)", required=false, description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file2
+#@File(label="Secondary file to render (optional)", required=false, description="Pyramid image to open in SNT's Bvv (.ims and BDV .xml files supported)") file2
 #@UIService ui
 
 /**

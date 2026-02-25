@@ -3059,8 +3059,8 @@ public class Bvv {
                         final double maxY = dims[1] * cal[1];
                         final double maxZ = dims[2] * cal[2];
                         if (x < 0 || y < 0 || z < 0 || x > maxX || y > maxY || z > maxZ) {
-                            bvv.getViewer().showMessage(
-                                    "Outside image bounds: Align view to a principal axis before placing a marker.");
+                            Toolkit.getDefaultToolkit().beep();
+                            bvv.getViewer().showMessage("Outside bounds: Align view to a principal axis");
                             return;
                         }
                     }
