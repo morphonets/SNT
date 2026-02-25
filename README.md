@@ -42,6 +42,11 @@
   <a href="https://github.com/morphonets/SNT/issues">
     <img alt="Closed issues" src="https://img.shields.io/github/issues-closed/morphonets/SNT">
   </a>
+<br>
+  <a href="https://maven.scijava.org/#browse/browse:releases:org%2Fmorphonets%2FSNT">
+  <img alt="Maven Scijava Version" src="https://img.shields.io/github/v/tag/morphonets/SNT?label=Version-%5BMaven%20Scijava%5D">
+  </a>
+
 </div>
 <div align="center">
   <h3>
