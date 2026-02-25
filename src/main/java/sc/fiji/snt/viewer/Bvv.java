@@ -28,12 +28,12 @@ import bdv.spimdata.XmlIoSpimDataMinimal;
 import bdv.tools.HelpDialog;
 import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
+import bdv.util.Prefs;
 import bdv.util.AxisOrder;
 import mpicbg.spim.data.SpimDataException;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import bdv.viewer.Source;
 import bdv.viewer.animate.SimilarityTransformAnimator;
-import bdv.viewer.state.SourceGroup;
 import bvv.core.BigVolumeViewer;
 import bvv.core.VolumeViewerFrame;
 import bvv.core.VolumeViewerPanel;
@@ -49,6 +49,7 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.realtransform.RealViews;
 import net.imglib2.type.numeric.ARGBType;
+import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.view.Views;
@@ -89,7 +90,7 @@ public class Bvv {
     private double[] cal; // Pixel size of the volume being rendered
     private long[] dims; // Dimensions in pixels of volume being rendered
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
-    private BookmarkManager markerManager; // lazily initialised on first use
+    private BookmarkManager markerManager; // lazily initialized on first use
 
     /**
      * Constructor for standalone BVV instance.
@@ -129,16 +130,15 @@ public class Bvv {
     public <T extends RealType<T>> BvvSource show(final RandomAccessibleInterval<T> img, final double... calibration) {
         cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
         dims = new long[]{img.dimension(0), img.dimension(1), img.dimension(2)};
-        final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options)
-                .sourceTransform(cal);
-        final BvvSource source = BvvFunctions.show(img, "SNT Bvv", opt);
+        final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
+        final BvvSource source = showCalibratedSource(img, "SNT Bvv", cal, "pixel", opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
         return source;
     }
 
     public <T extends RealType<T>> BvvSource show(final ImgPlus<T> imgPlus) {
-        // Multi-channel: use native hyperSlice path to avoid the Views.permute →
+        // Multichannel: use native hyperSlice path to avoid the Views.permute →
         // ImageJFunctions.wrap dimension-ordering bug that offsets channels.
         final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
         if (chDim >= 0 && imgPlus.dimension(chDim) > 1) {
@@ -152,24 +152,26 @@ public class Bvv {
             cal[d] = imgPlus.averageScale(d);
         }
         checkVolumeSize(dims[0], dims[1], dims[2]);
-        // Bypass show(RAI, cal) to preserve the image name and assign the source to a named group
-        final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options)
-                .sourceTransform(cal);
         final String title = (imgPlus.getName() != null && !imgPlus.getName().isBlank())
                 ? imgPlus.getName() : "SNT Bvv";
-        final BvvStackSource<?> source = BvvFunctions.show(imgPlus, title, opt);
+        // Extract unit from X axis metadata
+        final net.imagej.axis.CalibratedAxis xAxis = imgPlus.numDimensions() > 0
+                ? imgPlus.axis(0) : null;
+        final String unit = (xAxis != null && xAxis.unit() != null) ? xAxis.unit() : "pixel";
+        final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
+        // Use showCalibratedSource so the unit propagates to the scale bar renderer
+        final BvvStackSource<?> source = showCalibratedSource(imgPlus, title, cal, unit, opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
         return source;
     }
 
     /**
-     * Displays a multi-channel {@link ImgPlus} by extracting each channel as an
+     * Displays a multichannel {@link ImgPlus} by extracting each channel as an
      * independent 3D XYZ source via {@link Views#hyperSlice}, avoiding the
      * dimension-ordering ambiguity of {@link net.imglib2.img.display.imagej.ImageJFunctions#wrap}.
      * Mirrors the logic of {@link #showImagePlusMultiChannel(ImagePlus)}.
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private <T extends RealType<T>> BvvMultiSource showImgPlusMultiChannel(final ImgPlus<T> imgPlus) {
         final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
         final int nC = (int) imgPlus.dimension(chDim);
@@ -188,10 +190,15 @@ public class Bvv {
         final String imageName = (imgPlus.getName() != null && !imgPlus.getName().isBlank())
                 ? imgPlus.getName() : "SNT Bvv";
 
-        // Shared option builder: produces the log and handles prefs/blockSize
+        // Extract unit from X axis metadata for scale bar
+        final net.imagej.axis.CalibratedAxis xAxis = imgPlus.axis(imgPlus.dimensionIndex(Axes.X));
+        final String unit = (xAxis != null && xAxis.unit() != null && !xAxis.unit().isBlank())
+                ? xAxis.unit() : "pixel";
+
+        // Shared option builder: produces the log and handles prefs/blockSize.
+        // No sourceTransform here, calibration is baked into each CalibratedSource.
         final BvvOptions baseOpt = configureBvvOptionsForImage(nZ, nC)
-                .axisOrder(AxisOrder.XYZ)
-                .sourceTransform(cal);
+                .axisOrder(AxisOrder.XYZ);
 
         final boolean hasExistingWindow = bvvHandle != null;
         BvvStackSource<?> leaderSource = null;
@@ -204,8 +211,7 @@ public class Bvv {
             final BvvOptions chOpt = (!hasExistingWindow && leaderSource == null)
                     ? baseOpt
                     : baseOpt.addTo(bvvHandle != null ? bvvHandle : leaderSource.getBvvHandle());
-            final BvvStackSource<?> chSource = BvvFunctions.show(
-                    (RandomAccessibleInterval) channelRai, chTitle, chOpt);
+            final BvvStackSource<?> chSource = showCalibratedSource(channelRai, chTitle, cal, unit, chOpt);
 
             if (leaderSource == null) {
                 leaderSource = chSource;
@@ -246,7 +252,7 @@ public class Bvv {
 
     /**
      * Displays a list of {@link ImagePlus} volumes, each as a {@link BvvMultiSource}
-     * (multi-channel images have their channels grouped and transformed together).
+     * (multichannel images have their channels grouped and transformed together).
      * All images are added to the same BVV window.
      *
      * @param imps the images to display
@@ -255,7 +261,7 @@ public class Bvv {
     private List<BvvMultiSource> showImagePlus(final List<ImagePlus> imps) {
         final List<BvvMultiSource> results = new ArrayList<>();
         for (final ImagePlus imp : imps) {
-            showImagePlus(imp); // always appends to multiSources (single- and multi-channel paths)
+            showImagePlus(imp); // always appends to multiSources (single- and multichannel paths)
             results.add(multiSources.getLast());
         }
         return results;
@@ -312,9 +318,12 @@ public class Bvv {
             final double[] thisCal = (calibrations != null && i < calibrations.size()) ? calibrations.get(i) : null;
             this.cal = (thisCal == null) ? new double[]{1, 1, 1} : thisCal;
             this.dims = new long[]{imgs.get(i).dimension(0), imgs.get(i).dimension(1), imgs.get(i).dimension(2)};
-            // Call BvvFunctions.show() directly to avoid casting the BvvSource return of show(RAI, cal)
-            final BvvStackSource<?> src = BvvFunctions.show(imgs.get(i), "SNT Bvv " + (i + 1),
-                    (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options).sourceTransform(this.cal));
+            final BvvOptions chOpt = bvvHandle != null
+                    ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            final BvvStackSource<?> src = showCalibratedSource(
+                    (net.imglib2.RandomAccessibleInterval) imgs.get(i), "SNT Bvv " + (i + 1),
+                    this.cal, "pixel", chOpt);
             if (bvvHandle == null) bvvHandle = src.getBvvHandle();
             final BvvMultiSource multi = new BvvMultiSource(src);
             multiSources.add(multi);
@@ -325,10 +334,11 @@ public class Bvv {
 
     /**
      * Returns all {@link BvvMultiSource} groups currently managed by this viewer.
-     * This includes multi-channel images and any grouped multi-image sources.
+     * This includes multichannel images and any grouped multi-image sources.
      *
      * @return unmodifiable list of {@link BvvMultiSource} groups
      */
+    @SuppressWarnings("unused")
     public List<BvvMultiSource> getMultiSources() {
         return Collections.unmodifiableList(multiSources);
     }
@@ -339,6 +349,7 @@ public class Bvv {
      * @param colorNames  color representations (HTML/css values, or hex)
      * @see #setChannelColors(Color...)
      */
+    @SuppressWarnings("unused")
     public void setChannelColors(final String... colorNames) {
         setChannelColors(Arrays.stream(colorNames).map(SNTColor::fromString).toArray(Color[]::new));
     }
@@ -356,6 +367,7 @@ public class Bvv {
      * @param group  the target source group, obtained from {@link #getMultiSources()}
      * @param colors one color per channel, in channel order
      */
+    @SuppressWarnings("unused")
     public void setChannelColors(final BvvMultiSource group, final Color... colors) {
         if (colors == null || colors.length == 0 || bvvHandle == null) return;
         applyChannelColors(group, colors);
@@ -374,7 +386,7 @@ public class Bvv {
      * Sets per-channel colors across all source groups, assigning colors
      * sequentially by global channel order across all groups. For example,
      * with two 3-channel images and colors [R, G, B, C, M, Y], image 1 gets
-     * R/G/B and image 2 gets C/M/Y. With a single multi-channel image or a
+     * R/G/B and image 2 gets C/M/Y. With a single multichannel image or a
      * dataset where each setup is its own group (e.g. IMS), colors are assigned
      * one-to-one in load order.
      * <p>
@@ -410,6 +422,7 @@ public class Bvv {
      * @param min   the minimum intensity value (maps to black)
      * @param max   the maximum intensity value (maps to full color)
      */
+    @SuppressWarnings("unused")
     public void setDisplayRange(final BvvMultiSource group, final double min, final double max) {
         if (bvvHandle == null) return;
         for (final ConverterSetup setup : getConverterSetups(group))
@@ -430,40 +443,32 @@ public class Bvv {
         return markerManager;
     }
 
-
     /**
      * Returns the {@link ConverterSetup} list for all channels in a
-     * {@link BvvMultiSource}, in channel order. Uses the viewer's internal group
-     * state to determine which source indices belong to the group.
+     * {@link BvvMultiSource}, in source order. Uses {@link bvv.vistools.BvvHandle#getConverterSetups()}
+     * to look up each setup directly by its {@link bdv.viewer.SourceAndConverter}.
      */
     private List<ConverterSetup> getConverterSetups(final BvvMultiSource group) {
-        final int groupIdx = multiSources.indexOf(group);
-        if (groupIdx < 0 || bvvHandle == null) return Collections.emptyList();
+        if (bvvHandle == null) return Collections.emptyList();
         try {
-            final java.lang.reflect.Field stateField = VolumeViewerPanel.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            final bdv.viewer.state.ViewerState internalState =
-                    (bdv.viewer.state.ViewerState) stateField.get(bvvHandle.getViewerPanel());
-            final List<Integer> sourceIds = new ArrayList<>(
-                    internalState.getSourceGroups().get(groupIdx).getSourceIds());
-            Collections.sort(sourceIds);
-            final List<ConverterSetup> allSetups = bvvHandle.getSetupAssignments().getConverterSetups();
-            final List<ConverterSetup> result = new ArrayList<>(sourceIds.size());
-            for (final int id : sourceIds) {
-                if (id < allSetups.size()) result.add(allSetups.get(id));
+            final bdv.viewer.ConverterSetups converterSetups = bvvHandle.getConverterSetups();
+            final List<ConverterSetup> result = new ArrayList<>();
+            for (final BvvStackSource<?> src : group.getSources()) {
+                for (final bdv.viewer.SourceAndConverter<?> sac : src.getSources()) {
+                    final ConverterSetup setup = converterSetups.getConverterSetup(sac);
+                    if (setup != null) result.add(setup);
+                }
             }
             return result;
         } catch (final Exception ex) {
-            SNTUtils.log("Could not retrieve converter setups for group " + groupIdx + ": " + ex.getMessage());
+            SNTUtils.log("Could not retrieve converter setups: " + ex.getMessage());
             return Collections.emptyList();
         }
     }
 
-
-
     /**
      * Convenience factory: creates a standalone BVV viewer and displays one or more
-     * {@link ImagePlus} volumes in one step. Multi-channel images have their channels
+     * {@link ImagePlus} volumes in one step. Multichannel images have their channels
      * grouped and transformed together.
      * <p>
      * Equivalent to:
@@ -834,11 +839,12 @@ public class Bvv {
         }
         final String label = String.format("Tracing Data (%s): C%d, T%d",
                 (secondary) ? "Secondary layer" : "Main image", snt.getChannel(), snt.getFrame());
-        final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options)
-                .sourceTransform(cal);
-        final BvvSource source = BvvFunctions.show(
-                ImgUtils.toUnsignedShortIfFloat(data, minMax[0], minMax[1]),
-                label, opt);
+        final String unit = snt.getSpacingUnits();
+        final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        final BvvSource source = showCalibratedSource(
+                (net.imglib2.RandomAccessibleInterval) ImgUtils.toUnsignedShortIfFloat(data, minMax[0], minMax[1]),
+                label, cal, unit, opt);
         source.setDisplayRange(minMax[0], minMax[1]);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
@@ -907,16 +913,17 @@ public class Bvv {
             ImpUtils.convertTo16bit(imp);
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
-        final BvvOptions opt = configureBvvOptionsForImage(imp)
-                .axisOrder(getAxisOrder(imp))
-                .sourceTransform(cal);
-        final BvvStackSource<?> source = switch (imp.getType()) {
+        final String unit = imp.getCalibration().getUnit();
+        final BvvOptions opt = configureBvvOptionsForImage(imp).axisOrder(getAxisOrder(imp));
+        final net.imglib2.RandomAccessibleInterval<?> wrappedImp = switch (imp.getType()) {
             case ImagePlus.COLOR_256 -> throw new IllegalArgumentException("Unsupported image type (COLOR_256).");
-            case ImagePlus.GRAY8 -> BvvFunctions.show(ImageJFunctions.wrapByte(imp), imp.getTitle(), opt);
-            case ImagePlus.GRAY16 -> BvvFunctions.show(ImageJFunctions.wrapShort(imp), imp.getTitle(), opt);
-            //case ImagePlus.GRAY32 -> throw new IllegalArgumentException("32 bit images are not supported");
-            default -> BvvFunctions.show(ImageJFunctions.wrapRGBA(imp), imp.getTitle(), opt);
+            case ImagePlus.GRAY8 -> ImageJFunctions.wrapByte(imp);
+            case ImagePlus.GRAY16 -> ImageJFunctions.wrapShort(imp);
+            default -> ImageJFunctions.wrapRGBA(imp);
         };
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        final BvvStackSource<?> source = showCalibratedSource(
+                (net.imglib2.RandomAccessibleInterval) wrappedImp, imp.getTitle(), cal, unit, opt);
         applyLuts(imp, source);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         final BigVolumeViewer bvv = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
@@ -952,14 +959,15 @@ public class Bvv {
         // mismatch between ImageJFunctions' [W,H,C,Z,T] layout and BVV's [X,Y,Z,C] expectation
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
+        final String unit = imp.getCalibration().getUnit();
         // Each channelImp has nChannels=1; derive axis order from Z and T only
         final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
                 : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
                 : imp.getNSlices() > 1 ? AxisOrder.XYZ
                 : AxisOrder.XYT;
+        // No sourceTransform in opts, calibration is baked into each CalibratedSource
         final BvvOptions baseOpt = configureBvvOptionsForImage(imp)
-                .axisOrder(channelAxisOrder)
-                .sourceTransform(cal);
+                .axisOrder(channelAxisOrder);
         // Determine once whether we're adding to an existing window
         final boolean hasExistingWindow = bvvHandle != null;
         BvvStackSource<?> leaderSource = null;
@@ -968,19 +976,18 @@ public class Bvv {
             final ImagePlus channelImp = ImpUtils.getChannel(imp, c);
             if (ImagePlus.GRAY32 == channelImp.getType()) ImpUtils.convertTo16bit(channelImp);
             final String title = imp.getTitle() + " (Ch" + c + ")";
-            // Channel 1 of first image: use baseOpt to create window
-            // All other channels and all channels of subsequent images: addTo existing handle.
-            // When this ternary reaches the else branch, leaderSource is guaranteed non-null
-            // (set in the previous iteration) and bvvHandle may still be null only on the
-            // very first image's first channel which takes the true branch instead.
             final BvvOptions chOpt = (!hasExistingWindow && leaderSource == null)
                     ? baseOpt
                     : baseOpt.addTo(bvvHandle != null ? bvvHandle : leaderSource.getBvvHandle());
-            final BvvStackSource<?> chSource = switch (channelImp.getType()) {
-                case ImagePlus.GRAY8 -> BvvFunctions.show(ImageJFunctions.wrapByte(channelImp), title, chOpt);
-                case ImagePlus.GRAY16 -> BvvFunctions.show(ImageJFunctions.wrapShort(channelImp), title, chOpt);
-                default -> BvvFunctions.show(ImageJFunctions.wrapRGBA(channelImp), title, chOpt);
+            // Wrap as a RAI and use showCalibratedSource so unit propagates to scale bar
+            final net.imglib2.RandomAccessibleInterval<?> wrappedRai = switch (channelImp.getType()) {
+                case ImagePlus.GRAY8 -> ImageJFunctions.wrapByte(channelImp);
+                case ImagePlus.GRAY16 -> ImageJFunctions.wrapShort(channelImp);
+                default -> ImageJFunctions.wrapRGBA(channelImp);
             };
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            final BvvStackSource<?> chSource = showCalibratedSource(
+                    (net.imglib2.RandomAccessibleInterval) wrappedRai, title, cal, unit, chOpt);
             if (leaderSource == null) {
                 leaderSource = chSource;
                 if (!hasExistingWindow) {
@@ -1023,33 +1030,29 @@ public class Bvv {
     }
 
     /**
-     * Creates a named {@link SourceGroup} in the viewer containing all channels
-     * of one image, replacing the auto-generated "group N" assignment.
+     * Creates a named group in the viewer containing all channels of one image,
+     * replacing the auto-generated "group N" label. Uses the modern
+     * {@link bdv.viewer.SynchronizedViewerState} API via {@code state().addGroup()},
+     * {@code state().setGroupName()}, and {@code state().addSourceToGroup()}.
      */
-    @SuppressWarnings("deprecation")
     private void assignToNamedGroup(final String name,
                                     final int groupIdx,
                                     final int startIdx,
                                     final int numChannels,
                                     final VolumeViewerPanel viewerPanel) {
         if (viewerPanel == null) return;
-        // HACK: BVV has two parallel state APIs: the public SynchronizedViewerState (state())
-        // and the internal bdv.viewer.state.ViewerState state field. The 'Groups' panel
-        // renders from the internal state only. viewerPanel.addGroup() calls do not
-        // populate the panel since it is initialized from the group count at construction.
-        // The only working approach is to mutate the pre-allocated internal groups directly
-        // via reflection and mirror VolumeViewerPanel state.getSourceGroups().get(i).addSource(i)
         try {
-            final java.lang.reflect.Field stateField = VolumeViewerPanel.class.getDeclaredField("state");
-            stateField.setAccessible(true);
-            final bdv.viewer.state.ViewerState internalState = (bdv.viewer.state.ViewerState) stateField.get(viewerPanel);
-            final List<SourceGroup> groups = internalState.getSourceGroups();
-            if (groupIdx < groups.size()) {
-                final SourceGroup group = groups.get(groupIdx);
-                final int endIdx = startIdx + numChannels - 1;
-                for (int i = startIdx; i <= endIdx; i++) group.addSource(i);
-                SNTUtils.log("BVV group [" + groupIdx + "] '" + name + "': sources " + startIdx + "–" + endIdx);
-            }
+            final bdv.viewer.SynchronizedViewerState state = viewerPanel.state();
+            final List<? extends bdv.viewer.SourceAndConverter<?>> allSources = state.getSources();
+            // Add a new named group and assign the channels belonging to this image
+            final bdv.viewer.SourceGroup handle = new bdv.viewer.SourceGroup();
+            state.addGroup(handle);
+            state.setGroupName(handle, name);
+            state.setGroupActive(handle, true);
+            final int endIdx = startIdx + numChannels - 1;
+            for (int i = startIdx; i <= endIdx && i < allSources.size(); i++)
+                state.addSourceToGroup(allSources.get(i), handle);
+            SNTUtils.log("BVV group [" + groupIdx + "] '" + name + "': sources " + startIdx + "–" + endIdx);
         } catch (final Exception ex) {
             SNTUtils.log("BVV group assignment failed: " + ex.getMessage());
         }
@@ -1077,8 +1080,8 @@ public class Bvv {
             // "Source Transforms" card: added first so it appears just below the Groups card.
             // Collapsed by default, so it is out of the way
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
-            bvvFrame.getCardPanel().addCard("Camera Controls",
-                    new CameraControls(this, source, pathOverlay.overlayRenderer).getToolbar(actions), true);
+            bvvFrame.getCardPanel().addCard("Scene Controls",
+                    new CameraControls(this, pathOverlay.overlayRenderer).getToolbar(actions), true);
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
             // Register M key to place a marker at the current mouse position
             final javax.swing.InputMap imap = bvvFrame.getViewerPanel()
@@ -1157,6 +1160,55 @@ public class Bvv {
     }
 
     /**
+     * Wraps a {@link bdv.util.RandomAccessibleIntervalSource} and overrides
+     * {@link #getVoxelDimensions()} to carry the physical unit (e.g. "µm").
+     * Without this, BDV's {@code ScaleBarOverlayRenderer} reads
+     * {@code "pixel"} from {@code RandomAccessibleIntervalSource.getVoxelDimensions()}
+     * and the scale bar label is wrong even when calibration is applied.
+     */
+    private static class CalibratedSource<T extends NumericType<T>> extends bdv.util.RandomAccessibleIntervalSource<T> {
+
+        private final mpicbg.spim.data.sequence.FinalVoxelDimensions voxelDimensions;
+
+        CalibratedSource(final net.imglib2.RandomAccessibleInterval<T> rai,
+                         final T type,
+                         final net.imglib2.realtransform.AffineTransform3D sourceTransform,
+                         final String name,
+                         final double[] cal,
+                         final String unit) {
+            super(rai, type, sourceTransform, name);
+            this.voxelDimensions = new mpicbg.spim.data.sequence.FinalVoxelDimensions(
+                    unit != null && !unit.isBlank() ? unit : "pixel",
+                    cal[0], cal[1], cal.length > 2 ? cal[2] : 1.0);
+        }
+
+        @Override
+        public mpicbg.spim.data.sequence.VoxelDimensions getVoxelDimensions() {
+            return voxelDimensions;
+        }
+    }
+
+    /**
+     * Builds a {@link CalibratedSource} from a RAI, calibration, unit, and name,
+     * then calls {@link BvvFunctions#show(bdv.viewer.Source, int, BvvOptions)}
+     * so the unit propagates to the scale bar renderer.
+     * The {@code opts} passed in must NOT contain a {@code sourceTransform}, as
+     * calibration is already baked into the source.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static <T extends net.imglib2.type.numeric.RealType<T>> BvvStackSource<?> showCalibratedSource(
+            final net.imglib2.RandomAccessibleInterval<T> rai,
+            final String name,
+            final double[] cal,
+            final String unit,
+            final BvvOptions opts) {
+        final net.imglib2.realtransform.AffineTransform3D t = new net.imglib2.realtransform.AffineTransform3D();
+        t.set(cal[0], 0, 0); t.set(cal[1], 1, 1); t.set(cal[2], 2, 2);
+        final CalibratedSource<T> src = new CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
+        return BvvFunctions.show((bdv.viewer.Source) src, 1, opts);
+    }
+
+    /**
      * Checks whether a volume's per-channel voxel count is within BVV's texture
      * capacity. BVV's {@code DefaultSimpleStackManager} computes the texture buffer
      * size as {@code width * height * depth * 2} using a 32-bit signed int; values
@@ -1209,18 +1261,6 @@ public class Bvv {
 
     private JToolBar sourceTransformsToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
-        final JToggleButton liveSyncToggle = GuiUtils.Buttons.toolbarToggleButton(
-                actions.toggleLiveSyncAction(multiSources),
-                "<html>Toggle live transform sync across grouped sources.<br>"
-                        + "When off, transforms are only propagated on demand.",
-                IconFactory.GLYPH.LINK, IconFactory.GLYPH.UNLINK);
-        liveSyncToggle.setSelected(true);
-        toolbar.add(liveSyncToggle);
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncTransformsAction(multiSources),
-                "<html>Apply now the current transform of each group lead<br>to all sources in the group."));
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
-        toolbar.addSeparator();
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.exportTransformedSourceAction(multiSources),
                 "<html>Apply the manual transform to a source image and export the result as a TIFF.<br>"
                         + "The image is resampled onto the pixel grid of a chosen reference source."));
@@ -1229,6 +1269,7 @@ public class Bvv {
                 "<html>Save manual transform of a source group to an XML file."));
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.loadTransformAction(multiSources),
                 "<html>Load a previously saved manual transform and apply it to a source group."));
+        toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
         toolbar.add(GuiUtils.Buttons.help("https://gist.github.com/tferr/2f4dbb7c52df154a6e14a1fecd1e785a"));
@@ -1244,29 +1285,30 @@ public class Bvv {
                 "Restrict display of annotations around cursor",
                 IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE));
         toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalStrut(10));
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setDefaultColorAction(),
                 "Change default annotation color"));
         toolbar.add(GuiUtils.Buttons.undo(actions.resetDefaultColorAction()));
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setTransparencyAction(),
                 "Change transparency of annotations"));
         toolbar.add(GuiUtils.Buttons.undo(actions.resetTransparencyAction()));
-        toolbar.add(Box.createHorizontalStrut(10));
         toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalStrut(10));
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
                 "Change annotations offset"));
         toolbar.add(GuiUtils.Buttons.undo(actions.resetCanvasOffsetAction()));
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setThicknessMultiplierAction(),
                 "Change thickness of annotations"));
         toolbar.add(GuiUtils.Buttons.undo(actions.resetThicknessMultiplierAction()));
-        toolbar.add(Box.createHorizontalStrut(10));
         toolbar.addSeparator();
+
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
         final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
                 actions.showMarkerManagerAction(),
-                "<html>Show/hide the Marker Manager.<br>"
+                "<html>Show/hide the Markers table.<br>"
                         + "Press M in the viewer to place a marker at the cursor position.",
                 IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
         // Keep button state in sync with frame visibility
@@ -1285,7 +1327,6 @@ public class Bvv {
         final JPopupMenu menu = new JPopupMenu();
         final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
         menu.add(new JMenuItem(actions.importAction()));
-        menu.addSeparator();
         if (snt != null) {
             menu.addSeparator();
             menu.add(new JMenuItem(actions.loadBookmarksAction()));
@@ -1416,6 +1457,7 @@ public class Bvv {
      * @param treeLabel the label of the tree to remove
      * @return true if the tree was successfully removed
      */
+    @SuppressWarnings("unused")
     public boolean removeTree(final String treeLabel) {
         final Tree removedTree = renderedTrees.remove(treeLabel);
         if (removedTree != null && pathOverlay != null) {
@@ -1593,6 +1635,7 @@ public class Bvv {
      * @param filePath path to save PNG file
      * @return true if successful
      */
+    @SuppressWarnings("unused")
     public boolean screenshot(final String filePath) {
         final ImagePlus image = screenshot();
         if (image == null) return false;
@@ -1627,7 +1670,7 @@ public class Bvv {
         private final JSpinner farSpinner;
         private final double[] initialCamParams;
 
-        CameraControls(final Bvv bvvInstance, final BvvSource source, final OverlayRenderer overlayRenderer) {
+        CameraControls(final Bvv bvvInstance, final OverlayRenderer overlayRenderer) {
             this.bvvInstance = bvvInstance;
             this.overlayRenderer = overlayRenderer;
             // On the first render with valid canvas dimensions, compute a centered
@@ -1687,7 +1730,7 @@ public class Bvv {
         //   geometry: scale = min(canvasW/physW, canvasH/physH), with translation set to center
         //   the image in the display
         private Action resetViewAction() {
-            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.UNDO)) {
+            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.CUBE)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
@@ -1763,25 +1806,150 @@ public class Bvv {
         }
 
         /**
-         * Creates and returns a toolbar containing camera control components.
-         * The toolbar includes spinners for camera distance, near clipping plane, and far clipping plane,
-         * along with reset buttons and an options menu.
+         * Creates and returns a panel containing two rows of camera controls.
+         * Row 1: camera distance / clipping plane spinners + options menu.
+         * Row 2: Reset, Fit Scene, Fit Source | Scale Bar, Bounding Box, Text Overlay toggles.
          *
          * @param bvvActions the BVV actions instance for accessing additional functionality
-         * @return a configured JToolBar with camera controls
+         * @return a configured JPanel with two toolbar rows
          */
         public JToolBar getToolbar(final BvvActions bvvActions) {
+            // Row 1: camera spinners
             final JButton dCamReset = GuiUtils.Buttons.undo(resetCameraDistanceAction());
             final JButton nearReset = GuiUtils.Buttons.undo(resetNearClipAction());
-            final JButton farReset = GuiUtils.Buttons.undo(resetFarClipAction());
-            final JToolBar toolbar = createToolbar();
-            addSpinnerToToolbar(toolbar, '\uf1e5', dCamSpinner, dCamReset);
-            addSpinnerToToolbar(toolbar, '\ue4b8', nearSpinner, nearReset);
-            addSpinnerToToolbar(toolbar, '\ue4c2', farSpinner, farReset);
-            toolbar.add(Box.createHorizontalGlue());
-            toolbar.addSeparator();
-            toolbar.add(optionsButton(bvvActions));
-            return toolbar;
+            final JButton farReset  = GuiUtils.Buttons.undo(resetFarClipAction());
+            final JToolBar row1 = createToolbar();
+            addSpinnerToToolbar(row1, '\uf1e5', dCamSpinner, dCamReset);
+            row1.add(Box.createHorizontalGlue());
+            addSpinnerToToolbar(row1, '\ue4b8', nearSpinner, nearReset);
+            row1.add(Box.createHorizontalGlue());
+            addSpinnerToToolbar(row1, '\ue4c2', farSpinner,  farReset);
+
+            // Row 2: view shortcuts + overlay toggles
+            final JToolBar row2 = createToolbar();
+            // Reset view
+            row2.add(GuiUtils.Buttons.toolbarButton(resetViewAction(),
+                    "Reset view to fit the whole volume"));
+            // Fit to current source
+            row2.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(),
+                    "Fit view to the current (selected) source"));
+            row2.addSeparator();
+            row2.add(Box.createHorizontalGlue());
+            row2.addSeparator();
+            // Bounding box (multibox) toggle
+            final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Bounding Boxes", Prefs.showMultibox(),
+                            show -> { Prefs.showMultibox(show);
+                                bvvInstance.repaint(); }),
+                    "Show/hide bounding boxes",
+                    IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
+            multiboxToggle.setSelected(Prefs.showMultibox());
+            row2.add(multiboxToggle);
+            // Text overlay toggle (source name + mouse coords)
+            final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
+                            show -> { Prefs.showTextOverlay(show);
+                                bvvInstance.repaint(); }),
+                    "Show/hide text overlay (source name and cursor coordinates)",
+                    IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
+            textToggle.setSelected(Prefs.showTextOverlay());
+            row2.add(textToggle);
+            // Scale bar toggle: reflects Prefs.showScaleBar() on creation
+            final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
+                            show -> { Prefs.showScaleBar(show);
+                                bvvInstance.repaint(); }),
+                    "Show/hide scale bar",
+                    IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
+            scaleBarToggle.setSelected(Prefs.showScaleBar());
+            row2.add(scaleBarToggle);
+            row2.addSeparator();
+            row2.add(Box.createHorizontalGlue());
+            row2.addSeparator();
+            row2.add(optionsButton(bvvActions));
+            final JToolBar main = createToolbar();
+            main.setLayout(new javax.swing.BoxLayout(main, javax.swing.BoxLayout.Y_AXIS));
+            main.add(row1);
+            main.add(row2);
+            return main;
+        }
+
+        /**
+         * Builds a stateless {@link AbstractAction} for an overlay toggle that
+         * delegates the actual state change to a {@link java.util.function.Consumer<Boolean>}.
+         * The action reads the toggle state from the source {@link AbstractButton}.
+         */
+        private static Action overlayToggleAction(final String name,
+                                                  final boolean initialState,
+                                                  final java.util.function.Consumer<Boolean> onToggle) {
+            return new AbstractAction(name) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final boolean selected = (e.getSource() instanceof AbstractButton btn)
+                            ? btn.isSelected() : !initialState;
+                    onToggle.accept(selected);
+                }
+            };
+        }
+
+        /**
+         * Animates the view to frame the currently selected source, using the
+         * same perspective-correct approach as {@link #resetViewAction()}.
+         */
+        private Action fitToCurrentSourceAction() {
+            return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
+                    final bdv.viewer.SourceAndConverter<?> current =
+                            viewerPanel.state().getCurrentSource();
+                    if (current == null) {
+                        viewerPanel.showMessage("No source selected");
+                        return;
+                    }
+                    final int cw = viewerPanel.getDisplay().getWidth();
+                    final int ch = viewerPanel.getDisplay().getHeight();
+                    if (cw <= 0 || ch <= 0) return;
+                    // Get source-to-world transform
+                    final AffineTransform3D srcToWorld = new AffineTransform3D();
+                    current.getSpimSource().getSourceTransform(0, 0, srcToWorld);
+                    // Source interval in voxel space
+                    final net.imglib2.RandomAccessibleInterval<?> rai =
+                            current.getSpimSource().getSource(0, 0);
+                    if (rai == null) return;
+                    // Transform the 8 corners of the bounding box to world space and find extents
+                    final long[] min = new long[3], max = new long[3];
+                    for (int d = 0; d < 3; d++) { min[d] = rai.min(d); max[d] = rai.max(d); }
+                    double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                    double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                    double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+                    final double[] corner = new double[3];
+                    final double[] world  = new double[3];
+                    for (int i = 0; i < 8; i++) {
+                        corner[0] = (i & 1) == 0 ? min[0] : max[0];
+                        corner[1] = (i & 2) == 0 ? min[1] : max[1];
+                        corner[2] = (i & 4) == 0 ? min[2] : max[2];
+                        srcToWorld.apply(corner, world);
+                        minX = Math.min(minX, world[0]); maxX = Math.max(maxX, world[0]);
+                        minY = Math.min(minY, world[1]); maxY = Math.max(maxY, world[1]);
+                        minZ = Math.min(minZ, world[2]); maxZ = Math.max(maxZ, world[2]);
+                    }
+                    final double physW = maxX - minX;
+                    final double physH = maxY - minY;
+                    final double physZ = maxZ - minZ;
+                    if (physW <= 0 || physH <= 0) return;
+                    final double scale = Math.min(cw / physW, ch / physH);
+                    final AffineTransform3D currentT = new AffineTransform3D();
+                    viewerPanel.state().getViewerTransform(currentT);
+                    final AffineTransform3D target = new AffineTransform3D();
+                    target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
+                    target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
+                    target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
+                    target.set(-scale * (minZ + physZ / 2.0), 2, 3);
+                    viewerPanel.setTransformAnimator(
+                            new SimilarityTransformAnimator(currentT, target, 0, 0, 300));
+                }
+            };
         }
 
         private void addSpinnerToToolbar(final JToolBar toolbar, final char spinnerSolidIcon, final JSpinner spinner, final AbstractButton spinnerButton) {
@@ -1789,7 +1957,6 @@ public class Bvv {
             toolbar.add(Box.createHorizontalStrut(2));
             toolbar.add(spinner);
             toolbar.add(spinnerButton);
-            toolbar.add(Box.createHorizontalStrut(10));
         }
 
         private JButton optionsButton(final BvvActions actions) {
@@ -1839,7 +2006,6 @@ public class Bvv {
             });
             menu.add(stepSpinner);
             addSeparator(menu, IconFactory.GLYPH.CLOCK_ROTATE_LEFT, "Restore View");
-            menu.add(new JMenuItem(resetViewAction()));
             menu.add(new JMenuItem(actions.loadSettingsAction()));
             menu.add(new JMenuItem(actions.saveSettingsAction()));
             addSeparator(menu, IconFactory.GLYPH.INFO, "Help");
@@ -1922,6 +2088,7 @@ public class Bvv {
          *
          * @param usePathRadius true to use path radius, false for uniform thickness
          */
+        @SuppressWarnings("unused")
         public void setUsePathRadius(boolean usePathRadius) {
             this.usePathRadius = usePathRadius;
         }
@@ -1940,6 +2107,7 @@ public class Bvv {
          *
          * @param minThickness minimum thickness in pixels
          */
+        @SuppressWarnings("unused")
         public void setMinThickness(float minThickness) {
             this.minThickness = Math.max(0.1f, minThickness);
         }
@@ -1958,6 +2126,7 @@ public class Bvv {
          *
          * @param maxThickness maximum thickness in pixels
          */
+        @SuppressWarnings("unused")
         public void setMaxThickness(float maxThickness) {
             this.maxThickness = Math.max(1.0f, maxThickness);
         }
@@ -1970,6 +2139,7 @@ public class Bvv {
          *
          * @param clippingDistance the clippingDistance (in real world units). Set to zero to disable clipping
          */
+        @SuppressWarnings("unused")
         public void setClippingDistance(final float clippingDistance) {
             this.clippingDistance = clippingDistance;
         }
@@ -3055,8 +3225,8 @@ public class Bvv {
                         final double maxY = dims[1] * cal[1];
                         final double maxZ = dims[2] * cal[2];
                         if (x < 0 || y < 0 || z < 0 || x > maxX || y > maxY || z > maxZ) {
-                            Toolkit.getDefaultToolkit().beep();
-                            bvv.getViewer().showMessage("Outside bounds: Align view to a principal axis");
+                            bvv.getViewer().showMessage(
+                                    "Outside image bounds: Align view to a principal axis before placing a marker.");
                             return;
                         }
                     }
@@ -3093,16 +3263,6 @@ public class Bvv {
          * Manually propagates each group leader's current transform to its followers.
          * Use this when live sync is disabled or when GPU lag makes live sync impractical.
          */
-        Action syncTransformsAction(final List<BvvMultiSource> multiSources) {
-            return new AbstractAction("Sync Transforms", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    multiSources.forEach(BvvMultiSource::syncTransforms);
-                    bvv.getViewer().showMessage("Transforms synced");
-                }
-            };
-        }
-
         Action saveTransformAction(final List<BvvMultiSource> multiSources) {
             return new AbstractAction("Save Transform", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
@@ -3259,7 +3419,7 @@ public class Bvv {
             final var refSac = reference.getLeader().getSources().getFirst();
             final Source<RealType<?>> refSpim = (Source<RealType<?>>) refSac.getSpimSource();
             final RandomAccessibleInterval<RealType<?>> refRai = refSpim.getSource(0, 0);
-            // Guard against TB-scale output: the export materialises every voxel of the
+            // Guard against TB-scale output: the export materializes every voxel of the
             // reference grid via LoopBuilder: Abort early with a clear message rather
             // than running for hours or exhausting heap.
             checkVolumeSize(refRai.dimension(0), refRai.dimension(1), refRai.dimension(2));
@@ -3328,21 +3488,6 @@ public class Bvv {
             return choiceMap.get(chosen);
         }
 
-        /**
-         * Toggles live transform synchronization across all grouped sources.
-         * When live sync is off, use {@link #syncTransformsAction} to apply
-         * transforms manually. Useful on slow GPUs with many sources.
-         */
-        Action toggleLiveSyncAction(final List<BvvMultiSource> multiSources) {
-            return new AbstractAction("Live Sync", IconFactory.menuIcon(IconFactory.GLYPH.LINK)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final boolean live = multiSources.isEmpty() || multiSources.getFirst().isLiveSync();
-                    multiSources.forEach(ms -> ms.setLiveSync(!live));
-                    bvv.getViewer().showMessage("Live transform sync: " + (!live ? "ON" : "OFF"));
-                }
-            };
-        }
 
         /**
          * Looks up a named action registered in BVV's keybindings and invokes it.

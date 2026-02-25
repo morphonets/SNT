@@ -548,8 +548,8 @@ public class BookmarkManager {
                 final int target = (row < 0 || row >= table.getRowCount() - 1) ? 0 : row + 1;
                 if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
             });
-            final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.EXPAND));
-            resetButton.setToolTipText("Reset view to fit volume");
+            final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.CUBE));
+            resetButton.setToolTipText("Reset view to fit the whole volume");
             resetButton.addActionListener(e -> bvv.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
             helpButton.addActionListener(e -> displayMarkerHelp());
