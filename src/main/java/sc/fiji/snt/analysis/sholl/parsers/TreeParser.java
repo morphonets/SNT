@@ -114,6 +114,14 @@ public class TreeParser implements Parser {
 	private boolean setIntersectedVolumeAsExtraMeasurement;
 
 	/*
+	 * Resolved once at the start of parse(): whether somatic segments should
+	 * actually be skipped (flag is set AND soma is a single-point path), and
+	 * which path is the soma.
+	 */
+	private boolean skipSomatics = false;
+	private Path somaticPath = null;
+
+	/*
 	 * Cached intrinsic node-to-node spacing (median), computed on first use.
 	 * This is needed for length calculations when stepSize is 0.
 	 */
@@ -264,6 +272,7 @@ public class TreeParser implements Parser {
 		if (tree.getBoundingBox(false) != null)
 			profile.setSpatialCalibration(tree.getBoundingBox(false).getCalibration());
 		profile.getProperties().setProperty(KEY_SOURCE, SRC_TRACES);
+		resolveSkipSomaticSegments();
 		assembleSortedShollPointList();
 		assembleProfileAfterAssemblingSortedShollPointList();
 
@@ -307,15 +316,26 @@ public class TreeParser implements Parser {
 		return profile;
 	}
 
+	private void resolveSkipSomaticSegments() {
+		skipSomatics = false;
+		somaticPath = null;
+		if (!isSkipSomaticSegments()) return;
+		final PointInImage soma = tree.getRoot();
+		if (soma == null) return;
+		if (soma.onPath.size() != 1 || soma.onPath.getSWCType() != Path.SWC_SOMA) {
+			SNTUtils.warn("setSkipSomaticSegments() has no effect: only single-point soma paths are supported.");
+			return;
+		}
+		skipSomatics = true;
+		somaticPath = soma.onPath;
+	}
+
 	private void assembleSortedShollPointList() {
 		shollPointsList = new ArrayList<>();
-		final PointInImage soma = tree.getRoot();
-		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
-				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
 		tree.list().forEach(p -> {
-			if (!running || p.size() == 0 || (skipFirstNode && p.equals(soma.onPath)))
+			if (!running || p.size() == 0 || (skipSomatics && p.equals(somaticPath)))
 				return;
-			for (int i = (skipFirstNode) ? 1 : 0; i < p.size() - 1; ++i) {
+			for (int i = (skipSomatics && p.isPrimary()) ? 1 : 0; i < p.size() - 1; ++i) {
 				final PointInImage pim1 = p.getNode(i);
 				final PointInImage pim2 = p.getNode(i + 1);
 				final double distanceSquaredFirst = pim1.distanceSquaredTo(center);
@@ -397,15 +417,10 @@ public class TreeParser implements Parser {
 	 */
 	private double cableLengthInShell(final double innerRadius, final double outerRadius) {
 		double totalLength = 0.0;
-		final PointInImage soma = tree.getRoot();
-		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
-				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
-
 		for (final Path path : tree.list()) {
-			if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+			if (!running || path.size() == 0 || (skipSomatics && path.equals(somaticPath)))
 				continue;
-
-			for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+			for (int i = (skipSomatics && path.isPrimary()) ? 1 : 0; i < path.size() - 1; ++i) {
 				final PointInImage node1 = path.getNode(i);
 				final PointInImage node2 = path.getNode(i + 1);
 
@@ -552,12 +567,9 @@ public class TreeParser implements Parser {
 	private double intrinsicSegmentScale() {
 		if (intrinsicScaleCache != null) return intrinsicScaleCache;
 		final List<Double> lengths = new ArrayList<>();
-		final PointInImage soma = tree.getRoot();
-		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
-				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
 		for (final Path path : tree.list()) {
-			if (path.size() == 0 || (skipFirstNode && path.equals(soma.onPath))) continue;
-			for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+			if (path.size() == 0 || (skipSomatics && path.equals(somaticPath))) continue;
+			for (int i = (skipSomatics && path.isPrimary()) ? 1 : 0; i < path.size() - 1; ++i) {
 				final PointInImage a = path.getNode(i);
 				final PointInImage b = path.getNode(i + 1);
 				lengths.add(a.distanceSquaredTo(b));
@@ -584,16 +596,11 @@ public class TreeParser implements Parser {
 	 */
 	private Set<ShollPoint> getIntersectionPointsAtRadius(final double radius) {
 		final List<ShollPoint> intersections = new ArrayList<>();
-		final PointInImage soma = tree.getRoot();
-		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
-				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
-
 		// Find all intersections with the sphere at this radius
 		for (final Path path : tree.list()) {
-			if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+			if (!running || path.size() == 0 || (skipSomatics && path.equals(somaticPath)))
 				continue;
-
-			for (int i = (skipFirstNode) ? 1 : 0; i < path.size() - 1; ++i) {
+			for (int i = (skipSomatics && path.isPrimary()) ? 1 : 0; i < path.size() - 1; ++i) {
 				final PointInImage node1 = path.getNode(i);
 				final PointInImage node2 = path.getNode(i + 1);
 
@@ -628,15 +635,10 @@ public class TreeParser implements Parser {
 		final double cx = center.x, cy = center.y, cz = center.z;
 		double totalVol = 0.0;
 
-		final PointInImage soma = tree.getRoot();
-		final boolean skipFirstNode = isSkipSomaticSegments() && soma != null && soma.onPath.size() == 1
-				&& soma.onPath.getSWCType() == Path.SWC_SOMA;
-
 		for (final Path path : tree.list()) {
-			if (!running || path.size() == 0 || (skipFirstNode && path.equals(soma.onPath)))
+			if (!running || path.size() == 0 || (skipSomatics && path.equals(somaticPath)))
 				continue;
-
-			final int startIdx = skipFirstNode ? 1 : 0;
+			final int startIdx = (skipSomatics && path.isPrimary()) ? 1 : 0;
 			for (int i = startIdx; i < path.size() - 1; ++i) {
 				final Path.PathNode a = path.getNode(i);
 				final Path.PathNode b = path.getNode(i + 1);
