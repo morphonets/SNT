@@ -520,7 +520,7 @@
 			<!-- Change verbose logging of smile.stat.distribution.* -->
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.5.20</version>
+			<version>1.5.32</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
