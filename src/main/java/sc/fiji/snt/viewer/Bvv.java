@@ -1032,8 +1032,12 @@ public class Bvv {
     /**
      * Creates a named group in the viewer containing all channels of one image,
      * replacing the auto-generated "group N" label. Uses the modern
-     * {@link bdv.viewer.SynchronizedViewerState} API via {@code state().addGroup()},
-     * {@code state().setGroupName()}, and {@code state().addSourceToGroup()}.
+     * {@link bdv.viewer.SynchronizedViewerState} API.
+     * <p>
+     * BVV pre-allocates groups at construction time (one per source group). If a
+     * group already exists at {@code groupIdx} we reuse and rename it; otherwise
+     * we add a new one.
+     * </p>
      */
     private void assignToNamedGroup(final String name,
                                     final int groupIdx,
@@ -1043,12 +1047,19 @@ public class Bvv {
         if (viewerPanel == null) return;
         try {
             final bdv.viewer.SynchronizedViewerState state = viewerPanel.state();
-            final List<? extends bdv.viewer.SourceAndConverter<?>> allSources = state.getSources();
-            // Add a new named group and assign the channels belonging to this image
-            final bdv.viewer.SourceGroup handle = new bdv.viewer.SourceGroup();
-            state.addGroup(handle);
+            final List<bdv.viewer.SourceGroup> groups = state.getGroups();
+            final bdv.viewer.SourceGroup handle;
+            if (groupIdx < groups.size()) {
+                // Reuse the pre-allocated group: clear its existing auto-assignments first
+                handle = groups.get(groupIdx);
+                state.removeSourcesFromGroup(new ArrayList<>(state.getSourcesInGroup(handle)), handle);
+            } else {
+                handle = new bdv.viewer.SourceGroup();
+                state.addGroup(handle);
+            }
             state.setGroupName(handle, name);
             state.setGroupActive(handle, true);
+            final List<? extends bdv.viewer.SourceAndConverter<?>> allSources = state.getSources();
             final int endIdx = startIdx + numChannels - 1;
             for (int i = startIdx; i <= endIdx && i < allSources.size(); i++)
                 state.addSourceToGroup(allSources.get(i), handle);
@@ -1829,7 +1840,7 @@ public class Bvv {
             final JToolBar row2 = createToolbar();
             // Reset view
             row2.add(GuiUtils.Buttons.toolbarButton(resetViewAction(),
-                    "Reset view to fit the whole volume"));
+                    "Reset view to startup state"));
             // Fit to current source
             row2.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(),
                     "Fit view to the current (selected) source"));

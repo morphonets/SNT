@@ -549,7 +549,7 @@ public class BookmarkManager {
                 if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
             });
             final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.CUBE));
-            resetButton.setToolTipText("Reset view to fit the whole volume");
+            resetButton.setToolTipText("Reset view to startup state");
             resetButton.addActionListener(e -> bvv.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
             helpButton.addActionListener(e -> displayMarkerHelp());
