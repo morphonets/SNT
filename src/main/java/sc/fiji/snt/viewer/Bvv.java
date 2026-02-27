@@ -44,14 +44,15 @@ import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
 import net.imglib2.RealRandomAccessible;
+import net.imglib2.img.array.ArrayImgFactory;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import net.imglib2.loops.LoopBuilder;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.realtransform.RealViews;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.view.Views;
 import org.jdom2.JDOMException;
 import org.scijava.util.ColorRGB;
@@ -2950,11 +2951,12 @@ public class Bvv {
             return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = guiUtils.getFile(getDefaultDir(), "xml");
+                    final File f = guiUtils.getFile(new File(getDefaultDir(), ".xml"), "xml");
                     if (SNTUtils.fileAvailable(f)) {
                         try {
                             bvv.loadSettings(f.getAbsolutePath());
                             bvv.getViewer().showMessage(String.format("%s loaded", f.getName()));
+                            setDefaultDir(f);
                         } catch (final Exception ex) {
                             guiUtils.error(ex.getMessage());
                         }
@@ -2967,11 +2969,13 @@ public class Bvv {
             return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = guiUtils.getSaveFile("Save BVV Settings...", getDefaultDir(), "xml");
+                    final File f = guiUtils.getSaveFile("Save BVV Settings...",
+                            new File(getDefaultDir(), "settings.xml"), "xml");
                     if (SNTUtils.fileAvailable(f)) {
                         try {
                             bvv.saveSettings(f.getAbsolutePath());
                             bvv.getViewer().showMessage(String.format("%s saved", f.getName()));
+                            setDefaultDir(f);
                         } catch (final Exception ex) {
                             guiUtils.error(ex.getMessage());
                         }
@@ -3280,8 +3284,10 @@ public class Bvv {
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final BvvMultiSource target = chooseMultiSource("Save transform of:");
                     if (target == null) return;
-                    final File file = guiUtils.getSaveFile("Save Transform...", getDefaultDir(), "xml");
+                    final File file = guiUtils.getSaveFile("Save Transform...",
+                            new File(getDefaultDir(), "transform.xml"), "xml");
                     if (file == null) return;
+                    setDefaultDir(file);
                     final AffineTransform3D t = new AffineTransform3D();
                     target.getLeaderTransform(t);
                     try {
@@ -3318,10 +3324,11 @@ public class Bvv {
                         guiUtils.error("No grouped sources available to apply a transform to.");
                         return;
                     }
-                    final File file = guiUtils.getFile(getDefaultDir(), "xml");
+                    final File file = guiUtils.getFile(new File(getDefaultDir(), ".xml"), "xml");
                     if (file == null) return;
                     try {
                         applyTransformFile(file, multiSources);
+                        setDefaultDir(file);
                     } catch (final Exception ex) {
                         guiUtils.error("Could not load transform: " + ex.getMessage());
                     }
@@ -3330,7 +3337,11 @@ public class Bvv {
         }
 
         private File getDefaultDir() {
-            return (snt != null) ? snt.getPrefs().getRecentDir() : new File(System.getProperty("user.home"));
+            return SNTPrefs.lastKnownDir(); // never null
+        }
+
+        private void setDefaultDir(final File newDir) {
+            SNTPrefs.setLastKnownDir(newDir);
         }
 
         private boolean applyTransformFile(final File file, final List<BvvMultiSource> multiSources) throws JDOMException, IOException {
@@ -3390,7 +3401,10 @@ public class Bvv {
                     final BvvMultiSource moving = multiSourceFromChoice(choiceMap, choices[1]);
 
                     // Choose output file
-                    final File file = guiUtils.getSaveFile("Export Transformed Image...", getDefaultDir(), "tif");
+                    final File proposed = new File(getDefaultDir(), String.format("%s_registered_to_%s.tif",
+                            SNTUtils.stripExtension(choices[1]),   // moving
+                            SNTUtils.stripExtension(choices[0]))); // fixed/reference
+                    final File file = guiUtils.getSaveFile("Export Transformed Image...", proposed, "tif");
                     if (file == null) return;
                     final String outPath = (file.getName().endsWith(".tif") || file.getName().endsWith(".tiff"))
                             ? file.getAbsolutePath() : file.getAbsolutePath() + ".tif";
@@ -3399,6 +3413,7 @@ public class Bvv {
                     new Thread(() -> {
                         try {
                             exportTransform(moving, reference, outPath);
+                            setDefaultDir(file);
                         } catch (final Exception ex) {
                             guiUtils.error("Export failed: " + ex.getMessage());
                             SNTUtils.error("BVV transform export failed", ex);
@@ -3410,50 +3425,74 @@ public class Bvv {
 
         @SuppressWarnings("unchecked")
         private void exportTransform(final BvvMultiSource moving, final BvvMultiSource reference, final String outPath) throws Exception {
-            // Moving source: RAI + intrinsic (calibration) transform
-            final var movingSac = moving.getLeader().getSources().getFirst();
-            final Source<RealType<?>> movingSpim = (Source<RealType<?>>) movingSac.getSpimSource();
-            final RandomAccessibleInterval<RealType<?>> movingRai = movingSpim.getSource(0, 0);
-            final AffineTransform3D srcToWorld = new AffineTransform3D();
-            movingSpim.getSourceTransform(0, 0, srcToWorld);
-
-            // Manual (registration) transform applied on top of the intrinsic one
-            final AffineTransform3D manualT = new AffineTransform3D();
-            moving.getLeaderTransform(manualT);
-
-            // movingToWorld = manualT ∘ srcToWorld  (moving pixels → world)
-            final AffineTransform3D movingToWorld = new AffineTransform3D();
-            movingToWorld.set(manualT);
-            movingToWorld.concatenate(srcToWorld);
-
-            // Reference source: RAI + calibration transform
+            // Reference grid: dimensions and calibration transform come from the leader.
+            // The guard against TB-scale output runs here since it defines the output dimensions.
             final var refSac = reference.getLeader().getSources().getFirst();
             final Source<RealType<?>> refSpim = (Source<RealType<?>>) refSac.getSpimSource();
             final RandomAccessibleInterval<RealType<?>> refRai = refSpim.getSource(0, 0);
-            // Guard against TB-scale output: the export materializes every voxel of the
-            // reference grid via LoopBuilder: Abort early with a clear message rather
-            // than running for hours or exhausting heap.
             checkVolumeSize(refRai.dimension(0), refRai.dimension(1), refRai.dimension(2));
             final AffineTransform3D refSrcToWorld = new AffineTransform3D();
             refSpim.getSourceTransform(0, 0, refSrcToWorld);
 
-            // totalT maps ref pixels → moving pixels:
-            //   totalT = (manualT . srcToWorld)^{-1} . refSrcToWorld
+            // The manual transform is the same for all channels in the group (field sharing).
+            // Compute totalT once: maps ref pixels → moving pixels.
+            final AffineTransform3D manualT = new AffineTransform3D();
+            moving.getLeaderTransform(manualT);
+            final var leaderSac = moving.getLeader().getSources().getFirst();
+            final Source<RealType<?>> leaderSpim = (Source<RealType<?>>) leaderSac.getSpimSource();
+            final AffineTransform3D srcToWorld = new AffineTransform3D();
+            leaderSpim.getSourceTransform(0, 0, srcToWorld);
+            final AffineTransform3D movingToWorld = new AffineTransform3D();
+            movingToWorld.set(manualT);
+            movingToWorld.concatenate(srcToWorld);
+            // totalT = (manualT ∘ srcToWorld)^{-1} ∘ refSrcToWorld
             final AffineTransform3D totalT = movingToWorld.inverse();
             totalT.concatenate(refSrcToWorld);
 
-            // Apply the composed transform and resample onto the reference grid.
-            // Raw casts are required because Views.extendZero/interpolate have
-            // self-referential bounds <F extends RealType<F>> that the wildcard
-            // RealType<?> cannot satisfy at the call site.
-            @SuppressWarnings({"unchecked", "rawtypes"}) final RealRandomAccessible<RealType<?>> realRai =
-                    (RealRandomAccessible<RealType<?>>) RealViews.affine(
-                            Views.interpolate((net.imglib2.RandomAccessible) Views.extendZero(
-                                    (RandomAccessibleInterval) movingRai), new NLinearInterpolatorFactory()),
-                            totalT);
-            final RandomAccessibleInterval<RealType<?>> result = Views.interval(Views.raster(realRai), refRai);
-            ImgUtils.save(result, outPath, new UnsignedShortType());
-            bvv.getViewer().showMessage("Saved: " + new File(outPath).getName());
+            // Resample every channel of the moving group onto the reference grid
+            final List<RandomAccessibleInterval<RealType<?>>> channels = new ArrayList<>();
+            for (final var chSource : moving.getSources()) {
+                final Source<RealType<?>> chSpim = (Source<RealType<?>>) chSource.getSources().getFirst().getSpimSource();
+                final RandomAccessibleInterval<RealType<?>> chRai = chSpim.getSource(0, 0);
+                @SuppressWarnings({"rawtypes"})
+                final RealRandomAccessible<RealType<?>> realRai =
+                        (RealRandomAccessible<RealType<?>>) RealViews.affine(
+                                Views.interpolate((net.imglib2.RandomAccessible) Views.extendZero(
+                                        (RandomAccessibleInterval) chRai), new NLinearInterpolatorFactory()),
+                                totalT);
+                channels.add(Views.interval(Views.raster(realRai), refRai));
+            }
+
+            // Save result. For multichannel output, wrap as ImgPlus with explicit XYZC
+            // axis metadata so SCIFIO writes a proper hyperstack rather than treating
+            // channels as extra Z slices.
+            final net.imglib2.type.numeric.integer.UnsignedShortType outType =
+                    new net.imglib2.type.numeric.integer.UnsignedShortType();
+            if (channels.size() == 1) {
+                ImgUtils.save(channels.getFirst(), outPath, outType);
+            } else {
+                // Allocate [X, Y, Z, C] output array
+                final long[] dims = new long[]{
+                        refRai.dimension(0), refRai.dimension(1),
+                        refRai.dimension(2), channels.size()};
+                final net.imglib2.img.Img<net.imglib2.type.numeric.integer.UnsignedShortType> out =
+                        new ArrayImgFactory<>(outType).create(dims);
+                // Copy each channel into its slice
+                for (int c = 0; c < channels.size(); c++) {
+                    final RandomAccessibleInterval<net.imglib2.type.numeric.integer.UnsignedShortType> slice =
+                            Views.hyperSlice(out, 3, c);
+                    LoopBuilder.setImages(channels.get(c), slice).multiThreaded()
+                            .forEachPixel((in, o) -> o.setReal(in.getRealDouble()));
+                }
+                // Convert to ImagePlus hyperstack and save via ImageJ1's FileSaver,
+                // bypassing SCIFIO which misidentifies multi-plane ZC data as RGB.
+                final ij.ImagePlus imp = net.imglib2.img.display.imagej.ImageJFunctions.wrapUnsignedShort(out, new File(outPath).getName());
+                final ij.ImagePlus hyperstack = ij.plugin.HyperStackConverter.toHyperStack(
+                        imp, channels.size(), (int) refRai.dimension(2), 1, "xyzct", "composite");
+                new ij.io.FileSaver(hyperstack).saveAsTiff(outPath);
+            }
+            bvv.getViewer().showMessage("Saved: " + new File(outPath).getName()
+                    + (channels.size() > 1 ? " (" + channels.size() + " channels)" : ""));
         }
 
         /** Returns the display name of a BvvMultiSource (image title of its leader). */
