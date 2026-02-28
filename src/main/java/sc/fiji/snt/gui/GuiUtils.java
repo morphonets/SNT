@@ -1781,6 +1781,100 @@ public class GuiUtils {
 		}
 	}
 
+	/**
+	 * Displays a sorted HTML table of all registered keyboard shortcuts in the
+	 * specified inputMaps. Action names are title-cased for readability.
+	 *
+	 * @param inputMaps  The InputMap(s) to be listed
+	 * @param actionMaps If null, all key binding are listed, including those with
+	 *                   no corresponding action
+	 *                   (e.g. disabled or inherited Swing defaults) will be listed
+	 */
+	public void showKeyboardShortcuts(final InputMap[] inputMaps, final ActionMap... actionMaps) {
+		final java.util.TreeMap<String, String> bindings = new java.util.TreeMap<>();
+		for (final InputMap inputMap : inputMaps) {
+			final KeyStroke[] keys = inputMap.allKeys();
+			if (keys == null) continue;
+			for (final KeyStroke ks : keys) {
+				final Object actionKey = inputMap.get(ks);
+				if (actionKey == null) continue;
+				// Keep if registered in at least one of the provided action maps
+				if (actionMaps.length > 0) {
+					boolean found = false;
+					for (final ActionMap am : actionMaps)
+						if (am != null && am.get(actionKey) != null) {
+							found = true;
+							break;
+						}
+					if (!found) continue;
+				}
+				final String keyStr = keystrokeToString(ks);
+				final String actionStr = toTitleCase(actionKey.toString());
+				bindings.merge(keyStr, actionStr, (a, b) -> b + " (<i>overrides " + a + "</i>)");
+			}
+		}
+		final StringBuilder sb = new StringBuilder();
+		sb.append("<html><body>");
+		sb.append("<table border='0' cellpadding='3' cellspacing='0'>");
+		sb.append("<tr style='font-weight: bold;'><th align='center'>Shortcut</th>")
+				.append("<th align='center' style='padding-left:16px'>Action</th></tr>");
+		for (final java.util.Map.Entry<String, String> e : bindings.entrySet()) {
+			sb.append("<tr>")
+					.append("<td><tt>").append(e.getKey()).append("</tt></td>")
+					.append("<td style='padding-left:16px'>").append(e.getValue()).append("</td>")
+					.append("</tr>");
+		}
+		sb.append("</table></body></html>");
+		showHTMLDialog(sb.toString(), "Keyboard Shortcuts", false);
+	}
+
+	/**
+	 * Converts a {@link javax.swing.KeyStroke} to a human-readable string.
+	 */
+	private static String keystrokeToString(final javax.swing.KeyStroke ks) {
+		final StringBuilder sb = new StringBuilder();
+		final int mod = ks.getModifiers();
+		if ((mod & java.awt.event.InputEvent.META_DOWN_MASK) != 0) sb.append("Cmd+");
+		if ((mod & java.awt.event.InputEvent.CTRL_DOWN_MASK) != 0) sb.append("Ctrl+");
+		if ((mod & java.awt.event.InputEvent.ALT_DOWN_MASK) != 0) sb.append("Alt+");
+		if ((mod & java.awt.event.InputEvent.SHIFT_DOWN_MASK) != 0) sb.append("Shift+");
+		final int code = ks.getKeyCode();
+		if (code != 0) {
+			sb.append(java.awt.event.KeyEvent.getKeyText(code));
+		} else {
+			final char c = ks.getKeyChar();
+			if (Character.isUpperCase(c)) {
+				// character-based KeyStroke with capital letter implies Shift
+				if (!sb.toString().contains("Shift+")) sb.insert(0, "Shift+");
+				sb.append(c);
+			} else {
+				sb.append(Character.toUpperCase(c));
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * Converts an action-name string to Title Case.
+	 */
+	private static String toTitleCase(final String s) {
+		if (s == null || s.isEmpty()) return s;
+		final String[] words = s.replaceAll("[-_]", " ").split("\\s+");
+		final StringBuilder sb = new StringBuilder();
+		for (final String w : words) {
+			if (!w.isEmpty()) {
+				if (!sb.isEmpty()) sb.append(' ');
+				if ("snt".equalsIgnoreCase(w))
+					sb.append("SNT");
+				else {
+					sb.append(Character.toUpperCase(w.charAt(0)));
+					if (w.length() > 1) sb.append(w.substring(1));
+				}
+			}
+		}
+		return sb.toString();
+	}
+
 	public static String ctrlKey() {
 		return (PlatformUtils.isMac()) ? "Cmd" : "Ctrl";
 	}

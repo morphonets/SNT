@@ -137,6 +137,7 @@ public class BookmarkManager {
     /** Shows or hides the floating BVV marker panel. */
     public void toggleBvvPanel() {
         final JFrame f = getBvvPanel();
+        guiUtils.setParent(f);
         f.setVisible(!f.isVisible());
         // Always return focus to the BVV viewer so M and other shortcuts keep working
         if (bvv != null && bvv.getViewerFrame() != null)
@@ -321,7 +322,24 @@ public class BookmarkManager {
         tagMenu.addSeparator();
         tagMenu.add(mi);
         pMenu.addSeparator();
-
+        if (bvv != null) {
+            mi = new JMenuItem("Size...", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
+            mi.addActionListener(e -> {
+                if (noBookmarksError()) return;
+                final int[] rows = getSelectedRowsAllIfNone();
+                final int lastCol = model.getColumnCount() - 1;
+                final Double size = guiUtils.getDouble("Marker size (in calibrated units):",
+                        "Marker Size", (float)model.getValueAt(rows[rows.length-1], lastCol));
+                if (size != null) {
+                    for (final int viewRow : rows) {
+                        final int modelRow = table.convertRowIndexToModel(viewRow);
+                        model.setValueAt(size, modelRow, lastCol);
+                    }
+                }
+            });
+            pMenu.add(mi);
+            pMenu.addSeparator();
+        }
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
@@ -548,15 +566,10 @@ public class BookmarkManager {
                 final int target = (row < 0 || row >= table.getRowCount() - 1) ? 0 : row + 1;
                 if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
             });
-            final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.CUBE));
-            resetButton.setToolTipText("Reset view to startup state");
-            resetButton.addActionListener(e -> bvv.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
             helpButton.addActionListener(e -> displayMarkerHelp());
             tb.add(prevButton);
             tb.add(nextButton);
-            tb.addSeparator();
-            tb.add(resetButton);
             tb.addSeparator();
             tb.add(Box.createHorizontalGlue());
             tb.add(helpButton);

@@ -25,7 +25,6 @@ package sc.fiji.snt.viewer;
 import bdv.img.imaris.Imaris;
 import bdv.spimdata.SpimDataMinimal;
 import bdv.spimdata.XmlIoSpimDataMinimal;
-import bdv.tools.HelpDialog;
 import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.util.Prefs;
@@ -64,16 +63,19 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.geom.Path2D;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.List;
 
 /**
- * Experimental support for Big Volume Viewer
+ * Support for Big Volume Viewer.
  **/
 public class Bvv {
 
@@ -86,12 +88,14 @@ public class Bvv {
     private final PathRenderingOptions renderingOptions;
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
+    private SceneOverlay sceneOverlay;
     private BigVolumeViewer currentBvv;
     private BvvHandle bvvHandle;
     private double[] cal; // Pixel size of the volume being rendered
     private long[] dims; // Dimensions in pixels of volume being rendered
+    private String calUnit; // Physical unit string (e.g. "µm", "pixel") for the volume
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
-    private BookmarkManager markerManager; // lazily initialized on first use
+    private BookmarkManager markerManager; // lazily initialised on first use
 
     /**
      * Constructor for standalone BVV instance.
@@ -122,8 +126,8 @@ public class Bvv {
     /**
      * Displays the BVV viewer with the specified image.
      *
-     * @param <T> the numeric type of the image data
-     * @param img the image data to display
+     * @param <T>         the numeric type of the image data
+     * @param img         the image data to display
      * @param calibration optional calibration values for x, y, z dimensions. If null, defaults to {1, 1, 1}
      * @return the BvvSource representing the displayed image
      */
@@ -132,9 +136,11 @@ public class Bvv {
         cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
         dims = new long[]{img.dimension(0), img.dimension(1), img.dimension(2)};
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
+        calUnit = "pixel";
         final BvvSource source = showCalibratedSource(img, "SNT Bvv", cal, "pixel", opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
+        multiSources.add(new BvvMultiSource((BvvStackSource<?>) source));
         return source;
     }
 
@@ -161,9 +167,11 @@ public class Bvv {
         final String unit = (xAxis != null && xAxis.unit() != null) ? xAxis.unit() : "pixel";
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         // Use showCalibratedSource so the unit propagates to the scale bar renderer
+        calUnit = unit;
         final BvvStackSource<?> source = showCalibratedSource(imgPlus, title, cal, unit, opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
+        multiSources.add(new BvvMultiSource(source));
         return source;
     }
 
@@ -172,7 +180,7 @@ public class Bvv {
      * independent 3D XYZ source via {@link Views#hyperSlice}, avoiding the
      * dimension-ordering ambiguity of {@link net.imglib2.img.display.imagej.ImageJFunctions#wrap}.
      * Mirrors the logic of {@link #showImagePlusMultiChannel(ImagePlus)}.
-     */
+            */
     private <T extends RealType<T>> BvvMultiSource showImgPlusMultiChannel(final ImgPlus<T> imgPlus) {
         final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
         final int nC = (int) imgPlus.dimension(chDim);
@@ -305,8 +313,8 @@ public class Bvv {
      * Displays a list of {@link RandomAccessibleInterval} volumes, each as a
      * {@link BvvMultiSource}. All volumes are added to the same BVV window.
      *
-     * @param <T>    the numeric type
-     * @param imgs   the volumes to display
+     * @param <T>          the numeric type
+     * @param imgs         the volumes to display
      * @param calibrations per-image calibration arrays (x, y, z pixel sizes);
      *                     may be {@code null} to use defaults of {1,1,1}
      * @return list of {@link BvvMultiSource}, one per volume
@@ -347,7 +355,7 @@ public class Bvv {
     /**
      * Script-friendly method for setting per-channel colors
      *
-     * @param colorNames  color representations (HTML/css values, or hex)
+     * @param colorNames color representations (HTML/css values, or hex)
      * @see #setChannelColors(Color...)
      */
     @SuppressWarnings("unused")
@@ -556,7 +564,7 @@ public class Bvv {
                     bvv.multiSources.add(new BvvMultiSource(src));
                 }
                 case null -> throw new IllegalArgumentException("Null entries are not supported.");
-                default   -> throw new IllegalArgumentException("Unsupported type: " + item.getClass().getName());
+                default -> throw new IllegalArgumentException("Unsupported type: " + item.getClass().getName());
             }
         }
         return bvv;
@@ -756,6 +764,7 @@ public class Bvv {
                     if (setup.hasVoxelSize()) {
                         final var vs = setup.getVoxelSize();
                         cal = new double[]{vs.dimension(0), vs.dimension(1), vs.dimension(2)};
+                        calUnit = vs.unit() != null && !vs.unit().isBlank() ? vs.unit() : "pixel";
                     }
                 }
             } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
@@ -793,16 +802,16 @@ public class Bvv {
     }
 
     private static AxisOrder getAxisOrder(final ImagePlus imp) {
-        final boolean hasZ = imp.getNSlices()   > 1;
+        final boolean hasZ = imp.getNSlices() > 1;
         final boolean hasC = imp.getNChannels() > 1;
-        final boolean hasT = imp.getNFrames()   > 1;
+        final boolean hasT = imp.getNFrames() > 1;
         if (!hasZ && !hasC && !hasT) return AxisOrder.XY;
-        if ( hasZ && !hasC && !hasT) return AxisOrder.XYZ;
-        if (!hasZ &&  hasC && !hasT) return AxisOrder.XYC;
-        if (!hasZ && !hasC &&  hasT) return AxisOrder.XYT;
-        if ( hasZ &&  hasC && !hasT) return AxisOrder.XYZC;
-        if (!hasZ &&  hasC &&  hasT) return AxisOrder.XYCT;
-        if ( hasZ && !hasC &&  hasT) return AxisOrder.XYZT;
+        if (hasZ && !hasC && !hasT) return AxisOrder.XYZ;
+        if (!hasZ && hasC && !hasT) return AxisOrder.XYC;
+        if (!hasZ && !hasC) return AxisOrder.XYT;
+        if (hasZ && hasC && !hasT) return AxisOrder.XYZC;
+        if (!hasZ) return AxisOrder.XYCT;
+        if (!hasC) return AxisOrder.XYZT;
         return AxisOrder.XYZCT; // hasZ && hasC && hasT
     }
 
@@ -841,6 +850,7 @@ public class Bvv {
         final String label = String.format("Tracing Data (%s): C%d, T%d",
                 (secondary) ? "Secondary layer" : "Main image", snt.getChannel(), snt.getFrame());
         final String unit = snt.getSpacingUnits();
+        calUnit = unit;
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         @SuppressWarnings({"unchecked", "rawtypes"})
         final BvvSource source = showCalibratedSource(
@@ -849,6 +859,7 @@ public class Bvv {
         source.setDisplayRange(minMax[0], minMax[1]);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
+        multiSources.add(new BvvMultiSource((BvvStackSource<?>) source));
         return source;
     }
 
@@ -915,6 +926,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
+        calUnit = unit;
         final BvvOptions opt = configureBvvOptionsForImage(imp).axisOrder(getAxisOrder(imp));
         final net.imglib2.RandomAccessibleInterval<?> wrappedImp = switch (imp.getType()) {
             case ImagePlus.COLOR_256 -> throw new IllegalArgumentException("Unsupported image type (COLOR_256).");
@@ -961,6 +973,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
+        calUnit = unit;
         // Each channelImp has nChannels=1; derive axis order from Z and T only
         final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
                 : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
@@ -1064,7 +1077,7 @@ public class Bvv {
             final int endIdx = startIdx + numChannels - 1;
             for (int i = startIdx; i <= endIdx && i < allSources.size(); i++)
                 state.addSourceToGroup(allSources.get(i), handle);
-            SNTUtils.log("BVV group [" + groupIdx + "] '" + name + "': sources " + startIdx + "–" + endIdx);
+            SNTUtils.log("BVV group [" + groupIdx + "] '" + name + "': sources " + startIdx + "-" + endIdx);
         } catch (final Exception ex) {
             SNTUtils.log("BVV group assignment failed: " + ex.getMessage());
         }
@@ -1086,21 +1099,25 @@ public class Bvv {
             currentBvv = bvv;
             initializePathOverlay(currentBvv);
             initializeAnnotationOverlay(currentBvv);
+            sceneOverlay = new SceneOverlay();
+            currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();
             final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
             final BvvActions actions = new BvvActions(bvv);
-            // "Source Transforms" card: added first so it appears just below the Groups card.
-            // Collapsed by default, so it is out of the way
+            // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
+            // Scene controls
             bvvFrame.getCardPanel().addCard("Scene Controls",
                     new CameraControls(this, pathOverlay.overlayRenderer).getToolbar(actions), true);
+            // SNT toolbar
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
-            // Register M key to place a marker at the current mouse position
-            final javax.swing.InputMap imap = bvvFrame.getViewerPanel()
-                    .getInputMap(javax.swing.JComponent.WHEN_IN_FOCUSED_WINDOW);
-            final javax.swing.ActionMap amap = bvvFrame.getViewerPanel().getActionMap();
-            imap.put(javax.swing.KeyStroke.getKeyStroke('m'), "snt-add-marker");
-            amap.put("snt-add-marker", actions.addMarkerAction());
+            // Register shortcuts: M key to place a marker at the current mouse position; shift+S for screenshot()
+            final InputMap iMap = bvvFrame.getViewerPanel().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+            final ActionMap aMap = bvvFrame.getViewerPanel().getActionMap();
+            iMap.put(KeyStroke.getKeyStroke('m'), "snt-add-marker");
+            aMap.put("snt-add-marker", actions.addMarkerAction());
+            iMap.put(KeyStroke.getKeyStroke('S'), "snt-bvv-snapshot");
+            aMap.put("snt-bvv-snapshot", snapshotAction());
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
@@ -1139,11 +1156,11 @@ public class Bvv {
      */
     private double[] computeCamParams(final double sx, final double sy, final double sz,
                                       final long nZ, final long maxXY) {
-        final double physZ   = nZ * sz;
-        final double scale   = 1024.0 / maxXY;
+        final double physZ = nZ * sz;
+        final double scale = 1024.0 / maxXY;
         final double zExtent = (physZ / ((sx + sy) / 2)) * scale;
-        final double dCam    = Math.max(2000, zExtent * 2.5);
-        final double dClip   = Math.max(1000, zExtent * 1.5);
+        final double dCam = Math.max(2000, zExtent * 2.5);
+        final double dClip = Math.max(1000, zExtent * 1.5);
         SNTUtils.log(String.format("BVV camParams: physZ=%.1f zExtent=%.1f → dCam=%.0f dClip=%.0f",
                 physZ, zExtent, dCam, dClip));
         return new double[]{dCam, dClip, dClip};
@@ -1215,7 +1232,9 @@ public class Bvv {
             final String unit,
             final BvvOptions opts) {
         final net.imglib2.realtransform.AffineTransform3D t = new net.imglib2.realtransform.AffineTransform3D();
-        t.set(cal[0], 0, 0); t.set(cal[1], 1, 1); t.set(cal[2], 2, 2);
+        t.set(cal[0], 0, 0);
+        t.set(cal[1], 1, 1);
+        t.set(cal[2], 2, 2);
         final CalibratedSource<T> src = new CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
         return BvvFunctions.show((bdv.viewer.Source) src, 1, opts);
     }
@@ -1239,6 +1258,54 @@ public class Bvv {
                             "BDV/HDF5 or IMS source directly to use BVV's pyramid-aware cache.",
                     width, height, depth, voxels / 1e9));
         }
+    }
+
+    /**
+     * Returns an {@link Action} that captures the current scene and saves it as
+     * a timestamped PNG to {@code ~/Desktop/SNTsnapshots/}.
+     * Runs the capture off the EDT via a {@link javax.swing.SwingWorker} so that
+     * the render latch in {@link #screenshotImp()} can complete correctly.
+     */
+    private Action snapshotAction() {
+        return new AbstractAction("BVV Snapshot") {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                new SwingWorker<ImagePlus, Void>() {
+                    @Override
+                    protected ImagePlus doInBackground() {
+                        return snapshot("current");
+                    }
+
+                    @Override
+                    protected void done() {
+                        try {
+                            final ImagePlus imp = get();
+                            if (imp == null) {
+                                SNTUtils.log("BVV snapshot: capture returned null");
+                                return;
+                            }
+                            // Save to ~/Desktop/SNTsnapshots/
+                            final java.io.File out = getSnapshotFile(null);
+                            ImpUtils.save(imp, out.getAbsolutePath());
+                            SNTUtils.log("BVV snapshot saved: " + out.getAbsolutePath());
+                            if (currentBvv != null)
+                                currentBvv.getViewer().showMessage("Snapshot saved: " + out.getName());
+                        } catch (final Exception ex) {
+                            SNTUtils.log("BVV snapshot error: " + ex.getMessage());
+                        }
+                    }
+                }.execute();
+            }
+        };
+    }
+
+    private File getSnapshotFile(final String directory) throws IOException {
+        final java.nio.file.Path dir = java.nio.file.Paths.get(
+                (directory != null) ? directory : System.getProperty("user.home"), "Desktop", "SNTsnapshots");
+        java.nio.file.Files.createDirectories(dir);
+        final String ts = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss-SSS")
+                .format(new java.util.Date());
+        return dir.resolve("BVV-" + ts + ".png").toFile();
     }
 
     /** Initializes the path overlay system for drawing traced paths. */
@@ -1325,8 +1392,15 @@ public class Bvv {
                 IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
         // Keep button state in sync with frame visibility
         getMarkerManager().getBvvPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override public void componentShown(java.awt.event.ComponentEvent e) { markerButton.setSelected(true); }
-            @Override public void componentHidden(java.awt.event.ComponentEvent e) { markerButton.setSelected(false); }
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                markerButton.setSelected(true);
+            }
+
+            @Override
+            public void componentHidden(java.awt.event.ComponentEvent e) {
+                markerButton.setSelected(false);
+            }
         });
         toolbar.add(markerButton);
         toolbar.addSeparator();
@@ -1452,7 +1526,9 @@ public class Bvv {
             final double physZ = dims[2] * pz;
             final double scale = Math.min(cw / physW, ch / physH);
             target = new AffineTransform3D();
-            target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
+            target.set(scale, 0, 0);
+            target.set(scale, 1, 1);
+            target.set(scale, 2, 2);
             target.set(cw / 2.0 - scale * physW / 2.0, 0, 3);
             target.set(ch / 2.0 - scale * physH / 2.0, 1, 3);
             target.set(-scale * physZ / 2.0, 2, 3);
@@ -1464,11 +1540,180 @@ public class Bvv {
     }
 
     /**
-     * Removes a rendered tree from the viewer.
+     * Retrieves the current scene as an image.
      *
-     * @param treeLabel the label of the tree to remove
-     * @return true if the tree was successfully removed
+     * @return the bitmap image of the current scene
      */
+    public ImagePlus snapshot() {
+        return snapshot("current");
+    }
+
+    /**
+     * Retrieves the specified scene view as an image.
+     * <b>Must be called from a non-EDT thread</b> (e.g. a script or SwingWorker),
+     * otherwise the render latch will time out.
+     *
+     * @param viewMode the view mode (case-insensitive): {@code "xy"}, {@code "xz"},
+     *                 {@code "yz"}, {@code "default"} (fit-to-viewport), or
+     *                 {@code "current"} (scene as-is).
+     * @return the bitmap image of the scene view, or {@code null} if the viewer
+     * is not initialized
+     */
+    public ImagePlus snapshot(final String viewMode) {
+        if (currentBvv == null) return null;
+        if (SwingUtilities.isEventDispatchThread())
+            throw new IllegalStateException("snapshot() must not be called from the EDT");
+        final String vMode = (viewMode == null) ? "current" : viewMode.strip().toLowerCase();
+        final VolumeViewerPanel viewerPanel = currentBvv.getViewer();
+
+        // Save transform for restore after non-current modes
+        final AffineTransform3D savedTransform = new AffineTransform3D();
+        viewerPanel.state().getViewerTransform(savedTransform);
+
+        if (!"current".equals(vMode)) {
+            // Apply the new transform on the EDT and wait for it to complete
+            final AffineTransform3D target = computeAlignTransform(vMode);
+            if (target != null) {
+                try {
+                    SwingUtilities.invokeAndWait(
+                            () -> viewerPanel.state().setViewerTransform(target));
+                } catch (final Exception ex) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+
+        final ImagePlus result = screenshotImp();
+        if (!"current".equals(vMode)) {
+            try {
+                SwingUtilities.invokeAndWait(
+                        () -> viewerPanel.state().setViewerTransform(savedTransform));
+            } catch (final Exception ex) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        if (result != null) {
+            result.setTitle("BVV-" + vMode);
+        }
+        return result;
+    }
+
+    /**
+     * Saves a snapshot of current scene as a PNG image to the specified path.
+     *
+     * @param filePath the absolute path of the destination file
+     * @return true, if file was successfully saved
+     */
+    public boolean saveSnapshot(final String filePath) {
+        try {
+            final ImagePlus snapshot = snapshot();
+            File outFile;
+            if (filePath == null) {
+                outFile = getSnapshotFile(null);
+            } else if (filePath.toLowerCase().endsWith(".png")) {
+                outFile = new File(filePath);
+            } else {
+                outFile = new File(filePath);
+                if (outFile.isDirectory())
+                    outFile = getSnapshotFile(filePath);
+            }
+            outFile.mkdirs();
+            ImpUtils.save(snapshot, outFile.getAbsolutePath());
+            if (currentBvv != null)
+                currentBvv.getViewer().showMessage("Snapshot saved: " + outFile.getName());
+            return true;
+        } catch (final IllegalArgumentException | IOException e) {
+            SNTUtils.error("IOException", e);
+            return false;
+        }
+    }
+
+    /**
+     * Captures the current canvas as a {@link ImagePlus}.
+     * Waits up to 3 s for the renderer to deliver a fresh frame.
+     * Must be called from a non-EDT thread.
+     */
+    private ImagePlus screenshotImp() {
+        if (currentBvv == null) return null;
+        final VolumeViewerPanel viewerPanel = currentBvv.getViewer();
+        final java.awt.Component canvas = viewerPanel.getDisplayComponent();
+        final java.util.concurrent.CountDownLatch latch =
+                new java.util.concurrent.CountDownLatch(1);
+        final bdv.viewer.TransformListener<AffineTransform3D> renderListener =
+                t -> latch.countDown();
+        viewerPanel.renderTransformListeners().add(renderListener);
+        viewerPanel.requestRepaint();
+        try {
+            latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (final InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        } finally {
+            viewerPanel.renderTransformListeners().remove(renderListener);
+        }
+        final int w = canvas.getWidth();
+        final int h = canvas.getHeight();
+        if (w <= 0 || h <= 0) return null;
+        final java.awt.image.BufferedImage bi =
+                new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        try {
+            SwingUtilities.invokeAndWait(() -> canvas.paint(bi.getGraphics()));
+        } catch (final java.lang.reflect.InvocationTargetException | InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
+        return new ImagePlus("BVV Snapshot", new ij.process.ColorProcessor(bi));
+    }
+
+    /**
+     * Computes the target {@link AffineTransform3D} for the given plane alignment,
+     * or for "default" (fit-to-viewport). Returns {@code null} if calibration is
+     * unavailable or the plane string is unrecognised.
+     */
+    private AffineTransform3D computeAlignTransform(final String vMode) {
+        final VolumeViewerPanel viewerPanel = currentBvv.getViewer();
+        final int cw = viewerPanel.getDisplay().getWidth();
+        final int ch = viewerPanel.getDisplay().getHeight();
+        if (cw <= 0 || ch <= 0 || cal == null || dims == null) return null;
+        final double px = cal[0] > 0 ? cal[0] : 1;
+        final double py = cal[1] > 0 ? cal[1] : 1;
+        final double pz = cal[2] > 0 ? cal[2] : 1;
+        final double physX = dims[0] * px, physY = dims[1] * py, physZ = dims[2] * pz;
+        final AffineTransform3D t = new AffineTransform3D();
+        switch (vMode) {
+            case "default", "xy" -> {
+                final double s = Math.min(cw / physX, ch / physY);
+                t.set(s, 0, 0);
+                t.set(s, 1, 1);
+                t.set(s, 2, 2);
+                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
+                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
+                t.set(-s * physZ / 2.0, 2, 3);
+            }
+            case "xz" -> {
+                final double s = Math.min(cw / physX, ch / physZ);
+                t.set(s, 0, 0);
+                t.set(s, 2, 1);
+                t.set(s, 1, 2);
+                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
+                t.set(ch / 2.0 - s * physZ / 2.0, 1, 3);
+                t.set(-s * physY / 2.0, 2, 3);
+            }
+            case "yz" -> {
+                final double s = Math.min(cw / physZ, ch / physY);
+                t.set(s, 2, 0);
+                t.set(s, 1, 1);
+                t.set(s, 0, 2);
+                t.set(cw / 2.0 - s * physZ / 2.0, 0, 3);
+                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
+                t.set(-s * physX / 2.0, 2, 3);
+            }
+            default -> {
+                return null;
+            }
+        }
+        return t;
+    }
+
     @SuppressWarnings("unused")
     public boolean removeTree(final String treeLabel) {
         final Tree removedTree = renderedTrees.remove(treeLabel);
@@ -1564,6 +1809,7 @@ public class Bvv {
     }
 
     // ---- methods for SNT Bvv instance
+
     /**
      * Displays the main tracing data from the associated SNT instance.
      * This method is only available for BVV instances that are tethered to an SNT instance.
@@ -1608,125 +1854,156 @@ public class Bvv {
     }
 
     /**
-     * Captures a screenshot of the BVV viewer.
-     *
-     * @return BufferedImage of the current view, or null if capture fails
+     * Resolves the physical unit string for the currently loaded volume.
+     * Checks (in order): calUnit field, SNT spacing units, first source's
+     * VoxelDimensions (same source used by the scale bar renderer).
      */
-    public ImagePlus screenshot() {
-        if (bvvHandle == null) return null;
-
-        final Component panel = bvvHandle.getViewerPanel();
-
-        // Get bounds on EDT
-        final Rectangle[] boundsHolder = new Rectangle[1];
-        try {
-            if (SwingUtilities.isEventDispatchThread()) {
-                boundsHolder[0] = getScreenBounds(panel);
-            } else {
-                SwingUtilities.invokeAndWait(() -> boundsHolder[0] = getScreenBounds(panel));
+    private String getPhysicalUnit() {
+        if (calUnit != null && !calUnit.isBlank() && !"pixel".equalsIgnoreCase(calUnit)) return calUnit;
+        if (snt != null) {
+            final String u = snt.getSpacingUnits();
+            if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u)) return u;
+        }
+        if (bvvHandle != null) {
+            try {
+                final var srcs = bvvHandle.getViewerPanel().state().getSources();
+                if (!srcs.isEmpty()) {
+                    final var vd = srcs.getFirst().getSpimSource().getVoxelDimensions();
+                    if (vd != null && vd.unit() != null && !vd.unit().isBlank()
+                            && !"pixel".equalsIgnoreCase(vd.unit())) return vd.unit();
+                }
+            } catch (final Exception ignored) {
             }
-        } catch (final InterruptedException | InvocationTargetException e) {
-            SNTUtils.error("Could not retrieve panel bounds", e);
-            return null;
         }
-
-        if (boundsHolder[0] == null) return null;
-
-        // Robot capture can be called from any thread
-        try {
-            return new ImagePlus("BVV Screenshot", new Robot().createScreenCapture(boundsHolder[0]));
-        } catch (final AWTException e) {
-            SNTUtils.error("Screenshot not captured", e);
-            return null;
-        }
+        return "pixel";
     }
 
     /**
-     * Captures a screenshot and saves to file.
-     *
-     * @param filePath path to save PNG file
-     * @return true if successful
-     */
-    @SuppressWarnings("unused")
-    public boolean screenshot(final String filePath) {
-        final ImagePlus image = screenshot();
-        if (image == null) return false;
-        try {
-            ImpUtils.save(image, filePath);
-        } catch (final Exception e) {
-            SNTUtils.error("Screenshot not saved", e);
-            return false;
-        }
-        return true;
-    }
-
-    private static Rectangle getScreenBounds(final Component component) {
-        if (!component.isShowing()) return null;
-        try {
-            final Point location = component.getLocationOnScreen();
-            return new Rectangle(location.x, location.y, component.getWidth(), component.getHeight());
-        } catch (final IllegalComponentStateException e) {
-            return null;
-        }
-    }
-
-    /**
-     * Primitive Camera controls and camera parameter management
+     * Scene Controls card: 4-row layout.
+     * <pre>
+     * Row 1: Camera Depth   [slider %] [reset]
+     * Row 2: Clipping       [range slider %] [reset]   (two thumbs = near + far)
+     * Row 3: [Slab toggle]  [thickness spinner] [Z slider] [reset]
+     * Row 4: [Reset] [Fit] | [Multibox] [Text] [ScaleBar] | [options]
+     * </pre>
+     * All percentage values are relative to the Z-extent of the first loaded volume.
      */
     private class CameraControls {
 
         private final Bvv bvvInstance;
         private final OverlayRenderer overlayRenderer;
-        private final JSpinner dCamSpinner;
-        private final JSpinner nearSpinner;
-        private final JSpinner farSpinner;
+        /**
+         * Screen-space values at construction time, used by reset actions.
+         */
         private final double[] initialCamParams;
+        /**
+         * Z depth of the initial volume in screen-space units.
+         * Slider values (1-1000 integer ticks) map to 1-1000% of this.
+         */
+        private final double zExtent;
+
+        // Row 1: camera depth slider
+        private final JSlider dCamSlider;
+        // Row 2: symmetric clipping range slider (low = near, high = far)
+        private final JSlider nearSlider;
+        private final JSlider farSlider;
+        // Suppresses re-entrant slider updates
+        private boolean updatingSliders = false;
+        /**
+         * Slab toggle; null when no calibration is available. Set by getToolbar().
+         */
+        private JToggleButton slabToggle = null;
 
         CameraControls(final Bvv bvvInstance, final OverlayRenderer overlayRenderer) {
             this.bvvInstance = bvvInstance;
             this.overlayRenderer = overlayRenderer;
-            // On the first render with valid canvas dimensions, compute a centered
-            // fit-to-viewport transform, apply it, and store it for reset.
-            // This is necessary because initTransform in attachControlPanel runs
-            // before the panel is laid out (width/height are ~1px at that point).
             initialCamParams = new double[]{overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip};
-            // Adaptive spinner ranges: max = 5× the initial dCam, step = dCam/20
-            final int dCamMax = (int) Math.max(10000, initialCamParams[0] * 5);
-            final int clipMax = (int) Math.max(10000, initialCamParams[1] * 5);
-            final int dCamStep = (int) Math.max(50, initialCamParams[0] / 20);
-            final int clipStep = (int) Math.max(50, initialCamParams[1] / 20);
-            this.dCamSpinner = GuiUtils.integerSpinner((int) overlayRenderer.dCam, 10, dCamMax, dCamStep, true);
-            this.nearSpinner = GuiUtils.integerSpinner((int) overlayRenderer.nearClip, 10, clipMax, clipStep, true);
-            this.farSpinner = GuiUtils.integerSpinner((int) overlayRenderer.farClip, 10, clipMax, clipStep, true);
-            setupSpinners();
+            zExtent = Math.max(1.0, initialCamParams[0] / 2.5);
+            dCamSlider = new JSlider(1, 1000, pctToTick(toPct(initialCamParams[0])));
+            final String caveat = "<br><i>% of the Z-extent of the initial volume.</i>";
+            nearSlider = new JSlider(1, 1000, pctToTick(toPct(initialCamParams[1])));
+            farSlider = new JSlider(1, 1000, pctToTick(toPct(initialCamParams[2])));
+            dCamSlider.setToolTipText("<html>Camera depth. Increase if the volume appears cut off front-to-back." + caveat);
+            nearSlider.setToolTipText("<html>Near clipping depth. Decrease to reveal structures close to the camera." + caveat);
+            farSlider.setToolTipText("<html>Far clipping depth. Increase to reveal structures far from the camera." + caveat);
+            dCamSlider.addChangeListener(e -> {
+                if (!updatingSliders) updateCameraParameters();
+            });
+            // Enforce near <= far: when near is dragged past far, snap far to near and vice versa
+            nearSlider.addChangeListener(e -> {
+                if (!updatingSliders) {
+                    if (nearSlider.getValue() > farSlider.getValue()) {
+                        updatingSliders = true;
+                        farSlider.setValue(nearSlider.getValue());
+                        updatingSliders = false;
+                    }
+                    updateCameraParameters();
+                }
+            });
+            farSlider.addChangeListener(e -> {
+                if (!updatingSliders) {
+                    if (farSlider.getValue() < nearSlider.getValue()) {
+                        updatingSliders = true;
+                        nearSlider.setValue(farSlider.getValue());
+                        updatingSliders = false;
+                    }
+                    updateCameraParameters();
+                }
+            });
         }
 
-        private double[] defaultCamParams() {
-            return initialCamParams; // image-derived values, not hardwired
+        private double toPct(final double screenValue) {
+            return Math.round((screenValue / zExtent) * 100.0 * 10.0) / 10.0;
         }
 
-        private void setupSpinners() {
-            dCamSpinner.addChangeListener(e -> updateCameraParameters(false));
-            nearSpinner.addChangeListener(e -> updateCameraParameters(true));
-            farSpinner.addChangeListener(e -> updateCameraParameters(true));
-            dCamSpinner.setToolTipText("Distance from camera to z=0 plane in physical units");
-            nearSpinner.setToolTipText("Near clipping plane in physical units");
-            farSpinner.setToolTipText("Distant clipping plane in physical units");
+        private double toScreen(final double pct) {
+            return (pct / 100.0) * zExtent;
         }
 
-        private void updateCameraParameters(final boolean updatePlaneSpinners) {
+        private int pctToTick(final double pct) {
+            return Math.max(1, Math.min(1000, (int) Math.round(pct)));
+        }
+
+        private double tickToPct(final int tick) { return tick; }
+
+        private void updateCameraParameters() {
+            overlayRenderer.dCam = toScreen(tickToPct(dCamSlider.getValue()));
+            overlayRenderer.nearClip = toScreen(tickToPct(nearSlider.getValue()));
+            overlayRenderer.farClip = toScreen(tickToPct(farSlider.getValue()));
             bvvInstance.getViewerFrame().getViewerPanel().setCamParams(
-                    overlayRenderer.dCam = ((Number) dCamSpinner.getValue()).doubleValue(),
-                    overlayRenderer.nearClip = ((Number) nearSpinner.getValue()).doubleValue(),
-                    overlayRenderer.farClip = ((Number) farSpinner.getValue()).doubleValue()
-            );
+                    overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             bvvInstance.syncOverlays();
-            if (updatePlaneSpinners) {
-                SwingUtilities.invokeLater(() -> {
-                    nearSpinner.setValue((int) Math.min(overlayRenderer.farClip, overlayRenderer.nearClip));
-                    farSpinner.setValue((int) Math.max(overlayRenderer.farClip, overlayRenderer.nearClip));
-                });
-            }
+        }
+
+        private void setSliderValues(final int dCamTick, final int nearTick, final int farTick) {
+            updatingSliders = true;
+            dCamSlider.setValue(dCamTick);
+            nearSlider.setValue(nearTick);
+            farSlider.setValue(farTick);
+            updatingSliders = false;
+            updateCameraParameters();
+        }
+
+        private void applyZCenter(final VolumeViewerPanel viewerPanel, final double zCenter) {
+            final AffineTransform3D t = new AffineTransform3D();
+            viewerPanel.state().getViewerTransform(t);
+            // Read current scale from the transform column magnitude. Using a cached
+            // screenScale from toolbar-build time would cause a zoom artifact if the
+            // user has zoomed since the slab controls were first shown.
+            final double currentScale = Math.sqrt(
+                    t.get(0, 0) * t.get(0, 0) +
+                            t.get(1, 0) * t.get(1, 0) +
+                            t.get(2, 0) * t.get(2, 0));
+            t.set(-currentScale * zCenter, 2, 3);
+            viewerPanel.state().setViewerTransform(t);
+            viewerPanel.requestRepaint();
+        }
+
+        private void applySlab(final VolumeViewerPanel viewerPanel,
+                               final double physZ, final double zCenter, final double thickness) {
+            applyZCenter(viewerPanel, zCenter);
+            final int tick = pctToTick(toPct(toScreen((thickness / physZ) * 100.0 / 2.0)));
+            setSliderValues(dCamSlider.getValue(), tick, tick);
         }
 
         // Notes on Resetting view:
@@ -1742,7 +2019,7 @@ public class Bvv {
         //   geometry: scale = min(canvasW/physW, canvasH/physH), with translation set to center
         //   the image in the display
         private Action resetViewAction() {
-            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.CUBE)) {
+            return new AbstractAction("Reset", IconFactory.menuIcon(IconFactory.GLYPH.BROOM)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
@@ -1750,19 +2027,11 @@ public class Bvv {
                     viewerPanel.state().getViewerTransform(current);
                     final int cw = viewerPanel.getDisplay().getWidth();
                     final int ch = viewerPanel.getDisplay().getHeight();
-                    // Compute a fit-to-viewport transform directly from image geometry
-                    // initTransform (BDV) is incompatible with BVV's perspective projection
                     final AffineTransform3D target;
                     if (cal != null && dims != null && cw > 0 && ch > 0) {
-                        final double px = cal[0] > 0 ? cal[0] : 1;
-                        final double py = cal[1] > 0 ? cal[1] : 1;
-                        final double pz = cal[2] > 0 ? cal[2] : 1;
-                        final double physW = dims[0] * px;
-                        final double physH = dims[1] * py;
-                        final double physZ = dims[2] * pz;
-                        // Scale to fit the largest physical XY dimension into the canvas
+                        final double px = cal[0] > 0 ? cal[0] : 1, py = cal[1] > 0 ? cal[1] : 1, pz = cal[2] > 0 ? cal[2] : 1;
+                        final double physW = dims[0] * px, physH = dims[1] * py, physZ = dims[2] * pz;
                         final double scale = Math.min(cw / physW, ch / physH);
-                        // Center XY; place Z center at screen Z=0
                         target = new AffineTransform3D();
                         target.set(scale, 0, 0);
                         target.set(scale, 1, 1);
@@ -1772,127 +2041,77 @@ public class Bvv {
                         target.set(-scale * physZ / 2.0, 2, 3);
                         SNTUtils.log("BVV reset: scale=" + scale + " target=" + target);
                     } else {
-                        // Fallback: no cal/dims available, use identity (BVV default view)
-                        target = new AffineTransform3D(); // identity
+                        target = new AffineTransform3D();
                     }
-                    viewerPanel.setTransformAnimator(
-                            new SimilarityTransformAnimator(current, target, 0, 0, 200));
+                    viewerPanel.setTransformAnimator(new SimilarityTransformAnimator(current, target, 0, 0, 200));
                     SwingUtilities.invokeLater(() -> {
-                        dCamSpinner.setValue(defaultCamParams()[0]);
-                        nearSpinner.setValue(defaultCamParams()[1]);
-                        farSpinner.setValue(defaultCamParams()[2]);
+                        setSliderValues(
+                                pctToTick(toPct(initialCamParams[0])),
+                                pctToTick(toPct(initialCamParams[1])),
+                                pctToTick(toPct(initialCamParams[2])));
+                        // Deactivate slab mode if active
+                        if (slabToggle != null && slabToggle.isSelected())
+                            slabToggle.doClick();
                     });
-                    updateCameraParameters(false);
                 }
             };
         }
 
-        private Action resetCameraDistanceAction() {
-            return new AbstractAction() {
+        private Action fitToCurrentSourceAction() {
+            return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    dCamSpinner.setValue(defaultCamParams()[0]);
-                    updateCameraParameters(false);
+                    final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
+                    final bdv.viewer.SourceAndConverter<?> current = viewerPanel.state().getCurrentSource();
+                    if (current == null) {
+                        viewerPanel.showMessage("No source selected");
+                        return;
+                    }
+                    final int cw = viewerPanel.getDisplay().getWidth(), ch = viewerPanel.getDisplay().getHeight();
+                    if (cw <= 0 || ch <= 0) return;
+                    final AffineTransform3D srcToWorld = new AffineTransform3D();
+                    current.getSpimSource().getSourceTransform(0, 0, srcToWorld);
+                    final net.imglib2.RandomAccessibleInterval<?> rai = current.getSpimSource().getSource(0, 0);
+                    if (rai == null) return;
+                    final long[] min = new long[3], max = new long[3];
+                    for (int d = 0; d < 3; d++) {
+                        min[d] = rai.min(d);
+                        max[d] = rai.max(d);
+                    }
+                    double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                    double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                    double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+                    final double[] corner = new double[3], world = new double[3];
+                    for (int i = 0; i < 8; i++) {
+                        corner[0] = (i & 1) == 0 ? min[0] : max[0];
+                        corner[1] = (i & 2) == 0 ? min[1] : max[1];
+                        corner[2] = (i & 4) == 0 ? min[2] : max[2];
+                        srcToWorld.apply(corner, world);
+                        minX = Math.min(minX, world[0]);
+                        maxX = Math.max(maxX, world[0]);
+                        minY = Math.min(minY, world[1]);
+                        maxY = Math.max(maxY, world[1]);
+                        minZ = Math.min(minZ, world[2]);
+                        maxZ = Math.max(maxZ, world[2]);
+                    }
+                    final double physW = maxX - minX, physH = maxY - minY, physZ = maxZ - minZ;
+                    if (physW <= 0 || physH <= 0) return;
+                    final double scale = Math.min(cw / physW, ch / physH);
+                    final AffineTransform3D currentT = new AffineTransform3D();
+                    viewerPanel.state().getViewerTransform(currentT);
+                    final AffineTransform3D target = new AffineTransform3D();
+                    target.set(scale, 0, 0);
+                    target.set(scale, 1, 1);
+                    target.set(scale, 2, 2);
+                    target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
+                    target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
+                    target.set(-scale * (minZ + physZ / 2.0), 2, 3);
+                    viewerPanel.setTransformAnimator(new SimilarityTransformAnimator(currentT, target, 0, 0, 300));
                 }
             };
         }
 
-        private Action resetNearClipAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    nearSpinner.setValue(defaultCamParams()[1]);
-                    updateCameraParameters(true);
-                }
-            };
-        }
-
-        private Action resetFarClipAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    farSpinner.setValue(defaultCamParams()[2]);
-                    updateCameraParameters(true);
-                }
-            };
-        }
-
-        /**
-         * Creates and returns a panel containing two rows of camera controls.
-         * Row 1: camera distance / clipping plane spinners + options menu.
-         * Row 2: Reset, Fit Scene, Fit Source | Scale Bar, Bounding Box, Text Overlay toggles.
-         *
-         * @param bvvActions the BVV actions instance for accessing additional functionality
-         * @return a configured JPanel with two toolbar rows
-         */
-        public JToolBar getToolbar(final BvvActions bvvActions) {
-            // Row 1: camera spinners
-            final JButton dCamReset = GuiUtils.Buttons.undo(resetCameraDistanceAction());
-            final JButton nearReset = GuiUtils.Buttons.undo(resetNearClipAction());
-            final JButton farReset  = GuiUtils.Buttons.undo(resetFarClipAction());
-            final JToolBar row1 = createToolbar();
-            addSpinnerToToolbar(row1, '\uf1e5', dCamSpinner, dCamReset);
-            row1.add(Box.createHorizontalGlue());
-            addSpinnerToToolbar(row1, '\ue4b8', nearSpinner, nearReset);
-            row1.add(Box.createHorizontalGlue());
-            addSpinnerToToolbar(row1, '\ue4c2', farSpinner,  farReset);
-
-            // Row 2: view shortcuts + overlay toggles
-            final JToolBar row2 = createToolbar();
-            // Reset view
-            row2.add(GuiUtils.Buttons.toolbarButton(resetViewAction(),
-                    "Reset view to startup state"));
-            // Fit to current source
-            row2.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(),
-                    "Fit view to the current (selected) source"));
-            row2.addSeparator();
-            row2.add(Box.createHorizontalGlue());
-            row2.addSeparator();
-            // Bounding box (multibox) toggle
-            final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Bounding Boxes", Prefs.showMultibox(),
-                            show -> { Prefs.showMultibox(show);
-                                bvvInstance.repaint(); }),
-                    "Show/hide bounding boxes",
-                    IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
-            multiboxToggle.setSelected(Prefs.showMultibox());
-            row2.add(multiboxToggle);
-            // Text overlay toggle (source name + mouse coords)
-            final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
-                            show -> { Prefs.showTextOverlay(show);
-                                bvvInstance.repaint(); }),
-                    "Show/hide text overlay (source name and cursor coordinates)",
-                    IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
-            textToggle.setSelected(Prefs.showTextOverlay());
-            row2.add(textToggle);
-            // Scale bar toggle: reflects Prefs.showScaleBar() on creation
-            final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
-                            show -> { Prefs.showScaleBar(show);
-                                bvvInstance.repaint(); }),
-                    "Show/hide scale bar",
-                    IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
-            scaleBarToggle.setSelected(Prefs.showScaleBar());
-            row2.add(scaleBarToggle);
-            row2.addSeparator();
-            row2.add(Box.createHorizontalGlue());
-            row2.addSeparator();
-            row2.add(optionsButton(bvvActions));
-            final JToolBar main = createToolbar();
-            main.setLayout(new javax.swing.BoxLayout(main, javax.swing.BoxLayout.Y_AXIS));
-            main.add(row1);
-            main.add(row2);
-            return main;
-        }
-
-        /**
-         * Builds a stateless {@link AbstractAction} for an overlay toggle that
-         * delegates the actual state change to a {@link java.util.function.Consumer<Boolean>}.
-         * The action reads the toggle state from the source {@link AbstractButton}.
-         */
-        private static Action overlayToggleAction(final String name,
-                                                  final boolean initialState,
+        private static Action overlayToggleAction(final String name, final boolean initialState,
                                                   final java.util.function.Consumer<Boolean> onToggle) {
             return new AbstractAction(name) {
                 @Override
@@ -1904,71 +2123,286 @@ public class Bvv {
             };
         }
 
-        /**
-         * Animates the view to frame the currently selected source, using the
-         * same perspective-correct approach as {@link #resetViewAction()}.
-         */
-        private Action fitToCurrentSourceAction() {
-            return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
+        // Main toolbar
+        public JComponent getToolbar(final BvvActions bvvActions) {
+
+            // Reset actions
+            final JButton dCamReset = GuiUtils.Buttons.undo(new AbstractAction() {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
-                    final bdv.viewer.SourceAndConverter<?> current =
-                            viewerPanel.state().getCurrentSource();
-                    if (current == null) {
-                        viewerPanel.showMessage("No source selected");
-                        return;
-                    }
-                    final int cw = viewerPanel.getDisplay().getWidth();
-                    final int ch = viewerPanel.getDisplay().getHeight();
-                    if (cw <= 0 || ch <= 0) return;
-                    // Get source-to-world transform
-                    final AffineTransform3D srcToWorld = new AffineTransform3D();
-                    current.getSpimSource().getSourceTransform(0, 0, srcToWorld);
-                    // Source interval in voxel space
-                    final net.imglib2.RandomAccessibleInterval<?> rai =
-                            current.getSpimSource().getSource(0, 0);
-                    if (rai == null) return;
-                    // Transform the 8 corners of the bounding box to world space and find extents
-                    final long[] min = new long[3], max = new long[3];
-                    for (int d = 0; d < 3; d++) { min[d] = rai.min(d); max[d] = rai.max(d); }
-                    double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-                    double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-                    double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
-                    final double[] corner = new double[3];
-                    final double[] world  = new double[3];
-                    for (int i = 0; i < 8; i++) {
-                        corner[0] = (i & 1) == 0 ? min[0] : max[0];
-                        corner[1] = (i & 2) == 0 ? min[1] : max[1];
-                        corner[2] = (i & 4) == 0 ? min[2] : max[2];
-                        srcToWorld.apply(corner, world);
-                        minX = Math.min(minX, world[0]); maxX = Math.max(maxX, world[0]);
-                        minY = Math.min(minY, world[1]); maxY = Math.max(maxY, world[1]);
-                        minZ = Math.min(minZ, world[2]); maxZ = Math.max(maxZ, world[2]);
-                    }
-                    final double physW = maxX - minX;
-                    final double physH = maxY - minY;
-                    final double physZ = maxZ - minZ;
-                    if (physW <= 0 || physH <= 0) return;
-                    final double scale = Math.min(cw / physW, ch / physH);
-                    final AffineTransform3D currentT = new AffineTransform3D();
-                    viewerPanel.state().getViewerTransform(currentT);
-                    final AffineTransform3D target = new AffineTransform3D();
-                    target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
-                    target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
-                    target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
-                    target.set(-scale * (minZ + physZ / 2.0), 2, 3);
-                    viewerPanel.setTransformAnimator(
-                            new SimilarityTransformAnimator(currentT, target, 0, 0, 300));
+                    setSliderValues(pctToTick(toPct(initialCamParams[0])),
+                            nearSlider.getValue(), farSlider.getValue());
                 }
-            };
+            });
+            dCamReset.setToolTipText("Reset camera depth");
+            final JButton nearReset = GuiUtils.Buttons.undo(new AbstractAction() {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    setSliderValues(dCamSlider.getValue(),
+                            pctToTick(toPct(initialCamParams[1])), farSlider.getValue());
+                }
+            });
+            nearReset.setToolTipText("Reset near clipping");
+            final JButton farReset = GuiUtils.Buttons.undo(new AbstractAction() {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    setSliderValues(dCamSlider.getValue(), nearSlider.getValue(),
+                            pctToTick(toPct(initialCamParams[2])));
+                }
+            });
+            farReset.setToolTipText("Reset far clipping");
+
+
+            final JPanel main = new JPanel(new GridBagLayout());
+            final GridBagConstraints c = new GridBagConstraints();
+
+            // Camera rows
+            final int[] row = {0};
+            for (final Object[] r : new Object[][]{
+                    {"Camera Depth (%)", dCamSlider, dCamReset},
+                    {"Near Clipping (%)", nearSlider, nearReset},
+                    {"Far Clipping (%)", farSlider, farReset}}) {
+                c.gridy = row[0]++;
+                c.gridx = 0;
+                c.gridwidth = 1;
+                c.fill = GridBagConstraints.NONE;
+                c.weightx = 0;
+                c.anchor = GridBagConstraints.EAST;
+                main.add(new JLabel((String) r[0]), c);
+                // col2 intentionally empty
+                c.gridx = 2;
+                c.fill = GridBagConstraints.HORIZONTAL;
+                c.weightx = 1.0;
+                c.anchor = GridBagConstraints.CENTER;
+                main.add((JSlider) r[1], c);
+                c.gridx = 4;
+                c.fill = GridBagConstraints.NONE;
+                c.weightx = 0;
+                c.anchor = GridBagConstraints.WEST;
+                main.add(new JLabel(""), c);
+                c.gridx = 5;
+                c.anchor = GridBagConstraints.WEST;
+                main.add((JButton) r[2], c);
+            }
+
+            // Slab rows (only when calibrated)
+            if (cal != null && dims != null && dims[2] > 0 && cal[2] > 0) {
+                final double physZ = dims[2] * cal[2];
+                final double zStep = cal[2];
+                final double defThick = Math.max(zStep * 5, physZ * 0.05);
+                final int nSlices = (int) Math.round(physZ / zStep);
+                final String unit = bvvInstance.getPhysicalUnit();
+
+                final JSpinner thickSpinner = GuiUtils.doubleSpinner(defThick, zStep, physZ, zStep, 1);
+                thickSpinner.setToolTipText("<html>Thickness of the visible slab (" + unit + ").<br>"
+                        + "Controls near/far clipping symmetrically around the current position.");
+                thickSpinner.setEnabled(false);
+
+                final JButton thickSpinnerReset = GuiUtils.Buttons.undo(new AbstractAction() {
+                    @Override
+                    public void actionPerformed(final java.awt.event.ActionEvent e) {
+                        thickSpinner.setValue(defThick);
+                    }
+                });
+                thickSpinnerReset.setToolTipText("Reset thickness to default");
+
+                final JSlider posSlider = new JSlider(0, nSlices, nSlices / 2);
+                posSlider.setToolTipText("<html>Slab position. Drag to move the slab through the volume.");
+                posSlider.setEnabled(false);
+
+                final JButton posSliderReset = GuiUtils.Buttons.undo(new AbstractAction() {
+                    @Override
+                    public void actionPerformed(final java.awt.event.ActionEvent e) {
+                        posSlider.setValue(nSlices / 2);
+                    }
+                });
+                posSliderReset.setToolTipText("Reset position to mid-volume");
+
+                // Position value and unit are separate labels (col4 and col5-6)
+                final JLabel posValue = new JLabel(String.format("%.1f ", (nSlices / 2.0) * zStep));
+                final JLabel posUnit = new JLabel("");
+                posSlider.addChangeListener(ev ->
+                        posValue.setText(String.format("%.1f", posSlider.getValue() * zStep)));
+
+                final int[] savedClip = {nearSlider.getValue(), farSlider.getValue()};
+                final boolean[] slabOn = {false};
+
+                final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
+
+                // "Thickness" label + spinner share col3, label WEST, spinner CENTER
+                final JPanel thickPanel = new JPanel(new java.awt.BorderLayout(4, 0));
+                thickPanel.setOpaque(false);
+                // "Position" label + slider + value all share col3
+                final JPanel posPanel = new JPanel(new java.awt.BorderLayout(4, 0));
+                posPanel.setOpaque(false);
+
+                slabToggle = new JToggleButton(" Slab View "); // assign to field so resetViewAction can deactivate it
+                //GuiUtils.Buttons.applyToolbarProps(slabToggle);
+                slabToggle.setToolTipText("<html>Enable slab mode.<br>"
+                        + "Restricts the visible scene to a thin slab at the selected position.<br>"
+                        + "Disables manual near/far clipping while active.");
+
+                // Row4: Col1=toggle  Col2=empty  Col3=[Thickness|spinner](fill)  Col5-6=unit
+                c.gridy = row[0]++;
+                c.gridx = 0;
+                c.gridwidth = 1;
+                c.fill = GridBagConstraints.NONE;
+                c.weightx = 0;
+                c.anchor = GridBagConstraints.EAST;
+                main.add(slabToggle, c);
+
+
+                final JLabel thickLabel = new JLabel(String.format("   Thickness (%s):", unit), JLabel.RIGHT);
+                final JLabel posLabel = new JLabel(String.format("   Position (%s):", unit), JLabel.RIGHT);
+                // Force both labels to the same preferred width so spinners/sliders left-align.
+                // Do this after construction so getPreferredSize() reflects the actual font metrics.
+                final int labelW = Math.max(thickLabel.getPreferredSize().width, posLabel.getPreferredSize().width);
+                thickLabel.setPreferredSize(new java.awt.Dimension(labelW, thickLabel.getPreferredSize().height));
+                posLabel.setPreferredSize(new java.awt.Dimension(labelW, posLabel.getPreferredSize().height));
+
+                thickPanel.add(thickLabel, java.awt.BorderLayout.WEST);
+                thickPanel.add(thickSpinner, java.awt.BorderLayout.CENTER);
+                c.gridx = 2;
+                c.fill = GridBagConstraints.HORIZONTAL;
+                c.weightx = 1.0;
+                c.anchor = GridBagConstraints.CENTER;
+                main.add(thickPanel, c);
+                c.gridx = 4;
+                c.gridwidth = 2;
+                c.fill = GridBagConstraints.NONE;
+                c.weightx = 0;
+                c.anchor = GridBagConstraints.WEST;
+                main.add(thickSpinnerReset, c);
+                c.gridwidth = 1;
+
+                // Row5: Col1=empty  Col2=empty  Col3=[Position|slider|value](fill)  Col5-6=unit
+                c.gridy = row[0]++;
+
+                posPanel.add(posLabel, java.awt.BorderLayout.WEST);
+                posPanel.add(posSlider, java.awt.BorderLayout.CENTER);
+                posPanel.add(posValue, java.awt.BorderLayout.EAST);
+                c.gridx = 2;
+                c.fill = GridBagConstraints.HORIZONTAL;
+                c.weightx = 1.0;
+                c.anchor = GridBagConstraints.CENTER;
+                main.add(posPanel, c);
+                c.gridx = 4;
+                c.gridwidth = 2;
+                c.fill = GridBagConstraints.NONE;
+                c.weightx = 0;
+                c.anchor = GridBagConstraints.WEST;
+                main.add(posSliderReset, c);
+                c.gridwidth = 1;
+
+                slabToggle.addActionListener(ev -> {
+                    slabOn[0] = slabToggle.isSelected();
+                    GuiUtils.enableComponents(thickPanel, slabOn[0]);
+                    GuiUtils.enableComponents(posPanel, slabOn[0]);
+                    posUnit.setEnabled(slabOn[0]);
+                    posValue.setEnabled(slabOn[0]);
+                    nearSlider.setEnabled(!slabOn[0]);
+                    farSlider.setEnabled(!slabOn[0]);
+                    if (slabOn[0]) {
+                        savedClip[0] = nearSlider.getValue();
+                        savedClip[1] = farSlider.getValue();
+                        applySlab(viewerPanel, physZ,
+                                posSlider.getValue() * zStep,
+                                ((Number) thickSpinner.getValue()).doubleValue());
+                    } else {
+                        setSliderValues(dCamSlider.getValue(), savedClip[0], savedClip[1]);
+                        applyZCenter(viewerPanel, physZ / 2);
+                    }
+                });
+
+                final javax.swing.event.ChangeListener slabListener = ev -> {
+                    if (slabOn[0]) applySlab(viewerPanel, physZ,
+                            posSlider.getValue() * zStep,
+                            ((Number) thickSpinner.getValue()).doubleValue());
+                };
+                posSlider.addChangeListener(slabListener);
+                thickSpinner.addChangeListener(slabListener);
+                GuiUtils.enableComponents(thickPanel, false); // slab disabled by default
+                GuiUtils.enableComponents(posPanel, false); // slab disabled at by default
+            }
+
+            // Icon toolbar spans all 6 columns
+            final JToolBar iconBar = buildIconToolbar(bvvActions);
+            c.gridx = 0;
+            c.gridy = row[0];
+            c.gridwidth = 6;
+            c.fill = GridBagConstraints.HORIZONTAL;
+            c.weightx = 1.0;
+            c.anchor = GridBagConstraints.CENTER;
+            c.insets = new Insets(4, 0, 0, 0);
+            main.add(iconBar, c);
+
+            return main;
         }
 
-        private void addSpinnerToToolbar(final JToolBar toolbar, final char spinnerSolidIcon, final JSpinner spinner, final AbstractButton spinnerButton) {
-            toolbar.add(new JLabel(IconFactory.buttonIcon(spinnerSolidIcon, true)));
-            toolbar.add(Box.createHorizontalStrut(2));
-            toolbar.add(spinner);
-            toolbar.add(spinnerButton);
+        /** Builds the icon toolbar row (reset/fit/overlay toggles/options). */
+        private JToolBar buildIconToolbar(final BvvActions bvvActions) {
+            final JToolBar bar = createToolbar();
+            bar.add(GuiUtils.Buttons.toolbarButton(resetViewAction(), "Reset view to startup state"));
+            bar.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(), "Fit view to the current (selected) source"));
+            bar.addSeparator();
+            bar.add(Box.createHorizontalGlue());
+            bar.addSeparator();
+            final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Bounding Boxes", Prefs.showMultibox(),
+                            show -> {
+                                Prefs.showMultibox(show);
+                                bvvInstance.repaint();
+                            }),
+                    "Show/hide bounding boxes", IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
+            multiboxToggle.setSelected(Prefs.showMultibox());
+            bar.add(multiboxToggle);
+            final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
+                            show -> {
+                                Prefs.showTextOverlay(show);
+                                bvvInstance.repaint();
+                            }),
+                    "Show/hide text overlay", IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
+            textToggle.setSelected(Prefs.showTextOverlay());
+            bar.add(textToggle);
+            final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
+                            show -> {
+                                Prefs.showScaleBar(show);
+                                bvvInstance.repaint();
+                            }),
+                    "Show/hide scale bar", IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
+            scaleBarToggle.setSelected(Prefs.showScaleBar());
+            bar.add(scaleBarToggle);
+            final JToggleButton axesToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Axes", false,
+                            show -> {
+                                if (sceneOverlay != null) {
+                                    sceneOverlay.showAxes = show;
+                                    bvvInstance.repaint();
+                                }
+                            }),
+                    "Show/hide coordinate axes at the volume origin",
+                    IconFactory.GLYPH.CHART_LINE, IconFactory.GLYPH.CHART_LINE);
+            axesToggle.setSelected(false);
+            bar.add(axesToggle);
+            final JToggleButton boxToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Volume Box", false,
+                            show -> {
+                                if (sceneOverlay != null) {
+                                    sceneOverlay.showBox = show;
+                                    bvvInstance.repaint();
+                                }
+                            }),
+                    "Show/hide bounding box around all loaded volumes",
+                    IconFactory.GLYPH.CUBE, IconFactory.GLYPH.CUBE);
+            boxToggle.setSelected(false);
+            bar.add(boxToggle);
+            bar.addSeparator();
+            bar.add(Box.createHorizontalGlue());
+            bar.addSeparator();
+            bar.add(optionsButton(bvvActions));
+            return bar;
         }
 
         private JButton optionsButton(final BvvActions actions) {
@@ -2117,7 +2551,7 @@ public class Bvv {
         /**
          * Sets the minimum thickness for path rendering.
          *
-         * @param minThickness minimum thickness in pixels
+         * @param minThickness minimum thickness in physical (world-space) units
          */
         @SuppressWarnings("unused")
         public void setMinThickness(float minThickness) {
@@ -2167,7 +2601,124 @@ public class Bvv {
         }
     }
 
-    /** Path overlay class for drawing traced paths on top of BVV volume data. */
+    /**
+     * Java2D overlay that draws coordinate axes and a wire bounding box
+     * using the same perspective projection as {@link AnnotationOverlay}.
+     * Avoids OpenGL entirely to avoid depth-buffer contamination/ GL state issues.
+     */
+    private class SceneOverlay implements bdv.viewer.OverlayRenderer {
+
+        volatile boolean showAxes = false;
+        volatile boolean showBox = false;
+
+        @Override
+        public void drawOverlays(final java.awt.Graphics g) {
+            if (!showAxes && !showBox) return;
+
+            // Read canvas size live from the display component, same as PathOverlay/AnnotationOverlay.
+            final VolumeViewerPanel viewer = currentBvv.getViewer();
+            final int canvasW = viewer.getDisplay().getWidth();
+            final int canvasH = viewer.getDisplay().getHeight();
+            if (canvasW == 0 || canvasH == 0) return;
+
+            // Get current viewer transform and camera depth
+            final AffineTransform3D t = new AffineTransform3D();
+            viewer.state().getViewerTransform(t);
+            final double dCam = pathOverlay.overlayRenderer.dCam;
+            final double cx = canvasW / 2.0;
+            final double cy = canvasH / 2.0;
+
+            final java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setStroke(new java.awt.BasicStroke(1.5f));
+
+            // World → screen projection (same formula as AnnotationOverlay)
+            final java.util.function.Function<double[], double[]> project = world -> {
+                final double[] v = new double[3];
+                t.apply(world, v);
+                final double pf = dCam / (dCam + v[2]);
+                return new double[]{cx + (v[0] - cx) * pf, cy + (v[1] - cy) * pf, pf};
+            };
+
+            // Compute world-space scene bounds from all sources
+            final float[] b = sceneBounds();
+            if (b == null) {
+                g2.dispose();
+                return;
+            }
+            final double x0 = b[0], y0 = b[1], z0 = b[2], x1 = b[3], y1 = b[4], z1 = b[5];
+
+            if (showAxes) {
+                final float axisLen = 0.20f * (float) Math.min(x1 - x0, Math.min(y1 - y0, z1 - z0));
+                drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0 + axisLen, y0, z0}, new java.awt.Color(220, 60, 60));
+                drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0, y0 + axisLen, z0}, new java.awt.Color(60, 200, 60));
+                drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0, y0, z0 + axisLen}, new java.awt.Color(80, 120, 255));
+            }
+
+            if (showBox) {
+                g2.setColor(new java.awt.Color(255, 255, 255, 180));
+                // 12 edges of the bounding box
+                final double[][] corners = {
+                        {x0, y0, z0}, {x1, y0, z0}, {x1, y1, z0}, {x0, y1, z0},
+                        {x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}
+                };
+                final int[][] edges = {
+                        {0, 1}, {1, 2}, {2, 3}, {3, 0}, // bottom face
+                        {4, 5}, {5, 6}, {6, 7}, {7, 4}, // top face
+                        {0, 4}, {1, 5}, {2, 6}, {3, 7}  // verticals
+                };
+                for (final int[] e : edges)
+                    drawLine3D(g2, project, corners[e[0]], corners[e[1]], null);
+            }
+
+            g2.dispose();
+        }
+
+        private void drawLine3D(final java.awt.Graphics2D g2,
+                                final java.util.function.Function<double[], double[]> project,
+                                final double[] a, final double[] b,
+                                final java.awt.Color color) {
+            final double[] sa = project.apply(a);
+            final double[] sb = project.apply(b);
+            if (sa[2] <= 0 || sb[2] <= 0) return; // behind camera
+            if (color != null) g2.setColor(color);
+            g2.drawLine((int) Math.round(sa[0]), (int) Math.round(sa[1]),
+                    (int) Math.round(sb[0]), (int) Math.round(sb[1]));
+        }
+
+        /** Returns [minX,minY,minZ, maxX,maxY,maxZ] in world space, or null if no sources. */
+        private float[] sceneBounds() {
+            if (multiSources.isEmpty()) return null;
+            float minX = Float.MAX_VALUE, minY = Float.MAX_VALUE, minZ = Float.MAX_VALUE;
+            float maxX = -Float.MAX_VALUE, maxY = -Float.MAX_VALUE, maxZ = -Float.MAX_VALUE;
+            final AffineTransform3D xfm = new AffineTransform3D();
+            final double[] corner = new double[3], world = new double[3];
+            for (final BvvMultiSource ms : multiSources) {
+                for (final BvvStackSource<?> src : ms.getSources()) {
+                    final bdv.viewer.SourceAndConverter<?> sac = src.getSources().getFirst();
+                    final net.imglib2.RandomAccessibleInterval<?> rai = sac.getSpimSource().getSource(0, 0);
+                    if (rai == null) continue;
+                    sac.getSpimSource().getSourceTransform(0, 0, xfm);
+                    for (int i = 0; i < 8; i++) {
+                        corner[0] = (i & 1) == 0 ? rai.min(0) : rai.max(0);
+                        corner[1] = (i & 2) == 0 ? rai.min(1) : rai.max(1);
+                        corner[2] = (i & 4) == 0 ? rai.min(2) : rai.max(2);
+                        xfm.apply(corner, world);
+                        if (world[0] < minX) minX = (float) world[0];
+                        if (world[0] > maxX) maxX = (float) world[0];
+                        if (world[1] < minY) minY = (float) world[1];
+                        if (world[1] > maxY) maxY = (float) world[1];
+                        if (world[2] < minZ) minZ = (float) world[2];
+                        if (world[2] > maxZ) maxZ = (float) world[2];
+                    }
+                }
+            }
+            return minX == Float.MAX_VALUE ? null : new float[]{minX, minY, minZ, maxX, maxY, maxZ};
+        }
+    }
+
+
     private static class PathOverlay {
         private final Bvv sntBvv;
         private final VolumeViewerPanel viewerPanel;
@@ -2401,6 +2952,18 @@ public class Bvv {
 
                 final double margin = 100.0;
 
+                // Extract the current pixels-per-world-unit scale from the viewer transform.
+                // Column magnitude of the affine = scale factor; average X and Y columns.
+                final double scaleX = Math.sqrt(
+                        viewerTransform.get(0, 0) * viewerTransform.get(0, 0) +
+                                viewerTransform.get(1, 0) * viewerTransform.get(1, 0) +
+                                viewerTransform.get(2, 0) * viewerTransform.get(2, 0));
+                final double scaleY = Math.sqrt(
+                        viewerTransform.get(0, 1) * viewerTransform.get(0, 1) +
+                                viewerTransform.get(1, 1) * viewerTransform.get(1, 1) +
+                                viewerTransform.get(2, 1) * viewerTransform.get(2, 1));
+                final double scale = (scaleX + scaleY) / 2.0;
+
                 for (int i = 0; i < annotations.size(); i++) {
                     final Annotation ann = annotations.get(i);
                     final AnnotationScreenData data = new AnnotationScreenData();
@@ -2414,11 +2977,14 @@ public class Bvv {
                     // Transform to viewer coordinates
                     viewerTransform.apply(worldCoords, viewerCoords);
 
-                    // Perspective projection
+                    // Perspective projection.
+                    // ann.radiusUm is in physical (world-space) units. Multiplying by
+                    // scale converts it to screen pixels at the current zoom level, then
+                    // pf applies perspective foreshortening, matching path node rendering.
                     final double pf = D_CAM / (D_CAM + viewerCoords[2]);
                     data.screenX = centerX + (viewerCoords[0] - centerX) * pf;
                     data.screenY = centerY + (viewerCoords[1] - centerY) * pf;
-                    data.screenRadius = Math.max(1.0, ann.radiusUm * pf);
+                    data.screenRadius = Math.max(1.0, ann.radiusUm * scale * pf);
                     data.color = ann.color;
 
                     // Visibility check
@@ -3232,17 +3798,36 @@ public class Bvv {
                     final double x = pos.getDoublePosition(0);
                     final double y = pos.getDoublePosition(1);
                     final double z = pos.getDoublePosition(2);
-                    // Validate against image bounds: coordinates outside the volume indicate
-                    // the view was rotated when M was pressed; the focal-plane projection
-                    // is then meaningless. Prompt the user to use a principal-axis view.
+                    // Validate X and Y against the source's world-space bounding box.
+                    // Only XY are checked: Z is controlled by the user's focal-plane navigation
+                    // and can legitimately sit anywhere along the depth axis. Out-of-range XY
+                    // indicates the view was obliquely rotated when M was pressed, making the
+                    // focal-plane projection meaningless.
                     if (dims != null && cal != null) {
-                        final double maxX = dims[0] * cal[0];
-                        final double maxY = dims[1] * cal[1];
-                        final double maxZ = dims[2] * cal[2];
-                        if (x < 0 || y < 0 || z < 0 || x > maxX || y > maxY || z > maxZ) {
-                            bvv.getViewer().showMessage(
-                                    "Outside image bounds: Align view to a principal axis before placing a marker.");
-                            return;
+                        final bdv.viewer.SourceAndConverter<?> currentSac =
+                                bvv.getViewer().state().getCurrentSource();
+                        if (currentSac != null) {
+                            final AffineTransform3D t = new AffineTransform3D();
+                            currentSac.getSpimSource().getSourceTransform(0, 0, t);
+                            double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                            double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                            final double[] corner = new double[3];
+                            final double[] world = new double[3];
+                            for (int i = 0; i < 8; i++) {
+                                corner[0] = (i & 1) == 0 ? 0 : dims[0] - 1;
+                                corner[1] = (i & 2) == 0 ? 0 : dims[1] - 1;
+                                corner[2] = (i & 4) == 0 ? 0 : dims[2] - 1;
+                                t.apply(corner, world);
+                                minX = Math.min(minX, world[0]);
+                                maxX = Math.max(maxX, world[0]);
+                                minY = Math.min(minY, world[1]);
+                                maxY = Math.max(maxY, world[1]);
+                            }
+                            if (x < minX || x > maxX || y < minY || y > maxY) {
+                                bvv.getViewer().showMessage(
+                                        "Outside image bounds: Align view to a principal axis before placing a marker.");
+                                return;
+                            }
                         }
                     }
                     getMarkerManager().add(x, y, z);
@@ -3261,15 +3846,18 @@ public class Bvv {
         }
 
 
-
         Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final HelpDialog hDialog = new HelpDialog(bvv.getViewerFrame());
-                    hDialog.setPreferredSize(bvv.getViewerFrame().getCardPanel().getComponent().getPreferredSize());
-                    hDialog.setLocationRelativeTo(bvv.getViewerFrame());
-                    SwingUtilities.invokeLater(() -> hDialog.setVisible(true));
+                    guiUtils.showKeyboardShortcuts(
+                            new InputMap[]{
+                                    bvv.getViewerFrame().getKeybindings().getConcatenatedInputMap(),
+                                    bvv.getViewer().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                            },
+                            bvv.getViewerFrame().getKeybindings().getConcatenatedActionMap(),
+                            bvv.getViewer().getActionMap()  // picks up snt-add-marker, snt-bvv-snapshot
+                    );
                 }
             };
         }
@@ -3454,8 +4042,7 @@ public class Bvv {
             for (final var chSource : moving.getSources()) {
                 final Source<RealType<?>> chSpim = (Source<RealType<?>>) chSource.getSources().getFirst().getSpimSource();
                 final RandomAccessibleInterval<RealType<?>> chRai = chSpim.getSource(0, 0);
-                @SuppressWarnings({"rawtypes"})
-                final RealRandomAccessible<RealType<?>> realRai =
+                @SuppressWarnings({"rawtypes"}) final RealRandomAccessible<RealType<?>> realRai =
                         (RealRandomAccessible<RealType<?>>) RealViews.affine(
                                 Views.interpolate((net.imglib2.RandomAccessible) Views.extendZero(
                                         (RandomAccessibleInterval) chRai), new NLinearInterpolatorFactory()),
