@@ -185,22 +185,20 @@ public class BoundingBox implements Cloneable {
 	 * @param unit the new unit
 	 */
 	public void setUnit(final String unit) {
+		spacingUnit = sanitizedUni (unit);
+	}
+
+	public static String sanitizedUni(final String unit) {
 		if (unit == null || unit.startsWith("pixel")) {
-			spacingUnit = DEF_SPACING_UNIT;
-			return;
+			return DEF_SPACING_UNIT;
 		}
 		final String sanitizedUnit = unit.trim().toLowerCase();
 		if (sanitizedUnit.isEmpty()) {
-			spacingUnit = DEF_SPACING_UNIT;
+			return DEF_SPACING_UNIT;
+		} else if ("um".equals(sanitizedUnit) || "micron".equals(sanitizedUnit) || "microns".equals(sanitizedUnit)) {
+			return GuiUtils.micrometer();
 		}
-		else if ("um".equals(sanitizedUnit) || "micron".equals(sanitizedUnit) ||
-			"microns".equals(sanitizedUnit))
-		{
-			spacingUnit = GuiUtils.micrometer();
-		}
-		else {
-			spacingUnit = unit;
-		}
+		return unit;
 	}
 
 	/**

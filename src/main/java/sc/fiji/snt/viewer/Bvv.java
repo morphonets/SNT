@@ -54,12 +54,14 @@ import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
 import org.jdom2.JDOMException;
+import org.scijava.command.CommandService;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.*;
 import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
@@ -168,7 +170,7 @@ public class Bvv {
         final String unit = (xAxis != null && xAxis.unit() != null) ? xAxis.unit() : "pixel";
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         // Use showCalibratedSource so the unit propagates to the scale bar renderer
-        calUnit = unit;
+        calUnit = BoundingBox.sanitizedUni(unit);
         final BvvStackSource<?> source = showCalibratedSource(imgPlus, title, cal, unit, opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
@@ -181,7 +183,7 @@ public class Bvv {
      * independent 3D XYZ source via {@link Views#hyperSlice}, avoiding the
      * dimension-ordering ambiguity of {@link net.imglib2.img.display.imagej.ImageJFunctions#wrap}.
      * Mirrors the logic of {@link #showImagePlusMultiChannel(ImagePlus)}.
-            */
+     */
     private <T extends RealType<T>> BvvMultiSource showImgPlusMultiChannel(final ImgPlus<T> imgPlus) {
         final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
         final int nC = (int) imgPlus.dimension(chDim);
@@ -765,7 +767,8 @@ public class Bvv {
                     if (setup.hasVoxelSize()) {
                         final var vs = setup.getVoxelSize();
                         cal = new double[]{vs.dimension(0), vs.dimension(1), vs.dimension(2)};
-                        calUnit = vs.unit() != null && !vs.unit().isBlank() ? vs.unit() : "pixel";
+                        calUnit = (vs.unit() != null && !vs.unit().isBlank())
+                                ? BoundingBox.sanitizedUni(vs.unit()) : "pixel";
                     }
                 }
             } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
@@ -851,7 +854,7 @@ public class Bvv {
         final String label = String.format("Tracing Data (%s): C%d, T%d",
                 (secondary) ? "Secondary layer" : "Main image", snt.getChannel(), snt.getFrame());
         final String unit = snt.getSpacingUnits();
-        calUnit = unit;
+        calUnit = BoundingBox.sanitizedUni(unit);
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         @SuppressWarnings({"unchecked", "rawtypes"})
         final BvvStackSource<?> source = showCalibratedSource(
@@ -927,7 +930,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
-        calUnit = unit;
+        calUnit = BoundingBox.sanitizedUni(unit);
         final BvvOptions opt = configureBvvOptionsForImage(imp).axisOrder(getAxisOrder(imp));
         final net.imglib2.RandomAccessibleInterval<?> wrappedImp = switch (imp.getType()) {
             case ImagePlus.COLOR_256 -> throw new IllegalArgumentException("Unsupported image type (COLOR_256).");
@@ -937,7 +940,7 @@ public class Bvv {
         };
         @SuppressWarnings({"unchecked", "rawtypes"})
         final BvvStackSource<?> source = showCalibratedSource(
-                (net.imglib2.RandomAccessibleInterval) wrappedImp, imp.getTitle(), cal, unit, opt);
+                (net.imglib2.RandomAccessibleInterval) wrappedImp, imp.getTitle(), cal, unit, imp.getNFrames(), opt);
         applyLuts(imp, source);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         final BigVolumeViewer bvv = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
@@ -974,7 +977,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
-        calUnit = unit;
+        calUnit = BoundingBox.sanitizedUni(unit);;
         // Each channelImp has nChannels=1; derive axis order from Z and T only
         final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
                 : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
@@ -1002,7 +1005,7 @@ public class Bvv {
             };
             @SuppressWarnings({"unchecked", "rawtypes"})
             final BvvStackSource<?> chSource = showCalibratedSource(
-                    (net.imglib2.RandomAccessibleInterval) wrappedRai, title, cal, unit, chOpt);
+                    (net.imglib2.RandomAccessibleInterval) wrappedRai, title, cal, unit, imp.getNFrames(), chOpt);
             if (leaderSource == null) {
                 leaderSource = chSource;
                 if (!hasExistingWindow) {
@@ -1108,8 +1111,9 @@ public class Bvv {
             // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
             // Scene controls
-            bvvFrame.getCardPanel().addCard("Scene Controls",
-                    new CameraControls(this, pathOverlay.overlayRenderer).getToolbar(actions), true);
+            final JComponent sceneControlsPanel =
+                    new CameraControls(this, pathOverlay.overlayRenderer).getToolbar(actions);
+            bvvFrame.getCardPanel().addCard("Scene Controls", sceneControlsPanel, true);
             // SNT toolbar
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
             // Register shortcuts: M key to place a marker at the current mouse position; shift+S for screenshot()
@@ -1120,6 +1124,20 @@ public class Bvv {
             iMap.put(KeyStroke.getKeyStroke('S'), "snt-bvv-snapshot");
             aMap.put("snt-bvv-snapshot", snapshotAction());
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
+            // Ensure the card panel is wide enough to show all controls without clipping.
+            // Use the Scene Controls panel's own preferred width since it's the widest,
+            // and its GridBagLayout has already computed the correct natural width.
+            final int cardPrefW = sceneControlsPanel.getMinimumSize().width;
+            SwingUtilities.invokeLater(() -> {
+                final javax.swing.JSplitPane split = bvv.getViewerFrame().getSplitPanel();
+                final java.awt.Component cards = split.getRightComponent();
+                if (cards == null) return;
+                cards.setPreferredSize(new java.awt.Dimension(cardPrefW, cards.getPreferredSize().height));
+                final int frameW = bvv.getViewerFrame().getWidth();
+                if (frameW > cardPrefW)
+                    split.setDividerLocation(frameW - cardPrefW - split.getDividerSize());
+                bvv.getViewerFrame().revalidate();
+            });
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
         SwingUtilities.invokeLater(() ->
@@ -1199,17 +1217,47 @@ public class Bvv {
     private static class CalibratedSource<T extends NumericType<T>> extends bdv.util.RandomAccessibleIntervalSource<T> {
 
         private final mpicbg.spim.data.sequence.FinalVoxelDimensions voxelDimensions;
+        private final net.imglib2.RandomAccessibleInterval<T> fullRai;
+        private final int timeDim; // index of the T axis in fullRai, or -1 if no time axis
 
+        /**
+         * Full constructor. When {@code timeDim >= 0}, {@link #getSource(int, int)} slices
+         * the RAI along that axis so each BVV timepoint returns the correct frame.
+         * {@code RandomAccessibleIntervalSource} ignores the timepoint argument entirely,
+         * causing all frames to show frame 0 for timelapse data.
+         */
+        CalibratedSource(final net.imglib2.RandomAccessibleInterval<T> rai,
+                         final T type,
+                         final net.imglib2.realtransform.AffineTransform3D sourceTransform,
+                         final String name,
+                         final double[] cal,
+                         final String unit,
+                         final int timeDim) {
+            // Pass a 3D slice (t=0) to parent so it computes correct XYZ bounds.
+            super(timeDim >= 0 ? net.imglib2.view.Views.hyperSlice(rai, timeDim, 0) : rai,
+                    type, sourceTransform, name);
+            this.fullRai = rai;
+            this.timeDim = timeDim;
+            this.voxelDimensions = new mpicbg.spim.data.sequence.FinalVoxelDimensions(
+                    unit != null && !unit.isBlank() ? unit : "pixel",
+                    cal[0], cal[1], cal.length > 2 ? cal[2] : 1.0);
+        }
+
+        /** Convenience constructor for sources without a time axis (timeDim = -1). */
         CalibratedSource(final net.imglib2.RandomAccessibleInterval<T> rai,
                          final T type,
                          final net.imglib2.realtransform.AffineTransform3D sourceTransform,
                          final String name,
                          final double[] cal,
                          final String unit) {
-            super(rai, type, sourceTransform, name);
-            this.voxelDimensions = new mpicbg.spim.data.sequence.FinalVoxelDimensions(
-                    unit != null && !unit.isBlank() ? unit : "pixel",
-                    cal[0], cal[1], cal.length > 2 ? cal[2] : 1.0);
+            this(rai, type, sourceTransform, name, cal, unit, -1);
+        }
+
+        @Override
+        public net.imglib2.RandomAccessibleInterval<T> getSource(final int t, final int level) {
+            if (timeDim < 0) return super.getSource(t, level);
+            final long tClamped = Math.min(Math.max(t, 0), fullRai.dimension(timeDim) - 1);
+            return net.imglib2.view.Views.hyperSlice(fullRai, timeDim, tClamped);
         }
 
         @Override
@@ -1238,6 +1286,32 @@ public class Bvv {
         t.set(cal[2], 2, 2);
         final CalibratedSource<T> src = new CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
         return BvvFunctions.show((bdv.viewer.Source) src, 1, opts);
+    }
+
+    /**
+     * Overload for timelapse data. {@code numTimepoints} sets the BVV time slider range.
+     * The T axis is assumed to be the last dimension of {@code rai} (as produced by
+     * {@code ImageJFunctions.wrapShort} on a single-channel hyperstack): the
+     * {@link CalibratedSource} will slice along {@code rai.numDimensions()-1} to
+     * return the correct frame for each timepoint.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static <T extends net.imglib2.type.numeric.RealType<T>> BvvStackSource<?> showCalibratedSource(
+            final net.imglib2.RandomAccessibleInterval<T> rai,
+            final String name,
+            final double[] cal,
+            final String unit,
+            final int numTimepoints,
+            final BvvOptions opts) {
+        final net.imglib2.realtransform.AffineTransform3D t = new net.imglib2.realtransform.AffineTransform3D();
+        t.set(cal[0], 0, 0);
+        t.set(cal[1], 1, 1);
+        t.set(cal[2], 2, 2);
+        // T is the outermost (last) dimension produced by ImageJFunctions.wrap for a
+        // single-channel hyperstack [X, Y, Z, T]. timeDim=-1 for static volumes.
+        final int timeDim = numTimepoints > 1 ? rai.numDimensions() - 1 : -1;
+        final CalibratedSource<T> src = new CalibratedSource<>(rai, rai.getType(), t, name, cal, unit, timeDim);
+        return BvvFunctions.show((bdv.viewer.Source) src, Math.max(1, numTimepoints), opts);
     }
 
     /**
@@ -1421,7 +1495,8 @@ public class Bvv {
 
     private JButton optionsButton(final BvvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        final JButton oButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
+        menu.add(new JMenuItem(actions.optionsAction()));
+        menu.addSeparator();
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
@@ -1430,7 +1505,7 @@ public class Bvv {
         }
         menu.addSeparator();
         menu.add(new JMenuItem(actions.clearAllPathsAction()));
-        return oButton;
+        return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
     }
 
 
@@ -1505,6 +1580,11 @@ public class Bvv {
             @Override
             protected Void doInBackground() {
                 final ColorRGB[] colors = SNTColor.getDistinctColors(reconstructionFiles.length);
+                if (reconstructionFiles.length > 50) {
+                    getRenderingOptions().setUsePathRadius(false);
+                    getRenderingOptions().setThicknessMultiplier(.1f);
+                    getRenderingOptions().setDisplayRadii(false);
+                }
                 for (int i = 0; i < reconstructionFiles.length; i++) {
                     final File f = reconstructionFiles[i];
                     updateStatus("Loading " + f.getName() + "...", i, reconstructionFiles.length);
@@ -1669,8 +1749,10 @@ public class Bvv {
         final ImagePlus result = screenshotImp();
         if (!"current".equals(vMode)) {
             try {
-                SwingUtilities.invokeAndWait(
-                        () -> viewerPanel.state().setViewerTransform(savedTransform));
+                SwingUtilities.invokeAndWait(() -> {
+                    viewerPanel.state().setViewerTransform(savedTransform);
+                    viewerPanel.requestRepaint();
+                });
             } catch (final Exception ex) {
                 Thread.currentThread().interrupt();
             }
@@ -1728,6 +1810,9 @@ public class Bvv {
         viewerPanel.requestRepaint();
         try {
             latch.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            // Brief pause: renderTransformListener fires when BVV writes the transform,
+            // slightly before the GLJPanel has finished painting
+            Thread.sleep(50);
         } catch (final InterruptedException ignored) {
             Thread.currentThread().interrupt();
         } finally {
@@ -1876,6 +1961,31 @@ public class Bvv {
     }
 
     /**
+     * Sets whether paths are rendered as tapered frusta with per-node radii
+     * ({@code true}) or as anti-aliased lines ({@code false}).
+     * Line rendering is significantly faster for datasets with many paths.
+     * Automatically invalidates the overlay cache and repaints.
+     *
+     * @param display {@code true} for frustum/radius rendering (default),
+     *                {@code false} for fast line rendering
+     */
+    public void setDisplayRadii(final boolean display) {
+        renderingOptions.setDisplayRadii(display);
+        if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
+        syncOverlays();
+    }
+
+    /**
+     * Returns whether paths are currently rendered with per-node radii as
+     * tapered frusta ({@code true}) or as simple lines ({@code false}).
+     *
+     * @return {@code true} if frustum/radius rendering is active
+     */
+    public boolean getDisplayRadii() {
+        return renderingOptions.isDisplayRadii();
+    }
+
+    /**
      * Offsets all paths being rendered.
      * This allows for 'dislodging' paths from their underlying signal without altering their coordinates.
      *
@@ -1942,10 +2052,12 @@ public class Bvv {
      * VoxelDimensions (same source used by the scale bar renderer).
      */
     private String getPhysicalUnit() {
-        if (calUnit != null && !calUnit.isBlank() && !"pixel".equalsIgnoreCase(calUnit)) return calUnit;
+        if (calUnit != null && !calUnit.isBlank() && !"pixel".equalsIgnoreCase(calUnit))
+            return calUnit;
         if (snt != null) {
             final String u = snt.getSpacingUnits();
-            if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u)) return u;
+            if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u))
+                return BoundingBox.sanitizedUni(u);;
         }
         if (bvvHandle != null) {
             try {
@@ -1953,7 +2065,8 @@ public class Bvv {
                 if (!srcs.isEmpty()) {
                     final var vd = srcs.getFirst().getSpimSource().getVoxelDimensions();
                     if (vd != null && vd.unit() != null && !vd.unit().isBlank()
-                            && !"pixel".equalsIgnoreCase(vd.unit())) return vd.unit();
+                            && !"pixel".equalsIgnoreCase(vd.unit()))
+                        return BoundingBox.sanitizedUni(vd.unit());
                 }
             } catch (final Exception ignored) {
             }
@@ -2067,7 +2180,8 @@ public class Bvv {
             updateCameraParameters();
         }
 
-        private void applyZCenter(final VolumeViewerPanel viewerPanel, final double zCenter) {
+        private void applyZCenter(final VolumeViewerPanel viewerPanel,
+                                  final double zCenter) {
             final AffineTransform3D t = new AffineTransform3D();
             viewerPanel.state().getViewerTransform(t);
             // Read current scale from the transform column magnitude. Using a cached
@@ -2436,7 +2550,7 @@ public class Bvv {
                                 Prefs.showMultibox(show);
                                 bvvInstance.repaint();
                             }),
-                    "Show/hide bounding boxes", IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
+                    "Show/hide minimap", IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
             multiboxToggle.setSelected(Prefs.showMultibox());
             bar.add(multiboxToggle);
             final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
@@ -2660,6 +2774,33 @@ public class Bvv {
             this.maxThickness = Math.max(1.0f, maxThickness);
         }
 
+        /**
+         * Returns whether paths are rendered as tapered frustums (true) or simple
+         * lines (false). Line rendering is dramatically faster for large datasets.
+         *
+         * @return true if frustum/radius rendering is active
+         */
+        public boolean isDisplayRadii() {
+            return displayRadii;
+        }
+
+        /**
+         * Controls whether paths are rendered as tapered frustums with per-node
+         * radii ({@code true}) or as simple anti-aliased lines ({@code false}).
+         * <p>
+         * Line rendering uses Java2D's {@link java.awt.BasicStroke} with
+         * {@code ROUND_CAP} / {@code ROUND_JOIN}, which is GPU-accelerated and
+         * avoids all manual geometry and per-node {@code fillOval} calls.
+         * This is the preferred mode for datasets with many paths.
+         *
+         * @param displayRadii {@code true} for frustum rendering, {@code false}
+         *                     for fast line rendering
+         */
+        public void setDisplayRadii(final boolean displayRadii) {
+            this.displayRadii = displayRadii;
+        }
+        private boolean displayRadii = true;
+
 
         /**
          * Enables or disables 'clipped visibility' for path overlays.
@@ -2694,17 +2835,21 @@ public class Bvv {
         volatile boolean showAxes = false;
         volatile boolean showBox = false;
 
+        private int canvasW, canvasH;
+
+        @Override
+        public void setCanvasSize(final int w, final int h) {
+            canvasW = w;
+            canvasH = h;
+        }
+
         @Override
         public void drawOverlays(final java.awt.Graphics g) {
             if (!showAxes && !showBox) return;
-
-            // Read canvas size live from the display component, same as PathOverlay/AnnotationOverlay.
-            final VolumeViewerPanel viewer = currentBvv.getViewer();
-            final int canvasW = viewer.getDisplay().getWidth();
-            final int canvasH = viewer.getDisplay().getHeight();
             if (canvasW == 0 || canvasH == 0) return;
 
             // Get current viewer transform and camera depth
+            final VolumeViewerPanel viewer = currentBvv.getViewer();
             final AffineTransform3D t = new AffineTransform3D();
             viewer.state().getViewerTransform(t);
             final double dCam = pathOverlay.overlayRenderer.dCam;
@@ -3007,7 +3152,12 @@ public class Bvv {
                     if (!data.visible) continue;
 
                     // Z-clipping
-                    if (doClip && Math.abs(data.worldZ - clipPos[2]) > clipDist) continue;
+                    if (doClip) {
+                        final double dx = data.worldX - clipPos[0];
+                        final double dy = data.worldY - clipPos[1];
+                        final double dz = data.worldZ - clipPos[2];
+                        if (dx*dx + dy*dy + dz*dz > clipDist * clipDist) continue;
+                    }
 
                     // Skip subpixel annotations
                     if (data.screenRadius < 0.5) continue;
@@ -3029,7 +3179,7 @@ public class Bvv {
 
                 g2d.dispose();
             }
-
+            
             private void computeScreenData() {
                 screenData = new AnnotationScreenData[annotations.size()];
 
@@ -3055,6 +3205,8 @@ public class Bvv {
                     worldCoords[0] = ann.p.getX();
                     worldCoords[1] = ann.p.getY();
                     worldCoords[2] = ann.p.getZ();
+                    data.worldX = worldCoords[0];
+                    data.worldY = worldCoords[1];
                     data.worldZ = worldCoords[2];
 
                     // Transform to viewer coordinates
@@ -3117,7 +3269,7 @@ public class Bvv {
             private static class AnnotationScreenData {
                 double screenX, screenY;
                 double screenRadius;
-                double worldZ;
+                double worldX, worldY, worldZ;
                 Color color;
                 boolean visible;
             }
@@ -3144,6 +3296,7 @@ public class Bvv {
         private final double[] viewerCoords = new double[3];
         private final double[] screenBoundsMin = new double[2];
         private final double[] screenBoundsMax = new double[2];
+        private final double[] clipPosReuse = new double[3];
         // Reusable Path2D for batched drawing
         private final Path2D.Double batchPath = new Path2D.Double();
         boolean hide;
@@ -3204,12 +3357,24 @@ public class Bvv {
             final double[] clipPos = renderingOptions.isClippingEnabled() ? getClipPosition() : null;
 
             for (final Tree tree : trees) {
-                // tree level bounding box culling
-                if (!isTreePotentiallyVisible(tree)) {
-                    continue; // Skip entire tree
+                if (cacheValid) {
+                    // Cache-hit frame: use stored visibility w/o bbox reprojection
+                    final TreeScreenData cached = screenDataCache.get(tree);
+                    if (cached != null && !cached.visible) continue;
+                } else {
+                    // Cache-miss frame: recompute visibility and store it
+                    if (!isTreePotentiallyVisible(tree)) {
+                        // Store invisible result so next cache-hit skips it too
+                        final TreeScreenData existing = screenDataCache.get(tree);
+                        if (existing != null) existing.visible = false;
+                        continue;
+                    }
                 }
                 drawTreeOptimized(g2d, tree, clipPos);
             }
+
+            // Mark cache valid after all trees have been (re)computed this frame.
+            cacheValid = true;
 
             g2d.dispose();
         }
@@ -3268,29 +3433,26 @@ public class Bvv {
         }
 
         private double[] getClipPosition() {
-            final double[] gPos = new double[3];
-            viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
-            return gPos;
+            viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(clipPosReuse));
+            return clipPosReuse;
         }
 
         private void drawTreeOptimized(final Graphics2D g2d, final Tree tree, final double[] clipPos) {
-            // Get or compute screen data
+            // Get or compute screen data (cache miss = transform changed or new trees)
             TreeScreenData screenData = screenDataCache.get(tree);
             if (screenData == null || !cacheValid) {
                 screenData = computeScreenData(tree);
+                screenData.visible = true; // visible confirmed by isTreePotentiallyVisible above
                 screenDataCache.put(tree, screenData);
             }
 
-            // Batch render by color
-            final Map<Color, List<SegmentData>> colorBatches = new HashMap<>();
+            // Use pre-built batches w/o HashMap/ArrayList/SegmentData allocation per frame.
+            // Clipping is applied at draw time: skip segments whose both endpoints are outside the slab.
+            final boolean doClip = clipPos != null;
+            final float clipDist = renderingOptions.clippingDistance;
 
-            for (final PathScreenData pathData : screenData.paths) {
-                batchPathSegments(pathData, clipPos, colorBatches);
-            }
-
-            // Draw all batches
-            for (final Map.Entry<Color, List<SegmentData>> entry : colorBatches.entrySet()) {
-                drawBatch(g2d, entry.getKey(), entry.getValue());
+            for (final Map.Entry<Color, List<SegmentData>> entry : screenData.batches.entrySet()) {
+                drawBatch(g2d, entry.getKey(), entry.getValue(), doClip, clipPos, clipDist);
             }
         }
 
@@ -3301,153 +3463,171 @@ public class Bvv {
             final double avgScale = getAverageScale();
 
             for (final Path path : tree.list()) {
-                if (path.size() < 1) continue;
+                final int n = path.size();
+                if (n < 1) continue;
 
-                final PathScreenData pathData = new PathScreenData(path.size());
+                final PathScreenData pathData = new PathScreenData(n);
                 final Color defaultColor = path.getColor() != null ? path.getColor() : renderingOptions.fallbackColor;
                 final boolean hasNodeColors = path.hasNodeColors();
+                // Hoist offset outside inner loop: same value for all nodes (#1)
+                final sc.fiji.snt.util.PointInCanvas offset = path.getCanvasOffset();
+                final double offX = offset != null ? offset.x : 0;
+                final double offY = offset != null ? offset.y : 0;
+                final double offZ = offset != null ? offset.z : 0;
 
-                for (int i = 0; i < path.size(); i++) {
-                    final PointInImage point = path.getNode(i);
+                // Hoist renderingOptions getters — avoid repeated virtual calls per node
+                final boolean useRadius = renderingOptions.isUsePathRadius();
+                final double minR = renderingOptions.getMinThickness() / 2.0;
+                final double maxR = renderingOptions.getMaxThickness() / 2.0;
+                final double thickMult = renderingOptions.getThicknessMultiplier();
 
-                    // Transform to screen coordinates
-                    worldCoords[0] = point.x;
-                    worldCoords[1] = point.y;
-                    worldCoords[2] = point.z;
+                for (int i = 0; i < n; i++) {
+                    final Path.PathNode node = path.getNode(i);
 
-                    // Apply canvas offset if present
-                    final sc.fiji.snt.util.PointInCanvas offset = path.getCanvasOffset();
-                    if (offset != null) {
-                        worldCoords[0] += offset.x;
-                        worldCoords[1] += offset.y;
-                        worldCoords[2] += offset.z;
-                    }
+                    worldCoords[0] = node.x + offX;
+                    worldCoords[1] = node.y + offY;
+                    worldCoords[2] = node.z + offZ;
 
                     viewerTransform.apply(worldCoords, viewerCoords);
 
-                    // Perspective projection
                     final double pf = dCam / (dCam + viewerCoords[2]);
                     pathData.screenX[i] = centerX + (viewerCoords[0] - centerX) * pf;
                     pathData.screenY[i] = centerY + (viewerCoords[1] - centerY) * pf;
                     pathData.worldZ[i] = worldCoords[2];
 
-                    // Screen radius
-                    final double nodeRadius = getNodeRadius(path, i);
-                    pathData.screenRadius[i] = Math.max(0.5, nodeRadius * avgScale * pf);
+                    final double r = useRadius && node.getRadius() > 0 ? node.getRadius() : minR;
+                    pathData.screenRadius[i] = Math.max(0.5,
+                            Math.min(r * thickMult, maxR) * avgScale * pf);
 
-                    // Color
-                    pathData.colors[i] = hasNodeColors && path.getNodeColor(i) != null
-                            ? path.getNodeColor(i) : defaultColor;
+                    final Color nodeColor = hasNodeColors ? node.getColor() : null;
+                    pathData.colors[i] = nodeColor != null ? nodeColor : defaultColor;
 
-                    // Visibility (basic bounds check)
                     pathData.visible[i] = isOnScreen(pathData.screenX[i], pathData.screenY[i]);
+                }
+
+                // Pre-build SegmentData for each valid segment to avoid per-frame allocation
+                for (int i = 0; i < pathData.size - 1; i++) {
+                    if (!pathData.visible[i] && !pathData.visible[i + 1]) continue;
+                    final double dx = pathData.screenX[i + 1] - pathData.screenX[i];
+                    final double dy = pathData.screenY[i + 1] - pathData.screenY[i];
+                    if (dx * dx + dy * dy < 0.25) continue; // sub-pixel
+                    final SegmentData seg = new SegmentData();
+                    seg.x1 = pathData.screenX[i];     seg.y1 = pathData.screenY[i];
+                    seg.x2 = pathData.screenX[i + 1]; seg.y2 = pathData.screenY[i + 1];
+                    seg.r1 = pathData.screenRadius[i]; seg.r2 = pathData.screenRadius[i + 1];
+                    seg.worldZ1 = pathData.worldZ[i];  seg.worldZ2 = pathData.worldZ[i + 1];
+                    seg.color1 = pathData.colors[i];   seg.color2 = pathData.colors[i + 1];
+                    pathData.segments[i] = seg;
                 }
 
                 data.paths.add(pathData);
             }
 
+            data.buildBatches();
             return data;
         }
 
-        private void batchPathSegments(final PathScreenData pathData, final double[] clipPos,
-                                       final Map<Color, List<SegmentData>> batches) {
 
-            final float clipDist = renderingOptions.clippingDistance;
-            final boolean doClip = clipPos != null;
 
-            for (int i = 0; i < pathData.size - 1; i++) {
-                // Skip if both endpoints are off-screen
-                if (!pathData.visible[i] && !pathData.visible[i + 1]) continue;
+        /**
+         * Draws a batch of pre-grouped segments in a single pass.
+         * <p>
+         * When {@link PathRenderingOptions#isDisplayRadii()} is {@code false}, uses
+         * Java2D {@link java.awt.BasicStroke} line rendering: no frustum geometry.
+         * <p>
+         * When {@code true}: uniform segments are batched into a single
+         * {@link Path2D} fill; gradient segments drawn inline. Caps are deduplicated
+         * (each internal node drawn once, not twice) and skipped below 1.5 px radius.
+         * <p>
+         * Clipping is applied here (clip position changes independently of transform).
+         */
+        private void drawBatch(final Graphics2D g2d, final Color batchColor,
+                               final List<SegmentData> segments,
+                               final boolean doClip, final double[] clipPos, final float clipDist) {
+            if (segments.isEmpty()) return;
 
-                // Z-clipping
-                if (doClip) {
-                    if (Math.abs(pathData.worldZ[i] - clipPos[2]) > clipDist &&
-                            Math.abs(pathData.worldZ[i + 1] - clipPos[2]) > clipDist) {
-                        continue;
-                    }
+            // Fast path: BasicStroke lines
+            if (!renderingOptions.isDisplayRadii()) {
+                // Stroke width = average of all segment radii in this batch, doubled.
+                // A single stroke per batch minimises setStroke() calls.
+                double totalR = 0;
+                int count = 0;
+                for (final SegmentData seg : segments) {
+                    if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
+                            && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                    totalR += seg.r1 + seg.r2;
+                    count += 2;
                 }
+                final float strokeW = count > 0 ? (float) Math.max(0.5, totalR / count * 2.0) : 1f;
+                g2d.setStroke(new java.awt.BasicStroke(strokeW,
+                        java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+                g2d.setColor(batchColor);
+                batchPath.reset();
+                for (final SegmentData seg : segments) {
+                    if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
+                            && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                    batchPath.moveTo(seg.x1, seg.y1);
+                    batchPath.lineTo(seg.x2, seg.y2);
+                }
+                g2d.draw(batchPath);
+                return;
+            }
 
-                // Skip subpixel segments
-                final double dx = pathData.screenX[i + 1] - pathData.screenX[i];
-                final double dy = pathData.screenY[i + 1] - pathData.screenY[i];
-                final double length = Math.sqrt(dx * dx + dy * dy);
-                if (length < 0.5) continue;
+            // Frustum path: tapered tube with per-node radii
+            // Single-pass: accumulate uniform segs, draw gradients inline.
+            // Caps: deduplicated via a small set; each node position drawn once.
+            // Caps below 1.5 px radius are skipped (frustum fill covers the joint).
+            batchPath.reset();
+            boolean hasUniform = false;
+            // Use a simple long-key set to avoid allocating Point2D objects:
+            // encode (x, y) as a single long, sufficient for pixel-level dedup.
+            final java.util.HashSet<Long> drawnCaps = new java.util.HashSet<>();
+            g2d.setColor(batchColor);
 
-                // Create segment data
-                final SegmentData seg = new SegmentData();
-                seg.x1 = pathData.screenX[i];
-                seg.y1 = pathData.screenY[i];
-                seg.x2 = pathData.screenX[i + 1];
-                seg.y2 = pathData.screenY[i + 1];
-                seg.r1 = pathData.screenRadius[i];
-                seg.r2 = pathData.screenRadius[i + 1];
-                seg.color1 = pathData.colors[i];
-                seg.color2 = pathData.colors[i + 1];
+            for (final SegmentData seg : segments) {
+                if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
+                        && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                if (seg.color1.equals(seg.color2)) {
+                    addFrustumToPath(batchPath, seg);
+                    hasUniform = true;
+                    // Queue caps for deduped draw after fill
+                } else {
+                    drawGradientFrustum(g2d, seg);
+                    // Draw caps for gradient seg immediately (different colors)
+                    drawCap(g2d, seg.x1, seg.y1, seg.r1, seg.color1, drawnCaps);
+                    drawCap(g2d, seg.x2, seg.y2, seg.r2, seg.color2, drawnCaps);
+                    g2d.setColor(batchColor);
+                }
+            }
 
-                // Batch by primary color
-                final Color batchColor = seg.color1;
-                batches.computeIfAbsent(batchColor, k -> new ArrayList<>()).add(seg);
+            if (hasUniform) {
+                g2d.setColor(batchColor);
+                g2d.fill(batchPath);
+                // Deduplicated caps for uniform segments
+                for (final SegmentData seg : segments) {
+                    if (!seg.color1.equals(seg.color2)) continue;
+                    if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
+                            && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                    drawCap(g2d, seg.x1, seg.y1, seg.r1, batchColor, drawnCaps);
+                    drawCap(g2d, seg.x2, seg.y2, seg.r2, batchColor, drawnCaps);
+                }
             }
         }
 
-        private void drawBatch(final Graphics2D g2d, final Color batchColor, final List<SegmentData> segments) {
-            if (segments.isEmpty()) return;
-
-            // Separate uniform-color segments from gradient segments
-            final List<SegmentData> uniformSegments = new ArrayList<>();
-            final List<SegmentData> gradientSegments = new ArrayList<>();
-
-            for (final SegmentData seg : segments) {
-                if (seg.color1.equals(seg.color2)) {
-                    uniformSegments.add(seg);
-                } else {
-                    gradientSegments.add(seg);
-                }
-            }
-
-            // Draw uniform segments as batched path
-            if (!uniformSegments.isEmpty()) {
-                batchPath.reset();
-                for (final SegmentData seg : uniformSegments) {
-                    addFrustumToPath(batchPath, seg);
-                }
-                g2d.setColor(batchColor);
-                g2d.fill(batchPath);
-
-                // === ADD NODE CAPS TO SMOOTH JOINTS ===
-                for (final SegmentData seg : uniformSegments) {
-                    // Draw circle at start node
-                    final int d1 = (int) Math.round(2 * seg.r1);
-                    if (d1 >= 1) {
-                        g2d.fillOval((int) Math.round(seg.x1 - seg.r1),
-                                (int) Math.round(seg.y1 - seg.r1), d1, d1);
-                    }
-                    // Draw circle at end node
-                    final int d2 = (int) Math.round(2 * seg.r2);
-                    if (d2 >= 1) {
-                        g2d.fillOval((int) Math.round(seg.x2 - seg.r2),
-                                (int) Math.round(seg.y2 - seg.r2), d2, d2);
-                    }
-                }
-            }
-
-            // Draw gradient segments individually
-            for (final SegmentData seg : gradientSegments) {
-                drawGradientFrustum(g2d, seg);
-                // Add caps for gradient segments too
-                g2d.setColor(seg.color1);
-                final int d1 = (int) Math.round(2 * seg.r1);
-                if (d1 >= 1) {
-                    g2d.fillOval((int) Math.round(seg.x1 - seg.r1),
-                            (int) Math.round(seg.y1 - seg.r1), d1, d1);
-                }
-                g2d.setColor(seg.color2);
-                final int d2 = (int) Math.round(2 * seg.r2);
-                if (d2 >= 1) {
-                    g2d.fillOval((int) Math.round(seg.x2 - seg.r2),
-                            (int) Math.round(seg.y2 - seg.r2), d2, d2);
-                }
-            }
+        /**
+         * Draws a single circular cap, deduplicated by pixel position and skipping
+         * radii below 1.5 px (frustum fill visually covers the joint at that scale).
+         */
+        private void drawCap(final Graphics2D g2d, final double cx, final double cy,
+                             final double r, final Color color,
+                             final java.util.HashSet<Long> drawn) {
+            if (r < 1.5) return; // skip sub-pixel caps (#2)
+            // Encode pixel position as long key for dedup (#1)
+            final long key = (Math.round(cx) << 20) ^ Math.round(cy);
+            if (!drawn.add(key)) return; // already drawn at this pixel
+            g2d.setColor(color);
+            final int d = (int) Math.round(2 * r);
+            g2d.fillOval((int) Math.round(cx - r), (int) Math.round(cy - r), d, d);
         }
 
         private void addFrustumToPath(final Path2D.Double path, final SegmentData seg) {
@@ -3489,21 +3669,6 @@ public class Bvv {
             g2d.setPaint(gradient);
             g2d.fill(batchPath);
             g2d.setPaint(original);
-        }
-
-        private double getNodeRadius(final Path path, final int index) {
-            double radius = 1.0;
-
-            if (renderingOptions.isUsePathRadius()) {
-                final double r = path.getNodeRadius(index);
-                if (r > 0) radius = r;
-            }
-
-            radius *= renderingOptions.getThicknessMultiplier();
-            radius = Math.max(renderingOptions.getMinThickness() / 2.0, radius);
-            radius = Math.min(renderingOptions.getMaxThickness() / 2.0, radius);
-
-            return radius;
         }
 
         private double getAverageScale() {
@@ -3555,8 +3720,30 @@ public class Bvv {
 
         // === DATA CLASSES ===
 
+        /**
+         * Pre-computed screen data for a whole tree, including pre-batched segments
+         * grouped by color. Batching is done once on cache-miss so per-frame drawing
+         * requires no HashMap/ArrayList/SegmentData allocation.
+         */
         private static class TreeScreenData {
             final List<PathScreenData> paths = new ArrayList<>();
+            /** Pre-batched segments keyed by color. Populated by buildBatches(). */
+            final Map<Color, List<SegmentData>> batches = new LinkedHashMap<>();
+            boolean batchesBuilt = false;
+            /** Cached screen-space visibility: avoids re-projecting 8 bbox corners on cache-hit frames. */
+            boolean visible = true;
+
+            void buildBatches() {
+                batches.clear();
+                for (final PathScreenData p : paths) {
+                    for (int i = 0; i < p.size - 1; i++) {
+                        final SegmentData seg = p.segments[i];
+                        if (seg == null) continue; // sub-pixel or off-screen, pre-filtered
+                        batches.computeIfAbsent(seg.color1, k -> new ArrayList<>()).add(seg);
+                    }
+                }
+                batchesBuilt = true;
+            }
         }
 
         private static class PathScreenData {
@@ -3567,6 +3754,8 @@ public class Bvv {
             final double[] screenRadius;
             final Color[] colors;
             final boolean[] visible;
+            /** Pre-built segment objects, null for sub-pixel/off-screen segments. */
+            final SegmentData[] segments;
 
             PathScreenData(int size) {
                 this.size = size;
@@ -3576,12 +3765,14 @@ public class Bvv {
                 this.screenRadius = new double[size];
                 this.colors = new Color[size];
                 this.visible = new boolean[size];
+                this.segments = new SegmentData[Math.max(0, size - 1)];
             }
         }
 
         private static class SegmentData {
             double x1, y1, x2, y2;
             double r1, r2;
+            double worldZ1, worldZ2; // retained for Z-clipping in drawBatch
             Color color1, color2;
         }
     }
@@ -3590,6 +3781,7 @@ public class Bvv {
     private class BvvActions {
         private final BigVolumeViewer bvv;
         private final GuiUtils guiUtils;
+        private float lastClippingDistance = 100f;
 
         BvvActions(final BigVolumeViewer bvv) {
             this.bvv = bvv;
@@ -3665,8 +3857,19 @@ public class Bvv {
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final File[] files = guiUtils.getReconstructionFiles(getDefaultDir());
                     if (files == null || files.length == 0) return;
-                    if (files.length > 0) setDefaultDir(files[0]);
+                    setDefaultDir(files[0]);
                     add(files); // delegates to SwingWorker with progress bar
+                }
+            };
+        }
+
+        Action optionsAction() {
+            return new AbstractAction("Options...", IconFactory.menuIcon(IconFactory.GLYPH.SLIDERS)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final HashMap<String, Object> inputs = new HashMap<>();
+                    inputs.put("bvv", Bvv.this);
+                    SNTUtils.getContext().getService(CommandService.class).run(BvvRenderingOptionsCmd.class, true, inputs);
                 }
             };
         }
@@ -3710,7 +3913,7 @@ public class Bvv {
             return new AbstractAction("Annotations Offset...", IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, 1f)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final SNTPoint offset = guiUtils.getCoordinates("Offset (calibrated distances):", "Annotations Offset ",
+                    final SNTPoint offset = guiUtils.getCoordinates("Offsets:", "Annotations Offset (Calibrated Distances) ",
                             renderingOptions.canvasOffset, 2);
                     if (offset == null) return;
                     if (offset.getX() == 0 && offset.getY() == 0 && offset.getZ() == 0) {
@@ -3728,13 +3931,14 @@ public class Bvv {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final Double multi = guiUtils.getDouble("Thickness multiplier (applied to radii of all annotations):",
-                            "Thickness Multiplier", renderingOptions.getThicknessMultiplier());
+                            "Thickness Multiplier", renderingOptions.getThicknessMultiplier(), 0.1d, 10d, "×");
                     if (multi == null)
                         return;
                     if (Double.isNaN(multi) || multi < 0.09f || multi > 100f) {
                         guiUtils.error("Invalid value: Multiplier must be better 0.1× and 100×.");
                     } else {
                         renderingOptions.setThicknessMultiplier(multi.floatValue());
+                        syncOverlays();
                         bvv.getViewer().showMessage(
                                 (1f == renderingOptions.getThicknessMultiplier())
                                         ? "Thickness factor removed" : String.format("%.1f× Thickness", multi.floatValue()));
@@ -3802,30 +4006,33 @@ public class Bvv {
 
         Action togglePersistentAnnotationsAction() {
             return new AbstractAction("Toggle Annotations Around Cursor") {
-
-                float lastInputDistance = 100f; // default. presumably 100um
-
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!(e.getSource() instanceof AbstractButton toggleButton)) return;
 
-                    if (e.getSource() instanceof AbstractButton toggleButton) {
-                        if (renderingOptions.isClippingEnabled()) { // disable clippingDistance without prompt
-                            lastInputDistance = renderingOptions.clippingDistance;
-                            renderingOptions.clippingDistance = 0;
-                        } else {
-                            final Double newDist = guiUtils.getDouble(
-                                    "<HTMl>Only annotations within this distance from cursor " +
-                                            "(in spatially calibrated units)<br> will be displayed. " +
-                                            "Set it to 0, or cancel this prompt to disable this option.",
-                                    "Annotations Near Cursor",
-                                    lastInputDistance);
-                            lastInputDistance = (newDist == null || newDist < 0 || Double.isNaN(newDist))
-                                    ? 0f : newDist.floatValue();
-                            renderingOptions.clippingDistance = lastInputDistance;
+                    if (renderingOptions.isClippingEnabled()) {
+                        // Turning OFF: save current distance and disable
+                        lastClippingDistance = renderingOptions.clippingDistance;
+                        renderingOptions.setClippingDistance(0);
+                    } else {
+                        // Turning ON: prompt for distance
+                        final Double newDist = guiUtils.getDouble(
+                                "<HTMl>Only annotations within this distance from the cursor " +
+                                        "(in spatially calibrated units)<br> will be displayed. " +
+                                        "Set it to 0, or cancel this prompt to disable this option.",
+                                "Annotations Near Cursor",
+                                lastClippingDistance);
+                        if (newDist == null) {
+                            // User cancelled — revert button state
+                            toggleButton.setSelected(false);
+                            return;
                         }
-                        toggleButton.setSelected(renderingOptions.isClippingEnabled());
+                        renderingOptions.setClippingDistance(newDist == 0 ? 0 : newDist.floatValue());
                     }
-                    bvv.getViewer().showMessage((renderingOptions.isClippingEnabled())
+
+                    toggleButton.setSelected(renderingOptions.isClippingEnabled());
+                    bvv.getViewer().requestRepaint();
+                    bvv.getViewer().showMessage(renderingOptions.isClippingEnabled()
                             ? "Visibility: Around cursor" : "Visibility: All visible");
                 }
             };

@@ -903,6 +903,39 @@ public class GuiUtils {
 		return getInt(promptMsg, promptTitle, defaultValue, 0, 100);
 	}
 
+	public Double getDouble(final String promptMsg, final String promptTitle,
+							final double defaultValue, final double min, final double max, final String unit) {
+		// Scale factor: enough decimal places for the range.
+		// For 0.1–10 this gives slider range 10–1000 with 0.1 precision.
+		final int scale = 10;
+		final int iMin = (int) Math.round(min * scale);
+		final int iMax = (int) Math.round(max * scale);
+		final int iDefault = (int) Math.round(Math.min(Math.max(defaultValue, min), max) * scale);
+
+		final JSlider slider = new JSlider(iMin, iMax, iDefault);
+		slider.setPaintLabels(true);
+		slider.setPaintTicks(true);
+
+		final String unt = (unit == null) ? "" : unit;
+		final java.util.Hashtable<Integer, JLabel> labels = new java.util.Hashtable<>();
+		labels.put(iMin, new JLabel(String.format("%.1f%s", min, unt)));
+		labels.put(iMax, new JLabel(String.format("%.1f%s", max, unt)));
+		slider.setLabelTable(labels);
+		slider.setMajorTickSpacing(Math.max(1, scale)); // one tick per 1.0 unit
+		slider.setMinorTickSpacing(Math.max(1, scale / 2)); // one tick per 0.5 unit
+
+		// Live readout so the user sees the exact current value
+		final JLabel readout = new JLabel(String.format("%.1f%s", defaultValue, unt), JLabel.CENTER);
+		slider.addChangeListener(e ->
+				readout.setText(String.format("%.1f%s", (slider.getValue() / (double) scale), unt)));
+		final JComponent[] inputs = {getLabel(promptMsg), slider, readout};
+		final int result = JOptionPane.showConfirmDialog(parent, inputs, promptTitle,
+				JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+		if (result == JOptionPane.OK_OPTION)
+			return slider.getValue() / (double) scale;
+		return null;
+	}
+
 	public Integer getInt(final String promptMsg, final String promptTitle,
 						  final int defaultValue, final int min, final int max) {
 		final JSlider slider = new JSlider(min, max, defaultValue);
@@ -911,7 +944,7 @@ public class GuiUtils {
 		slider.setMajorTickSpacing( (max - min) / 5);
 		slider.setMinorTickSpacing( (max - min) / 5 / 2);
 		final JComponent[] inputs = new JComponent[] { getLabel(promptMsg), slider };
-		final int result = JOptionPane.showConfirmDialog(null, inputs, promptTitle, JOptionPane.OK_CANCEL_OPTION,
+		final int result = JOptionPane.showConfirmDialog(parent, inputs, promptTitle, JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.PLAIN_MESSAGE);
 		if (result == JOptionPane.OK_OPTION) {
 			return slider.getValue();

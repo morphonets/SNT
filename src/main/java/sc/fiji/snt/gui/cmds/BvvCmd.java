@@ -23,9 +23,11 @@
 package sc.fiji.snt.gui.cmds;
 
 import org.scijava.command.Command;
+import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.viewer.Bvv;
 
 import java.io.File;
@@ -37,8 +39,8 @@ import java.util.stream.Stream;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "BVV", initializer = "init")
-public class BvvCmd extends CommonDynamicCmd {
+@Plugin(type = Command.class, label = "BVV")
+public class BvvCmd extends ContextCommand {
 
     @Parameter(label = "Main volume",
             description = "Both traditional (TIFF) and Pyramid (IMS and BDV's .xml files) images supported")
@@ -51,10 +53,6 @@ public class BvvCmd extends CommonDynamicCmd {
     @Parameter(required = false, label = "Reconstruction files (optional)",
             description = "Either a single file (TRACES, SWC, JSON), or a folder containing multiple reconstruction files.")
     File recFiles;
-
-    protected void init() {
-        super.init(false);
-    }
 
     @Override
     public void run() {
@@ -88,6 +86,11 @@ public class BvvCmd extends CommonDynamicCmd {
         } catch (final Exception e) {
             error("An error occurred: " + e.getMessage());
         }
+    }
+
+    private void error(final String msg) {
+        GuiUtils.errorPrompt(msg);
+        cancel("");
     }
 
 }
