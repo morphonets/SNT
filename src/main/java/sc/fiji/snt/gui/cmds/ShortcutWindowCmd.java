@@ -86,6 +86,8 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
 		shortcuts.add(new Shortcut("Rec. Viewer", ReconstructionViewerCmd.class,
 				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
+		shortcuts.add(new Shortcut("BVV", BvvCmd.class,
+				"Initialize SNT's Big Volume Viewer with support for big data pyramidal images."));
 		addButtons(shortcuts);
 		final ScriptInstaller si = new ScriptInstaller(getContext(), getFrame());
 		buttons.add(null);
@@ -99,7 +101,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		// Assemble GUI
 		final JPanel panel = new JPanel();
 		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-		panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+		panel.setBorder(new EmptyBorder(8, 8, 8, 8));
 		final Dimension prefSize = new Dimension(-1, -1);
 		buttons.forEach(button -> {
 			if (button == null) {

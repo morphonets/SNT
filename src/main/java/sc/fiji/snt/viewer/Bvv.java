@@ -85,6 +85,7 @@ public class Bvv {
 
     private final BvvOptions options;
     private final Map<String, Tree> renderedTrees;
+    private JProgressBar progressBar; // Set by {@link #sntToolbar}.
     private final PathRenderingOptions renderingOptions;
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
@@ -95,7 +96,7 @@ public class Bvv {
     private long[] dims; // Dimensions in pixels of volume being rendered
     private String calUnit; // Physical unit string (e.g. "µm", "pixel") for the volume
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
-    private BookmarkManager markerManager; // lazily initialised on first use
+    private BookmarkManager markerManager; // lazily initialized on first use
 
     /**
      * Constructor for standalone BVV instance.
@@ -137,10 +138,10 @@ public class Bvv {
         dims = new long[]{img.dimension(0), img.dimension(1), img.dimension(2)};
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         calUnit = "pixel";
-        final BvvSource source = showCalibratedSource(img, "SNT Bvv", cal, "pixel", opt);
+        final BvvStackSource<?> source = showCalibratedSource(img, "SNT Bvv", cal, "pixel", opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
-        multiSources.add(new BvvMultiSource((BvvStackSource<?>) source));
+        multiSources.add(new BvvMultiSource(source));
         return source;
     }
 
@@ -853,13 +854,13 @@ public class Bvv {
         calUnit = unit;
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         @SuppressWarnings({"unchecked", "rawtypes"})
-        final BvvSource source = showCalibratedSource(
+        final BvvStackSource<?> source = showCalibratedSource(
                 (net.imglib2.RandomAccessibleInterval) ImgUtils.toUnsignedShortIfFloat(data, minMax[0], minMax[1]),
                 label, cal, unit, opt);
         source.setDisplayRange(minMax[0], minMax[1]);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
-        multiSources.add(new BvvMultiSource((BvvStackSource<?>) source));
+        multiSources.add(new BvvMultiSource(source));
         return source;
     }
 
@@ -1355,7 +1356,7 @@ public class Bvv {
         return toolbar;
     }
 
-    private JToolBar sntToolbar(final BvvActions actions) {
+    private JComponent sntToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
         toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togggleVisibilityAction(),
                 "Show/hide annotations",
@@ -1406,7 +1407,16 @@ public class Bvv {
         toolbar.addSeparator();
         final JButton optionsButton = optionsButton(actions);
         toolbar.add(optionsButton);
-        return toolbar;
+
+        // Wrap toolbar + progress bar in a vertical panel
+        progressBar = new javax.swing.JProgressBar(0, 100);
+        progressBar.setStringPainted(true);
+        progressBar.setString("");
+        progressBar.setVisible(false); // hidden until needed
+        final JPanel panel = new JPanel(new java.awt.BorderLayout());
+        panel.add(toolbar, java.awt.BorderLayout.CENTER);
+        panel.add(progressBar, java.awt.BorderLayout.SOUTH);
+        return panel;
     }
 
     private JButton optionsButton(final BvvActions actions) {
@@ -1479,6 +1489,79 @@ public class Bvv {
         final String label = getUniqueLabel(tree);
         renderedTrees.put(label, tree);
         if (updateScene) syncOverlays();
+    }
+
+    /**
+     * Loads reconstruction files and adds them to the viewer with live progress
+     * feedback. Files are loaded one at a time on a background thread; the viewer
+     * scene is updated after each file so the user sees trees appearing
+     * incrementally. The progress bar in the SNT Annotations card tracks progress.
+     *
+     * @param reconstructionFiles the reconstruction files (SWC, JSON, etc.) to load
+     */
+    public void add(final java.io.File[] reconstructionFiles) {
+        if (reconstructionFiles == null || reconstructionFiles.length == 0) return;
+        new SwingWorker<Void, Tree>() {
+            @Override
+            protected Void doInBackground() {
+                final ColorRGB[] colors = SNTColor.getDistinctColors(reconstructionFiles.length);
+                for (int i = 0; i < reconstructionFiles.length; i++) {
+                    final File f = reconstructionFiles[i];
+                    updateStatus("Loading " + f.getName() + "...", i, reconstructionFiles.length);
+                    try {
+                        final Collection<Tree> trees = Tree.listFromFile(f.getAbsolutePath());
+                        if (trees != null) {
+                            final int finalI = i;
+                            trees.forEach(tree -> tree.setColor(colors[finalI]));
+                            publish(trees.toArray(new Tree[0]));
+                        }
+                    } catch (final Exception ex) {
+                        SNTUtils.log("BVV: could not load " + f.getName() + ": " + ex.getMessage());
+                    }
+                }
+                return null;
+            }
+
+            @Override
+            protected void process(final java.util.List<Tree> chunk) {
+                // Called on EDT with batched trees: Add without individual repaints,
+                // then sync once per chunk for a single repaint per publish() batch.
+                for (final Tree t : chunk)
+                    addTree(t, false);
+                syncOverlays();
+            }
+
+            @Override
+            protected void done() {
+                updateStatus("", 0, 0); // clear / hide progress bar
+            }
+        }.execute();
+    }
+
+    /**
+     * Updates the progress bar in the SNT Annotations card.
+     * When {@code nSteps} is 0 the bar is hidden; otherwise it shows
+     * {@code step/nSteps} progress with {@code message} as the label.
+     * Safe to call from any thread.
+     *
+     * @param message  short status message displayed inside the bar
+     * @param step     current step (0-based)
+     * @param nSteps   total number of steps (0 to hide)
+     */
+    public void updateStatus(final String message, final int step, final int nSteps) {
+        SwingUtilities.invokeLater(() -> {
+            if (progressBar == null) return;
+            if (nSteps <= 0) {
+                progressBar.setVisible(false);
+                progressBar.setValue(0);
+                progressBar.setString("");
+            } else {
+                progressBar.setMaximum(nSteps);
+                progressBar.setValue(step);
+                progressBar.setString(message == null ? "" : message);
+                progressBar.setVisible(true);
+            }
+        });
     }
 
     /**
@@ -3582,23 +3665,8 @@ public class Bvv {
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final File[] files = guiUtils.getReconstructionFiles(getDefaultDir());
                     if (files == null || files.length == 0) return;
-                    int failureCounter = 0;
-                    final ColorRGB[] colors = SNTColor.getDistinctColors(files.length);
-                    for (int i = 0; i < files.length; i++) {
-                        try {
-                            final Collection<Tree> trees = Tree.listFromFile(files[i].getAbsolutePath());
-                            for (final Tree tree : trees) tree.setColor(colors[i]);
-                            addCollection(trees, false);
-                            bvv.getViewer().showMessage(String.format("%s loaded", files[i].getName()));
-                        } catch (final Exception ex) {
-                            bvv.getViewer().showMessage(String.format("%s failed", files[i].getName()));
-                            failureCounter++;
-                        }
-                    }
-                    syncOverlays();
-                    if (failureCounter > 0) {
-                        guiUtils.error(String.format("%d/%d file(s) successfully imported.", (files.length - failureCounter), files.length));
-                    }
+                    if (files.length > 0) setDefaultDir(files[0]);
+                    add(files); // delegates to SwingWorker with progress bar
                 }
             };
         }
@@ -4003,6 +4071,7 @@ public class Bvv {
                             exportTransform(moving, reference, outPath);
                             setDefaultDir(file);
                         } catch (final Exception ex) {
+                            updateStatus("", 0, 0); // clear progress bar on failure
                             guiUtils.error("Export failed: " + ex.getMessage());
                             SNTUtils.error("BVV transform export failed", ex);
                         }
@@ -4039,7 +4108,11 @@ public class Bvv {
 
             // Resample every channel of the moving group onto the reference grid
             final List<RandomAccessibleInterval<RealType<?>>> channels = new ArrayList<>();
-            for (final var chSource : moving.getSources()) {
+            final int nChannels = moving.getSources().size();
+            for (int chIdx = 0; chIdx < nChannels; chIdx++) {
+                updateStatus(String.format("Resampling channel %d/%d…", chIdx + 1, nChannels),
+                        chIdx, nChannels);
+                final var chSource = moving.getSources().get(chIdx);
                 final Source<RealType<?>> chSpim = (Source<RealType<?>>) chSource.getSources().getFirst().getSpimSource();
                 final RandomAccessibleInterval<RealType<?>> chRai = chSpim.getSource(0, 0);
                 @SuppressWarnings({"rawtypes"}) final RealRandomAccessible<RealType<?>> realRai =
@@ -4049,6 +4122,7 @@ public class Bvv {
                                 totalT);
                 channels.add(Views.interval(Views.raster(realRai), refRai));
             }
+            updateStatus("Writing output…", nChannels - 1, nChannels);
 
             // Save result. For multichannel output, wrap as ImgPlus with explicit XYZC
             // axis metadata so SCIFIO writes a proper hyperstack rather than treating
@@ -4080,6 +4154,7 @@ public class Bvv {
             }
             bvv.getViewer().showMessage("Saved: " + new File(outPath).getName()
                     + (channels.size() > 1 ? " (" + channels.size() + " channels)" : ""));
+            updateStatus("", 0, 0); // clear progress bar
         }
 
         /** Returns the display name of a BvvMultiSource (image title of its leader). */
