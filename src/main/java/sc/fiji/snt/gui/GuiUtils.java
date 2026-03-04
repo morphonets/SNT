@@ -906,7 +906,6 @@ public class GuiUtils {
 	public Double getDouble(final String promptMsg, final String promptTitle,
 							final double defaultValue, final double min, final double max, final String unit) {
 		// Scale factor: enough decimal places for the range.
-		// For 0.1–10 this gives slider range 10–1000 with 0.1 precision.
 		final int scale = 10;
 		final int iMin = (int) Math.round(min * scale);
 		final int iMax = (int) Math.round(max * scale);
@@ -916,13 +915,32 @@ public class GuiUtils {
 		slider.setPaintLabels(true);
 		slider.setPaintTicks(true);
 
+		// Ticks: I. Calculate the raw step size based on a target density (e.g., 5 segments)
+		final int range = iMax - iMin;
+		final double rawStep = range / 5.0;
+
+		// Ticks: II. Find the power of 10 (magnitude) of that step
+		final double magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+		final double residual = rawStep / magnitude;
+
+		// Ticks: III. Round the residual to a "clean" human-friendly number
+		double cleanStep;
+		if (residual < 1.5) cleanStep = 1.0;
+		else if (residual < 3.0) cleanStep = 2.0;
+		else if (residual < 7.0) cleanStep = 5.0;
+		else cleanStep = 10.0;
+		final int majorSpacing = (int) (cleanStep * magnitude);
+		final int minorSpacing = majorSpacing / 2;
+		slider.setMajorTickSpacing(Math.max(1, majorSpacing));
+		slider.setMinorTickSpacing(Math.max(1, minorSpacing));
+
 		final String unt = (unit == null) ? "" : unit;
 		final java.util.Hashtable<Integer, JLabel> labels = new java.util.Hashtable<>();
 		labels.put(iMin, new JLabel(String.format("%.1f%s", min, unt)));
 		labels.put(iMax, new JLabel(String.format("%.1f%s", max, unt)));
 		slider.setLabelTable(labels);
-		slider.setMajorTickSpacing(Math.max(1, scale)); // one tick per 1.0 unit
-		slider.setMinorTickSpacing(Math.max(1, scale / 2)); // one tick per 0.5 unit
+		slider.setMajorTickSpacing(majorSpacing);
+		slider.setMinorTickSpacing(majorSpacing / 2 > 0 ? majorSpacing / 2 : 1);
 
 		// Live readout so the user sees the exact current value
 		final JLabel readout = new JLabel(String.format("%.1f%s", defaultValue, unt), JLabel.CENTER);

@@ -3557,12 +3557,12 @@ public class Viewer3D {
             return false;
         }
 
-        Double getPromptTransparency(final String title) {
+        Integer getPromptTransparency(final String title) {
             final double def = Double.parseDouble(prefs.getGuiPref("aTransparency", "50"));
-            final Double t = getManagerPanel().guiUtils.getDouble("Transparency (%)", title + " Transparency", def);
+            final Integer t = getManagerPanel().guiUtils.getPercentage("Transparency (%)", title + " Transparency", (int)def);
             if (t == null)
                 return null;
-            if (Double.isNaN(t) || t < 0 || t > 100) {
+            if (t < 0 || t > 100) {
                 getManagerPanel().guiUtils.error("Invalid transparency value: Only [0, 100] accepted.");
                 return null;
             }
@@ -4843,7 +4843,7 @@ public class Viewer3D {
         private void customizeSelectedMeshesTransparencyAction() {
             final List<String> keys = getSelectedMeshLabels();
             if (keys == null) return;
-            final Double t = new AnnotPrompt().getPromptTransparency("Mesh(es) Transparency...");
+            final Integer t = new AnnotPrompt().getPromptTransparency("Mesh(es) Transparency...");
             if (t == null) {
                 return; // user pressed cancel
             }
@@ -4975,14 +4975,14 @@ public class Viewer3D {
             final List<String> keys = getSelectedTreeLabels();
             if (keys == null) return;
             String msg = "<HTML><body><div style='width:500;'>" +
-                    "Please specify a constant thickness value [ranging from 1 (thinnest) to 8"
-                    + " (thickest)] to be applied to selected " + keys.size() + " reconstruction(s).";
+                    "Specify a constant thickness factor ranging from 1 (thinnest) to 10"
+                    + " (thickest) to be applied to selected " + keys.size() + " reconstruction(s).";
             if (isSNTInstance()) {
                 msg += " This value will only affect how Paths are displayed " +
                         "in the Reconstruction Viewer.";
             }
             final Double thickness = guiUtils.getDouble(msg, "Path Thickness",
-                    getDefaultThickness());
+                    getDefaultThickness(), 1d, 10d, "");
             if (thickness == null) {
                 return; // user pressed cancel
             }
@@ -4990,7 +4990,9 @@ public class Viewer3D {
                 guiUtils.error("Invalid thickness value.");
                 return;
             }
-            setTreeThickness(keys, thickness.floatValue(), null);
+            // Somehow JZY3D seems to accept only 8 as a max(!?), so we'll do some scaling
+            final float normThick = (float) (((thickness-1) * 7 / 9 ) + 1);
+            setTreeThickness(keys, normThick, null);
         }
 
         private void setSelectedSomaRadiusAction() {
@@ -5614,7 +5616,7 @@ public class Viewer3D {
             final List<Annotation3D> annots = getSelectedAnnotations();
             if (annots == null)
                 return;
-            final Double t = new AnnotPrompt().getPromptTransparency("Annotation(s) Transparency...");
+            final Integer t = new AnnotPrompt().getPromptTransparency("Annotation(s) Transparency...");
             if (t != null)
                 annots.forEach(annot -> annot.setColor((ColorRGB) null, t));
         }

@@ -4149,11 +4149,13 @@ public class Bvv {
                     } else {
                         // Turning ON: prompt for distance
                         final Double newDist = guiUtils.getDouble(
-                                "<HTMl>Only annotations within this distance from the cursor " +
-                                        "(in spatially calibrated units)<br> will be displayed. " +
-                                        "Set it to 0, or cancel this prompt to disable this option.",
+                                "<HTMl>Only annotations within this distance from the cursor will be displayed.<br>"
+                                        + "Set it to 0, or cancel this prompt to disable this option.",
                                 "Annotations Near Cursor",
-                                lastClippingDistance);
+                                lastClippingDistance,
+                                0d,
+                                Arrays.stream(dims).asDoubleStream().max().orElse(1000d),
+                                calUnit);
                         if (newDist == null) {
                             // User cancelled: revert button state
                             toggleButton.setSelected(false);
