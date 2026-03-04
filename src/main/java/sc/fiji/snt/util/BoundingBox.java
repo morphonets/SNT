@@ -185,10 +185,10 @@ public class BoundingBox implements Cloneable {
 	 * @param unit the new unit
 	 */
 	public void setUnit(final String unit) {
-		spacingUnit = sanitizedUni (unit);
+		spacingUnit = sanitizedUnit(unit);
 	}
 
-	public static String sanitizedUni(final String unit) {
+	public static String sanitizedUnit(final String unit) {
 		if (unit == null || unit.startsWith("pixel")) {
 			return DEF_SPACING_UNIT;
 		}

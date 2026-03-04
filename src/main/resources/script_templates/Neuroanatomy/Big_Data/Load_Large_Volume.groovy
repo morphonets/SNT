@@ -96,8 +96,10 @@ try {
 //bvv.setCanvasOffset(0, 0, 5.0)   // offset in calibrated units
 
 // #Screenshots
-
-//bvv.screenshot("/path/to/output.png")
+//imp = bvv.snapshot() // current scene
+//imp = bvv.snapshot("xy") // specific view: "xy", "xz", "yz", "default" (fit-to-viewport), or "current" (scene as-is)
+//imp.show()
+//bvv.saveSnapshot("/path/to/output.png") // save current scene to a file
 
 // # Viewer access
 

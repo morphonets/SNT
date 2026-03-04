@@ -170,7 +170,7 @@ public class Bvv {
         final String unit = (xAxis != null && xAxis.unit() != null) ? xAxis.unit() : "pixel";
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         // Use showCalibratedSource so the unit propagates to the scale bar renderer
-        calUnit = BoundingBox.sanitizedUni(unit);
+        calUnit = BoundingBox.sanitizedUnit(unit);
         final BvvStackSource<?> source = showCalibratedSource(imgPlus, title, cal, unit, opt);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
@@ -768,7 +768,7 @@ public class Bvv {
                         final var vs = setup.getVoxelSize();
                         cal = new double[]{vs.dimension(0), vs.dimension(1), vs.dimension(2)};
                         calUnit = (vs.unit() != null && !vs.unit().isBlank())
-                                ? BoundingBox.sanitizedUni(vs.unit()) : "pixel";
+                                ? BoundingBox.sanitizedUnit(vs.unit()) : "pixel";
                     }
                 }
             } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
@@ -854,7 +854,7 @@ public class Bvv {
         final String label = String.format("Tracing Data (%s): C%d, T%d",
                 (secondary) ? "Secondary layer" : "Main image", snt.getChannel(), snt.getFrame());
         final String unit = snt.getSpacingUnits();
-        calUnit = BoundingBox.sanitizedUni(unit);
+        calUnit = BoundingBox.sanitizedUnit(unit);
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
         @SuppressWarnings({"unchecked", "rawtypes"})
         final BvvStackSource<?> source = showCalibratedSource(
@@ -930,7 +930,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
-        calUnit = BoundingBox.sanitizedUni(unit);
+        calUnit = BoundingBox.sanitizedUnit(unit);
         final BvvOptions opt = configureBvvOptionsForImage(imp).axisOrder(getAxisOrder(imp));
         final net.imglib2.RandomAccessibleInterval<?> wrappedImp = switch (imp.getType()) {
             case ImagePlus.COLOR_256 -> throw new IllegalArgumentException("Unsupported image type (COLOR_256).");
@@ -977,7 +977,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
-        calUnit = BoundingBox.sanitizedUni(unit);;
+        calUnit = BoundingBox.sanitizedUnit(unit);;
         // Each channelImp has nChannels=1; derive axis order from Z and T only
         final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
                 : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
@@ -2057,7 +2057,7 @@ public class Bvv {
         if (snt != null) {
             final String u = snt.getSpacingUnits();
             if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u))
-                return BoundingBox.sanitizedUni(u);;
+                return BoundingBox.sanitizedUnit(u);;
         }
         if (bvvHandle != null) {
             try {
@@ -2066,7 +2066,7 @@ public class Bvv {
                     final var vd = srcs.getFirst().getSpimSource().getVoxelDimensions();
                     if (vd != null && vd.unit() != null && !vd.unit().isBlank()
                             && !"pixel".equalsIgnoreCase(vd.unit()))
-                        return BoundingBox.sanitizedUni(vd.unit());
+                        return BoundingBox.sanitizedUnit(vd.unit());
                 }
             } catch (final Exception ignored) {
             }
