@@ -86,7 +86,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
 		shortcuts.add(new Shortcut("Rec. Viewer", ReconstructionViewerCmd.class,
 				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
-		shortcuts.add(new Shortcut("BVV", BvvCmd.class,
+		shortcuts.add(new Shortcut("BVV...", BvvCmd.class,
 				"Initialize SNT's Big Volume Viewer with support for big data pyramidal images."));
 		addButtons(shortcuts);
 		final ScriptInstaller si = new ScriptInstaller(getContext(), getFrame());

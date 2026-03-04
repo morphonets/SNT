@@ -88,6 +88,7 @@ public class Bvv {
     private final BvvOptions options;
     private final Map<String, Tree> renderedTrees;
     private JProgressBar progressBar; // Set by {@link #sntToolbar}.
+    private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private final PathRenderingOptions renderingOptions;
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
@@ -451,7 +452,19 @@ public class Bvv {
      * @return the marker manager (never null)
      */
     public BookmarkManager getMarkerManager() {
-        if (markerManager == null) markerManager = new BookmarkManager(this);
+        if (markerManager == null) {
+            markerManager = new BookmarkManager(this);
+            slabAnnotationsToggle = new JToggleButton("Slab Annotations");
+            slabAnnotationsToggle.setToolTipText("<html>Restrict marker rendering to the active slab.<br>"
+                    + "Markers outside the slab bounds are hidden.<br>"
+                    + "Only effective when Slab View is active.");
+            slabAnnotationsToggle.setEnabled(false);
+            slabAnnotationsToggle.addActionListener(e -> {
+                renderingOptions.setClipAnnotationsToSlab(slabAnnotationsToggle.isSelected());
+                syncOverlays();
+            });
+            markerManager.addBvvToolbarButton(slabAnnotationsToggle);
+        }
         return markerManager;
     }
 
@@ -977,7 +990,7 @@ public class Bvv {
         cal = new double[]{imp.getCalibration().pixelWidth, imp.getCalibration().pixelHeight, imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), imp.getNSlices()};
         final String unit = imp.getCalibration().getUnit();
-        calUnit = BoundingBox.sanitizedUnit(unit);;
+        calUnit = BoundingBox.sanitizedUnit(unit);
         // Each channelImp has nChannels=1; derive axis order from Z and T only
         final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
                 : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
@@ -1441,23 +1454,15 @@ public class Bvv {
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setDefaultColorAction(),
-                "Change default annotation color"));
-        toolbar.add(GuiUtils.Buttons.undo(actions.resetDefaultColorAction()));
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setTransparencyAction(),
-                "Change transparency of annotations"));
-        toolbar.add(GuiUtils.Buttons.undo(actions.resetTransparencyAction()));
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
-        toolbar.addSeparator();
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
                 "Change annotations offset"));
         toolbar.add(GuiUtils.Buttons.undo(actions.resetCanvasOffsetAction()));
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setThicknessMultiplierAction(),
-                "Change thickness of annotations"));
-        toolbar.add(GuiUtils.Buttons.undo(actions.resetThicknessMultiplierAction()));
         toolbar.addSeparator();
-
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
+        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
+                "Set rendering options of annotations"));
+        toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
         final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
@@ -1495,8 +1500,6 @@ public class Bvv {
 
     private JButton optionsButton(final BvvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        menu.add(new JMenuItem(actions.optionsAction()));
-        menu.addSeparator();
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
@@ -2057,7 +2060,7 @@ public class Bvv {
         if (snt != null) {
             final String u = snt.getSpacingUnits();
             if (u != null && !u.isBlank() && !"pixel".equalsIgnoreCase(u))
-                return BoundingBox.sanitizedUnit(u);;
+                return BoundingBox.sanitizedUnit(u);
         }
         if (bvvHandle != null) {
             try {
@@ -2109,6 +2112,8 @@ public class Bvv {
          * Slab toggle; null when no calibration is available. Set by getToolbar().
          */
         private JToggleButton slabToggle = null;
+        /** Slab Paths toggle; clips overlay rendering to slab Z range. Set by getToolbar(). */
+        private JToggleButton slabPathsToggle = null;
 
         CameraControls(final Bvv bvvInstance, final OverlayRenderer overlayRenderer) {
             this.bvvInstance = bvvInstance;
@@ -2168,6 +2173,9 @@ public class Bvv {
             overlayRenderer.farClip = toScreen(tickToPct(farSlider.getValue()));
             bvvInstance.getViewerFrame().getViewerPanel().setCamParams(
                     overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
+            if (bvvInstance.annotationOverlay != null)
+                bvvInstance.annotationOverlay.setCamParams(
+                        overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             bvvInstance.syncOverlays();
         }
 
@@ -2433,7 +2441,7 @@ public class Bvv {
                 final JPanel posPanel = new JPanel(new java.awt.BorderLayout(4, 0));
                 posPanel.setOpaque(false);
 
-                slabToggle = new JToggleButton(" Slab View "); // assign to field so resetViewAction can deactivate it
+                slabToggle = new JToggleButton("Slab View"); // assign to field so resetViewAction can deactivate it
                 //GuiUtils.Buttons.applyToolbarProps(slabToggle);
                 slabToggle.setToolTipText("<html>Enable slab mode.<br>"
                         + "Restricts the visible scene to a thin slab at the selected position.<br>"
@@ -2448,15 +2456,10 @@ public class Bvv {
                 c.anchor = GridBagConstraints.EAST;
                 main.add(slabToggle, c);
 
-
                 final JLabel thickLabel = new JLabel(String.format("   Thickness (%s):", unit), JLabel.RIGHT);
                 final JLabel posLabel = new JLabel(String.format("   Position (%s):", unit), JLabel.RIGHT);
                 // Force both labels to the same preferred width so spinners/sliders left-align.
-                // Do this after construction so getPreferredSize() reflects the actual font metrics.
-                final int labelW = Math.max(thickLabel.getPreferredSize().width, posLabel.getPreferredSize().width);
-                thickLabel.setPreferredSize(new java.awt.Dimension(labelW, thickLabel.getPreferredSize().height));
-                posLabel.setPreferredSize(new java.awt.Dimension(labelW, posLabel.getPreferredSize().height));
-
+                ensureSameWidth(thickLabel, posLabel);
                 thickPanel.add(thickLabel, java.awt.BorderLayout.WEST);
                 thickPanel.add(thickSpinner, java.awt.BorderLayout.CENTER);
                 c.gridx = 2;
@@ -2472,8 +2475,21 @@ public class Bvv {
                 main.add(thickSpinnerReset, c);
                 c.gridwidth = 1;
 
-                // Row5: Col1=empty  Col2=empty  Col3=[Position|slider|value](fill)  Col5-6=unit
+                // Row5: Col1=[Slab Paths]  Col2=empty  Col3=[Position|slider|value](fill)  Col5-6=reset
                 c.gridy = row[0]++;
+
+                slabPathsToggle = new JToggleButton("Slab Paths");
+                slabPathsToggle.setToolTipText("<html>Restrict annotation rendering to the active slab.<br>"
+                        + "Paths outside the slab bounds are hidden, improving performance on large datasets.<br>"
+                        + "Only effective when Slab View is active.");
+                slabPathsToggle.setEnabled(false); // enabled only when slab is active
+                c.gridx = 0;
+                c.gridwidth = 1;
+                c.fill = GridBagConstraints.NONE;
+                c.weightx = 0;
+                c.anchor = GridBagConstraints.EAST;
+                ensureSameWidth(slabToggle, slabPathsToggle);
+                main.add(slabPathsToggle, c);
 
                 posPanel.add(posLabel, java.awt.BorderLayout.WEST);
                 posPanel.add(posSlider, java.awt.BorderLayout.CENTER);
@@ -2502,22 +2518,53 @@ public class Bvv {
                     if (slabOn[0]) {
                         savedClip[0] = nearSlider.getValue();
                         savedClip[1] = farSlider.getValue();
-                        applySlab(viewerPanel, physZ,
-                                posSlider.getValue() * zStep,
-                                ((Number) thickSpinner.getValue()).doubleValue());
+                        final double zCenter = posSlider.getValue() * zStep;
+                        final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
+                        applySlab(viewerPanel, physZ, zCenter, halfThick * 2.0);
+                        renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
+                        slabPathsToggle.setEnabled(true);
+                        if (sceneOverlay != null) sceneOverlay.showSlabPlanes = true;
+                        if (slabAnnotationsToggle != null) slabAnnotationsToggle.setEnabled(true);
                     } else {
                         setSliderValues(dCamSlider.getValue(), savedClip[0], savedClip[1]);
                         applyZCenter(viewerPanel, physZ / 2);
+                        renderingOptions.clearSlabZBounds();
+                        if (sceneOverlay != null) sceneOverlay.showSlabPlanes = false;
+                        // Deactivate and disable Slab Paths + Slab Annotations when slab is turned off
+                        slabPathsToggle.setSelected(false);
+                        slabPathsToggle.setEnabled(false);
+                        if (slabAnnotationsToggle != null) {
+                            slabAnnotationsToggle.setSelected(false);
+                            slabAnnotationsToggle.setEnabled(false);
+                        }
+                        renderingOptions.setClipPathsToSlab(false);
+                        renderingOptions.setClipAnnotationsToSlab(false);
                     }
+                    overlayRenderer.invalidateCache();
+                    syncOverlays();
                 });
 
                 final javax.swing.event.ChangeListener slabListener = ev -> {
-                    if (slabOn[0]) applySlab(viewerPanel, physZ,
-                            posSlider.getValue() * zStep,
-                            ((Number) thickSpinner.getValue()).doubleValue());
+                    if (slabOn[0]) {
+                        final double zCenter = posSlider.getValue() * zStep;
+                        final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
+                        applySlab(viewerPanel, physZ, zCenter, halfThick * 2.0);
+                        renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
+                        overlayRenderer.invalidateCache();
+                        bvvInstance.repaint(); // refresh slab plane overlays
+                        syncOverlays();
+                    }
                 };
                 posSlider.addChangeListener(slabListener);
                 thickSpinner.addChangeListener(slabListener);
+
+                slabPathsToggle.addActionListener(ev -> {
+                    final boolean clip = slabPathsToggle.isSelected();
+                    renderingOptions.setClipPathsToSlab(clip);
+                    overlayRenderer.invalidateCache();
+                    syncOverlays();
+                });
+
                 GuiUtils.enableComponents(thickPanel, false); // slab disabled by default
                 GuiUtils.enableComponents(posPanel, false); // slab disabled at by default
             }
@@ -2534,6 +2581,17 @@ public class Bvv {
             main.add(iconBar, c);
 
             return main;
+        }
+
+        private void ensureSameWidth(final JComponent c1, final JComponent c2) {
+            final int pW = Math.max(c1.getPreferredSize().width, c2.getPreferredSize().width);
+            final Dimension pDim = new Dimension(pW, c1.getPreferredSize().height);
+            c1.setPreferredSize(pDim);
+            c2.setPreferredSize(pDim);
+            final int mW = Math.max(c1.getMinimumSize().width, c2.getMinimumSize().width);
+            final Dimension mDim = new Dimension(mW, c1.getMinimumSize().height);
+            c1.setMinimumSize(mDim);
+            c2.setMinimumSize(mDim);
         }
 
         /** Builds the icon toolbar row (reset/fit/overlay toggles/options). */
@@ -2823,6 +2881,44 @@ public class Bvv {
         public boolean isClippingEnabled() {
             return clippingDistance > 0;
         }
+
+        // Slab clipping
+        private double slabZMin = Double.NEGATIVE_INFINITY;
+        private double slabZMax = Double.POSITIVE_INFINITY;
+        /** Controls whether paths (not annotations) are clipped to the slab. */
+        private boolean clipPathsToSlab = false;
+        /** Controls whether annotations/markers are clipped to the slab. */
+        private boolean clipAnnotationsToSlab = false;
+
+        /**
+         * Sets the world-Z bounds of the current slab. Called by the slab position/
+         * thickness controls so the overlay renderer can cull paths outside the slab.
+         */
+        public void setSlabZBounds(final double zMin, final double zMax) {
+            this.slabZMin = zMin;
+            this.slabZMax = zMax;
+        }
+
+        /** Clears slab Z bounds (reverts to no slab culling). */
+        public void clearSlabZBounds() {
+            this.slabZMin = Double.NEGATIVE_INFINITY;
+            this.slabZMax = Double.POSITIVE_INFINITY;
+        }
+
+        /** Returns {@code true} if path rendering is restricted to the slab Z range. */
+        public boolean isClipPathsToSlab() { return clipPathsToSlab; }
+
+        /** Restricts path rendering to the slab Z range when {@code true}. */
+        public void setClipPathsToSlab(final boolean clip) { this.clipPathsToSlab = clip; }
+
+        /** Returns {@code true} if annotation/marker rendering is restricted to the slab Z range. */
+        public boolean isClipAnnotationsToSlab() { return clipAnnotationsToSlab; }
+
+        /** Restricts annotation/marker rendering to the slab Z range when {@code true}. */
+        public void setClipAnnotationsToSlab(final boolean clip) { this.clipAnnotationsToSlab = clip; }
+
+        public double getSlabZMin() { return slabZMin; }
+        public double getSlabZMax() { return slabZMax; }
     }
 
     /**
@@ -2834,6 +2930,7 @@ public class Bvv {
 
         volatile boolean showAxes = false;
         volatile boolean showBox = false;
+        volatile boolean showSlabPlanes = false;
 
         private int canvasW, canvasH;
 
@@ -2898,6 +2995,77 @@ public class Bvv {
                 };
                 for (final int[] e : edges)
                     drawLine3D(g2, project, corners[e[0]], corners[e[1]], null);
+            }
+
+            if (showBox && showSlabPlanes) {
+                // Draw the slab parallelepiped in screen space.
+                // Working in viewer-space XY then re-projecting at clip depths magnifies
+                // incorrectly because perspective pf differs between the volume depth and
+                // the clip plane depths. Correct approach: derive the 2D screen AABB from
+                // the already-projected volume box, then build the slab faces within it.
+                // This is always zoom-responsive and always bounded by the volume box.
+                final double nc = pathOverlay.overlayRenderer.nearClip;
+                final double fc = pathOverlay.overlayRenderer.farClip;
+
+                // Screen AABB of the volume bounding box (8 corners already projected)
+                double sxMin = Double.MAX_VALUE, sxMax = -Double.MAX_VALUE;
+                double syMin = Double.MAX_VALUE, syMax = -Double.MAX_VALUE;
+                final double[] wc2 = new double[3];
+                for (int i = 0; i < 8; i++) {
+                    wc2[0] = (i & 1) == 0 ? x0 : x1;
+                    wc2[1] = (i & 2) == 0 ? y0 : y1;
+                    wc2[2] = (i & 4) == 0 ? z0 : z1;
+                    final double[] s = project.apply(wc2);
+                    if (s[2] <= 0) continue;
+                    if (s[0] < sxMin) sxMin = s[0];
+                    if (s[0] > sxMax) sxMax = s[0];
+                    if (s[1] < syMin) syMin = s[1];
+                    if (s[1] > syMax) syMax = s[1];
+                }
+                if (sxMin == Double.MAX_VALUE) { /* all behind camera */ }
+                else {
+                    // Perspective factor of the volume centre at the current zoom/position.
+                    // pfVol = 1 is wrong when the volume is not at viewerZ=0 (e.g. zoomed out).
+                    final double[] volCentre = {(x0 + x1) / 2.0, (y0 + y1) / 2.0, (z0 + z1) / 2.0};
+                    final double[] vcProj = new double[3];
+                    t.apply(volCentre, vcProj);
+                    final double pfVol  = dCam / (dCam + vcProj[2]);
+                    final double pfNear = dCam / (dCam - nc);  // viewerZ = -nc
+                    final double pfFar  = dCam / (dCam + fc);  // viewerZ = +fc
+
+                    // Helper: scale screen AABB corners by a perspective ratio around centre
+                    // (corner = centre + (corner-centre) * ratio)
+                    final double ratioN = pfNear / pfVol;
+                    final double ratioF = pfFar  / pfVol;
+
+                    // 8 screen-space corners: 0-3 near face, 4-7 far face
+                    final double[][] sc = {
+                            {cx + (sxMin-cx)*ratioN, cy + (syMin-cy)*ratioN},  // 0
+                            {cx + (sxMax-cx)*ratioN, cy + (syMin-cy)*ratioN},  // 1
+                            {cx + (sxMax-cx)*ratioN, cy + (syMax-cy)*ratioN},  // 2
+                            {cx + (sxMin-cx)*ratioN, cy + (syMax-cy)*ratioN},  // 3
+                            {cx + (sxMin-cx)*ratioF, cy + (syMin-cy)*ratioF},  // 4
+                            {cx + (sxMax-cx)*ratioF, cy + (syMin-cy)*ratioF},  // 5
+                            {cx + (sxMax-cx)*ratioF, cy + (syMax-cy)*ratioF},  // 6
+                            {cx + (sxMin-cx)*ratioF, cy + (syMax-cy)*ratioF}   // 7
+                    };
+
+                    final java.awt.Color slabColor = new java.awt.Color(40, 90, 160);
+                    final java.awt.Stroke savedStroke = g2.getStroke();
+                    g2.setStroke(new java.awt.BasicStroke(1.2f, java.awt.BasicStroke.CAP_BUTT,
+                            java.awt.BasicStroke.JOIN_MITER, 4f, new float[]{6f, 4f}, 0f));
+                    g2.setColor(slabColor);
+                    final int[][] edges = {
+                            {0,1},{1,2},{2,3},{3,0},  // near face
+                            {4,5},{5,6},{6,7},{7,4},  // far face
+                            {0,4},{1,5},{2,6},{3,7}   // pillars
+                    };
+                    for (final int[] e : edges) {
+                        g2.drawLine((int)Math.round(sc[e[0]][0]), (int)Math.round(sc[e[0]][1]),
+                                (int)Math.round(sc[e[1]][0]), (int)Math.round(sc[e[1]][1]));
+                    }
+                    g2.setStroke(savedStroke);
+                }
             }
 
             g2.dispose();
@@ -3063,6 +3231,12 @@ public class Bvv {
         /**
          * Remove overlay/nodes from the viewer.
          */
+        /** Syncs slab clip planes from OverlayRenderer so both renderers clip consistently. */
+        void setCamParams(final double dCam, final double nearClip, final double farClip) {
+            annRenderer.nearClipAnn = nearClip;
+            annRenderer.farClipAnn  = farClip;
+        }
+
         void dispose() {
             if (viewerPanel != null && annRenderer != null) {
                 viewerPanel.getDisplay().overlays().remove(annRenderer);
@@ -3074,8 +3248,10 @@ public class Bvv {
          */
         private static class AnnRenderer implements bdv.viewer.OverlayRenderer {
 
-            // Camera parameters
+            // Camera parameters kept in sync w/ OverlayRenderer via AnnotationOverlay.setCamParams()
             private static final double D_CAM = 2000;
+            double nearClipAnn = 1000;
+            double farClipAnn  = 1000;
             private final VolumeViewerPanel viewerPanel;
             private final PathRenderingOptions renderingOptions;
             private final AffineTransform3D viewerTransform = new AffineTransform3D();
@@ -3151,12 +3327,17 @@ public class Bvv {
                     // Skip off-screen
                     if (!data.visible) continue;
 
-                    // Z-clipping
+                    // Cursor Z-clipping (3D Euclidean distance)
                     if (doClip) {
                         final double dx = data.worldX - clipPos[0];
                         final double dy = data.worldY - clipPos[1];
                         final double dz = data.worldZ - clipPos[2];
                         if (dx*dx + dy*dy + dz*dz > clipDist * clipDist) continue;
+                    }
+
+                    // Slab clipping: hide annotations outside the slab's viewer-Z range
+                    if (renderingOptions.isClipAnnotationsToSlab()) {
+                        if (data.viewerZ > farClipAnn || data.viewerZ < -nearClipAnn) continue;
                     }
 
                     // Skip subpixel annotations
@@ -3179,7 +3360,7 @@ public class Bvv {
 
                 g2d.dispose();
             }
-            
+
             private void computeScreenData() {
                 screenData = new AnnotationScreenData[annotations.size()];
 
@@ -3211,6 +3392,7 @@ public class Bvv {
 
                     // Transform to viewer coordinates
                     viewerTransform.apply(worldCoords, viewerCoords);
+                    data.viewerZ = viewerCoords[2]; // screen-space Z for slab clipping
 
                     // Perspective projection.
                     // ann.radiusUm is in physical (world-space) units. Multiplying by
@@ -3270,6 +3452,7 @@ public class Bvv {
                 double screenX, screenY;
                 double screenRadius;
                 double worldX, worldY, worldZ;
+                double viewerZ; // screen-space Z for slab clipping
                 Color color;
                 boolean visible;
             }
@@ -3392,6 +3575,15 @@ public class Bvv {
 
             if (origin == null || opposite == null) return true;
 
+            // Fast Z-range cull against slab: No projection needed, just world-space comparison.
+            // This can skip entire trees before the more expensive screen projection
+            if (renderingOptions.isClipPathsToSlab()) {
+                final double treeZMin = Math.min(origin.getZ(), opposite.getZ());
+                final double treeZMax = Math.max(origin.getZ(), opposite.getZ());
+                if (treeZMax < renderingOptions.getSlabZMin() ||
+                        treeZMin > renderingOptions.getSlabZMax()) return false;
+            }
+
             final double[] worldMin = {origin.getX(), origin.getY(), origin.getZ()};
             final double[] worldMax = {opposite.getX(), opposite.getY(), opposite.getZ()};
 
@@ -3475,7 +3667,7 @@ public class Bvv {
                 final double offY = offset != null ? offset.y : 0;
                 final double offZ = offset != null ? offset.z : 0;
 
-                // Hoist renderingOptions getters — avoid repeated virtual calls per node
+                // Hoist renderingOptions getters: avoid repeated virtual calls per node
                 final boolean useRadius = renderingOptions.isUsePathRadius();
                 final double minR = renderingOptions.getMinThickness() / 2.0;
                 final double maxR = renderingOptions.getMaxThickness() / 2.0;
@@ -3494,10 +3686,13 @@ public class Bvv {
                     pathData.screenX[i] = centerX + (viewerCoords[0] - centerX) * pf;
                     pathData.screenY[i] = centerY + (viewerCoords[1] - centerY) * pf;
                     pathData.worldZ[i] = worldCoords[2];
+                    pathData.viewerZ[i] = viewerCoords[2]; // screen-space Z for slab clipping
 
-                    final double r = useRadius && node.getRadius() > 0 ? node.getRadius() : minR;
+                    final double r = renderingOptions.isUsePathRadius() && node.getRadius() > 0
+                            ? node.getRadius() : renderingOptions.getMinThickness() / 2.0;
                     pathData.screenRadius[i] = Math.max(0.5,
-                            Math.min(r * thickMult, maxR) * avgScale * pf);
+                            Math.min(r * renderingOptions.getThicknessMultiplier(),
+                                    renderingOptions.getMaxThickness() / 2.0) * avgScale * pf);
 
                     final Color nodeColor = hasNodeColors ? node.getColor() : null;
                     pathData.colors[i] = nodeColor != null ? nodeColor : defaultColor;
@@ -3516,6 +3711,7 @@ public class Bvv {
                     seg.x2 = pathData.screenX[i + 1]; seg.y2 = pathData.screenY[i + 1];
                     seg.r1 = pathData.screenRadius[i]; seg.r2 = pathData.screenRadius[i + 1];
                     seg.worldZ1 = pathData.worldZ[i];  seg.worldZ2 = pathData.worldZ[i + 1];
+                    seg.viewerZ1 = pathData.viewerZ[i]; seg.viewerZ2 = pathData.viewerZ[i + 1];
                     seg.color1 = pathData.colors[i];   seg.color2 = pathData.colors[i + 1];
                     pathData.segments[i] = seg;
                 }
@@ -3546,6 +3742,14 @@ public class Bvv {
                                final boolean doClip, final double[] clipPos, final float clipDist) {
             if (segments.isEmpty()) return;
 
+            // Slab clipping via viewer-space Z: segments whose viewer-Z puts them
+            // outside [−nearClip, farClip] are hidden by BVV's volume renderer, so we
+            // match exactly the same range. World-space slabZMin/Max are only used for
+            // the coarse tree-level bounding-box cull in isTreePotentiallyVisible.
+            final boolean doSlabClip = renderingOptions.isClipPathsToSlab(); // path-specific flag
+            final double slabNear = doSlabClip ? -nearClip : Double.NEGATIVE_INFINITY;
+            final double slabFar  = doSlabClip ?  farClip  : Double.POSITIVE_INFINITY;
+
             // Fast path: BasicStroke lines
             if (!renderingOptions.isDisplayRadii()) {
                 // Stroke width = average of all segment radii in this batch, doubled.
@@ -3555,6 +3759,8 @@ public class Bvv {
                 for (final SegmentData seg : segments) {
                     if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
                             && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                    if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
+                    if (doSlabClip && seg.viewerZ1 < slabNear && seg.viewerZ2 < slabNear) continue;
                     totalR += seg.r1 + seg.r2;
                     count += 2;
                 }
@@ -3566,6 +3772,8 @@ public class Bvv {
                 for (final SegmentData seg : segments) {
                     if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
                             && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                    if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
+                    if (doSlabClip && seg.viewerZ1 < slabNear && seg.viewerZ2 < slabNear) continue;
                     batchPath.moveTo(seg.x1, seg.y1);
                     batchPath.lineTo(seg.x2, seg.y2);
                 }
@@ -3587,6 +3795,8 @@ public class Bvv {
             for (final SegmentData seg : segments) {
                 if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
                         && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
+                if (doSlabClip && seg.viewerZ1 < slabNear && seg.viewerZ2 < slabNear) continue;
                 if (seg.color1.equals(seg.color2)) {
                     addFrustumToPath(batchPath, seg);
                     hasUniform = true;
@@ -3608,6 +3818,8 @@ public class Bvv {
                     if (!seg.color1.equals(seg.color2)) continue;
                     if (doClip && Math.abs(seg.worldZ1 - clipPos[2]) > clipDist
                             && Math.abs(seg.worldZ2 - clipPos[2]) > clipDist) continue;
+                    if (doSlabClip && seg.viewerZ1 > slabFar  && seg.viewerZ2 > slabFar)  continue;
+                    if (doSlabClip && seg.viewerZ1 < slabNear && seg.viewerZ2 < slabNear) continue;
                     drawCap(g2d, seg.x1, seg.y1, seg.r1, batchColor, drawnCaps);
                     drawCap(g2d, seg.x2, seg.y2, seg.r2, batchColor, drawnCaps);
                 }
@@ -3751,6 +3963,7 @@ public class Bvv {
             final double[] screenX;
             final double[] screenY;
             final double[] worldZ;
+            final double[] viewerZ; // screen-space Z (viewerCoords[2]) for slab clipping
             final double[] screenRadius;
             final Color[] colors;
             final boolean[] visible;
@@ -3762,6 +3975,7 @@ public class Bvv {
                 this.screenX = new double[size];
                 this.screenY = new double[size];
                 this.worldZ = new double[size];
+                this.viewerZ = new double[size];
                 this.screenRadius = new double[size];
                 this.colors = new Color[size];
                 this.visible = new boolean[size];
@@ -3772,7 +3986,8 @@ public class Bvv {
         private static class SegmentData {
             double x1, y1, x2, y2;
             double r1, r2;
-            double worldZ1, worldZ2; // retained for Z-clipping in drawBatch
+            double worldZ1, worldZ2; // retained for cursor Z-clipping in drawBatch
+            double viewerZ1, viewerZ2; // screen-space Z for slab clipping vs nearClip/farClip
             Color color1, color2;
         }
     }
@@ -3863,17 +4078,6 @@ public class Bvv {
             };
         }
 
-        Action optionsAction() {
-            return new AbstractAction("Options...", IconFactory.menuIcon(IconFactory.GLYPH.SLIDERS)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final HashMap<String, Object> inputs = new HashMap<>();
-                    inputs.put("bvv", Bvv.this);
-                    SNTUtils.getContext().getService(CommandService.class).run(BvvRenderingOptionsCmd.class, true, inputs);
-                }
-            };
-        }
-
         Action togggleVisibilityAction() {
             return new AbstractAction("Show/hide All Annotations") {
                 @Override
@@ -3890,21 +4094,6 @@ public class Bvv {
                     if (pathOverlay != null) pathOverlay.disableRendering(hide);
                     if (annotationOverlay != null) annotationOverlay.setVisible(!hide);
                     bvv.getViewer().showMessage(hide ? "Annotations hidden" : "Annotations visible");
-                }
-            };
-        }
-
-        Action setTransparencyAction() {
-            return new AbstractAction("Transparency...", IconFactory.buttonIcon(IconFactory.GLYPH.ADJUST, 1f)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final Integer newValue = guiUtils.getPercentage("Annotations transparency (%):",
-                            "Adjust Transparency",
-                            (int) (100 - renderingOptions.getTransparency() * 100));
-                    if (newValue == null) return;
-                    renderingOptions.setTransparency(1 - (float) (newValue) / 100);
-                    syncOverlays();
-                    bvv.getViewer().showMessage(String.format("%d%% Transparency", newValue));
                 }
             };
         }
@@ -3926,59 +4115,13 @@ public class Bvv {
             };
         }
 
-        Action setThicknessMultiplierAction() {
-            return new AbstractAction("Thickness Multiplier", IconFactory.buttonIcon('\uf386', true)) {
+        Action PathRenderingOptionsAction() {
+            return new AbstractAction("Path Rendering Options", IconFactory.buttonIcon(IconFactory.GLYPH.SLIDERS, 1f)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final Double multi = guiUtils.getDouble("Thickness multiplier (applied to radii of all annotations):",
-                            "Thickness Multiplier", renderingOptions.getThicknessMultiplier(), 0.1d, 10d, "×");
-                    if (multi == null)
-                        return;
-                    if (Double.isNaN(multi) || multi < 0.09f || multi > 100f) {
-                        guiUtils.error("Invalid value: Multiplier must be better 0.1× and 100×.");
-                    } else {
-                        renderingOptions.setThicknessMultiplier(multi.floatValue());
-                        syncOverlays();
-                        bvv.getViewer().showMessage(
-                                (1f == renderingOptions.getThicknessMultiplier())
-                                        ? "Thickness factor removed" : String.format("%.1f× Thickness", multi.floatValue()));
-                    }
-                }
-            };
-        }
-
-        Action setDefaultColorAction() {
-            return new AbstractAction("Default Annotation Color...", IconFactory.buttonIcon(IconFactory.GLYPH.COLOR, 1f)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final Color c = guiUtils.getColor("Default Annotation Color", renderingOptions.fallbackColor, (String[]) null);
-                    if (c != null && !c.equals(renderingOptions.fallbackColor)) {
-                        // New color choice: refresh panel
-                        renderingOptions.fallbackColor = c;
-                        syncOverlays();
-                    }
-                }
-            };
-        }
-
-        Action resetDefaultColorAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    renderingOptions.fallbackColor = Color.MAGENTA;
-                    syncOverlays();
-                    bvv.getViewer().showMessage("Default color reset");
-                }
-            };
-        }
-
-        Action resetThicknessMultiplierAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    renderingOptions.setThicknessMultiplier(1f);
-                    syncOverlays();
-                    bvv.getViewer().showMessage("Thickness factor removed");
+                    final HashMap<String, Object> inputs = new HashMap<>();
+                    inputs.put("bvv", Bvv.this);
+                    SNTUtils.getContext().getService(CommandService.class).run(BvvRenderingOptionsCmd.class, true, inputs);
                 }
             };
         }
@@ -3989,17 +4132,6 @@ public class Bvv {
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     setCanvasOffset(0, 0, 0);
                     bvv.getViewer().showMessage("Offset removed");
-                }
-            };
-        }
-
-        Action resetTransparencyAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    renderingOptions.setTransparency(1);
-                    syncOverlays();
-                    bvv.getViewer().showMessage("Transparency reset");
                 }
             };
         }
@@ -4023,7 +4155,7 @@ public class Bvv {
                                 "Annotations Near Cursor",
                                 lastClippingDistance);
                         if (newDist == null) {
-                            // User cancelled — revert button state
+                            // User cancelled: revert button state
                             toggleButton.setSelected(false);
                             return;
                         }

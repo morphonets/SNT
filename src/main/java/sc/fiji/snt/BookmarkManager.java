@@ -64,6 +64,8 @@ public class BookmarkManager {
 
     private final SNTUI sntui;
     private final Bvv bvv;
+    /** BVV-injected toolbar components (e.g. slab toggle). Added via {@link #addBvvToolbarButton}. */
+    private final java.util.List<javax.swing.JComponent> bvvToolbarButtons = new java.util.ArrayList<>();
     private final GuiUtils guiUtils;
     private final BookmarkModel model;
     private final BookmarkTable table;
@@ -132,6 +134,17 @@ public class BookmarkManager {
             bvvFrame.setLocationRelativeTo(bvv.getViewerFrame());
         }
         return bvvFrame;
+    }
+
+    /**
+     * Adds a component to the BVV toolbar section of this panel.
+     * The component is appended after a separator the first time this method is called.
+     * Bvv uses this to inject context-specific controls (e.g. a slab-clip toggle).
+     *
+     * @param component the component to add; must not be {@code null}
+     */
+    public void addBvvToolbarButton(final javax.swing.JComponent component) {
+        bvvToolbarButtons.add(component);
     }
 
     /** Shows or hides the floating BVV marker panel. */
@@ -566,11 +579,22 @@ public class BookmarkManager {
                 final int target = (row < 0 || row >= table.getRowCount() - 1) ? 0 : row + 1;
                 if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
             });
+            final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.EXPAND));
+            resetButton.setToolTipText("Reset view to fit volume");
+            resetButton.addActionListener(e -> bvv.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
             helpButton.addActionListener(e -> displayMarkerHelp());
             tb.add(prevButton);
             tb.add(nextButton);
             tb.addSeparator();
+            tb.add(resetButton);
+            tb.addSeparator();
+            tb.add(Box.createHorizontalGlue());
+            // Inject any BVV-provided toolbar buttons (e.g. slab-clip toggle)
+            if (!bvvToolbarButtons.isEmpty()) {
+                tb.addSeparator();
+                bvvToolbarButtons.forEach(tb::add);
+            }
             tb.add(Box.createHorizontalGlue());
             tb.add(helpButton);
         }
