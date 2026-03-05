@@ -151,7 +151,7 @@
 		<orsonpdf.version>1.9.1</orsonpdf.version>
 		<jfreesvg.version>3.4.4</jfreesvg.version>
 		<scenery.version>0.12.0</scenery.version>
-		<sciview.version>0.4.0</sciview.version>
+		<sciview.version>0.5.0</sciview.version>
 		<smile.version>4.4.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
 		<smile-core.version>${smile.version}</smile-core.version>
