@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -1476,17 +1476,28 @@ public class PathAndFillManager extends DefaultHandler implements
         String startsString = "";
         String endsString = "";
         if (p.parentPath != null) {
-            final int startPathID = p.parentPath.getID();
-            // Find the nearest index for backward compatibility:
-            int nearestIndexOnStartPath = -1;
-            if (p.parentPath.size() > 0) {
-                nearestIndexOnStartPath = p.parentPath.indexNearestTo(p.getBranchPoint().x,
-                        p.getBranchPoint().y, p.getBranchPoint().z);
+            // Guard: only write startson if the parent exists in the manager.
+            // A dangling parentPath (e.g. from a stale clone reference after deletion)
+            // would produce a startson ID that cannot be resolved on load, causing an NPE
+            // see https://github.com/morphonets/SNT/issues/270
+            if (getPathFromID(p.parentPath.getID()) == null) {
+                SNTUtils.log("Warning: path " + p.getID() + " ('" + p.getName() + "') has a parentPath (ID "
+                        + p.parentPath.getID() + ") not registered in the manager. "
+                        + "The branch relationship will not be saved to avoid a corrupt file.");
+                p.parentPath = null; // repair in-memory to keep state consistent
+            } else {
+                final int startPathID = p.parentPath.getID();
+                // Find the nearest index for backward compatibility:
+                int nearestIndexOnStartPath = -1;
+                if (p.parentPath.size() > 0) {
+                    nearestIndexOnStartPath = p.parentPath.indexNearestTo(p.getBranchPoint().x,
+                            p.getBranchPoint().y, p.getBranchPoint().z);
+                }
+                startsString = " startson=\"" + startPathID + "\"" + " startx=\"" + p.getBranchPoint().x + "\""
+                        + " starty=\"" + p.getBranchPoint().y + "\"" + " startz=\"" + p.getBranchPoint().z + "\"";
+                if (nearestIndexOnStartPath >= 0)
+                    startsString += " startsindex=\"" + nearestIndexOnStartPath + "\"";
             }
-            startsString = " startson=\"" + startPathID + "\"" + " startx=\"" + p.getBranchPoint().x + "\""
-                    + " starty=\"" + p.getBranchPoint().y + "\"" + " startz=\"" + p.getBranchPoint().z + "\"";
-            if (nearestIndexOnStartPath >= 0)
-                startsString += " startsindex=\"" + nearestIndexOnStartPath + "\"";
         }
         if (p.isPrimary())
             pw.print(" primary=\"true\"");
@@ -2000,41 +2011,52 @@ public class PathAndFillManager extends DefaultHandler implements
 
                     if (startID != null) {
                         final Path startPath = getPathFromID(startID);
-                        if (startJoinPoint == null) {
-                            // Then we have to get it from startIndexInteger:
-                            startJoinPoint = startPath.getNodeWithoutChecks(startIndexInteger);
+                        if (startPath == null) {
+                            SNTUtils.log("Malformed traces file: startson=" + startID
+                                    + " referenced by path " + p.getID() + " ('" + p.getName()
+                                    + "') does not exist. Branch relationship skipped.");
+                        } else {
+                            if (startJoinPoint == null) {
+                                // Then we have to get it from startIndexInteger:
+                                startJoinPoint = startPath.getNodeWithoutChecks(startIndexInteger);
+                            }
+                            p.setBranchFrom(startPath, startJoinPoint);
                         }
-                        p.setBranchFrom(startPath, startJoinPoint);
                     }
                     if (endID != null) {
                         Path endPath = getPathFromID(endID);
-                        if (endJoinPoint == null) {
-                            // Then we have to get it from endIndexInteger:
-                            endJoinPoint = endPath.getNodeWithoutChecks(endIndexInteger);
-                        }
-                        // We no longer support end point joining, so we'll reverse everything
-                        // and apply a 'start join';
-                        SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
-                        Path pReversed = p.reversed();
-                        // replace the path in all data structures...
-                        allPaths.remove(p);
-                        pathIdMap.remove(p.getID(), p);
-                        pathNameMap.remove(p.getName(), p);
-
-                        allPaths.add(pReversed);
-                        pathIdMap.put(pReversed.getID(), pReversed);
-                        pathNameMap.put(pReversed.getName(), pReversed);
-
-                        pReversed.setBranchFrom(endPath, endJoinPoint);
-
-                        for (final Path join : new ArrayList<>(p.connectedPaths)) {
-                            if (join.getParentPath() == p) {
-                                final PointInImage joinPoint = join.getBranchPoint();
-                                join.detachFromParent();
-                                join.setBranchFrom(pReversed, joinPoint);
+                        if (endPath == null) {
+                            SNTUtils.log("Malformed traces file: endson=" + endID
+                                    + " referenced by path " + p.getID() + " ('" + p.getName()
+                                    + "') does not exist. End-join skipped.");
+                        } else {
+                            if (endJoinPoint == null) {
+                                // Then we have to get it from endIndexInteger:
+                                endJoinPoint = endPath.getNodeWithoutChecks(endIndexInteger);
                             }
-                        }
+                            // We no longer support end point joining, so we'll reverse everything
+                            // and apply a 'start join';
+                            SNTUtils.log("End joining no longer supported: Establishing a star-join' on reversed path");
+                            Path pReversed = p.reversed();
+                            // replace the path in all data structures...
+                            allPaths.remove(p);
+                            pathIdMap.remove(p.getID(), p);
+                            pathNameMap.remove(p.getName(), p);
 
+                            allPaths.add(pReversed);
+                            pathIdMap.put(pReversed.getID(), pReversed);
+                            pathNameMap.put(pReversed.getName(), pReversed);
+
+                            pReversed.setBranchFrom(endPath, endJoinPoint);
+
+                            for (final Path join : new ArrayList<>(p.connectedPaths)) {
+                                if (join.getParentPath() == p) {
+                                    final PointInImage joinPoint = join.getBranchPoint();
+                                    join.detachFromParent();
+                                    join.setBranchFrom(pReversed, joinPoint);
+                                }
+                            }
+                        } // end null-check else
                     }
                     if (fittedID != null) {
                         p.fitted = getPathFromID(fittedID);
