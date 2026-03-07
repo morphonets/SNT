@@ -1012,8 +1012,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     @Override
     public void mouseWheelMoved(final MouseWheelEvent e) {
         if (!e.isControlDown() || isEventsDisabled() || !tracerPlugin.isUIready()) {
-            // Do not consume: re-dispatch to ImageWindow so IJ's zoom/scroll still works
-            getParent().dispatchEvent(e);
+            // We need to dispatch the even so that IJ's zoom/scroll still works. It seems
+            // that on M Windows, AWT propagates MouseWheelEvents up the component hierarchy
+            // *and* honors our explicit re-dispatch, causing double-scroll. Consuming first
+            // suppresses the propagation; the manual dispatchEvent() below delivers it once.
+            // See https://github.com/morphonets/SNT/issues/271
+            e.consume(); // stop propagation on Windows
+            getParent().dispatchEvent(e); // re-dispatch exactly once to ImageWindow
             return;
         }
         final int state = tracerPlugin.getUIState();
