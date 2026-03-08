@@ -22,7 +22,6 @@
 
 package sc.fiji.snt;
 
-import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.SNTEditorPane;
@@ -51,7 +50,7 @@ public class NotesUI {
     public NotesUI(final SNTUI sntui) {
         this.sntui = sntui;
         editor = new SNTEditorPane(false);
-        editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_MARKDOWN);
+        editor.setSyntaxStyle("markdown");
     }
 
     /**

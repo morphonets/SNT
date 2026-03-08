@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 
 import com.formdev.flatlaf.FlatLaf;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.scijava.ui.swing.script.EditorPane;
@@ -59,6 +60,34 @@ public class SNTEditorPane extends EditorPane {
         scrollPane.setFoldIndicatorEnabled(enableCodingOptions);
         scrollPane.setLineNumbersEnabled(enableCodingOptions);
         updateUI(); // set theme based on LaF
+    }
+
+    /**
+     * Set the language of this {@link SNTEditorPane}.
+     *
+     * @param scriptLanguage the language to set the editors language to.
+     */
+    public void setSyntaxStyle(final String scriptLanguage) {
+        super.setSyntaxEditingStyle(
+                stringToSyntaxEditingStyle(
+                        scriptLanguage.startsWith(".") ? scriptLanguage.substring(1) : scriptLanguage));
+    }
+
+    private static String stringToSyntaxEditingStyle(final String langName) {
+        return switch (langName.toLowerCase()) {
+            case "beanshell", "bsh", "java" -> SyntaxConstants.SYNTAX_STYLE_JAVA;
+            case "clojure", "clj", "cljs" -> SyntaxConstants.SYNTAX_STYLE_CLOJURE;
+            case "groovy", "gvy", "gy", "gsh" -> SyntaxConstants.SYNTAX_STYLE_GROOVY;
+            case "javascript", "js", "imagej macro", "ijm" -> SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT;
+            case "kotlin", "kts" -> SyntaxConstants.SYNTAX_STYLE_KOTLIN;
+            //case "lua" -> SyntaxConstants.SYNTAX_STYLE_LUA;
+            case "python", "py", "jython", "python (jython)" -> SyntaxConstants.SYNTAX_STYLE_PYTHON;
+            case "ruby", "rb" -> SyntaxConstants.SYNTAX_STYLE_RUBY;
+            case "scala", "sc" -> SyntaxConstants.SYNTAX_STYLE_SCALA;
+            //case "xml", "html", "htm" -> SyntaxConstants.SYNTAX_STYLE_XML;
+            case "markdown", "md" -> SyntaxConstants.SYNTAX_STYLE_MARKDOWN;
+            default -> SyntaxConstants.SYNTAX_STYLE_NONE;
+        };
     }
 
     /**
@@ -114,6 +143,10 @@ public class SNTEditorPane extends EditorPane {
             lightDark.setIcon(wasDark ? moonIcon : sunIcon);
         });
         return lightDark;
+    }
+
+    protected void toggleTheme() {
+        applyTheme(isDarkThemeActive() ? LIGHT_THEME : DARK_THEME);
     }
 
     public AbstractButton timeStampButton(final ActionListener al) {
