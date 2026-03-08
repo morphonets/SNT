@@ -42,12 +42,15 @@ import java.util.stream.Stream;
 @Plugin(type = Command.class, label = "BVV")
 public class BvvCmd extends ContextCommand {
 
-    @Parameter(label = "Main volume",
-            description = "Both traditional (TIFF) and Pyramid (IMS and BDV's .xml files) images supported")
+    private static final String TOOLTIP =
+            """
+            Supports standard formats (TIFF) and big data formats with lazy loading
+            (N5, Zarr, HDF5, OME-TIFF, IMS, BDV .xml). Large datasets are opened
+            virtually without loading the entire file into memory.""";
+    @Parameter(label = "Main volume", description = "Primary image volume.\n"+ TOOLTIP)
     File img1File;
 
-    @Parameter(required = false, label = "Secondary volume (optional)",
-            description = "Both traditional (TIFF) and Pyramid (IMS and BDV's XML files) images supported")
+    @Parameter(required = false, label = "Secondary volume (optional)", description = "Optional image volume.\n"+ TOOLTIP)
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction files (optional)",

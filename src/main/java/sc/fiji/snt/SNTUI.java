@@ -338,7 +338,7 @@ public class SNTUI extends JDialog {
         c3.gridy++;
         InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", true, c3);
         ++c3.gridy;
-        final String msg4 = "EXPERIMENTAL: Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
+        final String msg4 = "Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
                 "capable of GPU volume rendering of images too large to fit into memory. " +
                 "Discrete graphics card recommended.";
         tab3.add(GuiUtils.longSmallMsg(msg4, tab3), c3);

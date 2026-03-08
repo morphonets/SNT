@@ -2174,8 +2174,7 @@ public class Bvv {
             bvvInstance.getViewerFrame().getViewerPanel().setCamParams(
                     overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             if (bvvInstance.annotationOverlay != null)
-                bvvInstance.annotationOverlay.setCamParams(
-                        overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
+                bvvInstance.annotationOverlay.setCamParams(overlayRenderer.nearClip, overlayRenderer.farClip);
             bvvInstance.syncOverlays();
         }
 
@@ -3033,7 +3032,7 @@ public class Bvv {
                     final double pfNear = dCam / (dCam - nc);  // viewerZ = -nc
                     final double pfFar  = dCam / (dCam + fc);  // viewerZ = +fc
 
-                    // Helper: scale screen AABB corners by a perspective ratio around centre
+                    // Helper: scale screen AABB corners by a perspective ratio around center
                     // (corner = centre + (corner-centre) * ratio)
                     final double ratioN = pfNear / pfVol;
                     final double ratioF = pfFar  / pfVol;
@@ -3228,11 +3227,8 @@ public class Bvv {
             viewerPanel.requestRepaint();
         }
 
-        /**
-         * Remove overlay/nodes from the viewer.
-         */
         /** Syncs slab clip planes from OverlayRenderer so both renderers clip consistently. */
-        void setCamParams(final double dCam, final double nearClip, final double farClip) {
+        void setCamParams(final double nearClip, final double farClip) {
             annRenderer.nearClipAnn = nearClip;
             annRenderer.farClipAnn  = farClip;
         }
@@ -3668,10 +3664,8 @@ public class Bvv {
                 final double offZ = offset != null ? offset.z : 0;
 
                 // Hoist renderingOptions getters: avoid repeated virtual calls per node
-                final boolean useRadius = renderingOptions.isUsePathRadius();
                 final double minR = renderingOptions.getMinThickness() / 2.0;
                 final double maxR = renderingOptions.getMaxThickness() / 2.0;
-                final double thickMult = renderingOptions.getThicknessMultiplier();
 
                 for (int i = 0; i < n; i++) {
                     final Path.PathNode node = path.getNode(i);
@@ -3689,10 +3683,9 @@ public class Bvv {
                     pathData.viewerZ[i] = viewerCoords[2]; // screen-space Z for slab clipping
 
                     final double r = renderingOptions.isUsePathRadius() && node.getRadius() > 0
-                            ? node.getRadius() : renderingOptions.getMinThickness() / 2.0;
+                            ? node.getRadius() : minR;
                     pathData.screenRadius[i] = Math.max(0.5,
-                            Math.min(r * renderingOptions.getThicknessMultiplier(),
-                                    renderingOptions.getMaxThickness() / 2.0) * avgScale * pf);
+                            Math.min(r * renderingOptions.getThicknessMultiplier(), maxR) * avgScale * pf);
 
                     final Color nodeColor = hasNodeColors ? node.getColor() : null;
                     pathData.colors[i] = nodeColor != null ? nodeColor : defaultColor;
