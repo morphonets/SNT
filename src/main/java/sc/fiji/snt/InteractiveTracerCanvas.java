@@ -1012,22 +1012,26 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     @Override
     public void mouseWheelMoved(final MouseWheelEvent e) {
         if (!e.isControlDown() || isEventsDisabled() || !tracerPlugin.isUIready()) {
-            // We need to dispatch the even so that IJ's zoom/scroll still works. It seems
-            // that on M Windows, AWT propagates MouseWheelEvents up the component hierarchy
-            // *and* honors our explicit re-dispatch, causing double-scroll. Consuming first
-            // suppresses the propagation; the manual dispatchEvent() below delivers it once.
+            // Forward to parent (ImageWindow/StackWindow) for IJ's default zoom/scroll.
+            // We consume first to suppress AWT's automatic propagation, which on Windows
+            // would deliver the event twice (once via propagation, once via our call).
             // See https://github.com/morphonets/SNT/issues/271
-            e.consume(); // stop propagation on Windows
-            getParent().dispatchEvent(e); // re-dispatch exactly once to ImageWindow
+            // NB: Direct method call avoids reentrancy and consumed-event filtering.
+            // See https://forum.image.sc/t/119476/5
+            e.consume();
+            if (getParent() instanceof MouseWheelListener)
+                ((MouseWheelListener) getParent()).mouseWheelMoved(e); // doesn't care about consumed flag
             return;
         }
         final int state = tracerPlugin.getUIState();
         final boolean validState = editMode || state == SNTUI.WAITING_TO_START_PATH || state == SNTUI.PARTIAL_PATH;
         if (!validState) {
-            getParent().dispatchEvent(e);
+            e.consume();
+            if (getParent() instanceof MouseWheelListener)
+                ((MouseWheelListener) getParent()).mouseWheelMoved(e);
             return;
         }
-        e.consume(); // prevent ImageCanvas from processing the wheel event (e.g., zoom)
+        e.consume(); // prevent IJ from also handling this Ctrl+wheel event
 
         // Seed manualRadius: in edit mode, prefer the node's existing radius
         if (tracerPlugin.manualRadius <= 0) {
