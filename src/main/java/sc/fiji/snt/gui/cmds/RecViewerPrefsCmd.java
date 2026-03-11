@@ -54,6 +54,8 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	public static double DEF_ROTATION_DURATION = 12;
 	/** Default frames per second for 3D viewer animations */
 	public static int DEF_ROTATION_FPS = 30;
+	/** Default animation mode for 3D viewer rotations */
+	public static String DEF_ANIMATION_MODE = "Full Rotation";
 	/** Default sensitivity setting for 3D viewer controls */
 	public static String DEF_CONTROLS_SENSITIVITY = "High";
 	/** Default file extension for scripts */
@@ -73,7 +75,13 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		visibility = ItemVisibility.MESSAGE)
 	private String SUB_HEADER1;
 
+	@Parameter(label = "Animation mode", required = false, persist = true,
+		description = "Full Rotation: continuous 360° sweep. Ping-pong: oscillates back and forth over the specified arc",
+		choices = { "Full Rotation", "Ping-pong" })
+	private String animationMode;
+
 	@Parameter(required = false, persist = true, label = "Rotation degrees",
+		description = "Full Rotation: total sweep angle. Ping-pong: oscillation arc (camera rocks ±half this angle)",
 		style = NumberWidget.SCROLL_BAR_STYLE, stepSize = "10", min = "30",
 		max = "360d")
 	private double rotationAngle;
@@ -138,6 +146,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	private void init() {
 		if (snapshotDir == null) snapshotDir = new File(DEF_SNAPSHOT_DIR);
 		snapshotDirChanged();
+		if (animationMode == null) animationMode = DEF_ANIMATION_MODE;
 		if (rotationAngle == 0) rotationAngle = DEF_ROTATION_ANGLE;
 		if (rotationDuration == 0) rotationDuration = DEF_ROTATION_DURATION;
 		if (rotationFPS == 0) rotationFPS = DEF_ROTATION_FPS;
@@ -148,6 +157,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 
 	private void defaults() {
 		snapshotDir = null;
+		animationMode = null;
 		rotationAngle = 0;
 		rotationDuration = 0;
 		rotationFPS = 0;

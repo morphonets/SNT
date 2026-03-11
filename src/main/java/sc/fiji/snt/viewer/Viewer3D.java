@@ -215,6 +215,44 @@ public class Viewer3D {
         }
     }
 
+    /**
+     * Axes of rotation for animated sequences and live rotations.
+     */
+    public enum RotationAxis {
+        /** Rotation around the Z-axis (azimuth sweep). This is the default. */
+        Z,
+        /** Rotation around the X-axis (elevation sweep from front). */
+        X,
+        /** Rotation around the Y-axis (elevation sweep from side). */
+        Y;
+
+        /**
+         * @param text the axis description
+         * @return a Rotation axis from a string description, returning {@code Z} as fallback value
+         */
+        public static RotationAxis fromString(final String text) {
+            if (text == null || text.isBlank())
+                return Z;
+            for (final RotationAxis r : RotationAxis.values()) {
+                if (text.contains(r.name()))
+                    return r;
+            }
+            return Z; // default
+        }
+    }
+
+    /**
+     * Animation styles for live and recorded rotations.
+     */
+    public enum AnimationMode {
+        /** Continuous 360° rotation (the default). */
+        FULL_ROTATION,
+        /** Oscillating rotation that rocks back and forth over a fixed arc. */
+        PING_PONG;
+
+        private static final double DEFAULT_PING_PONG_ARC = Math.toRadians(60); // ±30°
+    }
+
     private static final String MESH_LABEL_ALLEN = "Whole Brain (CCFv" + AllenUtils.VERSION + ")";
     private static final String MESH_LABEL_ZEBRAFISH = "Outline (MP ZBA)";
     private static final String MESH_LABEL_JFRC2018 = "JRC 2018 (Unisex)";
@@ -284,6 +322,7 @@ public class Viewer3D {
         plottedAnnotations = new TreeMap<>();
         initView();
         prefs = new Prefs(this);
+        setAnimationMode(prefs.getAnimationModePref());
         setID();
         SNTUtils.addViewer(this);
     }
@@ -594,7 +633,7 @@ public class Viewer3D {
         dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
         dup.updateView();
         if (frame != null) {
-            dup.frame = new ViewerFrame((AChart) dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
+            dup.frame = new ViewerFrame(dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
                     frame.getGraphicsConfiguration());
             dup.frame.setLocationRelativeTo(frame);
             final int spacer = frame.getInsets().top;
@@ -696,15 +735,37 @@ public class Viewer3D {
     public void recordRotation(final float angle, final int frames, final File destinationDirectory) throws IllegalArgumentException,
             SecurityException
     {
+        recordRotation(angle, frames, destinationDirectory, RotationAxis.Z);
+    }
+
+    /**
+     * Records an animated rotation of the scene around the specified axis as a
+     * sequence of images.
+     *
+     * @param angle the rotation angle (e.g., 360 for a full rotation)
+     * @param frames the number of frames in the animated sequence
+     * @param destinationDirectory the directory where the image sequence will be
+     *          stored.
+     * @param axis the axis of rotation (X, Y, or Z)
+     * @throws IllegalArgumentException if no view exists, or current view is
+     *           constrained and does not allow rotation
+     * @throws SecurityException if it was not possible to save files to
+     *           {@code destinationDirectory}
+     */
+    public void recordRotation(final float angle, final int frames, final File destinationDirectory,
+                               final RotationAxis axis) throws IllegalArgumentException, SecurityException
+    {
         if (!chartExists()) {
             throw new IllegalArgumentException("Viewer is not visible");
         }
-        if (chart.getViewMode() == ViewPositionMode.TOP) {
-            throw new IllegalArgumentException(
-                    "Current constrained view does not allow scene to be rotated.");
+        // Release any constrained view mode so that rotation is not blocked.
+        // The current viewpoint should be preserved: only the constraint is removed
+        if (chart.getView().getViewMode() != ViewPositionMode.FREE) {
+            chart.getView().setViewPositionMode(ViewPositionMode.FREE);
+            currentView = ViewMode.DEFAULT;
         }
         mouseController.stopThreadController();
-        mouseController.recordRotation(angle, frames, destinationDirectory);
+        mouseController.recordRotation(angle, frames, destinationDirectory, axis);
 
         // Log instructions on how to assemble video
         logVideoInstructions(destinationDirectory);
@@ -1070,7 +1131,7 @@ public class Viewer3D {
                     trees.add(shapeTree.tree);
             });
         } else {
-            trees = new ArrayList<>(plottedTrees.values().size());
+            trees = new ArrayList<>(plottedTrees.size());
             plottedTrees.values().forEach(shapeTree -> trees.add(shapeTree.tree));
         }
         return trees;
@@ -1101,7 +1162,7 @@ public class Viewer3D {
                     meshes.add(vbo.objMesh);
             });
         } else {
-            meshes = new ArrayList<>(plottedObjs.values().size());
+            meshes = new ArrayList<>(plottedObjs.size());
             plottedObjs.values().forEach( vbo -> meshes.add(vbo.objMesh));
         }
         return meshes;
@@ -1565,15 +1626,9 @@ public class Viewer3D {
             return frame;
         }
         else if (viewInitialized) {
-            plottedTrees.forEach((k, shapeTree) -> {
-                chart.add(shapeTree.get(), viewUpdatesEnabled);
-            });
-            plottedObjs.forEach((k, drawableVBO) -> {
-                chart.add(drawableVBO, viewUpdatesEnabled);
-            });
-            plottedAnnotations.forEach((k, annot) -> {
-                chart.add(annot.getDrawable(), viewUpdatesEnabled);
-            });
+            plottedTrees.forEach((k, shapeTree) -> chart.add(shapeTree.get(), viewUpdatesEnabled));
+            plottedObjs.forEach((k, drawableVBO) -> chart.add(drawableVBO, viewUpdatesEnabled));
+            plottedAnnotations.forEach((k, annot) -> chart.add(annot.getDrawable(), viewUpdatesEnabled));
         }
         if (width == 0 || height == 0) {
             frame = new ViewerFrame(chart, managerList != null, gConfiguration);
@@ -2205,8 +2260,101 @@ public class Viewer3D {
     public void setAnimationEnabled(final boolean enabled) {
         if (enabled && frame == null) show(); // TODO: Assume caller wanted scene to be visible when starting animation?
         if (mouseController == null) return;
-        if (enabled) mouseController.startThreadController();
+        if (enabled) {
+            // Release any constrained view mode (TOP/PROFILE) so that animation is not silently
+            // ignored. The current viewpoint is preserved, only the constraint is removed
+            if (chartExists() && chart.getView().getViewMode() != ViewPositionMode.FREE) {
+                chart.getView().setViewPositionMode(ViewPositionMode.FREE);
+                currentView = ViewMode.DEFAULT;
+            }
+            // Infer best rotation axis from current viewpoint if auto-detection
+            // is enabled (i.e., no explicit axis was set by the caller)
+            if (mouseController.getThread() instanceof CameraThreadControllerPlus) {
+                ((CameraThreadControllerPlus) mouseController.getThread()).updateAxisIfAuto();
+            }
+            mouseController.startThreadController();
+        }
         else mouseController.stopThreadController();
+    }
+
+    /**
+     * Sets the rotation axis for the live animation (double-click spin).
+     * Calling this method disables automatic axis detection.
+     *
+     * @param axis the axis of rotation (X, Y, or Z). null defaults to Z.
+     * @see #setAutoDetectAnimationAxis(boolean)
+     */
+    public void setAnimationAxis(final RotationAxis axis) {
+        if (mouseController != null && mouseController.getThread() instanceof CameraThreadControllerPlus) {
+            ((CameraThreadControllerPlus) mouseController.getThread()).setRotationAxis(axis);
+        }
+    }
+
+    /**
+     * Gets the current rotation axis for the live animation.
+     *
+     * @return the current rotation axis, or Z if not set
+     */
+    public RotationAxis getAnimationAxis() {
+        if (mouseController != null && mouseController.getThread() instanceof CameraThreadControllerPlus) {
+            return ((CameraThreadControllerPlus) mouseController.getThread()).getRotationAxis();
+        }
+        return RotationAxis.Z;
+    }
+
+    /**
+     * Enables or disables automatic detection of the best rotation axis based
+     * on the current viewpoint. When enabled (the default), double-clicking to
+     * start a live animation will infer the most natural axis by picking the
+     * world axis most aligned with the camera's viewing direction. Calling
+     * {@link #setAnimationAxis(RotationAxis)} disables auto-detection.
+     *
+     * @param auto whether to auto-detect the axis before each animation start
+     * @see #setAnimationAxis(RotationAxis)
+     */
+    public void setAutoDetectAnimationAxis(final boolean auto) {
+        if (mouseController != null && mouseController.getThread() instanceof CameraThreadControllerPlus) {
+            ((CameraThreadControllerPlus) mouseController.getThread()).setAutoDetectAxis(auto);
+        }
+    }
+
+    /**
+     * Returns whether automatic rotation axis detection is enabled.
+     *
+     * @return true if auto-detection is active
+     */
+    public boolean isAutoDetectAnimationAxis() {
+        if (mouseController != null && mouseController.getThread() instanceof CameraThreadControllerPlus) {
+            return ((CameraThreadControllerPlus) mouseController.getThread()).isAutoDetectAxis();
+        }
+        return true;
+    }
+
+    /**
+     * Sets the animation mode for both live (double-click) and recorded
+     * rotations.
+     *
+     * @param mode the animation mode ({@link AnimationMode#FULL_ROTATION} or
+     *             {@link AnimationMode#PING_PONG}). null defaults to
+     *             FULL_ROTATION.
+     */
+    public void setAnimationMode(final AnimationMode mode) {
+        if (mouseController != null && mouseController.getThread() instanceof CameraThreadControllerPlus) {
+            ((CameraThreadControllerPlus) mouseController.getThread())
+                    .setAnimationMode(mode == null ? AnimationMode.FULL_ROTATION : mode);
+        }
+    }
+
+    /**
+     * Gets the current animation mode.
+     *
+     * @return the current animation mode
+     */
+    public AnimationMode getAnimationMode() {
+        if (mouseController != null && mouseController.getThread() instanceof CameraThreadControllerPlus) {
+            return ((CameraThreadControllerPlus) mouseController.getThread()).getAnimationMode();
+        }
+        return AnimationMode.FULL_ROTATION;
     }
 
     /**
@@ -2817,6 +2965,9 @@ public class Viewer3D {
             else {
                 getView().setViewPositionMode(ViewPositionMode.FREE);
             }
+            // Reset pole-crossing state before setting a known orientation
+            if (getView() instanceof ViewerFactory.AView)
+                ((ViewerFactory.AView) getView()).resetPoleFlips();
             getView().setViewPoint(view.coord);
             getView().shoot();
             currentView = view;
@@ -3424,6 +3575,19 @@ public class Viewer3D {
         private float getSnapshotRotationAngle() {
             return tp.prefService.getFloat(RecViewerPrefsCmd.class, "rotationAngle",
                     RecViewerPrefsCmd.DEF_ROTATION_ANGLE);
+        }
+
+        private AnimationMode getAnimationModePref() {
+            if (tp == null || tp.prefService == null) return AnimationMode.FULL_ROTATION;
+            final String mode = tp.prefService.get(RecViewerPrefsCmd.class,
+                    "animationMode", RecViewerPrefsCmd.DEF_ANIMATION_MODE);
+            return "Ping-pong".equals(mode) ? AnimationMode.PING_PONG : AnimationMode.FULL_ROTATION;
+        }
+
+        private void setAnimationModePref(final AnimationMode mode) {
+            if (tp == null || tp.prefService == null) return;
+            tp.prefService.put(RecViewerPrefsCmd.class, "animationMode",
+                    mode == AnimationMode.PING_PONG ? "Ping-pong" : "Full Rotation");
         }
 
         private String getScriptExtension() {
@@ -5080,11 +5244,38 @@ public class Viewer3D {
             final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.menuIcon(GLYPH.BULB));
             light.addActionListener(e -> frame.displayLightController(null));
             utilsMenu.add(light);
-            mi = new JMenuItem("Record Rotation", IconFactory.menuIcon(GLYPH.VIDEO));
+            GuiUtils.addSeparator(utilsMenu, "Animation:");
+            final ButtonGroup animGroup = new ButtonGroup();
+            final AnimationMode persistedMode = prefs.getAnimationModePref();
+            setAnimationMode(persistedMode); // sync runtime with persisted pref
+            for (final AnimationMode mode : AnimationMode.values()) {
+                final String label = (mode == AnimationMode.FULL_ROTATION) ? "Full Rotation" : "Ping-pong";
+                final JMenuItem jcbmi = new JCheckBoxMenuItem(label);
+                jcbmi.setSelected(mode == persistedMode);
+                jcbmi.addItemListener(ev -> {
+                    setAnimationMode(mode);
+                    prefs.setAnimationModePref(mode);
+                });
+                animGroup.add(jcbmi);
+                utilsMenu.add(jcbmi);
+            }
+            mi = new JMenuItem("Record Animation...", IconFactory.menuIcon(GLYPH.VIDEO));
             mi.addActionListener(e -> {
+                final String[] choices = new String[] {
+                    "Z-axis (azimuth sweep)",
+                    "Y-axis (elevation sweep from side)",
+                    "X-axis (elevation sweep from front)"
+                };
+                final boolean pingPong = getAnimationMode() == AnimationMode.PING_PONG;
+                final String modeLabel = pingPong ? "ping-pong" : "full";
+                final String rAxis = guiUtils.getChoice(
+                    "Record " + modeLabel + " rotation around which axis?\n"
+                    + "(NB: Angle, duration, and animation mode can be adjusted in Preferences)",
+                    "Record Animation", choices, choices[0]);
+                if (rAxis == null) return; // user cancelled
                 SwingUtilities.invokeLater(() -> {
-                    displayMsg("Recording rotation...", 0);
-                    new RecordWorker().execute();
+                    displayMsg("Recording " + modeLabel + " animation...", 0);
+                    new RecordWorker(RotationAxis.fromString(rAxis)).execute();
                 });
             });
             utilsMenu.add(mi);
@@ -5203,6 +5394,15 @@ public class Viewer3D {
         private class RecordWorker extends SwingWorker<String, Object> {
 
             private boolean error = false;
+            private final RotationAxis axis;
+
+            RecordWorker() {
+                this(RotationAxis.Z);
+            }
+
+            RecordWorker(final RotationAxis axis) {
+                this.axis = axis;
+            }
 
             @Override
             protected String doInBackground() {
@@ -5214,7 +5414,7 @@ public class Viewer3D {
                         String.format("%01d", dirId));
                 try {
                     recordRotation(prefs.getSnapshotRotationAngle(), prefs
-                            .getSnapshotRotationSteps(), dir);
+                            .getSnapshotRotationSteps(), dir, axis);
                     return "Finished. Frames at " + dir.getParent();
                 }
                 catch (final IllegalArgumentException | SecurityException ex) {
@@ -7366,9 +7566,19 @@ public class Viewer3D {
         private boolean recordRotation(final double endAngle, final int nSteps,
                                        final File dir)
         {
+            return recordRotation(endAngle, nSteps, dir, RotationAxis.Z);
+        }
 
+        /**
+         * Records a rotation around the specified axis. For Z-axis rotation, this
+         * is a simple azimuth sweep (the classic behavior). For X or Y axes, we
+         * use Rodrigues' rotation formula to trace a great-circle path in
+         * spherical-coordinate space, explicitly computing each frame's viewpoint.
+         */
+        private boolean recordRotation(final double endAngle, final int nSteps,
+                                       final File dir, final RotationAxis axis)
+        {
             if (!dir.exists()) dir.mkdirs();
-            final double inc = Math.toRadians(endAngle) / nSteps;
             int step = 0;
             boolean status = true;
 
@@ -7380,11 +7590,58 @@ public class Viewer3D {
                 frame.canvas.setSize(w, h);
                 frame.setResizable(false);
             }
+
+            final View view = chart.getView();
+            final Coord3d startVp = view.getViewPoint().clone();
+            final double totalRad = Math.toRadians(endAngle);
+            final boolean pingPong = getAnimationMode() == AnimationMode.PING_PONG;
+
+            // Pre-compute Cartesian start for Rodrigues path (X/Y axes)
+            final double az0 = startVp.x;
+            final double el0 = startVp.y;
+            final double cosEl = Math.cos(el0);
+            final double vx = cosEl * Math.sin(az0);
+            final double vy = cosEl * Math.cos(az0);
+            final double vz = Math.sin(el0);
+            final double kx = (axis == RotationAxis.X) ? 1 : 0;
+            final double ky = (axis == RotationAxis.Y) ? 1 : 0;
+
             addProgressLoad(nSteps);
             while (step++ < nSteps) {
                 try {
                     final File f = new File(dir, String.format("%05d.png", step));
-                    rotate(new Coord2d(inc, 0d), false);
+                    final double theta;
+                    if (pingPong) {
+                        // Triangle wave: oscillate over ±(totalRad/2) completing
+                        // one full back-and-forth cycle over nSteps frames
+                        final double halfArc = totalRad / 2.0;
+                        final double phase = (double) step / nSteps; // 0..1
+                        // Triangle wave: 0→+1→0→-1→0 over one period
+                        final double t = phase * 2.0; // 0..2
+                        theta = (t <= 1.0) ? halfArc * t : halfArc * (2.0 - t);
+                    } else {
+                        theta = totalRad * step / nSteps;
+                    }
+                    if (axis == RotationAxis.Z) {
+                        // Absolute azimuth positioning from start
+                        view.setViewPoint(new Coord3d(az0 + theta, el0, startVp.z), false);
+                        view.shoot();
+                    } else {
+                        // Rodrigues: v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+                        final double cosT = Math.cos(theta);
+                        final double sinT = Math.sin(theta);
+                        final double dot = kx * vx + ky * vy;
+                        final double cx = ky * vz;
+                        final double cy = -kx * vz;
+                        final double cz = kx * vy - ky * vx;
+                        final double rx = vx * cosT + cx * sinT + kx * dot * (1 - cosT);
+                        final double ry = vy * cosT + cy * sinT + ky * dot * (1 - cosT);
+                        final double rz = vz * cosT + cz * sinT;
+                        final double newEl = Math.asin(Math.max(-1, Math.min(1, rz)));
+                        final double newAz = Math.atan2(rx, ry);
+                        view.setViewPoint(new Coord3d(newAz, newEl, startVp.z), false);
+                        view.shoot();
+                    }
                     chart.screenshot(f);
                     incrementProgress();
                 }
@@ -7403,6 +7660,18 @@ public class Viewer3D {
                 if (!chart.isRotationEnabled()) {
                     displayMsg("Rotations disabled in current view");
                     return false;
+                }
+                if (threadController instanceof CameraThreadControllerPlus) {
+                    final CameraThreadControllerPlus tc = (CameraThreadControllerPlus) threadController;
+                    if (e.isShiftDown()) {
+                        // Shift+double-click: legacy Z-axis rotation
+                        tc.setRotationAxis(RotationAxis.Z);
+                        tc.setAutoDetectAxis(true); // re-enable for next plain double-click
+                    } else {
+                        tc.updateAxisIfAuto();
+                    }
+                    tc.start();
+                    return true;
                 }
                 if (threadController != null) {
                     threadController.start();
@@ -7528,16 +7797,142 @@ public class Viewer3D {
         }
     }
 
-    private static class CameraThreadControllerPlus extends CameraThreadController {
+    private class CameraThreadControllerPlus extends CameraThreadController {
 
-        //TODO: here we should be able to override #move and #doRun to improve
-        // rotations, namely along anatomical axes rather than azymuths
+        private RotationAxis rotationAxis = RotationAxis.Z;
+        private boolean autoDetectAxis = true;
+        private AnimationMode animationMode = AnimationMode.FULL_ROTATION;
+
+        protected void setAnimationMode(final AnimationMode mode) {
+            this.animationMode = mode;
+        }
+
+        protected AnimationMode getAnimationMode() {
+            return animationMode;
+        }
+
         public CameraThreadControllerPlus(final Chart chart) {
             super(chart);
         }
 
         protected boolean isAnimating() {
             return process != null && process.isAlive();
+        }
+
+        protected void setRotationAxis(final RotationAxis axis) {
+            this.rotationAxis = (axis == null) ? RotationAxis.Z : axis;
+            // Explicit axis selection disables auto-detection
+            this.autoDetectAxis = false;
+        }
+
+        protected RotationAxis getRotationAxis() {
+            return rotationAxis;
+        }
+
+        protected void setAutoDetectAxis(final boolean auto) {
+            this.autoDetectAxis = auto;
+        }
+
+        protected boolean isAutoDetectAxis() {
+            return autoDetectAxis;
+        }
+
+        /**
+         * Infers the most intuitive rotation axis from the current viewpoint.
+         * Picks the world axis most aligned with the camera's viewing direction,
+         * giving a natural "turntable" spin around whatever axis the user is
+         * looking down.
+         */
+        protected RotationAxis inferAxis() {
+            final View view = chart.getView();
+            if (view == null) return RotationAxis.Z;
+            final Coord3d vp = view.getViewPoint();
+            final double az = vp.x;
+            final double el = vp.y;
+            // Camera viewing direction in world coordinates (spherical to Cartesian)
+            final double cosEl = Math.cos(el);
+            final double compX = Math.abs(cosEl * Math.sin(az));
+            final double compY = Math.abs(cosEl * Math.cos(az));
+            final double compZ = Math.abs(Math.sin(el));
+            if (compX >= compY && compX >= compZ) return RotationAxis.X;
+            if (compY >= compX && compY >= compZ) return RotationAxis.Y;
+            return RotationAxis.Z;
+        }
+
+        /**
+         * Updates rotationAxis from the current viewpoint if auto-detection is
+         * enabled. Called just before the animation thread starts.
+         */
+        protected void updateAxisIfAuto() {
+            if (autoDetectAxis) {
+                rotationAxis = inferAxis();
+            }
+        }
+
+        @Override
+        protected void doRun() {
+            if (rotationAxis == RotationAxis.Z && animationMode == AnimationMode.FULL_ROTATION) {
+                // Classic continuous azimuth sweep — delegate to parent
+                super.doRun();
+                return;
+            }
+            final View view = chart.getView();
+            if (view == null) return;
+
+            // For Rodrigues (X/Y), a 3× multiplier compensates for less apparent
+            // on-screen motion at most viewpoints
+            final double effectiveStep = (rotationAxis == RotationAxis.Z) ? step : step * 3.0;
+            final boolean pingPong = (animationMode == AnimationMode.PING_PONG);
+            final double halfArc = AnimationMode.DEFAULT_PING_PONG_ARC / 2.0; // ±30°
+
+            double cumulativeAngle = 0;
+            int direction = 1;
+            final Coord3d startVp = view.getViewPoint().clone();
+            // For Z ping-pong we also need the start so we can compute absolute positions
+            final double az0 = startVp.x;
+            final double el0 = startVp.y;
+            final double cosEl = Math.cos(el0);
+            final double vx = cosEl * Math.sin(az0);
+            final double vy = cosEl * Math.cos(az0);
+            final double vz = Math.sin(el0);
+            final double kx = (rotationAxis == RotationAxis.X) ? 1 : 0;
+            final double ky = (rotationAxis == RotationAxis.Y) ? 1 : 0;
+
+            while (process != null) {
+                try {
+                    cumulativeAngle += effectiveStep * direction;
+                    if (pingPong) {
+                        if (cumulativeAngle > halfArc) {
+                            cumulativeAngle = halfArc;
+                            direction = -1;
+                        } else if (cumulativeAngle < -halfArc) {
+                            cumulativeAngle = -halfArc;
+                            direction = 1;
+                        }
+                    }
+                    if (rotationAxis == RotationAxis.Z) {
+                        // Direct azimuth positioning (absolute, not incremental)
+                        view.setViewPoint(new Coord3d(az0 + cumulativeAngle, el0, startVp.z));
+                    } else {
+                        // Rodrigues: v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+                        final double cosT = Math.cos(cumulativeAngle);
+                        final double sinT = Math.sin(cumulativeAngle);
+                        final double dot = kx * vx + ky * vy;
+                        final double cx = ky * vz;
+                        final double cy = -kx * vz;
+                        final double cz = kx * vy - ky * vx;
+                        final double rx = vx * cosT + cx * sinT + kx * dot * (1 - cosT);
+                        final double ry = vy * cosT + cy * sinT + ky * dot * (1 - cosT);
+                        final double rz = vz * cosT + cz * sinT;
+                        final double newEl = Math.asin(Math.max(-1, Math.min(1, rz)));
+                        final double newAz = Math.atan2(rx, ry);
+                        view.setViewPoint(new Coord3d(newAz, newEl, startVp.z));
+                    }
+                    Thread.sleep(sleep);
+                } catch (final InterruptedException e) {
+                    process = null;
+                }
+            }
         }
     }
 
@@ -8713,8 +9108,28 @@ public class Viewer3D {
             }
         }
 
-        /** Adapted View for improved rotations of the scene */
+        /**
+         * Adapted View for improved rotations of the scene.
+         * <p>
+         * Overrides the upstream rotation/camera logic to allow smooth rotation
+         * across the elevation poles (+/-PI/2). Without this, dragging past the
+         * top or bottom of the sphere causes a jarring mirror-snap because the
+         * camera up vector does not account for the hemisphere change.
+         * <p>
+         * The fix tracks "pole crossings": each time an incremental rotation
+         * would push the elevation past +/-PI/2, the elevation is reflected,
+         * the azimuth is flipped by PI, and a counter is incremented. When
+         * the counter is odd the up vector is negated, keeping the image
+         * visually continuous.
+         */
         private static class AView extends AWTView {
+
+            /**
+             * Number of times the viewpoint has crossed an elevation pole
+             * during incremental rotation. When odd, the camera up vector is
+             * negated to maintain visual continuity.
+             */
+            private int poleFlips = 0;
 
             public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
                 super(factory, scene, canvas, quality);
@@ -8733,12 +9148,83 @@ public class Viewer3D {
             }
 
             @Override
+            public void rotate(final Coord2d move, final boolean updateView) {
+                final Coord3d vp = getViewPoint();
+
+                if (View.UP_VECTOR_Z.equals(upVector)) {
+                    vp.x -= move.x;
+                    vp.y += move.y;
+
+                    // Wrap elevation across the poles instead of clamping.
+                    // Each crossing flips azimuth by PI and increments the
+                    // counter so computeCameraUp() can negate the up vector.
+                    while (vp.y > PI_div2) {
+                        vp.y = PI - vp.y;
+                        vp.x += PI;
+                        poleFlips++;
+                    }
+                    while (vp.y < -PI_div2) {
+                        vp.y = -PI - vp.y;
+                        vp.x += PI;
+                        poleFlips++;
+                    }
+                } else if (View.UP_VECTOR_X.equals(upVector)) {
+                    vp.y += move.x;
+                    vp.x += move.y;
+                } else if (View.UP_VECTOR_Y.equals(upVector)) {
+                    vp.y -= move.x;
+                    vp.x -= move.y;
+                }
+
+                setViewPoint(vp, updateView);
+            }
+
+            @Override
             public void setViewPoint(final Coord3d polar, final boolean updateView) {
                 // see https://github.com/jzy3d/jzy3d-api/issues/214#issuecomment-975717207
+                // If the elevation is out of range, this is an explicit (non-
+                // incremental) positioning, so reset poleFlips. Values arriving
+                // in-range (from our rotate() wrapping above) preserve the count.
+                if (polar.y < -PI_div2 || polar.y > PI_div2) {
+                    poleFlips = 0;
+                }
                 viewpoint = polar;
                 if (updateView)
                     shoot();
                 fireViewPointChangedEvent(new ViewPointChangedEvent(this, polar));
+            }
+
+            @Override
+            protected Coord3d computeCameraUp(final Coord3d viewpoint) {
+                if (is2D()) {
+                    // Delegate 2D cases to the parent unchanged
+                    return super.computeCameraUp(viewpoint);
+                }
+                // 3D: handle "on top" or "on bottom"
+                if (Math.abs(viewpoint.y) == ELEVATION_ON_TOP) {
+                    final Coord2d direction = new Coord2d(viewpoint.x, viewpoint.z).cartesian();
+                    if (viewpoint.y > 0) {
+                        return new Coord3d(-direction.x, -direction.y, 0);
+                    } else {
+                        return new Coord3d(direction.x, direction.y, 0);
+                    }
+                }
+                // Standard 3D: negate the up vector when we have crossed a
+                // pole an odd number of times
+                if (poleFlips % 2 == 1) {
+                    return new Coord3d(-upVector.x, -upVector.y, -upVector.z);
+                }
+                return upVector;
+            }
+
+            /** Return the pole-crossing counter. */
+            int getPoleFlips() {
+                return poleFlips;
+            }
+
+            /** Reset the pole-crossing counter (e.g. on explicit view mode change). */
+            void resetPoleFlips() {
+                poleFlips = 0;
             }
         }
     }
