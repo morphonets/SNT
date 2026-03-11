@@ -3825,14 +3825,21 @@ public class SNT extends MultiDThreePanes implements
 		// hiding the image will force the rebuild of its ImageWindow next time show() is
 		// called. We need to remove any PointRoi to bypass the "Save changes?" dialog.
 		// If spine/varicosity counts exist, set the images has changed to avoid data loss
-		final Roi roi = imp.getRoi();
-		final boolean existingChanges = imp.changes;
-		imp.changes = false;
-		imp.deleteRoi();
-		imp.hide();
-		imp.setRoi(roi);
-		imp.show();
-		imp.changes = existingChanges || roi instanceof PointRoi;
+		try {
+			final Roi roi = imp.getRoi();
+			final boolean existingChanges = imp.changes;
+			imp.changes = false;
+			imp.deleteRoi();
+			imp.hide();
+			imp.setRoi(roi);
+			imp.show();
+			imp.changes = existingChanges || roi instanceof PointRoi;
+		} catch (final Exception ignored) {
+			// we use this method to return the image back to IJ when the program is closed
+			// but the image was left open. ImagePlus may be partially disposed during
+			// shutdown (e.g., CompositeImage with null LUTs). Not much we can do here other
+			// than let the exit proceed.
+		}
 	}
 
 
