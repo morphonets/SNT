@@ -45,7 +45,7 @@ import org.scijava.util.ColorRGB;
  */
 public class InsectBrainCompartment implements BrainAnnotation {
 
-    private static final String BASE_OBJ_DOWNLOAD_URL = "https://s3.eu-central-1.amazonaws.com/ibdb-file-storage/";
+    private static final String BASE_URL = "https://insectbraindb.org/";
 
     private int id;
     private String name;
@@ -55,6 +55,7 @@ public class InsectBrainCompartment implements BrainAnnotation {
 	private String[] aliases;
 
     private UUID uuid;
+    private UUID fileUUID;
     private String objPath;
     private String objColor;
 
@@ -93,37 +94,45 @@ public class InsectBrainCompartment implements BrainAnnotation {
     }
 
     private String getMeshURL() {
-        HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_OBJ_DOWNLOAD_URL).newBuilder();
-        urlBuilder.addPathSegments(objPath);
-        return urlBuilder.build().toString();
+        if (fileUUID != null) {
+            // Use the filestore API to get a signed download URL
+            final HttpUrl.Builder urlBuilder = HttpUrl.parse(BASE_URL).newBuilder();
+            urlBuilder.addPathSegments("filestore/download_url/");
+            urlBuilder.addQueryParameter("uuid", fileUUID.toString());
+            final String apiUrl = urlBuilder.build().toString();
+            try {
+                final OkHttpClient client = new OkHttpClient();
+                final Request request = new Request.Builder().url(apiUrl).build();
+                try (final Response response = client.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        final org.json.JSONObject json = new org.json.JSONObject(response.body().string());
+                        return json.getString("url");
+                    }
+                }
+            } catch (final IOException | org.json.JSONException e) {
+                SNTUtils.log("Could not resolve download URL via API for " + name + ": " + e.getMessage());
+            }
+        }
+        return null;
     }
 
     @Override
     public OBJMesh getMesh() {
-        OBJMesh mesh = null;
-        String urlPath = getMeshURL();
+        final String urlPath = getMeshURL();
+        if (urlPath == null) {
+            SNTUtils.log("Could not resolve download URL for mesh: " + name);
+            return null;
+        }
         try {
-            final OkHttpClient client = new OkHttpClient();
-            final Request request = new Request.Builder() //
-                    .url(urlPath)
-                    .build();
-            final Response response = client.newCall(request).execute();
-            final boolean success = response.isSuccessful();
-            response.close();
-            if (!success) {
-                System.out.println(
-                        "Server is not reachable. Mesh(es) could not be retrieved. Check your internet connection..."
-                );
-                return null;
-            }
             final URL url = new URI(urlPath).toURL();
-            mesh = new OBJMesh(url, GuiUtils.micrometer());
+            final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
             mesh.setColor(objColor, 95f);
             mesh.setLabel(name);
+            return mesh;
         } catch (final IllegalArgumentException | IOException | URISyntaxException e) {
             SNTUtils.error("Could not retrieve mesh ", e);
         }
-        return mesh;
+        return null;
     }
 
     @Override
@@ -176,6 +185,10 @@ public class InsectBrainCompartment implements BrainAnnotation {
 
     protected void setObjPath(String objPath) {
         this.objPath = objPath;
+    }
+
+    protected void setFileUUID(UUID fileUUID) {
+        this.fileUUID = fileUUID;
     }
 
     protected void setObjColor(String objColor) {

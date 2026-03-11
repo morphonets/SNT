@@ -196,19 +196,22 @@ public final class InsectBrainUtils {
             JSONObject fileJson = viewerFiles.getJSONObject(i);
             JSONObject pFile = fileJson.getJSONObject("p_file");
             String objPath = pFile.getString("path");
+            UUID pFileUUID = UUID.fromString(pFile.getString("uuid"));
             JSONArray structures = fileJson.optJSONArray("structures");
             if (structures == null || structures.isEmpty()) {
                 InsectBrainCompartment compartment = new InsectBrainCompartment();
                 compartment.setObjPath(objPath);
+                compartment.setFileUUID(pFileUUID);
                 compartment.setObjColor("#D3D3D3");
                 compartment.setName("Mesh");
-                compartment.setUUID(UUID.fromString(pFile.getString("uuid")));
+                compartment.setUUID(pFileUUID);
                 compartmentList.add(compartment);
                 continue;
             }
             for (int j = 0; j < structures.length(); j++) {
                 InsectBrainCompartment compartment = new InsectBrainCompartment();
                 compartment.setObjPath(objPath);
+                compartment.setFileUUID(pFileUUID);
                 JSONObject structure = structures.getJSONObject(j);
                 String hemisphere = structure.optString("hemisphere", "null");
                 compartment.setHemisphere(hemisphere);
