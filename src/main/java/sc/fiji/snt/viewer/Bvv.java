@@ -1129,13 +1129,19 @@ public class Bvv {
             bvvFrame.getCardPanel().addCard("Scene Controls", sceneControlsPanel, true);
             // SNT toolbar
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
-            // Register shortcuts: M key to place a marker at the current mouse position; shift+S for screenshot()
-            final InputMap iMap = bvvFrame.getViewerPanel().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-            final ActionMap aMap = bvvFrame.getViewerPanel().getActionMap();
-            iMap.put(KeyStroke.getKeyStroke('m'), "snt-add-marker");
-            aMap.put("snt-add-marker", actions.addMarkerAction());
-            iMap.put(KeyStroke.getKeyStroke('S'), "snt-bvv-snapshot");
-            aMap.put("snt-bvv-snapshot", snapshotAction());
+            // Register shortcuts through BDV's keybindings system so they are
+            // handled at the same level as BVV's own shortcuts (e.g., Shift+B).
+            // Using Swing's InputMap/ActionMap directly gets shadowed by BDV's
+            // input trigger layer.
+            final InputMap sntIMap = new InputMap();
+            final ActionMap sntAMap = new ActionMap();
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_M, 0), "snt-add-marker");
+            sntAMap.put("snt-add-marker", actions.addMarkerAction());
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
+                    java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-bvv-snapshot");
+            sntAMap.put("snt-bvv-snapshot", snapshotAction());
+            bvvFrame.getKeybindings().addInputMap("snt", sntIMap);
+            bvvFrame.getKeybindings().addActionMap("snt", sntAMap);
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
             // Ensure the card panel is wide enough to show all controls without clipping.
             // Use the Scene Controls panel's own preferred width since it's the widest,
@@ -2636,7 +2642,8 @@ public class Bvv {
                                     bvvInstance.repaint();
                                 }
                             }),
-                    "Show/hide coordinate axes at the volume origin",
+                    "Show/hide coordinate axes at the volume origin.\n" +
+                            "X: Red; Y: Green; Z: Blue",
                     IconFactory.GLYPH.CHART_LINE, IconFactory.GLYPH.CHART_LINE);
             axesToggle.setSelected(false);
             bar.add(axesToggle);

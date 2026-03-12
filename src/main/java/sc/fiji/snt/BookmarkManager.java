@@ -419,7 +419,7 @@ public class BookmarkManager {
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final File file = (sntui != null) ? sntui.openFile("csv")
-                    : guiUtils.getFile(null, "csv");
+                    : guiUtils.getFile(new File(SNTPrefs.lastKnownDir(), "Markers.csv"), "csv");
             if (file != null) {
                 recordCmd("load(\"" + file.getAbsolutePath() + "\")");
                 loadBookmarksFromFile(file);
@@ -521,7 +521,7 @@ public class BookmarkManager {
         if (noBookmarksError()) return;
         final File saveFile = (file != null) ? file
                 : (sntui != null) ? sntui.saveFile("Export Bookmarks to CSV...", "SNT_Bookmarks.csv", "csv")
-                : guiUtils.getSaveFile("Export Markers to CSV...", null, "csv");
+                : guiUtils.getSaveFile("Export Markers to CSV...", new File(SNTPrefs.lastKnownDir(), "Markers.csv"), "csv");
         if (saveFile != null) {
             recordCmd("save(\"" + saveFile.getAbsolutePath() + "\")");
             if (saveBookMarksToFile(saveFile)) {
@@ -704,11 +704,23 @@ public class BookmarkManager {
         final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
         final net.imglib2.realtransform.AffineTransform3D current = new net.imglib2.realtransform.AffineTransform3D();
         bvv.getViewerPanel().state().getViewerTransform(current);
-        // Build a target transform that centres on the bookmark world position
+        // The viewer transform maps world -> screen. To centre the bookmark on
+        // screen we keep the current rotation/scale but adjust the translation
+        // so that the bookmark's world position maps to the screen centre.
+        // screenPos = R * worldPos + t, so t_new = screenCentre - R * worldPos
+        final double[] worldPos = {b.getX(), b.getY(), b.getZ()};
+        final double[] mapped = new double[3];
+        current.apply(worldPos, mapped);
+        // mapped = R * worldPos + t_current, so R * worldPos = mapped - t_current
+        final double rx = mapped[0] - current.get(0, 3);
+        final double ry = mapped[1] - current.get(1, 3);
+        final double rz = mapped[2] - current.get(2, 3);
+        final double cX = bvv.getViewerPanel().getWidth()  / 2.0;
+        final double cY = bvv.getViewerPanel().getHeight() / 2.0;
         final net.imglib2.realtransform.AffineTransform3D target = current.copy();
-        target.set(target.get(0, 3) - b.getX() * current.get(0, 0),  0, 3);
-        target.set(target.get(1, 3) - b.getY() * current.get(1, 1),  1, 3);
-        target.set(target.get(2, 3) - b.getZ() * current.get(2, 2),  2, 3);
+        target.set(cX - rx, 0, 3);
+        target.set(cY - ry, 1, 3);
+        target.set(   - rz, 2, 3);
         bvv.getViewerPanel().setTransformAnimator(
                 new bdv.viewer.animate.SimilarityTransformAnimator(current, target, 0, 0, 300));
         bvv.getViewer().getViewer().showMessage(String.format("Flying to %s", b.label));
