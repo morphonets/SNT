@@ -70,7 +70,7 @@ public class BookmarkManager {
     private final BookmarkModel model;
     private final BookmarkTable table;
     private int visitingZoomPercentage;
-    private JFrame bvvFrame; // floating panel for BVV mode
+    private JDialog bvvFrame; // floating dialog for BVV mode (non-modal, owned by viewer frame)
 
 
     /**
@@ -118,11 +118,11 @@ public class BookmarkManager {
             bvv.annotations().addAnnotation(points.get(i), sizes.get(i), colors.get(i));
     }
 
-    /** Returns the floating JFrame for BVV mode, creating it on first call. */
-    public JFrame getBvvPanel() {
+    /** Returns the floating dialog for BVV mode, creating it on first call. */
+    public JDialog getBvvPanel() {
         if (bvvFrame == null) {
-            bvvFrame = new JFrame("BVV Markers");
-            bvvFrame.setDefaultCloseOperation(JFrame.HIDE_ON_CLOSE);
+            bvvFrame = new JDialog(bvv.getViewerFrame(), "BVV Markers", false);
+            bvvFrame.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
             bvvFrame.add(getPanel());
             bvvFrame.pack();
             // Ensure the frame is tall enough to show at least 5 table rows
@@ -149,17 +149,14 @@ public class BookmarkManager {
 
     /** Shows or hides the floating BVV marker panel. */
     public void toggleBvvPanel() {
-        final JFrame f = getBvvPanel();
+        final JDialog f = getBvvPanel();
         guiUtils.setParent(f);
         f.setVisible(!f.isVisible());
-        // Always return focus to the BVV viewer so M and other shortcuts keep working
-        if (bvv != null && bvv.getViewerFrame() != null)
-            bvv.getViewerFrame().getViewerPanel().requestFocusInWindow();
     }
 
     /** Alias for {@link #toggleBvvPanel()} — shows the marker panel. */
     public void showPanel() {
-        final JFrame f = getBvvPanel();
+        final JDialog f = getBvvPanel();
         if (!f.isVisible()) f.setVisible(true);
         else f.toFront();
     }
@@ -174,7 +171,9 @@ public class BookmarkManager {
             gbc.gridy++;
         }
         final String msg = (bvv != null)
-                ? "Place markers with the M key. Double-click a row to fly to that location. Color and size are applied to the BVV overlay in real time."
+                ? "Place markers with the M key. Double-click a row to fly to that location. " +
+                "Color and size are applied to the BVV overlay in real time. Hold H to temporarily " +
+                "hide markers."
                 : """
                 This pane stores image locations that you can quickly (re)visit while \
                 tracing. Bookmarks can be saved to the workspace directory using the \

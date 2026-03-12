@@ -100,6 +100,8 @@ public class Bvv {
     private String calUnit; // Physical unit string (e.g. "µm", "pixel") for the volume
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
     private BookmarkManager markerManager; // lazily initialized on first use
+    private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
+    private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
 
     /**
      * Constructor for standalone BVV instance.
@@ -252,6 +254,14 @@ public class Bvv {
             }
         }
 
+        // Initialize brightness from data percentiles for all channels just added.
+        // attachControlPanel only runs for the first window; subsequent volumes
+        // added to an existing viewer would otherwise keep BVV's 0-65535 default.
+        final BigVolumeViewer bvvForInit = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
+        SwingUtilities.invokeLater(() ->
+                InitializeViewerState.initBrightness(0.001, 0.999,
+                        bvvForInit.getViewer().state(), bvvForInit.getViewer().getConverterSetups()));
+
         // Group assignment: must run after all channels are added
         final int groupIdx = multiSources.size();
         final int startIdx = bvvHandle.getViewerPanel().state().getSources().size()
@@ -260,6 +270,23 @@ public class Bvv {
                 bvvHandle.getViewerPanel());
         final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
         multiSources.add(multi);
+        // Add channel unmixing card for 2+ channel images
+        if (multi.size() >= 2 && currentBvv != null) {
+            final String mixerTitle = uniqueUnmixingTitle(imageName);
+            SwingUtilities.invokeLater(() -> {
+                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
+                cp.addCard(mixerTitle, buildChannelMixerCard(multi), false);
+                // Reorder: move Scene Controls and SNT Annotations after the unmixing card
+                if (sceneControlsCard != null) {
+                    cp.removeCard("Scene Controls");
+                    cp.addCard("Scene Controls", sceneControlsCard, true);
+                }
+                if (sntAnnotationsCard != null) {
+                    cp.removeCard("SNT Annotations");
+                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                }
+            });
+        }
         return multi;
     }
 
@@ -1057,6 +1084,23 @@ public class Bvv {
                 bvvHandle.getViewerPanel());
         final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
         multiSources.add(multi);
+        // Add Channel Unmixing card for 2+ channel images
+        if (multi.size() >= 2 && currentBvv != null) {
+            final String mixerTitle = uniqueUnmixingTitle(imp.getTitle());
+            SwingUtilities.invokeLater(() -> {
+                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
+                cp.addCard(mixerTitle, buildChannelMixerCard(multi), false);
+                // Reorder: move Scene Controls and SNT Annotations after the unmixing card
+                if (sceneControlsCard != null) {
+                    cp.removeCard("Scene Controls");
+                    cp.addCard("Scene Controls", sceneControlsCard, true);
+                }
+                if (sntAnnotationsCard != null) {
+                    cp.removeCard("SNT Annotations");
+                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                }
+            });
+        }
         return multi;
     }
 
@@ -1124,11 +1168,12 @@ public class Bvv {
             // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
             // Scene controls
-            final JComponent sceneControlsPanel =
+            sceneControlsCard =
                     new CameraControls(this, pathOverlay.overlayRenderer).getToolbar(actions);
-            bvvFrame.getCardPanel().addCard("Scene Controls", sceneControlsPanel, true);
+            bvvFrame.getCardPanel().addCard("Scene Controls", sceneControlsCard, true);
             // SNT toolbar
-            bvvFrame.getCardPanel().addCard("SNT Annotations", sntToolbar(actions), true);
+            sntAnnotationsCard = sntToolbar(actions);
+            bvvFrame.getCardPanel().addCard("SNT Annotations", sntAnnotationsCard, true);
             // Register shortcuts through BDV's keybindings system so they are
             // handled at the same level as BVV's own shortcuts (e.g., Shift+B).
             // Using Swing's InputMap/ActionMap directly gets shadowed by BDV's
@@ -1152,7 +1197,7 @@ public class Bvv {
             // Ensure the card panel is wide enough to show all controls without clipping.
             // Use the Scene Controls panel's own preferred width since it's the widest,
             // and its GridBagLayout has already computed the correct natural width.
-            final int cardPrefW = sceneControlsPanel.getMinimumSize().width;
+            final int cardPrefW = sceneControlsCard.getMinimumSize().width;
             SwingUtilities.invokeLater(() -> {
                 final javax.swing.JSplitPane split = bvv.getViewerFrame().getSplitPanel();
                 final java.awt.Component cards = split.getRightComponent();
@@ -1168,6 +1213,299 @@ public class Bvv {
         SwingUtilities.invokeLater(() ->
                 InitializeViewerState.initBrightness(0.001, 0.999,
                         bvv.getViewer().state(), bvv.getViewer().getConverterSetups()));
+    }
+
+    /**
+     * Builds a "Channel Unmixing" card panel for two-channel subtraction. The card
+     * provides a slider that controls a subtraction weight {@code w} in
+     * {@code result = ch0 - w * ch1} (clamped to [0, 65535]). On slider
+     * release, the mix is computed eagerly via {@link LoopBuilder}, displayed as
+     * a new {@link BvvStackSource}, and the original channels are hidden.
+     * <p>
+     * <b>Requires an active thin slab view</b> to ensure interactive
+     * performance: the full volume is recomputed on each weight change, but
+     * only the slab region is uploaded to the GPU. If the slab is inactive,
+     * the slider is disabled with a tooltip explaining the requirement.
+     *
+     * @param multi the two-channel {@link BvvMultiSource} to mix
+     * @return a JPanel suitable for {@code CardPanel.addCard()}
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private JPanel buildChannelMixerCard(final BvvMultiSource multi) {
+        final JPanel panel = new JPanel(new GridBagLayout());
+        panel.setOpaque(false);
+        final GridBagConstraints gc = new GridBagConstraints();
+        //gc.insets = new Insets(2, 4, 2, 4);
+        //gc.fill = GridBagConstraints.HORIZONTAL;
+        //gc.weightx = 1.0;
+
+        // Per-card mixed source (local to this card's closure, not shared across cards)
+        final BvvStackSource<?>[] mixedSource = {null};
+
+        // --- Extract channel RAIs and names from the BvvMultiSource ---
+        final List<BvvStackSource<?>> sources = multi.getSources();
+        final int nChannels = sources.size();
+        final RandomAccessibleInterval[] channelRais = new RandomAccessibleInterval[nChannels];
+        final String[] channelNames = new String[nChannels];
+        for (int i = 0; i < nChannels; i++) {
+            final bdv.viewer.SourceAndConverter<?> sac = sources.get(i).getSources().getFirst();
+            channelRais[i] = sac.getSpimSource().getSource(0, 0);
+            channelNames[i] = "Ch" + (i + 1);
+        }
+
+        // --- Channel selectors ---
+        final JComboBox<String> signalCombo = new JComboBox<>(channelNames);
+        signalCombo.setSelectedIndex(0);
+        signalCombo.setToolTipText("Signal channel");
+        final JComboBox<String> subtractCombo = new JComboBox<>(channelNames);
+        subtractCombo.setSelectedIndex(Math.min(1, nChannels - 1));
+        subtractCombo.setToolTipText("Background channel to subtract");
+
+        // --- Weight slider ---
+        final JSlider weightSlider = new JSlider(0, 100, 0);
+        weightSlider.setToolTipText("<html>Subtraction weight <i>w</i>: result = Signal − <i>w</i> × Subtract.<br>"
+                + "Adjust on slider release. Requires active slab view.");
+        final JLabel weightLabel = new JLabel("w = 0.00");
+        weightSlider.addChangeListener(e ->
+                weightLabel.setText(String.format("w = %.2f", weightSlider.getValue() / 100.0)));
+
+        final JToggleButton enableToggle = new JToggleButton("Enable");
+        enableToggle.setToolTipText("<html>Enable channel subtraction.<br>"
+                + "Requires the Slab View to be active with a thin thickness.");
+
+        final JLabel statusLabel = new JLabel(" ");
+        statusLabel.setFont(statusLabel.getFont().deriveFont(Font.ITALIC, statusLabel.getFont().getSize2D() - 1));
+
+        final JButton resetButton = GuiUtils.Buttons.undo(null);
+        resetButton.setToolTipText("Reset: remove mixed source and restore original channels");
+
+        final double zCal = (cal != null && cal.length > 2 && cal[2] > 0) ? cal[2] : 1.0;
+        final double maxSlabThickness = zCal * 10; // max 10 slices
+        final Runnable checkSlabAndUpdateUI = () -> {
+            final boolean sameChannel = signalCombo.getSelectedIndex() == subtractCombo.getSelectedIndex();
+            final double zMin = renderingOptions.getSlabZMin();
+            final double zMax = renderingOptions.getSlabZMax();
+            final boolean slabActive = zMin != Double.NEGATIVE_INFINITY;
+            final boolean slabThin = slabActive && (zMax - zMin) <= maxSlabThickness;
+            //enableToggle.setEnabled(weightSlider.isEnabled());
+            if (sameChannel) {
+                weightSlider.setEnabled(false);
+                channelUnmixingError(enableToggle, statusLabel, "Signal and subtract channels must differ");
+            } else if (!slabActive) {
+                weightSlider.setEnabled(false);
+                channelUnmixingError(enableToggle, statusLabel, "Slab view must be active for weight adjustment");
+            } else if (!slabThin) {
+                weightSlider.setEnabled(false);
+                channelUnmixingError(enableToggle, statusLabel, "Slab must be thinner (≤" + (int)(maxSlabThickness / zCal) + " slices)");
+            } else if (enableToggle.isSelected()) {
+                weightSlider.setEnabled(true);
+                statusLabel.setText("Release slider to compute mix");
+            } else {
+                weightSlider.setEnabled(false);
+                statusLabel.setText(" ");
+            }
+        };
+
+        // Re-check when channel selection changes
+        signalCombo.addActionListener(e -> checkSlabAndUpdateUI.run());
+        subtractCombo.addActionListener(e -> checkSlabAndUpdateUI.run());
+
+        // --- Compute and display the mixed source ---
+        final boolean[] computing = {false}; // guard against concurrent workers
+        final Runnable computeMix = () -> {
+            if (computing[0]) return;
+            final double w = weightSlider.getValue() / 100.0;
+            if (w <= 0) {
+                // Weight 0 means no subtraction: just show originals
+                if (mixedSource[0] != null) {
+                    mixedSource[0].removeFromBdv();
+                    mixedSource[0] = null;
+                }
+                multi.setActive(true);
+                repaint();
+                statusLabel.setText("No subtraction (w=0)");
+                return;
+            }
+            // Read combo selections on EDT before spawning worker
+            final int sigIdx = signalCombo.getSelectedIndex();
+            final int subIdx = subtractCombo.getSelectedIndex();
+            if (sigIdx == subIdx) {
+                statusLabel.setText("Signal and subtract channels must differ");
+                return;
+            }
+            final RandomAccessibleInterval sigRai = channelRais[sigIdx];
+            final RandomAccessibleInterval subRai = channelRais[subIdx];
+            final String sigName = channelNames[sigIdx];
+            final String subName = channelNames[subIdx];
+            // Compute eagerly
+            computing[0] = true;
+            weightSlider.setEnabled(false);
+            statusLabel.setText("Computing...");
+            panel.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() {
+                    final long[] mixDims = new long[3];
+                    sigRai.dimensions(mixDims);
+                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
+                            mixed = net.imglib2.img.array.ArrayImgs.unsignedShorts(mixDims[0], mixDims[1], mixDims[2]);
+                    LoopBuilder.setImages((RandomAccessibleInterval<RealType>) sigRai,
+                                    (RandomAccessibleInterval<RealType>) subRai,
+                                    mixed)
+                            .multiThreaded()
+                            .forEachPixel((a, b, out) -> {
+                                final double val = a.getRealDouble() - w * b.getRealDouble();
+                                out.setReal(Math.max(0, Math.min(65535, val)));
+                            });
+                    // Remove old mixed source and add new one on EDT
+                    SwingUtilities.invokeLater(() -> {
+                        if (mixedSource[0] != null) mixedSource[0].removeFromBdv();
+                        final BvvOptions addOpt = bvv.vistools.Bvv.options().addTo(bvvHandle);
+                        final String srcName = sigName + " \u2212 " + String.format("%.2f", w)
+                                + " \u00d7 " + subName;
+                        final String unit = (calUnit != null) ? calUnit : "pixel";
+                        mixedSource[0] = showCalibratedSource(mixed, srcName, cal, unit, addOpt);
+                        multi.setActive(false);
+                        // Match display range and color from signal channel.
+                        // BVV asynchronously initialises brightness (0-65535)
+                        // after show(). A short timer ensures we override it.
+                        final bdv.tools.brightness.ConverterSetup csSig =
+                                sources.get(sigIdx).getConverterSetups().getFirst();
+                        final double rangeMin = csSig.getDisplayRangeMin();
+                        final double rangeMax = csSig.getDisplayRangeMax();
+                        final BvvStackSource<?> ms = mixedSource[0];
+                        final javax.swing.Timer applyRange = new javax.swing.Timer(100, ev -> {
+                            ms.setDisplayRange(rangeMin, rangeMax);
+                            ms.setColor(new ARGBType(0x0000FFFF)); // cyan
+                            repaint();
+                        });
+                        applyRange.setRepeats(false);
+                        applyRange.start();
+                        statusLabel.setText(String.format("Showing %s \u2212 %.2f \u00d7 %s",
+                                sigName, w, subName));
+                        panel.setCursor(Cursor.getDefaultCursor());
+                        computing[0] = false;
+                        checkSlabAndUpdateUI.run();
+                    });
+                    return null;
+                }
+            }.execute();
+        };
+
+        // --- Wire slider release ---
+        weightSlider.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseReleased(final java.awt.event.MouseEvent e) {
+                if (enableToggle.isSelected() && weightSlider.isEnabled()) {
+                    computeMix.run();
+                }
+            }
+        });
+
+        // --- Wire enable toggle ---
+        enableToggle.addActionListener(e -> {
+            checkSlabAndUpdateUI.run();
+            if (!enableToggle.isSelected()) {
+                // Disable: restore originals
+                if (mixedSource[0] != null) {
+                    mixedSource[0].removeFromBdv();
+                    mixedSource[0] = null;
+                }
+                multi.setActive(true);
+                repaint();
+                statusLabel.setText(" ");
+            }
+        });
+
+        // --- Wire reset ---
+        resetButton.addActionListener(e -> {
+            weightSlider.setValue(0);
+            enableToggle.setSelected(false);
+            if (mixedSource[0] != null) {
+                mixedSource[0].removeFromBdv();
+                mixedSource[0] = null;
+            }
+            multi.setActive(true);
+            repaint();
+            statusLabel.setText(" ");
+        });
+
+        // --- Listen for slab changes via renderingOptions ---
+        // Also check periodically when the panel is showing (lightweight timer)
+        final javax.swing.Timer slabCheckTimer = new javax.swing.Timer(500, e -> {
+            if (panel.isShowing() && enableToggle.isSelected()) {
+                checkSlabAndUpdateUI.run();
+            }
+        });
+        slabCheckTimer.setRepeats(true);
+        slabCheckTimer.start();
+
+        // Row 0: Signal: [====combo====]  Background: [====combo====]
+        gc.gridy = 0;
+        gc.gridx = 0;
+        gc.weightx = 0;
+        gc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("Signal:"), gc);
+        gc.gridx++;
+        gc.weightx = 0.5;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(signalCombo, gc);
+        gc.gridx++;
+        gc.weightx = 0;
+        gc.fill = GridBagConstraints.NONE;
+        panel.add(new JLabel("  Background:"), gc);
+        gc.gridx = 3;
+        gc.weightx = 0.5;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(subtractCombo, gc);
+        // Row 1: [Enable] [========slider========] weight label [Reset]
+        gc.gridy = 1;
+        gc.gridx = 0;
+        gc.weightx = 0;
+        gc.fill = GridBagConstraints.NONE;
+        panel.add(enableToggle, gc);
+        gc.gridx = 1;
+        gc.gridwidth = 2;
+        gc.weightx = 1.0;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        panel.add(weightSlider, gc);
+        gc.gridx = 3;
+        gc.gridwidth = 1;
+        gc.weightx = 0;
+        gc.fill = GridBagConstraints.NONE;
+        panel.add(weightLabel, gc);
+        gc.gridx = 4;
+        panel.add(resetButton, gc);
+        // Row 2: status
+        gc.gridy++;
+        gc.gridx = 0;
+        gc.gridwidth = 5;
+        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.weightx = 1.0;
+        panel.add(statusLabel, gc);
+
+        weightSlider.setEnabled(false); // disabled until enable toggle + slab check
+        return panel;
+    }
+
+    private final Set<String> unmixingCardTitles = new HashSet<>();
+
+    private String uniqueUnmixingTitle(final String imageName) {
+        final String base = "Channel Unmixing: " + imageName;
+        String title = base;
+        int suffix = 2;
+        while (!unmixingCardTitles.add(title)) {
+            title = base + " (#" + suffix + ")";
+            suffix++;
+        }
+        return title;
+    }
+
+    private void channelUnmixingError(final AbstractButton toggleButton,
+                                      final JLabel statusLabel, final String msg) {
+        statusLabel.setText(msg);
+        toggleButton.setSelected(false);
+        GuiUtils.errorPrompt(msg +".");
     }
 
     /**
@@ -4110,8 +4448,6 @@ public class Bvv {
         private boolean pathsWereVisible;
         /** Tracks whether annotations were visible before H was pressed */
         private boolean annotationsWereVisible;
-        /** Tracks whether markers panel was visible before H was pressed */
-        private boolean markersWereVisible;
         /** Guard against key-repeat firing multiple press events */
         private boolean hideActive;
 
@@ -4120,25 +4456,21 @@ public class Bvv {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (hideActive) return; // key repeat guard
-                    // Check if there is anything to hide
+                    // Check if there is anything to hide (markers are part of annotationOverlay)
                     final boolean hasPaths = pathOverlay != null && pathOverlay.isRenderingEnable()
                             && !pathOverlay.sntBvv.getRenderedTrees().isEmpty();
                     final boolean hasAnnotations = annotationOverlay != null
                             && annotationOverlay.isVisible() && annotationOverlay.getCount() > 0;
-                    final boolean hasMarkers = markerManager != null
-                            && markerManager.getBvvPanel().isVisible();
-                    if (!hasPaths && !hasAnnotations && !hasMarkers) {
+                    if (!hasPaths && !hasAnnotations) {
                         bvv.getViewer().showMessage("Nothing to hide");
                         return;
                     }
                     // Save current state
                     pathsWereVisible = pathOverlay != null && pathOverlay.isRenderingEnable();
                     annotationsWereVisible = annotationOverlay != null && annotationOverlay.isVisible();
-                    markersWereVisible = markerManager != null && markerManager.getBvvPanel().isVisible();
-                    // Hide everything
+                    // Hide overlays (markers table window stays open)
                     if (pathOverlay != null) pathOverlay.disableRendering(true);
                     if (annotationOverlay != null) annotationOverlay.setVisible(false);
-                    if (markersWereVisible) markerManager.getBvvPanel().setVisible(false);
                     hideActive = true;
                 }
             };
@@ -4152,8 +4484,6 @@ public class Bvv {
                     // Restore prior state
                     if (pathOverlay != null) pathOverlay.disableRendering(!pathsWereVisible);
                     if (annotationOverlay != null) annotationOverlay.setVisible(annotationsWereVisible);
-                    if (markersWereVisible && markerManager != null)
-                        markerManager.getBvvPanel().setVisible(true);
                     hideActive = false;
                 }
             };
