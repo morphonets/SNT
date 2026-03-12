@@ -64,6 +64,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	private boolean secondaryLayer;
 
 	private HashMap<String, ImagePlus> impMap;
+	private boolean accessToValidImagePlus;
 
 	@Override
 	public void run() {
@@ -95,7 +96,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	}
 
 	protected boolean isCalibrationCompatible(final ImagePlus chosenImp) {
-		if (!validateCalibration || !snt.accessToValidImageData())
+		if (!validateCalibration || !accessToValidImagePlus)
 			return true;
 		return ImpUtils.sameCalibration(snt.getImagePlus(), chosenImp);
 	}
@@ -136,6 +137,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 		}
 		impMap = new HashMap<>(impCollection.size());
 		final ImagePlus existingImp = snt.getImagePlus();
+		accessToValidImagePlus =  existingImp != null && existingImp.getProcessor() != null;
 		for (final ImagePlus imp : impCollection) {
 			if (imp.equals(existingImp)) continue;
 			impMap.put(imp.getTitle(), imp);
@@ -144,7 +146,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			noImgsOpenError();
 			return;
 		}
-		if (!snt.accessToValidImageData()) {
+		if (!accessToValidImagePlus) {
 			restoreImg = false;
 			resolveInput("restoreImg");
 		}
