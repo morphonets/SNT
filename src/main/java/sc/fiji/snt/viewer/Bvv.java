@@ -1140,6 +1140,12 @@ public class Bvv {
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_S,
                     java.awt.event.InputEvent.SHIFT_DOWN_MASK), "snt-bvv-snapshot");
             sntAMap.put("snt-bvv-snapshot", snapshotAction());
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_H, 0, false),
+                    "snt-hide-annotations-press");
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_H, 0, true),
+                    "snt-hide-annotations-release");
+            sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
+            sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
             bvvFrame.getKeybindings().addInputMap("snt", sntIMap);
             bvvFrame.getKeybindings().addActionMap("snt", sntAMap);
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
@@ -4094,6 +4100,61 @@ public class Bvv {
                     if (pathOverlay != null) pathOverlay.disableRendering(hide);
                     if (annotationOverlay != null) annotationOverlay.setVisible(!hide);
                     bvv.getViewer().showMessage(hide ? "Annotations hidden" : "Annotations visible");
+                }
+            };
+        }
+
+        // -- H key: hide all annotations while pressed, restore on release --
+
+        /** Tracks whether paths were visible before H was pressed */
+        private boolean pathsWereVisible;
+        /** Tracks whether annotations were visible before H was pressed */
+        private boolean annotationsWereVisible;
+        /** Tracks whether markers panel was visible before H was pressed */
+        private boolean markersWereVisible;
+        /** Guard against key-repeat firing multiple press events */
+        private boolean hideActive;
+
+        Action hideAnnotationsPressAction() {
+            return new AbstractAction("Hide annotations (hold)") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (hideActive) return; // key repeat guard
+                    // Check if there is anything to hide
+                    final boolean hasPaths = pathOverlay != null && pathOverlay.isRenderingEnable()
+                            && !pathOverlay.sntBvv.getRenderedTrees().isEmpty();
+                    final boolean hasAnnotations = annotationOverlay != null
+                            && annotationOverlay.isVisible() && annotationOverlay.getCount() > 0;
+                    final boolean hasMarkers = markerManager != null
+                            && markerManager.getBvvPanel().isVisible();
+                    if (!hasPaths && !hasAnnotations && !hasMarkers) {
+                        bvv.getViewer().showMessage("Nothing to hide");
+                        return;
+                    }
+                    // Save current state
+                    pathsWereVisible = pathOverlay != null && pathOverlay.isRenderingEnable();
+                    annotationsWereVisible = annotationOverlay != null && annotationOverlay.isVisible();
+                    markersWereVisible = markerManager != null && markerManager.getBvvPanel().isVisible();
+                    // Hide everything
+                    if (pathOverlay != null) pathOverlay.disableRendering(true);
+                    if (annotationOverlay != null) annotationOverlay.setVisible(false);
+                    if (markersWereVisible) markerManager.getBvvPanel().setVisible(false);
+                    hideActive = true;
+                }
+            };
+        }
+
+        Action hideAnnotationsReleaseAction() {
+            return new AbstractAction("Restore annotations") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!hideActive) return;
+                    // Restore prior state
+                    if (pathOverlay != null) pathOverlay.disableRendering(!pathsWereVisible);
+                    if (annotationOverlay != null) annotationOverlay.setVisible(annotationsWereVisible);
+                    if (markersWereVisible && markerManager != null)
+                        markerManager.getBvvPanel().setVisible(true);
+                    hideActive = false;
                 }
             };
         }
