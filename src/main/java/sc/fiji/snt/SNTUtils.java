@@ -178,9 +178,8 @@ public class SNTUtils {
 	}
 
 	public static synchronized void error(final String string, final Throwable t)  {
-		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
-		if (t == null) 
+		if (t == null)
 			logService.error("[SNT] " + string);
 		else
 			logService.error("[SNT] " + string, t);
@@ -193,7 +192,6 @@ public class SNTUtils {
 	}
 
 	public static synchronized void warn(final String string) {
-		if (!SNTUtils.isDebugMode()) return;
 		if (!initialized) initialize();
 		logService.warn("[SNT] " + string);
 	}

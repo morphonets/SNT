@@ -47,6 +47,7 @@ import org.scijava.script.ScriptService;
 import org.scijava.service.AbstractService;
 import org.scijava.service.Service;
 import org.scijava.util.FileUtils;
+import org.scijava.util.VersionUtils;
 
 import ij.ImagePlus;
 import sc.fiji.snt.analysis.PathProfiler;
@@ -94,6 +95,26 @@ public class SNTService extends AbstractService implements ImageJService {
 	// public void initialize() {
 	// scriptService.addAlias(this.getClass());
 	// }
+
+	/**
+	 * Ensures the running SNT version meets a minimum requirement. This is
+	 * analogous to IJ's {@code requires()} macro function.
+	 *
+	 * @param minVersion the minimum required version string, e.g., {@code "5.0.4"}
+	 * @throws IllegalStateException if the running version is older than {@code minVersion}
+	 */
+	public void requireVersion(final String minVersion) throws IllegalStateException {
+		final String current = SNTUtils.VERSION;
+		if ("N/A".equals(current) || VersionUtils.compare(current, minVersion) < 0) {
+			final String msg = "This script requires SNT " + minVersion + " or later"
+					+ (("N/A".equals(current))
+							? ", but the running version could not be determined."
+							: ", but you are running " + current + ".")
+					+ " Please run Fiji's updater (Help > Update...) to install the latest version.";
+			SNTUtils.error(msg);
+			throw new IllegalStateException(msg);
+		}
+	}
 
 	/**
 	 * Gets whether SNT is running.
