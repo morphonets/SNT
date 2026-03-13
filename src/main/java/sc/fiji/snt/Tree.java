@@ -1012,10 +1012,14 @@ public class Tree implements TreeProperties, Cloneable {
 	}
 
 	/**
-	 * Retrieves the rasterized skeleton of this tree at 1:1 scaling.
+	 * Retrieves the rasterized skeleton of this tree at 1:1 scaling. This
+	 * produces a 1-pixel-wide Bresenham rasterization suitable for topological
+	 * analysis. For a volumetric rendering that respects node radii, see
+	 * {@link sc.fiji.snt.util.TreeToRaster}.
 	 *
 	 * @return the skeletonized 8-bit binary image: (skeleton: 255, background: 0).
 	 * @see #skeletonize(ImagePlus, int)
+	 * @see sc.fiji.snt.util.TreeToRaster
 	 */
 	public ImagePlus getSkeleton() {
 		final ImagePlus imp =  getSkeleton(65535);

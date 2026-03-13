@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.util;
 
+import ij.ImagePlus;
 import ij.measure.Calibration;
 import org.jogamp.vecmath.Vector3d;
 import org.scijava.util.ColorRGB;
@@ -38,6 +39,35 @@ import java.util.*;
 public class TreeUtils {
 
     private TreeUtils() {
+    }
+
+    /**
+     * Rasterizes a tree into a 3D image using frustum (truncated-cone) geometry
+     * with partial-volume supersampling. Each segment is modeled as a frustum
+     * whose radii match the SWC node radii, producing a volumetric rendering
+     * that respects neurite thickness.
+     *
+     * @param tree the Tree to rasterize
+     * @return the rasterized 32-bit image (voxel values in [0, 1])
+     * @see TreeToRaster
+     */
+    public static ImagePlus rasterize(final Tree tree) {
+        return new TreeToRaster(tree).rasterize();
+    }
+
+    /**
+     * Rasterizes a tree into a 3D image with the specified voxel sizes.
+     *
+     * @param tree       the Tree to rasterize
+     * @param lateralRes lateral (x, y) voxel size in the tree's spatial units
+     * @param axialRes   axial (z) voxel size in the tree's spatial units
+     * @return the rasterized 32-bit image (voxel values in [0, 1])
+     * @see TreeToRaster
+     */
+    public static ImagePlus rasterize(final Tree tree, final double lateralRes,
+            final double axialRes) {
+        return new TreeToRaster(tree).setLateralRes(lateralRes)
+                .setAxialRes(axialRes).rasterize();
     }
 
     /**

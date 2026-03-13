@@ -12,13 +12,13 @@
 #@String(choices={"Intersections", "Length"},style="radioButtonHorizontal",label="Profile type:") typeChoice
 #@String(choices={"0 (continuous)","5","10","15","20"},value="10",style="radioButtonHorizontal",label="Radius step size (µm):") stepChoice
 #@String(choices={"2D Reconstruction vs 2D Bitmap (Fast)","3D Reconstruction vs 3D Bitmap (May take a while w/ small step size)", "3D Reconstruction vs 2D Reconstruction (Fast)"},style="radioButtonVertical",label="Type of Comparison") comparisonChoice
-#@String(choices={"Simple skeleton (Ground truth segmentation)","Dilated skeleton (More realistic segmentation)"},style="radioButtonVertical",label="Bitmap rasterization") skelChoice
+#@String(choices={"Simple skeleton (Ground truth segmentation)","Realistic segmentation (Truncated cone geometry)"},style="radioButtonVertical",label="Bitmap rasterization") skelChoice
 #@String(choices={"Only plots", "Plots and annotated images","Plots, annotated images, and statistics (printed to console)"},style="radioButtonVertical",label="Output") outputChoice
 #@SNTService snt
 
 // extract booleans etc. from the dialog prompt
 stepSize = stepChoice.split(" ")[0] as double
-dilate = skelChoice.contains("Dilated")
+realistic = skelChoice.contains("Realistic")
 illustrations = outputChoice.contains("images")
 stats = outputChoice.contains("statistics")
 println("Comparison started")
@@ -47,7 +47,7 @@ if (comparisonChoice.startsWith("3D Reconstruction vs 2D Reconstruction")) {
     // retrieve the reconstruction and its bitmap counterpart
     twoD = comparisonChoice.contains("2D")
     tree = getTree(cellChoice, twoD)
-    imp = getBitmapSkeleton(tree, dilate)
+    imp = getBitmapSkeleton(tree, realistic)
     
     // obtain profiles. This can take several minutes
     // depending on stack size and radius step size
@@ -103,20 +103,28 @@ def getTree(description, twoD) {
 }
 
 /**
- * Returns a raster skeleton of the specified Tree.
+ * Returns a raster image of the specified Tree.
  *
- * @param tree the Tree object to be rasterized as a skeleton
- * @param dilate whether the skeleton should be enlarged (dilated) for realism
- * @return the ImagePlus object representing the raster skeleton
+ * @param tree the Tree object to be rasterized
+ * @param realistic if true, uses TreeToRaster (truncated cone geometry with
+ *        partial-volume supersampling); otherwise uses Tree.getSkeleton()
+ * @return the ImagePlus object representing the rasterized tree
  */
-def getBitmapSkeleton(tree, dilate) {
+def getBitmapSkeleton(tree, realistic) {
     start = new Date()
     print("  Obtaining bitmap image for ${tree.getLabel()}... ")
-    def imp = tree.getSkeleton()
-    if (dilate) {
-        IJ.run(imp, "Dilate", "stack")
-        imp.setTitle("Bitmap (DS) " + tree.getLabel())
+    def imp
+    if (realistic) {
+        imp = new TreeToRaster(tree).rasterize()
+        // TreeToRaster returns a 32-bit partial-volume image [0,1].
+        // Project if multi-slice (e.g., 2D tree with radius padding),
+        // then convert to 8-bit for consistency with the skeleton path
+        if (imp.getNSlices() > 1 && !tree.is3D())
+            imp = ImpUtils.getMIP(imp)
+        ImpUtils.convertTo8bit(imp)
+        imp.setTitle("Bitmap (TCG) " + tree.getLabel())
     } else {
+        imp = tree.getSkeleton()
         imp.setTitle("Bitmap (S) " + tree.getLabel())
     }
     println(" Done in " + TimeCategory.minus(new Date(), start))
@@ -253,12 +261,12 @@ def compare(profile1, profile2) {
 // imports below
 import groovy.time.TimeCategory
 import groovy.time.TimeDuration
-import ij.IJ
-import ij.ImagePlus
 import sc.fiji.snt.*
 import sc.fiji.snt.analysis.*
 import sc.fiji.snt.analysis.sholl.*
 import sc.fiji.snt.analysis.sholl.gui.*
 import sc.fiji.snt.analysis.sholl.parsers.*
 import sc.fiji.snt.analysis.sholl.math.*
+import sc.fiji.snt.util.ImpUtils
+import sc.fiji.snt.util.TreeToRaster
 import sc.fiji.snt.viewer.*
