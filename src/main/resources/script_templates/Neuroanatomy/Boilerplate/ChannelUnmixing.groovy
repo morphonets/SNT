@@ -4,34 +4,15 @@
 // Signal setup: #{SIG_SETUP}, Background setup: #{SUB_SETUP}
 // Levels: #{N_LEVELS}, Timepoints: #{N_TIMEPOINTS}
 //
-// Run in Fiji's Script Editor (Language: Groovy) or via headless:
-//   fiji --headless --run ChannelUnmixing.groovy
-//
-// The UnmixingOp class is modular: swap its apply() method
-// for any pixel-wise operation (e.g., ratio, linear combo, etc.)
+// Run in Fiji's Script Editor (Language: Groovy)
 //
 // Requires: n5-imglib2 (included in Fiji). Output is an N5 container
-// that can be opened with Fiji > File > Open... or BigDataViewer.
+// + BVV/BDV XML file
 
-import bdv.img.imaris.Imaris
-import bdv.spimdata.XmlIoSpimDataMinimal
-import mpicbg.spim.data.generic.AbstractSpimData
-import net.imglib2.RandomAccessibleInterval
-import net.imglib2.img.array.ArrayImgs
-import net.imglib2.loops.LoopBuilder
-import net.imglib2.view.Views
-import net.imglib2.type.numeric.integer.UnsignedShortType
-import org.janelia.saalfeldlab.n5.*
-import org.janelia.saalfeldlab.n5.imglib2.N5Utils
-
-import sc.fiji.snt.io.SpimDataUtils
-
-import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
-
-// ─── Modular unmixing operation ─────────────────────────────
-// Swap this class to change the pixel-wise operation.
-// Contract: apply(double signal, double background) → double
+// ─────────── Unmixing operation  ───────────
+// Swap this class to change the pixel-wise operation for any
+// pixel-wise operation (e.g., ratio, linear combo, etc.)
+// Contract: apply(double signal, double background) -> double
 class UnmixingOp {
     final double weight
     UnmixingOp(double weight) { this.weight = weight }
@@ -44,7 +25,7 @@ class UnmixingOp {
     String describe() { "subtract_w${String.format('%.2f', weight)}" }
 }
 
-// ─── Parameters ─────────────────────────────────────────────
+// ─────────── Parameters  ───────────
 def inputPath   = '#{INPUT_PATH}'
 def sigSetup    = #{SIG_SETUP}
 def subSetup    = #{SUB_SETUP}
@@ -55,13 +36,13 @@ def nThreads    = Runtime.getRuntime().availableProcessors()
 
 def op = new UnmixingOp(weight)
 
-// ─── Output path ────────────────────────────────────────────
+// ─────────── Output path  ───────────
 def baseName = new File(inputPath).name.replaceFirst(/\.[^.]+$/, '')
 def outDir   = new File(new File(inputPath).parentFile,
                         "${baseName}_unmixed_${op.describe()}")
 println "Output: ${outDir.absolutePath}"
 
-// ─── Open dataset ───────────────────────────────────────────
+// ─────────── Open dataset ───────────
 AbstractSpimData spimData
 if (inputPath.toLowerCase().endsWith('.ims')) {
     spimData = Imaris.openIms(inputPath)
@@ -72,13 +53,15 @@ def imgLoader = spimData.sequenceDescription.imgLoader
 def sigLoader = imgLoader.getSetupImgLoader(sigSetup)
 def subLoader = imgLoader.getSetupImgLoader(subSetup)
 
-// ─── N5 writer for output ───────────────────────────────────
+// ─────────── N5 writer for output ───────────
+
 def n5 = new N5FSWriter(outDir.absolutePath)
 
 // Collect per-level dimensions for BDV XML generation
 def levelDims = []       // long[][] — dimensions at each level
 
-// ─── Block-wise processing (memory-safe) ────────────────────
+// ─────────── Block-wise processing (memory-safe) ───────────
+
 // Each level may be huge (many GB).  We process block-by-block:
 //   1. Read signal block (sequential — HDF5 not thread-safe)
 //   2. Read background block (sequential)
@@ -194,7 +177,7 @@ executor.shutdown()
 n5.close()
 println "\nComplete: ${totalBlocks.get()} blocks written to ${outDir.absolutePath}"
 
-// ─── Write BDV-compatible XML descriptor ────────────────────
+// ─────────── Write BDV-compatible XML descriptor ───────────
 // This allows the result to be opened directly with:
 //   Bvv.open("/path/to/dataset_unmixed.xml")
 //   or Fiji > Plugins > BigDataViewer > Open XML/HDF5
@@ -216,3 +199,21 @@ SpimDataUtils.writeBdvN5Xml(xmlFile, outDir.name,
 
 println "BDV XML written: ${xmlFile.absolutePath}"
 println "Open in Fiji:  Bvv.open('${xmlFile.absolutePath}')"
+
+
+// ─────────── Imports ───────────
+import bdv.img.imaris.Imaris
+import bdv.spimdata.XmlIoSpimDataMinimal
+import mpicbg.spim.data.generic.AbstractSpimData
+import net.imglib2.RandomAccessibleInterval
+import net.imglib2.img.array.ArrayImgs
+import net.imglib2.loops.LoopBuilder
+import net.imglib2.view.Views
+import net.imglib2.type.numeric.integer.UnsignedShortType
+import org.janelia.saalfeldlab.n5.*
+import org.janelia.saalfeldlab.n5.imglib2.N5Utils
+
+import sc.fiji.snt.io.SpimDataUtils
+
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger

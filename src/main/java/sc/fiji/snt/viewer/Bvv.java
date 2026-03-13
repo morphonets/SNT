@@ -91,7 +91,7 @@ public class Bvv {
      *
      * @return the last initialised Bvv, or {@code null}
      */
-    public static Bvv getLastInstance() {
+    public static Bvv getInstance() {
         return lastInstance;
     }
 
@@ -1857,18 +1857,7 @@ public class Bvv {
         final int nTimepoints = spimData.getSequenceDescription().getTimePoints().size();
 
         // Load template from resources
-        final String template;
-        try {
-            final ClassLoader cl = Thread.currentThread().getContextClassLoader();
-            final java.io.InputStream is = cl.getResourceAsStream(
-                    "script_templates/Neuroanatomy/Boilerplate/ChannelUnmixing.groovy");
-            if (is == null) return "// Error: ChannelUnmixing.groovy template not found in resources";
-            template = new java.io.BufferedReader(new java.io.InputStreamReader(is))
-                    .lines().collect(java.util.stream.Collectors.joining("\n"));
-        } catch (final Exception e) {
-            return "// Error loading template: " + e.getMessage();
-        }
-
+        final String template = loadBoilerPlateScrip("ChannelUnmixing.groovy");
         // Replace placeholders
         return template
                 .replace("#{INPUT_PATH}", filePath.replace("\\", "\\\\").replace("'", "\\'"))
@@ -1883,6 +1872,20 @@ public class Bvv {
 
     private void showGroovyScript(final String script, final String title) {
         ScriptInstaller.newScript(script, title + ".groovy");
+    }
+
+    private String loadBoilerPlateScrip(final String scriptName) {
+        try {
+            final ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            final java.io.InputStream is = cl.getResourceAsStream(
+                    "script_templates/Neuroanatomy/Boilerplate/" + scriptName);
+            if (is == null)
+                return "// Error: " + scriptName + " template not found in resources";
+            return new java.io.BufferedReader(new java.io.InputStreamReader(is))
+                    .lines().collect(java.util.stream.Collectors.joining("\n"));
+        } catch (final Exception e) {
+            return "// Error loading template: " + e.getMessage();
+        }
     }
 
     /**
@@ -3366,6 +3369,7 @@ public class Bvv {
             menu.add(new JMenuItem(actions.saveSettingsAction()));
             addSeparator(menu, IconFactory.GLYPH.INFO, "Help");
             menu.add(new JMenuItem(actions.showHelpAction()));
+            menu.add(new JMenuItem(actions.showMovieHelpAction()));
             return oButton;
         }
     }
@@ -4784,7 +4788,7 @@ public class Bvv {
 
         /**
          * Serializes this keyframe to a single-line string:
-         * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a,b,c|accel=N}
+         * {@code transform=d0,d1,...,d11|cam=dCam,near,far|visible=a;b;c|accel=N}
          */
         @Override
         public String toString() {
@@ -4795,7 +4799,10 @@ public class Bvv {
                 sb.append(m[i]);
             }
             sb.append("|cam=").append(dCam).append(',').append(nearClip).append(',').append(farClip);
-            sb.append("|visible=").append(String.join(",", visibleActors));
+            // Sanitize actor names: replace ';' to avoid breaking the delimiter
+            sb.append("|visible=").append(visibleActors.stream()
+                    .map(a -> a.replace(';', '_'))
+                    .collect(java.util.stream.Collectors.joining(";")));
             sb.append("|accel=").append(getAccelNameSerialized());
             sb.append("|frames=").append(frames);
             return sb.toString();
@@ -4832,7 +4839,7 @@ public class Bvv {
                 // Visible actors
                 final Set<String> vis = new LinkedHashSet<>();
                 final String visStr = parts.getOrDefault("visible", "");
-                if (!visStr.isBlank()) Collections.addAll(vis, visStr.split(","));
+                if (!visStr.isBlank()) Collections.addAll(vis, visStr.split(";"));
                 // Accel (accepts "slow_start", "slow start", or int "1")
                 final String accelStr = parts.getOrDefault("accel", "symmetric");
                 int accel;
@@ -4867,20 +4874,22 @@ public class Bvv {
         final double fc = pathOverlay != null ? pathOverlay.overlayRenderer.farClip : 1000;
         // Visible actors
         final Set<String> actors = new LinkedHashSet<>();
-        // Volume sources: use group names from ViewerState
         final bdv.viewer.SynchronizedViewerState state = vp.state();
+        // Collect sources that belong to at least one group (active or not)
         final List<bdv.viewer.SourceGroup> groups = state.getGroups();
+        final Set<bdv.viewer.SourceAndConverter<?>> groupedSources = new HashSet<>();
         for (int g = 0; g < groups.size(); g++) {
             final bdv.viewer.SourceGroup grp = groups.get(g);
+            groupedSources.addAll(state.getSourcesInGroup(grp));
             if (state.isGroupActive(grp)) {
                 final String name = state.getGroupName(grp);
                 actors.add("vol:" + (name != null ? name : "group" + g));
             }
         }
-        // Individual sources not in any active group: check active state
+        // Only record individual sources that are active but NOT covered by any group
         final List<? extends bdv.viewer.SourceAndConverter<?>> allSrcs = state.getSources();
         for (int i = 0; i < allSrcs.size(); i++) {
-            if (state.isSourceActive(allSrcs.get(i))) {
+            if (state.isSourceActive(allSrcs.get(i)) && !groupedSources.contains(allSrcs.get(i))) {
                 actors.add("src:" + i);
             }
         }
@@ -4934,6 +4943,20 @@ public class Bvv {
     }
 
     /**
+     * Plays back a subset of keyframes (from index {@code from} to index
+     * {@code to}, inclusive). Useful for previewing a specific transition
+     * without replaying the entire sequence.
+     *
+     * @param keyframes ordered list of all keyframes
+     * @param from      start index (inclusive, 0-based)
+     * @param to        end index (inclusive, 0-based)
+     * @see #playback(List)
+     */
+    public void playback(final List<Keyframe> keyframes, final int from, final int to) {
+        renderFrames(keyframes.subList(from, to + 1), null);
+    }
+
+    /**
      * Renders an animation between a list of keyframes, saving each frame as a
      * PNG screenshot. The transform is interpolated smoothly between keyframes
      * using {@link SimilarityTransformAnimator}; visibility and slab bounds snap
@@ -4976,6 +4999,10 @@ public class Bvv {
             // Apply visibility & camera/slab from the 'from' keyframe at the start
             // of each segment: visibility snaps at keyframe boundaries
             applyKeyframeState(from);
+            if (!save) {
+                vp.showMessage(String.format("Keyframe %d → %d  (%d frames, %s)",
+                        k - 1, k, nFrames, to.getAccelName()));
+            }
 
             for (int d = 0; d < nFrames; d++) {
                 final double progress = (double) d / (double) nFrames;
@@ -5400,7 +5427,6 @@ public class Bvv {
             };
         }
 
-
         Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
                 @Override
@@ -5413,6 +5439,16 @@ public class Bvv {
                             bvv.getViewerFrame().getKeybindings().getConcatenatedActionMap(),
                             bvv.getViewer().getActionMap()  // picks up snt-add-marker, snt-bvv-snapshot
                     );
+                }
+            };
+        }
+
+        Action showMovieHelpAction() {
+            return new AbstractAction("Scripted Movies...", IconFactory.menuIcon('\uf008', true)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final String script = "BvvRecording.groovy";
+                    ScriptInstaller.newScript(loadBoilerPlateScrip(script), script);
                 }
             };
         }
