@@ -13,6 +13,8 @@
 
 
 // ===== Main script =====
+snt.requireVersion("5.0.5") // SNT version required to run this script
+
 def trees = snt.demoTrees() // the cells to be analyzed: MouseLight dendrites registered to the Allen CCF
 def mop = AllenUtils.getCompartment("MOp5") // The CCF compartment to be analyzed
 def mesh = mop.getMesh() // the 3D mesh defining the contours of the compartment

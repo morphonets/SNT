@@ -5,8 +5,10 @@
 #@SNTService sntService
 #@UIService uiService
 
+sntService.requireVersion("5.0.5") // SNT version required to run this script
 
-/** 
+
+/**
  *  Exemplifies how to use IJ1 to make a montage out of 'straightened' Paths.
  *  For further details:
  *  https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/PathStraightener.html

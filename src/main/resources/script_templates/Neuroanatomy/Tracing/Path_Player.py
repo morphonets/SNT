@@ -1,4 +1,6 @@
 #@SNTService snt # scijava parameter
+
+snt.requireVersion("5.0.5") # SNT version required to run this script
 """
 This script 'plays' a walkthrough through selected paths in SNT, centering and zooming
 on each path node sequentially. The playback can be aborted by clicking on the image.

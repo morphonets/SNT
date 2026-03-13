@@ -6,6 +6,8 @@
 #@DisplayService ds
 #@SNTService snt
 
+snt.requireVersion("5.0.5") # SNT version required to run this script
+
 """
 file:       Convex_Hull_Bulk_Analysis.py
 author:     Cameron Arshadi, Tiago Ferreira

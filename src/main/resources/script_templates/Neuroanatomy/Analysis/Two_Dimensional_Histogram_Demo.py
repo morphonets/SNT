@@ -1,5 +1,7 @@
 #@SNTService snt
 
+snt.requireVersion("5.0.5") # SNT version required to run this script
+
 """
  Exemplifies how to plot a two-dimensional bivariate histogram in SNT.
  Documentation Resources: https:#imagej.net/plugins/snt/scripting

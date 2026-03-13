@@ -3,6 +3,8 @@
 #@OpService ops
 #@SNTService snt
 
+snt.requireVersion("5.0.5") // SNT version required to run this script
+
 /**
  * file: Sholl_Convex_Hull_As_Center.groovy
  * author: Tiago Ferreira

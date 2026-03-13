@@ -3,6 +3,8 @@
 #@SNTService snt
 #@UIService ui
 
+snt.requireVersion("5.0.5") // SNT version required to run this script
+
 /**
  *  Applies a pre-existing Weka model to the image being traced. API Resources:
  *  https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/SNTService.html

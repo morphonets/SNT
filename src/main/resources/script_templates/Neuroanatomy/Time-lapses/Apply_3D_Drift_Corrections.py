@@ -732,6 +732,8 @@ def log(msg):
 #@UIService uiService
 #@LogService logService
 
+sntService.requireVersion("5.0.5") # SNT version required to run this script
+
 
 def log(msg):
   logService.log(logService.INFO, msg) # replaces IJ.log() messages in original script

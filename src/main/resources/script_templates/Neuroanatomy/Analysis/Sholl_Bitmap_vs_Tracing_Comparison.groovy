@@ -11,10 +11,12 @@
 #@String(choices={"Cortical pyramidal neuron (dendrites, mouse)","Dentate gyrus granule cell (dendrites, rat)","Olfactory projection (axon, drosophila)"},label="Cell") cellChoice
 #@String(choices={"Intersections", "Length"},style="radioButtonHorizontal",label="Profile type:") typeChoice
 #@String(choices={"0 (continuous)","5","10","15","20"},value="10",style="radioButtonHorizontal",label="Radius step size (µm):") stepChoice
-#@String(choices={"2D Reconstruction vs 2D Bitmap (Fast)","3D Reconstruction vs 3D Bitmap (May take a while w/ small step size)", "3D Reconstruction vs 2D Reconstruction (Fast)"},style="radioButtonVertical",label="Type of Comparison") comparisonChoice
-#@String(choices={"Simple skeleton (Ground truth segmentation)","Realistic segmentation (Truncated cone geometry)"},style="radioButtonVertical",label="Bitmap rasterization") skelChoice
+#@String(choices={"2D Reconstruction vs 2D Bitmap","3D Reconstruction vs 3D Bitmap (Slow: specially w/ small step size!)", "3D Reconstruction vs 2D Reconstruction"},style="radioButtonVertical",label="Type of Comparison") comparisonChoice
+#@String(choices={"Simple skeleton (Fast: simplified segmentation)","Realistic segmentation (Slow: truncated cone geometry)"},style="radioButtonVertical",label="Bitmap rasterization") skelChoice
 #@String(choices={"Only plots", "Plots and annotated images","Plots, annotated images, and statistics (printed to console)"},style="radioButtonVertical",label="Output") outputChoice
 #@SNTService snt
+
+snt.requireVersion("5.0.5") // SNT version required to run this script
 
 // extract booleans etc. from the dialog prompt
 stepSize = stepChoice.split(" ")[0] as double
@@ -47,7 +49,7 @@ if (comparisonChoice.startsWith("3D Reconstruction vs 2D Reconstruction")) {
     // retrieve the reconstruction and its bitmap counterpart
     twoD = comparisonChoice.contains("2D")
     tree = getTree(cellChoice, twoD)
-    imp = getBitmapSkeleton(tree, realistic)
+    imp = getBitmapTree(tree, realistic)
     
     // obtain profiles. This can take several minutes
     // depending on stack size and radius step size
@@ -110,18 +112,20 @@ def getTree(description, twoD) {
  *        partial-volume supersampling); otherwise uses Tree.getSkeleton()
  * @return the ImagePlus object representing the rasterized tree
  */
-def getBitmapSkeleton(tree, realistic) {
+def getBitmapTree(tree, realistic) {
     start = new Date()
     print("  Obtaining bitmap image for ${tree.getLabel()}... ")
     def imp
     if (realistic) {
+    	print("  Using realistic rasterization. This may take a while...")
         imp = new TreeToRaster(tree).rasterize()
         // TreeToRaster returns a 32-bit partial-volume image [0,1].
         // Project if multi-slice (e.g., 2D tree with radius padding),
-        // then convert to 8-bit for consistency with the skeleton path
+        // then convert to 8-bit, and binarize for consistency with the skeleton path
         if (imp.getNSlices() > 1 && !tree.is3D())
             imp = ImpUtils.getMIP(imp)
-        ImpUtils.convertTo8bit(imp)
+        ImpUtils.convertTo8bit(imp) // range is now [0 (background), 255]
+        ImpUtils.binarize(imp, 1, 255) 
         imp.setTitle("Bitmap (TCG) " + tree.getLabel())
     } else {
         imp = tree.getSkeleton()

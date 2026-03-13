@@ -4,6 +4,8 @@
 #@SNTService snt
 #@UIService ui
 
+snt.requireVersion("5.0.5") # SNT version required to run this script
+
 """
  Exemplifies how to obtain a density map from a group of neuronal reconstructions.
  TF 20221009

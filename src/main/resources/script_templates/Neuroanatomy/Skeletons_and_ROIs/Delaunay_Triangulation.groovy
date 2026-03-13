@@ -1,6 +1,8 @@
 #@SNTService snt
 
-/** 
+snt.requireVersion("5.0.5") // SNT version required to run this script
+
+/**
  *  Exemplifies how to compute Delaunay triangulations for sub-compartments of
  *  a neuronal reconstruction.
  *  TF 20240115

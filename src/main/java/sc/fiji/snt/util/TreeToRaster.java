@@ -339,6 +339,20 @@ public class TreeToRaster {
 	private java.util.List<Frustum> buildFrustums(final double defR) {
 		final java.util.List<Frustum> frustums = new java.util.ArrayList<>();
 		for (final Path p : tree.list()) {
+			// Bridge frustum: connect parent's branch node to this path's
+			// first node so that fork/junction points are contiguous
+			final Path parent = p.getParentPath();
+			if (parent != null && p.size() > 0) {
+				final int bpIdx = p.getBranchPointIndex();
+				if (bpIdx >= 0 && bpIdx < parent.size()) {
+					final PointInImage bp = parent.getNode(bpIdx);
+					final PointInImage n0 = p.getNode(0);
+					final double rBp = (parent.hasRadii()) ? parent.getNodeRadius(bpIdx) : defR;
+					final double r0 = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
+					frustums.add(new Frustum(bp.x, bp.y, bp.z, rBp,
+							n0.x, n0.y, n0.z, r0));
+				}
+			}
 			for (int i = 0; i < p.size() - 1; i++) {
 				final PointInImage n0 = p.getNode(i);
 				final PointInImage n1 = p.getNode(i + 1);

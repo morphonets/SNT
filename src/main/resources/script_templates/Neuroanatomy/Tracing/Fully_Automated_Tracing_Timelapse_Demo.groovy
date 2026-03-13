@@ -1,5 +1,7 @@
 #@SNTService sntService
 
+sntService.requireVersion("5.0.5") // SNT version required to run this script
+
 import sc.fiji.snt.*
 import ij.IJ
 import sc.fiji.snt.tracing.auto.BinaryTracer

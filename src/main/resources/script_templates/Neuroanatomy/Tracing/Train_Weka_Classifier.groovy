@@ -7,6 +7,8 @@
 #@SNTService snt
 #@UIService ui
 
+snt.requireVersion("5.0.5") // SNT version required to run this script
+
 /**
  *  Exemplifies how to train a Weka model using traced paths. API Resources:
  *  https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/SNTService.html

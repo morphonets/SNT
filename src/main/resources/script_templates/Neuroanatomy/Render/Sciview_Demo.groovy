@@ -1,5 +1,6 @@
 #@SNTService sntService
 #@DatasetIOService datasetIOService
+sntService.requireVersion("5.0.5") // SNT version required to run this script
 
 import sc.fiji.snt.Tree
 import sc.fiji.snt.SciViewSNT
