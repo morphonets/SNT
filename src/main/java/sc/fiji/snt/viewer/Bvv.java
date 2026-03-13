@@ -22,14 +22,12 @@
 
 package sc.fiji.snt.viewer;
 
-import bdv.img.imaris.Imaris;
-import bdv.spimdata.SpimDataMinimal;
 import bdv.spimdata.XmlIoSpimDataMinimal;
 import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
+import bdv.util.MipmapTransforms;
 import bdv.util.Prefs;
 import bdv.util.AxisOrder;
-import mpicbg.spim.data.SpimDataException;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import bdv.viewer.Source;
 import bdv.viewer.animate.SimilarityTransformAnimator;
@@ -50,7 +48,6 @@ import net.imglib2.loops.LoopBuilder;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.realtransform.RealViews;
 import net.imglib2.type.numeric.ARGBType;
-import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
 import org.jdom2.JDOMException;
@@ -61,6 +58,7 @@ import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
 import sc.fiji.snt.util.*;
 
@@ -120,6 +118,7 @@ public class Bvv {
     private BookmarkManager markerManager; // lazily initialized on first use
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
+    private volatile javax.swing.SwingWorker<?, ?> imgProcessingWorker; // cancellable background task (e.g. channel unmixing)
 
     /**
      * Constructor for standalone BVV instance.
@@ -745,55 +744,11 @@ public class Bvv {
      * Resolves a file path to either an {@link AbstractSpimData} (for
      * {@code .ims} and {@code .xml} files) or an {@link ImgPlus} (fallback).
      * Shared by {@link #open(String)} and {@link #open(String...)}.
+     *
+     * @see sc.fiji.snt.io.SpimDataUtils#resolvePathToSource(String)
      */
     private static Object resolvePathToSource(final String filePathOrUrl) {
-        final File file = new File(filePathOrUrl);
-        final String lower = file.getName().toLowerCase();
-
-        if (lower.endsWith(".ims")) {
-            final String basePath = file.getAbsolutePath();
-            final String xmlPath = basePath.substring(0, basePath.length() - 4) + ".xml";
-            try {
-                if (new File(xmlPath).exists()) {
-                    SNTUtils.log("BVV: reusing existing XML sidecar: " + xmlPath);
-                    return new XmlIoSpimDataMinimal().load(xmlPath);
-                }
-                final File dir = file.getParentFile();
-                if (dir != null && !dir.canWrite()) {
-                    throw new IllegalArgumentException(
-                            "Cannot write to directory: " + dir.getAbsolutePath() + "\n" +
-                                    "Create the BDV XML file manually via " +
-                                    "Plugins > BigDataViewer > Create XML for Imaris file, " +
-                                    "then use Bvv.open(\"/path/to/dataset.xml\").");
-                }
-                final SpimDataMinimal spimData = Imaris.openIms(file.getAbsolutePath());
-                new XmlIoSpimDataMinimal().save(spimData, xmlPath);
-                // Patch placeholder setup names before loading: setName() is protected
-                // in BasicViewSetup so we patch the XML file directly instead.
-                final String base = file.getName().endsWith(".ims")
-                        ? file.getName().substring(0, file.getName().length() - 4)
-                        : file.getName();
-                patchImsXml(xmlPath, base);
-                SNTUtils.log("BVV: created XML sidecar: " + xmlPath);
-                return new XmlIoSpimDataMinimal().load(xmlPath);
-            } catch (final IOException | SpimDataException e) {
-                throw new IllegalArgumentException("Could not open IMS file: " + e.getMessage(), e);
-            }
-        }
-
-        if (lower.endsWith(".xml")) {
-            try {
-                return new XmlIoSpimDataMinimal().load(filePathOrUrl);
-            } catch (final SpimDataException e) {
-                throw new IllegalArgumentException("Could not open XML file: " + e.getMessage(), e);
-            }
-        }
-
-        // Fallback: open as ImgPlus (includes size check before reaching BVV)
-        final ImgPlus<?> img = ImgUtils.open(filePathOrUrl);
-        if (img == null)
-            throw new IllegalArgumentException("Could not open file: " + filePathOrUrl);
-        return img;
+        return sc.fiji.snt.io.SpimDataUtils.resolvePathToSource(filePathOrUrl);
     }
 
     /**
@@ -861,6 +816,24 @@ public class Bvv {
         final BvvMultiSource multi = new BvvMultiSource(leaderSource,
                 new ArrayList<>(followerSources));
         multiSources.add(multi);
+
+        // Add channel unmixing card for 2+ channel SpimData sources
+        if (multi.size() >= 2 && currentBvv != null) {
+            final String mixerTitle = uniqueUnmixingTitle(datasetName);
+            SwingUtilities.invokeLater(() -> {
+                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
+                cp.addCard(mixerTitle, buildChannelMixerCard(multi, spimData), false);
+                if (sceneControlsCard != null) {
+                    cp.removeCard("Scene Controls");
+                    cp.addCard("Scene Controls", sceneControlsCard, true);
+                }
+                if (sntAnnotationsCard != null) {
+                    cp.removeCard("SNT Annotations");
+                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                }
+            });
+        }
+
         return Collections.singletonList(multi);
     }
 
@@ -1193,6 +1166,12 @@ public class Bvv {
             // SNT toolbar
             sntAnnotationsCard = sntToolbar(actions);
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntAnnotationsCard, true);
+            // Shared progress bar at the bottom of the frame
+            progressBar = new JProgressBar(0, 100);
+            progressBar.setStringPainted(true);
+            progressBar.setString("");
+            progressBar.setVisible(false);
+            bvvFrame.getContentPane().add(progressBar, java.awt.BorderLayout.SOUTH);
             // Register shortcuts through BDV's keybindings system so they are
             // handled at the same level as BVV's own shortcuts (e.g., Shift+B).
             // Using Swing's InputMap/ActionMap directly gets shadowed by BDV's
@@ -1259,38 +1238,49 @@ public class Bvv {
      * Builds a "Channel Unmixing" card panel for two-channel subtraction. The card
      * provides a slider that controls a subtraction weight {@code w} in
      * {@code result = ch0 - w * ch1} (clamped to [0, 65535]). On slider
-     * release, the mix is computed eagerly via {@link LoopBuilder}, displayed as
-     * a new {@link BvvStackSource}, and the original channels are hidden.
+     * release, the mix is computed eagerly via {@link LoopBuilder} on a
+     * <b>slab-cropped</b> sub-volume (only the visible Z-slices), then
+     * displayed as a new in-memory {@link BvvStackSource}; the original
+     * channels are hidden. Cropping to the slab keeps the materialized volume
+     * small (a few slices) so the computation is fast even for large datasets
+     * on network storage, and the in-memory result prevents the GL render
+     * thread from blocking on I/O.
      * <p>
-     * <b>Requires an active thin slab view</b> to ensure interactive
-     * performance: the full volume is recomputed on each weight change, but
-     * only the slab region is uploaded to the GPU. If the slab is inactive,
-     * the slider is disabled with a tooltip explaining the requirement.
+     * For large or pyramid-backed datasets, an active thin slab view is
+     * required to keep the materialized volume small. Smaller ImgPlus
+     * volumes that fit in memory can be unmixed without slab constraints.
      *
      * @param multi the two-channel {@link BvvMultiSource} to mix
      * @return a JPanel suitable for {@code CardPanel.addCard()}
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private JPanel buildChannelMixerCard(final BvvMultiSource multi) {
+        return buildChannelMixerCard(multi, null);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private JPanel buildChannelMixerCard(final BvvMultiSource multi, final AbstractSpimData<?> spimData) {
         final JPanel panel = new JPanel(new GridBagLayout());
         panel.setOpaque(false);
         final GridBagConstraints gc = new GridBagConstraints();
-        //gc.insets = new Insets(2, 4, 2, 4);
-        //gc.fill = GridBagConstraints.HORIZONTAL;
-        //gc.weightx = 1.0;
 
         // Per-card mixed source (local to this card's closure, not shared across cards)
         final BvvStackSource<?>[] mixedSource = {null};
+        // Slab bounds (world-space Z) at which the mixed source was computed.
+        // Used to auto-restore originals when the slab changes post-computation.
+        final double[] computedSlabZ = {Double.NaN, Double.NaN};
 
         final List<BvvStackSource<?>> sources = multi.getSources();
         final int nChannels = sources.size();
-        final RandomAccessibleInterval[] channelRais = new RandomAccessibleInterval[nChannels];
+        // Keep source references; RAIs are resolved lazily at the best mip level
+        final bdv.viewer.SourceAndConverter<?>[] channelSacs = new bdv.viewer.SourceAndConverter<?>[nChannels];
         final String[] channelNames = new String[nChannels];
         for (int i = 0; i < nChannels; i++) {
-            final bdv.viewer.SourceAndConverter<?> sac = sources.get(i).getSources().getFirst();
-            channelRais[i] = sac.getSpimSource().getSource(0, 0);
+            channelSacs[i] = sources.get(i).getSources().getFirst();
             channelNames[i] = "Ch" + (i + 1);
         }
+        // Detect multi-resolution (pyramid) sources: the unmixed result is always
+        // a single-level ArrayImg, so we warn users when the originals have a pyramid.
+        final boolean hasPyramid = channelSacs[0].getSpimSource().getNumMipmapLevels() > 1;
 
         final JComboBox<String> signalCombo = new JComboBox<>(channelNames);
         signalCombo.setSelectedIndex(0);
@@ -1300,15 +1290,18 @@ public class Bvv {
         subtractCombo.setToolTipText("Background channel to subtract");
 
         final JSlider weightSlider = new JSlider(0, 100, 0);
-        weightSlider.setToolTipText("<html>Subtraction weight <i>w</i>: result = Signal − <i>w</i> × Subtract.<br>"
-                + "Adjust on slider release. Requires active slab view.");
+        weightSlider.setToolTipText(
+                "<html>Subtraction weight <i>w</i>: <i>Result = Signal − w × Background</i>.<br>"
+                + "Start low and increase until bleed-through disappears.<br>"
+                + "Higher values remove more background but may clip signal.<br>"
+                + "Adjust on slider release.");
         final JLabel weightLabel = new JLabel("w = 0.00");
         weightSlider.addChangeListener(e ->
                 weightLabel.setText(String.format("w = %.2f", weightSlider.getValue() / 100.0)));
 
         final JToggleButton enableToggle = new JToggleButton("Enable");
         enableToggle.setToolTipText("<html>Enable channel subtraction.<br>"
-                + "Requires the Slab View to be active with a thin thickness.");
+                + "Large volumes may require an active thin Slab View.");
 
         final JLabel statusLabel = new JLabel(" ");
         statusLabel.setFont(statusLabel.getFont().deriveFont(Font.ITALIC, statusLabel.getFont().getSize2D() - 1));
@@ -1318,25 +1311,81 @@ public class Bvv {
 
         final double zCal = (cal != null && cal.length > 2 && cal[2] > 0) ? cal[2] : 1.0;
         final double maxSlabThickness = zCal * 10; // max 10 slices
+
+        // For non-pyramid (ImgPlus) sources the data is already in RAM, so a
+        // slab view is only needed when the full-volume unmixing buffers would
+        // exceed available heap.  Pyramid / SpimData sources always require slab
+        // because levels are lazily loaded and can be arbitrarily large.
+        // The check is dynamic: free heap is re-evaluated each time the toggle
+        // is enabled so it reflects whatever else has been loaded in the scene.
+        final java.util.function.BooleanSupplier slabRequired = () -> {
+            if (spimData != null || hasPyramid) return true;
+            if (dims == null || dims.length < 3) return true; // safety: unknown size
+            final long nPixels = dims[0] * dims[1] * dims[2];
+            // 3 ArrayImgs of UnsignedShort (2 bytes/pixel): sig + sub + mixed
+            final long costBytes = nPixels * 2L * 3L;
+            final Runtime rt = Runtime.getRuntime();
+            final long freeHeap = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
+            return costBytes > freeHeap / 2;
+        };
+
+        // Debounce timer: when the slab moves while unmixing is enabled,
+        // wait for the slab to settle before recomputing.  Each detected
+        // movement restarts the timer so rapid scrolling produces only one
+        // computation after the user stops.
+        final int RECOMPUTE_DELAY_MS = 500;
+        // Forward-reference holder so the Runnable and Timer can cross-reference
+        final javax.swing.Timer[] recomputeTimer = {null};
+
+        final boolean[] computing = {false};
+
         final Runnable checkSlabAndUpdateUI = () -> {
+            if (computing[0]) return; // don't interfere while a computation is in progress
             final boolean sameChannel = signalCombo.getSelectedIndex() == subtractCombo.getSelectedIndex();
             final double zMin = renderingOptions.getSlabZMin();
             final double zMax = renderingOptions.getSlabZMax();
             final boolean slabActive = zMin != Double.NEGATIVE_INFINITY;
             final boolean slabThin = slabActive && (zMax - zMin) <= maxSlabThickness;
-            //enableToggle.setEnabled(weightSlider.isEnabled());
+            final boolean needSlab = slabRequired.getAsBoolean();
+
+            // React when the slab no longer matches the computed region.
+            boolean recomputePending = false;
+            if (mixedSource[0] != null && !Double.isNaN(computedSlabZ[0])) {
+                final boolean slabMoved = zMin < computedSlabZ[0] - zCal
+                        || zMax > computedSlabZ[1] + zCal;
+                if (needSlab && (!slabActive || !slabThin)) {
+                    // Slab disabled or too thick: restore originals immediately
+                    if (recomputeTimer[0] != null) recomputeTimer[0].stop();
+                    mixedSource[0].removeFromBdv();
+                    mixedSource[0] = null;
+                    computedSlabZ[0] = Double.NaN;
+                    computedSlabZ[1] = Double.NaN;
+                    multi.setActive(true);
+                    repaint();
+                } else if (slabActive && slabMoved && enableToggle.isSelected() && weightSlider.getValue() > 0) {
+                    // Slab still valid but moved: debounce a recompute
+                    recomputePending = true;
+                    if (recomputeTimer[0] != null) recomputeTimer[0].restart();
+                }
+            }
+
             if (sameChannel) {
                 weightSlider.setEnabled(false);
                 channelUnmixingError(enableToggle, statusLabel, "Signal and background channels must differ");
-            } else if (!slabActive) {
+            } else if (needSlab && !slabActive) {
                 weightSlider.setEnabled(false);
                 channelUnmixingError(enableToggle, statusLabel, "Slab view must be active for weight adjustment");
-            } else if (!slabThin) {
+            } else if (needSlab && !slabThin) {
                 weightSlider.setEnabled(false);
-                channelUnmixingError(enableToggle, statusLabel, "Slab must be thinner (≤" + (int)(maxSlabThickness / zCal) + " slices)");
+                channelUnmixingError(enableToggle, statusLabel, "Slab must be thinner (\u2264" + (int)(maxSlabThickness / zCal) + " slices)");
             } else if (enableToggle.isSelected()) {
                 weightSlider.setEnabled(true);
-                statusLabel.setText("Release slider to compute unmixing");
+                if (recomputePending)
+                    statusLabel.setText("Slab moved: Recomputing...");
+                else if (mixedSource[0] != null)
+                    statusLabel.setText(String.format("Showing unmixed (w = %.2f)", weightSlider.getValue() / 100.0));
+                else
+                    statusLabel.setText("Release slider to compute unmixing");
             } else {
                 weightSlider.setEnabled(false);
                 statusLabel.setText(" ");
@@ -1347,7 +1396,6 @@ public class Bvv {
         signalCombo.addActionListener(e -> checkSlabAndUpdateUI.run());
         subtractCombo.addActionListener(e -> checkSlabAndUpdateUI.run());
 
-        final boolean[] computing = {false}; // guard against concurrent workers
         final Runnable computeMix = () -> {
             if (computing[0]) return;
             final double w = weightSlider.getValue() / 100.0;
@@ -1356,54 +1404,175 @@ public class Bvv {
                 if (mixedSource[0] != null) {
                     mixedSource[0].removeFromBdv();
                     mixedSource[0] = null;
+                    computedSlabZ[0] = Double.NaN;
+                    computedSlabZ[1] = Double.NaN;
                 }
                 multi.setActive(true);
                 repaint();
                 statusLabel.setText("No subtraction (w=0)");
                 return;
             }
-            // Read combo selections on EDT before spawning worker
             final int sigIdx = signalCombo.getSelectedIndex();
             final int subIdx = subtractCombo.getSelectedIndex();
             if (sigIdx == subIdx) {
                 statusLabel.setText("Signal and subtract channels must differ");
                 return;
             }
-            final RandomAccessibleInterval sigRai = channelRais[sigIdx];
-            final RandomAccessibleInterval subRai = channelRais[subIdx];
             final String sigName = channelNames[sigIdx];
             final String subName = channelNames[subIdx];
-            // Compute eagerly
+
+            // Determine the best mip level for the current viewer zoom.
+            // BVV is a volume renderer, not a 2D slicer, but treating the
+            // viewer transform as a screen transform gives a reasonable
+            // approximation of the resolution actually being displayed.
+            final bdv.viewer.Source<?> sigSource = channelSacs[sigIdx].getSpimSource();
+            final AffineTransform3D screenTransform = new AffineTransform3D();
+            currentBvv.getViewer().state().getViewerTransform(screenTransform);
+            final int bestLevel = MipmapTransforms.getBestMipMapLevel(screenTransform, sigSource, 0);
+
+            // Resolve RAIs at the chosen mip level
+            @SuppressWarnings("unchecked")
+            final RandomAccessibleInterval<RealType<?>> sigTyped =
+                    (RandomAccessibleInterval<RealType<?>>) sigSource.getSource(0, bestLevel);
+            @SuppressWarnings("unchecked")
+            final RandomAccessibleInterval<RealType<?>> subTyped =
+                    (RandomAccessibleInterval<RealType<?>>) channelSacs[subIdx].getSpimSource().getSource(0, bestLevel);
+
+            // Restrict to slab Z range (pixel coords at this mip level) so
+            // we only touch blocks inside the visible slab.  The mip-level
+            // calibration accounts for downsampling.
+            final AffineTransform3D sigSrcToWorld = new AffineTransform3D();
+            sigSource.getSourceTransform(0, bestLevel, sigSrcToWorld);
+            final double mipZCal = Math.sqrt(
+                    sigSrcToWorld.get(0, 2) * sigSrcToWorld.get(0, 2) +
+                    sigSrcToWorld.get(1, 2) * sigSrcToWorld.get(1, 2) +
+                    sigSrcToWorld.get(2, 2) * sigSrcToWorld.get(2, 2));
+            final double effZCal = mipZCal > 0 ? mipZCal : zCal;
+
+            final double slabZMin = renderingOptions.getSlabZMin();
+            final double slabZMax = renderingOptions.getSlabZMax();
+            final RandomAccessibleInterval<RealType<?>> sigCropped;
+            final RandomAccessibleInterval<RealType<?>> subCropped;
+            final double[] calOffset; // world-space origin offset of the crop
+            if (slabZMin != Double.NEGATIVE_INFINITY && sigTyped.numDimensions() >= 3) {
+                final long zMinPx = Math.max(sigTyped.min(2), (long) Math.floor(slabZMin / effZCal));
+                final long zMaxPx = Math.min(sigTyped.max(2), (long) Math.ceil(slabZMax / effZCal));
+                sigCropped = net.imglib2.view.Views.interval(sigTyped,
+                        new long[]{sigTyped.min(0), sigTyped.min(1), zMinPx},
+                        new long[]{sigTyped.max(0), sigTyped.max(1), zMaxPx});
+                subCropped = net.imglib2.view.Views.interval(subTyped,
+                        new long[]{subTyped.min(0), subTyped.min(1), zMinPx},
+                        new long[]{subTyped.max(0), subTyped.max(1), zMaxPx});
+                calOffset = new double[]{
+                        sigTyped.min(0) * sigSrcToWorld.get(0, 0),
+                        sigTyped.min(1) * sigSrcToWorld.get(1, 1),
+                        zMinPx * mipZCal};
+            } else {
+                sigCropped = sigTyped;
+                subCropped = subTyped;
+                calOffset = null;
+            }
+
+            // Memory guard: 3 ArrayImgs (sig + sub materialized + mixed output)
+            // each holding UnsignedShort (2 bytes per pixel).  Abort if the
+            // allocation would exceed half the currently available heap.
+            final long[] cropDims = {
+                    sigCropped.max(0) - sigCropped.min(0) + 1,
+                    sigCropped.max(1) - sigCropped.min(1) + 1,
+                    sigCropped.max(2) - sigCropped.min(2) + 1};
+            final long nPixels = cropDims[0] * cropDims[1] * cropDims[2];
+            final long estimatedBytes = nPixels * 2L * 3L; // 3 arrays × 2 bytes/pixel
+            final Runtime rt = Runtime.getRuntime();
+            final long freeHeap = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
+            if (estimatedBytes > freeHeap / 2) {
+                statusLabel.setText(String.format("Volume too large at mip level %d (%d MB, %d MB free). "
+                                + "Enable Slab View or zoom in.",
+                        bestLevel, estimatedBytes / (1024 * 1024), freeHeap / (1024 * 1024)));
+                return;
+            }
+
+            // Eagerly compute the subtraction on the slab-cropped region.
+            // Each channel is materialized sequentially (single-threaded) to
+            // avoid concurrent HDF5 access, then the subtraction runs
+            // multi-threaded on the in-memory arrays.
             computing[0] = true;
             weightSlider.setEnabled(false);
-            statusLabel.setText("Computing...");
+            statusLabel.setText(String.format("Computing (level %d)...", bestLevel));
+            updateStatus("Computing channel unmixing...", 0, -1);
             panel.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-            new SwingWorker<Void, Void>() {
+            // Cancel any previous worker still running
+            if (imgProcessingWorker != null && !imgProcessingWorker.isDone()) {
+                imgProcessingWorker.cancel(true);
+            }
+            final SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
                 @Override
                 protected Void doInBackground() {
-                    final long[] mixDims = new long[3];
-                    sigRai.dimensions(mixDims);
+                    final RandomAccessibleInterval<RealType<?>> sigZM = net.imglib2.view.Views.zeroMin(sigCropped);
+                    final RandomAccessibleInterval<RealType<?>> subZM = net.imglib2.view.Views.zeroMin(subCropped);
+                    final long[] cropSize = sigZM.dimensionsAsLongArray();
+
+                    // Step 1: materialize signal channel (single-threaded → no concurrent HDF5)
                     final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
-                            mixed = net.imglib2.img.array.ArrayImgs.unsignedShorts(mixDims[0], mixDims[1], mixDims[2]);
-                    LoopBuilder.setImages((RandomAccessibleInterval<RealType>) sigRai,
-                                    (RandomAccessibleInterval<RealType>) subRai,
-                                    mixed)
+                            sigMat = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
+                    LoopBuilder.setImages(sigZM, sigMat)
+                            .forEachPixel((a, out) -> out.setReal(a.getRealDouble()));
+
+                    if (isCancelled()) return null;
+
+                    // Step 2: materialize subtract channel (single-threaded)
+                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
+                            subMat = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
+                    LoopBuilder.setImages(subZM, subMat)
+                            .forEachPixel((a, out) -> out.setReal(a.getRealDouble()));
+
+                    if (isCancelled()) return null;
+
+                    // Step 3: subtract multi-threaded on in-memory arrays (safe)
+                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
+                            mixed = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
+                    LoopBuilder.setImages(sigMat, subMat, mixed)
                             .multiThreaded()
                             .forEachPixel((a, b, out) -> {
                                 final double val = a.getRealDouble() - w * b.getRealDouble();
                                 out.setReal(Math.max(0, Math.min(65535, val)));
                             });
-                    // Remove old mixed source and add new one on EDT
+
+                    if (isCancelled()) return null;
+
                     SwingUtilities.invokeLater(() -> {
+                        if (isCancelled()) {
+                            // Cancelled between invokeLater post and EDT dispatch
+                            panel.setCursor(Cursor.getDefaultCursor());
+                            computing[0] = false;
+                            updateStatus("", 0, 0);
+                            statusLabel.setText("Cancelled");
+                            return;
+                        }
                         if (mixedSource[0] != null) mixedSource[0].removeFromBdv();
                         final BvvOptions addOpt = bvv.vistools.Bvv.options().addTo(bvvHandle);
-                        final String srcName = String.format("%s − %.2f × %s", sigName, w, subName);
+                        final String srcName = String.format("%s \u2212 %.2f \u00d7 %s", sigName, w, subName);
                         final String unit = (calUnit != null) ? calUnit : "pixel";
-                        mixedSource[0] = showCalibratedSource(mixed, srcName, cal, unit, addOpt);
+                        // Build source transform from the mip-level sourceTransform
+                        // so the mixed volume aligns with the original data in world
+                        // space, including any crop offset.
+                        final net.imglib2.realtransform.AffineTransform3D srcT =
+                                new net.imglib2.realtransform.AffineTransform3D();
+                        srcT.set(sigSrcToWorld);
+                        if (calOffset != null) {
+                            srcT.set(calOffset[0], 0, 3);
+                            srcT.set(calOffset[1], 1, 3);
+                            srcT.set(calOffset[2], 2, 3);
+                        }
+                        final double[] mipCal = new double[]{
+                                sigSrcToWorld.get(0, 0),
+                                sigSrcToWorld.get(1, 1),
+                                mipZCal};
+                        final sc.fiji.snt.io.SpimDataUtils.CalibratedSource<net.imglib2.type.numeric.integer.UnsignedShortType> src =
+                                new sc.fiji.snt.io.SpimDataUtils.CalibratedSource<>(mixed,
+                                        new net.imglib2.type.numeric.integer.UnsignedShortType(),
+                                        srcT, srcName, mipCal, unit);
+                        mixedSource[0] = BvvFunctions.show((bdv.viewer.Source) src, 1, addOpt);
                         multi.setActive(false);
-                        // Match display range and color from signal channel. It seems that
-                        // BVV asynchronously initializes brightness (0-65535) after show().
-                        // We'll use a short timer to ensure we override it
                         final bdv.tools.brightness.ConverterSetup csSig =
                                 sources.get(sigIdx).getConverterSetups().getFirst();
                         final double rangeMin = csSig.getDisplayRangeMin();
@@ -1416,16 +1585,66 @@ public class Bvv {
                         });
                         applyRange.setRepeats(false);
                         applyRange.start();
-                        statusLabel.setText(String.format("Showing %s − %.2f × %s",
-                                sigName, w, subName));
+                        // Record slab bounds so auto-cleanup can detect changes.
+                        // When slab is inactive (full-volume), store NaN so the
+                        // slab-moved check in checkSlabAndUpdateUI is skipped.
+                        if (slabZMin == Double.NEGATIVE_INFINITY) {
+                            computedSlabZ[0] = Double.NaN;
+                            computedSlabZ[1] = Double.NaN;
+                        } else {
+                            computedSlabZ[0] = slabZMin;
+                            computedSlabZ[1] = slabZMax;
+                        }
+                        statusLabel.setText(String.format("Showing %s \u2212 %.2f \u00d7 %s (level %d)",
+                                sigName, w, subName, bestLevel));
+                        if (hasPyramid && currentBvv != null) {
+                            currentBvv.getViewer().showMessage(
+                                    "Unmixed result is single-resolution (level " + bestLevel + ")");
+                        }
                         panel.setCursor(Cursor.getDefaultCursor());
                         computing[0] = false;
+                        updateStatus("", 0, 0);
                         checkSlabAndUpdateUI.run();
                     });
                     return null;
                 }
-            }.execute();
+
+                @Override
+                protected void done() {
+                    try {
+                        get();
+                    } catch (final java.util.concurrent.CancellationException ignored) {
+                        // Expected when cancelled via reset/disable
+                        SwingUtilities.invokeLater(() -> {
+                            panel.setCursor(Cursor.getDefaultCursor());
+                            computing[0] = false;
+                            updateStatus("", 0, 0);
+                            statusLabel.setText("Cancelled");
+                            checkSlabAndUpdateUI.run();
+                        });
+                    } catch (final Exception ex) {
+                        SwingUtilities.invokeLater(() -> {
+                            panel.setCursor(Cursor.getDefaultCursor());
+                            computing[0] = false;
+                            updateStatus("", 0, 0);
+                            statusLabel.setText("Error: " + ex.getMessage());
+                            checkSlabAndUpdateUI.run();
+                        });
+                    }
+                }
+            };
+            imgProcessingWorker = worker;
+            worker.execute();
         };
+
+        // Initialize the debounce timer now that computeMix is defined.
+        // Single-shot: fires once after RECOMPUTE_DELAY_MS of no restarts.
+        recomputeTimer[0] = new javax.swing.Timer(RECOMPUTE_DELAY_MS, e -> {
+            if (enableToggle.isSelected() && weightSlider.getValue() > 0 && !computing[0]) {
+                computeMix.run();
+            }
+        });
+        recomputeTimer[0].setRepeats(false);
 
         weightSlider.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -1439,32 +1658,46 @@ public class Bvv {
         enableToggle.addActionListener(e -> {
             checkSlabAndUpdateUI.run();
             if (!enableToggle.isSelected()) {
-                // Disable: restore originals
+                // Disable: cancel running computation, stop pending recompute, restore originals
+                if (imgProcessingWorker != null && !imgProcessingWorker.isDone())
+                    imgProcessingWorker.cancel(true);
+                recomputeTimer[0].stop();
                 if (mixedSource[0] != null) {
                     mixedSource[0].removeFromBdv();
                     mixedSource[0] = null;
+                    computedSlabZ[0] = Double.NaN;
+                    computedSlabZ[1] = Double.NaN;
                 }
                 multi.setActive(true);
                 repaint();
                 statusLabel.setText(" ");
+            } else if (weightSlider.isEnabled() && weightSlider.getValue() > 0) {
+                // Re-enable with a previously determined weight: auto-compute
+                computeMix.run();
             }
         });
 
         resetButton.addActionListener(e -> {
+            if (imgProcessingWorker != null && !imgProcessingWorker.isDone())
+                imgProcessingWorker.cancel(true);
+            recomputeTimer[0].stop();
             weightSlider.setValue(0);
             enableToggle.setSelected(false);
             if (mixedSource[0] != null) {
                 mixedSource[0].removeFromBdv();
                 mixedSource[0] = null;
+                computedSlabZ[0] = Double.NaN;
+                computedSlabZ[1] = Double.NaN;
             }
             multi.setActive(true);
             repaint();
             statusLabel.setText(" ");
         });
 
-        // Also check periodically when the panel is showing (lightweight timer)
+        // Also check periodically when the panel is showing (lightweight timer).
+        // Run when enabled OR when a mixed source exists (to auto-restore if slab changes).
         final javax.swing.Timer slabCheckTimer = new javax.swing.Timer(500, e -> {
-            if (panel.isShowing() && enableToggle.isSelected()) {
+            if (panel.isShowing() && (enableToggle.isSelected() || mixedSource[0] != null)) {
                 checkSlabAndUpdateUI.run();
             }
         });
@@ -1507,14 +1740,41 @@ public class Bvv {
         panel.add(weightLabel, gc);
         gc.gridx = 4;
         panel.add(resetButton, gc);
-        // Row 2: status
+        // Row 2: [========== status label ==========] [Script]
         gc.gridy++;
         gc.gridx = 0;
-        gc.gridwidth = 5;
-        gc.fill = GridBagConstraints.HORIZONTAL;
+        gc.gridwidth = spimData != null ? 4 : 5;
         gc.weightx = 1.0;
+        gc.fill = GridBagConstraints.HORIZONTAL;
         panel.add(statusLabel, gc);
-
+        if (spimData != null) {
+            final JButton scriptButton = GuiUtils.Buttons.toolbarButton(
+                    IconFactory.GLYPH.CODE, null, 1f);
+            scriptButton.setToolTipText("<html>Generate a Groovy script for full-volume unmixing.<br>"
+                    + "Uses the current signal/background channels and weight.<br>"
+                    + "Run it offline (e.g., in Fiji's Script Editor) on the full dataset.");
+            scriptButton.addActionListener(e -> {
+                final double w = weightSlider.getValue() / 100.0;
+                if (w <= 0) {
+                    GuiUtils.errorPrompt("Set a non-zero weight first.");
+                    return;
+                }
+                final int sigIdx = signalCombo.getSelectedIndex();
+                final int subIdx = subtractCombo.getSelectedIndex();
+                if (sigIdx == subIdx) {
+                    GuiUtils.errorPrompt("Signal and background channels must differ.");
+                    return;
+                }
+                final String script = generateUnmixingScript(spimData, sigIdx, subIdx, w,
+                        channelNames[sigIdx], channelNames[subIdx]);
+                showGroovyScript(script, String.format("Unmix_%s_minus_%s", channelNames[sigIdx], channelNames[subIdx]));
+            });
+            gc.gridx = 4;
+            gc.gridwidth = 1;
+            gc.weightx = 0;
+            gc.fill = GridBagConstraints.NONE;
+            panel.add(scriptButton, gc);
+        }
         weightSlider.setEnabled(false); // disabled until enable toggle + slab check
         return panel;
     }
@@ -1534,9 +1794,95 @@ public class Bvv {
 
     private void channelUnmixingError(final AbstractButton toggleButton,
                                       final JLabel statusLabel, final String msg) {
+        final boolean wasSelected = toggleButton.isSelected();
         statusLabel.setText(msg);
         toggleButton.setSelected(false);
-        GuiUtils.errorPrompt(msg +".");
+        if (wasSelected)
+            GuiUtils.errorPrompt(msg + ".");
+    }
+
+    /**
+     * Generates a Groovy script for full-volume channel unmixing by loading
+     * the {@code ChannelUnmixing.groovy} template from resources and replacing
+     * {@code #{PLACEHOLDER}} tokens with runtime values.
+     * <p>
+     * The template uses a modular {@code UnmixingOp} inner class so the
+     * subtraction logic can be hot-swapped for more sophisticated operations.
+     *
+     * @param spimData the source dataset (for extracting file path and metadata)
+     * @param sigIdx   index of the signal channel
+     * @param subIdx   index of the background channel
+     * @param weight   subtraction weight (0–1)
+     * @param sigName  display name of signal channel
+     * @param subName  display name of background channel
+     * @return the Groovy script as a String, or an error comment on failure
+     */
+    private String generateUnmixingScript(final AbstractSpimData<?> spimData,
+                                           final int sigIdx, final int subIdx,
+                                           final double weight,
+                                           final String sigName, final String subName) {
+        // Resolve the dataset file path
+        String filePath = "";
+        try {
+            if (spimData.getBasePathURI() != null) {
+                filePath = new File(spimData.getBasePathURI()).getAbsolutePath();
+            }
+        } catch (final Exception ignored) {}
+
+        // Number of mip levels from signal source
+        final int nLevels;
+        try {
+            final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
+            if (sigIdx < setups.size()) {
+                final var imgLoader = spimData.getSequenceDescription().getImgLoader();
+                if (imgLoader instanceof bdv.ViewerImgLoader) {
+                    nLevels = ((bdv.ViewerImgLoader) imgLoader)
+                            .getSetupImgLoader(setups.get(sigIdx).getId()).numMipmapLevels();
+                } else {
+                    nLevels = 1;
+                }
+            } else {
+                nLevels = 1;
+            }
+        } catch (final Exception e) {
+            return "// Error resolving dataset metadata: " + e.getMessage();
+        }
+
+        // Get ViewSetup IDs for the two channels
+        final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
+        final int sigSetupId = setups.get(sigIdx).getId();
+        final int subSetupId = setups.get(subIdx).getId();
+
+        // Number of timepoints
+        final int nTimepoints = spimData.getSequenceDescription().getTimePoints().size();
+
+        // Load template from resources
+        final String template;
+        try {
+            final ClassLoader cl = Thread.currentThread().getContextClassLoader();
+            final java.io.InputStream is = cl.getResourceAsStream(
+                    "script_templates/Neuroanatomy/Boilerplate/ChannelUnmixing.groovy");
+            if (is == null) return "// Error: ChannelUnmixing.groovy template not found in resources";
+            template = new java.io.BufferedReader(new java.io.InputStreamReader(is))
+                    .lines().collect(java.util.stream.Collectors.joining("\n"));
+        } catch (final Exception e) {
+            return "// Error loading template: " + e.getMessage();
+        }
+
+        // Replace placeholders
+        return template
+                .replace("#{INPUT_PATH}", filePath.replace("\\", "\\\\").replace("'", "\\'"))
+                .replace("#{SIG_SETUP}", String.valueOf(sigSetupId))
+                .replace("#{SUB_SETUP}", String.valueOf(subSetupId))
+                .replace("#{WEIGHT}", String.format("%.4f", weight))
+                .replace("#{N_LEVELS}", String.valueOf(nLevels))
+                .replace("#{N_TIMEPOINTS}", String.valueOf(nTimepoints))
+                .replace("#{SIG_NAME}", sigName)
+                .replace("#{SUB_NAME}", subName);
+    }
+
+    private void showGroovyScript(final String script, final String title) {
+        ScriptInstaller.newScript(script, title + ".groovy");
     }
 
     /**
@@ -1580,92 +1926,19 @@ public class Bvv {
     }
 
     /**
-     * Patches placeholder setup names in a BDV XML sidecar created from an IMS
-     * file. {@link Imaris#openIms} writes {@code "(name not specified)"} for every
-     * {@code ViewSetup}; this method replaces each occurrence sequentially with
-     * {@code "<base> (Ch1)"}, {@code "<base> (Ch2)"}, etc. by directly editing the
-     * XML file. Patching the file (rather than the in-memory object) is necessary
-     * because setName() in {@link mpicbg.spim.data.generic.sequence.BasicViewSetup}
-     * is protected.
-     *
-     * @param xmlPath path to the sidecar XML file to patch
-     * @param base    base name to use (typically the IMS filename without extension)
-     * @throws IOException if the file cannot be read or written
+     * @see sc.fiji.snt.io.SpimDataUtils#patchImsXml(String, String)
      */
     private static void patchImsXml(final String xmlPath, final String base) throws IOException {
-        final java.nio.file.Path path = java.nio.file.Paths.get(xmlPath);
-        String xml = java.nio.file.Files.readString(path);
-        int ch = 1;
-        while (xml.contains("(name not specified)"))
-            xml = xml.replaceFirst("\\(name not specified\\)", base + " (Ch" + ch++ + ")");
-        java.nio.file.Files.writeString(path, xml);
+        sc.fiji.snt.io.SpimDataUtils.patchImsXml(xmlPath, base);
     }
 
     /**
-     * Wraps a {@link bdv.util.RandomAccessibleIntervalSource} and overrides
-     * {@link #getVoxelDimensions()} to carry the physical unit (e.g. "µm").
-     * Without this, BDV's {@code ScaleBarOverlayRenderer} reads
-     * {@code "pixel"} from {@code RandomAccessibleIntervalSource.getVoxelDimensions()}
-     * and the scale bar label is wrong even when calibration is applied.
-     */
-    private static class CalibratedSource<T extends NumericType<T>> extends bdv.util.RandomAccessibleIntervalSource<T> {
-
-        private final mpicbg.spim.data.sequence.FinalVoxelDimensions voxelDimensions;
-        private final net.imglib2.RandomAccessibleInterval<T> fullRai;
-        private final int timeDim; // index of the T axis in fullRai, or -1 if no time axis
-
-        /**
-         * Full constructor. When {@code timeDim >= 0}, {@link #getSource(int, int)} slices
-         * the RAI along that axis so each BVV timepoint returns the correct frame.
-         * {@code RandomAccessibleIntervalSource} ignores the timepoint argument entirely,
-         * causing all frames to show frame 0 for timelapse data.
-         */
-        CalibratedSource(final net.imglib2.RandomAccessibleInterval<T> rai,
-                         final T type,
-                         final net.imglib2.realtransform.AffineTransform3D sourceTransform,
-                         final String name,
-                         final double[] cal,
-                         final String unit,
-                         final int timeDim) {
-            // Pass a 3D slice (t=0) to parent so it computes correct XYZ bounds.
-            super(timeDim >= 0 ? net.imglib2.view.Views.hyperSlice(rai, timeDim, 0) : rai,
-                    type, sourceTransform, name);
-            this.fullRai = rai;
-            this.timeDim = timeDim;
-            this.voxelDimensions = new mpicbg.spim.data.sequence.FinalVoxelDimensions(
-                    unit != null && !unit.isBlank() ? unit : "pixel",
-                    cal[0], cal[1], cal.length > 2 ? cal[2] : 1.0);
-        }
-
-        /** Convenience constructor for sources without a time axis (timeDim = -1). */
-        CalibratedSource(final net.imglib2.RandomAccessibleInterval<T> rai,
-                         final T type,
-                         final net.imglib2.realtransform.AffineTransform3D sourceTransform,
-                         final String name,
-                         final double[] cal,
-                         final String unit) {
-            this(rai, type, sourceTransform, name, cal, unit, -1);
-        }
-
-        @Override
-        public net.imglib2.RandomAccessibleInterval<T> getSource(final int t, final int level) {
-            if (timeDim < 0) return super.getSource(t, level);
-            final long tClamped = Math.min(Math.max(t, 0), fullRai.dimension(timeDim) - 1);
-            return net.imglib2.view.Views.hyperSlice(fullRai, timeDim, tClamped);
-        }
-
-        @Override
-        public mpicbg.spim.data.sequence.VoxelDimensions getVoxelDimensions() {
-            return voxelDimensions;
-        }
-    }
-
-    /**
-     * Builds a {@link CalibratedSource} from a RAI, calibration, unit, and name,
-     * then calls {@link BvvFunctions#show(bdv.viewer.Source, int, BvvOptions)}
-     * so the unit propagates to the scale bar renderer.
-     * The {@code opts} passed in must NOT contain a {@code sourceTransform}, as
-     * calibration is already baked into the source.
+     * Builds a {@link sc.fiji.snt.io.SpimDataUtils.CalibratedSource} from a RAI,
+     * calibration, unit, and name, then calls
+     * {@link BvvFunctions#show(bdv.viewer.Source, int, BvvOptions)} so the unit
+     * propagates to the scale bar renderer. The {@code opts} passed in must NOT
+     * contain a {@code sourceTransform}, as calibration is already baked into the
+     * source.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static <T extends net.imglib2.type.numeric.RealType<T>> BvvStackSource<?> showCalibratedSource(
@@ -1678,7 +1951,8 @@ public class Bvv {
         t.set(cal[0], 0, 0);
         t.set(cal[1], 1, 1);
         t.set(cal[2], 2, 2);
-        final CalibratedSource<T> src = new CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
+        final sc.fiji.snt.io.SpimDataUtils.CalibratedSource<T> src =
+                new sc.fiji.snt.io.SpimDataUtils.CalibratedSource<>(rai, rai.getType(), t, name, cal, unit);
         return BvvFunctions.show((bdv.viewer.Source) src, 1, opts);
     }
 
@@ -1686,8 +1960,8 @@ public class Bvv {
      * Overload for timelapse data. {@code numTimepoints} sets the BVV time slider range.
      * The T axis is assumed to be the last dimension of {@code rai} (as produced by
      * {@code ImageJFunctions.wrapShort} on a single-channel hyperstack): the
-     * {@link CalibratedSource} will slice along {@code rai.numDimensions()-1} to
-     * return the correct frame for each timepoint.
+     * {@link sc.fiji.snt.io.SpimDataUtils.CalibratedSource} will slice along
+     * {@code rai.numDimensions()-1} to return the correct frame for each timepoint.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static <T extends net.imglib2.type.numeric.RealType<T>> BvvStackSource<?> showCalibratedSource(
@@ -1704,7 +1978,8 @@ public class Bvv {
         // T is the outermost (last) dimension produced by ImageJFunctions.wrap for a
         // single-channel hyperstack [X, Y, Z, T]. timeDim=-1 for static volumes.
         final int timeDim = numTimepoints > 1 ? rai.numDimensions() - 1 : -1;
-        final CalibratedSource<T> src = new CalibratedSource<>(rai, rai.getType(), t, name, cal, unit, timeDim);
+        final sc.fiji.snt.io.SpimDataUtils.CalibratedSource<T> src =
+                new sc.fiji.snt.io.SpimDataUtils.CalibratedSource<>(rai, rai.getType(), t, name, cal, unit, timeDim);
         return BvvFunctions.show((bdv.viewer.Source) src, Math.max(1, numTimepoints), opts);
     }
 
@@ -1868,15 +2143,7 @@ public class Bvv {
         final JButton optionsButton = optionsButton(actions);
         toolbar.add(optionsButton);
 
-        // Wrap toolbar + progress bar in a vertical panel
-        progressBar = new javax.swing.JProgressBar(0, 100);
-        progressBar.setStringPainted(true);
-        progressBar.setString("");
-        progressBar.setVisible(false); // hidden until needed
-        final JPanel panel = new JPanel(new java.awt.BorderLayout());
-        panel.add(toolbar, java.awt.BorderLayout.CENTER);
-        panel.add(progressBar, java.awt.BorderLayout.SOUTH);
-        return panel;
+        return toolbar;
     }
 
     private JButton optionsButton(final BvvActions actions) {
@@ -2003,23 +2270,32 @@ public class Bvv {
     }
 
     /**
-     * Updates the progress bar in the SNT Annotations card.
-     * When {@code nSteps} is 0 the bar is hidden; otherwise it shows
-     * {@code step/nSteps} progress with {@code message} as the label.
+     * Updates the progress bar at the bottom of the BVV frame.
+     * <ul>
+     *   <li>{@code nSteps = 0}: hides the bar</li>
+     *   <li>{@code nSteps < 0}: indeterminate mode (animated, no percentage)</li>
+     *   <li>{@code nSteps > 0}: determinate mode showing {@code step/nSteps}</li>
+     * </ul>
      * Safe to call from any thread.
      *
      * @param message  short status message displayed inside the bar
-     * @param step     current step (0-based)
-     * @param nSteps   total number of steps (0 to hide)
+     * @param step     current step (0-based; ignored in indeterminate mode)
+     * @param nSteps   total steps (0 = hide, negative = indeterminate)
      */
     public void updateStatus(final String message, final int step, final int nSteps) {
         SwingUtilities.invokeLater(() -> {
             if (progressBar == null) return;
-            if (nSteps <= 0) {
+            if (nSteps == 0) {
+                progressBar.setIndeterminate(false);
                 progressBar.setVisible(false);
                 progressBar.setValue(0);
                 progressBar.setString("");
+            } else if (nSteps < 0) {
+                progressBar.setIndeterminate(true);
+                progressBar.setString(message == null ? "" : message);
+                progressBar.setVisible(true);
             } else {
+                progressBar.setIndeterminate(false);
                 progressBar.setMaximum(nSteps);
                 progressBar.setValue(step);
                 progressBar.setString(message == null ? "" : message);
@@ -4419,14 +4695,6 @@ public class Bvv {
             ACCEL_NAMES.put("soft slow end",   ACCEL_SOFT_SLOW_END);
         }
 
-        /**
-         * Sets the easing type by name. Accepted values (case-insensitive):
-         * "symmetric", "slow start", "slow end", "soft symmetric",
-         * "soft slow start", "soft slow end".
-         *
-         * @param name the easing name
-         * @throws IllegalArgumentException if the name is not recognized
-         */
         /**
          * Normalises an accel name: lowercase, trim, underscores → spaces.
          */
