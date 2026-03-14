@@ -27,6 +27,11 @@ import ij.ImageStack;
 import ij.measure.Calibration;
 import ij.plugin.filter.GaussianBlur;
 import ij.process.FloatProcessor;
+import ij.process.ShortProcessor;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import org.apache.commons.math3.distribution.PoissonDistribution;
 
@@ -47,6 +52,16 @@ import sc.fiji.snt.Tree;
  * microscopy images.
  * </p>
  * <p>
+ * Optionally, voxel intensities can be modulated by local neurite thickness via
+ * {@link #setThicknessModulation(double)}, producing brighter thick neurites
+ * and dimmer thin ones.
+ * </p>
+ * <p>
+ * Pass 2 (partial-volume supersampling) and subsequent passes are parallelized
+ * across z-slices for improved performance. A spatial grid is used for frustum
+ * lookups to reduce computation costs.
+ * </p>
+ * <p>
  * Inspired by SWC2IMG (E. Meijering, imagescience.org).
  * </p>
  *
@@ -59,6 +74,7 @@ public class TreeToRaster {
 	private static final int BORDER_XY = 10;
 	private static final int BORDER_Z = 5;
 	private static final int SUPER = 5; // supersampling factor per axis
+	private static final int GRID_CELL_VOXELS = 16; // spatial grid granularity
 
 	private final Tree tree;
 	private double lateralRes; // spatial units per voxel (x, y)
@@ -69,6 +85,9 @@ public class TreeToRaster {
 	private double background = 0;
 	private double snr = 0;        // <=0 means no shot noise
 	private double gaussSigma = 0; // <=0 means no blur
+
+	// Thickness modulation (disabled by default)
+	private double thicknessModulation = 0; // 0 = off, >0 = fraction of range
 
 	/**
 	 * Constructs a new rasterizer for the given tree. Resolution defaults to
@@ -132,7 +151,8 @@ public class TreeToRaster {
 	 * counting noise typical of fluorescence microscopy.
 	 * <p>
 	 * The peak intensity is derived from the SNR and background using the
-	 * photon-counting model: {@code SNR = (peak - bg) / sqrt(peak)}.
+	 * photon-counting model: {@code SNR = (peak - bg) / sqrt(peak)}. Note
+	 * that Poisson shot noise is ignored when using {@link #rasterizeLabels()}
 	 * </p>
 	 *
 	 * @param snr        the signal-to-noise ratio (peak-to-noise). Must be
@@ -153,7 +173,8 @@ public class TreeToRaster {
 
 	/**
 	 * Enables Gaussian blurring of the (optionally noisy) image, simulating
-	 * spatially correlated noise and optical blur.
+	 * spatially correlated noise and optical blur. Note that Gaussian blurring
+	 * is ignored when using {@link #rasterizeLabels()}.
 	 *
 	 * @param sigma the Gaussian sigma in the tree's spatial units (typically
 	 *              µm). Must be positive.
@@ -163,6 +184,34 @@ public class TreeToRaster {
 		if (sigma <= 0)
 			throw new IllegalArgumentException("Gaussian sigma must be positive");
 		this.gaussSigma = sigma;
+		return this;
+	}
+
+	/**
+	 * Enables intensity modulation based on local neurite thickness. When
+	 * enabled, thicker neurites are rendered brighter and thinner neurites
+	 * dimmer, proportional to the local radius.
+	 * <p>
+	 * The modulation factor defines what fraction of the intensity range is
+	 * used for thickness variation. For example, a factor of 0.2 means the
+	 * thickest frustum receives full intensity (1.0) while the thinnest
+	 * receives 80% of the maximum (0.8).
+	 * </p>
+	 * <p>
+	 * Note: This option incurs additional computation since the local radius
+	 * must be resolved for every sub-voxel hit during supersampling. Also, a
+	 * factor of 1.0 maps the thinnest structure to zero intensity, effectively
+	 * wiping it.
+	 * </p>
+	 *
+	 * @param factor the modulation depth in [0, 1]. 0 disables modulation
+	 *               (default). Must be non-negative and at most 1.
+	 * @return this instance for chaining
+	 */
+	public TreeToRaster setThicknessModulation(final double factor) {
+		if (factor < 0 || factor > 1)
+			throw new IllegalArgumentException("Thickness modulation must be in [0, 1]");
+		this.thicknessModulation = factor;
 		return this;
 	}
 
@@ -178,115 +227,128 @@ public class TreeToRaster {
 	 */
 	public ImagePlus rasterize() {
 
-		// Effective default radius
-		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+		final RasterContext ctx = prepareRasterization();
+		final int width = ctx.width, height = ctx.height, depth = ctx.depth;
+		final int xo = ctx.xo, yo = ctx.yo, zo = ctx.zo;
+		final FrustumGrid grid = ctx.grid;
+		final List<Frustum> frustums = ctx.frustums;
 
-		// Compute world-coordinate bounds (including radii)
-		final double[] bounds = worldBounds(defR);
-		final double xMin = bounds[0], xMax = bounds[1];
-		final double yMin = bounds[2], yMax = bounds[3];
-		final double zMin = bounds[4], zMax = bounds[5];
+		// img starts as the flag map from Pass 1; Pass 2 overwrites flagged
+		// voxels with sub-voxel hit counts, then we normalize in-place
+		final float[][] img = ctx.flagMap;
 
-		// Image dimensions in voxels
-		final int xm = (int) Math.floor(xMin / lateralRes);
-		final int ym = (int) Math.floor(yMin / lateralRes);
-		final int zm = (int) Math.floor(zMin / axialRes);
-		final int xM = (int) Math.ceil(xMax / lateralRes);
-		final int yM = (int) Math.ceil(yMax / lateralRes);
-		final int zM = (int) Math.ceil(zMax / axialRes);
+		// Pass 2: partial-volume supersampling (parallel by z-slice)
+		final boolean doModulation = thicknessModulation > 0;
+		final float[][] radImg = doModulation ? new float[depth][width * height] : null;
+		final double[] sliceMaxDensity = new double[depth];
 
-		final int width  = (xM - xm) + 2 * BORDER_XY;
-		final int height = (yM - ym) + 2 * BORDER_XY;
-		final int depth  = Math.max((zM - zm) + 2 * BORDER_Z, 1);
-
-		// Offset: world(0,0,0) -> voxel(xo,yo,zo)
-		final int xo = BORDER_XY - xm;
-		final int yo = BORDER_XY - ym;
-		final int zo = BORDER_Z  - zm;
-
-		SNTUtils.log("TreeToRaster: allocating " + width + "x" + height + "x"
-				+ depth + " (float)");
-
-		// Build segment list
-		final java.util.List<Frustum> frustums = buildFrustums(defR);
-
-		// --- Pass 1: coarse voxel map (flag voxels overlapping any frustum) ---
-		final float[][] img = new float[depth][width * height];
-		for (final Frustum f : frustums) {
-			final int fxm = xo + (int) Math.floor(f.xMin / lateralRes);
-			final int fym = yo + (int) Math.floor(f.yMin / lateralRes);
-			final int fzm = zo + (int) Math.floor(f.zMin / axialRes);
-			final int fxM = xo + (int) Math.ceil(f.xMax / lateralRes);
-			final int fyM = yo + (int) Math.ceil(f.yMax / lateralRes);
-			final int fzM = zo + (int) Math.ceil(f.zMax / axialRes);
-			for (int z = Math.max(fzm, 0); z < Math.min(fzM, depth); z++) {
-				final float[] slice = img[z];
-				for (int y = Math.max(fym, 0); y < Math.min(fyM, height); y++) {
-					final int row = y * width;
-					for (int x = Math.max(fxm, 0); x < Math.min(fxM, width); x++) {
-						slice[row + x] = -1; // flag for supersampling
-					}
-				}
-			}
-		}
-
-		// --- Pass 2: partial-volume supersampling on flagged voxels ---
-		final double superCubed = (double) SUPER * SUPER * SUPER;
-		double maxDensity = 0;
-		for (int z = 0; z < depth; z++) {
+		IntStream.range(0, depth).parallel().forEach(z -> {
 			final float[] slice = img[z];
+			final float[] radSlice = doModulation ? radImg[z] : null;
+			double localMax = 0;
 			for (int y = 0; y < height; y++) {
 				final int row = y * width;
 				for (int x = 0; x < width; x++) {
 					final int idx = row + x;
 					if (slice[idx] != -1) continue;
 					int count = 0;
+					double voxelMaxR = 0;
 					for (int kk = 0; kk < SUPER; kk++) {
 						final double wz = (z - zo + (kk + 0.5) / SUPER) * axialRes;
 						for (int jj = 0; jj < SUPER; jj++) {
 							final double wy = (y - yo + (jj + 0.5) / SUPER) * lateralRes;
 							for (int ii = 0; ii < SUPER; ii++) {
 								final double wx = (x - xo + (ii + 0.5) / SUPER) * lateralRes;
-								if (containsAny(frustums, wx, wy, wz)) count++;
+								if (doModulation) {
+									final double r = grid.maxRadiusAt(wx, wy, wz);
+									if (r >= 0) {
+										count++;
+										if (r > voxelMaxR) voxelMaxR = r;
+									}
+								} else {
+									if (grid.containsAny(wx, wy, wz)) count++;
+								}
 							}
 						}
 					}
 					slice[idx] = count;
-					if (count > maxDensity) maxDensity = count;
+					if (doModulation) radSlice[idx] = (float) voxelMaxR;
+					if (count > localMax) localMax = count;
 				}
+			}
+			sliceMaxDensity[z] = localMax;
+		});
+
+		double maxDensity = 0;
+		for (final double d : sliceMaxDensity)
+			if (d > maxDensity) maxDensity = d;
+
+		// Normalize density to [0, 1]
+		final double superCubed = (double) SUPER * SUPER * SUPER;
+		if (maxDensity > 0) {
+			final float norm = (float) superCubed;
+			IntStream.range(0, depth).parallel().forEach(z -> {
+				final float[] slice = img[z];
+				for (int i = 0; i < slice.length; i++) {
+					if (slice[i] > 0) slice[i] /= norm;
+				}
+			});
+		}
+
+		// Thickness modulation (before adding noise)
+		if (doModulation && maxDensity > 0) {
+			double globalMinR = Double.MAX_VALUE;
+			double globalMaxR = -Double.MAX_VALUE;
+			for (final Frustum f : frustums) {
+				final double lo = Math.min(f.sr, f.er);
+				final double hi = Math.max(f.sr, f.er);
+				if (lo < globalMinR) globalMinR = lo;
+				if (hi > globalMaxR) globalMaxR = hi;
+			}
+			final double fRange = globalMaxR - globalMinR;
+			if (fRange > 0) {
+				SNTUtils.log("TreeToRaster: applying thickness modulation ("
+						+ thicknessModulation + "), radius range [" + globalMinR + ", " + globalMaxR + "]");
+				final double fMinR = globalMinR;
+			IntStream.range(0, depth).parallel().forEach(z -> {
+					final float[] slice = img[z];
+					final float[] radSlice = radImg[z];
+					for (int i = 0; i < slice.length; i++) {
+						if (slice[i] > 0 && radSlice[i] > 0) {
+							final double normR = (radSlice[i] - fMinR) / fRange;
+							final double mod = (1 - thicknessModulation)
+									+ thicknessModulation * normR;
+							slice[i] *= (float) mod;
+						}
+					}
+				});
 			}
 		}
 
-		// --- Pass 3 (optional): Poisson shot noise ---
+		// Pass 3 (optional): Poisson shot noise
 		if (snr > 0 && maxDensity > 0) {
 			SNTUtils.log("TreeToRaster: applying Poisson noise (SNR=" + snr
 					+ ", background=" + background + ")");
 			// peak from SNR: SNR = (peak - bg)/sqrt(peak)
 			final double temp = snr + Math.sqrt(snr * snr + 4 * background);
 			final double peak = 0.25 * temp * temp;
-			final double scale = (peak - background) / maxDensity;
-			for (int z = 0; z < depth; z++) {
+			final double scale = peak - background; // density already in [0,1]
+			// Note: Poisson sampling uses thread-local RNG implicitly via
+			// PoissonDistribution, so parallel should be safe here
+			IntStream.range(0, depth).parallel().forEach(z -> {
 				final float[] slice = img[z];
 				for (int i = 0; i < slice.length; i++) {
 					final double mean = scale * slice[i] + background;
 					slice[i] = (float) poissonSample(mean);
 				}
-			}
-		} else if (maxDensity > 0) {
-			// Normalize to [0, 1]
-			final float norm = (float) superCubed;
-			for (int z = 0; z < depth; z++) {
-				final float[] slice = img[z];
-				for (int i = 0; i < slice.length; i++) {
-					if (slice[i] > 0) slice[i] /= norm;
-				}
-			}
+			});
 		}
 
-		// --- Pass 4 (optional): Gaussian blur ---
+		// Pass 4 (optional): Gaussian blur
+		// TODO: consider replacing with imglib2 FastGauss.convolve() for
+		// built-in parallelism and better separable-kernel performance
 		if (gaussSigma > 0) {
-			SNTUtils.log("TreeToRaster: applying Gaussian blur (sigma="
-					+ gaussSigma + ")");
+			SNTUtils.log("TreeToRaster: applying Gaussian blur (sigma=" + gaussSigma + ")");
 			final double sigmaXY = gaussSigma / lateralRes; // convert to pixels
 			final double sigmaZ = gaussSigma / axialRes;
 			applyGaussianBlur3D(img, width, height, depth, sigmaXY, sigmaZ);
@@ -296,7 +358,146 @@ public class TreeToRaster {
 		final ImageStack stack = new ImageStack(width, height);
 		for (int z = 0; z < depth; z++) stack.addSlice("", img[z]);
 		final ImagePlus imp = new ImagePlus("Raster " + tree.getLabel(), stack);
-		final Calibration cal = imp.getCalibration();
+		imp.setCalibration(buildCalibration());
+		if (snr <= 0)
+			imp.setDisplayRange(0, 1);
+		else
+			imp.resetDisplayRange();
+		return imp;
+	}
+
+	/**
+	 * Rasterizes the tree into a 16-bit label image where each voxel is
+	 * assigned the 1-based index of the {@link Path} that owns it (as
+	 * ordered by {@link Tree#list()}). Background voxels are 0.
+	 * <p>
+	 * At intersection sites where multiple paths overlap, the path with
+	 * the largest local radius wins (thickest-wins priority), ensuring
+	 * that thin branches crossing a thick trunk do not overwrite it.
+	 * </p>
+	 * <p>
+	 * The returned image has the same dimensions and calibration as the
+	 * density image produced by {@link #rasterize()}, so the two can be
+	 * used as overlays. Noise and blur settings are ignored for label
+	 * images.
+	 * </p>
+	 *
+	 * @return a 16-bit {@link ImagePlus} of path labels
+	 */
+	public ImagePlus rasterizeLabels() {
+
+		final RasterContext ctx = prepareRasterization();
+		final int width = ctx.width, height = ctx.height, depth = ctx.depth;
+		final int xo = ctx.xo, yo = ctx.yo, zo = ctx.zo;
+		final FrustumGrid grid = ctx.grid;
+		final float[][] flagMap = ctx.flagMap;
+
+		// For each flagged voxel, supersample and pick the path whose
+		// frustum has the largest local radius (thickest-wins)
+		final short[][] labels = new short[depth][width * height];
+
+		IntStream.range(0, depth).parallel().forEach(z -> {
+			final float[] flags = flagMap[z];
+			final short[] labelSlice = labels[z];
+			for (int y = 0; y < height; y++) {
+				final int row = y * width;
+				for (int x = 0; x < width; x++) {
+					final int idx = row + x;
+					if (flags[idx] != -1) continue;
+					double bestR = -1;
+					int bestId = 0;
+					for (int kk = 0; kk < SUPER; kk++) {
+						final double wz = (z - zo + (kk + 0.5) / SUPER) * axialRes;
+						for (int jj = 0; jj < SUPER; jj++) {
+							final double wy = (y - yo + (jj + 0.5) / SUPER)
+									* lateralRes;
+							for (int ii = 0; ii < SUPER; ii++) {
+								final double wx = (x - xo + (ii + 0.5) / SUPER)
+										* lateralRes;
+								final Frustum[] cell = grid.cellAt(wx, wy, wz);
+								for (final Frustum f : cell) {
+									final double r = f.localRadius(wx, wy, wz);
+									if (r > bestR) {
+										bestR = r;
+										bestId = f.pathId;
+									}
+								}
+							}
+						}
+					}
+					labelSlice[idx] = (short) bestId;
+				}
+			}
+		});
+
+		// Build 16-bit ImagePlus
+		final ImageStack stack = new ImageStack(width, height);
+		for (int z = 0; z < depth; z++)
+			stack.addSlice("", new ShortProcessor(width, height, labels[z], null));
+		final ImagePlus imp = new ImagePlus("Labels " + tree.getLabel(), stack);
+		imp.setCalibration(buildCalibration());
+		imp.resetDisplayRange();
+		return imp;
+	}
+
+	/** Shared state computed once for both {@link #rasterize()} and {@link #rasterizeLabels()}. */
+	private static class RasterContext {
+		int width, height, depth;
+		int xo, yo, zo;
+		List<Frustum> frustums;
+		FrustumGrid grid;
+		float[][] flagMap; // -1 where any frustum overlaps, 0 elsewhere
+	}
+
+	private RasterContext prepareRasterization() {
+		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+		final double[] bounds = worldBounds(defR);
+
+		final int xm = (int) Math.floor(bounds[0] / lateralRes);
+		final int ym = (int) Math.floor(bounds[2] / lateralRes);
+		final int zm = (int) Math.floor(bounds[4] / axialRes);
+		final int xM = (int) Math.ceil(bounds[1] / lateralRes);
+		final int yM = (int) Math.ceil(bounds[3] / lateralRes);
+		final int zM = (int) Math.ceil(bounds[5] / axialRes);
+
+		final RasterContext ctx = new RasterContext();
+		ctx.width  = (xM - xm) + 2 * BORDER_XY;
+		ctx.height = (yM - ym) + 2 * BORDER_XY;
+		ctx.depth  = Math.max((zM - zm) + 2 * BORDER_Z, 1);
+		ctx.xo = BORDER_XY - xm;
+		ctx.yo = BORDER_XY - ym;
+		ctx.zo = BORDER_Z  - zm;
+
+		SNTUtils.log("TreeToRaster: allocating " + ctx.width + "x" + ctx.height
+				+ "x" + ctx.depth);
+
+		ctx.frustums = buildFrustums(defR);
+		ctx.grid = new FrustumGrid(ctx.frustums, bounds, lateralRes, axialRes);
+
+		// Pass 1: coarse voxel map
+		ctx.flagMap = new float[ctx.depth][ctx.width * ctx.height];
+		for (final Frustum f : ctx.frustums) {
+			final int fxm = ctx.xo + (int) Math.floor(f.xMin / lateralRes);
+			final int fym = ctx.yo + (int) Math.floor(f.yMin / lateralRes);
+			final int fzm = ctx.zo + (int) Math.floor(f.zMin / axialRes);
+			final int fxM = ctx.xo + (int) Math.ceil(f.xMax / lateralRes);
+			final int fyM = ctx.yo + (int) Math.ceil(f.yMax / lateralRes);
+			final int fzM = ctx.zo + (int) Math.ceil(f.zMax / axialRes);
+			for (int z = Math.max(fzm, 0); z < Math.min(fzM, ctx.depth); z++) {
+				final float[] slice = ctx.flagMap[z];
+				for (int y = Math.max(fym, 0); y < Math.min(fyM, ctx.height); y++) {
+					final int row = y * ctx.width;
+					for (int x = Math.max(fxm, 0); x < Math.min(fxM, ctx.width); x++) {
+						slice[row + x] = -1;
+					}
+				}
+			}
+		}
+		return ctx;
+	}
+
+	private Calibration buildCalibration() {
+		final Calibration cal = new Calibration();
 		cal.pixelWidth = lateralRes;
 		cal.pixelHeight = lateralRes;
 		cal.pixelDepth = axialRes;
@@ -306,14 +507,8 @@ public class TreeToRaster {
 			cal.setYUnit(unit);
 			cal.setZUnit(unit);
 		}
-		if (snr <= 0)
-			imp.setDisplayRange(0, 1);
-		else
-			imp.resetDisplayRange();
-		return imp;
+		return cal;
 	}
-
-	// -- Internals --
 
 	private double[] worldBounds(final double defR) {
 		double xMin = Double.MAX_VALUE, xMax = -Double.MAX_VALUE;
@@ -336,9 +531,12 @@ public class TreeToRaster {
 		return new double[] { xMin, xMax, yMin, yMax, zMin, zMax };
 	}
 
-	private java.util.List<Frustum> buildFrustums(final double defR) {
-		final java.util.List<Frustum> frustums = new java.util.ArrayList<>();
-		for (final Path p : tree.list()) {
+	private List<Frustum> buildFrustums(final double defR) {
+		final List<Frustum> frustums = new ArrayList<>();
+		final List<Path> paths = tree.list();
+		for (int pi = 0; pi < paths.size(); pi++) {
+			final Path p = paths.get(pi);
+			final int id = pi + 1; // 1-based path ID (0 = background)
 			// Bridge frustum: connect parent's branch node to this path's
 			// first node so that fork/junction points are contiguous
 			final Path parent = p.getParentPath();
@@ -350,7 +548,7 @@ public class TreeToRaster {
 					final double rBp = (parent.hasRadii()) ? parent.getNodeRadius(bpIdx) : defR;
 					final double r0 = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
 					frustums.add(new Frustum(bp.x, bp.y, bp.z, rBp,
-							n0.x, n0.y, n0.z, r0));
+							n0.x, n0.y, n0.z, r0, id));
 				}
 			}
 			for (int i = 0; i < p.size() - 1; i++) {
@@ -359,23 +557,15 @@ public class TreeToRaster {
 				final double r0 = (p.hasRadii()) ? p.getNodeRadius(i) : defR;
 				final double r1 = (p.hasRadii()) ? p.getNodeRadius(i + 1) : defR;
 				frustums.add(new Frustum(n0.x, n0.y, n0.z, r0,
-						n1.x, n1.y, n1.z, r1));
+						n1.x, n1.y, n1.z, r1, id));
 			}
 			if (p.size() == 1) {
 				final PointInImage n = p.getNode(0);
 				final double r = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
-				frustums.add(new Frustum(n.x, n.y, n.z, r, n.x, n.y, n.z, r));
+				frustums.add(new Frustum(n.x, n.y, n.z, r, n.x, n.y, n.z, r, id));
 			}
 		}
 		return frustums;
-	}
-
-	private static boolean containsAny(final java.util.List<Frustum> frustums,
-			final double x, final double y, final double z) {
-		for (final Frustum f : frustums) {
-			if (f.contains(x, y, z)) return true;
-		}
-		return false;
 	}
 
 	/**
@@ -388,7 +578,8 @@ public class TreeToRaster {
 		// the Gaussian approximation N(mean, mean) is excellent
 		if (mean > 1e6) {
 			return Math.max(0, mean + Math.sqrt(mean)
-					* new java.util.Random().nextGaussian());
+					* java.util.concurrent.ThreadLocalRandom.current()
+							.nextGaussian());
 		}
 		return new PoissonDistribution(mean).sample();
 	}
@@ -401,13 +592,13 @@ public class TreeToRaster {
 			final int width, final int height, final int depth,
 			final double sigmaXY, final double sigmaZ) {
 
-		// XY blur per slice
+		// XY blur per slice (parallel)
 		if (sigmaXY > 0) {
-			final GaussianBlur gb = new GaussianBlur();
-			for (int z = 0; z < depth; z++) {
+			IntStream.range(0, depth).parallel().forEach(z -> {
+				final GaussianBlur gb = new GaussianBlur();
 				final FloatProcessor fp = new FloatProcessor(width, height, img[z]);
 				gb.blurGaussian(fp, sigmaXY, sigmaXY, 0.0002);
-			}
+			});
 		}
 
 		// Z blur: 1D Gaussian convolution per (x,y) column
@@ -421,13 +612,12 @@ public class TreeToRaster {
 			}
 			for (int k = 0; k < kernel.length; k++) kernel[k] /= sum;
 
-			final float[] column = new float[depth];
-			final float[] result = new float[depth];
 			final int pixelsPerSlice = width * height;
-			for (int idx = 0; idx < pixelsPerSlice; idx++) {
-				// Extract column
+			// Parallel over pixel columns
+			IntStream.range(0, pixelsPerSlice).parallel().forEach(idx -> {
+				final float[] column = new float[depth];
+				final float[] result = new float[depth];
 				for (int z = 0; z < depth; z++) column[z] = img[z][idx];
-				// Convolve
 				for (int z = 0; z < depth; z++) {
 					double val = 0;
 					for (int k = -kRadius; k <= kRadius; k++) {
@@ -436,13 +626,104 @@ public class TreeToRaster {
 					}
 					result[z] = (float) val;
 				}
-				// Write back
 				for (int z = 0; z < depth; z++) img[z][idx] = result[z];
-			}
+			});
 		}
 	}
 
-	// -- Frustum (truncated cone) geometry --
+	/**
+	 * A uniform 3D grid that bins frustums by their axis-aligned bounding boxes.
+	 * For a given world-coordinate query point, only the frustums in the
+	 * corresponding cell need to be tested, reducing the per-sub-voxel cost
+	 * from O(N) to approximately O(1).
+	 */
+	private static class FrustumGrid {
+
+		private final Frustum[][] cells; // cells[flatIdx] = frustums in that cell
+		private final int gw, gh, gd;
+		private final double cellW, cellH, cellD;
+		private final double ox, oy, oz; // world-coordinate origin
+
+		FrustumGrid(final List<Frustum> frustums, final double[] worldBounds,
+				final double lateralRes, final double axialRes) {
+			final double xMin = worldBounds[0], xMax = worldBounds[1];
+			final double yMin = worldBounds[2], yMax = worldBounds[3];
+			final double zMin = worldBounds[4], zMax = worldBounds[5];
+
+			cellW = lateralRes * GRID_CELL_VOXELS;
+			cellH = lateralRes * GRID_CELL_VOXELS;
+			cellD = Math.max(axialRes * GRID_CELL_VOXELS, 1e-9);
+
+			ox = xMin;
+			oy = yMin;
+			oz = zMin;
+			gw = Math.max((int) Math.ceil((xMax - xMin) / cellW), 1);
+			gh = Math.max((int) Math.ceil((yMax - yMin) / cellH), 1);
+			gd = Math.max((int) Math.ceil((zMax - zMin) / cellD), 1);
+
+			// Build temporary lists
+			@SuppressWarnings("unchecked")
+			final List<Frustum>[] tmp = new ArrayList[gw * gh * gd];
+			for (int i = 0; i < tmp.length; i++)
+				tmp[i] = new ArrayList<>();
+
+			for (final Frustum f : frustums) {
+				final int x0 = clamp((int) ((f.xMin - ox) / cellW), gw);
+				final int x1 = clamp((int) ((f.xMax - ox) / cellW), gw);
+				final int y0 = clamp((int) ((f.yMin - oy) / cellH), gh);
+				final int y1 = clamp((int) ((f.yMax - oy) / cellH), gh);
+				final int z0 = clamp((int) ((f.zMin - oz) / cellD), gd);
+				final int z1 = clamp((int) ((f.zMax - oz) / cellD), gd);
+				for (int z = z0; z <= z1; z++)
+					for (int y = y0; y <= y1; y++)
+						for (int x = x0; x <= x1; x++)
+							tmp[z * gw * gh + y * gw + x].add(f);
+			}
+
+			// Convert to arrays for cache-friendly iteration
+			cells = new Frustum[tmp.length][];
+			for (int i = 0; i < tmp.length; i++)
+				cells[i] = tmp[i].toArray(new Frustum[0]);
+		}
+
+		private static int clamp(final int v, final int max) {
+			return Math.max(0, Math.min(v, max - 1));
+		}
+
+		private Frustum[] cellAt(final double wx, final double wy,
+				final double wz) {
+			final int gx = clamp((int) ((wx - ox) / cellW), gw);
+			final int gy = clamp((int) ((wy - oy) / cellH), gh);
+			final int gz = clamp((int) ((wz - oz) / cellD), gd);
+			return cells[gz * gw * gh + gy * gw + gx];
+		}
+
+		/**
+		 * Returns {@code true} if the point is inside any frustum in the
+		 * corresponding grid cell.
+		 */
+		boolean containsAny(final double wx, final double wy,
+				final double wz) {
+			for (final Frustum f : cellAt(wx, wy, wz))
+				if (f.contains(wx, wy, wz)) return true;
+			return false;
+		}
+
+		/**
+		 * Returns the maximum local interpolated radius among all frustums
+		 * that contain the point, or -1 if the point is outside all frustums.
+		 */
+		double maxRadiusAt(final double wx, final double wy,
+				final double wz) {
+			double max = -1;
+			for (final Frustum f : cellAt(wx, wy, wz)) {
+				final double r = f.localRadius(wx, wy, wz);
+				if (r > max) max = r;
+			}
+			return max;
+		}
+
+	}
 
 	/**
 	 * A truncated cone (frustum) connecting two nodes with potentially different
@@ -455,12 +736,14 @@ public class TreeToRaster {
 		final double dx, dy, dz;
 		final double len2, len;
 		final double xMin, xMax, yMin, yMax, zMin, zMax;
+		final int pathId; // 1-based path identifier (0 = unset)
 
 		Frustum(final double sx, final double sy, final double sz,
 				final double sr, final double ex, final double ey,
-				final double ez, final double er) {
+				final double ez, final double er, final int pathId) {
 			this.sx = sx; this.sy = sy; this.sz = sz; this.sr = sr;
 			this.ex = ex; this.ey = ey; this.ez = ez; this.er = er;
+			this.pathId = pathId;
 			dx = ex - sx; dy = ey - sy; dz = ez - sz;
 			len2 = dx * dx + dy * dy + dz * dz;
 			len = Math.sqrt(len2);
@@ -492,18 +775,46 @@ public class TreeToRaster {
 					final double proj = dot / len;
 					final double frac = proj / len;
 					final double rad = frac * er + (1 - frac) * sr;
+					return vx * vx + vy * vy + vz * vz - proj * proj <= rad * rad;
+				} else {
+					final double ddx = x - ex, ddy = y - ey, ddz = z - ez;
+					return ddx * ddx + ddy * ddy + ddz * ddz <= er * er;
+				}
+			} else {
+				return vx * vx + vy * vy + vz * vz <= sr * sr;
+			}
+		}
+
+		/**
+		 * Returns the interpolated local radius at the given point if it lies
+		 * inside this frustum, or -1 if the point is outside. Within the
+		 * frustum body the radius is linearly interpolated along the segment
+		 * axis; at the endpoint caps the corresponding endpoint radius is
+		 * returned.
+		 */
+		double localRadius(final double x, final double y, final double z) {
+			final double vx = x - sx;
+			final double vy = y - sy;
+			final double vz = z - sz;
+			final double dot = dx * vx + dy * vy + dz * vz;
+
+			if (dot > 0) {
+				if (dot < len2) {
+					final double proj = dot / len;
+					final double frac = proj / len;
+					final double rad = frac * er + (1 - frac) * sr;
 					if (vx * vx + vy * vy + vz * vz - proj * proj <= rad * rad)
-						return true;
+						return rad;
 				} else {
 					final double ddx = x - ex, ddy = y - ey, ddz = z - ez;
 					if (ddx * ddx + ddy * ddy + ddz * ddz <= er * er)
-						return true;
+						return er;
 				}
 			} else {
 				if (vx * vx + vy * vy + vz * vz <= sr * sr)
-					return true;
+					return sr;
 			}
-			return false;
+			return -1;
 		}
 	}
 }
