@@ -1860,8 +1860,11 @@ public class GuiUtils {
 					if (!found) continue;
 				}
 				final String keyStr = keystrokeToString(ks);
-				final String actionStr = toTitleCase(actionKey.toString());
-				bindings.merge(keyStr, actionStr, (a, b) -> b + " (<i>overrides " + a + "</i>)");
+				String actionStr = toTitleCase(actionKey.toString());
+				// Strip press/release suffixes so a single key bound to both
+				// KEY_PRESSED and KEY_RELEASED shows only one clean entry
+				actionStr = actionStr.replaceAll("\\s+(Press(ed)?|Release(d)?)$", "");
+				bindings.merge(keyStr, actionStr, (a, b) -> a.equals(b) ? a : b + " (<i>overrides " + a + "</i>)");
 			}
 		}
 		final StringBuilder sb = new StringBuilder();

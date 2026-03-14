@@ -103,7 +103,7 @@ public class Bvv {
 
     private final BvvOptions options;
     private final Map<String, Tree> renderedTrees;
-    private JProgressBar progressBar; // Set by {@link #sntToolbar}.
+    private JProgressBar progressBar; // Docked at CardPanel bottom via addToCardPanelBottom().
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private final PathRenderingOptions renderingOptions;
     private PathOverlay pathOverlay;
@@ -1166,12 +1166,14 @@ public class Bvv {
             // SNT toolbar
             sntAnnotationsCard = sntToolbar(actions);
             bvvFrame.getCardPanel().addCard("SNT Annotations", sntAnnotationsCard, true);
-            // Shared progress bar at the bottom of the frame
+            // Progress bar: docked at the bottom of the card panel, below all
+            // cards, without a card header.  This avoids the viewport flicker
+            // caused by adding the bar to the frame's BorderLayout.SOUTH.
             progressBar = new JProgressBar(0, 100);
             progressBar.setStringPainted(true);
             progressBar.setString("");
             progressBar.setVisible(false);
-            bvvFrame.getContentPane().add(progressBar, java.awt.BorderLayout.SOUTH);
+            addToCardPanelBottom(bvvFrame.getCardPanel(), progressBar);
             // Register shortcuts through BDV's keybindings system so they are
             // handled at the same level as BVV's own shortcuts (e.g., Shift+B).
             // Using Swing's InputMap/ActionMap directly gets shadowed by BDV's
@@ -1216,7 +1218,7 @@ public class Bvv {
             // Ensure the card panel is wide enough to show all controls without clipping.
             // Use the Scene Controls panel's own preferred width since it's the widest,
             // and its GridBagLayout has already computed the correct natural width.
-            final int cardPrefW = sceneControlsCard.getMinimumSize().width;
+            final int cardPrefW = sceneControlsCard.getMinimumSize().width + 4; // minor padding
             SwingUtilities.invokeLater(() -> {
                 final javax.swing.JSplitPane split = bvv.getViewerFrame().getSplitPanel();
                 final java.awt.Component cards = split.getRightComponent();
@@ -1268,6 +1270,10 @@ public class Bvv {
         // Slab bounds (world-space Z) at which the mixed source was computed.
         // Used to auto-restore originals when the slab changes post-computation.
         final double[] computedSlabZ = {Double.NaN, Double.NaN};
+        // Display ranges (sigMin, sigMax, subMin, subMax) used for the last
+        // computation.  If the user adjusts B&C after computing, we flag the
+        // result as stale so the user knows to recompute.
+        final double[] computedDisplayRanges = {Double.NaN, Double.NaN, Double.NaN, Double.NaN};
 
         final List<BvvStackSource<?>> sources = multi.getSources();
         final int nChannels = sources.size();
@@ -1284,23 +1290,32 @@ public class Bvv {
 
         final JComboBox<String> signalCombo = new JComboBox<>(channelNames);
         signalCombo.setSelectedIndex(0);
-        signalCombo.setToolTipText("Signal channel");
+        signalCombo.setToolTipText("<html>Signal channel (the channel to keep).<br>"
+                + "Its display range (black/white levels) is used<br>"
+                + "to normalise the subtraction.");
         final JComboBox<String> subtractCombo = new JComboBox<>(channelNames);
         subtractCombo.setSelectedIndex(Math.min(1, nChannels - 1));
-        subtractCombo.setToolTipText("Background channel to subtract");
+        subtractCombo.setToolTipText("<html>Background channel to subtract.<br>"
+                + "Its display range is used to scale the subtraction<br>"
+                + "relative to the signal channel.");
 
         final JSlider weightSlider = new JSlider(0, 100, 0);
         weightSlider.setToolTipText(
-                "<html>Subtraction weight <i>w</i>: <i>Result = Signal − w × Background</i>.<br>"
-                + "Start low and increase until bleed-through disappears.<br>"
+                "<html>Subtraction weight <i>w</i>: the subtraction is normalised<br>"
+                + "by each channel's display range (brightness/contrast levels).<br>"
+                + "<b>Workflow:</b> First adjust the B&amp;C sliders so that an<br>"
+                + "autofluorescent feature looks equally bright in both channels,<br>"
+                + "then increase <i>w</i> until the bleed-through disappears.<br>"
                 + "Higher values remove more background but may clip signal.<br>"
-                + "Adjust on slider release.");
+                + "Computed on slider release.");
         final JLabel weightLabel = new JLabel("w = 0.00");
         weightSlider.addChangeListener(e ->
                 weightLabel.setText(String.format("w = %.2f", weightSlider.getValue() / 100.0)));
 
         final JToggleButton enableToggle = new JToggleButton("Enable");
-        enableToggle.setToolTipText("<html>Enable channel subtraction.<br>"
+        enableToggle.setToolTipText("<html>Enable display-normalised channel subtraction.<br>"
+                + "The subtraction uses each channel's current brightness<br>"
+                + "levels, so adjust B&amp;C first to calibrate the unmixing.<br>"
                 + "Large volumes may require an active thin Slab View.");
 
         final JLabel statusLabel = new JLabel(" ");
@@ -1312,22 +1327,11 @@ public class Bvv {
         final double zCal = (cal != null && cal.length > 2 && cal[2] > 0) ? cal[2] : 1.0;
         final double maxSlabThickness = zCal * 10; // max 10 slices
 
-        // For non-pyramid (ImgPlus) sources the data is already in RAM, so a
-        // slab view is only needed when the full-volume unmixing buffers would
-        // exceed available heap.  Pyramid / SpimData sources always require slab
-        // because levels are lazily loaded and can be arbitrarily large.
-        // The check is dynamic: free heap is re-evaluated each time the toggle
-        // is enabled so it reflects whatever else has been loaded in the scene.
-        final java.util.function.BooleanSupplier slabRequired = () -> {
-            if (spimData != null || hasPyramid) return true;
-            if (dims == null || dims.length < 3) return true; // safety: unknown size
-            final long nPixels = dims[0] * dims[1] * dims[2];
-            // 3 ArrayImgs of UnsignedShort (2 bytes/pixel): sig + sub + mixed
-            final long costBytes = nPixels * 2L * 3L;
-            final Runtime rt = Runtime.getRuntime();
-            final long freeHeap = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
-            return costBytes > freeHeap / 2;
-        };
+        // Pyramid / SpimData sources always require slab because levels are
+        // lazily loaded and can be arbitrarily large.  For non-pyramid (ImgPlus)
+        // sources the data is already in RAM: instead of a fragile heap estimate
+        // we attempt the allocation and catch OutOfMemoryError at compute time.
+        final java.util.function.BooleanSupplier slabRequired = () -> spimData != null || hasPyramid;
 
         // Debounce timer: when the slab moves while unmixing is enabled,
         // wait for the slab to settle before recomputing.  Each detected
@@ -1353,16 +1357,18 @@ public class Bvv {
             if (mixedSource[0] != null && !Double.isNaN(computedSlabZ[0])) {
                 final boolean slabMoved = zMin < computedSlabZ[0] - zCal
                         || zMax > computedSlabZ[1] + zCal;
-                if (needSlab && (!slabActive || !slabThin)) {
-                    // Slab disabled or too thick: restore originals immediately
+                if (!slabActive || (needSlab && !slabThin)) {
+                    // Slab was active during compute but is now disabled, or
+                    // too thick for SpimData: restore originals immediately
                     if (recomputeTimer[0] != null) recomputeTimer[0].stop();
                     mixedSource[0].removeFromBdv();
                     mixedSource[0] = null;
                     computedSlabZ[0] = Double.NaN;
                     computedSlabZ[1] = Double.NaN;
+                    java.util.Arrays.fill(computedDisplayRanges, Double.NaN);
                     multi.setActive(true);
                     repaint();
-                } else if (slabActive && slabMoved && enableToggle.isSelected() && weightSlider.getValue() > 0) {
+                } else if (slabMoved && enableToggle.isSelected() && weightSlider.getValue() > 0) {
                     // Slab still valid but moved: debounce a recompute
                     recomputePending = true;
                     if (recomputeTimer[0] != null) recomputeTimer[0].restart();
@@ -1374,18 +1380,34 @@ public class Bvv {
                 channelUnmixingError(enableToggle, statusLabel, "Signal and background channels must differ");
             } else if (needSlab && !slabActive) {
                 weightSlider.setEnabled(false);
-                channelUnmixingError(enableToggle, statusLabel, "Slab view must be active for weight adjustment");
+                channelUnmixingError(enableToggle, statusLabel, "Slab view required to limit memory usage. Please enable it.");
             } else if (needSlab && !slabThin) {
                 weightSlider.setEnabled(false);
-                channelUnmixingError(enableToggle, statusLabel, "Slab must be thinner (\u2264" + (int)(maxSlabThickness / zCal) + " slices)");
+                channelUnmixingError(enableToggle, statusLabel, "Slab too thick for memory safety (≤" + (int)(maxSlabThickness / zCal) + " slices needed)");
             } else if (enableToggle.isSelected()) {
                 weightSlider.setEnabled(true);
-                if (recomputePending)
+                if (recomputePending) {
                     statusLabel.setText("Slab moved: Recomputing...");
-                else if (mixedSource[0] != null)
-                    statusLabel.setText(String.format("Showing unmixed (w = %.2f)", weightSlider.getValue() / 100.0));
-                else
+                } else if (mixedSource[0] != null) {
+                    // Check whether display ranges have drifted since computation
+                    final int sIdx = signalCombo.getSelectedIndex();
+                    final int bIdx = subtractCombo.getSelectedIndex();
+                    final bdv.tools.brightness.ConverterSetup csS =
+                            sources.get(sIdx).getConverterSetups().getFirst();
+                    final bdv.tools.brightness.ConverterSetup csB =
+                            sources.get(bIdx).getConverterSetups().getFirst();
+                    final boolean rangesChanged =
+                            csS.getDisplayRangeMin() != computedDisplayRanges[0]
+                            || csS.getDisplayRangeMax() != computedDisplayRanges[1]
+                            || csB.getDisplayRangeMin() != computedDisplayRanges[2]
+                            || csB.getDisplayRangeMax() != computedDisplayRanges[3];
+                    if (rangesChanged)
+                        statusLabel.setText("B&C levels changed: Adjust weight to recompute");
+                    else
+                        statusLabel.setText(String.format("Showing unmixed (w = %.2f)", weightSlider.getValue() / 100.0));
+                } else {
                     statusLabel.setText("Release slider to compute unmixing");
+                }
             } else {
                 weightSlider.setEnabled(false);
                 statusLabel.setText(" ");
@@ -1395,6 +1417,19 @@ public class Bvv {
         // Re-check when channel selection changes
         signalCombo.addActionListener(e -> checkSlabAndUpdateUI.run());
         subtractCombo.addActionListener(e -> checkSlabAndUpdateUI.run());
+
+        // Re-check when B&C display ranges change so we can flag stale results.
+        // ConverterSetup.setupChangeListeners() is standard BDV API, but we guard
+        // with try-catch in case a non-standard implementation is used.
+        try {
+            for (final BvvStackSource<?> src : sources) {
+                src.getConverterSetups().getFirst().setupChangeListeners().add(s ->
+                        SwingUtilities.invokeLater(checkSlabAndUpdateUI));
+            }
+        } catch (final Exception ignored) {
+            // If the API is unavailable, the stale check still works — it just
+            // won't fire until the next slab move or slider interaction.
+        }
 
         final Runnable computeMix = () -> {
             if (computing[0]) return;
@@ -1406,6 +1441,7 @@ public class Bvv {
                     mixedSource[0] = null;
                     computedSlabZ[0] = Double.NaN;
                     computedSlabZ[1] = Double.NaN;
+                    java.util.Arrays.fill(computedDisplayRanges, Double.NaN);
                 }
                 multi.setActive(true);
                 repaint();
@@ -1473,28 +1509,47 @@ public class Bvv {
                 calOffset = null;
             }
 
-            // Memory guard: 3 ArrayImgs (sig + sub materialized + mixed output)
-            // each holding UnsignedShort (2 bytes per pixel).  Abort if the
-            // allocation would exceed half the currently available heap.
-            final long[] cropDims = {
-                    sigCropped.max(0) - sigCropped.min(0) + 1,
-                    sigCropped.max(1) - sigCropped.min(1) + 1,
-                    sigCropped.max(2) - sigCropped.min(2) + 1};
-            final long nPixels = cropDims[0] * cropDims[1] * cropDims[2];
-            final long estimatedBytes = nPixels * 2L * 3L; // 3 arrays × 2 bytes/pixel
-            final Runtime rt = Runtime.getRuntime();
-            final long freeHeap = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
-            if (estimatedBytes > freeHeap / 2) {
-                statusLabel.setText(String.format("Volume too large at mip level %d (%d MB, %d MB free). "
-                                + "Enable Slab View or zoom in.",
-                        bestLevel, estimatedBytes / (1024 * 1024), freeHeap / (1024 * 1024)));
-                return;
+            // Read current display ranges (black/white levels) so the
+            // subtraction operates in display-normalized space, matching
+            // Horta's unmixing behavior.  This ensures the user-visible
+            // brightness of each channel is what gets subtracted.
+            final bdv.tools.brightness.ConverterSetup csSig =
+                    sources.get(sigIdx).getConverterSetups().getFirst();
+            final bdv.tools.brightness.ConverterSetup csSub =
+                    sources.get(subIdx).getConverterSetups().getFirst();
+            final double sigMin = csSig.getDisplayRangeMin();
+            final double sigMax = csSig.getDisplayRangeMax();
+            final double subMin = csSub.getDisplayRangeMin();
+            final double subMax = csSub.getDisplayRangeMax();
+            final double sigRange = sigMax - sigMin;
+            final double subRange = subMax - subMin;
+            // rangeScale converts subtract-channel display units into
+            // signal-channel display units, analogous to Horta's scaleB.
+            final double rangeScale = (subRange > 0) ? sigRange / subRange : 1.0;
+
+            // Memory guard for SpimData/pyramid sources (lazily loaded, can be very large).
+            // Non-SpimData sources rely on the try-and-fallback below.
+            if (spimData != null || hasPyramid) {
+                final long[] cropDims = {
+                        sigCropped.max(0) - sigCropped.min(0) + 1,
+                        sigCropped.max(1) - sigCropped.min(1) + 1,
+                        sigCropped.max(2) - sigCropped.min(2) + 1};
+                final long nPixels = cropDims[0] * cropDims[1] * cropDims[2];
+                final long estimatedBytes = nPixels * 2L * 3L; // 3 arrays × 2 bytes/pixel
+                final Runtime rt = Runtime.getRuntime();
+                final long freeHeap = rt.maxMemory() - (rt.totalMemory() - rt.freeMemory());
+                if (estimatedBytes > freeHeap / 2) {
+                    statusLabel.setText(String.format("Slab too large at mip level %d (%d MB needed, %d MB free). "
+                                    + "Reduce slab thickness or zoom in to save memory.",
+                            bestLevel, estimatedBytes / (1024 * 1024), freeHeap / (1024 * 1024)));
+                    return;
+                }
             }
 
             // Eagerly compute the subtraction on the slab-cropped region.
             // Each channel is materialized sequentially (single-threaded) to
             // avoid concurrent HDF5 access, then the subtraction runs
-            // multi-threaded on the in-memory arrays.
+            // multithreaded on the in-memory arrays.
             computing[0] = true;
             weightSlider.setEnabled(false);
             statusLabel.setText(String.format("Computing (level %d)...", bestLevel));
@@ -1504,44 +1559,66 @@ public class Bvv {
             if (imgProcessingWorker != null && !imgProcessingWorker.isDone()) {
                 imgProcessingWorker.cancel(true);
             }
-            final SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            final SwingWorker<Void, Void> worker = new SwingWorker<>() {
                 @Override
                 protected Void doInBackground() {
                     final RandomAccessibleInterval<RealType<?>> sigZM = net.imglib2.view.Views.zeroMin(sigCropped);
                     final RandomAccessibleInterval<RealType<?>> subZM = net.imglib2.view.Views.zeroMin(subCropped);
                     final long[] cropSize = sigZM.dimensionsAsLongArray();
 
-                    // Step 1: materialize signal channel (single-threaded → no concurrent HDF5)
-                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
-                            sigMat = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
-                    LoopBuilder.setImages(sigZM, sigMat)
-                            .forEachPixel((a, out) -> out.setReal(a.getRealDouble()));
+                    // Allocate and compute.  For non-SpimData sources we skip
+                    // the pre-allocation heap check and instead catch OOM here.
+                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?> sigMat;
+                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?> subMat;
+                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?> mixed;
+                    try {
+                        // Step 1: materialize signal channel (single-threaded → no concurrent HDF5)
+                        sigMat = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
+                        LoopBuilder.setImages(sigZM, sigMat)
+                                .forEachPixel((a, out) -> out.setReal(a.getRealDouble()));
 
-                    if (isCancelled()) return null;
+                        if (isCancelled()) return null;
 
-                    // Step 2: materialize subtract channel (single-threaded)
-                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
-                            subMat = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
-                    LoopBuilder.setImages(subZM, subMat)
-                            .forEachPixel((a, out) -> out.setReal(a.getRealDouble()));
+                        // Step 2: materialize subtract channel (single-threaded)
+                        subMat = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
+                        LoopBuilder.setImages(subZM, subMat)
+                                .forEachPixel((a, out) -> out.setReal(a.getRealDouble()));
 
-                    if (isCancelled()) return null;
+                        if (isCancelled()) return null;
 
-                    // Step 3: subtract multi-threaded on in-memory arrays (safe)
-                    final net.imglib2.img.array.ArrayImg<net.imglib2.type.numeric.integer.UnsignedShortType, ?>
-                            mixed = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
-                    LoopBuilder.setImages(sigMat, subMat, mixed)
-                            .multiThreaded()
-                            .forEachPixel((a, b, out) -> {
-                                final double val = a.getRealDouble() - w * b.getRealDouble();
-                                out.setReal(Math.max(0, Math.min(65535, val)));
-                            });
+                        // Step 3: subtract multithreaded on in-memory arrays (safe).
+                        // The subtraction is display-normalized: each channel is
+                        // offset by its black level and scaled by the display range
+                        // ratio so the weight slider works in perceptual units.
+                        mixed = net.imglib2.img.array.ArrayImgs.unsignedShorts(cropSize[0], cropSize[1], cropSize[2]);
+                        LoopBuilder.setImages(sigMat, subMat, mixed)
+                                .multiThreaded()
+                                .forEachPixel((a, b, out) -> {
+                                    final double aNorm = a.getRealDouble() - sigMin;
+                                    final double bNorm = (b.getRealDouble() - subMin) * rangeScale;
+                                    final double val = aNorm - w * bNorm + sigMin;
+                                    out.setReal(Math.max(0, Math.min(65535, val)));
+                                });
+                    } catch (final OutOfMemoryError oom) {
+                        // Non-SpimData sources hit this when the volume is too large
+                        // for the available heap.  Prompt the user to enable slab view.
+                        SwingUtilities.invokeLater(() -> {
+                            panel.setCursor(Cursor.getDefaultCursor());
+                            computing[0] = false;
+                            updateStatus("", 0, 0);
+                            statusLabel.setText("Out of memory. Enable Slab View to reduce memory usage.");
+                            weightSlider.setEnabled(false);
+                            enableToggle.setSelected(false);
+                            checkSlabAndUpdateUI.run();
+                        });
+                        return null;
+                    }
 
                     if (isCancelled()) return null;
 
                     SwingUtilities.invokeLater(() -> {
                         if (isCancelled()) {
-                            // Cancelled between invokeLater post and EDT dispatch
+                            // Canceled between invokeLater post and EDT dispatch
                             panel.setCursor(Cursor.getDefaultCursor());
                             computing[0] = false;
                             updateStatus("", 0, 0);
@@ -1550,7 +1627,7 @@ public class Bvv {
                         }
                         if (mixedSource[0] != null) mixedSource[0].removeFromBdv();
                         final BvvOptions addOpt = bvv.vistools.Bvv.options().addTo(bvvHandle);
-                        final String srcName = String.format("%s \u2212 %.2f \u00d7 %s", sigName, w, subName);
+                        final String srcName = String.format("%s − %.2f × %s", sigName, w, subName);
                         final String unit = (calUnit != null) ? calUnit : "pixel";
                         // Build source transform from the mip-level sourceTransform
                         // so the mixed volume aligns with the original data in world
@@ -1573,13 +1650,10 @@ public class Bvv {
                                         srcT, srcName, mipCal, unit);
                         mixedSource[0] = BvvFunctions.show((bdv.viewer.Source) src, 1, addOpt);
                         multi.setActive(false);
-                        final bdv.tools.brightness.ConverterSetup csSig =
-                                sources.get(sigIdx).getConverterSetups().getFirst();
-                        final double rangeMin = csSig.getDisplayRangeMin();
-                        final double rangeMax = csSig.getDisplayRangeMax();
+                        // Apply signal channel's current display range to the mixed result
                         final BvvStackSource<?> ms = mixedSource[0];
                         final javax.swing.Timer applyRange = new javax.swing.Timer(100, ev -> {
-                            ms.setDisplayRange(rangeMin, rangeMax);
+                            ms.setDisplayRange(sigMin, sigMax);
                             ms.setColor(new ARGBType(0x0000FFFF)); // cyan
                             repaint();
                         });
@@ -1595,7 +1669,12 @@ public class Bvv {
                             computedSlabZ[0] = slabZMin;
                             computedSlabZ[1] = slabZMax;
                         }
-                        statusLabel.setText(String.format("Showing %s \u2212 %.2f \u00d7 %s (level %d)",
+                        // Snapshot the display ranges used for this computation
+                        computedDisplayRanges[0] = sigMin;
+                        computedDisplayRanges[1] = sigMax;
+                        computedDisplayRanges[2] = subMin;
+                        computedDisplayRanges[3] = subMax;
+                        statusLabel.setText(String.format("Showing %s − %.2f × %s (level %d)",
                                 sigName, w, subName, bestLevel));
                         if (hasPyramid && currentBvv != null) {
                             currentBvv.getViewer().showMessage(
@@ -1614,7 +1693,7 @@ public class Bvv {
                     try {
                         get();
                     } catch (final java.util.concurrent.CancellationException ignored) {
-                        // Expected when cancelled via reset/disable
+                        // Expected when canceled via reset/disable
                         SwingUtilities.invokeLater(() -> {
                             panel.setCursor(Cursor.getDefaultCursor());
                             computing[0] = false;
@@ -1667,6 +1746,7 @@ public class Bvv {
                     mixedSource[0] = null;
                     computedSlabZ[0] = Double.NaN;
                     computedSlabZ[1] = Double.NaN;
+                    java.util.Arrays.fill(computedDisplayRanges, Double.NaN);
                 }
                 multi.setActive(true);
                 repaint();
@@ -1688,6 +1768,7 @@ public class Bvv {
                 mixedSource[0] = null;
                 computedSlabZ[0] = Double.NaN;
                 computedSlabZ[1] = Double.NaN;
+                java.util.Arrays.fill(computedDisplayRanges, Double.NaN);
             }
             multi.setActive(true);
             repaint();
@@ -1812,7 +1893,7 @@ public class Bvv {
      * @param spimData the source dataset (for extracting file path and metadata)
      * @param sigIdx   index of the signal channel
      * @param subIdx   index of the background channel
-     * @param weight   subtraction weight (0–1)
+     * @param weight   subtraction weight (0-1)
      * @param sigName  display name of signal channel
      * @param subName  display name of background channel
      * @return the Groovy script as a String, or an error comment on failure
@@ -1926,13 +2007,6 @@ public class Bvv {
         SNTUtils.log(String.format("BVV camParams: physZ=%.1f zExtent=%.1f → dCam=%.0f dClip=%.0f",
                 physZ, zExtent, dCam, dClip));
         return new double[]{dCam, dClip, dClip};
-    }
-
-    /**
-     * @see sc.fiji.snt.io.SpimDataUtils#patchImsXml(String, String)
-     */
-    private static void patchImsXml(final String xmlPath, final String base) throws IOException {
-        sc.fiji.snt.io.SpimDataUtils.patchImsXml(xmlPath, base);
     }
 
     /**
@@ -2270,6 +2344,26 @@ public class Bvv {
                 updateStatus("", 0, 0); // clear / hide progress bar
             }
         }.execute();
+    }
+
+    /**
+     * Docks a component at the bottom of a {@link bdv.ui.CardPanel}, below all
+     * cards, without a card header.  Uses MigLayout's {@code "dock south"}
+     * constraint.  If the CardPanel's container layout ever changes away from
+     * MigLayout this will degrade gracefully: the component simply won't appear
+     * (no crash, no viewport flicker).
+     */
+    private static void addToCardPanelBottom(final bdv.ui.CardPanel cardPanel, final JComponent comp) {
+        final JComponent container = cardPanel.getComponent();
+        try {
+            container.add(comp, "growx, dock south");
+        } catch (final Exception ignored) {
+            // Layout manager does not support MigLayout constraints: fall back
+            // to default add so the component is at least in the hierarchy
+            SNTUtils.log("CardPanel layout is not MigLayout; progress bar may not render correctly");
+            container.add(comp);
+        }
+        container.revalidate();
     }
 
     /**
@@ -3090,6 +3184,29 @@ public class Bvv {
                 final boolean[] slabOn = {false};
 
                 final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
+
+                // Re-sync posSlider to actual viewer Z on mouse press.  The viewer
+                // transform can drift (e.g. scroll-wheel zoom/pan) while slab is on,
+                // causing the slider to be out-of-date.  Reading the transform when the
+                // user first touches the slider keeps them in sync with a one-time snap.
+                posSlider.addMouseListener(new java.awt.event.MouseAdapter() {
+                    @Override
+                    public void mousePressed(final java.awt.event.MouseEvent e) {
+                        if (!slabOn[0]) return;
+                        final AffineTransform3D t = new AffineTransform3D();
+                        viewerPanel.state().getViewerTransform(t);
+                        final double scale = Math.sqrt(
+                                t.get(0, 0) * t.get(0, 0) +
+                                t.get(1, 0) * t.get(1, 0) +
+                                t.get(2, 0) * t.get(2, 0));
+                        if (scale <= 0) return;
+                        final double zCenter = -t.get(2, 3) / scale;
+                        final int tick = Math.max(0, Math.min(nSlices, (int) Math.round(zCenter / zStep)));
+                        if (tick != posSlider.getValue()) {
+                            posSlider.setValue(tick);
+                        }
+                    }
+                });
 
                 // "Thickness" label + spinner share col3, label WEST, spinner CENTER
                 final JPanel thickPanel = new JPanel(new java.awt.BorderLayout(4, 0));
@@ -4645,8 +4762,6 @@ public class Bvv {
         }
     }
 
-    // -- Movie recording: Keyframe-based animation system --
-
     /**
      * A snapshot of the BVV viewer state at a particular moment, used as a
      * keyframe for movie recording. Captures the viewer transform, camera/slab
@@ -5086,7 +5201,7 @@ public class Bvv {
      */
     private void applyKeyframeState(final Keyframe kf) {
         final VolumeViewerPanel vp = currentBvv.getViewer();
-        // Camera / slab params — this is what actually controls the BVV volume clipping
+        // Camera / slab params: this is what actually controls the BVV volume clipping
         vp.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
         if (pathOverlay != null) {
             pathOverlay.overlayRenderer.dCam = kf.dCam;
@@ -5223,8 +5338,6 @@ public class Bvv {
                 }
             };
         }
-
-        // -- H key: hide all annotations while pressed, restore on release --
 
         /** Tracks whether paths were visible before H was pressed */
         private boolean pathsWereVisible;
