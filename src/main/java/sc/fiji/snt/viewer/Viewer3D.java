@@ -5206,6 +5206,27 @@ public class Viewer3D {
             runCmd(TranslateReconstructionsCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
         }
 
+        private void makeSelectedTreeUprightAction() {
+            final List<Tree> trees = getSelectedTrees(false);
+            if (trees == null || trees.isEmpty()) {
+                return; // error already displayed
+            }
+            if (trees.size() > 1) {
+                guiUtils.error("Please select a single reconstruction.");
+                return;
+            }
+            final double angle = TreeUtils.computeUprightAngle(trees.getFirst(), false);
+            if (Double.isNaN(angle)) {
+                guiUtils.error("Could not compute upright angle.");
+                return;
+            }
+            try {
+                rotate((float) angle);
+            } catch (final IllegalArgumentException e) {
+                guiUtils.error(e.getMessage() + ".");
+            }
+        }
+
         private void addCustomizeTreeCommands(final JPopupMenu menu) {
             menu.add(menuItem("All Parameters...", GLYPH.SLIDERS, e -> customizeSelectedTreesAllParametersAction()));
             menu.add(menuItem("Color...", GLYPH.COLOR, e -> customizeSelectedTreesColorAction()));
@@ -5451,6 +5472,7 @@ public class Viewer3D {
 
             GuiUtils.addSeparator(tracesMenu, "Customize & Adjust:");
             addCustomizeTreeCommands(tracesMenu);
+            tracesMenu.add(menuItem("Align View To Tree", GLYPH.RULER_VERTICAL, e -> makeSelectedTreeUprightAction()));
 
             GuiUtils.addSeparator(tracesMenu, "Remove:");
             tracesMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> {

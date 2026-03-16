@@ -28,6 +28,7 @@ import org.jogamp.vecmath.Vector3d;
 import org.scijava.util.ColorRGB;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.analysis.TreeStatistics;
 
 import java.util.*;
 
@@ -111,6 +112,35 @@ public class TreeUtils {
         for (final Iterator<Tree> it = trees.iterator(); it.hasNext(); i++) {
             it.next().setColor(colors[i]);
         }
+    }
+
+    /**
+     * Computes the angle (in degrees) needed to make a tree appear upright in the
+     * XY viewing plane. The angle is derived from the extension angle of a
+     * reference path (the longest geodesic by default) using compass conventions
+     * where North is 0 degrees.
+     *
+     * @param tree        the tree to analyze
+     * @param useCentroid if {@code true}, the reference path runs from root to
+     *                    the centroid of all tips; if {@code false}, the longest
+     *                    geodesic path is used
+     * @return the rotation angle in degrees, or {@code Double.NaN} if it cannot
+     *         be computed (e.g., single-node tree)
+     */
+    public static double computeUprightAngle(final Tree tree, final boolean useCentroid) {
+        final Path refPath;
+        if (useCentroid) {
+            refPath = tree.get(0).createPath();
+            refPath.addNode(tree.getRoot());
+            final Set<PointInImage> tips = new TreeStatistics(tree).getTips();
+            tips.remove(tree.getRoot());
+            if (!tips.isEmpty()) refPath.addNode(SNTPoint.average(tips));
+        } else {
+            refPath = tree.getGraph().getLongestPath(true);
+        }
+        final double extensionAngle = refPath.getExtensionAngleXY();
+        if (Double.isNaN(extensionAngle)) return Double.NaN;
+        return -extensionAngle; // negate: compass bearing to rotation correction
     }
 
     // Tangent from last N points of path
