@@ -1050,7 +1050,7 @@ public class GuiUtils {
 		return values;
 	}
 
-	public void adjustComponentThroughPrompt(final Container container) {
+	public void adjustComponentThroughPrompt(final Component container) {
 
 		class DimensionFields implements DocumentListener {
 
@@ -1124,7 +1124,7 @@ public class GuiUtils {
 				final int result = JOptionPane.showConfirmDialog(parent, panel(), "New Dimensions",
 						JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 				if (result == JOptionPane.OK_OPTION) {
-					final double w = GuiUtils.extractDouble(hField);
+					final double w = GuiUtils.extractDouble(wField);
 					final double h = GuiUtils.extractDouble(hField);
 					if (Double.isNaN(w) || w <= 0 || Double.isNaN(h) || h <= 0) {
 						GuiUtils.errorPrompt("Width and Height must > 0.");
@@ -1501,9 +1501,16 @@ public class GuiUtils {
 	private String getWrappedText(final JComponent c, final String text) {
 		if (text.startsWith("<")) return text; // <HTML>
 		final int width = c.getFontMetrics(c.getFont()).stringWidth(text);
-		final int max = (parent == null) ? 600 : parent.getWidth();
-		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" +
-				text;
+		final int max;
+		if (parent == null) {
+			max = 600;
+		} else {
+			// Cap at half the screen width so dialogs don't become comically
+			// wide when the parent is already quite wide
+			final int screenW = parent.getGraphicsConfiguration().getBounds().width;
+			max = Math.min(parent.getWidth(), screenW / 3);
+		}
+		return "<html><body><div style='width:" + Math.min(width, max) + ";'>" + text;
 	}
 
 	public void blinkingError(final JComponent blinkingComponent,
@@ -2955,7 +2962,7 @@ public class GuiUtils {
 
 		public static JCheckBoxMenuItem debugMode() {
 			final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Debug mode", SNTUtils.isDebugMode());
-			jcmi.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.STETHOSCOPE));
+			IconFactory.assignIcon(jcmi, IconFactory.GLYPH.STETHOSCOPE);
 			return jcmi;
 		}
 

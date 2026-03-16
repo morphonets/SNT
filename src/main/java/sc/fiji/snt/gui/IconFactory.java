@@ -199,6 +199,7 @@ public class IconFactory {
         SUN('\uf185', true), //
         SYNC('\uf2f1', true), //
         TABLE('\uf0ce', true), //
+        TABLE_COLUMNS('\uf0db', true), //
         TAG('\uf02b', true), //
         TAPE('\uf4db', true), //
         TEXT('\uf031', true), //

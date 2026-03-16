@@ -23,9 +23,14 @@
 package sc.fiji.snt.viewer;
 
 import com.jidesoft.swing.*;
+import com.jogamp.common.nio.Buffers;
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL3;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.fixedfunc.GLPointerFunc;
 import ij.ImagePlus;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
@@ -49,8 +54,10 @@ import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Rectangle;
 import org.jzy3d.plot2d.primitive.AWTColorbarImageGenerator;
+import org.jzy3d.io.IGLLoader;
+import org.jzy3d.painters.IPainter;
+import org.jzy3d.painters.NativeDesktopPainter;
 import org.jzy3d.plot3d.primitives.Composite;
-import org.jzy3d.plot3d.primitives.Point;
 import org.jzy3d.plot3d.primitives.Shape;
 import org.jzy3d.plot3d.primitives.*;
 import org.jzy3d.plot3d.primitives.axis.layout.fonts.HiDPITwoFontSizesPolicy;
@@ -126,6 +133,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.FloatBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
@@ -310,6 +318,18 @@ public class Viewer3D {
     @Parameter
     private PrefService prefService;
 
+    private static final String PREF_TUBE_MODE = "viewer3d.tubeMode";
+    private static final String PREF_DEPTH_FOG = "viewer3d.depthFog";
+    private static final String PREF_FOG_INTENSITY = "viewer3d.fogIntensity";
+    private static final float DEFAULT_FOG_INTENSITY = 0.7f;
+    private static final String PREF_PSEUDO_LIGHTING = "viewer3d.pseudoLighting";
+    private static final String PREF_UPSAMPLING = "viewer3d.upsamplingFactor";
+    private boolean tubeModeEnabled;
+    private boolean depthFogEnabled;
+    private boolean pseudoLightingEnabled;
+    private int upsamplingFactorPref = 1;
+    private float fogIntensityPref = DEFAULT_FOG_INTENSITY;
+
     private Viewer3D(final Engine engine) {
         SNTUtils.log("Initializing Viewer3D...");
         ENGINE = engine;
@@ -387,6 +407,13 @@ public class Viewer3D {
         initManagerList();
         context.inject(this);
         prefs.setPreferences();
+        tubeModeEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_TUBE_MODE, false);
+        depthFogEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_DEPTH_FOG, false);
+        pseudoLightingEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_PSEUDO_LIGHTING, false);
+        if (prefService != null) {
+            fogIntensityPref = (float) prefService.getDouble(Viewer3D.class, PREF_FOG_INTENSITY, DEFAULT_FOG_INTENSITY);
+            upsamplingFactorPref = prefService.getInt(Viewer3D.class, PREF_UPSAMPLING, 1);
+        }
         cmdFinder = new SNTCommandFinder(this);
     }
 
@@ -997,7 +1024,7 @@ public class Viewer3D {
      *                   ignore this option altogether. Set it to {@code unique} to
      *                   assign unique colors to each tree in the collection.
      * @param commonTags common tag(s) to be assigned to the group (to be displayed
-     *                   in 'RV Controls' list).
+     *                   in the control panel list).
      */
     public void addTrees(final Collection<Tree> trees, final String color, final String... commonTags) {
         if (commonTags != null) {
@@ -1436,7 +1463,7 @@ public class Viewer3D {
      *
      * @param objects the objects to be zoomed into. These can be {@link OBJMesh},
      *                {@link Tree}, {@link Annotation3D}, etc., or string(s)
-     *                defining objects listed in the "RV Controls" dialog.
+     *                defining objects listed in the control panel.
      *                Collections of supported objects are also supported.
      *                If Null view is reset. If "visible" view is zoomed to visible
      *                objects
@@ -3437,6 +3464,20 @@ public class Viewer3D {
             initialize(chart, bounds, title + message);
         }
 
+        void resizeScene(final GuiUtils guiUtils) {
+            // Prompt user to resize the scene (canvas) area, not the entire frame.
+            // After the canvas is resized, the frame adjusts to accommodate it.
+            final Dimension canvasSize = canvas.getSize();
+            final int extraW = getWidth() - canvasSize.width;
+            final int extraH = getHeight() - canvasSize.height;
+            guiUtils.adjustComponentThroughPrompt(canvas);
+            final Dimension newCanvasSize = canvas.getSize();
+            if (newCanvasSize.width != canvasSize.width || newCanvasSize.height != canvasSize.height) {
+                canvas.setPreferredSize(newCanvasSize);
+                setSize(newCanvasSize.width + extraW, newCanvasSize.height + extraH);
+            }
+        }
+
         void exitFullScreen() {
             if (isFullScreen) {
                 setExtendedState(JFrame.NORMAL);
@@ -3904,7 +3945,7 @@ public class Viewer3D {
     }
 
     /**
-     * Returns a reference to 'RV Controls' panel.
+     * Returns a reference to control panel.
      *
      * @return the ManagerPanel associated with this Viewer, or null if the 'RV
      *         Controls' dialog is not being displayed.
@@ -4174,7 +4215,7 @@ public class Viewer3D {
             static final String SYNC = "Sync Path Manager Changes";
             static final String TAG = "Add Tag(s)...";
             static final String TOGGLE_DARK_MODE = "Toggle Dark Mode";
-            static final String TOGGLE_CONTROL_PANEL= "Toggle RV Controls";
+            static final String TOGGLE_CONTROL_PANEL= "Toggle Control Panel";
             private static final long serialVersionUID = 1L;
             final String name;
 
@@ -4225,7 +4266,7 @@ public class Viewer3D {
                         progressBar.setVisible(!progressBar.isShowing());
                     }
                     case ENTER_FULL_SCREEN -> frame.enterFullScreen();
-                    case RESIZE -> guiUtils.adjustComponentThroughPrompt(frame);
+                    case RESIZE -> frame.resizeScene(guiUtils);
                     case FIT -> fitToVisibleObjects(true, true);
                     case LOG_TO_RECORDER -> {
                         openRecorder(false);
@@ -4269,12 +4310,12 @@ public class Viewer3D {
                             return;
                         final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                         if (managerList.isSelectionEmpty() && !all) return;
-                        final String tags = guiUtils.getString("<p>Enter one or more tags (space or "
+                        final String tags = guiUtils.getString("Enter one or more tags (space or "
                                         + "comma- separated list) to be assigned to selected items. Tags encoding "
-                                        + "a color (e.g., 'red', 'lightblue') will be use to highligh entries. "
-                                        + "After dismissing this dialog:</p><ul>"
+                                        + "a color (e.g., 'red', 'lightblue') will be use to highlight entries. "
+                                        + "After dismissing this dialog:<ul>"
                                         + "<li>Double-click on an object to edit its tags</li>"
-                                        + "<li>Double-click on '" + CheckBoxList.ALL_ENTRY.toString()
+                                        + "<li>Double-click on '" + CheckBoxList.ALL_ENTRY
                                         + "' to add tags to the entire list</li></ul>",
                                 "Add Tag(s)", "");
                         if (tags == null)
@@ -5102,7 +5143,7 @@ public class Viewer3D {
                             if (sColor != null) tree.setSomaColor(sColor);
                             if (sSize > -1) tree.setSomaRadius((float) sSize);
                         }
-                        if (tree.treeSubShape != null) {
+                        if (tree.arborVBO != null) {
                             if (dColor != null) tree.setArborColor(dColor, Path.SWC_DENDRITE);
                             if (aColor != null) tree.setArborColor(aColor, Path.SWC_AXON);
                             if (dSize > -1) tree.setThickness((float) dSize, Path.SWC_DENDRITE);
@@ -5323,7 +5364,7 @@ public class Viewer3D {
         private JPopupMenu prefsMenu() {
             final JPopupMenu prefsMenu = new JPopupMenu();
             GuiUtils.addSeparator(prefsMenu, "Layout:");
-            prefsMenu.add(menuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true), GLYPH.WINDOWS2));
+            prefsMenu.add(menuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true), GLYPH.TABLE_COLUMNS));
             GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
             prefsMenu.add(panMenu());
             prefsMenu.add(zoomMenu());
@@ -5333,6 +5374,7 @@ public class Viewer3D {
             if (ENGINE == Engine.JOGL) {
                 final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Hardware Acceleration",
                         Settings.getInstance().isHardwareAccelerated());
+                jcbmi2.setToolTipText("Use GPU rather than CPU");
                 jcbmi2.setIcon(IconFactory.menuIcon(GLYPH.MICROCHIP));
                 jcbmi2.setMnemonic('h');
                 jcbmi2.addItemListener(e -> {
@@ -5341,6 +5383,26 @@ public class Viewer3D {
                 });
                 prefsMenu.add(jcbmi2);
             }
+
+            final JMenuItem tubeCbmi = new JCheckBoxMenuItem("Enable Shaded Tubes", tubeModeEnabled);
+            tubeCbmi.setIcon(IconFactory.menuIcon(GLYPH.DOTCIRCLE));
+            tubeCbmi.setToolTipText("Render neurites as illuminated 3D tubes using geometry shaders.\nRequires OpenGL 3.2+");
+            tubeCbmi.addItemListener(e -> {
+                setTubeMode(tubeCbmi.isSelected());
+                tubeCbmi.setSelected(tubeModeEnabled); // deselect checkbox if shader not supported
+            });
+            prefsMenu.add(tubeCbmi);
+
+            prefsMenu.add(smoothingMenu());
+            GuiUtils.addSeparator(prefsMenu, "Depth Perception:");
+            prefsMenu.add(depthFogMenu());
+
+            final JMenuItem litCbmi = new JCheckBoxMenuItem("Enable Pseudo-Lighting", pseudoLightingEnabled);
+            litCbmi.setIcon(IconFactory.menuIcon(GLYPH.BULB));
+            litCbmi.setToolTipText("Modulate neurite brightness based on orientation relative to the view");
+            litCbmi.addItemListener(e -> setPseudoLighting(((JCheckBoxMenuItem) e.getSource()).isSelected()));
+            prefsMenu.add(litCbmi);
+
             GuiUtils.addSeparator(prefsMenu, "Other:");
             prefsMenu.add(menuItem("Preferences...", GLYPH.COGS,
                     e -> runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false)));
@@ -5389,6 +5451,58 @@ public class Viewer3D {
                 zoomMenu.add(jcbmi);
             }
             return zoomMenu;
+        }
+
+        private JMenu smoothingMenu() {
+            final JMenu menu = new JMenu("Path Smoothing");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.BEZIER_CURVE));
+            menu.setToolTipText("Catmull-Rom spline interpolation to reduce kinks at thick line joints");
+            final ButtonGroup group = new ButtonGroup();
+            final String[] labels = { "None", "Low", "Medium", "High" };
+            final int[] factors = { 1, 2, 4, 8 };
+            for (int i = 0; i < labels.length; i++) {
+                final int factor = factors[i];
+                final JMenuItem item = new JCheckBoxMenuItem(labels[i]);
+                item.setSelected(factor == upsamplingFactorPref);
+                item.addItemListener(e -> {
+                    if (((JCheckBoxMenuItem) e.getSource()).isSelected()) setUpsamplingFactor(factor);
+                });
+                group.add(item);
+                menu.add(item);
+            }
+            return menu;
+        }
+
+        private JMenu depthFogMenu() {
+            final JMenu menu = new JMenu("Depth Fog");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.EYE));
+            menu.setToolTipText("Fade distant neurites toward the background for depth perception");
+            final ButtonGroup group = new ButtonGroup();
+            // "None" option disables fog
+            final JMenuItem noneItem = new JCheckBoxMenuItem("None");
+            noneItem.setSelected(!depthFogEnabled);
+            noneItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected()) setDepthFog(false);
+            });
+            group.add(noneItem);
+            menu.add(noneItem);
+            // Intensity presets
+            final String[] labels = { "Subtle", "Moderate", "Strong", "Full" };
+            final float[] values = { 0.3f, 0.5f, 0.7f, 1.0f };
+            for (int i = 0; i < labels.length; i++) {
+                final float val = values[i];
+                final JMenuItem item = new JCheckBoxMenuItem(labels[i]);
+                item.setSelected(depthFogEnabled && Math.abs(val - fogIntensityPref) < 0.05f);
+                item.addItemListener(e -> {
+                    if (((JCheckBoxMenuItem) e.getSource()).isSelected()) {
+                        setFogIntensity(val);
+                        setDepthFog(true);
+                    }
+                });
+                group.add(item);
+                menu.add(item);
+            }
+            return menu;
         }
 
         private class RecordWorker extends SwingWorker<String, Object> {
@@ -6348,9 +6462,7 @@ public class Viewer3D {
         private void showSelectionInfo() {
             final List<AllenCompartment> cs = getCheckedSelection();
             if (cs == null) return;
-            cs.sort((c1, c2) -> {
-                return c1.name().compareToIgnoreCase(c2.name());
-            });
+            cs.sort((c1, c2) -> c1.name().compareToIgnoreCase(c2.name()));
             final StringBuilder sb = new StringBuilder("<header>");
             sb.append(" <style>");
             sb.append("  tr:nth-of-type(odd) {background-color:#ccc;}");
@@ -7121,7 +7233,7 @@ public class Viewer3D {
         private static final int ANY = -1;
 
         final Tree tree;
-        private Shape treeSubShape;
+        private ArborVBO arborVBO;
         private Wireframeable somaSubShape;
         private Coord3d translationReset;
 
@@ -7134,7 +7246,7 @@ public class Viewer3D {
         @Override
         public boolean isDisplayed() {
             return ((somaSubShape != null) && somaSubShape.isDisplayed()) ||
-                    ((treeSubShape != null) && treeSubShape.isDisplayed());
+                    ((arborVBO != null) && arborVBO.isDisplayed());
         }
 
         @Override
@@ -7148,7 +7260,7 @@ public class Viewer3D {
         }
 
         void setArborDisplayed(final boolean displayed) {
-            if (treeSubShape != null) treeSubShape.setDisplayed(displayed);
+            if (arborVBO != null) arborVBO.setDisplayed(displayed);
         }
 
         Shape get() {
@@ -7158,7 +7270,9 @@ public class Viewer3D {
 
         void translateTo(final Coord3d destination) {
             final Transform tTransform = new Transform(new Translate(destination));
-            get().applyGeometryTransform(tTransform);
+            // ArborVBO uses model matrix; soma uses vertex transform
+            if (arborVBO != null) arborVBO.applyGeometryTransform(tTransform);
+            if (somaSubShape != null) ((Drawable) somaSubShape).applyGeometryTransform(tTransform);
             translationReset.subSelf(destination);
         }
 
@@ -7169,16 +7283,15 @@ public class Viewer3D {
 
         private void assembleShape() {
 
-            final List<LineStripPlus> lines = new ArrayList<>();
             final List<SWCPoint> somaPoints = new ArrayList<>();
             final List<java.awt.Color> somaColors = new ArrayList<>();
             final boolean validSoma = tree.validSoma();
             final Color defaultFallbackColor = getDefColor().alpha(1f);
 
-            for (final Path p : tree.list()) {
-
-                // Stash soma coordinates
-                if (validSoma && Path.SWC_SOMA == p.getSWCType()) {
+            // Collect soma data (soma is still rendered with Sphere/Tube)
+            if (validSoma) {
+                for (final Path p : tree.list()) {
+                    if (Path.SWC_SOMA != p.getSWCType()) continue;
                     for (int i = 0; i < p.size(); i++) {
                         final PointInImage pim = p.getNode(i);
                         final SWCPoint swcPoint = new SWCPoint(-1, Path.SWC_SOMA, pim.x, pim.y, pim.z,
@@ -7187,49 +7300,28 @@ public class Viewer3D {
                     }
                     if (p.hasNodeColors()) {
                         somaColors.addAll(Arrays.asList(p.getNodeColors()));
-                    }
-                    else {
+                    } else {
                         somaColors.add(p.getColor());
                     }
-                    continue;
                 }
-
-                // Assemble arbor(s)
-                final int pathSize = p.size();
-                final LineStripPlus line = new LineStripPlus(pathSize, p.getSWCType());
-                final boolean hasNodeColors = p.hasNodeColors();
-                final java.awt.Color pathColor = hasNodeColors ? null : p.getColor();
-                final PointInImage branchPoint = p.getBranchPoint();
-                for (int i = 0; i < p.size(); ++i) {
-                    final PointInImage pim = p.getNode(i);
-                    final Color color = fromAWTColor(
-                            hasNodeColors ? p.getNodeColor(i) : pathColor, defaultFallbackColor);
-                    final float width = Math.max((float) p.getNodeRadius(i), DEF_NODE_RADIUS);
-                    if (i == 0 && branchPoint != null) {
-                        final Coord3d joint = new Coord3d(branchPoint.x, branchPoint.y, branchPoint.z);
-                        line.add(new Point(joint, color, width));
-                    }
-                    line.add(new Point(new Coord3d(pim.x, pim.y, pim.z), color, width));
-                }
-                line.setShowPoints(false);
-                line.setWireframeWidth(defThickness);
-                lines.add(line);
             }
 
-            // Group all lines into a Composite. BY default the composite
-            // will have no wireframe color, to allow colors for Paths/
-            // nodes to be revealed. Once a wireframe color is explicit
-            // set it will be applied to all the paths in the composite
-            if (!lines.isEmpty()) {
-                treeSubShape = new Shape();
-                treeSubShape.setWireframeColor(null);
-                treeSubShape.add(lines);
-                add(treeSubShape);
+            // Pack arbor paths into a VBO
+            arborVBO = new ArborVBO();
+            arborVBO.setUpsamplingFactor(upsamplingFactorPref);
+            arborVBO.setTreeData(tree, defaultFallbackColor, defThickness);
+            if (arborVBO.vertexCount > 0) {
+                arborVBO.setTubeMode(tubeModeEnabled);
+                arborVBO.setDepthFog(depthFogEnabled);
+                arborVBO.setFogIntensity(fogIntensityPref);
+                arborVBO.setPseudoLighting(pseudoLightingEnabled);
+                add(arborVBO);
+            } else {
+                arborVBO = null;
             }
+
             assembleSoma(somaPoints, somaColors);
             if (somaSubShape != null) add(somaSubShape);
-            // shape.setFaceDisplayed(true);
-            // shape.setWireframeDisplayed(true);
         }
 
         private void assembleSoma(final List<SWCPoint> somaPoints,
@@ -7293,7 +7385,7 @@ public class Viewer3D {
             final Sphere s = new Sphere();
             s.setPosition(new Coord3d(center.x, center.y, center.z));
             final double r = (center instanceof SWCPoint) ? ((SWCPoint) center).radius : center.v;
-            final float treeThickness = (treeSubShape == null) ? defThickness : treeSubShape.getWireframeWidth();
+            final float treeThickness = (arborVBO == null) ? defThickness : arborVBO.getWidth();
             final float radius = (float) Math.max(r, SOMA_SCALING_FACTOR * treeThickness);
             s.setVolume(radius);
             setWireFrame(s, radius, color);
@@ -7304,6 +7396,8 @@ public class Viewer3D {
             if (isDisplayed()) {
                 clear();
                 assembleShape();
+                // Reset so jzy3d re-mounts the new child VBOs on next render
+                hasMountedOnce = false;
             }
         }
 
@@ -7313,15 +7407,11 @@ public class Viewer3D {
         }
 
         private void setThickness(final float thickness, final int type) {
-            if (treeSubShape == null) return;
+            if (arborVBO == null) return;
             if (type == ShapeTree.ANY) {
-                treeSubShape.setWireframeWidth(thickness);
-            }
-            else for (int i = 0; i < treeSubShape.size(); i++) {
-                final LineStripPlus ls = ((LineStripPlus) treeSubShape.get(i));
-                if (ls.type == type) {
-                    ls.setWireframeWidth(thickness);
-                }
+                arborVBO.setWidth(thickness);
+            } else {
+                arborVBO.setCompartmentWidth(type, thickness);
             }
         }
 
@@ -7330,31 +7420,66 @@ public class Viewer3D {
         }
 
         private void setArborColor(final Color color, final int type) {
-            if (treeSubShape == null) return;
-            if (type == -1) {
-                treeSubShape.setWireframeColor(color);
-            }
-            else for (int i = 0; i < treeSubShape.size(); i++) {
-                final LineStripPlus ls = ((LineStripPlus) treeSubShape.get(i));
-                if (ls.type == type) {
-                    ls.setColor(color);
-                }
+            if (arborVBO == null) return;
+            if (type == ANY) {
+                arborVBO.setArborWireframeColor(color);
+            } else {
+                arborVBO.fillCompartmentColor(type, color);
             }
         }
 
         private Color getArborColor() {
-            if (treeSubShape == null)
-                return null;
-            if (treeSubShape.getWireframeColor() != null)
-                return treeSubShape.getWireframeColor();
-            LineStripPlus ls = ((LineStripPlus) treeSubShape.get(0));
-            if (ls.getWireframeColor() != null) {
-                return ls.getWireframeColor();
-            }
-            ls = ((LineStripPlus) treeSubShape.get(treeSubShape.size() - 1));
-            if (ls.getWireframeColor() != null)
-                return ls.getWireframeColor();
-            return fromColorRGB(tree.getColor());
+            if (arborVBO == null) return null;
+            final Color effective = arborVBO.getEffectiveColor();
+            return (effective != null) ? effective : fromColorRGB(tree.getColor());
+        }
+
+        void setTubeMode(final boolean enabled) {
+            if (arborVBO != null) arborVBO.setTubeMode(enabled);
+        }
+
+        boolean isTubeMode() {
+            return arborVBO != null && arborVBO.isTubeMode();
+        }
+
+        void setTubeSides(final int sides) {
+            if (arborVBO != null) arborVBO.setTubeSides(sides);
+        }
+
+        void setRadiusScale(final float scale) {
+            if (arborVBO != null) arborVBO.setRadiusScale(scale);
+        }
+
+        float getRadiusScale() {
+            return arborVBO != null ? arborVBO.getRadiusScale() : 1.0f;
+        }
+
+        void setDepthFog(final boolean enabled) {
+            if (arborVBO != null) arborVBO.setDepthFog(enabled);
+        }
+
+        boolean isDepthFog() {
+            return arborVBO != null && arborVBO.isDepthFog();
+        }
+
+        void setFogIntensity(final float intensity) {
+            if (arborVBO != null) arborVBO.setFogIntensity(intensity);
+        }
+
+        void setPseudoLighting(final boolean enabled) {
+            if (arborVBO != null) arborVBO.setPseudoLighting(enabled);
+        }
+
+        boolean isPseudoLighting() {
+            return arborVBO != null && arborVBO.isPseudoLighting();
+        }
+
+        void setUpsamplingFactor(final int factor) {
+            if (arborVBO != null) arborVBO.setUpsamplingFactor(factor);
+        }
+
+        int getUpsamplingFactor() {
+            return arborVBO != null ? arborVBO.getUpsamplingFactor() : 1;
         }
 
         private Color getSomaColor() {
@@ -7380,24 +7505,1000 @@ public class Viewer3D {
 
     }
 
-    private static class LineStripPlus extends LineStrip {
-        final int type;
+    /**
+     * VBO-based drawable for tree arbors. Packs all line strips from a tree
+     * into a single GPU buffer using GL_LINE_STRIP with primitive restart,
+     * reducing thousands of immediate-mode draw calls to a handful of VBO draws.
+     * <p>
+     * Vertex layout per vertex: [x, y, z, r, g, b, a, radius, tx, ty, tz] (11 floats, 44 bytes).
+     * Paths are separated by a primitive restart index in the element buffer.
+     * Vertices are grouped by SWC compartment type so that per-compartment
+     * color and thickness overrides can be applied with separate draw ranges.
+     */
+    private static class ArborVBO extends DrawableVBO {
 
-        LineStripPlus(final int size, final int type) {
-            super(size);
-            this.type = (type == Path.SWC_APICAL_DENDRITE) ? Path.SWC_DENDRITE : type;
+        /** Floats per vertex: x, y, z, r, g, b, a, radius, tx, ty, tz */
+        private static final int FLOATS_PER_VERTEX = 11;
+        private static final int STRIDE = FLOATS_PER_VERTEX * Buffers.SIZEOF_FLOAT;
+        private static final int COLOR_OFFSET = 3 * Buffers.SIZEOF_FLOAT;
+        private static final int RADIUS_OFFSET = 7 * Buffers.SIZEOF_FLOAT;
+        private static final int TANGENT_OFFSET = 8 * Buffers.SIZEOF_FLOAT;
+
+        /** Default radius used when SWC data has no radii. */
+        private static final float DEFAULT_RADIUS = 1.0f;
+
+        /** Per-compartment list of per-path draw ranges: [firstVertex, vertexCount]. */
+        private final Map<Integer, List<int[]>> compartmentRanges = new LinkedHashMap<>();
+        /** Per-compartment wireframe color override (null = use per-vertex colors). */
+        private final Map<Integer, Color> compartmentColors = new HashMap<>();
+        /** Per-compartment line width override (0 = use global width). */
+        private final Map<Integer, Float> compartmentWidths = new HashMap<>();
+        /** Total number of vertices (excluding restart markers). */
+        private int vertexCount;
+        /** Raw vertex data kept for color re-upload. */
+        private float[] vertexData;
+        /** Whether the color portion of the buffer needs re-upload. */
+        private volatile boolean colorDirty;
+        /** Uniform wireframe color override for the entire arbor (null = per-vertex). */
+        private Color wireframeColor;
+
+        /** Catmull-Rom upsampling factor: 1 = no upsampling, N = N-1 interpolated points per segment. */
+        private int upsamplingFactor = 1;
+
+        /** Whether to apply depth fog to lines. */
+        private boolean depthFog;
+        /** Fog intensity: 0 = subtle, 1 = aggressive. Controls fog range. */
+        private float fogIntensity = DEFAULT_FOG_INTENSITY;
+
+        /** Whether to render tubes instead of lines. */
+        private boolean tubeMode;
+        /** Number of sides for tube cross-section (default 12). */
+        private int tubeSides = 12;
+        /** Global multiplier applied to per-vertex radii in tube mode. */
+        private float radiusScale = 1.0f;
+        /** Shared shader program handle (0 = not compiled). */
+        private static int shaderProgram;
+        /** Whether shader compilation has been attempted. */
+        private static boolean shaderInitAttempted;
+        /** User-visible message from last shader init attempt. */
+        private static String shaderInitMessage;
+
+        /** Maximum tube cross-section sides (compile-time limit for geometry shader). */
+        private static final int MAX_TUBE_SIDES = 16;
+        /** Geometry shader max_vertices = 2 * (MAX_TUBE_SIDES + 1). */
+        private static final int MAX_GS_VERTICES = 2 * (MAX_TUBE_SIDES + 1);
+        /** Generic vertex attribute indices. */
+        private static final int ATTRIB_POSITION = 0;
+        private static final int ATTRIB_COLOR = 1;
+        private static final int ATTRIB_RADIUS = 2;
+        private static final int ATTRIB_TANGENT = 3;
+
+        private static final String VERT_SHADER =
+                """
+                #version 150
+                in vec3 aPosition;
+                in vec4 aColor;
+                in float aRadius;
+                uniform bool uUseColorOverride;
+                uniform vec4 uColorOverride;
+                out vec4 vsColor;
+                out float vsRadius;
+                void main() {
+                    gl_Position = vec4(aPosition, 1.0);
+                    vsColor = uUseColorOverride ? uColorOverride : aColor;
+                    vsRadius = aRadius;
+                }
+                """;
+
+        private static final String GEOM_SHADER = """
+                #version 150
+                layout(lines) in;
+                layout(triangle_strip, max_vertices = %d) out;
+                uniform mat4 uMVP;
+                uniform mat3 uNormalMatrix;
+                uniform int uTubeSides;
+                uniform float uRadiusScale;
+                in vec4 vsColor[];
+                in float vsRadius[];
+                out vec4 gsColor;
+                out vec3 gsNormal;
+                const float PI = 3.14159265;
+                void main() {
+                    vec3 p0 = gl_in[0].gl_Position.xyz;
+                    vec3 p1 = gl_in[1].gl_Position.xyz;
+                    vec3 axis = p1 - p0;
+                    float len = length(axis);
+                    if (len < 1e-8) return;
+                    axis /= len;
+                    vec3 up = abs(axis.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0);
+                    vec3 u = normalize(cross(axis, up));
+                    vec3 v = cross(u, axis);
+                    float r0 = vsRadius[0] * uRadiusScale;
+                    float r1 = vsRadius[1] * uRadiusScale;
+                    int sides = clamp(uTubeSides, 3, %d);
+                    for (int i = 0; i <= sides; i++) {
+                        float a = 2.0 * PI * float(i) / float(sides);
+                        float c = cos(a);
+                        float s = sin(a);
+                        vec3 n = c * u + s * v;
+                        gsNormal = uNormalMatrix * n;
+                        gsColor = vsColor[0];
+                        gl_Position = uMVP * vec4(p0 + r0 * n, 1.0);
+                        EmitVertex();
+                        gsColor = vsColor[1];
+                        gl_Position = uMVP * vec4(p1 + r1 * n, 1.0);
+                        EmitVertex();
+                    }
+                    EndPrimitive();
+                }
+                """.formatted(MAX_GS_VERTICES, MAX_TUBE_SIDES);
+
+        private static final String FRAG_SHADER =
+            """
+            #version 150
+            in vec4 gsColor;
+            in vec3 gsNormal;
+            out vec4 fragColor;
+            void main() {
+                vec3 N = normalize(gsNormal);
+                vec3 L = normalize(vec3(0.0, 0.0, 1.0));
+                float diff = max(dot(N, L), 0.0);
+                float amb = 0.3;
+                vec3 lit = gsColor.rgb * (amb + (1.0 - amb) * diff);
+                fragColor = vec4(lit, gsColor.a);
+            }
+            """;
+        private static final String LIT_VERT_SHADER =
+            """
+            #version 120
+            attribute vec3 aTangent;
+            uniform bool uUseColorOverride;
+            uniform vec4 uColorOverride;
+            varying vec4 vColor;
+            varying vec3 vTangentEye;
+            void main() {
+                gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;
+                vColor = uUseColorOverride ? uColorOverride : gl_Color;
+                // Transform tangent to eye-space (direction, no translation)
+                vTangentEye = mat3(gl_ModelViewMatrix) * aTangent;
+            }
+            """;
+        private static final String LIT_FRAG_SHADER = """
+                #version 120
+                varying vec4 vColor;
+                varying vec3 vTangentEye;
+                void main() {
+                    vec3 T = normalize(vTangentEye);
+                    // View direction is (0,0,-1) in eye-space;
+                    // brightness = how perpendicular the tangent is to the view
+                    float alignment = abs(T.z); // 1 = pointing at camera, 0 = perpendicular
+                    float brightness = 1.0 - 0.6 * alignment; // range: 0.4 (toward cam) to 1.0 (perpendicular)
+                    vec3 lit = vColor.rgb * brightness;
+                    gl_FragColor = vec4(lit, vColor.a);
+                }
+                """;
+
+        // Pseudo-lighting shaders (GL 2.1 / GLSL 120)
+        // Modulates line brightness based on tangent-to-view angle:
+        // segments perpendicular to the view are brightest, segments
+        // pointing toward/away from the camera are darkest.
+        private static int litShaderProgram;
+        private static boolean litShaderInitAttempted;
+        private boolean pseudoLighting;
+
+        ArborVBO() {
+            super(new ArborVBOLoader());
+            ((ArborVBOLoader) loader).vbo = this;
+            geometry = GL.GL_LINE_STRIP;
+            setPolygonOffsetFillEnable(false);
+            setHasColorBuffer(true);
+            colorChannelNumber = 4; // RGBA
         }
 
-        @SuppressWarnings("unused")
-        boolean isDendrite() {
-            return type == Path.SWC_DENDRITE;
+        void setDepthFog(final boolean enabled) {
+            this.depthFog = enabled;
         }
 
-        @SuppressWarnings("unused")
-        boolean isAxon() {
-            return type == Path.SWC_AXON;
+        boolean isDepthFog() {
+            return depthFog;
         }
 
+        void setFogIntensity(final float intensity) {
+            this.fogIntensity = Math.max(0f, Math.min(1f, intensity));
+        }
+
+        float getFogIntensity() {
+            return fogIntensity;
+        }
+
+        /** Enables or disables tube rendering. Falls back to lines if shaders unavailable. */
+        void setTubeMode(final boolean enabled) {
+            this.tubeMode = enabled;
+        }
+
+        boolean isTubeMode() {
+            return tubeMode;
+        }
+
+        /** Sets the number of sides for the tube cross-section (clamped 3-16). */
+        void setTubeSides(final int sides) {
+            this.tubeSides = Math.max(3, Math.min(MAX_TUBE_SIDES, sides));
+        }
+
+        /** Sets the global radius multiplier for tube mode. */
+        void setRadiusScale(final float scale) {
+            this.radiusScale = scale;
+        }
+
+        float getRadiusScale() {
+            return radiusScale;
+        }
+
+        void setPseudoLighting(final boolean enabled) {
+            this.pseudoLighting = enabled;
+        }
+
+        boolean isPseudoLighting() {
+            return pseudoLighting;
+        }
+
+        /**
+         * Sets the Catmull-Rom upsampling factor. 1 = no interpolation (default),
+         * N = insert N-1 intermediate points per segment for smoother rendering.
+         * Requires re-uploading vertex data via {@link #setTreeData}.
+         */
+        void setUpsamplingFactor(final int factor) {
+            this.upsamplingFactor = Math.max(1, Math.min(10, factor));
+        }
+
+        int getUpsamplingFactor() {
+            return upsamplingFactor;
+        }
+
+        /** Compiles and links the tube shader program. Returns true on success. */
+        private boolean initShaders(final GL2 gl2) {
+            if (shaderInitAttempted) return shaderProgram != 0;
+            shaderInitAttempted = true;
+            try {
+                final int vs = compileShader(gl2, GL2.GL_VERTEX_SHADER, VERT_SHADER);
+                final int gs = compileShader(gl2, GL3.GL_GEOMETRY_SHADER, GEOM_SHADER);
+                final int fs = compileShader(gl2, GL2.GL_FRAGMENT_SHADER, FRAG_SHADER);
+                if (vs == 0 || gs == 0 || fs == 0) {
+                    shaderInitMessage = "Tube rendering requires OpenGL 3.2+ (geometry shaders).";
+                    SNTUtils.log("ArborVBO: " + shaderInitMessage);
+                    return false;
+                }
+                final int prog = gl2.glCreateProgram();
+                gl2.glAttachShader(prog, vs);
+                gl2.glAttachShader(prog, gs);
+                gl2.glAttachShader(prog, fs);
+                gl2.glBindAttribLocation(prog, ATTRIB_POSITION, "aPosition");
+                gl2.glBindAttribLocation(prog, ATTRIB_COLOR, "aColor");
+                gl2.glBindAttribLocation(prog, ATTRIB_RADIUS, "aRadius");
+                gl2.glLinkProgram(prog);
+                final int[] status = new int[1];
+                gl2.glGetProgramiv(prog, GL2.GL_LINK_STATUS, status, 0);
+                if (status[0] == GL.GL_FALSE) {
+                    final int[] len = new int[1];
+                    gl2.glGetProgramiv(prog, GL2.GL_INFO_LOG_LENGTH, len, 0);
+                    final byte[] log = new byte[len[0]];
+                    gl2.glGetProgramInfoLog(prog, len[0], null, 0, log, 0);
+                    shaderInitMessage = "Tube shader link failed: " + new String(log).trim();
+                    SNTUtils.log("ArborVBO: " + shaderInitMessage);
+                    gl2.glDeleteProgram(prog);
+                    return false;
+                }
+                gl2.glDetachShader(prog, vs);
+                gl2.glDetachShader(prog, gs);
+                gl2.glDetachShader(prog, fs);
+                gl2.glDeleteShader(vs);
+                gl2.glDeleteShader(gs);
+                gl2.glDeleteShader(fs);
+                shaderProgram = prog;
+                return true;
+            } catch (final GLException e) {
+                shaderInitMessage = "GL3 not available for tube shaders: " + e.getMessage();
+                SNTUtils.log("ArborVBO: " + shaderInitMessage);
+                return false;
+            }
+        }
+
+        private static int compileShader(final GL2 gl2, final int type, final String source) {
+            final int shader = gl2.glCreateShader(type);
+            gl2.glShaderSource(shader, 1, new String[]{ source }, null, 0);
+            gl2.glCompileShader(shader);
+            final int[] status = new int[1];
+            gl2.glGetShaderiv(shader, GL2.GL_COMPILE_STATUS, status, 0);
+            if (status[0] == GL.GL_FALSE) {
+                final int[] len = new int[1];
+                gl2.glGetShaderiv(shader, GL2.GL_INFO_LOG_LENGTH, len, 0);
+                final byte[] log = new byte[len[0]];
+                gl2.glGetShaderInfoLog(shader, len[0], null, 0, log, 0);
+                SNTUtils.log("ArborVBO: shader compile error: " + new String(log));
+                gl2.glDeleteShader(shader);
+                return 0;
+            }
+            return shader;
+        }
+
+        /** Compiles and links the pseudo-lighting shader (GL 2.1). Returns true on success. */
+        private boolean initLitShaders(final GL2 gl2) {
+            if (litShaderInitAttempted) return litShaderProgram != 0;
+            litShaderInitAttempted = true;
+            final int vs = compileShader(gl2, GL2.GL_VERTEX_SHADER, LIT_VERT_SHADER);
+            final int fs = compileShader(gl2, GL2.GL_FRAGMENT_SHADER, LIT_FRAG_SHADER);
+            String litShaderInitMessage;
+            if (vs == 0 || fs == 0) {
+                litShaderInitMessage = "Pseudo-lighting shaders failed to compile. Falling back to plain lines.";
+                SNTUtils.log("ArborVBO: " + litShaderInitMessage);
+                return false;
+            }
+            final int prog = gl2.glCreateProgram();
+            gl2.glAttachShader(prog, vs);
+            gl2.glAttachShader(prog, fs);
+            // aTangent uses a generic attribute; position and color use fixed-function
+            gl2.glBindAttribLocation(prog, ATTRIB_TANGENT, "aTangent");
+            gl2.glLinkProgram(prog);
+            final int[] status = new int[1];
+            gl2.glGetProgramiv(prog, GL2.GL_LINK_STATUS, status, 0);
+            if (status[0] == GL.GL_FALSE) {
+                final int[] len = new int[1];
+                gl2.glGetProgramiv(prog, GL2.GL_INFO_LOG_LENGTH, len, 0);
+                final byte[] log = new byte[len[0]];
+                gl2.glGetProgramInfoLog(prog, len[0], null, 0, log, 0);
+                litShaderInitMessage = "Pseudo-lighting shader link failed: " + new String(log).trim();
+                SNTUtils.log("ArborVBO: " + litShaderInitMessage);
+                gl2.glDeleteProgram(prog);
+                return false;
+            }
+            gl2.glDetachShader(prog, vs);
+            gl2.glDetachShader(prog, fs);
+            gl2.glDeleteShader(vs);
+            gl2.glDeleteShader(fs);
+            litShaderProgram = prog;
+            return true;
+        }
+
+        /** Populates vertex data from the tree's paths. */
+        void setTreeData(final Tree tree, final Color defaultFallbackColor, final float defThickness) {
+            compartmentRanges.clear();
+            compartmentColors.clear();
+            compartmentWidths.clear();
+
+            final int N = upsamplingFactor; // shorthand
+
+            // First pass: count vertices and group paths by compartment
+            final Map<Integer, List<Path>> pathsByType = new LinkedHashMap<>();
+            int totalVertices = 0;
+            for (final Path p : tree.list()) {
+                if (p.getSWCType() == Path.SWC_SOMA) continue;
+                final int type = (p.getSWCType() == Path.SWC_APICAL_DENDRITE)
+                        ? Path.SWC_DENDRITE : p.getSWCType();
+                pathsByType.computeIfAbsent(type, k -> new ArrayList<>()).add(p);
+                // With upsampling: each of (size-1) segments produces N sub-segments,
+                // giving (size-1)*N + 1 vertices. Without upsampling (N=1): size vertices.
+                final int pathVerts = (p.size() > 1) ? (p.size() - 1) * N + 1 : p.size();
+                totalVertices += pathVerts;
+                if (p.getBranchPoint() != null) {
+                    // Branch-point joint adds 1 real vertex + (N-1) interpolated
+                    // to smooth the transition to the first node
+                    totalVertices += N;
+                }
+            }
+
+            if (totalVertices == 0) {
+                vertexCount = 0;
+                vertexData = new float[0];
+                return;
+            }
+
+            vertexData = new float[totalVertices * FLOATS_PER_VERTEX];
+
+            int vi = 0; // vertex index
+            float xMin = Float.MAX_VALUE, yMin = Float.MAX_VALUE, zMin = Float.MAX_VALUE;
+            float xMax = -Float.MAX_VALUE, yMax = -Float.MAX_VALUE, zMax = -Float.MAX_VALUE;
+
+            for (final Map.Entry<Integer, List<Path>> entry : pathsByType.entrySet()) {
+                final int compartmentType = entry.getKey();
+                final List<int[]> pathRanges = new ArrayList<>();
+                final List<Path> paths = entry.getValue();
+
+                for (final Path p : paths) {
+                    final int pathStart = vi;
+                    final boolean hasNodeColors = p.hasNodeColors();
+                    final java.awt.Color pathColor = hasNodeColors ? null : p.getColor();
+                    final boolean hasRadii = p.hasRadii();
+                    final PointInImage branchPoint = p.getBranchPoint();
+
+                    // Build an array of control points for this path
+                    // (optionally prepended with the branch point)
+                    final int bpOffset = (branchPoint != null) ? 1 : 0;
+                    final int cpCount = bpOffset + p.size();
+                    final float[] cpx = new float[cpCount];
+                    final float[] cpy = new float[cpCount];
+                    final float[] cpz = new float[cpCount];
+                    final float[] cpr = new float[cpCount]; // radius
+                    final float[][] cpc = new float[cpCount][4]; // RGBA
+
+                    if (branchPoint != null) {
+                        cpx[0] = (float) branchPoint.x;
+                        cpy[0] = (float) branchPoint.y;
+                        cpz[0] = (float) branchPoint.z;
+                        cpr[0] = hasRadii ? (float) p.getNodeRadius(0) : DEFAULT_RADIUS;
+                        final java.awt.Color c0 = hasNodeColors ? p.getNodeColor(0) : pathColor;
+                        packColorToArray(cpc[0], c0, defaultFallbackColor);
+                    }
+
+                    for (int i = 0; i < p.size(); i++) {
+                        final PointInImage pim = p.getNode(i);
+                        final int ci = bpOffset + i;
+                        cpx[ci] = (float) pim.x;
+                        cpy[ci] = (float) pim.y;
+                        cpz[ci] = (float) pim.z;
+                        cpr[ci] = hasRadii ? (float) p.getNodeRadius(i) : DEFAULT_RADIUS;
+                        final java.awt.Color c = hasNodeColors ? p.getNodeColor(i) : pathColor;
+                        packColorToArray(cpc[ci], c, defaultFallbackColor);
+                    }
+
+                    // Emit vertices with Catmull-Rom interpolation on positions,
+                    // linear interpolation on color/radius.
+                    // Each segment emits N sub-steps (j=0..N). To avoid duplicates
+                    // at boundaries: seg>0 skips j=0, non-final segs skip j=N.
+                    final int lastSeg = cpCount - 2;
+                    for (int seg = 0; seg <= lastSeg; seg++) {
+                        final int i0 = Math.max(seg - 1, 0);
+                        final int i1 = seg;
+                        final int i2 = seg + 1;
+                        final int i3 = Math.min(seg + 2, cpCount - 1);
+
+                        // Emit j=0..N for first segment, j=1..N for subsequent segments.
+                        // j=N (t=1) of segment K = control point K+1 = j=0 (t=0) of segment K+1.
+                        final int jStart = (seg == 0) ? 0 : 1;
+                        for (int j = jStart; j <= N; j++) {
+                            final float t = (float) j / N;
+
+                            // Catmull-Rom spline (position)
+                            final float px = catmullRom(cpx[i0], cpx[i1], cpx[i2], cpx[i3], t);
+                            final float py = catmullRom(cpy[i0], cpy[i1], cpy[i2], cpy[i3], t);
+                            final float pz = catmullRom(cpz[i0], cpz[i1], cpz[i2], cpz[i3], t);
+
+                            // Linear interpolation for radius and color
+                            final float radius = cpr[i1] + t * (cpr[i2] - cpr[i1]);
+                            final int off = vi * FLOATS_PER_VERTEX;
+                            vertexData[off] = px;
+                            vertexData[off + 1] = py;
+                            vertexData[off + 2] = pz;
+                            vertexData[off + 3] = cpc[i1][0] + t * (cpc[i2][0] - cpc[i1][0]);
+                            vertexData[off + 4] = cpc[i1][1] + t * (cpc[i2][1] - cpc[i1][1]);
+                            vertexData[off + 5] = cpc[i1][2] + t * (cpc[i2][2] - cpc[i1][2]);
+                            vertexData[off + 6] = cpc[i1][3] + t * (cpc[i2][3] - cpc[i1][3]);
+                            vertexData[off + 7] = (radius > 0) ? radius : DEFAULT_RADIUS;
+
+                            xMin = Math.min(xMin, px);
+                            yMin = Math.min(yMin, py);
+                            zMin = Math.min(zMin, pz);
+                            xMax = Math.max(xMax, px);
+                            yMax = Math.max(yMax, py);
+                            zMax = Math.max(zMax, pz);
+                            vi++;
+                        }
+                    }
+
+                    // Edge case: single-node path (no segments)
+                    if (cpCount == 1) {
+                        packVertex(vi, cpx[0], cpy[0], cpz[0], null, defaultFallbackColor, cpr[0]);
+                        final int off = vi * FLOATS_PER_VERTEX;
+                        vertexData[off + 3] = cpc[0][0];
+                        vertexData[off + 4] = cpc[0][1];
+                        vertexData[off + 5] = cpc[0][2];
+                        vertexData[off + 6] = cpc[0][3];
+                        xMin = Math.min(xMin, cpx[0]);
+                        yMin = Math.min(yMin, cpy[0]);
+                        zMin = Math.min(zMin, cpz[0]);
+                        xMax = Math.max(xMax, cpx[0]);
+                        yMax = Math.max(yMax, cpy[0]);
+                        zMax = Math.max(zMax, cpz[0]);
+                        vi++;
+                    }
+
+                    pathRanges.add(new int[]{ pathStart, vi - pathStart });
+                }
+                compartmentRanges.put(compartmentType, pathRanges);
+            }
+
+            vertexCount = vi;
+            bbox = new BoundingBox3d(xMin, xMax, yMin, yMax, zMin, zMax);
+            width = defThickness;
+
+            computeTangents();
+
+            // Store for loader to upload on GL thread
+            ((ArborVBOLoader) loader).pendingVertices = vertexData;
+            ((ArborVBOLoader) loader).pendingBounds = bbox;
+            hasMountedOnce = false; // force remount
+        }
+
+        /** Catmull-Rom spline interpolation between p1 and p2. */
+        private static float catmullRom(final float p0, final float p1,
+                                         final float p2, final float p3, final float t) {
+            // Standard Catmull-Rom with tau=0.5
+            final float t2 = t * t;
+            final float t3 = t2 * t;
+            return 0.5f * ((2f * p1)
+                    + (-p0 + p2) * t
+                    + (2f * p0 - 5f * p1 + 4f * p2 - p3) * t2
+                    + (-p0 + 3f * p1 - 3f * p2 + p3) * t3);
+        }
+
+        /** Packs an AWT color (or fallback) into a float[4] RGBA array. */
+        private static void packColorToArray(final float[] out,
+                                              final java.awt.Color awtColor, final Color fallback) {
+            if (awtColor != null) {
+                out[0] = awtColor.getRed() / 255f;
+                out[1] = awtColor.getGreen() / 255f;
+                out[2] = awtColor.getBlue() / 255f;
+                out[3] = awtColor.getAlpha() / 255f;
+            } else {
+                out[0] = fallback.r;
+                out[1] = fallback.g;
+                out[2] = fallback.b;
+                out[3] = fallback.a;
+            }
+        }
+
+        /**
+         * Computes normalized tangent vectors for each vertex in each path.
+         * The tangent at vertex i is the direction from vertex i to vertex i+1.
+         * The last vertex in each path copies from the previous vertex.
+         */
+        private void computeTangents() {
+            for (final List<int[]> pathRanges : compartmentRanges.values()) {
+                for (final int[] range : pathRanges) {
+                    final int first = range[0];
+                    final int count = range[1];
+                    if (count < 2) {
+                        // Single-vertex path: tangent stays zero
+                        continue;
+                    }
+                    // Forward difference for vertices 0..n-2
+                    for (int i = 0; i < count - 1; i++) {
+                        final int cur = (first + i) * FLOATS_PER_VERTEX;
+                        final int nxt = (first + i + 1) * FLOATS_PER_VERTEX;
+                        float dx = vertexData[nxt] - vertexData[cur];
+                        float dy = vertexData[nxt + 1] - vertexData[cur + 1];
+                        float dz = vertexData[nxt + 2] - vertexData[cur + 2];
+                        final float len = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        if (len > 1e-8f) {
+                            dx /= len;
+                            dy /= len;
+                            dz /= len;
+                        }
+                        vertexData[cur + 8] = dx;
+                        vertexData[cur + 9] = dy;
+                        vertexData[cur + 10] = dz;
+                    }
+                    // Last vertex copies tangent from previous
+                    final int last = (first + count - 1) * FLOATS_PER_VERTEX;
+                    final int prev = (first + count - 2) * FLOATS_PER_VERTEX;
+                    vertexData[last + 8] = vertexData[prev + 8];
+                    vertexData[last + 9] = vertexData[prev + 9];
+                    vertexData[last + 10] = vertexData[prev + 10];
+                }
+            }
+        }
+
+        private void packVertex(final int vi, final float x, final float y, final float z,
+                                final java.awt.Color awtColor, final Color fallback, final float radius) {
+            final int off = vi * FLOATS_PER_VERTEX;
+            vertexData[off] = x;
+            vertexData[off + 1] = y;
+            vertexData[off + 2] = z;
+            if (awtColor != null) {
+                vertexData[off + 3] = awtColor.getRed() / 255f;
+                vertexData[off + 4] = awtColor.getGreen() / 255f;
+                vertexData[off + 5] = awtColor.getBlue() / 255f;
+                vertexData[off + 6] = awtColor.getAlpha() / 255f;
+            } else {
+                vertexData[off + 3] = fallback.r;
+                vertexData[off + 4] = fallback.g;
+                vertexData[off + 5] = fallback.b;
+                vertexData[off + 6] = fallback.a;
+            }
+            vertexData[off + 7] = (radius > 0) ? radius : DEFAULT_RADIUS;
+            // tangent at off+8..off+10 filled by computeTangents()
+        }
+
+        /** Sets a uniform wireframe color for all compartments. Null restores per-vertex colors. */
+        void setArborWireframeColor(final Color color) {
+            this.wireframeColor = color;
+            compartmentColors.clear();
+        }
+
+        /** Sets the wireframe color for a specific compartment. */
+        void setCompartmentColor(final int swcType, final Color color) {
+            compartmentColors.put(swcType, color);
+        }
+
+        /** Gets the current effective wireframe color (uniform or first compartment override). */
+        Color getEffectiveColor() {
+            if (wireframeColor != null) return wireframeColor;
+            if (!compartmentColors.isEmpty()) return compartmentColors.values().iterator().next();
+            return null;
+        }
+
+        /** Sets the line width for a specific compartment. */
+        void setCompartmentWidth(final int swcType, final float w) {
+            compartmentWidths.put(swcType, w);
+        }
+
+        /**
+         * Replaces per-vertex colors matching {@code from} with {@code to} and
+         * marks the color buffer for re-upload on next draw.
+         */
+        void replaceColor(final Color from, final Color to) {
+            if (vertexData == null) return;
+            for (int i = 0; i < vertexCount; i++) {
+                final int off = i * FLOATS_PER_VERTEX + 3;
+                if (Math.abs(vertexData[off] - from.r) < 0.01f
+                        && Math.abs(vertexData[off + 1] - from.g) < 0.01f
+                        && Math.abs(vertexData[off + 2] - from.b) < 0.01f) {
+                    vertexData[off] = to.r;
+                    vertexData[off + 1] = to.g;
+                    vertexData[off + 2] = to.b;
+                }
+            }
+            colorDirty = true;
+        }
+
+        /** Overrides all per-vertex colors with the given color and marks for re-upload. */
+        void fillColor(final Color color) {
+            if (vertexData == null) return;
+            for (int i = 0; i < vertexCount; i++) {
+                final int off = i * FLOATS_PER_VERTEX + 3;
+                vertexData[off] = color.r;
+                vertexData[off + 1] = color.g;
+                vertexData[off + 2] = color.b;
+                vertexData[off + 3] = color.a;
+            }
+            colorDirty = true;
+        }
+
+        /** Fills per-vertex colors for a specific compartment and marks for re-upload. */
+        void fillCompartmentColor(final int swcType, final Color color) {
+            if (vertexData == null || !compartmentRanges.containsKey(swcType)) return;
+            // We need to map compartment index range back to vertex indices.
+            // This is not straightforward with restart markers. Use the compartment
+            // color override instead (more efficient, no buffer upload).
+            compartmentColors.put(swcType, color);
+        }
+
+        @Override
+        public void draw(final IPainter painter) {
+            if (!hasMountedOnce) {
+                mount(painter); // lazy mount for VBOs added after scene init
+                if (!hasMountedOnce) return;
+            }
+            final GL gl = ((NativeDesktopPainter) painter).getGL();
+            final GL2 gl2 = gl.getGL2();
+
+            // Re-upload color data if dirty
+            if (colorDirty && vertexData != null) {
+                gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, arrayName[0]);
+                final FloatBuffer buf = FloatBuffer.wrap(vertexData);
+                gl2.glBufferSubData(GL.GL_ARRAY_BUFFER, 0,
+                        (long) vertexCount * FLOATS_PER_VERTEX * Buffers.SIZEOF_FLOAT, buf);
+                gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, 0);
+                colorDirty = false;
+            }
+
+            doTransform(painter);
+
+            // Bind vertex buffer
+            gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, arrayName[0]);
+
+            // Decide rendering path
+            final boolean useTubes = tubeMode && initShaders(gl2);
+            final boolean useLit = !useTubes && pseudoLighting && initLitShaders(gl2);
+            if (useTubes) {
+                drawTubes(gl2);
+            } else if (useLit) {
+                drawLinesLit(gl, gl2);
+            } else {
+                drawLines(gl, gl2);
+            }
+
+            gl2.glBindBuffer(GL.GL_ARRAY_BUFFER, 0);
+            doDrawBoundsIfDisplayed(painter);
+        }
+
+        /** Line-mode rendering (fixed-function pipeline). */
+        private void drawLines(final GL gl, final GL2 gl2) {
+            gl2.glEnableClientState(GLPointerFunc.GL_VERTEX_ARRAY);
+            gl2.glVertexPointer(3, GL.GL_FLOAT, STRIDE, 0L);
+
+            gl.glEnable(GL.GL_LINE_SMOOTH);
+            gl.glHint(GL.GL_LINE_SMOOTH_HINT, GL.GL_NICEST);
+
+            // Depth fog: fade distant geometry toward background color.
+            // We derive the fog range from the actual eye-space depth extent
+            // of the bounding box, not the frustum clip planes, so the fog
+            // gradient is concentrated on the geometry actually is.
+            if (depthFog && getBounds() != null && getBounds().valid()) {
+                final float[] mv = new float[16];
+                gl2.glGetFloatv(GL2.GL_MODELVIEW_MATRIX, mv, 0);
+                final float[] depthRange = computeEyeDepthRange(mv, getBounds());
+                final float geoNear = depthRange[0]; // closest geometry
+                final float geoFar = depthRange[1];  // farthest geometry
+                final float range = geoFar - geoNear;
+                if (range > 1e-6f) {
+                    // Fog spans the full geometry range but the farthest
+                    // geometry is only partially fogged (not fully invisible).
+                    // fogIntensity controls the max fog at geoFar:
+                    //   0.0 → farthest is ~10% fogged (very subtle)
+                    //   0.5 → farthest is ~55% fogged (moderate)
+                    //   1.0 → farthest is 100% fogged (fully into background)
+                    final float maxFog = 0.1f + fogIntensity * 0.9f;
+                    final float fogStart = geoNear;
+                    // Extend fogEnd beyond geoFar so fog fraction at geoFar = maxFog
+                    // fraction = (geoFar - fogStart) / (fogEnd - fogStart) = maxFog
+                    final float fogEnd = geoNear + range / maxFog;
+                    final float[] fogColor = fogColorFromView(gl2);
+                    gl2.glEnable(GL2.GL_FOG);
+                    gl2.glFogi(GL2.GL_FOG_MODE, GL2.GL_LINEAR);
+                    gl2.glFogf(GL2.GL_FOG_START, fogStart);
+                    gl2.glFogf(GL2.GL_FOG_END, fogEnd);
+                    gl2.glFogfv(GL2.GL_FOG_COLOR, fogColor, 0);
+                }
+            }
+
+            for (final Map.Entry<Integer, List<int[]>> entry : compartmentRanges.entrySet()) {
+                final int type = entry.getKey();
+                final List<int[]> pathRanges = entry.getValue();
+
+                final float w = compartmentWidths.getOrDefault(type, width);
+                gl2.glLineWidth(w);
+
+                final Color compColor = (wireframeColor != null)
+                        ? wireframeColor : compartmentColors.get(type);
+                if (compColor != null) {
+                    gl2.glDisableClientState(GL2.GL_COLOR_ARRAY);
+                    gl2.glColor4f(compColor.r, compColor.g, compColor.b, compColor.a);
+                } else {
+                    gl2.glEnableClientState(GL2.GL_COLOR_ARRAY);
+                    gl2.glColorPointer(4, GL.GL_FLOAT, STRIDE, (long) COLOR_OFFSET);
+                }
+
+                for (final int[] range : pathRanges) {
+                    gl2.glDrawArrays(GL.GL_LINE_STRIP, range[0], range[1]);
+                }
+            }
+
+            if (depthFog) {
+                gl2.glDisable(GL2.GL_FOG);
+            }
+
+            gl2.glDisableClientState(GLPointerFunc.GL_VERTEX_ARRAY);
+            gl2.glDisableClientState(GL2.GL_COLOR_ARRAY);
+        }
+
+        /**
+         * Line-mode rendering with pseudo-lighting (GL 2.1 shader pipeline).
+         * Uses the tangent-to-view angle to modulate brightness.
+         */
+        private void drawLinesLit(final GL gl, final GL2 gl2) {
+            gl2.glUseProgram(litShaderProgram);
+
+            // Set up fixed-function vertex + color pointers (used by gl_Vertex / gl_Color)
+            gl2.glEnableClientState(GLPointerFunc.GL_VERTEX_ARRAY);
+            gl2.glVertexPointer(3, GL.GL_FLOAT, STRIDE, 0L);
+
+            // Tangent via generic attribute
+            gl2.glEnableVertexAttribArray(ATTRIB_TANGENT);
+            gl2.glVertexAttribPointer(ATTRIB_TANGENT, 3, GL.GL_FLOAT, false,
+                    STRIDE, (long) TANGENT_OFFSET);
+
+            gl.glEnable(GL.GL_LINE_SMOOTH);
+            gl.glHint(GL.GL_LINE_SMOOTH_HINT, GL.GL_NICEST);
+
+            final int uUseOverride = gl2.glGetUniformLocation(litShaderProgram, "uUseColorOverride");
+            final int uOverride = gl2.glGetUniformLocation(litShaderProgram, "uColorOverride");
+
+            for (final Map.Entry<Integer, List<int[]>> entry : compartmentRanges.entrySet()) {
+                final int type = entry.getKey();
+                final List<int[]> pathRanges = entry.getValue();
+
+                final float w = compartmentWidths.getOrDefault(type, width);
+                gl2.glLineWidth(w);
+
+                final Color compColor = (wireframeColor != null)
+                        ? wireframeColor : compartmentColors.get(type);
+                if (compColor != null) {
+                    gl2.glUniform1i(uUseOverride, 1);
+                    gl2.glUniform4f(uOverride, compColor.r, compColor.g, compColor.b, compColor.a);
+                    gl2.glDisableClientState(GL2.GL_COLOR_ARRAY);
+                    gl2.glColor4f(compColor.r, compColor.g, compColor.b, compColor.a);
+                } else {
+                    gl2.glUniform1i(uUseOverride, 0);
+                    gl2.glEnableClientState(GL2.GL_COLOR_ARRAY);
+                    gl2.glColorPointer(4, GL.GL_FLOAT, STRIDE, (long) COLOR_OFFSET);
+                }
+
+                for (final int[] range : pathRanges) {
+                    gl2.glDrawArrays(GL.GL_LINE_STRIP, range[0], range[1]);
+                }
+            }
+
+            gl2.glDisableVertexAttribArray(ATTRIB_TANGENT);
+            gl2.glDisableClientState(GLPointerFunc.GL_VERTEX_ARRAY);
+            gl2.glDisableClientState(GL2.GL_COLOR_ARRAY);
+            gl2.glUseProgram(0);
+        }
+
+        /** Reads the current GL clear color to use as fog color. */
+        private static float[] fogColorFromView(final GL2 gl2) {
+            final float[] clearColor = new float[4];
+            gl2.glGetFloatv(GL2.GL_COLOR_CLEAR_VALUE, clearColor, 0);
+            return clearColor;
+        }
+
+        /**
+         * Transforms the 8 corners of the bounding box into eye-space and
+         * returns {minZ, maxZ} as positive eye-space distances.
+         */
+        private static float[] computeEyeDepthRange(final float[] mv,
+                                                     final BoundingBox3d box) {
+            final float[] xs = { box.getXmin(), box.getXmax() };
+            final float[] ys = { box.getYmin(), box.getYmax() };
+            final float[] zs = { box.getZmin(), box.getZmax() };
+            float minZ = Float.MAX_VALUE;
+            float maxZ = -Float.MAX_VALUE;
+            for (final float x : xs) {
+                for (final float y : ys) {
+                    for (final float z : zs) {
+                        // eye-space z = row 2 of modelview dot (x,y,z,1)
+                        // negate because GL eye-space looks down -Z
+                        final float ez = -(mv[2] * x + mv[6] * y + mv[10] * z + mv[14]);
+                        if (ez < minZ) minZ = ez;
+                        if (ez > maxZ) maxZ = ez;
+                    }
+                }
+            }
+            // GL fog coordinate = positive eye-space distance
+            minZ = Math.abs(minZ);
+            maxZ = Math.abs(maxZ);
+            return new float[]{ Math.min(minZ, maxZ), Math.max(minZ, maxZ) };
+        }
+
+        /** Tube-mode rendering (geometry shader pipeline). */
+        private void drawTubes(final GL2 gl2) {
+            gl2.glUseProgram(shaderProgram);
+
+            // Query current fixed-function matrices and upload as uniforms
+            final float[] mv = new float[16];
+            final float[] proj = new float[16];
+            gl2.glGetFloatv(GL2.GL_MODELVIEW_MATRIX, mv, 0);
+            gl2.glGetFloatv(GL2.GL_PROJECTION_MATRIX, proj, 0);
+            // MVP = projection * modelview (column-major)
+            final float[] mvp = new float[16];
+            for (int r = 0; r < 4; r++) {
+                for (int c = 0; c < 4; c++) {
+                    mvp[c * 4 + r] = 0;
+                    for (int k = 0; k < 4; k++) {
+                        mvp[c * 4 + r] += proj[k * 4 + r] * mv[c * 4 + k];
+                    }
+                }
+            }
+            gl2.glUniformMatrix4fv(gl2.glGetUniformLocation(shaderProgram, "uMVP"),
+                    1, false, mvp, 0);
+            // Normal matrix = transpose(inverse(upper-left 3x3 of modelview))
+            final float[] nm = computeNormalMatrix(mv);
+            gl2.glUniformMatrix3fv(gl2.glGetUniformLocation(shaderProgram, "uNormalMatrix"),
+                    1, false, nm, 0);
+
+            // Set other uniforms
+            gl2.glUniform1i(gl2.glGetUniformLocation(shaderProgram, "uTubeSides"), tubeSides);
+            gl2.glUniform1f(gl2.glGetUniformLocation(shaderProgram, "uRadiusScale"), radiusScale);
+
+            // Set up generic vertex attributes for position, color, radius
+            gl2.glEnableVertexAttribArray(ATTRIB_POSITION);
+            gl2.glVertexAttribPointer(ATTRIB_POSITION, 3, GL.GL_FLOAT, false,
+                    STRIDE, 0L);
+            gl2.glEnableVertexAttribArray(ATTRIB_COLOR);
+            gl2.glVertexAttribPointer(ATTRIB_COLOR, 4, GL.GL_FLOAT, false,
+                    STRIDE, (long) COLOR_OFFSET);
+            gl2.glEnableVertexAttribArray(ATTRIB_RADIUS);
+            gl2.glVertexAttribPointer(ATTRIB_RADIUS, 1, GL.GL_FLOAT, false,
+                    STRIDE, (long) RADIUS_OFFSET);
+
+            gl2.glEnable(GL.GL_DEPTH_TEST);
+
+            for (final Map.Entry<Integer, List<int[]>> entry : compartmentRanges.entrySet()) {
+                final int type = entry.getKey();
+                final List<int[]> pathRanges = entry.getValue();
+
+                final Color compColor = (wireframeColor != null)
+                        ? wireframeColor : compartmentColors.get(type);
+                if (compColor != null) {
+                    gl2.glUniform1i(gl2.glGetUniformLocation(shaderProgram,
+                            "uUseColorOverride"), 1);
+                    gl2.glUniform4f(gl2.glGetUniformLocation(shaderProgram,
+                            "uColorOverride"), compColor.r, compColor.g, compColor.b, compColor.a);
+                } else {
+                    gl2.glUniform1i(gl2.glGetUniformLocation(shaderProgram,
+                            "uUseColorOverride"), 0);
+                }
+
+                for (final int[] range : pathRanges) {
+                    gl2.glDrawArrays(GL.GL_LINE_STRIP, range[0], range[1]);
+                }
+            }
+
+            // Cleanup
+            gl2.glDisableVertexAttribArray(ATTRIB_POSITION);
+            gl2.glDisableVertexAttribArray(ATTRIB_COLOR);
+            gl2.glDisableVertexAttribArray(ATTRIB_RADIUS);
+            gl2.glUseProgram(0);
+        }
+
+        /** Computes the normal matrix (transpose of inverse of upper-left 3x3 of modelview). */
+        private static float[] computeNormalMatrix(final float[] mv) {
+            // Extract 3x3
+            final float a00 = mv[0], a01 = mv[4], a02 = mv[8];
+            final float a10 = mv[1], a11 = mv[5], a12 = mv[9];
+            final float a20 = mv[2], a21 = mv[6], a22 = mv[10];
+            // Cofactors
+            final float c00 = a11 * a22 - a12 * a21;
+            final float c01 = a12 * a20 - a10 * a22;
+            final float c02 = a10 * a21 - a11 * a20;
+            final float c10 = a02 * a21 - a01 * a22;
+            final float c11 = a00 * a22 - a02 * a20;
+            final float c12 = a01 * a20 - a00 * a21;
+            final float c20 = a01 * a12 - a02 * a11;
+            final float c21 = a02 * a10 - a00 * a12;
+            final float c22 = a00 * a11 - a01 * a10;
+            final float det = a00 * c00 + a01 * c01 + a02 * c02;
+            final float invDet = (Math.abs(det) < 1e-10f) ? 1f : 1f / det;
+            // transpose(inverse) = cofactor / det (column-major layout for GL)
+            return new float[]{
+                    c00 * invDet, c10 * invDet, c20 * invDet,
+                    c01 * invDet, c11 * invDet, c21 * invDet,
+                    c02 * invDet, c12 * invDet, c22 * invDet
+            };
+        }
+
+        @Override
+        public void applyGeometryTransform(final Transform transform) {
+            // Use model matrix via setTransformBefore() instead of modifying vertices
+            setTransformBefore(transform);
+        }
+
+        @Override
+        public void updateBounds() {
+            // bounds are computed during setTreeData()
+        }
+
+        /** Loader that uploads the pending vertex data to GPU. */
+        private static class ArborVBOLoader implements IGLLoader<DrawableVBO> {
+            ArborVBO vbo;
+            float[] pendingVertices;
+            BoundingBox3d pendingBounds;
+
+            @Override
+            public void load(final IPainter painter, final DrawableVBO drawable) {
+                if (pendingVertices == null) return;
+                final GL gl = ((NativeDesktopPainter) painter).getGL();
+
+                final FloatBuffer vertices = Buffers.newDirectFloatBuffer(pendingVertices);
+                final int vertexSize = pendingVertices.length * Buffers.SIZEOF_FLOAT;
+
+                // Configure with our custom stride (no normals, no element buffer)
+                drawable.doConfigure(0, vbo.vertexCount,
+                        STRIDE, 0, 3);
+
+                drawable.doLoadArrayFloatBuffer(gl, vertexSize, vertices);
+                drawable.doSetBoundingBox(pendingBounds);
+            }
+        }
     }
 
     protected static class Utils {
@@ -7798,7 +8899,7 @@ public class Viewer3D {
         @Override
         protected void doRun() {
             if (rotationAxis == RotationAxis.Z && animationMode == AnimationMode.FULL_ROTATION) {
-                // Classic continuous azimuth sweep — delegate to parent
+                // Classic continuous azimuth sweep: delegate to parent
                 super.doRun();
                 return;
             }
@@ -8241,16 +9342,9 @@ public class Viewer3D {
                     shapeTree.setArborColor(newForeground, -1);
                     return; // replaces continue in lambda expression;
                 }
-                final Shape shape = shapeTree.treeSubShape;
-                if (shape == null) return;
-                for (int i = 0; i < shape.size(); i++) {
-                    final List<Point> points = ((LineStripPlus) shape.get(i)).getPoints();
-                    points.forEach(p -> {
-                        final Color pColor = p.getColor();
-                        if (isSameRGB(pColor, newBackground)) {
-                            changeRGB(pColor, newForeground);
-                        }
-                    });
+                // Replace matching per-vertex colors in the VBO buffer
+                if (shapeTree.arborVBO != null) {
+                    shapeTree.arborVBO.replaceColor(newBackground, newForeground);
                 }
             });
 
@@ -8336,7 +9430,7 @@ public class Viewer3D {
             sb.append("  </tr>");
             if (showInDialog) sb.append("  <tr>");
             sb.append("  <tr>");
-            sb.append("    <td>Toggle RV <u>C</u>ontrols</td>");
+            sb.append("    <td>Toggle <u>C</u>ontrol Panel</td>");
             sb.append("    <td>Shift+C</td>");
             sb.append("  </tr>");
             sb.append("  <tr>");
@@ -8855,7 +9949,7 @@ public class Viewer3D {
             if (labels.contains(k)) {
                 setSomaDisplayed(k, displayed);
                 // if this tree is only composed of soma
-                if (shapeTree.treeSubShape == null) {
+                if (shapeTree.arborVBO == null) {
                     setVisible(k, displayed);
                 }
             }
@@ -8869,6 +9963,153 @@ public class Viewer3D {
      */
     public void setSomasDisplayed(final boolean displayed) {
         plottedTrees.values().forEach(shapeTree -> shapeTree.setSomaDisplayed(displayed));
+    }
+
+    /**
+     * Enables or disables tube rendering for all trees (current and future).
+     * The preference is persisted across sessions.
+     *
+     * @param enabled whether to render neurites as 3D tubes
+     */
+    public void setTubeMode(final boolean enabled) {
+        // If shaders already known to be unavailable, don't bother
+        if (enabled && ArborVBO.shaderInitAttempted && ArborVBO.shaderProgram == 0) {
+            final String msg = ArborVBO.shaderInitMessage != null
+                    ? ArborVBO.shaderInitMessage
+                    : "Tube rendering is not available on this system.";
+            guiUtils().error(msg);
+            return;
+        }
+        tubeModeEnabled = enabled;
+        if (plottedTrees != null) {
+            plottedTrees.values().forEach(shapeTree -> shapeTree.setTubeMode(enabled));
+        }
+        if (chart != null) {
+            chart.render();
+            // Shader init happens on the GL thread during render. Defer the
+            // check so the render has time to trigger initShaders.
+            if (enabled) {
+                javax.swing.SwingUtilities.invokeLater(() -> {
+                    if (ArborVBO.shaderInitAttempted && ArborVBO.shaderProgram == 0) {
+                        // Rever, shaders failed
+                        tubeModeEnabled = false;
+                        if (plottedTrees != null) {
+                            plottedTrees.values().forEach(st -> st.setTubeMode(false));
+                        }
+                        final String msg = ArborVBO.shaderInitMessage != null
+                                ? ArborVBO.shaderInitMessage
+                                : "Tube rendering is not available on this system.";
+                        guiUtils().error(msg);
+                        return;
+                    }
+                    // Shaders succeeded: persist
+                    if (prefService != null) {
+                        prefService.put(Viewer3D.class, PREF_TUBE_MODE, true);
+                    }
+                });
+            } else {
+                if (prefService != null) {
+                    prefService.put(Viewer3D.class, PREF_TUBE_MODE, false);
+                }
+            }
+        }
+    }
+
+    /**
+     * Enables or disables depth fog for all trees (current and future).
+     * The preference is persisted across sessions.
+     *
+     * @param enabled whether to apply depth fog to neurite rendering
+     */
+    public void setDepthFog(final boolean enabled) {
+        depthFogEnabled = enabled;
+        if (prefService != null) {
+            prefService.put(Viewer3D.class, PREF_DEPTH_FOG, enabled);
+        }
+        if (enabled) {
+            // Mutually exclusive: disable pseudo-lighting
+            pseudoLightingEnabled = false;
+            if (prefService != null) {
+                prefService.put(Viewer3D.class, PREF_PSEUDO_LIGHTING, false);
+            }
+            if (plottedTrees != null) {
+                plottedTrees.values().forEach(st -> {
+                    st.setPseudoLighting(false);
+                    st.setDepthFog(true);
+                });
+            }
+        } else {
+            if (plottedTrees != null) {
+                plottedTrees.values().forEach(st -> st.setDepthFog(false));
+            }
+        }
+        if (chart != null) chart.render();
+    }
+
+    /**
+     * Sets the fog intensity for all trees and persists the preference.
+     *
+     * @param intensity 0 (very subtle) to 1 (fully fogged at far depth)
+     */
+    public void setFogIntensity(final float intensity) {
+        fogIntensityPref = intensity;
+        if (prefService != null) {
+            prefService.put(Viewer3D.class, PREF_FOG_INTENSITY, (double) intensity);
+        }
+        if (plottedTrees != null) {
+            plottedTrees.values().forEach(shapeTree -> shapeTree.setFogIntensity(intensity));
+        }
+        if (chart != null) chart.render();
+    }
+
+    /**
+     * Enables or disables pseudo-lighting for all trees (current and future).
+     * Mutually exclusive with depth fog. Enabling this disables fog.
+     *
+     * @param enabled whether to apply tangent-based pseudo-lighting
+     */
+    public void setPseudoLighting(final boolean enabled) {
+        pseudoLightingEnabled = enabled;
+        if (prefService != null) {
+            prefService.put(Viewer3D.class, PREF_PSEUDO_LIGHTING, enabled);
+        }
+        if (enabled) {
+            // Mutually exclusive: disable depth fog
+            depthFogEnabled = false;
+            if (prefService != null) {
+                prefService.put(Viewer3D.class, PREF_DEPTH_FOG, false);
+            }
+            if (plottedTrees != null) {
+                plottedTrees.values().forEach(st -> {
+                    st.setDepthFog(false);
+                    st.setPseudoLighting(true);
+                });
+            }
+        } else {
+            if (plottedTrees != null) {
+                plottedTrees.values().forEach(st -> st.setPseudoLighting(false));
+            }
+        }
+        if (chart != null) chart.render();
+    }
+
+    /**
+     * Sets the Catmull-Rom upsampling factor for all trees and rebuilds them.
+     * 1 = no smoothing, higher = smoother paths at vertex joints.
+     *
+     * @param factor upsampling factor (1-10)
+     */
+    public void setUpsamplingFactor(final int factor) {
+        upsamplingFactorPref = Math.max(1, Math.min(10, factor));
+        if (prefService != null) {
+            prefService.put(Viewer3D.class, PREF_UPSAMPLING, upsamplingFactorPref);
+        }
+        if (plottedTrees != null) {
+            // rebuildShape() creates a new ArborVBO with the current
+            // upsamplingFactorPref, so no need to set it explicitly
+            plottedTrees.values().forEach(ShapeTree::rebuildShape);
+        }
+        if (chart != null) chart.render();
     }
 
     private void setSomaDisplayed(final String treeLabel,
@@ -8897,33 +10138,20 @@ public class Viewer3D {
 
     private boolean treesContainColoredNodes(final List<String> labels) {
         if (plottedTrees == null || plottedTrees.isEmpty()) return false;
-        Color refColor = null;
         for (final Map.Entry<String, ShapeTree> entry : plottedTrees.entrySet()) {
-            if (labels.contains(entry.getKey())) {
-                final Shape shape = entry.getValue().treeSubShape;
-                if (shape == null) continue; // e.g., soma-only tree
-                for (int i = 0; i < shape.size(); i++) {
-                    // treeSubShape is only composed of LineStripPluses so this is a safe
-                    // casting
-                    final Color color = getNodeColor((LineStripPlus) shape.get(i));
-                    if (color == null) continue;
-                    if (refColor == null) {
-                        refColor = color;
-                        continue;
-                    }
-                    if (color.r != refColor.r || color.g != refColor.g ||
-                            color.b != refColor.b) return true;
-                }
+            if (!labels.contains(entry.getKey())) continue;
+            final ArborVBO vbo = entry.getValue().arborVBO;
+            if (vbo == null || vbo.vertexData == null || vbo.vertexCount < 2) continue;
+            // Compare first vertex color to all others
+            final float r0 = vbo.vertexData[3], g0 = vbo.vertexData[4], b0 = vbo.vertexData[5];
+            for (int i = 1; i < vbo.vertexCount; i++) {
+                final int off = i * ArborVBO.FLOATS_PER_VERTEX + 3;
+                if (vbo.vertexData[off] != r0 || vbo.vertexData[off + 1] != g0
+                        || vbo.vertexData[off + 2] != b0)
+                    return true;
             }
         }
         return false;
-    }
-
-    private Color getNodeColor(final LineStripPlus lineStrip) {
-        for (final Point p : lineStrip.getPoints()) {
-            if (p != null) return p.rgb;
-        }
-        return null;
     }
 
     /**
