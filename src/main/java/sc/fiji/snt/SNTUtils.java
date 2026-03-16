@@ -84,6 +84,7 @@ public class SNTUtils {
 	private static final String TIMESTAMP_PATTERN = "'_D'yyyy-MM-dd'T'HH-mm-ss";
 	public static final String TIMESTAMP_REGEX = "(.+?)_D(\\d{4}-\\d{2}-\\d{2})T(\\d{2}-\\d{2}-\\d{2})";
 	private static Context context;
+	private static boolean standaloneContext;
 	private static volatile LogService logService;  // Make volatile for thread safety
 
 	public static final String VERSION = getVersion();
@@ -590,6 +591,7 @@ public class SNTUtils {
 				System.out.println("[ERROR] [SNT] Failed to retrieve context from IJ1: " + ex.getMessage());
 			} finally {
 				if (context == null) {
+					standaloneContext = true;
 					try {
 						context = new Context();
 					} catch (final Throwable e) {
@@ -625,8 +627,20 @@ public class SNTUtils {
 		return null != SNTUtils.context;
 	}
 
+	/**
+	 * Returns whether the current context was self-initialized by SNT (i.e., no
+	 * host application like ImageJ/Fiji provided one). This is useful for
+	 * determining if it is safe to modify global UI state such as the Look and Feel.
+	 *
+	 * @return true if the context was created by SNT itself, false if provided externally
+	 */
+	public static boolean isStandaloneContext() {
+		return standaloneContext;
+	}
+
 	public static void setContext(final Context context) {
 		SNTUtils.context = context;
+		standaloneContext = false;
 	}
 
 	private static List<Class<? extends Service>> requiredServices() {

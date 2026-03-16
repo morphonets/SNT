@@ -1069,7 +1069,7 @@ public class Viewer3D {
     }
 
     private GuiUtils guiUtils() {
-        if (frame != null && frame.manager != null && frame.managerPanel != null) {
+        if (frame != null && frame.hasManager()) {
             return frame.managerPanel.guiUtils;
         }
         return gUtils;
@@ -1679,14 +1679,20 @@ public class Viewer3D {
         if (frame == null) return;
         final ArrayList<Component> components = new ArrayList<>();
         components.add(frame);
-        if (frame.manager != null)
-            components.add(frame.manager);
+        if (frame.hasManager())
+            components.add(frame.managerPanel);
         if (frame.allenNavigator != null) {
             components.add(frame.allenNavigator.dialog);
         }
         if (managerList != null)
             components.add(managerList.getComponentPopupMenu());
         GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
+    }
+
+    private void syncLookAndFeel(final boolean dark) {
+        if (SNTUtils.isStandaloneContext()) {
+            setLookAndFeel(dark ? GuiUtils.LAF_DARK : GuiUtils.LAF_LIGHT);
+        }
     }
 
     private void displayBanner(final String msg) {
@@ -3146,11 +3152,13 @@ public class Viewer3D {
 
         private AChart chart;
         private Component canvas;
-        private JDialog manager;
+        private JSplitPane splitPane;
         private LightController lightController;
         private AllenCCFNavigator allenNavigator;
         private ManagerPanel managerPanel;
+        private int savedDividerLocation = -1;
         private JLabel status;
+        private boolean managerVisible;
 
         // displays and full screen
         private java.awt.Point loc;
@@ -3189,10 +3197,48 @@ public class Viewer3D {
             setMinimumSize(new Dimension((int) (DEF_WIDTH * .5), (int) (DEF_HEIGHT * .5))); // fix macOS issue in which
             // frame is collapsed
             if (includeManager) {
-                manager = getManager();
+                initManager();
                 chart.viewer.managerList.selectAll();
-                manager.addKeyListener(keyController);
-                snapPanelToSide();
+                // Dispatch scene shortcut keys to keyController when focus is on
+                // the manager panel's children (e.g., managerList). A JDialog would
+                // propagate events from children; an embedded JPanel does not.
+                // We only intercept single-letter shortcuts and suppress the
+                // subsequent KEY_TYPED so JIDE Searchable doesn't trigger.
+                // Arrow keys, Escape, and other navigation keys are left to the
+                // focused component (e.g., JList scrolling, search bar dismiss).
+                final boolean[] lastPressConsumed = {false};
+                KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
+                    if (!ViewerFrame.this.isActive()) return false;
+                    final Component focused = e.getComponent();
+                    // Only intercept if focus is inside this frame (not in owned
+                    // dialogs like AllenCCFNavigator, LightController, etc.)
+                    if (focused == null || SwingUtilities.getWindowAncestor(focused) != ViewerFrame.this)
+                        return false;
+                    // Skip if canvas has focus (has its own keyController),
+                    // or focus is on a text component (let user type normally),
+                    // or focus is on a button (let activation work normally)
+                    if (focused == canvas
+                            || focused instanceof javax.swing.text.JTextComponent
+                            || focused instanceof javax.swing.AbstractButton)
+                        return false;
+                    if (e.getID() == KeyEvent.KEY_PRESSED) {
+                        final int code = e.getKeyCode();
+                        // Let arrow keys, Escape, Enter, Tab, and Space pass through
+                        // to the focused component for normal Swing interaction
+                        if (code == KeyEvent.VK_UP || code == KeyEvent.VK_DOWN
+                                || code == KeyEvent.VK_LEFT || code == KeyEvent.VK_RIGHT
+                                || code == KeyEvent.VK_ESCAPE || code == KeyEvent.VK_ENTER
+                                || code == KeyEvent.VK_TAB || code == KeyEvent.VK_SPACE)
+                            return false;
+                        keyController.keyPressed(e);
+                        lastPressConsumed[0] = e.isConsumed();
+                        return lastPressConsumed[0];
+                    } else if (e.getID() == KeyEvent.KEY_TYPED && lastPressConsumed[0]) {
+                        lastPressConsumed[0] = false;
+                        return true; // suppress KEY_TYPED so Searchable doesn't trigger
+                    }
+                    return false;
+                });
             }
             if (gUtils != null) {
                 gUtils.setParent(this);
@@ -3200,44 +3246,70 @@ public class Viewer3D {
             toFront();
         }
 
-        private void snapPanelToSide() {
-            final java.awt.Point parentLoc = getLocation();
-            manager.setLocation(parentLoc.x + getWidth() + 5, parentLoc.y);
-        }
-
         public void replaceCurrentChart(final AChart chart) {
             this.chart = chart;
             canvas = (Component) chart.getCanvas();
-            removeAll();
-            initialize(chart, new Rectangle(getWidth(), getHeight()), getTitle());
+            if (splitPane != null) {
+                final JPanel leftPanel = (JPanel) splitPane.getLeftComponent();
+                leftPanel.removeAll();
+                leftPanel.add(canvas, BorderLayout.CENTER);
+                leftPanel.add(status, BorderLayout.SOUTH);
+            } else {
+                removeAll();
+                add(canvas, BorderLayout.CENTER);
+                add(status, BorderLayout.SOUTH);
+            }
+            revalidate();
+            repaint();
         }
 
-        public JDialog getManager() {
-            final String title = (chart.viewer.isSNTInstance()) ? "RV Controls" : "RV Controls ("+ chart.viewer.getID() + ")";
-            final JDialog dialog = new JDialog(this, title);
-            GuiUtils.removeIcon(dialog);
-            managerPanel = new ManagerPanel(dialog);
-            dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-            dialog.addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(final WindowEvent e) {
-                    exitRequested(managerPanel.guiUtils);
-                }
-                @Override
-                public void windowClosed(final WindowEvent e) {
-                    if (managerPanel != null)
-                        managerPanel.setDebuggerEnabled(false);
-                }
-            });
-            // dialog.setLocationRelativeTo(this);
-            final int paddingForRoundCorners = 16; // required for Windows 11!?
-            dialog.setMinimumSize(new Dimension(managerPanel.getMinimumSize().width + paddingForRoundCorners, getHeight()/2));
-            dialog.setPreferredSize(new Dimension(managerPanel.getPreferredSize().width, getHeight() + status.getFont().getSize()));
-            dialog.setContentPane(managerPanel);
+        private void initManager() {
+            managerPanel = new ManagerPanel(this);
+            final int panelWidth = managerPanel.getMinimumSize().width;
+            splitPane.setRightComponent(managerPanel);
+            // widen the frame to accommodate the manager panel
+            final Insets insets = getInsets();
+            final int frameDecor = insets.left + insets.right;
+            final int newWidth = getWidth() + panelWidth + splitPane.getDividerSize();
+            setSize(newWidth, getHeight());
+            setPreferredSize(getSize());
+            // divider location is in split pane coordinates (frame content area)
+            splitPane.setDividerLocation(newWidth - frameDecor - panelWidth - splitPane.getDividerSize());
             managerList.addKeyListener(getCmdFinderKeyAdapter());
             chart.getCanvas().addKeyController(getCmdFinderKeyAdapter());
-            dialog.pack();
-            return dialog;
+            managerVisible = true;
+        }
+
+        boolean hasManager() {
+            return managerPanel != null;
+        }
+
+        boolean isManagerVisible() {
+            return managerVisible;
+        }
+
+        private int defaultDividerSize() {
+            return UIManager.getInt("SplitPane.dividerSize");
+        }
+
+        void showManagerPanel() {
+            if (managerPanel == null || managerVisible) return;
+            managerPanel.setVisible(true);
+            splitPane.setDividerSize(defaultDividerSize());
+            if (savedDividerLocation > 0 && savedDividerLocation < splitPane.getWidth() - 50)
+                splitPane.setDividerLocation(savedDividerLocation);
+            else
+                splitPane.setDividerLocation(splitPane.getWidth() - managerPanel.getPreferredSize().width);
+            managerVisible = true;
+        }
+
+        void hideManagerPanel() {
+            if (managerPanel == null || !managerVisible) return;
+            savedDividerLocation = splitPane.getDividerLocation();
+            managerPanel.setVisible(false);
+            splitPane.setDividerSize(0);
+            splitPane.setDividerLocation(1.0d);
+            managerVisible = false;
         }
 
         private KeyAdapter getCmdFinderKeyAdapter() {
@@ -3284,11 +3356,30 @@ public class Viewer3D {
             setTitle(title);
             final BorderLayout layout = new BorderLayout();
             setLayout(layout);
-            add(canvas, BorderLayout.CENTER);
-            add(status = new JLabel(statusPlaceHolder), BorderLayout.SOUTH);
+            status = new JLabel(statusPlaceHolder);
             status.setFocusable(false);
             status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
             status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
+            if (managerList != null) {
+                // Interactive mode: use split pane for embedded manager panel
+                if (splitPane == null) {
+                    splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+                    splitPane.setOneTouchExpandable(true);
+                    splitPane.putClientProperty("JSplitPane.expandableSide", "left");
+                    splitPane.setResizeWeight(1.0); // give all extra space to the canvas
+                    splitPane.setBorder(null);
+                }
+                final JPanel leftPanel = new JPanel(new BorderLayout());
+                leftPanel.setBackground(status.getBackground());
+                leftPanel.add(canvas, BorderLayout.CENTER);
+                leftPanel.add(status, BorderLayout.SOUTH);
+                splitPane.setLeftComponent(leftPanel);
+                add(splitPane, BorderLayout.CENTER);
+            } else {
+                // Kiosk/non-interactive mode: canvas and status bar directly in frame
+                add(canvas, BorderLayout.CENTER);
+                add(status, BorderLayout.SOUTH);
+            }
             setBackground(status.getBackground());
             pack();
             canvas.setPreferredSize(new Dimension(bounds.width, bounds.height));
@@ -3309,11 +3400,13 @@ public class Viewer3D {
                 chart.dispose();
                 chart = null;
             }
-            remove(canvas);
+            if (splitPane != null) {
+                splitPane.removeAll();
+                splitPane = null;
+            }
             canvas = null;
-            if (manager != null) {
-                manager.dispose();
-                manager = null;
+            if (managerPanel != null) {
+                managerPanel.setDebuggerEnabled(false);
             }
             if (recorder != null) {
                 recorder.dispose();
@@ -3350,6 +3443,7 @@ public class Viewer3D {
                 setSize(dim);
                 setLocation(loc);
                 setVisible(true);
+                if (managerPanel != null && managerVisible) showManagerPanel();
                 if (lightController != null) lightController.setVisible(true);
                 if (allenNavigator != null) allenNavigator.dialog.setVisible(true);
                 isFullScreen = false;
@@ -3360,11 +3454,18 @@ public class Viewer3D {
             if (!isFullScreen) {
                 dim = frame.getSize();
                 loc = frame.getLocation();
-                if (manager != null) manager.setVisible(false);
+                // remember visibility but don't update the flag so exitFullScreen can restore
+                if (managerPanel != null && managerVisible) {
+                    savedDividerLocation = splitPane.getDividerLocation();
+                    managerPanel.setVisible(false);
+                    splitPane.setDividerSize(0);
+                    splitPane.setDividerLocation(1.0d);
+                    // leave managerVisible = true so exitFullScreen restores it
+                }
                 if (lightController != null) lightController.setVisible(false);
                 if (allenNavigator != null) allenNavigator.dialog.setVisible(false);
                 frame.status.setVisible(false);
-                setExtendedState(JFrame.MAXIMIZED_BOTH );
+                setExtendedState(JFrame.MAXIMIZED_BOTH);
                 isFullScreen = true;
                 displayBanner("Entered Full Screen. Press Shift+F (or \"Esc\") to exit...");
             }
@@ -3372,13 +3473,8 @@ public class Viewer3D {
 
         @Override
         public void setVisible(final boolean b) {
-            setVisible(b, manager != null);
-        }
-
-        private void setVisible(final boolean b, final boolean managerVisible) {
             SNTUtils.setIsLoading(false);
             super.setVisible(b);
-            if (manager != null) manager.setVisible(managerVisible);
         }
     }
 
@@ -3448,19 +3544,17 @@ public class Viewer3D {
 
         void rebuildOnNewScreen(final GraphicsConfiguration gConfiguration) {
             final Dimension dim = frame.getSize();
-            final boolean hasManager = frame.manager != null;
-            final boolean visibleManager = hasManager && frame.manager.isVisible();
+            final boolean hasManager = frame.hasManager();
+            final boolean wasManagerVisible = hasManager && frame.isManagerVisible();
             final boolean darkMode = isDarkModeOn();
             frame.dispose();
             if (hasManager) {
-                frame.manager.dispose();
                 initManagerList();
             }
             show((int) dim.getWidth(), (int) dim.getHeight(), gConfiguration, true);
             setEnableDarkMode(darkMode);
-            if (hasManager) {
-                frame.snapPanelToSide();
-                frame.manager.setVisible(visibleManager);
+            if (hasManager && !wasManagerVisible) {
+                frame.hideManagerPanel();
             }
             validate();
         }
@@ -3856,6 +3950,20 @@ public class Viewer3D {
         private boolean disableActions;
         private final Window parentWindow;
 
+        /* Convenience factory for menu items backed by an Action with an icon. */
+        private JMenuItem menuItem(final Action action, final GLYPH glyph) {
+            final JMenuItem mi = new JMenuItem(action);
+            mi.setIcon(IconFactory.menuIcon(glyph));
+            return mi;
+        }
+
+        /* Convenience factory for menu items with a label, icon, and action listener. */
+        private JMenuItem menuItem(final String label, final GLYPH glyph, final ActionListener listener) {
+            final JMenuItem mi = new JMenuItem(label, IconFactory.menuIcon(glyph));
+            mi.addActionListener(listener);
+            return mi;
+        }
+
         private ManagerPanel(final Window parentWindow) {
             super();
             this.parentWindow = parentWindow;
@@ -3871,8 +3979,6 @@ public class Viewer3D {
 
                 @Override
                 public void openSearchBar(final SearchableBar searchableBar) {
-                    if (ManagerPanel.this.getWidth() < searchableBar.getWidth())
-                        ManagerPanel.this.setSize(searchableBar.getWidth(), ManagerPanel.this.getHeight());
                     searchableBar.setVisible(true);
                     searchableBar.focusSearchField();
                 }
@@ -3880,8 +3986,6 @@ public class Viewer3D {
                 @Override
                 public void closeSearchBar(final SearchableBar searchableBar) {
                     searchableBar.setVisible(false);
-                    if (ManagerPanel.this.getPreferredSize().width < searchableBar.getWidth())
-                        ManagerPanel.this.setSize(ManagerPanel.this.getPreferredSize().width, ManagerPanel.this.getHeight());
                 }
             });
             searchableBar.getSearchField().addFocusListener(new FocusListener() {
@@ -4190,7 +4294,7 @@ public class Viewer3D {
             }
 
             private void showPanelAsNeeded() {
-                if (frame.manager != null && !frame.manager.isVisible())
+                if (frame.hasManager() && !frame.isManagerVisible())
                     toggleControlPanel(); // e.g, if action called via cmdFinder
             }
 
@@ -4230,7 +4334,6 @@ public class Viewer3D {
             buttonPanel.add(menuButton(GLYPH.TOOL, utilsMenu(), "Utilities & Actions"));
             buttonPanel.add(menuButton(GLYPH.CODE, scriptingMenu(), "Scripting"));
             buttonPanel.add(menuButton(GLYPH.COG, prefsMenu(), "Settings"));
-            buttonPanel.add(cmdFinder.getButton(1.8f));
             // panel should not collapse buttons otherwise their icons gets scrambled
             setMinimumSize(new Dimension(buttonPanel.getPreferredSize().width, getMinimumSize().height));
             return buttonPanel;
@@ -4251,13 +4354,9 @@ public class Viewer3D {
 
         private JPopupMenu sceneMenu() {
             final JPopupMenu sceneMenu = new JPopupMenu();
-            final JMenuItem dark = new JMenuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false));
-            dark.setIcon(IconFactory.menuIcon(GLYPH.SUN));
-            sceneMenu.add(dark);
+            sceneMenu.add(menuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false), GLYPH.SUN));
             sceneMenu.addSeparator();
-            final JMenuItem fit = new JMenuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false));
-            fit.setIcon(IconFactory.menuIcon(GLYPH.EXPAND));
-            sceneMenu.add(fit);
+            sceneMenu.add(menuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false), GLYPH.EXPAND));
             sceneMenu.add(zoomToSelectionMenuItem());
             // Aspect-ratio controls
             sceneMenu.add(squarifyMenu());
@@ -4270,42 +4369,23 @@ public class Viewer3D {
                 view.getCamera().setViewportMode(mode);
             });
             sceneMenu.add(jcbmiFill);
-            final JMenuItem resize = new JMenuItem(new Action(Action.RESIZE));
-            resize.setIcon(IconFactory.menuIcon(GLYPH.RESIZE));
-            sceneMenu.add(resize);
-            final JMenuItem fullScreen = new JMenuItem(new Action(Action.ENTER_FULL_SCREEN, KeyEvent.VK_F, false, true));
-            fullScreen.setIcon(IconFactory.menuIcon(GLYPH.EXPAND_ARROWS2));
-            sceneMenu.add(fullScreen);
+            sceneMenu.add(menuItem(new Action(Action.RESIZE), GLYPH.RESIZE));
+            sceneMenu.add(menuItem(new Action(Action.ENTER_FULL_SCREEN, KeyEvent.VK_F, false, true), GLYPH.EXPAND_ARROWS2));
             sceneMenu.addSeparator();
-
-            final JMenuItem reset = new JMenuItem(new Action(Action.RESET_VIEW, KeyEvent.VK_R, false, false));
-            reset.setIcon(IconFactory.menuIcon(GLYPH.BROOM));
-            sceneMenu.add(reset);
-            final JMenuItem reload = new JMenuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true));
-            reload.setIcon(IconFactory.menuIcon(GLYPH.REDO));
-            sceneMenu.add(reload);
-            final JMenuItem rebuild = new JMenuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true));
-            rebuild.setIcon(IconFactory.menuIcon(GLYPH.RECYCLE));
-            sceneMenu.add(rebuild);
-            final JMenuItem wipe = new JMenuItem("Wipe Scene...", IconFactory.menuIcon(GLYPH.DANGER));
-            wipe.addActionListener(e -> wipeWithPrompt());
-            sceneMenu.add(wipe);
+            sceneMenu.add(menuItem(new Action(Action.RESET_VIEW, KeyEvent.VK_R, false, false), GLYPH.BROOM));
+            sceneMenu.add(menuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true), GLYPH.REDO));
+            sceneMenu.add(menuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true), GLYPH.RECYCLE));
+            sceneMenu.add(menuItem("Wipe Scene...", GLYPH.DANGER, e -> wipeWithPrompt()));
             sceneMenu.addSeparator();
-
-            final JMenuItem help = new JMenuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false));
             new Action(Action.SCENE_SHORTCUTS_NOTIFICATION, KeyEvent.VK_H, false, false); // register alternative shortcut
-            help.setIcon(IconFactory.menuIcon(GLYPH.KEYBOARD));
-            sceneMenu.add(help);
+            sceneMenu.add(menuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false), GLYPH.KEYBOARD));
             sceneMenu.addSeparator();
-            final JMenuItem sup = new JMenuItem("Duplicate Scene", IconFactory.menuIcon(GLYPH.COPY));
-            sup.addActionListener(e -> {
+            final JMenuItem sup = menuItem("Duplicate Scene", GLYPH.COPY, e -> {
                 class DupWorker extends SwingWorker<Viewer3D, Object> {
-
                     @Override
                     protected Viewer3D doInBackground() {
                         return duplicate();
                     }
-
                     @Override
                     protected void done() {
                         try {
@@ -4327,8 +4407,7 @@ public class Viewer3D {
                 new DupWorker().execute();
             });
             sceneMenu.add(sup);
-            final JMenuItem sync = new JMenuItem(new Action(Action.SYNC, KeyEvent.VK_S, true, true));
-            sync.setIcon(IconFactory.menuIcon(GLYPH.SYNC));
+            final JMenuItem sync = menuItem(new Action(Action.SYNC, KeyEvent.VK_S, true, true), GLYPH.SYNC);
             sync.setEnabled(isSNTInstance());
             sceneMenu.add(sync);
             return sceneMenu;
@@ -4404,114 +4483,39 @@ public class Viewer3D {
         private JPopupMenu popupMenu() {
             final JMenuItem renderIcons = new JCheckBoxMenuItem("Label Categories",
                     IconFactory.menuIcon(GLYPH.MARKER), managerList.renderer.iconVisible);
-            renderIcons.addItemListener(e -> {
-                managerList.setIconsVisible((renderIcons.isSelected()));
-            });
-            final JMenuItem sort = new JMenuItem("Sort List", IconFactory.menuIcon(GLYPH.SORT));
-            sort.addActionListener(e -> {
-                if (noLoadedItemsGuiError()) {
-                    return;
-                }
-                managerList.model.sort();
-            });
-            final JMenuItem addTag = new JMenuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true));
-            addTag.setIcon(IconFactory.menuIcon(GLYPH.TAG));
-            final JMenuItem wipeTags = new JMenuItem("Remove Tags...", IconFactory.menuIcon(GLYPH.BROOM));
-            wipeTags.addActionListener(e -> {
-                if (noLoadedItemsGuiError())
-                    return;
+            renderIcons.addItemListener(e -> managerList.setIconsVisible(renderIcons.isSelected()));
+
+            final JPopupMenu pMenu = new JPopupMenu();
+            pMenu.add(selectSubMenu());
+            pMenu.add(showSubMenu());
+            pMenu.add(hideSubMenu());
+            pMenu.add(zoomToSelectionMenuItem());
+            pMenu.addSeparator();
+            pMenu.add(menuItem(new Action(Action.TAG, KeyEvent.VK_T, true, true), GLYPH.TAG));
+            pMenu.add(menuItem("Apply Scene-based Tags", GLYPH.COLOR, e -> {
+                if (noLoadedItemsGuiError()) return;
+                final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
+                managerList.applyRenderedColorsToSelectedItems(all);
+            }));
+            pMenu.add(menuItem("Remove Tags...", GLYPH.BROOM, e -> {
+                if (noLoadedItemsGuiError()) return;
                 final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                 if (managerList.isSelectionEmpty() && !all) return;
                 if (guiUtils.getConfirmation("Remove all tags from " + ((all) ? "all" : "selected") + " items?",
                         "Dispose All Tags?")) {
                     managerList.removeTagsFromSelectedItems(all);
                 }
-            });
-            final JMenuItem assignSceneColorTags = new JMenuItem("Apply Scene-based Tags", IconFactory.menuIcon(GLYPH.COLOR));
-            assignSceneColorTags.addActionListener(e -> {
-                if (noLoadedItemsGuiError())
-                    return;
-                final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
-                managerList.applyRenderedColorsToSelectedItems(all);
-            });
-
-            // Select menu
-            final JMenu selectMenu = new JMenu("Select");
-            selectMenu.setIcon(IconFactory.menuIcon(GLYPH.POINTER));
-            final JMenuItem selectAnnotations = new JMenuItem("Annotations");
-            selectAnnotations.addActionListener(e -> selectRows(plottedAnnotations));
-            final JMenuItem selectMeshes = new JMenuItem("Meshes");
-            selectMeshes.addActionListener(e -> selectRows(plottedObjs));
-            final JMenuItem selectTrees = new JMenuItem("Trees");
-            selectTrees.addActionListener(e -> selectRows(plottedTrees));
-            selectMenu.add(selectTrees);
-            selectMenu.add(selectMeshes);
-            selectMenu.add(selectAnnotations);
-            selectMenu.addSeparator();
-            // Register keyboard shortcuts for select all/none
-            new Action(Action.ALL, KeyEvent.VK_A, true, false);
-            new Action(Action.NONE, KeyEvent.VK_A, true, true);
-            final JMenuItem selectNone = new JMenuItem("None");
-            selectNone.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | KeyEvent.SHIFT_DOWN_MASK));
-            selectNone.addActionListener(e -> managerList.clearSelection());
-            selectMenu.add(selectNone);
-
-            // Hide menu
-            final JMenu hideMenu = new JMenu("Hide");
-            hideMenu.setIcon(IconFactory.menuIcon(GLYPH.EYE_SLASH));
-            final JMenuItem hideMeshes = new JMenuItem("Meshes");
-            hideMeshes.addActionListener(e -> hide(plottedTrees));
-            final JMenuItem hideTrees = new JMenuItem("Trees");
-            hideTrees.addActionListener(e -> setArborsDisplayed(getLabelsCheckedInManager(), false));
-            final JMenuItem hideAnnotations = new JMenuItem("Annotations");
-            hideAnnotations.addActionListener(e -> hide(plottedAnnotations));
-            final JMenuItem hideSomas = new JMenuItem("Soma of Selected Trees");
-            hideSomas.addActionListener(e -> setSomasDisplayedOfSelectedTrees(false));
-            final JMenuItem hideBoxes = new JMenuItem("Bounding Box of Selected Meshes");
-            hideBoxes.addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(false));
-//			final JMenuItem hideAll = new JMenuItem("All");
-//			hideAll.addActionListener(e -> managerList.selectNone());
-            final JMenuItem hideSelected = new JMenuItem("Selected Items");
-            hideSelected.addActionListener(e -> displaySelectedObjects(false));
-            hideMenu.add(hideTrees);
-            hideMenu.add(hideMeshes);
-            hideMenu.add(hideAnnotations);
-            hideMenu.addSeparator();
-            hideMenu.add(hideSomas);
-            hideMenu.add(hideBoxes);
-            hideMenu.addSeparator();
-//			hideMenu.add(hideAll);
-            hideMenu.add(hideSelected);
-
-            // Show Menu
-            final JMenu showMenu = new JMenu("Show");
-            showMenu.setIcon(IconFactory.menuIcon(GLYPH.EYE));
-            final JMenuItem showMeshes = new JMenuItem("Only Meshes");
-            showMeshes.addActionListener(e -> show(plottedObjs));
-            final JMenuItem showTrees = new JMenuItem("Only Trees");
-            showTrees.addActionListener(e -> show(plottedTrees));
-            final JMenuItem showAnnotations = new JMenuItem("Only Annotations");
-            showAnnotations.addActionListener(e -> show(plottedAnnotations));
-            final JMenuItem showSomas = new JMenuItem("Soma of Selected Trees");
-            showSomas.addActionListener(e -> setSomasDisplayedOfSelectedTrees(true));
-            final JMenuItem showBoxes = new JMenuItem("Bounding Box of Selected Meshes");
-            showBoxes.addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(true));
-//			final JMenuItem showAll = new JMenuItem("All");
-//			showAll.addActionListener(e -> managerList.selectAll());
-            final JMenuItem showSelected = new JMenuItem("Selected Items");
-            showSelected.addActionListener(e -> displaySelectedObjects(true));
-            showMenu.add(showTrees);
-            showMenu.add(showMeshes);
-            showMenu.add(showAnnotations);
-            showMenu.addSeparator();
-            showMenu.add(showSomas);
-            showMenu.add(showBoxes);
-            showMenu.addSeparator();
-//			showMenu.add(showAll);
-            showMenu.add(showSelected);
-
-            final JMenuItem remove = new JMenuItem("Remove Selected...", IconFactory.menuIcon(GLYPH.TRASH));
-            remove.addActionListener(e -> {
+            }));
+            pMenu.addSeparator();
+            pMenu.add(renderIcons);
+            pMenu.add(menuItem("Sort List", GLYPH.SORT, e -> {
+                if (!noLoadedItemsGuiError()) managerList.model.sort();
+            }));
+            pMenu.addSeparator();
+            pMenu.add(menuItem(new Action(Action.PROGRESS), GLYPH.SPINNER));
+            pMenu.add(menuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false), GLYPH.BINOCULARS));
+            pMenu.addSeparator();
+            pMenu.add(menuItem("Remove Selected...", GLYPH.TRASH, e -> {
                 if (managerList.getSelectedIndex() == managerList.getCheckBoxListSelectionModel().getAllEntryIndex()) {
                     wipeWithPrompt();
                     return;
@@ -4531,31 +4535,55 @@ public class Viewer3D {
                     });
                     managerList.model.setListenersEnabled(true); // will call managerList.model.update();
                 }
-            });
-
-            final JPopupMenu pMenu = new JPopupMenu();
-            pMenu.add(selectMenu);
-            pMenu.add(showMenu);
-            pMenu.add(hideMenu);
-            pMenu.add(zoomToSelectionMenuItem());
-            pMenu.addSeparator();
-            pMenu.add(addTag);
-            pMenu.add(assignSceneColorTags);
-            pMenu.add(wipeTags);
-            pMenu.addSeparator();
-            pMenu.add(renderIcons);
-            pMenu.add(sort);
-            pMenu.addSeparator();
-            JMenuItem jmi = new JMenuItem(new Action(Action.PROGRESS));
-            jmi.setIcon(IconFactory.menuIcon(GLYPH.SPINNER));
-            pMenu.add(jmi);
-            jmi = new JMenuItem(new Action(Action.FIND, KeyEvent.VK_F, true, false));
-            jmi.setIcon(IconFactory.menuIcon(GLYPH.BINOCULARS));
-            pMenu.add(jmi);
-            pMenu.addSeparator();
-            pMenu.add(remove);
+            }));
             cmdFinder.register(pMenu, new ArrayList<>(Collections.singletonList("Control Panel Contextual Menu")));
             return pMenu;
+        }
+
+        private JMenu selectSubMenu() {
+            final JMenu menu = new JMenu("Select");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.POINTER));
+            menu.add(new JMenuItem("Trees")).addActionListener(e -> selectRows(plottedTrees));
+            menu.add(new JMenuItem("Meshes")).addActionListener(e -> selectRows(plottedObjs));
+            menu.add(new JMenuItem("Annotations")).addActionListener(e -> selectRows(plottedAnnotations));
+            menu.addSeparator();
+            // Register keyboard shortcuts for select all/none
+            new Action(Action.ALL, KeyEvent.VK_A, true, false);
+            new Action(Action.NONE, KeyEvent.VK_A, true, true);
+            final JMenuItem selectNone = new JMenuItem("None");
+            selectNone.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A,
+                    Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | KeyEvent.SHIFT_DOWN_MASK));
+            selectNone.addActionListener(e -> managerList.clearSelection());
+            menu.add(selectNone);
+            return menu;
+        }
+
+        private JMenu showSubMenu() {
+            final JMenu menu = new JMenu("Show");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.EYE));
+            menu.add(new JMenuItem("Only Trees")).addActionListener(e -> show(plottedTrees));
+            menu.add(new JMenuItem("Only Meshes")).addActionListener(e -> show(plottedObjs));
+            menu.add(new JMenuItem("Only Annotations")).addActionListener(e -> show(plottedAnnotations));
+            menu.addSeparator();
+            menu.add(new JMenuItem("Soma of Selected Trees")).addActionListener(e -> setSomasDisplayedOfSelectedTrees(true));
+            menu.add(new JMenuItem("Bounding Box of Selected Meshes")).addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(true));
+            menu.addSeparator();
+            menu.add(new JMenuItem("Selected Items")).addActionListener(e -> displaySelectedObjects(true));
+            return menu;
+        }
+
+        private JMenu hideSubMenu() {
+            final JMenu menu = new JMenu("Hide");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.EYE_SLASH));
+            menu.add(new JMenuItem("Trees")).addActionListener(e -> hide(plottedTrees));
+            menu.add(new JMenuItem("Meshes")).addActionListener(e -> hide(plottedObjs));
+            menu.add(new JMenuItem("Annotations")).addActionListener(e -> hide(plottedAnnotations));
+            menu.addSeparator();
+            menu.add(new JMenuItem("Soma of Selected Trees")).addActionListener(e -> setSomasDisplayedOfSelectedTrees(false));
+            menu.add(new JMenuItem("Bounding Box of Selected Meshes")).addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(false));
+            menu.addSeparator();
+            menu.add(new JMenuItem("Selected Items")).addActionListener(e -> displaySelectedObjects(false));
+            return menu;
         }
 
         private void wipeWithPrompt() {
@@ -4657,7 +4685,7 @@ public class Viewer3D {
                         "This command requires a single reconstruction to be selected.");
                 return null;
             }
-            return trees.get(0);
+            return trees.getFirst();
         }
 
         private Tree getSingleSelectionTreeWithPromptForType() {
@@ -4903,14 +4931,14 @@ public class Viewer3D {
             mi.addActionListener(e -> runMeasureQuickAction());
             measureMenu.add(mi);
             GuiUtils.addSeparator(measureMenu, "Distribution Analyses:");
-            mi = new JMenuItem("Branch Properties...", IconFactory.menuIcon(GLYPH.CHART));
-            mi.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
-            mi.addActionListener(e -> runBranchPropertiesAnalysisAction());
-            measureMenu.add(mi);
-            mi = new JMenuItem("Cell Properties...", IconFactory.menuIcon(GLYPH.CHART));
-            mi.setToolTipText("Computes distributions of metrics from individual cells");
-            mi.addActionListener(e -> runCellPropertiesAnalysisAction());
-            measureMenu.add(mi);
+            final JMenuItem branchProps = menuItem("Branch Properties...", GLYPH.CHART,
+                    e -> runBranchPropertiesAnalysisAction());
+            branchProps.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
+            measureMenu.add(branchProps);
+            final JMenuItem cellProps = menuItem("Cell Properties...", GLYPH.CHART,
+                    e -> runCellPropertiesAnalysisAction());
+            cellProps.setToolTipText("Computes distributions of metrics from individual cells");
+            measureMenu.add(cellProps);
             GuiUtils.addSeparator(measureMenu, "Specialized Analyses:");
             final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
             convexHullMenuItem.addActionListener(e -> runConvexHullAction());
@@ -5019,18 +5047,9 @@ public class Viewer3D {
 
         private void addCustomizeMeshCommands(final JPopupMenu menu) {
             GuiUtils.addSeparator(menu, "Customize:");
-            JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.menuIcon(GLYPH.SLIDERS));
-            mi.addActionListener(e -> customizeSelectedMeshesAllParametersAction());
-            menu.add(mi);
-
-            // Mesh customizations
-            mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
-            mi.addActionListener(e -> customizeSelectedMeshesColorAction());
-            menu.add(mi);
-            mi = new JMenuItem("Transparency...", IconFactory.menuIcon(
-                    GLYPH.ADJUST));
-            mi.addActionListener(e -> customizeSelectedMeshesTransparencyAction());
-            menu.add(mi);
+            menu.add(menuItem("All Parameters...", GLYPH.SLIDERS, e -> customizeSelectedMeshesAllParametersAction()));
+            menu.add(menuItem("Color...", GLYPH.COLOR, e -> customizeSelectedMeshesColorAction()));
+            menu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> customizeSelectedMeshesTransparencyAction()));
         }
 
         private void customizeSelectedTreesAllParametersAction() {
@@ -5188,47 +5207,28 @@ public class Viewer3D {
         }
 
         private void addCustomizeTreeCommands(final JPopupMenu menu) {
-
-            JMenuItem mi = new JMenuItem("All Parameters...", IconFactory.menuIcon(GLYPH.SLIDERS));
-            mi.addActionListener(e -> customizeSelectedTreesAllParametersAction());
-            menu.add(mi);
-
-            mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
-            mi.addActionListener(e -> customizeSelectedTreesColorAction());
-            menu.add(mi);
+            menu.add(menuItem("All Parameters...", GLYPH.SLIDERS, e -> customizeSelectedTreesAllParametersAction()));
+            menu.add(menuItem("Color...", GLYPH.COLOR, e -> customizeSelectedTreesColorAction()));
             final JMenu ccMenu = new JMenu("Color Mapping");
             ccMenu.setIcon(IconFactory.menuIcon(GLYPH.COLOR2));
             menu.add(ccMenu);
-            mi = new JMenuItem("Apply Color Mapping...");
-            mi.addActionListener(e -> applyColorMappingToSelectedTreesAction());
-            ccMenu.add(mi);
-            mi = new JMenuItem("Remove Existing Color Mapping(s)");
-            mi.addActionListener(e -> removeSelectedTreeColorMappingsAction());
-            ccMenu.add(mi);
+            ccMenu.add(new JMenuItem("Apply Color Mapping...")).addActionListener(
+                    e -> applyColorMappingToSelectedTreesAction());
+            ccMenu.add(new JMenuItem("Remove Existing Color Mapping(s)")).addActionListener(
+                    e -> removeSelectedTreeColorMappingsAction());
             ccMenu.addSeparator();
-            mi = new JMenuItem("Color Each Cell Uniquely");
-            mi.addActionListener(e -> assignUniqueColorsToSelectedTreesAction());
-            ccMenu.add(mi);
-
-            mi = new JMenuItem("Thickness...", IconFactory.menuIcon(GLYPH.DOTCIRCLE));
-            mi.addActionListener(e -> setSelectedTreeThicknessAction());
-            menu.add(mi);
-            mi = new JMenuItem("Soma radius...", IconFactory.menuIcon(GLYPH.CIRCLE));
-            mi.addActionListener(e -> setSelectedSomaRadiusAction());
-            menu.add(mi);
-            mi = new JMenuItem("Translate...", IconFactory.menuIcon(GLYPH.MOVE));
-            mi.addActionListener(e -> translateSelectedTreesAction());
-            menu.add(mi);
+            ccMenu.add(new JMenuItem("Color Each Cell Uniquely")).addActionListener(
+                    e -> assignUniqueColorsToSelectedTreesAction());
+            menu.add(menuItem("Thickness...", GLYPH.DOTCIRCLE, e -> setSelectedTreeThicknessAction()));
+            menu.add(menuItem("Soma radius...", GLYPH.CIRCLE, e -> setSelectedSomaRadiusAction()));
+            menu.add(menuItem("Translate...", GLYPH.MOVE, e -> translateSelectedTreesAction()));
         }
 
         private JPopupMenu utilsMenu() {
             final JPopupMenu utilsMenu = new JPopupMenu();
             GuiUtils.addSeparator(utilsMenu, "Utilities:");
-            JMenuItem mi = new JMenuItem("Annotation Label...", IconFactory.menuIcon(GLYPH.PEN));
-            mi.addActionListener(e -> {
-                runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, true, false);
-            });
-            utilsMenu.add(mi);
+            utilsMenu.add(menuItem("Annotation Label...", GLYPH.PEN,
+                    e -> runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, true, false)));
             utilsMenu.add(legendMenu());
             if (!isSNTInstance()) {
                 final JMenuItem jmi = GuiUtils.MenuItems.renderQuick();
@@ -5241,9 +5241,7 @@ public class Viewer3D {
                 });
                 utilsMenu.add(jmi);
             }
-            final JMenuItem light = new JMenuItem("Light Controls...", IconFactory.menuIcon(GLYPH.BULB));
-            light.addActionListener(e -> frame.displayLightController(null));
-            utilsMenu.add(light);
+            utilsMenu.add(menuItem("Light Controls...", GLYPH.BULB, e -> frame.displayLightController(null)));
             GuiUtils.addSeparator(utilsMenu, "Animation:");
             final ButtonGroup animGroup = new ButtonGroup();
             final AnimationMode persistedMode = prefs.getAnimationModePref();
@@ -5259,9 +5257,8 @@ public class Viewer3D {
                 animGroup.add(jcbmi);
                 utilsMenu.add(jcbmi);
             }
-            mi = new JMenuItem("Record Animation...", IconFactory.menuIcon(GLYPH.VIDEO));
-            mi.addActionListener(e -> {
-                final String[] choices = new String[] {
+            utilsMenu.add(menuItem("Record Animation...", GLYPH.VIDEO, e -> {
+                final String[] choices = {
                     "Z-axis (azimuth sweep)",
                     "Y-axis (elevation sweep from side)",
                     "X-axis (elevation sweep from front)"
@@ -5272,27 +5269,20 @@ public class Viewer3D {
                     "Record " + modeLabel + " rotation around which axis?\n"
                     + "(NB: Angle, duration, and animation mode can be adjusted in Preferences)",
                     "Record Animation", choices, choices[0]);
-                if (rAxis == null) return; // user cancelled
+                if (rAxis == null) return;
                 SwingUtilities.invokeLater(() -> {
                     displayMsg("Recording " + modeLabel + " animation...", 0);
                     new RecordWorker(RotationAxis.fromString(rAxis)).execute();
                 });
-            });
-            utilsMenu.add(mi);
+            }));
             GuiUtils.addSeparator(utilsMenu, "Screenshots:");
-            final JMenuItem snapshot2 = new JMenuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false));
-            snapshot2.setIcon(IconFactory.menuIcon(GLYPH.CAMERA));
-            utilsMenu.add(snapshot2);
-            final JMenuItem snapshot = new JMenuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false));
-            snapshot.setIcon(IconFactory.menuIcon(GLYPH.CAMERA));
-            utilsMenu.add(snapshot);
-            final JMenuItem reveal = new JMenuItem("Show Snapshot Directory", IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
-            reveal.addActionListener(e -> guiUtils.showDirectory(prefs.getSnapshotDir()));
-            utilsMenu.add(reveal);
-
+            utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false), GLYPH.CAMERA));
+            utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false), GLYPH.CAMERA));
+            utilsMenu.add(menuItem("Show Snapshot Directory", GLYPH.OPEN_FOLDER,
+                    e -> guiUtils.showDirectory(prefs.getSnapshotDir())));
             GuiUtils.addSeparator(utilsMenu, "Resources:");
             final JMenu helpMenu = GuiUtils.MenuItems.helpMenu(cmdFinder);
-            helpMenu.setIcon( IconFactory.menuIcon(GLYPH.QUESTION));
+            helpMenu.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
             utilsMenu.add(helpMenu);
             return utilsMenu;
         }
@@ -5300,12 +5290,8 @@ public class Viewer3D {
         private JPopupMenu scriptingMenu() {
             final JPopupMenu scriptMenu = new JPopupMenu();
             GuiUtils.addSeparator(scriptMenu, "New Script:");
-            JMenuItem mi = new JMenuItem(new Action(Action.RECORDER, KeyEvent.VK_OPEN_BRACKET, false, false));
-            mi.setIcon(IconFactory.menuIcon(GLYPH.CODE));
-            scriptMenu.add(mi);
-            final JMenuItem log = new JMenuItem(new Action(Action.LOG_TO_RECORDER, KeyEvent.VK_L, false, false));
-            log.setIcon(IconFactory.menuIcon(GLYPH.STREAM));
-            scriptMenu.add(log);
+            scriptMenu.add(menuItem(new Action(Action.RECORDER, KeyEvent.VK_OPEN_BRACKET, false, false), GLYPH.CODE));
+            scriptMenu.add(menuItem(new Action(Action.LOG_TO_RECORDER, KeyEvent.VK_L, false, false), GLYPH.STREAM));
             GuiUtils.addSeparator(scriptMenu, "Resources:");
             scriptMenu.add(GuiUtils.MenuItems.devResourceJavaAPI());
             scriptMenu.add(GuiUtils.MenuItems.devResourcePythonAPI());
@@ -5316,20 +5302,16 @@ public class Viewer3D {
         private JPopupMenu prefsMenu() {
             final JPopupMenu prefsMenu = new JPopupMenu();
             GuiUtils.addSeparator(prefsMenu, "Layout:");
-            final JMenuItem hide = new JMenuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true));
-            hide.setIcon(IconFactory.menuIcon(GLYPH.WINDOWS2));
-            prefsMenu.add(hide);
+            prefsMenu.add(menuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true), GLYPH.WINDOWS2));
             GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
             prefsMenu.add(panMenu());
             prefsMenu.add(zoomMenu());
             prefsMenu.add(rotationMenu());
-
             GuiUtils.addSeparator(prefsMenu, "Advanced Settings:");
-
             prefsMenu.add(getDebugCheckBox());
             if (ENGINE == Engine.JOGL) {
-                final JMenuItem  jcbmi2= new JCheckBoxMenuItem("Enable Hardware Acceleration", Settings.getInstance().isHardwareAccelerated());
-                //jcbmi2.setEnabled(!isSNTInstance());
+                final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Hardware Acceleration",
+                        Settings.getInstance().isHardwareAccelerated());
                 jcbmi2.setIcon(IconFactory.menuIcon(GLYPH.MICROCHIP));
                 jcbmi2.setMnemonic('h');
                 jcbmi2.addItemListener(e -> {
@@ -5339,11 +5321,8 @@ public class Viewer3D {
                 prefsMenu.add(jcbmi2);
             }
             GuiUtils.addSeparator(prefsMenu, "Other:");
-            final JMenuItem mi = new JMenuItem("Preferences...", IconFactory.menuIcon(GLYPH.COGS));
-            mi.addActionListener(e -> {
-                runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false);
-            });
-            prefsMenu.add(mi);
+            prefsMenu.add(menuItem("Preferences...", GLYPH.COGS,
+                    e -> runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false)));
             return prefsMenu;
         }
 
@@ -5453,63 +5432,28 @@ public class Viewer3D {
         private JPopupMenu treesMenu() {
             final JPopupMenu tracesMenu = new JPopupMenu();
             GuiUtils.addSeparator(tracesMenu, "Add:");
-            JMenuItem mi = new JMenuItem("Load File...", IconFactory.menuIcon(
-                    GLYPH.IMPORT));
-            mi.setMnemonic('f');
-            mi.addActionListener(e -> {
+            final JMenuItem loadFile = menuItem("Load File...", GLYPH.IMPORT, e -> {
                 final Map<String, Object> inputs = new HashMap<>();
                 inputs.put("importDir", false);
                 runImportCmd(LoadReconstructionCmd.class, inputs);
             });
-            tracesMenu.add(mi);
-            mi = new JMenuItem("Load Directory...", IconFactory.menuIcon(
-                    GLYPH.FOLDER));
-            mi.addActionListener(e -> {
+            loadFile.setMnemonic('f');
+            tracesMenu.add(loadFile);
+            tracesMenu.add(menuItem("Load Directory...", GLYPH.FOLDER, e -> {
                 final Map<String, Object> inputs = new HashMap<>();
                 inputs.put("importDir", true);
                 runImportCmd(LoadReconstructionCmd.class, inputs);
-            });
-            tracesMenu.add(mi);
-
-            mi = new JMenuItem("Load & Compare Groups...", IconFactory.menuIcon(GLYPH.MAGIC));
-            mi.addActionListener(e -> runImportCmd(GroupAnalyzerCmd.class, null));
-            tracesMenu.add(mi);
-
+            }));
+            tracesMenu.add(menuItem("Load & Compare Groups...", GLYPH.MAGIC,
+                    e -> runImportCmd(GroupAnalyzerCmd.class, null)));
             if (!isSNTInstance()) tracesMenu.add(loadDemoMenuItem());
-
-            final JMenu remoteMenu = new JMenu("Load from Database");
-            remoteMenu.setMnemonic('d');
-            remoteMenu.setDisplayedMnemonicIndex(10);
-            remoteMenu.setIcon(IconFactory.menuIcon(GLYPH.DATABASE));
-            tracesMenu.add(remoteMenu);
-            mi = new JMenuItem("FlyCircuit...", 'f');
-            mi.addActionListener(e -> {
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("loader", new FlyCircuitLoader());
-                runImportCmd(RemoteSWCImporterCmd.class, inputs);
-            });
-            remoteMenu.add(mi);
-            mi = new JMenuItem("InsectBrain...", 'I');
-            mi.addActionListener(e -> runImportCmd(InsectBrainImporterCmd.class, null));
-            remoteMenu.add(mi);
-            mi = new JMenuItem("MouseLight...", 'm');
-            mi.addActionListener(e -> runImportCmd(MLImporterCmd.class, null));
-            remoteMenu.add(mi);
-            mi = new JMenuItem("NeuroMorpho...", 'n');
-            mi.addActionListener(e -> {
-                final Map<String, Object> inputs = new HashMap<>();
-                inputs.put("loader", new NeuroMorphoLoader());
-                runImportCmd(RemoteSWCImporterCmd.class, inputs);
-            });
-            remoteMenu.add(mi);
+            tracesMenu.add(remoteDatabaseMenu());
 
             GuiUtils.addSeparator(tracesMenu, "Customize & Adjust:");
             addCustomizeTreeCommands(tracesMenu);
 
             GuiUtils.addSeparator(tracesMenu, "Remove:");
-            mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(
-                    GLYPH.DELETE));
-            mi.addActionListener(e -> {
+            tracesMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> {
                 final List<String> keys = getSelectedTreeLabels();
                 if (keys == null || keys.isEmpty()) {
                     guiUtils.error("There are no selected reconstructions.");
@@ -5517,22 +5461,39 @@ public class Viewer3D {
                 }
                 if (!guiUtils.getConfirmation("Delete " + keys.size() +
                         " reconstruction(s)?", "Confirm Deletion"))
-                {
                     return;
-                }
                 setSceneUpdatesEnabled(false);
                 keys.forEach(Viewer3D.this::removeTree);
                 setSceneUpdatesEnabled(true);
                 updateView();
-            });
-            tracesMenu.add(mi);
-            mi = new JMenuItem("Remove All...", IconFactory.menuIcon(GLYPH.TRASH));
-            mi.addActionListener(e -> {
+            }));
+            tracesMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
                 if (guiUtils.getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
                     removeAllTrees();
-            });
-            tracesMenu.add(mi);
+            }));
             return tracesMenu;
+        }
+
+        private JMenu remoteDatabaseMenu() {
+            final JMenu menu = new JMenu("Load from Database");
+            menu.setMnemonic('d');
+            menu.setDisplayedMnemonicIndex(10);
+            menu.setIcon(IconFactory.menuIcon(GLYPH.DATABASE));
+            menu.add(new JMenuItem("FlyCircuit...", 'f')).addActionListener(e -> {
+                final Map<String, Object> inputs = new HashMap<>();
+                inputs.put("loader", new FlyCircuitLoader());
+                runImportCmd(RemoteSWCImporterCmd.class, inputs);
+            });
+            menu.add(new JMenuItem("InsectBrain...", 'I')).addActionListener(
+                    e -> runImportCmd(InsectBrainImporterCmd.class, null));
+            menu.add(new JMenuItem("MouseLight...", 'm')).addActionListener(
+                    e -> runImportCmd(MLImporterCmd.class, null));
+            menu.add(new JMenuItem("NeuroMorpho...", 'n')).addActionListener(e -> {
+                final Map<String, Object> inputs = new HashMap<>();
+                inputs.put("loader", new NeuroMorphoLoader());
+                runImportCmd(RemoteSWCImporterCmd.class, inputs);
+            });
+            return menu;
         }
 
         private JMenuItem loadDemoMenuItem() {
@@ -5552,17 +5513,14 @@ public class Viewer3D {
         }
 
         private JMenu legendMenu() {
-            // Legend Menu
             final JMenu legendMenu = new JMenu("Color Mapping Legends");
             legendMenu.setIcon(IconFactory.menuIcon(GLYPH.COLOR2));
-            JMenuItem mi = new JMenuItem("Add...", IconFactory.menuIcon(GLYPH.PLUS));
-            mi.addActionListener(e -> {
+            legendMenu.add(menuItem("Add...", GLYPH.PLUS, e -> {
                 final Map<String, Object> inputs = new HashMap<>();
                 inputs.put("treeLabels", null);
                 runCmd(ColorMapReconstructionCmd.class, inputs, CmdWorker.DO_NOTHING, true, false);
-            });
-            legendMenu.add(mi);
-            mi = new JMenuItem("Edit Last...", IconFactory.menuIcon(GLYPH.SLIDERS));
+            }));
+            final JMenuItem mi = new JMenuItem("Edit Last...", IconFactory.menuIcon(GLYPH.SLIDERS));
             mi.addActionListener(e -> {
                 if (cBar == null) {
                     guiUtils.error("No Legend currently exists.");
@@ -5604,15 +5562,11 @@ public class Viewer3D {
             legendMenu.add(mi);
 
             legendMenu.addSeparator();
-            mi = new JMenuItem("Remove Last", IconFactory.menuIcon(GLYPH.DELETE));
-            mi.addActionListener(e -> removeColorLegends(true));
-            legendMenu.add(mi);
-            mi = new JMenuItem("Remove All...", IconFactory.menuIcon(GLYPH.TRASH));
-            mi.addActionListener(e -> {
+            legendMenu.add(menuItem("Remove Last", GLYPH.DELETE, e -> removeColorLegends(true)));
+            legendMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
                 if (guiUtils.getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
                     removeColorLegends(false);
-            });
-            legendMenu.add(mi);
+            }));
             return legendMenu;
         }
 
@@ -5645,21 +5599,11 @@ public class Viewer3D {
         private JPopupMenu meshMenu() {
             final JPopupMenu meshMenu = new JPopupMenu();
             GuiUtils.addSeparator(meshMenu, "Add:");
-            JMenuItem mi = new JMenuItem("Load OBJ File(s)...", IconFactory
-                    .menuIcon(GLYPH.IMPORT));
-            mi.addActionListener(e -> loadMeshFilesAction());
-            meshMenu.add(mi);
+            meshMenu.add(menuItem("Load OBJ File(s)...", GLYPH.IMPORT, e -> loadMeshFilesAction()));
             addCustomizeMeshCommands(meshMenu);
-
             GuiUtils.addSeparator(meshMenu, "Remove:");
-            mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(
-                    GLYPH.DELETE));
-            mi.addActionListener(e -> removeSelectedMeshesAction());
-            meshMenu.add(mi);
-            mi = new JMenuItem("Remove All...");
-            mi.setIcon(IconFactory.menuIcon(GLYPH.TRASH));
-            mi.addActionListener(e -> removeAllMeshesAction());
-            meshMenu.add(mi);
+            meshMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedMeshesAction()));
+            meshMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> removeAllMeshesAction()));
             return meshMenu;
         }
 
@@ -5861,62 +5805,42 @@ public class Viewer3D {
         }
 
         private JPopupMenu annotationsMenu() {
-
             final JPopupMenu annotMenu = new JPopupMenu();
             GuiUtils.addSeparator(annotMenu, "Add:");
-            JMenuItem mi = new JMenuItem("Cell-based Cross-section Plane...", IconFactory.menuIcon(GLYPH.SCISSORS));
-            mi.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
-            mi.addActionListener(e -> addCellBasedCrossSectionPlaneAnnotationsAction());
-            annotMenu.add(mi);
-            mi = new JMenuItem("Cell-based Surface...", IconFactory.menuIcon(GLYPH.DICE_20));
-            mi.setToolTipText("Adds convex-hull tesselations to neuronal arbors");
-            mi.addActionListener(e -> addCellBasedSurfaceAnnotationsAction());
-            annotMenu.add(mi);
-            mi = new JMenuItem("Mesh-based Cross-section Plane...", IconFactory.menuIcon(GLYPH.SCISSORS));
-            mi.setToolTipText("Adds cross-section plane(s) to selected meshes");
-            mi.addActionListener(e -> addMeshBasedCrossSectionPlaneAnnotationsAction());
-            annotMenu.add(mi);
-            mi = new JMenuItem("Mesh-based Surface...", IconFactory.menuIcon(GLYPH.DICE_20));
-            mi.setToolTipText("Adds convex-hull tesselations to selected meshes");
-            mi.addActionListener(e -> addMeshBasedSurfaceAnnotationsAction());
-            annotMenu.add(mi);
+            final JMenuItem cellPlane = menuItem("Cell-based Cross-section Plane...", GLYPH.SCISSORS,
+                    e -> addCellBasedCrossSectionPlaneAnnotationsAction());
+            cellPlane.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
+            annotMenu.add(cellPlane);
+            final JMenuItem cellSurface = menuItem("Cell-based Surface...", GLYPH.DICE_20,
+                    e -> addCellBasedSurfaceAnnotationsAction());
+            cellSurface.setToolTipText("Adds convex-hull tesselations to neuronal arbors");
+            annotMenu.add(cellSurface);
+            final JMenuItem meshPlane = menuItem("Mesh-based Cross-section Plane...", GLYPH.SCISSORS,
+                    e -> addMeshBasedCrossSectionPlaneAnnotationsAction());
+            meshPlane.setToolTipText("Adds cross-section plane(s) to selected meshes");
+            annotMenu.add(meshPlane);
+            final JMenuItem meshSurface = menuItem("Mesh-based Surface...", GLYPH.DICE_20,
+                    e -> addMeshBasedSurfaceAnnotationsAction());
+            meshSurface.setToolTipText("Adds convex-hull tesselations to selected meshes");
+            annotMenu.add(meshSurface);
             final JMenu primitives = new JMenu("Misc");
             primitives.setToolTipText("Adds basic geometry objects to the scene");
             primitives.setIcon(IconFactory.menuIcon(GLYPH.ELLIPSIS));
             annotMenu.add(primitives);
-            mi = new JMenuItem("Sphere...", IconFactory.menuIcon(GLYPH.GLOBE));
-            mi.addActionListener(e -> addPrimitiveSphereAnnotationAction());
-            primitives.add(mi);
-            mi = new JMenuItem("Vector...", IconFactory.menuIcon(GLYPH.ARROWS_LR));
-            mi.addActionListener(e -> addPrimitiveVectorAnnotationAction());
-            primitives.add(mi);
-            mi = new JMenuItem("Plane/Parallelepiped...", IconFactory.menuIcon(GLYPH.SQUARE));
-            mi.addActionListener(e -> addPrimitivePlaneAnnotationAction());
-            primitives.add(mi);
+            primitives.add(menuItem("Sphere...", GLYPH.GLOBE, e -> addPrimitiveSphereAnnotationAction()));
+            primitives.add(menuItem("Vector...", GLYPH.ARROWS_LR, e -> addPrimitiveVectorAnnotationAction()));
+            primitives.add(menuItem("Plane/Parallelepiped...", GLYPH.SQUARE, e -> addPrimitivePlaneAnnotationAction()));
             GuiUtils.addSeparator(annotMenu, "Customize:");
-            mi = new JMenuItem("Color...", IconFactory.menuIcon(GLYPH.COLOR));
-            mi.addActionListener(e -> setSelectedAnnotationsColorAction());
-            annotMenu.add(mi);
-            mi = new JMenuItem("Color Gradient...", IconFactory.menuIcon(GLYPH.COLOR2));
-            mi.addActionListener(e -> applySelectedAnnotationsGradientAction());
-            annotMenu.add(mi);
-            mi = new JMenuItem("Transparency...", IconFactory.menuIcon(GLYPH.ADJUST));
-            mi.addActionListener(e -> setSelectedAnnotationsTransparencyAction());
-            annotMenu.add(mi);
-            final JMenuItem material = new JMenuItem("Surface Rendering...", IconFactory.menuIcon(GLYPH.CUBES));
-            material.addActionListener(e -> adjustSelectedAnnotationSurfaceRenderingAction());
-            annotMenu.add(material);
+            annotMenu.add(menuItem("Color...", GLYPH.COLOR, e -> setSelectedAnnotationsColorAction()));
+            annotMenu.add(menuItem("Color Gradient...", GLYPH.COLOR2, e -> applySelectedAnnotationsGradientAction()));
+            annotMenu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> setSelectedAnnotationsTransparencyAction()));
+            annotMenu.add(menuItem("Surface Rendering...", GLYPH.CUBES, e -> adjustSelectedAnnotationSurfaceRenderingAction()));
             GuiUtils.addSeparator(annotMenu, "Remove:");
-            mi = new JMenuItem("Remove Selected...", IconFactory.menuIcon(GLYPH.DELETE));
-            mi.addActionListener(e -> removeSelectedAnnotationsAction());
-            annotMenu.add(mi);
-            mi = new JMenuItem("Remove All...");
-            mi.setIcon(IconFactory.menuIcon(GLYPH.TRASH));
-            mi.addActionListener(e -> {
+            annotMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedAnnotationsAction()));
+            annotMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
                 if (guiUtils.getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
                     removeAllAnnotations();
-            });
-            annotMenu.add(mi);
+            }));
             return annotMenu;
         }
 
@@ -5959,37 +5883,22 @@ public class Viewer3D {
             refMenu.add(mi);
 
             GuiUtils.addSeparator(refMenu, "Zebrafish:");
-            mi = new JMenuItem("Max Planck ZBA", IconFactory.menuIcon(GLYPH.ARCHIVE));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_ZEBRAFISH));
-            refMenu.add(mi);
+            refMenu.add(menuItem("Max Planck ZBA", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_ZEBRAFISH)));
 
             GuiUtils.addSeparator(refMenu, "Drosophila:");
-            mi = new JMenuItem("Adult Brain: FlyCircuit", IconFactory.menuIcon(GLYPH.ARCHIVE));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_FCWB));
-            refMenu.add(mi);
-            mi = new JMenuItem("Adult Brain: JRC 2018 (Unisex)", IconFactory.menuIcon(GLYPH.ARCHIVE));
-            mi.setToolTipText("<HTML>AKA <i>The Bogovic brain</i>");
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC2018));
-            refMenu.add(mi);
-            mi = new JMenuItem("Adult Brain: JFRC2", IconFactory.menuIcon(GLYPH.ARCHIVE));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC2));
-            refMenu.add(mi);
-            mi = new JMenuItem("Adult Brain: JFRC3", IconFactory.menuIcon(GLYPH.ARCHIVE));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_JFRC3));
-            refMenu.add(mi);
-            mi = new JMenuItem("Adult VNS", IconFactory.menuIcon(GLYPH.CLOUD));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_VNS));
-            refMenu.add(mi);
-            mi = new JMenuItem("L1 Larva", IconFactory.menuIcon(GLYPH.CLOUD));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_L1));
-            refMenu.add(mi);
-            mi = new JMenuItem("L3 Larva", IconFactory.menuIcon(GLYPH.CLOUD));
-            mi.addActionListener(e -> loadRefBrainAction(true, MESH_LABEL_L3));
-            refMenu.add(mi);
+            refMenu.add(menuItem("Adult Brain: FlyCircuit", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_FCWB)));
+            final JMenuItem jfrc2018 = menuItem("Adult Brain: JRC 2018 (Unisex)", GLYPH.ARCHIVE,
+                    e -> loadRefBrainAction(true, MESH_LABEL_JFRC2018));
+            jfrc2018.setToolTipText("<HTML>AKA <i>The Bogovic brain</i>");
+            refMenu.add(jfrc2018);
+            refMenu.add(menuItem("Adult Brain: JFRC2", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_JFRC2)));
+            refMenu.add(menuItem("Adult Brain: JFRC3", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_JFRC3)));
+            refMenu.add(menuItem("Adult VNS", GLYPH.CLOUD, e -> loadRefBrainAction(true, MESH_LABEL_VNS)));
+            refMenu.add(menuItem("L1 Larva", GLYPH.CLOUD, e -> loadRefBrainAction(true, MESH_LABEL_L1)));
+            refMenu.add(menuItem("L3 Larva", GLYPH.CLOUD, e -> loadRefBrainAction(true, MESH_LABEL_L3)));
             refMenu.addSeparator();
-            mi = GuiUtils.MenuItems.openHelpURL("Reference Brains Help",
-                    "https://imagej.net/plugins/snt/reconstruction-viewer#reference-brains");
-            refMenu.add(mi);
+            refMenu.add(GuiUtils.MenuItems.openHelpURL("Reference Brains Help",
+                    "https://imagej.net/plugins/snt/reconstruction-viewer#reference-brains"));
             return refMenu;
         }
 
@@ -6461,9 +6370,9 @@ public class Viewer3D {
             });
             dialog.setContentPane(getContentPane());
             GuiUtils.JTrees.collapseAllNodes(tree); // compute sizes based on collapsed tree
-            if (frame.manager != null) {
-                dialog.setPreferredSize(frame.manager.getPreferredSize());
-                dialog.setLocationRelativeTo(frame.manager);
+            if (frame.hasManager()) {
+                dialog.setPreferredSize(frame.managerPanel.getPreferredSize());
+                dialog.setLocationRelativeTo(frame);
             }
             dialog.pack();
             GuiUtils.JTrees.expandAllNodes(tree);
@@ -7160,15 +7069,11 @@ public class Viewer3D {
     }
 
     private void toggleControlPanel() {
-        if (frame.manager!= null) {
-            frame.manager.setVisible(!frame.manager.isVisible());
-            if (frame.manager.isVisible()) {
-                frame.manager.toFront();
-                frame.manager.requestFocus();
+        if (frame.hasManager()) {
+            if (frame.isManagerVisible()) {
+                frame.hideManagerPanel();
             } else {
-                frame.toFront();
-                frame.requestFocus();
-                frame.canvas.requestFocusInWindow();
+                frame.showManagerPanel();
             }
         } else
             displayMsg("Controls are not available for this viewer");
@@ -7661,8 +7566,7 @@ public class Viewer3D {
                     displayMsg("Rotations disabled in current view");
                     return false;
                 }
-                if (threadController instanceof CameraThreadControllerPlus) {
-                    final CameraThreadControllerPlus tc = (CameraThreadControllerPlus) threadController;
+                if (threadController instanceof CameraThreadControllerPlus tc) {
                     if (e.isShiftDown()) {
                         // Shift+double-click: legacy Z-axis rotation
                         tc.setRotationAxis(RotationAxis.Z);
@@ -7997,6 +7901,7 @@ public class Viewer3D {
             for (KeyCommand command : keyCommands) {
                 if (command.canHandle(e, doublePress)) {
                     command.execute(e, doublePress);
+                    e.consume();
                     return;
                 }
             }
@@ -8338,6 +8243,8 @@ public class Viewer3D {
             // Apply foreground to annotation labels
             ((AChart)chart).overlayAnnotation.labelColor = toAWTColor(newForeground);
 
+            // Sync FlatLaf with scene dark mode
+            syncLookAndFeel(newBackground == Color.BLACK);
         }
 
         private boolean isSameRGB(final Color c1, final Color c2) {
@@ -8510,7 +8417,7 @@ public class Viewer3D {
 
         LightController(final ViewerFrame viewerFrame, final AbstractEnlightable abstractEnlightable) {
 
-            super((viewerFrame.manager == null) ? viewerFrame : viewerFrame.manager,
+            super(viewerFrame,
                     (abstractEnlightable == null) ? "Light Effects" : "Material Editor");
             this.viewerFrame = viewerFrame;
             this.chart = viewerFrame.chart;
@@ -8567,10 +8474,7 @@ public class Viewer3D {
         void display() {
             pack();
             setVisible(true);
-            if (viewerFrame.manager != null) {
-                viewerFrame.manager .toBack(); // byPasses macOS bug?
-                toFront();
-            }
+            toFront();
         }
 
         void resetLight() {
@@ -9152,8 +9056,13 @@ public class Viewer3D {
                 final Coord3d vp = getViewPoint();
 
                 if (View.UP_VECTOR_Z.equals(upVector)) {
-                    vp.x -= move.x;
-                    vp.y += move.y;
+                    // After an odd number of pole crossings the up vector is
+                    // negated by computeCameraUp(), so visual directions are
+                    // reversed. Negate the move to keep keyboard/mouse input
+                    // consistent with the on-screen result.
+                    final float sign = (poleFlips % 2 == 0) ? 1f : -1f;
+                    vp.x -= move.x * sign;
+                    vp.y += move.y * sign;
 
                     // Wrap elevation across the poles instead of clamping.
                     // Each crossing flips azimuth by PI and increments the
