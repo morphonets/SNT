@@ -319,15 +319,20 @@ public class Viewer3D {
     private PrefService prefService;
 
     private static final String PREF_TUBE_MODE = "viewer3d.tubeMode";
+    private static final String PREF_TUBE_WIREFRAME = "viewer3d.tubeWireframe";
+    private static final String PREF_TUBE_SIDES = "viewer3d.tubeSides";
+    private static final int DEFAULT_TUBE_SIDES = 12;
     private static final String PREF_DEPTH_FOG = "viewer3d.depthFog";
     private static final String PREF_FOG_INTENSITY = "viewer3d.fogIntensity";
     private static final float DEFAULT_FOG_INTENSITY = 0.7f;
     private static final String PREF_PSEUDO_LIGHTING = "viewer3d.pseudoLighting";
     private static final String PREF_UPSAMPLING = "viewer3d.upsamplingFactor";
     private boolean tubeModeEnabled;
+    private boolean tubeWireframeEnabled;
     private boolean depthFogEnabled;
     private boolean pseudoLightingEnabled;
     private int upsamplingFactorPref = 1;
+    private int tubeSidesPref = DEFAULT_TUBE_SIDES;
     private float fogIntensityPref = DEFAULT_FOG_INTENSITY;
 
     private Viewer3D(final Engine engine) {
@@ -408,11 +413,13 @@ public class Viewer3D {
         context.inject(this);
         prefs.setPreferences();
         tubeModeEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_TUBE_MODE, false);
+        tubeWireframeEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_TUBE_WIREFRAME, false);
         depthFogEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_DEPTH_FOG, false);
         pseudoLightingEnabled = prefService != null && prefService.getBoolean(Viewer3D.class, PREF_PSEUDO_LIGHTING, false);
         if (prefService != null) {
             fogIntensityPref = (float) prefService.getDouble(Viewer3D.class, PREF_FOG_INTENSITY, DEFAULT_FOG_INTENSITY);
             upsamplingFactorPref = prefService.getInt(Viewer3D.class, PREF_UPSAMPLING, 1);
+            tubeSidesPref = prefService.getInt(Viewer3D.class, PREF_TUBE_SIDES, DEFAULT_TUBE_SIDES);
         }
         cmdFinder = new SNTCommandFinder(this);
     }
@@ -1096,9 +1103,6 @@ public class Viewer3D {
     }
 
     private GuiUtils guiUtils() {
-        if (frame != null && frame.hasManager()) {
-            return frame.managerPanel.guiUtils;
-        }
         return gUtils;
     }
 
@@ -3291,7 +3295,7 @@ public class Viewer3D {
         }
 
         private void initManager() {
-            managerPanel = new ManagerPanel(this);
+            managerPanel = new ManagerPanel();
             final int panelWidth = managerPanel.getMinimumSize().width;
             splitPane.setRightComponent(managerPanel);
             // widen the frame to accommodate the manager panel
@@ -3470,7 +3474,7 @@ public class Viewer3D {
             final Dimension canvasSize = canvas.getSize();
             final int extraW = getWidth() - canvasSize.width;
             final int extraH = getHeight() - canvasSize.height;
-            guiUtils.adjustComponentThroughPrompt(canvas);
+            guiUtils().adjustComponentThroughPrompt(canvas);
             final Dimension newCanvasSize = canvas.getSize();
             if (newCanvasSize.width != canvasSize.width || newCanvasSize.height != canvasSize.height) {
                 canvas.setPreferredSize(newCanvasSize);
@@ -3823,7 +3827,7 @@ public class Viewer3D {
                 values.add(prefs.getGuiPref("aSize", SNTUtils.formatDouble(getDefaultThickness() * 30, 2))); // size
             values.add(prefs.getGuiPref("aColor", "red")); // color
             values.add(prefs.getGuiPref("aTransparency", "50")); // transparency
-            final String[] result = getManagerPanel().guiUtils.getStrings(title, labels.toArray(new String[0]),
+            final String[] result = guiUtils().getStrings(title, labels.toArray(new String[0]),
                     values.toArray(new String[0]));
             if (result == null)
                 return false;
@@ -3850,7 +3854,7 @@ public class Viewer3D {
                 prefs.setGuiPref("aTransparency", result[result.length - 1]);
                 return true;
             } catch (final Exception ex) {
-                getManagerPanel().guiUtils.error("Invalid parameter(s).");
+                guiUtils().error("Invalid parameter(s).");
                 ex.printStackTrace();
             }
             return false;
@@ -3858,11 +3862,11 @@ public class Viewer3D {
 
         Integer getPromptTransparency(final String title) {
             final double def = Double.parseDouble(prefs.getGuiPref("aTransparency", "50"));
-            final Integer t = getManagerPanel().guiUtils.getPercentage("Transparency (%)", title + " Transparency", (int)def);
+            final Integer t = guiUtils().getPercentage("Transparency (%)", title + " Transparency", (int)def);
             if (t == null)
                 return null;
             if (t < 0 || t > 100) {
-                getManagerPanel().guiUtils.error("Invalid transparency value: Only [0, 100] accepted.");
+                guiUtils().error("Invalid transparency value: Only [0, 100] accepted.");
                 return null;
             }
             prefs.setGuiPref("aTransparency", "" + t);
@@ -3871,7 +3875,7 @@ public class Viewer3D {
 
         ColorRGB getPromptColor(final String title) {
             final ColorRGB def = ColorRGB.fromHTMLColor(prefs.getGuiPref("aColor", "red"));
-            final ColorRGB res = getManagerPanel().guiUtils.getColorRGB(title, def, (String[])null);
+            final ColorRGB res = guiUtils().getColorRGB(title, def, (String[])null);
             if (res != null)
                 prefs.setGuiPref("aColor", res.toHTMLColor());
             return res;
@@ -3881,7 +3885,7 @@ public class Viewer3D {
             final Map<String, List<String>> map = new LinkedHashMap<>();
             map.put("Color gradient ", Annotation3D.COLORMAPS);
             map.put("Gradient axis  ", List.of("X", "Y", "Z"));
-            final String[] res = getManagerPanel().guiUtils.getStrings("Color Gradient", map,
+            final String[] res = guiUtils().getStrings("Color Gradient", map,
                     prefs.getGuiPref("aGradient", "hotcold"), prefs.getGuiPref("aAxis", "Z"));
             if (res != null) {
                 prefs.setGuiPref("aGradient", res[0]);
@@ -3891,7 +3895,7 @@ public class Viewer3D {
         }
 
         List<String> getPromptPlaneAxes(final boolean includeSomaChoices) {
-            final List<String> res = getManagerPanel().guiUtils.getMultipleChoices("Cross-section Plane Axis...",
+            final List<String> res = guiUtils().getMultipleChoices("Cross-section Plane Axis...",
                     (includeSomaChoices)
                             ? new String[] { "X (midplane)", "Y (midplane)", "Z (midplane)", "X (at root/soma)", "Y (at root/soma)", "Z (at root/soma)" }
                             : new String[] { "X (midplane)", "Y (midplane)", "Z (midplane)" },
@@ -3982,14 +3986,12 @@ public class Viewer3D {
     public class ManagerPanel extends JPanel {
 
         private static final long serialVersionUID = 1L;
-        private final GuiUtils guiUtils;
         private SNTTable table;
         private JCheckBoxMenuItem debugCheckBox;
         private final SNTSearchableBar searchableBar;
         private final ProgressBar progressBar;
         private Debugger debugger;
         private boolean disableActions;
-        private final Window parentWindow;
 
         /* Convenience factory for menu items backed by an Action with an icon. */
         private JMenuItem menuItem(final Action action, final GLYPH glyph) {
@@ -4005,13 +4007,11 @@ public class Viewer3D {
             return mi;
         }
 
-        private ManagerPanel(final Window parentWindow) {
+        private ManagerPanel() {
             super();
-            this.parentWindow = parentWindow;
-            this.guiUtils = new GuiUtils(parentWindow);
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
-            searchableBar.setGuiUtils(guiUtils);
+            searchableBar.setGuiUtils(guiUtils());
             searchableBar.setVisibleButtons(//SNTSearchableBar.SHOW_CLOSE |
                     SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
             setFixedHeight(searchableBar);
@@ -4053,7 +4053,7 @@ public class Viewer3D {
             progressBar = new ProgressBar();
             add(progressBar);
             add(buttonPanel());
-            fileDropWorker = new FileDropWorker(managerList, guiUtils);
+            fileDropWorker = new FileDropWorker(managerList, guiUtils());
         }
 
         private JCheckBoxMenuItem getDebugCheckBox() {
@@ -4107,10 +4107,6 @@ public class Viewer3D {
                     progressBar.addToGlobalValue(value);
                 }
             });
-        }
-
-        public Window getWindow() {
-            return parentWindow;
         }
 
         class ProgressBar extends JProgressBar {
@@ -4266,7 +4262,7 @@ public class Viewer3D {
                         progressBar.setVisible(!progressBar.isShowing());
                     }
                     case ENTER_FULL_SCREEN -> frame.enterFullScreen();
-                    case RESIZE -> frame.resizeScene(guiUtils);
+                    case RESIZE -> frame.resizeScene(guiUtils());
                     case FIT -> fitToVisibleObjects(true, true);
                     case LOG_TO_RECORDER -> {
                         openRecorder(false);
@@ -4277,13 +4273,13 @@ public class Viewer3D {
                         managerList.clearSelection();
                     }
                     case REBUILD -> {
-                        if (guiUtils.getConfirmation("Rebuild 3D Scene Completely?", "Force Rebuild")) {
+                        if (guiUtils().getConfirmation("Rebuild 3D Scene Completely?", "Force Rebuild")) {
                             rebuild();
                         }
                     }
                     case RELOAD -> {
                         if (!sceneIsOK()
-                                && guiUtils.getConfirmation("Scene was reloaded but some objects have invalid attributes. "
+                                && guiUtils().getConfirmation("Scene was reloaded but some objects have invalid attributes. "
                                 + "Rebuild 3D Scene Completely?", "Rebuild Required")) {
                             rebuild();
                         } else {
@@ -4302,7 +4298,7 @@ public class Viewer3D {
                                 rebuild();
                             displayMsg("Path Manager contents updated");
                         } catch (final IllegalArgumentException ex) {
-                            guiUtils.error(ex.getMessage());
+                            guiUtils().error(ex.getMessage());
                         }
                     }
                     case TAG -> {
@@ -4310,7 +4306,7 @@ public class Viewer3D {
                             return;
                         final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                         if (managerList.isSelectionEmpty() && !all) return;
-                        final String tags = guiUtils.getString("Enter one or more tags (space or "
+                        final String tags = guiUtils().getString("Enter one or more tags (space or "
                                         + "comma- separated list) to be assigned to selected items. Tags encoding "
                                         + "a color (e.g., 'red', 'lightblue') will be use to highlight entries. "
                                         + "After dismissing this dialog:<ul>"
@@ -4341,7 +4337,7 @@ public class Viewer3D {
 
             private void openRecorder(final boolean warnIfOpen) {
                 if (getRecorder(false) != null) {
-                    if (warnIfOpen) guiUtils.error("Script Recorder is already open.");
+                    if (warnIfOpen) guiUtils().error("Script Recorder is already open.");
                     return;
                 }
                 final StringBuilder sb = new StringBuilder();
@@ -4435,10 +4431,10 @@ public class Viewer3D {
                             dup.view.setBoundsManual(view.getBounds().clone());
                         } catch (final OutOfMemoryError e1) {
                             e1.printStackTrace();
-                            guiUtils.error("There is not enough memory to complete command. See Console for details.");
+                            guiUtils().error("There is not enough memory to complete command. See Console for details.");
                         } catch (NullPointerException | InterruptedException | ExecutionException e2) {
                             e2.printStackTrace();
-                            guiUtils.error("Unfortunately an error occurred. See Console for details.");
+                            guiUtils().error("Unfortunately an error occurred. See Console for details.");
                         } finally {
                             removeProgressLoad(-1);
                         }
@@ -4459,7 +4455,7 @@ public class Viewer3D {
             fitToSelection.addActionListener(e -> {
                 List<?> selection = managerList.getSelectedValuesList();
                 if (managerList.getSelectedIndex() == -1 || selection.isEmpty()) {
-                    guiUtils.error("No items are currently selected.");
+                    guiUtils().error("No items are currently selected.");
                     return;
                 }
                 if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.getFirst())) {
@@ -4492,7 +4488,7 @@ public class Viewer3D {
             jmi.addActionListener(e -> {
                 final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
                         view.getAxisLayout().getZAxisLabel() };
-                final String[] labels = guiUtils.getStrings("Axes Labels...",
+                final String[] labels = guiUtils().getStrings("Axes Labels...",
                         new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
                 if (labels != null)
                     setAxesLabels(labels);
@@ -4542,7 +4538,7 @@ public class Viewer3D {
                 if (noLoadedItemsGuiError()) return;
                 final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                 if (managerList.isSelectionEmpty() && !all) return;
-                if (guiUtils.getConfirmation("Remove all tags from " + ((all) ? "all" : "selected") + " items?",
+                if (guiUtils().getConfirmation("Remove all tags from " + ((all) ? "all" : "selected") + " items?",
                         "Dispose All Tags?")) {
                     managerList.removeTagsFromSelectedItems(all);
                 }
@@ -4563,10 +4559,10 @@ public class Viewer3D {
                 }
                 final List<?> selectedKeys = managerList.getSelectedValuesList();
                 if (managerList.getSelectedIndex() == -1 || selectedKeys.isEmpty()) {
-                    guiUtils.error("There are no selected entries.");
+                    guiUtils().error("There are no selected entries.");
                     return;
                 }
-                if (guiUtils.getConfirmation("Remove selected item(s)?", "Confirm Deletion?")) {
+                if (guiUtils().getConfirmation("Remove selected item(s)?", "Confirm Deletion?")) {
                     managerList.model.setListenersEnabled(false);
                     selectedKeys.forEach(k -> {
                         if (k.equals(CheckBoxList.ALL_ENTRY))
@@ -4628,14 +4624,14 @@ public class Viewer3D {
         }
 
         private void wipeWithPrompt() {
-            if (guiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?"))
+            if (guiUtils().getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?"))
                 wipeScene();
         }
 
         private boolean noLoadedItemsGuiError() {
             final boolean noItems = plottedTrees.isEmpty() && plottedObjs.isEmpty() && plottedAnnotations.isEmpty();
             if (noItems) {
-                guiUtils.error("There are no loaded items.");
+                guiUtils().error("There are no loaded items.");
             }
             return noItems;
         }
@@ -4722,7 +4718,7 @@ public class Viewer3D {
             final List<Tree> trees = getSelectedTrees(false);
             if (trees == null) return null;
             if (trees.size() != 1) {
-                guiUtils.error(
+                guiUtils().error(
                         "This command requires a single reconstruction to be selected.");
                 return null;
             }
@@ -4735,7 +4731,7 @@ public class Viewer3D {
             final Set<Integer> types = tree.getSWCTypes(false);
             if (types.size() == 1)
                 return tree;
-            final String compartment = guiUtils.getChoice("Compartment:", "Which Neuronal Processes?",
+            final String compartment = guiUtils().getChoice("Compartment:", "Which Neuronal Processes?",
                     new String[] { "All", "Axon", "Dendrites" }, prefs.treeCompartmentChoice);
             if (compartment == null)
                 return null;
@@ -4744,7 +4740,7 @@ public class Viewer3D {
                 tree = tree.subTree(compartment);
                 if (tree.isEmpty()) {
                     final String treeLabel = (tree.getLabel() == null) ? "Reconstruction" : tree.getLabel();
-                    guiUtils.error(treeLabel + " does not contain processes tagged as \"" + compartment + "\".");
+                    guiUtils().error(treeLabel + " does not contain processes tagged as \"" + compartment + "\".");
                     return null;
                 }
             }
@@ -4759,7 +4755,7 @@ public class Viewer3D {
             final List<String> keys = getSelectedKeys(plottedTrees, "reconstructions", promptForAllIfNone);
             if (keys == null) return null; // user pressed cancel on prompt
             if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
-                guiUtils.error("There are no selected reconstructions.");
+                guiUtils().error("There are no selected reconstructions.");
                 return null;
             }
             final List<Tree> trees = new ArrayList<>();
@@ -4783,7 +4779,7 @@ public class Viewer3D {
             final List<String> keys = getSelectedKeys(plottedAnnotations, "annotations", allowAllIfNone);
             if (keys == null) return null; // user pressed cancel on prompt
             if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
-                guiUtils.error("There are no selected annotations.");
+                guiUtils().error("There are no selected annotations.");
                 return null;
             }
             final List<Annotation3D> annots = new ArrayList<>();
@@ -4807,7 +4803,7 @@ public class Viewer3D {
                                              final String mapDescriptor, final boolean allowAllIfNone)
         {
             if (map.isEmpty()) {
-                guiUtils.error("There are no loaded " + mapDescriptor + ".");
+                guiUtils().error("There are no loaded " + mapDescriptor + ".");
                 return null;
             }
             final List<?> selectedValues = managerList.getSelectedValuesList();
@@ -4822,7 +4818,7 @@ public class Viewer3D {
                 return allKeys;
             if (allowAllIfNone && selectedKeys.isEmpty()) {
                 if (isSelectAllIfNoneSelected()) return allKeys;
-                guiUtils.error("There are no selected " + mapDescriptor + ".");
+                guiUtils().error("There are no selected " + mapDescriptor + ".");
                 return null;
             }
             allKeys.retainAll(selectedKeys);
@@ -4831,7 +4827,7 @@ public class Viewer3D {
 
         private boolean isSelectAllIfNoneSelected() {
             if (prefs.nagUserOnRetrieveAll) {
-                final boolean[] options = guiUtils.getPersistentConfirmation("There are no items selected. "//
+                final boolean[] options = guiUtils().getPersistentConfirmation("There are no items selected. "//
                         + "Run command on all eligible items?", "Extend to All If None Selected?");
                 prefs.retrieveAllIfNoneSelected = options[0];
                 prefs.nagUserOnRetrieveAll = !options[1];
@@ -5013,7 +5009,7 @@ public class Viewer3D {
                 runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
             });
             measureMenu.add(mi);
-            //measureMenu.add(guiUtils.combineChartsMenuItem());
+            //measureMenu.add(guiUtils().combineChartsMenuItem());
             return measureMenu;
         }
 
@@ -5124,12 +5120,9 @@ public class Viewer3D {
                     @SuppressWarnings("unchecked")
                     final HashMap<String, Double> sizeMap = (HashMap<String, Double>) cmdModule.getInput("sizeMap");
                     if (colorMap == null || sizeMap == null) {
-                        guiUtils.error("Command execution failed.");
+                        guiUtils().error("Command execution failed.");
                         return;
                     }
-//						final boolean reflectLight = (boolean) cmdModule.getInput("reflectLight");
-//						final boolean faceDisplayed = (boolean) cmdModule.getInput("faceDisplayed");
-//						final boolean wireframeDisplayed = (boolean) cmdModule.getInput("wireframeDisplayed");
 
                     final Color sColor = fromColorRGB(colorMap.get("soma"));
                     final Color dColor = fromColorRGB(colorMap.get("dendrite"));
@@ -5149,9 +5142,6 @@ public class Viewer3D {
                             if (dSize > -1) tree.setThickness((float) dSize, Path.SWC_DENDRITE);
                             if (aSize > -1) tree.setThickness((float) aSize, Path.SWC_AXON);
                         }
-//							tree.setReflectLight(reflectLight);
-//							tree.setFaceDisplayed(faceDisplayed);
-//							tree.setWireframeDisplayed(wireframeDisplayed);
                     }
                 }
             }
@@ -5199,22 +5189,24 @@ public class Viewer3D {
             final List<String> keys = getSelectedTreeLabels();
             if (keys == null) return;
             String msg = "<HTML><body><div style='width:500;'>" +
-                    "Specify a constant thickness factor ranging from 1 (thinnest) to 10"
-                    + " (thickest) to be applied to selected " + keys.size() + " reconstruction(s).";
+                    "Specify a thickness scaling factor (1–10) for the selected "
+                    + keys.size() + " reconstruction(s). For line-based rendering (Simple Lines, "
+                    + "Pseudo-Lighting), this sets the line width. For Shaded Tubes, this scales "
+                    + "the node radii used to determine tube diameter.";
             if (isSNTInstance()) {
-                msg += " This value will only affect how Paths are displayed " +
-                        "in the Reconstruction Viewer.";
+                msg += " This value only affects how Paths are displayed in the Reconstruction Viewer.";
             }
-            final Double thickness = guiUtils.getDouble(msg, "Path Thickness",
+            final Double thickness = guiUtils().getDouble(msg, "Path Thickness",
                     getDefaultThickness(), 1d, 10d, "");
             if (thickness == null) {
                 return; // user pressed cancel
             }
             if (Double.isNaN(thickness) || thickness <= 0) {
-                guiUtils.error("Invalid thickness value.");
+                guiUtils().error("Invalid thickness value.");
                 return;
             }
-            // Somehow JZY3D seems to accept only 8 as a max(!?), so we'll do some scaling
+            setRadiusScale(keys, thickness.floatValue());
+            // jzy3d line widths are effectively capped below 10, so normalize the range
             final float normThick = (float) (((thickness-1) * 7 / 9 ) + 1);
             setTreeThickness(keys, normThick, null);
         }
@@ -5224,15 +5216,14 @@ public class Viewer3D {
             if (keys == null) return;
             String msg = "Please specify a constant radius (in physical units) to be applied to the soma(s) of selected reconstruction(s).";
             if (isSNTInstance()) {
-                msg += " This value will only affect how Paths are displayed " +
-                        "in the Reconstruction Viewer.";
+                msg += " This value will only affect how Paths are displayed in the Reconstruction Viewer.";
             }
-            final Double radius = guiUtils.getDouble(msg, "Soma radius", 10);
+            final Double radius = guiUtils().getDouble(msg, "Soma radius", 10);
             if (radius == null) {
                 return; // user pressed cancel
             }
             if (Double.isNaN(radius) || radius <= 0) {
-                guiUtils.error("Invalid radius.");
+                guiUtils().error("Invalid radius.");
                 return;
             }
             setSomasDisplayed(keys, true);
@@ -5253,18 +5244,18 @@ public class Viewer3D {
                 return; // error already displayed
             }
             if (trees.size() > 1) {
-                guiUtils.error("Please select a single reconstruction.");
+                guiUtils().error("Please select a single reconstruction.");
                 return;
             }
             final double angle = TreeUtils.computeUprightAngle(trees.getFirst(), false);
             if (Double.isNaN(angle)) {
-                guiUtils.error("Could not compute upright angle.");
+                guiUtils().error("Could not compute upright angle.");
                 return;
             }
             try {
                 rotate((float) angle);
             } catch (final IllegalArgumentException e) {
-                guiUtils.error(e.getMessage() + ".");
+                guiUtils().error(e.getMessage() + ".");
             }
         }
 
@@ -5327,7 +5318,7 @@ public class Viewer3D {
                 };
                 final boolean pingPong = getAnimationMode() == AnimationMode.PING_PONG;
                 final String modeLabel = pingPong ? "ping-pong" : "full";
-                final String rAxis = guiUtils.getChoice(
+                final String rAxis = guiUtils().getChoice(
                     "Record " + modeLabel + " rotation around which axis?\n"
                     + "(NB: Angle, duration, and animation mode can be adjusted in Preferences)",
                     "Record Animation", choices, choices[0]);
@@ -5341,7 +5332,7 @@ public class Viewer3D {
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem("Show Snapshot Directory", GLYPH.OPEN_FOLDER,
-                    e -> guiUtils.showDirectory(prefs.getSnapshotDir())));
+                    e -> guiUtils().showDirectory(prefs.getSnapshotDir())));
             GuiUtils.addSeparator(utilsMenu, "Resources:");
             final JMenu helpMenu = GuiUtils.MenuItems.helpMenu(cmdFinder);
             helpMenu.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
@@ -5369,6 +5360,12 @@ public class Viewer3D {
             prefsMenu.add(panMenu());
             prefsMenu.add(zoomMenu());
             prefsMenu.add(rotationMenu());
+
+            GuiUtils.addSeparator(prefsMenu, "Neurite Rendering:");
+            prefsMenu.add(neuriteRenderingMenu());
+            prefsMenu.add(smoothingMenu());
+            prefsMenu.add(depthFogMenu());
+
             GuiUtils.addSeparator(prefsMenu, "Advanced Settings:");
             prefsMenu.add(getDebugCheckBox());
             if (ENGINE == Engine.JOGL) {
@@ -5383,25 +5380,6 @@ public class Viewer3D {
                 });
                 prefsMenu.add(jcbmi2);
             }
-
-            final JMenuItem tubeCbmi = new JCheckBoxMenuItem("Enable Shaded Tubes", tubeModeEnabled);
-            tubeCbmi.setIcon(IconFactory.menuIcon(GLYPH.DOTCIRCLE));
-            tubeCbmi.setToolTipText("Render neurites as illuminated 3D tubes using geometry shaders.\nRequires OpenGL 3.2+");
-            tubeCbmi.addItemListener(e -> {
-                setTubeMode(tubeCbmi.isSelected());
-                tubeCbmi.setSelected(tubeModeEnabled); // deselect checkbox if shader not supported
-            });
-            prefsMenu.add(tubeCbmi);
-
-            prefsMenu.add(smoothingMenu());
-            GuiUtils.addSeparator(prefsMenu, "Depth Perception:");
-            prefsMenu.add(depthFogMenu());
-
-            final JMenuItem litCbmi = new JCheckBoxMenuItem("Enable Pseudo-Lighting", pseudoLightingEnabled);
-            litCbmi.setIcon(IconFactory.menuIcon(GLYPH.BULB));
-            litCbmi.setToolTipText("Modulate neurite brightness based on orientation relative to the view");
-            litCbmi.addItemListener(e -> setPseudoLighting(((JCheckBoxMenuItem) e.getSource()).isSelected()));
-            prefsMenu.add(litCbmi);
 
             GuiUtils.addSeparator(prefsMenu, "Other:");
             prefsMenu.add(menuItem("Preferences...", GLYPH.COGS,
@@ -5453,6 +5431,96 @@ public class Viewer3D {
             return zoomMenu;
         }
 
+        /**
+         * Creates a "Neurite Rendering" submenu with mutually exclusive radio items:
+         * Simple Lines, Pseudo-Lighting, Shaded Tubes, Shaded Tubes (Wireframe).
+         */
+        private JMenu neuriteRenderingMenu() {
+            final JMenu menu = new JMenu("Style");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.DOTCIRCLE));
+            menu.setToolTipText("Choose how neurite paths are rendered");
+            final ButtonGroup group = new ButtonGroup();
+
+            // Determine current mode
+            final boolean isSimple = !tubeModeEnabled && !pseudoLightingEnabled;
+            final boolean isLit = pseudoLightingEnabled;
+            final boolean isTubes = tubeModeEnabled && !tubeWireframeEnabled;
+            final boolean isTubesWf = tubeModeEnabled && tubeWireframeEnabled;
+
+            // 1. Simple Lines
+            final JCheckBoxMenuItem simpleItem = new JCheckBoxMenuItem("Simple Lines");
+            simpleItem.setSelected(isSimple);
+            simpleItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected()) {
+                    setTubeMode(false);
+                    setTubeWireframe(false);
+                    setPseudoLighting(false);
+                }
+            });
+            group.add(simpleItem);
+            menu.add(simpleItem);
+
+            // 2. Pseudo-Lighting
+            final JCheckBoxMenuItem litItem = new JCheckBoxMenuItem("Pseudo-Lighting");
+            litItem.setToolTipText("Modulate neurite brightness based on orientation relative to the view");
+            litItem.setSelected(isLit);
+            litItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected()) {
+                    setTubeMode(false);
+                    setTubeWireframe(false);
+                    setPseudoLighting(true);
+                }
+            });
+            group.add(litItem);
+            menu.add(litItem);
+
+            // 3. Shaded Tubes
+            final JCheckBoxMenuItem tubesItem = new JCheckBoxMenuItem("Shaded Tubes");
+            tubesItem.setToolTipText("Render neurites as illuminated 3D tubes (requires OpenGL 3.2+)");
+            tubesItem.setSelected(isTubes);
+            tubesItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected()) {
+                    setPseudoLighting(false);
+                    setTubeWireframe(false);
+                    setTubeMode(true);
+                    // If shader init failed, revert to Simple Lines
+                    if (!tubeModeEnabled) simpleItem.setSelected(true);
+                }
+            });
+            group.add(tubesItem);
+            menu.add(tubesItem);
+
+            // 4. Shaded Tubes (Wireframe)
+            final JCheckBoxMenuItem tubesWfItem = new JCheckBoxMenuItem("Shaded Tubes (Wireframe)");
+            tubesWfItem.setToolTipText("Shaded tubes with wireframe overlay showing mesh edges");
+            tubesWfItem.setSelected(isTubesWf);
+            tubesWfItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected()) {
+                    setPseudoLighting(false);
+                    setTubeWireframe(true);
+                    setTubeMode(true);
+                    // If shader init failed, revert to Simple Lines
+                    if (!tubeModeEnabled) {
+                        setTubeWireframe(false);
+                        simpleItem.setSelected(true);
+                    }
+                }
+            });
+            group.add(tubesWfItem);
+            menu.add(tubesWfItem);
+
+            // Tube detail control (only meaningful in tube modes)
+            menu.addSeparator();
+            menu.add(menuItem("Tube Sides...", GLYPH.SLIDERS, e -> {
+                final Integer sides = guiUtils().getInt(
+                        "Number of sides for tube cross-sections (higher = smoother, slower).",
+                        "Tube Detail", tubeSidesPref, 3, ArborVBO.MAX_TUBE_SIDES);
+                if (sides != null) setTubeSides(sides);
+            }));
+
+            return menu;
+        }
+
         private JMenu smoothingMenu() {
             final JMenu menu = new JMenu("Path Smoothing");
             menu.setIcon(IconFactory.menuIcon(GLYPH.BEZIER_CURVE));
@@ -5474,7 +5542,7 @@ public class Viewer3D {
         }
 
         private JMenu depthFogMenu() {
-            final JMenu menu = new JMenu("Depth Fog");
+            final JMenu menu = new JMenu("Depth Perception");
             menu.setIcon(IconFactory.menuIcon(GLYPH.EYE));
             menu.setToolTipText("Fade distant neurites toward the background for depth perception");
             final ButtonGroup group = new ButtonGroup();
@@ -5509,10 +5577,6 @@ public class Viewer3D {
 
             private boolean error = false;
             private final RotationAxis axis;
-
-            RecordWorker() {
-                this(RotationAxis.Z);
-            }
 
             RecordWorker(final RotationAxis axis) {
                 this.axis = axis;
@@ -5551,7 +5615,7 @@ public class Viewer3D {
                 }
                 if (error) {
                     displayMsg("Recording failure...");
-                    guiUtils.error(doneMessage);
+                    guiUtils().error(doneMessage);
                 }
                 else displayMsg(doneMessage);
             }
@@ -5559,7 +5623,7 @@ public class Viewer3D {
 
         private boolean okToApplyColor(final List<String> labelsOfselectedTrees) {
             if (!treesContainColoredNodes(labelsOfselectedTrees)) return true;
-            return guiUtils.getConfirmation("Some of the selected reconstructions " +
+            return guiUtils().getConfirmation("Some of the selected reconstructions " +
                             "seem to be color-coded. Apply homogeneous color nevertheless?",
                     "Override Color Code?");
         }
@@ -5592,10 +5656,10 @@ public class Viewer3D {
             tracesMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> {
                 final List<String> keys = getSelectedTreeLabels();
                 if (keys == null || keys.isEmpty()) {
-                    guiUtils.error("There are no selected reconstructions.");
+                    guiUtils().error("There are no selected reconstructions.");
                     return;
                 }
-                if (!guiUtils.getConfirmation("Delete " + keys.size() +
+                if (!guiUtils().getConfirmation("Delete " + keys.size() +
                         " reconstruction(s)?", "Confirm Deletion"))
                     return;
                 setSceneUpdatesEnabled(false);
@@ -5604,7 +5668,7 @@ public class Viewer3D {
                 updateView();
             }));
             tracesMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
-                if (guiUtils.getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
+                if (guiUtils().getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
                     removeAllTrees();
             }));
             return tracesMenu;
@@ -5641,7 +5705,7 @@ public class Viewer3D {
                     if (choice != null)
                         addTrees(choice.getTrees(), "unique");
                 } catch (final Throwable ex) {
-                    guiUtils.error(ex.getMessage());
+                    guiUtils().error(ex.getMessage());
                     ex.printStackTrace();
                 }
             });
@@ -5659,7 +5723,7 @@ public class Viewer3D {
             final JMenuItem mi = new JMenuItem("Edit Last...", IconFactory.menuIcon(GLYPH.SLIDERS));
             mi.addActionListener(e -> {
                 if (cBar == null) {
-                    guiUtils.error("No Legend currently exists.");
+                    guiUtils().error("No Legend currently exists.");
                     return;
                 }
                 if (cmdService == null)
@@ -5687,7 +5751,7 @@ public class Viewer3D {
                         @SuppressWarnings("unchecked")
                         final HashMap<String, Double> outMap = (HashMap<String, Double>) cmdModule.getInput("outMap");
                         if (outMap == null) {
-                            guiUtils.error("Command execution failed.");
+                            guiUtils().error("Command execution failed.");
                             return;
                         }
                         updateColorBarLegend(outMap.get("min"), outMap.get("max"), outMap.get("fSize").floatValue());
@@ -5700,7 +5764,7 @@ public class Viewer3D {
             legendMenu.addSeparator();
             legendMenu.add(menuItem("Remove Last", GLYPH.DELETE, e -> removeColorLegends(true)));
             legendMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
-                if (guiUtils.getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
+                if (guiUtils().getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
                     removeColorLegends(false);
             }));
             return legendMenu;
@@ -5713,10 +5777,10 @@ public class Viewer3D {
         private void removeSelectedMeshesAction() {
             final List<String> keys = getSelectedMeshLabels();
             if (keys == null || keys.isEmpty()) {
-                guiUtils.error("There are no selected meshes.");
+                guiUtils().error("There are no selected meshes.");
                 return;
             }
-            if (!guiUtils.getConfirmation("Delete " + keys.size() + " mesh(es)?",
+            if (!guiUtils().getConfirmation("Delete " + keys.size() + " mesh(es)?",
                     "Confirm Deletion"))
             {
                 return;
@@ -5728,7 +5792,7 @@ public class Viewer3D {
         }
 
         private void removeAllMeshesAction() {
-            if (guiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
+            if (guiUtils().getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
                 removeAllMeshes();
         }
 
@@ -5768,7 +5832,7 @@ public class Viewer3D {
             if (trees == null)
                 return;
             final String[] choices = { "Branch points", "Tips" };
-            final String choice = guiUtils.getChoice("Generate surface from which structures?",
+            final String choice = guiUtils().getChoice("Generate surface from which structures?",
                     "Add Surface...", choices, choices[0]);
             if (choice == null)
                 return;
@@ -5792,7 +5856,7 @@ public class Viewer3D {
             }
             setSceneUpdatesEnabled(true);
             if (!failures.isEmpty()) {
-                guiUtils.error(("Surfaces cannot be assemble from these 2D reconstructions: "
+                guiUtils().error(("Surfaces cannot be assemble from these 2D reconstructions: "
                         + failures +". Only 3D reconstructions are supported."));
             }
         }
@@ -5822,7 +5886,7 @@ public class Viewer3D {
             if (meshLabels == null)
                 return;
             final String[] choices = { "Left hemisphere", "Right hemisphere", "Both hemispheres" };
-            final String choice = guiUtils.getChoice("Generate surface from which vertices?",
+            final String choice = guiUtils().getChoice("Generate surface from which vertices?",
                     "Add Surface...", choices, choices[0]);
             if (choice == null)
                 return;
@@ -5889,7 +5953,7 @@ public class Viewer3D {
                     failures.add(annot.getLabel());
             });
             if (!failures.isEmpty())
-                guiUtils.error(("The following annotations do not support color gradients: " + failures));
+                guiUtils().error(("The following annotations do not support color gradients: " + failures));
         }
 
         private void setSelectedAnnotationsTransparencyAction() {
@@ -5906,13 +5970,13 @@ public class Viewer3D {
                 return;
             }
             if (chart.getScene().getGraph().getAll().stream().noneMatch(g -> g instanceof AbstractEnlightable)) {
-                guiUtils.error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
+                guiUtils().error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
                         + "Current scene contains no such objects.");
                 return;
             }
             final List<?> selectedKeys = managerList.getSelectedValuesList();
             if (selectedKeys.size() != 1 || CheckBoxList.ALL_ENTRY.equals(selectedKeys.getFirst())) {
-                guiUtils.error("This command operates on single objects.");
+                guiUtils().error("This command operates on single objects.");
                 return;
             }
             final String item = TagUtils.removeAllTags((String) selectedKeys.getFirst());
@@ -5920,7 +5984,7 @@ public class Viewer3D {
             if (d instanceof AbstractEnlightable)
                 frame.displayLightController((AbstractEnlightable) d);
             else {
-                guiUtils.error("Selected item does not support surface texture adjustments. "
+                guiUtils().error("Selected item does not support surface texture adjustments. "
                         + "Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported.");
             }
         }
@@ -5928,10 +5992,10 @@ public class Viewer3D {
         private void removeSelectedAnnotationsAction() {
             final List<Annotation3D> annots = getSelectedAnnotations();
             if (annots == null || annots.isEmpty()) {
-                guiUtils.error("There are no selected annotations.");
+                guiUtils().error("There are no selected annotations.");
                 return;
             }
-            if (!guiUtils.getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
+            if (!guiUtils().getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
                 return;
             }
             setSceneUpdatesEnabled(false);
@@ -5974,7 +6038,7 @@ public class Viewer3D {
             GuiUtils.addSeparator(annotMenu, "Remove:");
             annotMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedAnnotationsAction()));
             annotMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
-                if (guiUtils.getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
+                if (guiUtils().getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
                     removeAllAnnotations();
             }));
             return annotMenu;
@@ -5991,7 +6055,7 @@ public class Viewer3D {
                     frame.allenNavigator.dialog.toFront();
                     return;
                 }
-                //final JDialog tempSplash = frame.managerPanel.guiUtils.floatingMsg("Loading ontologies...", false);
+                //final JDialog tempSplash = guiUtils().floatingMsg("Loading ontologies...", false);
                 addProgressLoad(-1);
                 final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<>() {
 
@@ -6049,11 +6113,11 @@ public class Viewer3D {
                 default -> canProceed = true;
             }
             if (!canProceed) {
-                guiUtils.error("Remote server not reached. It is either down or you have no internet access.");
+                guiUtils().error("Remote server not reached. It is either down or you have no internet access.");
                 return;
             }
             if (warnIfLoaded && getOBJs().containsKey(label)) {
-                guiUtils.error(label + " is already loaded.");
+                guiUtils().error(label + " is already loaded.");
                 return;
             }
             final String[] existingAxes = getAxesLabels();
@@ -6065,7 +6129,7 @@ public class Viewer3D {
                     try {
                         return loadRefBrainInternal(label) != null;
                     } catch (final NullPointerException | IllegalArgumentException ex) {
-                        guiUtils.error("An error occurred and mesh could not be retrieved. See Console for details.");
+                        guiUtils().error("An error occurred and mesh could not be retrieved. See Console for details.");
                         ex.printStackTrace();
                         return false;
                     } catch (final RuntimeException e2) {
@@ -6084,7 +6148,7 @@ public class Viewer3D {
                         if (setProgressBar) removeProgressLoad(-1);
                         if (prefs.nagUserOnAxesChanges && !Arrays.equals(existingAxes, new String[] { "X", "Y", "Z" })
                                 && !Arrays.equals(existingAxes, getAxesLabels())) {
-                            final Boolean prompt = guiUtils.getPersistentWarning(
+                            final Boolean prompt = guiUtils().getPersistentWarning(
                                     String.format("Cartesian axes relabeled to %s", Arrays.toString(getAxesLabels())),
                                     "Mapping of Cartesian Axes Changed");
                             if (prompt != null) // do nothing if user dismissed the dialog
@@ -6146,14 +6210,14 @@ public class Viewer3D {
                     }
                     if (collection.isEmpty()) {
                         if (promptForConfirmation && guiUtils != null) {
-                            SwingUtilities.invokeLater(() -> guiUtils.error("Dragged file(s) do not contain valid data."));
+                            SwingUtilities.invokeLater(() -> guiUtils().error("Dragged file(s) do not contain valid data."));
                         }
                         return INVALID;
                     }
                     if (promptForConfirmation && collection.size() > 10 && guiUtils != null) {
                         final boolean[][] confirmSplitHolder = new boolean[1][];
                         try {
-                            SwingUtilities.invokeAndWait(() -> confirmSplitHolder[0] = guiUtils.getConfirmationAndOption(
+                            SwingUtilities.invokeAndWait(() -> confirmSplitHolder[0] = guiUtils().getConfirmationAndOption(
                                     "Are you sure you would like to import " + collection.size() + " files?<br>"
                                             + "You can press 'Esc' at any time to interrupt import.",
                                     "Proceed with Batch Import?", "Import axons and dendrites separately",
@@ -6187,7 +6251,7 @@ public class Viewer3D {
                             case COMPLETED -> {
                                 if (failuresAndSuccesses[1] > 0) validate();
                                 if (failuresAndSuccesses[0] > 0 && guiUtils != null)
-                                    guiUtils.error(failuresAndSuccesses[0] + " of "
+                                    guiUtils().error(failuresAndSuccesses[0] + " of "
                                             + (failuresAndSuccesses[0] + failuresAndSuccesses[1])
                                             + " dropped file(s) could not be imported (Console may"
                                             + " have more details if you have enabled \"Debug mode\").");
@@ -6335,7 +6399,7 @@ public class Viewer3D {
         private List<AllenCompartment> getCheckedSelection() {
             final TreePath[] treePaths = tree.getCheckBoxTreeSelectionModel().getSelectionPaths();
             if (treePaths == null || treePaths.length == 0) {
-                guiUtils.error("There are no checked ontologies.");
+                guiUtils().error("There are no checked ontologies.");
                 return null;
             }
             final List<AllenCompartment> list = new ArrayList<>(treePaths.length);
@@ -6436,7 +6500,7 @@ public class Viewer3D {
                         if (loadedCompartments > 0)
                             Viewer3D.this.validate();
                         if (loadedCompartments == 0 && failedCompartments.isEmpty()) {
-                            guiUtils.centeredMsg("Selected compartment(s) seem to be already loaded.", "Compartments Loaded");
+                            guiUtils().centeredMsg("Selected compartment(s) seem to be already loaded.", "Compartments Loaded");
                         }
                         else if (!failedCompartments.isEmpty()) {
                             final StringBuilder sb = new StringBuilder(String.valueOf(loadedCompartments)).append("/")
@@ -6445,7 +6509,7 @@ public class Viewer3D {
                                     .append("<br>&nbsp;<br>").append(String.join("; ", failedCompartments))
                                     .append("<br>&nbsp;<br>")
                                     .append("Either such meshes are not available or file(s) could not be reached. Check Console logs for details.");
-                            guiUtils.centeredMsg(sb.toString(), "Exceptions Occurred");
+                            guiUtils().centeredMsg(sb.toString(), "Exceptions Occurred");
                         }
                     } catch (final InterruptedException | ExecutionException e) {
                         SNTUtils.error(e.getMessage(), e);
@@ -6485,7 +6549,7 @@ public class Viewer3D {
                 sb.append("</tr>");
             }
             sb.append("</table>");
-            guiUtils.showHTMLDialog(sb.toString(), "Info On Selected Compartments", false); // guiUtils is not null
+            guiUtils().showHTMLDialog(sb.toString(), "Info On Selected Compartments", false); // guiUtils is not null
         }
 
         private JDialog show() {
@@ -7312,6 +7376,8 @@ public class Viewer3D {
             arborVBO.setTreeData(tree, defaultFallbackColor, defThickness);
             if (arborVBO.vertexCount > 0) {
                 arborVBO.setTubeMode(tubeModeEnabled);
+                arborVBO.setTubeSides(tubeSidesPref);
+                arborVBO.setTubeWireframe(tubeWireframeEnabled);
                 arborVBO.setDepthFog(depthFogEnabled);
                 arborVBO.setFogIntensity(fogIntensityPref);
                 arborVBO.setPseudoLighting(pseudoLightingEnabled);
@@ -7442,6 +7508,10 @@ public class Viewer3D {
             return arborVBO != null && arborVBO.isTubeMode();
         }
 
+        void setTubeWireframe(final boolean enabled) {
+            if (arborVBO != null) arborVBO.setTubeWireframe(enabled);
+        }
+
         void setTubeSides(final int sides) {
             if (arborVBO != null) arborVBO.setTubeSides(sides);
         }
@@ -7517,12 +7587,13 @@ public class Viewer3D {
      */
     private static class ArborVBO extends DrawableVBO {
 
-        /** Floats per vertex: x, y, z, r, g, b, a, radius, tx, ty, tz */
-        private static final int FLOATS_PER_VERTEX = 11;
+        /** Floats per vertex: x, y, z, r, g, b, a, radius, tx, ty, tz, nx, ny, nz */
+        private static final int FLOATS_PER_VERTEX = 14;
         private static final int STRIDE = FLOATS_PER_VERTEX * Buffers.SIZEOF_FLOAT;
         private static final int COLOR_OFFSET = 3 * Buffers.SIZEOF_FLOAT;
         private static final int RADIUS_OFFSET = 7 * Buffers.SIZEOF_FLOAT;
         private static final int TANGENT_OFFSET = 8 * Buffers.SIZEOF_FLOAT;
+        private static final int NORMAL_OFFSET = 11 * Buffers.SIZEOF_FLOAT;
 
         /** Default radius used when SWC data has no radii. */
         private static final float DEFAULT_RADIUS = 1.0f;
@@ -7552,6 +7623,8 @@ public class Viewer3D {
 
         /** Whether to render tubes instead of lines. */
         private boolean tubeMode;
+        /** Whether to overlay wireframe edges on tubes. */
+        private boolean tubeWireframe;
         /** Number of sides for tube cross-section (default 12). */
         private int tubeSides = 12;
         /** Global multiplier applied to per-vertex radii in tube mode. */
@@ -7572,6 +7645,7 @@ public class Viewer3D {
         private static final int ATTRIB_COLOR = 1;
         private static final int ATTRIB_RADIUS = 2;
         private static final int ATTRIB_TANGENT = 3;
+        private static final int ATTRIB_REFNORMAL = 4;
 
         private static final String VERT_SHADER =
                 """
@@ -7579,14 +7653,17 @@ public class Viewer3D {
                 in vec3 aPosition;
                 in vec4 aColor;
                 in float aRadius;
+                in vec3 aRefNormal;
                 uniform bool uUseColorOverride;
                 uniform vec4 uColorOverride;
                 out vec4 vsColor;
                 out float vsRadius;
+                out vec3 vsRefNormal;
                 void main() {
                     gl_Position = vec4(aPosition, 1.0);
                     vsColor = uUseColorOverride ? uColorOverride : aColor;
                     vsRadius = aRadius;
+                    vsRefNormal = aRefNormal;
                 }
                 """;
 
@@ -7600,6 +7677,7 @@ public class Viewer3D {
                 uniform float uRadiusScale;
                 in vec4 vsColor[];
                 in float vsRadius[];
+                in vec3 vsRefNormal[];
                 out vec4 gsColor;
                 out vec3 gsNormal;
                 const float PI = 3.14159265;
@@ -7610,9 +7688,11 @@ public class Viewer3D {
                     float len = length(axis);
                     if (len < 1e-8) return;
                     axis /= len;
-                    vec3 up = abs(axis.y) < 0.99 ? vec3(0,1,0) : vec3(1,0,0);
-                    vec3 u = normalize(cross(axis, up));
-                    vec3 v = cross(u, axis);
+                    // Use parallel-transport reference normals from VBO
+                    vec3 u0 = normalize(vsRefNormal[0] - axis * dot(vsRefNormal[0], axis));
+                    vec3 v0 = cross(axis, u0);
+                    vec3 u1 = normalize(vsRefNormal[1] - axis * dot(vsRefNormal[1], axis));
+                    vec3 v1 = cross(axis, u1);
                     float r0 = vsRadius[0] * uRadiusScale;
                     float r1 = vsRadius[1] * uRadiusScale;
                     int sides = clamp(uTubeSides, 3, %d);
@@ -7620,13 +7700,15 @@ public class Viewer3D {
                         float a = 2.0 * PI * float(i) / float(sides);
                         float c = cos(a);
                         float s = sin(a);
-                        vec3 n = c * u + s * v;
-                        gsNormal = uNormalMatrix * n;
+                        vec3 n0 = c * u0 + s * v0;
+                        gsNormal = uNormalMatrix * n0;
                         gsColor = vsColor[0];
-                        gl_Position = uMVP * vec4(p0 + r0 * n, 1.0);
+                        gl_Position = uMVP * vec4(p0 + r0 * n0, 1.0);
                         EmitVertex();
+                        vec3 n1 = c * u1 + s * v1;
+                        gsNormal = uNormalMatrix * n1;
                         gsColor = vsColor[1];
-                        gl_Position = uMVP * vec4(p1 + r1 * n, 1.0);
+                        gl_Position = uMVP * vec4(p1 + r1 * n1, 1.0);
                         EmitVertex();
                     }
                     EndPrimitive();
@@ -7642,10 +7724,17 @@ public class Viewer3D {
             void main() {
                 vec3 N = normalize(gsNormal);
                 vec3 L = normalize(vec3(0.0, 0.0, 1.0));
-                float diff = max(dot(N, L), 0.0);
-                float amb = 0.3;
-                vec3 lit = gsColor.rgb * (amb + (1.0 - amb) * diff);
-                fragColor = vec4(lit, gsColor.a);
+                float NdotL = max(dot(N, L), 0.0);
+                // Hemispherical ambient: blend between ground and sky
+                // based on normal's vertical component
+                vec3 skyColor = gsColor.rgb * 0.6;
+                vec3 groundColor = gsColor.rgb * 0.35;
+                float hemiBlend = 0.5 + 0.5 * N.y;
+                vec3 ambient = mix(groundColor, skyColor, hemiBlend);
+                // Diffuse from key light
+                vec3 diffuse = gsColor.rgb * NdotL;
+                vec3 lit = ambient + 0.55 * diffuse;
+                fragColor = vec4(min(lit, vec3(1.0)), gsColor.a);
             }
             """;
         private static final String LIT_VERT_SHADER =
@@ -7720,6 +7809,14 @@ public class Viewer3D {
             return tubeMode;
         }
 
+        void setTubeWireframe(final boolean enabled) {
+            this.tubeWireframe = enabled;
+        }
+
+        boolean isTubeWireframe() {
+            return tubeWireframe;
+        }
+
         /** Sets the number of sides for the tube cross-section (clamped 3-16). */
         void setTubeSides(final int sides) {
             this.tubeSides = Math.max(3, Math.min(MAX_TUBE_SIDES, sides));
@@ -7775,6 +7872,7 @@ public class Viewer3D {
                 gl2.glBindAttribLocation(prog, ATTRIB_POSITION, "aPosition");
                 gl2.glBindAttribLocation(prog, ATTRIB_COLOR, "aColor");
                 gl2.glBindAttribLocation(prog, ATTRIB_RADIUS, "aRadius");
+                gl2.glBindAttribLocation(prog, ATTRIB_REFNORMAL, "aRefNormal");
                 gl2.glLinkProgram(prog);
                 final int[] status = new int[1];
                 gl2.glGetProgramiv(prog, GL2.GL_LINK_STATUS, status, 0);
@@ -8057,10 +8155,10 @@ public class Viewer3D {
                     final int first = range[0];
                     final int count = range[1];
                     if (count < 2) {
-                        // Single-vertex path: tangent stays zero
+                        // Single-vertex path: tangent and normal stay zero
                         continue;
                     }
-                    // Forward difference for vertices 0..n-2
+                    // Forward difference for tangents at vertices 0..n-2
                     for (int i = 0; i < count - 1; i++) {
                         final int cur = (first + i) * FLOATS_PER_VERTEX;
                         final int nxt = (first + i + 1) * FLOATS_PER_VERTEX;
@@ -8083,6 +8181,65 @@ public class Viewer3D {
                     vertexData[last + 8] = vertexData[prev + 8];
                     vertexData[last + 9] = vertexData[prev + 9];
                     vertexData[last + 10] = vertexData[prev + 10];
+
+                    // Parallel transport reference normals for seamless tube rings.
+                    // First vertex: pick an arbitrary normal perpendicular to tangent
+                    final int v0 = first * FLOATS_PER_VERTEX;
+                    float tx = vertexData[v0 + 8], ty = vertexData[v0 + 9], tz = vertexData[v0 + 10];
+                    // Choose seed vector least aligned with tangent
+                    float nx, ny, nz;
+                    if (Math.abs(ty) < 0.9f) {
+                        // cross(tangent, (0,1,0))
+                        nx = tz; ny = 0f; nz = -tx;
+                    } else {
+                        // cross(tangent, (1,0,0))
+                        nx = 0f; ny = -tz; nz = ty;
+                    }
+                    float nLen = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
+                    if (nLen > 1e-8f) { nx /= nLen; ny /= nLen; nz /= nLen; }
+                    vertexData[v0 + 11] = nx;
+                    vertexData[v0 + 12] = ny;
+                    vertexData[v0 + 13] = nz;
+
+                    // Propagate normal along the path via parallel transport
+                    for (int i = 1; i < count; i++) {
+                        final int cur = (first + i) * FLOATS_PER_VERTEX;
+                        final int prv = (first + i - 1) * FLOATS_PER_VERTEX;
+                        // Previous tangent and normal
+                        final float t0x = vertexData[prv + 8], t0y = vertexData[prv + 9], t0z = vertexData[prv + 10];
+                        final float n0x = vertexData[prv + 11], n0y = vertexData[prv + 12], n0z = vertexData[prv + 13];
+                        // Current tangent
+                        final float t1x = vertexData[cur + 8], t1y = vertexData[cur + 9], t1z = vertexData[cur + 10];
+                        // Rotation axis = cross(t0, t1)
+                        float ax = t0y * t1z - t0z * t1y;
+                        float ay = t0z * t1x - t0x * t1z;
+                        float az = t0x * t1y - t0y * t1x;
+                        final float sinA = (float) Math.sqrt(ax * ax + ay * ay + az * az);
+                        if (sinA < 1e-8f) {
+                            // Tangents parallel: normal unchanged
+                            vertexData[cur + 11] = n0x;
+                            vertexData[cur + 12] = n0y;
+                            vertexData[cur + 13] = n0z;
+                        } else {
+                            // Normalize rotation axis
+                            ax /= sinA; ay /= sinA; az /= sinA;
+                            final float cosA = t0x * t1x + t0y * t1y + t0z * t1z;
+                            // Rodrigues' rotation: n' = n*cos + (axis x n)*sin + axis*(axis.n)*(1-cos)
+                            final float cxnx = ay * n0z - az * n0y;
+                            final float cxny = az * n0x - ax * n0z;
+                            final float cxnz = ax * n0y - ay * n0x;
+                            final float dot = ax * n0x + ay * n0y + az * n0z;
+                            float rnx = n0x * cosA + cxnx * sinA + ax * dot * (1f - cosA);
+                            float rny = n0y * cosA + cxny * sinA + ay * dot * (1f - cosA);
+                            float rnz = n0z * cosA + cxnz * sinA + az * dot * (1f - cosA);
+                            // Re-normalize to prevent drift
+                            nLen = (float) Math.sqrt(rnx * rnx + rny * rny + rnz * rnz);
+                            if (nLen > 1e-8f) { rnx /= nLen; rny /= nLen; rnz /= nLen; }
+                            vertexData[cur + 11] = rnx;
+                            vertexData[cur + 12] = rny;
+                            vertexData[cur + 13] = rnz;
+                        }
+                    }
                 }
             }
         }
@@ -8396,10 +8553,14 @@ public class Viewer3D {
                     1, false, nm, 0);
 
             // Set other uniforms
-            gl2.glUniform1i(gl2.glGetUniformLocation(shaderProgram, "uTubeSides"), tubeSides);
-            gl2.glUniform1f(gl2.glGetUniformLocation(shaderProgram, "uRadiusScale"), radiusScale);
+            final int uTubeSidesLoc = gl2.glGetUniformLocation(shaderProgram, "uTubeSides");
+            final int uRadiusScaleLoc = gl2.glGetUniformLocation(shaderProgram, "uRadiusScale");
+            final int uUseOverrideLoc = gl2.glGetUniformLocation(shaderProgram, "uUseColorOverride");
+            final int uOverrideLoc = gl2.glGetUniformLocation(shaderProgram, "uColorOverride");
+            gl2.glUniform1i(uTubeSidesLoc, tubeSides);
+            gl2.glUniform1f(uRadiusScaleLoc, radiusScale);
 
-            // Set up generic vertex attributes for position, color, radius
+            // Set up generic vertex attributes for position, color, radius, reference normal
             gl2.glEnableVertexAttribArray(ATTRIB_POSITION);
             gl2.glVertexAttribPointer(ATTRIB_POSITION, 3, GL.GL_FLOAT, false,
                     STRIDE, 0L);
@@ -8409,35 +8570,67 @@ public class Viewer3D {
             gl2.glEnableVertexAttribArray(ATTRIB_RADIUS);
             gl2.glVertexAttribPointer(ATTRIB_RADIUS, 1, GL.GL_FLOAT, false,
                     STRIDE, (long) RADIUS_OFFSET);
+            gl2.glEnableVertexAttribArray(ATTRIB_REFNORMAL);
+            gl2.glVertexAttribPointer(ATTRIB_REFNORMAL, 3, GL.GL_FLOAT, false,
+                    STRIDE, (long) NORMAL_OFFSET);
 
             gl2.glEnable(GL.GL_DEPTH_TEST);
 
-            for (final Map.Entry<Integer, List<int[]>> entry : compartmentRanges.entrySet()) {
-                final int type = entry.getKey();
-                final List<int[]> pathRanges = entry.getValue();
+            // Pass 1: filled tubes
+            drawTubePass(gl2, uUseOverrideLoc, uOverrideLoc, false);
 
-                final Color compColor = (wireframeColor != null)
-                        ? wireframeColor : compartmentColors.get(type);
-                if (compColor != null) {
-                    gl2.glUniform1i(gl2.glGetUniformLocation(shaderProgram,
-                            "uUseColorOverride"), 1);
-                    gl2.glUniform4f(gl2.glGetUniformLocation(shaderProgram,
-                            "uColorOverride"), compColor.r, compColor.g, compColor.b, compColor.a);
-                } else {
-                    gl2.glUniform1i(gl2.glGetUniformLocation(shaderProgram,
-                            "uUseColorOverride"), 0);
-                }
-
-                for (final int[] range : pathRanges) {
-                    gl2.glDrawArrays(GL.GL_LINE_STRIP, range[0], range[1]);
-                }
+            // Pass 2: wireframe overlay (if enabled)
+            if (tubeWireframe) {
+                gl2.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_LINE);
+                gl2.glEnable(GL2.GL_POLYGON_OFFSET_LINE);
+                gl2.glPolygonOffset(-1f, -1f); // pull wireframe slightly forward
+                drawTubePass(gl2, uUseOverrideLoc, uOverrideLoc, true);
+                gl2.glDisable(GL2.GL_POLYGON_OFFSET_LINE);
+                gl2.glPolygonMode(GL.GL_FRONT_AND_BACK, GL2.GL_FILL);
             }
 
             // Cleanup
             gl2.glDisableVertexAttribArray(ATTRIB_POSITION);
             gl2.glDisableVertexAttribArray(ATTRIB_COLOR);
             gl2.glDisableVertexAttribArray(ATTRIB_RADIUS);
+            gl2.glDisableVertexAttribArray(ATTRIB_REFNORMAL);
             gl2.glUseProgram(0);
+        }
+
+        /** Draws all tube segments in either filled or wireframe mode. */
+        private void drawTubePass(final GL2 gl2, final int uUseOverrideLoc,
+                                   final int uOverrideLoc, final boolean wireframe) {
+            for (final Map.Entry<Integer, List<int[]>> entry : compartmentRanges.entrySet()) {
+                final int type = entry.getKey();
+                final List<int[]> pathRanges = entry.getValue();
+
+                Color compColor;
+                if (wireframe) {
+                    // Wireframe uses contrast color for visibility
+                    final Color base = (wireframeColor != null)
+                            ? wireframeColor : compartmentColors.get(type);
+                    compColor = (base != null) ? Utils.contrastColor(base) : new Color(0.5f, 0.5f, 0.5f);
+                } else {
+                    compColor = (wireframeColor != null)
+                            ? wireframeColor : compartmentColors.get(type);
+                }
+
+                if (compColor != null) {
+                    gl2.glUniform1i(uUseOverrideLoc, 1);
+                    gl2.glUniform4f(uOverrideLoc, compColor.r, compColor.g, compColor.b,
+                            wireframe ? compColor.a * 0.8f : compColor.a);
+                } else {
+                    gl2.glUniform1i(uUseOverrideLoc, wireframe ? 1 : 0);
+                    if (wireframe) {
+                        // No per-vertex contrast possible; use mid-grey
+                        gl2.glUniform4f(uOverrideLoc, 0.5f, 0.5f, 0.5f, 0.8f);
+                    }
+                }
+
+                for (final int[] range : pathRanges) {
+                    gl2.glDrawArrays(GL.GL_LINE_STRIP, range[0], range[1]);
+                }
+            }
         }
 
         /** Computes the normal matrix (transpose of inverse of upper-left 3x3 of modelview). */
@@ -9977,7 +10170,7 @@ public class Viewer3D {
             final String msg = ArborVBO.shaderInitMessage != null
                     ? ArborVBO.shaderInitMessage
                     : "Tube rendering is not available on this system.";
-            guiUtils().error(msg);
+            headlessSafeError(msg);
             return;
         }
         tubeModeEnabled = enabled;
@@ -9999,7 +10192,7 @@ public class Viewer3D {
                         final String msg = ArborVBO.shaderInitMessage != null
                                 ? ArborVBO.shaderInitMessage
                                 : "Tube rendering is not available on this system.";
-                        guiUtils().error(msg);
+                        headlessSafeError(msg);
                         return;
                     }
                     // Shaders succeeded: persist
@@ -10013,6 +10206,71 @@ public class Viewer3D {
                 }
             }
         }
+    }
+
+    /**
+     * Enables or disables the wireframe overlay on tube rendering for all trees.
+     * The preference is persisted across sessions.
+     *
+     * @param enabled whether to show wireframe edges on tubes
+     */
+    public void setTubeWireframe(final boolean enabled) {
+        tubeWireframeEnabled = enabled;
+        if (prefService != null) {
+            prefService.put(Viewer3D.class, PREF_TUBE_WIREFRAME, enabled);
+        }
+        if (plottedTrees != null) {
+            plottedTrees.values().forEach(st -> st.setTubeWireframe(enabled));
+        }
+        if (chart != null && viewUpdatesEnabled) chart.render();
+    }
+
+    /**
+     * Sets the number of sides for tube cross-sections for all trees.
+     * Only has a visual effect when tube rendering is active.
+     * The preference is persisted across sessions.
+     *
+     * @param sides number of sides (clamped to [3, 16])
+     */
+    public void setTubeSides(final int sides) {
+        tubeSidesPref = Math.max(3, Math.min(ArborVBO.MAX_TUBE_SIDES, sides));
+        if (prefService != null) {
+            prefService.put(Viewer3D.class, PREF_TUBE_SIDES, tubeSidesPref);
+        }
+        if (plottedTrees != null) {
+            plottedTrees.values().forEach(st -> st.setTubeSides(tubeSidesPref));
+        }
+        if (chart != null && viewUpdatesEnabled) chart.render();
+    }
+
+    /**
+     * Applies a scaling factor to Trees rendered as {@link ArborVBO}.
+     *
+     * @param scale the radius scale
+     */
+    public void setRadiusScale(final float scale) {
+        setRadiusScale(null, scale);
+    }
+
+    /**
+     * Applies a tube radius scale to a subset of rendered trees.
+     *
+     * @param labels the Collection of keys specifying the subset of trees,
+     *               or null to apply to all trees
+     * @param scale the radius scale factor
+     */
+    public void setRadiusScale(final Collection<String> labels, final float scale) {
+        if (plottedTrees != null) {
+            if (labels == null) {
+                plottedTrees.values().forEach(st -> st.setRadiusScale(scale));
+            } else {
+                final Set<String> labelSet = new HashSet<>(labels);
+                plottedTrees.forEach((k, st) -> {
+                    if (labelSet.contains(k)) st.setRadiusScale(scale);
+                });
+            }
+        }
+        if (chart != null && viewUpdatesEnabled) chart.render();
     }
 
     /**
@@ -10043,7 +10301,7 @@ public class Viewer3D {
                 plottedTrees.values().forEach(st -> st.setDepthFog(false));
             }
         }
-        if (chart != null) chart.render();
+        if (chart != null && viewUpdatesEnabled) chart.render();
     }
 
     /**
@@ -10059,7 +10317,7 @@ public class Viewer3D {
         if (plottedTrees != null) {
             plottedTrees.values().forEach(shapeTree -> shapeTree.setFogIntensity(intensity));
         }
-        if (chart != null) chart.render();
+        if (chart != null && viewUpdatesEnabled) chart.render();
     }
 
     /**
@@ -10090,7 +10348,7 @@ public class Viewer3D {
                 plottedTrees.values().forEach(st -> st.setPseudoLighting(false));
             }
         }
-        if (chart != null) chart.render();
+        if (chart != null && viewUpdatesEnabled) chart.render();
     }
 
     /**
@@ -10109,7 +10367,15 @@ public class Viewer3D {
             // upsamplingFactorPref, so no need to set it explicitly
             plottedTrees.values().forEach(ShapeTree::rebuildShape);
         }
-        if (chart != null) chart.render();
+        if (chart != null && viewUpdatesEnabled) chart.render();
+    }
+
+    private void headlessSafeError(final String msg) {
+        if (ENGINE==Engine.OFFSCREEN || frame == null || guiUtils() == null) {
+            SNTUtils.error(msg);
+        } else {
+            guiUtils().error(msg);
+        }
     }
 
     private void setSomaDisplayed(final String treeLabel,
