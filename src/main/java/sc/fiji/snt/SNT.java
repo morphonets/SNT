@@ -2459,10 +2459,10 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		removeSphere(targetBallName);
+		if (manualRadius > 0 && currentPath.hasRadii()) {
+			currentPath.sanitizeRadii(true); // interpolates everything in between
+		}
 		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null) {
-			if (manualRadius > 0 && currentPath.hasRadii()) {
-				currentPath.sanitizeRadii(true); // interpolates everything in between
-			}
 			pathAndFillManager.addPath(currentPath, true, false, false);
 		}
 		lastStartPointSet = false;
