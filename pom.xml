@@ -143,7 +143,7 @@
 		<rsyntaxtextarea.version>3.6.0</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
 		<annotations.version>26.1.0</annotations.version>
 		<fastutil.version>8.5.18</fastutil.version>
-		<flatlaf-jide-oss.version>3.7</flatlaf-jide-oss.version>
+		<flatlaf-jide-oss.version>3.7.1</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
 		<jgrapht-ext.version>${jgrapht-core.version}</jgrapht-ext.version>
