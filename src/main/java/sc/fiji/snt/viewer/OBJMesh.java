@@ -23,6 +23,9 @@
 package sc.fiji.snt.viewer;
 
 import com.jogamp.common.nio.Buffers;
+import com.jogamp.opengl.GL;
+import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GLException;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -71,6 +74,11 @@ import sc.fiji.snt.util.SNTPoint;
  */
 public class OBJMesh {
 
+	/** Shading mode: jzy3d fixed-function rendering (default). */
+	public static final int SHADING_DEFAULT = 0;
+	/** Shading mode: per-fragment Phong lighting with hemispherical ambient (GLSL 1.20). */
+	public static final int SHADING_SMOOTH = 1;
+
 	protected OBJFileLoaderPlus loader;
 	protected RemountableDrawableVBO drawable;
 	private String label;
@@ -78,6 +86,9 @@ public class OBJMesh {
 	private double volume = Double.NaN;
 	private int symmetryAxis;
 	private double mirrorCoord = Double.NaN;
+	int meshShadingMode = SHADING_DEFAULT;
+	boolean backfaceCull = false;
+	private String displayedHemisphere = "both";
 
 	/**
 	 * Instantiates a new wavefront OBJ mesh from a file path/URL.
@@ -115,6 +126,41 @@ public class OBJMesh {
 		return symmetryAxis;
 	}
 
+	/**
+	 * Sets which hemisphere of this mesh is displayed.
+	 *
+	 * @param hemiHalf "left" (or "l", "1"), "right" (or "r", "2"), or anything
+	 *                 else for both hemispheres
+	 */
+	public void setDisplayedHemisphere(final String hemiHalf) {
+		this.displayedHemisphere = getHemisphere(hemiHalf);
+	}
+
+	/**
+	 * Returns the currently displayed hemisphere: "left", "right", or "both".
+	 *
+	 * @return the displayed hemisphere
+	 */
+	public String getDisplayedHemisphere() {
+		return displayedHemisphere;
+	}
+
+	/**
+	 * Returns the mirror coordinate along the symmetry axis, computing it lazily
+	 * from the mesh barycentre if not yet set.
+	 */
+	double ensuredMirrorCoord() {
+		if (Double.isNaN(mirrorCoord)) {
+			final Coord3d c = getBarycentreCoord();
+			mirrorCoord = switch (symmetryAxis) {
+				case 0 -> c.x;
+				case 1 -> c.y;
+				default -> c.z;
+			};
+		}
+		return mirrorCoord;
+	}
+
 	public OBJMesh duplicate() {
 		//return new OBJMesh(loader.url, unit);
 		final OBJMesh dup = new OBJMesh();
@@ -128,6 +174,9 @@ public class OBJMesh {
 		dup.label = label;
 		dup.mirrorCoord = mirrorCoord;
 		dup.symmetryAxis = symmetryAxis;
+		dup.displayedHemisphere = displayedHemisphere;
+		dup.meshShadingMode = meshShadingMode;
+		dup.backfaceCull = backfaceCull;
 		return dup;
 	}
 
@@ -565,6 +614,37 @@ public class OBJMesh {
 
 		protected OBJMesh objMesh;
 
+		// --- Smooth-shading shader (GLSL 1.20 / GL2 — works on all platforms) ---
+		private static final String MESH_VERT_SHADER = """
+				#version 120
+				varying vec3 vNormal;
+				void main() {
+				    vNormal = normalize(gl_NormalMatrix * gl_Normal);
+				    vec4 eyePos = gl_ModelViewMatrix * gl_Vertex;
+				    gl_Position = gl_ProjectionMatrix * eyePos;
+				    // Required for GL_CLIP_PLANEi to work when a shader is active (GLSL 1.20).
+				    // Without this, clip plane evaluation is implementation-defined and often ignored.
+				    gl_ClipVertex = eyePos;
+				    gl_FrontColor = gl_Color;
+				}
+				""";
+		private static final String MESH_FRAG_SHADER = """
+				#version 120
+				varying vec3 vNormal;
+				void main() {
+				    vec3 N = normalize(vNormal);
+				    vec3 L = normalize(vec3(0.0, 0.0, 1.0));
+				    float NdotL = max(dot(N, L), 0.0);
+				    float hemi = 0.5 + 0.5 * N.y;
+				    vec3 ambient = gl_Color.rgb * mix(0.35, 0.6, hemi);
+				    vec3 diffuse = gl_Color.rgb * NdotL * 0.55;
+				    gl_FragColor = vec4(min(ambient + diffuse, vec3(1.0)), gl_Color.a);
+				}
+				""";
+
+		private static int meshShaderProgram = 0;
+		private static boolean meshShaderInitAttempted = false;
+
 		protected RemountableDrawableVBO(final IGLLoader<DrawableVBO> loader,
 			final OBJMesh objMesh)
 		{
@@ -586,6 +666,113 @@ public class OBJMesh {
 		public Coord3d getBarycentre() {
 			computeBoundingBoxAsNeeded();
 			return super.getBarycentre();
+		}
+
+		@Override
+		public void draw(final IPainter painter) {
+			final boolean smooth = objMesh.meshShadingMode == SHADING_SMOOTH;
+			final boolean clip = !"both".equals(objMesh.displayedHemisphere);
+			// In default mode with no culling and no hemisphere clipping, delegate
+			// directly — no GL state changes needed.
+			if (!smooth && !objMesh.backfaceCull && !clip) {
+				super.draw(painter);
+				return;
+			}
+			final GL2 gl2 = ((NativeDesktopPainter) painter).getGL().getGL2();
+			// Save states we may modify so they can be restored after drawing,
+			// preventing leakage into the rest of the scene (e.g. ArborVBO rendering).
+			final boolean lightingWasOn = gl2.glIsEnabled(GL2.GL_LIGHTING);
+			final boolean cullWasOn = gl2.glIsEnabled(GL.GL_CULL_FACE);
+			final boolean clipWasOn = gl2.glIsEnabled(GL2.GL_CLIP_PLANE0);
+			final int[] prevProgram = new int[1];
+			gl2.glGetIntegerv(GL2.GL_CURRENT_PROGRAM, prevProgram, 0);
+			try {
+				if (smooth) {
+					if (!meshShaderInitAttempted) initMeshShaders(gl2);
+					if (meshShaderProgram != 0) {
+						gl2.glUseProgram(meshShaderProgram);
+						gl2.glDisable(GL2.GL_LIGHTING);
+					}
+				}
+				if (objMesh.backfaceCull) {
+					gl2.glEnable(GL.GL_CULL_FACE);
+					gl2.glCullFace(GL.GL_BACK);
+				}
+				if (clip) {
+					final double mc = objMesh.ensuredMirrorCoord();
+					final boolean left = "left".equals(objMesh.displayedHemisphere);
+					final double[] eq = switch (objMesh.symmetryAxis) {
+						case 0 -> left ? new double[]{-1, 0, 0, mc} : new double[]{1, 0, 0, -mc};
+						case 1 -> left ? new double[]{0, -1, 0, mc} : new double[]{0, 1, 0, -mc};
+						default -> left ? new double[]{0, 0, -1, mc} : new double[]{0, 0, 1, -mc};
+					};
+					gl2.glClipPlane(GL2.GL_CLIP_PLANE0, eq, 0);
+					gl2.glEnable(GL2.GL_CLIP_PLANE0);
+				}
+				super.draw(painter);
+			} finally {
+				// Always restore GL state regardless of any exception during draw.
+				gl2.glUseProgram(prevProgram[0]);
+				if (lightingWasOn) gl2.glEnable(GL2.GL_LIGHTING);
+				else gl2.glDisable(GL2.GL_LIGHTING);
+				if (cullWasOn) gl2.glEnable(GL.GL_CULL_FACE);
+				else gl2.glDisable(GL.GL_CULL_FACE);
+				if (clipWasOn) gl2.glEnable(GL2.GL_CLIP_PLANE0);
+				else gl2.glDisable(GL2.GL_CLIP_PLANE0);
+			}
+		}
+
+		private static void initMeshShaders(final GL2 gl2) {
+			meshShaderInitAttempted = true;
+			try {
+				final int vs = compileMeshShader(gl2, GL2.GL_VERTEX_SHADER, MESH_VERT_SHADER);
+				final int fs = compileMeshShader(gl2, GL2.GL_FRAGMENT_SHADER, MESH_FRAG_SHADER);
+				if (vs == 0 || fs == 0) {
+					SNTUtils.log("OBJMesh: smooth shading shader compile failed.");
+					return;
+				}
+				final int prog = gl2.glCreateProgram();
+				gl2.glAttachShader(prog, vs);
+				gl2.glAttachShader(prog, fs);
+				gl2.glLinkProgram(prog);
+				final int[] status = new int[1];
+				gl2.glGetProgramiv(prog, GL2.GL_LINK_STATUS, status, 0);
+				if (status[0] == GL.GL_FALSE) {
+					final int[] len = new int[1];
+					gl2.glGetProgramiv(prog, GL2.GL_INFO_LOG_LENGTH, len, 0);
+					final byte[] log = new byte[len[0]];
+					gl2.glGetProgramInfoLog(prog, len[0], null, 0, log, 0);
+					SNTUtils.log("OBJMesh: smooth shading shader link failed: " + new String(log).trim());
+					gl2.glDeleteProgram(prog);
+					return;
+				}
+				gl2.glDetachShader(prog, vs);
+				gl2.glDetachShader(prog, fs);
+				gl2.glDeleteShader(vs);
+				gl2.glDeleteShader(fs);
+				meshShaderProgram = prog;
+				SNTUtils.log("OBJMesh: smooth shading shader compiled successfully.");
+			} catch (final GLException e) {
+				SNTUtils.log("OBJMesh: smooth shading shader unavailable: " + e.getMessage());
+			}
+		}
+
+		private static int compileMeshShader(final GL2 gl2, final int type, final String source) {
+			final int shader = gl2.glCreateShader(type);
+			gl2.glShaderSource(shader, 1, new String[]{ source }, null, 0);
+			gl2.glCompileShader(shader);
+			final int[] status = new int[1];
+			gl2.glGetShaderiv(shader, GL2.GL_COMPILE_STATUS, status, 0);
+			if (status[0] == GL.GL_FALSE) {
+				final int[] len = new int[1];
+				gl2.glGetShaderiv(shader, GL2.GL_INFO_LOG_LENGTH, len, 0);
+				final byte[] log = new byte[len[0]];
+				gl2.glGetShaderInfoLog(shader, len[0], null, 0, log, 0);
+				SNTUtils.log("OBJMesh: shader compile error: " + new String(log));
+				gl2.glDeleteShader(shader);
+				return 0;
+			}
+			return shader;
 		}
 
 	}
@@ -626,7 +813,11 @@ public class OBJMesh {
 
 		@Override
 		public void load(final IPainter painter, final DrawableVBO drawable) {
-			compileModel(null);
+			// compileModel() is already called in the OBJMesh constructor (and by
+			// translate()), so obj is always set before the GL thread reaches here.
+			// Calling it again would re-parse the file on the render thread, blocking
+			// the viewer until loading completes.
+			if (obj == null) compileModel(null);
 			final int size = obj.getIndexCount();
 			final int indexSize = size * Buffers.SIZEOF_INT;
 			final int vertexSize = obj.getCompiledVertexCount() * Buffers.SIZEOF_FLOAT;

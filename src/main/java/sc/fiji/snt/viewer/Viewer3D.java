@@ -328,6 +328,8 @@ public class Viewer3D {
     private static final float DEFAULT_FOG_INTENSITY = 0.7f;
     private static final String PREF_PSEUDO_LIGHTING = "viewer3d.pseudoLighting";
     private static final String PREF_UPSAMPLING = "viewer3d.upsamplingFactor";
+    private static final String PREF_MESH_SHADING = "viewer3d.meshShading";
+    private static final String PREF_MESH_BACKFACE_CULL = "viewer3d.meshBackfaceCull";
     private boolean tubeModeEnabled;
     private boolean tubeWireframeEnabled;
     private boolean depthFogEnabled;
@@ -335,6 +337,8 @@ public class Viewer3D {
     private int upsamplingFactorPref = 1;
     private int tubeSidesPref = DEFAULT_TUBE_SIDES;
     private float fogIntensityPref = DEFAULT_FOG_INTENSITY;
+    private int meshShadingPref = OBJMesh.SHADING_DEFAULT;
+    private boolean meshBackfaceCullPref = false;
 
     private Viewer3D(final Engine engine) {
         SNTUtils.log("Initializing Viewer3D...");
@@ -431,6 +435,8 @@ public class Viewer3D {
             fogIntensityPref = (float) prefService.getDouble(Viewer3D.class, PREF_FOG_INTENSITY, DEFAULT_FOG_INTENSITY);
             upsamplingFactorPref = prefService.getInt(Viewer3D.class, PREF_UPSAMPLING, 1);
             tubeSidesPref = prefService.getInt(Viewer3D.class, PREF_TUBE_SIDES, DEFAULT_TUBE_SIDES);
+            meshShadingPref = prefService.getInt(Viewer3D.class, PREF_MESH_SHADING, OBJMesh.SHADING_DEFAULT);
+            meshBackfaceCullPref = prefService.getBoolean(Viewer3D.class, PREF_MESH_BACKFACE_CULL, false);
         }
         cmdFinder = new SNTCommandFinder(this);
     }
@@ -607,6 +613,9 @@ public class Viewer3D {
             view.getCamera().setViewportMode(viewPortMode);
             view.setViewPoint(currentViewPoint);
             view.setBoundsManual(currentBox);
+            // Invalidate GL buffer handles from the disposed context so all VBOs
+            // re-upload their data on first draw in the new context.
+            plottedTrees.values().forEach(ShapeTree::invalidateGL);
             addAllObjects();
             setAnimationEnabled(isAnimating);
             if (frame != null && frame.managerPanel != null && frame.managerPanel.debugger != null) {
@@ -1225,6 +1234,7 @@ public class Viewer3D {
         annotation.setLabel(uniquelabel);
         plottedAnnotations.put(uniquelabel, annotation);
         addItemToManager(uniquelabel);
+        annotation.getDrawable().setDisplayed(true);
         chart.add(annotation.getDrawable(), viewUpdatesEnabled);
     }
 
@@ -1333,6 +1343,7 @@ public class Viewer3D {
         annotation.setLabel(uniqueLabel);
         plottedAnnotations.put(uniqueLabel, annotation);
         addItemToManager(uniqueLabel);
+        annotation.getDrawable().setDisplayed(true);
         chart.add(annotation.getDrawable(), viewUpdatesEnabled);
         return annotation;
     }
@@ -1349,6 +1360,7 @@ public class Viewer3D {
         annotation.setLabel(uniqueLabel);
         plottedAnnotations.put(uniqueLabel, annotation);
         addItemToManager(uniqueLabel);
+        annotation.getDrawable().setDisplayed(true);
         chart.add(annotation.getDrawable(), viewUpdatesEnabled);
         return annotation;
     }
@@ -2739,6 +2751,8 @@ public class Viewer3D {
 
     private OBJMesh loadOBJMesh(final OBJMesh objMesh) {
         setAnimationEnabled(false);
+        objMesh.meshShadingMode = meshShadingPref;
+        objMesh.backfaceCull = meshBackfaceCullPref;
         chart.add(objMesh.drawable, false); // this used to trigger a GLException when true?
         final String label = getUniqueLabel(plottedObjs, "Mesh", objMesh.label());
         plottedObjs.put(label, objMesh.drawable);
@@ -4409,6 +4423,7 @@ public class Viewer3D {
             // Aspect-ratio controls
             sceneMenu.add(squarifyMenu());
             sceneMenu.add(axesMenu());
+            sceneMenu.add(scaleBarMenu());
             final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
             jcbmiFill.setIcon(IconFactory.menuIcon(GLYPH.EXPAND_ARROWS1));
             jcbmiFill.addItemListener(e -> {
@@ -4528,6 +4543,35 @@ public class Viewer3D {
             return menu;
         }
 
+        private JMenu scaleBarMenu() {
+            final JMenu menu = new JMenu("Scale Bar");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.RULER));
+            final JCheckBoxMenuItem toggle = new JCheckBoxMenuItem("Display Scale Bar");
+            toggle.addItemListener(e -> {
+                chart.overlayAnnotation.scaleBarEnabled = toggle.isSelected();
+                if (toggle.isSelected() && !chart.overlayAnnotation.scaleBarUnitSet)
+                    guiUtils().tempMsg("Scale bar assumes " + chart.overlayAnnotation.scaleBarUnit
+                            + ". Use Set Base Unit... to change.");
+            });
+            menu.add(toggle);
+            final JMenuItem unitItem = menuItem("Set Base Unit...", GLYPH.PEN, e -> {
+                final String[] choices = { "µm", "nm", "mm", "pixels" };
+                final String choice = guiUtils().getChoice(
+                        "Specify the base unit of the scene coordinates:",
+                        "Scale Bar Unit", choices, chart.overlayAnnotation.scaleBarUnit);
+                if (choice == null) return;
+                chart.overlayAnnotation.scaleBarUnit = choice;
+                chart.overlayAnnotation.scaleBarUnitSet = true;
+                switch (choice) {
+                    case "nm" -> chart.overlayAnnotation.scaleBarToUm = 0.001;
+                    case "mm" -> chart.overlayAnnotation.scaleBarToUm = 1000.0;
+                    default -> chart.overlayAnnotation.scaleBarToUm = 1.0; // um, pixelw
+                }
+            });
+            menu.add(unitItem);
+            return menu;
+        }
+
         private JPopupMenu popupMenu() {
             final JMenuItem renderIcons = new JCheckBoxMenuItem("Label Categories",
                     IconFactory.menuIcon(GLYPH.MARKER), managerList.renderer.iconVisible);
@@ -4629,6 +4673,15 @@ public class Viewer3D {
             menu.addSeparator();
             menu.add(new JMenuItem("Soma of Selected Trees")).addActionListener(e -> setSomasDisplayedOfSelectedTrees(false));
             menu.add(new JMenuItem("Bounding Box of Selected Meshes")).addActionListener(e -> setBoundingBoxDisplayedOfSelectedMeshes(false));
+            final JMenu hemiMenu = new JMenu("Hemisphere of Selected Meshes");
+            //hemiMenu.setIcon(IconFactory.menuIcon(GLYPH.BRAIN));
+            List.of("Left", "Right").forEach( label -> { // exclude "Both": Hiding full meshes is listed elsewhere
+                hemiMenu.add(new JMenuItem(label)).addActionListener(e -> {
+                    final List<String> keys = getSelectedMeshLabels();
+                    if (keys != null) setHemisphereOfSelectedMeshes(keys, label);
+                });
+            });
+            menu.add(hemiMenu);
             menu.addSeparator();
             menu.add(new JMenuItem("Selected Items")).addActionListener(e -> displaySelectedObjects(false));
             return menu;
@@ -5093,11 +5146,30 @@ public class Viewer3D {
             }
         }
 
+        private void customizeSelectedMeshesHemisphereAction() {
+            final List<String> keys = getSelectedMeshLabels();
+            if (keys == null) return;
+            final String[] choices = {"Both hemispheres", "Left hemisphere", "Right hemisphere"};
+            // Pre-select current state if all selected meshes share the same hemisphere
+            final String current = plottedObjs.get(keys.getFirst()).objMesh.getDisplayedHemisphere();
+            final String def = "left".equals(current) ? choices[1] : "right".equals(current) ? choices[2] : choices[0];
+            final String choice = guiUtils().getChoice("Display hemisphere:", "Mesh Hemisphere", choices, def);
+            if (choice == null) return;
+            final String hemi = choice.startsWith("Left") ? "left" : choice.startsWith("Right") ? "right" : "both";
+            setHemisphereOfSelectedMeshes(keys, hemi);
+        }
+
+        private void setHemisphereOfSelectedMeshes(final List<String> keys, final String hemi) {
+            keys.forEach(label -> plottedObjs.get(label).objMesh.setDisplayedHemisphere(hemi));
+            if (chart != null && viewUpdatesEnabled) chart.render();
+        }
+
         private void addCustomizeMeshCommands(final JPopupMenu menu) {
             GuiUtils.addSeparator(menu, "Customize:");
             menu.add(menuItem("All Parameters...", GLYPH.SLIDERS, e -> customizeSelectedMeshesAllParametersAction()));
             menu.add(menuItem("Color...", GLYPH.COLOR, e -> customizeSelectedMeshesColorAction()));
             menu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> customizeSelectedMeshesTransparencyAction()));
+            menu.add(menuItem("Hemisphere...", GLYPH.BRAIN, e -> customizeSelectedMeshesHemisphereAction()));
         }
 
         private void customizeSelectedTreesAllParametersAction() {
@@ -5377,6 +5449,9 @@ public class Viewer3D {
             prefsMenu.add(smoothingMenu());
             prefsMenu.add(depthFogMenu());
 
+            GuiUtils.addSeparator(prefsMenu, "Mesh Rendering:");
+            prefsMenu.add(meshRenderingMenu());
+
             GuiUtils.addSeparator(prefsMenu, "Advanced Settings:");
             prefsMenu.add(getDebugCheckBox());
             if (ENGINE == Engine.JOGL) {
@@ -5549,6 +5624,45 @@ public class Viewer3D {
                 group.add(item);
                 menu.add(item);
             }
+            return menu;
+        }
+
+        private JMenu meshRenderingMenu() {
+            final JMenu menu = new JMenu("Style");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
+            menu.setToolTipText("Choose how surface meshes are rendered");
+            final ButtonGroup group = new ButtonGroup();
+
+            // 1. Default (jzy3d fixed-function)
+            final JCheckBoxMenuItem defaultItem = new JCheckBoxMenuItem("Default");
+            defaultItem.setToolTipText("Fixed-function rendering (jzy3d default)");
+            defaultItem.setSelected(meshShadingPref == OBJMesh.SHADING_DEFAULT);
+            defaultItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected())
+                    setMeshShadingMode(OBJMesh.SHADING_DEFAULT);
+            });
+            group.add(defaultItem);
+            menu.add(defaultItem);
+
+            // 2. Smooth Shading
+            final JCheckBoxMenuItem smoothItem = new JCheckBoxMenuItem("Smooth Shading");
+            smoothItem.setToolTipText("Per-fragment Phong lighting with hemispherical ambient");
+            smoothItem.setSelected(meshShadingPref == OBJMesh.SHADING_SMOOTH);
+            smoothItem.addItemListener(e -> {
+                if (((JCheckBoxMenuItem) e.getSource()).isSelected())
+                    setMeshShadingMode(OBJMesh.SHADING_SMOOTH);
+            });
+            group.add(smoothItem);
+            menu.add(smoothItem);
+
+            menu.addSeparator();
+
+            // Backface Culling (independent of shading mode)
+            final JCheckBoxMenuItem cullItem = new JCheckBoxMenuItem("Backface Culling", meshBackfaceCullPref);
+            cullItem.setToolTipText("Skip back-facing triangles (faster for closed meshes)");
+            cullItem.addItemListener(e -> setMeshBackfaceCull(((JCheckBoxMenuItem) e.getSource()).isSelected()));
+            menu.add(cullItem);
+
             return menu;
         }
 
@@ -5826,7 +5940,6 @@ public class Viewer3D {
             final List<String> userAxes = prompt.getPromptPlaneAxes(true);
             if (userAxes == null)
                 return;
-            setSceneUpdatesEnabled(false);
             for (final Tree tree : trees) {
                 final BoundingBox3d bounds = tree.getBoundingBox().toBoundingBox3d();
                 for (final String axis : userAxes) {
@@ -5835,7 +5948,7 @@ public class Viewer3D {
                     annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(tree.getColor()))), 25);
                 }
             }
-            setSceneUpdatesEnabled(true);
+            updateView();
         }
 
         private void addCellBasedSurfaceAnnotationsAction() {
@@ -5848,7 +5961,6 @@ public class Viewer3D {
             if (choice == null)
                 return;
             final List <String> failures = new ArrayList<>();
-            setSceneUpdatesEnabled(false);
             for (final Tree tree : trees) {
                 if (!tree.is3D()) {
                     failures.add(tree.getLabel());
@@ -5865,11 +5977,11 @@ public class Viewer3D {
                 if (color != null)
                     annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 75);
             }
-            setSceneUpdatesEnabled(true);
             if (!failures.isEmpty()) {
                 guiUtils().error(("Surfaces cannot be assemble from these 2D reconstructions: "
                         + failures +". Only 3D reconstructions are supported."));
             }
+            updateView();
         }
 
         private void addMeshBasedCrossSectionPlaneAnnotationsAction() {
@@ -5880,7 +5992,6 @@ public class Viewer3D {
             final List<String> userAxes = prompt.getPromptPlaneAxes(false);
             if (userAxes == null)
                 return;
-            setSceneUpdatesEnabled(false);
             for (final String mLabel : meshLabels) {
                 final BoundingBox3d bounds = plottedObjs.get(mLabel).getBounds();
                 for (final String axis : userAxes) {
@@ -5889,7 +6000,7 @@ public class Viewer3D {
                     annot.setColor(toColorRGB(Utils.contrastColor(plottedObjs.get(mLabel).objMesh.getDrawable().getColor())), 25);
                 }
             }
-            setSceneUpdatesEnabled(true);
+            updateView();
         }
 
         private void addMeshBasedSurfaceAnnotationsAction() {
@@ -5901,7 +6012,6 @@ public class Viewer3D {
                     "Add Surface...", choices, choices[0]);
             if (choice == null)
                 return;
-            setSceneUpdatesEnabled(false);
             for (final String mLabel : meshLabels) {
                 final String key = choice.split(" ")[0];
                 final Collection<? extends SNTPoint> vertices = plottedObjs.get(mLabel).objMesh.getVertices(key.toLowerCase());
@@ -5910,7 +6020,7 @@ public class Viewer3D {
                 if (color != null)
                     annot.setColor(toColorRGB(Utils.contrastColor(color)), 75);
             }
-            setSceneUpdatesEnabled(true);
+            updateView();
         }
 
         private void addPrimitiveSphereAnnotationAction() {
@@ -5977,27 +6087,53 @@ public class Viewer3D {
         }
 
         private void adjustSelectedAnnotationSurfaceRenderingAction() {
-            if (noLoadedItemsGuiError()) {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null) return;
+            final List<Annotation3D> enlightable = annots.stream()
+                    .filter(a -> a.getDrawable() instanceof AbstractEnlightable)
+                    .toList();
+            if (enlightable.isEmpty()) {
+                guiUtils().error("Selected annotation(s) do not support surface rendering adjustments. "
+                        + "Only primitive shapes (spheres, disks, polygons, etc.) are supported.");
                 return;
             }
-            if (chart.getScene().getGraph().getAll().stream().noneMatch(g -> g instanceof AbstractEnlightable)) {
-                guiUtils().error("Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported. "
-                        + "Current scene contains no such objects.");
+            enlightable.forEach(a -> frame.displayLightController((AbstractEnlightable) a.getDrawable()));
+        }
+
+        private void renameSelectedAnnotationAction() {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null) return;
+            if (annots.size() != 1) {
+                guiUtils().error("Please select a single annotation to rename.");
                 return;
             }
-            final List<?> selectedKeys = managerList.getSelectedValuesList();
-            if (selectedKeys.size() != 1 || CheckBoxList.ALL_ENTRY.equals(selectedKeys.getFirst())) {
-                guiUtils().error("This command operates on single objects.");
-                return;
-            }
-            final String item = TagUtils.removeAllTags((String) selectedKeys.getFirst());
-            final Drawable d = getDrawableFromObject(item);
-            if (d instanceof AbstractEnlightable)
-                frame.displayLightController((AbstractEnlightable) d);
-            else {
-                guiUtils().error("Selected item does not support surface texture adjustments. "
-                        + "Currently, only primitive shapes (spheres, disks, polygons, etc.) are supported.");
-            }
+            final Annotation3D annot = annots.get(0);
+            final String currentLabel = annot.getLabel();
+            final String newLabel = guiUtils().getString(
+                    "New label for \"" + currentLabel + "\":", "Rename Annotation", currentLabel);
+            if (newLabel == null || newLabel.isBlank() || newLabel.equals(currentLabel)) return;
+            final String[] labels = TagUtils.getUntaggedAndTaggedLabels(currentLabel);
+            plottedAnnotations.remove(labels[0]);
+            deleteItemFromManager(labels[1]);
+            final String uniqueLabel = getUniqueLabel(plottedAnnotations, "Annot.", newLabel);
+            annot.setLabel(uniqueLabel);
+            plottedAnnotations.put(uniqueLabel, annot);
+            addItemToManager(uniqueLabel);
+        }
+
+        private void setSelectedAnnotationsSizeAction() {
+            final List<Annotation3D> annots = getSelectedAnnotations();
+            if (annots == null) return;
+            final double def = Double.parseDouble(prefs.getGuiPref("aSize", "1"));
+            final Double size = guiUtils().getDouble(
+                    "Specify a size/thickness scaling factor (1–10) for the selected annotation(s).",
+                    "Annotation(s) Size...", def, 1d, 10d, "");
+            if (size == null || size.isNaN()) return;
+            prefs.setGuiPref("aSize", SNTUtils.formatDouble(size, 2));
+            // GL line widths are effectively capped by the driver below 10, so normalize the range
+            final float normSize = (float) (((size - 1) * 7 / 9) + 1);
+            annots.forEach(annot -> annot.setSize(normSize));
+            if (chart != null && viewUpdatesEnabled) chart.render();
         }
 
         private void removeSelectedAnnotationsAction() {
@@ -6018,13 +6154,13 @@ public class Viewer3D {
         private JPopupMenu annotationsMenu() {
             final JPopupMenu annotMenu = new JPopupMenu();
             GuiUtils.addSeparator(annotMenu, "Add:");
-            final JMenuItem cellPlane = menuItem("Cell-based Cross-section Plane...", GLYPH.SCISSORS,
+            final JMenuItem cellPlane = menuItem("Tree-based Cross-section Plane...", GLYPH.SCISSORS,
                     e -> addCellBasedCrossSectionPlaneAnnotationsAction());
             cellPlane.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
             annotMenu.add(cellPlane);
-            final JMenuItem cellSurface = menuItem("Cell-based Surface...", GLYPH.DICE_20,
+            final JMenuItem cellSurface = menuItem("Tree-based Surface...", GLYPH.DICE_20,
                     e -> addCellBasedSurfaceAnnotationsAction());
-            cellSurface.setToolTipText("Adds convex-hull tesselations to neuronal arbors");
+            cellSurface.setToolTipText("Adds convex-hull tessellations to neuronal arbors");
             annotMenu.add(cellSurface);
             final JMenuItem meshPlane = menuItem("Mesh-based Cross-section Plane...", GLYPH.SCISSORS,
                     e -> addMeshBasedCrossSectionPlaneAnnotationsAction());
@@ -6032,19 +6168,21 @@ public class Viewer3D {
             annotMenu.add(meshPlane);
             final JMenuItem meshSurface = menuItem("Mesh-based Surface...", GLYPH.DICE_20,
                     e -> addMeshBasedSurfaceAnnotationsAction());
-            meshSurface.setToolTipText("Adds convex-hull tesselations to selected meshes");
+            meshSurface.setToolTipText("Adds convex-hull tessellations to selected meshes");
             annotMenu.add(meshSurface);
-            final JMenu primitives = new JMenu("Misc");
+            final JMenu primitives = new JMenu("Shapes");
             primitives.setToolTipText("Adds basic geometry objects to the scene");
-            primitives.setIcon(IconFactory.menuIcon(GLYPH.ELLIPSIS));
+            primitives.setIcon(IconFactory.menuIcon('\uf61f', true));
             annotMenu.add(primitives);
             primitives.add(menuItem("Sphere...", GLYPH.GLOBE, e -> addPrimitiveSphereAnnotationAction()));
             primitives.add(menuItem("Vector...", GLYPH.ARROWS_LR, e -> addPrimitiveVectorAnnotationAction()));
             primitives.add(menuItem("Plane/Parallelepiped...", GLYPH.SQUARE, e -> addPrimitivePlaneAnnotationAction()));
             GuiUtils.addSeparator(annotMenu, "Customize:");
+            annotMenu.add(menuItem("Rename...", GLYPH.PEN, e -> renameSelectedAnnotationAction()));
             annotMenu.add(menuItem("Color...", GLYPH.COLOR, e -> setSelectedAnnotationsColorAction()));
             annotMenu.add(menuItem("Color Gradient...", GLYPH.COLOR2, e -> applySelectedAnnotationsGradientAction()));
             annotMenu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> setSelectedAnnotationsTransparencyAction()));
+            annotMenu.add(menuItem("Size...", GLYPH.RESIZE, e -> setSelectedAnnotationsSizeAction()));
             annotMenu.add(menuItem("Surface Rendering...", GLYPH.CUBES, e -> adjustSelectedAnnotationSurfaceRenderingAction()));
             GuiUtils.addSeparator(annotMenu, "Remove:");
             annotMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedAnnotationsAction()));
@@ -7478,6 +7616,11 @@ public class Viewer3D {
             }
         }
 
+        /** Invalidates GL resources so they are re-uploaded when added to a new GL context. */
+        void invalidateGL() {
+            if (arborVBO != null) arborVBO.invalidateGL();
+        }
+
         void setSomaRadius(final float radius) {
             if (somaSubShape != null && somaSubShape instanceof Sphere)
                 ((Sphere)somaSubShape).setVolume(radius);
@@ -8348,6 +8491,11 @@ public class Viewer3D {
             // This is not straightforward with restart markers. Use the compartment
             // color override instead (more efficient, no buffer upload).
             compartmentColors.put(swcType, color);
+        }
+
+        /** Invalidates the GL buffer handles so they are re-uploaded on the next draw call. */
+        void invalidateGL() {
+            hasMountedOnce = false;
         }
 
         @Override
@@ -9689,6 +9837,15 @@ public class Viewer3D {
         private float labelX = 2;
         private float labelY = 0;
 
+        /** Whether the scale bar is displayed. */
+        private boolean scaleBarEnabled;
+        /** The base unit of scene coordinates (e.g., "um", "nm", "mm"). */
+        private String scaleBarUnit = "µm"; // µm default
+        private boolean scaleBarUnitSet = false; // true once user has explicitly chosen a unit
+        /** Scale factor to convert scene coordinates to micrometers (for scaledMicrometer). */
+        private double scaleBarToUm = 1.0;
+        private double cachedUnitsPerPixel = Double.NaN;
+
         private OverlayAnnotation(final View view) {
             super(view);
         }
@@ -9707,10 +9864,85 @@ public class Viewer3D {
             this.labelColor = labelColor;
         }
 
+        /** Formats a scale value as an integer if whole, otherwise with minimal decimals. */
+        private String formatScaleValue(final double v) {
+            if (v == Math.floor(v) && !Double.isInfinite(v)) return String.valueOf((int) v);
+            return String.format("%.1f", v);
+        }
+
+        private void paintScaleBar(final Graphics2D g2d, final int canvasWidth, final int canvasHeight) {
+
+            final double hdpiScale = g2d.getTransform().getScaleX();
+            final BoundingBox3d bounds = view.getBounds();
+
+            double worldWidth = 0;
+            if (bounds != null && !bounds.isReset()) {
+                worldWidth = bounds.getXRange().getRange();
+                if (worldWidth > 0) {
+                    final double yMid = (bounds.getYmin() + bounds.getYmax()) / 2.0;
+                    final double zMid = (bounds.getZmin() + bounds.getZmax()) / 2.0;
+                    final Camera cam = view.getCamera();
+                    final IPainter painter = view.getPainter();
+                    final Coord3d sMin = cam.modelToScreen(painter, new Coord3d(bounds.getXmin(), yMid, zMid));
+                    final Coord3d sMax = cam.modelToScreen(painter, new Coord3d(bounds.getXmax(), yMid, zMid));
+                    final double devicePixels = Math.abs(sMax.x - sMin.x);
+                    if (devicePixels > 0)
+                        cachedUnitsPerPixel = worldWidth / (devicePixels / hdpiScale);
+                }
+            }
+
+            if (Double.isNaN(cachedUnitsPerPixel)) return; // nothing valid yet, skip silently
+
+            final double unitsPerPixel = cachedUnitsPerPixel; // already world units per logical pixel
+            final double logicalCanvasWidth = canvasWidth / hdpiScale;
+            // Target: bar should be ~15-25% of the logical canvas width
+            final double targetWorldLength = unitsPerPixel * logicalCanvasWidth * 0.2;
+
+            // Pick a "nice" length: 1, 2, 5, 10, 20, 50, 100, ...
+            final double magnitude = Math.pow(10, Math.floor(Math.log10(targetWorldLength)));
+            final double normalized = targetWorldLength / magnitude;
+            final double niceLength;
+            if (normalized < 1.5) niceLength = magnitude;
+            else if (normalized < 3.5) niceLength = 2 * magnitude;
+            else if (normalized < 7.5) niceLength = 5 * magnitude;
+            else niceLength = 10 * magnitude;
+
+            final int barPixels = (int) Math.round(niceLength / unitsPerPixel);
+            if (barPixels < 10) return; // too small to draw
+
+            // Format label: convert scene units to µm, then pick the best SI prefix
+            final double um = niceLength * scaleBarToUm;
+            final String barLabel;
+            if (um >= 1000000) {
+                barLabel = formatScaleValue(um / 1000000) + " m";
+            } else if (um >= 10000) {
+                barLabel = formatScaleValue(um / 10000) + " cm";
+            } else if (um >= 1000) {
+                barLabel = formatScaleValue(um / 1000) + " mm";
+            } else if (um >= 1) {
+                barLabel = formatScaleValue(um) + " µm";
+            } else if (um >= 0.001) {
+                barLabel = formatScaleValue(um * 1000) + " nm";
+            } else {
+                barLabel = formatScaleValue(um * 10000) + " Å";
+            }
+
+            // Draw in bottom-left corner using the same approach as debug text
+            final java.awt.Color fgColor = toAWTColor(view.getAxisLayout().getMainColor());
+            g2d.setColor(fgColor);
+            final int margin = 20;
+            final int barThickness = 3;
+            final int barY = canvasHeight / 2; // center vertically for now to confirm visibility
+            g2d.setStroke(new BasicStroke(barThickness));
+            g2d.drawLine(margin, barY, margin + barPixels, barY);
+            // Label above bar
+            final FontMetrics fm = g2d.getFontMetrics();
+            final int textX = margin + (barPixels - fm.stringWidth(barLabel)) / 2;
+            g2d.drawString(barLabel, textX, barY - barThickness - 2);
+        }
+
         @Override
-        public void paint(final Graphics g, final int canvasWidth,
-                          final int canvasHeight)
-        {
+        public void paint(final Graphics g, final int canvasWidth, final int canvasHeight) {
             final Graphics2D g2d = (Graphics2D) g;
             GuiUtils.setRenderingHints(g2d);
             if (SNTUtils.isDebugMode()) {
@@ -9718,15 +9950,29 @@ public class Viewer3D {
                 g2d.setFont(g2d.getFont().deriveFont((float)view.getAxisLayout().getFont().getHeight()));
                 final int lineHeight = g.getFontMetrics().getHeight();
                 int lineNo = 1;
-                g2d.drawString("Camera: " + view.getCamera().getEye(), 20, lineHeight * lineNo++);
-                g2d.drawString("FOV: " + view.getCamera().getRenderingSphereRadius(), 20, lineHeight * lineNo++);
-                g2d.drawString("Near: " + view.getCamera().getNear(), 20, lineHeight * lineNo++);
-                g2d.drawString("Far: " + view.getCamera().getFar(), 20, lineHeight * lineNo++);
+                final Camera dbgCam = view.getCamera();
+                final double eyeDist = dbgCam.getEye().distance(dbgCam.getTarget());
+                final double fov = 2.0 * Math.toDegrees(Math.atan2(
+                        dbgCam.getRenderingSphereRadius() * 2, eyeDist));
+                g2d.drawString("Camera: " + dbgCam.getEye(), 20, lineHeight * lineNo++);
+                g2d.drawString(String.format("FOV: %.1f\u00B0  Sphere radius: %.2f",
+                        fov, dbgCam.getRenderingSphereRadius()), 20, lineHeight * lineNo++);
+                g2d.drawString(String.format("Near: %g  Far: %g  (ratio: %.0f)",
+                        dbgCam.getNear(), dbgCam.getFar(),
+                        dbgCam.getFar() / Math.max(dbgCam.getNear(), 1e-10)),
+                        20, lineHeight * lineNo++);
+                g2d.drawString(String.format("Eye\u2192Target: %.2f", eyeDist),
+                        20, lineHeight * lineNo++);
 //				g2d.drawString("Up Z: " + view.getCamera().getUp().z, 20, lineHeight * lineNo++);
 //				g2d.drawString("Axe:" + view.getAxis().getBounds().toString(), 20, lineHeight * lineNo++);
 //				g2d.drawString("Transformed axe: " + axisBox.getBounds().toString(), 20, lineHeight * lineNo++);
 
             }
+
+            if (scaleBarEnabled) {
+                paintScaleBar(g2d, canvasWidth, canvasHeight);
+            }
+
             if (label == null || label.isEmpty()) return;
             if (labelColor != null) g2d.setColor(labelColor);
             if (labelFont != null) g2d.setFont(labelFont);
@@ -10195,6 +10441,8 @@ public class Viewer3D {
             return;
         }
         tubeModeEnabled = enabled;
+        if (view instanceof ViewerFactory.AView aView)
+            aView.tubeModeActive = enabled;
         if (plottedTrees != null) {
             plottedTrees.values().forEach(shapeTree -> shapeTree.setTubeMode(enabled));
         }
@@ -10262,6 +10510,51 @@ public class Viewer3D {
             plottedTrees.values().forEach(st -> st.setTubeSides(tubeSidesPref));
         }
         if (chart != null && viewUpdatesEnabled) chart.render();
+    }
+
+    /**
+     * Sets the shading mode for all OBJ meshes (current and future).
+     * The preference is persisted across sessions.
+     *
+     * @param mode {@link OBJMesh#SHADING_DEFAULT} or {@link OBJMesh#SHADING_SMOOTH}
+     */
+    public void setMeshShadingMode(final int mode) {
+        meshShadingPref = mode;
+        if (prefService != null) prefService.put(Viewer3D.class, PREF_MESH_SHADING, mode);
+        if (plottedObjs != null) plottedObjs.values().forEach(vbo -> vbo.objMesh.meshShadingMode = mode);
+        if (chart != null && viewUpdatesEnabled) chart.render();
+    }
+
+    /**
+     * Returns the current mesh shading mode.
+     *
+     * @return {@link OBJMesh#SHADING_DEFAULT} or {@link OBJMesh#SHADING_SMOOTH}
+     */
+    public int getMeshShadingMode() {
+        return meshShadingPref;
+    }
+
+    /**
+     * Enables or disables backface culling for all OBJ meshes (current and future).
+     * Backface culling skips rendering of back-facing triangles, improving performance
+     * for closed meshes. The preference is persisted across sessions.
+     *
+     * @param enabled whether to enable backface culling
+     */
+    public void setMeshBackfaceCull(final boolean enabled) {
+        meshBackfaceCullPref = enabled;
+        if (prefService != null) prefService.put(Viewer3D.class, PREF_MESH_BACKFACE_CULL, enabled);
+        if (plottedObjs != null) plottedObjs.values().forEach(vbo -> vbo.objMesh.backfaceCull = enabled);
+        if (chart != null && viewUpdatesEnabled) chart.render();
+    }
+
+    /**
+     * Returns whether backface culling is enabled for OBJ meshes.
+     *
+     * @return true if backface culling is enabled
+     */
+    public boolean isMeshBackfaceCull() {
+        return meshBackfaceCullPref;
     }
 
     /**
@@ -10528,12 +10821,22 @@ public class Viewer3D {
             }
 
             @Override
+            public Camera newCamera(final Coord3d center) {
+                return new ACamera(center);
+            }
+
+            @Override
             public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
                 return new AView(getFactory(), scene, canvas, quality);
             }
         }
 
         private static class EmulGLFactory extends EmulGLChartFactory {
+
+            @Override
+            public Camera newCamera(final Coord3d center) {
+                return new ACamera(center);
+            }
 
             @Override
             public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
@@ -10544,8 +10847,38 @@ public class Viewer3D {
         private static class JOGLFactory extends AWTChartFactory {
 
             @Override
+            public Camera newCamera(final Coord3d center) {
+                return new ACamera(center);
+            }
+
+            @Override
             public View newView(final Scene scene, final ICanvas canvas, final Quality quality) {
                 return new AView(getFactory(), scene, canvas, quality);
+            }
+        }
+
+        /**
+         * Camera subclass that uses gluPerspective instead of glFrustum.
+         * The default glFrustum path computes frustum half-width from
+         * renderingSphereRadius/factorViewPointDistance, making the effective
+         * FOV = 2*atan(r/near). When near is clamped to a small value (to
+         * allow deep zoom), FOV degenerates to >180°. gluPerspective computes
+         * FOV from renderingSphereRadius and eye-target distance independently
+         * of near, keeping it stable at all zoom levels.
+         */
+        private static class ACamera extends Camera {
+
+            public ACamera(final Coord3d center) {
+                super(center);
+            }
+
+            @Override
+            public void projectionPerspective(final IPainter painter, final ViewportConfiguration viewport) {
+                final boolean stretchToFill = ViewportMode.STRETCH_TO_FILL.equals(viewport.getMode());
+                final double fov = computeFieldOfView(renderingSphereRadius * 4, eye.distance(target));
+                final float aspect = stretchToFill ? ((float) screenWidth) / ((float) screenHeight) : 1;
+                final float nearCorrected = near <= 0 ? Float.MIN_VALUE : near;
+                painter.gluPerspective(fov, aspect * 0.55, nearCorrected, far);
             }
         }
 
@@ -10571,6 +10904,12 @@ public class Viewer3D {
              * negated to maintain visual continuity.
              */
             private int poleFlips = 0;
+
+            /** Whether tube/surface rendering is active, affecting near-plane clamping aggressiveness. */
+            boolean tubeModeActive;
+
+            /** Tracks the maximum scene radius seen, so the far plane always encompasses all geometry. */
+            private float maxSceneRadius;
 
             public AView(final IChartFactory factory, final Scene scene, final ICanvas canvas, final Quality quality) {
                 super(factory, scene, canvas, quality);
@@ -10671,6 +11010,39 @@ public class Viewer3D {
             /** Reset the pole-crossing counter (e.g. on explicit view mode change). */
             void resetPoleFlips() {
                 poleFlips = 0;
+            }
+
+            @Override
+            protected void renderAxeBox() {
+                // jzy3d's axis tick label positioning can return null at extreme
+                // zoom levels, causing an NPE in TextRenderer.drawText(). Guard
+                // against this so the rest of the scene continues to render.
+                try {
+                    super.renderAxeBox();
+                } catch (final NullPointerException ignored) {
+                    // axis degenerated at this zoom level; skip rendering it
+                    SNTUtils.log("Degenerated axes. You should zoom out.");
+                }
+            }
+
+            @Override
+            protected void computeCameraRenderingVolume(final Camera cam,
+                    final ViewportConfiguration viewport, final BoundingBox3d bounds) {
+                super.computeCameraRenderingVolume(cam, viewport, bounds);
+                // Track the largest scene radius seen (before zoom scaling shrinks it)
+                // so the far plane always encompasses all actual geometry.
+                final float radius = (float) bounds.getRadius();
+                if (radius > maxSceneRadius) maxSceneRadius = radius;
+                // jzy3d computes near = eye.distance(target) - 2*radius, which goes
+                // negative when zoomed in close. Clamp near to a tiny fraction of
+                // the eye-target distance, and ensure far reaches all geometry.
+                final float near = cam.getNear();
+                if (near <= 0) {
+                    final float eyeDist = (float) cam.getEye().distance(cam.getTarget());
+                    final float factor = tubeModeActive ? 1e-4f : 1e-6f;
+                    final float safeFar = eyeDist + maxSceneRadius * 2f;
+                    cam.setRenderingDepth(Math.max(eyeDist * factor, 1e-6f), safeFar);
+                }
             }
         }
     }
