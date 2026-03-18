@@ -215,6 +215,11 @@ public class MultiTreeColorMapper extends TreeColorMapper {
 		for (final String s : MULTI_TREE_FLAGS) {
 			if (s.equalsIgnoreCase(measurement)) return s;
 		}
+		// Check known single-tree metrics before fuzzy guessing, so that e.g.
+		// "Horton-Strahler orders" is not mis-routed to STRAHLER_NUMBER
+		if (getMetrics().stream().anyMatch(measurement::equalsIgnoreCase)) {
+			return getNormalizedMeasurement(measurement);
+		}
 		final String normMeasurement = tryReallyHardToGuessMetric(measurement);
 		if (!measurement.equals(normMeasurement)) {
 			SNTUtils.log("\"" + normMeasurement + "\" assumed");
