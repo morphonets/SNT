@@ -26,6 +26,7 @@ import com.jidesoft.swing.*;
 import com.jogamp.common.nio.Buffers;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2;
+import com.jogamp.opengl.GL2GL3;
 import com.jogamp.opengl.GL3;
 import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
@@ -339,7 +340,17 @@ public class Viewer3D {
         SNTUtils.log("Initializing Viewer3D...");
         ENGINE = engine;
         if (Engine.JOGL == engine || Engine.OFFSCREEN == engine) {
-            Settings.getInstance().setGLCapabilities(new GLCapabilities(GLProfile.getDefault()));
+            // Prefer GL3 Core Profile for geometry shader support (tube rendering).
+            // Falls back to the platform default (typically GL2) if unavailable.
+            // On current macOS/JOGL combinations GL3 may still silently resolve to
+            // GL2, in which case tube shaders will fail gracefully at init time.
+            GLProfile profile;
+            try {
+                profile = GLProfile.get(GLProfile.GL3);
+            } catch (final GLException e) {
+                profile = GLProfile.getDefault();
+            }
+            Settings.getInstance().setGLCapabilities(new GLCapabilities(profile));
             Settings.getInstance().setHardwareAccelerated(true);
         }
         plottedTrees = new TreeMap<>();
@@ -7856,42 +7867,52 @@ public class Viewer3D {
         private boolean initShaders(final GL2 gl2) {
             if (shaderInitAttempted) return shaderProgram != 0;
             shaderInitAttempted = true;
+            // Geometry shaders require a true GL3 context. On macOS, Apple's Metal-based
+            // OpenGL layer caps at GL 2.1 regardless of hardware!?, so this will always
+            // fail there. Log the actual runtime version for diagnostics.
+            if (!gl2.isGL3()) {
+                shaderInitMessage = "Tube rendering requires OpenGL 3.2+. Reported version: "
+                        + gl2.glGetString(GL2.GL_VERSION) + " (" + gl2.glGetString(GL2.GL_RENDERER) + ").";
+                SNTUtils.log("ArborVBO: " + shaderInitMessage);
+                return false;
+            }
+            final GL2GL3 gl3 = gl2.getGL3();
             try {
-                final int vs = compileShader(gl2, GL2.GL_VERTEX_SHADER, VERT_SHADER);
-                final int gs = compileShader(gl2, GL3.GL_GEOMETRY_SHADER, GEOM_SHADER);
-                final int fs = compileShader(gl2, GL2.GL_FRAGMENT_SHADER, FRAG_SHADER);
+                final int vs = compileShader(gl3, GL2.GL_VERTEX_SHADER, VERT_SHADER);
+                final int gs = compileShader(gl3, GL3.GL_GEOMETRY_SHADER, GEOM_SHADER);
+                final int fs = compileShader(gl3, GL2.GL_FRAGMENT_SHADER, FRAG_SHADER);
                 if (vs == 0 || gs == 0 || fs == 0) {
                     shaderInitMessage = "Tube rendering requires OpenGL 3.2+ (geometry shaders).";
                     SNTUtils.log("ArborVBO: " + shaderInitMessage);
                     return false;
                 }
-                final int prog = gl2.glCreateProgram();
-                gl2.glAttachShader(prog, vs);
-                gl2.glAttachShader(prog, gs);
-                gl2.glAttachShader(prog, fs);
-                gl2.glBindAttribLocation(prog, ATTRIB_POSITION, "aPosition");
-                gl2.glBindAttribLocation(prog, ATTRIB_COLOR, "aColor");
-                gl2.glBindAttribLocation(prog, ATTRIB_RADIUS, "aRadius");
-                gl2.glBindAttribLocation(prog, ATTRIB_REFNORMAL, "aRefNormal");
-                gl2.glLinkProgram(prog);
+                final int prog = gl3.glCreateProgram();
+                gl3.glAttachShader(prog, vs);
+                gl3.glAttachShader(prog, gs);
+                gl3.glAttachShader(prog, fs);
+                gl3.glBindAttribLocation(prog, ATTRIB_POSITION, "aPosition");
+                gl3.glBindAttribLocation(prog, ATTRIB_COLOR, "aColor");
+                gl3.glBindAttribLocation(prog, ATTRIB_RADIUS, "aRadius");
+                gl3.glBindAttribLocation(prog, ATTRIB_REFNORMAL, "aRefNormal");
+                gl3.glLinkProgram(prog);
                 final int[] status = new int[1];
-                gl2.glGetProgramiv(prog, GL2.GL_LINK_STATUS, status, 0);
+                gl3.glGetProgramiv(prog, GL2.GL_LINK_STATUS, status, 0);
                 if (status[0] == GL.GL_FALSE) {
                     final int[] len = new int[1];
-                    gl2.glGetProgramiv(prog, GL2.GL_INFO_LOG_LENGTH, len, 0);
+                    gl3.glGetProgramiv(prog, GL2.GL_INFO_LOG_LENGTH, len, 0);
                     final byte[] log = new byte[len[0]];
-                    gl2.glGetProgramInfoLog(prog, len[0], null, 0, log, 0);
+                    gl3.glGetProgramInfoLog(prog, len[0], null, 0, log, 0);
                     shaderInitMessage = "Tube shader link failed: " + new String(log).trim();
                     SNTUtils.log("ArborVBO: " + shaderInitMessage);
-                    gl2.glDeleteProgram(prog);
+                    gl3.glDeleteProgram(prog);
                     return false;
                 }
-                gl2.glDetachShader(prog, vs);
-                gl2.glDetachShader(prog, gs);
-                gl2.glDetachShader(prog, fs);
-                gl2.glDeleteShader(vs);
-                gl2.glDeleteShader(gs);
-                gl2.glDeleteShader(fs);
+                gl3.glDetachShader(prog, vs);
+                gl3.glDetachShader(prog, gs);
+                gl3.glDetachShader(prog, fs);
+                gl3.glDeleteShader(vs);
+                gl3.glDeleteShader(gs);
+                gl3.glDeleteShader(fs);
                 shaderProgram = prog;
                 return true;
             } catch (final GLException e) {
@@ -7901,19 +7922,19 @@ public class Viewer3D {
             }
         }
 
-        private static int compileShader(final GL2 gl2, final int type, final String source) {
-            final int shader = gl2.glCreateShader(type);
-            gl2.glShaderSource(shader, 1, new String[]{ source }, null, 0);
-            gl2.glCompileShader(shader);
+        private static int compileShader(final GL2GL3 gl, final int type, final String source) {
+            final int shader = gl.glCreateShader(type);
+            gl.glShaderSource(shader, 1, new String[]{ source }, null, 0);
+            gl.glCompileShader(shader);
             final int[] status = new int[1];
-            gl2.glGetShaderiv(shader, GL2.GL_COMPILE_STATUS, status, 0);
+            gl.glGetShaderiv(shader, GL2.GL_COMPILE_STATUS, status, 0);
             if (status[0] == GL.GL_FALSE) {
                 final int[] len = new int[1];
-                gl2.glGetShaderiv(shader, GL2.GL_INFO_LOG_LENGTH, len, 0);
+                gl.glGetShaderiv(shader, GL2.GL_INFO_LOG_LENGTH, len, 0);
                 final byte[] log = new byte[len[0]];
-                gl2.glGetShaderInfoLog(shader, len[0], null, 0, log, 0);
+                gl.glGetShaderInfoLog(shader, len[0], null, 0, log, 0);
                 SNTUtils.log("ArborVBO: shader compile error: " + new String(log));
-                gl2.glDeleteShader(shader);
+                gl.glDeleteShader(shader);
                 return 0;
             }
             return shader;
