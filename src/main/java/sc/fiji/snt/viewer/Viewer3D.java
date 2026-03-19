@@ -3253,7 +3253,6 @@ public class Viewer3D {
             setMinimumSize(new Dimension((int) (DEF_WIDTH * .5), (int) (DEF_HEIGHT * .5))); // fix macOS issue in which
             // frame is collapsed
             if (includeManager) {
-                initManager();
                 chart.viewer.managerList.selectAll();
                 // Dispatch scene shortcut keys to keyController when focus is on
                 // the manager panel's children (e.g., managerList). A JDialog would
@@ -3321,16 +3320,7 @@ public class Viewer3D {
 
         private void initManager() {
             managerPanel = new ManagerPanel();
-            final int panelWidth = managerPanel.getMinimumSize().width;
             splitPane.setRightComponent(managerPanel);
-            // widen the frame to accommodate the manager panel
-            final Insets insets = getInsets();
-            final int frameDecor = insets.left + insets.right;
-            final int newWidth = getWidth() + panelWidth + splitPane.getDividerSize();
-            setSize(newWidth, getHeight());
-            setPreferredSize(getSize());
-            // divider location is in split pane coordinates (frame content area)
-            splitPane.setDividerLocation(newWidth - frameDecor - panelWidth - splitPane.getDividerSize());
             managerList.addKeyListener(getCmdFinderKeyAdapter());
             chart.getCanvas().addKeyController(getCmdFinderKeyAdapter());
             managerVisible = true;
@@ -3430,6 +3420,9 @@ public class Viewer3D {
                 leftPanel.add(canvas, BorderLayout.CENTER);
                 leftPanel.add(status, BorderLayout.SOUTH);
                 splitPane.setLeftComponent(leftPanel);
+                // Create and attach manager panel before pack() so the frame
+                // is sized correctly on first display, avoiding flicker
+                initManager();
                 add(splitPane, BorderLayout.CENTER);
             } else {
                 // Kiosk/non-interactive mode: canvas and status bar directly in frame
@@ -3437,11 +3430,11 @@ public class Viewer3D {
                 add(status, BorderLayout.SOUTH);
             }
             setBackground(status.getBackground());
-            pack();
+            final int panelWidth = (managerPanel != null)
+                    ? managerPanel.getMinimumSize().width + splitPane.getDividerSize() : 0;
             canvas.setPreferredSize(new Dimension(bounds.width, bounds.height));
-            setPreferredSize(new Dimension(bounds.width, bounds.height + status.getHeight()));
-            canvas.setSize(new Dimension(bounds.width, bounds.height));
-            setSize(new Dimension(bounds.width, bounds.height + status.getHeight()));
+            setPreferredSize(new Dimension(bounds.width + panelWidth, bounds.height + status.getPreferredSize().height));
+            pack();
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(final WindowEvent e) {
@@ -4015,6 +4008,7 @@ public class Viewer3D {
         private JCheckBoxMenuItem debugCheckBox;
         private final SNTSearchableBar searchableBar;
         private final ProgressBar progressBar;
+        private final GuiUtils mgrGuiUtils = new GuiUtils(this);
         private Debugger debugger;
         private boolean disableActions;
 
@@ -4036,7 +4030,7 @@ public class Viewer3D {
             super();
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             searchableBar = new SNTSearchableBar(new ListSearchable(managerList));
-            searchableBar.setGuiUtils(guiUtils());
+            searchableBar.setGuiUtils(mgrGuiUtils);
             searchableBar.setVisibleButtons(//SNTSearchableBar.SHOW_CLOSE |
                     SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
             setFixedHeight(searchableBar);
@@ -4078,7 +4072,7 @@ public class Viewer3D {
             progressBar = new ProgressBar();
             add(progressBar);
             add(buttonPanel());
-            fileDropWorker = new FileDropWorker(managerList, guiUtils());
+            fileDropWorker = new FileDropWorker(managerList, mgrGuiUtils);
         }
 
         private JCheckBoxMenuItem getDebugCheckBox() {
@@ -4222,7 +4216,7 @@ public class Viewer3D {
             static final String ENTER_FULL_SCREEN = "Full Screen";
             static final String FIND = "Toggle Selection Toolbar";
             static final String PROGRESS = "Toggle Progress Bar";
-            static final String FIT = "Fit to Visible Objects";
+            static final String FIT = "Fit To Visible Objects";
             static final String LOG_TO_RECORDER = "Log Scene Details to Recorder";
             static final String NONE = "None";
             static final String REBUILD = "Rebuild Scene...";
@@ -4287,7 +4281,7 @@ public class Viewer3D {
                         progressBar.setVisible(!progressBar.isShowing());
                     }
                     case ENTER_FULL_SCREEN -> frame.enterFullScreen();
-                    case RESIZE -> frame.resizeScene(guiUtils());
+                    case RESIZE -> frame.resizeScene(mgrGuiUtils);
                     case FIT -> fitToVisibleObjects(true, true);
                     case LOG_TO_RECORDER -> {
                         openRecorder(false);
@@ -4298,13 +4292,13 @@ public class Viewer3D {
                         managerList.clearSelection();
                     }
                     case REBUILD -> {
-                        if (guiUtils().getConfirmation("Rebuild 3D Scene Completely?", "Force Rebuild")) {
+                        if (mgrGuiUtils.getConfirmation("Rebuild 3D Scene Completely?", "Force Rebuild")) {
                             rebuild();
                         }
                     }
                     case RELOAD -> {
                         if (!sceneIsOK()
-                                && guiUtils().getConfirmation("Scene was reloaded but some objects have invalid attributes. "
+                                && mgrGuiUtils.getConfirmation("Scene was reloaded but some objects have invalid attributes. "
                                 + "Rebuild 3D Scene Completely?", "Rebuild Required")) {
                             rebuild();
                         } else {
@@ -4323,7 +4317,7 @@ public class Viewer3D {
                                 rebuild();
                             displayMsg("Path Manager contents updated");
                         } catch (final IllegalArgumentException ex) {
-                            guiUtils().error(ex.getMessage());
+                            mgrGuiUtils.error(ex.getMessage());
                         }
                     }
                     case TAG -> {
@@ -4331,7 +4325,7 @@ public class Viewer3D {
                             return;
                         final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                         if (managerList.isSelectionEmpty() && !all) return;
-                        final String tags = guiUtils().getString("Enter one or more tags (space or "
+                        final String tags = mgrGuiUtils.getString("Enter one or more tags (space or "
                                         + "comma- separated list) to be assigned to selected items. Tags encoding "
                                         + "a color (e.g., 'red', 'lightblue') will be use to highlight entries. "
                                         + "After dismissing this dialog:<ul>"
@@ -4362,7 +4356,7 @@ public class Viewer3D {
 
             private void openRecorder(final boolean warnIfOpen) {
                 if (getRecorder(false) != null) {
-                    if (warnIfOpen) guiUtils().error("Script Recorder is already open.");
+                    if (warnIfOpen) mgrGuiUtils.error("Script Recorder is already open.");
                     return;
                 }
                 final StringBuilder sb = new StringBuilder();
@@ -4416,33 +4410,25 @@ public class Viewer3D {
 
         private JPopupMenu sceneMenu() {
             final JPopupMenu sceneMenu = new JPopupMenu();
-            sceneMenu.add(menuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false), GLYPH.SUN));
-            sceneMenu.addSeparator();
+            GuiUtils.addSeparator(sceneMenu, "View");
             sceneMenu.add(menuItem(new Action(Action.FIT, KeyEvent.VK_F, false, false), GLYPH.EXPAND));
             sceneMenu.add(zoomToSelectionMenuItem());
-            // Aspect-ratio controls
-            sceneMenu.add(squarifyMenu());
-            sceneMenu.add(axesMenu());
-            sceneMenu.add(scaleBarMenu());
-            final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
-            jcbmiFill.setIcon(IconFactory.menuIcon(GLYPH.EXPAND_ARROWS1));
-            jcbmiFill.addItemListener(e -> {
-                final ViewportMode mode = (jcbmiFill.isSelected()) ? ViewportMode.STRETCH_TO_FILL
-                        : ViewportMode.RECTANGLE_NO_STRETCH;
-                view.getCamera().setViewportMode(mode);
-            });
-            sceneMenu.add(jcbmiFill);
             sceneMenu.add(menuItem(new Action(Action.RESIZE), GLYPH.RESIZE));
             sceneMenu.add(menuItem(new Action(Action.ENTER_FULL_SCREEN, KeyEvent.VK_F, false, true), GLYPH.EXPAND_ARROWS2));
-            sceneMenu.addSeparator();
+
+            GuiUtils.addSeparator(sceneMenu, "Appearance");
+            sceneMenu.add(squarifyMenu()); // Aspect-ratio controls
+            sceneMenu.add(axesMenu());
+            sceneMenu.add(scaleBarMenu());
+            sceneMenu.add(menuItem(new Action(Action.TOGGLE_DARK_MODE, KeyEvent.VK_D, false, false), GLYPH.SUN));
+
+            GuiUtils.addSeparator(sceneMenu, "Scene");
             sceneMenu.add(menuItem(new Action(Action.RESET_VIEW, KeyEvent.VK_R, false, false), GLYPH.BROOM));
             sceneMenu.add(menuItem(new Action(Action.RELOAD, KeyEvent.VK_R, false, true), GLYPH.REDO));
             sceneMenu.add(menuItem(new Action(Action.REBUILD, KeyEvent.VK_R, true, true), GLYPH.RECYCLE));
             sceneMenu.add(menuItem("Wipe Scene...", GLYPH.DANGER, e -> wipeWithPrompt()));
-            sceneMenu.addSeparator();
-            new Action(Action.SCENE_SHORTCUTS_NOTIFICATION, KeyEvent.VK_H, false, false); // register alternative shortcut
-            sceneMenu.add(menuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false), GLYPH.KEYBOARD));
-            sceneMenu.addSeparator();
+
+            GuiUtils.addSeparator(sceneMenu, "Utilities");
             final JMenuItem sup = menuItem("Duplicate Scene", GLYPH.COPY, e -> {
                 class DupWorker extends SwingWorker<Viewer3D, Object> {
                     @Override
@@ -4457,10 +4443,10 @@ public class Viewer3D {
                             dup.view.setBoundsManual(view.getBounds().clone());
                         } catch (final OutOfMemoryError e1) {
                             e1.printStackTrace();
-                            guiUtils().error("There is not enough memory to complete command. See Console for details.");
+                            mgrGuiUtils.error("There is not enough memory to complete command. See Console for details.");
                         } catch (NullPointerException | InterruptedException | ExecutionException e2) {
                             e2.printStackTrace();
-                            guiUtils().error("Unfortunately an error occurred. See Console for details.");
+                            mgrGuiUtils.error("Unfortunately an error occurred. See Console for details.");
                         } finally {
                             removeProgressLoad(-1);
                         }
@@ -4481,7 +4467,7 @@ public class Viewer3D {
             fitToSelection.addActionListener(e -> {
                 List<?> selection = managerList.getSelectedValuesList();
                 if (managerList.getSelectedIndex() == -1 || selection.isEmpty()) {
-                    guiUtils().error("No items are currently selected.");
+                    mgrGuiUtils.error("No items are currently selected.");
                     return;
                 }
                 if (selection.size() == 1 && CheckBoxList.ALL_ENTRY.equals(selection.getFirst())) {
@@ -4495,16 +4481,26 @@ public class Viewer3D {
         }
 
         private JMenu squarifyMenu() {
-            final JMenu menu = new JMenu("Isotropic Scaling Mode");
+            final JMenu menu = new JMenu("Aspect Ratio/Scaling");
             menu.setIcon(IconFactory.menuIcon(GLYPH.EQUALS));
             final ButtonGroup cGroup = new ButtonGroup();
-            final String[] axes = new String[] { "XY", "XZ", "YX", "YZ", "ZX", "ZY", "None"};
+            final String[] axes = new String[] { "XY", "XZ", "YX", "YZ", "ZX", "ZY", "Default"};
             for (final String axis : axes) {
-                final JMenuItem jcbmi = new JCheckBoxMenuItem(axis, axis.startsWith("None"));
+                final String label = axis.equals("Default") ? "Default" : "Isotropic " + axis;
+                final JMenuItem jcbmi = new JCheckBoxMenuItem(label, axis.startsWith("Default"));
                 cGroup.add(jcbmi);
                 jcbmi.addItemListener(e -> squarify(axis));
                 menu.add(jcbmi);
             }
+            menu.addSeparator();
+            final JMenuItem jcbmiFill = new JCheckBoxMenuItem("Stretch-to-Fill");
+            jcbmiFill.setIcon(IconFactory.menuIcon(GLYPH.EXPAND_ARROWS1));
+            jcbmiFill.addItemListener(e -> {
+                final ViewportMode mode = (jcbmiFill.isSelected()) ? ViewportMode.STRETCH_TO_FILL
+                        : ViewportMode.RECTANGLE_NO_STRETCH;
+                view.getCamera().setViewportMode(mode);
+            });
+            menu.add(jcbmiFill);
             return menu;
         }
 
@@ -4514,7 +4510,7 @@ public class Viewer3D {
             jmi.addActionListener(e -> {
                 final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
                         view.getAxisLayout().getZAxisLabel() };
-                final String[] labels = guiUtils().getStrings("Axes Labels...",
+                final String[] labels = mgrGuiUtils.getStrings("Axes Labels...",
                         new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
                 if (labels != null)
                     setAxesLabels(labels);
@@ -4550,13 +4546,13 @@ public class Viewer3D {
             toggle.addItemListener(e -> {
                 chart.overlayAnnotation.scaleBarEnabled = toggle.isSelected();
                 if (toggle.isSelected() && !chart.overlayAnnotation.scaleBarUnitSet)
-                    guiUtils().tempMsg("Scale bar assumes " + chart.overlayAnnotation.scaleBarUnit
+                    mgrGuiUtils.tempMsg("Scale bar assumes " + chart.overlayAnnotation.scaleBarUnit
                             + ". Use Set Base Unit... to change.");
             });
             menu.add(toggle);
             final JMenuItem unitItem = menuItem("Set Base Unit...", GLYPH.PEN, e -> {
                 final String[] choices = { "µm", "nm", "mm", "pixels" };
-                final String choice = guiUtils().getChoice(
+                final String choice = mgrGuiUtils.getChoice(
                         "Specify the base unit of the scene coordinates:",
                         "Scale Bar Unit", choices, chart.overlayAnnotation.scaleBarUnit);
                 if (choice == null) return;
@@ -4593,7 +4589,7 @@ public class Viewer3D {
                 if (noLoadedItemsGuiError()) return;
                 final boolean all = managerList.isSelectionEmpty() && isSelectAllIfNoneSelected();
                 if (managerList.isSelectionEmpty() && !all) return;
-                if (guiUtils().getConfirmation("Remove all tags from " + ((all) ? "all" : "selected") + " items?",
+                if (mgrGuiUtils.getConfirmation("Remove all tags from " + ((all) ? "all" : "selected") + " items?",
                         "Dispose All Tags?")) {
                     managerList.removeTagsFromSelectedItems(all);
                 }
@@ -4614,10 +4610,10 @@ public class Viewer3D {
                 }
                 final List<?> selectedKeys = managerList.getSelectedValuesList();
                 if (managerList.getSelectedIndex() == -1 || selectedKeys.isEmpty()) {
-                    guiUtils().error("There are no selected entries.");
+                    mgrGuiUtils.error("There are no selected entries.");
                     return;
                 }
-                if (guiUtils().getConfirmation("Remove selected item(s)?", "Confirm Deletion?")) {
+                if (mgrGuiUtils.getConfirmation("Remove selected item(s)?", "Confirm Deletion?")) {
                     managerList.model.setListenersEnabled(false);
                     selectedKeys.forEach(k -> {
                         if (k.equals(CheckBoxList.ALL_ENTRY))
@@ -4688,22 +4684,47 @@ public class Viewer3D {
         }
 
         private void wipeWithPrompt() {
-            if (guiUtils().getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?"))
+            if (mgrGuiUtils.getConfirmation("Remove all items from scene? This action cannot be undone.", "Wipe Scene?"))
                 wipeScene();
         }
 
         private boolean noLoadedItemsGuiError() {
             final boolean noItems = plottedTrees.isEmpty() && plottedObjs.isEmpty() && plottedAnnotations.isEmpty();
             if (noItems) {
-                guiUtils().error("There are no loaded items.");
+                mgrGuiUtils.error("There are no loaded items.");
             }
             return noItems;
         }
 
         private void setSomasDisplayedOfSelectedTrees(final boolean display) {
             final List<String> keys = getSelectedTreeLabels();
-            if (keys != null)
-                setSomasDisplayed(keys, display);
+            if (keys == null) return;
+            setSomasDisplayed(keys, display);
+            if (!display) return;
+            // Collect trees whose soma is undefined (somaSubShape == null)
+            final List<String> noSomaKeys = new ArrayList<>();
+            for (final String k : keys) {
+                final ShapeTree st = plottedTrees.get(k);
+                if (st != null && st.somaSubShape == null)
+                    noSomaKeys.add(k);
+            }
+            if (noSomaKeys.isEmpty()) return;
+            final String msg = noSomaKeys.size() == 1
+                    ? "1 of " + keys.size() + " trees has no soma defined. Highlight its root node instead?"
+                    : noSomaKeys.size() + " of " + keys.size() + " trees have no soma defined. Highlight their root instead?";
+            if (!mgrGuiUtils.getConfirmation(msg, "Missing Soma")) return;
+            for (final String k : noSomaKeys) {
+                final ShapeTree st = plottedTrees.get(k);
+                final PointInImage root = st.tree.getRoot();
+                if (root == null) continue;
+                final Color arborColor = st.getArborColor();
+                final ColorRGB color = (arborColor != null) ? toColorRGB(arborColor) : st.tree.getColor();
+                final float treeThickness = (st.arborVBO == null) ? defThickness : st.arborVBO.getWidth();
+                final float radius = ShapeTree.SOMA_SCALING_FACTOR * treeThickness;
+                final String annotLabel = k + " [root]";
+                final Annotation3D annot = annotatePoint(root, annotLabel, color.toString(), radius);
+                annot.setColor(annot.getColor(), 30);
+            }
         }
 
         private void setBoundingBoxDisplayedOfSelectedMeshes(final boolean display) {
@@ -4752,8 +4773,11 @@ public class Viewer3D {
             for (final String k : map.keySet()) {
                 indices[i++] = managerList.model.indexOf(k);
             }
-            managerList.setSelectedIndices(indices);
-            managerList.setCheckBoxListSelectedIndices(indices);
+            SwingUtilities.invokeLater(() -> {
+                managerList.setValueIsAdjusting(true);
+                managerList.setCheckBoxListSelectedIndices(indices);
+                managerList.setValueIsAdjusting(false);
+            });
         }
 
         private void setVisible(final String key, final boolean visible) {
@@ -4768,9 +4792,17 @@ public class Viewer3D {
         }
 
         private void hide(final Map<String, ?> map) {
-            final List<String> selectedKeys = new ArrayList<>(getLabelsCheckedInManager());
-            selectedKeys.removeAll(map.keySet());
-            managerList.setSelectedObjects(selectedKeys.toArray());
+            final int[] indices = map.keySet().stream()
+                    .mapToInt(k -> managerList.model.indexOf(k))
+                    .filter(idx -> idx >= 0)
+                    .toArray();
+            SwingUtilities.invokeLater(() -> {
+                managerList.setValueIsAdjusting(true);
+                for (final int idx : indices) {
+                    managerList.removeCheckBoxListSelectedIndex(idx);
+                }
+                managerList.setValueIsAdjusting(false);
+            });
         }
 
         private Tree getSingleSelectionTree() {
@@ -4782,7 +4814,7 @@ public class Viewer3D {
             final List<Tree> trees = getSelectedTrees(false);
             if (trees == null) return null;
             if (trees.size() != 1) {
-                guiUtils().error(
+                mgrGuiUtils.error(
                         "This command requires a single reconstruction to be selected.");
                 return null;
             }
@@ -4795,7 +4827,7 @@ public class Viewer3D {
             final Set<Integer> types = tree.getSWCTypes(false);
             if (types.size() == 1)
                 return tree;
-            final String compartment = guiUtils().getChoice("Compartment:", "Which Neuronal Processes?",
+            final String compartment = mgrGuiUtils.getChoice("Compartment:", "Which Neuronal Processes?",
                     new String[] { "All", "Axon", "Dendrites" }, prefs.treeCompartmentChoice);
             if (compartment == null)
                 return null;
@@ -4804,7 +4836,7 @@ public class Viewer3D {
                 tree = tree.subTree(compartment);
                 if (tree.isEmpty()) {
                     final String treeLabel = (tree.getLabel() == null) ? "Reconstruction" : tree.getLabel();
-                    guiUtils().error(treeLabel + " does not contain processes tagged as \"" + compartment + "\".");
+                    mgrGuiUtils.error(treeLabel + " does not contain processes tagged as \"" + compartment + "\".");
                     return null;
                 }
             }
@@ -4819,7 +4851,7 @@ public class Viewer3D {
             final List<String> keys = getSelectedKeys(plottedTrees, "reconstructions", promptForAllIfNone);
             if (keys == null) return null; // user pressed cancel on prompt
             if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
-                guiUtils().error("There are no selected reconstructions.");
+                mgrGuiUtils.error("There are no selected reconstructions.");
                 return null;
             }
             final List<Tree> trees = new ArrayList<>();
@@ -4843,7 +4875,7 @@ public class Viewer3D {
             final List<String> keys = getSelectedKeys(plottedAnnotations, "annotations", allowAllIfNone);
             if (keys == null) return null; // user pressed cancel on prompt
             if (keys.isEmpty()) { // a selection existed but it did not contain plottedTrees
-                guiUtils().error("There are no selected annotations.");
+                mgrGuiUtils.error("There are no selected annotations.");
                 return null;
             }
             final List<Annotation3D> annots = new ArrayList<>();
@@ -4867,7 +4899,7 @@ public class Viewer3D {
                                              final String mapDescriptor, final boolean allowAllIfNone)
         {
             if (map.isEmpty()) {
-                guiUtils().error("There are no loaded " + mapDescriptor + ".");
+                mgrGuiUtils.error("There are no loaded " + mapDescriptor + ".");
                 return null;
             }
             final List<?> selectedValues = managerList.getSelectedValuesList();
@@ -4882,7 +4914,7 @@ public class Viewer3D {
                 return allKeys;
             if (allowAllIfNone && selectedKeys.isEmpty()) {
                 if (isSelectAllIfNoneSelected()) return allKeys;
-                guiUtils().error("There are no selected " + mapDescriptor + ".");
+                mgrGuiUtils.error("There are no selected " + mapDescriptor + ".");
                 return null;
             }
             allKeys.retainAll(selectedKeys);
@@ -4891,7 +4923,7 @@ public class Viewer3D {
 
         private boolean isSelectAllIfNoneSelected() {
             if (prefs.nagUserOnRetrieveAll) {
-                final boolean[] options = guiUtils().getPersistentConfirmation("There are no items selected. "//
+                final boolean[] options = mgrGuiUtils.getPersistentConfirmation("There are no items selected. "//
                         + "Run command on all eligible items?", "Extend to All If None Selected?");
                 prefs.retrieveAllIfNoneSelected = options[0];
                 prefs.nagUserOnRetrieveAll = !options[1];
@@ -5024,14 +5056,14 @@ public class Viewer3D {
 
         private JPopupMenu measureMenu() {
             final JPopupMenu measureMenu = new JPopupMenu();
-            GuiUtils.addSeparator(measureMenu, "Tabular Results:");
+            GuiUtils.addSeparator(measureMenu, "Tabular Results");
             JMenuItem mi = GuiUtils.MenuItems.measureOptions();
             mi.addActionListener(e -> runMeasureOptionsAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.measureQuick();
             mi.addActionListener(e -> runMeasureQuickAction());
             measureMenu.add(mi);
-            GuiUtils.addSeparator(measureMenu, "Distribution Analyses:");
+            GuiUtils.addSeparator(measureMenu, "Distribution Analyses");
             final JMenuItem branchProps = menuItem("Branch Properties...", GLYPH.CHART,
                     e -> runBranchPropertiesAnalysisAction());
             branchProps.setToolTipText("Computes distributions of metrics from all the branches of selected trees");
@@ -5040,7 +5072,7 @@ public class Viewer3D {
                     e -> runCellPropertiesAnalysisAction());
             cellProps.setToolTipText("Computes distributions of metrics from individual cells");
             measureMenu.add(cellProps);
-            GuiUtils.addSeparator(measureMenu, "Specialized Analyses:");
+            GuiUtils.addSeparator(measureMenu, "Specialized Analyses");
             final JMenuItem convexHullMenuItem = GuiUtils.MenuItems.convexHull();
             convexHullMenuItem.addActionListener(e -> runConvexHullAction());
             measureMenu.add(convexHullMenuItem);
@@ -5060,20 +5092,20 @@ public class Viewer3D {
             mi = GuiUtils.MenuItems.strahlerAnalysis();
             mi.addActionListener(e -> runStrahlerAnalysisAction());
             measureMenu.add(mi);
-            GuiUtils.addSeparator(measureMenu, "Atlas-based Analyses:");
+            GuiUtils.addSeparator(measureMenu, "Atlas-based Analyses");
             mi = GuiUtils.MenuItems.createAnnotationGraph();
             mi.addActionListener(e -> runAnnotationGraphAction());
             measureMenu.add(mi);
             mi = GuiUtils.MenuItems.brainAreaAnalysis();
             mi.addActionListener(e -> runBrainAreaAnalysisAction());
             measureMenu.add(mi);
-            GuiUtils.addSeparator(measureMenu, "Data Export:");
+            GuiUtils.addSeparator(measureMenu, "Data Export");
             mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
             mi.addActionListener(e -> {
                 runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
             });
             measureMenu.add(mi);
-            //measureMenu.add(guiUtils().combineChartsMenuItem());
+            //measureMenu.add(mgrGuiUtils.combineChartsMenuItem());
             return measureMenu;
         }
 
@@ -5153,7 +5185,7 @@ public class Viewer3D {
             // Pre-select current state if all selected meshes share the same hemisphere
             final String current = plottedObjs.get(keys.getFirst()).objMesh.getDisplayedHemisphere();
             final String def = "left".equals(current) ? choices[1] : "right".equals(current) ? choices[2] : choices[0];
-            final String choice = guiUtils().getChoice("Display hemisphere:", "Mesh Hemisphere", choices, def);
+            final String choice = mgrGuiUtils.getChoice("Display hemisphere:", "Mesh Hemisphere", choices, def);
             if (choice == null) return;
             final String hemi = choice.startsWith("Left") ? "left" : choice.startsWith("Right") ? "right" : "both";
             setHemisphereOfSelectedMeshes(keys, hemi);
@@ -5165,7 +5197,7 @@ public class Viewer3D {
         }
 
         private void addCustomizeMeshCommands(final JPopupMenu menu) {
-            GuiUtils.addSeparator(menu, "Customize:");
+            GuiUtils.addSeparator(menu, "Customize");
             menu.add(menuItem("All Parameters...", GLYPH.SLIDERS, e -> customizeSelectedMeshesAllParametersAction()));
             menu.add(menuItem("Color...", GLYPH.COLOR, e -> customizeSelectedMeshesColorAction()));
             menu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> customizeSelectedMeshesTransparencyAction()));
@@ -5203,7 +5235,7 @@ public class Viewer3D {
                     @SuppressWarnings("unchecked")
                     final HashMap<String, Double> sizeMap = (HashMap<String, Double>) cmdModule.getInput("sizeMap");
                     if (colorMap == null || sizeMap == null) {
-                        guiUtils().error("Command execution failed.");
+                        mgrGuiUtils.error("Command execution failed.");
                         return;
                     }
 
@@ -5279,13 +5311,13 @@ public class Viewer3D {
             if (isSNTInstance()) {
                 msg += " This value only affects how Paths are displayed in the Reconstruction Viewer.";
             }
-            final Double thickness = guiUtils().getDouble(msg, "Path Thickness",
+            final Double thickness = mgrGuiUtils.getDouble(msg, "Path Thickness",
                     getDefaultThickness(), 1d, 10d, "");
             if (thickness == null) {
                 return; // user pressed cancel
             }
             if (Double.isNaN(thickness) || thickness <= 0) {
-                guiUtils().error("Invalid thickness value.");
+                mgrGuiUtils.error("Invalid thickness value.");
                 return;
             }
             setRadiusScale(keys, thickness.floatValue());
@@ -5301,12 +5333,12 @@ public class Viewer3D {
             if (isSNTInstance()) {
                 msg += " This value will only affect how Paths are displayed in the Reconstruction Viewer.";
             }
-            final Double radius = guiUtils().getDouble(msg, "Soma radius", 10);
+            final Double radius = mgrGuiUtils.getDouble(msg, "Soma radius", 10);
             if (radius == null) {
                 return; // user pressed cancel
             }
             if (Double.isNaN(radius) || radius <= 0) {
-                guiUtils().error("Invalid radius.");
+                mgrGuiUtils.error("Invalid radius.");
                 return;
             }
             setSomasDisplayed(keys, true);
@@ -5327,18 +5359,18 @@ public class Viewer3D {
                 return; // error already displayed
             }
             if (trees.size() > 1) {
-                guiUtils().error("Please select a single reconstruction.");
+                mgrGuiUtils.error("Please select a single reconstruction.");
                 return;
             }
             final double angle = TreeUtils.computeUprightAngle(trees.getFirst(), false);
             if (Double.isNaN(angle)) {
-                guiUtils().error("Could not compute upright angle.");
+                mgrGuiUtils.error("Could not compute upright angle.");
                 return;
             }
             try {
                 rotate((float) angle);
             } catch (final IllegalArgumentException e) {
-                guiUtils().error(e.getMessage() + ".");
+                mgrGuiUtils.error(e.getMessage() + ".");
             }
         }
 
@@ -5357,15 +5389,15 @@ public class Viewer3D {
                     e -> assignUniqueColorsToSelectedTreesAction());
             menu.add(menuItem("Thickness...", GLYPH.DOTCIRCLE, e -> setSelectedTreeThicknessAction()));
             menu.add(menuItem("Soma radius...", GLYPH.CIRCLE, e -> setSelectedSomaRadiusAction()));
-            menu.add(menuItem("Translate...", GLYPH.MOVE, e -> translateSelectedTreesAction()));
         }
 
         private JPopupMenu utilsMenu() {
             final JPopupMenu utilsMenu = new JPopupMenu();
-            GuiUtils.addSeparator(utilsMenu, "Utilities:");
+            GuiUtils.addSeparator(utilsMenu, "Tools");
             utilsMenu.add(menuItem("Annotation Label...", GLYPH.PEN,
                     e -> runCmd(AddTextAnnotationCmd.class, null, CmdWorker.DO_NOTHING, true, false)));
             utilsMenu.add(legendMenu());
+            utilsMenu.add(menuItem("Light Controls...", GLYPH.BULB, e -> frame.displayLightController(null)));
             if (!isSNTInstance()) {
                 final JMenuItem jmi = GuiUtils.MenuItems.renderQuick();
                 jmi.addActionListener(e -> {
@@ -5377,22 +5409,7 @@ public class Viewer3D {
                 });
                 utilsMenu.add(jmi);
             }
-            utilsMenu.add(menuItem("Light Controls...", GLYPH.BULB, e -> frame.displayLightController(null)));
-            GuiUtils.addSeparator(utilsMenu, "Animation:");
-            final ButtonGroup animGroup = new ButtonGroup();
-            final AnimationMode persistedMode = prefs.getAnimationModePref();
-            setAnimationMode(persistedMode); // sync runtime with persisted pref
-            for (final AnimationMode mode : AnimationMode.values()) {
-                final String label = (mode == AnimationMode.FULL_ROTATION) ? "Full Rotation" : "Ping-pong";
-                final JMenuItem jcbmi = new JCheckBoxMenuItem(label);
-                jcbmi.setSelected(mode == persistedMode);
-                jcbmi.addItemListener(ev -> {
-                    setAnimationMode(mode);
-                    prefs.setAnimationModePref(mode);
-                });
-                animGroup.add(jcbmi);
-                utilsMenu.add(jcbmi);
-            }
+            GuiUtils.addSeparator(utilsMenu, "Capture");
             utilsMenu.add(menuItem("Record Animation...", GLYPH.VIDEO, e -> {
                 final String[] choices = {
                     "Z-axis (azimuth sweep)",
@@ -5401,7 +5418,7 @@ public class Viewer3D {
                 };
                 final boolean pingPong = getAnimationMode() == AnimationMode.PING_PONG;
                 final String modeLabel = pingPong ? "ping-pong" : "full";
-                final String rAxis = guiUtils().getChoice(
+                final String rAxis = mgrGuiUtils.getChoice(
                     "Record " + modeLabel + " rotation around which axis?\n"
                     + "(NB: Angle, duration, and animation mode can be adjusted in Preferences)",
                     "Record Animation", choices, choices[0]);
@@ -5411,12 +5428,13 @@ public class Viewer3D {
                     new RecordWorker(RotationAxis.fromString(rAxis)).execute();
                 });
             }));
-            GuiUtils.addSeparator(utilsMenu, "Screenshots:");
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem("Show Snapshot Directory", GLYPH.OPEN_FOLDER,
-                    e -> guiUtils().showDirectory(prefs.getSnapshotDir())));
-            GuiUtils.addSeparator(utilsMenu, "Resources:");
+                    e -> mgrGuiUtils.showDirectory(prefs.getSnapshotDir())));
+            GuiUtils.addSeparator(utilsMenu, "Resources");
+            new Action(Action.SCENE_SHORTCUTS_NOTIFICATION, KeyEvent.VK_H, false, false); // register alternative shortcut
+            utilsMenu.add(menuItem(new Action(Action.SCENE_SHORTCUTS_LIST, KeyEvent.VK_F1, false, false), GLYPH.KEYBOARD));
             final JMenu helpMenu = GuiUtils.MenuItems.helpMenu(cmdFinder);
             helpMenu.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
             utilsMenu.add(helpMenu);
@@ -5425,10 +5443,10 @@ public class Viewer3D {
 
         private JPopupMenu scriptingMenu() {
             final JPopupMenu scriptMenu = new JPopupMenu();
-            GuiUtils.addSeparator(scriptMenu, "New Script:");
+            GuiUtils.addSeparator(scriptMenu, "New Script");
             scriptMenu.add(menuItem(new Action(Action.RECORDER, KeyEvent.VK_OPEN_BRACKET, false, false), GLYPH.CODE));
             scriptMenu.add(menuItem(new Action(Action.LOG_TO_RECORDER, KeyEvent.VK_L, false, false), GLYPH.STREAM));
-            GuiUtils.addSeparator(scriptMenu, "Resources:");
+            GuiUtils.addSeparator(scriptMenu, "Resources");
             scriptMenu.add(GuiUtils.MenuItems.devResourceJavaAPI());
             scriptMenu.add(GuiUtils.MenuItems.devResourcePythonAPI());
             scriptMenu.add(GuiUtils.MenuItems.devResourceMain());
@@ -5437,22 +5455,23 @@ public class Viewer3D {
 
         private JPopupMenu prefsMenu() {
             final JPopupMenu prefsMenu = new JPopupMenu();
-            GuiUtils.addSeparator(prefsMenu, "Layout:");
+            GuiUtils.addSeparator(prefsMenu, "Layout");
             prefsMenu.add(menuItem(new Action(Action.TOGGLE_CONTROL_PANEL, KeyEvent.VK_C, false, true), GLYPH.TABLE_COLUMNS));
-            GuiUtils.addSeparator(prefsMenu, "Keyboard & Mouse Sensitivity:");
+            GuiUtils.addSeparator(prefsMenu, "Controls");
             prefsMenu.add(panMenu());
             prefsMenu.add(zoomMenu());
             prefsMenu.add(rotationMenu());
+            prefsMenu.add(animationModeMenu());
 
-            GuiUtils.addSeparator(prefsMenu, "Neurite Rendering:");
+            GuiUtils.addSeparator(prefsMenu, "Neurite Rendering");
             prefsMenu.add(neuriteRenderingMenu());
             prefsMenu.add(smoothingMenu());
             prefsMenu.add(depthFogMenu());
 
-            GuiUtils.addSeparator(prefsMenu, "Mesh Rendering:");
+            GuiUtils.addSeparator(prefsMenu, "Mesh Rendering");
             prefsMenu.add(meshRenderingMenu());
 
-            GuiUtils.addSeparator(prefsMenu, "Advanced Settings:");
+            GuiUtils.addSeparator(prefsMenu, "Advanced");
             prefsMenu.add(getDebugCheckBox());
             if (ENGINE == Engine.JOGL) {
                 final JMenuItem jcbmi2 = new JCheckBoxMenuItem("Enable Hardware Acceleration",
@@ -5467,7 +5486,6 @@ public class Viewer3D {
                 prefsMenu.add(jcbmi2);
             }
 
-            GuiUtils.addSeparator(prefsMenu, "Other:");
             prefsMenu.add(menuItem("Preferences...", GLYPH.COGS,
                     e -> runCmd(RecViewerPrefsCmd.class, null, CmdWorker.RELOAD_PREFS, true, false)));
             return prefsMenu;
@@ -5502,6 +5520,26 @@ public class Viewer3D {
             return rotationMenu;
         }
 
+        private JMenu animationModeMenu() {
+            final JMenu animMenu = new JMenu("Animation Type");
+            animMenu.setIcon(IconFactory.menuIcon('\uf008', true));
+            final ButtonGroup animGroup = new ButtonGroup();
+            final AnimationMode persistedMode = prefs.getAnimationModePref();
+            setAnimationMode(persistedMode); // sync runtime with persisted pref
+            for (final AnimationMode mode : AnimationMode.values()) {
+                final String label = (mode == AnimationMode.FULL_ROTATION) ? "Full Rotation" : "Ping-pong";
+                final JMenuItem jcbmi = new JCheckBoxMenuItem(label);
+                jcbmi.setSelected(mode == persistedMode);
+                jcbmi.addItemListener(ev -> {
+                    setAnimationMode(mode);
+                    prefs.setAnimationModePref(mode);
+                });
+                animGroup.add(jcbmi);
+                animMenu.add(jcbmi);
+            }
+            return animMenu;
+        }
+
         private JMenu zoomMenu() {
             final JMenu zoomMenu = new JMenu("Zoom Steps (+/- Keys)");
             zoomMenu.setIcon(IconFactory.menuIcon(GLYPH.SEARCH));
@@ -5522,8 +5560,8 @@ public class Viewer3D {
          * Simple Lines, Pseudo-Lighting, Shaded Tubes, Shaded Tubes (Wireframe).
          */
         private JMenu neuriteRenderingMenu() {
-            final JMenu menu = new JMenu("Style");
-            menu.setIcon(IconFactory.menuIcon(GLYPH.DOTCIRCLE));
+            final JMenu menu = new JMenu("Neurite Style");
+            menu.setIcon(IconFactory.menuIcon('\ue085', true));
             menu.setToolTipText("Choose how neurite paths are rendered");
             final ButtonGroup group = new ButtonGroup();
 
@@ -5598,7 +5636,7 @@ public class Viewer3D {
             // Tube detail control (only meaningful in tube modes)
             menu.addSeparator();
             menu.add(menuItem("Tube Sides...", GLYPH.SLIDERS, e -> {
-                final Integer sides = guiUtils().getInt(
+                final Integer sides = mgrGuiUtils.getInt(
                         "Number of sides for tube cross-sections (higher = smoother, slower).",
                         "Tube Detail", tubeSidesPref, 3, ArborVBO.MAX_TUBE_SIDES);
                 if (sides != null) setTubeSides(sides);
@@ -5628,8 +5666,8 @@ public class Viewer3D {
         }
 
         private JMenu meshRenderingMenu() {
-            final JMenu menu = new JMenu("Style");
-            menu.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
+            final JMenu menu = new JMenu("Mesh Style");
+            menu.setIcon(IconFactory.menuIcon('\ue085', true));
             menu.setToolTipText("Choose how surface meshes are rendered");
             final ButtonGroup group = new ButtonGroup();
 
@@ -5740,7 +5778,7 @@ public class Viewer3D {
                 }
                 if (error) {
                     displayMsg("Recording failure...");
-                    guiUtils().error(doneMessage);
+                    mgrGuiUtils.error(doneMessage);
                 }
                 else displayMsg(doneMessage);
             }
@@ -5748,14 +5786,14 @@ public class Viewer3D {
 
         private boolean okToApplyColor(final List<String> labelsOfselectedTrees) {
             if (!treesContainColoredNodes(labelsOfselectedTrees)) return true;
-            return guiUtils().getConfirmation("Some of the selected reconstructions " +
+            return mgrGuiUtils.getConfirmation("Some of the selected reconstructions " +
                             "seem to be color-coded. Apply homogeneous color nevertheless?",
                     "Override Color Code?");
         }
 
         private JPopupMenu treesMenu() {
             final JPopupMenu tracesMenu = new JPopupMenu();
-            GuiUtils.addSeparator(tracesMenu, "Add:");
+            GuiUtils.addSeparator(tracesMenu, "Add");
             final JMenuItem loadFile = menuItem("Load File...", GLYPH.IMPORT, e -> {
                 final Map<String, Object> inputs = new HashMap<>();
                 inputs.put("importDir", false);
@@ -5773,18 +5811,21 @@ public class Viewer3D {
             if (!isSNTInstance()) tracesMenu.add(loadDemoMenuItem());
             tracesMenu.add(remoteDatabaseMenu());
 
-            GuiUtils.addSeparator(tracesMenu, "Customize & Adjust:");
+            GuiUtils.addSeparator(tracesMenu, "Style");
             addCustomizeTreeCommands(tracesMenu);
-            tracesMenu.add(menuItem("Align View To Tree", GLYPH.RULER_VERTICAL, e -> makeSelectedTreeUprightAction()));
 
-            GuiUtils.addSeparator(tracesMenu, "Remove:");
+            GuiUtils.addSeparator(tracesMenu, "Utilities");
+            tracesMenu.add(menuItem("Translate...", GLYPH.MOVE, e -> translateSelectedTreesAction()));
+            tracesMenu.add(menuItem("Align View to Tree", GLYPH.RULER_VERTICAL, e -> makeSelectedTreeUprightAction()));
+
+            GuiUtils.addSeparator(tracesMenu, "Remove");
             tracesMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> {
                 final List<String> keys = getSelectedTreeLabels();
                 if (keys == null || keys.isEmpty()) {
-                    guiUtils().error("There are no selected reconstructions.");
+                    mgrGuiUtils.error("There are no selected reconstructions.");
                     return;
                 }
-                if (!guiUtils().getConfirmation("Delete " + keys.size() +
+                if (!mgrGuiUtils.getConfirmation("Delete " + keys.size() +
                         " reconstruction(s)?", "Confirm Deletion"))
                     return;
                 setSceneUpdatesEnabled(false);
@@ -5793,7 +5834,7 @@ public class Viewer3D {
                 updateView();
             }));
             tracesMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
-                if (guiUtils().getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
+                if (mgrGuiUtils.getConfirmation("Remove all reconstructions from scene?", "Remove All Reconstructions?"))
                     removeAllTrees();
             }));
             return tracesMenu;
@@ -5830,7 +5871,7 @@ public class Viewer3D {
                     if (choice != null)
                         addTrees(choice.getTrees(), "unique");
                 } catch (final Throwable ex) {
-                    guiUtils().error(ex.getMessage());
+                    mgrGuiUtils.error(ex.getMessage());
                     ex.printStackTrace();
                 }
             });
@@ -5848,7 +5889,7 @@ public class Viewer3D {
             final JMenuItem mi = new JMenuItem("Edit Last...", IconFactory.menuIcon(GLYPH.SLIDERS));
             mi.addActionListener(e -> {
                 if (cBar == null) {
-                    guiUtils().error("No Legend currently exists.");
+                    mgrGuiUtils.error("No Legend currently exists.");
                     return;
                 }
                 if (cmdService == null)
@@ -5876,7 +5917,7 @@ public class Viewer3D {
                         @SuppressWarnings("unchecked")
                         final HashMap<String, Double> outMap = (HashMap<String, Double>) cmdModule.getInput("outMap");
                         if (outMap == null) {
-                            guiUtils().error("Command execution failed.");
+                            mgrGuiUtils.error("Command execution failed.");
                             return;
                         }
                         updateColorBarLegend(outMap.get("min"), outMap.get("max"), outMap.get("fSize").floatValue());
@@ -5889,7 +5930,7 @@ public class Viewer3D {
             legendMenu.addSeparator();
             legendMenu.add(menuItem("Remove Last", GLYPH.DELETE, e -> removeColorLegends(true)));
             legendMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
-                if (guiUtils().getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
+                if (mgrGuiUtils.getConfirmation("Remove all color legends from scene?", "Remove All Legends?"))
                     removeColorLegends(false);
             }));
             return legendMenu;
@@ -5902,10 +5943,10 @@ public class Viewer3D {
         private void removeSelectedMeshesAction() {
             final List<String> keys = getSelectedMeshLabels();
             if (keys == null || keys.isEmpty()) {
-                guiUtils().error("There are no selected meshes.");
+                mgrGuiUtils.error("There are no selected meshes.");
                 return;
             }
-            if (!guiUtils().getConfirmation("Delete " + keys.size() + " mesh(es)?",
+            if (!mgrGuiUtils.getConfirmation("Delete " + keys.size() + " mesh(es)?",
                     "Confirm Deletion"))
             {
                 return;
@@ -5917,16 +5958,16 @@ public class Viewer3D {
         }
 
         private void removeAllMeshesAction() {
-            if (guiUtils().getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
+            if (mgrGuiUtils.getConfirmation("Remove all meshes from scene?", "Remove All Meshes?"))
                 removeAllMeshes();
         }
 
         private JPopupMenu meshMenu() {
             final JPopupMenu meshMenu = new JPopupMenu();
-            GuiUtils.addSeparator(meshMenu, "Add:");
+            GuiUtils.addSeparator(meshMenu, "Add");
             meshMenu.add(menuItem("Load OBJ File(s)...", GLYPH.IMPORT, e -> loadMeshFilesAction()));
             addCustomizeMeshCommands(meshMenu);
-            GuiUtils.addSeparator(meshMenu, "Remove:");
+            GuiUtils.addSeparator(meshMenu, "Remove");
             meshMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedMeshesAction()));
             meshMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> removeAllMeshesAction()));
             return meshMenu;
@@ -5956,7 +5997,7 @@ public class Viewer3D {
             if (trees == null)
                 return;
             final String[] choices = { "Branch points", "Tips" };
-            final String choice = guiUtils().getChoice("Generate surface from which structures?",
+            final String choice = mgrGuiUtils.getChoice("Generate surface from which structures?",
                     "Add Surface...", choices, choices[0]);
             if (choice == null)
                 return;
@@ -5978,7 +6019,7 @@ public class Viewer3D {
                     annot.setColor(toColorRGB(Utils.contrastColor(fromColorRGB(color))), 75);
             }
             if (!failures.isEmpty()) {
-                guiUtils().error(("Surfaces cannot be assemble from these 2D reconstructions: "
+                mgrGuiUtils.error(("Surfaces cannot be assemble from these 2D reconstructions: "
                         + failures +". Only 3D reconstructions are supported."));
             }
             updateView();
@@ -6008,7 +6049,7 @@ public class Viewer3D {
             if (meshLabels == null)
                 return;
             final String[] choices = { "Left hemisphere", "Right hemisphere", "Both hemispheres" };
-            final String choice = guiUtils().getChoice("Generate surface from which vertices?",
+            final String choice = mgrGuiUtils.getChoice("Generate surface from which vertices?",
                     "Add Surface...", choices, choices[0]);
             if (choice == null)
                 return;
@@ -6074,7 +6115,7 @@ public class Viewer3D {
                     failures.add(annot.getLabel());
             });
             if (!failures.isEmpty())
-                guiUtils().error(("The following annotations do not support color gradients: " + failures));
+                mgrGuiUtils.error(("The following annotations do not support color gradients: " + failures));
         }
 
         private void setSelectedAnnotationsTransparencyAction() {
@@ -6093,7 +6134,7 @@ public class Viewer3D {
                     .filter(a -> a.getDrawable() instanceof AbstractEnlightable)
                     .toList();
             if (enlightable.isEmpty()) {
-                guiUtils().error("Selected annotation(s) do not support surface rendering adjustments. "
+                mgrGuiUtils.error("Selected annotation(s) do not support surface rendering adjustments. "
                         + "Only primitive shapes (spheres, disks, polygons, etc.) are supported.");
                 return;
             }
@@ -6104,12 +6145,12 @@ public class Viewer3D {
             final List<Annotation3D> annots = getSelectedAnnotations();
             if (annots == null) return;
             if (annots.size() != 1) {
-                guiUtils().error("Please select a single annotation to rename.");
+                mgrGuiUtils.error("Please select a single annotation to rename.");
                 return;
             }
             final Annotation3D annot = annots.get(0);
             final String currentLabel = annot.getLabel();
-            final String newLabel = guiUtils().getString(
+            final String newLabel = mgrGuiUtils.getString(
                     "New label for \"" + currentLabel + "\":", "Rename Annotation", currentLabel);
             if (newLabel == null || newLabel.isBlank() || newLabel.equals(currentLabel)) return;
             final String[] labels = TagUtils.getUntaggedAndTaggedLabels(currentLabel);
@@ -6125,7 +6166,7 @@ public class Viewer3D {
             final List<Annotation3D> annots = getSelectedAnnotations();
             if (annots == null) return;
             final double def = Double.parseDouble(prefs.getGuiPref("aSize", "1"));
-            final Double size = guiUtils().getDouble(
+            final Double size = mgrGuiUtils.getDouble(
                     "Specify a size/thickness scaling factor (1–10) for the selected annotation(s).",
                     "Annotation(s) Size...", def, 1d, 10d, "");
             if (size == null || size.isNaN()) return;
@@ -6139,10 +6180,10 @@ public class Viewer3D {
         private void removeSelectedAnnotationsAction() {
             final List<Annotation3D> annots = getSelectedAnnotations();
             if (annots == null || annots.isEmpty()) {
-                guiUtils().error("There are no selected annotations.");
+                mgrGuiUtils.error("There are no selected annotations.");
                 return;
             }
-            if (!guiUtils().getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
+            if (!mgrGuiUtils.getConfirmation("Delete " + annots.size() + " annotation(s)?", "Confirm Deletion")) {
                 return;
             }
             setSceneUpdatesEnabled(false);
@@ -6153,23 +6194,28 @@ public class Viewer3D {
 
         private JPopupMenu annotationsMenu() {
             final JPopupMenu annotMenu = new JPopupMenu();
-            GuiUtils.addSeparator(annotMenu, "Add:");
-            final JMenuItem cellPlane = menuItem("Tree-based Cross-section Plane...", GLYPH.SCISSORS,
+            GuiUtils.addSeparator(annotMenu, "Add");
+            final JMenu treeBased = new JMenu("Tree-based");
+            treeBased.setIcon(IconFactory.menuIcon(GLYPH.TREE));
+            final JMenuItem cellPlane = menuItem("Tree Cross-section Plane...", GLYPH.SCISSORS,
                     e -> addCellBasedCrossSectionPlaneAnnotationsAction());
             cellPlane.setToolTipText("Adds cross-section plane(s) to neuronal arbors");
-            annotMenu.add(cellPlane);
-            final JMenuItem cellSurface = menuItem("Tree-based Surface...", GLYPH.DICE_20,
+            treeBased.add(cellPlane);
+            final JMenuItem cellSurface = menuItem("Tree Surface...", GLYPH.DICE_20,
                     e -> addCellBasedSurfaceAnnotationsAction());
             cellSurface.setToolTipText("Adds convex-hull tessellations to neuronal arbors");
-            annotMenu.add(cellSurface);
-            final JMenuItem meshPlane = menuItem("Mesh-based Cross-section Plane...", GLYPH.SCISSORS,
+            treeBased.add(cellSurface);
+            annotMenu.add(treeBased);
+            final JMenu meshBased = new JMenu("Mesh-based");
+            meshBased.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
+            final JMenuItem meshPlane = menuItem("Mesh Cross-section Plane...", GLYPH.SCISSORS,
                     e -> addMeshBasedCrossSectionPlaneAnnotationsAction());
             meshPlane.setToolTipText("Adds cross-section plane(s) to selected meshes");
-            annotMenu.add(meshPlane);
-            final JMenuItem meshSurface = menuItem("Mesh-based Surface...", GLYPH.DICE_20,
+            meshBased.add(meshPlane);
+            final JMenuItem meshSurface = menuItem("Mesh Surface...", GLYPH.DICE_20,
                     e -> addMeshBasedSurfaceAnnotationsAction());
             meshSurface.setToolTipText("Adds convex-hull tessellations to selected meshes");
-            annotMenu.add(meshSurface);
+            annotMenu.add(meshBased);
             final JMenu primitives = new JMenu("Shapes");
             primitives.setToolTipText("Adds basic geometry objects to the scene");
             primitives.setIcon(IconFactory.menuIcon('\uf61f', true));
@@ -6177,17 +6223,17 @@ public class Viewer3D {
             primitives.add(menuItem("Sphere...", GLYPH.GLOBE, e -> addPrimitiveSphereAnnotationAction()));
             primitives.add(menuItem("Vector...", GLYPH.ARROWS_LR, e -> addPrimitiveVectorAnnotationAction()));
             primitives.add(menuItem("Plane/Parallelepiped...", GLYPH.SQUARE, e -> addPrimitivePlaneAnnotationAction()));
-            GuiUtils.addSeparator(annotMenu, "Customize:");
+            GuiUtils.addSeparator(annotMenu, "Customize");
             annotMenu.add(menuItem("Rename...", GLYPH.PEN, e -> renameSelectedAnnotationAction()));
             annotMenu.add(menuItem("Color...", GLYPH.COLOR, e -> setSelectedAnnotationsColorAction()));
             annotMenu.add(menuItem("Color Gradient...", GLYPH.COLOR2, e -> applySelectedAnnotationsGradientAction()));
             annotMenu.add(menuItem("Transparency...", GLYPH.ADJUST, e -> setSelectedAnnotationsTransparencyAction()));
             annotMenu.add(menuItem("Size...", GLYPH.RESIZE, e -> setSelectedAnnotationsSizeAction()));
             annotMenu.add(menuItem("Surface Rendering...", GLYPH.CUBES, e -> adjustSelectedAnnotationSurfaceRenderingAction()));
-            GuiUtils.addSeparator(annotMenu, "Remove:");
+            GuiUtils.addSeparator(annotMenu, "Remove");
             annotMenu.add(menuItem("Remove Selected...", GLYPH.DELETE, e -> removeSelectedAnnotationsAction()));
             annotMenu.add(menuItem("Remove All...", GLYPH.TRASH, e -> {
-                if (guiUtils().getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
+                if (mgrGuiUtils.getConfirmation("Remove all annotations from scene?", "Remove All Annotations?"))
                     removeAllAnnotations();
             }));
             return annotMenu;
@@ -6195,7 +6241,7 @@ public class Viewer3D {
 
         private JPopupMenu refBrainsMenu() {
             final JPopupMenu refMenu = new JPopupMenu("Reference Brains");
-            GuiUtils.addSeparator(refMenu, "Mouse:");
+            GuiUtils.addSeparator(refMenu, "Mouse");
             JMenuItem mi = new JMenuItem("Allen CCF Navigator", IconFactory
                     .menuIcon(GLYPH.NAVIGATE));
             mi.addActionListener(e -> {
@@ -6204,7 +6250,7 @@ public class Viewer3D {
                     frame.allenNavigator.dialog.toFront();
                     return;
                 }
-                //final JDialog tempSplash = guiUtils().floatingMsg("Loading ontologies...", false);
+                //final JDialog tempSplash = mgrGuiUtils.floatingMsg("Loading ontologies...", false);
                 addProgressLoad(-1);
                 final SwingWorker<AllenCCFNavigator, ?> worker = new SwingWorker<>() {
 
@@ -6231,10 +6277,10 @@ public class Viewer3D {
             });
             refMenu.add(mi);
 
-            GuiUtils.addSeparator(refMenu, "Zebrafish:");
+            GuiUtils.addSeparator(refMenu, "Zebrafish");
             refMenu.add(menuItem("Max Planck ZBA", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_ZEBRAFISH)));
 
-            GuiUtils.addSeparator(refMenu, "Drosophila:");
+            GuiUtils.addSeparator(refMenu, "Drosophila");
             refMenu.add(menuItem("Adult Brain: FlyCircuit", GLYPH.ARCHIVE, e -> loadRefBrainAction(true, MESH_LABEL_FCWB)));
             final JMenuItem jfrc2018 = menuItem("Adult Brain: JRC 2018 (Unisex)", GLYPH.ARCHIVE,
                     e -> loadRefBrainAction(true, MESH_LABEL_JFRC2018));
@@ -6262,11 +6308,11 @@ public class Viewer3D {
                 default -> canProceed = true;
             }
             if (!canProceed) {
-                guiUtils().error("Remote server not reached. It is either down or you have no internet access.");
+                mgrGuiUtils.error("Remote server not reached. It is either down or you have no internet access.");
                 return;
             }
             if (warnIfLoaded && getOBJs().containsKey(label)) {
-                guiUtils().error(label + " is already loaded.");
+                mgrGuiUtils.error(label + " is already loaded.");
                 return;
             }
             final String[] existingAxes = getAxesLabels();
@@ -6278,7 +6324,7 @@ public class Viewer3D {
                     try {
                         return loadRefBrainInternal(label) != null;
                     } catch (final NullPointerException | IllegalArgumentException ex) {
-                        guiUtils().error("An error occurred and mesh could not be retrieved. See Console for details.");
+                        mgrGuiUtils.error("An error occurred and mesh could not be retrieved. See Console for details.");
                         ex.printStackTrace();
                         return false;
                     } catch (final RuntimeException e2) {
@@ -6297,7 +6343,7 @@ public class Viewer3D {
                         if (setProgressBar) removeProgressLoad(-1);
                         if (prefs.nagUserOnAxesChanges && !Arrays.equals(existingAxes, new String[] { "X", "Y", "Z" })
                                 && !Arrays.equals(existingAxes, getAxesLabels())) {
-                            final Boolean prompt = guiUtils().getPersistentWarning(
+                            final Boolean prompt = mgrGuiUtils.getPersistentWarning(
                                     String.format("Cartesian axes relabeled to %s", Arrays.toString(getAxesLabels())),
                                     "Mapping of Cartesian Axes Changed");
                             if (prompt != null) // do nothing if user dismissed the dialog
