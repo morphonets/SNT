@@ -1292,14 +1292,22 @@ public class SNTCommandFinder {
             final boolean isMenuItem = button instanceof JMenuItem;
             final CmdAction registeredAction = map.get(label);
             final KeyStroke accelerator = (isMenuItem) ? ((JMenuItem) button).getAccelerator() : null;
-            if (registeredAction != null && accelerator != null) {
+            if (registeredAction != null && accelerator != null && registeredAction.path.equals(path)) {
+                // Same command registered again (e.g., in multiple menus): merge accelerator
                 registeredAction.setKeyString(accelerator);
             } else {
                 final CmdAction ca = new CmdAction(label, button);
                 ca.path = path;
                 if (accelerator != null)
                     ca.setKeyString(accelerator);
-                map.put(ca.id, ca);
+                String key = ca.id;
+                if (map.containsKey(key)) {
+                    // Disambiguate: qualify with last path element to avoid collision
+                    final String qualifier = path.isEmpty() ? "" : path.get(path.size() - 1);
+                    if (!qualifier.isEmpty())
+                        key = ca.id + " (" + qualifier + ")";
+                }
+                map.put(key, ca);
             }
         }
     }
