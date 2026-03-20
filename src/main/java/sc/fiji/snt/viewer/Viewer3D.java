@@ -50,6 +50,7 @@ import org.jzy3d.colors.ColorMapper;
 import org.jzy3d.colors.ISingleColorable;
 import org.jzy3d.debugGL.tracers.DebugGLChart3d;
 import org.jzy3d.events.ViewPointChangedEvent;
+import org.jzy3d.maths.BoundingBox2d;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
@@ -180,45 +181,43 @@ public class Viewer3D {
     public enum ViewMode {
 
         /** Enforce a XY view point of the scene. Rotation(s) are disabled. */
-        XY("XY Constrained", DefCoords.XY),
-        /** Enforce a XZ view point of the scene. */
-        XZ("XZ Constrained", DefCoords.XZ),
-        /** Enforce a ZY view point of the scene. */
-        YZ("YZ Constrained", DefCoords.YZ),
+        XY("XY Constrained", ViewPositionMode.TOP),
+        /** Enforce a XZ view point of the scene. Rotation(s) are disabled. */
+        XZ("XZ Constrained", ViewPositionMode.XZ),
+        /** Enforce a YZ view point of the scene. Rotation(s) are disabled. */
+        YZ("YZ Constrained", ViewPositionMode.YZ),
         /** No enforcement of view point: freely turn around the scene. */
-        DEFAULT("Default", DefCoords.DEF), //
+        DEFAULT("Default", ViewPositionMode.FREE),
         /** Enforce an 'overview' (two-point perspective) view point of the scene. */
-        PERSPECTIVE("Perspective", DefCoords.PERSPECTIVE),
+        PERSPECTIVE("Perspective", ViewPositionMode.FREE),
 
         /** @deprecated Use YZ instead */
         @Deprecated
-        SIDE("Side Constrained",  DefCoords.YZ),
+        SIDE("Side Constrained", ViewPositionMode.YZ),
         /** @deprecated Use XY instead */
         @Deprecated
-        TOP("Top Constrained", DefCoords.XY);
+        TOP("Top Constrained", ViewPositionMode.TOP);
 
         private final String description;
-        private Coord3d coord;
+        private final ViewPositionMode positionMode;
 
         private ViewMode next() {
             return switch (this) {
                 case DEFAULT -> XY;
-                case XY, TOP -> XZ;
-                case XZ, SIDE -> YZ;
+                case XY -> XZ;
+                case XZ -> YZ;
                 case YZ -> PERSPECTIVE;
                 default -> DEFAULT;
             };
         }
 
-        ViewMode(final String description, final Coord3d coord) {
+        ViewMode(final String description, final ViewPositionMode positionMode) {
             this.description = description;
-            this.coord = coord;
+            this.positionMode = positionMode;
         }
 
+        /** Default viewpoints for FREE-mode views (DEFAULT, PERSPECTIVE). */
         static class DefCoords {
-            static final Coord3d XY = new Coord3d(-View.PI_div2, -View.PI_div2, View.DISTANCE_DEFAULT); // //new Coord3d(0, Math.PI, View.DISTANCE_DEFAULT)
-            static final Coord3d XZ = new Coord3d(-View.PI_div2, 1, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI / 2, -1, View.DISTANCE_DEFAULT)
-            static final Coord3d YZ = new Coord3d(-Math.PI, 0, View.DISTANCE_DEFAULT); // new Coord3d(-Math.PI *2, 0, View.DISTANCE_DEFAULT)
             static final Coord3d PERSPECTIVE = new Coord3d(-Math.PI / 2.675, -0.675, View.DISTANCE_DEFAULT);
             static final Coord3d DEF = View.VIEWPOINT_AXIS_CORNER_TOUCH_BORDER;
         }
@@ -306,6 +305,9 @@ public class Viewer3D {
     private MouseController mouseController;
     private boolean viewUpdatesEnabled = true;
     private ViewMode currentView;
+    /** The anatomical up vector for the scene, or {@code null} for default Z-up.
+     *  Set by {@link #applyAxisMapping} or when a reference brain is loaded. */
+    private Coord3d sceneUpVector;
     private FileDropWorker fileDropWorker;
     private boolean abortCurrentOperation;
     private final Engine ENGINE;
@@ -476,6 +478,56 @@ public class Viewer3D {
 
     private boolean chartExists() {
         return chart != null && chart.getCanvas() != null;
+    }
+
+    /**
+     * Whether the scene uses an anatomical atlas whose dorsal-ventral axis maps
+     * to the Cartesian Y axis, requiring Y-up camera orientation. This is true when
+     * an axis mapping has assigned Dorsal-Ventral to Y (via
+     * {@link #applyAxisMapping}) or when the Allen CCF reference brain is loaded.
+     */
+    boolean isAnatomicalYUp() {
+        return sceneUpVector != null
+                && sceneUpVector.x == 0 && sceneUpVector.y != 0 && sceneUpVector.z == 0;
+    }
+
+    /**
+     * Applies an anatomical axis mapping to the scene. This sets the camera up
+     * vector so that dorsal points to the top of the screen, updates the axis
+     * labels, and ensures that constrained 2D views use the correct aspect
+     * ratio.
+     *
+     * @param mapping a map with keys "xAxis", "yAxis", "zAxis" (each mapped to
+     *                an anatomical label such as "Dorsal-Ventral"), and
+     *                "dorsalDir" (mapped to a direction string). Typically
+     *                produced by {@link CustomizeAxesCmd}.
+     * @see CustomizeAxesCmd
+     */
+    void applyAxisMapping(final java.util.HashMap<String, String> mapping) {
+        // Update axis labels
+        setAxesLabels(CustomizeAxesCmd.getLabels(mapping));
+
+        // Determine the up vector from the D-V axis assignment
+        final String dvAxis = CustomizeAxesCmd.getDVAxis(mapping);
+        if (dvAxis == null || view == null) {
+            // No D-V axis assigned: reset to default Z-up
+            if (view != null) view.setUpVector(View.UP_VECTOR_Z);
+            return;
+        }
+        final int sign = CustomizeAxesCmd.getDorsalSign(mapping);
+        sceneUpVector = switch (dvAxis) {
+            case "X" -> new Coord3d(sign, 0, 0);
+            case "Y" -> new Coord3d(0, sign, 0);
+            case "Z" -> new Coord3d(0, 0, sign);
+            default -> null;
+        };
+        if (sceneUpVector != null) {
+            view.setUpVector(sceneUpVector);
+        }
+        // Refresh the current view mode to apply the new up vector
+        if (chartExists()) {
+            chart.setViewMode(currentView);
+        }
     }
 
     /* returns true if chart was initialized */
@@ -951,11 +1003,6 @@ public class Viewer3D {
 
     protected Color fromAWTColor(final java.awt.Color color) {
         return (color == null) ? getDefColor() : new Color(color.getRed(), color
-                .getGreen(), color.getBlue(), color.getAlpha());
-    }
-
-    private Color fromAWTColor(final java.awt.Color color, final Color fallbackColor) {
-        return (color == null) ? fallbackColor : new Color(color.getRed(), color
                 .getGreen(), color.getBlue(), color.getAlpha());
     }
 
@@ -1911,6 +1958,9 @@ public class Viewer3D {
             }
             it.remove();
         }
+        // All meshes gone: reset to default Z-up camera
+        sceneUpVector = null;
+        if (view != null) view.setUpVector(View.UP_VECTOR_Z);
         setSceneUpdatesEnabled(updateStatus);
         validate();
     }
@@ -2144,6 +2194,11 @@ public class Viewer3D {
                 deleteItemFromManager(managerListEntry);
                 if (frame != null && frame.allenNavigator != null)
                     frame.allenNavigator.meshRemoved(label);
+                // Reset to default Z-up if anatomical Y-up atlas was removed
+                if (!isAnatomicalYUp() && view != null) {
+                    sceneUpVector = null;
+                    view.setUpVector(View.UP_VECTOR_Z);
+                }
             }
         }
         return removed;
@@ -2618,11 +2673,10 @@ public class Viewer3D {
             SNTUtils.error("IOException", e);
             saved = false;
         }
-        if (currentView == ViewMode.YZ) {
+        if (!isAnatomicalYUp() && currentView == ViewMode.YZ) {
             new Thread(() -> {
-                // HACK: current cartesian views may not reflect sensible 'anatomical views'.
-                // This is the case with the Allen CCF. While this is not addressed, we can
-                // just save a rotated copy of the snapshot. //TODO: Handle this more properly
+                // Legacy fallback: save a rotated snapshot for non-Y-up atlases
+                // whose cartesian views don't reflect sensible anatomical views
                 final ij.ImagePlus imp = sc.fiji.snt.util.ImpUtils.open(file.getAbsolutePath());
                 if (imp != null) {
                     ImpUtils.rotate90(imp, "left");
@@ -2679,7 +2733,9 @@ public class Viewer3D {
         setViewMode((vMode != null) ? vMode : viewMode);
         final ImagePlus result = chart.screenshotImp();
         ImpUtils.crop(result, isDarkModeOn() ? 0 : 255);
-        if (isCCF) {
+        // With Y-up camera the views are already anatomically correct;
+        // only apply legacy rotation for non-Y-up CCF rendering
+        if (isCCF && !isAnatomicalYUp()) {
             switch (currentView) {
                 case XZ -> ImpUtils.rotate90(result, "right");
                 case YZ -> ImpUtils.rotate90(result, "left");
@@ -2816,6 +2872,10 @@ public class Viewer3D {
             case MESH_LABEL_ALLEN -> {
                 objMesh = AllenUtils.getRootMesh(null);
                 labels = AllenUtils.getXYZLabels();
+                // Allen CCF: Y is Dorsal-Ventral (increasing ventrally),
+                // so use (0,-1,0) to keep dorsal at the top of the screen
+                sceneUpVector = new Coord3d(0, -1, 0);
+                if (view != null) view.setUpVector(sceneUpVector);
             }
             case MESH_LABEL_ZEBRAFISH -> {
                 objMesh = ZBAtlasUtils.getRefBrain();
@@ -3002,41 +3062,53 @@ public class Viewer3D {
             this.viewer = viewer;
         }
 
-        // see super.setViewMode(mode);
-        public void setViewMode(final ViewMode view) {
-            // Store current view mode and view point in memory
-            currentView.coord = getView().getViewPoint();
+        public void setViewMode(final ViewMode newView) {
+            // Set jzy3d view position mode from the enum
+            getView().setViewPositionMode(newView.positionMode);
 
-            // set jzy3d fields
-            if (currentView == ViewMode.XY) {
-                previousViewPointTop = currentView.coord;
-            }
-            else if (currentView == ViewMode.XZ || currentView == ViewMode.YZ || currentView == ViewMode.SIDE) {
-                previousViewPointProfile = currentView.coord;
-            } else if (currentView == ViewMode.DEFAULT) {
-                previousViewPointFree = currentView.coord;
-            }
-
-            // Set new view mode and former view point
-            if (view == ViewMode.XY || view == ViewMode.TOP) {
-                getView().setViewPositionMode(ViewPositionMode.TOP);
-            }
-            else if (view == ViewMode.XZ || view == ViewMode.YZ || view == ViewMode.SIDE) {
-                getView().setViewPositionMode(ViewPositionMode.PROFILE);
-            }
-            else {
-                getView().setViewPositionMode(ViewPositionMode.FREE);
-            }
             // Reset pole-crossing state before setting a known orientation
             if (getView() instanceof ViewerFactory.AView)
                 ((ViewerFactory.AView) getView()).resetPoleFlips();
-            getView().setViewPoint(view.coord);
+
+            // When an anatomical up vector has been set (e.g. Y-up for Allen
+            // CCF), restore it per-view. The XZ view looks along Y, which is
+            // degenerate with Y-up, so it falls back to Z-up. For all other
+            // views the stored scene up vector is applied.
+            if (sceneUpVector != null) {
+                final boolean yUp = sceneUpVector.x == 0 && sceneUpVector.y != 0 && sceneUpVector.z == 0;
+                if (yUp && newView == ViewMode.XZ) {
+                    getView().setUpVector(View.UP_VECTOR_Z);
+                } else {
+                    getView().setUpVector(sceneUpVector);
+                }
+            }
+
+            // For constrained 2D modes (XY/XZ/YZ), jzy3d's computeCameraEye*
+            // overrides the viewpoint. For FREE modes, set our viewpoint.
+            if (newView == ViewMode.DEFAULT) {
+                getView().setViewPoint(ViewMode.DefCoords.DEF);
+            } else if (newView == ViewMode.PERSPECTIVE) {
+                getView().setViewPoint(ViewMode.DefCoords.PERSPECTIVE);
+            }
+            // For XY/XZ/YZ: jzy3d handles eye position via the ViewPositionMode;
+            // we still call setViewPoint to trigger shoot() and event notification
             getView().shoot();
-            currentView = view;
+            currentView = newView;
+            if (frame != null) {
+                final boolean locked = !isRotationEnabled();
+                SwingUtilities.invokeLater(() -> {
+                    frame.status.setIcon(IconFactory.menuIcon(
+                            locked ? GLYPH.LOCK : GLYPH.LOCK_OPEN, java.awt.Color.GRAY));
+                    frame.status.setToolTipText(locked
+                            ? "Rotation locked (constrained view)"
+                            : "Rotation unlocked (free view)");
+                });
+            }
         }
 
+        /** Returns true if the current view mode allows free rotation. */
         boolean isRotationEnabled() {
-            return view.getViewMode() != ViewPositionMode.TOP;
+            return getView().is3D();
         }
 
         ImagePlus screenshotImp() {
@@ -3403,6 +3475,7 @@ public class Viewer3D {
             final BorderLayout layout = new BorderLayout();
             setLayout(layout);
             status = new JLabel(statusPlaceHolder);
+            status.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 8, 0, 0));
             status.setFocusable(false);
             status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
             status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
@@ -4015,13 +4088,14 @@ public class Viewer3D {
         /* Convenience factory for menu items backed by an Action with an icon. */
         private JMenuItem menuItem(final Action action, final GLYPH glyph) {
             final JMenuItem mi = new JMenuItem(action);
-            mi.setIcon(IconFactory.menuIcon(glyph));
+            if (glyph != null) mi.setIcon(IconFactory.menuIcon(glyph));
             return mi;
         }
 
         /* Convenience factory for menu items with a label, icon, and action listener. */
         private JMenuItem menuItem(final String label, final GLYPH glyph, final ActionListener listener) {
-            final JMenuItem mi = new JMenuItem(label, IconFactory.menuIcon(glyph));
+            final JMenuItem mi = new JMenuItem(label);
+            if (glyph != null) mi.setIcon(IconFactory.menuIcon(glyph));
             mi.addActionListener(listener);
             return mi;
         }
@@ -4506,6 +4580,8 @@ public class Viewer3D {
 
         private JMenu axesMenu() {
             final JMenu menu = new JMenu("Axes");
+            menu.setIcon(IconFactory.menuIcon(GLYPH.CHART_LINE));
+            menu.add(menuItem("Anatomical Mapping...", null, e -> runAxisMappingCmd()));
             final JMenuItem jmi = new JMenuItem("Axes Labels...");
             jmi.addActionListener(e -> {
                 final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
@@ -4516,7 +4592,6 @@ public class Viewer3D {
                     setAxesLabels(labels);
             });
             menu.add(jmi);
-            menu.setIcon(IconFactory.menuIcon(GLYPH.CHART_LINE));
             final JCheckBoxMenuItem jcbm = new JCheckBoxMenuItem("Display Frame", view.isDisplayAxisWholeBounds());
             jcbm.addActionListener(e -> {
                 if (jcbm.isSelected()) chart.setAxeDisplayed(true);
@@ -4537,6 +4612,35 @@ public class Viewer3D {
                 menu.add(jcbmi);
             });
             return menu;
+        }
+
+        private void runAxisMappingCmd() {
+            if (cmdService == null)
+                SNTUtils.getContext().inject(Viewer3D.this);
+            class AxisMappingWorker extends SwingWorker<Object, Object> {
+                CommandModule cmdModule;
+
+                @Override
+                public Object doInBackground() {
+                    try {
+                        cmdModule = cmdService.run(CustomizeAxesCmd.class, true).get();
+                    } catch (final InterruptedException | ExecutionException ignored) {
+                        return null;
+                    }
+                    return null;
+                }
+
+                @Override
+                @SuppressWarnings("unchecked")
+                protected void done() {
+                    if (cmdModule == null || cmdModule.isCanceled()) return;
+                    final HashMap<String, String> outMap =
+                            (HashMap<String, String>) cmdModule.getInput("outMap");
+                    if (outMap == null) return;
+                    applyAxisMapping(outMap);
+                }
+            }
+            new AxisMappingWorker().execute();
         }
 
         private JMenu scaleBarMenu() {
@@ -5531,8 +5635,11 @@ public class Viewer3D {
                 final JMenuItem jcbmi = new JCheckBoxMenuItem(label);
                 jcbmi.setSelected(mode == persistedMode);
                 jcbmi.addItemListener(ev -> {
+                    final boolean isAnimating = mouseController.isAnimating();
+                    setAnimationEnabled(false);
                     setAnimationMode(mode);
                     prefs.setAnimationModePref(mode);
+                    setAnimationEnabled(isAnimating);
                 });
                 animGroup.add(jcbmi);
                 animMenu.add(jcbmi);
@@ -6579,6 +6686,8 @@ public class Viewer3D {
         public AllenCCFNavigator() {
             treeModel = AllenUtils.getTreeModel(true);
             tree = new NavigatorTree(treeModel);
+            tree.setRootVisible(false); // root mesh already loaded
+            tree.setShowsRootHandles(true);
             searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
             //searchableBar.getSearchable().setRepeats(false);
             searchableBar.setStatusLabelPlaceholder("CCF v"+ AllenUtils.VERSION);
@@ -6587,7 +6696,6 @@ public class Viewer3D {
             searchableBar.setVisibleButtons(
                     SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
             tree.setCellRenderer(new CustomRenderer(tree, searchableBar));
-            GuiUtils.JTrees.expandAllNodes(tree);
             refreshTree(false);
         }
 
@@ -6749,6 +6857,7 @@ public class Viewer3D {
 
         private JDialog show() {
             dialog = new JDialog(frame, "Allen CCF Ontology");
+            dialog.getRootPane().putClientProperty("Window.style", "small");
             frame.allenNavigator = this;
             guiUtils = new GuiUtils(dialog);
             searchableBar.setGuiUtils(guiUtils);
@@ -6762,13 +6871,14 @@ public class Viewer3D {
                 }
             });
             dialog.setContentPane(getContentPane());
-            GuiUtils.JTrees.collapseAllNodes(tree); // compute sizes based on collapsed tree
+            dialog.pack();
             if (frame.hasManager()) {
-                dialog.setPreferredSize(frame.managerPanel.getPreferredSize());
+                dialog.setPreferredSize(new Dimension(dialog.getPreferredSize().width,
+                        frame.getHeight()));
                 dialog.setLocationRelativeTo(frame);
             }
-            dialog.pack();
-            GuiUtils.JTrees.expandAllNodes(tree);
+            GuiUtils.JTrees.expandToLevel(tree, 4);
+            GuiUtils.JTrees.scrollToLastRow(tree);
             cmdFinder.attach(dialog);
             dialog.setVisible(true);
             return dialog;
@@ -7645,7 +7755,7 @@ public class Viewer3D {
         private Sphere sphere(final PointInImage center, final Color color) {
             final Sphere s = new Sphere();
             s.setPosition(new Coord3d(center.x, center.y, center.z));
-            final double r = (center instanceof SWCPoint) ? ((SWCPoint) center).radius : center.v;
+            final double r = (center instanceof SWCPoint) ? center.radius : center.v;
             final float treeThickness = (arborVBO == null) ? defThickness : arborVBO.getWidth();
             final float radius = (float) Math.max(r, SOMA_SCALING_FACTOR * treeThickness);
             s.setVolume(radius);
@@ -8637,7 +8747,7 @@ public class Viewer3D {
                     gl2.glColor4f(compColor.r, compColor.g, compColor.b, compColor.a);
                 } else {
                     gl2.glEnableClientState(GL2.GL_COLOR_ARRAY);
-                    gl2.glColorPointer(4, GL.GL_FLOAT, STRIDE, (long) COLOR_OFFSET);
+                    gl2.glColorPointer(4, GL.GL_FLOAT, STRIDE, COLOR_OFFSET);
                 }
 
                 for (final int[] range : pathRanges) {
@@ -8781,13 +8891,13 @@ public class Viewer3D {
                     STRIDE, 0L);
             gl2.glEnableVertexAttribArray(ATTRIB_COLOR);
             gl2.glVertexAttribPointer(ATTRIB_COLOR, 4, GL.GL_FLOAT, false,
-                    STRIDE, (long) COLOR_OFFSET);
+                    STRIDE, COLOR_OFFSET);
             gl2.glEnableVertexAttribArray(ATTRIB_RADIUS);
             gl2.glVertexAttribPointer(ATTRIB_RADIUS, 1, GL.GL_FLOAT, false,
-                    STRIDE, (long) RADIUS_OFFSET);
+                    STRIDE, RADIUS_OFFSET);
             gl2.glEnableVertexAttribArray(ATTRIB_REFNORMAL);
             gl2.glVertexAttribPointer(ATTRIB_REFNORMAL, 3, GL.GL_FLOAT, false,
-                    STRIDE, (long) NORMAL_OFFSET);
+                    STRIDE, NORMAL_OFFSET);
 
             gl2.glEnable(GL.GL_DEPTH_TEST);
 
@@ -9118,11 +9228,11 @@ public class Viewer3D {
         }
 
         private void rotateLive(final Coord2d move) {
-            if (currentView == ViewMode.XY) {
+            if (!chart.isRotationEnabled()) {
                 displayMsg("Rotation disabled in constrained view");
-                return;
+            } else {
+                rotate(move, true);
             }
-            rotate(move, true);
         }
 
         @Override
@@ -9229,6 +9339,16 @@ public class Viewer3D {
                 prevMouse3d = thisMouse3d;
             }
             prevMouse = mouse;
+        }
+
+        @Override
+        protected void drawCoord(final java.awt.Graphics2D g2d,
+                final Coord2d screenPosition, final Coord3d modelPosition,
+                final int interline, final boolean leftAlign) {
+            // Guard against null coordinate labels during view-mode transitions
+            // (jzy3d leaves d1/d2 null when the view is momentarily in 3D mode)
+            if (view.is2D())
+                super.drawCoord(g2d, screenPosition, modelPosition, interline, leftAlign);
         }
     }
 
@@ -9663,7 +9783,7 @@ public class Viewer3D {
         private void resetView() {
             try {
                 chart.setViewPoint(View.VIEWPOINT_DEFAULT);
-                chart.setViewMode(ViewPositionMode.FREE);
+                chart.setViewMode(ViewMode.DEFAULT);
                 view.setBoundMode(ViewBoundMode.AUTO_FIT);
                 displayMsg("View reset");
             } catch (final GLException ex) {
@@ -9921,7 +10041,7 @@ public class Viewer3D {
             final double hdpiScale = g2d.getTransform().getScaleX();
             final BoundingBox3d bounds = view.getBounds();
 
-            double worldWidth = 0;
+            double worldWidth;
             if (bounds != null && !bounds.isReset()) {
                 worldWidth = bounds.getXRange().getRange();
                 if (worldWidth > 0) {
@@ -10035,13 +10155,11 @@ public class Viewer3D {
         private static final long serialVersionUID = 1L;
         private final Chart chart;
         private final Color existingSpecularColor;
-        private final ViewerFrame viewerFrame;
 
         LightController(final ViewerFrame viewerFrame, final AbstractEnlightable abstractEnlightable) {
 
             super(viewerFrame,
                     (abstractEnlightable == null) ? "Light Effects" : "Material Editor");
-            this.viewerFrame = viewerFrame;
             this.chart = viewerFrame.chart;
             existingSpecularColor = chart.getView().getBackgroundColor();
             assignDefaultLightIfNoneExists();
@@ -10151,9 +10269,7 @@ public class Viewer3D {
                 });
                 buttonPanel.add(apply);
                 final JButton reset = new JButton("Apply");
-                reset.addActionListener(e->{
-                    dispose(false);
-                });
+                reset.addActionListener(e-> dispose(false));
                 buttonPanel.add(reset);
                 add(new JLabel(" "), gbc);
                 gbc.gridy++;
@@ -10946,10 +11062,11 @@ public class Viewer3D {
 
             /**
              * Number of times the viewpoint has crossed an elevation pole
-             * during incremental rotation. When odd, the camera up vector is
-             * negated to maintain visual continuity.
+             * (Z-axis) during incremental rotation. When odd, the camera up
+             * vector is negated to maintain visual continuity.
              */
             private int poleFlips = 0;
+
 
             /** Whether tube/surface rendering is active, affecting near-plane clamping aggressiveness. */
             boolean tubeModeActive;
@@ -11002,9 +11119,30 @@ public class Viewer3D {
                 } else if (View.UP_VECTOR_X.equals(upVector)) {
                     vp.y += move.x;
                     vp.x += move.y;
-                } else if (View.UP_VECTOR_Y.equals(upVector)) {
-                    vp.y -= move.x;
-                    vp.x -= move.y;
+                } else if (upVector.x == 0 && upVector.y != 0 && upVector.z == 0) {
+                    // Y-axis up (positive or negative). The upVector.y sign
+                    // accounts for inverted-Y atlases (e.g. Allen CCF
+                    // dorsal-ventral). Only Z-pole crossings negate input;
+                    // OpenGL's gluLookAt naturally keeps the Y-up hint
+                    // correct throughout azimuth rotation.
+                    final float upSign = (upVector.y > 0) ? 1f : -1f;
+                    final float sign = (poleFlips % 2 == 0) ? upSign : -upSign;
+                    vp.x -= move.x * sign;
+                    vp.y += move.y * sign;
+
+                    // Z-pole wrapping (elevation crossing ±π/2). Identical to
+                    // the Z-up case: the polar → cartesian mapping degenerates
+                    // at the Z-axis regardless of the up vector.
+                    while (vp.y > PI_div2) {
+                        vp.y = PI - vp.y;
+                        vp.x += PI;
+                        poleFlips++;
+                    }
+                    while (vp.y < -PI_div2) {
+                        vp.y = -PI - vp.y;
+                        vp.x += PI;
+                        poleFlips++;
+                    }
                 }
 
                 setViewPoint(vp, updateView);
@@ -11028,10 +11166,30 @@ public class Viewer3D {
             @Override
             protected Coord3d computeCameraUp(final Coord3d viewpoint) {
                 if (is2D()) {
-                    // Delegate 2D cases to the parent unchanged
+                    // For Y-up scenes (e.g. Allen CCF), override the up vector
+                    // for XY (sagittal/TOP) and YZ (coronal) views so that the
+                    // dorsal direction (negative Y) points to the top of the
+                    // screen. XZ (transverse) looks along Y, so Z-up is correct
+                    // and we can let super handle it.
+                    if (upVector.x == 0 && upVector.y != 0 && upVector.z == 0) {
+                        if (!is2D_XZ()) {
+                            // XY and YZ: use Y-based up vector as-is.
+                            // Do NOT apply verticalAxisFlip negation here:
+                            // the flip already moves the camera eye to the
+                            // opposite side (via computeCameraEye*), so
+                            // negating up would double-flip the result.
+                            return upVector;
+                        }
+                    }
                     return super.computeCameraUp(viewpoint);
                 }
-                // 3D: handle "on top" or "on bottom"
+
+                if (upVector.x == 0 && upVector.y != 0 && upVector.z == 0) {
+                    return computeCameraUpY(viewpoint);
+                }
+
+                // --- Z-up path (default) ---
+                // Handle "on top" or "on bottom"
                 if (Math.abs(viewpoint.y) == ELEVATION_ON_TOP) {
                     final Coord2d direction = new Coord2d(viewpoint.x, viewpoint.z).cartesian();
                     if (viewpoint.y > 0) {
@@ -11048,12 +11206,97 @@ public class Viewer3D {
                 return upVector;
             }
 
-            /** Return the pole-crossing counter. */
+            @Override
+            protected void computeCamera2D_RenderingSquare(final Camera cam,
+                    final ViewportConfiguration viewport, final BoundingBox3d bounds) {
+                // When Y-up is active in YZ mode, the screen axes are swapped
+                // relative to jzy3d's assumption: Z becomes horizontal and Y
+                // becomes vertical. Swap Y and Z in the bounding box so that
+                // super's hrange/vrange calculation matches the actual screen
+                // layout. All other modes (including XY with Y-up) are correct
+                // as-is because the axis-to-screen mapping doesn't change.
+                BoundingBox3d effectiveBounds = bounds;
+                if (is2D_YZ() && upVector.x == 0 && upVector.y != 0 && upVector.z == 0) {
+                    effectiveBounds = new BoundingBox3d(
+                            bounds.getXmin(), bounds.getXmax(),
+                            bounds.getZmin(), bounds.getZmax(),  // Y ← Z
+                            bounds.getYmin(), bounds.getYmax()); // Z ← Y
+                }
+                super.computeCamera2D_RenderingSquare(cam, viewport, effectiveBounds);
+
+                // jzy3d's projectionOrtho2D maps the rendering square directly
+                // to the viewport via glOrtho without correcting for viewport
+                // aspect ratio, which distorts the scene when the data
+                // proportions do not match the window proportions. Expand the
+                // smaller dimension so that both axes have equal scaling.
+                final BoundingBox2d rs = cam.getRenderingSquare();
+                if (rs == null || viewport.getWidth() <= 0 || viewport.getHeight() <= 0)
+                    return;
+                final float rsW = rs.xrange();
+                final float rsH = rs.yrange();
+                if (rsW <= 0 || rsH <= 0) return;
+                final float vpAspect = (float) viewport.getWidth() / viewport.getHeight();
+                final float rsAspect = rsW / rsH;
+                if (Math.abs(vpAspect - rsAspect) < 1e-4f) return; // already matching
+                final float cx = (rs.xmin() + rs.xmax()) / 2f;
+                final float cy = (rs.ymin() + rs.ymax()) / 2f;
+                if (rsAspect < vpAspect) {
+                    // viewport is wider — expand horizontal range
+                    final float newW = rsH * vpAspect;
+                    cam.setRenderingSquare(new BoundingBox2d(
+                            cx - newW / 2, cx + newW / 2,
+                            rs.ymin(), rs.ymax()), cam.getNear(), cam.getFar());
+                } else {
+                    // viewport is taller — expand vertical range
+                    final float newH = rsW / vpAspect;
+                    cam.setRenderingSquare(new BoundingBox2d(
+                            rs.xmin(), rs.xmax(),
+                            cy - newH / 2, cy + newH / 2), cam.getNear(), cam.getFar());
+                }
+            }
+
+            /**
+             * Compute the camera up vector when the up axis is Y. The Z-pole
+             * (elevation = ±π/2) still requires the standard {@link #poleFlips}
+             * negation. Additionally, the camera degenerates when the eye
+             * direction aligns with Y (azimuth near ±π/2, elevation near 0).
+             * Near that singularity a fallback vector in the XZ plane is used.
+             */
+            private Coord3d computeCameraUpY(final Coord3d viewpoint) {
+                // At the Z elevation pole, compute a smooth up from azimuth
+                // (same idea as the Z-up pole handler, but in the XZ plane)
+                if (Math.abs(viewpoint.y) == ELEVATION_ON_TOP) {
+                    final Coord2d direction = new Coord2d(viewpoint.x, viewpoint.z).cartesian();
+                    if (viewpoint.y > 0) {
+                        return new Coord3d(-direction.x, 0, -direction.y);
+                    } else {
+                        return new Coord3d(direction.x, 0, direction.y);
+                    }
+                }
+
+                // Y-axis degeneracy: when the eye direction is nearly along Y,
+                // the cross product (look × up) approaches zero. Fall back to
+                // a vector in the XZ plane derived from the current azimuth.
+                final Coord3d eyeDir = viewpoint.cartesian();
+                final double xzLen = Math.sqrt(eyeDir.x * eyeDir.x + eyeDir.z * eyeDir.z);
+                if (xzLen < 1e-4 * Math.abs(eyeDir.y)) {
+                    // Camera nearly along ±Y: use Z (or -Z) as fallback up.
+                    // The sign keeps a consistent horizon orientation.
+                    final float zSign = (eyeDir.y > 0) ? 1f : -1f;
+                    return new Coord3d(0, 0, zSign);
+                }
+
+                // Normal case: negate when combined pole count is odd
+                final boolean negate = (poleFlips % 2 == 1);
+                return negate ? new Coord3d(-upVector.x, -upVector.y, -upVector.z) : upVector;
+            }
+
+            /** Return the elevation pole-crossing counter. */
             int getPoleFlips() {
                 return poleFlips;
             }
 
-            /** Reset the pole-crossing counter (e.g. on explicit view mode change). */
+            /** Reset all pole-crossing counters (e.g. on explicit view mode change). */
             void resetPoleFlips() {
                 poleFlips = 0;
             }
