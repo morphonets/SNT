@@ -181,7 +181,7 @@ public class BackupManagerCmd extends CommonDynamicCmd {
      * Extracts the image prefix from a backup filename.
      * Backup filenames follow the pattern: {imagePrefix}_{timestamp}.traces
      * where timestamp matches SNTUtils.TIMESTAMP_REGEX (e.g., 2026-01-30_10-00-00).
-     *
+     * <p>
      * Example: "OP_1_2026-01-30_10-00-00.traces" -> "OP_1"
      *
      * @param filename the backup filename

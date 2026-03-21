@@ -47,6 +47,8 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
+ * SciJava Command implementing grouped circular layout algorithm for graph
+ * visualization with multi-level organizational hierarchy support.
  *
  * @author Cameron Arshadi
  */

@@ -24,6 +24,9 @@ package sc.fiji.snt.io;
 
 import java.io.IOException;
 
+/**
+ * Exception thrown when an error occurs during SWC file export operations.
+ */
 public class SWCExportException extends IOException {
 
 	public SWCExportException(final String message) {

@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.event;
 
+/**
+ * Listener interface for SNT events. Implementers are notified when
+ * SNT events occur.
+ */
 public interface SNTListener {
 
 	/**

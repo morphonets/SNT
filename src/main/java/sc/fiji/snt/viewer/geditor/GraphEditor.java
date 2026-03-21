@@ -68,6 +68,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Main editor panel for interactive visualization and manipulation of SNT graphs.
+ * Provides layout algorithms, styling controls, undo/redo functionality, and integration with
+ * data analysis tools for graph-based visualization of neuronal structures.
+ */
 public class GraphEditor extends JPanel {
 
 	@Parameter

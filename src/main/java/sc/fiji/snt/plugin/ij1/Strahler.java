@@ -49,8 +49,7 @@ import java.util.Vector;
 
 /**
  * This class implements the ImageJ {@code Strahler Analysis} plugin. For more
- * information, visit the plugin's documentation page:
- * {@literal https://imagej.net/plugins/snt/strahler}
+ * information, visit the plugin's <a href="https://imagej.net/plugins/snt/strahler">documentation page</a>.
  *
  * @author Tiago Ferreira
  */

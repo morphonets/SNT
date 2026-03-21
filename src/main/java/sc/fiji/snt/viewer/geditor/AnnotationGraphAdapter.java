@@ -32,6 +32,10 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.*;
 
+/**
+ * JGraphX adapter for visualizing annotation graphs with brain structures as vertices.
+ * Configures styling and color management for anatomy-based network graphs in the SNT graph editor.
+ */
 public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, AnnotationWeightedEdge> {
 
     private static final String DARK_GRAY = "#222222";

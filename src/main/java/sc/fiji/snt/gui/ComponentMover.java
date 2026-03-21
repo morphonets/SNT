@@ -32,13 +32,13 @@ import javax.swing.SwingUtilities;
  *  moved can be a high level Window (ie. Window, Frame, Dialog) in which case
  *  the Window is moved within the desktop. Or the Component can belong to a
  *  Container in which case the Component is moved within the Container.
- *
+ * <p>
  *  When moving a Window, the listener can be added to a child Component of
  *  the Window. In this case attempting to move the child will result in the
  *  Window moving. For example, you might create a custom "Title Bar" for an
  *  undecorated Window and moving of the Window is accomplished by moving the
  *  title bar only. Multiple components can be registered as "window movers".
- *
+ * <p>
  *  Components can be registered when the class is created. Additional
  *  components can be added at any time using the registerComponent() method.
  */
@@ -237,7 +237,7 @@ public class ComponentMover extends MouseAdapter
 
     /**
      *  Setup the variables used to control the moving of the component:
-     *
+     * <p>
      *  source - the source component of the mouse event
      *  destination - the component that will ultimately be moved
      *  pressed - the Point where the mouse was pressed in the destination

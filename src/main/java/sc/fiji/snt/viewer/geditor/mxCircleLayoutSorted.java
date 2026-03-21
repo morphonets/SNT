@@ -30,6 +30,10 @@ import sc.fiji.snt.analysis.graph.SNTGraph;
 
 import java.util.*;
 
+/**
+ * Sorted circle layout algorithm for SNT graphs.
+ * Arranges graph vertices in a circle with customizable sorting criteria (e.g., by incoming edge weight).
+ */
 public class mxCircleLayoutSorted extends mxCircleLayout {
     SNTGraphAdapter<Object, DefaultWeightedEdge> adapter;
     SNTGraph<Object, DefaultWeightedEdge> sntGraph;

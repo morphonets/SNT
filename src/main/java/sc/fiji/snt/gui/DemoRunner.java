@@ -36,6 +36,11 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
+/**
+ * Manages loading and running of demonstration datasets and reconstructions in SNT.
+ * Provides a collection of predefined demo entries with associated images, reconstructions,
+ * and metadata for educational and testing purposes.
+ */
 public class DemoRunner {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes

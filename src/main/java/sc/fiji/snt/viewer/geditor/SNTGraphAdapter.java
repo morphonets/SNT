@@ -32,6 +32,10 @@ import sc.fiji.snt.analysis.graph.SNTGraph;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Base adapter that converts SNT graphs to JGraphX graph models for visualization.
+ * Handles vertex and edge styling, color management, and editing constraints for SNT graph displays.
+ */
 public class SNTGraphAdapter<V, E extends DefaultWeightedEdge> extends JGraphXAdapter<V, E> {
     private HashMap<String, String> mxCellIDsToOriginalValuesMap;
     protected final SNTGraph<V, E> cGraph;

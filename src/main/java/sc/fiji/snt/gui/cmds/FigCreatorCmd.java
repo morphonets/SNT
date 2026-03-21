@@ -39,6 +39,10 @@ import sc.fiji.snt.viewer.Viewer3D;
 import java.util.ArrayList;
 import java.util.Collection;
 
+/**
+ * SciJava Command for creating publication-ready figures of neuronal
+ * reconstructions in 2D and 3D formats with customizable styles and layouts.
+ */
 @Plugin(type = Command.class, initializer = "init", label = "Create Figure...")
 public class FigCreatorCmd extends CommonDynamicCmd {
 

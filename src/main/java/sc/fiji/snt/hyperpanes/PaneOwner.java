@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.hyperpanes;
 
+/**
+ * Interface for objects that own and manage multi-pane displays, handling
+ * mouse interactions, zoom events, and pan events across multiple viewing planes.
+ */
 public interface PaneOwner {
 
 	/**

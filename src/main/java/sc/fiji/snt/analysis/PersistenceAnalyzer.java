@@ -456,7 +456,7 @@ public class PersistenceAnalyzer {
      * <strong>Correspondence:</strong> The order of node pairs matches the order of birth-death pairs 
      * returned by {@link #getDiagram(String)}, allowing direct correlation between topological 
      * features and their spatial locations.
-     * 
+     * <p>
      * <strong>Example Usage:</strong>
      * <pre>{@code
      * List<List<Double>> diagram = analyzer.getDiagram("geodesic");

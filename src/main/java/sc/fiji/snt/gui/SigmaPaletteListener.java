@@ -25,6 +25,10 @@ package sc.fiji.snt.gui;
 import java.awt.*;
 import java.util.List;
 
+/**
+ * Listener interface for the sigma (gaussian blur standard deviation) palette.
+ * Notifies implementers of palette state changes and sigma value updates.
+ */
 public interface SigmaPaletteListener {
 
 	Window getParent();

@@ -34,6 +34,11 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Circle layout algorithm for grouped annotation graph visualization.
+ * Organizes brain structures hierarchically by ontological relationships, positioning groups
+ * in circular arrangements for clearer anatomical organization.
+ */
 public class mxCircleLayoutGrouped extends mxCircleLayout {
     SNTGraphAdapter<BrainAnnotation, DefaultWeightedEdge> adapter;
     SNTGraph<BrainAnnotation, DefaultWeightedEdge> sntGraph;

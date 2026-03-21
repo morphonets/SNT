@@ -55,7 +55,7 @@
  * </dl>
  *
  * <h2>Soma ROI Strategies</h2>
- * All auto-tracers support configurable soma handling via {@link AutoTracer}
+ * All auto-tracers support configurable soma handling via {@link sc.fiji.snt.tracing.auto.AutoTracer}
  * constants:
  * <ul>
  *   <li>{@code ROI_UNSET} - Ignore soma ROI, root at algorithm-specific point</li>

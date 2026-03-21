@@ -44,6 +44,10 @@ import java.util.Map;
 
 import javax.swing.*;
 
+/**
+ * JGraphX visualization component for annotation graphs.
+ * Extends SNTGraphComponent to provide interactive display and layout management of brain annotation networks.
+ */
 public class AnnotationGraphComponent extends SNTGraphComponent {
 
     private static final long serialVersionUID = 1L;

@@ -22,6 +22,9 @@
 
 package sc.fiji.snt.analysis;
 
+/**
+ * Exception thrown when a requested metric is not available or recognized.
+ */
 public class UnknownMetricException extends IllegalArgumentException {
 	private static final long serialVersionUID = 1L;
 

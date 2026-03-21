@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.tracing.cost;
 
+/**
+ * Cost function that computes path cost based on the difference between voxel values
+ * and a specified range, useful for tracing along intensity gradients.
+ */
 public class Difference implements Cost {
 
     static final double MIN_COST_PER_UNIT_DISTANCE = 1;

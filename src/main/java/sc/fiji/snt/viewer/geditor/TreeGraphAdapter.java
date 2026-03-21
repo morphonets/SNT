@@ -34,6 +34,10 @@ import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.SWCPoint;
 
 
+/**
+ * JGraphX adapter for visualizing tree graphs as SWC morphologies.
+ * Specializes styling and layout for neurite reconstructions with SWC point vertices and weighted edges.
+ */
 public class TreeGraphAdapter extends SNTGraphAdapter<SWCPoint, SWCWeightedEdge> {
 
 	private static final String DARK_GRAY = "#222222";

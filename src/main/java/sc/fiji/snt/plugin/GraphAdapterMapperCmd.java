@@ -47,7 +47,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-
+/**
+ * Command for mapping colors to graph nodes and edges based on specified properties
+ * and visualization parameters.
+ */
 @Plugin(type = Command.class, visible = false, label = "Graph Color Mapper",
         initializer = "init")
 public class GraphAdapterMapperCmd extends DynamicCommand {

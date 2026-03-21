@@ -42,6 +42,10 @@ import sc.fiji.snt.viewer.geditor.mxCircleLayoutGrouped;
 
 import java.util.*;
 
+/**
+ * SciJava Command for assembling brain annotation connectivity diagrams from
+ * tagged neurons, depicting semi-quantitative summaries of targeted brain areas.
+ */
 @Plugin(type = Command.class, label = "Create Annotation Diagram(s)")
 public class AnnotationGraphGeneratorCmd extends CommonDynamicCmd {
 

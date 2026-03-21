@@ -33,7 +33,8 @@ import org.scijava.widget.Button;
 import sc.fiji.snt.Tree;
 
 /**
- * Implements SNT's commands for Sholl Analysis of {@link Tree}s.
+ * Interactive command for performing Sholl analysis on reconstructed neuronal tracings,
+ * with real-time parameter adjustment and interactive visualization.
  *
  * @author Tiago Ferreira
  */

@@ -30,6 +30,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.List;
 
+/**
+ * An enhanced text field for search operations with built-in options for case-sensitive,
+ * word-matching, and regex search modes. Includes placeholder text and a clear button.
+ */
 public class SearchField extends JTextField {
 
     public static final int OPTIONS_MENU = 0x1;

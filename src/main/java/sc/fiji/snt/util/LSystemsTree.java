@@ -27,9 +27,9 @@ import ij.plugin.PlugIn;
 import ij.process.ImageProcessor;
 
 /**
- * Lindenmayer systems utilities for rendering fractal trees.
+ * Lindenmayer systems utilities for rendering fractal trees using L-system rules
+ * for generating and visualizing self-similar branching structures.
  */
- // See http://fractalfoundation.org/OFC/OFC-2-4.html
 public class LSystemsTree implements PlugIn {
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes

@@ -37,6 +37,10 @@ import org.scijava.Context;
 import java.awt.*;
 import java.util.Map;
 
+/**
+ * JGraphX visualization component for SNT pseudographs.
+ * Extends SNTGraphComponent to render graphs with self-loops and parallel edges using customized label positioning.
+ */
 public class SNTPseudographComponent extends SNTGraphComponent{
 
     private static final long serialVersionUID = 1L;

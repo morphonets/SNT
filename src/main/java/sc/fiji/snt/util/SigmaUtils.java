@@ -24,6 +24,9 @@ package sc.fiji.snt.util;
 
 import sc.fiji.snt.SNT;
 
+/**
+ * Utility class for computing default Gaussian blur sigma values based on image properties.
+ */
 public class SigmaUtils {
 
 	private SigmaUtils() {}

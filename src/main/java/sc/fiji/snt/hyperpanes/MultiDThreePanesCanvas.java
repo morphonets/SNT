@@ -40,7 +40,10 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 
-
+/**
+ * Canvas for displaying and interacting with multiple planes in 3D space,
+ * providing synchronized visualization and navigation across orthogonal projections.
+ */
 public class MultiDThreePanesCanvas extends ImageCanvas {
 
 	private static final long serialVersionUID = 1L;

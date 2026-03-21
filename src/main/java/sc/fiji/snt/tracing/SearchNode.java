@@ -22,6 +22,9 @@
 
 package sc.fiji.snt.tracing;
 
+/**
+ * Interface representing a node in 3D space that can be used in pathfinding and search algorithms.
+ */
 public interface SearchNode {
 
     int getX();

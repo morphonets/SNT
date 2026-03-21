@@ -25,6 +25,10 @@ package sc.fiji.snt.gui;
 import javax.swing.*;
 import java.awt.*;
 
+/**
+ * A custom GUI component combining a checkbox and spinner control in a single panel.
+ * Useful for options where a numeric parameter can be enabled or disabled with a checkbox.
+ */
 public class CheckboxSpinner extends JPanel {
 
 	private static final long serialVersionUID = 937359242995500492L;

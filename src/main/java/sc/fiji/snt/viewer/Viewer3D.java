@@ -7252,7 +7252,7 @@ public class Viewer3D {
             return new HandlerPlus(this);
         }
 
-        class HandlerPlus extends CheckBoxList.Handler {
+        static class HandlerPlus extends CheckBoxList.Handler {
 
             public HandlerPlus(final CheckBoxList list) {
                 super(list);

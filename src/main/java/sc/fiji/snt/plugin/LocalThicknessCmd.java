@@ -39,7 +39,8 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImpUtils;
 
 /**
- * Convenience command for running Fiji's "Local Thickness" plugin from SNT
+ * Convenience command for running Fiji's "Local Thickness" plugin from SNT, enabling
+ * estimation of radii from binary skeleton images.
  *
  * @author Tiago Ferreira
  */

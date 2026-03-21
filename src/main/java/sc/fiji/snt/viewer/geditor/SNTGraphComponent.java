@@ -44,6 +44,10 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Base JGraphX component for SNT graph visualization with interactive controls.
+ * Provides pan/zoom, rendering, export capabilities, and keyboard/mouse event handling for SNT graphs.
+ */
 public class SNTGraphComponent extends mxGraphComponent {
 
 	private static final long serialVersionUID = -341155071963647372L;

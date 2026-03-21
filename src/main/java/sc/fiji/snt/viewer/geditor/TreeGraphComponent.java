@@ -26,6 +26,10 @@ import org.scijava.Context;
 
 import com.mxgraph.layout.mxCompactTreeLayout;
 
+/**
+ * JGraphX visualization component for tree graphs representing neurite morphologies.
+ * Extends SNTGraphComponent with compact tree layout for hierarchical display of SWC reconstructions.
+ */
 public class TreeGraphComponent extends SNTGraphComponent {
 
 	private static final long serialVersionUID = 1L;

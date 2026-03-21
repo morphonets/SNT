@@ -434,13 +434,7 @@ public class MouseLightLoader {
 		}
 	}
 
-	/**
-	 * Checks whether the neuron to be loaded was found in the database.
-	 *
-	 * @return true, if the neuron id specified in the constructor was found in the
-	 *         database
-	 */
-	/**
+    /**
 	 * Checks if the neuron ID exists in the database.
 	 *
 	 * @return true if the ID exists, false otherwise

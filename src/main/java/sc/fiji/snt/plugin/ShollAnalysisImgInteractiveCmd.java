@@ -30,7 +30,10 @@ import org.scijava.menu.MenuConstants;
 import org.scijava.plugin.Menu;
 import org.scijava.plugin.Plugin;
 
-
+/**
+ * Interactive command for performing Sholl analysis on binary 2D/3D images,
+ * with real-time parameter adjustment and visualization updates.
+ */
 @Plugin(type = Command.class, menu = {
         @Menu(label = MenuConstants.PLUGINS_LABEL, weight = MenuConstants.PLUGINS_WEIGHT, mnemonic = MenuConstants.PLUGINS_MNEMONIC), //
         @Menu(label = "Neuroanatomy"), //

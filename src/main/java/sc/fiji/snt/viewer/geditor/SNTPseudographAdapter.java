@@ -29,6 +29,10 @@ import sc.fiji.snt.analysis.graph.SNTPseudograph;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import java.util.Map;
 
+/**
+ * JGraphX adapter for visualizing SNT pseudographs (graphs allowing self-loops and multiple edges).
+ * Extends SNTGraphAdapter to handle styling and color management specific to pseudograph structures.
+ */
 public class SNTPseudographAdapter<V, E extends DefaultWeightedEdge> extends SNTGraphAdapter<V, E> {
 
     private static final String DARK_GRAY = "#222222";

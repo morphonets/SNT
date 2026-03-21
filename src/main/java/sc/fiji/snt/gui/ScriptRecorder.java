@@ -33,6 +33,11 @@ import java.awt.event.WindowEvent;
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * A dialog for recording SNT operations as scripts in multiple programming languages
+ * (BeanShell, Groovy, Python). Allows users to replay recorded operations and export
+ * them as reusable scripts.
+ */
 public class ScriptRecorder extends JDialog {
 
 	public static final String IGNORED_CMD = "rec-off";

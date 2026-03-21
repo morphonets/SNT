@@ -60,10 +60,10 @@ import org.scijava.prefs.PrefService;
  * List<PathFitter> fitters = paths.stream()
  *     .map(p -> new PathFitter(img, p))
  *     .collect(Collectors.toList());
- *
+ * <p>
  * // Parallel fitting
  * fitters.parallelStream().forEach(PathFitter::call);
- *
+ * <p>
  * // Sequential application
  * fitters.forEach(PathFitter::applyFit);
  * }

@@ -182,15 +182,16 @@
 			<!--
 				WORKAROUND: jzy3d-native-jogl-awt has an invalid automatic module
 				name ('native' is a Java keyword), causing javadoc generation to fail
-				with "Unable to derive module descriptor". failOnError=false allows
-				the release to proceed. Remove once jzy3d publishes a fixed jar with
-				a valid Automatic-Module-Name in its manifest. See also:
-				https://github.com/jzy3d/jzy3d-api/issues
+				with "Unable to derive module descriptor". legacyMode bypasses JPMS
+				module-path resolution entirely, using classpath instead. Remove once
+				jzy3d publishes a fixed jar with a valid Automatic-Module-Name in
+				its manifest. See also: https://github.com/jzy3d/jzy3d-api/issues
 			-->
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<configuration>
+					<legacyMode>true</legacyMode>
 					<failOnError>false</failOnError>
 				</configuration>
 			</plugin>

@@ -91,9 +91,6 @@ class EditorRuler extends JComponent implements MouseMotionListener,
 	 */
 	public static final NumberFormat numberFormat = NumberFormat.getInstance();
 
-	/**
-	 * Configuers the number format.
-	 */
 	static
 	{
 		numberFormat.setMaximumFractionDigits(2);

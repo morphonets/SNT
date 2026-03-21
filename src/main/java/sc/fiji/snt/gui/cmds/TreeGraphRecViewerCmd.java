@@ -32,6 +32,10 @@ import sc.fiji.snt.viewer.geditor.TreeGraphAdapter;
 
 import java.util.Collections;
 
+/**
+ * SciJava Command for displaying tree graph structures in the Reconstruction
+ * Viewer as interactive 3D visualizations.
+ */
 @Plugin(type = Command.class, visible = false, label = "Show Tree Graph in Rec. Viewer")
 public class TreeGraphRecViewerCmd extends DynamicCommand {
 

@@ -24,6 +24,10 @@ package sc.fiji.snt;
 
 import sc.fiji.snt.tracing.SearchInterface;
 
+/**
+ * Callback interface for monitoring progress of a search operation during path tracing.
+ * Provides updates on points evaluated, completion status, and thread state changes.
+ */
 public interface SearchProgressCallback {
 
 	/* How many points have we considered? */

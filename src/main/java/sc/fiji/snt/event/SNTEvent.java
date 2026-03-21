@@ -22,6 +22,10 @@
 
 package sc.fiji.snt.event;
 
+/**
+ * Base event class for SNT events. Represents various application-level events
+ * such as quit, exit, and data transfer operations.
+ */
 public class SNTEvent {
 
 	/** Event type indicating no specific event */

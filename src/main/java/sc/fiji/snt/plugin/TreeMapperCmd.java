@@ -50,8 +50,8 @@ import java.util.List;
 import java.util.*;
 
 /**
- * Command for color coding trees according to their properties using
- * {@link MultiTreeColorMapper} and {@link TreeColorMapper}
+ * Command for color coding trees according to their properties and statistics,
+ * using {@link MultiTreeColorMapper} and {@link TreeColorMapper}.
  *
  * @author Tiago Ferreira
  */

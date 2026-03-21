@@ -39,7 +39,10 @@ import sc.fiji.snt.viewer.geditor.AnnotationGraphAdapter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
+/**
+ * SciJava Command for displaying annotation graph data in the Reconstruction Viewer
+ * with customizable color metrics and mesh opacity.
+ */
 @Plugin(type = Command.class, visible = false, label = "Show Graph in Rec. Viewer")
 public class AnnotationGraphRecViewerCmd extends DynamicCommand {
 

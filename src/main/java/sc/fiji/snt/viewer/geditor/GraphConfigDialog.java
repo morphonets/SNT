@@ -19,9 +19,6 @@
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
  * #L%
  */
-/**
- * Copyright (c) 2012, JGraph Ltd
- */
 
 package sc.fiji.snt.viewer.geditor;
 

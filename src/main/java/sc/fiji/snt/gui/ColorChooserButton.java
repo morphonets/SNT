@@ -27,7 +27,7 @@ import java.awt.*;
 
 /**
  * Creates a JButton holding a color chooser. It is based on
- * https://stackoverflow.com/a/30433662 released under cc-by-sa
+ * <a href="https://stackoverflow.com/a/30433662">...</a> released under cc-by-sa
  */
 public class ColorChooserButton extends JButton {
 
