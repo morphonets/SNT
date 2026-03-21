@@ -1382,7 +1382,10 @@ public class GuiUtils {
 			dialog.setLocationRelativeTo(null);
 			return;
 		}
-		centerOnParent(parent.getBounds(), parent.getGraphicsConfiguration(), dialog);
+		final java.awt.Point screenLoc = parent.getLocationOnScreen();
+		final Rectangle screenBounds = new Rectangle(screenLoc.x, screenLoc.y,
+				parent.getWidth(), parent.getHeight());
+		centerOnParent(screenBounds, parent.getGraphicsConfiguration(), dialog);
 	}
 
 	public static void centerOnParent(final Rectangle parentBounds, final Window dialog) {
@@ -3495,6 +3498,30 @@ public class GuiUtils {
 			for (int i = 0; i < tree.getRowCount(); i++) tree.expandRow(i);
 		}
 
+		public static void scrollToLastRow(final javax.swing.JTree tree) {
+			int lastRow = tree.getRowCount() - 1;
+			if (lastRow >= 0) {
+				tree.scrollRowToVisible(lastRow);
+			}
+		}
+
+		public static void expandToLevel(final javax.swing.JTree tree, final int level) {
+			final DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			expandToLevel(tree, new TreePath(root), level);
+		}
+
+		private static void expandToLevel(final javax.swing.JTree tree, final TreePath parentPath, final int level) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) parentPath.getLastPathComponent();
+			if (node.getLevel() < level) {
+				tree.expandPath(parentPath);
+				final Enumeration<? extends TreeNode> children = node.children();
+				while (children.hasMoreElements()) {
+					final DefaultMutableTreeNode child = (DefaultMutableTreeNode) children.nextElement();
+					expandToLevel(tree, parentPath.pathByAddingChild(child), level);
+				}
+			}
+		}
+
 		public static void collapseNodesOfSameLevel(final javax.swing.JTree tree, final TreePath path) {
 			final DefaultMutableTreeNode root = (DefaultMutableTreeNode)tree.getModel().getRoot();
 			final DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
@@ -3671,6 +3698,104 @@ public class GuiUtils {
 				}
 			}
 			return null;
+		}
+	}
+
+	public static class SplitPanes {
+
+		public static JSplitPane nonDraggableRightSplitPane() {
+			final JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+			splitPane.setOneTouchExpandable(true);
+			splitPane.putClientProperty("JSplitPane.expandableSide", "left");
+			splitPane.putClientProperty(FlatClientProperties.STYLE,
+					"style: plain;" +
+					"arrowType: triangle;" + //oneTouchArrowColor; oneTouchHoverArrowColor
+					"oneTouchHoverArrowColor: " + SNTColor.colorToString(getSelectionColor()) + ";" +
+					"oneTouchArrowColor: " + SNTColor.colorToString(IconFactory.defaultColor()) + ";");
+			splitPane.setResizeWeight(1.0); // give all extra space to the left side
+			splitPane.setBorder(null);
+			// Non: resizable: reset cursor and vertically center the one-touch buttons along the divider's length
+			final javax.swing.plaf.basic.BasicSplitPaneDivider divider =
+					((javax.swing.plaf.basic.BasicSplitPaneUI) splitPane.getUI()).getDivider();
+			SplitPanes.applyDefaultCursor(divider);
+			SplitPanes.centerOneTouchButtons(splitPane, divider);
+			return splitPane;
+		}
+
+		public static void applyDefaultCursor(final javax.swing.plaf.basic.BasicSplitPaneDivider divider) {
+			divider.setCursor(java.awt.Cursor.getDefaultCursor());
+		}
+
+		public static void centerOneTouchButtons(final javax.swing.JSplitPane splitPane,
+												 final javax.swing.plaf.basic.BasicSplitPaneDivider divider) {
+			divider.setLayout(new java.awt.LayoutManager() {
+				@Override
+				public void addLayoutComponent(final String name, final Component comp) {
+				}
+
+				@Override
+				public void removeLayoutComponent(final Component comp) {
+				}
+
+				@Override
+				public java.awt.Dimension preferredLayoutSize(final Container parent) {
+					return null;
+				}
+
+				@Override
+				public java.awt.Dimension minimumLayoutSize(final Container parent) {
+					return null;
+				}
+
+				@Override
+				public void layoutContainer(final Container parent) {
+					// Replicate FlatDividerLayout's visibility logic: when a side
+					// is collapsed, show only the button that can restore it.
+					// Otherwise, respect the expandableSide client property.
+					final Component[] comps = parent.getComponents();
+					final java.awt.Insets insets = splitPane.getInsets();
+					final int loc = splitPane.getDividerLocation();
+					final boolean horiz = splitPane.getOrientation() == javax.swing.JSplitPane.HORIZONTAL_SPLIT;
+					final boolean leftCollapsed = horiz
+							? loc <= insets.left
+							: loc <= insets.top;
+					final boolean rightCollapsed = horiz
+							? loc >= splitPane.getWidth() - divider.getWidth() - insets.right
+							: loc >= splitPane.getHeight() - divider.getHeight() - insets.bottom;
+					for (int i = 0; i < comps.length; i++) {
+						if (!(comps[i] instanceof javax.swing.JButton)) continue;
+						if (leftCollapsed || rightCollapsed) {
+							// Collapsed: show only the button that restores the collapsed side
+							comps[i].setVisible(i == 0 ? !leftCollapsed : !rightCollapsed);
+						} else {
+							final Object expandSide = splitPane.getClientProperty(
+									FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE);
+							if (FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE_LEFT.equals(expandSide))
+								comps[i].setVisible(i > 0);
+							else if (FlatClientProperties.SPLIT_PANE_EXPANDABLE_SIDE_RIGHT.equals(expandSide))
+								comps[i].setVisible(i == 0);
+						}
+					}
+					// Collect visible buttons and center them vertically
+					final java.util.List<Component> buttons = new java.util.ArrayList<>();
+					for (final Component c : comps) {
+						if (c instanceof javax.swing.JButton && c.isVisible())
+							buttons.add(c);
+					}
+					if (buttons.isEmpty()) return;
+					final int divW = parent.getWidth();
+					final int divH = parent.getHeight();
+					final int btnW = Math.min(divW, buttons.getFirst().getPreferredSize().width);
+					final int btnH = buttons.getFirst().getPreferredSize().height;
+					final int totalH = buttons.size() * btnH;
+					int y = (divH - totalH) / 2;
+					final int x = (divW - btnW) / 2;
+					for (final Component btn : buttons) {
+						btn.setBounds(x, y, btnW, btnH);
+						y += btnH;
+					}
+				}
+			});
 		}
 	}
 }

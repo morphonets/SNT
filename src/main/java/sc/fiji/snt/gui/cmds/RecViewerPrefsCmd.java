@@ -58,6 +58,8 @@ public class RecViewerPrefsCmd extends ContextCommand {
 	public static String DEF_ANIMATION_MODE = "Full Rotation";
 	/** Default sensitivity setting for 3D viewer controls */
 	public static String DEF_CONTROLS_SENSITIVITY = "High";
+	/** Default WYSIWYG snapshot mode (off: use GL readback) */
+	public static boolean DEF_SNAPSHOT_WYSIWYG = false;
 	/** Default file extension for scripts */
 	public static String DEF_SCRIPT_EXTENSION = ".groovy";
 
@@ -71,17 +73,22 @@ public class RecViewerPrefsCmd extends ContextCommand {
 		description = "Directory where static snapshots and animated sequences will be saved")
 	private File snapshotDir;
 
+	@Parameter(label = "WYSIWYG snapshots", required = false, persist = true,
+		description = "Use screen capture for pixel-perfect snapshots matching \n" +
+				"the on-screen rendering (bypasses GL framebuffer readback)")
+	private boolean snapshotWYSIWYG;
+
 	@Parameter(label = "Animated Rotations:", required = false,
 		visibility = ItemVisibility.MESSAGE)
 	private String SUB_HEADER1;
 
 	@Parameter(label = "Animation mode", required = false, persist = true,
-		description = "Full Rotation: continuous 360° sweep. Ping-pong: oscillates back and forth over the specified arc",
+		description = "Full Rotation: continuous 360° sweep.\nPing-pong: oscillates back and forth over the specified arc",
 		choices = { "Full Rotation", "Ping-pong" })
 	private String animationMode;
 
 	@Parameter(required = false, persist = true, label = "Rotation degrees",
-		description = "Full Rotation: total sweep angle. Ping-pong: oscillation arc (camera rocks ±half this angle)",
+		description = "Full Rotation: total sweep angle.\nPing-pong: oscillation arc (camera rocks ±half this angle)",
 		style = NumberWidget.SCROLL_BAR_STYLE, stepSize = "10", min = "30",
 		max = "360d")
 	private double rotationAngle;
@@ -157,6 +164,7 @@ public class RecViewerPrefsCmd extends ContextCommand {
 
 	private void defaults() {
 		snapshotDir = null;
+		snapshotWYSIWYG = DEF_SNAPSHOT_WYSIWYG;
 		animationMode = null;
 		rotationAngle = 0;
 		rotationDuration = 0;

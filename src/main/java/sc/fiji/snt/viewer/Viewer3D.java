@@ -32,10 +32,11 @@ import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLException;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.fixedfunc.GLPointerFunc;
+import com.jogamp.opengl.util.awt.AWTGLReadBufferUtil;
 import ij.ImagePlus;
 import net.imagej.display.ColorTables;
 import net.imglib2.display.ColorTable;
-import org.jzy3d.bridge.awt.FrameAWT;
+import org.jzy3d.bridge.swing.FrameSwing;
 import org.jzy3d.chart.AWTNativeChart;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.Settings;
@@ -2715,6 +2716,20 @@ public class Viewer3D {
     }
 
     /**
+     * Retrieves the current scene as an image using a screen capture that
+     * matches the on-screen rendering exactly (WYSIWYG). This bypasses the
+     * OpenGL framebuffer readback, avoiding color discrepancies from
+     * premultiplied alpha and display color management. Falls back to
+     * {@link #snapshot()} when the viewer is not visible (e.g., offscreen
+     * rendering or headless environments).
+     *
+     * @return the bitmap image of the current scene as displayed on screen
+     */
+    public ImagePlus snapshotWYSIWYG() {
+        return chart.screenshotWYSIWYG();
+    }
+
+    /**
      * Retrieves the specified scene view as an image.
      *
      * @param viewMode the view mode (case-insensitive) ("xy", "yz", etc.). Anatomical axes ("sagittal",
@@ -2756,6 +2771,15 @@ public class Viewer3D {
         SNTUtils.log("Saving snapshot to " + file);
         if (SNTUtils.isDebugMode() && frame != null) {
             logSceneControls(false);
+        }
+        if (prefs.snapshotWYSIWYG) {
+            final ImagePlus imp = chart.screenshotWYSIWYG();
+            if (imp == null) {
+                return false;
+            }
+            final String path = file.getAbsolutePath();
+            ImpUtils.save(imp, (path.toLowerCase().endsWith(".png") ? path : path + ".png"));
+            return true;
         }
         chart.screenshot(file);
         return true;
@@ -3113,14 +3137,14 @@ public class Viewer3D {
 
         ImagePlus screenshotImp() {
             final Object screen = screenshot();
-            if (screen instanceof BufferedImage) {
-                return new ImagePlus("RecViewerSnapshot", new ij.process.ColorProcessor((BufferedImage) screen));
+            if (screen instanceof BufferedImage bi) {
+                return new ImagePlus("RecViewerSnapshot", new ij.process.ColorProcessor(flattenAlpha(bi)));
             }
             if (chart.getCanvas() instanceof INativeCanvas) {
                 final Renderer3d renderer = ((INativeCanvas) chart.getCanvas()).getRenderer();
                 if (renderer instanceof AWTRenderer3d) {
                     return new ImagePlus("RecViewerSnapshot",
-                            new ij.process.ColorProcessor(((AWTRenderer3d) renderer).getLastScreenshotImage()));
+                            new ij.process.ColorProcessor(flattenAlpha(((AWTRenderer3d) renderer).getLastScreenshotImage())));
                 }
             }
             // not sure how otherwise convert TextureData to bufferedImage in a simple way
@@ -3132,6 +3156,54 @@ public class Viewer3D {
             } catch (final IOException ex) {
                 throw new IllegalArgumentException("Data could not be temp. written to disk " + ex.getMessage());
             }
+        }
+
+        /**
+         * Captures the canvas exactly as it appears on screen using
+         * {@link java.awt.Robot}, bypassing the GL framebuffer readback
+         * pipeline entirely. This avoids premultiplied-alpha and color
+         * management discrepancies. Falls back to {@link #screenshotImp()}
+         * when the canvas is not showing on screen (e.g., headless/offscreen).
+         */
+        ImagePlus screenshotWYSIWYG() {
+            final Component c = (Component) chart.getCanvas();
+            if (c.isShowing()) {
+                try {
+                    final java.awt.Point loc = c.getLocationOnScreen();
+                    final java.awt.Rectangle rect = new java.awt.Rectangle(
+                            loc.x, loc.y, c.getWidth(), c.getHeight());
+                    final BufferedImage capture = new java.awt.Robot().createScreenCapture(rect);
+                    return ImpUtils.fromBufferedImage("RecViewerSnapshot", capture);
+                } catch (final java.awt.AWTException | SecurityException ignored) {
+                    // fall through to GL-based screenshot
+                }
+            }
+            return screenshotImp();
+        }
+
+        /**
+         * Strips the alpha channel from a premultiplied-alpha image, keeping the
+         * raw premultiplied RGB values unchanged. jzy3d's AWTRenderer3d uses
+         * AWTGLReadBufferUtil with alpha=true, producing TYPE_INT_ARGB_PRE
+         * images. The screen compositor displays these by sending the
+         * premultiplied RGB directly to the display, ignoring alpha. We
+         * replicate that by accessing the underlying DataBuffer directly
+         * (bypassing getRGB()'s automatic un-premultiplication) and copying the
+         * raw pixel data with alpha masked off.
+         */
+        private static BufferedImage flattenAlpha(final BufferedImage img) {
+            if (img == null || img.getType() != BufferedImage.TYPE_INT_ARGB_PRE)
+                return img;
+            final int w = img.getWidth();
+            final int h = img.getHeight();
+            // Access raw premultiplied ARGB data directly from the raster,
+            // avoiding ColorModel conversion that getRGB() performs
+            final int[] srcPixels = ((java.awt.image.DataBufferInt) img.getRaster().getDataBuffer()).getData();
+            final BufferedImage rgb = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+            final int[] dstPixels = ((java.awt.image.DataBufferInt) rgb.getRaster().getDataBuffer()).getData();
+            for (int i = 0; i < srcPixels.length; i++)
+                dstPixels[i] = srcPixels[i] & 0x00FFFFFF;
+            return rgb;
         }
     }
 
@@ -3270,8 +3342,7 @@ public class Viewer3D {
         }
     }
 
-    // TODO: MouseController is more responsive with FrameAWT?
-    private class ViewerFrame extends FrameAWT implements IFrame {
+    private class ViewerFrame extends FrameSwing implements IFrame {
 
         private static final long serialVersionUID = 1L;
         private static final int DEF_WIDTH = 800;
@@ -3309,6 +3380,7 @@ public class Viewer3D {
         public ViewerFrame(final AChart chart, final int width, final int height, final boolean includeManager,
                            final GraphicsConfiguration gConfiguration) {
             super();
+            setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
             GuiUtils.setLookAndFeel();
             GuiUtils.removeIcon(this);
             final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
@@ -3464,7 +3536,7 @@ public class Viewer3D {
         /*
          * (non-Javadoc)
          *
-         * @see org.jzy3d.bridge.awt.FrameAWT#initialize(org.jzy3d.chart.Chart,
+         * @see org.jzy3d.bridge.swing.FrameSwing#initialize(org.jzy3d.chart.Chart,
          * org.jzy3d.maths.Rectangle, java.lang.String)
          */
         @Override
@@ -3480,13 +3552,8 @@ public class Viewer3D {
             status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
             status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
             if (managerList != null) {
-                // Interactive mode: use split pane for embedded manager panel
-                if (splitPane == null) {
-                    splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-                    splitPane.setOneTouchExpandable(true);
-                    splitPane.putClientProperty("JSplitPane.expandableSide", "left");
-                    splitPane.setResizeWeight(1.0); // give all extra space to the canvas
-                    splitPane.setBorder(null);
+                if (splitPane == null) { // Interactive mode: use split pane for embedded manager panel
+                   splitPane = GuiUtils.SplitPanes.nonDraggableRightSplitPane();
                 }
                 final JPanel leftPanel = new JPanel(new BorderLayout());
                 leftPanel.setBackground(status.getBackground());
@@ -3550,7 +3617,7 @@ public class Viewer3D {
         }
 
         /* (non-Javadoc)
-         * @see org.jzy3d.bridge.awt.FrameAWT#initialize(org.jzy3d.chart.Chart, org.jzy3d.maths.Rectangle, java.lang.String, java.lang.String)
+         * @see org.jzy3d.bridge.swing.FrameSwing#initialize(org.jzy3d.chart.Chart, org.jzy3d.maths.Rectangle, java.lang.String, java.lang.String)
          */
         @Override
         public void initialize(final Chart chart, final Rectangle bounds,
@@ -3753,6 +3820,7 @@ public class Viewer3D {
         protected boolean retrieveAllIfNoneSelected;
         protected String treeCompartmentChoice;
         protected String snapshotDir;
+        protected boolean snapshotWYSIWYG;
 
         private final Viewer3D tp;
         private final KeyController kc;
@@ -3798,8 +3866,9 @@ public class Viewer3D {
             snapshotDir = (tp.prefService == null) ? RecViewerPrefsCmd.DEF_SNAPSHOT_DIR
                     : tp.prefService.get(RecViewerPrefsCmd.class, "snapshotDir",
                     RecViewerPrefsCmd.DEF_SNAPSHOT_DIR);
-//			final File dir = new File(snapshotDir);
-//			if (!dir.exists() || !dir.isDirectory()) dir.mkdirs();
+            snapshotWYSIWYG = (tp.prefService != null)
+                    && tp.prefService.getBoolean(RecViewerPrefsCmd.class, "snapshotWYSIWYG",
+                    RecViewerPrefsCmd.DEF_SNAPSHOT_WYSIWYG);
         }
 
         private float getSnapshotRotationAngle() {
@@ -4384,7 +4453,7 @@ public class Viewer3D {
                     case SCENE_SHORTCUTS_NOTIFICATION -> keyController.showHelp(false);
                     case RECORDER -> openRecorder(true);
                     case SNAPSHOT_DISK -> keyController.saveScreenshot();
-                    case SNAPSHOT_SHOW -> snapshot().show();
+                    case SNAPSHOT_SHOW -> (prefs.snapshotWYSIWYG ? snapshotWYSIWYG() : snapshot()).show();
                     case SYNC -> {
                         try {
                             if (!syncPathManagerList())
@@ -5514,24 +5583,7 @@ public class Viewer3D {
                 utilsMenu.add(jmi);
             }
             GuiUtils.addSeparator(utilsMenu, "Capture");
-            utilsMenu.add(menuItem("Record Animation...", GLYPH.VIDEO, e -> {
-                final String[] choices = {
-                    "Z-axis (azimuth sweep)",
-                    "Y-axis (elevation sweep from side)",
-                    "X-axis (elevation sweep from front)"
-                };
-                final boolean pingPong = getAnimationMode() == AnimationMode.PING_PONG;
-                final String modeLabel = pingPong ? "ping-pong" : "full";
-                final String rAxis = mgrGuiUtils.getChoice(
-                    "Record " + modeLabel + " rotation around which axis?\n"
-                    + "(NB: Angle, duration, and animation mode can be adjusted in Preferences)",
-                    "Record Animation", choices, choices[0]);
-                if (rAxis == null) return;
-                SwingUtilities.invokeLater(() -> {
-                    displayMsg("Recording " + modeLabel + " animation...", 0);
-                    new RecordWorker(RotationAxis.fromString(rAxis)).execute();
-                });
-            }));
+            utilsMenu.add(recordAnimationMenuItem());
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_SHOW, KeyEvent.VK_UNDEFINED, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem(new Action(Action.SNAPSHOT_DISK, KeyEvent.VK_S, false, false), GLYPH.CAMERA));
             utilsMenu.add(menuItem("Show Snapshot Directory", GLYPH.OPEN_FOLDER,
@@ -5543,6 +5595,37 @@ public class Viewer3D {
             helpMenu.setIcon(IconFactory.menuIcon(GLYPH.QUESTION));
             utilsMenu.add(helpMenu);
             return utilsMenu;
+        }
+
+        private JMenuItem recordAnimationMenuItem() {
+            final JMenuItem mi = menuItem("Record Animation...", GLYPH.VIDEO, e -> {
+                final String xLabel = view.getAxisLayout().getXAxisLabel();
+                final String yLabel = view.getAxisLayout().getYAxisLabel();
+                final String zLabel = view.getAxisLayout().getZAxisLabel();
+                final String[] choices = {
+                        "Z-axis" + anatomicalSuffix(zLabel, "Z") + " (azimuth sweep)",
+                        "Y-axis" + anatomicalSuffix(yLabel, "Y") + " (elevation sweep from side)",
+                        "X-axis" + anatomicalSuffix(xLabel, "X") + " (elevation sweep from front)"
+                };
+                final boolean pingPong = getAnimationMode() == AnimationMode.PING_PONG;
+                final String modeLabel = pingPong ? "ping-pong" : "full";
+                final String rAxis = mgrGuiUtils.getChoice(
+                        "Record " + modeLabel + " rotation around which axis?\n"
+                                + "(NB: Angle, duration, and animation mode can be adjusted in Preferences)",
+                        "Record Animation", choices, choices[0]);
+                if (rAxis == null) return;
+                SwingUtilities.invokeLater(() -> {
+                    displayMsg("Recording " + modeLabel + " animation...", 0);
+                    new RecordWorker(RotationAxis.fromString(rAxis)).execute();
+                });
+            });
+            return mi;
+        }
+
+        private static String anatomicalSuffix(final String label, final String defaultLabel) {
+            if (label == null || label.isBlank() || label.equals(defaultLabel))
+                return "";
+            return ": " + label;
         }
 
         private JPopupMenu scriptingMenu() {
@@ -5635,7 +5718,7 @@ public class Viewer3D {
                 final JMenuItem jcbmi = new JCheckBoxMenuItem(label);
                 jcbmi.setSelected(mode == persistedMode);
                 jcbmi.addItemListener(ev -> {
-                    final boolean isAnimating = mouseController.isAnimating();
+                    final boolean isAnimating = mouseController != null && mouseController.isAnimating();
                     setAnimationEnabled(false);
                     setAnimationMode(mode);
                     prefs.setAnimationModePref(mode);
@@ -6322,6 +6405,7 @@ public class Viewer3D {
             final JMenuItem meshSurface = menuItem("Mesh Surface...", GLYPH.DICE_20,
                     e -> addMeshBasedSurfaceAnnotationsAction());
             meshSurface.setToolTipText("Adds convex-hull tessellations to selected meshes");
+            meshBased.add(meshSurface);
             annotMenu.add(meshBased);
             final JMenu primitives = new JMenu("Shapes");
             primitives.setToolTipText("Adds basic geometry objects to the scene");
@@ -6875,7 +6959,7 @@ public class Viewer3D {
             if (frame.hasManager()) {
                 dialog.setPreferredSize(new Dimension(dialog.getPreferredSize().width,
                         frame.getHeight()));
-                dialog.setLocationRelativeTo(frame);
+                dialog.setLocationRelativeTo(frame.managerPanel);
             }
             GuiUtils.JTrees.expandToLevel(tree, 4);
             GuiUtils.JTrees.scrollToLastRow(tree);
@@ -9466,8 +9550,10 @@ public class Viewer3D {
                         }
                     }
                     if (rotationAxis == RotationAxis.Z) {
-                        // Direct azimuth positioning (absolute, not incremental)
-                        view.setViewPoint(new Coord3d(az0 + cumulativeAngle, el0, startVp.z));
+                        // Direct azimuth positioning (absolute, not incremental).
+                        // Use updateView=false to match super.doRun()'s rotate()
+                        // behavior: let the next repaint cycle handle rendering
+                        view.setViewPoint(new Coord3d(az0 + cumulativeAngle, el0, startVp.z), false);
                     } else {
                         // Rodrigues: v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
                         final double cosT = Math.cos(cumulativeAngle);
@@ -9481,7 +9567,7 @@ public class Viewer3D {
                         final double rz = vz * cosT + cz * sinT;
                         final double newEl = Math.asin(Math.max(-1, Math.min(1, rz)));
                         final double newAz = Math.atan2(rx, ry);
-                        view.setViewPoint(new Coord3d(newAz, newEl, startVp.z));
+                        view.setViewPoint(new Coord3d(newAz, newEl, startVp.z), false);
                     }
                     Thread.sleep(sleep);
                 } catch (final InterruptedException e) {
@@ -9921,7 +10007,7 @@ public class Viewer3D {
             sb.append("    <td>Double left-click</td>");
             sb.append("  </tr>");
             sb.append("  <tr>");
-            sb.append("    <td>Snap to Top/Side View &nbsp; &nbsp;</td>");
+            sb.append("    <td>Cycle View Mode &nbsp; &nbsp;</td>");
             sb.append("    <td>Ctrl + left-click</td>");
             sb.append("  </tr>");
             if (showInDialog) sb.append("  <tr>");
@@ -10976,10 +11062,28 @@ public class Viewer3D {
 
         }
 
-        private static class OffScreenFactory extends OffscreenChartFactory {
+        /**
+         * Custom AWTRenderer3d that reads GL_RGB (no alpha) for screenshots.
+         * The default uses alpha=true, producing TYPE_INT_ARGB_PRE images with
+         * premultiplied RGB that appear washed out compared to on-screen rendering.
+         */
+        private static class ARenderer extends AWTRenderer3d {
+            ARenderer(final View view, final boolean traceGL, final boolean debugGL) {
+                super(view, traceGL, debugGL);
+                screenshotMaker = new AWTGLReadBufferUtil(GLProfile.getGL2GL3(), false);
+            }
+        }
 
-            public OffScreenFactory() {
-                super(1920, 1080);
+        private static class OffScreenFactory extends AWTChartFactory {
+
+            OffScreenFactory() {
+                super(new OffscreenWindowFactory() {
+                    @Override
+                    public Renderer3d newRenderer3D(final View view) {
+                        return new ARenderer(view, traceGL, debugGL);
+                    }
+                });
+                getPainterFactory().setOffscreen(1920, 1080);
             }
 
             @Override
@@ -11007,6 +11111,15 @@ public class Viewer3D {
         }
 
         private static class JOGLFactory extends AWTChartFactory {
+
+            JOGLFactory() {
+                super(new AWTPainterFactory() {
+                    @Override
+                    public Renderer3d newRenderer3D(final View view) {
+                        return new ARenderer(view, traceGL, debugGL);
+                    }
+                });
+            }
 
             @Override
             public Camera newCamera(final Coord3d center) {
@@ -11241,13 +11354,13 @@ public class Viewer3D {
                 final float cx = (rs.xmin() + rs.xmax()) / 2f;
                 final float cy = (rs.ymin() + rs.ymax()) / 2f;
                 if (rsAspect < vpAspect) {
-                    // viewport is wider — expand horizontal range
+                    // viewport is wider: expand horizontal range
                     final float newW = rsH * vpAspect;
                     cam.setRenderingSquare(new BoundingBox2d(
                             cx - newW / 2, cx + newW / 2,
                             rs.ymin(), rs.ymax()), cam.getNear(), cam.getFar());
                 } else {
-                    // viewport is taller — expand vertical range
+                    // viewport is taller: expand vertical range
                     final float newH = rsW / vpAspect;
                     cam.setRenderingSquare(new BoundingBox2d(
                             rs.xmin(), rs.xmax(),

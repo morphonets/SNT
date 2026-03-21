@@ -437,6 +437,10 @@ public class ImpUtils {
         return null;
     }
 
+    public static ImagePlus fromBufferedImage(final String title, final BufferedImage image) {
+        return new ImagePlus(title, new ij.process.ColorProcessor(image));
+    }
+
     private static boolean isGrayscale(final BufferedImage image, final int width, final int height) {
         for (int i = 0; i < width; i++) { // https://stackoverflow.com/a/36173328
             for (int j = 0; j < height; j++) {
