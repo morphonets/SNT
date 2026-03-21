@@ -58,6 +58,9 @@ import java.util.*;
  */
 public abstract class AbstractAutoTracer implements AutoTracer {
 
+    /** Creates a new AbstractAutoTracer instance. */
+    protected AbstractAutoTracer() {}
+
     protected Roi somaRoi;
     protected int somaRoiZPosition = -1;  // Z-slice (0-indexed), -1 if unset
     protected int rootStrategy = ROI_UNSET;

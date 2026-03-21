@@ -48,8 +48,10 @@ import ij.gui.ShapeRoi;
 import ij.measure.Calibration;
 
 /**
- * @author Tiago Ferreira
+ * Renders Sholl analysis results as graphical overlays on an image,
+ * including concentric shells, sampling points, and intersection counts.
  *
+ * @author Tiago Ferreira
  */
 public class ShollOverlay implements ProfileProperties {
 

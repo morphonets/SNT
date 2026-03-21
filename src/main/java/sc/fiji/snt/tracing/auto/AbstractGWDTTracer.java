@@ -64,9 +64,11 @@ import java.util.*;
  */
 public abstract class AbstractGWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
 
-    // Fast Marching states
+    /** Fast Marching state: voxel has not yet been reached. */
     public static final byte FAR = 0;
+    /** Fast Marching state: voxel is in the narrow-band trial set. */
     public static final byte TRIAL = 1;
+    /** Fast Marching state: voxel distance has been finalized. */
     public static final byte ALIVE = 2;
 
     // Input
@@ -817,13 +819,13 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * APP2-style dark node and segment pruning.
      * <p>
      * Phase 1: Dark Node Pruning (iterative)
-     * - For each leaf, if intensity <= background threshold, remove the leaf
+     * - For each leaf, if intensity &lt;= background threshold, remove the leaf
      * - Repeat until no more dark leaves found
      * <p>
      * Phase 2: Dark Segment Pruning
      * - For each terminal branch (path from leaf to branch point):
-     * - Delete if average intensity <= background threshold, OR
-     * - Delete if >= 20% of nodes are dark (intensity <= threshold)
+     * - Delete if average intensity &lt;= background threshold, OR
+     * - Delete if &gt;= 20% of nodes are dark (intensity &lt;= threshold)
      */
     protected void darkNodeAndSegmentPruning(final DirectedWeightedGraph graph, final double effectiveThreshold) {
         final SWCPoint root = findGraphRoot(graph);
@@ -1444,6 +1446,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         return posToIndex(pos, dims);
     }
 
+    /** Converts an N-dimensional position to a flat array index using row-major order. */
     public static long posToIndex(final long[] pos, final long[] dims) {
         long idx = 0;
         long stride = 1;

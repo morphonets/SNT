@@ -49,8 +49,11 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
 
     protected final RandomAccessibleInterval<? extends RealType<?>> img;
     protected final RandomAccess<? extends RealType<?>> imgAccess;
+    /** The width of the search image in pixels. */
     public final int imgWidth;
+    /** The height of the search image in pixels. */
     public final int imgHeight;
+    /** The depth (number of slices) of the search image. */
     public final int imgDepth;
     protected final long xMin;
     protected final long yMin;
@@ -198,8 +201,10 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
         }
     }
 
+    /** Registers a callback to receive progress updates during the search. */
     public abstract void addProgressListener(SearchProgressCallback callback);
 
+    /** Prints the current search status to the log. */
     public abstract void printStatus();
 
     /*
@@ -208,6 +213,7 @@ public abstract class AbstractSearch implements SearchInterface, Runnable {
      */
     protected abstract void reportPointsInSearch();
 
+    /** Returns the total number of points evaluated so far during the search. */
     public abstract long pointsConsideredInSearch();
 
 }

@@ -68,14 +68,19 @@ public abstract class AbstractConvexHull {
         boundarySize = -1;
 	}
 
+    /** Computes the convex hull from the input points. */
     public abstract void compute();
 
+    /** Returns the area (2D) or volume (3D) of this convex hull. */
     public abstract double size();
 
+    /** Returns the perimeter (2D) or surface area (3D) of this convex hull. */
     public abstract double boundarySize();
 
+    /** Returns the intersection of this convex hull with the given hull(s). */
     public abstract AbstractConvexHull intersection(final AbstractConvexHull... convexHull);
 
+    /** Returns the bounding-box intersection of this hull with the given hull(s). */
     public BoundingBox intersectionBox(final AbstractConvexHull... convexHulls) {
         BoundingBox intersectionBb = new BoundingBox(points);
         for (final AbstractConvexHull convexHull : convexHulls)

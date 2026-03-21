@@ -53,8 +53,10 @@ import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.ShollPoint;
 
 /**
- * @author Tiago Ferreira
+ * An ImageJ {@link Plot} for displaying Sholl analysis profiles, including
+ * sampled data, fitted curves, and descriptive statistics.
  *
+ * @author Tiago Ferreira
  */
 public class ShollPlot extends Plot {
 

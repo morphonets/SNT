@@ -30,6 +30,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Iterator;
 
 /**
+ * A {@link SearchImage} backed by an ImgLib2 {@link ListImg}, providing
+ * list-based storage for path-search data structures.
+ *
  * @author Cameron Arshadi
  */
 public class ListSearchImage<V> implements SearchImage<V> {

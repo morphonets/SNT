@@ -44,6 +44,9 @@ import java.awt.*;
 @Plugin(type = Command.class, visible = false, label = "Add Annotation Label...", initializer = "init")
 public class AddTextAnnotationCmd extends InteractiveCommand {
 
+	/** Creates a new AddTextAnnotationCmd instance. */
+	public AddTextAnnotationCmd() {}
+
 	@Parameter(label = "Text", required = false, description = "Font size")
 	private String string;
 
@@ -118,7 +121,7 @@ public class AddTextAnnotationCmd extends InteractiveCommand {
 		}
 	}
 
-	/* IDE debug method **/
+	/** IDE debug method. */
 	public static void main(final String[] args) {
 		GuiUtils.setLookAndFeel();
 		final ImageJ ij = new ImageJ();

@@ -43,44 +43,47 @@ public interface BrainAnnotation {
 	/** Character constant representing any hemisphere (null character) */
 	public char ANY_HEMISPHERE = '\u0000';
 
-	/** @return the compartment's unique id */
+	/** Returns the compartment's unique id. */
 	public int id();
 
-	/** @return the compartment's name */
+	/** Returns the compartment's name. */
 	public String name();
 
-	/** @return the compartment's acronym */
+	/** Returns the compartment's acronym. */
 	public String acronym();
 
-	/** @return the compartment's alias(es) */
+	/** Returns the compartment's alias(es). */
 	public String[] aliases();
 
-	/** @return the mesh associated with this compartment */
+	/** Returns the mesh associated with this compartment. */
 	public OBJMesh getMesh();
 
-	/** @return whether this compartment is a sub-compartment of {@code annotation} */
+	/** Returns whether this compartment is a sub-compartment of {@code annotation}. */
 	public boolean isChildOf(BrainAnnotation annotation);
 
-	/** @return whether this compartment is a parentCompartment of {@code annotation} */
+	/** Returns whether this compartment is a parent of {@code parentCompartment}. */
 	public boolean isParentOf(final BrainAnnotation parentCompartment);
 
+	/** Returns the ontology depth of this compartment. */
 	public int getOntologyDepth();
 
-	/** @return whether a mesh is available for this compartment */
+	/** Returns whether a mesh is available for this compartment. */
 	public boolean isMeshAvailable();
 
 	/**
+	 * Returns the ancestor of this compartment at the specified level.
+	 *
 	 * @param level the ancestor level as negative 1-based index. E.g., {@code -1}
 	 *              retrieves the last ancestor (parent), {@code -2} retrieves the
 	 *              second to last, etc
-	 * @return the ancestor of this compartment at the nth level
+	 * @return the ancestor at the given level
 	 */
 	public BrainAnnotation getAncestor(final int level);
 
-	/** @return the parent of this compartment */
+	/** Returns the parent of this compartment. */
 	public BrainAnnotation getParent();
 
-	/** @return the display color of this compartment (if known) */
+	/** Returns the display color of this compartment (if known). */
 	public ColorRGB color();
 
 	public static char getHemisphereFlag(final String hemisphere) {

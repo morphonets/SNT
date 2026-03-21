@@ -192,6 +192,7 @@
 				<artifactId>maven-javadoc-plugin</artifactId>
 				<configuration>
 					<legacyMode>true</legacyMode>
+					<detectJavaApiLink>false</detectJavaApiLink>
 					<failOnError>false</failOnError>
 				</configuration>
 			</plugin>
