@@ -453,12 +453,12 @@
 					<artifactId>kotlin-stdlib</artifactId>
 				</exclusion>
 				<exclusion>
-					<groupId>com.github.skalarproduktraum</groupId>
-					<artifactId>lwjgl3-awt</artifactId>
-				</exclusion>
-				<exclusion>
 					<groupId>graphics.scenery</groupId>
 					<artifactId>art-dtrack-sdk</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>com.github.skalarproduktraum</groupId>
+					<artifactId>lwjgl3-awt</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
@@ -501,10 +501,21 @@
 					<groupId>org.jetbrains.kotlin</groupId>
 					<artifactId>kotlin-stdlib</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>org.slf4j</groupId>
+					<artifactId>slf4j-simple</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 
 		<!-- Runtime dependencies -->
+		<dependency>
+			<!-- lwjgl3-awt: needed by SciView's Vulkan renderer (replaces JitPack fork) -->
+			<groupId>org.lwjglx</groupId>
+			<artifactId>lwjgl3-awt</artifactId>
+			<version>0.2.3</version>
+			<scope>runtime</scope>
+		</dependency>
 		<dependency>
 			<!-- automatically allow charts to be exported as PDF -->
 			<groupId>com.orsonpdf</groupId>
