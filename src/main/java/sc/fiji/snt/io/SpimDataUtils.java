@@ -223,6 +223,17 @@ public class SpimDataUtils {
                                       final String unit,
                                       final int nTimepoints,
                                       final String setupName) throws IOException {
+        writeBdvN5Xml(xmlFile, n5DirName, levelDims, voxelSize, unit, nTimepoints, setupName, 1);
+    }
+
+    public static void writeBdvN5Xml(final File xmlFile,
+                                      final String n5DirName,
+                                      final long[][] levelDims,
+                                      final double[] voxelSize,
+                                      final String unit,
+                                      final int nTimepoints,
+                                      final String setupName,
+                                      final int nChannels) throws IOException {
         final int nLevels = levelDims.length;
         final String vs = String.format(Locale.US, "%g %g %g",
                 voxelSize[0], voxelSize[1], voxelSize[2]);
@@ -240,15 +251,60 @@ public class SpimDataUtils {
                     scale, scale, scale));
         }
 
+        // ViewSetups: one per channel
+        final StringBuilder viewSetups = new StringBuilder();
+        final StringBuilder channels = new StringBuilder();
+        for (int ch = 0; ch < nChannels; ch++) {
+            final String chName = nChannels > 1 ? setupName + " Ch" + ch : setupName;
+            viewSetups.append(String.format(Locale.US,
+                    "      <ViewSetup>\n" +
+                    "        <id>%d</id>\n" +
+                    "        <name>%s</name>\n" +
+                    "        <size>%s</size>\n" +
+                    "        <voxelSize>\n" +
+                    "          <unit>%s</unit>\n" +
+                    "          <size>%s</size>\n" +
+                    "        </voxelSize>\n" +
+                    "        <attributes>\n" +
+                    "          <channel>%d</channel>\n" +
+                    "        </attributes>\n" +
+                    "      </ViewSetup>\n",
+                    ch, chName, sizeStr, unit, vs, ch));
+            channels.append(String.format(
+                    "        <Channel>\n" +
+                    "          <id>%d</id>\n" +
+                    "          <name>%s</name>\n" +
+                    "        </Channel>\n",
+                    ch, chName));
+        }
+
+        // MipmapResolutions: one block per setup (all share same pyramid)
+        final StringBuilder mipmaps = new StringBuilder();
+        for (int ch = 0; ch < nChannels; ch++) {
+            mipmaps.append(String.format(
+                    "    <MipmapResolutions setup=\"%d\">\n" +
+                    "      <subdivisions>\n" +
+                    "%s" +
+                    "      </subdivisions>\n" +
+                    "      <resolutions>\n" +
+                    "%s" +
+                    "      </resolutions>\n" +
+                    "    </MipmapResolutions>\n",
+                    ch, subdivisions, resolutions));
+        }
+
+        // ViewRegistrations: one per timepoint × channel
         final StringBuilder registrations = new StringBuilder();
         for (int t = 0; t < nTimepoints; t++) {
-            registrations.append(String.format(Locale.US,
-                    "      <ViewRegistration timepoint=\"%d\" setup=\"0\">\n" +
-                    "        <ViewTransform type=\"affine\">\n" +
-                    "          <affine>%g 0.0 0.0 0.0 0.0 %g 0.0 0.0 0.0 0.0 %g 0.0</affine>\n" +
-                    "        </ViewTransform>\n" +
-                    "      </ViewRegistration>\n",
-                    t, voxelSize[0], voxelSize[1], voxelSize[2]));
+            for (int ch = 0; ch < nChannels; ch++) {
+                registrations.append(String.format(Locale.US,
+                        "      <ViewRegistration timepoint=\"%d\" setup=\"%d\">\n" +
+                        "        <ViewTransform type=\"affine\">\n" +
+                        "          <affine>%g 0.0 0.0 0.0 0.0 %g 0.0 0.0 0.0 0.0 %g 0.0</affine>\n" +
+                        "        </ViewTransform>\n" +
+                        "      </ViewRegistration>\n",
+                        t, ch, voxelSize[0], voxelSize[1], voxelSize[2]));
+            }
         }
 
         final String xml = String.format(
@@ -260,45 +316,23 @@ public class SpimDataUtils {
                 "      <n5 type=\"relative\">%s</n5>\n" +
                 "    </ImageLoader>\n" +
                 "    <ViewSetups>\n" +
-                "      <ViewSetup>\n" +
-                "        <id>0</id>\n" +
-                "        <name>%s</name>\n" +
-                "        <size>%s</size>\n" +
-                "        <voxelSize>\n" +
-                "          <unit>%s</unit>\n" +
-                "          <size>%s</size>\n" +
-                "        </voxelSize>\n" +
-                "        <attributes>\n" +
-                "          <channel>0</channel>\n" +
-                "        </attributes>\n" +
-                "      </ViewSetup>\n" +
+                "%s" +
                 "      <Attributes name=\"channel\">\n" +
-                "        <Channel>\n" +
-                "          <id>0</id>\n" +
-                "          <name>%s</name>\n" +
-                "        </Channel>\n" +
+                "%s" +
                 "      </Attributes>\n" +
                 "    </ViewSetups>\n" +
                 "    <Timepoints type=\"range\">\n" +
                 "      <first>0</first>\n" +
                 "      <last>%d</last>\n" +
                 "    </Timepoints>\n" +
-                "    <MipmapResolutions setup=\"0\">\n" +
-                "      <subdivisions>\n" +
                 "%s" +
-                "      </subdivisions>\n" +
-                "      <resolutions>\n" +
-                "%s" +
-                "      </resolutions>\n" +
-                "    </MipmapResolutions>\n" +
                 "  </SequenceDescription>\n" +
                 "  <ViewRegistrations>\n" +
                 "%s" +
                 "  </ViewRegistrations>\n" +
                 "</SpimData>\n",
-                n5DirName, setupName, sizeStr, unit, vs,
-                setupName, nTimepoints - 1,
-                subdivisions, resolutions, registrations);
+                n5DirName, viewSetups, channels, nTimepoints - 1,
+                mipmaps, registrations);
 
         try (final PrintWriter pw = new PrintWriter(xmlFile)) {
             pw.print(xml);

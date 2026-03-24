@@ -1242,6 +1242,83 @@ public class ImgUtils {
     }
 
     /**
+     * Downsamples an {@link ImgPlus} so that no spatial dimension exceeds
+     * {@code maxDimSize}. Only spatial axes (X, Y, Z) are downsampled;
+     * Channel and Time axes are left untouched.
+     * <p>
+     * Uses nearest-neighbour subsampling ({@link Views#subsample}) for speed.
+     * The calibration of downsampled axes is scaled accordingly so that the
+     * physical extent of the image is preserved.
+     * </p>
+     *
+     * @param imgPlus    the image to downsample
+     * @param maxDimSize maximum allowed size for any spatial dimension
+     *                   (e.g. {@code GL_MAX_3D_TEXTURE_SIZE})
+     * @param <T>        pixel type
+     * @return a (possibly lazy) downsampled ImgPlus, or the original if no
+     *         dimension exceeds the limit
+     */
+    public static <T extends RealType<T>> ImgPlus<T> downsampleToFit(final ImgPlus<T> imgPlus,
+                                                                      final int maxDimSize) {
+        final int nDims = imgPlus.numDimensions();
+        final long[] steps = new long[nDims];
+        boolean needsDownsample = false;
+        for (int d = 0; d < nDims; d++) {
+            final AxisType type = imgPlus.axis(d).type();
+            if (type == Axes.CHANNEL || type == Axes.TIME) {
+                steps[d] = 1;
+            } else {
+                steps[d] = Math.max(1, (long) Math.ceil((double) imgPlus.dimension(d) / maxDimSize));
+                if (steps[d] > 1) needsDownsample = true;
+            }
+        }
+        if (!needsDownsample) return imgPlus;
+
+        final StringBuilder sb = new StringBuilder("ImgUtils.downsampleToFit: steps=[");
+        for (int d = 0; d < nDims; d++) {
+            if (d > 0) sb.append(',');
+            sb.append(steps[d]);
+        }
+        sb.append(']');
+
+        final RandomAccessibleInterval<T> sub = Views.subsample(imgPlus, steps);
+        final Img<T> wrapped = ImgView.wrap(sub, imgPlus.factory());
+        // Build axis array with adjusted calibration
+        final CalibratedAxis[] axes = new CalibratedAxis[nDims];
+        for (int d = 0; d < nDims; d++) {
+            final CalibratedAxis src = imgPlus.axis(d);
+            final double scale = imgPlus.averageScale(d) * steps[d];
+            axes[d] = new DefaultLinearAxis(src.type(), src.unit(), scale);
+        }
+        final ImgPlus<T> result = new ImgPlus<>(wrapped, imgPlus.getName(), axes);
+        sb.append(" >> dims=[");
+        for (int d = 0; d < nDims; d++) {
+            if (d > 0) sb.append(',');
+            sb.append(result.dimension(d));
+        }
+        sb.append(']');
+        SNTUtils.log(sb.toString());
+        return result;
+    }
+
+    /**
+     * Checks whether any spatial dimension of an {@link ImgPlus} exceeds the
+     * given limit. Only X, Y, and Z axes are considered.
+     *
+     * @param imgPlus    the image to check
+     * @param maxDimSize maximum allowed size (e.g., {@code GL_MAX_3D_TEXTURE_SIZE})
+     * @return {@code true} if at least one spatial dimension exceeds the limit
+     */
+    public static boolean exceedsDimension(final ImgPlus<?> imgPlus, final int maxDimSize) {
+        for (int d = 0; d < imgPlus.numDimensions(); d++) {
+            final AxisType type = imgPlus.axis(d).type();
+            if (type == Axes.CHANNEL || type == Axes.TIME) continue;
+            if (imgPlus.dimension(d) > maxDimSize) return true;
+        }
+        return false;
+    }
+
+    /**
      * Saves an image to disk as a TIFF file. This is the save counterpart of
      * {@link #open(String)}.
      * <p>
