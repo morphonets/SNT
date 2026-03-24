@@ -40,6 +40,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.FileChooser;
+import sc.fiji.snt.gui.GuiUtils;
 
 import java.awt.*;
 import java.io.File;
@@ -200,19 +201,12 @@ public class SaveMeasurementsCmd extends CommonDynamicCmd {
     private void addItemCheckbox(final Saveable s, final int index) {
         final DefaultMutableModuleItem<Boolean> item = new DefaultMutableModuleItem<>(
                 getInfo(), "saveItem" + index, Boolean.class);
-        item.setLabel(truncateLabel(s.name));
+        item.setLabel(GuiUtils.truncate(s.name, 80));
         item.setDescription(s.description);
         item.setValue(this, true);
         item.setPersisted(false);
         item.setRequired(false);
         getInfo().addInput(item);
-    }
-
-    private String truncateLabel(final String label) {
-        if (label != null && label.length() > 80) {
-            return label.substring(0, 78) + "...";
-        }
-        return label;
     }
 
     @Override

@@ -157,6 +157,9 @@ public class Bvv {
      */
     @SuppressWarnings("unused")
     public <T extends RealType<T>> BvvSource show(final RandomAccessibleInterval<T> img, final double... calibration) {
+        if (img.numDimensions() < 3)
+            throw new IllegalArgumentException("BVV requires 3D volumetric data but the image has only "
+                    + img.numDimensions() + " dimension(s). 2D images are not supported.");
         cal = (calibration == null) ? new double[]{1, 1, 1} : calibration;
         dims = new long[]{img.dimension(0), img.dimension(1), img.dimension(2)};
         final BvvOptions opt = (bvvHandle != null ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options);
@@ -169,6 +172,16 @@ public class Bvv {
     }
 
     public <T extends RealType<T>> BvvSource show(final ImgPlus<T> imgPlus) {
+        // BVV is a volume viewer — reject images that have no Z dimension.
+        // Even multichannel 2D images are unsupported: each hypersliced channel
+        // would be a 2D RAI, causing an ArrayIndexOutOfBoundsException inside
+        // BVV's VolumeTextureU8.init when it tries to access dimension(2).
+        final int zDim = imgPlus.dimensionIndex(Axes.Z);
+        if (zDim < 0 || imgPlus.dimension(zDim) <= 1) {
+            throw new IllegalArgumentException(
+                    "BVV requires 3D volumetric data but '" +
+                    (imgPlus.getName() != null ? imgPlus.getName() : "image") + "' appears to be a 2D image.");
+        }
         // Multichannel: use native hyperSlice path to avoid the Views.permute →
         // ImageJFunctions.wrap dimension-ordering bug that offsets channels.
         final int chDim = imgPlus.dimensionIndex(Axes.CHANNEL);
@@ -788,12 +801,31 @@ public class Bvv {
             } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
         }
 
-        // Derive a display name from the SpimData base path
+        // Derive a display name that matches what is shown in the Sources card.
+        // Source names come from SpimData metadata (e.g., "MyBrain (Ch1)") which
+        // may differ from the file/folder name (e.g., for IMS XML sidecars or
+        // OME-Zarr datasets). Use the first source's name, stripping any channel
+        // suffix, so the mixer title stays consistent with the Sources panel.
         String datasetName = null;
         try {
-            if (spimData.getBasePathURI() != null)
-                datasetName = new File(spimData.getBasePathURI()).getName();
+            if (!sources.isEmpty()) {
+                final var sacs = sources.getFirst().getSources();
+                if (sacs != null && !sacs.isEmpty()) {
+                    datasetName = sacs.getFirst().getSpimSource().getName();
+                    datasetName = datasetName.replaceAll("\\s*\\(Ch\\d+\\)$", "");
+                }
+            }
         } catch (final Exception ignored) {}
+        if (datasetName == null || datasetName.isBlank()) {
+            try {
+                if (spimData.getBasePathURI() != null) {
+                    datasetName = new File(spimData.getBasePathURI()).getName();
+                    final int dot = datasetName.lastIndexOf('.');
+                    if (dot > 0)
+                        datasetName = datasetName.substring(0, dot);
+                }
+            } catch (final Exception ignored) {}
+        }
         if (datasetName == null || datasetName.isBlank())
             datasetName = "Dataset " + (multiSources.size() + 1);
 
@@ -947,6 +979,10 @@ public class Bvv {
 
     @SuppressWarnings("UnusedReturnValue")
     private BvvSource showImagePlus(final ImagePlus imp) {
+        if (imp.getNSlices() <= 1) {
+            throw new IllegalArgumentException(
+                    "BVV requires 3D volumetric data but '" + imp.getTitle() + "' is a 2D image.");
+        }
         // ImageJFunctions.wrap* produces dims [W, H, C, Z, T] for hyperstacks,
         // but AxisOrder constants assume [X, Y, Z, C, T]. For multichannel images
         // this mismatch causes BVV to treat Z-slices as channels (60 sources → 61 samplers).
@@ -1218,7 +1254,7 @@ public class Bvv {
             // Ensure the card panel is wide enough to show all controls without clipping.
             // Use the Scene Controls panel's own preferred width since it's the widest,
             // and its GridBagLayout has already computed the correct natural width.
-            final int cardPrefW = sceneControlsCard.getMinimumSize().width + 4; // minor padding
+            final int cardPrefW = sceneControlsCard.getMinimumSize().width + 10; // minor padding
             SwingUtilities.invokeLater(() -> {
                 final javax.swing.JSplitPane split = bvv.getViewerFrame().getSplitPanel();
                 final java.awt.Component cards = split.getRightComponent();
@@ -1863,7 +1899,7 @@ public class Bvv {
     private final Set<String> unmixingCardTitles = new HashSet<>();
 
     private String uniqueUnmixingTitle(final String imageName) {
-        final String base = "Channel Unmixing: " + imageName;
+        final String base = "Channel Unmixing: " + GuiUtils.truncate(imageName, 25);
         String title = base;
         int suffix = 2;
         while (!unmixingCardTitles.add(title)) {

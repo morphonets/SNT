@@ -2296,6 +2296,13 @@ public class GuiUtils {
 		timer.start();
 	}
 
+	public static String truncate(final String label, final int maxLength) {
+		if (label != null && label.length() > maxLength) {
+			return label.substring(0, maxLength-2) + "...";
+		}
+		return label;
+	}
+
 	public static void tile(final List<? extends Window> windowList) {
 		if (windowList == null || windowList.isEmpty()) return;
 
