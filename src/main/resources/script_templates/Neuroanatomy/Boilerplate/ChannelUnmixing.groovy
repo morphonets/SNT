@@ -1,15 +1,18 @@
-// Auto-generated Groovy script for channel unmixing
-// Formula: result = #{SIG_NAME} - #{WEIGHT} * #{SUB_NAME}
-// Source:  #{INPUT_PATH}
-// Signal setup: #{SIG_SETUP}, Background setup: #{SUB_SETUP}
-// Levels: #{N_LEVELS}, Timepoints: #{N_TIMEPOINTS}
-//
-// Run in Fiji's Script Editor (Language: Groovy)
-//
-// Requires: n5-imglib2 (included in Fiji). Output is an N5 container
-// + BVV/BDV XML file
+/**
+ * file:  ChannelUnmixing.groovy
+ * info:  Auto-generated script that applies SNT Bvv's channel un-mixing
+ *        to a whole multi-resolution pyramid volume. Requires n5-imglib2.
+ *        Output is a N5 container + BVV/BDV XML file
+ *        Run in Fiji's Script Editor (Language: Groovy)
+ *
+ * Formula: result = #{SIG_NAME} - #{WEIGHT} * #{SUB_NAME}
+ * Source:  #{INPUT_PATH}
+ * Signal setup: #{SIG_SETUP}, Background setup: #{SUB_SETUP}
+ * Levels: #{N_LEVELS}, Timepoints: #{N_TIMEPOINTS}
+ */
 
-// ─────────── Unmixing operation  ───────────
+
+// -------- Unmixing operation  --------
 // Swap this class to change the pixel-wise operation for any
 // pixel-wise operation (e.g., ratio, linear combo, etc.)
 // Contract: apply(double signal, double background) -> double
@@ -25,7 +28,7 @@ class UnmixingOp {
     String describe() { "subtract_w${String.format('%.2f', weight)}" }
 }
 
-// ─────────── Parameters  ───────────
+// -------- Parameters  --------
 def inputPath   = '#{INPUT_PATH}'
 def sigSetup    = #{SIG_SETUP}
 def subSetup    = #{SUB_SETUP}
@@ -36,31 +39,75 @@ def nThreads    = Runtime.getRuntime().availableProcessors()
 
 def op = new UnmixingOp(weight)
 
-// ─────────── Output path  ───────────
-def baseName = new File(inputPath).name.replaceFirst(/\.[^.]+$/, '')
-def outDir   = new File(new File(inputPath).parentFile,
-                        "${baseName}_unmixed_${op.describe()}")
+// -------- Validate input --------
+def inputFile = new File(inputPath)
+if (!inputFile.exists()) {
+    throw new FileNotFoundException(
+        "Input file not found: ${inputPath}\n" +
+        "Check that the path is correct and the file has not been moved.")
+}
+if (!inputFile.canRead()) {
+    throw new IOException(
+        "Cannot read input file: ${inputPath}\n" +
+        "Check file permissions (the file may be locked or on a restricted network drive).")
+}
+
+// -------- Output path  --------
+def baseName = inputFile.name.replaceFirst(/\.[^.]+$/, '')
+def outDir   = new File(inputFile.parentFile, "${baseName}_unmixed_${op.describe()}")
 println "Output: ${outDir.absolutePath}"
 
-// ─────────── Open dataset ───────────
+// -------- Validate output location --------
+def parentDir = inputFile.parentFile
+if (!parentDir.canWrite()) {
+    throw new IOException(
+        "Output directory is not writable: ${parentDir.absolutePath}\n" +
+        "The drive may be read-only, or you may not have write permissions.\n" +
+        "Try copying the input file to a local directory first.")
+}
+if (outDir.exists()) {
+    // Check that an existing output dir is writable (e.g., from a previous run)
+    if (!outDir.canWrite()) {
+        throw new IOException(
+            "Existing output directory is not writable: ${outDir.absolutePath}\n" +
+            "Delete it or move it, then re-run the script.")
+    }
+    println "WARNING: Output directory already exists — data will be overwritten."
+}
+
+// -------- Open dataset --------
 AbstractSpimData spimData
-if (inputPath.toLowerCase().endsWith('.ims')) {
-    spimData = Imaris.openIms(inputPath)
-} else {
-    spimData = new XmlIoSpimDataMinimal().load(inputPath)
+try {
+    if (inputPath.toLowerCase().endsWith('.ims')) {
+        spimData = Imaris.openIms(inputPath)
+    } else {
+        spimData = new XmlIoSpimDataMinimal().load(inputPath)
+    }
+} catch (Exception e) {
+    throw new IOException(
+        "Failed to open dataset: ${inputPath}\n" +
+        "The file may be corrupted or in an unsupported format.\n" +
+        "Details: ${e.message}", e)
 }
 def imgLoader = spimData.sequenceDescription.imgLoader
 def sigLoader = imgLoader.getSetupImgLoader(sigSetup)
 def subLoader = imgLoader.getSetupImgLoader(subSetup)
 
-// ─────────── N5 writer for output ───────────
-
-def n5 = new N5FSWriter(outDir.absolutePath)
+// -------- N5 writer for output --------
+def n5
+try {
+    n5 = new N5FSWriter(outDir.absolutePath)
+} catch (Exception e) {
+    throw new IOException(
+        "Cannot create N5 container at: ${outDir.absolutePath}\n" +
+        "Check that the directory is writable and has sufficient disk space.\n" +
+        "Details: ${e.message}", e)
+}
 
 // Collect per-level dimensions for BDV XML generation
 def levelDims = []       // long[][] — dimensions at each level
 
-// ─────────── Block-wise processing (memory-safe) ───────────
+// -------- Block-wise processing (memory-safe) --------
 
 // Each level may be huge (many GB).  We process block-by-block:
 //   1. Read signal block (sequential — HDF5 not thread-safe)
@@ -68,7 +115,8 @@ def levelDims = []       // long[][] — dimensions at each level
 //   3. Apply unmixing op (multi-threaded on in-memory block)
 //   4. Write result block to N5
 
-def executor = Executors.newFixedThreadPool(nThreads)
+def executorService = Executors.newFixedThreadPool(nThreads)
+def executor = new DefaultTaskExecutor(executorService)
 def totalBlocks = new AtomicInteger(0)
 
 /** Iterate over a grid of blocks covering [0, dims). */
@@ -102,7 +150,7 @@ for (int t = 0; t < nTimepoints; t++) {
             levelDims.add(dims.clone())
         }
 
-        def dataset = "t${String.format('%04d', t)}/s${level}"
+        def dataset = "setup0/timepoint${t}/s${level}"
         println "Processing ${dataset}  (${dims[0]}x${dims[1]}x${dims[2]})"
 
         // Block size: match source cells if available, else 64^3
@@ -142,10 +190,10 @@ for (int t = 0; t < nTimepoints; t++) {
             // Step 1 & 2: Materialize both channels (sequential — HDF5 not thread-safe)
             def sigMat = ArrayImgs.unsignedShorts(bDims)
             LoopBuilder.setImages(sigBlock, sigMat)
-                .forEachPixel({ a, o -> o.setReal(a.getRealDouble()) })
+                .forEachPixel({ a, o -> o.setReal(a.getRealDouble()) } as BiConsumer)
             def subMat = ArrayImgs.unsignedShorts(bDims)
             LoopBuilder.setImages(subBlock, subMat)
-                .forEachPixel({ a, o -> o.setReal(a.getRealDouble()) })
+                .forEachPixel({ a, o -> o.setReal(a.getRealDouble()) } as BiConsumer)
 
             // Step 3: Apply unmixing (multi-threaded on in-memory block)
             def result = ArrayImgs.unsignedShorts(bDims)
@@ -153,7 +201,7 @@ for (int t = 0; t < nTimepoints; t++) {
                 .multiThreaded(executor)
                 .forEachPixel({ s, b, o ->
                     o.setReal(op.apply(s.getRealDouble(), b.getRealDouble()))
-                })
+                } as LoopBuilder.TriConsumer)
 
             // Step 4: Write to N5 at the correct grid position
             def gridPos = [
@@ -173,11 +221,21 @@ for (int t = 0; t < nTimepoints; t++) {
     }
 }
 
-executor.shutdown()
+// Write setup-level attributes required by BDV N5 ImageLoader
+n5.createGroup("setup0")
+def downsamplingFactors = new double[nLevels][]
+for (int l = 0; l < nLevels; l++) {
+    def s = (int) Math.pow(2, l)
+    downsamplingFactors[l] = [s as double, s as double, s as double] as double[]
+}
+n5.setAttribute("setup0", "downsamplingFactors", downsamplingFactors)
+n5.setAttribute("setup0", "dataType", org.janelia.saalfeldlab.n5.DataType.UINT16.toString())
+
+executorService.shutdown()
 n5.close()
 println "\nComplete: ${totalBlocks.get()} blocks written to ${outDir.absolutePath}"
 
-// ─────────── Write BDV-compatible XML descriptor ───────────
+// -------- Write BDV-compatible XML descriptor --------
 // This allows the result to be opened directly with:
 //   Bvv.open("/path/to/dataset_unmixed.xml")
 //   or Fiji > Plugins > BigDataViewer > Open XML/HDF5
@@ -201,15 +259,13 @@ println "BDV XML written: ${xmlFile.absolutePath}"
 println "Open in Fiji:  Bvv.open('${xmlFile.absolutePath}')"
 
 
-// ─────────── Imports ───────────
+// -------- Imports --------
 import bdv.img.imaris.Imaris
 import bdv.spimdata.XmlIoSpimDataMinimal
 import mpicbg.spim.data.generic.AbstractSpimData
-import net.imglib2.RandomAccessibleInterval
 import net.imglib2.img.array.ArrayImgs
 import net.imglib2.loops.LoopBuilder
 import net.imglib2.view.Views
-import net.imglib2.type.numeric.integer.UnsignedShortType
 import org.janelia.saalfeldlab.n5.*
 import org.janelia.saalfeldlab.n5.imglib2.N5Utils
 
@@ -217,3 +273,5 @@ import sc.fiji.snt.io.SpimDataUtils
 
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.function.BiConsumer
+import net.imglib2.parallel.DefaultTaskExecutor

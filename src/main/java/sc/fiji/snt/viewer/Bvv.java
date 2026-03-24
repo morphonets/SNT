@@ -119,6 +119,7 @@ public class Bvv {
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
     private volatile javax.swing.SwingWorker<?, ?> imgProcessingWorker; // cancellable background task (e.g. channel unmixing)
+    private final Map<AbstractSpimData<?>, String> spimDataFilePaths = new IdentityHashMap<>(); // tracks source file path per dataset
 
     /**
      * Constructor for standalone BVV instance.
@@ -743,9 +744,11 @@ public class Bvv {
         final Bvv bvv = new Bvv();
         for (final String path : paths) {
             final Object source = resolvePathToSource(path);
-            if (source instanceof AbstractSpimData)
-                bvv.show((AbstractSpimData<?>) source);
-            else {
+            if (source instanceof AbstractSpimData) {
+                final AbstractSpimData<?> sd = (AbstractSpimData<?>) source;
+                bvv.spimDataFilePaths.put(sd, path);
+                bvv.show(sd);
+            } else {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) source);
             }
@@ -1938,13 +1941,15 @@ public class Bvv {
                                            final int sigIdx, final int subIdx,
                                            final double weight,
                                            final String sigName, final String subName) {
-        // Resolve the dataset file path
-        String filePath = "";
-        try {
-            if (spimData.getBasePathURI() != null) {
-                filePath = new File(spimData.getBasePathURI()).getAbsolutePath();
-            }
-        } catch (final Exception ignored) {}
+        // Resolve the dataset file path (prefer stored path over base path URI)
+        String filePath = spimDataFilePaths.getOrDefault(spimData, "");
+        if (filePath.isEmpty()) {
+            try {
+                if (spimData.getBasePathURI() != null) {
+                    filePath = new File(spimData.getBasePathURI()).getAbsolutePath();
+                }
+            } catch (final Exception ignored) {}
+        }
 
         // Number of mip levels from signal source
         final int nLevels;
