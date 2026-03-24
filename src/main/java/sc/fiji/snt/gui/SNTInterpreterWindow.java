@@ -46,6 +46,7 @@ public class SNTInterpreterWindow extends JFrame {
 
     public SNTInterpreterWindow(final Context context, final String languagePreference) {
         super("SNT Scripting REPL");
+        getRootPane().putClientProperty("Window.style", "small");
         pane = new SNTInterpreterPane(context, languagePreference);
         setContentPane(pane.getComponent());
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);

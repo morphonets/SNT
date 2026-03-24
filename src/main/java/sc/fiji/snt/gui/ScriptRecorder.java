@@ -83,6 +83,7 @@ public class ScriptRecorder extends JDialog {
 
 	public ScriptRecorder() {
 		setTitle("SNT Script Recorder (Experimental)");
+		getRootPane().putClientProperty("Window.style", "small");
 		editor = getEditor();
 		combo = getComboBox();
 		setLanguage(DEF_LANG);

@@ -81,7 +81,7 @@ if (outDir.exists()) {
         throw new IOException("Existing output directory is not writable: ${outDir.absolutePath}\n" +
             "Delete it or move it, then re-run the script.")
     }
-    println "WARNING: Output directory already exists — data will be overwritten."
+    println "WARNING: Output directory already exists: Data will be overwritten."
 }
 
 // -------- Compute pyramid levels --------

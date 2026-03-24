@@ -55,14 +55,15 @@ public class BvvCmd extends ContextCommand {
 
     private static final String TOOLTIP =
             """
-            Supports standard formats (TIFF) and big data formats with lazy loading
-            (N5, Zarr, HDF5, OME-TIFF, IMS, BDV .xml). Large datasets are opened
-            virtually without loading the entire file into memory.""";
+            Supports standard formats (e.g., TIFF), bio-formats supported files,
+            and big data formats with lazy loading (N5, Zarr, HDF5, OME-TIFF,
+            IMS, BDV .xml). Large datasets are opened virtually without loading
+            the entire file into memory.""";
 
     private static final int GL_MAX_3D_TEXTURE_SIZE = 0x8073; // OpenGL constant
     private static final String ABORT = "Abort";
     private static final String DOWNSAMPLE = "Downsample to fit";
-    private static final String CONVERT = "Show me how to convert to pyramid";
+    private static final String CONVERT = "Show me how to convert to multi-resolution pyramid image";
 
     @Parameter(label = "Main volume", description = "Primary image volume.\n"+ TOOLTIP)
     File img1File;

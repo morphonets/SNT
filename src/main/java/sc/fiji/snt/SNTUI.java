@@ -1681,7 +1681,7 @@ public class SNTUI extends JDialog {
         assignDiameterSpinner.addChangeListener(e -> {
             final double d = (double) assignDiameterSpinner.getValue();
             final double current = plugin.manualRadius > 0 ? plugin.manualRadius * 2 : 0d;
-            if (d == current) return; // programmatic update — nothing to do
+            if (d == current) return; // programmatic update, nothing to do
             plugin.manualRadius = (d <= 0) ? -1 : d / 2;
             plugin.updateAllViewers();
         });

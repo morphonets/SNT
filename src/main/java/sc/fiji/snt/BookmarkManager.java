@@ -154,7 +154,7 @@ public class BookmarkManager {
         f.setVisible(!f.isVisible());
     }
 
-    /** Alias for {@link #toggleBvvPanel()} — shows the marker panel. */
+    /** Alias for {@link #toggleBvvPanel()} shows the marker panel. */
     public void showPanel() {
         final JDialog f = getBvvPanel();
         if (!f.isVisible()) f.setVisible(true);
@@ -204,7 +204,7 @@ public class BookmarkManager {
         table.setComponentPopupMenu(assembleTablePopupMenu(table));
         if (bvv != null) {
             // Prevent the table's searchable from consuming BVV shortcuts.
-            // NONE means "do nothing" — the keystroke falls through to the BVV viewer.
+            // NONE means "do nothing" the keystroke falls through to the BVV viewer.
             for (final char key : new char[]{'m', 'M', 'b', 'B', 'p', 'P', 'r', 'R', 's', 'S', 'f', 'F'}) {
                 table.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
                         .put(javax.swing.KeyStroke.getKeyStroke(key), "none");
@@ -256,7 +256,7 @@ public class BookmarkManager {
             }
         }
         if (resize) {
-            // SNT: {Tag, Label, X, Y, Z, C, T} — BVV: {Tag, Label, X, Y, Z, Size}
+            // SNT: {Tag, Label, X, Y, Z, C, T}; BVV: {Tag, Label, X, Y, Z, Size}
             final float[] columnWidthPercentage = (bvv != null)
                     ? new float[]{0.05f, 0.50f, 0.12f, 0.12f, 0.12f, 0.09f}   // BVV: Tag|Label|X|Y|Z|Size
                     : new float[]{0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f}; // SNT: Tag|Label|X|Y|Z|C|T

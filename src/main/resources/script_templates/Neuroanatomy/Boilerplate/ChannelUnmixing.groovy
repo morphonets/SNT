@@ -72,7 +72,7 @@ if (outDir.exists()) {
             "Existing output directory is not writable: ${outDir.absolutePath}\n" +
             "Delete it or move it, then re-run the script.")
     }
-    println "WARNING: Output directory already exists — data will be overwritten."
+    println "WARNING: Output directory already exists: Data will be overwritten."
 }
 
 // -------- Open dataset --------
@@ -105,12 +105,12 @@ try {
 }
 
 // Collect per-level dimensions for BDV XML generation
-def levelDims = []       // long[][] — dimensions at each level
+def levelDims = []       // long[][]: dimensions at each level
 
 // -------- Block-wise processing (memory-safe) --------
 
 // Each level may be huge (many GB).  We process block-by-block:
-//   1. Read signal block (sequential — HDF5 not thread-safe)
+//   1. Read signal block (sequential: HDF5 not thread-safe)
 //   2. Read background block (sequential)
 //   3. Apply unmixing op (multi-threaded on in-memory block)
 //   4. Write result block to N5
@@ -187,7 +187,7 @@ for (int t = 0; t < nTimepoints; t++) {
             def sigBlock = Views.zeroMin(Views.interval(sigZM, bMin, bMax))
             def subBlock = Views.zeroMin(Views.interval(subZM, bMin, bMax))
 
-            // Step 1 & 2: Materialize both channels (sequential — HDF5 not thread-safe)
+            // Step 1 & 2: Materialize both channels (sequential: HDF5 not thread-safe)
             def sigMat = ArrayImgs.unsignedShorts(bDims)
             LoopBuilder.setImages(sigBlock, sigMat)
                 .forEachPixel({ a, o -> o.setReal(a.getRealDouble()) } as BiConsumer)

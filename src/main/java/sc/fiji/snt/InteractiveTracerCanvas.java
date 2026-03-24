@@ -1126,7 +1126,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             }
             last_x_in_pane_precise = myOffScreenXD(e.getX());
             last_y_in_pane_precise = myOffScreenYD(e.getY());
-            moveEditingNodeToLastCanvasPosition(false); // silent — no tempMsg per drag event
+            moveEditingNodeToLastCanvasPosition(false); // silent: no tempMsg per drag event
             return; // don't pan or do anything else
         }
         altDraggingNode = false;
@@ -1277,7 +1277,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         final Color savedColor = g.getColor();
         g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f,
                 new float[]{4f, 3f}, 0f)); // dashed
-        g.setColor(getUnconfirmedPathColor()); // cyan by default — consistent with unconfirmed path
+        g.setColor(getUnconfirmedPathColor()); // cyan by default, consistent with unconfirmed path
         g.draw(new Ellipse2D.Double(sx - screenRadius, sy - screenRadius, 2 * screenRadius, 2 * screenRadius));
         g.setStroke(savedStroke);
         g.setColor(savedColor);

@@ -614,7 +614,7 @@ public class OBJMesh {
 
 		protected OBJMesh objMesh;
 
-		// --- Smooth-shading shader (GLSL 1.20 / GL2 — works on all platforms) ---
+		// --- Smooth-shading shader (GLSL 1.20 / GL2 works on all platforms) ---
 		private static final String MESH_VERT_SHADER = """
 				#version 120
 				varying vec3 vNormal;

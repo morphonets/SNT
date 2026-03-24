@@ -581,7 +581,7 @@ public class SNT extends MultiDThreePanes implements
 			currentPath.removeNode(currentPath.size() - 1);
 
 		if (currentPath.size() == 0) {
-			// Undone back to the very first point — equivalent to cancelling
+			// Undone back to the very first point, equivalent to cancelling
 			cancelPath();
 			return;
 		}

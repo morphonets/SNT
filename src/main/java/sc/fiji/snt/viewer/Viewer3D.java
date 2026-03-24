@@ -3126,6 +3126,9 @@ public class Viewer3D {
                     frame.status.setToolTipText(locked
                             ? "Rotation locked (constrained view)"
                             : "Rotation unlocked (free view)");
+                    frame.status.setText(locked
+                            ? "Rotation disabled in locked view: Use Ctrl+click to change view mode"
+                            : frame.statusPlaceHolder);
                 });
             }
         }
@@ -9406,7 +9409,7 @@ public class Viewer3D {
             // Rotate on left-click
             if (AWTMouseUtilities.isLeftDown(e)) {
                 final Coord2d move = mouse.sub(prevMouse).div(100);
-                rotate(move);
+                rotateLive(move);
                 //((AView)view).logViewPoint();
             }
 
@@ -10184,7 +10187,7 @@ public class Viewer3D {
             g2d.setColor(fgColor);
             final int margin = 20;
             final int barThickness = 3;
-            final int barY = canvasHeight / 2; // center vertically for now to confirm visibility
+            final int barY = (int) (canvasHeight / hdpiScale) - margin;
             g2d.setStroke(new BasicStroke(barThickness));
             g2d.drawLine(margin, barY, margin + barPixels, barY);
             // Label above bar
