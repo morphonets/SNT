@@ -785,8 +785,12 @@ public class Viewer3D {
      * @param enable true to enable "Dark Mode", "Light Mode" otherwise
      */
     public void setEnableDarkMode(final boolean enable) {
-        final boolean toggle = keyController != null && isDarkModeOn() != enable;
-        if (toggle) keyController.toggleDarkMode();
+        final Runnable r = () -> {
+            final boolean toggle = keyController != null && isDarkModeOn() != enable;
+            if (toggle) keyController.toggleDarkMode();
+        };
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
     }
 
     /**
@@ -1810,10 +1814,10 @@ public class Viewer3D {
         if (frame != null) {
             SwingUtilities.invokeLater(() -> {
                 if (msg == null || msg.isEmpty()) {
-                    frame.status.setText(frame.statusPlaceHolder);
+                    frame.updateStatusMsg();
                     return;
                 }
-                final Timer timer = new Timer(msecs, e -> frame.status.setText(frame.statusPlaceHolder));
+                final Timer timer = new Timer(msecs, e -> frame.updateStatusMsg());
                 timer.setRepeats(false);
                 timer.start();
                 frame.status.setText(msg);
@@ -2667,7 +2671,7 @@ public class Viewer3D {
     public boolean saveSnapshot() {
         final String filename = String.format("RecViewer%s.png", SNTUtils.getTimeStamp());
         final File file = new File(prefs.getSnapshotDir(), filename);
-        boolean saved = false;
+        boolean saved;
         try {
             saved = saveSnapshot(file);
         } catch (final IllegalArgumentException | IOException | GLException e) {
@@ -3119,17 +3123,7 @@ public class Viewer3D {
             getView().shoot();
             currentView = newView;
             if (frame != null) {
-                final boolean locked = !isRotationEnabled();
-                SwingUtilities.invokeLater(() -> {
-                    frame.status.setIcon(IconFactory.menuIcon(
-                            locked ? GLYPH.LOCK : GLYPH.LOCK_OPEN, java.awt.Color.GRAY));
-                    frame.status.setToolTipText(locked
-                            ? "Rotation locked (constrained view)"
-                            : "Rotation unlocked (free view)");
-                    frame.status.setText(locked
-                            ? "Rotation disabled in locked view: Use Ctrl+click to change view mode"
-                            : frame.statusPlaceHolder);
-                });
+                frame.updateStatusMsg();
             }
         }
 
@@ -3350,7 +3344,8 @@ public class Viewer3D {
         private static final long serialVersionUID = 1L;
         private static final int DEF_WIDTH = 800;
         private static final int DEF_HEIGHT = 600;
-        private final String statusPlaceHolder;
+        private final String STATUS_DEF_UNLOCKED;
+        private final String STATUS_DEF_LOCKED;
 
         private AChart chart;
         private Component canvas;
@@ -3361,6 +3356,7 @@ public class Viewer3D {
         private int savedDividerLocation = -1;
         private JLabel status;
         private boolean managerVisible;
+        private boolean statusVisible = true;
 
         // displays and full screen
         private java.awt.Point loc;
@@ -3387,9 +3383,10 @@ public class Viewer3D {
             GuiUtils.setLookAndFeel();
             GuiUtils.removeIcon(this);
             final String title = (chart.viewer.isSNTInstance()) ? " (SNT)" : " ("+ chart.viewer.getID() + ")";
-            statusPlaceHolder = (includeManager)
+            STATUS_DEF_UNLOCKED = (includeManager)
                     ? "Press H (or F1) for Help. Press " + GuiUtils.ctrlKey() + "+Shift+P for Command Palette..."
                     : "Press H (or F1) for Help...";
+            STATUS_DEF_LOCKED = "Rotation disabled: Use Ctrl+click to change view mode";
             initialize(chart, new Rectangle(width, height), "Reconstruction Viewer" + title);
             if (PlatformUtils.isLinux()) new MultiDisplayUtil(this);
             if (gConfiguration == null)
@@ -3446,6 +3443,30 @@ public class Viewer3D {
                 gUtils.setParent(this);
             }
             toFront();
+        }
+
+        /** Applies the current theme colors (derived from the chart background) to the status bar. */
+        void applyStatusColors(final Color bg, final Color fg) {
+            final java.awt.Color awtBg = toAWTColor(bg);
+            final java.awt.Color awtFg = toAWTColor(fg);
+            if (status.getParent() != null)
+                status.getParent().setBackground(awtBg);
+            status.setBackground(awtBg);
+            status.setForeground(awtFg);
+        }
+
+        void updateStatusMsg() {
+            final boolean locked = !chart.isRotationEnabled();
+            SwingUtilities.invokeLater(() -> {
+                status.setIcon(IconFactory.menuIcon(
+                        locked ? GLYPH.LOCK : GLYPH.LOCK_OPEN, status.getForeground()));
+                status.setToolTipText(locked
+                        ? "Rotation locked (constrained view)"
+                        : "Rotation unlocked (free view)");
+                status.setText((locked) ?
+                        currentView.description + " View | " + STATUS_DEF_LOCKED :
+                        STATUS_DEF_UNLOCKED);
+            });
         }
 
         public void replaceCurrentChart(final AChart chart) {
@@ -3549,7 +3570,7 @@ public class Viewer3D {
             setTitle(title);
             final BorderLayout layout = new BorderLayout();
             setLayout(layout);
-            status = new JLabel(statusPlaceHolder);
+            status = new JLabel(STATUS_DEF_UNLOCKED);
             status.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 8, 0, 0));
             status.setFocusable(false);
             status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
@@ -3652,6 +3673,7 @@ public class Viewer3D {
                 if (managerPanel != null && managerVisible) showManagerPanel();
                 if (lightController != null) lightController.setVisible(true);
                 if (allenNavigator != null) allenNavigator.dialog.setVisible(true);
+                status.setVisible(statusVisible);
                 isFullScreen = false;
             }
         }
@@ -3670,7 +3692,8 @@ public class Viewer3D {
                 }
                 if (lightController != null) lightController.setVisible(false);
                 if (allenNavigator != null) allenNavigator.dialog.setVisible(false);
-                frame.status.setVisible(false);
+                statusVisible = status.isVisible();
+                status.setVisible(false);
                 setExtendedState(JFrame.MAXIMIZED_BOTH);
                 isFullScreen = true;
                 displayBanner("Entered Full Screen. Press Shift+F (or \"Esc\") to exit...");
@@ -9315,10 +9338,8 @@ public class Viewer3D {
         }
 
         private void rotateLive(final Coord2d move) {
-            if (!chart.isRotationEnabled()) {
-                displayMsg("Rotation disabled in constrained view");
-            } else {
-                rotate(move, true);
+            if (chart.isRotationEnabled()) {
+               rotate(move, true);
             }
         }
 
@@ -9734,7 +9755,8 @@ public class Viewer3D {
             @Override
             public void execute(KeyEvent e, boolean doublePress) {
                 if (e.isShiftDown() && frame != null) {
-                    frame.status.setVisible(!frame.status.isVisible());
+                    frame.statusVisible = !frame.status.isVisible();
+                    frame.status.setVisible(frame.statusVisible);
                 } else {
                     saveScreenshot();
                 }
@@ -9942,9 +9964,8 @@ public class Viewer3D {
                 newBackground = Color.BLACK;
             }
             if (frame != null) {
-                frame.status.getParent().setBackground(toAWTColor(newBackground));
-                frame.status.setBackground(toAWTColor(newBackground));
-                frame.status.setForeground(toAWTColor(newForeground));
+                frame.applyStatusColors(newBackground, newForeground);
+                frame.updateStatusMsg(); // refresh icon color to match new theme
             }
             view.setBackgroundColor(newBackground);
             view.getAxis().getLayout().setGridColor(newForeground);
