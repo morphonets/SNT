@@ -221,7 +221,7 @@ public class WekaModelLoader extends CommonDynamicCmd {
 
 	private String getClassChoice(final List<String> classes) {
 		if (classes.size() == 1)
-			return classes.get(0);
+			return classes.getFirst();
 		return new GuiUtils().getChoice(
 				"Model has " + classes.size() + " classifier classes. Which one should be loaded?", "Choose Class...",
 				classes.toArray(new String[0]), "");

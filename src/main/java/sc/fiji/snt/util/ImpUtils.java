@@ -47,7 +47,6 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.util.Intervals;
 import org.scijava.convert.ConvertService;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -105,8 +104,8 @@ public class ImpUtils {
 
     public static ImagePlus getMIP(final ImagePlus imp, final int startSlice, final int stopSlice) {
         final ImagePlus mip = ZProjector.run(imp, "max", startSlice, stopSlice);
-        if (mip.getNChannels() == 1)
-            mip.setLut(imp.getLuts()[0]); // assume single-channel image
+        if (mip.getNChannels() == 1 && imp.getLuts().length > 0)
+            mip.setLut(imp.getLuts()[0]);
         mip.copyScale(imp);
         new ContrastEnhancer().stretchHistogram(mip, 0.35);
         return mip;
@@ -139,7 +138,7 @@ public class ImpUtils {
     }
 
     public static void convertTo16bit(final ImagePlus imp) {
-        if (imp.getType() != ImagePlus.GRAY8) {
+        if (imp.getType() != ImagePlus.GRAY16) {
             final boolean doScaling = ImageConverter.getDoScaling();
             ImageConverter.setDoScaling(true);
             new ImageConverter(imp).convertToGray16();
@@ -149,8 +148,8 @@ public class ImpUtils {
 
     public static ImagePlus convertRGBtoComposite(final ImagePlus imp) {
         if (imp.getType() == ImagePlus.COLOR_RGB) {
-            imp.hide();
             final boolean isShowing = imp.isVisible();
+            imp.hide();
             final ImagePlus res = CompositeConverter.makeComposite(imp);
             imp.flush();
             if (isShowing) res.show();
@@ -175,7 +174,7 @@ public class ImpUtils {
         final boolean redirecting = IJ.redirectingErrorMessages();
         IJ.redirectErrorMessages(true);
         final ImagePlus imp = IJ.openImage(filePathOrUrl);
-        if (title != null)
+        if (imp != null && title != null)
             imp.setTitle(title);
         IJ.redirectErrorMessages(redirecting);
         return imp;
@@ -249,13 +248,9 @@ public class ImpUtils {
     }
 
     public static void removeSlices(final ImageStack stack, Collection<String> labels) {
-        int count = 0;
-        for (int i = 1; i <= stack.size(); i++) {
-            if ((i - count) > stack.getSize())
-                break;
+        for (int i = stack.size(); i >= 1; i--) {
             if (labels.contains(stack.getSliceLabel(i))) {
-                stack.deleteSlice(i - count);
-                count++;
+                stack.deleteSlice(i);
             }
         }
     }
@@ -463,7 +458,7 @@ public class ImpUtils {
      *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701' and
      *            'cil810' for the respective Cell Image Library entries, and
      *            'binary timelapse' for a small 4-frame sequence of neurite growth
-     * @return the demo image, or null if data could no be retrieved
+     * @return the demo image, or null if data could not be retrieved
      */
     public static ImagePlus demo(final String img) {
         if (img == null)
@@ -774,7 +769,7 @@ public class ImpUtils {
     /**
      * Converts the specified image into an easy displayable form, i.e., a non-composite 2D image
      * If the image is a timelapse, only the first frame is considered; if 3D, a MIP is retrieved;
-     * if multichannel a RGB version is obtained. The image is flattened if its Overlay has ROIs.
+     * if multichannel, an RGB version is obtained. The image is flattened if its Overlay has ROIs.
      *
      * @param imp The image to be converted
      * @param frame The frame to be considered (ignored if image is not a timelapse)
@@ -814,7 +809,7 @@ public class ImpUtils {
      * non-background values.
      *
      * @param imp             The image to be cropped
-     * @param backgroundValue the background value typically 'black': 0 for 8-/16bit, 0x000000 for RGB),
+     * @param backgroundValue the background value typically 'black': 0 for 8-/16bit, 0x000000 for RGB,
      *                        or white (255 for 8-bit, 65535 for 16-bir, 0xFFFFFF for RGB)
      */
     public static void crop(final ImagePlus imp, final Number backgroundValue) {
@@ -840,34 +835,29 @@ public class ImpUtils {
     }
 
     /**
-     * Returns the cropping rectangle around non-background values.
+     * Returns the cropping rectangle around non-background values, considering
+     * all slices of the stack.
      *
      * @param imp             The image to be parsed
      * @param backgroundValue the background value typically 'black': 0, or white (255 for 8-bit/RGB,
      *                        or 65535 for 16-bit)
-     * @return the rectangular ROI defining non-background bounds
+     * @return the rectangular ROI defining non-background bounds, or null if all pixels are background
      */
     public static Roi getForegroundRect(final ImagePlus imp, final Number backgroundValue) {
-        final ImageProcessor ip = imp.getProcessor();
-        int w = ip.getWidth(), h = ip.getHeight();
+        final ImageStack stack = imp.getStack();
+        final int w = imp.getWidth(), h = imp.getHeight();
         int minX = w, maxX = 0, minY = h, maxY = 0;
-        if (imp.getType() == ImagePlus.GRAY32) {
-            float bgVal = backgroundValue.floatValue();
+        final boolean isFloat = imp.getType() == ImagePlus.GRAY32;
+        final float bgFloat = backgroundValue.floatValue();
+        final int bgInt = backgroundValue.intValue();
+        for (int z = 1; z <= stack.size(); z++) {
+            final ImageProcessor ip = stack.getProcessor(z);
             for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
-                    if (Math.abs(ip.getPixelValue(x, y) - bgVal) > 0.0001f) {
-                        if (x < minX) minX = x;
-                        if (x > maxX) maxX = x;
-                        if (y < minY) minY = y;
-                        if (y > maxY) maxY = y;
-                    }
-                }
-            }
-        } else {
-            int bgVal = backgroundValue.intValue();
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    if (ip.getPixelValue(x, y) != bgVal) {
+                    final boolean fg = isFloat
+                            ? Math.abs(ip.getPixelValue(x, y) - bgFloat) > 0.0001f
+                            : ip.getPixelValue(x, y) != bgInt;
+                    if (fg) {
                         if (x < minX) minX = x;
                         if (x > maxX) maxX = x;
                         if (y < minY) minY = y;
@@ -952,7 +942,6 @@ public class ImpUtils {
         final RandomAccessibleInterval<T> rai = ImageJFunctions.wrapReal(imp);
 
         // Create contiguous copy to avoid virtual stack issues
-        final long[] dims = Intervals.dimensionsAsLongArray(rai);
         final Img<T> img = copyToArrayImg(rai);
 
         // Build axes from calibration

@@ -469,8 +469,10 @@ public class ImgUtils {
         final int ndims = rai.numDimensions();
         final long[] imgMin = Intervals.minAsLongArray(rai);
         final long[] imgMax = Intervals.maxAsLongArray(rai);
-        final long[] min = new long[ndims];
-        final long[] max = new long[ndims];
+
+        // Start with full extent for all dimensions: only spatial dims are cropped
+        final long[] min = imgMin.clone();
+        final long[] max = imgMax.clone();
 
         if (ndims >= 3) {
             // Assume ZYX order: dim0=Z, dim1=Y, dim2=X
@@ -684,12 +686,23 @@ public class ImgUtils {
                                                                                  final int frameIndex) {
         @SuppressWarnings("unchecked")
         RandomAccessibleInterval<T> slice = (RandomAccessibleInterval<T>) dataset;
-        if (dataset.getFrames() > 1)
-            slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.TIME), frameIndex);
 
-        // Assuming time always comes after channel, we can use the same index as the Dataset
-        if (dataset.getChannels() > 1)
-            slice = Views.hyperSlice(slice, dataset.dimensionIndex(Axes.CHANNEL), channelIndex);
+        final int timeDim = dataset.dimensionIndex(Axes.TIME);
+        final int channelDim = dataset.dimensionIndex(Axes.CHANNEL);
+
+        // Slice TIME first, then CHANNEL. After removing the TIME dimension,
+        // any axis that was positioned after it shifts down by one
+        if (dataset.getFrames() > 1 && timeDim >= 0) {
+            slice = Views.hyperSlice(slice, timeDim, frameIndex);
+        }
+
+        if (dataset.getChannels() > 1 && channelDim >= 0) {
+            // Adjust channel index if TIME was removed before it
+            final int adjustedChannelDim = (dataset.getFrames() > 1 && timeDim >= 0 && timeDim < channelDim)
+                    ? channelDim - 1
+                    : channelDim;
+            slice = Views.hyperSlice(slice, adjustedChannelDim, channelIndex);
+        }
 
         return slice;
     }
@@ -1009,7 +1022,7 @@ public class ImgUtils {
         result.setName(name != null ? name : "result");
 
         for (int d = 0; d < ndims; d++) {
-            result.setAxis(source.axis(d), d);
+            result.setAxis(source.axis(d).copy(), d);
         }
 
         return result;
@@ -1065,8 +1078,10 @@ public class ImgUtils {
         final Img img = (rai instanceof Img) ? (Img) rai : ImgView.wrap((RandomAccessibleInterval) rai);
         final ImgPlus result = new ImgPlus(img);
 
-        // Create calibrated axes (X, Y, Z order for spatial dimensions)
-        final AxisType[] defaultAxes = {Axes.X, Axes.Y, Axes.Z, Axes.TIME, Axes.CHANNEL};
+        // Create calibrated axes — XYZCT matches the canonical order used by
+        // permuteToXYZCT(), impToRealRai5d(), and BVV. Previously this was XYZTC,
+        // which would mis-label Channel as Time (and vice versa) for 5D images
+        final AxisType[] defaultAxes = {Axes.X, Axes.Y, Axes.Z, Axes.CHANNEL, Axes.TIME};
         for (int d = 0; d < nDims; d++) {
             final AxisType axisType = (d < defaultAxes.length) ? defaultAxes[d] : Axes.unknown();
             final DefaultLinearAxis axis = (unit != null && !unit.isEmpty())
@@ -1157,7 +1172,7 @@ public class ImgUtils {
         final List<Double> samples = new ArrayList<>();
         final Random rand = new Random(42);  // Fixed seed for reproducibility
 
-        final Cursor<? extends RealType<?>> cursor = source.cursor();
+        final Cursor<? extends RealType<?>> cursor = Views.flatIterable(source).cursor();
         while (cursor.hasNext()) {
             cursor.fwd();
             if (sampleRate >= 1.0 || rand.nextDouble() < sampleRate) {
@@ -1180,13 +1195,15 @@ public class ImgUtils {
         if (rai.firstElement() instanceof BitType) return true;
         // Early exit on 3rd unique value
         final Set<Double> unique = new HashSet<>(4);
+        boolean hasRealPixels = false;
         for (final Object pixel : Views.flatIterable(rai)) {
             if (pixel instanceof RealType) {
+                hasRealPixels = true;
                 unique.add(((RealType<?>) pixel).getRealDouble());
                 if (unique.size() > 2) return false;  // Early exit
             }
         }
-        return true;
+        return hasRealPixels && unique.size() <= 2;
     }
 
     /**
