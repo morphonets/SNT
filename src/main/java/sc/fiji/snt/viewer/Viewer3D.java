@@ -981,13 +981,16 @@ public class Viewer3D {
             if (!e.getValueIsAdjusting() && getManagerPanel() != null) {
                 final Set<String> selectedKeys = getLabelsCheckedInManager();
                 plottedTrees.forEach((k, shapeTree) -> {
-                    shapeTree.setDisplayed(selectedKeys.contains(k));
+                    final boolean show = selectedKeys.contains(k);
+                    if (shapeTree.isDisplayed() != show) shapeTree.setDisplayed(show);
                 });
                 plottedObjs.forEach((k, drawableVBO) -> {
-                    drawableVBO.setDisplayed(selectedKeys.contains(k));
+                    final boolean show = selectedKeys.contains(k);
+                    if (drawableVBO.isDisplayed() != show) drawableVBO.setDisplayed(show);
                 });
                 plottedAnnotations.forEach((k, annot) -> {
-                    annot.getDrawable().setDisplayed(selectedKeys.contains(k));
+                    final boolean show = selectedKeys.contains(k);
+                    if (annot.getDrawable().isDisplayed() != show) annot.getDrawable().setDisplayed(show);
                 });
                 if (getRecorder(false) != null) {
                     // Record toggling of last checkbox interaction
@@ -1447,10 +1450,13 @@ public class Viewer3D {
         final int[] indices = managerList.getCheckBoxListSelectedIndices();
         final int index = managerList.model.size() - 1;
         managerList.model.insertElementAt(label, index);
-        // managerList.ensureIndexIsVisible(index);
+        // Batch-update selection without firing the visibility listener on each call
+        final var selModel = managerList.getCheckBoxListSelectionModel();
+        selModel.setValueIsAdjusting(true);
         managerList.addCheckBoxListSelectedIndex(index);
         for (final int i : indices)
             managerList.addCheckBoxListSelectedIndex(i);
+        selModel.setValueIsAdjusting(false);
     }
 
     private boolean deleteItemFromManager(final String managerEntry) {
@@ -7568,17 +7574,21 @@ public class Viewer3D {
 
         @SuppressWarnings("unchecked")
         public void sort() {
-            final List<T> list = new ArrayList<>();
-            for (int i = 0; i < getSize(); i++) {
+            final int size = getSize();
+            if (size <= 2) return; // 0-1 items + ALL_ENTRY: nothing to sort
+            final List<T> list = new ArrayList<>(size - 1);
+            for (int i = 0; i < size; i++) {
                 final T o = get(i);
                 if (!CheckBoxList.ALL_ENTRY.equals(o))
                     list.add(o);
             }
             list.sort(Comparator.comparing(T::toString));
-            list.add((T) CheckBoxList.ALL_ENTRY);
+            // Rewrite elements in place: sorted items first, ALL_ENTRY last
             setListenersEnabled(false);
-            removeAllElements();
-            addAll(list);
+            for (int i = 0; i < list.size(); i++) {
+                set(i, list.get(i));
+            }
+            set(size - 1, (T) CheckBoxList.ALL_ENTRY);
             setListenersEnabled(true);
         }
 
