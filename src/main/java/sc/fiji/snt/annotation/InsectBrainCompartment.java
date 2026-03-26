@@ -128,6 +128,7 @@ public class InsectBrainCompartment implements BrainAnnotation {
             final OBJMesh mesh = new OBJMesh(url, GuiUtils.micrometer());
             mesh.setColor(objColor, 95f);
             mesh.setLabel(name);
+            mesh.setSourceAnnotation(this);
             return mesh;
         } catch (final IllegalArgumentException | IOException | URISyntaxException e) {
             SNTUtils.error("Could not retrieve mesh ", e);

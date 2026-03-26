@@ -336,7 +336,11 @@ public class AllenCompartment implements BrainAnnotation {
 
 	@Override
 	public OBJMesh getMesh() {
-		if (id() == AllenUtils.BRAIN_ROOT_ID) return AllenUtils.getRootMesh(Colors.WHITE);
+		if (id() == AllenUtils.BRAIN_ROOT_ID) {
+			final OBJMesh rootMesh = AllenUtils.getRootMesh(Colors.WHITE);
+			if (rootMesh != null) rootMesh.setSourceAnnotation(this);
+			return rootMesh;
+		}
 		final ColorRGB geometryColor = ColorRGB.fromHTMLColor("#" + jsonObj.optString("geometryColor", "ffffff"));
 		OBJMesh mesh = null;
 		if (!isMeshAvailable()) return null;
@@ -358,6 +362,7 @@ public class AllenCompartment implements BrainAnnotation {
 			mesh.setColor(geometryColor, 87.5f);
 			mesh.setLabel(toString());
 			mesh.setSymmetryAxis(AllenUtils.getAxisDefiningSagittalPlane());
+			mesh.setSourceAnnotation(this);
 			if (!jsonObj.isNull("geometryVolume")) {
 				mesh.setVolume(jsonObj.getDouble("geometryVolume"));
 			}

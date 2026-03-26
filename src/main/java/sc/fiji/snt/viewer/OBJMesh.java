@@ -61,6 +61,7 @@ import org.apache.commons.math3.stat.correlation.Covariance;
 
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.PCAnalyzer;
+import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -89,6 +90,7 @@ public class OBJMesh {
 	int meshShadingMode = SHADING_DEFAULT;
 	boolean backfaceCull = false;
 	private String displayedHemisphere = "both";
+	private BrainAnnotation sourceAnnotation;
 
 	/**
 	 * Instantiates a new wavefront OBJ mesh from a file path/URL.
@@ -124,6 +126,26 @@ public class OBJMesh {
 
 	public int getSymmetryAxis() {
 		return symmetryAxis;
+	}
+
+	/**
+	 * Returns the {@link BrainAnnotation} (atlas compartment) from which this
+	 * mesh was retrieved, or null if this mesh was loaded from a standalone file.
+	 *
+	 * @return the source annotation, or null
+	 */
+	public BrainAnnotation getSourceAnnotation() {
+		return sourceAnnotation;
+	}
+
+	/**
+	 * Associates this mesh with the {@link BrainAnnotation} (atlas compartment)
+	 * it was retrieved from.
+	 *
+	 * @param annotation the source annotation
+	 */
+	public void setSourceAnnotation(final BrainAnnotation annotation) {
+		this.sourceAnnotation = annotation;
 	}
 
 	/**
@@ -177,6 +199,7 @@ public class OBJMesh {
 		dup.displayedHemisphere = displayedHemisphere;
 		dup.meshShadingMode = meshShadingMode;
 		dup.backfaceCull = backfaceCull;
+		dup.sourceAnnotation = sourceAnnotation;
 		return dup;
 	}
 

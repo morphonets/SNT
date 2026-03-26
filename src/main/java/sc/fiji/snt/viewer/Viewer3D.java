@@ -108,6 +108,8 @@ import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.annotation.AllenCompartment;
 import sc.fiji.snt.annotation.AllenUtils;
+import sc.fiji.snt.annotation.BrainAnnotation;
+import sc.fiji.snt.annotation.InsectBrainCompartment;
 import sc.fiji.snt.annotation.VFBUtils;
 import sc.fiji.snt.annotation.ZBAtlasUtils;
 import sc.fiji.snt.gui.*;
@@ -309,6 +311,8 @@ public class Viewer3D {
     /** The anatomical up vector for the scene, or {@code null} for default Z-up.
      *  Set by {@link #applyAxisMapping} or when a reference brain is loaded. */
     private Coord3d sceneUpVector;
+    /** Whether anatomical axis labels have been auto-applied from an atlas mesh. */
+    private boolean atlasMappingApplied;
     private FileDropWorker fileDropWorker;
     private boolean abortCurrentOperation;
     private final Engine ENGINE;
@@ -531,6 +535,90 @@ public class Viewer3D {
         }
     }
 
+    /**
+     * Applies the anatomical axis mapping associated with a known reference brain.
+     * This is a convenience method that sets the axis labels and scene orientation
+     * (up vector) appropriate for the given atlas space, so that anatomical planes
+     * are rendered correctly. It is the script-friendly equivalent of the axis
+     * mapping that is applied automatically when using the GUI's Reference Brains
+     * menu or Allen CCF Navigator.
+     * <p>
+     * Currently supported templates (case-insensitive): "mouse" / "allen" / "ccf"
+     * (Allen CCF); "zebrafish" (Max Planck ZBA); "jfrc2018", "jfrc2", "jfrc3",
+     * "fcwb" (Drosophila).
+     * </p>
+     *
+     * @param template the reference brain identifier (case-insensitive), e.g.,
+     *                 "allen", "mouse", "zebrafish", "jfrc2018"
+     * @throws IllegalArgumentException if {@code template} is not recognized
+     * @see #loadRefBrain(String)
+     * @see #setAnatomicalMapping(String[], String)
+     */
+    public void setAnatomicalMapping(final String template) throws IllegalArgumentException {
+        final String normLabel = getNormalizedBrainLabel(template);
+        if (normLabel == null)
+            throw new IllegalArgumentException("Not a recognized template: " + template);
+        switch (normLabel) {
+            case MESH_LABEL_ALLEN -> {
+                setAxesLabels(AllenUtils.getXYZLabels());
+                sceneUpVector = new Coord3d(0, -1, 0);
+            }
+            case MESH_LABEL_ZEBRAFISH -> setAxesLabels(ZBAtlasUtils.getXYZLabels());
+            case MESH_LABEL_JFRC2018, MESH_LABEL_JFRC2, MESH_LABEL_JFRC3, MESH_LABEL_FCWB ->
+                    setAxesLabels(VFBUtils.getXYZLabels());
+            default -> { /* L1, L3, VNS: no specific axis labels */ }
+        }
+        if (sceneUpVector != null && view != null) {
+            view.setUpVector(sceneUpVector);
+        }
+        if (chartExists()) {
+            chart.setViewMode(currentView);
+        }
+    }
+
+    /**
+     * Applies a custom anatomical axis mapping to the scene, setting axis labels
+     * and the scene's up vector (dorsal direction). This is useful for custom
+     * atlases or coordinate systems not covered by the predefined templates.
+     *
+     * @param axisLabels a 3-element array of axis labels for {X, Y, Z}, e.g.,
+     *                   {"Anterior-Posterior", "Dorsal-Ventral", "Left-Right"}.
+     *                   If null, axes are reset to "X", "Y", "Z".
+     * @param dorsalAxis the axis and direction pointing dorsally, specified as a
+     *                   sign and axis letter: e.g., {@code "-Y"} (dorsal is
+     *                   negative Y, as in Allen CCF), {@code "+Z"} (dorsal is
+     *                   positive Z, the default), {@code "X"} (positive X). If
+     *                   null or empty, the default Z-up is used.
+     * @throws IllegalArgumentException if {@code dorsalAxis} is not a valid
+     *                                  axis descriptor
+     * @see #setAnatomicalMapping(String)
+     */
+    public void setAnatomicalMapping(final String[] axisLabels, final String dorsalAxis) {
+        setAxesLabels(axisLabels);
+        sceneUpVector = parseDorsalAxis(dorsalAxis);
+        if (view != null) {
+            view.setUpVector((sceneUpVector != null) ? sceneUpVector : View.UP_VECTOR_Z);
+        }
+        if (chartExists()) {
+            chart.setViewMode(currentView);
+        }
+    }
+
+    private static Coord3d parseDorsalAxis(final String dorsalAxis) {
+        if (dorsalAxis == null || dorsalAxis.isBlank()) return null;
+        final String s = dorsalAxis.trim().toUpperCase();
+        return switch (s) {
+            case "+X", "X" -> new Coord3d(1, 0, 0);
+            case "-X"      -> new Coord3d(-1, 0, 0);
+            case "+Y", "Y" -> new Coord3d(0, 1, 0);
+            case "-Y"      -> new Coord3d(0, -1, 0);
+            case "+Z", "Z" -> new Coord3d(0, 0, 1);
+            case "-Z"      -> new Coord3d(0, 0, -1);
+            default -> throw new IllegalArgumentException(
+                    "Invalid dorsal axis: '" + dorsalAxis + "'. Expected: +X, -X, +Y, -Y, +Z, or -Z");
+        };
+    }
+
     /* returns true if chart was initialized */
     private boolean initView() {
         if (chartExists()) return false;
@@ -744,11 +832,11 @@ public class Viewer3D {
                 dup.frame = new ViewerFrame(dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
                         frame.getGraphicsConfiguration());
                 dup.frame.setLocationRelativeTo(frame);
-            final int spacer = frame.getInsets().top;
-            dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
-            dup.frame.addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(final WindowEvent e) {
+                final int spacer = frame.getInsets().top;
+                dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
+                dup.frame.addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosing(final WindowEvent e) {
                         dup.dispose();
                     }
                 });
@@ -1466,10 +1554,10 @@ public class Viewer3D {
             final int[] indices = managerList.getCheckBoxListSelectedIndices();
             final int index = managerList.model.size() - 1;
             managerList.model.insertElementAt(label, index);
-        // Batch-update selection without firing the visibility listener on each call
-        final var selModel = managerList.getCheckBoxListSelectionModel();
-        selModel.setValueIsAdjusting(true);
-        managerList.addCheckBoxListSelectedIndex(index);
+            // Batch-update selection without firing the visibility listener on each call
+            final var selModel = managerList.getCheckBoxListSelectionModel();
+            selModel.setValueIsAdjusting(true);
+            managerList.addCheckBoxListSelectedIndex(index);
             for (final int i : indices)
                 managerList.addCheckBoxListSelectedIndex(i);
             selModel.setValueIsAdjusting(false);
@@ -1486,7 +1574,7 @@ public class Viewer3D {
             if (!managerList.model.removeElement(managerEntry)) {
                 // managerEntry was not found. It is likely associated
                 // with a tagged element. Retry:
-            for (int i = 0; i < managerList.model.getSize(); i++) {
+                for (int i = 0; i < managerList.model.getSize(); i++) {
                     final Object entry = managerList.model.getElementAt(i);
                     if (CheckBoxList.ALL_ENTRY.equals(entry)) continue;
                     if (TagUtils.removeAllTags(entry.toString()).equals(managerEntry)) {
@@ -1852,10 +1940,10 @@ public class Viewer3D {
             final ArrayList<Component> components = new ArrayList<>();
             components.add(frame);
             if (frame.hasManager())
-            components.add(frame.managerPanel);
-        if (frame.allenNavigator != null) {
-            components.add(frame.allenNavigator.dialog);
-        }
+                components.add(frame.managerPanel);
+            if (frame.allenNavigator != null) {
+                components.add(frame.allenNavigator.dialog);
+            }
             if (managerList != null)
                 components.add(managerList.getComponentPopupMenu());
             GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
@@ -2921,7 +3009,11 @@ public class Viewer3D {
             if (SwingUtilities.isEventDispatchThread()) r.run();
             else SwingUtilities.invokeLater(r);
         }
-        }
+        // Auto-detect atlas meshes added via scripts (e.g.,
+        // AllenUtils.getCompartment("...").getMesh()) and apply the
+        // anatomical axis mapping that would otherwise only be set
+        // when loading ref brains through the GUI or loadRefBrain()
+        applyAtlasMappingIfNeeded(objMesh);
         if (viewUpdatesEnabled) validate();
         return objMesh;
     }
@@ -3012,6 +3104,26 @@ public class Viewer3D {
             case "zebrafish" -> MESH_LABEL_ZEBRAFISH;
             default -> null;
         };
+    }
+
+    /**
+     * Auto-applies anatomical axis labels (and up vector for Allen CCF) when
+     * a mesh originating from a {@link BrainAnnotation} is added via scripts.
+     * Only acts once per atlas type: Allen sets labels + up vector; VFB/insect
+     * brain compartments set labels only.
+     */
+    private void applyAtlasMappingIfNeeded(final OBJMesh objMesh) {
+        if (atlasMappingApplied) return;
+        final BrainAnnotation src = objMesh.getSourceAnnotation();
+        if (src == null) return;
+        if (src instanceof AllenCompartment) {
+            setAxesLabels(AllenUtils.getXYZLabels());
+            sceneUpVector = new Coord3d(0, -1, 0);
+            if (view != null) view.setUpVector(sceneUpVector);
+        } else if (src instanceof InsectBrainCompartment) {
+            setAxesLabels(VFBUtils.getXYZLabels());
+        }
+        atlasMappingApplied = true;
     }
 
     private Color getNonUserDefColor() {
@@ -3320,38 +3432,52 @@ public class Viewer3D {
         {
             super(new Shape(), chart);
             shape = (Shape) drawable;
-            this.font = font;
+            final double pixelSize = pixelSize(frame);
+            updatePixelScale(new Coord2d(pixelSize));
+            this.font = font.deriveFont((float) (font.getSize() * pixelSize));
+            final int spacer = this.font.getSize() / 2;
+            setMargin(new org.jzy3d.maths.Margin(spacer, spacer, spacer, spacer));
             this.precision = precision;
             shape.setColorMapper(this.mapper = mapper);
             shape.setLegend(this);
             updateColors();
-            provider = (steps < 0) ? new SmartTickProvider(5)
-                    : new RegularTickProvider(steps);
+            provider = (steps < 0) ? new SmartTickProvider(5) : new RegularTickProvider(steps);
             renderer = (precision < 0) ? new ScientificNotationTickRenderer(-1 *
                     precision) : new FixedDecimalTickRenderer(precision);
             if (imageGenerator == null) init();
-            imageGenerator.setAWTFont(font);
+            imageGenerator.setAWTFont(this.font);
         }
 
-        public ColorLegend(final ColorTableMapper mapper) {
+        ColorLegend(final ColorTableMapper mapper) {
             this(mapper, new Font(Font.SANS_SERIF, Font.PLAIN, (int)GuiUtils.uiFontSize()), 5, 2);
         }
 
-        public void update(final double min, final double max, final float fontSize) {
+        void update(final double min, final double max, final float fontSize) {
             shape.getColorMapper().setMin(min);
             shape.getColorMapper().setMax(max);
             if (fontSize > 0)
-                imageGenerator.setAWTFont(imageGenerator.getAWTFont().deriveFont(fontSize));
+                imageGenerator.setAWTFont(imageGenerator.getAWTFont().deriveFont((float) (fontSize * pixelSize(frame))));
             ((ColorbarImageGenerator) imageGenerator).setMin(min);
             ((ColorbarImageGenerator) imageGenerator).setMax(max);
         }
 
-        public ColorLegend duplicate(final Chart chart) {
+        ColorLegend duplicate(final Chart chart) {
             return new ColorLegend(this, chart);
         }
 
-        public Shape get() {
+        Shape get() {
             return shape;
+        }
+
+        private static double pixelSize(final Component frame) {
+            if (frame == null) {
+                return GraphicsEnvironment.getLocalGraphicsEnvironment()
+                        .getDefaultScreenDevice()
+                        .getDefaultConfiguration()
+                        .getDefaultTransform()
+                        .getScaleX();
+            }
+            return frame.getGraphicsConfiguration().getDefaultTransform().getScaleX();
         }
 
         private void init() {
@@ -3367,8 +3493,8 @@ public class Viewer3D {
         public void initImageGenerator(final Drawable parent,
                                        final ITickProvider provider, final ITickRenderer renderer)
         {
-            if (shape != null) imageGenerator = new ColorbarImageGenerator(shape
-                    .getColorMapper(), provider, renderer, font.getSize());
+            if (shape != null) imageGenerator =
+                    new ColorbarImageGenerator(shape.getColorMapper(), provider, renderer, getPixelScale());
         }
 
     }
@@ -3377,38 +3503,11 @@ public class Viewer3D {
 
         public ColorbarImageGenerator(final ColorMapper mapper,
                                       final ITickProvider provider, final ITickRenderer renderer,
-                                      final int textSize)
+                                      final Coord2d pixelScale)
         {
             super(mapper, provider, renderer);
-            this.textSize = textSize;
-        }
-
-        @Override
-        public BufferedImage toImage(final int width, final int height,
-                                     final int barWidth)
-        {
-            if (barWidth > width) return null;
-            BufferedImage image = new BufferedImage(width, height,
-                    BufferedImage.TYPE_INT_ARGB);
-            Graphics2D graphic = image.createGraphics();
-            configureText(graphic);
-            final int maxWidth = graphic.getFontMetrics().stringWidth(getTickRenderer().format(
-                    max)) + barWidth + 1;
-            // do we have enough space to display labels?
-            if (maxWidth > width) {
-                graphic.dispose();
-                image.flush();
-                image = new BufferedImage(maxWidth, height,
-                        BufferedImage.TYPE_INT_ARGB);
-                graphic = image.createGraphics();
-                configureText(graphic);
-            }
-            GuiUtils.setRenderingHints(graphic);
-            drawBackground(width, height, graphic);
-            drawBarColors(height, barWidth, graphic);
-            drawBarContour(height, barWidth, graphic);
-            drawTextAnnotations(height, barWidth, graphic);
-            return image;
+            setPixelScale(pixelScale);
+            addTextHeightToVerticalMargin = false;
         }
 
         private void setMin(final double min) {
@@ -3417,6 +3516,30 @@ public class Viewer3D {
 
         private void setMax(final double max) {
             this.max = max;
+        }
+
+        @Override
+        protected int getPreferredWidth(int maxTextWidth) {
+            // jzy3d getPreferredWidth() method does not take into account pixelScale
+            return (int) (maxTextWidth * pixelScale.getX()) + getTextToBarHorizontalMargin() + getBarWidth();
+        }
+
+        @Override
+        protected void drawTextAnnotations(int height, int barWidth, Graphics2D graphic) {
+            // also here jzy3d's parent method does not take into account pixelScale
+            if (this.tickProvider != null) {
+                final double[] ticks = this.tickProvider.generateTicks(this.min, this.max);
+                final int xpos = (int) (barWidth + this.textToBarHorizontalMargin * pixelScale.getX());
+                for (final double tick : ticks) {
+                    double ratioOfRange = (tick - this.min) / (this.max - this.min);
+                    double heightNoText = height;
+                    heightNoText -= (double) this.textSize * pixelScale.getX();
+                    int ypos = (int) ((double) height - heightNoText * ratioOfRange);
+                    String txt = this.tickRenderer.format(tick);
+                    graphic.drawString(txt, xpos, ypos);
+                }
+            }
+
         }
     }
 
@@ -3651,11 +3774,12 @@ public class Viewer3D {
             setTitle(title);
             final BorderLayout layout = new BorderLayout();
             setLayout(layout);
-            status = new JLabel(STATUS_DEF_UNLOCKED);
+            status = new JLabel();
             status.setBorder(javax.swing.BorderFactory.createEmptyBorder(0, 8, 0, 0));
             status.setFocusable(false);
-            status.setBackground(toAWTColor(chart.view().getBackgroundColor()));
-            status.setForeground(toAWTColor(chart.view().getBackgroundColor().negative()));
+            applyStatusColors(chart.getView().getBackgroundColor(), chart.getView().getBackgroundColor().negative());
+            updateStatusMsg();
+
             if (managerList != null) {
                 if (splitPane == null) { // Interactive mode: use split pane for embedded manager panel
                    splitPane = GuiUtils.SplitPanes.nonDraggableRightSplitPane();
@@ -3672,6 +3796,7 @@ public class Viewer3D {
             } else {
                 // Kiosk/non-interactive mode: canvas and status bar directly in frame
                 add(canvas, BorderLayout.CENTER);
+                getContentPane().setBackground(status.getBackground());
                 add(status, BorderLayout.SOUTH);
             }
             setBackground(status.getBackground());
@@ -9291,6 +9416,8 @@ public class Viewer3D {
 
     private class MouseController extends AWTCameraMouseController {
 
+        private static final long MOUSE_MOVED_THROTTLE_NS = 50_000_000L; // 50ms (~20 fps)
+        private long lastMouseMovedNanos;
         private float panStep = Prefs.PAN.MEDIUM.step;
         private boolean panDone;
         private Coord3d prevMouse3d;
@@ -9532,6 +9659,23 @@ public class Viewer3D {
                 prevMouse3d = thisMouse3d;
             }
             prevMouse = mouse;
+        }
+
+        @Override
+        public void mouseMoved(final MouseEvent e) {
+            // jzy3d's default mouseMoved() unconditionally calls
+            // view.shoot(), triggering a full GL render cycle on every
+            // mouse move. This causes visible flicker on the ColorLegend
+            // because the entire scene (including the colorbar) is cleared
+            // and redrawn. In 3D mode the shoot() serves no purpose (the
+            // parent just clears the package-private mousePosition fields).
+            // In 2D mode shoot() is needed for the coordinate overlay, but
+            // we throttle it to avoid excessive repaints.
+            if (view.is3D()) return;
+            final long now = System.nanoTime();
+            if (now - lastMouseMovedNanos < MOUSE_MOVED_THROTTLE_NS) return;
+            lastMouseMovedNanos = now;
+            super.mouseMoved(e);
         }
 
         @Override

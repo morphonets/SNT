@@ -522,6 +522,7 @@ public class AllenUtils {
 		mesh.setVolume(volume);
 		mesh.setLabel(meshLabel);
 		mesh.setSymmetryAxis(getAxisDefiningSagittalPlane());
+		mesh.setSourceAnnotation(new AllenCompartment(BRAIN_ROOT_ID));
 		return mesh;
 	}
 
