@@ -740,17 +740,28 @@ public class Viewer3D {
         dup.setSceneUpdatesEnabled(viewUpdatesEnabled);
         dup.updateView();
         if (frame != null) {
-            dup.frame = new ViewerFrame(dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
-                    frame.getGraphicsConfiguration());
-            dup.frame.setLocationRelativeTo(frame);
+            final Runnable r = () -> {
+                dup.frame = new ViewerFrame(dup.chart, frame.getWidth(), frame.getHeight(), dup.managerList != null,
+                        frame.getGraphicsConfiguration());
+                dup.frame.setLocationRelativeTo(frame);
             final int spacer = frame.getInsets().top;
             dup.frame.setLocation(frame.getX() + spacer, frame.getY() + spacer);
             dup.frame.addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(final WindowEvent e) {
-                    dup.dispose();
+                        dup.dispose();
+                    }
+                });
+            };
+            if (SwingUtilities.isEventDispatchThread()) {
+                r.run();
+            } else {
+                try {
+                    SwingUtilities.invokeAndWait(r);
+                } catch (final Exception e) {
+                    SNTUtils.error("Failed to create duplicate frame", e);
                 }
-            });
+            }
         }
         return dup;
     }
@@ -773,9 +784,13 @@ public class Viewer3D {
      * @param enable true to enable debug mode, otherwise false
      */
     public void setEnableDebugMode(final boolean enable) {
-        if (frame != null && frame.managerPanel != null) {
-            frame.managerPanel.setDebuggerEnabled(enable);
-        }
+        final Runnable r = () -> {
+            if (frame != null && frame.managerPanel != null) {
+                frame.managerPanel.setDebuggerEnabled(enable);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
         SNTUtils.setDebugMode(enable);
     }
 
@@ -1447,33 +1462,50 @@ public class Viewer3D {
 
     private void addItemToManager(final String label) {
         if (managerList == null || managerList.model == null) return;
-        final int[] indices = managerList.getCheckBoxListSelectedIndices();
-        final int index = managerList.model.size() - 1;
-        managerList.model.insertElementAt(label, index);
+        final Runnable r = () -> {
+            final int[] indices = managerList.getCheckBoxListSelectedIndices();
+            final int index = managerList.model.size() - 1;
+            managerList.model.insertElementAt(label, index);
         // Batch-update selection without firing the visibility listener on each call
         final var selModel = managerList.getCheckBoxListSelectionModel();
         selModel.setValueIsAdjusting(true);
         managerList.addCheckBoxListSelectedIndex(index);
-        for (final int i : indices)
-            managerList.addCheckBoxListSelectedIndex(i);
-        selModel.setValueIsAdjusting(false);
+            for (final int i : indices)
+                managerList.addCheckBoxListSelectedIndex(i);
+            selModel.setValueIsAdjusting(false);
+        };
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
     }
 
     private boolean deleteItemFromManager(final String managerEntry) {
         if (managerList == null || managerList.model == null)
             return false;
-        if (!managerList.model.removeElement(managerEntry)) {
-            // managerEntry was not found. It is likely associated
-            // with a tagged element. Retry:
+        final boolean[] result = new boolean[1];
+        final Runnable r = () -> {
+            if (!managerList.model.removeElement(managerEntry)) {
+                // managerEntry was not found. It is likely associated
+                // with a tagged element. Retry:
             for (int i = 0; i < managerList.model.getSize(); i++) {
-                final Object entry = managerList.model.getElementAt(i);
-                if (CheckBoxList.ALL_ENTRY.equals(entry)) continue;
-                if (TagUtils.removeAllTags(entry.toString()).equals(managerEntry)) {
-                    return managerList.model.removeElement(entry);
+                    final Object entry = managerList.model.getElementAt(i);
+                    if (CheckBoxList.ALL_ENTRY.equals(entry)) continue;
+                    if (TagUtils.removeAllTags(entry.toString()).equals(managerEntry)) {
+                        result[0] = managerList.model.removeElement(entry);
+                        return;
+                    }
                 }
             }
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            r.run();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(r);
+            } catch (final Exception e) {
+                SNTUtils.error("Failed to delete manager entry", e);
+            }
         }
-        return false;
+        return result[0];
     }
 
     /**
@@ -1701,9 +1733,20 @@ public class Viewer3D {
             if (Engine.OFFSCREEN == ENGINE) {
                 throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
             }
-            final JFrame dummy = new JFrame();
-            frame = (ViewerFrame) show( 0, 0, dummy.getGraphicsConfiguration(), visible);
-            dummy.dispose();
+            final Runnable r = () -> {
+                final JFrame dummy = new JFrame();
+                frame = (ViewerFrame) show(0, 0, dummy.getGraphicsConfiguration(), visible);
+                dummy.dispose();
+            };
+            if (SwingUtilities.isEventDispatchThread()) {
+                r.run();
+            } else {
+                try {
+                    SwingUtilities.invokeAndWait(r);
+                } catch (final Exception e) {
+                    SNTUtils.error("Failed to create frame", e);
+                }
+            }
         }
         return frame;
     }
@@ -1721,10 +1764,22 @@ public class Viewer3D {
         if (Engine.OFFSCREEN == ENGINE) {
             throw new IllegalArgumentException("Offscreen canvas cannot be displayed.");
         }
-        final JFrame dummy = new JFrame();
-        final Frame frame = show( width, height, dummy.getGraphicsConfiguration(), true);
-        dummy.dispose();
-        return frame;
+        final Frame[] result = new Frame[1];
+        final Runnable r = () -> {
+            final JFrame dummy = new JFrame();
+            result[0] = show(width, height, dummy.getGraphicsConfiguration(), true);
+            dummy.dispose();
+        };
+        if (SwingUtilities.isEventDispatchThread()) {
+            r.run();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(r);
+            } catch (final Exception e) {
+                SNTUtils.error("Failed to show viewer", e);
+            }
+        }
+        return result[0];
     }
 
     private Frame show(final int width, final int height, final GraphicsConfiguration gConfiguration,
@@ -1770,35 +1825,43 @@ public class Viewer3D {
      */
     public void setFrameSize(final int width, final int height) {
         if (frame == null) return;
-        if (width == -1 && height == -1) {
-            frame.setLocation(0, 0);
-            frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
-        }
-        final int w = (width == 0) ? (int) (ViewerFrame.DEF_WIDTH * Prefs.SCALE_FACTOR) : width;
-        final int h = (height == 0) ? (int) (ViewerFrame.DEF_HEIGHT * Prefs.SCALE_FACTOR) : height;
-        if (width == -1 ) {
-            frame.setExtendedState(JFrame.MAXIMIZED_HORIZ);
-            frame.setSize((frame.getWidth()==0) ? w : frame.getWidth(), h);
-        } else if (height == -1 ) {
-            frame.setExtendedState(JFrame.MAXIMIZED_VERT);
-            frame.setSize(w, (frame.getHeight()==0) ? h : frame.getHeight());
-        } else {
-            frame.setSize(w, h);
-        }
+        final Runnable r = () -> {
+            if (width == -1 && height == -1) {
+                frame.setLocation(0, 0);
+                frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            }
+            final int w = (width == 0) ? (int) (ViewerFrame.DEF_WIDTH * Prefs.SCALE_FACTOR) : width;
+            final int h = (height == 0) ? (int) (ViewerFrame.DEF_HEIGHT * Prefs.SCALE_FACTOR) : height;
+            if (width == -1) {
+                frame.setExtendedState(JFrame.MAXIMIZED_HORIZ);
+                frame.setSize((frame.getWidth() == 0) ? w : frame.getWidth(), h);
+            } else if (height == -1) {
+                frame.setExtendedState(JFrame.MAXIMIZED_VERT);
+                frame.setSize(w, (frame.getHeight() == 0) ? h : frame.getHeight());
+            } else {
+                frame.setSize(w, h);
+            }
+        };
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
     }
 
     public void setLookAndFeel(final String lookAndFeelName) {
         if (frame == null) return;
-        final ArrayList<Component> components = new ArrayList<>();
-        components.add(frame);
-        if (frame.hasManager())
+        final Runnable r = () -> {
+            final ArrayList<Component> components = new ArrayList<>();
+            components.add(frame);
+            if (frame.hasManager())
             components.add(frame.managerPanel);
         if (frame.allenNavigator != null) {
             components.add(frame.allenNavigator.dialog);
         }
-        if (managerList != null)
-            components.add(managerList.getComponentPopupMenu());
-        GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
+            if (managerList != null)
+                components.add(managerList.getComponentPopupMenu());
+            GuiUtils.setLookAndFeel(lookAndFeelName, false, components.toArray(new Component[0]));
+        };
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
     }
 
     private void syncLookAndFeel(final boolean dark) {
@@ -2342,8 +2405,11 @@ public class Viewer3D {
             final Annotation3D annot = plottedAnnotations.get(label);
             if (annot != null)
                 annot.getDrawable().setDisplayed(visible);
-            if (frame != null && frame.managerPanel != null)
-                frame.managerPanel.setVisible(label, visible);
+            if (frame != null && frame.managerPanel != null) {
+                final Runnable r = () -> frame.managerPanel.setVisible(label, visible);
+                if (SwingUtilities.isEventDispatchThread()) r.run();
+                else SwingUtilities.invokeLater(r);
+            }
         }
     }
 
@@ -2559,7 +2625,10 @@ public class Viewer3D {
      * @param title the viewer's title. Ignored if Viewer's frame does not exist
      */
     public void setTitle(final String title) {
-        if (frame != null) frame.setTitle(title);
+        if (frame == null) return;
+        final Runnable r = () -> frame.setTitle(title);
+        if (SwingUtilities.isEventDispatchThread()) r.run();
+        else SwingUtilities.invokeLater(r);
     }
 
     /**
@@ -2848,7 +2917,10 @@ public class Viewer3D {
         plottedObjs.put(label, objMesh.drawable);
         addItemToManager(label);
         if (frame != null && frame.allenNavigator != null) {
-            frame.allenNavigator.meshLoaded(label);
+            final Runnable r = () -> frame.allenNavigator.meshLoaded(label);
+            if (SwingUtilities.isEventDispatchThread()) r.run();
+            else SwingUtilities.invokeLater(r);
+        }
         }
         if (viewUpdatesEnabled) validate();
         return objMesh;
@@ -2877,8 +2949,11 @@ public class Viewer3D {
     private OBJMesh loadRefBrainInternal(final String label) throws NullPointerException, IllegalArgumentException {
         if (getOBJs().containsKey(label)) {
             setVisible(label, true);
-            if (managerList != null)
-                managerList.addCheckBoxListSelectedValue(label, true);
+            if (managerList != null) {
+                final Runnable r = () -> managerList.addCheckBoxListSelectedValue(label, true);
+                if (SwingUtilities.isEventDispatchThread()) r.run();
+                else SwingUtilities.invokeLater(r);
+            }
             return plottedObjs.get(label).objMesh;
         }
         OBJMesh objMesh;
@@ -11054,8 +11129,11 @@ public class Viewer3D {
     }
 
     private void incrementProgress() {
-        if (getManagerPanel()!= null)
-            frame.managerPanel.progressBar.addToGlobalValue(1);
+        if (getManagerPanel() != null) {
+            final Runnable r = () -> frame.managerPanel.progressBar.addToGlobalValue(1);
+            if (SwingUtilities.isEventDispatchThread()) r.run();
+            else SwingUtilities.invokeLater(r);
+        }
     }
 
     private int getCurrentProgress() {
@@ -11064,15 +11142,19 @@ public class Viewer3D {
 
     /** will hide the bar if progress max becomes negative */
     private void removeProgressLoad(final int loadSize) {
-        if (getManagerPanel()!= null) {
-            frame.managerPanel.progressBar.addToGlobalMax((loadSize < 0) ? loadSize : -loadSize);
+        if (getManagerPanel() != null) {
+            final Runnable r = () -> frame.managerPanel.progressBar.addToGlobalMax((loadSize < 0) ? loadSize : -loadSize);
+            if (SwingUtilities.isEventDispatchThread()) r.run();
+            else SwingUtilities.invokeLater(r);
         }
     }
 
     /** will show an undetermined bar if progress max is negative */
     private void addProgressLoad(final int loadSize) {
-        if (getManagerPanel()!= null) {
-            frame.managerPanel.progressBar.addToGlobalMax(loadSize);
+        if (getManagerPanel() != null) {
+            final Runnable r = () -> frame.managerPanel.progressBar.addToGlobalMax(loadSize);
+            if (SwingUtilities.isEventDispatchThread()) r.run();
+            else SwingUtilities.invokeLater(r);
         }
     }
 
