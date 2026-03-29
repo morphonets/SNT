@@ -34,7 +34,6 @@ import org.scijava.ItemVisibility;
 import org.scijava.app.StatusService;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import org.scijava.display.Display;
 import org.scijava.menu.MenuConstants;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Menu;
@@ -226,10 +225,11 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 	private Map<String, URL> luts;
 	private Future<?> analysisFuture;
 	private PreviewOverlay previewOverlay;
-    private ShollTable commonSummaryTable;
-	private Display<?> detailedTableDisplay;
 	private boolean multipleTreesExist;
 	private boolean noFocalPointSpecified;
+
+	/* Common summary table shared by all instances */
+	private static volatile ShollTable commonSummaryTable;
 
 	/* Interactive runs: References to previous outputs */
 	private ShollPlot lPlot;
@@ -809,30 +809,28 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
                 final ShollTable dTable = (pStats==null)
                         ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
                 dTable.listProfileEntries();
-				if (detailedTableDisplay != null) {
-					detailedTableDisplay.close();
-				}
 				dTable.show("Sholl-Profiles");
 				outputs.add(dTable);
 			}
 			if (tableOutputDescription.contains("Summary")) {
                 final ShollTable sTable = (pStats==null)
                         ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
-                if (commonSummaryTable == null) {
-					commonSummaryTable = new ShollTable();
-					commonSummaryTable.setTitle(SUMMARY_TABLE_NAME);
+				sTable.setContext(getContext());
+
+				synchronized (ShollAnalysisTreeCmd.class) { // thread safety
+					if (commonSummaryTable == null) {
+						commonSummaryTable = new ShollTable();
+						commonSummaryTable.setTitle(SUMMARY_TABLE_NAME);
+					}
+					String header = (snt == null)
+							? file.getName()
+							: "Analysis " + (commonSummaryTable.getRowCount() + 1);
+					if (!filterChoice.contains("None"))
+						header += "(" + filterChoice + ")";
+					sTable.summarize(commonSummaryTable, header);
+					commonSummaryTable.createOrUpdateDisplay();
 				}
-				String header;
-				if (snt == null) {
-					header = file.getName();
-				}
-				else {
-					header = "Analysis " + (commonSummaryTable.getRowCount() + 1);
-					sTable.setContext(snt.getContext());
-				}
-				if (!filterChoice.contains("None")) header += "(" + filterChoice + ")";
-				sTable.summarize(commonSummaryTable, header);
-				commonSummaryTable.createOrUpdateDisplay();
+
 			}
 
 			if (snt != null && !"None".equalsIgnoreCase(annotationsDescription)) {

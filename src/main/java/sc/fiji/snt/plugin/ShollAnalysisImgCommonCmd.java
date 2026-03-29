@@ -42,7 +42,6 @@ import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.command.DynamicCommand;
 import org.scijava.convert.ConvertService;
-import org.scijava.display.Display;
 import org.scijava.module.ModuleItem;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
@@ -289,8 +288,9 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 	private Thread analysisThread;
 	private AnalysisRunner analysisRunner;
 	private Profile profile;
-	private ShollTable commonSummaryTable;
-	private Display<?> detailedTableDisplay;
+
+	/* Common summary table shared by all instances */
+	private static volatile ShollTable commonSummaryTable;
 
 	/* Preferences */
 	private int minDegree;
@@ -464,7 +464,7 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			logger.debug("Failed to change dataset");
 			return;
 		}
-		ImagePlus newImp = null;
+		ImagePlus newImp;
 		try {
 			newImp = convertService.convert(newDataset, ImagePlus.class);
 		} catch (final UnsupportedOperationException exc) {
@@ -1213,9 +1213,6 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
                         ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
 				dTable.listProfileEntries();
 				dTable.setTitle(imp.getTitle()+"_Sholl-Profiles");
-				if (detailedTableDisplay != null) {
-					detailedTableDisplay.close();
-				}
 				outputs.add(dTable);
 				dTable.createOrUpdateDisplay();
 			}
@@ -1224,12 +1221,15 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 
                 final ShollTable sTable = (pStats==null)
                         ? new ShollTable(lStats, nStats) : new ShollTable(lStats, nStats, pStats);
-				if (commonSummaryTable == null)
-					commonSummaryTable = new ShollTable();
-				sTable.summarize(commonSummaryTable, imp.getTitle());
-				sTable.setTitle("Sholl_Results");
-				outputs.add(sTable);
-				sTable.createOrUpdateDisplay();
+				synchronized (ShollAnalysisImgCommonCmd.class) { // thread safety
+					if (commonSummaryTable == null) {
+						commonSummaryTable = new ShollTable();
+						commonSummaryTable.setTitle("Sholl_Results");
+					}
+					sTable.summarize(commonSummaryTable, imp.getTitle());
+					outputs.add(commonSummaryTable);
+					commonSummaryTable.createOrUpdateDisplay();
+				}
 			}
 
 			setProfile(profile);
@@ -1246,10 +1246,9 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
                         if (!table.hasContext()) table.setContext(getContext());
 						if (!table.saveSilently(saveDir)) ++failures;
 					}
-					else if (output instanceof ImagePlus) {
-						final ImagePlus imp = (ImagePlus)output;
-						final File outFile = new File(saveDir, imp.getTitle());
-						if (!IJ.saveAsTiff(imp, outFile.getAbsolutePath())) ++failures;
+					else if (output instanceof ImagePlus impO) {
+                        final File outFile = new File(saveDir, impO.getTitle());
+						if (!IJ.saveAsTiff(impO, outFile.getAbsolutePath())) ++failures;
 					}
 				}
 				if (failures > 0)

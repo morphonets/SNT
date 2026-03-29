@@ -132,9 +132,7 @@ public class ShollTable extends SNTTable {
                             : "log(" + yFitHeader + "/" + nStats.getNormalizerDescription() + ")";
                     addColumn(yHeader, nStats.getFitYValues());
                 }
-                case PolarProfileStats pStats -> {
-                    pStats.detailReport(this);
-                }
+                case PolarProfileStats pStats -> pStats.detailReport(this);
                 default -> {
                 }
             }
@@ -213,7 +211,7 @@ public class ShollTable extends SNTTable {
 				final int c = Integer.parseInt(props.getProperty(Profile.KEY_CHANNEL_POS));
 				final int z = Integer.parseInt(props.getProperty(Profile.KEY_SLICE_POS));
 				final int t = Integer.parseInt(props.getProperty(Profile.KEY_FRAME_POS));
-				set(getCol("CZT Position "), row, "" + c + ":" + z + ":" + t);
+				set(getCol("CZT Position "), row, c + ":" + z + ":" + t);
 			}
 			final int nSamples = Integer.parseInt(props.getProperty(Profile.KEY_NSAMPLES, "1"));
 			set(getCol("Samples/radius"), row, nSamples);
@@ -248,9 +246,7 @@ public class ShollTable extends SNTTable {
                         set(getCol("Regression slope"), row, nStats.getSlope());
                     }
                 }
-                case PolarProfileStats pStats -> {
-                    pStats.appendSummaryReport(this);
-                }
+                case PolarProfileStats pStats -> pStats.appendSummaryReport(this);
                 case null, default -> {
                 }
             }
@@ -340,6 +336,8 @@ public class ShollTable extends SNTTable {
 	@Override
 	public void setContext(final Context context) throws IllegalStateException, IllegalArgumentException {
 		super.setContext(context);
+		if (prefService == null)
+			prefService = context.getService(PrefService.class);
 		if (prefService != null) {
 			final boolean detailedMetrics = prefService.getBoolean(ShollAnalysisPrefsCmd.class, "detailedMetrics", ShollAnalysisPrefsCmd.DEF_DETAILED_METRICS);
 			setDetailedSummary(detailedMetrics);
