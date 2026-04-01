@@ -2033,6 +2033,7 @@ public class Path implements Comparable<Path>, Cloneable {
                 jointNode.setType(PathNodeCanvas.JOINT);
                 jointNode.draw(g2, c);
                 currentNode.setType(PathNodeCanvas.SLAB);
+				currentNode.drawConnection(g2, previousNode);
             }
         }
     }
