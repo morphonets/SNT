@@ -63,7 +63,7 @@ import sc.fiji.snt.util.SNTColor;
 @Plugin(type = Command.class, label = "Extract Spine/Varicosity Counts from ROI(s)...", initializer = "init")
 public class SpineExtractorCmd extends CommonDynamicCmd {
 
-	private static final String MSG = "<br>To initiate counts, right-click on image and run \"Count Spine/Varicosities...\"";
+	private static final String MSG = "<br>Run \"Spine/Varicosity Utilities Help...\" for details on how to annotate locations.";
 
 	@Parameter(required = false, label = "Source of Multipoint ROI(s):") // choices set by #init()
 	private String roiSource;

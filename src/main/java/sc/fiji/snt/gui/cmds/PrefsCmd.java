@@ -71,10 +71,10 @@ public class PrefsCmd extends OptionsPlugin {
 	@Parameter(required = false)
 	private SwingLookAndFeelService lafService;
 
-    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "I. IO and Performance:")
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "I. I/O and Performance:")
     private String HEADER1;
 
-    @Parameter(label="No. parallel threads",
+    @Parameter(label="No. of parallel threads",
             description="<HTML><div WIDTH=500>The max. no. of parallel threads to be used by SNT, as specified in IJ's"
                     + "Edit>Options>Memory &amp; Threads... Set it to 0 to use the available processors on your computer")
     private int nThreads;
@@ -240,7 +240,7 @@ public class PrefsCmd extends OptionsPlugin {
 
 	@SuppressWarnings("unused")
 	private void lafHelp() {
-		new GuiUtils().showHTMLDialog("<HTML>"
+		new GuiUtils().showHTMLDialog("<HTML><div WIDTH=500>"
 				+ "SNT's <i>Look and Feel</i> (L&F) preference has been integrated into Fiji. "
 				+ "It is advised to use Fiji's <i>Edit>Look and Feel...</i> prompt instead.<br><br>"
 				+ "Note that setting a L&F does not affect AWT widgets. Thus, while a dark theme can be applied "

@@ -96,7 +96,6 @@ public class SNTUI extends JDialog {
     protected JSpinner snapWindowZsizeSpinner;
     private JButton showOrHidePathList;
     private JButton showOrHideFillList = new JButton(); // must be initialized
-    private JMenuItem saveMenuItem;
     private JMenuItem quitMenuItem;
     private JLabel statusText;
     private JLabel statusBarText;
@@ -109,7 +108,6 @@ public class SNTUI extends JDialog {
     private JSpinner assignDiameterSpinner;
     private JCheckBox confirmTemporarySegmentsCheckbox;
     private JRadioButtonMenuItem standardTracingRbmi;
-    private JRadioButtonMenuItem rubberBandTracingRbmi;
 
     // UI controls for auto-tracing
     private JComboBox<String> searchAlgoChoice;
@@ -914,7 +912,6 @@ public class SNTUI extends JDialog {
     private void disableEverything() {
         assert SwingUtilities.isEventDispatchThread();
         disableImageDependentComponents();
-        saveMenuItem.setEnabled(false);
         quitMenuItem.setEnabled(false);
     }
 
@@ -1024,7 +1021,6 @@ public class SNTUI extends JDialog {
             partsNearbyCSpinner.setEnabled(isStackAvailable());
             setEnableAutoTracingComponents(plugin.isAstarEnabled(), true);
             fmUI.setEnabledWhileNotFilling();
-            saveMenuItem.setEnabled(true);
             quitMenuItem.setEnabled(true);
             showPathsSelected.setEnabled(true);
             updateStatusText("Click somewhere to start a new path...");
@@ -1049,7 +1045,6 @@ public class SNTUI extends JDialog {
             setEnableAutoTracingComponents(false, false);
             plugin.discardFill();
             fmUI.setEnabledWhileNotFilling();
-            saveMenuItem.setEnabled(true);
             quitMenuItem.setEnabled(true);
             showPathsSelected.setEnabled(true);
             updateRebuildCanvasButton();
@@ -2914,7 +2909,7 @@ public class SNTUI extends JDialog {
 
         // Save
         fileMenu.addSeparator();
-        saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.SAVE));
+        final JMenuItem saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.SAVE));
         saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file. "
                 + "This file may be gzip compressed as per options in the Preferences dialog.");
         saveMenuItem.setAccelerator(
@@ -3293,7 +3288,7 @@ public class SNTUI extends JDialog {
             // Calculate usable area (excluding taskbar, dock, etc.)
             final int usableX = screenBounds.x + insets.left;
             final int usableY = screenBounds.y + insets.top;
-            final int usableWidth = screenBounds.width - insets.left - insets.right;
+            //final int usableWidth = screenBounds.width - insets.left - insets.right;
             final int usableHeight = screenBounds.height - insets.top - insets.bottom;
 
             // Position dialogs on the same screen
@@ -3863,7 +3858,7 @@ public class SNTUI extends JDialog {
         optionsMenu.add(GuiUtils.leftAlignedLabel("Tracing Mode:", false));
         final ButtonGroup tracingModeButtonGroup = new ButtonGroup();
         standardTracingRbmi = new JRadioButtonMenuItem("Standard", !plugin.rubberBandTracing);
-        rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
+        final JRadioButtonMenuItem rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
         GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse.<br>"
                 + "Click to confirm each segment. Only recommended for 2D images.");
         tracingModeButtonGroup.add(standardTracingRbmi);
@@ -3898,7 +3893,7 @@ public class SNTUI extends JDialog {
         });
         optionsMenu.addSeparator();
         optionsMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Algorithm Settings",
-                "https://imagej.net/plugins/snt/manual#auto-tracing"));
+                "https://imagej.net/plugins/snt/manual#algorithm-settings"));
         aStarPanel = new JPanel(new BorderLayout());
         aStarPanel.add(checkboxPanel, BorderLayout.CENTER);
         aStarPanel.add(optionsButton, BorderLayout.EAST);
