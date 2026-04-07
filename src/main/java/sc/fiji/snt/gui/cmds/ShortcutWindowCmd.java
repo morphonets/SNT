@@ -82,12 +82,13 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
 		shortcuts.add(new Shortcut("SNT...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend. For tracing start here."));
+		shortcuts.add(null);
+		shortcuts.add(new Shortcut("BVV...", BvvCmd.class,
+				"Initialize SNT's Big Volume Viewer with support for big data pyramidal images."));
 		shortcuts.add(new Shortcut("Rec. Plotter...", PlotterCmd.class,
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
 		shortcuts.add(new Shortcut("Rec. Viewer", ReconstructionViewerCmd.class,
 				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
-		shortcuts.add(new Shortcut("BVV...", BvvCmd.class,
-				"Initialize SNT's Big Volume Viewer with support for big data pyramidal images."));
 		addButtons(shortcuts);
 		final ScriptInstaller si = new ScriptInstaller(getContext(), getFrame());
 		buttons.add(null);
@@ -210,11 +211,15 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	private void addButtons(final Collection<Shortcut> shortcuts) {
 		shortcuts.forEach(shrtct -> {
-			final JButton b = new JButton(shrtct.label);
-			b.setToolTipText(HTML_TOOLTIP + shrtct.description);
-			b.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
-			makeSmallerButton(b);
-			buttons.add(b);
+			if (shrtct == null) {
+				buttons.add(null);
+			} else {
+				final JButton b = new JButton(shrtct.label);
+				b.setToolTipText(HTML_TOOLTIP + shrtct.description);
+				b.addActionListener(e -> threadService.queue(() -> cmdService.run(shrtct.cmd, true)));
+				makeSmallerButton(b);
+				buttons.add(b);
+			}
 		});
 	}
 
