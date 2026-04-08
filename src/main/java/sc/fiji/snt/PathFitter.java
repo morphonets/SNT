@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -39,6 +39,7 @@ import net.imglib2.view.Views;
 import pal.math.ConjugateDirectionSearch;
 import pal.math.MultivariateFunction;
 import sc.fiji.snt.gui.cmds.PathFitterCmd;
+import sc.fiji.snt.tracing.CrossSectionUtils;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.awt.*;
@@ -406,53 +407,17 @@ public class PathFitter implements Callable<Path> {
     /**
      * Computes orthonormal basis vectors in the plane perpendicular to the given normal.
      * Returns [a_basis, b_basis] where each is [x, y, z].
+     * @deprecated use {@link CrossSectionUtils#computeTangentPlaneBasis(double, double, double)}
      */
     private double[][] computeTangentPlaneBasis(final double nx, final double ny, final double nz) {
-        final double epsilon = 1e-6;
-
-        // First basis vector: cross product with (0,0,1) or (0,1,0)
-        double ax, ay, az;
-        if (Math.abs(nx) < epsilon && Math.abs(ny) < epsilon) {
-            // Normal is parallel to Z, use (0,1,0) instead
-            ax = nz;
-            ay = 0;
-            az = -nx;
-        } else {
-            // Cross normal with (0,0,1)
-            ax = -ny;
-            ay = nx;
-            az = 0;
-        }
-
-        // Second basis vector: cross product of a with normal
-        double bx = ay * nz - az * ny;
-        double by = az * nx - ax * nz;
-        double bz = ax * ny - ay * nx;
-
-        // Normalize both vectors
-        final double a_size = Math.sqrt(ax * ax + ay * ay + az * az);
-        ax = ax / a_size;
-        ay = ay / a_size;
-        az = az / a_size;
-
-        final double b_size = Math.sqrt(bx * bx + by * by + bz * bz);
-        bx = bx / b_size;
-        by = by / b_size;
-        bz = bz / b_size;
-
-        return new double[][] {
-                {ax, ay, az},  // a_basis
-                {bx, by, bz}   // b_basis
-        };
+        return CrossSectionUtils.computeTangentPlaneBasis(nx, ny, nz);
     }
 
+    /**
+     * @deprecated use {@link CrossSectionUtils#computeScaleAlongVector(double, double, double, double, double, double)}
+     */
     private double computeScaleAlongVector(final double vx, final double vy, final double vz) {
-        // Effective scale = sqrt(sum of (component * spacing)^2)
-        return Math.sqrt(
-                Math.pow(vx * path.x_spacing, 2) +
-                        Math.pow(vy * path.y_spacing, 2) +
-                        Math.pow(vz * path.z_spacing, 2)
-        );
+        return CrossSectionUtils.computeScaleAlongVector(vx, vy, vz, path.x_spacing, path.y_spacing, path.z_spacing);
     }
 
     private <T extends RealType<T>> void fitCircles() {
@@ -513,8 +478,6 @@ public class PathFitter implements Callable<Path> {
                 " radius: " + startValues[2]);
 
         // Reusable arrays to avoid per-node allocations
-        final int nDim = img.numDimensions() > 2 ? 3 : 2;
-        final double[] position = new double[nDim];
         final double[] x_basis_in_plane = new double[3];
         final double[] y_basis_in_plane = new double[3];
 
@@ -542,23 +505,27 @@ public class PathFitter implements Callable<Path> {
 
             if (Math.abs(scale_a - scale_b) / scale_iso > 0.1) {
                 SNTUtils.log(String.format(
-                        "  Node %d: Anisotropic tangent plane (%.3f vs %.3f µm). Using %.3f µm.",
+                        "  Node %d: Anisotropic tangent plane (%.3f vs %.3f Âµm). Using %.3f Âµm.",
                         i, scale_a, scale_b, scale_iso
                 ));
             }
 
-            final float[] normalPlane = squareNormalToVector(
+            final FloatProcessor crossSectionFp = CrossSectionUtils.sampleCrossSection(
                     sideSearch,
-                    scale_iso,  // Pass isotropic scale for both axes
-                    scale_iso,  // Pass isotropic scale for both axes
+                    scale_iso, scale_iso,
                     x_world, y_world, z_world,
-                    a_basis,
-                    b_basis,
-                    x_basis_in_plane,
-                    y_basis_in_plane,
-                    realRandomAccess,
-                    position  // Reusable position array
-            );
+                    a_basis, b_basis,
+                    path.x_spacing, path.y_spacing, path.z_spacing,
+                    realRandomAccess);
+            final float[] normalPlane = (float[]) crossSectionFp.getPixels();
+
+            // Reconstruct scaled basis vectors (previously side-effect of squareNormalToVector)
+            x_basis_in_plane[0] = a_basis[0] * scale_iso;
+            x_basis_in_plane[1] = a_basis[1] * scale_iso;
+            x_basis_in_plane[2] = a_basis[2] * scale_iso;
+            y_basis_in_plane[0] = b_basis[0] * scale_iso;
+            y_basis_in_plane[1] = b_basis[1] * scale_iso;
+            y_basis_in_plane[2] = b_basis[2] * scale_iso;
 
             SNTUtils.log(String.format("  Scale along a: %.3f, along b: %.3f", scale_a, scale_b));
             // Now at this stage, try to optimize a circle in there...
@@ -1054,6 +1021,10 @@ public class PathFitter implements Callable<Path> {
                 u2_smaller + "u2_larger=" + u2_larger);
     }
 
+    /**
+     * @deprecated use {@link CrossSectionUtils#sampleCrossSection} instead
+     */
+    @SuppressWarnings("unused")
     private float[] squareNormalToVector(
             final int side,
             final double step_a,  // Physical spacing along a-axis

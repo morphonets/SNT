@@ -498,20 +498,29 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
-        final JMenu menu = new JMenu("Spine/Varicosity Utilities");
+        final JMenu menu = new JMenu("Spine/Varicosities");
         final String tooltip = "Assumes spine/varicosity markers have already been assigned to selected path(s)";
         menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
-        JMenuItem jmi = new JMenuItem(MultiPathActionListener.SPINE_EXTRACT_CMD);
-        jmi.setToolTipText(tooltip);
+
+        // Detection (automated)
+        JMenuItem jmi = new JMenuItem(MultiPathActionListener.DETECT_PERIMAXIMA_CMD);
+        jmi.setToolTipText("Detects intensity maxima in annular cross-sections around selected paths");
         jmi.addActionListener(multiPathListener);
-        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Extract Counts from Multipoint ROIs...\")");
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DETECT_PERIMAXIMA_CMD + "\")");
         menu.add(jmi);
         menu.addSeparator();
-        jmi = new JMenuItem(MultiPathActionListener.SPINE_COLOR_CODING_CMD);
+
+        // Post-annotation analysis (requires markers already assigned)
+        jmi = new JMenuItem(MultiPathActionListener.DENSITIES_EXTRACT_CMD);
+        jmi.setToolTipText(tooltip);
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DENSITIES_EXTRACT_CMD + "\")");
+        menu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.DENSITIES_COLOR_CODING_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
         menu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.SPINE_PROFILE_CMD);
+        jmi = new JMenuItem(MultiPathActionListener.DENSITIES_PROFILE_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Density Profiles...\")");
@@ -533,7 +542,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private JMenu getTimeSequenceMenu(final MultiPathActionListener multiPathListener) {
-        final JMenu menu = new JMenu("Time-lapse Utilities");
+        final JMenu menu = new JMenu("Time-lapses");
         final String tooltip = "Assumes selected path(s) belong to a time-lapse series";
         menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.VIDEO));
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
@@ -946,7 +955,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         closeTable();
         if (measureUI != null) measureUI.dispose();
         if (tree != null) tree.removeAll();
-        if (plugin != null) plugin.dispose(); // will dispose pathAndFillManager
+        // plugin.dispose() called by SNTUI
         fittingHelper = null;
         measureUI = null;
         swcTypeButtonGroup = null;
@@ -2802,15 +2811,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String HISTOGRAM_TREES_CMD = "Cell-based Distributions...";
         private static final String HISTOGRAM_2D_CMD = "Two-Dimensional Histograms...";
 
-        // timelapse analysis
+        // timelapse analysis, etc.
         private static final String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
         private static final String TIME_PROFILE_CMD = "Time Profile...";
         private static final String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
         private static final String GROWTH_ANALYSIS_CMD = "Growth Analysis...";
-        private static final String SPINE_PROFILE_CMD = "Density Profiles...";
         private static final String MULTI_METRIC_PLOT_CMD = "Multimetric Plot...";
-        private static final String SPINE_EXTRACT_CMD = "Extract Counts from Multipoint ROIs...";
-        private static final String SPINE_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
+        private static final String DENSITIES_EXTRACT_CMD = "Compute Densities from Annotations...";
+        private static final String DENSITIES_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
+        private static final String DENSITIES_PROFILE_CMD = "Density Profiles...";
+        private static final String DETECT_PERIMAXIMA_CMD = "Detect Maxima Around Paths...";
 
         // Custom tag definition: anything flanked by curly braces
         private static final Pattern TAG_CUSTOM_PATTERN = Pattern.compile(" ?\\{.*}");
@@ -2840,7 +2850,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(COLORIZE_PATHS_CMD, new ColorizePathsCommand());
             commands.put(COLORIZE_REMOVE_CMD, new ColorizeRemoveCommand());
             commands.put(TIME_COLOR_CODING_CMD, new TimeColorCodingCommand());
-            commands.put(SPINE_COLOR_CODING_CMD, new SpineColorCodingCommand());
+            commands.put(DENSITIES_COLOR_CODING_CMD, new SpineColorCodingCommand());
 
             // Analysis commands
             commands.put(PLOT_PROFILE_CMD, new PlotProfileCommand());
@@ -2850,13 +2860,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(HISTOGRAM_TREES_CMD, new HistogramTreesCommand());
             commands.put(HISTOGRAM_2D_CMD, new Histogram2DCommand());
 
-            // Time analysis commands
+            // Time analysis/varicosity commands
             commands.put(TIME_PROFILE_CMD, new TimeProfileCommand());
-            commands.put(SPINE_PROFILE_CMD, new SpineProfileCommand());
+            commands.put(DENSITIES_PROFILE_CMD, new SpineProfileCommand());
             commands.put(MULTI_METRIC_PLOT_CMD, new MultiMetricPlotCommand());
-            commands.put(SPINE_EXTRACT_CMD, new SpineExtractCommand());
+            commands.put(DENSITIES_EXTRACT_CMD, new SpineExtractCommand());
             commands.put(MATCH_PATHS_ACROSS_TIME_CMD, new MatchPathsAcrossTimeCommand());
             commands.put(GROWTH_ANALYSIS_CMD, new GrowthAnalysisCommand());
+            commands.put(DETECT_PERIMAXIMA_CMD, new DetectVaricositiesCommand());
 
             // Modification commands
             commands.put(REVERSE_CMD, new ReverseCommand());
@@ -3382,6 +3393,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
+        private class DetectVaricositiesCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                if (!plugin.accessToValidImageData()) {
+                    guiUtils.error("Varicosity/Spine detection requires valid image data.");
+                    return;
+                }
+                final HashMap<String, Object> inputs = new HashMap<>();
+                inputs.put("paths", selectedPaths);
+                (plugin.getUI().new DynamicCmdRunner(PeripathDetectorCmd.class, inputs)).run();
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
         private class GrowthAnalysisCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
@@ -3431,7 +3460,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             public void execute(List<Path> selectedPaths, String cmd) {
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
-                (plugin.getUI().new DynamicCmdRunner(SpineExtractorCmd.class, inputs)).run();
+                (plugin.getUI().new DynamicCmdRunner(AnnotationDensityCmd.class, inputs)).run();
             }
 
             @Override

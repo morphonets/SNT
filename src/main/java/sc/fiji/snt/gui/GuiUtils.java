@@ -3124,7 +3124,7 @@ public class GuiUtils {
 			mi = openURL("Implemented Algorithms", "https://github.com/morphonets/SNT/blob/master/NOTES.md#algorithms");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.MATH));
 			helpMenu.add(mi);
-			mi = openURL("SNT Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7");
+			mi = openURL("SNT Manuscript", "https://dx.doi.org/10.1038/s41592-021-01105-7");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.FILE));
 			helpMenu.add(mi);
 			helpMenu.addSeparator();
@@ -3151,19 +3151,32 @@ public class GuiUtils {
 
 		public static JMenuItem showHelpOnCountingSpines(final Component parent, final Runnable action) {
 			final String HELP_MSG = "<HTML><div WIDTH=550>" //
-					+ "<b>Counting Spines/Varicosities Along Paths:</b>" //
+					+ "<b>Annotating Spines/Varicosities Along Paths:</b>" //
 					+ "<ol>" //
-					+ "<li>Pause SNT</li>" //
-					+ "<li>Click on features to count. In 3D images, ensure you are on the correct Z-plane before clicking</li>" //
-					+ "<li>After counting, select the ath(s) of interest (or none to include all), then run " //
-					+ "<i>Analyze → Spine/Varicosity Utilities → Extract Counts from Multipoint ROIs...</i></li>" //
+					+ "  <li>"
+					+ "    <b>Option 1, Automated Detection</b>:" //
+					+ "    <ol>" //
+					+ "      <li>" //
+					+ "          Run <i>Detect Maxima Around Paths...</i>"
+					+ "        </li>" //
+					+ "    </ol>" //
+					+ "  <li>"
+					+ "    <b>Option 2, Manual Annotation</b>:" //
+					+ "    <ol>" //
+					+ "      <li>Pause SNT</li>" //
+					+ "      <li>Click on features to count. In 3D images, ensure you are on the correct Z-plane before clicking</li>" //
+					+ "      <li>" //
+					+ "         After counting, select the path(s) of interest (or none to include all), then run <i>" //
+					+ "         Analyze → Spines/Varicosities → Compute Densities from Annotations...</i><br>" //
+					+ "         NB:<ul>" //
+					+ "           <li>Counts should occur in the main tracing view. ZY/XZ views are currently not supported</li>" //
+					+ "           <li>SNT only tallies features. Consider storing clicked locations in the ROI Manager or Bookmarks pane for further analyses</li>" //
+					+ "         </ul>" //
+					+ "      </li>"
+					+ "    </ol>" //
+					+ "  </li>" //
 					+ "</ol>" //
-					+ "<b>N.B.:</b>" //
-					+ "<ul>" //
-					+ "<li>Counts should occur in the main tracing view. ZY/XZ views are currently not supported</li>" //
-					+ "<li>SNT only tallies features. Consider storing clicked locations in ROI Manager or Bookmarks pane for further analyses</li>" //
-					+ "</ul>" //
-					+ "<b>Multipoint Tool:</b>" //
+					+ "<b>Tips on Multipoint Tool Usage</b>:" //
 					+ "<ul>" //
 					+ "<li>Click and drag a point to move it</li>" //
 					+ "<li>Alt+click, or " + GuiUtils.ctrlKey() + "+click on a point to delete it</li>" //
@@ -3172,12 +3185,12 @@ public class GuiUtils {
 					+ "<li><i>Edit → Selection → Restore Selection</i> (" + GuiUtils.ctrlKey() + "+Shift+E) to undo deletion</li>" //
 					+ "<li>Double-click the Multipoint tool in the main ImageJ toolbar for more options</li>" //
 					+ "</ul>" //
-					+ "<b>See the <a href=\"https://imagej.net/plugins/snt/walkthroughs#spinevaricosity-analysis\">User Manual</a> for further details.";
+					+ "<b>See the <a href=\"https://imagej.net/plugins/snt/spines-varicosities\">User Manual</a> for further details.";
 
-			final JMenuItem mi = new JMenuItem("Spine/Varicosity Utilities Help", IconFactory.menuIcon(GLYPH.QUESTION));
+			final JMenuItem mi = new JMenuItem("Spine/Varicosity Analysis Help", IconFactory.menuIcon(GLYPH.QUESTION));
 			mi.addActionListener(e -> {
 				if (new GuiUtils(parent).yesNoHTMLDialog(HELP_MSG, "Counting Spines/ Varicosities",
-						"Pause SNT & Start Counting", "Dismiss")) {
+						"Pause SNT & Start Manual Annotation", "Dismiss")) {
 					SwingUtilities.invokeLater(action);
 				}
 			});

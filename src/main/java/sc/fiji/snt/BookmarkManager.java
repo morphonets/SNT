@@ -865,10 +865,21 @@ public class BookmarkManager {
      * @param xyzctLocations the list of XYZCT locations
      */
     public void add(final String label, final List<double[]> xyzctLocations) {
+        add(label, xyzctLocations, null);
+    }
+
+    /**
+     * Adds multiple bookmarks with the specified label, locations, and color tag.
+     *
+     * @param label          the label prefix for the bookmarks
+     * @param xyzctLocations the list of XYZCT locations
+     * @param color          the color tag for the bookmarks, or {@code null} for no tag
+     */
+    public void add(final String label, final List<double[]> xyzctLocations, final Color color) {
         AtomicInteger ai = new AtomicInteger(1);
         xyzctLocations.forEach(loc -> model.getDataList().add( //
                 new Bookmark(model.getUniqueLabel(label + ai.getAndIncrement()), //
-                        (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4])));
+                        (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4], color)));
         resetOrResizeColumns(false, true);
         model.fireTableDataChanged();
     }
@@ -1012,13 +1023,7 @@ public class BookmarkManager {
             final int modelRow = (onlySelectedRows && table.getRowSorter() != null)
                     ? table.convertRowIndexToModel(row) : row;
             final Bookmark b = model.getDataList().get(modelRow);
-            final PointRoi roi = new PointRoi(b.x, b.y);
-            if (b.getColor() != null) {
-                roi.setStrokeColor(b.getColor());
-            }
-            roi.setPosition(b.c, (int) b.z, b.t);
-            roi.setName(b.label);
-            rois.add(roi);
+            rois.add(b.toRoi());
         }
         return rois;
     }
@@ -1083,6 +1088,27 @@ public class BookmarkManager {
         for (final Roi roi : getROIs(table.getSelectedRows().length>0))
             rm.addRoi(roi);
     }
+
+    public static List<PointRoi> getRois(final String commonLabel, final List<double[]> xyzctLocations) {
+        return getRois(commonLabel, xyzctLocations, null);
+    }
+
+    /**
+     * Creates a list of {@link PointRoi}s from XYZCT locations with a color tag.
+     *
+     * @param commonLabel    the label prefix for each ROI
+     * @param xyzctLocations the list of XYZCT locations (pixel coordinates)
+     * @param color          the stroke color for the ROIs, or {@code null} for default
+     * @return list of PointRoi objects
+     */
+    public static List<PointRoi> getRois(final String commonLabel, final List<double[]> xyzctLocations, final Color color) {
+        final List<PointRoi> rois = new ArrayList<>(xyzctLocations.size());
+        final AtomicInteger ai = new AtomicInteger(1);
+        xyzctLocations.forEach(loc -> rois.add( //
+                new Bookmark(commonLabel + ai.getAndIncrement(), //
+                        (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4], color).toRoi()));
+        return rois;
+    }
 }
 
 class Bookmark extends Path.PathNode {
@@ -1115,6 +1141,15 @@ class Bookmark extends Path.PathNode {
             case 7 -> size; // BVV size column
             default -> null;
         };
+    }
+
+    PointRoi toRoi() {
+        final PointRoi roi = new PointRoi(x, y);
+        if (getColor() != null)
+            roi.setStrokeColor(getColor());
+        roi.setPosition(c, (int) z, t);
+        roi.setName(label);
+        return roi;
     }
 }
 

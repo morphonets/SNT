@@ -56,14 +56,15 @@ import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.SNTColor;
 
 /**
- * Command for obtaining spine/varicosity counts from multipoint ROIs
+ * Command for obtaining spine/varicosity/synapse/etc. counts from multipoint ROIs or
+ * bookmarked locations
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Extract Spine/Varicosity Counts from ROI(s)...", initializer = "init")
-public class SpineExtractorCmd extends CommonDynamicCmd {
+@Plugin(type = Command.class, label = "Compute Densities from Annotations...", initializer = "init")
+public class AnnotationDensityCmd extends CommonDynamicCmd {
 
-	private static final String MSG = "<br>Run \"Spine/Varicosity Utilities Help...\" for details on how to annotate locations.";
+	private static final String MSG = "<br>Run \"Spine/Varicosity Analysis Help...\" for details on how to annotate locations.";
 
 	@Parameter(required = false, label = "Source of Multipoint ROI(s):") // choices set by #init()
 	private String roiSource;
@@ -288,6 +289,6 @@ public class SpineExtractorCmd extends CommonDynamicCmd {
 		final Tree tree = sntService.demoTrees().get(0);
 		final Map<String, Object> input = new HashMap<>();
 		input.put("paths", tree.list());
-		ij.command().run(SpineExtractorCmd.class, true, input);
+		ij.command().run(AnnotationDensityCmd.class, true, input);
 	}
 }

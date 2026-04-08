@@ -1118,9 +1118,8 @@ public class Path implements Comparable<Path>, Cloneable {
 		setOrder(-1);
 	}
 
-	protected double getMinimumSeparation() {
-		return Math.min(Math.abs(x_spacing), Math.min(Math.abs(y_spacing), Math.abs(
-			z_spacing)));
+	public double getMinimumSeparation() {
+		return Math.min(Math.abs(x_spacing), Math.min(Math.abs(y_spacing), Math.abs(z_spacing)));
 	}
 
 	/**

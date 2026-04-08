@@ -1225,7 +1225,7 @@ public class Bvv {
             // Ensure the card panel is wide enough to show all controls without clipping.
             // Use the Scene Controls panel's own preferred width since it's the widest,
             // and its GridBagLayout has already computed the correct natural width.
-            final int cardPrefW = sceneControlsCard.getMinimumSize().width + 10; // minor padding
+            final int cardPrefW = sceneControlsCard.getMinimumSize().width + 16; // minor padding
             SwingUtilities.invokeLater(() -> {
                 final javax.swing.JSplitPane split = bvv.getViewerFrame().getSplitPanel();
                 final java.awt.Component cards = split.getRightComponent();

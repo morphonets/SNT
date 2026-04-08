@@ -422,7 +422,7 @@ public class DelineationsManager {
 
     private JToolBar bottomToolBar() {
         final JToolBar toolbar = new JToolBar();
-        toolbar.add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/walkthroughs#delineation-analysis"));
+        toolbar.add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/delineations"));
         toolbar.add(Box.createHorizontalGlue());
         toolbar.add(optionsButton());
         toolbar.addSeparator();

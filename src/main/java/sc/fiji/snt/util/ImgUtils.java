@@ -66,14 +66,11 @@ import java.util.*;
  */
 public class ImgUtils {
 
-    static {
-        net.imagej.patcher.LegacyInjector.preinit();
-    } // required for _every_ class that imports ij. classes
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     private ImgUtils() {
     }
 
-    // ============== Axis Utilities ==============
 
     /**
      * Find dimension indices for X, Y, Z axes in an ImgPlus.
@@ -160,8 +157,6 @@ public class ImgUtils {
                 getOrigin(img, Axes.Z)
         };
     }
-
-    // ============== Calibration Conversion ==============
 
     /**
      * Extracts ImageJ1 Calibration from ImgPlus axes, including origin offsets.
