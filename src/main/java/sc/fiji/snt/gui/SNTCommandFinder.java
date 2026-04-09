@@ -190,11 +190,39 @@ public class SNTCommandFinder {
         frame.getContentPane().setBackground(searchField.getBackground());
         frame.add(table.getScrollPane(), BorderLayout.SOUTH);
         frame.pack();
+        if (!SystemInfo.isMacOS) {
+            enableDrag(frame.getRootPane());
+        }
         if (sntui != null) {
             GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
         } else {
             GuiUtils.centerWindow(frame, viewer3D.getFrame());
         }
+    }
+
+    private static void enableDrag(final JComponent component) {
+        final Point[] dragStart = {null};
+        component.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(final MouseEvent e) {
+                dragStart[0] = e.getPoint();
+            }
+            @Override
+            public void mouseReleased(final MouseEvent e) {
+                dragStart[0] = null;
+            }
+        });
+        component.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(final MouseEvent e) {
+                if (dragStart[0] != null) {
+                    final Window w = SwingUtilities.getWindowAncestor(component);
+                    final Point loc = w.getLocation();
+                    w.setLocation(loc.x + e.getX() - dragStart[0].x,
+                                  loc.y + e.getY() - dragStart[0].y);
+                }
+            }
+        });
     }
 
     private void initSearchField() {
@@ -483,8 +511,12 @@ public class SNTCommandFinder {
         final Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
         if (activeWindow != null) {
             final Rectangle bounds = activeWindow.getBounds();
-            final int x = bounds.x + (bounds.width - frame.getWidth()) / 2;
-            final int y = bounds.y + (bounds.height - frame.getHeight()) / 2;
+            int x = bounds.x + (bounds.width - frame.getWidth()) / 2;
+            int y = bounds.y + (bounds.height - frame.getHeight()) / 2;
+            // Clamp to visible screen area so the palette never overflows off-screen
+            final Rectangle screen = activeWindow.getGraphicsConfiguration().getBounds();
+            x = Math.max(screen.x, Math.min(x, screen.x + screen.width - frame.getWidth()));
+            y = Math.max(screen.y, Math.min(y, screen.y + screen.height - frame.getHeight()));
             frame.setLocation(x, y);
         } else if (sntui != null) {
             GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
