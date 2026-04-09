@@ -127,17 +127,19 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * [Convex hull](https://imagej.net/plugins/snt/analysis#convex-hull-analysis) analyses
 
-* [Delineation analyses](https://imagej.net/plugins/snt/walkthroughs#delineation-analysis)
+* [Delineation analyses](https://imagej.net/plugins/snt/delineations)
 
 * [Graph theory-based analyses](https://imagej.net/plugins/snt/analysis#graph-based-analysis)
 
-* [Persistent homology-based analyses](https://imagej.net/plugins/snt/analysis#persistence-homology)
-
 * [Growth analysis](https://imagej.net/plugins/snt/analysis#growth-analysis)
+
+* [Persistent homology-based analyses](https://imagej.net/plugins/snt/analysis#persistence-homology)
 
 * [Root angle analysis](https://imagej.net/plugins/snt/analysis#root-angle-analysis)
 
 * [Sholl](./NOTES.md) and [Horton-Strahler](https://imagej.net/plugins/snt/analysis#strahler-analysis) analyses
+
+* [Spine/Varicosity analysis](https://imagej.net/plugins/snt/spines-varicosities)
 
 * Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around (or across) traced paths
 

@@ -13,7 +13,7 @@
 	<version>5.0.7-SNAPSHOT</version>
 
 	<name>SNT</name>
-	<description>The ImageJ framework for quantitative neuroanatomy</description>
+	<description>The framework for quantification of neuronal anatomy</description>
 	<url>https://imagej.net/plugins/snt</url>
 	<inceptionYear>2010</inceptionYear>
 	<organization>

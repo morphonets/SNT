@@ -1646,7 +1646,7 @@ public class GuiUtils {
 		final JLabel title = new JLabel(SNTUtils.getReadableVersion());
 		SplashScreen.assignStyle(title, 2);
 		side.add(title);
-		final JLabel subTitle = new JLabel("The ImageJ Framework for Neuroanatomy");
+		final JLabel subTitle = new JLabel("The Framework for Quantitative Neuroanatomy");
 		SplashScreen.assignStyle(subTitle, 1);
 		side.add(subTitle);
 		side.add(new JLabel(" ")); // spacer
