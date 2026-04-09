@@ -89,7 +89,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static final String FILTERED_IMG_PATH = "tracing.snt.fipath";
 	private static final String VERSION_CHECK = "tracing.snt.version";
 	private static final String WORKSPACE_KEY = "tracing.snt.workspace";
-	private static final String NEXT_IMG_FILTER_KEY = "nextimg";
+	private static final String NEXT_IMG_FILTER_KEY = "tracing.snt.nextimg";
 
 	/** recent directory */
 	private static File recentDir;
