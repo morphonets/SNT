@@ -22,8 +22,10 @@
 
 package sc.fiji.snt.analysis;
 
+import ij.ImagePlus;
 import ij.plugin.filter.MaximumFinder;
 import ij.process.FloatProcessor;
+import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealRandomAccess;
 import net.imglib2.RealRandomAccessible;
@@ -97,9 +99,18 @@ public class PeripathDetector {
         if (img == null)
             throw new IllegalArgumentException("No image provided");
 
-        // Prepare interpolated image access
-        final RandomAccessibleInterval<FloatType> floatImage = Converters.convert(
+        // 2D if the image has 2 dimensions, or 3 dimensions with Z size of 1
+        // (getCtSlice3d bumps 2D images to 3D with Z=1)
+        final boolean is2D = img.numDimensions() == 2 ||
+                (img.numDimensions() >= 3 && img.dimension(2) <= 1);
+
+        // Prepare interpolated image access. For 2D detection, reduce to a
+        // true 2D image so the RealRandomAccess has 2 dimensions only.
+        RandomAccessibleInterval<FloatType> floatImage = Converters.convert(
                 (RandomAccessibleInterval<T>) img, new RealFloatConverter<>(), new FloatType());
+        if (is2D && floatImage.numDimensions() > 2) {
+            floatImage = Views.hyperSlice(floatImage, 2, 0);
+        }
         final RealRandomAccessible<FloatType> interpolant = Views.interpolate(
                 Views.extendZero(floatImage), new NLinearInterpolatorFactory<>());
 
@@ -140,63 +151,97 @@ public class PeripathDetector {
                 final double[] aBasis = basis[0];
                 final double[] bBasis = basis[1];
 
-                // Scales
-                final double scaleIso = CrossSectionUtils.computeIsotropicScale(
-                        aBasis, bBasis, xSp, ySp, zSp);
-
                 // Determine radii for this node
                 final double innerR = cfg.getEffectiveInnerRadius(radii[i]); // physical units
                 final double outerR = cfg.getEffectiveOuterRadius(radii[i]);
 
-                // Grid size
-                final int side = CrossSectionUtils.computeGridSize(outerR, scaleIso, cfg.maxSectionSize);
+                if (is2D) {
+                    // 2D: sample a 1D profile along aBasis (the perpendicular
+                    // direction in XY). bBasis points along Z, which is
+                    // meaningless for single-plane images.
+                    final double scaleA = CrossSectionUtils.computeScaleAlongVector(
+                            aBasis[0], aBasis[1], aBasis[2], xSp, ySp, zSp);
 
-                // Sample cross-section
-                final FloatProcessor fp = CrossSectionUtils.sampleCrossSection(
-                        side, scaleIso, scaleIso,
-                        node.x, node.y, node.z,
-                        aBasis, bBasis,
-                        xSp, ySp, zSp,
-                        realAccess);
+                    final int nSamples = CrossSectionUtils.computeGridSize(outerR, scaleA, cfg.maxSectionSize);
 
-                // Apply annular mask (convert physical radii to grid pixels)
-                final double innerRGrid = innerR / scaleIso;
-                final double outerRGrid = outerR / scaleIso;
-                CrossSectionUtils.applyAnnularMask(fp, innerRGrid, outerRGrid);
+                    final float[] profile = CrossSectionUtils.sampleProfile(
+                            nSamples, scaleA,
+                            node.x, node.y,
+                            aBasis, xSp, ySp,
+                            realAccess);
 
-                // Find maxima with prominence filtering
-                final MaximumFinder mf = new MaximumFinder();
-                final Polygon maxima = mf.getMaxima(fp, cfg.prominence, true, true);
+                    // Apply annular mask in 1D (convert physical radii to sample units)
+                    final double innerRSamples = innerR / scaleA;
+                    final double outerRSamples = outerR / scaleA;
+                    CrossSectionUtils.applyAnnularMask1D(profile, innerRSamples, outerRSamples);
 
-                if (maxima == null || maxima.npoints == 0) continue;
+                    // Find maxima with prominence
+                    final int[] maximaIdx = CrossSectionUtils.findMaxima1D(profile, cfg.prominence);
 
-                // Back-project each maximum to 3D world coordinates
-                for (int m = 0; m < maxima.npoints; m++) {
-                    final int gx = maxima.xpoints[m];
-                    final int gy = maxima.ypoints[m];
+                    if (maximaIdx.length == 0) continue;
 
-                    final double[] worldPos = CrossSectionUtils.backProject(
-                            gx, gy, side, scaleIso,
-                            node.x, node.y, node.z,
-                            aBasis, bBasis);
+                    final double mid = (nSamples - 1) / 2.0;
+                    for (final int idx : maximaIdx) {
+                        // Back-project: displacement along aBasis in world coords
+                        final double g = mid - idx;
+                        final double wx = node.x + g * aBasis[0] * scaleA;
+                        final double wy = node.y + g * aBasis[1] * scaleA;
 
-                    // For 2D images, clamp Z to the node's Z to avoid floating-point noise
-                    if (img.numDimensions() == 2) {
-                        worldPos[2] = node.z;
+                        final float intensity = profile[idx];
+                        final double distPhysical = Math.abs(g) * scaleA;
+
+                        rawDetections.add(new Detection(
+                                wx, wy, node.z,
+                                intensity, path, i, distPhysical));
                     }
 
-                    final float intensity = fp.getf(gx + gy * side);
+                } else {
+                    // 3D: sample a 2D cross-section on the tangent plane
+                    final double scaleIso = CrossSectionUtils.computeIsotropicScale(
+                            aBasis, bBasis, xSp, ySp, zSp);
+                    final int side = CrossSectionUtils.computeGridSize(outerR, scaleIso, cfg.maxSectionSize);
 
-                    // Distance from skeleton in physical units
-                    final double centerGrid = (side - 1) / 2.0;
-                    final double distGrid = Math.sqrt(
-                            (gx - centerGrid) * (gx - centerGrid) +
-                                    (gy - centerGrid) * (gy - centerGrid));
-                    final double distPhysical = distGrid * scaleIso;
+                    final FloatProcessor fp = CrossSectionUtils.sampleCrossSection(
+                            side, scaleIso, scaleIso,
+                            node.x, node.y, node.z,
+                            aBasis, bBasis,
+                            xSp, ySp, zSp,
+                            realAccess);
 
-                    rawDetections.add(new Detection(
-                            worldPos[0], worldPos[1], worldPos[2],
-                            intensity, path, i, distPhysical));
+                    // Apply annular mask (convert physical radii to grid pixels)
+                    final double innerRGrid = innerR / scaleIso;
+                    final double outerRGrid = outerR / scaleIso;
+                    CrossSectionUtils.applyAnnularMask(fp, innerRGrid, outerRGrid);
+
+                    // Find maxima with prominence filtering
+                    final MaximumFinder mf = new MaximumFinder();
+                    final Polygon maxima = mf.getMaxima(fp, cfg.prominence, true, true);
+
+                    if (maxima == null || maxima.npoints == 0) continue;
+
+                    // Back-project each maximum to 3D world coordinates
+                    for (int m = 0; m < maxima.npoints; m++) {
+                        final int gx = maxima.xpoints[m];
+                        final int gy = maxima.ypoints[m];
+
+                        final double[] worldPos = CrossSectionUtils.backProject(
+                                gx, gy, side, scaleIso,
+                                node.x, node.y, node.z,
+                                aBasis, bBasis);
+
+                        final float intensity = fp.getf(gx + gy * side);
+
+                        // Distance from skeleton in physical units
+                        final double centerGrid = (side - 1) / 2.0;
+                        final double distGrid = Math.sqrt(
+                                (gx - centerGrid) * (gx - centerGrid) +
+                                        (gy - centerGrid) * (gy - centerGrid));
+                        final double distPhysical = distGrid * scaleIso;
+
+                        rawDetections.add(new Detection(
+                                worldPos[0], worldPos[1], worldPos[2],
+                                intensity, path, i, distPhysical));
+                    }
                 }
             }
         }
@@ -295,6 +340,30 @@ public class PeripathDetector {
                         fillValue);
             }
         }
+    }
+
+    /**
+     * Creates a binary torus mask around the given paths, writing into an
+     * {@link ImagePlus}. This is a convenience overload of
+     * {@link #createTorusMask(Collection, RandomAccessibleInterval, Config, double)}
+     * that accepts an IJ1 image directly.
+     *
+     * @param paths     the paths to generate the torus for
+     * @param output    the output image to paint into (must be pre-allocated with
+     *                  dimensions matching the source image in pixel space)
+     * @param cfg       detection/annulus parameters (inner/outer radius settings)
+     * @param fillValue the value to write into torus voxels
+     * @throws IllegalArgumentException if paths or output is null/empty
+     * @see #createTorusMask(Collection, RandomAccessibleInterval, Config, double)
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void createTorusMask(final Collection<Path> paths,
+                                        final ImagePlus output,
+                                        final Config cfg,
+                                        final double fillValue) {
+        if (output == null)
+            throw new IllegalArgumentException("No output image provided");
+        createTorusMask(paths, (RandomAccessibleInterval) ImageJFunctions.wrapReal(output), cfg, fillValue);
     }
 
     /**

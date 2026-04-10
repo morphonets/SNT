@@ -272,6 +272,116 @@ public final class CrossSectionUtils {
     }
 
     /**
+     * Samples a 1D intensity profile along a direction vector, centered on a
+     * given world position. Intended for 2D images where the cross-section
+     * perpendicular to a path tangent is a line, not a plane.
+     *
+     * @param nSamples   number of samples (should be odd so center is well-defined)
+     * @param scale      physical spacing per sample along the direction
+     * @param ox         center X position (world/calibrated coordinates)
+     * @param oy         center Y position (world/calibrated coordinates)
+     * @param direction  direction vector {@code [dx, dy]} (unit length)
+     * @param xSpacing   voxel width (for converting world→pixel)
+     * @param ySpacing   voxel height
+     * @param realAccess interpolating accessor into the source image (2D)
+     * @return the sampled profile as a float array
+     */
+    public static float[] sampleProfile(
+            final int nSamples,
+            final double scale,
+            final double ox, final double oy,
+            final double[] direction,
+            final double xSpacing, final double ySpacing,
+            final RealRandomAccess<FloatType> realAccess) {
+
+        final float[] profile = new float[nSamples];
+        final double mid = (nSamples - 1) / 2.0;
+        final double dx_s = direction[0] * scale;
+        final double dy_s = direction[1] * scale;
+        final double[] position = new double[2];
+
+        for (int i = 0; i < nSamples; i++) {
+            final double g = mid - i;
+            position[0] = (ox + g * dx_s) / xSpacing;
+            position[1] = (oy + g * dy_s) / ySpacing;
+            profile[i] = realAccess.setPositionAndGet(position).getRealFloat();
+        }
+        return profile;
+    }
+
+    /**
+     * Applies an annular mask to a 1D profile. Samples closer than
+     * {@code innerRadius} or farther than {@code outerRadius} from the center
+     * are set to {@link Float#NaN}.
+     *
+     * @param profile     the profile array (modified in place)
+     * @param innerRadius inner radius in sample units (0 for no inner exclusion)
+     * @param outerRadius outer radius in sample units
+     */
+    public static void applyAnnularMask1D(final float[] profile,
+                                          final double innerRadius,
+                                          final double outerRadius) {
+        final double mid = (profile.length - 1) / 2.0;
+        for (int i = 0; i < profile.length; i++) {
+            final double d = Math.abs(i - mid);
+            if (d < innerRadius || d > outerRadius) {
+                profile[i] = Float.NaN;
+            }
+        }
+    }
+
+    /**
+     * Finds local maxima in a 1D profile using prominence-based filtering.
+     * A sample is a local maximum if it is strictly greater than both its
+     * neighbors (ignoring NaN) and its prominence exceeds the threshold.
+     * Prominence is defined as the peak value minus the highest saddle point
+     * connecting the peak to any higher peak (or the profile boundary).
+     *
+     * @param profile    the 1D intensity profile (may contain NaN for masked regions)
+     * @param prominence minimum prominence threshold
+     * @return array of indices into {@code profile} where maxima were found
+     */
+    public static int[] findMaxima1D(final float[] profile, final double prominence) {
+        final java.util.List<Integer> maxima = new java.util.ArrayList<>();
+        final int n = profile.length;
+
+        for (int i = 1; i < n - 1; i++) {
+            if (Float.isNaN(profile[i])) continue;
+
+            // Find valid left and right neighbors (skip NaN)
+            int li = i - 1;
+            while (li >= 0 && Float.isNaN(profile[li])) li--;
+            int ri = i + 1;
+            while (ri < n && Float.isNaN(profile[ri])) ri++;
+
+            if (li < 0 || ri >= n) continue;
+            if (profile[i] <= profile[li] || profile[i] <= profile[ri]) continue;
+
+            // Compute prominence: walk each direction to find the minimum
+            // before reaching a higher peak or the edge
+            float leftMin = profile[i];
+            for (int j = i - 1; j >= 0; j--) {
+                if (Float.isNaN(profile[j])) continue;
+                if (profile[j] > profile[i]) break;
+                leftMin = Math.min(leftMin, profile[j]);
+            }
+            float rightMin = profile[i];
+            for (int j = i + 1; j < n; j++) {
+                if (Float.isNaN(profile[j])) continue;
+                if (profile[j] > profile[i]) break;
+                rightMin = Math.min(rightMin, profile[j]);
+            }
+            // Prominence = peak - highest saddle (i.e., the shallower side)
+            final float prom = profile[i] - Math.max(leftMin, rightMin);
+            if (prom >= prominence) {
+                maxima.add(i);
+            }
+        }
+
+        return maxima.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /**
      * Paints an annular cross-section into a 3D output image. For each pixel in
      * the annulus (between {@code innerRadius} and {@code outerRadius} in grid
      * space), the corresponding voxel in the output image is set to
@@ -304,17 +414,42 @@ public final class CrossSectionUtils {
             final double innerRadius, final double outerRadius,
             final double fillValue) {
 
-        final double center = (side - 1) / 2.0;
-        final double innerR2 = innerRadius * innerRadius;
-        final double outerR2 = outerRadius * outerRadius;
-
         final long maxX = output.max(0);
         final long maxY = output.max(1);
-        final long maxZ = output.dimension(2) > 1 ? output.max(2) : 0;
+        final boolean is2D = output.dimension(2) <= 1;
+        final long maxZ = is2D ? 0 : output.max(2);
 
         final RandomAccess<T> ra = output.randomAccess();
 
-        for (int gy = 0; gy < side; gy++) {
+        // Convert grid-pixel radii back to world units
+        final double innerRWorld = innerRadius * scaleIso;
+        final double outerRWorld = outerRadius * scaleIso;
+        final double innerRW2 = innerRWorld * innerRWorld;
+        final double outerRW2 = outerRWorld * outerRWorld;
+
+        if (is2D) {
+            // 2D: paint along the perpendicular line (1D cross-section).
+            // Walk along aBasis from -outerR to +outerR, skipping the
+            // inner hollow region. Step at half-pixel to avoid gaps.
+            final double stepWorld = Math.min(xSpacing, ySpacing) * 0.5;
+            for (double t = -outerRWorld; t <= outerRWorld; t += stepWorld) {
+                if (t > -innerRWorld && t < innerRWorld) continue;
+                final double wx = ox + t * aBasis[0];
+                final double wy = oy + t * aBasis[1];
+                final long px = Math.round(wx / xSpacing);
+                final long py = Math.round(wy / ySpacing);
+                if (px < 0 || px > maxX || py < 0 || py > maxY) continue;
+                ra.setPosition(px, 0);
+                ra.setPosition(py, 1);
+                ra.get().setReal(fillValue);
+            }
+        } else {
+            // 3D: forward mapping from cross-section grid
+            final double center = (side - 1) / 2.0;
+            final double innerR2 = innerRadius * innerRadius;
+            final double outerR2 = outerRadius * outerRadius;
+
+            for (int gy = 0; gy < side; gy++) {
             final double dy = gy - center;
             for (int gx = 0; gx < side; gx++) {
                 final double dx = gx - center;
@@ -334,10 +469,10 @@ public final class CrossSectionUtils {
                     continue;
 
                 ra.setPosition(px, 0);
-                ra.setPosition(py, 1);
-                if (output.dimension(2) > 1)
+                    ra.setPosition(py, 1);
                     ra.setPosition(pz, 2);
-                ra.get().setReal(fillValue);
+                    ra.get().setReal(fillValue);
+                }
             }
         }
     }
