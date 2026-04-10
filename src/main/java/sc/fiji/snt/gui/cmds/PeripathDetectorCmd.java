@@ -36,6 +36,7 @@ import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.PeripathDetector;
+import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.util.Collection;
@@ -244,18 +245,8 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             if (rm == null) rm = new RoiManager();
             for (final Map.Entry<Path, List<PeripathDetector.Detection>> entry : resultsByPath.entrySet()) {
                 final Path path = entry.getKey();
-                final PointRoi roi = new PointRoi();
-                for (final PeripathDetector.Detection d : entry.getValue()) {
-                    final double[] loc = d.xyzct();
-                    // addPoint(x, y, position) stores a per-point stack position
-                    final int zSlice = (int) Math.round(loc[2]) + 1; // 0-based pixel; Z: 1-based slice
-                    final int stackPos = imp.getStackIndex((int) loc[3], zSlice, (int) loc[4]);
-                    roi.addPoint(loc[0], loc[1], stackPos);
-                }
-                roi.setName(path.getName() + " (" + entry.getValue().size() + " maxima)");
-                if (path.getColor() != null)
-                    roi.setStrokeColor(path.getColor());
-                rm.addRoi(roi);
+                final String name = path.getName() + " (" + entry.getValue().size() + " maxima)";
+                rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));
             }
             resetUI();
             rm.runCommand("sort");

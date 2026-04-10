@@ -601,6 +601,34 @@ public class RoiConverter {
         return combine(Arrays.asList(holdingOverlay.toArray()));
     }
 
+    /**
+     * Creates a grouped {@link PointRoi} from a list of
+     * {@link PeripathDetector.Detection}s. Each detection's pixel coordinates
+     * and stack position are computed via {@link PeripathDetector.Detection#xyzct()}.
+     *
+     * @param detections the detections to convert
+     * @param imp        the image used to resolve stack positions (channel, Z, frame)
+     * @param name       the ROI name, or {@code null} for no name
+     * @param color      the stroke color, or {@code null} for default
+     * @return a PointRoi containing all detection points with per-point Z positions
+     * @throws IllegalArgumentException if detections or imp is null
+     */
+    public static PointRoi toPointRoi(final List<PeripathDetector.Detection> detections,
+                                       final ImagePlus imp, final String name, final Color color) {
+        if (detections == null || imp == null)
+            throw new IllegalArgumentException("detections and image cannot be null");
+        final PointRoi roi = new PointRoi();
+        for (final PeripathDetector.Detection d : detections) {
+            final double[] loc = d.xyzct();
+            final int zSlice = (int) Math.round(loc[2]) + 1;
+            final int stackPos = imp.getStackIndex((int) loc[3], zSlice, (int) loc[4]);
+            roi.addPoint(loc[0], loc[1], stackPos);
+        }
+        if (name != null) roi.setName(name);
+        if (color != null) roi.setStrokeColor(color);
+        return roi;
+    }
+
     public static Roi get2DBoundingBox(final Collection<Path> paths, final int exportPlane) {
         final BoundingBox box = new BoundingBox();
         paths.forEach(path -> box.append(path.getUnscaledNodes().iterator()) );
