@@ -209,6 +209,7 @@ public class PathAndFillManager extends DefaultHandler implements
         y_spacing = cal.pixelHeight;
         z_spacing = cal.pixelDepth;
         spacing_units = SNTUtils.getSanitizedUnit(cal.getUnit());
+        if (boundingBox == null) boundingBox = new BoundingBox();
         boundingBox.setOrigin(new PointInImage(0, 0, 0));
         boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
                 spacing_units);

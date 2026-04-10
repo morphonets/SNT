@@ -200,9 +200,11 @@ public class SNTService extends AbstractService implements ImageJService {
 		if (noInstance)
 			plugin = new SNT(getContext(), imp);
 		if (!imp.isVisible()) {
-			// Then a batch script of sorts is likely running. 
-			// Temporarily suppress the 'auto-tracing' prompt
+			// Then a batch script of sorts is likely running.
+			// Suppress the 'auto-tracing' prompt and the 'Reopen from
+			// cached data?' dialog that fires when images are closed
 			plugin.getPrefs().setTemp("autotracing-prompt-armed", false);
+			plugin.getPrefs().setTemp("ignore-close-" + imp.getID(), true);
 		}
 		if (noInstance) {
 			plugin.initialize(true, 1, 1);
