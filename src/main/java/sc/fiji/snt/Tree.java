@@ -1713,6 +1713,44 @@ public class Tree implements TreeProperties, Cloneable {
     }
 
 	/**
+	 * Fits radii to all paths in this Tree by fitting circular cross-sections
+	 * to the image signal. Paths are fitted in parallel; results are applied
+	 * sequentially. This is the scripting equivalent of the UI's "Fit Paths"
+	 * action. Node positions are not modified; only radii and tangent vectors
+	 * are computed.
+	 *
+	 * @param imp the image containing the signal to fit against
+	 * @return the number of paths successfully fitted
+	 * @throws IllegalArgumentException if the image is null
+	 * @see Path#fitRadii(ImagePlus)
+	 * @see PathFitter
+	 */
+	public int fitRadii(final ImagePlus imp) {
+		if (imp == null)
+			throw new IllegalArgumentException("Image cannot be null");
+		final java.util.List<PathFitter> fitters = list().stream()
+				.filter(p -> !p.isFittedVersionOfAnotherPath() && p.size() >= 2)
+				.map(p -> {
+					final PathFitter fitter = new PathFitter(imp, p);
+					fitter.setScope(PathFitter.RADII);
+					fitter.setReplaceNodes(true); // safe: radii-only, no midpoint changes
+					return fitter;
+				})
+				.collect(Collectors.toList());
+		// Parallel fitting (thread-safe)
+		fitters.parallelStream().forEach(PathFitter::call);
+		// Sequential application (modifies path hierarchy)
+		int count = 0;
+		for (final PathFitter fitter : fitters) {
+			if (fitter.getSucceeded()) {
+				fitter.applyFit();
+				count++;
+			}
+		}
+		return count;
+	}
+
+	/**
 	 * Swaps the coordinates of two axes in this Tree.
 	 *
 	 * @param axis1 the first axis. Either {@link #X_AXIS}, {@link #Y_AXIS}, or

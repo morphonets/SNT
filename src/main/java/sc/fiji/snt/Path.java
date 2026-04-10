@@ -4289,6 +4289,33 @@ public class Path implements Comparable<Path>, Cloneable {
 		}
 	}
 
+	/**
+	 * Fits radii to this Path by fitting circular cross-sections to the image
+	 * signal. This is the scripting equivalent of the UI's "Fit Path" action.
+	 * Node positions are not modified; only radii and tangent vectors are
+	 * computed.
+	 *
+	 * @param imp the image containing the signal to fit against
+	 * @return true if the fit succeeded
+	 * @throws IllegalArgumentException if this path is already a fitted version
+	 *                                  of another path, or if the image is null
+	 * @see PathFitter
+	 * @see #setRadii(double[])
+	 */
+	public boolean fitRadii(final ImagePlus imp) {
+		if (imp == null)
+			throw new IllegalArgumentException("Image cannot be null");
+		final PathFitter fitter = new PathFitter(imp, this);
+		fitter.setScope(PathFitter.RADII);
+		fitter.setReplaceNodes(true); // safe: radii-only, no midpoint changes
+		fitter.call();
+		if (fitter.getSucceeded()) {
+			fitter.applyFit();
+			return true;
+		}
+		return false;
+	}
+
 	public boolean isConnectedTo(final Path other) {
 		return (getParentPath() != null && getParentPath().equals(other))
 			|| (connectedPaths != null && connectedPaths.contains(other));
