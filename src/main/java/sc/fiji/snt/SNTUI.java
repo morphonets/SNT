@@ -220,7 +220,6 @@ public class SNTUI extends JDialog {
         listener = new GuiListener();
         pathAndFillManager = plugin.getPathAndFillManager();
         commandFinder = new SNTCommandFinder(this);
-        commandFinder.register(getTracingCanvasPopupMenu(), new ArrayList<>(Collections.singletonList("Image Contextual Menu")));
         bookmarkManager = new BookmarkManager(this);
         notesui = new NotesUI(this);
         delineationsManager = new DelineationsManager(this);
@@ -1488,6 +1487,7 @@ public class SNTUI extends JDialog {
         });
         final JButton invertLutButton = new JButton(IconFactory.buttonIcon('\uf042', true, IconFactory.defaultColor()));
         invertLutButton.setToolTipText("Invert LUT of tracing views / Change background of Display Canvas");
+        registerInCommandFinder(invertLutButton, "Invert LUT / Change Canvas Background", "Options Tab", "Views");
         invertLutButton.addActionListener(e -> {
             final ImagePlus imp = plugin.getImagePlus();
             if (imp == null)
@@ -2287,6 +2287,7 @@ public class SNTUI extends JDialog {
                 and errors that are displayed in pop-up dialogs. Activate
                 this option to have such messages displayed discretely in
                 a Log window instead.""");
+        registerInCommandFinder(jcbx, "Toggle Quiet Mode", "3D Tab", "Legacy 3D Viewer");
         p.add(jcbx, c);
         return p;
     }
@@ -2631,7 +2632,6 @@ public class SNTUI extends JDialog {
                 plugin.flushSecondaryData();
             }
         });
-        commandFinder.register(mi4, "Main tab", "Auto-tracing (II Layer)");
         final JMenuItem mi5 = new JMenuItem("From Labkit/TWS Model...", IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
         mi5.addActionListener(e -> {
             if (!okToReplaceSecLayer())
@@ -3639,7 +3639,7 @@ public class SNTUI extends JDialog {
                 plugin.setDeselectedColor(newColor);
             }
         });
-        registerInCommandFinder(colorChooser1, "Default color for deselected paths", "Main Tab");
+        registerInCommandFinder(colorChooser2, "Default color for deselected paths", "Main Tab");
         final JCheckBox jcheckbox = new JCheckBox("Override color tags with default colors", !plugin.displayCustomPathColors);
         GuiUtils.addTooltip(jcheckbox,
                 "Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +

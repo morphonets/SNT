@@ -179,7 +179,7 @@ public class Bvv {
         if (zDim < 0 || imgPlus.dimension(zDim) <= 1) {
             throw new IllegalArgumentException(
                     "BVV requires 3D volumetric data but '" +
-                    (imgPlus.getName() != null ? imgPlus.getName() : "image") + "' appears to be a 2D image.");
+                            (imgPlus.getName() != null ? imgPlus.getName() : "image") + "' appears to be a 2D image.");
         }
         // Multichannel: use native hyperSlice path to avoid the Views.permute →
         // ImageJFunctions.wrap dimension-ordering bug that offsets channels.
@@ -1020,8 +1020,8 @@ public class Bvv {
         // Each channelImp has nChannels=1; derive axis order from Z and T only
         final AxisOrder channelAxisOrder = imp.getNSlices() == 1 && imp.getNFrames() == 1 ? AxisOrder.XY
                 : imp.getNSlices() > 1 && imp.getNFrames() > 1 ? AxisOrder.XYZT
-                : imp.getNSlices() > 1 ? AxisOrder.XYZ
-                : AxisOrder.XYT;
+                  : imp.getNSlices() > 1 ? AxisOrder.XYZ
+                    : AxisOrder.XYT;
         // No sourceTransform in opts, calibration is baked into each CalibratedSource
         final BvvOptions baseOpt = configureBvvOptionsForImage(imp)
                 .axisOrder(channelAxisOrder);
@@ -2451,8 +2451,8 @@ public class Bvv {
                         viewerPanel.state().getViewerTransform(t);
                         final double scale = Math.sqrt(
                                 t.get(0, 0) * t.get(0, 0) +
-                                t.get(1, 0) * t.get(1, 0) +
-                                t.get(2, 0) * t.get(2, 0));
+                                        t.get(1, 0) * t.get(1, 0) +
+                                        t.get(2, 0) * t.get(2, 0));
                         if (scale <= 0) return;
                         final double zCenter = -t.get(2, 3) / scale;
                         final int tick = Math.max(0, Math.min(nSlices, (int) Math.round(zCenter / zStep)));

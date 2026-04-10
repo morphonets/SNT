@@ -1164,6 +1164,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return navToolbar;
     }
 
+    public JToolBar getProofReadingToolBar() {
+        return proofReadingToolBar;
+    }
+
     private class FitHelper {
 
         private boolean promptHasBeenDisplayed = false;

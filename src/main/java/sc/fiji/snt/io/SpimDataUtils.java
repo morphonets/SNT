@@ -147,7 +147,8 @@ public class SpimDataUtils {
      */
     public static class CalibratedSource<T extends NumericType<T>> extends bdv.util.RandomAccessibleIntervalSource<T> {
 
-        private final FinalVoxelDimensions voxelDimensions;
+        private FinalVoxelDimensions voxelDimensions;
+        private final AffineTransform3D calibrationTransform;
         private final RandomAccessibleInterval<T> fullRai;
         private final int timeDim; // index of the T axis in fullRai, or -1 if no time axis
 
@@ -166,6 +167,7 @@ public class SpimDataUtils {
                                 final int timeDim) {
             super(timeDim >= 0 ? Views.hyperSlice(rai, timeDim, 0) : rai,
                     type, sourceTransform, name);
+            this.calibrationTransform = sourceTransform;
             this.fullRai = rai;
             this.timeDim = timeDim;
             this.voxelDimensions = new FinalVoxelDimensions(
@@ -181,6 +183,23 @@ public class SpimDataUtils {
                                 final double[] cal,
                                 final String unit) {
             this(rai, type, sourceTransform, name, cal, unit, -1);
+        }
+
+        /**
+         * Updates the voxel calibration (spacing and unit) of this source.
+         * Mutates the source transform diagonal and replaces the
+         * {@link VoxelDimensions} so the BVV scale bar reflects the new values.
+         *
+         * @param cal  voxel spacing {x, y, z}
+         * @param unit physical unit string (e.g. "µm")
+         */
+        public void setCalibration(final double[] cal, final String unit) {
+            calibrationTransform.set(cal[0], 0, 0);
+            calibrationTransform.set(cal[1], 1, 1);
+            calibrationTransform.set(cal.length > 2 ? cal[2] : 1.0, 2, 2);
+            voxelDimensions = new FinalVoxelDimensions(
+                    unit != null && !unit.isBlank() ? unit : "pixel",
+                    cal[0], cal[1], cal.length > 2 ? cal[2] : 1.0);
         }
 
         @Override

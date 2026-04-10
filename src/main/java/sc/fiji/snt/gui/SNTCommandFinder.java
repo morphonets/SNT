@@ -117,9 +117,9 @@ public class SNTCommandFinder {
         if (cmdScrapper.scrapeFailed())
             cmdScrapper.scrape();
         final TreeMap<String, String> result = new TreeMap<>();
-        cmdScrapper.getCmdMap().forEach((id, cmdAction) -> {
+        cmdScrapper.getCmdMap().forEach((key, cmdAction) -> {
             if (cmdAction.hotkey != null && !cmdAction.hotkey.isEmpty())
-                result.put(id, cmdAction.hotkey);
+                result.put(cmdAction.id, cmdAction.hotkey);
         });
         return result;
     }
@@ -256,44 +256,28 @@ public class SNTCommandFinder {
         resetScrapper();
         final String placeholder = searchField.getClientProperty(FlatClientProperties.PLACEHOLDER_TEXT).toString();
         searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, String.format("Index Rebuilt: %d commands/actions available...",
-                (cmdScrapper.cmdMap.size() + cmdScrapper.otherMap.size())));
+                cmdScrapper.getCmdMap().size()));
         final Timer timer = new Timer(3000, e -> searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder));
         timer.setRepeats(false);
         timer.start();
     }
 
-    private String[] makeRow(final CmdAction ca) {
-        return new String[]{ca.id, ca.description()};
-    }
-
     private void populateList(final String matchingSubstring) {
-        final ArrayList<String[]> list = new ArrayList<>();
+        final List<CmdAction> list = new ArrayList<>();
         if (cmdScrapper.scrapeFailed())
             cmdScrapper.scrape();
-        cmdScrapper.getCmdMap().forEach((id, cmd) -> {
+        cmdScrapper.getCmdMap().forEach((key, cmd) -> {
             if (cmd.matches(matchingSubstring)) {
-                list.add(makeRow(cmd));
+                list.add(cmd);
             }
         });
         final boolean noHits = list.isEmpty();
-        if (noHits) list.add(makeRow(noHitsCmd));
+        if (noHits) list.add(noHitsCmd);
         table.getInternalModel().setData(list);
         if (searchField != null) {
             searchField.setWarningOutlineEnabled(noHits);
             searchField.requestFocus();
         }
-    }
-
-    private void runCmd(final String command) {
-        SwingUtilities.invokeLater(() -> {
-            CmdAction cmd;
-            if (noHitsCmd != null && command.equals(noHitsCmd.id)) {
-                cmd = noHitsCmd;
-            } else {
-                cmd = cmdScrapper.getCmdMap().get(command);
-            }
-            runCmd(cmd);
-        });
     }
 
     private void runCmd(final CmdAction cmd) {
@@ -591,7 +575,7 @@ public class SNTCommandFinder {
     }
 
     public AbstractButton getRegisteredComponent(final String label) {
-        final CmdAction cmd = cmdScrapper.getCmdMap().get(label);
+        final CmdAction cmd = cmdScrapper.getCmdAction(label);
         return (cmd == null) ? null : cmd.button;
     }
 
@@ -651,20 +635,17 @@ public class SNTCommandFinder {
     private static class CmdTableModel extends AbstractTableModel {
         private static final long serialVersionUID = 1L;
         private static final int COLUMNS = 2;
-        List<String[]> list;
+        List<CmdAction> list = new ArrayList<>();
 
-        void setData(final ArrayList<String[]> list) {
+        void setData(final List<CmdAction> list) {
             this.list = list;
             fireTableDataChanged();
         }
 
-        String getCommand(final int row) {
-            if (list.size() == 1)
-                return (String) getValueAt(row, 0);
-            else if (row < 0 || row >= list.size())
-                return "";
-            else
-                return (String) getValueAt(row, 0);
+        CmdAction getCommand(final int row) {
+            if (row < 0 || row >= list.size())
+                return null;
+            return list.get(row);
         }
 
         @Override
@@ -676,8 +657,8 @@ public class SNTCommandFinder {
         public Object getValueAt(final int row, final int column) {
             if (row >= list.size() || column >= COLUMNS)
                 return null;
-            final String[] strings = list.get(row);
-            return strings[column];
+            final CmdAction ca = list.get(row);
+            return column == 0 ? ca.id : ca.description();
         }
 
         @Override
@@ -1135,21 +1116,36 @@ public class SNTCommandFinder {
                         sntui.getPathManager().getJTree().getComponentPopupMenu(), "PM Contextual Menu")); // before PM's menu bar
                 components.add(new AnnotatedComponent(sntui.getPathManager().getJMenuBar()));
                 components.add(new AnnotatedComponent(sntui.getPathManager().getNavigationToolBar(), "PM Nav. Bar"));
+                components.add(new AnnotatedComponent(sntui.getPathManager().getProofReadingToolBar(), "PM Proofread Bar"));
             }
             return components; // recViewer commands are all registered in otherMap
         }
 
         TreeMap<String, CmdAction> getCmdMap() {
-            if (otherMap != null)
-                cmdMap.putAll(otherMap);
-            return cmdMap;
+            if (otherMap == null || otherMap.isEmpty())
+                return cmdMap;
+            final TreeMap<String, CmdAction> combined = new TreeMap<>(cmdMap);
+            combined.putAll(otherMap);
+            return combined;
         }
 
+        /**
+         * Looks up a command by label. If the label matches a composite key
+         * directly, that entry is returned. Otherwise, the first entry whose
+         * {@code id} matches is returned (for backward compatibility with
+         * {@link #runCommand(String)}).
+         */
         CmdAction getCmdAction(final String identifier) {
-            CmdAction cmdAction = cmdMap.get(identifier);
-            if (cmdAction == null)
-                cmdAction = otherMap.get(identifier);
-            return cmdAction;
+            final TreeMap<String, CmdAction> map = getCmdMap();
+            final CmdAction direct = map.get(identifier);
+            if (direct != null)
+                return direct;
+            // Fallback: match by id (label) for script compatibility
+            for (final CmdAction ca : map.values()) {
+                if (ca.id.equalsIgnoreCase(identifier))
+                    return ca;
+            }
+            return null;
         }
 
         boolean scrapeFailed() {
@@ -1302,8 +1298,16 @@ public class SNTCommandFinder {
 
         void registerOther(final AbstractButton button, final List<String> path) {
             if (otherMap == null)
-                otherMap = new TreeMap<>();
+                otherMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             register(otherMap, button, path);
+        }
+
+        /**
+         * Builds the composite map key from label and path, so that entries
+         * with the same label but different paths coexist naturally.
+         */
+        private static String compositeKey(final String label, final List<String> path) {
+            return label + "\0" + String.join("\0", path);
         }
 
         private void register(final TreeMap<String, CmdAction> map, final AbstractButton button,
@@ -1320,27 +1324,21 @@ public class SNTCommandFinder {
                 label = "Edit Selected Path";
             else
                 label = label.trim();
-            // If a command has already been registered, we'll include its accelerator
+            final String key = compositeKey(label, path);
+            final CmdAction existing = map.get(key);
             final boolean isMenuItem = button instanceof JMenuItem;
-            final CmdAction registeredAction = map.get(label);
             final KeyStroke accelerator = (isMenuItem) ? ((JMenuItem) button).getAccelerator() : null;
-            if (registeredAction != null && accelerator != null && registeredAction.path.equals(path)) {
-                // Same command registered again (e.g., in multiple menus): merge accelerator
-                registeredAction.setKeyString(accelerator);
-            } else {
-                final CmdAction ca = new CmdAction(label, button);
-                ca.path = path;
+            if (existing != null) {
+                // Same label + same path: merge accelerator if available
                 if (accelerator != null)
-                    ca.setKeyString(accelerator);
-                String key = ca.id;
-                if (map.containsKey(key)) {
-                    // Disambiguate: qualify with last path element to avoid collision
-                    final String qualifier = path.isEmpty() ? "" : path.get(path.size() - 1);
-                    if (!qualifier.isEmpty())
-                        key = ca.id + " (" + qualifier + ")";
-                }
-                map.put(key, ca);
+                    existing.setKeyString(accelerator);
+                return;
             }
+            final CmdAction ca = new CmdAction(label, button);
+            ca.path = path;
+            if (accelerator != null)
+                ca.setKeyString(accelerator);
+            map.put(key, ca);
         }
     }
 
