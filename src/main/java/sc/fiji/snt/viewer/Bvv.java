@@ -25,8 +25,10 @@ package sc.fiji.snt.viewer;
 import bdv.spimdata.XmlIoSpimDataMinimal;
 import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
+import bdv.tools.transformation.TransformedSource;
 import bdv.util.Prefs;
 import bdv.util.AxisOrder;
+import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import bdv.viewer.Source;
 import bdv.viewer.animate.SimilarityTransformAnimator;
@@ -59,6 +61,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
+import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
@@ -1955,6 +1958,33 @@ public class Bvv {
 
     String getCalUnit() { return calUnit; }
 
+    /**
+     * Overrides the voxel calibration (spacing and unit) for all loaded sources.
+     * This is useful when the image metadata does not carry the correct spatial
+     * calibration (e.g., ND2 files opened via SCIFIO/Bio-Formats where the unit
+     * string is lost). The change takes effect immediately: the scale bar, distance
+     * measurements, and slab-thickness controls will all use the new values.
+     *
+     * @param spacing voxel size in {x, y, z} order
+     * @param unit    physical unit string (e.g. "µm")
+     */
+    public void setCalibration(final double[] spacing, final String unit) {
+        if (spacing == null || spacing.length < 2)
+            throw new IllegalArgumentException("spacing must have at least 2 elements (x, y)");
+        this.cal = new double[]{ spacing[0], spacing[1], spacing.length > 2 ? spacing[2] : 1.0 };
+        this.calUnit = BoundingBox.sanitizedUnit(unit);
+        if (bvvHandle != null) {
+            for (final SourceAndConverter<?> sac : bvvHandle.getViewerPanel().state().getSources()) {
+                Source<?> src = sac.getSpimSource();
+                if (src instanceof TransformedSource<?> ts)
+                    src = ts.getWrappedSource();
+                if (src instanceof SpimDataUtils.CalibratedSource<?> cs)
+                    cs.setCalibration(cal, unit);
+            }
+            bvvHandle.getViewerPanel().requestRepaint();
+        }
+    }
+
     BvvHandle getBvvHandle() { return bvvHandle; }
 
     String getSpimDataFilePath(final AbstractSpimData<?> spimData) {
@@ -2654,8 +2684,19 @@ public class Bvv {
                                 Prefs.showScaleBar(show);
                                 bvvInstance.repaint();
                             }),
-                    "Show/hide scale bar", IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
+                    "Show/hide scale bar (right-click: set calibration)",
+                    IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
             scaleBarToggle.setSelected(Prefs.showScaleBar());
+            scaleBarToggle.addMouseListener(new java.awt.event.MouseAdapter() {
+                private void handlePopup(final java.awt.event.MouseEvent e) {
+                    if (e.isPopupTrigger()) {
+                        e.consume();
+                        showCalibrationDialog(scaleBarToggle);
+                    }
+                }
+                @Override public void mousePressed(final java.awt.event.MouseEvent e) { handlePopup(e); }
+                @Override public void mouseReleased(final java.awt.event.MouseEvent e) { handlePopup(e); }
+            });
             bar.add(scaleBarToggle);
             final JToggleButton axesToggle = GuiUtils.Buttons.toolbarToggleButton(
                     overlayToggleAction("Axes", false,
@@ -2687,6 +2728,29 @@ public class Bvv {
             bar.addSeparator();
             bar.add(optionsButton(bvvActions));
             return bar;
+        }
+
+        /**
+         * Shows a dialog allowing the user to override the voxel spacing.
+         * The unit is assumed to be µm (the standard for most microscopy data).
+         */
+        private void showCalibrationDialog(final java.awt.Component parent) {
+            final double[] curCal = bvvInstance.getCal();
+            final Number[] defaults = {
+                    curCal != null && curCal.length > 0 ? curCal[0] : 1.0,
+                    curCal != null && curCal.length > 1 ? curCal[1] : 1.0,
+                    curCal != null && curCal.length > 2 ? curCal[2] : 1.0
+            };
+            final GuiUtils guiUtils = new GuiUtils(SwingUtilities.getWindowAncestor(parent));
+            final Number[] result = guiUtils.getThreeNumbers(
+                    "Voxel spacing (" + GuiUtils.micrometer() + "):",
+                    "Set Calibration", defaults,
+                    new String[]{"X", "Y", "Z"}, 4);
+            if (result == null) return;
+            final double[] spacing = { result[0].doubleValue(), result[1].doubleValue(), result[2].doubleValue() };
+            bvvInstance.setCalibration(spacing, GuiUtils.micrometer());
+            SNTUtils.log("Calibration overridden: " + spacing[0] + "×" + spacing[1] + "×" + spacing[2]
+                    + " " + GuiUtils.micrometer());
         }
 
         private JButton optionsButton(final BvvActions actions) {
