@@ -23,7 +23,6 @@
 package sc.fiji.snt.gui.cmds;
 
 import ij.ImagePlus;
-import ij.gui.PointRoi;
 import ij.plugin.frame.RoiManager;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
@@ -32,7 +31,6 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
-import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.PeripathDetector;
@@ -224,6 +222,9 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         // Update spine/varicosity counts on paths
         resultsByPath.forEach((p, detections) -> p.setSpineOrVaricosityCount(
                 p.getSpineOrVaricosityCount() + detections.size()));
+
+        if (ui != null)
+            ui.getPathManager().applyDefaultTags("No. of Spine/Varicosity Markers");
 
         if (ui != null && outputChoice.toLowerCase().contains("bookmark")) {
 

@@ -9,6 +9,8 @@
  *          synaptic markers, auto-traces a dendrite, fits radii, runs detection,
  *          and then shows how the annular search region (torus mask) can be used
  *          to extract the peri-neuronal signal for further analysis.
+ *          NB: sc.fiji.snt.analysis.PathProfiler/NodeProfiler to profile voxel
+ *              intensities along paths/across path nodes.
  *
  * @see https://imagej.net/plugins/snt/spines-varicosities
  * @see https://imagej.net/plugins/snt/scripting
