@@ -2910,7 +2910,7 @@ public class SNTUI extends JDialog {
         // Save
         fileMenu.addSeparator();
         final JMenuItem saveMenuItem = new JMenuItem("Save Tracings", IconFactory.menuIcon(IconFactory.GLYPH.SAVE));
-        saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file. "
+        saveMenuItem.setToolTipText("Saves tracings to a TRACES (XML) file.\n"
                 + "This file may be gzip compressed as per options in the Preferences dialog.");
         saveMenuItem.setAccelerator(
                 KeyStroke.getKeyStroke(KeyEvent.VK_S, java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask()));
