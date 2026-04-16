@@ -1830,17 +1830,14 @@ public class PathAndFillManager extends DefaultHandler implements
                     final String tYString = attributes.getValue("ty");
                     final String tZString = attributes.getValue("tz");
 
-                    if (radiusString != null && tXString != null && tYString != null && tZString != null) {
-                        // Set radius and tangents for the current node
-                        final double radius = Double.parseDouble(radiusString);
-                        current_path.setNodeRadius(radius, lastIndex);
+                    if (radiusString != null) {
+                        current_path.setNodeRadius(Double.parseDouble(radiusString), lastIndex);
+                    }
+                    if (tXString != null && tYString != null && tZString != null) {
                         final double tx = Double.parseDouble(tXString);
                         final double ty = Double.parseDouble(tYString);
                         final double tz = Double.parseDouble(tZString);
                         current_path.setNodeTangent(new double[]{tx, ty, tz}, lastIndex);
-                    } else if (radiusString != null || tXString != null || tYString != null || tZString != null) {
-                        throw new TracesFileFormatException(
-                                "If one of the r, tx, ty or tz attributes to the point element is specified, they all must be");
                     }
 
                     final String vString = attributes.getValue("v");
