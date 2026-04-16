@@ -41,6 +41,8 @@ import org.scijava.command.CommandService;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
+import sc.fiji.snt.analysis.PlausibilityCheck;
+import sc.fiji.snt.analysis.PlausibilityMonitor;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -56,6 +58,7 @@ import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.TreeUtils;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -127,6 +130,9 @@ public class SNTUI extends JDialog {
     private final SNTCommandFinder commandFinder;
     private ActiveWorker activeWorker;
     private volatile int currentState = -1;
+
+    private PlausibilityMonitor plausibilityMonitor;
+    private CurationAssistantPanel curationAssistantPanel;
 
     SNT plugin;
     private PathAndFillManager pathAndFillManager;
@@ -223,6 +229,17 @@ public class SNTUI extends JDialog {
         bookmarkManager = new BookmarkManager(this);
         notesui = new NotesUI(this);
         delineationsManager = new DelineationsManager(this);
+        plausibilityMonitor = new PlausibilityMonitor();
+        curationAssistantPanel = new CurationAssistantPanel(this, plausibilityMonitor);
+        plausibilityMonitor.addWarningListener(warnings -> {
+            final List<PointInImage> locs = warnings.stream()
+                    .map(PlausibilityCheck.Warning::location)
+                    .filter(Objects::nonNull).toList();
+            SwingUtilities.invokeLater(() -> {
+                if (plugin.getXYCanvas() != null)
+                    plugin.getXYCanvas().setWarningLocations(locs);
+            });
+        });
         initializeStates();
         setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
@@ -315,7 +332,6 @@ public class SNTUI extends JDialog {
         c3.anchor = GridBagConstraints.NORTHEAST;
         c3.gridwidth = GridBagConstraints.REMAINDER;
 
-        tabbedPane.addTab("3D", tab3);
         final ViewerPanelBuilder viewerPanelBuilder = new ViewerPanelBuilder();
         InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
         c3.gridy++;
@@ -361,19 +377,20 @@ public class SNTUI extends JDialog {
         // new tabs, so we'll discard it from preferred width calculation
         final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
 
-        tabbedPane.addTab("Delineations", delineationsManager.getPanel());
-
-        // Bookmarks and notes
+        tabbedPane.addTab("Assistant", curationAssistantPanel.getPanel());
         tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
+        tabbedPane.addTab("3D", tab3);
+        tabbedPane.addTab("Delineations", delineationsManager.getPanel());
         tabbedPane.addTab("Notes", notesui.getPanel());
 
-        // set icons
+        // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Notes
         tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
         tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
-        tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
-        tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
-        tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
-        tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
+        tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.USER_DOCTOR));
+        tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
+        tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
+        tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
+        tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
 
         setJMenuBar(createMenuBar());
         setLayout(new GridBagLayout());
@@ -565,27 +582,19 @@ public class SNTUI extends JDialog {
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
         SwingUtilities.invokeLater(() -> {
             if (tp != null) {
-                switch (tabTitle.trim().split(" ")[0].toLowerCase()) {
-                    case "main":
-                        tp.setSelectedIndex(0);
-                        break;
-                    case "options":
-                        tp.setSelectedIndex(1);
-                        break;
-                    case "3d":
-                        tp.setSelectedIndex(2);
-                        break;
-                    case "delineations":
-                        tp.setSelectedIndex(3);
-                        break;
-                    case "bookmarks":
-                        tp.setSelectedIndex(4);
-                        break;
-                    case "notes":
-                        tp.setSelectedIndex(5);
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unrecognized tab");
+                final int idx = tp.indexOfTab(tabTitle.trim().split(" ")[0]);
+                if (idx >= 0) {
+                    tp.setSelectedIndex(idx);
+                } else {
+                    // Try case-insensitive match
+                    final String key = tabTitle.trim().split(" ")[0].toLowerCase();
+                    for (int i = 0; i < tp.getTabCount(); i++) {
+                        if (tp.getTitleAt(i).toLowerCase().startsWith(key)) {
+                            tp.setSelectedIndex(i);
+                            return;
+                        }
+                    }
+                    throw new IllegalArgumentException("Unrecognized tab: " + tabTitle);
                 }
             }
         });
@@ -1091,7 +1100,13 @@ public class SNTUI extends JDialog {
     private class QueryKeepState implements UIState {
         @Override
         public void enter() {
-            updateStatusText("Keep this new path segment?");
+            final String plausibilityNote = (curationAssistantPanel != null)
+                    ? curationAssistantPanel.getStatusSummary() : null;
+            if (plausibilityNote != null) {
+                updateStatusText("Keep this new path segment? " + plausibilityNote);
+            } else {
+                updateStatusText("Keep this new path segment?");
+            }
             disableEverything();
             keepSegment.setEnabled(true);
             junkSegment.setEnabled(true);
@@ -4426,6 +4441,16 @@ public class SNTUI extends JDialog {
      */
     public FillManagerUI getFillManager() {
         return fmUI;
+    }
+
+    /** Returns the plausibility monitor used by the Editor Assistant. */
+    public PlausibilityMonitor getPlausibilityMonitor() {
+        return plausibilityMonitor;
+    }
+
+    /** Returns the Editor Assistant panel. */
+    CurationAssistantPanel getEditorAssistantPanel() {
+        return curationAssistantPanel;
     }
 
     /**

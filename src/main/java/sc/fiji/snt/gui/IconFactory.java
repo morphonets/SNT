@@ -132,6 +132,8 @@ public class IconFactory {
         GRID('\uf00a', true), //
         GRADUATION_CAP('\uf19d', true), //
         HAND('\uf256', false), //
+        HEART_CIRCLE_BOLT('\ue4fc', true), //
+        HEART_PULSE('\uf21e', true), //
         HOME('\uf015', true), //
         ID('\uf2c1', false), //
         ID_ALT('\uf47f', true), //
@@ -211,6 +213,7 @@ public class IconFactory {
         UPLOAD('\uf093', true), //
         UNDO('\uf0e2', true), //
         UNLINK('\uf127', true), //
+        USER_DOCTOR('\uf0f0', true), //
         VIDEO('\uf03d', true), //
         WIDTH('\uf337', true), //
         WINDOWS('\uf2d2', false), //

@@ -98,6 +98,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     // slight mouse/trackpad movement during click, especially on macOS trackpads.
     private static final int CLICK_TOLERANCE_SQ = 25;
 
+    private List<PointInImage> warningLocations = new ArrayList<>();
+    private long warningFlashStart = 0;
+    private static final long FLASH_DURATION_MS = 2000;
+    private static final Color WARNING_FLASH_COLOR = new Color(255, 165, 0, 180); // semi-transparent orange
+
     protected InteractiveTracerCanvas(final ImagePlus imp,
                                       final SNT plugin, final int plane,
                                       final PathAndFillManager pathAndFillManager)
@@ -747,6 +752,44 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         final int[] p = new int[3];
         tracerPlugin.findPointInStack(x, y, plane, p);
         tracerPlugin.clickAtMaxPoint(x, y, plane, join_modifier_pressed);
+    }
+
+    public void setWarningLocations(final List<PointInImage> locations) {
+        this.warningLocations = (locations != null) ? new ArrayList<>(locations) : new ArrayList<>();
+        this.warningFlashStart = System.currentTimeMillis();
+        repaint();
+    }
+
+    public void clearWarningLocations() {
+        warningLocations.clear();
+        repaint();
+    }
+
+    @Override
+    public void repaint() {
+        super.repaint();
+        if (!warningLocations.isEmpty()) {
+            final long elapsed = System.currentTimeMillis() - warningFlashStart;
+            if (elapsed < FLASH_DURATION_MS) {
+                // Pulsing alpha: fade in/out over the flash duration
+                final double phase = (elapsed % 500) / 500.0; // 500ms pulse cycle
+                final int alpha = (int) (180 * (0.5 + 0.5 * Math.sin(phase * Math.PI * 2)));
+                final Color flashColor = new Color(255, 165, 0, alpha);
+                final Graphics g = getGraphics();
+                if (g == null) return; // image window closed
+                final Graphics2D g2 = getGraphics2D(g);
+                if (g2 == null) return;
+                g2.setColor(flashColor);
+                for (final PointInImage loc : warningLocations) {
+                    final int sx = myScreenXD(loc.x / tracerPlugin.x_spacing);
+                    final int sy = myScreenYD(loc.y / tracerPlugin.y_spacing);
+                    final int r = 8; // flash radius in screen pixels
+                    g2.fillOval(sx - r, sy - r, r * 2, r * 2);
+                }
+                // Schedule repaint for animation
+                super.repaint(50);
+            }
+        }
     }
 
     protected void startShollAnalysis() {

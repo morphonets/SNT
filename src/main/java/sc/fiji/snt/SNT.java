@@ -1233,6 +1233,10 @@ public class SNT extends MultiDThreePanes implements
 					return;
 				}
 				setTemporaryPath(result);
+				// Hook 2: Run plausibility checks on candidate segment
+				if (ui != null && ui.getPlausibilityMonitor().isEnabled() && currentPath != null) {
+					ui.getPlausibilityMonitor().onSegmentCompleted(result);
+				}
 				if (rubberBandTracing) {
 					// In rubber band mode: show preview, stay in PARTIAL_PATH.
 					// The user clicks to accept; no Y confirmation needed.
@@ -2464,6 +2468,10 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (pathAndFillManager.getPathFromID(currentPath.getID()) == null) {
 			pathAndFillManager.addPath(currentPath, true, false, false);
+			// Hook 3: Run holistic plausibility check on completed path
+			if (ui != null && ui.getPlausibilityMonitor().isEnabled()) {
+				ui.getPlausibilityMonitor().onPathFinalized(currentPath);
+			}
 		}
 		lastStartPointSet = false;
 		if (activateFinishedPath) selectPath(currentPath, false);
@@ -2646,12 +2654,19 @@ public class SNT extends MultiDThreePanes implements
 			real_last_start_y = world_y;
 			real_last_start_z = world_z;
 			ballColor = getXYCanvas().getTemporaryPathColor();
+			// Clear fork context — this is a root path, not a fork
+			if (ui != null) ui.getPlausibilityMonitor().clearForkContext();
 		}
 		else {
 			real_last_start_x = joinPoint.x;
 			real_last_start_y = joinPoint.y;
 			real_last_start_z = joinPoint.z;
 			path.setBranchFrom(joinPoint.onPath, joinPoint);
+			// Hook 1: Notify plausibility monitor of fork initiation
+			if (ui != null && ui.getPlausibilityMonitor().isEnabled()) {
+				final int branchIdx = path.getBranchPointIndex();
+				ui.getPlausibilityMonitor().onForkInitiated(joinPoint.onPath, branchIdx);
+			}
 			ballColor = Color.GREEN;
 		}
 		// offset is irrelevant: newly created paths always have canvasOffset = (0,0,0)
