@@ -20,15 +20,13 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis;
+package sc.fiji.snt.analysis.curation;
 
 import sc.fiji.snt.Path;
-import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.CrossoverFinder;
 import sc.fiji.snt.util.PointInImage;
 
 import java.util.*;
-import java.util.stream.Stream;
 
 /**
  * Framework for evaluating the morphological plausibility of path operations
@@ -208,14 +206,9 @@ public final class PlausibilityCheck {
             final double parentMag = mag(parentTangent);
             if (parentMag == 0) return Collections.emptyList();
 
-            final int childEnd = Math.min(5, child.size() - 1);
-            final double[] childDir = {
-                    child.getNode(childEnd).x - child.getNode(0).x,
-                    child.getNode(childEnd).y - child.getNode(0).y,
-                    child.getNode(childEnd).z - child.getNode(0).z
-            };
+            final double[] childDir = child.getInitialDirection(5);
+            if (childDir == null) return Collections.emptyList();
             final double childMag = mag(childDir);
-            if (childMag == 0) return Collections.emptyList();
 
             final double dot = (parentTangent[0] * childDir[0] +
                     parentTangent[1] * childDir[1] +

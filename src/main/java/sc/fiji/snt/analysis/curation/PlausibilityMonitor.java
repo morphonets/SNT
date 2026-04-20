@@ -20,7 +20,7 @@
  * #L%
  */
 
-package sc.fiji.snt.analysis;
+package sc.fiji.snt.analysis.curation;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;

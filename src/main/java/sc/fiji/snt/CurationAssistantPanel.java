@@ -26,8 +26,10 @@ import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 import ij.measure.Calibration;
 import org.apache.commons.lang.StringUtils;
-import sc.fiji.snt.analysis.PlausibilityCheck;
-import sc.fiji.snt.analysis.PlausibilityMonitor;
+import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
+import sc.fiji.snt.analysis.curation.PlausibilityCheck;
+import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
+import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ImpUtils;
@@ -37,6 +39,7 @@ import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,8 +79,19 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
     private final WarningTableModel tableModel;
     private final JTable warningsTable;
     private JPanel panel;
+    // Parameter checkboxes (instance fields for sync from .curation presets)
     private JCheckBox branchAngleMinCheckbox;
     private JCheckBox branchAngleMaxCheckbox;
+    private JCheckBox directionCheckbox;
+    private JCheckBox radiusCheckbox;
+    private JCheckBox termBranchCheckbox;
+    private JCheckBox somaDistCheckbox;
+    private JCheckBox constantRadiiCheckbox;
+    private JCheckBox tortuosityCheckbox;
+    private JCheckBox overlapCheckbox;
+    private JCheckBox radiusJumpsCheckbox;
+    private JCheckBox radiusMonoCheckbox;
+    // Parameter spinners
     private JSpinner radiusSpinner;
     private JSpinner directionSpinner;
     private JSpinner branchAngleMinSpinner;
@@ -87,11 +101,14 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
     private JSpinner overlapSpinner;
     private JSpinner radiusJumpsSpinner;
     private JSpinner radiusMonoSpinner;
+    private JSpinner tortuositySpinner;
     // Action controls
     private JToggleButton liveToggle;
     private JButton onDemandButton;
     // Navigation
     private int visitingZoomPercentage;
+    // Menus
+    private JPopupMenu optionsMenu;
     // Detachable table
     private JScrollPane tableScroll;
     private JDialog detachedDialog;
@@ -206,7 +223,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
 
         final JMenuItem clearItem = new JMenuItem("Clear All",
                 IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-        clearItem.addActionListener(_ -> {
+        clearItem.addActionListener(e -> {
             tableModel.setWarnings(List.of());
             refreshTableHeader();
         });
@@ -217,7 +234,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Preferred zoom level: inline panel with spinner + reset
         final JSpinner zoomSpinner = GuiUtils.integerSpinner(
                 Math.clamp(visitingZoomPercentage, 25, 3200), 25, 3200, 50, true);
-        zoomSpinner.addChangeListener(_ ->
+        zoomSpinner.addChangeListener(e ->
                 visitingZoomPercentage = (int) zoomSpinner.getValue());
         zoomSpinner.setToolTipText(
                 "Preferred zoom level (25\u2013\u20093200%) when navigating to a warning location");
@@ -233,7 +250,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
                 IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         resetZoomItem.setToolTipText(
                 "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
-        resetZoomItem.addActionListener(_ -> {
+        resetZoomItem.addActionListener(e -> {
             if (sntui.plugin.getImagePlus() == null) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
             } else {
@@ -249,7 +266,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Detach / dock table
         final JMenuItem detachItem = new JMenuItem("Detach Table",
                 IconFactory.menuIcon(IconFactory.GLYPH.EXTERNAL_LINK));
-        detachItem.addActionListener(_ -> {
+        detachItem.addActionListener(e -> {
             if (detachedDialog == null) {
                 detachTable();
                 detachItem.setText("Dock Table");
@@ -403,39 +420,39 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         final JPanel p = new JPanel(new GridBagLayout());
         final GridBagConstraints c = GuiUtils.defaultGbc();
 
-        SNTUI.InternalUtils.addSeparatorWithURL(p, "Live Monitoring Parameters:", true, c);
+        GuiUtils.addSeparator(p, "Live Monitoring Parameters:", true, c);
         c.gridy++;
 
         // Branch angle min
         final PlausibilityCheck.BranchAngle angleCheck =
                 monitor.getLiveCheck(PlausibilityCheck.BranchAngle.class);
-        branchAngleMinCheckbox = new JCheckBox("Min. fork angle (\u00b0):",
+        branchAngleMinCheckbox = new JCheckBox("Min. fork angle (°):",
                 angleCheck != null && angleCheck.isEnabled());
         branchAngleMinCheckbox.setToolTipText("Warns when a child branch emerges nearly parallel to its parent");
         branchAngleMinSpinner = new JSpinner(new SpinnerNumberModel(
                 angleCheck != null ? angleCheck.getMinAngleDeg() : 10.0, 0.0, 90.0, 5.0));
-        branchAngleMinCheckbox.addActionListener(_ -> {
+        branchAngleMinCheckbox.addActionListener(e -> {
             if (angleCheck != null) angleCheck.setEnabled(
                     branchAngleMinCheckbox.isSelected() || branchAngleMaxCheckbox.isSelected());
             branchAngleMinSpinner.setEnabled(branchAngleMinCheckbox.isSelected());
         });
-        branchAngleMinSpinner.addChangeListener(_ -> {
+        branchAngleMinSpinner.addChangeListener(e -> {
             if (angleCheck != null) angleCheck.setMinAngleDeg((Double) branchAngleMinSpinner.getValue());
         });
         addCheckRow(p, c, branchAngleMinCheckbox, branchAngleMinSpinner);
 
         // Branch angle max
-        branchAngleMaxCheckbox = new JCheckBox("Max. fork angle (\u00b0):",
+        branchAngleMaxCheckbox = new JCheckBox("Max. fork angle (°):",
                 angleCheck != null && angleCheck.isEnabled());
         branchAngleMaxCheckbox.setToolTipText("Warns when a child branch doubles back, nearly anti-parallel to its parent");
         branchAngleMaxSpinner = new JSpinner(new SpinnerNumberModel(
                 angleCheck != null ? angleCheck.getMaxAngleDeg() : 170.0, 90.0, 180.0, 5.0));
-        branchAngleMaxCheckbox.addActionListener(_ -> {
+        branchAngleMaxCheckbox.addActionListener(e -> {
             if (angleCheck != null) angleCheck.setEnabled(
                     branchAngleMinCheckbox.isSelected() || branchAngleMaxCheckbox.isSelected());
             branchAngleMaxSpinner.setEnabled(branchAngleMaxCheckbox.isSelected());
         });
-        branchAngleMaxSpinner.addChangeListener(_ -> {
+        branchAngleMaxSpinner.addChangeListener(e -> {
             if (angleCheck != null) angleCheck.setMaxAngleDeg((Double) branchAngleMaxSpinner.getValue());
         });
         addCheckRow(p, c, branchAngleMaxCheckbox, branchAngleMaxSpinner);
@@ -443,13 +460,13 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Direction continuity
         final PlausibilityCheck.DirectionContinuity dirCheck =
                 monitor.getLiveCheck(PlausibilityCheck.DirectionContinuity.class);
-        final JCheckBox directionCheckbox = new JCheckBox("Max. direction change at fork (\u00b0):",
+        directionCheckbox = new JCheckBox("Max. direction change at fork (°):",
                 dirCheck != null && dirCheck.isEnabled());
         directionCheckbox.setToolTipText("Detects possible U-turns where the child reverses the parent's trajectory");
         directionSpinner = new JSpinner(new SpinnerNumberModel(
                 dirCheck != null ? dirCheck.getMinAlignmentDeg() : 30.0, 0.0, 90.0, 5.0));
         wireCheckbox(directionCheckbox, directionSpinner, dirCheck);
-        directionSpinner.addChangeListener(_ -> {
+        directionSpinner.addChangeListener(e -> {
             if (dirCheck != null) dirCheck.setMinAlignmentDeg((Double) directionSpinner.getValue());
         });
         addCheckRow(p, c, directionCheckbox, directionSpinner);
@@ -457,13 +474,13 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Radius continuity
         final PlausibilityCheck.RadiusContinuity radiusCheck =
                 monitor.getLiveCheck(PlausibilityCheck.RadiusContinuity.class);
-        final JCheckBox radiusCheckbox = new JCheckBox("Max. ratio of radius change at fork:",
+        radiusCheckbox = new JCheckBox("Max. ratio of radius change at fork:",
                 radiusCheck != null && radiusCheck.isEnabled());
         radiusCheckbox.setToolTipText("Flags forks where the child's caliber differs sharply from the parent's");
         radiusSpinner = new JSpinner(new SpinnerNumberModel(
                 radiusCheck != null ? radiusCheck.getMaxRatio() : 1.5, 1.0, 10.0, 0.1));
         wireCheckbox(radiusCheckbox, radiusSpinner, radiusCheck);
-        radiusSpinner.addChangeListener(_ -> {
+        radiusSpinner.addChangeListener(e -> {
             if (radiusCheck != null) radiusCheck.setMaxRatio((Double) radiusSpinner.getValue());
         });
         addCheckRow(p, c, radiusCheckbox, radiusSpinner);
@@ -471,13 +488,13 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Terminal branch length
         final PlausibilityCheck.TerminalBranchLength termCheck =
                 monitor.getLiveCheck(PlausibilityCheck.TerminalBranchLength.class);
-        final JCheckBox termBranchCheckbox = new JCheckBox("Min. length of terminal branches (\u00b5m):",
+        termBranchCheckbox = new JCheckBox("Min. length of terminal branches:",
                 termCheck != null && termCheck.isEnabled());
         termBranchCheckbox.setToolTipText("Catches stub branches that may be accidental clicks or tracing artifacts");
         termBranchSpinner = new JSpinner(new SpinnerNumberModel(
                 termCheck != null ? termCheck.getMinLengthUm() : 2.0, 0.1, 100.0, 0.5));
         wireCheckbox(termBranchCheckbox, termBranchSpinner, termCheck);
-        termBranchSpinner.addChangeListener(_ -> {
+        termBranchSpinner.addChangeListener(e -> {
             if (termCheck != null) termCheck.setMinLengthUm((Double) termBranchSpinner.getValue());
         });
         addCheckRow(p, c, termBranchCheckbox, termBranchSpinner);
@@ -485,34 +502,39 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Soma distance
         final PlausibilityCheck.SomaDistance somaCheck =
                 monitor.getLiveCheck(PlausibilityCheck.SomaDistance.class);
-        final JCheckBox somaDistCheckbox = new JCheckBox("Max. distance from soma (\u00b5m):",
+        somaDistCheckbox = new JCheckBox("Max. distance from soma:",
                 somaCheck != null && somaCheck.isEnabled());
         somaDistCheckbox.setToolTipText("Flags paths that originate unexpectedly far from any soma marker");
         somaDistSpinner = new JSpinner(new SpinnerNumberModel(
                 somaCheck != null ? somaCheck.getMaxDistUm() : 500.0, 10.0, 10000.0, 50.0));
         wireCheckbox(somaDistCheckbox, somaDistSpinner, somaCheck);
-        somaDistSpinner.addChangeListener(_ -> {
+        somaDistSpinner.addChangeListener(e -> {
             if (somaCheck != null) somaCheck.setMaxDistUm((Double) somaDistSpinner.getValue());
         });
         addCheckRow(p, c, somaDistCheckbox, somaDistSpinner);
 
+        // Tortuosity consistency
+        final PlausibilityCheck.TortuosityConsistency tortCheck =
+                monitor.getLiveCheck(PlausibilityCheck.TortuosityConsistency.class);
+        tortuosityCheckbox = new JCheckBox("Max. tortuosity mismatch at fork:",
+                tortCheck != null && tortCheck.isEnabled());
+        tortuosityCheckbox.setToolTipText("Warns when a child's path sinuosity differs markedly from its parent's");
+        tortuositySpinner = new JSpinner(new SpinnerNumberModel(
+                tortCheck != null ? tortCheck.getMaxContractionDiff() : 0.3, 0.05, 1.0, 0.05));
+        wireCheckbox(tortuosityCheckbox, tortuositySpinner, tortCheck);
+        tortuositySpinner.addChangeListener(e -> {
+            if (tortCheck != null) tortCheck.setMaxContractionDiff((Double) tortuositySpinner.getValue());
+        });
+        addCheckRow(p, c, tortuosityCheckbox, tortuositySpinner);
+
         // Constant radii
         final PlausibilityCheck.ConstantRadii constCheck =
                 monitor.getLiveCheck(PlausibilityCheck.ConstantRadii.class);
-        final JCheckBox constantRadiiCheckbox = new JCheckBox("Flag paths with uniform radii",
+        constantRadiiCheckbox = new JCheckBox("Flag paths with uniform radii",
                 constCheck != null && constCheck.isEnabled());
         constantRadiiCheckbox.setToolTipText("Identifies paths where all nodes share the same radius, suggesting radii were not fitted");
         wireCheckbox(constantRadiiCheckbox, null, constCheck);
         addCheckRow(p, c, constantRadiiCheckbox, null);
-
-        // Tortuosity consistency
-        final PlausibilityCheck.TortuosityConsistency tortCheck =
-                monitor.getLiveCheck(PlausibilityCheck.TortuosityConsistency.class);
-        final JCheckBox tortuosityCheckbox = new JCheckBox("Flag paths with inconsistent tortuosity",
-                tortCheck != null && tortCheck.isEnabled());
-        tortuosityCheckbox.setToolTipText("Warns when a child's path sinuosity differs markedly from its parent's");
-        wireCheckbox(tortuosityCheckbox, null, tortCheck);
-        addCheckRow(p, c, tortuosityCheckbox, null);
 
         return p;
     }
@@ -528,13 +550,13 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         final PlausibilityCheck.PathOverlap overlapCheck =
                 monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
         // On-demand check UI controls
-        final JCheckBox overlapCheckbox = new JCheckBox("Max. proximity for path cross-overs (\u00b5m):",
+        overlapCheckbox = new JCheckBox("Max. proximity for path cross-overs:",
                 overlapCheck != null && overlapCheck.isEnabled());
         overlapCheckbox.setToolTipText("Detects regions where distinct paths run suspiciously close, suggesting duplicate tracing");
         overlapSpinner = new JSpinner(new SpinnerNumberModel(
                 overlapCheck != null ? overlapCheck.getProximityUm() : 2.0, 0.1, 100.0, 0.5));
         wireCheckbox(overlapCheckbox, overlapSpinner, overlapCheck);
-        overlapSpinner.addChangeListener(_ -> {
+        overlapSpinner.addChangeListener(e -> {
             if (overlapCheck != null) overlapCheck.setProximityUm((Double) overlapSpinner.getValue());
         });
         addCheckRow(p, c, overlapCheckbox, overlapSpinner);
@@ -542,13 +564,13 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Radius jumps
         final PlausibilityCheck.RadiusJumps jumpsCheck =
                 monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
-        final JCheckBox radiusJumpsCheckbox = new JCheckBox("Max. ratio of abrupt radius changes:",
+        radiusJumpsCheckbox = new JCheckBox("Max. ratio of abrupt radius changes:",
                 jumpsCheck != null && jumpsCheck.isEnabled());
         radiusJumpsCheckbox.setToolTipText("Finds adjacent nodes with a sudden radius jump, often from fitting errors");
         radiusJumpsSpinner = new JSpinner(new SpinnerNumberModel(
                 jumpsCheck != null ? jumpsCheck.getMaxJumpRatio() : 3.0, 1.5, 20.0, 0.5));
         wireCheckbox(radiusJumpsCheckbox, radiusJumpsSpinner, jumpsCheck);
-        radiusJumpsSpinner.addChangeListener(_ -> {
+        radiusJumpsSpinner.addChangeListener(e -> {
             if (jumpsCheck != null) jumpsCheck.setMaxJumpRatio((Double) radiusJumpsSpinner.getValue());
         });
         addCheckRow(p, c, radiusJumpsCheckbox, radiusJumpsSpinner);
@@ -556,13 +578,13 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Radius monotonicity
         final PlausibilityCheck.RadiusMonotonicity monoCheck =
                 monitor.getDeepCheck(PlausibilityCheck.RadiusMonotonicity.class);
-        final JCheckBox radiusMonoCheckbox = new JCheckBox("Min. run length for radius inversions:",
+        radiusMonoCheckbox = new JCheckBox("Min. run length for radius inversions:",
                 monoCheck != null && monoCheck.isEnabled());
         radiusMonoCheckbox.setToolTipText("Flags sustained centripetal radius increases, which violate the expected centrifugal taper");
         radiusMonoSpinner = new JSpinner(new SpinnerNumberModel(
                 monoCheck != null ? monoCheck.getMinIncreasingRun() : 10, 3, 100, 1));
         wireCheckbox(radiusMonoCheckbox, radiusMonoSpinner, monoCheck);
-        radiusMonoSpinner.addChangeListener(_ -> {
+        radiusMonoSpinner.addChangeListener(e -> {
             if (monoCheck != null) monoCheck.setMinIncreasingRun((Integer) radiusMonoSpinner.getValue());
         });
         addCheckRow(p, c, radiusMonoCheckbox, radiusMonoSpinner);
@@ -573,13 +595,16 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
     private JToolBar buildToolbar() {
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
+        tb.add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/curation"));
+        tb.add(Box.createHorizontalGlue());
+        tb.addSeparator();
 
         // Live monitoring toggle
         liveToggle = new JToggleButton();
         liveToggle.setSelected(monitor.isEnabled());
         IconFactory.assignIcon(liveToggle, IconFactory.GLYPH.HEART_CIRCLE_BOLT, IconFactory.GLYPH.HEART_PULSE, 1.1f);
         liveToggle.setToolTipText("Enable live monitoring");
-        liveToggle.addActionListener(_ -> {
+        liveToggle.addActionListener(e -> {
             final boolean on = liveToggle.isSelected();
             monitor.setEnabled(on);
         });
@@ -588,24 +613,28 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         // Run Full Scan button
         onDemandButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.STETHOSCOPE, 1.1f));
         onDemandButton.setToolTipText("Run full scan.\nScans all paths using both live and on-demand parameters");
-        onDemandButton.addActionListener(_ -> runOnDemandAsync());
+        onDemandButton.addActionListener(e -> runOnDemandAsync());
         tb.add(onDemandButton);
         tb.addSeparator();
         tb.add(Box.createHorizontalGlue());
-        tb.addSeparator();
 
         // Filter button: restrict table by severity
         final JPopupMenu filterMenu = new JPopupMenu();
-        GuiUtils.addSeparator(filterMenu, "Show");
+        GuiUtils.addSeparator(filterMenu, "Show:");
         for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
             final Color sevColor = switch (sev) {
                 case ERROR -> SEVERITY_ERROR;
                 case WARNING -> SEVERITY_WARNING;
                 case INFO -> SEVERITY_INFO;
             };
-            final JCheckBoxMenuItem item = new JCheckBoxMenuItem(
-                    StringUtils.capitalize(sev.name().toLowerCase()), IconFactory.accentIcon(sevColor, true), tableModel.isSeverityVisible(sev));
-            item.addActionListener(_ -> {
+            final String sevLabel = switch (sev) {
+                case ERROR -> "Errors";
+                case WARNING -> "Warnings";
+                case INFO -> "Informational Notes";
+            };
+            final JCheckBoxMenuItem item = new JCheckBoxMenuItem(sevLabel,
+                    IconFactory.accentIcon(sevColor, true), tableModel.isSeverityVisible(sev));
+            item.addActionListener(e -> {
                 tableModel.setSeverityVisible(sev, item.isSelected());
                 refreshTableHeader();
             });
@@ -615,12 +644,45 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
                 IconFactory.GLYPH.EYE, 1.1f, filterMenu);
         filterButton.setToolTipText("Filter warnings by severity");
         tb.add(filterButton);
+        tb.addSeparator();
 
-        // Options button (placeholder for future presets, etc.)
-        final JPopupMenu optionsMenu = new JPopupMenu();
-        final JMenuItem placeholder = new JMenuItem("Options (TBD)");
-        placeholder.setEnabled(false);
-        optionsMenu.add(placeholder);
+        // Options button
+        optionsMenu = new JPopupMenu();
+        GuiUtils.addSeparator(optionsMenu, "Auto-tuning:");
+        final JMenuItem calibrateItem = new JMenuItem("Calibrate Thresholds from Traced Cells...");
+        calibrateItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CALCULATOR));
+        calibrateItem.setToolTipText("Infer parameter thresholds from the statistics of existing reconstructions");
+        calibrateItem.addActionListener(e -> runCalibration());
+        optionsMenu.add(calibrateItem);
+        GuiUtils.addSeparator(optionsMenu, "Built-in Presets:");
+        populateBuiltInPresetEntries();
+        GuiUtils.addSeparator(optionsMenu, "User Presets:");
+        populateUserPresetEntries();
+        final JMenuItem saveItem = new JMenuItem("Create From Current Parameters...");
+        saveItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.PLUS));
+        saveItem.setToolTipText("Save current thresholds and enabled states to a .curation file");
+        saveItem.addActionListener(e -> saveCurationFile());
+        optionsMenu.add(saveItem);
+        optionsMenu.addSeparator();
+        final JMenuItem refreshItem = new JMenuItem("Reload User Presets");
+        refreshItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.REDO));
+        refreshItem.addActionListener(e -> {
+            final int changedItems = populateUserPresetEntries();
+            sntui.showStatus(
+                    (changedItems > 0) ? changedItems + " new item(s) loaded." : "No new presets detected.",
+                    true);
+        });
+        optionsMenu.add(refreshItem);
+        final JMenuItem openDirItem = new JMenuItem("Reveal User Presets Directory");
+        openDirItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.OPEN_FOLDER));
+        openDirItem.addActionListener(e -> {
+            try {
+                FileChooser.reveal(PlausibilityCalibrator.getCurationsDirectory(sntui.getPrefs().getWorkspaceDir()));
+            } catch (final Exception ex) {
+                SNTUtils.log("Could not open directory: " + ex.getMessage());
+            }
+        });
+        optionsMenu.add(openDirItem);
         final JButton optionsButton = GuiUtils.Buttons.OptionsButton(
                 IconFactory.GLYPH.OPTIONS, 1.1f, optionsMenu);
         optionsButton.setToolTipText("Options");
@@ -631,7 +693,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
 
     private void runOnDemandAsync() {
         onDemandButton.setEnabled(false);
-        sntui.showStatus("Running Full scan\u2026", true);
+        sntui.showStatus("Running Full scan...", true);
         final List<Path> paths = sntui.plugin.getPathAndFillManager().getPathsFiltered();
         if (paths.isEmpty()) {
             sntui.error("There are no traced paths.");
@@ -651,6 +713,8 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
                     final List<PlausibilityCheck.Warning> warnings = get();
                     if (warnings.isEmpty()) {
                         sntui.showStatus("Full scan: no issues found.", true);
+                    } else {
+                        sntui.showStatus(String.format("Full scan completed: %d issue(s) found", warnings.size()), true);
                     }
                 } catch (final Exception ex) {
                     SNTUtils.log("Full scan failed: " + ex.getMessage());
@@ -658,6 +722,239 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
                 }
             }
         }.execute();
+    }
+
+    private void runCalibration() {
+        final File[] files = sntui.guiUtils.getReconstructionFiles(null);
+        if (files == null || files.length == 0) return;
+
+        sntui.showStatus("Calibrating thresholds...", true);
+        new SwingWorker<PlausibilityCalibrator.CalibrationResult, Void>() {
+            @Override
+            protected PlausibilityCalibrator.CalibrationResult doInBackground() {
+                final List<Tree> trees = new ArrayList<>();
+                for (final File f : files) {
+                    try {
+                        trees.addAll(Tree.listFromFile(f.getAbsolutePath()));
+                    } catch (final Exception ex) {
+                        SNTUtils.log("Calibration: failed to load " + f.getName() + ": " + ex.getMessage());
+                    }
+                }
+                if (trees.isEmpty()) {
+                    return null;
+                }
+                final PlausibilityCalibrator calibrator = new PlausibilityCalibrator(trees);
+                return calibrator.calibrate();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    final PlausibilityCalibrator.CalibrationResult result = get();
+                    if (result == null) {
+                        sntui.error("None of the file(s) contained valid reconstructions.");
+                        sntui.showStatus("Calibration failed.", true);
+                        return;
+                    }
+                    SNTUtils.log("PlausibilityCalibrator:\n" + result.toTable());
+                    result.applyTo(monitor);
+                    syncUIFromMonitor();
+                    sntui.showStatus(String.format("Calibrated from %d cell(s).", result.getTreeCount()), true);
+                } catch (final Exception ex) {
+                    SNTUtils.log("Calibration failed: " + ex.getMessage());
+                    sntui.showStatus("Calibration failed. See log.", true);
+                }
+            }
+        }.execute();
+    }
+
+    private void saveCurationFile() {
+        final File dir = PlausibilityCalibrator.getCurationsDirectory(sntui.getPrefs().getWorkspaceDir());
+        final File suggested = new File(dir, "my-preset." + PlausibilityCalibrator.CURATION_EXTENSION);
+        final File file = sntui.guiUtils.getSaveFile("Save Curation Preset", suggested,
+                PlausibilityCalibrator.CURATION_EXTENSION);
+        if (file == null) return;
+        try {
+            PlausibilityCalibrator.save(monitor, file,
+                    "Curation preset saved from SNT on " + new java.util.Date());
+            sntui.showStatus("Saved: " + file.getName(), true);
+            populateUserPresetEntries();
+        } catch (final Exception ex) {
+            SNTUtils.log("Save curation failed: " + ex.getMessage());
+            sntui.error("Could not save preset. See log.");
+        }
+    }
+
+    private void loadCurationFile(final File file) {
+        try {
+            PlausibilityCalibrator.load(file, monitor);
+            syncUIFromMonitor();
+            sntui.showStatus("Loaded: " + file.getName(), true);
+        } catch (final Exception ex) {
+            SNTUtils.log("Load curation failed: " + ex.getMessage());
+            sntui.error("Could not load preset. See log.");
+        }
+    }
+
+    private void populateBuiltInPresetEntries() {
+        final int sepIdx = findSeparatorIndex(optionsMenu, "Built-in Presets:");
+        if (sepIdx < 0) return;
+        final int nextSepIdx = findSeparatorIndex(optionsMenu, "User Presets:");
+        // Remove items between the two separators
+        if (nextSepIdx > sepIdx) {
+            for (int i = nextSepIdx - 1; i > sepIdx; i--) {
+                optionsMenu.remove(i);
+            }
+        }
+        // Insert built-in preset entries
+        final String[] builtIns = PlausibilityCalibrator.BUILT_IN_PRESETS;
+        if (builtIns.length == 0) {
+            final JMenuItem emptyItem = new JMenuItem("None Available");
+            emptyItem.setEnabled(false);
+            optionsMenu.insert(emptyItem, sepIdx + 1);
+        } else {
+            for (int i = 0; i < builtIns.length; i++) {
+                final String resourceName = builtIns[i];
+                final String displayName = StringUtils.capitalize(resourceName);
+                final JMenuItem item = new JMenuItem(displayName);
+                item.setToolTipText("Load built-in preset: " + displayName);
+                item.addActionListener(e -> loadBuiltInPreset(resourceName));
+                optionsMenu.insert(item, sepIdx + 1 + i);
+            }
+        }
+    }
+
+    private int populateUserPresetEntries() {
+        final int sepIdx = findSeparatorIndex(optionsMenu, "User Presets:");
+        if (sepIdx < 0) return -1;
+        // Find the "Create From Current Parameters..." item that marks the end of dynamic entries
+        int createIdx = -1;
+        for (int i = sepIdx + 1; i < optionsMenu.getComponentCount(); i++) {
+            if (optionsMenu.getComponent(i) instanceof JMenuItem mi
+                    && "Create From Current Parameters...".equals(mi.getText())) {
+                createIdx = i;
+                break;
+            }
+        }
+        // Remove dynamic entries between separator and the create item]
+        int nItemsRemoved = 0;
+        if (createIdx > sepIdx + 1) {
+            for (int i = createIdx - 1; i > sepIdx; i--) {
+                optionsMenu.remove(i);
+                nItemsRemoved++;
+            }
+        }
+        // Re-find createIdx after removals
+        createIdx = sepIdx + 1;
+        for (int i = sepIdx + 1; i < optionsMenu.getComponentCount(); i++) {
+            if (optionsMenu.getComponent(i) instanceof JMenuItem mi
+                    && "Create From Current Parameters...".equals(mi.getText())) {
+                createIdx = i;
+                break;
+            }
+        }
+        // Insert user preset entries before the create item
+        final File[] files = PlausibilityCalibrator.listCurationFiles(sntui.getPrefs().getWorkspaceDir());
+        if (files.length == 0) {
+            final JMenuItem emptyItem = new JMenuItem("No User Presets Found");
+            emptyItem.setEnabled(false);
+            optionsMenu.insert(emptyItem, createIdx);
+        } else {
+            for (int i = 0; i < files.length; i++) {
+                final File f = files[i];
+                final String name = f.getName().replace("." + PlausibilityCalibrator.CURATION_EXTENSION, "");
+                final JMenuItem item = new JMenuItem(name);
+                item.setToolTipText("Load preset from " + f.getName());
+                item.addActionListener(e -> loadCurationFile(f));
+                optionsMenu.insert(item, createIdx + i);
+            }
+        }
+        return (files.length - nItemsRemoved);
+    }
+
+    private void loadBuiltInPreset(final String presetName) {
+        try {
+            PlausibilityCalibrator.loadBuiltIn(presetName, monitor);
+            syncUIFromMonitor();
+            sntui.showStatus("Loaded built-in preset: " + presetName, true);
+        } catch (final Exception ex) {
+            SNTUtils.log("Load built-in preset failed: " + ex.getMessage());
+            sntui.error("Could not load built-in preset. See log.");
+        }
+    }
+
+    private static int findSeparatorIndex(final JPopupMenu menu, final String label) {
+        for (int i = 0; i < menu.getComponentCount(); i++) {
+            if (menu.getComponent(i) instanceof JLabel l && label.equals(l.getText()))
+                return i;
+        }
+        return -1;
+    }
+
+    private void syncUIFromMonitor() {
+        // Live checks
+        final PlausibilityCheck.BranchAngle ba = monitor.getLiveCheck(PlausibilityCheck.BranchAngle.class);
+        if (ba != null) {
+            branchAngleMinSpinner.setValue(ba.getMinAngleDeg());
+            branchAngleMaxSpinner.setValue(ba.getMaxAngleDeg());
+            branchAngleMinCheckbox.setSelected(ba.isEnabled());
+            branchAngleMaxCheckbox.setSelected(ba.isEnabled());
+            branchAngleMinSpinner.setEnabled(ba.isEnabled());
+            branchAngleMaxSpinner.setEnabled(ba.isEnabled());
+        }
+        final PlausibilityCheck.DirectionContinuity dc = monitor.getLiveCheck(PlausibilityCheck.DirectionContinuity.class);
+        if (dc != null) {
+            directionSpinner.setValue(dc.getMinAlignmentDeg());
+            directionCheckbox.setSelected(dc.isEnabled());
+            directionSpinner.setEnabled(dc.isEnabled());
+        }
+        final PlausibilityCheck.RadiusContinuity rc = monitor.getLiveCheck(PlausibilityCheck.RadiusContinuity.class);
+        if (rc != null) {
+            radiusSpinner.setValue(rc.getMaxRatio());
+            radiusCheckbox.setSelected(rc.isEnabled());
+            radiusSpinner.setEnabled(rc.isEnabled());
+        }
+        final PlausibilityCheck.TerminalBranchLength tbl = monitor.getLiveCheck(PlausibilityCheck.TerminalBranchLength.class);
+        if (tbl != null) {
+            termBranchSpinner.setValue(tbl.getMinLengthUm());
+            termBranchCheckbox.setSelected(tbl.isEnabled());
+            termBranchSpinner.setEnabled(tbl.isEnabled());
+        }
+        final PlausibilityCheck.SomaDistance sd = monitor.getLiveCheck(PlausibilityCheck.SomaDistance.class);
+        if (sd != null) {
+            somaDistSpinner.setValue(sd.getMaxDistUm());
+            somaDistCheckbox.setSelected(sd.isEnabled());
+            somaDistSpinner.setEnabled(sd.isEnabled());
+        }
+        final PlausibilityCheck.TortuosityConsistency tc = monitor.getLiveCheck(PlausibilityCheck.TortuosityConsistency.class);
+        if (tc != null) {
+            tortuositySpinner.setValue(tc.getMaxContractionDiff());
+            tortuosityCheckbox.setSelected(tc.isEnabled());
+            tortuositySpinner.setEnabled(tc.isEnabled());
+        }
+        final PlausibilityCheck.ConstantRadii cr = monitor.getLiveCheck(PlausibilityCheck.ConstantRadii.class);
+        if (cr != null) {
+            constantRadiiCheckbox.setSelected(cr.isEnabled());
+        }
+        // Deep checks
+        final PlausibilityCheck.PathOverlap po = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
+        if (po != null) {
+            overlapSpinner.setValue(po.getProximityUm());
+            overlapCheckbox.setSelected(po.isEnabled());
+            overlapSpinner.setEnabled(po.isEnabled());
+        }
+        final PlausibilityCheck.RadiusJumps rj = monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
+        if (rj != null) {
+            radiusJumpsSpinner.setValue(rj.getMaxJumpRatio());
+            radiusJumpsCheckbox.setSelected(rj.isEnabled());
+            radiusJumpsSpinner.setEnabled(rj.isEnabled());
+        }
+        final PlausibilityCheck.RadiusMonotonicity rm = monitor.getDeepCheck(PlausibilityCheck.RadiusMonotonicity.class);
+        if (rm != null) {
+            radiusMonoSpinner.setValue(rm.getMinIncreasingRun());
+            radiusMonoCheckbox.setSelected(rm.isEnabled());
+            radiusMonoSpinner.setEnabled(rm.isEnabled());
+        }
     }
 
     private void addCheckRow(final JPanel panel, final GridBagConstraints c,
@@ -693,7 +990,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         if (spinner != null) {
             spinner.setEnabled(cb.isSelected());
         }
-        cb.addActionListener(_ -> {
+        cb.addActionListener(e -> {
             final boolean sel = cb.isSelected();
             if (check instanceof PlausibilityCheck.LiveCheck lc) lc.setEnabled(sel);
             else if (check instanceof PlausibilityCheck.DeepCheck dc) dc.setEnabled(sel);

@@ -734,6 +734,27 @@ public class Path implements Comparable<Path>, Cloneable {
 	}
 
 	/**
+	 * Returns a (non-normalized) direction vector from the first node to the
+	 * node at index {@code min(maxNodes, size()-1)}. This is useful for
+	 * measuring the initial heading of a child path near a fork point.
+	 *
+	 * @param maxNodes the maximum node index to use as the end point
+	 * @return a 3-element array {@code [dx, dy, dz]}, or {@code null} if the
+	 *         path has fewer than 2 nodes or the resulting vector is zero-length
+	 */
+	public double[] getInitialDirection(final int maxNodes) {
+		final int end = Math.min(maxNodes, size() - 1);
+		if (end < 1) return null;
+		final PointInImage p0 = getNodeWithoutChecks(0);
+		final PointInImage pN = getNodeWithoutChecks(end);
+		final double dx = pN.x - p0.x;
+		final double dy = pN.y - p0.y;
+		final double dz = pN.z - p0.z;
+		if (dx == 0 && dy == 0 && dz == 0) return null;
+		return new double[]{ dx, dy, dz };
+	}
+
+	/**
 	 * Returns the 3D extension direction vector of this path using linear regression.
 	 * The vector represents the overall direction from start to end of the path, fitted through all its nodes.
 	 *
