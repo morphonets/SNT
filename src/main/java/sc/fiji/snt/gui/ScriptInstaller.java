@@ -214,7 +214,8 @@ public class ScriptInstaller implements MenuKeyListener {
             case "Misc" -> IconFactory.menuIcon(GLYPH.ELLIPSIS);
             case "Render" -> IconFactory.menuIcon(GLYPH.CUBE);
             case "Skeletons and ROIs" -> IconFactory.menuIcon(GLYPH.BEZIER_CURVE);
-            case "Tracing" -> IconFactory.menuIcon(GLYPH.ROUTE);
+			case "Spines and Varicosities" -> IconFactory.menuIcon(GLYPH.MAP_PIN);
+			case "Tracing" -> IconFactory.menuIcon(GLYPH.ROUTE);
             case "Time-lapses" -> IconFactory.menuIcon(GLYPH.VIDEO);
             default -> null;
         };
@@ -269,7 +270,8 @@ public class ScriptInstaller implements MenuKeyListener {
 
 	/** Returns a UI list with all the bundled non-demo SNT scripts **/
 	public JMenu getScriptsMenu() {
-		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Big_Data", "Misc", "Render", "Skeletons_and_ROIs", "Tracing", "Time-lapses");
+		final JMenu menus = getScriptsMenu(DEMO_SCRIPT, "Analysis", "Batch", "Big_Data", "Misc", "Render",
+				"Skeletons_and_ROIs", "Spines_and_Varicosities", "Tracing", "Time-lapses");
 		menus.insert(getDemosMenu(), 3);
 		return menus;
 	}
