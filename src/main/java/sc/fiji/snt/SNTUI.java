@@ -131,8 +131,8 @@ public class SNTUI extends JDialog {
     private ActiveWorker activeWorker;
     private volatile int currentState = -1;
 
-    private PlausibilityMonitor plausibilityMonitor;
-    private CurationAssistantPanel curationAssistantPanel;
+    private final PlausibilityMonitor plausibilityMonitor;
+    private final CurationAssistantPanel curationAssistantPanel;
 
     SNT plugin;
     private PathAndFillManager pathAndFillManager;
@@ -232,12 +232,36 @@ public class SNTUI extends JDialog {
         plausibilityMonitor = new PlausibilityMonitor();
         curationAssistantPanel = new CurationAssistantPanel(this, plausibilityMonitor);
         plausibilityMonitor.addWarningListener(warnings -> {
+            // Canvas overlays only for live checks — full/deep scans populate the table only
+            if (!plausibilityMonitor.isLastUpdateFromLiveCheck()) return;
+            if (warnings.isEmpty()) {
+                SwingUtilities.invokeLater(() -> {
+                    clearWarningCanvasLabel();
+                    if (plugin.getXYCanvas() != null)
+                        plugin.getXYCanvas().clearWarningOverlay();
+                });
+                return;
+            }
             final List<PointInImage> locs = warnings.stream()
                     .map(PlausibilityCheck.Warning::location)
                     .filter(Objects::nonNull).toList();
+            final List<Path> affectedPaths = warnings.stream()
+                    .flatMap(w -> w.affectedPaths().stream())
+                    .distinct().limit(10).toList();
+            final PlausibilityCheck.Severity maxSev = warnings.stream()
+                    .map(PlausibilityCheck.Warning::severity)
+                    .min(Comparator.naturalOrder()) // ERROR < WARNING < INFO
+                    .orElse(PlausibilityCheck.Severity.INFO);
             SwingUtilities.invokeLater(() -> {
+                // Tier 2 (WARNING/ERROR): canvas label with top warning message
+                if (maxSev != PlausibilityCheck.Severity.INFO) {
+                    setWarningCanvasLabel("\u26a0 " + warnings.getFirst().message());
+                }
+                // Tier 3 (ERROR): viewport tint only if assistant tab not frontmost
+                final boolean tint = maxSev == PlausibilityCheck.Severity.ERROR
+                        && !isCurationAssistantVisible();
                 if (plugin.getXYCanvas() != null)
-                    plugin.getXYCanvas().setWarningLocations(locs);
+                    plugin.getXYCanvas().setWarningOverlay(locs, affectedPaths, maxSev, tint);
             });
         });
         initializeStates();
@@ -609,6 +633,39 @@ public class SNTUI extends JDialog {
             }
         }
         return tp;
+    }
+
+    private boolean isCurationAssistantVisible() {
+        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+        if (tp == null) return false;
+        final int idx = tp.indexOfTab("Assistant");
+        return idx >= 0 && tp.getSelectedIndex() == idx;
+    }
+
+    private String activeWarningLabel;
+    private javax.swing.Timer warningLabelTimer;
+
+    private void setWarningCanvasLabel(final String label) {
+        activeWarningLabel = label;
+        plugin.setCanvasLabelAllPanes(label);
+        if (warningLabelTimer != null) warningLabelTimer.stop();
+        warningLabelTimer = new javax.swing.Timer(3000, _ -> clearWarningCanvasLabel());
+        warningLabelTimer.setRepeats(false);
+        warningLabelTimer.start();
+    }
+
+    private void clearWarningCanvasLabel() {
+        if (warningLabelTimer != null) {
+            warningLabelTimer.stop();
+            warningLabelTimer = null;
+        }
+        if (activeWarningLabel == null) return;
+        // Only clear if the current label is still ours (not set by edit/pause mode)
+        final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
+        if (canvas == null || activeWarningLabel.equals(canvas.getCanvasLabel())) {
+            plugin.setCanvasLabelAllPanes(null);
+        }
+        activeWarningLabel = null;
     }
 
     /**

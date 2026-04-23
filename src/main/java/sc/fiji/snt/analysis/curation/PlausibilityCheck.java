@@ -173,7 +173,7 @@ public final class PlausibilityCheck {
             if (ratio > maxRatio) {
                 final Severity sev = ratio > maxRatio * 2 ? Severity.ERROR : Severity.WARNING;
                 return List.of(new Warning(getName(), sev,
-                        String.format("Radius changes %.1f\u00d7 at fork (child %.2f, parent %.2f)",
+                        String.format("Radius changes %.1f× at fork (child %.2f, parent %.2f)",
                                 ratio, childRadius, parentRadius),
                         parent.getNode(branchIndex), List.of(parent, child), ratio, maxRatio));
             }
@@ -218,7 +218,7 @@ public final class PlausibilityCheck {
             if (angleDeg < minAlignmentDeg) {
                 final Severity sev = angleDeg < minAlignmentDeg / 2 ? Severity.ERROR : Severity.WARNING;
                 return List.of(new Warning(getName(), sev,
-                        String.format("Possible U-turn at fork: only %.1f\u00b0 direction change (min %.1f\u00b0)",
+                        String.format("Possible U-turn at fork: only %.1f° direction change (min %.1f°)",
                                 angleDeg, minAlignmentDeg),
                         parent.getNode(branchIndex), List.of(parent, child), angleDeg, minAlignmentDeg));
             }
@@ -278,12 +278,12 @@ public final class PlausibilityCheck {
             final List<Warning> warnings = new ArrayList<>();
             if (angleDeg < minAngleDeg) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
-                        String.format("Fork angle too narrow: %.1f\u00b0 (min %.1f\u00b0)",
+                        String.format("Fork angle too narrow: %.1f° (min %.1f°)",
                                 angleDeg, minAngleDeg),
                         branchNode, affected, angleDeg, minAngleDeg));
             } else if (angleDeg > maxAngleDeg) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
-                        String.format("Fork angle too wide: %.1f\u00b0 (max %.1f\u00b0)",
+                        String.format("Fork angle too wide: %.1f° (max %.1f°)",
                                 angleDeg, maxAngleDeg),
                         branchNode, affected, angleDeg, maxAngleDeg));
             }
@@ -448,7 +448,7 @@ public final class PlausibilityCheck {
             final List<Warning> warnings = new ArrayList<>();
             for (final CrossoverFinder.CrossoverEvent ev : events) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
-                        String.format("Cross-over detected: %.1f \u00b5m apart, %.0f\u00b0 angle",
+                        String.format("Cross-over detected: %.1f \u00b5m apart, %.0f° angle",
                                 ev.medianMinDist, ev.medianAngleDeg),
                         new PointInImage(ev.x, ev.y, ev.z),
                         new ArrayList<>(ev.participants),
@@ -484,7 +484,7 @@ public final class PlausibilityCheck {
                     final double ratio = Math.max(r1, r2) / Math.min(r1, r2);
                     if (ratio > maxJumpRatio) {
                         warnings.add(new Warning(getName(), Severity.WARNING,
-                                String.format("Abrupt radius change: %.1f\u00d7 (%.2f \u2192 %.2f) in \"%s\"",
+                                String.format("Abrupt radius change: %.1f× (%.2f \u2192 %.2f) in \"%s\"",
                                         ratio, r1, r2, path.getName()),
                                 path.getNode(i + 1), List.of(path), ratio, maxJumpRatio));
                     }

@@ -2654,7 +2654,7 @@ public class SNT extends MultiDThreePanes implements
 			real_last_start_y = world_y;
 			real_last_start_z = world_z;
 			ballColor = getXYCanvas().getTemporaryPathColor();
-			// Clear fork context — this is a root path, not a fork
+			// Clear fork context: this is a root path, not a fork
 			if (ui != null) ui.getPlausibilityMonitor().clearForkContext();
 		}
 		else {

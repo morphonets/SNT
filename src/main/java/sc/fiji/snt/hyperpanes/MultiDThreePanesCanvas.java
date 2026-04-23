@@ -348,6 +348,15 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	/**
+	 * Returns the string currently rendered on canvas' upper left corner.
+	 *
+	 * @return the current label, or null if none
+	 */
+	public String getCanvasLabel() {
+		return canvasText;
+	}
+
+	/**
 	 * Sets the string to be appended to the current cursor.
 	 *
 	 * @param cursorText the string to be displayed around the cursor

@@ -696,7 +696,7 @@ public class OBJMesh {
 			final boolean smooth = objMesh.meshShadingMode == SHADING_SMOOTH;
 			final boolean clip = !"both".equals(objMesh.displayedHemisphere);
 			// In default mode with no culling and no hemisphere clipping, delegate
-			// directly — no GL state changes needed.
+			// directly, no GL state changes needed.
 			if (!smooth && !objMesh.backfaceCull && !clip) {
 				super.draw(painter);
 				return;

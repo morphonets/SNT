@@ -67,6 +67,7 @@ public class PlausibilityMonitor {
     private final List<WarningListener> listeners;
 
     private boolean enabled;
+    private boolean lastUpdateFromLiveCheck;
 
     // Cached parent context from fork initiation (Hook 1)
     private Path cachedParent;
@@ -173,6 +174,7 @@ public class PlausibilityMonitor {
 
     private List<PlausibilityCheck.Warning> runLiveChecks(final Path parent, final Path child,
                                                           final int branchIndex) {
+        lastUpdateFromLiveCheck = true;
         synchronized (currentWarnings) {
             currentWarnings.clear();
             for (final PlausibilityCheck.LiveCheck check : liveChecks) {
@@ -199,6 +201,7 @@ public class PlausibilityMonitor {
      * @return the list of warnings (empty if no issues found)
      */
     public List<PlausibilityCheck.Warning> runDeepScan(final Collection<Path> paths) {
+        lastUpdateFromLiveCheck = false;
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
         synchronized (currentWarnings) {
             currentWarnings.clear();
@@ -230,6 +233,7 @@ public class PlausibilityMonitor {
      * @return the combined list of warnings (empty if no issues found)
      */
     public List<PlausibilityCheck.Warning> runFullScan(final Collection<Path> paths) {
+        lastUpdateFromLiveCheck = false;
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
         synchronized (currentWarnings) {
             currentWarnings.clear();
@@ -298,6 +302,15 @@ public class PlausibilityMonitor {
             }
         }
     }
+
+    /**
+     * Returns whether the most recent warning update originated from a live
+     * check (inline during tracing) as opposed to an on-demand or full scan.
+     * UI code can use this to decide whether to show canvas animations.
+     *
+     * @return {@code true} if the last update was from a live check
+     */
+    public boolean isLastUpdateFromLiveCheck() { return lastUpdateFromLiveCheck; }
 
     public boolean isEnabled() { return enabled; }
 
