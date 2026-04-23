@@ -132,7 +132,7 @@ public class SNTUI extends JDialog {
     private volatile int currentState = -1;
 
     private final PlausibilityMonitor plausibilityMonitor;
-    private final CurationAssistantPanel curationAssistantPanel;
+    private final CurationManager curationManager;
 
     SNT plugin;
     private PathAndFillManager pathAndFillManager;
@@ -230,7 +230,7 @@ public class SNTUI extends JDialog {
         notesui = new NotesUI(this);
         delineationsManager = new DelineationsManager(this);
         plausibilityMonitor = new PlausibilityMonitor();
-        curationAssistantPanel = new CurationAssistantPanel(this, plausibilityMonitor);
+        curationManager = new CurationManager(this, plausibilityMonitor);
         plausibilityMonitor.addWarningListener(warnings -> {
             // Canvas overlays only for live checks — full/deep scans populate the table only
             if (!plausibilityMonitor.isLastUpdateFromLiveCheck()) return;
@@ -401,7 +401,7 @@ public class SNTUI extends JDialog {
         // new tabs, so we'll discard it from preferred width calculation
         final int preferredWidth = tabbedPane.getPreferredSize().width + InternalUtils.MARGIN * 4;
 
-        tabbedPane.addTab("Assistant", curationAssistantPanel.getPanel());
+        tabbedPane.addTab("Assistant", curationManager.getPanel());
         tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
         tabbedPane.addTab("3D", tab3);
         tabbedPane.addTab("Delineations", delineationsManager.getPanel());
@@ -1157,8 +1157,8 @@ public class SNTUI extends JDialog {
     private class QueryKeepState implements UIState {
         @Override
         public void enter() {
-            final String plausibilityNote = (curationAssistantPanel != null)
-                    ? curationAssistantPanel.getStatusSummary() : null;
+            final String plausibilityNote = (curationManager != null)
+                    ? curationManager.getStatusSummary() : null;
             if (plausibilityNote != null) {
                 updateStatusText("Keep this new path segment? " + plausibilityNote);
             } else {
@@ -4506,8 +4506,8 @@ public class SNTUI extends JDialog {
     }
 
     /** Returns the Editor Assistant panel. */
-    CurationAssistantPanel getEditorAssistantPanel() {
-        return curationAssistantPanel;
+    CurationManager getEditorAssistantPanel() {
+        return curationManager;
     }
 
     /**

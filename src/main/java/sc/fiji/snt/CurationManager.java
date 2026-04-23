@@ -64,7 +64,7 @@ import java.util.List;
  * @see PlausibilityMonitor
  * @see PlausibilityCheck
  */
-public class CurationAssistantPanel implements PlausibilityMonitor.WarningListener {
+public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     // Severity column: colored circle icons (Red/Yellow/Blue) matching BookmarkManager style
     private static final Color SEVERITY_ERROR = new Color(255, 101, 101); // Red
@@ -113,7 +113,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
     private JDialog detachedDialog;
 
 
-    public CurationAssistantPanel(final SNTUI sntui, final PlausibilityMonitor monitor) {
+    public CurationManager(final SNTUI sntui, final PlausibilityMonitor monitor) {
         this.sntui = sntui;
         this.monitor = monitor;
         this.tableModel = new WarningTableModel();
@@ -760,7 +760,7 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
                     syncUIFromMonitor();
                     sntui.showStatus(String.format("Calibrated from %d cell(s).", result.getTreeCount()), true);
                 } catch (final Exception ex) {
-                    SNTUtils.log("Calibration failed: " + ex.getMessage());
+                    sntui.error("Calibration failed: " + ex.getMessage());
                     sntui.showStatus("Calibration failed. See log.", true);
                 }
             }

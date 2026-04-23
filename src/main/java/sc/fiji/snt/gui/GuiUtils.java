@@ -3087,7 +3087,7 @@ public class GuiUtils {
 			mi.setIcon(IconFactory.menuIcon(GLYPH.ROBOT));
 			helpMenu.add(mi);
 			mi = openURL("Big Data", URL + "big-data");
-			mi.setIcon(IconFactory.menuIcon('\uf5cd', true));
+			mi.setIcon(IconFactory.menuIcon(GLYPH.DATABASE));
 			helpMenu.add(mi);
 			mi = openURL("Reconstruction Viewer", URL + "reconstruction-viewer");
 			mi.setIcon(IconFactory.menuIcon(GLYPH.CUBE));
