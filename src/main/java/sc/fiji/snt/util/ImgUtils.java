@@ -1073,7 +1073,7 @@ public class ImgUtils {
         final Img img = (rai instanceof Img) ? (Img) rai : ImgView.wrap((RandomAccessibleInterval) rai);
         final ImgPlus result = new ImgPlus(img);
 
-        // Create calibrated axes — XYZCT matches the canonical order used by
+        // Create calibrated axes: XYZCT matches the canonical order used by
         // permuteToXYZCT(), impToRealRai5d(), and BVV. Previously this was XYZTC,
         // which would mis-label Channel as Time (and vice versa) for 5D images
         final AxisType[] defaultAxes = {Axes.X, Axes.Y, Axes.Z, Axes.CHANNEL, Axes.TIME};

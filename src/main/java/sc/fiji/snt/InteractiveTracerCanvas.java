@@ -34,6 +34,7 @@ import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.DirectedWeightedSubgraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
@@ -97,6 +98,17 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     // Squared pixel tolerance for click detection (5 pixels). This accommodates
     // slight mouse/trackpad movement during click, especially on macOS trackpads.
     private static final int CLICK_TOLERANCE_SQ = 25;
+
+    private List<PointInImage> warningLocations = new ArrayList<>();
+    private List<Path> warningAffectedPaths = new ArrayList<>();
+    private PlausibilityCheck.Severity warningMaxSeverity = null;
+    private boolean warningViewportTint = false;
+    private long warningFlashStart = 0;
+    private static final long FLASH_DURATION_MS = 3000;
+    private static final long TINT_DURATION_MS = 400;
+    private static final Color WARNING_RING_COLOR = new Color(255, 165, 0); // orange
+    private static final Color ERROR_RING_COLOR = new Color(255, 80, 80); // red
+    private static final Color VIEWPORT_TINT_COLOR = new Color(255, 60, 60, 50); // faint red wash
 
     protected InteractiveTracerCanvas(final ImagePlus imp,
                                       final SNT plugin, final int plane,
@@ -749,6 +761,46 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         tracerPlugin.clickAtMaxPoint(x, y, plane, join_modifier_pressed);
     }
 
+    /**
+     * Sets the warning overlay state for the canvas.
+     *
+     * @param locations     spatial locations of warnings (may be null/empty)
+     * @param affectedPaths paths involved in warnings, highlighted with a thick overlay
+     * @param maxSeverity   the highest severity among the warnings (drives visual tier)
+     * @param viewportTint  whether to flash a brief viewport tint (for ERRORs when panel not visible)
+     */
+    public void setWarningOverlay(final List<PointInImage> locations,
+                                  final List<Path> affectedPaths,
+                                  final PlausibilityCheck.Severity maxSeverity,
+                                  final boolean viewportTint) {
+        this.warningLocations = (locations != null) ? new ArrayList<>(locations) : new ArrayList<>();
+        this.warningAffectedPaths = (affectedPaths != null) ? new ArrayList<>(affectedPaths) : new ArrayList<>();
+        this.warningMaxSeverity = maxSeverity;
+        this.warningViewportTint = viewportTint;
+        this.warningFlashStart = System.currentTimeMillis();
+        repaint();
+    }
+
+    public void clearWarningOverlay() {
+        warningLocations.clear();
+        warningAffectedPaths.clear();
+        warningMaxSeverity = null;
+        warningViewportTint = false;
+        repaint();
+    }
+
+    @Override
+    public void repaint() {
+        super.repaint();
+        // Schedule repaints for pulsing animation while flash is active
+        if (!warningLocations.isEmpty() || !warningAffectedPaths.isEmpty()) {
+            final long elapsed = System.currentTimeMillis() - warningFlashStart;
+            if (elapsed < FLASH_DURATION_MS) {
+                super.repaint(50);
+            }
+        }
+    }
+
     protected void startShollAnalysis() {
         PointInImage centerScaled = null;
         if (pathAndFillManager.anySelected()) {
@@ -1260,6 +1312,88 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
         if (tracerPlugin.manualRadius > 0 && last_x_in_pane_precise != Double.MIN_VALUE) {
             drawManualRadiusCursor(g);
+        }
+
+        // Warning overlay (tiered by severity)
+        drawWarningOverlay(g);
+    }
+
+    private void drawWarningOverlay(final Graphics2D g) {
+        if (warningLocations.isEmpty() && warningAffectedPaths.isEmpty()) return;
+        final long elapsed = System.currentTimeMillis() - warningFlashStart;
+        if (elapsed >= FLASH_DURATION_MS) return;
+
+        final Stroke savedStroke = g.getStroke();
+        final Color savedColor = g.getColor();
+        final Composite savedComposite = g.getComposite();
+
+        // Pulsing alpha: 600ms cycle, sinusoidal
+        final double phase = (elapsed % 600) / 600.0;
+        final float pulseAlpha = (float) (0.4 + 0.6 * Math.abs(Math.sin(phase * Math.PI)));
+        final Color baseColor = (warningMaxSeverity == PlausibilityCheck.Severity.ERROR)
+                ? ERROR_RING_COLOR : WARNING_RING_COLOR;
+
+        // Tier 1 (all severities): Affected path highlights (simplified thick lines)
+        if (!warningAffectedPaths.isEmpty()) {
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, pulseAlpha * 0.5f));
+            g.setStroke(new BasicStroke(5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setColor(baseColor);
+            for (final Path path : warningAffectedPaths) {
+                drawPathSimplified(g, path);
+            }
+        }
+
+        // Tier 1 (all severities): Pulsing rings at warning locations
+        if (!warningLocations.isEmpty()) {
+            final int ringRadius = Math.max(10, (int) (12 * getMagnification() / 4));
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, pulseAlpha));
+            for (final PointInImage loc : warningLocations) {
+                final int sx = myScreenXD(loc.x / tracerPlugin.x_spacing);
+                final int sy = myScreenYD(loc.y / tracerPlugin.y_spacing);
+                // Dark outline ring
+                g.setColor(Color.BLACK);
+                g.setStroke(new BasicStroke(3f));
+                g.drawOval(sx - ringRadius, sy - ringRadius, ringRadius * 2, ringRadius * 2);
+                // Colored ring
+                g.setColor(baseColor);
+                g.setStroke(new BasicStroke(2f));
+                g.drawOval(sx - ringRadius, sy - ringRadius, ringRadius * 2, ringRadius * 2);
+            }
+        }
+
+        // Tier 3 (ERROR + panel not visible): Brief viewport tint
+        if (warningViewportTint && elapsed < TINT_DURATION_MS) {
+            final float tintAlpha = 1f - (float) elapsed / TINT_DURATION_MS; // fade out
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, tintAlpha));
+            g.setColor(VIEWPORT_TINT_COLOR);
+            g.fillRect(0, 0, getWidth(), getHeight());
+        }
+        g.setStroke(savedStroke);
+        g.setColor(savedColor);
+        g.setComposite(savedComposite);
+    }
+
+    /** Draws a path as connected line segments without delegating to Path's own drawing logic. */
+    private void drawPathSimplified(final Graphics2D g, final Path path) {
+        if (path == null || path.size() < 2) return;
+        final int sliceZeroIndexed = imp.getZ() - 1;
+        final double xSpacing = tracerPlugin.x_spacing;
+        final double ySpacing = tracerPlugin.y_spacing;
+        final double zSpacing = tracerPlugin.z_spacing;
+        int prevSx = Integer.MIN_VALUE, prevSy = Integer.MIN_VALUE;
+        for (int i = 0; i < path.size(); i++) {
+            final PointInImage p = path.getNodeWithoutChecks(i);
+            // Skip nodes far from current Z slice (tolerance: ±2 slices)
+            final int nodeSlice = (int) Math.round(p.z / zSpacing);
+            if (just_near_slices && Math.abs(nodeSlice - sliceZeroIndexed) > Math.max(eitherSide, 2))
+                continue;
+            final int sx = myScreenXD(p.x / xSpacing);
+            final int sy = myScreenYD(p.y / ySpacing);
+            if (prevSx != Integer.MIN_VALUE) {
+                g.drawLine(prevSx, prevSy, sx, sy);
+            }
+            prevSx = sx;
+            prevSy = sy;
         }
     }
 

@@ -1,0 +1,21 @@
+# Calibrated from NeuroMorpho.org dummy cells (3 cells, P5/P95)
+branchAngle.min=19.133012752705675
+branchAngle.max=91.69771165112988
+branchAngle.enabled=true
+directionContinuity.minAlignment=9.28065124227412
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.0
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=4.795737693872294
+terminalBranchLength.enabled=true
+somaDistance.maxDist=147.95595846832668
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.15259239874681163
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=4.904126979048925
+pathOverlap.enabled=true
+radiusJumps.maxRatio=1.5283437537944926
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=1
+radiusMonotonicity.enabled=true
