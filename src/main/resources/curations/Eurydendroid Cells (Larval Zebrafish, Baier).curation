@@ -1,0 +1,25 @@
+# Eurydendroid Cells (Larval Zebrafish, Baier).curation
+# Computed from 116 reconstructions of larval zebrafish eurydendroid cells
+# from NeuroMorpho's Baier archive.
+# https://pubmed.ncbi.nlm.nih.gov/31147152/
+# Curation preset saved from SNT on Thu Apr 23 16:11:02 EDT 2026
+branchAngle.min=20.713737707902418
+branchAngle.max=155.094481734307
+branchAngle.enabled=true
+directionContinuity.minAlignment=13.755205018762503
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.9413466999777247
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=1.3638489442170973
+terminalBranchLength.enabled=true
+somaDistance.maxDist=252.10072051616388
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.531627329450544
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=0.7599526550972695
+pathOverlap.enabled=true
+radiusJumps.maxRatio=1.626668472296224
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=3
+radiusMonotonicity.enabled=true

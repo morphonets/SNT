@@ -446,7 +446,13 @@ public class PlausibilityCalibrator {
      * the files under {@code src/main/resources/curations/}.
      */
     public static final String[] BUILT_IN_PRESETS = {
-            "dummy1",
+            "CA1 Dendrites (Mouse, DeFelipe)",
+            "CA3 Dendrites (Rat, Amaral)",
+            "Eurydendroid Cells (Larval Zebrafish, Baier)",
+            "Martinotti Axons (Mouse, Yuste)",
+            "Martinotti Dendrites (Mouse, Yuste)",
+            "Purkinje Dendrites (Mouse, Dusart)",
+            "RGC Dendrites (Mouse, Fried)",
     };
 
     /**

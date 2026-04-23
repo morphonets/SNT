@@ -1,0 +1,28 @@
+# RGC Dendrites (Mouse, Fried).curation
+# Computed from 9 dendritic arbors of retinal ganglion cells
+# from NeuroMorpho's Fried archive.
+# https://pubmed.ncbi.nlm.nih.gov/32736374/
+# Cell IDs: 20180925_C8_WT, 20180918_C1_WT, 20181005_C1_WT, 20180926_C2_WT,
+#           20180928_C4_WT, 20180926_C3_WT, 20180919_C3_WT, 20190517_C10_WT
+#           20180926_C1_WT
+# Curation preset saved from SNT on Thu Apr 23 16:04:09 EDT 2026
+branchAngle.min=15.57809599252122
+branchAngle.max=129.35873497488083
+branchAngle.enabled=true
+directionContinuity.minAlignment=12.432496703234621
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.4148982558139527
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=3.2890032119306953
+terminalBranchLength.enabled=true
+somaDistance.maxDist=149.67239069717917
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.30810614746523474
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=2.553339083553026
+pathOverlap.enabled=true
+radiusJumps.maxRatio=2.166666666666667
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=3
+radiusMonotonicity.enabled=true

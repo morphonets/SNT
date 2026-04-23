@@ -649,7 +649,7 @@ public class SNTUI extends JDialog {
         activeWarningLabel = label;
         plugin.setCanvasLabelAllPanes(label);
         if (warningLabelTimer != null) warningLabelTimer.stop();
-        warningLabelTimer = new javax.swing.Timer(3000, _ -> clearWarningCanvasLabel());
+        warningLabelTimer = new javax.swing.Timer(3000, e -> clearWarningCanvasLabel());
         warningLabelTimer.setRepeats(false);
         warningLabelTimer.start();
     }

@@ -1,0 +1,28 @@
+# Martinotti Dendrites (Mouse, Yuste).curation
+# Computed from 6 dendritic arbors of mouse Martinotti cells
+# from NeuroMorpho's Yuste archive.
+# https://pubmed.ncbi.nlm.nih.gov/15146046/
+# https://pubmed.ncbi.nlm.nih.gov/17135406/
+# https://pubmed.ncbi.nlm.nih.gov/17965719/
+# Cell IDs: 030403-1, AM81-2-2, VN031605-0, AM81-2-3, AM85-2-1, 030128-3
+# Curation preset saved from SNT on Thu Apr 23 14:26:44 EDT 2026
+branchAngle.min=9.199702564141365
+branchAngle.max=144.41923931334438
+branchAngle.enabled=true
+directionContinuity.minAlignment=8.99274112100721
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.0
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=3.791615009076855
+terminalBranchLength.enabled=true
+somaDistance.maxDist=176.61577401521419
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.5107026780973438
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=1.0555492152078603
+pathOverlap.enabled=true
+radiusJumps.maxRatio=3.0416666666666665
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=3
+radiusMonotonicity.enabled=true
