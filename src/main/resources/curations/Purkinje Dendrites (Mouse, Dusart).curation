@@ -1,0 +1,27 @@
+# Purkinje Dendrites (Mouse, Dusart).curation
+# Computed from 6 dendritic arbors of mouse Purkinje neurons from NeuroMorpho's
+# Dusart archive.
+# https://pubmed.ncbi.nlm.nih.gov/23719821/
+# IDs: Purkinje-slice-ageP35-1, Purkinje-slice-ageP35-2, Purkinje-slice-ageP35-3,
+#      Purkinje-slice-ageP35-4, Purkinje-slice-ageP37-5, Purkinje-slice-ageP43-6
+# Curation preset saved from SNT on Thu Apr 23 14:09:28 EDT 2026
+branchAngle.min=20.1238163873424
+branchAngle.max=128.88116996070346
+branchAngle.enabled=true
+directionContinuity.minAlignment=11.653321788461
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.1918627096240977
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=1.7408950252726525
+terminalBranchLength.enabled=true
+somaDistance.maxDist=198.20768714126675
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.3843651444246185
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=1.5118169150814837
+pathOverlap.enabled=true
+radiusJumps.maxRatio=1.8302404748548071
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=4
+radiusMonotonicity.enabled=true

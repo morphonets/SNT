@@ -1,0 +1,28 @@
+# Martinotti Axons (Mouse, Yuste).curation
+# Computed from 6 axonal arbors of mouse Martinotti cells
+# from NeuroMorpho's Yuste archive.
+# https://pubmed.ncbi.nlm.nih.gov/15146046/
+# https://pubmed.ncbi.nlm.nih.gov/17135406/
+# https://pubmed.ncbi.nlm.nih.gov/17965719/
+# Cell IDs: 030403-1, AM81-2-2, VN031605-0, AM81-2-3, AM85-2-1, 030128-3
+# Curation preset saved from SNT on Thu Apr 23 14:30:47 EDT 2026
+branchAngle.min=16.39784550225162
+branchAngle.max=153.95300351783243
+branchAngle.enabled=true
+directionContinuity.minAlignment=10.570021294077241
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.0
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=2.0093946797404296
+terminalBranchLength.enabled=true
+somaDistance.maxDist=639.9963562789416
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.47754018622864897
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=1.4612420864139672
+pathOverlap.enabled=true
+radiusJumps.maxRatio=7.92
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=1
+radiusMonotonicity.enabled=true

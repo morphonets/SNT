@@ -1,0 +1,27 @@
+# CA1 Dendrites (Mouse, DeFelipe).curation
+# Computed from 131 dendritic arbors (basal and apical dendrites)
+# of mouse CA1 cells from NeuroMorpho's DeFelipe archive.
+# https://pubmed.ncbi.nlm.nih.gov/26928278/
+# Prefixes of cell IDs: R10a, R10b, R35a, R50, R51WT, R52, R57,
+# R59a, R59b, R59, R60, R61, R62, R63, R64, R66, R67, R99a
+# Curation preset created on Thu Apr 23 08:53:42 EDT 2026
+branchAngle.min=16.38405034037069
+branchAngle.max=98.90874556498889
+branchAngle.enabled=true
+directionContinuity.minAlignment=13.268659734421176
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.0
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=10.4467016297461
+terminalBranchLength.enabled=true
+somaDistance.maxDist=217.16295939745308
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.2229064328246812
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=3.419454824782221
+pathOverlap.enabled=true
+radiusJumps.maxRatio=13.666666666666668
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=1
+radiusMonotonicity.enabled=true

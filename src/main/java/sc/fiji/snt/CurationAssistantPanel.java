@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 import ij.measure.Calibration;
-import org.apache.commons.lang.StringUtils;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
@@ -815,9 +814,8 @@ public class CurationAssistantPanel implements PlausibilityMonitor.WarningListen
         } else {
             for (int i = 0; i < builtIns.length; i++) {
                 final String resourceName = builtIns[i];
-                final String displayName = StringUtils.capitalize(resourceName);
-                final JMenuItem item = new JMenuItem(displayName);
-                item.setToolTipText("Load built-in preset: " + displayName);
+                final JMenuItem item = new JMenuItem(resourceName);
+                item.setToolTipText("Load built-in preset: " + resourceName);
                 item.addActionListener(e -> loadBuiltInPreset(resourceName));
                 optionsMenu.insert(item, sepIdx + 1 + i);
             }

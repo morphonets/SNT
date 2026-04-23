@@ -1,0 +1,29 @@
+# CA3 Dendrites (Rat, Amaral).curation
+# Computed from 24 dendritic arbors (basal and apical dendrites)
+# of rat CA3 cells from NeuroMorpho's Amaral archive.
+# https://pubmed.ncbi.nlm.nih.gov/8576427/
+# IDs:    c11471, c31164, c12973, c12866, c10861, c81463, c80764,
+# c82063, c12873, c73164, c82061, c60463, c12979, c12877, c53063,
+# c12971, c73167b, c11571, c20467, c30573, c60361, c31162, c40165,
+# c62563
+# Curation preset saved from SNT on Thu Apr 23 13:34:34 EDT 2026
+branchAngle.min=13.577760106649617
+branchAngle.max=71.91640324747353
+branchAngle.enabled=true
+directionContinuity.minAlignment=10.231934149656432
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.0
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=30.70772338521734
+terminalBranchLength.enabled=true
+somaDistance.maxDist=459.32869011687
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.10918178535081886
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=9.30550466515372
+pathOverlap.enabled=true
+radiusJumps.maxRatio=2.380000000000003
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=1
+radiusMonotonicity.enabled=true
