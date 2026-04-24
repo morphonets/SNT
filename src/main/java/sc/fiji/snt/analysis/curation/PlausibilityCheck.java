@@ -213,14 +213,20 @@ public final class PlausibilityCheck {
             final double dot = (parentTangent[0] * childDir[0] +
                     parentTangent[1] * childDir[1] +
                     parentTangent[2] * childDir[2]) / (parentMag * childMag);
-            final double angleDeg = Math.toDegrees(Math.acos(Math.min(1.0, Math.abs(dot))));
+            // dot close to +1 means child continues along parent (normal); dot close to -1 means
+            // child doubles back (U-turn). Convert to a deviation angle: 0° = same direction,
+            // 180° = perfect reversal
+            final double angleDeg = Math.toDegrees(Math.acos(Math.clamp(dot, -1.0, 1.0)));
+            // Flag when the deviation from the parent direction exceeds the maximum allowed: i.e.
+            // the child bends back too sharply
+            final double deviationFromParent = 180.0 - angleDeg;
 
-            if (angleDeg < minAlignmentDeg) {
-                final Severity sev = angleDeg < minAlignmentDeg / 2 ? Severity.ERROR : Severity.WARNING;
+            if (deviationFromParent < minAlignmentDeg) {
+                final Severity sev = deviationFromParent < minAlignmentDeg / 2 ? Severity.ERROR : Severity.WARNING;
                 return List.of(new Warning(getName(), sev,
-                        String.format("Possible U-turn at fork: only %.1f° direction change (min %.1f°)",
-                                angleDeg, minAlignmentDeg),
-                        parent.getNode(branchIndex), List.of(parent, child), angleDeg, minAlignmentDeg));
+                        String.format("Possible U-turn at fork: only %.1f° from reversal (min %.1f°)",
+                                deviationFromParent, minAlignmentDeg),
+                        parent.getNode(branchIndex), List.of(parent, child), deviationFromParent, minAlignmentDeg));
             }
             return Collections.emptyList();
         }
