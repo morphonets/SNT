@@ -10,7 +10,7 @@ info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform automated (unsupervised) tracing
 """
 
-from sc.fiji.snt.analysis import SkeletonConverter
+from sc.fiji.snt.tracing.auto import BinaryTracer
 from ij.gui import Roi
 
 def run():
@@ -39,18 +39,18 @@ def run():
     # use the Estimate Radii (Local Thickness).. command directly on the image)
     snt.getUI().runSecondaryLayerWizard("Frangi Vesselness (Multi-scale filter)", [0.56, 0.74, 0.98])
 
-    # the SkeletonConverter class is the workhorse class for the conversion. We'll
+    # the BinaryTracer class is the workhorse class for the conversion. We'll
     # use it to skeletonize the Frangi image, thresholding out the voxels with
     # low 'vesselness scores' (here, we'll only consider values above 0.005..
     # NB: The last boolean argument in the skeletonize() method specifies whether
     # isolated voxels that may exist should be eroded
     filtered_img = snt.getPlugin().getSecondaryDataAsImp()
     #filtered_img.duplicate().show() # display copy
-    SkeletonConverter.skeletonize(filtered_img, 0.45, 1, True)
+    BinaryTracer.skeletonize(filtered_img, 0.45, 1, True)
     #filtered_img.show() # display skeletonized image
 
     # We can now initialize the converter and specify some tweaks:
-    converter = SkeletonConverter(filtered_img)
+    converter = BinaryTracer(filtered_img)
     converter.setPruneByLength(False) # Discard smaller disconnected branches?
     converter.setLengthThreshold(1) # Discard only branches smaller than 1um
     converter.setConnectComponents(True) # Attempt to bridge gaps in the structure?

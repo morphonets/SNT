@@ -33,7 +33,7 @@ imp = snt.getImagePlus()
 	println("Processing frame #" + frame)
 
 	// Assemble a converter for extraction of paths from this frame. API:
-	// https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/analysis/SkeletonConverter.html
+	// https://javadoc.scijava.org/SNT/index.html?sc/fiji/snt/tracing/auto/BinaryTracer.html
 	converter = new BinaryTracer(imp, frame) // image and frame to be parsed
 	converter.setPruneByLength(false) // Don't ignore small components...
 	converter.setConnectComponents(false) // Don't merge neighboring components..

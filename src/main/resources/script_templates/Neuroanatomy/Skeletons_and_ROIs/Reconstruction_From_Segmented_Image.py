@@ -21,7 +21,7 @@ Exemplifies how to convert a binarized skeleton image into a SNT Tree
 import os
 from ij import IJ
 from sc.fiji.snt import Tree
-from sc.fiji.snt.analysis import SkeletonConverter
+from sc.fiji.snt.tracing.auto import BinaryTracer
 from sc.fiji.snt.viewer import Viewer3D
 
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
@@ -39,7 +39,7 @@ def main():
 		skeletonizeImp = True
 	# Use the image to create the reconstructions, first skeletonizing 
 	# if it is not already a skeleton.
-	converter = SkeletonConverter(imp, skeletonizeImp)
+	converter = BinaryTracer(imp, skeletonizeImp)
 	converter.setPruneByLength(pruneByLength)
 	converter.setLengthThreshold(lengthThreshold)
 	converter.setConnectComponents(connectComponents)
