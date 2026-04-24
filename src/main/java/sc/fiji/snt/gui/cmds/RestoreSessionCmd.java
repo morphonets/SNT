@@ -117,6 +117,7 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
         if (restoreBookmarks) restoreBookmarksFile();
         if (restoreNotes) restoreNotesFile();
         if (restoreROIs) restoreROIsFile();
+        restoreCurationSettings();
 
         // Show session info if available
         showSessionInfo();
@@ -268,6 +269,27 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
             }
         } catch (final Exception e) {
             SNTUtils.error("Failed to restore notes", e);
+            failures++;
+        }
+    }
+
+    private void restoreCurationSettings() {
+        final File file = new File(sessionDir, "active."
+                + sc.fiji.snt.analysis.curation.PlausibilityCalibrator.CURATION_EXTENSION);
+        if (!file.exists()) {
+            SNTUtils.log("No curation settings found in session");
+            return;
+        }
+        try {
+            final sc.fiji.snt.analysis.curation.PlausibilityMonitor monitor = ui.getPlausibilityMonitor();
+            if (monitor == null) return;
+            sc.fiji.snt.analysis.curation.PlausibilityCalibrator.load(file, monitor);
+            final sc.fiji.snt.CurationManager cm = ui.getCurationManager();
+            if (cm != null) cm.refreshFromMonitor();
+            SNTUtils.log("Restored curation settings: " + file);
+            successes++;
+        } catch (final Exception e) {
+            SNTUtils.error("Failed to restore curation settings", e);
             failures++;
         }
     }

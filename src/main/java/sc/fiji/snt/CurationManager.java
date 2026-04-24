@@ -952,6 +952,18 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         return -1;
     }
 
+    /**
+     * Refreshes all UI controls (spinners, checkboxes, toggle) from the
+     * monitor's current state. Called after loading a preset or restoring
+     * a session.
+     */
+    public void refreshFromMonitor() {
+        SwingUtilities.invokeLater(() -> {
+            syncUIFromMonitor();
+            liveToggle.setSelected(monitor.isEnabled());
+        });
+    }
+
     private void syncUIFromMonitor() {
         // Live checks
         final PlausibilityCheck.BranchAngle ba = monitor.getLiveCheck(PlausibilityCheck.BranchAngle.class);

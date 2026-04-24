@@ -4500,13 +4500,13 @@ public class SNTUI extends JDialog {
         return fmUI;
     }
 
-    /** Returns the plausibility monitor used by the Editor Assistant. */
+    /** Returns the plausibility monitor used by the Curation Manager (Curation Assistant). */
     public PlausibilityMonitor getPlausibilityMonitor() {
         return plausibilityMonitor;
     }
 
-    /** Returns the Editor Assistant panel. */
-    CurationManager getEditorAssistantPanel() {
+    /** Returns the Curation Manager (Curation Assistant). */
+    public CurationManager getCurationManager() {
         return curationManager;
     }
 

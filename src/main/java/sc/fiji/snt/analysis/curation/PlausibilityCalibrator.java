@@ -552,6 +552,9 @@ public class PlausibilityCalibrator {
             entries.put("radiusMonotonicity.enabled", String.valueOf(rm.isEnabled()));
         }
 
+        // Monitor-level state
+        entries.put("monitor.enabled", String.valueOf(monitor.isEnabled()));
+
         try (final PrintWriter writer = new PrintWriter(new FileWriter(file))) {
             if (comment != null && !comment.isEmpty()) {
                 writer.println("# " + comment);
@@ -657,6 +660,9 @@ public class PlausibilityCalibrator {
             setInt(props, "radiusMonotonicity.minRun", rm::setMinIncreasingRun);
             setEnabled(props, "radiusMonotonicity.enabled", rm::setEnabled);
         }
+
+        // Monitor-level state (only present in session files, not calibration presets)
+        setEnabled(props, "monitor.enabled", monitor::setEnabled);
     }
 
     private static void setDouble(final Properties props, final String key,

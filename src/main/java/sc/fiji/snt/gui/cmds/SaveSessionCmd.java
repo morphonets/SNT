@@ -120,6 +120,7 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         if (saveCharts) saveAllCharts();
         if (saveROIs) saveROIs(imp);
         if (saveSessionInfo) saveSessionInfoFile(imp);
+        saveCurationSettings();
 
         // Report results
         if (failures > 0) {
@@ -386,6 +387,21 @@ public class SaveSessionCmd extends CommonDynamicCmd {
                     cal.getUnit()));
         }
         pw.println("- **Bit Depth:** " + imp.getBitDepth() + "-bit");
+    }
+
+    private void saveCurationSettings() {
+        try {
+            final sc.fiji.snt.analysis.curation.PlausibilityMonitor monitor = ui.getPlausibilityMonitor();
+            if (monitor == null) return;
+            final File file = new File(sessionDir, "active."
+                    + sc.fiji.snt.analysis.curation.PlausibilityCalibrator.CURATION_EXTENSION);
+            sc.fiji.snt.analysis.curation.PlausibilityCalibrator.save(monitor, file,
+                    "Active curation settings saved with session");
+            SNTUtils.log("Saved curation settings: " + file);
+        } catch (final Exception e) {
+            SNTUtils.error("Failed to save curation settings", e);
+            failures++;
+        }
     }
 
     private String sanitizeFilename(final String name) {
