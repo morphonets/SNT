@@ -433,6 +433,7 @@ public class SNTUI extends JDialog {
         registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
         registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
         registerTabInCmdFInder("Notes Tab", "Notepad");
+        curationManager.registerCommands(commandFinder);
         pack();
         setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
         pack();

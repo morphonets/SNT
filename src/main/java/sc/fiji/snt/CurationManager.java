@@ -30,12 +30,14 @@ import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.SNTCommandFinder;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -180,6 +182,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final javax.swing.table.TableColumn msgCol = warningsTable.getColumnModel().getColumn(1);
         msgCol.setPreferredWidth(300);
         msgCol.setCellRenderer(new DefaultTableCellRenderer() {
+            final static String TIP = "<html>Tip: Press <tt><b>1</b></tt> to activate the Path Display Filter " +
+                    "<br><i>Only selected paths (hide deselected)</i> to isolate affected paths";
+
             @Override
             public Component getTableCellRendererComponent(final JTable table, final Object value,
                                                            final boolean isSelected, final boolean hasFocus,
@@ -188,9 +193,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 if (value instanceof String text && !text.isEmpty()) {
                     final FontMetrics fm = getFontMetrics(getFont());
                     final int colWidth = table.getColumnModel().getColumn(column).getWidth();
-                    setToolTipText(fm.stringWidth(text) > colWidth - 4 ? text : null);
+                    setToolTipText(fm.stringWidth(text) > colWidth - 4 ? text : TIP);
                 } else {
-                    setToolTipText(null);
+                    setToolTipText(TIP);
                 }
                 return this;
             }
@@ -254,7 +259,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         popup.add(copyItem);
 
         // Explain issue: open documentation page anchored to the relevant check
-        final JMenuItem explainItem = new JMenuItem("Online Help...",
+        final JMenuItem explainItem = new JMenuItem("Help on Issue...",
                 IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
         explainItem.addActionListener(e -> {
             final int viewRow = warningsTable.getSelectedRow();
@@ -466,7 +471,34 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         tableScroll.setMinimumSize(new Dimension(0, 0)); // allow shrinking
         warningsTable.setPreferredScrollableViewportSize(null); // defer to layout
         panel.add(tableScroll, gbc);
+
+        // Bind display filter shortcuts (same keys as QueueJumpingKeyListener)
+        final int condition = JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT;
+        panel.getInputMap(condition).put(KeyStroke.getKeyStroke('1'), "togglePathsChoice");
+        panel.getInputMap(condition).put(KeyStroke.getKeyStroke('2'), "togglePartsChoice");
+        panel.getInputMap(condition).put(KeyStroke.getKeyStroke('3'), "toggleChannelAndFrameChoice");
+        panel.getActionMap().put("togglePathsChoice", new AbstractAction() {
+            @Override public void actionPerformed(final ActionEvent e) { sntui.togglePathsChoice(); }
+        });
+        panel.getActionMap().put("togglePartsChoice", new AbstractAction() {
+            @Override public void actionPerformed(final ActionEvent e) { sntui.togglePartsChoice(); }
+        });
+        panel.getActionMap().put("toggleChannelAndFrameChoice", new AbstractAction() {
+            @Override public void actionPerformed(final ActionEvent e) { sntui.toggleChannelAndFrameChoice(); }
+        });
         return panel;
+    }
+
+    /**
+     * Registers curation commands in the SNT Command Finder.
+     *
+     * @param cmdFinder the command finder instance
+     */
+    protected void registerCommands(final SNTCommandFinder cmdFinder) {
+        if (liveToggle != null)
+            cmdFinder.register(liveToggle, "Toggle Live Monitoring", "Assistant tab");
+        if (onDemandButton != null)
+            cmdFinder.register(onDemandButton, "Run Full Scan", "Assistant tab");
     }
 
     private JPanel buildLiveParamsPanel() {
