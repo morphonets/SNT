@@ -316,7 +316,7 @@ public class PlausibilityMonitor {
 
     public void setEnabled(final boolean enabled) {
         this.enabled = enabled;
-        if (!enabled) clearWarnings();
+        if (enabled) clearWarnings();
     }
 
     /** @return the (modifiable) list of registered live checks */

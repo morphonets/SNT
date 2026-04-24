@@ -535,6 +535,30 @@ public class ImpUtils {
     }
 
     /**
+     * Zooms the image canvas to a specific location on a path, correctly accounting
+     * for the path's {@link Path#getCanvasOffset() canvas offset}. Also sets the
+     * image position to the appropriate Z-slice.
+     *
+     * @param imp             the ImagePlus whose canvas should be adjusted
+     * @param zoomMagnification the target zoom level (e.g., 6.0 for 600%)
+     * @param location        the spatial location to center on (in calibrated coordinates)
+     * @param path            the path that provides canvas offset context (may be {@code null})
+     */
+    public static void zoomTo(final ImagePlus imp, final double zoomMagnification,
+                              final PointInImage location, final Path path) {
+        if (imp == null || location == null) return;
+        final Calibration cal = imp.getCalibration();
+        final PointInCanvas offset = (path != null)
+                ? path.getCanvasOffset()
+                : new PointInCanvas(0, 0, 0);
+        final int px = (int) (cal.getRawX(location.x) + offset.x);
+        final int py = (int) (cal.getRawY(location.y) + offset.y);
+        final int pz = (int) (cal.getRawZ(location.z) + offset.z);
+        imp.setPosition(imp.getC(), pz + 1, imp.getT());
+        zoomTo(imp, zoomMagnification, px, py);
+    }
+
+    /**
      * Zooms the image canvas to optimally display the specified paths in the XY plane.
      * <p>
      * This is a convenience method equivalent to calling

@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
-import ij.measure.Calibration;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
@@ -32,7 +31,6 @@ import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -220,7 +218,61 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JPopupMenu buildTablePopupMenu() {
         final JPopupMenu popup = new JPopupMenu();
 
-        final JMenuItem clearItem = new JMenuItem("Clear All",
+        // Copy issue description(s) to clipboard
+        final JMenuItem copyItem = new JMenuItem("Copy Issue Description",
+                IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
+        copyItem.addActionListener(e -> {
+            final int[] selectedRows = warningsTable.getSelectedRows();
+            final List<PlausibilityCheck.Warning> toCopy;
+            if (selectedRows.length == 0) {
+                toCopy = tableModel.warnings; // copy all if none selected
+            } else {
+                toCopy = new ArrayList<>();
+                for (final int viewRow : selectedRows) {
+                    final int modelRow = warningsTable.convertRowIndexToModel(viewRow);
+                    if (modelRow >= 0 && modelRow < tableModel.warnings.size())
+                        toCopy.add(tableModel.warnings.get(modelRow));
+                }
+            }
+            if (toCopy.isEmpty()) return;
+            final StringBuilder sb = new StringBuilder();
+            for (final PlausibilityCheck.Warning w : toCopy) {
+                sb.append(w.severity()).append('\t').append(w.message());
+                if (!w.affectedPaths().isEmpty()) {
+                    sb.append("\t[");
+                    for (int i = 0; i < w.affectedPaths().size(); i++) {
+                        if (i > 0) sb.append(", ");
+                        sb.append(w.affectedPaths().get(i).getName());
+                    }
+                    sb.append(']');
+                }
+                sb.append('\n');
+            }
+            final java.awt.datatransfer.StringSelection sel = new java.awt.datatransfer.StringSelection(sb.toString().strip());
+            java.awt.Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, null);
+        });
+        popup.add(copyItem);
+
+        // Explain issue: open documentation page anchored to the relevant check
+        final JMenuItem explainItem = new JMenuItem("Online Help...",
+                IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+        explainItem.addActionListener(e -> {
+            final int viewRow = warningsTable.getSelectedRow();
+            if (viewRow < 0) {
+                sntui.error("No issue selected.");
+                return;
+            }
+            final int modelRow = warningsTable.convertRowIndexToModel(viewRow);
+            final PlausibilityCheck.Warning w = (modelRow >= 0 && modelRow < tableModel.warnings.size())
+                        ? tableModel.warnings.get(modelRow) : null;
+            final String anchor = (w != null) ? getDocAnchor(w.checkName()) : "";
+            GuiUtils.openURL("https://imagej.net/plugins/snt/curation" + anchor);
+        });
+        popup.add(explainItem);
+
+        popup.addSeparator();
+
+        final JMenuItem clearItem = new JMenuItem("Clear All Issues",
                 IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         clearItem.addActionListener(e -> {
             tableModel.setWarnings(List.of());
@@ -233,10 +285,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Preferred zoom level: inline panel with spinner + reset
         final JSpinner zoomSpinner = GuiUtils.integerSpinner(
                 Math.clamp(visitingZoomPercentage, 25, 3200), 25, 3200, 50, true);
-        zoomSpinner.addChangeListener(e ->
-                visitingZoomPercentage = (int) zoomSpinner.getValue());
-        zoomSpinner.setToolTipText(
-                "Preferred zoom level (25\u2013\u20093200%) when navigating to a warning location");
+        zoomSpinner.addChangeListener(e -> visitingZoomPercentage = (int) zoomSpinner.getValue());
+        zoomSpinner.setToolTipText( "Preferred zoom level (25–3200%) when navigating to an issue location");
 
         final JPanel zoomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         zoomPanel.setOpaque(false);
@@ -245,8 +295,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         popup.add(zoomPanel);
 
         // Reset zoom
-        final JMenuItem resetZoomItem = new JMenuItem("Reset Zoom Level",
-                IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        final JMenuItem resetZoomItem = new JMenuItem("Reset Zoom Level", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         resetZoomItem.setToolTipText(
                 "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
         resetZoomItem.addActionListener(e -> {
@@ -336,23 +385,28 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private void navigateToWarning(final PlausibilityCheck.Warning warning) {
-        // Select affected paths so they render in selectedColor
+        // Select affected paths so they render in selectedColor in all viewers
         final List<Path> affected = warning.affectedPaths();
         if (!affected.isEmpty()) {
             sntui.getPathManager().setSelectedPaths(new java.util.HashSet<>(affected), this);
         }
-        // Navigate to the warning location
-        final PointInImage location = warning.location();
-        if (location == null) return;
         final ImagePlus imp = sntui.plugin.getImagePlus();
-        if (imp == null) return;
-        final Calibration cal = imp.getCalibration();
-        final int px = (int) cal.getRawX(location.x);
-        final int py = (int) cal.getRawY(location.y);
-        final int pz = (int) cal.getRawZ(location.z);
-        imp.setPosition(imp.getC(), pz + 1, imp.getT());
-        ImpUtils.zoomTo(imp, visitingZoomPercentage / 100.0, px, py);
-        sntui.plugin.setZPositionAllPanes(px, py, pz);
+        if (imp != null) {
+            final sc.fiji.snt.util.PointInImage location = warning.location();
+            if (location != null) {
+                // Zoom to the warning's focal point (e.g. fork node), using the
+                // first affected path to resolve any canvas offset
+                final Path offsetPath = affected.isEmpty() ? null : affected.getFirst();
+                ImpUtils.zoomTo(imp, visitingZoomPercentage / 100.0, location, offsetPath);
+            } else if (!affected.isEmpty()) {
+                // No specific location: fall back to fitting affected paths
+                ImpUtils.zoomTo(imp, visitingZoomPercentage / 100.0, affected,
+                        sc.fiji.snt.hyperpanes.MultiDThreePanes.XY_PLANE);
+            }
+        } else {
+            // No image data: refresh all active viewers (Rec. Viewer, sciview, etc.)
+            sntui.plugin.updateAllViewers();
+        }
     }
 
     private void resetVisitingZoom() {
@@ -605,6 +659,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         liveToggle.setToolTipText("Enable live monitoring");
         liveToggle.addActionListener(e -> {
             final boolean on = liveToggle.isSelected();
+            if (on && !monitor.getCurrentWarnings().isEmpty()) {
+                final boolean clear = sntui.guiUtils.getConfirmation(
+                        "Enabling live monitoring will clear the current list of issues. Continue?",
+                        "Enable Live Monitoring?");
+                if (!clear) {
+                    liveToggle.setSelected(false); // revert toggle
+                    return;
+                }
+            }
             monitor.setEnabled(on);
         });
         tb.add(liveToggle);
@@ -788,7 +851,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         try {
             PlausibilityCalibrator.load(file, monitor);
             syncUIFromMonitor();
-            sntui.showStatus("Loaded: " + file.getName(), true);
+            sntui.showStatus(String.format("%s loaded...", file.getName()), true);
         } catch (final Exception ex) {
             SNTUtils.log("Load curation failed: " + ex.getMessage());
             sntui.error("Could not load preset. See log.");
@@ -874,7 +937,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         try {
             PlausibilityCalibrator.loadBuiltIn(presetName, monitor);
             syncUIFromMonitor();
-            sntui.showStatus("Loaded built-in preset: " + presetName, true);
+            sntui.showStatus(String.format("%s loaded...", presetName), true);
         } catch (final Exception ex) {
             SNTUtils.log("Load built-in preset failed: " + ex.getMessage());
             sntui.error("Could not load built-in preset. See log.");
@@ -1004,6 +1067,22 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
     }
 
+    private static String getDocAnchor(final String checkName) {
+        return switch (checkName) {
+            case "Branch angle" -> "#min-fork-angle-";
+            case "Direction continuity" -> "#max-direction-change-at-fork-";
+            case "Radius continuity" -> "#max-ratio-of-radius-change-at-fork";
+            case "Terminal branch length" -> "#min-length-of-terminal-branches";
+            case "Soma distance" -> "#max-distance-from-soma";
+            case "Tortuosity consistency" -> "#max-tortuosity-mismatch-at-fork";
+            case "Constant radii" -> "#flag-paths-with-uniform-radii";
+            case "Path overlap" -> "#max-proximity-for-path-cross-overs";
+            case "Radius jumps" -> "#max-ratio-of-abrupt-radius-changes";
+            case "Radius monotonicity" -> "#min-run-length-for-radius-inversions";
+            default -> "";
+        };
+    }
+
     private void refreshTableHeader() {
         final javax.swing.table.JTableHeader header = warningsTable.getTableHeader();
         if (header != null) {
@@ -1032,7 +1111,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private static class WarningTableModel extends AbstractTableModel {
 
-        private static final int MIN_ROWS = 10;
         private final java.util.EnumSet<PlausibilityCheck.Severity> visibleSeverities =
                 java.util.EnumSet.allOf(PlausibilityCheck.Severity.class);
         private List<PlausibilityCheck.Warning> allWarnings = new ArrayList<>();
@@ -1071,7 +1149,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         @Override
         public int getRowCount() {
-            return Math.max(MIN_ROWS, warnings.size());
+            return warnings.size();
         }
 
         @Override
