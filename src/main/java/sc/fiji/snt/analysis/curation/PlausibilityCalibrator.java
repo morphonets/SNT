@@ -448,7 +448,8 @@ public class PlausibilityCalibrator {
     public static final String[] BUILT_IN_PRESETS = {
             "CA1 Dendrites (Mouse, DeFelipe)",
             "CA3 Dendrites (Rat, Amaral)",
-            "Eurydendroid Cells (Larval Zebrafish, Baier)",
+            "Eurydendroid Cells (Zebrafish, Baier)",
+            "Kenyon Cells (Drosophila, Bock)",
             "Martinotti Axons (Mouse, Yuste)",
             "Martinotti Dendrites (Mouse, Yuste)",
             "Purkinje Dendrites (Mouse, Dusart)",
