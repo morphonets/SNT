@@ -604,8 +604,8 @@ public class CrossoverFinder {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof PairKey k)) return false;
-            return a == k.a && b == k.b;
+            if (!(o instanceof PairKey(Path a1, Path b1))) return false;
+            return a == a1 && b == b1;
         }
 
         @Override
@@ -650,8 +650,8 @@ public class CrossoverFinder {
 
             @Override
             public boolean equals(Object o) {
-                if (!(o instanceof Cell c)) return false;
-                return ix == c.ix && iy == c.iy && iz == c.iz;
+                if (!(o instanceof Cell(int ix1, int iy1, int iz1))) return false;
+                return ix == ix1 && iy == iy1 && iz == iz1;
             }
 
         }

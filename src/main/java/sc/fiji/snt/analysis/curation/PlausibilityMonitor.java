@@ -164,7 +164,7 @@ public class PlausibilityMonitor {
 
     /**
      * Clears the cached fork context. Should be called when tracing is
-     * cancelled or a non-forking path is started.
+     * canceled or a non-forking path is started.
      */
     public void clearForkContext() {
         cachedParent = null;

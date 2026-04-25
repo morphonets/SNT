@@ -1,0 +1,26 @@
+# Kenyon Cells (Drosophila, Bock).curation
+# Computed from 15 reconstructions of Kenyon cells of adult
+# Drosophila melanogaster from NeuroMorpho's Bock archive.
+# https://pubmed.ncbi.nlm.nih.gov/30033368/
+# Curation preset saved from SNT on Sat Apr 25 14:09:54 EDT 2026
+branchAngle.min=30.862120581596685
+branchAngle.max=155.83140862907354
+branchAngle.enabled=true
+directionContinuity.minAlignment=17.131437285277258
+directionContinuity.enabled=true
+radiusContinuity.maxRatio=1.0
+radiusContinuity.enabled=true
+terminalBranchLength.minLength=0.11916375287813273
+terminalBranchLength.enabled=true
+somaDistance.maxDist=500.0
+somaDistance.enabled=true
+tortuosityConsistency.maxDiff=0.4630534803983825
+tortuosityConsistency.enabled=true
+constantRadii.enabled=true
+pathOverlap.proximity=0.1761038196029276
+pathOverlap.enabled=true
+radiusJumps.maxRatio=3.0
+radiusJumps.enabled=true
+radiusMonotonicity.minRun=10
+radiusMonotonicity.enabled=true
+monitor.enabled=true

@@ -313,7 +313,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             }
         });
         popup.add(resetZoomItem);
-
         popup.addSeparator();
 
         // Detach / dock table

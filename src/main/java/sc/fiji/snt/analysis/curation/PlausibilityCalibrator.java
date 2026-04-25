@@ -150,7 +150,7 @@ public class PlausibilityCalibrator {
             sb.append(String.format("Calibration from %d tree(s) | Radii present: %s%n", treeCount, hasRadii));
             sb.append(String.format("%-28s %-22s %10s %8s %10s %10s %6s%n",
                     "Check", "Parameter", "Threshold", "N", "Mean", "Std Dev", "Pctl"));
-            sb.append("-".repeat(96)).append('\n');
+            sb.repeat("-", 96).append('\n');
             for (final CheckSummary s : summaries) {
                 sb.append(String.format("%-28s %-22s %10.2f %8d %10.2f %10.2f %5.0f%%%n",
                         s.checkName, s.paramLabel, s.computedValue, s.sampleSize,
@@ -448,7 +448,8 @@ public class PlausibilityCalibrator {
     public static final String[] BUILT_IN_PRESETS = {
             "CA1 Dendrites (Mouse, DeFelipe)",
             "CA3 Dendrites (Rat, Amaral)",
-            "Eurydendroid Cells (Larval Zebrafish, Baier)",
+            "Eurydendroid Cells (Zebrafish, Baier)",
+            "Kenyon Cells (Drosophila, Bock)",
             "Martinotti Axons (Mouse, Yuste)",
             "Martinotti Dendrites (Mouse, Yuste)",
             "Purkinje Dendrites (Mouse, Dusart)",
