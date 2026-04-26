@@ -547,15 +547,25 @@ public class ImpUtils {
     public static void zoomTo(final ImagePlus imp, final double zoomMagnification,
                               final PointInImage location, final Path path) {
         if (imp == null || location == null) return;
-        final Calibration cal = imp.getCalibration();
-        final PointInCanvas offset = (path != null)
-                ? path.getCanvasOffset()
-                : new PointInCanvas(0, 0, 0);
-        final int px = (int) (cal.getRawX(location.x) + offset.x);
-        final int py = (int) (cal.getRawY(location.y) + offset.y);
-        final int pz = (int) (cal.getRawZ(location.z) + offset.z);
-        imp.setPosition(imp.getC(), pz + 1, imp.getT());
-        zoomTo(imp, zoomMagnification, px, py);
+        if (location.onPath != null) {
+            zoomToPointInCanvas(imp, zoomMagnification, location.getUnscaledPoint());
+        } else if (path != null) {
+            final PointInImage loc = location.clone();
+            loc.onPath = path;
+            zoomToPointInCanvas(imp, zoomMagnification, loc.getUnscaledPoint());
+        } else {
+            final Calibration cal = imp.getCalibration();
+            final int px = (int) (cal.getRawX(location.x));
+            final int py = (int) (cal.getRawY(location.y));
+            final int pz = (int) (cal.getRawZ(location.z));
+            imp.setPosition(imp.getC(), pz + 1, imp.getT());
+            zoomTo(imp, zoomMagnification, px, py);
+        }
+    }
+
+    private static void zoomToPointInCanvas(final ImagePlus imp, final double zoomMagnification, final PointInCanvas pic) {
+        imp.setPosition(imp.getC(), (int) pic.z + 1, imp.getT());
+        zoomTo(imp, zoomMagnification, (int) pic.x, (int) pic.y);
     }
 
     /**

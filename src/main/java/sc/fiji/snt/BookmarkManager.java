@@ -1219,7 +1219,7 @@ class BookmarkTable extends JTable {
     /**
      * Editor for the Tag/Color column - shows color chooser on click
      */
-    class ColorCellEditor extends AbstractCellEditor implements javax.swing.table.TableCellEditor {
+    static class ColorCellEditor extends AbstractCellEditor implements javax.swing.table.TableCellEditor {
         private final JButton editorButton;
         private final JPopupMenu colorChooserPopMenu;
         private Color currentColor;
@@ -1266,21 +1266,6 @@ class BookmarkTable extends JTable {
                     colorChooserPopMenu.show(editorButton, 0, editorButton.getHeight());
                 }
             });
-        }
-
-        private Color getCustomColor(final Color initialColor) {
-            final Color[] result = new Color[1];// holder for result
-            final JColorChooser chooser = GuiUtils.colorChooser(initialColor);
-            final JDialog dialog = JColorChooser.createDialog(
-                    SwingUtilities.getWindowAncestor(BookmarkTable.this),// parent
-                    "Choose Tag Color", // title
-                    true,               // modal
-                    chooser,            // the chooser instance
-                    e -> result[0] = chooser.getColor(),         // OK button listener
-                    e -> result[0] = null      // Cancel button listener
-            );
-            dialog.setVisible(true);
-            return result[0];
         }
 
         @Override
@@ -1348,10 +1333,6 @@ class BookmarkModel extends AbstractTableModel {
     void setDataList(final List<Bookmark> dataList) {
         this.dataList = dataList;
         fireTableDataChanged();
-    }
-
-    String[] getHeader() {
-        return HEADER;
     }
 
     String getUniqueLabel(final String candidate) {

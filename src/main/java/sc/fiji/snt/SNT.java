@@ -1615,9 +1615,8 @@ public class SNT extends MultiDThreePanes implements
 		if (editing && editingPath.getEditableNodeIndex() > -1) {
 			statusMessage = "Node " + editingPath.getEditableNodeIndex() + ", ";
 		}
-		statusMessage += "World: (" + SNTUtils.formatDouble(ix * x_spacing, 2) + ", " +
-				SNTUtils.formatDouble(iy * y_spacing, 2) + ", " + SNTUtils.formatDouble(iz *
-				z_spacing, 2) + ");";
+
+		statusMessage += String.format("World: (%.2f, %.2f, %.2f);", ix * x_spacing, iy * y_spacing, iz * z_spacing);
 		if (labelData != null) {
 			final byte b = labelData[iz][iy * width + ix];
 			final int m = b & 0xFF;
