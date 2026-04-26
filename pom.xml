@@ -10,7 +10,7 @@
 
 	<groupId>org.morphonets</groupId>
 	<artifactId>SNT</artifactId>
-	<version>5.0.8-SNAPSHOT</version>
+	<version>5.0.9-SNAPSHOT</version>
 
 	<name>SNT</name>
 	<description>The framework for quantification of neuronal anatomy</description>
