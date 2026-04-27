@@ -154,7 +154,7 @@
 		<sciview.version>0.4.0</sciview.version>
 		<smile.version>4.4.0</smile.version>
 		<smile-base.version>${smile.version}</smile-base.version>
-		<smile-core.version>${smile.version}</smile-core.version>
+		<smile-core.version>6.0.1</smile-core.version>
 		<smile-plot.version>${smile.version}</smile-plot.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
