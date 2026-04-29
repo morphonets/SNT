@@ -680,33 +680,19 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
 
-    private JMenuItem initMenuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke) {
-        final JMenuItem mi = GuiUtils.MenuItems.itemWithoutAccelerator(cmdName);
-        mi.addActionListener(lstnr);
-        if (keystroke != null) {
-            mi.setAccelerator(keystroke);
-            mi.setMnemonic(keystroke.getKeyCode());
-        }
-        return mi;
-    }
-
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final int keycode,
                                final IconFactory.GLYPH glyph) {
-        return menuItem(cmdName, lstnr, KeyStroke.getKeyStroke(keycode, 0), glyph);
+        return GuiUtils.MenuItems.menuItem(cmdName, lstnr, KeyStroke.getKeyStroke(keycode, 0), glyph);
     }
 
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke,
                                final IconFactory.GLYPH glyph) {
-        final JMenuItem mi = initMenuItem(cmdName, lstnr, keystroke);
-        if (glyph != null) IconFactory.assignIcon(mi, glyph);
-        return mi;
+        return GuiUtils.MenuItems.menuItem(cmdName, lstnr, keystroke, glyph);
     }
 
     private JMenuItem menuItem(final String cmdName, final ActionListener lstnr, final KeyStroke keystroke,
                                final char symbol, final boolean solid, final Color color) {
-        final JMenuItem mi = initMenuItem(cmdName, lstnr, keystroke);
-        if (symbol != '\u0000') IconFactory.assignIcon(mi, symbol, solid, color);
-        return mi;
+        return GuiUtils.MenuItems.menuItem(cmdName, lstnr, keystroke, symbol, solid, color);
     }
 
     public void setFillTransparent(final boolean transparent) {

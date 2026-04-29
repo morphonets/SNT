@@ -127,6 +127,9 @@ public class SNTUI extends JDialog {
     private JCheckBox secLayerActivateCheckbox;
     private CheckboxSpinner secLayerImgOverlayCSpinner;
 
+    // UI controls promoted from Options tab for quick-toggle access
+    private JCheckBox diametersCheckBox;
+
     private final SNTCommandFinder commandFinder;
     private ActiveWorker activeWorker;
     private volatile int currentState = -1;
@@ -430,8 +433,12 @@ public class SNTUI extends JDialog {
         dialogGbc.insets.top = InternalUtils.TEXT_MARGIN;
         add(statusBar(), dialogGbc);
         addFileDrop(this, guiUtils);
-        registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
+        registerTabInCmdFInder("Main Tab", "Home Tab");
+        //registerTabInCmdFInder("Options Tab", "Options Tab");
+        registerTabInCmdFInder("Assistant Tab", "Curation Assistant");
         registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
+        //registerTabInCmdFInder("3D Tab", "3D Viewers");
+        registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
         registerTabInCmdFInder("Notes Tab", "Notepad");
         curationManager.registerCommands(commandFinder);
         pack();
@@ -1722,7 +1729,7 @@ public class SNTUI extends JDialog {
     private JPanel pathOptionsPanel() {
         final JPanel intPanel = new JPanel(new GridBagLayout());
         final GridBagConstraints gdb = GuiUtils.defaultGbc();
-        final JCheckBox diametersCheckBox = new JCheckBox("Draw diameters", plugin.getDrawDiameters());
+        diametersCheckBox = new JCheckBox("Draw diameters", plugin.getDrawDiameters());
         registerInCommandFinder(diametersCheckBox, "Toggle Draw Diameters", "Options Tab");
         diametersCheckBox.addItemListener(e -> plugin.setDrawDiameters(e.getStateChange() == ItemEvent.SELECTED));
         intPanel.add(diametersCheckBox, gdb);
@@ -3998,9 +4005,10 @@ public class SNTUI extends JDialog {
         return hideWindowsPanel;
     }
 
-    private JToolBar statusBar() {
+    private JPanel statusBar() {
         final JToolBar toolbar = new JToolBar();
-        // Hints button
+
+        // Hints button (left-aligned)
         final JButton hintsIndicator = new JButton(IconFactory.menuIcon('\uf0eb', false, IconFactory.defaultColor()));
         final int[] hintIndex = {0};
         final GuiUtils hintsGUtils = new GuiUtils(hintsIndicator);
@@ -4011,6 +4019,8 @@ public class SNTUI extends JDialog {
             hintIndex[0] = (hintIndex[0] + 1) % hints.size();
         });
         toolbar.add(hintsIndicator);
+        toolbar.addSeparator();
+        toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
         // Workspace indicator
@@ -4025,8 +4035,15 @@ public class SNTUI extends JDialog {
         toolbar.add(workspaceIndicator);
         toolbar.addSeparator();
 
-        // Status text (center)
+        // Quick Toggles dropdown
+        final JButton quickToggles = new JButton(IconFactory.menuIcon('\ue0b7', true, IconFactory.defaultColor()));
+        quickToggles.setToolTipText("Quick Toggles to expedite common actions");
+        quickToggles.addActionListener(e -> quickTogglesMenu().show(quickToggles, 0, quickToggles.getHeight()));
+        toolbar.add(quickToggles);
+
+        // Status text (full width, below toolbar)
         statusBarText = new JLabel("Ready to trace...");
+        statusBarText.setBorder(new EmptyBorder(0, InternalUtils.MARGIN, 0, 0));
         refreshStatus();
         statusBarText.addMouseListener(new MouseAdapter() {
             @Override
@@ -4038,8 +4055,67 @@ public class SNTUI extends JDialog {
                 }
             }
         });
-        toolbar.add(statusBarText);
-        return toolbar;
+
+        final JPanel panel = new JPanel(new BorderLayout());
+        panel.add(toolbar, BorderLayout.NORTH);
+        panel.add(statusBarText, BorderLayout.SOUTH);
+        return panel;
+    }
+
+    private JPopupMenu quickTogglesMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+
+        // Display Filters
+        GuiUtils.addSeparator(menu, "Path Display Filters:");
+        final JCheckBoxMenuItem selPaths = GuiUtils.MenuItems.checkboxMenuItem("Only selected paths",
+                showPathsSelected.isSelected(),
+                e -> showPathsSelected.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
+                KeyStroke.getKeyStroke('1'));
+        selPaths.setEnabled(showPathsSelected.isEnabled());
+        menu.add(selPaths);
+        final JCheckBoxMenuItem nearbyZ = GuiUtils.MenuItems.checkboxMenuItem("Only nearby Z-slices",
+                partsNearbyCSpinner.isSelected(),
+                e -> partsNearbyCSpinner.getCheckBox().setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
+                KeyStroke.getKeyStroke('2'));
+        nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled());
+        menu.add(nearbyZ);
+        final JCheckBoxMenuItem activeCT = GuiUtils.MenuItems.checkboxMenuItem("Only active channel/frame",
+                onlyActiveCTposition.isSelected(),
+                e -> onlyActiveCTposition.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
+                KeyStroke.getKeyStroke('3'));
+        activeCT.setEnabled(onlyActiveCTposition.isEnabled());
+        menu.add(activeCT);
+
+        // Rendering
+        GuiUtils.addSeparator(menu, "Rendering:");
+        menu.add(GuiUtils.MenuItems.checkboxMenuItem("Draw diameters",
+                diametersCheckBox.isSelected(),
+                e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
+                null));
+
+        // Tracing Toggles
+        GuiUtils.addSeparator(menu, "Tracing:");
+        final JCheckBoxMenuItem snap = GuiUtils.MenuItems.checkboxMenuItem("Cursor Auto-snapping",
+                useSnapWindow.isSelected(),
+                e -> useSnapWindow.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
+                KeyStroke.getKeyStroke('S'));
+        snap.setEnabled(useSnapWindow.isEnabled());
+        menu.add(snap);
+        final JCheckBoxMenuItem secLayer = GuiUtils.MenuItems.checkboxMenuItem("Secondary Layer",
+                secLayerActivateCheckbox.isSelected(),
+                e -> secLayerActivateCheckbox.doClick(),
+                KeyStroke.getKeyStroke('L'));
+        secLayer.setEnabled(secLayerActivateCheckbox.isEnabled());
+        menu.add(secLayer);
+        final JCheckBoxMenuItem pauseTracing = GuiUtils.MenuItems.checkboxMenuItem("Pause Tracing",
+                plugin.tracingHalted,
+                e -> pauseTracing(!plugin.tracingHalted),
+                KeyStroke.getKeyStroke("shift P"));
+        final int state = getState();
+        IconFactory.assignIcon(pauseTracing, '\uf04c', true, IconFactory.defaultColor());
+        pauseTracing.setEnabled(plugin.accessToValidImageData() && (state == READY || state == TRACING_PAUSED));
+        menu.add(pauseTracing);
+        return menu;
     }
 
     private void updateWorkspaceIndicator() {

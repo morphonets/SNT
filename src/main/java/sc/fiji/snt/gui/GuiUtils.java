@@ -3058,6 +3058,91 @@ public class GuiUtils {
 			return new JMenuItemAcc(text);
 		}
 
+		public static JCheckBoxMenuItem checkboxWithoutAccelerator(final String text, final boolean selected) {
+			class JCheckBoxMenuItemAcc extends JCheckBoxMenuItem {
+				private static final long serialVersionUID = 1L;
+
+				public JCheckBoxMenuItemAcc(final String text, final boolean selected) {
+					super(text, selected);
+				}
+
+				@Override
+				public void setAccelerator(final KeyStroke keyStroke) {
+					super.setAccelerator(keyStroke);
+					getInputMap(WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "none");
+				}
+			}
+			return new JCheckBoxMenuItemAcc(text, selected);
+		}
+
+		/**
+		 * Creates a menu item with a right-aligned shortcut hint, an optional icon,
+		 * and no global accelerator binding. Suitable for context/popup menus where
+		 * the shortcut is handled elsewhere.
+		 *
+		 * @param label    the menu item text
+		 * @param lstnr    the action listener
+		 * @param keystroke the shortcut to display (or {@code null} for none)
+		 * @param glyph    the icon glyph (or {@code null} for no icon)
+		 * @return the configured menu item
+		 */
+		public static JMenuItem menuItem(final String label, final ActionListener lstnr,
+				final KeyStroke keystroke, final IconFactory.GLYPH glyph) {
+			final JMenuItem mi = itemWithoutAccelerator(label);
+			mi.addActionListener(lstnr);
+			if (keystroke != null) {
+				mi.setAccelerator(keystroke);
+				mi.setMnemonic(keystroke.getKeyCode());
+			}
+			if (glyph != null) IconFactory.assignIcon(mi, glyph);
+			return mi;
+		}
+
+		/**
+		 * Creates a menu item with a right-aligned shortcut hint, an optional icon
+		 * specified by a font symbol, and no global accelerator binding.
+		 *
+		 * @param label     the menu item text
+		 * @param lstnr     the action listener
+		 * @param keystroke  the shortcut to display (or {@code null} for none)
+		 * @param symbol    the icon font character (or {@code ' '} for no icon)
+		 * @param solid     whether to use the solid font variant
+		 * @param color     the icon color
+		 * @return the configured menu item
+		 */
+		public static JMenuItem menuItem(final String label, final ActionListener lstnr,
+				final KeyStroke keystroke, final char symbol, final boolean solid, final Color color) {
+			final JMenuItem mi = itemWithoutAccelerator(label);
+			mi.addActionListener(lstnr);
+			if (keystroke != null) {
+				mi.setAccelerator(keystroke);
+				mi.setMnemonic(keystroke.getKeyCode());
+			}
+			if (symbol != ' ') IconFactory.assignIcon(mi, symbol, solid, color);
+			return mi;
+		}
+
+		/**
+		 * Creates a checkbox menu item with a right-aligned shortcut hint and no
+		 * global accelerator binding.
+		 *
+		 * @param label     the menu item text
+		 * @param selected  the initial selection state
+		 * @param lstnr     the action listener
+		 * @param keystroke  the shortcut to display (or {@code null} for none)
+		 * @return the configured checkbox menu item
+		 */
+		public static JCheckBoxMenuItem checkboxMenuItem(final String label, final boolean selected,
+				final ActionListener lstnr, final KeyStroke keystroke) {
+			final JCheckBoxMenuItem mi = checkboxWithoutAccelerator(label, selected);
+			mi.addActionListener(lstnr);
+			if (keystroke != null) {
+				mi.setAccelerator(keystroke);
+				mi.setMnemonic(keystroke.getKeyCode());
+			}
+			return mi;
+		}
+
 		public static JMenu helpMenu(final SNTCommandFinder cmdFinder) {
 			final JMenu helpMenu = new JMenu("Help");
 			if (cmdFinder != null) {
