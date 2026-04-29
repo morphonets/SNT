@@ -4020,6 +4020,8 @@ public class SNTUI extends JDialog {
         });
         toolbar.add(hintsIndicator);
         toolbar.addSeparator();
+        toolbar.add(GuiUtils.Buttons.keyboardCheatSheetButton());
+        toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
@@ -4037,7 +4039,7 @@ public class SNTUI extends JDialog {
 
         // Quick Toggles dropdown
         final JButton quickToggles = new JButton(IconFactory.menuIcon('\ue0b7', true, IconFactory.defaultColor()));
-        quickToggles.setToolTipText("Quick Toggles to expedite common actions");
+        quickToggles.setToolTipText("Quick Toggles for common actions");
         quickToggles.addActionListener(e -> quickTogglesMenu().show(quickToggles, 0, quickToggles.getHeight()));
         toolbar.add(quickToggles);
 

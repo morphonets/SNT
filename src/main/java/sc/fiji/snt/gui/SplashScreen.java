@@ -22,10 +22,11 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.net.URL;
 
 /* Large multichannel/timelapse images can take a while to load into SNT. This helps to maintain the GUI functional
  * Recycled code from https://stackoverflow.com/a/11935045 and net.imagej.launcher.SplashScreen
@@ -41,16 +42,8 @@ class SplashScreen extends JWindow {
 
 	static Icon getIcon() {
 		try {
-			final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-			URL logoURL = classLoader.getResource("misc/SNTLogo512x528.png");
-			if (logoURL != null) {
-				ImageIcon imageIcon = new ImageIcon(logoURL);
-				final Image image = imageIcon.getImage();
-				final Dimension dim = getScaledIconDimensions(512, 528);
-				final Image newimg = image.getScaledInstance(dim.width, dim.height, Image.SCALE_AREA_AVERAGING);
-				imageIcon = new ImageIcon(newimg);
-				return imageIcon;
-			}
+			final Dimension dim = getScaledIconDimensions(512, 528);
+			return new FlatSVGIcon("gui/SNTLogo.svg", dim.width, dim.height);
 		} catch (final Exception ignored) {
 			// do nothing
 		}

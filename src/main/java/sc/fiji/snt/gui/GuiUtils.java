@@ -71,6 +71,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.text.ParseException;
@@ -3692,6 +3695,31 @@ public class GuiUtils {
 			final JButton button = new JButton();
 			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_HELP);
 			if (url != null) button.addActionListener(e -> GuiUtils.openURL(url));
+			return button;
+		}
+
+		public static JButton keyboardCheatSheetButton() {
+			final String fallbackURL = "https://imagej.net/plugins/snt/key-shortcuts";
+			final JButton button = new JButton(IconFactory.menuIcon(GLYPH.KEYBOARD));
+			button.addActionListener(e -> {
+				final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+				final InputStream is = classloader.getResourceAsStream("gui/SNT-Keyboard-Shortcuts.html");
+                try (is) {
+                    try {
+                        if (is == null) {
+                            errorPrompt("Could not find cheatsheet. Visit " + fallbackURL);
+                            return;
+                        }
+                        final Path tmp = Files.createTempFile("snt-shortcuts-", ".html");
+                        Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
+                        tmp.toFile().deleteOnExit();
+                        Desktop.getDesktop().browse(tmp.toUri());
+                    } catch (final IOException | UnsupportedOperationException ex) {
+                        errorPrompt("Could not open cheatsheet. Visit " + fallbackURL);
+                    }
+                } catch (final IOException ignored) {
+                }
+			});
 			return button;
 		}
 

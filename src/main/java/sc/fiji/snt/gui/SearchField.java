@@ -22,7 +22,7 @@
 
 package sc.fiji.snt.gui;
 
-import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.components.FlatTextField;
 import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
 
@@ -34,7 +34,7 @@ import java.util.List;
  * An enhanced text field for search operations with built-in options for case-sensitive,
  * word-matching, and regex search modes. Includes placeholder text and a clear button.
  */
-public class SearchField extends JTextField {
+public class SearchField extends FlatTextField {
 
     public static final int OPTIONS_MENU = 0x1;
     public static final int CASE_BUTTON = 0x2;
@@ -54,14 +54,13 @@ public class SearchField extends JTextField {
      * @param visibleButtons the buttons to make visible (use bitwise OR of button constants)
      */
     public SearchField(final String placeholder, final int visibleButtons) {
-        super();
         if (placeholder != null)
-            putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder);
-        putClientProperty(FlatClientProperties.TEXT_FIELD_SHOW_CLEAR_BUTTON, true);
+            setPlaceholderText(placeholder);
+        setShowClearButton(true);
         if ((visibleButtons & OPTIONS_MENU) != 0) {
             initOptionsButton();
         } else {
-            putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, new JButton(new FlatSearchIcon(true)));
+            setLeadingComponent(new JButton(new FlatSearchIcon(true)));
         }
         final JToolBar rightToolbar = new JToolBar();
         rightToolbar.setMargin(new Insets(0, 0, 0, 2));
@@ -79,16 +78,16 @@ public class SearchField extends JTextField {
             rightToolbar.add(regexButton);
         }
         if (rightToolbar.getComponentCount() > 0)
-            putClientProperty(FlatClientProperties.TEXT_FIELD_TRAILING_COMPONENT, rightToolbar);
+            setTrailingComponent(rightToolbar);
     }
 
     public void setWarningOutlineEnabled(final boolean b) {
-        putClientProperty(FlatClientProperties.OUTLINE, (b) ? FlatClientProperties.OUTLINE_WARNING : null);
+        setOutline(b ? "warning" : null);
     }
 
     private void initOptionsButton() {
         optionsButton = new JButton(new FlatSearchWithHistoryIcon(true));
-        putClientProperty(FlatClientProperties.TEXT_FIELD_LEADING_COMPONENT, optionsButton);
+        setLeadingComponent(optionsButton);
     }
 
     private void initCaseButton() {
