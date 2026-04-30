@@ -1096,7 +1096,17 @@ public class ShollAnalysisImgCommonCmd extends DynamicCommand {
 			parser.setRadii(startRadius, adjustedStepSize(), endRadius);
 			parser.setHemiShells(hemiShellChoice);
 			parser.setThreshold(lowerT, upperT);
-			if (parser instanceof ImageParser3D) {
+			if (parser instanceof ImageParser2D && nSpans > 1) {
+				final int intFlag;
+				if (nSpansIntChoice != null && nSpansIntChoice.contains("Median")) {
+					intFlag = ImageParser2D.MEDIAN;
+				} else if (nSpansIntChoice != null && nSpansIntChoice.contains("Mode")) {
+					intFlag = ImageParser2D.MODE;
+				} else {
+					intFlag = ImageParser2D.MEAN;
+				}
+				((ImageParser2D) parser).setRadiiSpan(nSpans, intFlag);
+			} else if (parser instanceof ImageParser3D) {
 				((ImageParser3D) parser).setSkipSingleVoxels(prefService.getBoolean(
 					ShollAnalysisPrefsCmd.class, "skipSingleVoxels", ShollAnalysisPrefsCmd.DEF_SKIP_SINGLE_VOXELS));
 			}
