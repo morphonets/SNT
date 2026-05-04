@@ -235,7 +235,7 @@ public class SNTUI extends JDialog {
         plausibilityMonitor = new PlausibilityMonitor();
         curationManager = new CurationManager(this, plausibilityMonitor);
         plausibilityMonitor.addWarningListener(warnings -> {
-            // Canvas overlays only for live checks — full/deep scans populate the table only
+            // Canvas overlays only for live checks: full/deep scans populate the table only
             if (!plausibilityMonitor.isLastUpdateFromLiveCheck()) return;
             if (warnings.isEmpty()) {
                 SwingUtilities.invokeLater(() -> {

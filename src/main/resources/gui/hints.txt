@@ -62,3 +62,34 @@ Load demo datasets (File→Load Demo Dataset) to practice or test features
 Drag and drop SWC/TRACES files directly into the Path Manager to import them
 Drag and drop an image file into the Path Manager to load it
 Use the Script Recorder (Scripts menu) to generate code from GUI actions
+
+# Big Volume Viewer (since v5.0.2)
+BVV supports Imaris (.ims) and BDV/XML files—just drag and drop them onto the viewer
+Place 3D markers in BVV with the M hotkey and double-click a bookmark to fly to it
+Use BVV's slab controls to restrict path visibility to a Z-slab around the current plane
+Take a BVV snapshot with Shift+S
+BVV can subtract (un-mix) channels for cleaner multi-channel visualization
+When a dataset exceeds the GPU's max texture size, BVV will offer automatic N5 conversion
+
+# REPL & Scripting (since v5.0.3)
+The REPL now features syntax highlighting for easier interactive scripting
+
+# Reconstruction Viewer (since v5.0.4)
+Rec. Viewer: Double-click to auto-rotate the scene; Shift+double-click forces Z-axis rotation
+Rec. Viewer: Use 'Ping-pong' animation mode (Settings→Animation Type) for a gentle back-and-forth tilt instead of full 360° spins
+Rec. Viewer: Use 'Anatomical Mapping...' (Scene Controls→Axes) to label scene axes with anatomical orientations
+Rec. Viewer: Choose between Simple Lines, Pseudo-Lighting, or Shaded Tubes to render neurites (Settings→Neurite Style)
+Rec. Viewer: Enable Path Smoothing (Settings) to apply Catmull-Rom interpolation and reduce kinks at line joints
+Rec. Viewer: Enable Depth Perception (Settings) to fade distant neurites toward the background for depth cues
+Rec. Viewer: Add a scale bar overlay to the 3D scene via Scene Controls→Scale Bar
+Rec. Viewer: Mesh rendering supports Smooth Shading for per-fragment Phong lighting (Settings→Mesh Style)
+Rec. Viewer: Use 'Align View to Tree' to snap the camera to a cell's bounding box orientation
+
+# Curation & Proofreading (since v5.0.7)
+Use the Peripath Detector (Analysis→Spines/Varicosities) to detect spines and varicosities along traced paths
+The Spacing Analysis template script quantifies inter-spine or inter-varicosity distances
+
+# Curation Assistant (since v5.0.8)
+Use the Curation Assistant to flag statistical outliers—potential tracing errors—across your reconstructions
+Curation parameters persist across sessions, so calibrated thresholds carry over to future work
+Use the Plausibility Calibrator in the Curation Assistant to derive curation thresholds from trusted reference cells

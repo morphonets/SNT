@@ -227,6 +227,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JMenuItem copyItem = new JMenuItem("Copy Issue Description",
                 IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
         copyItem.addActionListener(e -> {
+            if (warningsTable.getModel().getRowCount() < 1) {
+                sntui.error("No issues exist.");
+                return;
+            }
             final int[] selectedRows = warningsTable.getSelectedRows();
             final List<PlausibilityCheck.Warning> toCopy;
             if (selectedRows.length == 0) {
@@ -627,12 +631,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JPanel p = new JPanel(new GridBagLayout());
         final GridBagConstraints c = GuiUtils.defaultGbc();
 
-        SNTUI.InternalUtils.addSeparatorWithURL(p, "On-Demand Monitoring Parameters:", true, c);
+        GuiUtils.addSeparator(p, "On-Demand Monitoring Parameters:", true, c);
         c.gridy++;
 
         // Path overlap
-        final PlausibilityCheck.PathOverlap overlapCheck =
-                monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
+        final PlausibilityCheck.PathOverlap overlapCheck = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
         // On-demand check UI controls
         overlapCheckbox = new JCheckBox("Max. proximity for path cross-overs:",
                 overlapCheck != null && overlapCheck.isEnabled());
@@ -689,6 +692,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         IconFactory.assignIcon(liveToggle, IconFactory.GLYPH.HEART_CIRCLE_BOLT, IconFactory.GLYPH.HEART_PULSE, 1.1f);
         liveToggle.setToolTipText("Enable live monitoring");
         liveToggle.addActionListener(e -> {
+            if (noParametersSelected()) {
+                liveToggle.setSelected(false);
+                return;
+            }
             final boolean on = liveToggle.isSelected();
             if (on && !monitor.getCurrentWarnings().isEmpty()) {
                 final boolean clear = sntui.guiUtils.getConfirmation(
@@ -785,6 +792,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private void runOnDemandAsync() {
+        if (noParametersSelected()) return;
         onDemandButton.setEnabled(false);
         sntui.showStatus("Running Full scan...", true);
         final List<Path> paths = sntui.plugin.getPathAndFillManager().getPathsFiltered();
@@ -1150,6 +1158,19 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             case INFO -> "\u2139 ";
         };
         return prefix + top.message();
+    }
+
+    private boolean noParametersSelected() {
+        if (!(branchAngleMinCheckbox.isSelected() || branchAngleMaxCheckbox.isSelected() ||
+                directionCheckbox.isSelected() || radiusCheckbox.isSelected() ||
+                termBranchCheckbox.isSelected() || somaDistCheckbox.isSelected() ||
+                constantRadiiCheckbox.isSelected() || tortuosityCheckbox.isSelected() ||
+                overlapCheckbox.isSelected() || radiusJumpsCheckbox.isSelected() ||
+                radiusMonoCheckbox.isSelected())) {
+            sntui.error("At least one parameter needs to be selected.");
+            return true;
+        }
+        return false;
     }
 
     private static class WarningTableModel extends AbstractTableModel {

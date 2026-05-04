@@ -10,8 +10,8 @@
 
 """
 file:
-version: 
-info:    
+version:
+info:
 """
 
 from sc.fiji.snt import Path, PathAndFillManager, SNT, SNTUI, Tree
@@ -30,4 +30,4 @@ from sc.fiji.snt.viewer import Annotation3D, OBJMesh, MultiViewer2D, Viewer2D, V
 # Documentation Resources: https://imagej.net/plugins/snt/scripting
 # Latest SNT API: https://javadoc.scijava.org/SNT/
 
-snt.requireVersion("5.0.5") # SNT version required to run this script
+snt.requireVersion("5.0.9") # SNT version required to run this script

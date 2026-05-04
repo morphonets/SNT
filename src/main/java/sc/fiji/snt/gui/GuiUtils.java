@@ -73,6 +73,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -190,7 +191,7 @@ public class GuiUtils {
 							return;
 						}
 						default -> {
-						} // UP_TO_DATE, UPDATEABLE, etc. — proceed with targeted check
+						} // UP_TO_DATE, UPDATEABLE, etc.: proceed with targeted check
 					}
 					// Now check the Neuroanatomy update site specifically
 					final java.io.File ijRoot = SNTUtils.getContext()
@@ -215,7 +216,7 @@ public class GuiUtils {
 						});
 					}
 				} catch (final Exception ignored) {
-					// Network errors, missing updater, etc. — fail silently
+					// Network errors, missing updater, etc.: fail silently
 				}
 			}, "SNT-Update-Check").start();
 		});
@@ -303,18 +304,15 @@ public class GuiUtils {
 		popup.setFocusable(false);
 		popup.setEnsureInOneScreen(true);
 
-		final JButton button = new JButton(new FlatClearIcon());//new FlatTabbedPaneCloseIcon());
-		button.setMargin(new Insets(0, 0, 0, 0));
-		button.setBorder(null);
-		button.setBorderPainted(false);
-		button.setContentAreaFilled(false);
+		final JButton button = new JButton(new FlatClearIcon());
+		Buttons.makeBorderless(button);
 		button.addActionListener(ae -> popup.hidePopup());
 		popup.addExcludedComponent(button);
 
-		final JPanel panel = new JPanel();
-		applyRoundCorners(msg);
-		panel.add(button);
-		panel.add(msg);
+		final JPanel panel = new JPanel(new BorderLayout(8, 0));
+		applyRoundCorners(panel);
+		panel.add(msg, BorderLayout.CENTER);
+		panel.add(button, BorderLayout.EAST);
 		popup.add(panel);
 
 		if (disposeOnClick) {
@@ -3773,6 +3771,7 @@ public class GuiUtils {
 		public static JButton keyboardCheatSheetButton() {
 			final String fallbackURL = "https://imagej.net/plugins/snt/key-shortcuts";
 			final JButton button = new JButton(IconFactory.menuIcon(GLYPH.KEYBOARD));
+			button.setToolTipText("List keyboard shortcuts");
 			button.addActionListener(e -> {
 				final ClassLoader classloader = Thread.currentThread().getContextClassLoader();
 				final InputStream is = classloader.getResourceAsStream("gui/SNT-Keyboard-Shortcuts.html");
@@ -3782,7 +3781,14 @@ public class GuiUtils {
                             errorPrompt("Could not find cheatsheet. Visit " + fallbackURL);
                             return;
                         }
-                        final Path tmp = Files.createTempFile("snt-shortcuts-", ".html");
+						Path dir;
+						if (PlatformUtils.isLinux()) { // Workaround Firefox snap sandbox
+							dir = Paths.get(System.getProperty("user.home"), ".cache");
+							Files.createDirectories(dir);
+						} else {
+							dir = Paths.get(System.getProperty("java.io.tmpdir"));
+						}
+                        final Path tmp = Files.createTempFile(dir, "snt-shortcuts-", ".html");
                         Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
                         tmp.toFile().deleteOnExit();
                         Desktop.getDesktop().browse(tmp.toUri());

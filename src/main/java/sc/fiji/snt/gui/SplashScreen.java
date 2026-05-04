@@ -23,6 +23,7 @@
 package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.formdev.flatlaf.util.UIScale;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -57,12 +58,12 @@ class SplashScreen extends JWindow {
 	}
 
 	private static Dimension getScaledIconDimensions(final int originalIconWidth, final int originalIconHeight) {
-		final double ref = fontSizeRef * 10; // as tall as 10 lines of text
+		final double ref = UIScale.unscale(fontSizeRef * 10); // logical pixels on all platforms
 		final Dimension dim = new Dimension();
 		if (originalIconHeight / ref < 1) {
 			dim.setSize(originalIconWidth, originalIconHeight);
 		} else {
-			dim.setSize(originalIconWidth * ref / originalIconHeight, ref);
+			dim.setSize((int)(originalIconWidth * ref / originalIconHeight), (int) ref);
 		}
 		return dim;
 	}
