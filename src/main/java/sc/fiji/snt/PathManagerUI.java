@@ -1402,37 +1402,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             cancel(updateUIState);
         }
 
-        /**
-         * Overrides to preserve original behavior: fitting proceeds even if the
-         * user cancels the parameter dialog (using whatever settings existed).
-         */
-        @Override
-        void showPromptAndThen(final boolean thenExecute) {
-            new SwingWorker<String, Object>() {
-                @Override
-                public String doInBackground() {
-                    final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-                    try {
-                        final CommandModule cm = cmdService.run(commandClass(), true).get();
-                        if (!cm.isCanceled()) return "";
-                    } catch (final InterruptedException | ExecutionException ignored) {
-                        // do nothing
-                    }
-                    return null;
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        promptHasBeenDisplayed = get() != null;
-                    } catch (final InterruptedException | ExecutionException ex) {
-                        SNTUtils.error(ex.getMessage(), ex);
-                        promptHasBeenDisplayed = false;
-                    }
-                    if (thenExecute) FitHelper.this.execute();
-                }
-            }.execute();
-        }
+        // No override of showPromptAndThen(): canceling the parameter
+        // dialog now correctly cancels the operation, matching the behavior
+        // of MultiSpectralRefineHelper and the base class.
 
         public void fitUsingPrompAsNeeded() {
             workers = pathsToFit;
@@ -4947,8 +4919,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class MultiSpectralRefineCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                if (!plugin.accessToValidImageData()) {
-                    noValidImageDataError();
+                if (noValidImageDataError()) {
                     return;
                 }
                 final ImagePlus imp = plugin.getImagePlus();

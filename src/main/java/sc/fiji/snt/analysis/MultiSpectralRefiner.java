@@ -29,6 +29,7 @@ import net.imglib2.type.numeric.NumericType;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.filter.SpectralSimilarity;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
@@ -54,8 +55,14 @@ import java.util.concurrent.Callable;
  * </ol>
  * This is an SNT-native re-implementation of the nCorrect algorithm described in:
  * <blockquote>
- *   Azzouz et al., "nCorrect: a post-hoc correction algorithm for improved accuracy
- *   of neuron traces in multispectral images"
+ *   Azzouz, S et al., "Optimized Neuron Tracing Using Post Hoc Reanalysis."
+ *   <a href="https://www.biorxiv.org/content/10.1101/2022.10.10.511642">doi:10.1101/2022.10.10.511642</a>
+ * </blockquote>
+ * The minimum path-length quality gate is informed by:
+ * <blockquote>
+ *   Leiwe et al., "Automated neuronal reconstruction with super-multicolour Tetbow
+ *   labelling and threshold-based clustering of colour hues", <i>Nat Commun</i> 15,
+ *   5279 (2024). <a href="https://doi.org/10.1038/s41467-024-49455-y">doi:10.1038/s41467-024-49455-y</a>
  * </blockquote>
  * <p>
  * Like {@link sc.fiji.snt.PathFitter}, each instance operates on a single {@link Path}.
@@ -85,6 +92,8 @@ public class MultiSpectralRefiner implements Callable<Path> {
     private int maxRadius = 12;
     private int maxIterations = 50;
     private double convergenceThreshold = 0.001; // stop when improvement < 0.1%
+    private int referenceWindowRadius = -1; // -1 = global (all nodes), >0 = sliding window of ±N nodes
+    private boolean autoTune = false; // whether to auto-tune parameters from path/image statistics
 
     // Image data
     private final ImageStack[] channelStacks;
@@ -109,9 +118,15 @@ public class MultiSpectralRefiner implements Callable<Path> {
 
     // Working data (populated during call())
     private ArrayList<int[]> workingNodes; // [x, y, z, radius] in pixel coords
-    private double[] colorRef; // reference color vector for this path (unit-normalized)
+    private double[] colorRef; // global reference color vector (unit-normalized), used when window disabled
+    private double[][] localColorRefs; // per-node reference color vectors (unit-normalized), null if global
+    private double[] localRawRefSums; // per-node unnormalized channel sums, null if global
     private boolean[] activeChannels; // channels included in cost computation
     private double rawRefSum; // unnormalized channel sum of reference color (for intensity checks)
+
+    // Voxel read cache: avoids re-reading the same voxels across iterations.
+    // Key = packed position (z * W * H + y * W + x), value = channel intensities.
+    private HashMap<Long, double[]> voxelCache;
 
     // Precomputed anisotropy ratios (squared) for ellipsoidal sampling.
     // A sphere of radius r in physical space maps to an ellipsoid in pixel space:
@@ -148,12 +163,12 @@ public class MultiSpectralRefiner implements Callable<Path> {
         // nCorrect defaults (10000/85000) were tuned for 16-bit 3-channel images
         // where max channel sum = 65535*3 = 196605. Those defaults correspond to
         // ~5% and ~43% of the maximum possible channel sum. We preserve these
-        // proportions for other bit depths and channel counts.
+        // proportions for other bit depths and channel counts
         final double maxChannelSum = (Math.pow(2, imp.getBitDepth()) - 1) * nChannels;
         this.minIntensityThreshold = 0.05 * maxChannelSum;
         this.maxIntensityThreshold = 0.43 * maxChannelSum;
 
-        // Precompute anisotropy ratios for ellipsoidal sphere sampling.
+        // Precompute anisotropy ratios for ellipsoidal sphere sampling
         // When spacings are equal these reduce to 1.0 (isotropic, no overhead).
         final double yRatio = ySpacing / xSpacing;
         final double zRatio = zSpacing / xSpacing;
@@ -274,6 +289,32 @@ public class MultiSpectralRefiner implements Callable<Path> {
     }
 
     /**
+     * Sets the sliding-window radius for per-node reference color computation.
+     * When enabled, each node's reference color is the average of the ±N
+     * neighboring nodes along the path, rather than a single global average.
+     * This handles color drift along long axons in Brainbow images.
+     *
+     * @param windowRadius number of nodes on each side to include. Use -1
+     *                     (default) for a single global reference, or a
+     *                     positive value (e.g., 10–30) for sliding window.
+     */
+    public void setReferenceWindowRadius(final int windowRadius) {
+        this.referenceWindowRadius = windowRadius;
+    }
+
+    /**
+     * Enables automatic parameter tuning from path and image statistics.
+     * When enabled, {@link #call()} will adjust {@code maxRadius},
+     * {@code cosSimilarityThreshold}, and intensity thresholds based on the
+     * actual data before running the optimization loop.
+     *
+     * @param autoTune true to enable (default false)
+     */
+    public void setAutoTune(final boolean autoTune) {
+        this.autoTune = autoTune;
+    }
+
+    /**
      * Returns the total penalty of the path before refinement.
      * Only valid after {@link #call()} has been invoked.
      */
@@ -336,6 +377,8 @@ public class MultiSpectralRefiner implements Callable<Path> {
         this.maxRadius = ref.maxRadius;
         this.maxIterations = ref.maxIterations;
         this.convergenceThreshold = ref.convergenceThreshold;
+        this.referenceWindowRadius = ref.referenceWindowRadius;
+        this.autoTune = ref.autoTune;
     }
 
     /**
@@ -365,6 +408,8 @@ public class MultiSpectralRefiner implements Callable<Path> {
             maxIntensityThreshold = prefService.getDouble(cmdClass, "maxIntensity", maxIntensityThreshold);
         }
         // else: keep the auto-calibrated values from the constructor
+        referenceWindowRadius = prefService.getInt(cmdClass, "referenceWindowRadius", -1);
+        autoTune = prefService.getBoolean(cmdClass, "autoTune", false);
     }
 
     /**
@@ -379,19 +424,51 @@ public class MultiSpectralRefiner implements Callable<Path> {
         SNTUtils.log("MSRefiner: Refining '" + path.getName()
                 + "' (" + path.size() + " nodes, " + nChannels + "ch)");
         try {
+            // 0. Path-level quality gate: paths shorter than two cross-section
+            //    diameters have too few voxels for a reliable reference color.
+            //    See Leiwe et al., Nat Commun 15, 5279 (2024) for evidence that
+            //    short fragments produce unreliable color vectors.
+            final double minLength = maxRadius * xSpacing * 2;
+            if (path.getLength() < minLength) {
+                SNTUtils.log("MSRefiner: Skipping '" + path.getName()
+                        + "': path length (" + String.format("%.2f", path.getLength())
+                        + ") < minimum (" + String.format("%.2f", minLength) + ")");
+                succeeded = false;
+                return null;
+            }
+
             // 1. Convert Path nodes to pixel-coordinate working array
             initWorkingNodes();
 
-            // 2. Compute reference color vector (average across all nodes)
-            colorRef = computeReferenceColor(0, workingNodes.size());
+            // 2. Initialize voxel cache for read deduplication
+            voxelCache = new HashMap<>();
 
-            // 3. Detect degenerate channels (zero-variance or near-zero)
+            // 3. Compute reference color vector(s)
+            if (referenceWindowRadius > 0) {
+                // Sliding-window: per-node local reference from ±windowRadius neighbors
+                computeLocalReferenceColors();
+                colorRef = null; // not used in windowed mode
+            } else {
+                // Global: single reference across all nodes
+                colorRef = computeReferenceColor(0, workingNodes.size());
+                localColorRefs = null;
+                localRawRefSums = null;
+            }
+
+            // 4. Auto-tune parameters from path/image statistics (if enabled)
+            if (autoTune) autoTuneParameters();
+
+            // 5. Detect degenerate channels (zero-variance or near-zero)
             detectDegenerateChannels();
 
-            // 4. Normalize reference color vector to unit length (Eq. 1 from paper)
-            normalizeVector(colorRef);
+            // 6. Normalize reference color vector(s) to unit length (Eq. 1 from paper)
+            if (localColorRefs != null) {
+                for (final double[] ref : localColorRefs) normalizeVector(ref);
+            } else {
+                normalizeVector(colorRef);
+            }
 
-            // 5. Assign optimal radius to each node
+            // 7. Assign optimal radius to each node
             initialPenalty = 0;
             initialNodeCosts = new double[workingNodes.size()];
             for (int i = 0; i < workingNodes.size(); i++) {
@@ -401,16 +478,19 @@ public class MultiSpectralRefiner implements Callable<Path> {
                 initialPenalty += bestRad[1];
             }
 
-            // 6. Iterative node position refinement
+            // 8. Iterative node position refinement
             finalPenalty = iterativeRefinement();
 
-            // 7. Compute final per-node costs
+            // 9. Compute final per-node costs
             finalNodeCosts = new double[workingNodes.size()];
             for (int i = 0; i < workingNodes.size(); i++) {
                 finalNodeCosts[i] = computeCost(workingNodes.get(i), i);
             }
 
-            // 8. Build the refined Path from working nodes
+            // 10. Release cache (no longer needed)
+            voxelCache = null;
+
+            // 11. Build the refined Path from working nodes
             refined = buildRefinedPath();
             succeeded = true;
             SNTUtils.log("MSRefiner: '" + path.getName() + "' refined. Penalty: "
@@ -466,10 +546,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
         workingNodes = new ArrayList<>(path.size());
         for (int i = 0; i < path.size(); i++) {
             final PointInImage node = path.getNode(i);
-            // Convert from calibrated to pixel coordinates (ImageJ convention)
-            final int px = (int) Math.round(node.x / xSpacing);
-            final int py = (int) Math.round(node.y / ySpacing);
-            final int pz = (int) Math.round(node.z / zSpacing);
+            final int[] px = SpectralSimilarity.nodeToPixelCoords(node, xSpacing, ySpacing, zSpacing);
             // Use interpolated radius if available, otherwise the node's own radius
             double radius = node.radius;
             if (interpolated != null && interpolated.containsKey(i))
@@ -477,7 +554,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
             final double rPixels = radius / xSpacing;
             // Fall back to 1 pixel if radius is still invalid (e.g., all-NaN path)
             final int pr = (Double.isNaN(rPixels) || rPixels < 1) ? 1 : (int) Math.round(rPixels);
-            workingNodes.add(new int[]{px, py, pz, pr});
+            workingNodes.add(new int[]{px[0], px[1], px[2], pr});
         }
     }
 
@@ -491,15 +568,164 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * @return the average color vector [ch0, ch1, ..., chN-1] (unnormalized)
      */
     private double[] computeReferenceColor(final int startIdx, final int endIdx) {
-        final double[] ref = new double[nChannels];
         final int count = endIdx - startIdx;
-        for (int i = startIdx; i < endIdx; i++) {
-            final int[] pt = workingNodes.get(i);
-            for (int c = 0; c < nChannels; c++) {
-                ref[c] += getVoxel(c, pt[0], pt[1], pt[2]) / (double) count;
+        final int[][] positions = new int[count][3];
+        for (int i = 0; i < count; i++) {
+            final int[] pt = workingNodes.get(startIdx + i);
+            positions[i] = new int[]{pt[0], pt[1], pt[2]};
+        }
+        final double[] ref = SpectralSimilarity.averageColorAtPositions(channelStacks, positions);
+        rawRefSum = channelSum(ref);
+        return ref;
+    }
+
+    /**
+     * Computes per-node reference color vectors using a sliding window of
+     * ±{@link #referenceWindowRadius} neighboring nodes. Each node's reference
+     * is the average color of nodes in its local neighborhood, allowing the
+     * reference to adapt to gradual color drift along long axons.
+     * <p>
+     * Endpoint nodes use asymmetric windows (only the available side).
+     * Also computes per-node raw channel sums for the intensity factor.
+     */
+    private void computeLocalReferenceColors() {
+        final int n = workingNodes.size();
+        final int w = referenceWindowRadius;
+        localColorRefs = new double[n][];
+        localRawRefSums = new double[n];
+
+        for (int i = 0; i < n; i++) {
+            final int lo = Math.max(0, i - w);
+            final int hi = Math.min(n, i + w + 1); // exclusive
+            final int count = hi - lo;
+            final int[][] positions = new int[count][3];
+            for (int j = 0; j < count; j++) {
+                final int[] pt = workingNodes.get(lo + j);
+                positions[j] = new int[]{pt[0], pt[1], pt[2]};
+            }
+            localColorRefs[i] = SpectralSimilarity.averageColorAtPositions(channelStacks, positions);
+            localRawRefSums[i] = channelSum(localColorRefs[i]);
+        }
+        // Set global rawRefSum to the median local sum (used by degenerate channel detection)
+        final double[] sortedSums = localRawRefSums.clone();
+        java.util.Arrays.sort(sortedSums);
+        rawRefSum = sortedSums[n / 2];
+        SNTUtils.log("MSRefiner: Using sliding-window reference (±" + w + " nodes). "
+                + "Local refSum range: " + String.format("%.1f - %.1f", sortedSums[0], sortedSums[n - 1]));
+    }
+
+    /**
+     * Automatically adjusts parameters based on path and image statistics.
+     * Called during {@link #call()} when {@link #autoTune} is enabled, after
+     * working nodes and reference color have been computed.
+     * <p>
+     * Adjusts three groups of parameters:
+     * <ol>
+     *   <li><b>maxRadius</b>: set to {@code ceil(meanPathRadius * 2.5)}, clamped to [3, 30].
+     *       Paths with no valid radii keep the existing default.</li>
+     *   <li><b>cosSimilarityThreshold</b>: estimated from the distribution of cosine
+     *       similarities along path nodes. Set to {@code mean - 2σ}, clamped to [0.70, 0.98].
+     *       Paths with uniform color get a tight threshold; variable paths get a looser one.</li>
+     *   <li><b>Intensity thresholds</b>: derived from the 5th and 95th percentiles of
+     *       actual node intensities rather than from theoretical bit-depth limits.</li>
+     * </ol>
+     */
+    private void autoTuneParameters() {
+        final int n = workingNodes.size();
+        if (n < 3) return; // too few nodes to estimate statistics
+
+        // --- 1. maxRadius from path radii ---
+        double sumR = 0;
+        int validR = 0;
+        for (final int[] pt : workingNodes) {
+            if (pt[3] > 0) {
+                sumR += pt[3];
+                validR++;
             }
         }
-        rawRefSum = channelSum(ref);
+        if (validR > 0) {
+            final int suggested = (int) Math.ceil((sumR / validR) * 2.5);
+            final int newMax = Math.max(3, Math.min(30, suggested));
+            if (newMax != maxRadius) {
+                SNTUtils.log("MSRefiner: Auto-tune maxRadius: " + maxRadius + " -> " + newMax
+                        + " (mean path radius=" + String.format("%.1f", sumR / validR) + "px)");
+                maxRadius = newMax;
+            }
+        }
+
+        // --- 2. cosSimilarityThreshold from observed color variance ---
+        // Compute cosine similarity between each node's color and the reference,
+        // then set threshold = mean - 2*stdDev (allows 2σ of natural variation)
+        final double[] cosSims = new double[n];
+        // Use the global reference for this estimation (stable baseline)
+        final double[] ref = (colorRef != null) ? colorRef
+                : computeNormalizedGlobalRef();
+        for (int i = 0; i < n; i++) {
+            final int[] pt = workingNodes.get(i);
+            final double[] voxColor = new double[nChannels];
+            for (int c = 0; c < nChannels; c++)
+                voxColor[c] = channelStacks[c].getVoxel(pt[0], pt[1], pt[2]);
+            double dot = 0, mag = 0;
+            for (int c = 0; c < nChannels; c++) {
+                dot += voxColor[c] * ref[c];
+                mag += voxColor[c] * voxColor[c];
+            }
+            mag = Math.sqrt(mag);
+            cosSims[i] = (mag > 0) ? dot / mag : 0;
+        }
+        double simSum = 0, simSumSq = 0;
+        for (final double s : cosSims) { simSum += s; simSumSq += s * s; }
+        final double simMean = simSum / n;
+        final double simStd = Math.sqrt(Math.max(0, simSumSq / n - simMean * simMean));
+        final double suggested = simMean - 2.0 * simStd;
+        final double newThreshold = Math.max(0.70, Math.min(0.98, suggested));
+        if (Math.abs(newThreshold - cosSimilarityThreshold) > 0.01) {
+            SNTUtils.log("MSRefiner: Auto-tune cosSimilarityThreshold: "
+                    + String.format("%.3f -> %.3f", cosSimilarityThreshold, newThreshold)
+                    + " (mean cosine=" + String.format("%.3f", simMean)
+                    + ", std=" + String.format("%.3f", simStd) + ")");
+            cosSimilarityThreshold = newThreshold;
+        }
+
+        // --- 3. Intensity thresholds from actual node intensity distribution ---
+        final double[] intensities = new double[n];
+        for (int i = 0; i < n; i++) {
+            final int[] pt = workingNodes.get(i);
+            double sum = 0;
+            for (int c = 0; c < nChannels; c++)
+                sum += channelStacks[c].getVoxel(pt[0], pt[1], pt[2]);
+            intensities[i] = sum;
+        }
+        java.util.Arrays.sort(intensities);
+        // 5th and 95th percentiles
+        final double p5 = intensities[Math.max(0, (int) (n * 0.05))];
+        final double p95 = intensities[Math.min(n - 1, (int) (n * 0.95))];
+        // Set thresholds with some headroom
+        final double newMin = p5 * 0.5;
+        final double newMax = p95 * 1.5;
+        if (Math.abs(newMin - minIntensityThreshold) > 1 || Math.abs(newMax - maxIntensityThreshold) > 1) {
+            SNTUtils.log("MSRefiner: Auto-tune intensity range: ["
+                    + String.format("%.0f, %.0f] -> [%.0f, %.0f]",
+                    minIntensityThreshold, maxIntensityThreshold, newMin, newMax)
+                    + " (P5=" + String.format("%.0f", p5)
+                    + ", P95=" + String.format("%.0f", p95) + ")");
+            minIntensityThreshold = newMin;
+            maxIntensityThreshold = newMax;
+        }
+    }
+
+    /**
+     * Computes a normalized global reference color (used by auto-tune when
+     * only local references are available).
+     */
+    private double[] computeNormalizedGlobalRef() {
+        final int[][] positions = new int[workingNodes.size()][3];
+        for (int i = 0; i < workingNodes.size(); i++) {
+            final int[] pt = workingNodes.get(i);
+            positions[i] = new int[]{pt[0], pt[1], pt[2]};
+        }
+        final double[] ref = SpectralSimilarity.averageColorAtPositions(channelStacks, positions);
+        normalizeVector(ref);
         return ref;
     }
 
@@ -543,17 +769,9 @@ public class MultiSpectralRefiner implements Callable<Path> {
         }
     }
 
-    /**
-     * Normalizes a vector to unit length in place. If the vector has zero magnitude,
-     * it is left unchanged.
-     */
+    /** @see SpectralSimilarity#normalizeVector(double[]) */
     private static void normalizeVector(final double[] vec) {
-        double mag = 0;
-        for (final double v : vec) mag += v * v;
-        mag = Math.sqrt(mag);
-        if (mag > 0) {
-            for (int i = 0; i < vec.length; i++) vec[i] /= mag;
-        }
+        SpectralSimilarity.normalizeVector(vec);
     }
 
     /**
@@ -583,7 +801,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
     /**
      * Computes the 3-term cost for a node at the given position with its current radius.
      * <p>
-     * This is the heart of nCorrect: for each voxel in the node's sphere, we check:
+     * This is the core of nCorrect: for each voxel in the node's sphere, we check:
      * <ul>
      *   <li><b>Intensity condition</b>: total intensity within [percentC * refSum, 3 * refSum]</li>
      *   <li><b>Color condition</b>: cosine similarity between unit-normalized voxel color
@@ -596,13 +814,19 @@ public class MultiSpectralRefiner implements Callable<Path> {
      * from the color similarity computation but still contribute to intensity sums.
      *
      * @param pos       the node [x, y, z, radius]
-     * @param nodeIndex index of this node (unused currently, reserved for future per-node ref)
+     * @param nodeIndex index of this node in the working list (used to select
+     *                  the per-node reference color when sliding-window mode is active)
      * @return the cost value
      */
-    @SuppressWarnings("unused")
     private double computeCost(final int[] pos, final int nodeIndex) {
         final int r = pos[3];
         if (r <= 0) return Double.MAX_VALUE;
+
+        // Select reference color for this node: local (sliding window) or global
+        final double[] nodeRef = (localColorRefs != null && nodeIndex >= 0
+                && nodeIndex < localColorRefs.length) ? localColorRefs[nodeIndex] : colorRef;
+        final double nodeRefSum = (localRawRefSums != null && nodeIndex >= 0
+                && nodeIndex < localRawRefSums.length) ? localRawRefSums[nodeIndex] : rawRefSum;
 
         // Collect voxels within the physical sphere (ellipsoid in pixel space).
         // A sphere of physical radius r*xSpacing satisfies:
@@ -612,7 +836,21 @@ public class MultiSpectralRefiner implements Callable<Path> {
         final double r2 = (double) r * r;
         final int rY = (int) Math.ceil(r / Math.sqrt(yAniso2));
         final int rZ = (int) Math.ceil(r / Math.sqrt(zAniso2));
-        final List<int[]> voxels = new ArrayList<>();
+
+        // Adaptive intensity tolerance (percentC): driven by the actual intensity
+        // at the node center rather than the path-average reference. This makes the
+        // tolerance continuously adaptive: dim regions get wider tolerance, bright
+        // regions get stricter tolerance regardless of the overall path brightness.
+        final double[] centerColor = getVoxelAllChannels(pos[0], pos[1], pos[2]);
+        double centerSum = 0;
+        for (int c = 0; c < nChannels; c++) centerSum += centerColor[c];
+        final double percentC = computePercentC(centerSum);
+
+        // Score each voxel inline (no intermediate list allocation)
+        int totalVoxels = 0;
+        double badIntensityCount = 0;
+        double badColorCount = 0;
+
         for (int z = pos[2] - rZ; z <= pos[2] + rZ; z++) {
             for (int x = pos[0] - r; x <= pos[0] + r; x++) {
                 for (int y = pos[1] - rY; y <= pos[1] + rY; y++) {
@@ -620,53 +858,40 @@ public class MultiSpectralRefiner implements Callable<Path> {
                     final int dy = y - pos[1];
                     final int dz = z - pos[2];
                     final double dist2 = dx * dx + dy * dy * yAniso2 + dz * dz * zAniso2;
-                    if (isValid(x, y, z) && dist2 < r2) {
-                        voxels.add(new int[]{x, y, z});
+                    if (!isValid(x, y, z) || dist2 >= r2) continue;
+                    totalVoxels++;
+
+                    // Read all channels at once (cached if voxelCache is active)
+                    final double[] voxelColor = getVoxelAllChannels(x, y, z);
+                    double voxelSum = 0;
+                    for (int c = 0; c < nChannels; c++) voxelSum += voxelColor[c];
+
+                    // Intensity condition: is voxel intensity in expected range?
+                    final boolean intensityOk = voxelSum > percentC * nodeRefSum
+                            && voxelSum < 3.0 * nodeRefSum;
+
+                    // Color condition: cosine similarity on unit-normalized vectors (Eq. 1)
+                    // Only active channels participate in the spectral angle computation
+                    double dotProd = 0;
+                    double magVoxel = 0;
+                    for (int c = 0; c < nChannels; c++) {
+                        if (!activeChannels[c]) continue;
+                        dotProd += voxelColor[c] * nodeRef[c];
+                        magVoxel += voxelColor[c] * voxelColor[c];
                     }
+                    // nodeRef is already unit-normalized, so magRef = 1.0
+                    final double denom = Math.sqrt(magVoxel);
+                    final boolean colorOk = denom > 0 && (dotProd / denom) > cosSimilarityThreshold;
+
+                    if (!intensityOk) badIntensityCount++;
+                    if (!colorOk && !intensityOk) badColorCount++;
                 }
             }
         }
-        if (voxels.isEmpty()) return Double.MAX_VALUE;
+        if (totalVoxels == 0) return Double.MAX_VALUE;
 
-        // Adaptive intensity tolerance (percentC) uses raw (unnormalized) reference sum
-        final double refSum = rawRefSum;
-        final double percentC = computePercentC(refSum);
-
-        // Score each voxel
-        double badIntensityCount = 0;
-        double badColorCount = 0;
-        final double[] voxelColor = new double[nChannels];
-
-        for (final int[] vox : voxels) {
-            double voxelSum = 0;
-
-            for (int c = 0; c < nChannels; c++) {
-                voxelColor[c] = getVoxel(c, vox[0], vox[1], vox[2]);
-                voxelSum += voxelColor[c];
-            }
-
-            // Intensity condition: is voxel intensity in expected range?
-            final boolean intensityOk = voxelSum > percentC * refSum && voxelSum < 3.0 * refSum;
-
-            // Color condition: cosine similarity on unit-normalized vectors (Eq. 1)
-            // Only active channels participate in the spectral angle computation
-            double dotProd = 0;
-            double magVoxel = 0;
-            for (int c = 0; c < nChannels; c++) {
-                if (!activeChannels[c]) continue;
-                dotProd += voxelColor[c] * colorRef[c];
-                magVoxel += voxelColor[c] * voxelColor[c];
-            }
-            // colorRef is already unit-normalized, so magRef = 1.0
-            final double denom = Math.sqrt(magVoxel);
-            final boolean colorOk = denom > 0 && (dotProd / denom) > cosSimilarityThreshold;
-
-            if (!intensityOk) badIntensityCount++;
-            if (!colorOk && !intensityOk) badColorCount++;
-        }
-
-        double fracBadIntensity = badIntensityCount / voxels.size();
-        final double fracBadColor = badColorCount / voxels.size();
+        double fracBadIntensity = badIntensityCount / totalVoxels;
+        final double fracBadColor = badColorCount / totalVoxels;
 
         // Strong penalty if mostly background and radius > 1
         if (fracBadIntensity >= backgroundThreshold && r > 1) {
@@ -806,10 +1031,41 @@ public class MultiSpectralRefiner implements Callable<Path> {
     }
 
     /**
+     * Gets all channel values at a voxel position. If the voxel cache is active,
+     * values are read from the cache (or read once and cached). This avoids
+     * redundant ImageStack reads across iterations since the same voxels are
+     * re-evaluated many times as neighboring nodes shift positions.
+     *
+     * @param x column (ImageJ x)
+     * @param y row (ImageJ y)
+     * @param z slice (ImageJ z)
+     * @return channel intensities (length = nChannels)
+     */
+    private double[] getVoxelAllChannels(final int x, final int y, final int z) {
+        if (voxelCache != null) {
+            final long key = (long) z * imgWidth * imgHeight + (long) y * imgWidth + x;
+            double[] cached = voxelCache.get(key);
+            if (cached != null) return cached;
+            cached = new double[nChannels];
+            for (int c = 0; c < nChannels; c++)
+                cached[c] = channelStacks[c].getVoxel(x, y, z);
+            voxelCache.put(key, cached);
+            return cached;
+        }
+        final double[] vals = new double[nChannels];
+        for (int c = 0; c < nChannels; c++)
+            vals[c] = channelStacks[c].getVoxel(x, y, z);
+        return vals;
+    }
+
+    /**
      * Gets the voxel value at the given pixel position in the specified channel.
      * Coordinates follow ImageJ convention: x=column, y=row, z=slice.
      */
     private double getVoxel(final int channel, final int x, final int y, final int z) {
+        if (voxelCache != null) {
+            return getVoxelAllChannels(x, y, z)[channel];
+        }
         return channelStacks[channel].getVoxel(x, y, z);
     }
 
@@ -817,10 +1073,9 @@ public class MultiSpectralRefiner implements Callable<Path> {
         return x >= 0 && y >= 0 && z >= 0 && x < imgWidth && y < imgHeight && z < imgDepth;
     }
 
+    /** @see SpectralSimilarity#channelSum(double[]) */
     private static double channelSum(final double[] color) {
-        double sum = 0;
-        for (final double v : color) sum += v;
-        return sum;
+        return SpectralSimilarity.channelSum(color);
     }
 
     /**
@@ -928,6 +1183,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
     public static double[] computeNodeCosts(final ImagePlus imp, final Path path) {
         final MultiSpectralRefiner refiner = new MultiSpectralRefiner(imp, path);
         refiner.initWorkingNodes();
+        refiner.voxelCache = new HashMap<>();
         refiner.colorRef = refiner.computeReferenceColor(0, refiner.workingNodes.size());
         refiner.detectDegenerateChannels();
         normalizeVector(refiner.colorRef);
@@ -937,6 +1193,7 @@ public class MultiSpectralRefiner implements Callable<Path> {
             refiner.workingNodes.get(i)[3] = (int) bestRad[0];
             costs[i] = bestRad[1];
         }
+        refiner.voxelCache = null;
         return costs;
     }
 
@@ -961,14 +1218,18 @@ public class MultiSpectralRefiner implements Callable<Path> {
             double maxPercentC,
             int maxRadius,
             int maxIterations,
-            double convergenceThreshold
+            double convergenceThreshold,
+            int referenceWindowRadius,
+            boolean autoTune
     ) {
         /**
          * Default parameters: weights and thresholds from the nCorrect publication,
          * with intensity thresholds set to NaN (auto-calibrated from bit depth).
+         * Reference window is -1 (global, single reference per path).
+         * Auto-tune is off by default.
          */
         public static Parameters defaults() {
-            return new Parameters(1.00, 0.85, 3.75, 0.90, 0.47, Double.NaN, Double.NaN, 0.05, 0.30, 12, 50, 0.001);
+            return new Parameters(1.00, 0.85, 3.75, 0.90, 0.47, Double.NaN, Double.NaN, 0.05, 0.30, 12, 50, 0.001, -1, false);
         }
 
         void applyTo(final MultiSpectralRefiner r) {
@@ -983,6 +1244,8 @@ public class MultiSpectralRefiner implements Callable<Path> {
             r.setMaxRadius(maxRadius);
             r.setMaxIterations(maxIterations);
             r.setConvergenceThreshold(convergenceThreshold);
+            r.setReferenceWindowRadius(referenceWindowRadius);
+            r.setAutoTune(autoTune);
         }
     }
 }

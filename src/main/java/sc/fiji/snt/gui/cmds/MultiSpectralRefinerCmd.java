@@ -57,13 +57,18 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 	public static final String MAX_PERCENT_C_KEY = "maxPercentC";
 	public static final String MAX_RADIUS_KEY = "maxRadius";
 	public static final String AUTO_INTENSITY_KEY = "autoIntensity";
+	public static final String REF_WINDOW_KEY = "referenceWindowRadius";
+	public static final String AUTO_TUNE_KEY = "autoTune";
 
 	@Parameter
 	private PrefService prefService;
 
+	private String unit;
+	private double smallestSep;
+
 	private static final String EMPTY_LABEL = "<html>&nbsp;";
 	private static final String HEADER = "<HTML><body><div style='width:"
-			+ GuiUtils.renderedWidth("Relative importance of matching criteria: Controls how much each criterion influences")
+			+ GuiUtils.renderedWidth("Relative importance of matching criteria: Controls how much each criterion influences node ")
 			+ ";'>";
 
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
@@ -101,8 +106,7 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 	// Detection criteria
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
 	private final String msg2 = HEADER
-			+ "<b>Detection criteria:</b> Define when a voxel is considered part of the neurite "
-			+ "versus background.";
+			+ "<b>Detection criteria:</b> Define when a voxel is considered part of the neurite vs background.";
 
 	@Parameter(required = false, label = "Color-match stringency",
 			description = "<HTML>How closely a voxel's color must match the neurite's reference color (0–1).<br>"
@@ -116,11 +120,34 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 			style = "format:#.00", min = "0", max = "1", stepSize = "0.05")
 	private double backgroundThreshold;
 
-	@Parameter(required = false, label = "Max. radius (pixels)",
+	@Parameter(required = false, persist = false, label = "Max. radius",
 			description = "<HTML>Largest cross-section radius tested during optimization.<br>"
 					+ "(Tip: Should be 2–3× the expected neurite thickness)",
-			min = "1", stepSize = "1")
-	private int maxRadius;
+			style = "format:#.000", min = "0.001", callback = "updateMaxRadiusLegend")
+	private double maxRadius;
+
+	@Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE, initializer = "updateMaxRadiusLegend")
+	private String maxRadiusLegend;
+
+	private static final String REF_WINDOW_GLOBAL = "Global (single reference per path)";
+	private static final String REF_WINDOW_SLIDING = "Sliding window (adapts to color drift)";
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String msg2b = HEADER
+			+ "<b>Reference color strategy:</b> How the reference color vector is computed. "
+			+ "A sliding window adapts to gradual color changes along long neurites.";
+
+	@Parameter(required = false, label = EMPTY_LABEL,
+			choices = { REF_WINDOW_GLOBAL, REF_WINDOW_SLIDING },
+			callback = "refWindowChanged")
+	private String refWindowChoice;
+
+	@Parameter(required = false, label = "Window extent (±nodes)",
+			description = "<HTML>Number of neighboring nodes (on each side) used for the local reference color.<br>"
+					+ "Larger values smooth more, smaller values track finer color shifts.<br>"
+					+ "Only used when 'Sliding window' is selected.",
+			min = "3", stepSize = "5")
+	private int referenceWindowRadius;
 
 	private static final String INTENSITY_RANGE_AUTO = "Auto-calibrate from image (min./max. below ignored)";
 	private static final String INTENSITY_RANGE_MANUAL = "Specify manually (min./max. below used as-is)";
@@ -153,7 +180,7 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 	private final String msg4 = HEADER
 			+ "<b>Brightness tolerance:</b> How forgiving the brightness assessment is when deciding "
 			+ "if a voxel belongs to the neurite. Dim neurites get a wider tolerance; bright "
-			+ "neurites get a stricter one. Use defaults in case of doubt.";
+			+ "neurites get a stricter one.";
 
 	@Parameter(required = false, label = "Tolerance (bright signal)",
 			description = "<HTML>Strictest tolerance, applied to the brightest neurites (0–1).<br>"
@@ -167,13 +194,19 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 			style = "format:#.00", min = "0", max = "1", stepSize = "0.01")
 	private double maxPercentC;
 
-	// Threading
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE,
-			description = "Press 'Reset' or set it to 0 to use the available processors on your computer")
-	private final String msg5 = HEADER
-			+ "<b>Multithreading:</b> Number of parallel threads:";
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE)
+	private final String msg5 = HEADER + "<b>Global Options:</b>";
 
-	@Parameter(required = false, label = EMPTY_LABEL, persist = false, min = "0", stepSize = "1")
+	// Auto-tuning
+	@Parameter(required = false, label = "Auto-tune from traced paths",
+			description = "<HTML>Automatically adjusts max. radius, color-match stringency, and signal intensity range<br>"
+					+ "based on the actual path data. Manual values above are used as starting points<br>"
+					+ "and may be overridden per-path during refinement.")
+	private boolean autoTune;
+
+	// Threading
+	@Parameter(required = false, label = "No. of parallel threads", persist = false, min = "0", stepSize = "1",
+			description = "Press 'Reset' or set it to 0 to use the available processors on your computer")
 	private int nThreads;
 
 	@Parameter(required = false, label = "Reset Defaults", callback = "reset")
@@ -181,6 +214,16 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 
 	@SuppressWarnings("unused")
 	private void init() {
+		// Calibration info for unit conversion
+		if (SNTUtils.getInstance() != null && SNTUtils.getInstance().accessToValidImageData()) {
+			unit = SNTUtils.getInstance().getSpacingUnits();
+			smallestSep = SNTUtils.getInstance().getMinimumSeparation();
+		} else {
+			unit = SNTUtils.getSanitizedUnit(null);
+			smallestSep = 1;
+		}
+		if (smallestSep <= 0) smallestSep = 1; // guard against degenerate calibrations
+
 		final MultiSpectralRefiner.Parameters defaults = MultiSpectralRefiner.Parameters.defaults();
 		if (Double.isNaN(intensityWeight) || intensityWeight < 0)
 			intensityWeight = defaults.intensityWeight();
@@ -192,12 +235,23 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 			cosSimilarityThreshold = defaults.cosSimilarityThreshold();
 		if (Double.isNaN(backgroundThreshold))
 			backgroundThreshold = defaults.backgroundThreshold();
-		if (maxRadius <= 0)
-			maxRadius = defaults.maxRadius();
+		// maxRadius is persisted in pixels; convert to calibrated units for display
+		final int storedMaxRadiusPx = prefService.getInt(MultiSpectralRefinerCmd.class, MAX_RADIUS_KEY, 0);
+		if (storedMaxRadiusPx > 0) {
+			maxRadius = storedMaxRadiusPx * smallestSep;
+		} else {
+			maxRadius = defaults.maxRadius() * smallestSep;
+		}
 		if (Double.isNaN(minPercentC))
 			minPercentC = defaults.minPercentC();
 		if (Double.isNaN(maxPercentC))
 			maxPercentC = defaults.maxPercentC();
+
+		// Initialize reference window from stored prefs
+		referenceWindowRadius = prefService.getInt(MultiSpectralRefinerCmd.class, REF_WINDOW_KEY, -1);
+		refWindowChoice = (referenceWindowRadius > 0) ? REF_WINDOW_SLIDING : REF_WINDOW_GLOBAL;
+		if (referenceWindowRadius < 3 && referenceWindowRadius != -1)
+			referenceWindowRadius = 15;
 
 		// Initialize intensity range from stored prefs or auto-calibrate
 		final boolean autoIntensity = prefService.getBoolean(MultiSpectralRefinerCmd.class, AUTO_INTENSITY_KEY, true);
@@ -211,6 +265,13 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 				maxIntensityThreshold = 85000;
 		}
 		nThreads = getAdjustedThreadNumber(SNTPrefs.getThreads());
+		updateMaxRadiusLegend();
+	}
+
+	@SuppressWarnings("unused")
+	private void updateMaxRadiusLegend() {
+		maxRadiusLegend = String.format("For current image: %.3f%s ≈ %dpixel(s)",
+				maxRadius, unit, Math.round(maxRadius / smallestSep));
 	}
 
 	private boolean isAutoIntensity() {
@@ -238,6 +299,15 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 	}
 
 	@SuppressWarnings("unused")
+	private void refWindowChanged() {
+		if (REF_WINDOW_GLOBAL.equals(refWindowChoice)) {
+			referenceWindowRadius = -1;
+		} else if (referenceWindowRadius < 3) {
+			referenceWindowRadius = 15; // sensible default for sliding window
+		}
+	}
+
+	@SuppressWarnings("unused")
 	private void reset() {
 		final MultiSpectralRefiner.Parameters defaults = MultiSpectralRefiner.Parameters.defaults();
 		intensityWeight = defaults.intensityWeight();
@@ -245,13 +315,17 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 		radiusWeight = defaults.radiusWeight();
 		cosSimilarityThreshold = defaults.cosSimilarityThreshold();
 		backgroundThreshold = defaults.backgroundThreshold();
-		maxRadius = defaults.maxRadius();
+		maxRadius = defaults.maxRadius() * smallestSep;
 		minPercentC = defaults.minPercentC();
 		maxPercentC = defaults.maxPercentC();
 		intensityRangeChoice = INTENSITY_RANGE_AUTO;
 		autoCalibrate();
+		referenceWindowRadius = -1;
+		refWindowChoice = REF_WINDOW_GLOBAL;
+		autoTune = false;
 		nThreads = getAdjustedThreadNumber(0);
 		prefService.clear(MultiSpectralRefinerCmd.class);
+		updateMaxRadiusLegend();
 	}
 
 	private int getAdjustedThreadNumber(final int threads) {
@@ -268,7 +342,7 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 		prefService.put(MultiSpectralRefinerCmd.class, RADIUS_WEIGHT_KEY, radiusWeight);
 		prefService.put(MultiSpectralRefinerCmd.class, COS_SIMILARITY_KEY, cosSimilarityThreshold);
 		prefService.put(MultiSpectralRefinerCmd.class, BACKGROUND_THRESHOLD_KEY, backgroundThreshold);
-		prefService.put(MultiSpectralRefinerCmd.class, MAX_RADIUS_KEY, maxRadius);
+		prefService.put(MultiSpectralRefinerCmd.class, MAX_RADIUS_KEY, Math.max(1, (int) Math.round(maxRadius / smallestSep)));
 		prefService.put(MultiSpectralRefinerCmd.class, MIN_PERCENT_C_KEY, minPercentC);
 		prefService.put(MultiSpectralRefinerCmd.class, MAX_PERCENT_C_KEY, maxPercentC);
 		final boolean auto = isAutoIntensity();
@@ -277,6 +351,9 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 			prefService.put(MultiSpectralRefinerCmd.class, MIN_INTENSITY_KEY, minIntensityThreshold);
 			prefService.put(MultiSpectralRefinerCmd.class, MAX_INTENSITY_KEY, maxIntensityThreshold);
 		}
+		final int winRadius = REF_WINDOW_SLIDING.equals(refWindowChoice) ? referenceWindowRadius : -1;
+		prefService.put(MultiSpectralRefinerCmd.class, REF_WINDOW_KEY, winRadius);
+		prefService.put(MultiSpectralRefinerCmd.class, AUTO_TUNE_KEY, autoTune);
 		nThreads = getAdjustedThreadNumber(nThreads);
 		SNTPrefs.setThreads(nThreads);
 	}
@@ -288,8 +365,10 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 	 * @return the parameter set from stored preferences
 	 */
 	public static MultiSpectralRefiner.Parameters readParameters() {
-		final PrefService prefService = SNTUtils.getContext().getService(PrefService.class);
 		final MultiSpectralRefiner.Parameters defaults = MultiSpectralRefiner.Parameters.defaults();
+		if (SNTUtils.getContext() == null) return defaults;
+		final PrefService prefService = SNTUtils.getContext().getService(PrefService.class);
+		if (prefService == null) return defaults;
 		return new MultiSpectralRefiner.Parameters(
 				prefService.getDouble(MultiSpectralRefinerCmd.class, INTENSITY_WEIGHT_KEY, defaults.intensityWeight()),
 				prefService.getDouble(MultiSpectralRefinerCmd.class, COLOR_WEIGHT_KEY, defaults.colorWeight()),
@@ -302,7 +381,9 @@ public class MultiSpectralRefinerCmd extends ContextCommand {
 				prefService.getDouble(MultiSpectralRefinerCmd.class, MAX_PERCENT_C_KEY, defaults.maxPercentC()),
 				prefService.getInt(MultiSpectralRefinerCmd.class, MAX_RADIUS_KEY, defaults.maxRadius()),
 				defaults.maxIterations(),
-				defaults.convergenceThreshold()
+				defaults.convergenceThreshold(),
+				prefService.getInt(MultiSpectralRefinerCmd.class, REF_WINDOW_KEY, defaults.referenceWindowRadius()),
+				prefService.getBoolean(MultiSpectralRefinerCmd.class, AUTO_TUNE_KEY, defaults.autoTune())
 		);
 	}
 

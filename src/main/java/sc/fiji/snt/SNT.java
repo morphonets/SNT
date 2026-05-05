@@ -168,7 +168,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 	public enum FilterType {
-		TUBENESS, FRANGI, GAUSS, MEDIAN;
+		TUBENESS, FRANGI, GAUSS, MEDIAN, SPECTRAL;
 		@Override
 		public String toString() {
 			return StringUtils.capitalize(super.toString().toLowerCase());

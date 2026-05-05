@@ -932,6 +932,29 @@ public class ImgUtils {
     }
 
     /**
+     * Gets a 4D (X, Y, Z, C) view of the {@link ImagePlus} at the current time frame,
+     * retaining all channels. This is useful for multichannel/spectral operations
+     * that need access to all channel data simultaneously.
+     * <p>
+     * The returned RAI has axis order [X, Y, Z, C], obtained from the canonical
+     * 5D [X, Y, C, Z, T] representation by fixing T and permuting C past Z.
+     *
+     * @param imp the input ImagePlus (must have at least 2 channels)
+     * @param <T> the pixel type
+     * @return 4D RAI with axis order [X, Y, Z, C], or null if the image has fewer than 2 channels
+     */
+    public static <T extends RealType<T>> RandomAccessibleInterval<T> getXYZCImage(final ImagePlus imp) {
+        if (imp.getNChannels() < 2) return null;
+        // impToRealRai5d returns [X, Y, C, Z, T]
+        RandomAccessibleInterval<T> img = impToRealRai5d(imp);
+        // Fix T at current frame (0-indexed)
+        img = Views.hyperSlice(img, 4, imp.getFrame() - 1);
+        // Now [X, Y, C, Z]: permute to [X, Y, Z, C]
+        img = Views.permute(img, 2, 3);
+        return img;
+    }
+
+    /**
      * Checks if pos is outside the bounds given by min and max
      *
      * @param pos the position to check

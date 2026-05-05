@@ -46,12 +46,14 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Lazy;
+import sc.fiji.snt.filter.SpectralSimilarity;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.SigmaPaletteListener;
@@ -103,6 +105,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private static final String GAUSS_ALT = "Gaussian Blur";
 	private static final String MEDIAN = "Median (Single-scale filter, must be computed for full image)";
 	private static final String MEDIAN_ALT = "Median";
+	private static final String SPECTRAL = "Spectral Similarity (Brainbow / Multichannel)";
+	private static final String SPECTRAL_ALT = "Spectral Similarity";
 	private static final String FLOAT = "32-bit";
 	private static final String DOUBLE = "64-bit";
 
@@ -118,7 +122,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "Filtering:")
 	private String HEADER1;
 
-	@Parameter(label = "Filter", choices = {TUBENESS, FRANGI, GAUSS, MEDIAN, NONE }, callback = "filterChanged")
+	@Parameter(label = "Filter", choices = {TUBENESS, FRANGI, GAUSS, MEDIAN, SPECTRAL, NONE }, callback = "filterChanged")
 	private String filter = TUBENESS;
 
 	@Parameter(label = "Scale(s)", required = false, //
@@ -170,11 +174,14 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	private boolean useLazy;
 	private List<Double> sigmas;
 	private int paletteStatus = PALETTE_CLOSED;
+	private ImagePlus inputImp;
 
 	//HACKS:
 	private JDialog prompt;
 	private AbstractButton triggerSigmaPaletteAsSwingButton;
 	private JTextField sizeOfStructuresStringAsSwingField;
+	private String cachedSigmasString; // cached sigmas when spectral filter is active
+	private double[] cachedReferenceColor; // cached spectral reference color
 
 
 	protected void init() {
@@ -183,6 +190,19 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		if (!snt.accessToValidImageData()) {
 			error("Valid image data is required for computation.");
 			return;
+		}
+		inputImp = sntService.getInstance().getImagePlus();
+		loadPreferences(); // must precede spectral validation and updatePrompt()
+		if (!spectralUnmixingAllowed()) {
+			// Remove SPECTRAL from dropdown choices on grayscale/single-channel images
+			final MutableModuleItem<String> filterItem = getInfo().getMutableInput("filter", String.class);
+			final List<String> choices = new ArrayList<>(filterItem.getChoices());
+			choices.remove(SPECTRAL);
+			filterItem.setChoices(choices);
+			if (SPECTRAL.equals(filter) || SPECTRAL_ALT.equals(filter)) {
+				filter = TUBENESS;
+				filterItem.setValue(this, TUBENESS);
+			}
 		}
 		if (calledFromScript) {
 			numThreads = SNTPrefs.getThreads();
@@ -204,7 +224,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 		resolveInput("calledFromScript");
 		resolveInput("syncObject");
-		loadPreferences();
+		updatePrompt();
 	}
 
 	@SuppressWarnings("unused")
@@ -227,6 +247,11 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		if (!NONE.equals(filter) && paletteStatus == PALETTE_IS_RUNNING) {
 			msg("'Pick Sigmas' won't capture new choice unless closed and reopened.", "New Choice Not Previewed");
 		}
+		// Restore cached sigmas when switching away from spectral
+		if (!SPECTRAL.equals(filter) && !SPECTRAL_ALT.equals(filter) && cachedSigmasString != null) {
+			sizeOfStructuresString = cachedSigmasString;
+			cachedSigmasString = null;
+		}
 		switch (filter) {
 			case TUBENESS:
 			case TUBENESS_ALT:
@@ -245,9 +270,23 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				snt.setFilterType(SNT.FilterType.MEDIAN);
 				useLazyChoice = LAZY_LOADING_FALSE;
 				break;
+			case SPECTRAL:
+			case SPECTRAL_ALT:
+				if (spectralUnmixingAllowed()) {
+					snt.setFilterType(SNT.FilterType.SPECTRAL);
+					// Cache the current sigmas string and replace with placeholder
+					if (sizeOfStructuresString != null && !"unused".equals(sizeOfStructuresString))
+						cachedSigmasString = sizeOfStructuresString;
+					sizeOfStructuresString = "unused";
+				} else {
+					spectralUnmixingNotAllowedError();
+					filter = TUBENESS;
+				}
+				break;
 			default:
 				// do nothing
 		}
+		updatePrompt();
 	}
 
 	@SuppressWarnings("unused")
@@ -257,6 +296,20 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			msg("Current filter does not require size parameters.", "Unnecessary Operation");
 			return;
 		}
+		if (SPECTRAL.equals(filter)) {
+			if (!spectralUnmixingAllowed()) {
+				spectralUnmixingNotAllowedError();
+				return;
+			}
+			msg("Select representative path(s) in the Path Manager, then press 'Run'. The average color of their " +
+							"underlying voxels will be used as the reference for spectral similarity filtering.<br><br>" +
+							"For best results, prefer paths that are <b>long enough</b> (short fragments yield unreliable " +
+							"color vectors) and that belong to the <b>same compartment</b> (e.g., all dendrites or all " +
+							"axons), as color hues can differ between soma, dendrites, and axons.",
+					"Select Paths for Average Color");
+			return;
+		}
+		if (ui == null) return;
 		switch (paletteStatus) {
 		case PALETTE_CLOSED:
 			ui.setSigmaPaletteListener(this);
@@ -279,6 +332,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	@SuppressWarnings("unused")
 	private void triggerThicknessCmd() {
+		if (SPECTRAL.equals(filter)) {
+			if (new GuiUtils(getPrompt()).getConfirmation("Compute average color from all paths in the Path Manager?",
+			"Compute Average Color?")) {
+				computeAndDisplayAverageColor(snt.getPathAndFillManager().getPaths());
+			}
+			return;
+		}
 		try {
 			final CommandService cmdService = getContext().getService(CommandService.class);
 			cmdService.run(LocalThicknessCmd.class, true, (Map<String, Object>)null);
@@ -290,21 +350,26 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	private void updatePrompt() {
 		final MutableModuleItem<Button> mmi = getInfo().getMutableInput("triggerSigmaPalette", Button.class);
-		switch (paletteStatus) {
-		case PALETTE_IS_RUNNING:
-			mmi.setLabel("Adjusting scale(s) visually...");
-			//mmi.setDescription("Scale(s) are being chosen in palette");
-			break;
-		case PALETTE_WAITING:
-			mmi.setLabel("Now click on a representative structure...");
-			//mmi.setDescription("Once you click on the image, a preview of clicked neighborhood will open");
-			break;
-		default:
-			mmi.setLabel("Select visually...");
-			//mmi.setDescription("Initialize preview palette");
-			break;
+		if (SPECTRAL.equals(filter) || SPECTRAL_ALT.equals(filter)) {
+			mmi.setLabel("Now Select Path(s) Defining Avg. Color");
+		} else {
+			switch (paletteStatus) {
+			case PALETTE_IS_RUNNING:
+				mmi.setLabel("Adjusting Scale(s) Visually...");
+				//mmi.setDescription("Scale(s) are being chosen in palette");
+				break;
+			case PALETTE_WAITING:
+				mmi.setLabel("Now Click on a Representative Structure...");
+				//mmi.setDescription("Once you click on the image, a preview of clicked neighborhood will open");
+				break;
+			default:
+				mmi.setLabel("Select visually...");
+				//mmi.setDescription("Initialize preview palette");
+				break;
+			}
 		}
-		sizeOfStructuresString = getSigmasAsString();
+		if (!(SPECTRAL.equals(filter) || SPECTRAL_ALT.equals(filter)))
+			sizeOfStructuresString = getSigmasAsString();
 
 		// The label of the mmi button only changes when the user _actually_ interacts
 		// with the prompt. We need it to update it consistently to avoid ill-states.
@@ -313,7 +378,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				&& !mmi.getLabel().equals(triggerSigmaPaletteAsSwingButton.getText())) {
 			triggerSigmaPaletteAsSwingButton.setText(mmi.getLabel());
 		}
-		if (sizeOfStructuresStringAsSwingField != null
+		if (sizeOfStructuresStringAsSwingField != null && sizeOfStructuresString != null
 				&& !sizeOfStructuresStringAsSwingField.getText().equals(sizeOfStructuresString)) {
 			SwingUtilities.invokeLater(() -> {
 				sizeOfStructuresStringAsSwingField.requestFocusInWindow();
@@ -330,12 +395,16 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	@SuppressWarnings("unused")
 	private void defaults() {
+		filter = TUBENESS;
 		numThreads = SNTPrefs.getThreads();
 		outputType = FLOAT;
 		useLazyChoice = LAZY_LOADING_FALSE;
 		setDefaultSigmas();
 		sizeOfStructuresString = getSigmasAsString();
 		show = false;
+		cachedSigmasString = null;
+		cachedReferenceColor = null;
+		updatePrompt();
 	}
 
 	private void setDefaultSigmas() {
@@ -375,7 +444,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 		getPrompt(); // otherwise it may be only called when user interacts with _some_ input widgets
 		final double[] sigmas = getSigmasAsArray();
-		if (!NONE.equals(filter) && (sigmas == null || sigmas.length == 0)) {
+		if (!NONE.equals(filter) && !SPECTRAL.equals(filter) && (sigmas == null || sigmas.length == 0)) {
 			error("No scales have been specified.");
 			return;
 		}
@@ -388,6 +457,16 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			Images.copy(loadedData, copy);
 			filteredImg = (Img<U>) copy;
 			apply();
+			return;
+		}
+		if (SPECTRAL.equals(filter) || SPECTRAL_ALT.equals(filter)) {
+			final U type = switch (outputType) {
+				case FLOAT -> (U) new FloatType();
+				case DOUBLE -> (U) new DoubleType();
+				default -> throw new IllegalArgumentException("Unknown output type");
+			};
+			filteredImg = computeSpectralSimilarity(type, useLazy, 32);
+			if (filteredImg != null) apply();
 			return;
 		}
 		// validate inputs
@@ -412,7 +491,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		switch (filter) {
 			case FRANGI:
 			case FRANGI_ALT: {
-				final double stackMax = sntService.getInstance().getStats().max;
+				final ij.process.ImageStatistics stats = sntService.getInstance().getStats();
+				final double stackMax = (stats == null) ? 0 : stats.max;
 				if (stackMax == 0) {
 					new GuiUtils().error("Statistics for the main image have not been computed yet. "
 							+ "Please trace a small path over a relevant feature to compute them. "
@@ -422,7 +502,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				final Frangi<T, U> op = new Frangi<>(
 						sigmas,
 						spacing,
-						sntService.getInstance().getStats().max,
+						stackMax,
 						numThreads);
 
 				if (useLazy) {
@@ -521,6 +601,96 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		exit(true);
 	}
 
+	private boolean spectralUnmixingAllowed() {
+		return inputImp != null && inputImp.getNChannels() >= 2;
+	}
+
+	private void spectralUnmixingNotAllowedError() {
+		error("Spectral Similarity requires a multichannel image (at least 2 channels).", false);
+	}
+
+	private <V extends RealType<V>> void computeAndDisplayAverageColor(final List<Path> paths) {
+		if (inputImp == null) {
+			spectralUnmixingNotAllowedError();
+			return;
+		}
+		if (paths == null || paths.isEmpty()) {
+			error("No paths available in the Path Manager.", false);
+			return;
+		}
+		final RandomAccessibleInterval<V> img4d = ImgUtils.getXYZCImage(inputImp);
+		if (img4d == null) {
+			error("Could not extract multichannel image data.", false);
+			return;
+		}
+		final Calibration cal = inputImp.getCalibration();
+		cachedReferenceColor = SpectralSimilarity.averageColorFromPaths(
+				img4d, new ArrayList<>(paths), cal.pixelWidth, cal.pixelHeight, cal.pixelDepth);
+		final StringBuilder sb = new StringBuilder("<HTML>Average color from ").append(paths.size())
+				.append(" path(s):<br><br>");
+		for (int c = 0; c < cachedReferenceColor.length; c++) {
+			sb.append("&nbsp;&nbsp;Ch").append(c + 1).append(": ")
+					.append(String.format("%.2f", cachedReferenceColor[c])).append("<br>");
+		}
+		sb.append("<br>This color will be used as the reference<br>when the filter is applied.");
+		new GuiUtils(getPrompt()).centeredMsg(sb.toString(), "Average Color");
+	}
+
+	@SuppressWarnings("unchecked")
+	private <V extends RealType<V>> Img<U> computeSpectralSimilarity(final U type, final boolean lazy, final int cellDim) {
+		if (!spectralUnmixingAllowed()) {
+			spectralUnmixingNotAllowedError();
+			return null;
+		}
+		final Calibration cal = inputImp.getCalibration();
+		// Build 4D (X, Y, Z, C) image from the hyperstack
+		final RandomAccessibleInterval<V> img4d = ImgUtils.getXYZCImage(inputImp);
+		if (img4d == null) {
+			error("Could not extract multichannel image data.");
+			return null;
+		}
+		// Use cached reference color if available, otherwise compute from selected paths
+		final double[] refColor;
+		if (cachedReferenceColor != null) {
+			refColor = cachedReferenceColor;
+			SNTUtils.log("Spectral similarity: using cached reference color = " + Arrays.toString(refColor));
+		} else {
+			final Collection<Path> selectedPaths = snt.getPathAndFillManager().getSelectedPaths();
+			if (selectedPaths == null || selectedPaths.isEmpty()) {
+				error("Spectral Similarity requires a reference color. Either select path(s) "
+						+ "tracing the target neuron, or use 'Estimate Programmatically...' "
+						+ "to compute the average color from all paths.");
+				return null;
+			}
+			refColor = SpectralSimilarity.averageColorFromPaths(
+					img4d, new ArrayList<>(selectedPaths),
+					cal.pixelWidth, cal.pixelHeight, cal.pixelDepth);
+			SNTUtils.log("Spectral similarity: reference color = " + Arrays.toString(refColor)
+					+ " (from " + selectedPaths.size() + " selected path(s))");
+		}
+
+		final SpectralSimilarity<V, U> op = new SpectralSimilarity<>(refColor, numThreads);
+
+		// Output is 3D (X, Y, Z)
+		final long[] outDims = new long[]{img4d.dimension(0), img4d.dimension(1), img4d.dimension(2)};
+		final Img<U> out;
+		if (lazy) {
+			out = Lazy.process(
+					img4d,
+					new net.imglib2.FinalInterval(outDims),
+					new int[]{cellDim, cellDim, cellDim},
+					type,
+					op);
+		} else {
+			out = ops.create().img(
+					new net.imglib2.FinalInterval(outDims),
+					type,
+					new CellImgFactory<>(type));
+			op.compute(img4d, out);
+		}
+		return out;
+	}
+
 	private RandomAccessibleInterval<T> getInputData() {
 		// could be modified to accept the original image with all channels, frames
 		return sntService.getInstance().getLoadedData();
@@ -528,7 +698,13 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 
 	private String getImageName() {
 		final String basename = SNTUtils.stripExtension(sntService.getInstance().getImagePlus().getTitle());
-		final String sfx = (NONE.equals(filter)) ? "DUP" : filter.substring(0, filter.indexOf(" ("));
+		final String sfx;
+		if (NONE.equals(filter)) {
+			sfx = "DUP";
+		} else {
+			final int paren = filter.indexOf(" (");
+			sfx = (paren > 0) ? filter.substring(0, paren) : filter;
+		}
 		return basename + " [" + sfx + "].tif";
 	}
 
@@ -555,12 +731,15 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	}
 
 	private String getSigmasAsString() {
-		if (sigmas == null)
+		if (SPECTRAL.equals(filter) || SPECTRAL_ALT.equals(filter))
+			return "";
+		if (sigmas == null || sigmas.isEmpty())
 			setDefaultSigmas();
 		final DecimalFormat df = new DecimalFormat("0.000");
 		final StringBuilder sb = new StringBuilder();
 		sigmas.forEach(s -> sb.append(df.format(s)).append(", "));
-		sb.setLength(sb.length() - 2);
+		if (sb.length() >= 2)
+			sb.setLength(sb.length() - 2);
 		return sb.toString();
 	}
 
@@ -666,19 +845,28 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		}
 	}
 
-	@Override
-	protected void error(final String msg) {
+	private void error(final String msg, final boolean exit) {
 		if (getPrompt() == null) {
 			super.error(msg);
 		} else {
 			new GuiUtils(getPrompt()).error(msg);
 		}
-		exit(false);
+		if (exit) exit(false);
+	}
+
+	@Override
+	protected void error(final String msg) {
+		error(msg, true);
 	}
 
 	private void loadPreferences() {
 		filter = prefService.get(getClass(), "filter", TUBENESS);
 		sizeOfStructuresString = prefService.get(getClass(), "sizeOfStructuresString", getSigmasAsString());
+		// Reset stale "unused" sigmas left over from a previous SPECTRAL session
+		if ("unused".equals(sizeOfStructuresString) && !SPECTRAL.equals(filter) && !SPECTRAL_ALT.equals(filter)) {
+			setDefaultSigmas();
+			sizeOfStructuresString = getSigmasAsString();
+		}
 		useLazyChoice = prefService.get(getClass(), "useLazyChoice", LAZY_LOADING_FALSE);
 		numThreads = prefService.getInt(getClass(), "numThreads", SNTPrefs.getThreads());
 		show = prefService.getBoolean(getClass(), "show", false);
