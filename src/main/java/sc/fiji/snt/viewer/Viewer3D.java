@@ -1899,6 +1899,7 @@ public class Viewer3D {
         if (visible) {
             if (SNTUtils.isDebugMode()) logGLDetails();
             gUtils.notifyIfNewVersion(0);
+            gUtils.notifyIfOldVersion(5000);
         }
         return frame;
     }

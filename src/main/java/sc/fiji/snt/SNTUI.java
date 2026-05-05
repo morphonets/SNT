@@ -4299,6 +4299,7 @@ public class SNTUI extends JDialog {
             InternalUtils.ijmLogMessage();
             promptForAutoTracingAsAppropriate();
             guiUtils.notifyIfNewVersion(0);
+            guiUtils.notifyIfOldVersion(5000); // check after 5s to avoid slowing startup
             getPrefs().set("def-gui-width", ""+getWidth());
             getPrefs().set("def-gui-height", ""+getHeight());
             // check for workspace validity only if user previously wants to be reminded

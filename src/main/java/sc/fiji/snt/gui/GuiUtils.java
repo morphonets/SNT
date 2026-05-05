@@ -136,6 +136,23 @@ public class GuiUtils {
 		centeredDialog(msg, title, JOptionPane.ERROR_MESSAGE);
 	}
 
+	/**
+	 * Returns the Last-Modified timestamp from a HEAD request, or -1 on failure.
+	 */
+	private static long getLastModified(final String url) {
+		try {
+			final java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
+					new java.net.URL(url).openConnection();
+			conn.setRequestMethod("HEAD");
+			conn.setUseCaches(false);
+			try (java.io.InputStream is = conn.getInputStream()) {
+				return conn.getLastModified();
+			}
+		} catch (final Exception ignored) {
+			return -1;
+		}
+	}
+
 	public void notifyIfNewVersion(final int msDelayBeforeShow) {
 		final Timer timer = new Timer(msDelayBeforeShow, e -> {
 			if (SNTPrefs.firstRunAfterUpdate()) {
@@ -146,6 +163,61 @@ public class GuiUtils {
 						""";
 				showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true, -1);
 			}
+		});
+		timer.setRepeats(false);
+		timer.start();
+	}
+
+	/**
+	 * Checks for available SNT updates in the background by querying the
+	 * Neuroanatomy update site. If the site's content is newer than the local
+	 * installation, a notification is displayed suggesting the user run the Fiji
+	 * updater. Respects the Fiji updater's own preferences (e.g., "never remind
+	 * me", "remind me later") and fails silently on any error (network, missing
+	 * updater, etc.).
+	 *
+	 * @param msDelayBeforeCheck delay in ms before the background check starts
+	 */
+	public void notifyIfOldVersion(final int msDelayBeforeCheck) {
+		final Timer timer = new Timer(msDelayBeforeCheck, e -> {
+			new Thread(() -> {
+				try {
+					// Abort early if the updater's own checks indicate we shouldn't proceed
+					final net.imagej.updater.UpToDate.Result preCheck = net.imagej.updater.UpToDate.check();
+					switch (preCheck) {
+						case CHECK_TURNED_OFF, REMIND_LATER, OFFLINE, DEVELOPER,
+						     UPDATES_MANAGED_DIFFERENTLY -> {
+							return;
+						}
+						default -> {
+						} // UP_TO_DATE, UPDATEABLE, etc. — proceed with targeted check
+					}
+					// Now check the Neuroanatomy update site specifically
+					final java.io.File ijRoot = SNTUtils.getContext()
+							.getService(org.scijava.app.AppService.class).getApp().getBaseDirectory();
+					final net.imagej.updater.FilesCollection files =
+							new net.imagej.updater.FilesCollection(ijRoot);
+					files.read();
+					final net.imagej.updater.UpdateSite site = files.getUpdateSite("Neuroanatomy", false);
+					if (site == null || !site.isActive()) return;
+					final String siteURL = site.getURL();
+					if (siteURL == null || siteURL.isEmpty()) return;
+					final String dbURL = siteURL + (siteURL.endsWith("/") ? "" : "/") + "db.xml.gz";
+					final long remoteTimestamp = getLastModified(dbURL);
+					if (remoteTimestamp > 0 && !site.isLastModified(remoteTimestamp)) {
+						SwingUtilities.invokeLater(() -> {
+							final String s = """
+									<HTML>
+									&nbsp;<b>A newer version of SNT seems to be available!</b>
+									<br>&nbsp;Run the Fiji updater (<i>Help › Update...</i>) to get it.
+									""";
+							showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true, -1);
+						});
+					}
+				} catch (final Exception ignored) {
+					// Network errors, missing updater, etc. — fail silently
+				}
+			}, "SNT-Update-Check").start();
 		});
 		timer.setRepeats(false);
 		timer.start();
