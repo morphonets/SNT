@@ -29,6 +29,7 @@ import ij.gui.Roi;
 import ij.measure.Calibration;
 import net.imagej.ImageJ;
 import net.imagej.lut.LUTService;
+import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.display.DisplayService;
@@ -61,6 +62,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -123,6 +125,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private final ColorMenu colorMenu;
     private final JMenuItem fitVolumeMenuItem;
     private FitHelper fittingHelper;
+    private MultiSpectralRefineHelper multiSpectralRefineHelper;
     private final PathManagerUISearchableBar searchableBar;
 
     /**
@@ -324,6 +327,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.INTERPOLATE_MISSING_RADII,
                 IconFactory.menuIcon(IconFactory.GLYPH.DOTCIRCLE));
         jmi.setToolTipText("Corrects fitted nodes with invalid radius");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
+
+        jmi = new JMenuItem(MultiPathActionListener.MULTI_SPECTRAL_REFINE_CMD,
+                IconFactory.menuIcon('\uf53f', true));
+        jmi.setToolTipText("Refines paths in multispectral (Brainbow) images");
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
         fitMenu.addSeparator();
@@ -943,6 +952,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private boolean allUsingFittedVersion(final Collection<Path> paths) {
+        if (paths == null || paths.isEmpty()) return false;
         for (Path p : paths) {
             if (!p.getUseFitted())
                 return false;
@@ -957,6 +967,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         if (tree != null) tree.removeAll();
         // plugin.dispose() called by SNTUI
         fittingHelper = null;
+        multiSpectralRefineHelper = null;
         measureUI = null;
         swcTypeButtonGroup = null;
         super.dispose();
@@ -1168,23 +1179,210 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return proofReadingToolBar;
     }
 
-    private class FitHelper {
+    /**
+     * Base class for parallel path-processing helpers (fitting, multispectral
+     * refinement, etc.). Encapsulates the shared SwingWorker + ExecutorService
+     * pattern: show an optional parameter dialog, propagate settings from the
+     * first worker to the rest, invoke all workers in parallel, then apply
+     * results sequentially on the EDT.
+     *
+     * @param <T> the {@link Callable} type (e.g. {@link PathFitter},
+     *            {@link MultiSpectralRefiner})
+     */
+    private abstract class AbstractRefineHelper<T extends Callable<Path>> {
 
-        private boolean promptHasBeenDisplayed = false;
-        private SwingWorker<Object, Object> fitWorker;
-        private List<PathFitter> pathsToFit;
+        boolean promptHasBeenDisplayed;
+        SwingWorker<Object, Object> worker;
+        List<T> workers;
 
-        public void showPrompt() {
-            new FittingOptionsWorker(this, false).execute();
+        /** The SciJava Command class used to configure parameters. */
+        abstract Class<? extends Command> commandClass();
+
+        /** Build a human-readable status string for the progress dialog. */
+        abstract String statusMessage(int nPaths, int nThreads);
+
+        /**
+         * Read preferences from the first worker and propagate them to the
+         * rest. Called inside {@code doInBackground()} before invokeAll.
+         */
+        abstract void propagateSettings(List<T> workers);
+
+        /**
+         * Apply results sequentially on the EDT after all parallel work is
+         * done. Called inside {@code done()}.
+         */
+        abstract void applyResults(List<T> workers);
+
+        /**
+         * Whether the user should be prompted to adjust parameters. Returns
+         * {@code null} if the user cancelled, {@code true} to show the
+         * parameter dialog, {@code false} to proceed directly.
+         */
+        abstract Boolean displayPromptRequired();
+
+        /** Optional hook called in the {@code finally} block of {@code doInBackground()}. */
+        void cleanup() {
+            // default no-op
         }
 
-        private Boolean displayPromptRequired() {
+        /** Optional hook called at the end of {@code done()}, before nulling workers. */
+        void postExecute() {
+            // default no-op
+        }
+
+        void showPrompt() {
+            showPromptAndThen(false);
+        }
+
+        void showPromptAndThen(final boolean thenExecute) {
+            new SwingWorker<String, Object>() {
+                @Override
+                public String doInBackground() {
+                    final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+                    try {
+                        final CommandModule cm = cmdService.run(commandClass(), true).get();
+                        if (!cm.isCanceled()) return "";
+                    } catch (final InterruptedException | ExecutionException ignored) {
+                        // do nothing
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        promptHasBeenDisplayed = get() != null;
+                    } catch (final InterruptedException | ExecutionException ex) {
+                        SNTUtils.error(ex.getMessage(), ex);
+                        promptHasBeenDisplayed = false;
+                    }
+                    if (thenExecute && promptHasBeenDisplayed) AbstractRefineHelper.this.execute();
+                }
+            }.execute();
+        }
+
+        protected synchronized void cancel(final boolean updateUIState) {
+            if (worker != null) {
+                synchronized (worker) {
+                    worker.cancel(true);
+                    if (updateUIState) plugin.getUI().resetState();
+                    worker = null;
+                }
+            }
+        }
+
+        void executeUsingPromptAsNeeded() {
+            if (workers == null || workers.isEmpty()) return;
+            final Boolean prompt = displayPromptRequired();
+            if (prompt == null) return; // user cancelled
+            if (prompt) {
+                showPromptAndThen(true);
+            } else {
+                execute();
+            }
+        }
+
+        void execute() {
+            assert SwingUtilities.isEventDispatchThread();
+            final SNTUI ui = plugin.getUI();
+            final int preState = ui.getState();
+            ui.changeState(SNTUI.FITTING_PATHS);
+            final int nPaths = workers.size();
+            final int processors = Math.min(nPaths, SNTPrefs.getThreads());
+            final String statusMsg = statusMessage(nPaths, processors);
+            ui.showStatus(statusMsg, false);
+            setEnabledCommands(false);
+            final JDialog msg = guiUtils.floatingMsg(statusMsg, false);
+
+            worker = new SwingWorker<>() {
+                @Override
+                protected Object doInBackground() {
+                    try (final ExecutorService es = Executors.newFixedThreadPool(processors)) {
+                        try {
+                            propagateSettings(workers);
+                            final List<Future<Path>> results = es.invokeAll(workers);
+                            for (final Future<Path> result : results) result.get();
+                        } catch (final InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            msg.dispose();
+                            guiUtils.error("An exception occurred. See Console for details.");
+                            e.printStackTrace();
+                        } catch (final ExecutionException | RuntimeException e) {
+                            msg.dispose();
+                            guiUtils.error("An exception occurred. See Console for details.");
+                            e.printStackTrace();
+                        } finally {
+                            cleanup();
+                            try { es.shutdown(); } catch (final Exception ignored) {}
+                        }
+                    }
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    if (workers != null) applyResults(workers);
+                    refreshManager(true, false, getSelectedPaths(true));
+                    msg.dispose();
+                    plugin.changeUIState(preState);
+                    setEnabledCommands(true);
+                    ui.showStatus(null, false);
+                    postExecute();
+                    workers = null;
+                }
+            };
+            worker.execute();
+        }
+    }
+
+    private class FitHelper extends AbstractRefineHelper<PathFitter> {
+
+        // Alias for external callers that use the original field name
+        List<PathFitter> pathsToFit;
+        private FittingProgress progress;
+
+        @Override
+        Class<? extends Command> commandClass() {
+            return PathFitterCmd.class;
+        }
+
+        @Override
+        String statusMessage(final int nPaths, final int nThreads) {
+            return (nThreads == 1) ? "Fitting 1 path..."
+                    : "Fitting " + nPaths + " paths (" + nThreads + " threads)...";
+        }
+
+        @Override
+        void propagateSettings(final List<PathFitter> workers) {
+            final PathFitter ref = workers.getFirst();
+            ref.readPreferences();
+            progress = new FittingProgress(plugin.getUI(),
+                    plugin.statusService, workers.size());
+            for (int i = 0; i < workers.size(); i++) {
+                final PathFitter pf = workers.get(i);
+                pf.applySettings(ref);
+                pf.setProgressCallback(i, progress);
+            }
+        }
+
+        @Override
+        void cleanup() {
+            if (progress != null) progress.done();
+        }
+
+        @Override
+        void applyResults(final List<PathFitter> workers) {
+            workers.forEach(PathFitter::applyFit);
+        }
+
+        @Override
+        Boolean displayPromptRequired() {
             final boolean prompt = !promptHasBeenDisplayed && plugin.getUI() != null
                     && plugin.getUI().askUserConfirmation;
             final String[] options = new String[] { "Yes. Adjust parameters...", "No. Use defaults.",
                     "No. Use last used settings." };
             if (prompt) {
-                String choice = guiUtils.getChoice(
+                final String choice = guiUtils.getChoice(
                         "You have not yet adjusted fitting parameters. It is recommended that you do so at least once. Adjust them now?",
                         "Adjust Parameters?", options, options[0]);
                 if (choice == null) {
@@ -1199,143 +1397,109 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             return false;
         }
 
+        // Backwards-compatible aliases
         protected synchronized void cancelFit(final boolean updateUIState) {
-            if (fitWorker != null) {
-                synchronized (fitWorker) {
-                    fitWorker.cancel(true);
-                    if (updateUIState) plugin.getUI().resetState();
-                    fitWorker = null;
-                }
-            }
+            cancel(updateUIState);
         }
 
-        public void fitUsingPrompAsNeeded() {
-            if (pathsToFit == null || pathsToFit.isEmpty())
-                return; // nothing to fit
-            final Boolean prompt = displayPromptRequired();
-            if (prompt == null) {
-                return; // user pressed cancel
-            }
-            if (prompt) {
-                new FittingOptionsWorker(this, true).execute();
-            } else {
-                fit();
-            }
-        }
-
-        public void fit() {
-            assert SwingUtilities.isEventDispatchThread();
-            final SNTUI ui = plugin.getUI();
-            final int preFittingState = ui.getState();
-            ui.changeState(SNTUI.FITTING_PATHS);
-            final int numberOfPathsToFit = pathsToFit.size();
-            final int processors = Math.min(numberOfPathsToFit, SNTPrefs.getThreads());
-            final String statusMsg = (processors == 1) ? "Fitting 1 path..."
-                    : "Fitting " + numberOfPathsToFit + " paths (" + processors +
-                    " threads)...";
-            ui.showStatus(statusMsg, false);
-            setEnabledCommands(false);
-            final JDialog msg = guiUtils.floatingMsg(statusMsg, false);
-
-            fitWorker = new SwingWorker<>() {
-
+        /**
+         * Overrides to preserve original behavior: fitting proceeds even if the
+         * user cancels the parameter dialog (using whatever settings existed).
+         */
+        @Override
+        void showPromptAndThen(final boolean thenExecute) {
+            new SwingWorker<String, Object>() {
                 @Override
-                protected Object doInBackground() {
-
-                    try (final ExecutorService es = Executors.newFixedThreadPool(processors)) {
-                        final FittingProgress progress = new FittingProgress(plugin.getUI(),
-                                plugin.statusService, numberOfPathsToFit);
-                        try {
-                            final PathFitter refFitter = pathsToFit.getFirst();
-                            refFitter.readPreferences();
-                            for (int i = 0; i < numberOfPathsToFit; ++i) {
-                                final PathFitter pf = pathsToFit.get(i);
-                                pf.applySettings(refFitter);
-                                pf.setProgressCallback(i, progress);
-                            }
-                            final List<Future<Path>> results = es.invokeAll(pathsToFit);
-                            for (final Future<Path> result : results) {
-                                result.get();
-                            }
-                        } catch (final InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            msg.dispose();
-                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
-                            e.printStackTrace();
-                        } catch (final ExecutionException | RuntimeException e) {
-                            msg.dispose();
-                            guiUtils.error("Unfortunately an Exception occurred. See Console for details.");
-                            e.printStackTrace();
-                        } finally {
-                            progress.done();
-                            try {
-                                es.shutdown();
-                            } catch (final Exception ex) {
-                                ex.printStackTrace();
-                            }
-                        }
+                public String doInBackground() {
+                    final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+                    try {
+                        final CommandModule cm = cmdService.run(commandClass(), true).get();
+                        if (!cm.isCanceled()) return "";
+                    } catch (final InterruptedException | ExecutionException ignored) {
+                        // do nothing
                     }
                     return null;
                 }
 
                 @Override
                 protected void done() {
-                    if (pathsToFit != null) {
-                        // since paths were fitted asynchronously, we need to apply fit
-                        // sequentially after all parallel fitting is complete.
-                        pathsToFit.forEach(PathFitter::applyFit);
-                        // no longer needed: pathAndFillManager.rebuildRelationships();
+                    try {
+                        promptHasBeenDisplayed = get() != null;
+                    } catch (final InterruptedException | ExecutionException ex) {
+                        SNTUtils.error(ex.getMessage(), ex);
+                        promptHasBeenDisplayed = false;
                     }
-                    refreshManager(true, false, getSelectedPaths(true));
-                    msg.dispose();
-                    plugin.changeUIState(preFittingState);
-                    setEnabledCommands(true);
-                    ui.showStatus(null, false);
-                    pathsToFit = null;
+                    if (thenExecute) FitHelper.this.execute();
                 }
-            };
-            fitWorker.execute();
+            }.execute();
         }
 
+        public void fitUsingPrompAsNeeded() {
+            workers = pathsToFit;
+            executeUsingPromptAsNeeded();
+        }
+
+        public void fit() {
+            workers = pathsToFit;
+            execute();
+        }
+
+        @Override
+        void postExecute() {
+            pathsToFit = null;
+        }
     }
 
-    private class FittingOptionsWorker extends SwingWorker<String, Object> {
+    private class MultiSpectralRefineHelper extends AbstractRefineHelper<MultiSpectralRefiner> {
 
-        private final FitHelper fitHelper;
-        private final boolean fit;
+        // Alias for external callers that use the original field name
+        List<MultiSpectralRefiner> refiners;
 
-        public FittingOptionsWorker(final FitHelper fitHelper, final boolean fit) {
-            this.fitHelper = fitHelper;
-            this.fit = fit;
+        @Override
+        Class<? extends Command> commandClass() {
+            return MultiSpectralRefinerCmd.class;
         }
 
         @Override
-        public String doInBackground() {
-            final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-            try {
-                final CommandModule cm = cmdService.run(PathFitterCmd.class, true).get();
-                if (!cm.isCanceled()) {
-                    return "";
-                }
-            } catch (final InterruptedException | ExecutionException ignored) {
-                // do nothing
-            }
-            return null;
+        String statusMessage(final int nPaths, final int nThreads) {
+            return "Refining " + nPaths + " path(s) [nCorrect, " + nThreads + " thread(s)]...";
         }
 
         @Override
-        protected void done() {
-            try {
-                fitHelper.promptHasBeenDisplayed = get() != null;
-            } catch (final InterruptedException | ExecutionException ex) {
-                SNTUtils.error(ex.getMessage(), ex);
-                fitHelper.promptHasBeenDisplayed = false;
-            }
-            if (fit) {
-                fitHelper.fit();
+        void propagateSettings(final List<MultiSpectralRefiner> workers) {
+            final MultiSpectralRefiner ref = workers.getFirst();
+            ref.readPreferences();
+            for (int i = 1; i < workers.size(); i++) {
+                workers.get(i).applySettings(ref);
             }
         }
 
+        @Override
+        void applyResults(final List<MultiSpectralRefiner> workers) {
+            int count = 0;
+            for (final MultiSpectralRefiner r : workers) {
+                if (r.succeeded()) { r.apply(); count++; }
+            }
+            SNTUtils.log("Multispectral refinement: " + count + "/" + workers.size() + " paths refined");
+        }
+
+        @Override
+        Boolean displayPromptRequired() {
+            // Always show the parameter dialog: spectral unmixing typically
+            // requires iterative parameter tuning across multiple runs
+            return true;
+        }
+
+        @Override
+        void postExecute() {
+            plugin.setUnsavedChanges(true);
+            refiners = null;
+        }
+
+        public void refineUsingPromptAsNeeded() {
+            workers = refiners;
+            executeUsingPromptAsNeeded();
+        }
     }
 
     /** This class defines the model for the JTree hosting traced paths */
@@ -2794,6 +2958,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String SPECIFY_COUNTS_CMD = "Specify No. Spine/Varicosity Markers...";
         private static final String DISCONNECT_CMD = "Disconnect...";
         private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
+        private static final String MULTI_SPECTRAL_REFINE_CMD = "Multispectral Refinement...";
 
         private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
         private static final String SEND_TO_LABKIT_CMD = "Load Labkit With Selected Path(s)...";
@@ -2903,6 +3068,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(SPECIFY_COUNTS_CMD, new SpecifyCountsCommand());
             commands.put(INTERPOLATE_MISSING_RADII, new InterpolateMissingRadiiCommand());
             commands.put(RESET_FITS, new ResetFitsCommand());
+            commands.put(MULTI_SPECTRAL_REFINE_CMD, new MultiSpectralRefineCommand());
 
             // Utility commands
             commands.put(DELETE_CMD, new DeleteCommand());
@@ -4770,6 +4936,39 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 else {
                     refreshManager(true, false, selectedPaths);
                 }
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class MultiSpectralRefineCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                if (!plugin.accessToValidImageData()) {
+                    noValidImageDataError();
+                    return;
+                }
+                final ImagePlus imp = plugin.getImagePlus();
+                if (imp.getNChannels() < 2) {
+                    guiUtils.error("Multispectral refinement requires a multichannel image (at least 2 channels).");
+                    return;
+                }
+                final ArrayList<MultiSpectralRefiner> refiners = new ArrayList<>();
+                for (final Path p : selectedPaths) {
+                    if (p.size() >= 2)
+                        refiners.add(new MultiSpectralRefiner(imp, p));
+                }
+                if (refiners.isEmpty()) {
+                    guiUtils.error("No valid paths to refine (paths must have at least 2 nodes).");
+                    return;
+                }
+                if (multiSpectralRefineHelper == null)
+                    multiSpectralRefineHelper = new MultiSpectralRefineHelper();
+                multiSpectralRefineHelper.refiners = refiners;
+                multiSpectralRefineHelper.refineUsingPromptAsNeeded();
             }
 
             @Override

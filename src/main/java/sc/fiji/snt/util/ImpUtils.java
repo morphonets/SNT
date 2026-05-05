@@ -236,6 +236,21 @@ public class ImpUtils {
         return extracted;
     }
 
+    /**
+     * Returns a lightweight read-only view of a single channel as an ImageStack.
+     * Unlike {@link #getChannel(ImagePlus, int)}, the returned stack shares the
+     * underlying pixel arrays with the source image (no data copy), making it
+     * suitable for read-only access on large multichannel images.
+     *
+     * @param imp     the source image
+     * @param channel the 1-based channel index
+     * @return the channel's ImageStack (shared pixel data)
+     * @see #getChannel(ImagePlus, int) for an independent copy
+     */
+    public static ImageStack getChannelStack(final ImagePlus imp, final int channel) {
+        return ChannelSplitter.getChannel(imp, channel);
+    }
+
     public static ImagePlus getCT(final ImagePlus imp, final int channel, final int frame) {
         imp.deleteRoi(); // will call saveRoi
         final ImagePlus extracted = new Duplicator().run(imp, channel, channel, 1, imp.getNSlices(), frame, frame);

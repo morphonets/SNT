@@ -1736,7 +1736,7 @@ public class Tree implements TreeProperties, Cloneable {
 					fitter.setReplaceNodes(true); // safe: radii-only, no midpoint changes
 					return fitter;
 				})
-				.collect(Collectors.toList());
+				.toList();
 		// Parallel fitting (thread-safe)
 		fitters.parallelStream().forEach(PathFitter::call);
 		// Sequential application (modifies path hierarchy)
