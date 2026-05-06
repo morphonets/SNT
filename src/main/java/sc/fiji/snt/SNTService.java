@@ -618,10 +618,10 @@ public class SNTService extends AbstractService implements ImageJService {
 	 * @param img a string describing the type of demo image. Options include:
 	 *            'fractal' for the L-system toy neuron; 'ddaC' for the C4 ddaC
 	 *            drosophila neuron (demo image initially distributed with the Sholl
-	 *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701' and
-	 *            'cil810' for the respective Cell Image Library entries, and
+	 *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701', 'cil810',
+	 *            or 'ci41458' for the respective Cell Image Library entries, and
 	 *            'binary timelapse' for a small 4-frame sequence of neurite growth
-	 * @return the demo image, or null if data could no be retrieved
+	 * @return the demo image, or null if data could not be retrieved
 	 * @see #demoTree(String)
 	 */
 	public ImagePlus demoImage(final String img) {

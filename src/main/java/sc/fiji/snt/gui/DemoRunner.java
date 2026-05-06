@@ -63,8 +63,8 @@ public class DemoRunner {
 		priorUIState = ui.getState();
 		ui.changeState(SNTUI.LOADING);
 		ui.showStatus("Retrieving Demo data. Please wait...", false);
-		entries = List.of(demo0(), demo1(), demo2(), demo3(), demo4(), demo5(), demo6(), demo7(), demo8(), demo9(), demo10(),
-				demo11(), demo12());
+		entries = List.of(demo01(), demo02(), demo03(), demo04(), demo05(), demo06(), demo07(), demo08(),
+				demo09(), demo10(), demo11(), demo12(), demo13(), demo14());
 	}
 
 	public DemoRunner(final Context context) {
@@ -73,11 +73,25 @@ public class DemoRunner {
 		prefs = null;
 		context.inject(this);
 		priorUIState = -1;
-		entries = List.of(demo0(), demo3(), demo7(), demo8());
+		entries = List.of(demo01(), demo05(), demo10());
 	}
 
-	private Demo demo0() {
-		final Demo entry = new Demo(1, "DG Granule Cell (Reconstruction only)") {
+	private Demo demo01() {
+		final Demo entry = new Demo(1, "Brainbow zebrafish larva") {
+			@Override
+			public ImagePlus getImage() {
+				return ImpUtils.demo("brainbow");
+			}
+		};
+		entry.summary = "Downloads a 'Brainbow' zebrafish larva (Danio rerio, 5 dpf). No reconstructions included.";
+		entry.data = "Image (2D; 3-channel confocal image, 5.5MB)";
+		entry.source = "Cell Image Library, doi:10.7295/W9CIL41458";
+		entry.online = true;
+		return entry;
+	}
+
+	private Demo demo02() {
+		final Demo entry = new Demo(2, "DG Granule Cell (Reconstruction only)") {
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -120,8 +134,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo1() {
-		final Demo entry = new Demo(2, "Drosophila ddaC neuron (Autotrace demo)") {
+	private Demo demo03() {
+		final Demo entry = new Demo(3, "Drosophila ddaC neuron (Autotrace demo)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("ddaC");
@@ -186,8 +200,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo2() {
-		final Demo entry = new Demo(3, "Drosophila ddaC neuron (Image only)") {
+	private Demo demo04() {
+		final Demo entry = new Demo(4, "Drosophila ddaC neuron (Image only)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp =  sntService.demoImage("ddaC");
@@ -202,8 +216,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo3() {
-		final Demo entry = new Demo(4, "Drosophila OP neuron (Complete 3D reconstruction)") {
+	private Demo demo05() {
+		final Demo entry = new Demo(5, "Drosophila OP neuron (Complete 3D reconstruction)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("OP_1");
@@ -231,8 +245,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo4() {
-		final Demo entry = new Demo(5, "Hippocampal neuron (DIC timelapse)") {
+	private Demo demo06() {
+		final Demo entry = new Demo(6, "Hippocampal neuron (DIC timelapse)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("cil701");
@@ -249,8 +263,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo5() {
-		final Demo entry = new Demo(6, "Hippocampal neuron (Neuronal receptors)") {
+	private Demo demo07() {
+		final Demo entry = new Demo(7, "Hippocampal neuron (Neuronal receptors)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp =  sntService.demoImage("Rat_Hippocampal_Neuron");
@@ -265,8 +279,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo6() {
-		final Demo entry = new Demo(7, "Hippocampal neuron (Synaptic labeling)") {
+	private Demo demo08() {
+		final Demo entry = new Demo(8, "Hippocampal neuron (Synaptic labeling)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("cil810");
@@ -281,8 +295,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo7() {
-		final Demo entry = new Demo(8, "L-systems fractal (2D toy neuron)") {
+	private Demo demo09() {
+		final Demo entry = new Demo(9, "L-systems fractal (2D toy neuron)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("fractal");
@@ -307,8 +321,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo8() {
-		final Demo entry = new Demo(9, "MouseLight dendrites (Reconstructions only)") {
+	private Demo demo10() {
+		final Demo entry = new Demo(10, "MouseLight dendrites (Reconstructions only)") {
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -344,8 +358,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo9() {
-		final Demo entry = new Demo(10, "Non-neuronal dividing cell (5D image)") {
+	private Demo demo11() {
+		final Demo entry = new Demo(11, "Non-neuronal dividing cell (5D image)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = ImpUtils.open("http://wsr.imagej.net/images/mitosis.tif");
@@ -375,8 +389,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo10() {
-		final Demo entry = new Demo(11, "NeuronJ dataset (2D neurites)") {
+	private Demo demo12() {
+		final Demo entry = new Demo(12, "NeuronJ dataset (2D neurites)") {
 			@Override
 			public ImagePlus getImage() {
 				return ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/NeuronJ/neurites.tif");
@@ -399,8 +413,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo11() {
-		final Demo entry = new Demo(12, "Segmented video (2D timelapse)") {
+	private Demo demo13() {
+		final Demo entry = new Demo(13, "Segmented video (2D timelapse)") {
 			@Override
 			public ImagePlus getImage() {
 				return null;
@@ -432,8 +446,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo12() {
-		final Demo entry = new Demo(13, "Spot Spine dataset (spine decorated dendrite)") {
+	private Demo demo14() {
+		final Demo entry = new Demo(14, "Spot Spine dataset (spine decorated dendrite)") {
 			@Override
 			public ImagePlus getImage() {
 				return ImpUtils.open("https://github.com/morphonets/misc/raw/master/dataset-demos/SpotSpine/SpotSpine_ImageStack_Test.tif");

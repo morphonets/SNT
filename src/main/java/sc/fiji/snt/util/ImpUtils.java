@@ -47,6 +47,7 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
+import org.python.core.imp;
 import org.scijava.convert.ConvertService;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -470,8 +471,8 @@ public class ImpUtils {
      * @param img a string describing the type of demo image. Options include:
      *            'fractal' for the L-system toy neuron; 'ddaC' for the C4 ddaC
      *            drosophila neuron (demo image initially distributed with the Sholl
-     *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701' and
-     *            'cil810' for the respective Cell Image Library entries, and
+     *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701', 'cil810',
+     *            or 'ci41458' for the respective Cell Image Library entries, and
      *            'binary timelapse' for a small 4-frame sequence of neurite growth
      * @return the demo image, or null if data could not be retrieved
      */
@@ -489,6 +490,8 @@ public class ImpUtils {
             return open("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip", null);
         } else if (nImg.contains("4d") || nImg.contains("701")) {
             return cil701();
+        } else if (nImg.contains("brainbow") || nImg.contains("458")) {
+            return ci41458();
         } else if (nImg.contains("multipolar") || nImg.contains("810")) {
             return cil810();
         } else if (nImg.contains("timelapse")) {
@@ -972,6 +975,15 @@ public class ImpUtils {
             imp.getCalibration().frameInterval = 3000;
             imp.getCalibration().setTimeUnit("s");
             imp.setTitle("CIL_Dataset_#701.tif");
+        }
+        return imp;
+    }
+
+    private static ImagePlus ci41458() {
+        ImagePlus imp = IJ.openImage("https://cildata.crbs.ucsd.edu/media/images/41458/41458.tif");
+        if (imp != null) {
+            if (!imp.isComposite()) imp = new ij.CompositeImage(imp, ij.CompositeImage.COMPOSITE);
+            imp.setTitle("CIL_Dataset_#41458.tif");
         }
         return imp;
     }
