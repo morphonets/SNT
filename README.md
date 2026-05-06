@@ -105,6 +105,8 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
   * Automated soma detection
   * Machine learning: Built-in routines for training random forest classifiers on previously traced paths ([LabKit](https://github.com/juglab/labkit-ui)/[Trainable Weka segmentation](https://github.com/fiji/Trainable_Segmentation) bridges)
 
+* Curation Assistant: Real-time quality monitoring during tracing in which morphological plausibility of traced neurites is assessed. Thresholds can be auto-calibrated from existing reconstructions, or loaded from built-in presets for common cell types
+
 * Tracing can be interleaved with image processing routines
 
 * Tracing is scriptable. Interactive scripts allow for real-time inspection of results
@@ -114,7 +116,9 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 * Paths can be edited, i.e., linked, merged, or split. Nodes can be moved, deleted, or inserted
 
 * Post-hoc refinement of node positioning and radii by 'fitting' traces to the fluorescent signal associated with a path
-  
+
+* Support for brainbow-like images: Spectral unmixing and Multispectral refinement of traces
+
 ### Analysis
 
 * Extensive repertoire of [metrics](https://imagej.net/plugins/snt/metrics). Metrics can be collected from groups of cells, single cells, or parts thereof
