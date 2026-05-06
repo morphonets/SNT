@@ -1518,6 +1518,61 @@ public class Path implements Comparable<Path>, Cloneable {
 	}
 
 	/**
+	 * Returns the index of the node nearest to the specified position in pixel
+	 * (unscaled) coordinates. This is useful when matching ROI positions (which
+	 * are always in pixel coordinates) to path nodes. Canvas offsets are handled
+	 * automatically.
+	 *
+	 * @param x the x-coordinate in pixel units
+	 * @param y the y-coordinate in pixel units
+	 * @param z the z-coordinate in pixel units (0-based slice index)
+	 * @param within the search radius in pixel units. Only nodes within this
+	 *          distance are considered. Use {@code Double.MAX_VALUE} to always
+	 *          return the closest node regardless of distance.
+	 * @return the index of the closest node, or -1 if no node was found within
+	 *         the specified radius
+	 * @see #indexNearestTo(double, double, double, double)
+	 * @see #getUnscaledNodes()
+	 */
+	public int indexNearestToUnscaled(final double x, final double y, final double z,
+		final double within)
+	{
+		if (nodes.isEmpty()) throw new IllegalArgumentException(
+			"indexNearestToUnscaled called on a Path of size() = 0");
+
+		double minimumDistanceSquared = within * within;
+		int indexOfMinimum = -1;
+
+		for (int i = 0; i < nodes.size(); ++i) {
+			final double diff_x = x - getXUnscaledDouble(i);
+			final double diff_y = y - getYUnscaledDouble(i);
+			final double diff_z = z - getZUnscaledDouble(i);
+			final double thisDistanceSquared = diff_x * diff_x + diff_y * diff_y +
+				diff_z * diff_z;
+			if (thisDistanceSquared < minimumDistanceSquared) {
+				indexOfMinimum = i;
+				minimumDistanceSquared = thisDistanceSquared;
+			}
+		}
+
+		return indexOfMinimum;
+	}
+
+	/**
+	 * Returns the index of the node nearest to the specified position in pixel
+	 * (unscaled) coordinates, searching across all nodes regardless of distance.
+	 *
+	 * @param x the x-coordinate in pixel units
+	 * @param y the y-coordinate in pixel units
+	 * @param z the z-coordinate in pixel units (0-based slice index)
+	 * @return the index of the closest node
+	 * @see #indexNearestToUnscaled(double, double, double, double)
+	 */
+	public int indexNearestToUnscaled(final double x, final double y, final double z) {
+		return indexNearestToUnscaled(x, y, z, Double.MAX_VALUE);
+	}
+
+	/**
 	 * Gets the position of the node tagged as 'editable', if any.
 	 *
 	 * @return the index of the point currently tagged as editable, or -1 if no
