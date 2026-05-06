@@ -2705,10 +2705,20 @@ public class GuiUtils {
 	 * @param windowTitle the title of the display window to find
 	 */
 	public static void enhanceTableDisplay(final SNTTable table, final String windowTitle) {
+		enhanceTableDisplay(table, windowTitle, 0);
+	}
+
+	private static void enhanceTableDisplay(final SNTTable table, final String windowTitle, final int attempt) {
 		SwingUtilities.invokeLater(() -> {
 			try {
 				final JFrame frame = findWindowWithTitle(windowTitle);
-				if (frame == null) return;
+				if (frame == null) {
+					// Display may not be realized yet; retry up to 3 times
+					if (attempt < 3) {
+						enhanceTableDisplay(table, windowTitle, attempt + 1);
+					}
+					return;
+				}
 				addCloseShortcut(frame);
 				final JTable jTable = findComponent(frame, JTable.class);
 				if (jTable != null) {
