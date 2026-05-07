@@ -141,16 +141,16 @@ public class GuiUtils {
 	 * Returns the Last-Modified timestamp from a HEAD request, or -1 on failure.
 	 */
 	private static long getLastModified(final String url) {
+		java.net.HttpURLConnection conn = null;
 		try {
-			final java.net.HttpURLConnection conn = (java.net.HttpURLConnection)
-					new java.net.URL(url).openConnection();
+			conn = (java.net.HttpURLConnection) new URI(url).toURL().openConnection();
 			conn.setRequestMethod("HEAD");
 			conn.setUseCaches(false);
-			try (java.io.InputStream is = conn.getInputStream()) {
-				return conn.getLastModified();
-			}
+			return conn.getLastModified();
 		} catch (final Exception ignored) {
 			return -1;
+		} finally {
+			if (conn != null) conn.disconnect();
 		}
 	}
 
@@ -1739,7 +1739,7 @@ public class GuiUtils {
 		urls.add(url);
 		url = leftAlignedLabel("Source   ", "https://github.com/morphonets/SNT/", true);
 		urls.add(url);
-		url = leftAlignedLabel("Manuscript", "http://dx.doi.org/10.1038/s41592-021-01105-7", true);
+		url = leftAlignedLabel("Manuscript", "https://dx.doi.org/10.1038/s41592-021-01105-7", true);
 		urls.add(url);
 		final JOptionPane optionPane = new JOptionPane(main, JOptionPane.PLAIN_MESSAGE, JOptionPane.DEFAULT_OPTION);
 		final JDialog d = optionPane.createDialog("About SNT...");
@@ -3307,7 +3307,14 @@ public class GuiUtils {
 
 		public static JMenuItem openURL(final String label, final String URL) {
 			final JMenuItem mi = new JMenuItem(label);
-			mi.addActionListener(e -> ij.IJ.runPlugIn("ij.plugin.BrowserLauncher", URL));
+			mi.addActionListener(e -> {
+				try {
+					// see comment on keyboardCheatSheetButton() on sandboxed browsers
+					ij.plugin.BrowserLauncher.openURL(URL);
+				} catch (final IOException | UnsupportedOperationException ex) {
+					errorPrompt("<HTML>Could not open<br>" + URL);
+				}
+			});
 			return mi;
 		}
 
@@ -3610,14 +3617,11 @@ public class GuiUtils {
 					SwingUtilities.invokeLater(() -> {
 						final JDialog d = new GuiUtils().floatingMsg(msg, false);
 						if (d == null) return;
-						final AWTEventListener listener = new AWTEventListener() {
-							@Override
-							public void eventDispatched(AWTEvent e) {
-								if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
-									d.dispose();
-								}
-							}
-						};
+						final AWTEventListener listener = e -> {
+                            if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
+                                d.dispose();
+                            }
+                        };
 						Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.KEY_EVENT_MASK);
 						d.addWindowListener(new WindowAdapter() {
 							@Override
@@ -3791,17 +3795,14 @@ public class GuiUtils {
                             errorPrompt("Could not find cheatsheet. Visit " + fallbackURL);
                             return;
                         }
-						Path dir;
-						if (PlatformUtils.isLinux()) { // Workaround Firefox snap sandbox
-							dir = Paths.get(System.getProperty("user.home"), ".cache");
-							Files.createDirectories(dir);
-						} else {
-							dir = Paths.get(System.getProperty("java.io.tmpdir"));
-						}
+						final Path dir = Paths.get(System.getProperty("java.io.tmpdir"));
                         final Path tmp = Files.createTempFile(dir, "snt-shortcuts-", ".html");
                         Files.copy(is, tmp, StandardCopyOption.REPLACE_EXISTING);
                         tmp.toFile().deleteOnExit();
-                        Desktop.getDesktop().browse(tmp.toUri());
+						// On ubuntu w/ sandboxed firefox snap (default browser) file permissions errors
+						// occur when using Desktop.open() to open the html file the temp directory. This
+						// uses xdg-open which bypasses that, and works on all platforms
+                        ij.plugin.BrowserLauncher.openURL(tmp.toUri().toString());
                     } catch (final IOException | UnsupportedOperationException ex) {
                         errorPrompt("Could not open cheatsheet. Visit " + fallbackURL);
                     }
