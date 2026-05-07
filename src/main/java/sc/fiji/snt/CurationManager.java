@@ -38,9 +38,12 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 
 /**
@@ -90,6 +93,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JCheckBox overlapCheckbox;
     private JCheckBox radiusJumpsCheckbox;
     private JCheckBox radiusMonoCheckbox;
+    private JCheckBox signalQualityCheckbox;
     // Parameter spinners
     private JSpinner radiusSpinner;
     private JSpinner directionSpinner;
@@ -101,6 +105,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JSpinner radiusJumpsSpinner;
     private JSpinner radiusMonoSpinner;
     private JSpinner tortuositySpinner;
+    private JSpinner signalQualitySpinner;
+    // Width of the undo button, used as a spacer for other spinner rows
+    private static final int undoButtonWidth = GuiUtils.Buttons.undo().getPreferredSize().width;
     // Action controls
     private JToggleButton liveToggle;
     private JButton onDemandButton;
@@ -489,6 +496,36 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         panel.getActionMap().put("toggleChannelAndFrameChoice", new AbstractAction() {
             @Override public void actionPerformed(final ActionEvent e) { sntui.toggleChannelAndFrameChoice(); }
         });
+
+        // Bind H (hide paths) and O (show orientations) as hold-to-toggle keys,
+        // mirroring the behavior in QueueJumpingKeyListener / InteractiveTracerCanvas
+        warningsTable.addKeyListener(new KeyListener() {
+            @Override
+            public void keyPressed(final KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_H) {
+                    sntui.plugin.setAnnotationsVisible(false);
+                    e.consume();
+                } else if (e.getKeyCode() == KeyEvent.VK_O) {
+                    PathNodeCanvas.setShowDirectionArrows(true);
+                    sntui.plugin.repaintAllPanes();
+                    e.consume();
+                }
+            }
+            @Override
+            public void keyReleased(final KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_H) {
+                    sntui.plugin.setAnnotationsVisible(true);
+                    e.consume();
+                } else if (e.getKeyCode() == KeyEvent.VK_O) {
+                    PathNodeCanvas.setShowDirectionArrows(false);
+                    sntui.plugin.repaintAllPanes();
+                    e.consume();
+                }
+            }
+            @Override
+            public void keyTyped(final KeyEvent e) { /* unused */ }
+        });
+
         return panel;
     }
 
@@ -676,6 +713,30 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         addCheckRow(p, c, radiusMonoCheckbox, radiusMonoSpinner);
 
+        // Image signal quality
+        final PlausibilityCheck.SignalQuality signalCheck =
+                monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        signalQualityCheckbox = new JCheckBox("Min. signal contrast ratio:",
+                signalCheck != null && signalCheck.isEnabled());
+        signalQualityCheckbox.setToolTipText(
+                "Flags paths with poor signal-to-background contrast (requires image).\n" +
+                "Set to -1 for auto-threshold derived from image statistics.");
+        signalQualitySpinner = new JSpinner(new SpinnerNumberModel(
+                signalCheck != null ? signalCheck.getMinContrast() : PlausibilityCheck.SignalQuality.AUTO_THRESHOLD,
+                PlausibilityCheck.SignalQuality.AUTO_THRESHOLD, 10000.0, 0.5));
+        wireCheckbox(signalQualityCheckbox, signalQualitySpinner, signalCheck);
+        signalQualitySpinner.addChangeListener(e -> {
+            if (signalCheck != null) signalCheck.setMinContrast((Double) signalQualitySpinner.getValue());
+        });
+        // Undo button: always visible, resets spinner to AUTO_THRESHOLD
+        final JButton sqUndoBtn = GuiUtils.Buttons.undo();
+        sqUndoBtn.setToolTipText("Reset to auto-threshold (-1)");
+        sqUndoBtn.addActionListener(e -> {
+            signalQualitySpinner.setValue(PlausibilityCheck.SignalQuality.AUTO_THRESHOLD);
+            if (signalCheck != null) signalCheck.setMinContrast(PlausibilityCheck.SignalQuality.AUTO_THRESHOLD);
+        });
+        addCheckRow(p, c, signalQualityCheckbox, sqUndoBtn, signalQualitySpinner);
+
         return p;
     }
 
@@ -801,6 +862,38 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             onDemandButton.setEnabled(true);
             return;
         }
+        // Signal quality requires an image. Abort early if selected but no image.
+        final PlausibilityCheck.SignalQuality sq =
+                monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        if (sq != null && sq.isEnabled() && sntui.plugin.getLoadedData() == null) {
+            sntui.error("\"Min. signal contrast ratio\" requires valid image data to be loaded.");
+            onDemandButton.setEnabled(true);
+            return;
+        }
+        // Provide image context for checks that need it (e.g., SignalQuality)
+        monitor.setImageData(sntui.plugin.getLoadedData());
+        // Ensure image statistics are available for auto-threshold. If not yet
+        // computed, prompt the user (same pattern as runSecondaryLayerWizard).
+        if (sq != null && sq.isEnabled() && sq.getMinContrast() == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD) {
+            final ij.process.ImageStatistics imgStats = sntui.plugin.getStats();
+            if (imgStats.min == 0 && imgStats.max == 0) {
+                // min/max not yet computed. Prompt the user to compute them.
+                if (sntui.plugin.invalidStatsError(false)) {
+                    onDemandButton.setEnabled(true);
+                    return; // user dismissed — abort scan
+                }
+            }
+            monitor.setImageStats(imgStats.min, imgStats.max);
+        }
+        // Compute the resolved auto-threshold now (before scan) so we can
+        // display it in the spinner after the scan completes
+        final double resolvedThreshold;
+        if (sq != null && sq.getMinContrast() == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD) {
+            final ij.process.ImageStatistics ist = sntui.plugin.getStats();
+            resolvedThreshold = (ist.max > ist.min) ? (ist.max + 1.0) / (ist.min + 1.0) / 2.0 : 1.5;
+        } else {
+            resolvedThreshold = Double.NaN;
+        }
         new SwingWorker<List<PlausibilityCheck.Warning>, Void>() {
             @Override
             protected List<PlausibilityCheck.Warning> doInBackground() {
@@ -810,6 +903,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             @Override
             protected void done() {
                 onDemandButton.setEnabled(true);
+                // If auto-threshold was used, display the resolved value
+                if (!Double.isNaN(resolvedThreshold)) {
+                    signalQualitySpinner.setValue(resolvedThreshold);
+                    if (sq != null) sq.setMinContrast(resolvedThreshold);
+                }
                 try {
                     final List<PlausibilityCheck.Warning> warnings = get();
                     if (warnings.isEmpty()) {
@@ -1067,24 +1165,55 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             radiusMonoCheckbox.setSelected(rm.isEnabled());
             radiusMonoSpinner.setEnabled(rm.isEnabled());
         }
+        final PlausibilityCheck.SignalQuality sq =
+                monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        if (signalQualityCheckbox != null && sq != null) {
+            signalQualitySpinner.setValue(sq.getMinContrast());
+            signalQualityCheckbox.setSelected(sq.isEnabled());
+            signalQualitySpinner.setEnabled(sq.isEnabled());
+        }
     }
 
+    /**
+     * Adds a row: [checkbox | spacer | spinner]. The spacer column keeps all
+     * spinners aligned with the signal-quality row that has an undo button
+     * in that column.
+     */
     private void addCheckRow(final JPanel panel, final GridBagConstraints c,
                              final JCheckBox checkbox, final JSpinner spinner) {
+        addCheckRow(panel, c, checkbox, null, spinner);
+    }
+
+    /**
+     * Adds a row: [checkbox | middleComponent | spinner]. Use this overload
+     * when the middle column should contain a button (e.g., undo) instead
+     * of a spacer.
+     */
+    private void addCheckRow(final JPanel panel, final GridBagConstraints c,
+                             final JCheckBox checkbox, final JComponent middle,
+                             final JSpinner spinner) {
         c.gridx = 0;
         c.weightx = 1.0;
-        if (spinner != null) {
-            c.gridwidth = 1;
+        if (spinner == null) {
+            // Checkbox-only row: span all columns
+            c.gridwidth = GridBagConstraints.REMAINDER;
             panel.add(checkbox, c);
+            c.gridy++;
+            return;
+        }
+        c.gridwidth = 1;
+        panel.add(checkbox, c);
+
+        {
+            // Column 1: middle component or fixed-width spacer
             c.gridx = 1;
             c.weightx = 0.0;
+            c.gridwidth = 1;
+            panel.add(Objects.requireNonNullElseGet(middle, () -> Box.createHorizontalStrut(undoButtonWidth)), c);
+            // Column 2: spinner
+            c.gridx = 2;
             c.gridwidth = GridBagConstraints.REMAINDER;
-            //final int fs = (int) GuiUtils.uiFontSize();
-            //spinner.setPreferredSize(new Dimension(fs * 4, fs + 6));
             panel.add(spinner, c);
-        } else {
-            c.gridwidth = GridBagConstraints.REMAINDER;
-            panel.add(checkbox, c);
         }
         c.gridy++;
     }
@@ -1130,6 +1259,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             case "Path overlap" -> "#max-proximity-for-path-cross-overs";
             case "Radius jumps" -> "#max-ratio-of-abrupt-radius-changes";
             case "Radius monotonicity" -> "#min-run-length-for-radius-inversions";
+            case "Image signal quality" -> "#min-signal-contrast-ratio";
             default -> "";
         };
     }
@@ -1166,7 +1296,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 termBranchCheckbox.isSelected() || somaDistCheckbox.isSelected() ||
                 constantRadiiCheckbox.isSelected() || tortuosityCheckbox.isSelected() ||
                 overlapCheckbox.isSelected() || radiusJumpsCheckbox.isSelected() ||
-                radiusMonoCheckbox.isSelected())) {
+                radiusMonoCheckbox.isSelected() ||
+                signalQualityCheckbox.isSelected())) {
             sntui.error("At least one parameter needs to be selected.");
             return true;
         }

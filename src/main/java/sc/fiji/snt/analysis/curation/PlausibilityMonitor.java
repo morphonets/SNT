@@ -22,6 +22,9 @@
 
 package sc.fiji.snt.analysis.curation;
 
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 
@@ -69,6 +72,11 @@ public class PlausibilityMonitor {
     private boolean enabled;
     private boolean lastUpdateFromLiveCheck;
 
+    // Optional image context for checks that require it (e.g., SignalQuality)
+    private RandomAccessibleInterval<? extends RealType<?>> imageData;
+    private double imageMin = Double.NaN;
+    private double imageMax = Double.NaN;
+
     // Cached parent context from fork initiation (Hook 1)
     private Path cachedParent;
     private int cachedBranchIndex = -1;
@@ -96,6 +104,7 @@ public class PlausibilityMonitor {
         deepChecks.add(new PlausibilityCheck.PathOverlap());
         deepChecks.add(new PlausibilityCheck.RadiusJumps());
         deepChecks.add(new PlausibilityCheck.RadiusMonotonicity());
+        deepChecks.add(new PlausibilityCheck.SignalQuality());
     }
 
     /**
@@ -203,6 +212,7 @@ public class PlausibilityMonitor {
     public List<PlausibilityCheck.Warning> runDeepScan(final Collection<Path> paths) {
         lastUpdateFromLiveCheck = false;
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
+        pushImageContext();
         synchronized (currentWarnings) {
             currentWarnings.clear();
             for (final PlausibilityCheck.DeepCheck check : deepChecks) {
@@ -235,6 +245,7 @@ public class PlausibilityMonitor {
     public List<PlausibilityCheck.Warning> runFullScan(final Collection<Path> paths) {
         lastUpdateFromLiveCheck = false;
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
+        pushImageContext();
         synchronized (currentWarnings) {
             currentWarnings.clear();
 
@@ -273,6 +284,15 @@ public class PlausibilityMonitor {
         return getCurrentWarnings();
     }
 
+    /** Pushes the current image context to any deep check that supports it. */
+    private void pushImageContext() {
+        final PlausibilityCheck.SignalQuality sq = getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        if (sq != null) {
+            sq.setImage(imageData);
+            sq.setImageStats(imageMin, imageMax);
+        }
+    }
+
     private void clearWarnings() {
         synchronized (currentWarnings) {
             if (currentWarnings.isEmpty()) return;
@@ -292,7 +312,7 @@ public class PlausibilityMonitor {
     private void fireWarningsUpdated() {
         final List<PlausibilityCheck.Warning> snapshot;
         synchronized (currentWarnings) {
-            snapshot = Collections.unmodifiableList(new ArrayList<>(currentWarnings));
+            snapshot = List.copyOf(currentWarnings);
         }
         for (final WarningListener l : listeners) {
             try {
@@ -319,6 +339,28 @@ public class PlausibilityMonitor {
         if (enabled) clearWarnings();
     }
 
+    /**
+     * Sets the image data used by checks that require it (e.g.,
+     * {@link PlausibilityCheck.SignalQuality}). Should be called before
+     * {@link #runDeepScan(Collection)} or {@link #runFullScan(Collection)}.
+     *
+     * @param image the image (imglib2 RAI); {@code null} to clear
+     */
+    public void setImageData(final RandomAccessibleInterval<? extends RealType<?>> image) {
+        this.imageData = image;
+    }
+
+    /**
+     * Sets image-level statistics for auto-threshold computation.
+     *
+     * @param min image minimum intensity
+     * @param max image maximum intensity
+     */
+    public void setImageStats(final double min, final double max) {
+        this.imageMin = min;
+        this.imageMax = max;
+    }
+
     /** @return the (modifiable) list of registered live checks */
     public List<PlausibilityCheck.LiveCheck> getLiveChecks() { return liveChecks; }
 
@@ -328,7 +370,7 @@ public class PlausibilityMonitor {
     /** @return the current (immutable) list of active warnings */
     public List<PlausibilityCheck.Warning> getCurrentWarnings() {
         synchronized (currentWarnings) {
-            return Collections.unmodifiableList(new ArrayList<>(currentWarnings));
+            return List.copyOf(currentWarnings);
         }
     }
 
