@@ -186,8 +186,8 @@ println("Done. ${detections.size()} detections across ${paths.size()} path(s). "
 
 // Imports below:
 import ij.plugin.frame.RoiManager
-import sc.fiji.snt.analysis.PeripathDetector
 import sc.fiji.snt.analysis.RoiConverter
+import sc.fiji.snt.analysis.detection.PeripathDetector
 import sc.fiji.snt.analysis.SNTChart
 import sc.fiji.snt.analysis.SNTTable
 import sc.fiji.snt.Tree

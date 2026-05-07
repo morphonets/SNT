@@ -51,6 +51,7 @@ import sc.fiji.snt.plugin.ROIExporterCmd;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.analysis.detection.Detection;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInCanvas;
 import sc.fiji.snt.util.PointInImage;
@@ -603,8 +604,8 @@ public class RoiConverter {
 
     /**
      * Creates a grouped {@link PointRoi} from a list of
-     * {@link PeripathDetector.Detection}s. Each detection's pixel coordinates
-     * and stack position are computed via {@link PeripathDetector.Detection#xyzct()}.
+     * {@link Detection}s. Each detection's pixel coordinates
+     * and stack position are computed via {@link Detection#xyzct()}.
      *
      * @param detections the detections to convert
      * @param imp        the image used to resolve stack positions (channel, Z, frame)
@@ -613,12 +614,12 @@ public class RoiConverter {
      * @return a PointRoi containing all detection points with per-point Z positions
      * @throws IllegalArgumentException if detections or imp is null
      */
-    public static PointRoi toPointRoi(final List<PeripathDetector.Detection> detections,
+    public static PointRoi toPointRoi(final List<Detection> detections,
                                        final ImagePlus imp, final String name, final Color color) {
         if (detections == null || imp == null)
             throw new IllegalArgumentException("detections and image cannot be null");
         final PointRoi roi = new PointRoi();
-        for (final PeripathDetector.Detection d : detections) {
+        for (final Detection d : detections) {
             final double[] loc = d.xyzct();
             final int zSlice = (int) Math.round(loc[2]) + 1;
             final int stackPos = imp.getStackIndex((int) loc[3], zSlice, (int) loc[4]);

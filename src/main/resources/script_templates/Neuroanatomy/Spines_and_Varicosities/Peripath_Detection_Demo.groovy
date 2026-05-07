@@ -125,8 +125,8 @@ println("Done. ${detections.size()} maxima detected. ROIs, torus mask, and extra
 import ij.IJ
 import ij.plugin.ImageCalculator
 import ij.plugin.frame.RoiManager
-import sc.fiji.snt.analysis.PeripathDetector
 import sc.fiji.snt.analysis.RoiConverter
+import sc.fiji.snt.analysis.detection.PeripathDetector
 import sc.fiji.snt.util.ImgUtils
 import sc.fiji.snt.util.ImpUtils
 import sc.fiji.snt.util.SNTPoint
