@@ -23,6 +23,7 @@
 package sc.fiji.snt.analysis.curation;
 
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -132,6 +133,12 @@ public class PlausibilityCalibrator {
                         final PlausibilityCheck.RadiusMonotonicity chk = monitor.getDeepCheck(PlausibilityCheck.RadiusMonotonicity.class);
                         if (chk != null) chk.setMinIncreasingRun((int) Math.round(s.computedValue));
                     }
+                    // SignalQuality: no calibration (requires image data)
+                    case "Image signal quality" -> {
+                        final PlausibilityCheck.SignalQuality chk =
+                                monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+                        if (chk != null) chk.setMinContrast(s.computedValue);
+                    }
                     default -> SNTUtils.log("PlausibilityCalibrator: unknown check '" + s.checkName + "'");
                 }
             }
@@ -217,6 +224,7 @@ public class PlausibilityCalibrator {
         calibratePathOverlap(result);
         calibrateRadiusJumps(result);
         calibrateRadiusMonotonicity(result);
+        // SignalQuality skipped: requires image data during calibration
 
         return result;
     }
@@ -552,6 +560,11 @@ public class PlausibilityCalibrator {
             entries.put("radiusMonotonicity.minRun", String.valueOf(rm.getMinIncreasingRun()));
             entries.put("radiusMonotonicity.enabled", String.valueOf(rm.isEnabled()));
         }
+        final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        if (sq != null) {
+            entries.put("signalQuality.minContrast", String.valueOf(sq.getMinContrast()));
+            entries.put("signalQuality.enabled", String.valueOf(sq.isEnabled()));
+        }
 
         // Monitor-level state
         entries.put("monitor.enabled", String.valueOf(monitor.isEnabled()));
@@ -660,6 +673,11 @@ public class PlausibilityCalibrator {
         if (rm != null) {
             setInt(props, "radiusMonotonicity.minRun", rm::setMinIncreasingRun);
             setEnabled(props, "radiusMonotonicity.enabled", rm::setEnabled);
+        }
+        final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        if (sq != null) {
+            setDouble(props, "signalQuality.minContrast", sq::setMinContrast);
+            setEnabled(props, "signalQuality.enabled", sq::setEnabled);
         }
 
         // Monitor-level state (only present in session files, not calibration presets)

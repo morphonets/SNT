@@ -22,7 +22,14 @@
 
 package sc.fiji.snt.analysis.curation;
 
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
+
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.analysis.ProfileProcessor;
 import sc.fiji.snt.util.CrossoverFinder;
 import sc.fiji.snt.util.PointInImage;
 
@@ -550,6 +557,177 @@ public final class PlausibilityCheck {
                             path.getNode(runStart), List.of(path), runLength, minIncreasingRun));
                 }
             }
+            return warnings;
+        }
+    }
+
+
+    /**
+     * Assesses local image signal quality around traced paths and flags
+     * those in regions with poor contrast. For each path, voxel intensities
+     * are sampled in a local neighborhood; signal and background are
+     * separated by percentile thresholds, and the contrast ratio
+     * (signal&nbsp;median / background&nbsp;median) is computed.
+     * <p>
+     * This check requires image data to be provided via
+     * {@link #setImage(RandomAccessibleInterval)} before scanning.
+     * If no image is set, the check returns an empty list.
+     * <p>
+     * Reference: Zhang et al., <i>Nature Methods</i> (2024),
+     * doi:10.1038/s41592-024-02401-8.
+     */
+    public static class SignalQuality extends DeepCheck {
+
+        /** Sentinel value indicating the threshold should be inferred from image stats. */
+        public static final double AUTO_THRESHOLD = -1.0;
+
+        private double minContrast = AUTO_THRESHOLD;
+        private RandomAccessibleInterval<? extends RealType<?>> image;
+        private double imageMin = Double.NaN;
+        private double imageMax = Double.NaN;
+
+        @Override
+        public String getName() { return "Image signal quality"; }
+
+        /**
+         * Sets the minimum signal-to-background contrast ratio below which
+         * a path is flagged. Set to {@link #AUTO_THRESHOLD} to infer from
+         * image statistics.
+         *
+         * @param contrast ratio &ge; 1.0, or {@link #AUTO_THRESHOLD}
+         */
+        public void setMinContrast(final double contrast) { this.minContrast = contrast; }
+
+        /** @return the current minimum contrast threshold */
+        public double getMinContrast() { return minContrast; }
+
+        /**
+         * Provides the image data for signal quality assessment.
+         *
+         * @param image the image (3D RAI); {@code null} to clear
+         */
+        public void setImage(final RandomAccessibleInterval<? extends RealType<?>> image) {
+            this.image = image;
+        }
+
+        /**
+         * Sets image-level statistics used to auto-compute the contrast
+         * threshold when {@link #getMinContrast()} == {@link #AUTO_THRESHOLD}.
+         *
+         * @param min image minimum intensity
+         * @param max image maximum intensity
+         */
+        public void setImageStats(final double min, final double max) {
+            this.imageMin = min;
+            this.imageMax = max;
+        }
+
+        /** @return whether image data has been provided */
+        public boolean hasImage() { return image != null; }
+
+        /**
+         * Resolves the effective contrast threshold. If set to
+         * {@link #AUTO_THRESHOLD} and image statistics are available,
+         * derives it as half the best possible contrast ratio for the
+         * image: {@code (max + 1) / (min + 1) / 2}. This accounts
+         * for the full dynamic range of the image.
+         */
+        private double resolveThreshold() {
+            if (minContrast != AUTO_THRESHOLD) return minContrast;
+            if (!Double.isNaN(imageMax) && !Double.isNaN(imageMin) && imageMax > imageMin) {
+                final double auto = (imageMax + 1.0) / (imageMin + 1.0) / 2.0;
+                SNTUtils.log(String.format("SignalQuality: auto-threshold from image stats: min=%.1f max=%.1f => threshold=%.2f",
+                        imageMin, imageMax, auto));
+                return auto;
+            }
+            SNTUtils.log("SignalQuality: no image stats for auto-threshold, using fallback=1.5");
+            return 1.5; // fallback
+        }
+
+        @Override
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty() || image == null)
+                return Collections.emptyList();
+
+            final double threshold = resolveThreshold();
+            SNTUtils.log(String.format("SignalQuality: scanning %d paths, threshold=%.2f",
+                    paths.size(), threshold));
+
+            final List<Warning> warnings = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                // LINE shape requires at least 3 nodes (skips first and last)
+                if (path == null || path.size() < 3) { skipped++; continue; }
+
+                // Sample perpendicular cross-sections at each node using LINE shape.
+                // The line extends well beyond the neurite radius so that it captures
+                // both on-neurite (signal) and flanking off-neurite (background) pixels.
+                final SortedMap<Integer, List<Double>> rawValues;
+                try {
+                    final ProfileProcessor pp = new ProfileProcessor(image, path);
+                    pp.setShape(ProfileProcessor.Shape.LINE);
+                    // Use 3× path radius (min 5 px) to ensure lines reach background
+                    final int lineRadius = path.hasRadii()
+                            ? Math.max((int) Math.round(path.getMeanRadius() * 3), 5)
+                            : 5;
+                    pp.setRadius(lineRadius);
+                    rawValues = pp.getRawValues(1);
+                } catch (final Exception e) {
+                    SNTUtils.log(String.format("SignalQuality: \"%s\" threw: %s",
+                            path.getName(), e.getMessage()));
+                    skipped++; continue;
+                }
+                if (rawValues == null || rawValues.isEmpty()) { skipped++; continue; }
+
+                // Pool all cross-section pixel values across sampled nodes
+                final DescriptiveStatistics ds = new DescriptiveStatistics();
+                for (final List<Double> nodeVals : rawValues.values()) {
+                    for (final double v : nodeVals) {
+                        if (!Double.isNaN(v)) ds.addValue(v);
+                    }
+                }
+                if (ds.getN() < 10) { skipped++; continue; }
+
+                final double p25 = ds.getPercentile(25);
+                final double p75 = ds.getPercentile(75);
+
+                // Background: lower quartile (flanking off-neurite pixels)
+                final DescriptiveStatistics bgStats = new DescriptiveStatistics();
+                // Signal: upper quartile (on-neurite pixels)
+                final DescriptiveStatistics sigStats = new DescriptiveStatistics();
+                for (final List<Double> nodeVals : rawValues.values()) {
+                    for (final double v : nodeVals) {
+                        if (Double.isNaN(v)) continue;
+                        if (v <= p25) bgStats.addValue(v);
+                        else if (v >= p75) sigStats.addValue(v);
+                    }
+                }
+
+                if (bgStats.getN() < 2 || sigStats.getN() < 2) { skipped++; continue; }
+                final double bgMedian = bgStats.getPercentile(50);
+                final double signalMedian = sigStats.getPercentile(50);
+
+                // Add 1 to both to avoid division by zero in fluorescence
+                // images where background is often exactly 0, while
+                // preserving the ratio for non-zero values
+                final double contrast = (signalMedian + 1) / (bgMedian + 1);
+
+                SNTUtils.log(String.format("SignalQuality: \"%s\" contrast=%.2f (sig=%.0f bg=%.0f)",
+                        path.getName(), contrast, signalMedian, bgMedian));
+
+                if (contrast < threshold) {
+                    final int mid = path.size() / 2;
+                    warnings.add(new Warning(getName(), Severity.WARNING,
+                            String.format("Low signal quality in \"%s\": contrast %.2f " +
+                                            "(min %.2f), signal median=%.0f, background median=%.0f",
+                                    path.getName(), contrast, threshold,
+                                    signalMedian, bgMedian),
+                            path.getNode(mid), List.of(path), contrast, threshold));
+                }
+            }
+            SNTUtils.log(String.format("SignalQuality: done. %d warnings, %d paths skipped",
+                    warnings.size(), skipped));
             return warnings;
         }
     }
