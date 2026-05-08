@@ -483,6 +483,10 @@
 			<optional>true</optional>
 			<exclusions>
 				<exclusion>
+					<groupId>com.github.skalarproduktraum</groupId>
+					<artifactId>lwjgl3-awt</artifactId>
+				</exclusion>
+				<exclusion>
 					<groupId>xml-apis</groupId>
 					<artifactId>xml-apis</artifactId>
 				</exclusion>
