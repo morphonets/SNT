@@ -2409,6 +2409,17 @@ public class Path implements Comparable<Path>, Cloneable {
 		return fittedVersionOf != null;
 	}
 
+	/**
+	 * Gets the original (unfitted) path that this path is a fitted version of.
+	 *
+	 * @return the unfitted original, or {@code null} if this is not a fitted path
+	 * @see #isFittedVersionOfAnotherPath()
+	 * @see #getFitted()
+	 */
+	public Path getUnfitted() {
+		return fittedVersionOf;
+	}
+
 	protected void setFitted(final Path p) {
 		if (getFitted() != null && p != null) {
 			throw new IllegalArgumentException(

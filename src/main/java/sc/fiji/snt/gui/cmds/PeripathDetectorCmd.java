@@ -33,8 +33,9 @@ import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.analysis.PeripathDetector;
 import sc.fiji.snt.analysis.RoiConverter;
+import sc.fiji.snt.analysis.detection.Detection;
+import sc.fiji.snt.analysis.detection.PeripathDetector;
 import sc.fiji.snt.util.ImgUtils;
 
 import java.util.Collection;
@@ -117,6 +118,11 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         if (paths == null || paths.isEmpty()) {
             paths = snt.getUI().getPathManager().getSelectedPaths(true);
         }
+        // Prefer fitted paths when unfitted ones lack radii
+        paths = paths.stream()
+                .map(p -> (!p.hasRadii() && p.getFitted() != null && p.getFitted().hasRadii())
+                        ? p.getFitted() : p)
+                .collect(Collectors.toList());
         channel = snt.getChannel();
         if (snt.accessToValidImageData()) {
             if (snt.getImagePlus() != null && snt.getImagePlus().getNChannels() == 1) {
@@ -206,7 +212,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
         SNTUtils.log("PeripathDetectorCmd: " + cfg);
 
         // Run detection
-        final List<PeripathDetector.Detection> results = PeripathDetector.detect(paths, detectionImg, cfg);
+        final List<Detection> results = PeripathDetector.detect(paths, detectionImg, cfg);
 
         if (results.isEmpty()) {
             error("No maxima detected with current parameters.");
@@ -215,9 +221,13 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
 
         SNTUtils.log("Detected " + results.size() + " maxima");
 
-        // Group results by path for labeling and color tagging
-        final Map<Path, List<PeripathDetector.Detection>> resultsByPath = results.stream()
-                .collect(Collectors.groupingBy(v -> v.path));
+        // Group results by path, resolving fitted paths back to their
+        // unfitted originals so that labels and counts match PathManagerUI
+        final Map<Path, List<Detection>> resultsByPath = results.stream()
+                .collect(Collectors.groupingBy(v ->
+                    v.path.isFittedVersionOfAnotherPath()
+                            ? v.path.getUnfitted() : v.path
+                ));
 
         // Update spine/varicosity counts on paths
         resultsByPath.forEach((p, detections) -> p.setSpineOrVaricosityCount(
@@ -231,7 +241,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             // Add to bookmark manager, tagged per path
             resultsByPath.forEach((path, detections) -> {
                 final List<double[]> locs = detections.stream()
-                        .map(PeripathDetector.Detection::xyzct)
+                        .map(Detection::xyzct)
                         .collect(Collectors.toList());
                 ui.getBookmarkManager().add(path.getName() + " Max. ", locs, path.getColor());
             });
@@ -244,7 +254,7 @@ public class PeripathDetectorCmd extends CommonDynamicCmd {
             final ImagePlus imp = snt.getImagePlus();
             RoiManager rm = RoiManager.getInstance2();
             if (rm == null) rm = new RoiManager();
-            for (final Map.Entry<Path, List<PeripathDetector.Detection>> entry : resultsByPath.entrySet()) {
+            for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {
                 final Path path = entry.getKey();
                 final String name = path.getName() + " (" + entry.getValue().size() + " maxima)";
                 rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));

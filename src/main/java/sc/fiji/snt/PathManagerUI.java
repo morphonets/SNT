@@ -513,9 +513,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         // Detection (automated)
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.DETECT_PERIMAXIMA_CMD);
-        jmi.setToolTipText("Detects intensity maxima in annular cross-sections around selected paths");
+        jmi.setToolTipText("Locates bright intensity peaks (synaptic/spine markers) flanking selected paths");
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DETECT_PERIMAXIMA_CMD + "\")");
+        menu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.DETECT_SWELLINGS_CMD);
+        jmi.setToolTipText("Detects boutons, varicosities, and blebs along selected paths using radius swelling profiles");
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DETECT_SWELLINGS_CMD + "\")");
         menu.add(jmi);
         menu.addSeparator();
 
@@ -2962,6 +2967,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String DENSITIES_COLOR_CODING_CMD = "Color Code Paths Using Densities...";
         private static final String DENSITIES_PROFILE_CMD = "Density Profiles...";
         private static final String DETECT_PERIMAXIMA_CMD = "Detect Maxima Around Paths...";
+        private static final String DETECT_SWELLINGS_CMD = "Detect Swellings Along Paths...";
 
         // Custom tag definition: anything flanked by curly braces
         private static final Pattern TAG_CUSTOM_PATTERN = Pattern.compile(" ?\\{.*}");
@@ -3009,6 +3015,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(MATCH_PATHS_ACROSS_TIME_CMD, new MatchPathsAcrossTimeCommand());
             commands.put(GROWTH_ANALYSIS_CMD, new GrowthAnalysisCommand());
             commands.put(DETECT_PERIMAXIMA_CMD, new DetectVaricositiesCommand());
+            commands.put(DETECT_SWELLINGS_CMD, new DetectSwellingsCommand());
 
             // Modification commands
             commands.put(REVERSE_CMD, new ReverseCommand());
@@ -3545,6 +3552,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
                 (plugin.getUI().new DynamicCmdRunner(PeripathDetectorCmd.class, inputs)).run();
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class DetectSwellingsCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                final HashMap<String, Object> inputs = new HashMap<>();
+                inputs.put("paths", selectedPaths);
+                (plugin.getUI().new DynamicCmdRunner(AlongPathDetectorCmd.class, inputs)).run();
             }
 
             @Override
