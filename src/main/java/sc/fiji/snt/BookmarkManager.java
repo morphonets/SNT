@@ -359,6 +359,12 @@ public class BookmarkManager {
             pMenu.add(mi);
             pMenu.addSeparator();
         }
+        if (sntui != null) {
+            mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+            mi.addActionListener(e -> colocalizeBookmarks());
+            pMenu.add(mi);
+            pMenu.addSeparator();
+        }
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
@@ -408,6 +414,89 @@ public class BookmarkManager {
             viewRows = IntStream.range(0, table.getRowCount()).toArray();
         }
         return viewRows;
+    }
+
+    private void colocalizeBookmarks() {
+        if (noBookmarksError()) return;
+        if (bvv != null) {
+            guiUtils.error("Colocalization is not available in BVV mode.");
+            return;
+        }
+        final int[] viewRows = getSelectedRowsAllIfNone();
+        // Collect bookmarks from selected rows
+        final List<Bookmark> candidates = new ArrayList<>();
+        for (final int viewRow : viewRows) {
+            candidates.add(model.getDataList().get(table.convertRowIndexToModel(viewRow)));
+        }
+        // Require bookmarks from at least 2 distinct channels
+        final long distinctChannels = candidates.stream().mapToInt(b -> b.c).distinct().count();
+        if (distinctChannels < 2) {
+            guiUtils.error("Colocalization requires bookmarks from at least 2 channels.");
+            return;
+        }
+        final Double threshold = guiUtils.getDouble(
+                "<HTML>Max. distance between colocalized bookmarks<br>(in pixel units):",
+                "Colocalize Bookmarks", 5.0);
+        if (threshold == null || threshold <= 0) return;
+        final double thresholdSq = threshold * threshold;
+        // Group bookmarks by channel
+        final Map<Integer, List<Bookmark>> byChannel = new LinkedHashMap<>();
+        for (final Bookmark b : candidates) {
+            byChannel.computeIfAbsent(b.c, k -> new ArrayList<>()).add(b);
+        }
+        final List<Integer> channels = new ArrayList<>(byChannel.keySet());
+        // Use first channel as seed, match against remaining channels
+        final List<Bookmark> seedList = byChannel.get(channels.get(0));
+        final Set<Bookmark> consumed = new HashSet<>();
+        final List<Bookmark> merged = new ArrayList<>();
+        for (final Bookmark seed : seedList) {
+            final List<Bookmark> group = new ArrayList<>();
+            group.add(seed);
+            for (int ci = 1; ci < channels.size(); ci++) {
+                final List<Bookmark> others = byChannel.get(channels.get(ci));
+                Bookmark closest = null;
+                double closestDistSq = Double.MAX_VALUE;
+                for (final Bookmark other : others) {
+                    if (consumed.contains(other) || other.t != seed.t) continue;
+                    final double distSq = seed.distanceSquaredTo(other);
+                    if (distSq <= thresholdSq && distSq < closestDistSq) {
+                        closestDistSq = distSq;
+                        closest = other;
+                    }
+                }
+                if (closest != null) group.add(closest);
+            }
+            // A colocalization requires matches from at least 2 channels
+            if (group.size() >= 2) {
+                consumed.addAll(group);
+                // Centroid position
+                final double cx = group.stream().mapToDouble(b -> b.x).average().orElse(seed.x);
+                final double cy = group.stream().mapToDouble(b -> b.y).average().orElse(seed.y);
+                final double cz = group.stream().mapToDouble(b -> b.z).average().orElse(seed.z);
+                final String chLabel = group.stream().map(b -> "C" + b.c)
+                        .distinct().collect(java.util.stream.Collectors.joining("+"));
+                final String label = model.getUniqueLabel("Coloc " + chLabel + " ");
+                merged.add(new Bookmark(label, cx, cy, cz, seed.c, seed.t, seed.getColor()));
+            }
+        }
+        if (merged.isEmpty()) {
+            guiUtils.error("No colocalized bookmarks found within the specified distance.");
+            return;
+        }
+        final int nRemoved = consumed.size();
+        final int nMerged = merged.size();
+        if (!guiUtils.getConfirmation(
+                nRemoved + " bookmarks will be replaced by " + nMerged + " colocalized entries. Proceed?",
+                "Colocalize Bookmarks")) {
+            return;
+        }
+        // Remove consumed bookmarks and add merged ones
+        model.getDataList().removeAll(consumed);
+        model.getDataList().addAll(merged);
+        model.fireTableDataChanged();
+        if (sntui != null)
+            sntui.showStatus(nMerged + " colocalized bookmark(s) created", true);
+        recordComment("Bookmark Manager: colocalize(" + threshold + ")");
     }
 
     private void recordCmd(final String cmd) {
