@@ -5383,6 +5383,43 @@ public class SNTUI extends JDialog {
             return statusPanel;
         }
 
+        /**
+         * Adds hold-to-toggle key bindings to a component: H hides/shows paths,
+         * O shows/hides orientation arrows. Mirrors the behavior in
+         * {@link QueueJumpingKeyListener} / {@link InteractiveTracerCanvas}.
+         *
+         * @param component the component to bind keys to
+         * @param plugin    the {@link SNT} instance
+         */
+        static void addHoldToToggleKeyListener(final JComponent component, final SNT plugin) {
+            component.addKeyListener(new KeyListener() {
+                @Override
+                public void keyPressed(final KeyEvent e) {
+                    if (e.getKeyCode() == KeyEvent.VK_H) {
+                        plugin.setAnnotationsVisible(false);
+                        e.consume();
+                    } else if (e.getKeyCode() == KeyEvent.VK_O) {
+                        PathNodeCanvas.setShowDirectionArrows(true);
+                        plugin.repaintAllPanes();
+                        e.consume();
+                    }
+                }
+                @Override
+                public void keyReleased(final KeyEvent e) {
+                    if (e.getKeyCode() == KeyEvent.VK_H) {
+                        plugin.setAnnotationsVisible(true);
+                        e.consume();
+                    } else if (e.getKeyCode() == KeyEvent.VK_O) {
+                        PathNodeCanvas.setShowDirectionArrows(false);
+                        plugin.repaintAllPanes();
+                        e.consume();
+                    }
+                }
+                @Override
+                public void keyTyped(final KeyEvent e) { /* unused */ }
+            });
+        }
+
         protected static JPanel buttonPanel(final JButton... buttons) {
             final JPanel p = new JPanel();
             p.setBackground(null); // transparent. Parent may be darker/lighter

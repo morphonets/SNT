@@ -115,6 +115,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         fillList.setVisibleRowCount(7);
         fillList.setPrototypeCellValue(PrototypeFill.instance);
         fillList.setComponentPopupMenu(createListPopupMenu());
+        SNTUI.InternalUtils.addHoldToToggleKeyListener(fillList, plugin);
         gUtils = new GuiUtils(this);
         setPlaceholderStatusLabels();
         initializeActions();

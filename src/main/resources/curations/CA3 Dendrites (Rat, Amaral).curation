@@ -27,3 +27,5 @@ radiusJumps.maxRatio=2.380000000000003
 radiusJumps.enabled=true
 radiusMonotonicity.minRun=1
 radiusMonotonicity.enabled=true
+signalQuality.minContrast=-1.0
+signalQuality.enabled=true

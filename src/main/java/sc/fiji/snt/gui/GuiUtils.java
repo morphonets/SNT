@@ -1635,10 +1635,18 @@ public class GuiUtils {
 		return WARNING_COLOR;
 	}
 
-	public static JLabel shortSmallMsg(final String msg) {
+	public static JLabel shortSmallMsg(final String msg, final boolean enabled) {
 		final JLabel label = new JLabel(msg);
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+		if (!enabled) {
+			label.setEnabled(false);
+			label.setForeground(disabledColor);
+		}
 		return label;
+	}
+
+	public static JLabel shortSmallMsg(final String msg) {
+		return shortSmallMsg(msg, true);
 	}
 
 	public static JTextArea longSmallMsg(final String msg, final Component parent) {
@@ -1747,7 +1755,7 @@ public class GuiUtils {
 			@Override
 			public void mouseClicked(final MouseEvent me) {
 				Timer timer;
-				if (Types.load("org.scijava.plugins.commands.debug.SystemInformation") == null) {
+				if (Types.load("org.scijava.plugins.commands.debug.SystemInformation") != null) {
 					ijDetails.setText("<HTML><b>Gathering system information... This may take a while.");
 					SNTUtils.getContext().getService(CommandService.class).run("org.scijava.plugins.commands.debug.SystemInformation", true);
 					timer = new Timer(3000, e -> d.dispose());

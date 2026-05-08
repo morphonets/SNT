@@ -44,6 +44,7 @@ import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -61,6 +62,9 @@ import java.util.stream.IntStream;
 public class BookmarkManager {
 
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
+    /** Name prefix for temporary highlight ROIs added to the image overlay. */
+    private static final String HIGHLIGHT_PREFIX = "__bm_highlight_";
 
     private final SNTUI sntui;
     private final Bvv bvv;
@@ -183,11 +187,11 @@ public class BookmarkManager {
                 Location" from the contextual menu (or press Shift+B). To bookmark crossovers \
                 and other positions along paths use the menu in the navigation toolbar of the \
                 Path Manager.
-                
-                To visit a bookmarked location: Double-click on its entry.
                 """;
         gbc.weighty = 0.0;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);
+        gbc.gridy++;
+        container.add(assembleHighlightToolbar(), gbc);
         gbc.gridy++;
         gbc.weighty = 0.95;
         container.add(table.getContainer(), gbc);
@@ -242,6 +246,9 @@ public class BookmarkManager {
                 }
             }
         });
+        if (sntui != null) {
+            SNTUI.InternalUtils.addHoldToToggleKeyListener(table, sntui.plugin);
+        }
         return table;
     }
 
@@ -383,6 +390,8 @@ public class BookmarkManager {
             recordComment("Bookmark Manager: resizeColumns()");
         });
         pMenu.add(mi);
+        // Disabled type-to-search: search is only accessible via the context menu.
+        // This frees single-key shortcuts (H, O) for hold-to-toggle behavior.
         GuiUtils.JTables.assignSearchable(table, element -> {
             if (element == null) return "";
             if (element instanceof Color color) {
@@ -548,6 +557,83 @@ public class BookmarkManager {
         } catch (final NullPointerException ignored) {
             visitingZoomPercentage = 600;
         }
+    }
+
+    private void highlightBookmarks() {
+        if (noBookmarksError()) return;
+        final ImagePlus imp = sntui.plugin.getImagePlus();
+        if (imp == null) {
+            sntui.guiUtils.error("No image is currently open.");
+            return;
+        }
+        Overlay overlay = imp.getOverlay();
+        if (overlay == null) {
+            overlay = new Overlay();
+            imp.setOverlay(overlay);
+        }
+        // Remove any existing highlights first
+        removeHighlightROIs(overlay);
+        final int[] rows = getSelectedRowsAllIfNone();
+        int idx = 0;
+        for (final int viewRow : rows) {
+            final int modelRow = table.convertRowIndexToModel(viewRow);
+            final Bookmark b = model.getDataList().get(modelRow);
+            final PointRoi roi = b.toRoi();
+            roi.setName(HIGHLIGHT_PREFIX + idx++);
+            roi.setPointType(PointRoi.CIRCLE);
+            if (roi.getStrokeColor() == null)
+                roi.setStrokeColor(Color.CYAN);
+            overlay.add(roi);
+        }
+        imp.updateAndDraw();
+        sntui.showStatus(rows.length + " bookmark(s) highlighted on overlay", true);
+    }
+
+    private void clearHighlights() {
+        final ImagePlus imp = (sntui == null) ? null : sntui.plugin.getImagePlus();
+        if (imp == null || imp.getOverlay() == null) return;
+        if (removeHighlightROIs(imp.getOverlay())) {
+            imp.updateAndDraw();
+            sntui.showStatus("Highlights cleared", true);
+        }
+    }
+
+    /**
+     * Removes all highlight ROIs (those with the {@link #HIGHLIGHT_PREFIX} name)
+     * from the given overlay.
+     *
+     * @return true if any ROIs were removed
+     */
+    private static boolean removeHighlightROIs(final Overlay overlay) {
+        if (overlay == null) return false;
+        final Roi[] rois = overlay.toArray();
+        boolean removed = false;
+        for (int i = rois.length - 1; i >= 0; i--) {
+            if (rois[i].getName() != null && rois[i].getName().startsWith(HIGHLIGHT_PREFIX)) {
+                overlay.remove(i);
+                removed = true;
+            }
+        }
+        return removed;
+    }
+
+    private JToolBar assembleHighlightToolbar() {
+        final JToolBar tb = new JToolBar();
+        tb.setFloatable(false);
+        tb.add(GuiUtils.shortSmallMsg("To visit a bookmarked location: Double-click on its entry.", false));
+        tb.add(Box.createHorizontalGlue());
+        if (sntui != null) { // no functionality in BVV Markers table
+            tb.addSeparator();
+            final JButton highlightButton = new JButton(IconFactory.buttonIcon('\uf0eb', false));
+            highlightButton.setToolTipText("Highlight selected bookmarks on the image (all if none selected)");
+            highlightButton.addActionListener(e -> highlightBookmarks());
+            final JButton clearHighlightButton = GuiUtils.Buttons.undo();
+            clearHighlightButton.setToolTipText("Remove bookmark highlights from the image");
+            clearHighlightButton.addActionListener(e -> clearHighlights());
+            tb.add(highlightButton);
+            tb.add(clearHighlightButton);
+        }
+        return tb;
     }
 
     private JToolBar assembleToolbar() {
@@ -1074,6 +1160,7 @@ public class BookmarkManager {
      * @param overlay the overlay to add the bookmarks to. Null not allowed
      */
     public void toOverlay(final Overlay overlay) {
+        removeHighlightROIs(overlay); // cull temporary highlights before exporting
         for (final Roi roi : getROIs(table.getSelectedRows().length>0))
             overlay.add(roi);
     }
@@ -1189,6 +1276,9 @@ class BookmarkTable extends JTable {
 
     @Override
     public boolean editCellAt(int row, int column, EventObject e) {
+        // Reject keyboard-initiated editing: rename is only available via the
+        // context menu so that single-key shortcuts (H, O) are not consumed.
+        if (e instanceof java.awt.event.KeyEvent) return false;
         final boolean result = super.editCellAt(row, column, e);
         final Component editor = getEditorComponent();
         if (editor instanceof JTextField textField) {

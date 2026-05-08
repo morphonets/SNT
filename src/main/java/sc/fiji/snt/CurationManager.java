@@ -22,6 +22,8 @@
 
 package sc.fiji.snt;
 
+import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
@@ -38,8 +40,6 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,6 +81,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private final WarningTableModel tableModel;
     private final JTable warningsTable;
     private JPanel panel;
+    // Section header tri-state checkboxes (select all / none / mixed)
+    private FlatTriStateCheckBox liveHeaderCheckbox;
+    private FlatTriStateCheckBox onDemandHeaderCheckbox;
     // Parameter checkboxes (instance fields for sync from .curation presets)
     private JCheckBox branchAngleMinCheckbox;
     private JCheckBox branchAngleMaxCheckbox;
@@ -94,6 +97,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JCheckBox radiusJumpsCheckbox;
     private JCheckBox radiusMonoCheckbox;
     private JCheckBox signalQualityCheckbox;
+    // Checkbox groups for section-level toggling
+    private List<JCheckBox> liveCheckboxes;
+    private List<JCheckBox> onDemandCheckboxes;
     // Parameter spinners
     private JSpinner radiusSpinner;
     private JSpinner directionSpinner;
@@ -497,34 +503,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             @Override public void actionPerformed(final ActionEvent e) { sntui.toggleChannelAndFrameChoice(); }
         });
 
-        // Bind H (hide paths) and O (show orientations) as hold-to-toggle keys,
-        // mirroring the behavior in QueueJumpingKeyListener / InteractiveTracerCanvas
-        warningsTable.addKeyListener(new KeyListener() {
-            @Override
-            public void keyPressed(final KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_H) {
-                    sntui.plugin.setAnnotationsVisible(false);
-                    e.consume();
-                } else if (e.getKeyCode() == KeyEvent.VK_O) {
-                    PathNodeCanvas.setShowDirectionArrows(true);
-                    sntui.plugin.repaintAllPanes();
-                    e.consume();
-                }
-            }
-            @Override
-            public void keyReleased(final KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_H) {
-                    sntui.plugin.setAnnotationsVisible(true);
-                    e.consume();
-                } else if (e.getKeyCode() == KeyEvent.VK_O) {
-                    PathNodeCanvas.setShowDirectionArrows(false);
-                    sntui.plugin.repaintAllPanes();
-                    e.consume();
-                }
-            }
-            @Override
-            public void keyTyped(final KeyEvent e) { /* unused */ }
-        });
+        SNTUI.InternalUtils.addHoldToToggleKeyListener(warningsTable, sntui.plugin);
 
         return panel;
     }
@@ -545,8 +524,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JPanel p = new JPanel(new GridBagLayout());
         final GridBagConstraints c = GuiUtils.defaultGbc();
 
-        GuiUtils.addSeparator(p, "Live Monitoring Parameters:", true, c);
+        liveHeaderCheckbox = createSectionHeader(p, "Live Monitoring Parameters:", c);
         c.gridy++;
+        final int savedLeft = c.insets.left;
+        c.insets.left += sectionChildIndent(liveHeaderCheckbox);
 
         // Branch angle min
         final PlausibilityCheck.BranchAngle angleCheck =
@@ -661,6 +642,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         wireCheckbox(constantRadiiCheckbox, null, constCheck);
         addCheckRow(p, c, constantRadiiCheckbox, null);
 
+        c.insets.left = savedLeft;
+
+        // Collect and wire section-level toggling
+        liveCheckboxes = List.of(branchAngleMinCheckbox, branchAngleMaxCheckbox,
+                directionCheckbox, radiusCheckbox, termBranchCheckbox,
+                somaDistCheckbox, tortuosityCheckbox, constantRadiiCheckbox);
+        wireSectionHeader(liveHeaderCheckbox, liveCheckboxes);
+
         return p;
     }
 
@@ -668,8 +657,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JPanel p = new JPanel(new GridBagLayout());
         final GridBagConstraints c = GuiUtils.defaultGbc();
 
-        GuiUtils.addSeparator(p, "On-Demand Monitoring Parameters:", true, c);
+        onDemandHeaderCheckbox = createSectionHeader(p, "On-Demand Monitoring Parameters:", c);
         c.gridy++;
+        final int savedLeft = c.insets.left;
+        c.insets.left += sectionChildIndent(onDemandHeaderCheckbox);
 
         // Path overlap
         final PlausibilityCheck.PathOverlap overlapCheck = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
@@ -737,6 +728,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         addCheckRow(p, c, signalQualityCheckbox, sqUndoBtn, signalQualitySpinner);
 
+        c.insets.left = savedLeft;
+
+        // Collect and wire section-level toggling
+        onDemandCheckboxes = List.of(overlapCheckbox, radiusJumpsCheckbox,
+                radiusMonoCheckbox, signalQualityCheckbox);
+        wireSectionHeader(onDemandHeaderCheckbox, onDemandCheckboxes);
+
         return p;
     }
 
@@ -753,7 +751,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         IconFactory.assignIcon(liveToggle, IconFactory.GLYPH.HEART_CIRCLE_BOLT, IconFactory.GLYPH.HEART_PULSE, 1.1f);
         liveToggle.setToolTipText("Enable live monitoring");
         liveToggle.addActionListener(e -> {
-            if (noParametersSelected()) {
+            if (noParametersSelected(liveCheckboxes, "live parameter")) {
                 liveToggle.setSelected(false);
                 return;
             }
@@ -1172,6 +1170,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             signalQualityCheckbox.setSelected(sq.isEnabled());
             signalQualitySpinner.setEnabled(sq.isEnabled());
         }
+        // Refresh section header tri-states
+        if (liveHeaderCheckbox != null && liveCheckboxes != null)
+            updateSectionHeaderState(liveHeaderCheckbox, liveCheckboxes);
+        if (onDemandHeaderCheckbox != null && onDemandCheckboxes != null)
+            updateSectionHeaderState(onDemandHeaderCheckbox, onDemandCheckboxes);
     }
 
     /**
@@ -1216,6 +1219,87 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             panel.add(spinner, c);
         }
         c.gridy++;
+    }
+
+    /**
+     * Creates a tri-state checkbox styled as a section header (matching the
+     * previous {@code addSeparator} look) and adds it to the panel.
+     */
+    private FlatTriStateCheckBox createSectionHeader(final JPanel panel,
+                                                     final String text,
+                                                     final GridBagConstraints c) {
+        final FlatTriStateCheckBox header = new FlatTriStateCheckBox();
+        header.setText(text);
+        header.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
+        final int previousTopGap = c.insets.top;
+        c.insets.top = panel.getFontMetrics(header.getFont()).getHeight();
+        final int prevAnchor = c.anchor;
+        final int prevFill = c.fill;
+        c.anchor = GridBagConstraints.WEST;
+        c.fill = GridBagConstraints.NONE;
+        panel.add(header, c);
+        c.anchor = prevAnchor;
+        c.fill = prevFill;
+        c.insets.top = previousTopGap;
+        return header;
+    }
+
+    /**
+     * Wires a tri-state section header to its child checkboxes. Clicking the
+     * header selects or deselects all children; individual child changes update
+     * the header to reflect mixed state.
+     */
+    private void wireSectionHeader(final FlatTriStateCheckBox header,
+                                   final List<JCheckBox> children) {
+        // Set initial state
+        updateSectionHeaderState(header, children);
+
+        // Header click → toggle all children
+        header.addActionListener(e -> {
+            final FlatTriStateCheckBox.State state = header.getState();
+            // Indeterminate click cycles to selected; otherwise use current state
+            final boolean select = state != FlatTriStateCheckBox.State.UNSELECTED;
+            for (final JCheckBox cb : children) {
+                if (cb.isSelected() != select) {
+                    cb.setSelected(select);
+                    // Fire the checkbox's own action listeners (which update checks/spinners)
+                    for (final java.awt.event.ActionListener al : cb.getActionListeners()) {
+                        al.actionPerformed(new ActionEvent(cb, ActionEvent.ACTION_PERFORMED, "tristate"));
+                    }
+                }
+            }
+            // After toggling, force header to the definite state (not indeterminate)
+            header.setState(select ? FlatTriStateCheckBox.State.SELECTED
+                    : FlatTriStateCheckBox.State.UNSELECTED);
+        });
+
+        // Each child change → update header state
+        for (final JCheckBox cb : children) {
+            cb.addActionListener(e -> updateSectionHeaderState(header, children));
+        }
+    }
+
+    /**
+     * Returns the left indent (in pixels) for child checkboxes under a
+     * section header. Uses the icon-text gap for a subtle visual nesting.
+     */
+    private static int sectionChildIndent(final JCheckBox header) {
+        return header.getIconTextGap();
+    }
+
+    /**
+     * Computes the tri-state from the selected state of the children.
+     */
+    private void updateSectionHeaderState(final FlatTriStateCheckBox header,
+                                          final List<JCheckBox> children) {
+        final long selected = children.stream().filter(AbstractButton::isSelected).count();
+        if (selected == 0) {
+            header.setState(FlatTriStateCheckBox.State.UNSELECTED);
+        } else if (selected == children.size()) {
+            header.setState(FlatTriStateCheckBox.State.SELECTED);
+        } else {
+            header.setState(FlatTriStateCheckBox.State.INDETERMINATE);
+        }
     }
 
     /**
@@ -1291,14 +1375,18 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private boolean noParametersSelected() {
-        if (!(branchAngleMinCheckbox.isSelected() || branchAngleMaxCheckbox.isSelected() ||
-                directionCheckbox.isSelected() || radiusCheckbox.isSelected() ||
-                termBranchCheckbox.isSelected() || somaDistCheckbox.isSelected() ||
-                constantRadiiCheckbox.isSelected() || tortuosityCheckbox.isSelected() ||
-                overlapCheckbox.isSelected() || radiusJumpsCheckbox.isSelected() ||
-                radiusMonoCheckbox.isSelected() ||
-                signalQualityCheckbox.isSelected())) {
-            sntui.error("At least one parameter needs to be selected.");
+        return noParametersSelected(null, "");
+    }
+
+    private boolean noParametersSelected(final List<JCheckBox> scope, final String category) {
+        final List<JCheckBox> checkboxes = (scope != null) ? scope
+                : new ArrayList<>(liveCheckboxes.size() + onDemandCheckboxes.size());
+        if (scope == null) {
+            checkboxes.addAll(liveCheckboxes);
+            checkboxes.addAll(onDemandCheckboxes);
+        }
+        if (checkboxes.stream().noneMatch(AbstractButton::isSelected)) {
+            sntui.error(String.format("At least one %s parameter needs to be selected.", category));
             return true;
         }
         return false;

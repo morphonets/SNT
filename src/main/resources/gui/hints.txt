@@ -3,8 +3,8 @@
 # 'ctrlKey()'' will be replaced by 'Cmd' on macOS; 'Ctrl' on linux/Windows
 
 # Navigation & Basic Shortcuts
-Press G to select the path nearest to the cursor
-Hold Shift+G to add multiple paths to your selection
+Press G to grab the path nearest to the cursor
+Hold Shift+G to grab multiple paths to your selection
 Press O to temporarily show path orientations (start→end direction)
 Press H to temporarily hide all paths while held down
 Use the Command Palette (ctrlKey()+Shift+P) to quickly find any action
@@ -85,11 +85,12 @@ Rec. Viewer: Add a scale bar overlay to the 3D scene via Scene Controls→Scale 
 Rec. Viewer: Mesh rendering supports Smooth Shading for per-fragment Phong lighting (Settings→Mesh Style)
 Rec. Viewer: Use 'Align View to Tree' to snap the camera to a cell's bounding box orientation
 
-# Curation & Proofreading (since v5.0.7)
-Use the Peripath Detector (Analysis→Spines/Varicosities) to detect spines and varicosities along traced paths
+# Curation & Proofreading (since v5.0.X)
+Use the Peripath Detector (Analysis→Spines/Varicosities) to detect spines and varicosities along paths
+Use the AlongPath Detector (Analysis→Spines/Varicosities) to detect enlargements (blebs/boutons/varicosities) along paths
 The Spacing Analysis template script quantifies inter-spine or inter-varicosity distances
 
-# Curation Assistant (since v5.0.8)
+# Curation Assistant (since v5.0.X)
 Use the Curation Assistant to flag statistical outliers—potential tracing errors—across your reconstructions
 Curation parameters persist across sessions, so calibrated thresholds carry over to future work
 Use the Plausibility Calibrator in the Curation Assistant to derive curation thresholds from trusted reference cells

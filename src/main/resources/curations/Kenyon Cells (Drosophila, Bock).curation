@@ -24,3 +24,5 @@ radiusJumps.enabled=true
 radiusMonotonicity.minRun=10
 radiusMonotonicity.enabled=true
 monitor.enabled=true
+signalQuality.minContrast=-1.0
+signalQuality.enabled=true

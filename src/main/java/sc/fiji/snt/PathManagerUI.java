@@ -149,6 +149,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         tree.setVisibleRowCount(30);
         tree.setDoubleBuffered(true);
         tree.addTreeSelectionListener(this);
+        SNTUI.InternalUtils.addHoldToToggleKeyListener(tree, plugin);
         proofReadingToolBar = new ProofReadingTagsToolBar();
         add(proofReadingToolBar, BorderLayout.PAGE_START);
 
