@@ -869,6 +869,24 @@ public class Tree implements TreeProperties, Cloneable {
     }
 
 	/**
+	 * Applies a Z-shrinkage correction to all nodes in this tree. This is
+	 * typically used to compensate for tissue compression along the Z-axis
+	 * during histological processing or mounting (e.g., paraffin embedding,
+	 * cryosectioning). The correction factor is the ratio of the actual
+	 * (cut) thickness to the measured (mounted) thickness.
+	 *
+	 * @param correctionFactor the Z scaling factor (e.g., 2.0 to double all
+	 *                         Z coordinates). Must be positive and non-zero.
+	 * @throws IllegalArgumentException if the correction factor is not positive
+	 */
+	public void applyZCorrection(final double correctionFactor) {
+		if (Double.isNaN(correctionFactor) || correctionFactor <= 0)
+			throw new IllegalArgumentException("Correction factor must be positive");
+		if (correctionFactor == 1d) return;
+		scale(1d, 1d, correctionFactor);
+	}
+
+	/**
 	 * Gets all the nodes (path points) forming this tree.
 	 *
 	 * @return the points

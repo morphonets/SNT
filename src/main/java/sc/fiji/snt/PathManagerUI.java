@@ -224,6 +224,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(jmi);
         editMenu.addSeparator();
 
+        jmi = new JMenuItem(MultiPathActionListener.Z_CORRECTION_CMD, IconFactory.menuIcon(IconFactory.GLYPH.RULER_VERTICAL));
+        jmi.setToolTipText("Corrects Z-axis shrinkage from tissue processing (e.g., cut/mounted thickness ratio)");
+        jmi.addActionListener(multiPathListener);
+        editMenu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.DOWNSAMPLE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_LR_TO_LINE));
         jmi.setToolTipText("Simplifies paths by reducing node count (Ramer-Douglas-Peucker algorithm)");
         jmi.addActionListener(multiPathListener);
@@ -2915,6 +2919,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String MERGE_PRIMARY_PATHS_CMD = "Create Shared Root (Soma)...";
         private static final String REBUILD_CMD = "Rebuild...";
         private static final String DOWNSAMPLE_CMD = "Downsample...";
+        private static final String Z_CORRECTION_CMD = "Correct Z-Shrinkage...";
         private static final String CUSTOM_TAG_CMD = "Other...";
         private static final String REPLACE_TAG_CMD = "Replace...";
         private static final String LENGTH_TAG_CMD = "Length";
@@ -3027,6 +3032,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(DISCONNECT_CMD, new DisconnectCommand());
             commands.put(REBUILD_CMD, new RebuildCommand());
             commands.put(DOWNSAMPLE_CMD, new DownsampleCommand());
+            commands.put(Z_CORRECTION_CMD, new ZCorrectionCommand());
 
             // Tag commands
             commands.put(CUSTOM_TAG_CMD, new CustomTagCommand());
@@ -4854,6 +4860,61 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             public boolean canExecute(List<Path> selectedPaths) {
                 return !selectedPaths.isEmpty();
             }
+        }
+
+        private class ZCorrectionCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                applyZCorrection(selectedPaths);
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private void applyZCorrection(final List<Path> selectedPaths) {
+            final Double factor = guiUtils.getDouble(
+                    "<HTML>Z-shrinkage correction factor:<ul>" +
+                    "<li>Ratio of <i>cut thickness / mounted thickness</i></li>" +
+                    "<li>Values &gt;1 expand Z; values &lt;1 compress Z</li>" +
+                    "<li>This operation cannot be undone</li></ul>",
+                    "Correct Z-Shrinkage (" + selectedPaths.size() + " path(s))", 1.0);
+            if (factor == null) return;
+            if (Double.isNaN(factor) || factor <= 0) {
+                guiUtils.error("The correction factor must be a positive number.", "Invalid Input");
+                return;
+            }
+            if (factor == 1d) return;
+
+            // Warn if corrected Z values would exceed image bounds
+            if (plugin.accessToValidImageData()) {
+                final double maxZ = plugin.depth - 1;
+                int oobNodes = 0;
+                for (final Path p : selectedPaths) {
+                    final Path pathToUse = p.getUseFitted() ? p.getFitted() : p;
+                    for (int node = 0; node < pathToUse.size(); node++) {
+                        final double newZ = pathToUse.getNodeWithoutChecks(node).z * factor;
+                        if (newZ < 0 || newZ > maxZ) oobNodes++;
+                    }
+                }
+                if (oobNodes > 0 && !guiUtils.getConfirmation(oobNodes + " node(s) will fall outside image " +
+                        "bounds (0–" + (int) maxZ + "). You may need to resize image to accommodate the new range. " +
+                        "Are you sure you want to continue?", "Out-of-Bounds range")) {
+                    return;
+                }
+            }
+            for (final Path p : selectedPaths) {
+                final Path pathToUse = p.getUseFitted() ? p.getFitted() : p;
+                for (int node = 0; node < pathToUse.size(); node++) {
+                    final PointInImage current = pathToUse.getNodeWithoutChecks(node);
+                    pathToUse.moveNode(node, current.x, current.y, current.z * factor);
+                }
+            }
+            plugin.updateAllViewers();
+            plugin.setUnsavedChanges(true);
+            guiUtils.tempMsg("Z-correction applied (×" + SNTUtils.formatDouble(factor, 3) + ")");
         }
 
         private class ResetFitsCommand implements PathCommand {
