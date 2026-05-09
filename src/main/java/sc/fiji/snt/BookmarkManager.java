@@ -1102,6 +1102,15 @@ public class BookmarkManager {
         model.setDataList(new ArrayList<>());
     }
 
+    /**
+     * Returns whether any bookmarks exist.
+     *
+     * @return true if there is at least one bookmark
+     */
+    public boolean hasBookmarks() {
+        return !model.getDataList().isEmpty();
+    }
+
     protected boolean isShowing() {
         return table.isShowing();
     }

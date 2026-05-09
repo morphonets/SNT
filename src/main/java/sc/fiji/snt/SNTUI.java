@@ -53,6 +53,7 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.FlyCircuitLoader;
+import sc.fiji.snt.io.NeurolucidaImporter;
 import sc.fiji.snt.io.NeuroMorphoLoader;
 import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
@@ -3097,6 +3098,9 @@ public class SNTUI extends JDialog {
         final JMenuItem importNDF = getImportActionMenuItem(ImportAction.NDF);
         importNDF.setToolTipText("Imports a NeuronJ data file");
         importSubmenu.add(importNDF);
+        final JMenuItem importNL = getImportActionMenuItem(ImportAction.NEUROLUCIDA);
+        importNL.setToolTipText("Imports a Neurolucida XML file (trees and markers)");
+        importSubmenu.add(importNL);
         importSubmenu.add(getImportActionMenuItem(ImportAction.SWC));
         importSubmenu.add(getImportActionMenuItem(ImportAction.TRACES));
         final JMenuItem importDirectory = getImportActionMenuItem(ImportAction.SWC_DIR);
@@ -5292,6 +5296,7 @@ public class SNTUI extends JDialog {
                 case ImportAction.JSON -> "JSON...";
                 case ImportAction.DEMO -> "Load Demo Dataset...";
                 case ImportAction.NDF -> "NDF...";
+                case ImportAction.NEUROLUCIDA -> "Neurolucida XML...";
                 case ImportAction.TRACES -> "TRACES...";
                 case ImportAction.IMAGE_CLIPBOARD -> "From System Clipboard";
                 default -> throw new IllegalArgumentException("Unknown type '" + type + "'");
@@ -5309,6 +5314,7 @@ public class SNTUI extends JDialog {
                 case "JSON..." -> ImportAction.JSON;
                 case "Load Demo Dataset..." -> ImportAction.DEMO;
                 case "NDF..." -> ImportAction.NDF;
+                case "Neurolucida XML..." -> ImportAction.NEUROLUCIDA;
                 case "TRACES..." -> ImportAction.TRACES;
                 default -> -1;
             };
@@ -5326,6 +5332,8 @@ public class SNTUI extends JDialog {
                 return ImportAction.JSON;
             if (filename.endsWith(".ndf"))
                 return ImportAction.NDF;
+            if (filename.endsWith(".xml"))
+                return ImportAction.NEUROLUCIDA;
             if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
                 return ImportAction.IMAGE;
             return -1;
@@ -5731,6 +5739,7 @@ public class SNTUI extends JDialog {
         private static final int AUTO_TRACE_GRAYSCALE_IMAGE = 8;
         private static final int NDF = 9;
         private static final int IMAGE_CLIPBOARD = 10;
+        private static final int NEUROLUCIDA = 11;
 
         private final int type;
         private File file;
@@ -5796,6 +5805,48 @@ public class SNTUI extends JDialog {
                 case NDF -> {
                     if (file != null) inputs.put("file", file);
                     (new DynamicCmdRunner(NDFImporterCmd.class, inputs, LOADING)).run();
+                }
+                case NEUROLUCIDA -> {
+                    if (file == null)
+                        file = openReconstructionFile("xml");
+                    if (file == null) return;
+                    changeState(LOADING);
+                    try {
+                        final NeurolucidaImporter importer = new NeurolucidaImporter(file);
+                        final Collection<Tree> importedTrees = importer.getTrees();
+                        importedTrees.forEach(tree -> pathAndFillManager.addTree(tree, tree.getLabel()));
+                        final boolean succeed = importedTrees.stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+                        if (succeed) {
+                            validateImgDimensions();
+                            // Load markers as bookmarks
+                            final List<double[]> mPts = importer.getMarkerPoints();
+                            if (!mPts.isEmpty()) {
+                                final boolean hasExisting = bookmarkManager.hasBookmarks();
+                                if (hasExisting && !guiUtils.getConfirmation(
+                                        "Existing bookmarks will be replaced by " + mPts.size()
+                                        + " marker(s) from the imported file. Proceed?",
+                                        "Replace Bookmarks?")) {
+                                    // User declined: skip marker import
+                                } else {
+                                    if (hasExisting) bookmarkManager.reset();
+                                    final List<String> mLabels = importer.getMarkerLabels();
+                                    final List<Color> mColors = importer.getMarkerColors();
+                                    for (int mi = 0; mi < mPts.size(); mi++) {
+                                        final double[] mp = mPts.get(mi);
+                                        bookmarkManager.add(mLabels.get(mi),
+                                                List.of(new double[]{mp[0], mp[1], mp[2], 1, 1}),
+                                                mColors.get(mi));
+                                    }
+                                    showStatus(mPts.size() + " marker(s) loaded as bookmarks", true);
+                                }
+                            }
+                        } else {
+                            guiUtils.error("No valid tree data found in the Neurolucida file.");
+                        }
+                    } catch (final IOException ex) {
+                        guiUtils.error("Failed to import Neurolucida file: " + ex.getMessage());
+                    }
+                    changeState(priorState);
                 }
                 case SWC_DIR -> {
                     if (file != null) inputs.put("dir", file);

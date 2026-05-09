@@ -1312,6 +1312,7 @@ public class GuiUtils {
 			case "traces" -> new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
 			case "json" -> new FileNameExtensionFilter("JSON files (.json)", "json");
 			case "ndf" -> new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
+			case "xml" -> new FileNameExtensionFilter("Neurolucida XML files (.xml)", "xml");
 			case "labels" -> new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
 			case null, default -> null;
 		};
@@ -1333,7 +1334,7 @@ public class GuiUtils {
 		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
 		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
 		fileChooser.addChoosableFileFilter(Objects.requireNonNullElseGet(filter, () -> new FileNameExtensionFilter(
-				"Reconstruction files (.traces, .swc, .json, .ndf)", "traces", "swc", "json", "ndf")));
+				"Reconstruction files (.traces, .swc, .json, .ndf, .xml)", "traces", "swc", "json", "ndf", "xml")));
 		fileChooser.setMultiSelectionEnabled(true);
 		return fileChooser;
 	}

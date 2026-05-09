@@ -100,6 +100,7 @@ public class PathAndFillManager extends DefaultHandler implements
     protected static final int TRACES_FILE_TYPE_SWC = 3;
     protected static final int TRACES_FILE_TYPE_ML_JSON = 4;
     protected static final int TRACES_FILE_TYPE_NDF = 5;
+    protected static final int TRACES_FILE_TYPE_NEUROLUCIDA = 6;
 
     private static final DecimalFormat fileIndexFormatter = new DecimalFormat("000");
 
@@ -2898,26 +2899,30 @@ public class PathAndFillManager extends DefaultHandler implements
          * Look at the magic bytes at the start of the file:
          *
          * If this looks as if it's gzip compressed, assume it's a compressed traces
-         * file. If it begins "<?xml", assume it's an uncompressed traces file. If it
-         * begins with '{"' assume it is a ML JSON file, otherwise assume it's an SWC
-         * file.
+         * file. If it begins "<?xml", check for Neurolucida's <mbf> root element;
+         * otherwise assume it's an uncompressed traces file. If it begins with '{"'
+         * assume it is a ML JSON file, otherwise assume it's an SWC file.
          */
         if (!headless)
             SNTUtils.log("Guessing file type...");
         if (is.markSupported())
-            is.mark(-1);
-        final byte[] buf = new byte[8];
-        is.read(buf, 0, 8);
+            is.mark(4096);
+        final byte[] buf = new byte[4096];
+        final int bytesRead = is.read(buf, 0, buf.length);
         if (closeStreamAfterGuess)
             is.close();
         else if (is.markSupported()) {
             is.reset();
         }
-        //System.out.println("buf[0]: " + (byte)buf[0] + ", buf[1]: " + (byte)buf[1] + ", buf[2]: " + buf[2] + ", buf[3]: " + buf[3] + ", buf[4]: " + buf[4]);
+        if (bytesRead < 2) return TRACES_FILE_TYPE_SWC;
         if(buf[ 0 ] == (byte) 0x1f && buf[ 1 ] == (byte) 0x8b ) { //check if matches standard gzip magic number
             return TRACES_FILE_TYPE_COMPRESSED_XML;
-        } else if (((buf[0] == '<') && (buf[1] == '?') && (buf[2] == 'x') && (buf[3] == 'm') && (buf[4] == 'l')
-                && (buf[5] == ' '))) {
+        } else if (bytesRead >= 6 && buf[0] == '<' && buf[1] == '?' && buf[2] == 'x' && buf[3] == 'm'
+                && buf[4] == 'l' && buf[5] == ' ') {
+            // XML file: distinguish SNT traces from Neurolucida by checking for <mbf> root
+            final String header = new String(buf, 0, bytesRead);
+            if (header.contains("<mbf"))
+                return TRACES_FILE_TYPE_NEUROLUCIDA;
             return TRACES_FILE_TYPE_UNCOMPRESSED_XML;
         } else if (((char) (buf[0] & 0xFF) == '{')) {
             return TRACES_FILE_TYPE_ML_JSON;
@@ -2990,6 +2995,29 @@ public class PathAndFillManager extends DefaultHandler implements
         }
     }
 
+    private boolean loadNeurolucida(final Object filenameOrInputStream) {
+        try {
+            NeurolucidaImporter importer;
+            if (filenameOrInputStream instanceof InputStream) {
+                importer = new NeurolucidaImporter((InputStream) filenameOrInputStream);
+            } else {
+                importer = new NeurolucidaImporter((String) filenameOrInputStream);
+            }
+            final Collection<Tree> importedTrees = importer.getTrees();
+            importedTrees.forEach(tree -> addTree(tree, tree.getLabel()));
+            final boolean success = importedTrees.stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+            if (success) updateBoundingBox();
+            // Log marker count (bookmarks are loaded by caller if a UI is available)
+            if (!importer.getMarkerPoints().isEmpty()) {
+                SNTUtils.log("Neurolucida import: " + importer.getMarkerPoints().size() + " marker(s) available as bookmarks");
+            }
+            return success;
+        } catch (final IOException | IllegalArgumentException e) {
+            error("Failed to read Neurolucida data: '" + filenameOrInputStream.toString() + "' (" + e.getMessage() + ")");
+            return false;
+        }
+    }
+
     /**
      * Imports a reconstruction file (any supported extension).
      *
@@ -3017,6 +3045,9 @@ public class PathAndFillManager extends DefaultHandler implements
                 break;
             case TRACES_FILE_TYPE_NDF:
                 result = loadNDF(filePath);
+                break;
+            case TRACES_FILE_TYPE_NEUROLUCIDA:
+                result = loadNeurolucida(filePath);
                 break;
             case TRACES_FILE_TYPE_SWC:
                 result = importSWC(filePath, false, 0, 0, 0, 1, 1, 1, 1, true, swcTypes);
@@ -3070,6 +3101,9 @@ public class PathAndFillManager extends DefaultHandler implements
                 break;
             case TRACES_FILE_TYPE_NDF:
                 result = loadNDF(bis);
+                break;
+            case TRACES_FILE_TYPE_NEUROLUCIDA:
+                result = loadNeurolucida(bis);
                 break;
             default:
                 SNTUtils.warn("guessTracesFileType() return an unknown type" + guessedType);
