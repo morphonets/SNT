@@ -361,7 +361,12 @@ public class BookmarkManager {
         }
         if (sntui != null) {
             mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+            mi.setToolTipText("Matches bookmarks across channels within a distance threshold, replacing them with centroids");
             mi.addActionListener(e -> colocalizeBookmarks());
+            pMenu.add(mi);
+            mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+            mi.setToolTipText("Merges nearby bookmarks within each channel, replacing them with centroids");
+            mi.addActionListener(e -> mergeBookmarks());
             pMenu.add(mi);
             pMenu.addSeparator();
         }
@@ -422,13 +427,7 @@ public class BookmarkManager {
             guiUtils.error("Colocalization is not available in BVV mode.");
             return;
         }
-        final int[] viewRows = getSelectedRowsAllIfNone();
-        // Collect bookmarks from selected rows
-        final List<Bookmark> candidates = new ArrayList<>();
-        for (final int viewRow : viewRows) {
-            candidates.add(model.getDataList().get(table.convertRowIndexToModel(viewRow)));
-        }
-        // Require bookmarks from at least 2 distinct channels
+        final List<Bookmark> candidates = getSelectedBookmarks();
         final long distinctChannels = candidates.stream().mapToInt(b -> b.c).distinct().count();
         if (distinctChannels < 2) {
             guiUtils.error("Colocalization requires bookmarks from at least 2 channels.");
@@ -438,26 +437,94 @@ public class BookmarkManager {
                 "<HTML>Max. distance between colocalized bookmarks<br>(in pixel units):",
                 "Colocalize Bookmarks", 5.0);
         if (threshold == null || threshold <= 0) return;
-        final double thresholdSq = threshold * threshold;
-        // Group bookmarks by channel
+        // Group by channel; match across channels
         final Map<Integer, List<Bookmark>> byChannel = new LinkedHashMap<>();
         for (final Bookmark b : candidates) {
             byChannel.computeIfAbsent(b.c, k -> new ArrayList<>()).add(b);
         }
         final List<Integer> channels = new ArrayList<>(byChannel.keySet());
-        // Use first channel as seed, match against remaining channels
         final List<Bookmark> seedList = byChannel.get(channels.get(0));
+        final List<List<Bookmark>> otherLists = new ArrayList<>();
+        for (int ci = 1; ci < channels.size(); ci++)
+            otherLists.add(byChannel.get(channels.get(ci)));
+        final MergeResult result = greedyMerge(seedList, otherLists, threshold, 2, "Coloc");
+        applyMergeResult(result, "Colocalize Bookmarks", "colocalized", "colocalize(" + threshold + ")");
+    }
+
+    private void mergeBookmarks() {
+        if (noBookmarksError()) return;
+        if (bvv != null) {
+            guiUtils.error("Merge is not available in BVV mode.");
+            return;
+        }
+        final List<Bookmark> candidates = getSelectedBookmarks();
+        if (candidates.size() < 2) {
+            guiUtils.error("At least 2 bookmarks are required for merging.");
+            return;
+        }
+        final Double threshold = guiUtils.getDouble(
+                "<HTML>Max. distance between bookmarks to merge<br>(in pixel units):",
+                "Merge Bookmarks", 5.0);
+        if (threshold == null || threshold <= 0) return;
+        // Group by channel; merge within each channel independently
+        final Map<Integer, List<Bookmark>> byChannel = new LinkedHashMap<>();
+        for (final Bookmark b : candidates) {
+            byChannel.computeIfAbsent(b.c, k -> new ArrayList<>()).add(b);
+        }
+        final Set<Bookmark> allConsumed = new HashSet<>();
+        final List<Bookmark> allMerged = new ArrayList<>();
+        for (final Map.Entry<Integer, List<Bookmark>> entry : byChannel.entrySet()) {
+            final List<Bookmark> chBookmarks = entry.getValue();
+            if (chBookmarks.size() < 2) continue;
+            // Each bookmark is a potential seed; remaining in same channel are targets
+            final List<Bookmark> seeds = new ArrayList<>(chBookmarks);
+            final List<List<Bookmark>> targets = List.of(new ArrayList<>(chBookmarks));
+            final MergeResult chResult = greedyMerge(seeds, targets, threshold, 2,
+                    "Merged C" + entry.getKey());
+            allConsumed.addAll(chResult.consumed);
+            allMerged.addAll(chResult.merged);
+        }
+        applyMergeResult(new MergeResult(allConsumed, allMerged),
+                "Merge Bookmarks", "merged", "merge(" + threshold + ")");
+    }
+
+    private List<Bookmark> getSelectedBookmarks() {
+        final int[] viewRows = getSelectedRowsAllIfNone();
+        final List<Bookmark> candidates = new ArrayList<>();
+        for (final int viewRow : viewRows) {
+            candidates.add(model.getDataList().get(table.convertRowIndexToModel(viewRow)));
+        }
+        return candidates;
+    }
+
+    /**
+     * Greedy nearest-match merge. For each seed, finds the closest unconsumed
+     * bookmark in each target list within the threshold. Groups with at least
+     * {@code minGroupSize} members are merged to their centroid.
+     *
+     * @param seeds       the seed bookmarks
+     * @param targetLists lists of bookmarks to match against (may include seeds)
+     * @param threshold   max distance (pixel units)
+     * @param minGroupSize minimum group size to form a merge (2 for both operations)
+     * @param labelPrefix prefix for the merged bookmark label
+     * @return the merge result containing consumed and merged bookmarks
+     */
+    private MergeResult greedyMerge(final List<Bookmark> seeds,
+                                    final List<List<Bookmark>> targetLists,
+                                    final double threshold, final int minGroupSize,
+                                    final String labelPrefix) {
+        final double thresholdSq = threshold * threshold;
         final Set<Bookmark> consumed = new HashSet<>();
         final List<Bookmark> merged = new ArrayList<>();
-        for (final Bookmark seed : seedList) {
+        for (final Bookmark seed : seeds) {
+            if (consumed.contains(seed)) continue;
             final List<Bookmark> group = new ArrayList<>();
             group.add(seed);
-            for (int ci = 1; ci < channels.size(); ci++) {
-                final List<Bookmark> others = byChannel.get(channels.get(ci));
+            for (final List<Bookmark> others : targetLists) {
                 Bookmark closest = null;
                 double closestDistSq = Double.MAX_VALUE;
                 for (final Bookmark other : others) {
-                    if (consumed.contains(other) || other.t != seed.t) continue;
+                    if (other == seed || consumed.contains(other) || other.t != seed.t) continue;
                     final double distSq = seed.distanceSquaredTo(other);
                     if (distSq <= thresholdSq && distSq < closestDistSq) {
                         closestDistSq = distSq;
@@ -466,38 +533,41 @@ public class BookmarkManager {
                 }
                 if (closest != null) group.add(closest);
             }
-            // A colocalization requires matches from at least 2 channels
-            if (group.size() >= 2) {
+            if (group.size() >= minGroupSize) {
                 consumed.addAll(group);
-                // Centroid position
                 final double cx = group.stream().mapToDouble(b -> b.x).average().orElse(seed.x);
                 final double cy = group.stream().mapToDouble(b -> b.y).average().orElse(seed.y);
                 final double cz = group.stream().mapToDouble(b -> b.z).average().orElse(seed.z);
                 final String chLabel = group.stream().map(b -> "C" + b.c)
                         .distinct().collect(java.util.stream.Collectors.joining("+"));
-                final String label = model.getUniqueLabel("Coloc " + chLabel + " ");
+                final String label = model.getUniqueLabel(labelPrefix + " " + chLabel + " ");
                 merged.add(new Bookmark(label, cx, cy, cz, seed.c, seed.t, seed.getColor()));
             }
         }
-        if (merged.isEmpty()) {
-            guiUtils.error("No colocalized bookmarks found within the specified distance.");
+        return new MergeResult(consumed, merged);
+    }
+
+    private void applyMergeResult(final MergeResult result, final String dialogTitle,
+                                  final String verb, final String recordSuffix) {
+        if (result.merged.isEmpty()) {
+            guiUtils.error("No bookmarks could be " + verb + " within the specified distance.");
             return;
         }
-        final int nRemoved = consumed.size();
-        final int nMerged = merged.size();
         if (!guiUtils.getConfirmation(
-                nRemoved + " bookmarks will be replaced by " + nMerged + " colocalized entries. Proceed?",
-                "Colocalize Bookmarks")) {
+                result.consumed.size() + " bookmarks will be replaced by "
+                        + result.merged.size() + " " + verb + " entries. Proceed?",
+                dialogTitle)) {
             return;
         }
-        // Remove consumed bookmarks and add merged ones
-        model.getDataList().removeAll(consumed);
-        model.getDataList().addAll(merged);
+        model.getDataList().removeAll(result.consumed);
+        model.getDataList().addAll(result.merged);
         model.fireTableDataChanged();
         if (sntui != null)
-            sntui.showStatus(nMerged + " colocalized bookmark(s) created", true);
-        recordComment("Bookmark Manager: colocalize(" + threshold + ")");
+            sntui.showStatus(result.merged.size() + " " + verb + " bookmark(s) created", true);
+        recordComment("Bookmark Manager: " + recordSuffix);
     }
+
+    private record MergeResult(Set<Bookmark> consumed, List<Bookmark> merged) {}
 
     private void recordCmd(final String cmd) {
         if (sntui == null || sntui.getRecorder(false) == null) return;

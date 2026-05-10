@@ -506,10 +506,16 @@ public class DelineationsManager {
                 sntui.guiUtils.error("The ROI Manager is either closed or empty.");
                 return;
             }
-            final List<Roi> rois = Arrays.stream(rm.getRoisAsArray()).filter(Roi::isArea).toList();
+            final Roi[] allRois = rm.getRoisAsArray();
+            final List<Roi> rois = Arrays.stream(allRois).filter(Roi::isArea).toList();
             if (rois.isEmpty()) {
-                sntui.guiUtils.error("The ROI Manager does not contain area ROIs.");
+                sntui.guiUtils.error("The ROI Manager does not contain area ROIs. "
+                        + "Delineations require closed regions (polygons, ovals, freehand/traced areas, etc.).");
                 return;
+            }
+            final int skipped = allRois.length - rois.size();
+            if (skipped > 0) {
+                SNTUtils.log("Delineations: skipped " + skipped + " non-area ROI(s) from ROI Manager");
             }
             if (!resetAuthorizedByUser()) return;
             final int n = load(rois);
@@ -922,8 +928,13 @@ public class DelineationsManager {
             b.addActionListener(e -> {
                 if (noAssignmentPossible(this)) return;
                 final Roi roi = sntui.plugin.getImagePlus().getRoi();
-                if (roi == null || !roi.isArea()) {
-                    sntui.guiUtils.error("No area ROI is currently active.");
+                if (roi == null) {
+                    sntui.guiUtils.error("No ROI is currently active. Please create an area ROI first.");
+                    return;
+                }
+                if (!roi.isArea()) {
+                    sntui.guiUtils.error("The active ROI is not an area ROI. Delineations require "
+                            + "closed regions (polygons, ovals, freehand/traced areas, etc.).");
                     return;
                 }
                 final Delineation existingDelineation = getDelineation(roi);

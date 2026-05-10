@@ -1584,6 +1584,9 @@ public class SNTUI extends JDialog {
                 Stream.of(plugin.getImagePlus(SNT.XY_PLANE), plugin.getImagePlus(SNT.XZ_PLANE), plugin.getImagePlus(SNT.ZY_PLANE))
                         .filter(Objects::nonNull).forEach(ImpUtils::invertLut);
         });
+        invertLutButton.setPreferredSize(new Dimension(
+                invertLutButton.getPreferredSize().width,
+                rebuildCanvasButton.getPreferredSize().height));
         final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, InternalUtils.MARGIN));
         buttonPanel.add(invertLutButton);
         buttonPanel.add(rebuildCanvasButton);

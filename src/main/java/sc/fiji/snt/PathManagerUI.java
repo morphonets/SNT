@@ -3570,6 +3570,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class DetectSwellingsCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
+                if (!plugin.accessToValidImageData()) {
+                    guiUtils.error("Swelling detection requires valid image data.");
+                    return;
+                }
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
                 (plugin.getUI().new DynamicCmdRunner(AlongPathDetectorCmd.class, inputs)).run();

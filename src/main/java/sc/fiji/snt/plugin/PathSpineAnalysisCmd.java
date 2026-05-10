@@ -179,7 +179,7 @@ public class PathSpineAnalysisCmd extends CommonDynamicCmd {
 			table.setTitle((anyMetric) ? "SNT_MultiMetrics" : "SNT_DensityProfile");
 			table.show();
 		}
-
+		resetUI();
 	}
 
 	private void addSeries(final XYPlot plot, final String label, final List<Double> x, final List<Double> y,
