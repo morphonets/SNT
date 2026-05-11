@@ -1701,6 +1701,8 @@ public class Tree implements TreeProperties, Cloneable {
 		}
 		list().forEach(path -> path.setSpacing(cal));
 		getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
+		getBoundingBox(true).setSpacing(cal.pixelWidth, cal.pixelHeight,
+				cal.pixelDepth, cal.getUnit());
 	}
 
 	/**
@@ -1728,6 +1730,8 @@ public class Tree implements TreeProperties, Cloneable {
         }
         list().forEach(path -> path.setSpacing(cal));
         getProperties().setProperty(KEY_SPATIAL_UNIT, cal.getUnit());
+        getBoundingBox(true).setSpacing(cal.pixelWidth, cal.pixelHeight,
+                cal.pixelDepth, cal.getUnit());
     }
 
 	/**
