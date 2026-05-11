@@ -26,19 +26,31 @@ import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.plugin.frame.RoiManager;
+import net.imagej.ImgPlus;
+import net.imglib2.Cursor;
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.img.Img;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
 import sc.fiji.snt.analysis.*;
+import sc.fiji.snt.analysis.detection.DetectorUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.ColorMaps;
+import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
+import sc.fiji.snt.util.TreeToRaster;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.List;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
@@ -51,6 +63,7 @@ public class DelineationsManager {
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     private static final int DEF_N = 10;
+    private static final int MAX_LABEL_IMAGE_CLASSES = 500;
     private static final Color DEF_COLOR = Color.GRAY;
     private static final String UNAFFECTED_LABEL = "Unaffected paths";
     private static final String NON_DELINEATED_LABEL = "Non-delineated";
@@ -60,6 +73,13 @@ public class DelineationsManager {
     private final JPanel delineationsPanel;
     private Color fallbackColor;
     private SNTTable table;
+
+    /** Label image stored as ImgLib2 RAI (integer-valued, 0 = background). */
+    private RandomAccessibleInterval<? extends RealType<?>> labelRAI;
+    /** Pixel spacing [x, y, z] from the label image, for calibrated EDT. */
+    private double[] labelSpacing;
+    /** Maps each Delineation label (internal) to the original label-image value. */
+    private Map<Long, Integer> delineationToImageLabel;
 
     public DelineationsManager(final SNTUI sntui) {
         this.sntui = sntui;
@@ -90,12 +110,11 @@ public class DelineationsManager {
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Delineations:", true, gbc);
         gbc.gridy++;
         final String msg = """
-                Delineations allow measuring proportions of paths within other structures defined by ROIs \
-                or neuropil annotations (e.g., cortical layers, biomarkers, or counterstaining landmarks). \
-                Delineation ROIs can be exported using the gear menu or saved to the workspace directory \
-                using File>Save Session.
+                Delineations allow measuring proportions of paths within other structures defined by ROIs, \
+                label images, or neuropil annotations (e.g., cortical layers, biomarkers, or counterstaining landmarks). \
                 
-                To create a delineation: Right-click on the image and pause SNT. Then, create an area ROI \
+                
+                To create a ROI-based delineation: Right-click on the image and pause SNT. Then, create an area ROI \
                 and click on an unset "Assign" button. Alternatively, use the import options in the gear menu.
                 """;
         gbc.weighty = 0.1;
@@ -324,6 +343,13 @@ public class DelineationsManager {
         else
             table.clear();
         final Map<String, List<Path>> pathGroups = getLabeledGroups(paths);
+        // Track which label-image values have already been measured so we can
+        // reuse the EDT when multiple delineations map to the same image label
+        // (unlikely but possible after merges). Only one EDT is held at a time
+        // to limit memory usage on large images.
+        final int[] cachedLabelVal = {-1};
+        final AtomicReference<Img<FloatType>> cachedEDT = new AtomicReference<>();
+
         pathGroups.forEach((label, sections) -> {
             final double length = sections.stream().mapToDouble(Path::getLength).sum();
             final double nNodes = sections.stream().mapToDouble(Path::size).sum();
@@ -337,7 +363,36 @@ public class DelineationsManager {
                 table.set("No. of junctions", label, getUniqueJunctionsCount(sections));
                 table.set("No. of path sections", label, sections.size());
             }
+            // Distance-to-boundary stats when label image is available
+            if (labelRAI != null && delineationToImageLabel != null
+                    && !UNAFFECTED_LABEL.equals(label)
+                    && !NON_DELINEATED_LABEL.equals(label)) {
+                final Delineation d = getDelineation(label);
+                if (d != null && delineationToImageLabel.containsKey(d.label)) {
+                    final int labelVal = delineationToImageLabel.get(d.label);
+                    // Compute EDT only if we don't already have one for this label value
+                    if (labelVal != cachedLabelVal[0]) {
+                        cachedEDT.set(computeEDTForLabel(labelVal));
+                        cachedLabelVal[0] = labelVal;
+                    }
+                    if (cachedEDT.get() != null) {
+                        final double[] dists = sampleDistancesForPaths(sections, cachedEDT.get());
+                        if (dists.length > 0) {
+                            final DoubleSummaryStatistics stats =
+                                    Arrays.stream(dists).summaryStatistics();
+                            final long insideCount = Arrays.stream(dists)
+                                    .filter(v -> v == 0.0).count();
+                            table.set("Mean dist. to boundary", label, stats.getAverage());
+                            table.set("Min dist. to boundary", label, stats.getMin());
+                            table.set("Max dist. to boundary", label, stats.getMax());
+                            table.set("Fraction inside", label,
+                                    (double) insideCount / dists.length);
+                        }
+                    }
+                }
+            }
         });
+        cachedEDT.set(null); // release for GC
         table.fillEmptyCells(Double.NaN);
         if (pathGroups.size() > 1) table.summarize();
         if (newTableNeeded)
@@ -492,13 +547,52 @@ public class DelineationsManager {
         optionsButton.setFocusable(false);
         optionsButton.setToolTipText("Options");
         final JPopupMenu optionsMenu = new JPopupMenu();
-        GuiUtils.addSeparator(optionsMenu, "Input/Output:");
+
+        GuiUtils.addSeparator(optionsMenu, "Import of Delineations:");
         JMenuItem jmi = new JMenuItem("Import Assignments from Atlas Annotations", IconFactory.menuIcon(IconFactory.GLYPH.ATLAS));
         jmi.setToolTipText("Import delineations from neuropil labels. Previous delineations will be overridden.");
         jmi.addActionListener(e -> delineateFromPrompt());
         optionsMenu.add(jmi);
-        optionsMenu.addSeparator();
-        jmi = new JMenuItem("Import Assignments from ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT));
+
+        jmi = new JMenuItem("Import Assignments from Label Image...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        jmi.setToolTipText("Import delineations from a label/segmentation image (e.g., from Weka, Labkit, cellpose).\n" +
+                "Each non-zero label becomes a delineation.");
+        jmi.addActionListener(e -> {
+            if (sntui.noPathsError()) return;
+            final ImagePlus labelImp = getLabelImage();
+            if (labelImp == null) return;
+            final ImagePlus tracingImp = sntui.plugin.getImagePlus();
+            if (tracingImp != null) {
+                final boolean dimMatch = labelImp.getWidth() == tracingImp.getWidth()
+                        && labelImp.getHeight() == tracingImp.getHeight()
+                        && labelImp.getNSlices() == tracingImp.getNSlices();
+                if (!dimMatch && !sntui.guiUtils.getConfirmation(
+                        "The label image dimensions (" + labelImp.getWidth() + "×"
+                                + labelImp.getHeight() + "×" + labelImp.getNSlices()
+                                + ") do not match the tracing image ("
+                                + tracingImp.getWidth() + "×" + tracingImp.getHeight()
+                                + "×" + tracingImp.getNSlices()
+                                + "). Assignments may be incorrect. Proceed anyway?",
+                        "Dimension Mismatch")) {
+                    return;
+                }
+            }
+            if (!resetAuthorizedByUser()) return;
+            final int n = importFromLabelImage(labelImp);
+            if (n < 0)
+                sntui.guiUtils.error("The selected image does not appear to be a valid "
+                        + "label/segmentation image. Expected: integer values with 0 as "
+                        + "background. See Console for details.");
+            else if (n == 0)
+                sntui.guiUtils.error("No non-zero labels found in the image.");
+            else
+                sntui.guiUtils.centeredMsg(n + " label(s) imported as delineations. "
+                                + "Distance-to-boundary metrics will be included in Measure output.",
+                        "Label Image Imported");
+        });
+        optionsMenu.add(jmi);
+
+        jmi = new JMenuItem("Import Assignments from ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
         optionsMenu.add(jmi);
         jmi.addActionListener(e -> {
             final RoiManager rm = RoiManager.getInstance2();
@@ -528,6 +622,23 @@ public class DelineationsManager {
                         "Delineations Imported");
             }
         });
+
+        GuiUtils.addSeparator(optionsMenu, "Export of Delineations:");
+        jmi = new JMenuItem("Export Assignments to Label Image", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        jmi.setToolTipText("Rasterize delineation assignments as a tube-filled label image using node radii.");
+        jmi.addActionListener(e -> {
+            if (sntui.noPathsError() || noAssignmentsExistError()) return;
+            final List<Path> paths = pafm.getPaths();
+            final Tree tree = new Tree(paths);
+            final ImagePlus refImp = sntui.accessToValidImagePlus() ? sntui.plugin.getImagePlus() : null;
+            if (refImp != null)  tree.assignImage(refImp);
+            final TreeToRaster rasterizer = new TreeToRaster(tree);
+            if (refImp != null) rasterizer.setReferenceBounds(refImp);
+            final ImagePlus labelImp = rasterizer.rasterizeNodeValueLabels();
+            labelImp.setTitle("Delineation Labels");
+            labelImp.show();
+        });
+        optionsMenu.add(jmi);
         jmi = new JMenuItem("Export Assignments to ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
         jmi.addActionListener(e -> {
             final List<Roi> rois = getValidDelineationROIs();
@@ -537,6 +648,7 @@ public class DelineationsManager {
                 toRoiManager(rois);
         });
         optionsMenu.add(jmi);
+
         GuiUtils.addSeparator(optionsMenu, "Rendering of Delineated Paths:");
         jmi = new JMenuItem("Restore Pre-Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         jmi.addActionListener(e -> removeDelineationColorsFromAllPaths(false));
@@ -552,17 +664,12 @@ public class DelineationsManager {
         jmi.addActionListener(e -> {
             if (delineations.stream().allMatch(d -> d.roi == null)) {
                 reset();
-                sntui.showStatus("Assignments rebuilt.", true);
+                sntui.showStatus("Assignments reset.", true);
                 return;
             }
             if (noAssignmentsExistError()) return;
-            delineations.forEach(d -> {
-                if (d.roi != null) {
-                    d.assignRoi(d.roi, pafm.getPathsInROI(d.roi));
-                    d.updateWidget();
-                }
-            });
-            sntui.plugin.updateAllViewers();
+            rebuildAssigments();
+            sntui.showStatus("Assignments rebuilt.", true);
         });
         optionsMenu.add(jmi);
         jmi = new JMenuItem("Delete All Assignments...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
@@ -591,6 +698,51 @@ public class DelineationsManager {
             }
         });
         return optionsButton;
+    }
+
+    private void rebuildAssigments() {
+        if (labelRAI != null) {
+            // Label-image source: re-import from stored image
+            final RandomAccessibleInterval<? extends RealType<?>> rai = labelRAI;
+            final double[] sp = labelSpacing;
+            reset();
+            importFromLabelImage(rai, sp);
+        } else {
+            delineations.forEach(d -> {
+                if (d.roi != null && d.roi != Delineation.DUMMY_ROI) {
+                    // ROI source: re-assign from ROI
+                    d.assignRoi(d.roi, pafm.getPathsInROI(d.roi));
+                } else if (d.roi == Delineation.DUMMY_ROI) {
+                    // Atlas source: re-color from existing node values
+                    d.colorPathNodesByLabel(pafm.getPaths());
+                }
+                d.updateWidget();
+            });
+        }
+        if (sntui != null) sntui.plugin.updateAllViewers();
+    }
+
+    private ImagePlus getLabelImage() {
+        final ImagePlus[] candidates = ImpUtils.getOpenImages();
+        final ImagePlus labelImp;
+        if (candidates.length > 0) {
+            final String[] titles = Arrays.stream(candidates).map(ImagePlus::getTitle).toArray(String[]::new);
+            final String choice = sntui.guiUtils.getChoice("Select the label/segmentation image:",
+                    "Import from Label Image", titles, titles[0]);
+            if (choice == null) return null;
+            labelImp = Arrays.stream(candidates).filter(imp -> choice.equals(imp.getTitle()))
+                    .findFirst().orElse(null);
+        } else {
+            labelImp = ImpUtils.open(sntui.openFile("tif"));
+        }
+        if (labelImp == null) return null;
+        if (labelImp.getNChannels() > 1 || labelImp.getNFrames() > 1) {
+            sntui.guiUtils.error("The selected image is a hyperstack (" + labelImp.getNChannels()
+                    + " channel(s), " + labelImp.getNFrames() + " frame(s)). Please select a single-channel,"
+                    + " single-timepoint label image.");
+            return null;
+        }
+        return labelImp;
     }
 
     private void mergeDelineations(final Delineation receiver, final List<Delineation> toBeMergedAndDeleted) {
@@ -658,6 +810,9 @@ public class DelineationsManager {
             d.roi = null;
             d.updateWidget();
         });
+        labelRAI = null;
+        labelSpacing = null;
+        delineationToImageLabel = null;
     }
 
     public List<Roi> getDelineationROIs() {
@@ -665,9 +820,15 @@ public class DelineationsManager {
     }
 
     /**
+     * Loads delineations from a list of area ROIs. Each ROI is mapped to a
+     * delineation entry, and path nodes whose XY coordinates fall within the
+     * ROI are assigned to the corresponding delineation. If an ROI has been
+     * renamed or colored (stroke or fill), those properties are transferred
+     * to the delineation.
      *
-     * @param delineationROIs
-     * @return the number of ROIs successfully imported (i.e., associated with at least one path)
+     * @param delineationROIs the area ROIs to import; {@code null} or empty
+     *                        lists return 0
+     * @return the number of ROIs successfully associated with at least one path
      */
     public int load(final List<Roi> delineationROIs) {
         if (delineationROIs == null || delineationROIs.isEmpty())
@@ -695,6 +856,123 @@ public class DelineationsManager {
         delineations.forEach(Delineation::updateWidget);
         sntui.plugin.updateAllViewers();
         return delineationROIs.size() - outCounter;
+    }
+
+    /**
+     * Imports delineations from a label image. Each unique non-zero integer
+     * value becomes a delineation. Path nodes are assigned based on the label
+     * value at their pixel coordinates. The label image is stored internally
+     * for on-the-fly distance computation in {@link #measure()}.
+     *
+     * @param labelImg the label image (XYZ or XY); 0 = background
+     * @return the number of unique labels imported
+     */
+    public int importFromLabelImage(final RandomAccessibleInterval<? extends RealType<?>> labelImg) {
+        return importFromLabelImage(labelImg, null);
+    }
+
+    /**
+     * Imports delineations from a label image with explicit pixel spacing.
+     *
+     * @param labelImg the label image (XYZ or XY); 0 = background
+     * @param spacing  pixel spacing [x, y] or [x, y, z]; if {@code null},
+     *                 spacing is inferred from axes metadata (if
+     *                 {@link ImgPlus}) or defaults to [1, 1, 1]
+     * @return the number of unique labels imported
+     */
+    public int importFromLabelImage(final RandomAccessibleInterval<? extends RealType<?>> labelImg,
+                                     final double[] spacing) {
+        if (labelImg == null) return 0;
+
+        // Validate that the image is a plausible label/segmentation image
+        if (!ImgUtils.isLabelImage(labelImg, MAX_LABEL_IMAGE_CLASSES)) {
+            SNTUtils.log("Image does not appear to be a valid label/segmentation "
+                    + "image. Expected: non-negative integer values, 0 = background, "
+                    + "at most " + MAX_LABEL_IMAGE_CLASSES + " unique classes.");
+            return -1;
+        }
+
+        // Collect unique non-zero labels
+        final Set<Integer> uniqueLabels = new TreeSet<>();
+        final Cursor<? extends RealType<?>> cursor = labelImg.cursor();
+        while (cursor.hasNext()) {
+            final int val = (int) cursor.next().getRealDouble();
+            if (val != 0) uniqueLabels.add(val);
+        }
+        if (uniqueLabels.isEmpty()) return 0;
+
+        this.labelRAI = labelImg;
+        this.labelSpacing = ImgUtils.resolveSpacing(labelImg, spacing);
+        this.delineationToImageLabel = new LinkedHashMap<>();
+
+        // Create delineations for each label
+        expandCapacityTo(uniqueLabels.size());
+        final Map<Integer, Delineation> imgLabelToDelineation = new LinkedHashMap<>();
+        int idx = 0;
+        for (final int labelVal : uniqueLabels) {
+            final Delineation d = delineations.get(idx++);
+            d.roi = Delineation.DUMMY_ROI;
+            d.rename("Label " + labelVal);
+            imgLabelToDelineation.put(labelVal, d);
+            delineationToImageLabel.put(d.label, labelVal);
+        }
+
+        // Assign path nodes based on label at their pixel coordinates
+        final int nDims = labelImg.numDimensions();
+        final RandomAccess<? extends RealType<?>> ra = labelImg.randomAccess();
+        int outOfBoundsCount = 0;
+        for (final Path p : pafm.getPaths()) {
+            for (int i = 0; i < p.size(); i++) {
+                final long px = p.getXUnscaled(i);
+                final long py = p.getYUnscaled(i);
+                final long pz = (nDims > 2) ? p.getZUnscaled(i) : 0;
+                // Skip nodes outside the label image bounds
+                if (px < labelImg.min(0) || px > labelImg.max(0)
+                        || py < labelImg.min(1) || py > labelImg.max(1)
+                        || (nDims > 2 && (pz < labelImg.min(2) || pz > labelImg.max(2)))) {
+                    p.setNodeColor(fallbackColor, i);
+                    outOfBoundsCount++;
+                    continue;
+                }
+                if (nDims > 2) {
+                    ra.setPosition(new long[]{px, py, pz});
+                } else {
+                    ra.setPosition(new long[]{px, py});
+                }
+                final int labelVal = (int) ra.get().getRealDouble();
+                final Delineation d = imgLabelToDelineation.get(labelVal);
+                if (d != null) {
+                    p.setNodeValue(-d.label, i);
+                    p.setNodeColor(d.color, i);
+                } else {
+                    p.setNodeColor(fallbackColor, i);
+                }
+            }
+        }
+        if (outOfBoundsCount > 0) {
+            SNTUtils.log("Label import: " + outOfBoundsCount
+                    + " node(s) were outside the label image bounds and left unassigned.");
+        }
+
+        delineations.forEach(Delineation::updateWidget);
+        sntui.plugin.updateAllViewers();
+        return uniqueLabels.size();
+    }
+
+    /**
+     * Convenience overload accepting an {@link ImagePlus}, which is converted
+     * to an {@link ImgPlus} via {@link ImpUtils#toImgPlus3D(ImagePlus, int, int)}.
+     *
+     * @param labelImp the label ImagePlus
+     * @return the number of unique labels imported
+     */
+    public int importFromLabelImage(final ImagePlus labelImp) {
+        if (labelImp == null) return 0;
+        final ImgPlus<?> imgPlus = ImpUtils.toImgPlus3D(labelImp, 1, 1);
+        @SuppressWarnings("unchecked")
+        final RandomAccessibleInterval<? extends RealType<?>> rai =
+                (RandomAccessibleInterval<? extends RealType<?>>) imgPlus;
+        return importFromLabelImage(rai);
     }
 
     private void toRoiManager(final List<Roi> rois) {
@@ -835,6 +1113,31 @@ public class DelineationsManager {
         })));
         for (int i = 0; i < n; i++) delineations.get(i).updateWidget();
         sntui.plugin.updateAllViewers();
+    }
+
+    /**
+     * Computes the calibrated Euclidean distance transform for a single label
+     * in the stored label image. Each pixel in the result holds the calibrated
+     * distance to the nearest voxel of the given label.
+     *
+     * @param labelVal the label-image value to compute distances to
+     * @return calibrated EDT image, or {@code null} if no label image is stored
+     */
+    private Img<FloatType> computeEDTForLabel(final int labelVal) {
+        return DetectorUtils.computeEDT(labelRAI, labelVal, labelSpacing);
+    }
+
+    /**
+     * Samples the distance-to-label at each node in the given paths using a
+     * precomputed calibrated EDT.
+     *
+     * @param paths the path sections to measure
+     * @param edt   calibrated EDT image
+     * @return array of calibrated distances (one per node across all paths)
+     */
+    private double[] sampleDistancesForPaths(final List<Path> paths,
+                                              final Img<FloatType> edt) {
+        return DetectorUtils.sampleDistances(paths, edt);
     }
 
     private class Delineation {

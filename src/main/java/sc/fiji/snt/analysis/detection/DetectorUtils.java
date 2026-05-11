@@ -22,7 +22,18 @@
 
 package sc.fiji.snt.analysis.detection;
 
+import net.imglib2.Cursor;
+import net.imglib2.RandomAccess;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.morphology.distance.DistanceTransform;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.type.logic.BitType;
+import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.real.FloatType;
+import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointDeduplicator;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTPoint;
@@ -176,5 +187,113 @@ public final class DetectorUtils {
             }
         }
         return reassigned;
+    }
+
+    /**
+     * Computes a calibrated Euclidean Distance Transform for a single label
+     * value in a label image. The EDT gives the distance from every voxel to
+     * the nearest boundary of the specified label.
+     *
+     * @param labelRAI the label (segmentation) image
+     * @param labelVal the label value to compute the EDT for
+     * @param spacing  pixel spacing per dimension (used for calibrated EDT).
+     *                 If {@code null}, spacing is resolved from the image via
+     *                 {@link ImgUtils#resolveSpacing(RandomAccessibleInterval, double[])}.
+     * @return the EDT as a float image, or {@code null} if {@code labelRAI} is null
+     */
+    public static Img<FloatType> computeEDT(final RandomAccessibleInterval<? extends RealType<?>> labelRAI,
+                                             final int labelVal, double[] spacing) {
+        if (labelRAI == null) return null;
+        final int nDims = labelRAI.numDimensions();
+        final long[] dims = new long[nDims];
+        labelRAI.dimensions(dims);
+
+        // Build inverted binary mask: TRUE where label is NOT present
+        final Img<BitType> inverted = ArrayImgs.bits(dims);
+        final Cursor<? extends RealType<?>> srcCursor = Views.flatIterable(labelRAI).cursor();
+        final Cursor<BitType> maskCursor = Views.flatIterable(inverted).cursor();
+        while (srcCursor.hasNext()) {
+            srcCursor.fwd();
+            maskCursor.fwd();
+            maskCursor.get().set(((int) srcCursor.get().getRealDouble()) != labelVal);
+        }
+
+        if (spacing == null) {
+            spacing = ImgUtils.resolveSpacing(labelRAI, null);
+        }
+
+        final Img<FloatType> edt = ArrayImgs.floats(dims);
+        DistanceTransform.binaryTransform(inverted, edt,
+                DistanceTransform.DISTANCE_TYPE.EUCLIDIAN, spacing);
+        return edt;
+    }
+
+    /**
+     * Samples the EDT at every node position of the given paths. Out-of-bounds
+     * nodes are silently skipped.
+     *
+     * @param paths the paths to sample
+     * @param edt   the distance transform image
+     * @return array of sampled distance values (may be shorter than total node
+     *         count if some nodes were out of bounds)
+     */
+    public static double[] sampleDistances(final Collection<Path> paths,
+                                            final Img<FloatType> edt) {
+        final int nDims = edt.numDimensions();
+        final RandomAccess<FloatType> ra = edt.randomAccess();
+        final List<Double> distances = new ArrayList<>();
+
+        for (final Path p : paths) {
+            for (int i = 0; i < p.size(); i++) {
+                final long px = p.getXUnscaled(i);
+                final long py = p.getYUnscaled(i);
+                final long pz = (nDims > 2) ? p.getZUnscaled(i) : 0;
+                if (px < edt.min(0) || px > edt.max(0)
+                        || py < edt.min(1) || py > edt.max(1)
+                        || (nDims > 2 && (pz < edt.min(2) || pz > edt.max(2)))) {
+                    continue; // skip out-of-bounds nodes
+                }
+                if (nDims > 2) {
+                    ra.setPosition(new long[]{px, py, pz});
+                } else {
+                    ra.setPosition(new long[]{px, py});
+                }
+                distances.add((double) ra.get().getRealFloat());
+            }
+        }
+        return distances.stream().mapToDouble(Double::doubleValue).toArray();
+    }
+
+    /**
+     * Samples the EDT at each node of a single path, returning the distance
+     * value and node index for each in-bounds node.
+     *
+     * @param path the path to sample
+     * @param edt  the distance transform image
+     * @return list of {@code double[]} entries, each {@code {nodeIndex, distance}}
+     */
+    public static List<double[]> sampleDistancesWithIndices(final Path path,
+                                                             final Img<FloatType> edt) {
+        final int nDims = edt.numDimensions();
+        final RandomAccess<FloatType> ra = edt.randomAccess();
+        final List<double[]> results = new ArrayList<>();
+
+        for (int i = 0; i < path.size(); i++) {
+            final long px = path.getXUnscaled(i);
+            final long py = path.getYUnscaled(i);
+            final long pz = (nDims > 2) ? path.getZUnscaled(i) : 0;
+            if (px < edt.min(0) || px > edt.max(0)
+                    || py < edt.min(1) || py > edt.max(1)
+                    || (nDims > 2 && (pz < edt.min(2) || pz > edt.max(2)))) {
+                continue;
+            }
+            if (nDims > 2) {
+                ra.setPosition(new long[]{px, py, pz});
+            } else {
+                ra.setPosition(new long[]{px, py});
+            }
+            results.add(new double[]{i, ra.get().getRealFloat()});
+        }
+        return results;
     }
 }

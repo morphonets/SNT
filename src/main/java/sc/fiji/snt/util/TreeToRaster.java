@@ -89,6 +89,9 @@ public class TreeToRaster {
 	// Thickness modulation (disabled by default)
 	private double thicknessModulation = 0; // 0 = off, >0 = fraction of range
 
+	// Reference bounds: when set, the output image matches this extent exactly
+	private int refWidth = -1, refHeight = -1, refDepth = -1;
+
 	/**
 	 * Constructs a new rasterizer for the given tree. Resolution defaults to
 	 * the tree's own spatial calibration if available, otherwise 1 unit
@@ -147,12 +150,56 @@ public class TreeToRaster {
 	}
 
 	/**
+	 * Sets reference bounds from an {@link ImagePlus}, so the output image
+	 * matches its exact dimensions. When set, the rasterized image will have
+	 * the same width, height, and depth as the reference, with the origin at
+	 * (0, 0, 0) in pixel coordinates. This ensures pixel-level alignment
+	 * between the rasterized output and the reference image. Resolution is
+	 * also updated from the reference calibration.
+	 *
+	 * @param imp the reference image whose dimensions to match
+	 * @return this instance for chaining
+	 */
+	public TreeToRaster setReferenceBounds(final ImagePlus imp) {
+		if (imp == null)
+			throw new IllegalArgumentException("Reference image must not be null");
+		this.refWidth = imp.getWidth();
+		this.refHeight = imp.getHeight();
+		this.refDepth = Math.max(imp.getNSlices(), 1);
+		final Calibration cal = imp.getCalibration();
+		this.lateralRes = cal.pixelWidth;
+		this.axialRes = cal.pixelDepth;
+		return this;
+	}
+
+	/**
+	 * Sets reference bounds explicitly, so the output image matches the
+	 * specified dimensions. When set, the rasterized image will have exactly
+	 * the given width, height, and depth, with the origin at (0, 0, 0) in
+	 * pixel coordinates.
+	 *
+	 * @param width  the reference width in pixels
+	 * @param height the reference height in pixels
+	 * @param depth  the reference depth in slices
+	 * @return this instance for chaining
+	 */
+	public TreeToRaster setReferenceBounds(final int width, final int height,
+										   final int depth) {
+		if (width <= 0 || height <= 0 || depth <= 0)
+			throw new IllegalArgumentException("Dimensions must be positive");
+		this.refWidth = width;
+		this.refHeight = height;
+		this.refDepth = depth;
+		return this;
+	}
+
+	/**
 	 * Enables Poisson shot noise on the rasterized image, simulating photon
 	 * counting noise typical of fluorescence microscopy.
 	 * <p>
 	 * The peak intensity is derived from the SNR and background using the
 	 * photon-counting model: {@code SNR = (peak - bg) / sqrt(peak)}. Note
-	 * that Poisson shot noise is ignored when using {@link #rasterizeLabels()}
+	 * that Poisson shot noise is ignored when using {@link #rasterizePathLabels()}
 	 * </p>
 	 *
 	 * @param snr        the signal-to-noise ratio (peak-to-noise). Must be
@@ -174,7 +221,7 @@ public class TreeToRaster {
 	/**
 	 * Enables Gaussian blurring of the (optionally noisy) image, simulating
 	 * spatially correlated noise and optical blur. Note that Gaussian blurring
-	 * is ignored when using {@link #rasterizeLabels()}.
+	 * is ignored when using {@link #rasterizePathLabels()}.
 	 *
 	 * @param sigma the Gaussian sigma in the tree's spatial units (typically
 	 *              µm). Must be positive.
@@ -370,6 +417,19 @@ public class TreeToRaster {
 	 * Rasterizes the tree into a 16-bit label image where each voxel is
 	 * assigned the 1-based index of the {@link Path} that owns it (as
 	 * ordered by {@link Tree#list()}). Background voxels are 0.
+	 *
+	 * @return a 16-bit {@link ImagePlus} of path labels
+	 * @deprecated Use {@link #rasterizePathLabels()} instead
+	 */
+	@Deprecated
+	public ImagePlus rasterizeLabels() {
+		return rasterizePathLabels();
+	}
+
+	/**
+	 * Rasterizes the tree into a 16-bit label image where each voxel is
+	 * assigned the 1-based index of the {@link Path} that owns it (as
+	 * ordered by {@link Tree#list()}). Background voxels are 0.
 	 * <p>
 	 * At intersection sites where multiple paths overlap, the path with
 	 * the largest local radius wins (thickest-wins priority), ensuring
@@ -383,17 +443,59 @@ public class TreeToRaster {
 	 * </p>
 	 *
 	 * @return a 16-bit {@link ImagePlus} of path labels
+	 * @see #rasterizeNodeValueLabels()
 	 */
-	public ImagePlus rasterizeLabels() {
+	public ImagePlus rasterizePathLabels() {
+		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+		return rasterizeWithLabels(buildFrustums(defR), "PathLabels");
+	}
 
-		final RasterContext ctx = prepareRasterization();
+	/**
+	 * Rasterizes the tree into a 16-bit label image where each voxel is
+	 * assigned the <em>node value</em> of the nearest path node (as
+	 * stored via {@link Path#setNodeValue(double, int)}). This enables
+	 * per-node labeling, e.g., from delineation assignments, atlas
+	 * annotations, or other node-level classifications.
+	 * <p>
+	 * Node values are expected to be negative integers (as used by
+	 * {@link sc.fiji.snt.DelineationsManager}); they are negated to
+	 * produce positive labels in the output image. Nodes with
+	 * {@code NaN} or non-negative values are treated as background (0).
+	 * </p>
+	 * <p>
+	 * Each frustum (segment between consecutive nodes) inherits the
+	 * label of its start node. At intersection sites, the frustum with
+	 * the largest local radius wins (thickest-wins), consistent with
+	 * {@link #rasterizePathLabels()}.
+	 * </p>
+	 * <p>
+	 * <b>Note:</b> The output is 16-bit unsigned ({@code short}), so
+	 * label values above 65535 will overflow. In practice this is not a
+	 * concern when the source is a label/segmentation image with a
+	 * bounded class count, but callers should be aware of this limit.
+	 * </p>
+	 *
+	 * @return a 16-bit {@link ImagePlus} of node-value labels
+	 * @see #rasterizePathLabels()
+	 */
+	public ImagePlus rasterizeNodeValueLabels() {
+		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+		return rasterizeWithLabels(buildFrustumsFromNodeValues(defR), "NodeLabels");
+	}
+
+	/**
+	 * Shared rasterization engine for label images. Takes a pre-built list
+	 * of frustums (with label assignments) and produces a 16-bit image
+	 * using thickest-wins supersampling.
+	 */
+	private ImagePlus rasterizeWithLabels(final List<Frustum> frustums,
+										   final String prefix) {
+		final RasterContext ctx = prepareRasterization(frustums);
 		final int width = ctx.width, height = ctx.height, depth = ctx.depth;
 		final int xo = ctx.xo, yo = ctx.yo, zo = ctx.zo;
 		final FrustumGrid grid = ctx.grid;
 		final float[][] flagMap = ctx.flagMap;
 
-		// For each flagged voxel, supersample and pick the path whose
-		// frustum has the largest local radius (thickest-wins)
 		final short[][] labels = new short[depth][width * height];
 
 		IntStream.range(0, depth).parallel().forEach(z -> {
@@ -419,7 +521,7 @@ public class TreeToRaster {
 									final double r = f.localRadius(wx, wy, wz);
 									if (r > bestR) {
 										bestR = r;
-										bestId = f.pathId;
+										bestId = f.label;
 									}
 								}
 							}
@@ -430,17 +532,17 @@ public class TreeToRaster {
 			}
 		});
 
-		// Build 16-bit ImagePlus
 		final ImageStack stack = new ImageStack(width, height);
 		for (int z = 0; z < depth; z++)
 			stack.addSlice("", new ShortProcessor(width, height, labels[z], null));
-		final ImagePlus imp = new ImagePlus("Labels " + tree.getLabel(), stack);
+		final ImagePlus imp = new ImagePlus(prefix + " " + tree.getLabel(), stack);
 		imp.setCalibration(buildCalibration());
+		ImpUtils.applyColorTable(imp, ColorMaps.get("glasbey-on-dark"));
 		imp.resetDisplayRange();
 		return imp;
 	}
 
-	/** Shared state computed once for both {@link #rasterize()} and {@link #rasterizeLabels()}. */
+	/** Shared state computed once for rasterization passes. */
 	private static class RasterContext {
 		int width, height, depth;
 		int xo, yo, zo;
@@ -449,34 +551,56 @@ public class TreeToRaster {
 		float[][] flagMap; // -1 where any frustum overlaps, 0 elsewhere
 	}
 
+	/**
+	 * Prepares a raster context using the default frustum list (path-ID based).
+	 */
 	private RasterContext prepareRasterization() {
+		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
+		return prepareRasterization(buildFrustums(defR));
+	}
+
+	/**
+	 * Prepares a raster context from a pre-built frustum list.
+	 */
+	private RasterContext prepareRasterization(final List<Frustum> frustums) {
 		final double defR = (defaultRadius > 0) ? defaultRadius : lateralRes / 2;
 		final double[] bounds = worldBounds(defR);
 
-		final int xm = (int) Math.floor(bounds[0] / lateralRes);
-		final int ym = (int) Math.floor(bounds[2] / lateralRes);
-		final int zm = (int) Math.floor(bounds[4] / axialRes);
-		final int xM = (int) Math.ceil(bounds[1] / lateralRes);
-		final int yM = (int) Math.ceil(bounds[3] / lateralRes);
-		final int zM = (int) Math.ceil(bounds[5] / axialRes);
-
 		final RasterContext ctx = new RasterContext();
-		ctx.width  = (xM - xm) + 2 * BORDER_XY;
-		ctx.height = (yM - ym) + 2 * BORDER_XY;
-		ctx.depth  = Math.max((zM - zm) + 2 * BORDER_Z, 1);
-		ctx.xo = BORDER_XY - xm;
-		ctx.yo = BORDER_XY - ym;
-		ctx.zo = BORDER_Z  - zm;
+
+		if (refWidth > 0) {
+			// Reference-bounded mode: output matches the reference image exactly
+			ctx.width  = refWidth;
+			ctx.height = refHeight;
+			ctx.depth  = refDepth;
+			ctx.xo = 0;
+			ctx.yo = 0;
+			ctx.zo = 0;
+		} else {
+			// Default mode: tight fit around tree with border padding
+			final int xm = (int) Math.floor(bounds[0] / lateralRes);
+			final int ym = (int) Math.floor(bounds[2] / lateralRes);
+			final int zm = (int) Math.floor(bounds[4] / axialRes);
+			final int xM = (int) Math.ceil(bounds[1] / lateralRes);
+			final int yM = (int) Math.ceil(bounds[3] / lateralRes);
+			final int zM = (int) Math.ceil(bounds[5] / axialRes);
+			ctx.width  = (xM - xm) + 2 * BORDER_XY;
+			ctx.height = (yM - ym) + 2 * BORDER_XY;
+			ctx.depth  = Math.max((zM - zm) + 2 * BORDER_Z, 1);
+			ctx.xo = BORDER_XY - xm;
+			ctx.yo = BORDER_XY - ym;
+			ctx.zo = BORDER_Z  - zm;
+		}
 
 		SNTUtils.log("TreeToRaster: allocating " + ctx.width + "x" + ctx.height
 				+ "x" + ctx.depth);
 
-		ctx.frustums = buildFrustums(defR);
-		ctx.grid = new FrustumGrid(ctx.frustums, bounds, lateralRes, axialRes);
+		ctx.frustums = frustums;
+		ctx.grid = new FrustumGrid(frustums, bounds, lateralRes, axialRes);
 
 		// Pass 1: coarse voxel map
 		ctx.flagMap = new float[ctx.depth][ctx.width * ctx.height];
-		for (final Frustum f : ctx.frustums) {
+		for (final Frustum f : frustums) {
 			final int fxm = ctx.xo + (int) Math.floor(f.xMin / lateralRes);
 			final int fym = ctx.yo + (int) Math.floor(f.yMin / lateralRes);
 			final int fzm = ctx.zo + (int) Math.floor(f.zMin / axialRes);
@@ -566,6 +690,63 @@ public class TreeToRaster {
 			}
 		}
 		return frustums;
+	}
+
+	/**
+	 * Builds frustums labeled with per-node values (negated to produce positive
+	 * labels). Each frustum inherits the label of its start node. Nodes with
+	 * {@code NaN} or non-negative values produce label 0 (background).
+	 *
+	 * @param defR default radius for nodes without radii
+	 * @return list of labeled frustums
+	 */
+	private List<Frustum> buildFrustumsFromNodeValues(final double defR) {
+		final List<Frustum> frustums = new ArrayList<>();
+		final List<Path> paths = tree.list();
+		for (final Path p : paths) {
+			// Bridge frustum from parent branch point
+			final Path parent = p.getParentPath();
+			if (parent != null && p.size() > 0) {
+				final int bpIdx = p.getBranchPointIndex();
+				if (bpIdx >= 0 && bpIdx < parent.size()) {
+					final PointInImage bp = parent.getNode(bpIdx);
+					final PointInImage n0 = p.getNode(0);
+					final double rBp = (parent.hasRadii()) ? parent.getNodeRadius(bpIdx) : defR;
+					final double r0 = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
+					final int lbl = nodeValueToLabel(p, 0);
+					frustums.add(new Frustum(bp.x, bp.y, bp.z, rBp,
+							n0.x, n0.y, n0.z, r0, lbl));
+				}
+			}
+			for (int i = 0; i < p.size() - 1; i++) {
+				final PointInImage n0 = p.getNode(i);
+				final PointInImage n1 = p.getNode(i + 1);
+				final double r0 = (p.hasRadii()) ? p.getNodeRadius(i) : defR;
+				final double r1 = (p.hasRadii()) ? p.getNodeRadius(i + 1) : defR;
+				final int lbl = nodeValueToLabel(p, i);
+				frustums.add(new Frustum(n0.x, n0.y, n0.z, r0,
+						n1.x, n1.y, n1.z, r1, lbl));
+			}
+			if (p.size() == 1) {
+				final PointInImage n = p.getNode(0);
+				final double r = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
+				final int lbl = nodeValueToLabel(p, 0);
+				frustums.add(new Frustum(n.x, n.y, n.z, r, n.x, n.y, n.z, r, lbl));
+			}
+		}
+		return frustums;
+	}
+
+	/**
+	 * Converts a node value to a positive label. Delineation labels are stored
+	 * as negative values, so this negates them. Returns 0 for {@code NaN} or
+	 * non-negative values.
+	 */
+	private static int nodeValueToLabel(final Path p, final int nodeIdx) {
+		if (!p.hasNodeValues()) return 0;
+		final double val = p.getNodeValue(nodeIdx);
+		if (Double.isNaN(val) || val >= 0) return 0;
+		return (int) -val;
 	}
 
 	/**
@@ -736,14 +917,14 @@ public class TreeToRaster {
 		final double dx, dy, dz;
 		final double len2, len;
 		final double xMin, xMax, yMin, yMax, zMin, zMax;
-		final int pathId; // 1-based path identifier (0 = unset)
+		final int label; // voxel label (e.g., 1-based path index or node value; 0 = background)
 
 		Frustum(final double sx, final double sy, final double sz,
 				final double sr, final double ex, final double ey,
-				final double ez, final double er, final int pathId) {
+				final double ez, final double er, final int label) {
 			this.sx = sx; this.sy = sy; this.sz = sz; this.sr = sr;
 			this.ex = ex; this.ey = ey; this.ez = ez; this.er = er;
-			this.pathId = pathId;
+			this.label = label;
 			dx = ex - sx; dy = ey - sy; dz = ez - sz;
 			len2 = dx * dx + dy * dy + dz * dz;
 			len = Math.sqrt(len2);
