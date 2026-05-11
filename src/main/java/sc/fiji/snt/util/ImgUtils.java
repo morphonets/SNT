@@ -32,6 +32,7 @@ import net.imagej.axis.Axes;
 import net.imagej.axis.AxisType;
 import net.imagej.axis.CalibratedAxis;
 import net.imagej.axis.DefaultLinearAxis;
+import net.imagej.axis.LinearAxis;
 import net.imglib2.*;
 import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.converter.Converters;
@@ -1622,6 +1623,121 @@ public class ImgUtils {
         if (result != img)
             SNTUtils.log("Permuted axes > " + axisReport(result));
         return result;
+    }
+
+    /**
+     * Checks whether two images have compatible spatial dimensions (width,
+     * height, and optionally depth). This is useful for verifying that a
+     * label/segmentation image matches the image that paths were traced on.
+     *
+     * @param img1 first image
+     * @param img2 second image
+     * @return {@code true} if the first 2 (or 3, if both are 3D+) dimensions
+     *         match
+     */
+    public static boolean haveSameSpatialDimensions(final RandomAccessibleInterval<?> img1,
+                                                     final RandomAccessibleInterval<?> img2) {
+        if (img1 == null || img2 == null) return false;
+        final int nDims = Math.min(img1.numDimensions(), img2.numDimensions());
+        final int spatialDims = Math.min(nDims, 3); // compare X, Y, and Z if present
+        for (int d = 0; d < spatialDims; d++) {
+            if (img1.dimension(d) != img2.dimension(d)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Checks whether an {@link ImagePlus} and a {@link RandomAccessibleInterval}
+     * have compatible spatial dimensions (width, height, and optionally depth).
+     *
+     * @param imp the ImagePlus
+     * @param rai the RandomAccessibleInterval (XY or XYZ)
+     * @return {@code true} if spatial dimensions match
+     */
+    public static boolean haveSameSpatialDimensions(final ImagePlus imp,
+                                                     final RandomAccessibleInterval<?> rai) {
+        if (imp == null || rai == null) return false;
+        if (imp.getWidth() != rai.dimension(0)) return false;
+        if (imp.getHeight() != rai.dimension(1)) return false;
+        if (rai.numDimensions() > 2 && imp.getNSlices() != rai.dimension(2)) return false;
+        return true;
+    }
+
+    /**
+     * Checks whether a {@link RandomAccessibleInterval} appears to be a label
+     * (segmentation) image. A label image is expected to contain non-negative
+     * integer values with 0 as background and a bounded number of unique
+     * classes.
+     * <p>
+     * The heuristics are:
+     * <ul>
+     *   <li>All values must be non-negative and integer-valued (i.e.,
+     *       {@code value == Math.floor(value)}).</li>
+     *   <li>The number of unique non-zero values must not exceed
+     *       {@code maxClasses}.</li>
+     * </ul>
+     * The scan terminates early if either condition is violated.
+     * </p>
+     *
+     * @param img        the image to check
+     * @param maxClasses maximum number of distinct non-zero labels allowed
+     * @return {@code true} if the image passes all label-image heuristics
+     */
+    public static boolean isLabelImage(final RandomAccessibleInterval<? extends RealType<?>> img,
+                                        final int maxClasses) {
+        final Set<Integer> uniqueLabels = new HashSet<>();
+        final Cursor<? extends RealType<?>> cursor = Views.iterable(img).cursor();
+        while (cursor.hasNext()) {
+            final double raw = cursor.next().getRealDouble();
+            if (raw == 0) continue;
+            if (raw < 0 || raw != Math.floor(raw)) return false;
+            uniqueLabels.add((int) raw);
+            if (uniqueLabels.size() > maxClasses) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Checks whether a {@link RandomAccessibleInterval} appears to be a label
+     * image, using a default maximum of 500 classes.
+     *
+     * @param img the image to check
+     * @return {@code true} if the image passes label-image heuristics
+     * @see #isLabelImage(RandomAccessibleInterval, int)
+     */
+    public static boolean isLabelImage(final RandomAccessibleInterval<? extends RealType<?>> img) {
+        return isLabelImage(img, 500);
+    }
+
+    /**
+     * Resolves pixel spacing for a {@link RandomAccessibleInterval}. If
+     * explicit spacing is provided and has enough dimensions, it is used
+     * directly. Otherwise, axis metadata is extracted from {@link ImgPlus}
+     * if available. Falls back to isotropic spacing of 1.0.
+     *
+     * @param img      the image
+     * @param explicit explicit spacing array, or {@code null}
+     * @return pixel spacing array with one entry per image dimension
+     */
+    public static double[] resolveSpacing(final RandomAccessibleInterval<?> img,
+                                           final double[] explicit) {
+        final int nDims = img.numDimensions();
+        if (explicit != null && explicit.length >= nDims) {
+            return Arrays.copyOf(explicit, nDims);
+        }
+        if (img instanceof ImgPlus<?> imgPlus) {
+            final double[] spacing = new double[nDims];
+            for (int d = 0; d < nDims; d++) {
+                final CalibratedAxis axis = imgPlus.axis(d);
+                spacing[d] = (axis instanceof LinearAxis la)
+                        ? Math.abs(la.scale()) : 1.0;
+                if (spacing[d] <= 0) spacing[d] = 1.0;
+            }
+            return spacing;
+        }
+        final double[] spacing = new double[nDims];
+        Arrays.fill(spacing, 1.0);
+        return spacing;
     }
 
 }

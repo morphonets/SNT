@@ -63,6 +63,8 @@ import java.awt.image.IndexColorModel;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.Collection;
 import java.util.List;
 
@@ -1083,5 +1085,20 @@ public class ImpUtils {
         final Img<T> copy = factory.create(rai);
         LoopBuilder.setImages(rai, copy).forEachPixel((src, dst) -> dst.set(src));
         return copy;
+    }
+
+    /**
+     * Returns all currently open images in ImageJ's {@link ij.WindowManager}.
+     *
+     * @return array of open {@link ImagePlus} instances, or an empty array if
+     *         none are open
+     */
+    public static ImagePlus[] getOpenImages() {
+        final int[] ids = ij.WindowManager.getIDList();
+        if (ids == null) return new ImagePlus[0];
+        return Arrays.stream(ids)
+                .mapToObj(ij.WindowManager::getImage)
+                .filter(Objects::nonNull)
+                .toArray(ImagePlus[]::new);
     }
 }
