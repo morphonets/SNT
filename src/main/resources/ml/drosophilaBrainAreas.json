@@ -1,0 +1,5412 @@
+{
+  "source": "FBbt (Drosophila Anatomy Ontology)",
+  "version": "fbbt-simple 2026-04-03",
+  "license": "CC BY 4.0",
+  "root": "FBbt:00003624",
+  "brainAreas": [
+    {
+      "id": 3624,
+      "fbbt_id": "FBbt:00003624",
+      "name": "adult brain",
+      "acronym": null,
+      "parentId": null,
+      "depth": 0,
+      "synonyms": []
+    },
+    {
+      "id": 1943,
+      "fbbt_id": "FBbt:00001943",
+      "name": "lamina plexus",
+      "acronym": null,
+      "parentId": 3708,
+      "depth": 6,
+      "synonyms": [
+        "lamina plexiform layer"
+      ]
+    },
+    {
+      "id": 3632,
+      "fbbt_id": "FBbt:00003632",
+      "name": "adult central complex",
+      "acronym": "CX",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "adult central body complex",
+        "central body",
+        "central body complex",
+        "CX"
+      ]
+    },
+    {
+      "id": 3668,
+      "fbbt_id": "FBbt:00003668",
+      "name": "protocerebral bridge",
+      "acronym": "PB",
+      "parentId": 3632,
+      "depth": 4,
+      "synonyms": [
+        "PB",
+        "PCB"
+      ]
+    },
+    {
+      "id": 3669,
+      "fbbt_id": "FBbt:00003669",
+      "name": "protocerebral bridge glomerulus",
+      "acronym": null,
+      "parentId": 3668,
+      "depth": 5,
+      "synonyms": [
+        "protocerebral bridge slice"
+      ]
+    },
+    {
+      "id": 3670,
+      "fbbt_id": "FBbt:00003670",
+      "name": "protocerebral bridge glomerulus 2",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 1",
+        "protocerebral bridge slice 2"
+      ]
+    },
+    {
+      "id": 3671,
+      "fbbt_id": "FBbt:00003671",
+      "name": "protocerebral bridge glomerulus 3",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 2",
+        "protocerebral bridge slice 3"
+      ]
+    },
+    {
+      "id": 3672,
+      "fbbt_id": "FBbt:00003672",
+      "name": "protocerebral bridge glomerulus 4",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 3",
+        "protocerebral bridge slice 4"
+      ]
+    },
+    {
+      "id": 3673,
+      "fbbt_id": "FBbt:00003673",
+      "name": "protocerebral bridge glomerulus 5",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 4",
+        "protocerebral bridge slice 5"
+      ]
+    },
+    {
+      "id": 3674,
+      "fbbt_id": "FBbt:00003674",
+      "name": "protocerebral bridge glomerulus 6",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 5",
+        "protocerebral bridge slice 6"
+      ]
+    },
+    {
+      "id": 3675,
+      "fbbt_id": "FBbt:00003675",
+      "name": "protocerebral bridge glomerulus 7",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 6",
+        "protocerebral bridge slice 7"
+      ]
+    },
+    {
+      "id": 3676,
+      "fbbt_id": "FBbt:00003676",
+      "name": "protocerebral bridge glomerulus 8",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 7",
+        "protocerebral bridge slice 8"
+      ]
+    },
+    {
+      "id": 3677,
+      "fbbt_id": "FBbt:00003677",
+      "name": "protocerebral bridge glomerulus 9",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge glomerulus 8",
+        "protocerebral bridge slice 9"
+      ]
+    },
+    {
+      "id": 3678,
+      "fbbt_id": "FBbt:00003678",
+      "name": "ellipsoid body",
+      "acronym": "EB",
+      "parentId": 45020,
+      "depth": 5,
+      "synonyms": [
+        "EB",
+        "eb"
+      ]
+    },
+    {
+      "id": 3679,
+      "fbbt_id": "FBbt:00003679",
+      "name": "fan-shaped body",
+      "acronym": "FB",
+      "parentId": 45020,
+      "depth": 5,
+      "synonyms": [
+        "fan shaped body",
+        "FB",
+        "fb"
+      ]
+    },
+    {
+      "id": 3680,
+      "fbbt_id": "FBbt:00003680",
+      "name": "nodulus",
+      "acronym": "NO",
+      "parentId": 3632,
+      "depth": 4,
+      "synonyms": [
+        "NO",
+        "no",
+        "Nod",
+        "noduli",
+        "ventral tubercle"
+      ]
+    },
+    {
+      "id": 3681,
+      "fbbt_id": "FBbt:00003681",
+      "name": "adult lateral accessory lobe",
+      "acronym": "IDFP",
+      "parentId": 40001,
+      "depth": 4,
+      "synonyms": [
+        "hammer body",
+        "IDFP",
+        "LAL",
+        "vbo",
+        "ventral body",
+        "vmpr"
+      ]
+    },
+    {
+      "id": 3682,
+      "fbbt_id": "FBbt:00003682",
+      "name": "bulb",
+      "acronym": "BU",
+      "parentId": 40001,
+      "depth": 4,
+      "synonyms": [
+        "BU",
+        "IST",
+        "isthmus",
+        "Lat Tri",
+        "lateral triangle",
+        "ltr",
+        "mimpr"
+      ]
+    },
+    {
+      "id": 3683,
+      "fbbt_id": "FBbt:00003683",
+      "name": "adult median bundle",
+      "acronym": "MBDL",
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": [
+        "mb",
+        "MBDL",
+        "meB",
+        "VAC1"
+      ]
+    },
+    {
+      "id": 3684,
+      "fbbt_id": "FBbt:00003684",
+      "name": "adult mushroom body",
+      "acronym": "MB",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "corpora pedunculata",
+        "MB"
+      ]
+    },
+    {
+      "id": 3698,
+      "fbbt_id": "FBbt:00003698",
+      "name": "optic glomerulus",
+      "acronym": null,
+      "parentId": 45021,
+      "depth": 4,
+      "synonyms": [
+        "optic focus"
+      ]
+    },
+    {
+      "id": 3700,
+      "fbbt_id": "FBbt:00003700",
+      "name": "adult pars intercerebralis",
+      "acronym": "PI",
+      "parentId": 3624,
+      "depth": 3,
+      "synonyms": [
+        "cell body rind of adult medial superior medial protocerebrum",
+        "PI",
+        "rSMPm"
+      ]
+    },
+    {
+      "id": 3701,
+      "fbbt_id": "FBbt:00003701",
+      "name": "adult optic lobe",
+      "acronym": "OL",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "OL"
+      ]
+    },
+    {
+      "id": 3708,
+      "fbbt_id": "FBbt:00003708",
+      "name": "lamina",
+      "acronym": "LA",
+      "parentId": 3701,
+      "depth": 5,
+      "synonyms": [
+        "LA",
+        "La"
+      ]
+    },
+    {
+      "id": 3747,
+      "fbbt_id": "FBbt:00003747",
+      "name": "optic cartridge",
+      "acronym": null,
+      "parentId": 3708,
+      "depth": 6,
+      "synonyms": [
+        "cartridge",
+        "lamina cartridge"
+      ]
+    },
+    {
+      "id": 3748,
+      "fbbt_id": "FBbt:00003748",
+      "name": "medulla",
+      "acronym": "ME",
+      "parentId": 3701,
+      "depth": 5,
+      "synonyms": [
+        "m",
+        "ME",
+        "Med",
+        "optic medulla"
+      ]
+    },
+    {
+      "id": 3749,
+      "fbbt_id": "FBbt:00003749",
+      "name": "outer medulla",
+      "acronym": null,
+      "parentId": 45001,
+      "depth": 8,
+      "synonyms": []
+    },
+    {
+      "id": 3750,
+      "fbbt_id": "FBbt:00003750",
+      "name": "medulla layer M1",
+      "acronym": null,
+      "parentId": 3749,
+      "depth": 9,
+      "synonyms": [
+        "stratum M1"
+      ]
+    },
+    {
+      "id": 3751,
+      "fbbt_id": "FBbt:00003751",
+      "name": "medulla layer M2",
+      "acronym": null,
+      "parentId": 3749,
+      "depth": 9,
+      "synonyms": [
+        "L2 layer",
+        "layer M2",
+        "medulla layer 2",
+        "stratum M2"
+      ]
+    },
+    {
+      "id": 3752,
+      "fbbt_id": "FBbt:00003752",
+      "name": "medulla layer M3",
+      "acronym": null,
+      "parentId": 3749,
+      "depth": 9,
+      "synonyms": [
+        "L3 layer",
+        "medulla layer 3",
+        "stratum M3"
+      ]
+    },
+    {
+      "id": 3753,
+      "fbbt_id": "FBbt:00003753",
+      "name": "medulla layer M4",
+      "acronym": null,
+      "parentId": 3749,
+      "depth": 9,
+      "synonyms": [
+        "L4 layer",
+        "medulla layer 4",
+        "stratum M4"
+      ]
+    },
+    {
+      "id": 3754,
+      "fbbt_id": "FBbt:00003754",
+      "name": "medulla layer M5",
+      "acronym": null,
+      "parentId": 3749,
+      "depth": 9,
+      "synonyms": [
+        "medulla layer 5",
+        "proximal L1 layer",
+        "stratum M5"
+      ]
+    },
+    {
+      "id": 3755,
+      "fbbt_id": "FBbt:00003755",
+      "name": "medulla layer M6",
+      "acronym": null,
+      "parentId": 3749,
+      "depth": 9,
+      "synonyms": [
+        "medulla layer 6",
+        "R7 layer",
+        "R7 recipient layer",
+        "stratum M6"
+      ]
+    },
+    {
+      "id": 3756,
+      "fbbt_id": "FBbt:00003756",
+      "name": "medulla serpentine layer",
+      "acronym": "SPL",
+      "parentId": 48343,
+      "depth": 7,
+      "synonyms": [
+        "medulla layer 7",
+        "medulla layer M7",
+        "SPL"
+      ]
+    },
+    {
+      "id": 3757,
+      "fbbt_id": "FBbt:00003757",
+      "name": "inner medulla",
+      "acronym": "MEI",
+      "parentId": 48343,
+      "depth": 7,
+      "synonyms": [
+        "MEI"
+      ]
+    },
+    {
+      "id": 3758,
+      "fbbt_id": "FBbt:00003758",
+      "name": "medulla layer M8",
+      "acronym": null,
+      "parentId": 3757,
+      "depth": 8,
+      "synonyms": [
+        "medulla layer 8"
+      ]
+    },
+    {
+      "id": 3759,
+      "fbbt_id": "FBbt:00003759",
+      "name": "medulla layer M9",
+      "acronym": null,
+      "parentId": 3757,
+      "depth": 8,
+      "synonyms": [
+        "medulla layer 9"
+      ]
+    },
+    {
+      "id": 3760,
+      "fbbt_id": "FBbt:00003760",
+      "name": "medulla layer M10",
+      "acronym": null,
+      "parentId": 3757,
+      "depth": 8,
+      "synonyms": [
+        "T4 layer"
+      ]
+    },
+    {
+      "id": 3852,
+      "fbbt_id": "FBbt:00003852",
+      "name": "lobula",
+      "acronym": "LO",
+      "parentId": 45004,
+      "depth": 6,
+      "synonyms": [
+        "LO",
+        "Lo",
+        "Lob"
+      ]
+    },
+    {
+      "id": 3853,
+      "fbbt_id": "FBbt:00003853",
+      "name": "lobula layer 1",
+      "acronym": null,
+      "parentId": 48344,
+      "depth": 8,
+      "synonyms": [
+        "lobula layer Lo1",
+        "T5 layer"
+      ]
+    },
+    {
+      "id": 3854,
+      "fbbt_id": "FBbt:00003854",
+      "name": "lobula layer 2",
+      "acronym": null,
+      "parentId": 48344,
+      "depth": 8,
+      "synonyms": [
+        "lobula layer Lo2"
+      ]
+    },
+    {
+      "id": 3855,
+      "fbbt_id": "FBbt:00003855",
+      "name": "lobula layer 3",
+      "acronym": null,
+      "parentId": 48344,
+      "depth": 8,
+      "synonyms": [
+        "lobula layer Lo3"
+      ]
+    },
+    {
+      "id": 3856,
+      "fbbt_id": "FBbt:00003856",
+      "name": "lobula layer 4",
+      "acronym": null,
+      "parentId": 48344,
+      "depth": 8,
+      "synonyms": [
+        "lobula layer Lo4"
+      ]
+    },
+    {
+      "id": 3885,
+      "fbbt_id": "FBbt:00003885",
+      "name": "lobula plate",
+      "acronym": "LOP",
+      "parentId": 45004,
+      "depth": 6,
+      "synonyms": [
+        "lobula plate neuropil",
+        "LOP",
+        "LoP",
+        "Lop"
+      ]
+    },
+    {
+      "id": 3886,
+      "fbbt_id": "FBbt:00003886",
+      "name": "lobula plate layer 1",
+      "acronym": null,
+      "parentId": 48345,
+      "depth": 8,
+      "synonyms": [
+        "front-to-back layer",
+        "HS layer",
+        "layer Lop1",
+        "lobula plate layer A"
+      ]
+    },
+    {
+      "id": 3887,
+      "fbbt_id": "FBbt:00003887",
+      "name": "lobula plate layer 2",
+      "acronym": null,
+      "parentId": 48345,
+      "depth": 8,
+      "synonyms": [
+        "back-to-front-layer",
+        "layer Lop2",
+        "lobula plate layer B"
+      ]
+    },
+    {
+      "id": 3888,
+      "fbbt_id": "FBbt:00003888",
+      "name": "lobula plate layer 3",
+      "acronym": null,
+      "parentId": 48345,
+      "depth": 8,
+      "synonyms": [
+        "layer Lop3",
+        "lobula plate layer C"
+      ]
+    },
+    {
+      "id": 3889,
+      "fbbt_id": "FBbt:00003889",
+      "name": "lobula plate layer 4",
+      "acronym": null,
+      "parentId": 48345,
+      "depth": 8,
+      "synonyms": [
+        "layer Lop4",
+        "lobula plate layer D"
+      ]
+    },
+    {
+      "id": 3921,
+      "fbbt_id": "FBbt:00003921",
+      "name": "optic chiasma",
+      "acronym": "OCH",
+      "parentId": 3701,
+      "depth": 5,
+      "synonyms": [
+        "OCH",
+        "optic chiasm"
+      ]
+    },
+    {
+      "id": 3922,
+      "fbbt_id": "FBbt:00003922",
+      "name": "second optic chiasma",
+      "acronym": null,
+      "parentId": 3921,
+      "depth": 6,
+      "synonyms": [
+        "inner optic chiasm",
+        "OCH2",
+        "second optic chiasm"
+      ]
+    },
+    {
+      "id": 3926,
+      "fbbt_id": "FBbt:00003926",
+      "name": "antennal lobe glomerulus VP",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus VP",
+        "non-olfactory glomerulus"
+      ]
+    },
+    {
+      "id": 3927,
+      "fbbt_id": "FBbt:00003927",
+      "name": "antennal lobe glomerulus VP1",
+      "acronym": null,
+      "parentId": 3926,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VP1",
+        "column glomerulus"
+      ]
+    },
+    {
+      "id": 3928,
+      "fbbt_id": "FBbt:00003928",
+      "name": "antennal lobe glomerulus VP2",
+      "acronym": "PAL",
+      "parentId": 3926,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VP2",
+        "hot glomerulus",
+        "medial PAP",
+        "medial proximal antennal protocerebrum",
+        "PAL",
+        "posterior antennal lobe",
+        "VP2"
+      ]
+    },
+    {
+      "id": 3929,
+      "fbbt_id": "FBbt:00003929",
+      "name": "antennal lobe glomerulus VP3",
+      "acronym": "PAL",
+      "parentId": 3926,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VP3",
+        "cold glomerulus",
+        "lateral PAP",
+        "lateral proximal antennal protocerebrum",
+        "PAL",
+        "posterior antennal lobe",
+        "VP3"
+      ]
+    },
+    {
+      "id": 3932,
+      "fbbt_id": "FBbt:00003932",
+      "name": "antennal lobe glomerulus DA1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DA1"
+      ]
+    },
+    {
+      "id": 3933,
+      "fbbt_id": "FBbt:00003933",
+      "name": "antennal lobe glomerulus DA2",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DA2"
+      ]
+    },
+    {
+      "id": 3934,
+      "fbbt_id": "FBbt:00003934",
+      "name": "antennal lobe glomerulus DA3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DA3"
+      ]
+    },
+    {
+      "id": 3935,
+      "fbbt_id": "FBbt:00003935",
+      "name": "antennal lobe glomerulus DA4",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus DA4"
+      ]
+    },
+    {
+      "id": 3936,
+      "fbbt_id": "FBbt:00003936",
+      "name": "antennal lobe glomerulus VA1",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus VA1"
+      ]
+    },
+    {
+      "id": 3937,
+      "fbbt_id": "FBbt:00003937",
+      "name": "antennal lobe glomerulus VA5",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VA5"
+      ]
+    },
+    {
+      "id": 3938,
+      "fbbt_id": "FBbt:00003938",
+      "name": "antennal lobe glomerulus VA6",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VA6"
+      ]
+    },
+    {
+      "id": 3940,
+      "fbbt_id": "FBbt:00003940",
+      "name": "antennal lobe glomerulus DM5",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DM5"
+      ]
+    },
+    {
+      "id": 3941,
+      "fbbt_id": "FBbt:00003941",
+      "name": "antennal lobe glomerulus DM6",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DM6"
+      ]
+    },
+    {
+      "id": 3942,
+      "fbbt_id": "FBbt:00003942",
+      "name": "antennal lobe glomerulus VA2",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VA2"
+      ]
+    },
+    {
+      "id": 3943,
+      "fbbt_id": "FBbt:00003943",
+      "name": "antennal lobe glomerulus VA3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VA3"
+      ]
+    },
+    {
+      "id": 3944,
+      "fbbt_id": "FBbt:00003944",
+      "name": "antennal lobe glomerulus VA4",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VA4"
+      ]
+    },
+    {
+      "id": 3945,
+      "fbbt_id": "FBbt:00003945",
+      "name": "antennal lobe glomerulus VA7",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus VA7"
+      ]
+    },
+    {
+      "id": 3946,
+      "fbbt_id": "FBbt:00003946",
+      "name": "antennal lobe glomerulus VC2",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VC2"
+      ]
+    },
+    {
+      "id": 3947,
+      "fbbt_id": "FBbt:00003947",
+      "name": "antennal lobe glomerulus VM2",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VM2"
+      ]
+    },
+    {
+      "id": 3948,
+      "fbbt_id": "FBbt:00003948",
+      "name": "antennal lobe glomerulus VM3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VM3"
+      ]
+    },
+    {
+      "id": 3949,
+      "fbbt_id": "FBbt:00003949",
+      "name": "antennal lobe glomerulus VM5",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus VM5"
+      ]
+    },
+    {
+      "id": 3951,
+      "fbbt_id": "FBbt:00003951",
+      "name": "antennal lobe glomerulus V",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus V",
+        "V glomerulus"
+      ]
+    },
+    {
+      "id": 3952,
+      "fbbt_id": "FBbt:00003952",
+      "name": "antennal lobe glomerulus VC1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VC1"
+      ]
+    },
+    {
+      "id": 3953,
+      "fbbt_id": "FBbt:00003953",
+      "name": "antennal lobe glomerulus VC3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VC3",
+        "antennal lobe glomerulus VC3 lateral compartment",
+        "antennal lobe glomerulus VC3l"
+      ]
+    },
+    {
+      "id": 3954,
+      "fbbt_id": "FBbt:00003954",
+      "name": "antennal lobe glomerulus VL1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VL1"
+      ]
+    },
+    {
+      "id": 3955,
+      "fbbt_id": "FBbt:00003955",
+      "name": "antennal lobe glomerulus VL2",
+      "acronym": null,
+      "parentId": 51296,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VL2"
+      ]
+    },
+    {
+      "id": 3956,
+      "fbbt_id": "FBbt:00003956",
+      "name": "antennal lobe glomerulus VM1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VM1"
+      ]
+    },
+    {
+      "id": 3957,
+      "fbbt_id": "FBbt:00003957",
+      "name": "antennal lobe glomerulus VM4",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VM4"
+      ]
+    },
+    {
+      "id": 3960,
+      "fbbt_id": "FBbt:00003960",
+      "name": "antennal lobe glomerulus D",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus D"
+      ]
+    },
+    {
+      "id": 3961,
+      "fbbt_id": "FBbt:00003961",
+      "name": "antennal lobe glomerulus DC1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DC1"
+      ]
+    },
+    {
+      "id": 3962,
+      "fbbt_id": "FBbt:00003962",
+      "name": "antennal lobe glomerulus DC2",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DC2"
+      ]
+    },
+    {
+      "id": 3963,
+      "fbbt_id": "FBbt:00003963",
+      "name": "antennal lobe glomerulus DC3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DC3"
+      ]
+    },
+    {
+      "id": 3964,
+      "fbbt_id": "FBbt:00003964",
+      "name": "antennal lobe glomerulus DL3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DL3"
+      ]
+    },
+    {
+      "id": 3965,
+      "fbbt_id": "FBbt:00003965",
+      "name": "antennal lobe glomerulus DL4",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DL4"
+      ]
+    },
+    {
+      "id": 3968,
+      "fbbt_id": "FBbt:00003968",
+      "name": "antennal lobe glomerulus DL1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DL1"
+      ]
+    },
+    {
+      "id": 3969,
+      "fbbt_id": "FBbt:00003969",
+      "name": "antennal lobe glomerulus DL2",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus DL2"
+      ]
+    },
+    {
+      "id": 3970,
+      "fbbt_id": "FBbt:00003970",
+      "name": "antennal lobe glomerulus DL5",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DL5"
+      ]
+    },
+    {
+      "id": 3971,
+      "fbbt_id": "FBbt:00003971",
+      "name": "antennal lobe glomerulus DM2",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DM2"
+      ]
+    },
+    {
+      "id": 3972,
+      "fbbt_id": "FBbt:00003972",
+      "name": "antennal lobe glomerulus DM3",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DM3"
+      ]
+    },
+    {
+      "id": 3973,
+      "fbbt_id": "FBbt:00003973",
+      "name": "antennal lobe glomerulus VM7",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus VM7"
+      ]
+    },
+    {
+      "id": 3975,
+      "fbbt_id": "FBbt:00003975",
+      "name": "antennal lobe glomerulus DM1",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DM1"
+      ]
+    },
+    {
+      "id": 3976,
+      "fbbt_id": "FBbt:00003976",
+      "name": "antennal lobe glomerulus DM4",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus DM4"
+      ]
+    },
+    {
+      "id": 3977,
+      "fbbt_id": "FBbt:00003977",
+      "name": "antennal lobe glomerulus DP1",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": [
+        "antennal glomerulus DP1"
+      ]
+    },
+    {
+      "id": 3982,
+      "fbbt_id": "FBbt:00003982",
+      "name": "antennal mechanosensory and motor center",
+      "acronym": "AMC",
+      "parentId": 45048,
+      "depth": 5,
+      "synonyms": [
+        "AMC",
+        "AMMC",
+        "antennal mechanosensory region",
+        "antenno-mechanosensory center",
+        "dorsal lobe"
+      ]
+    },
+    {
+      "id": 3987,
+      "fbbt_id": "FBbt:00003987",
+      "name": "broad root",
+      "acronym": "BR",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "BR"
+      ]
+    },
+    {
+      "id": 4000,
+      "fbbt_id": "FBbt:00004000",
+      "name": "tritocerebral center",
+      "acronym": null,
+      "parentId": 7147,
+      "depth": 4,
+      "synonyms": []
+    },
+    {
+      "id": 5810,
+      "fbbt_id": "FBbt:00005810",
+      "name": "first optic chiasma",
+      "acronym": null,
+      "parentId": 3921,
+      "depth": 6,
+      "synonyms": [
+        "first optic chiasm",
+        "OCH1",
+        "outer optic chiasm"
+      ]
+    },
+    {
+      "id": 7050,
+      "fbbt_id": "FBbt:00007050",
+      "name": "adult cerebrum",
+      "acronym": null,
+      "parentId": 47887,
+      "depth": 2,
+      "synonyms": []
+    },
+    {
+      "id": 7053,
+      "fbbt_id": "FBbt:00007053",
+      "name": "adult lateral horn",
+      "acronym": "LH",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "lateral protocerebrum",
+        "LH"
+      ]
+    },
+    {
+      "id": 7054,
+      "fbbt_id": "FBbt:00007054",
+      "name": "superior lateral protocerebrum",
+      "acronym": "DLP",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "adult superior lateral protocerebrum",
+        "DLP",
+        "IDLP",
+        "SLP",
+        "slpr"
+      ]
+    },
+    {
+      "id": 7055,
+      "fbbt_id": "FBbt:00007055",
+      "name": "superior medial protocerebrum",
+      "acronym": "IDLP",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "IDLP",
+        "impr",
+        "SDFP",
+        "SMP",
+        "smpr"
+      ]
+    },
+    {
+      "id": 7058,
+      "fbbt_id": "FBbt:00007058",
+      "name": "ventrolateral protocerebrum",
+      "acronym": "OG",
+      "parentId": 45021,
+      "depth": 4,
+      "synonyms": [
+        "anterior optic foci",
+        "OG",
+        "ventro-lateral adult protocerebrum",
+        "ventro-lateral protocerebrum",
+        "VLP",
+        "vlpr"
+      ]
+    },
+    {
+      "id": 7059,
+      "fbbt_id": "FBbt:00007059",
+      "name": "anterior optic tubercle",
+      "acronym": "AOTU",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "AOTU",
+        "optic tubercle",
+        "OPTU",
+        "OTU"
+      ]
+    },
+    {
+      "id": 7076,
+      "fbbt_id": "FBbt:00007076",
+      "name": "anterior cross",
+      "acronym": null,
+      "parentId": 110636,
+      "depth": 2,
+      "synonyms": []
+    },
+    {
+      "id": 7092,
+      "fbbt_id": "FBbt:00007092",
+      "name": "antennal lobe glomerulus VM7v",
+      "acronym": null,
+      "parentId": 3973,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus 1",
+        "antennal lobe glomerulus VM7 ventral compartment",
+        "VM7v"
+      ]
+    },
+    {
+      "id": 7097,
+      "fbbt_id": "FBbt:00007097",
+      "name": "antennal lobe glomerulus DP1m",
+      "acronym": null,
+      "parentId": 3977,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus DP1 medial compartment",
+        "DP1m"
+      ]
+    },
+    {
+      "id": 7098,
+      "fbbt_id": "FBbt:00007098",
+      "name": "antennal lobe glomerulus DP1l",
+      "acronym": null,
+      "parentId": 3977,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus DP1 lateral compartment",
+        "DP1l"
+      ]
+    },
+    {
+      "id": 7101,
+      "fbbt_id": "FBbt:00007101",
+      "name": "antennal lobe glomerulus VA1d",
+      "acronym": null,
+      "parentId": 3936,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VA1 dorsal compartment",
+        "VA1d"
+      ]
+    },
+    {
+      "id": 7102,
+      "fbbt_id": "FBbt:00007102",
+      "name": "antennal lobe glomerulus VA7m",
+      "acronym": null,
+      "parentId": 3945,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VA7 medial compartment",
+        "VA7m"
+      ]
+    },
+    {
+      "id": 7103,
+      "fbbt_id": "FBbt:00007103",
+      "name": "antennal lobe glomerulus VA7l",
+      "acronym": null,
+      "parentId": 3945,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VA7 lateral compartment",
+        "VA7l"
+      ]
+    },
+    {
+      "id": 7104,
+      "fbbt_id": "FBbt:00007104",
+      "name": "antennal lobe glomerulus VC5",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VC3 medial compartment",
+        "antennal lobe glomerulus VC3m"
+      ]
+    },
+    {
+      "id": 7106,
+      "fbbt_id": "FBbt:00007106",
+      "name": "antennal lobe glomerulus VL2a",
+      "acronym": null,
+      "parentId": 3955,
+      "depth": 8,
+      "synonyms": [
+        "antennal lobe glomerulus VL2 anterior compartment",
+        "VL2a"
+      ]
+    },
+    {
+      "id": 7107,
+      "fbbt_id": "FBbt:00007107",
+      "name": "antennal lobe glomerulus VL2p",
+      "acronym": null,
+      "parentId": 3955,
+      "depth": 8,
+      "synonyms": [
+        "antennal lobe glomerulus VL2 posterior compartment",
+        "VL2p"
+      ]
+    },
+    {
+      "id": 7145,
+      "fbbt_id": "FBbt:00007145",
+      "name": "adult protocerebrum",
+      "acronym": null,
+      "parentId": 110638,
+      "depth": 3,
+      "synonyms": []
+    },
+    {
+      "id": 7146,
+      "fbbt_id": "FBbt:00007146",
+      "name": "adult deutocerebrum",
+      "acronym": null,
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "adult deuterocerebrum"
+      ]
+    },
+    {
+      "id": 7147,
+      "fbbt_id": "FBbt:00007147",
+      "name": "adult tritocerebrum",
+      "acronym": null,
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": []
+    },
+    {
+      "id": 7157,
+      "fbbt_id": "FBbt:00007157",
+      "name": "anterior bundle",
+      "acronym": null,
+      "parentId": 110636,
+      "depth": 2,
+      "synonyms": []
+    },
+    {
+      "id": 7158,
+      "fbbt_id": "FBbt:00007158",
+      "name": "adult maxillary neuromere",
+      "acronym": null,
+      "parentId": 111044,
+      "depth": 4,
+      "synonyms": [
+        "maxillary segment of adult subesophageal ganglion"
+      ]
+    },
+    {
+      "id": 7159,
+      "fbbt_id": "FBbt:00007159",
+      "name": "adult mandibular neuromere",
+      "acronym": null,
+      "parentId": 111044,
+      "depth": 4,
+      "synonyms": [
+        "mandibular segment of adult subesophageal ganglion"
+      ]
+    },
+    {
+      "id": 7160,
+      "fbbt_id": "FBbt:00007160",
+      "name": "adult labial neuromere",
+      "acronym": null,
+      "parentId": 111044,
+      "depth": 4,
+      "synonyms": [
+        "labial segment of adult subesophageal ganglion"
+      ]
+    },
+    {
+      "id": 7360,
+      "fbbt_id": "FBbt:00007360",
+      "name": "antennal lobe glomerulus DA4l",
+      "acronym": null,
+      "parentId": 3935,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus DA4 lateral compartment",
+        "DA4l"
+      ]
+    },
+    {
+      "id": 7361,
+      "fbbt_id": "FBbt:00007361",
+      "name": "antennal lobe glomerulus DA4m",
+      "acronym": null,
+      "parentId": 3935,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus DA4 medial compartment",
+        "DA4m"
+      ]
+    },
+    {
+      "id": 7363,
+      "fbbt_id": "FBbt:00007363",
+      "name": "antennal lobe glomerulus VA1v",
+      "acronym": null,
+      "parentId": 3936,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VA1 ventral compartment",
+        "VA1l",
+        "VA1lm",
+        "VA1m",
+        "VA1v"
+      ]
+    },
+    {
+      "id": 7365,
+      "fbbt_id": "FBbt:00007365",
+      "name": "antennal lobe glomerulus VM5v",
+      "acronym": null,
+      "parentId": 3949,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VM5 ventral compartment",
+        "VM5v"
+      ]
+    },
+    {
+      "id": 7366,
+      "fbbt_id": "FBbt:00007366",
+      "name": "antennal lobe glomerulus VC4",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VC4"
+      ]
+    },
+    {
+      "id": 7385,
+      "fbbt_id": "FBbt:00007385",
+      "name": "calyx of adult mushroom body",
+      "acronym": null,
+      "parentId": 3684,
+      "depth": 4,
+      "synonyms": [
+        "adult calyx",
+        "adult MBC"
+      ]
+    },
+    {
+      "id": 7391,
+      "fbbt_id": "FBbt:00007391",
+      "name": "antennal lobe glomerulus VM5d",
+      "acronym": null,
+      "parentId": 3949,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VM5 dorsal compartment"
+      ]
+    },
+    {
+      "id": 7401,
+      "fbbt_id": "FBbt:00007401",
+      "name": "adult antennal lobe",
+      "acronym": "AL",
+      "parentId": 7146,
+      "depth": 4,
+      "synonyms": [
+        "adult olfactory lobe",
+        "AL"
+      ]
+    },
+    {
+      "id": 7453,
+      "fbbt_id": "FBbt:00007453",
+      "name": "pedunculus of adult mushroom body",
+      "acronym": "PED",
+      "parentId": 3684,
+      "depth": 4,
+      "synonyms": [
+        "adult mushroom body pedunculus",
+        "adult pedunculus",
+        "PED"
+      ]
+    },
+    {
+      "id": 7487,
+      "fbbt_id": "FBbt:00007487",
+      "name": "fan-shaped body layer 1",
+      "acronym": null,
+      "parentId": 49533,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 1"
+      ]
+    },
+    {
+      "id": 7488,
+      "fbbt_id": "FBbt:00007488",
+      "name": "fan-shaped body layer 2",
+      "acronym": null,
+      "parentId": 49533,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 2"
+      ]
+    },
+    {
+      "id": 7490,
+      "fbbt_id": "FBbt:00007490",
+      "name": "fan-shaped body layer 3",
+      "acronym": null,
+      "parentId": 49533,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 3"
+      ]
+    },
+    {
+      "id": 7491,
+      "fbbt_id": "FBbt:00007491",
+      "name": "fan-shaped body layer 4",
+      "acronym": null,
+      "parentId": 49533,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 4"
+      ]
+    },
+    {
+      "id": 7492,
+      "fbbt_id": "FBbt:00007492",
+      "name": "fan-shaped body layer 5",
+      "acronym": null,
+      "parentId": 49533,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 5",
+        "ventral layer 5 of FB"
+      ]
+    },
+    {
+      "id": 7493,
+      "fbbt_id": "FBbt:00007493",
+      "name": "fan-shaped body layer 6",
+      "acronym": null,
+      "parentId": 49532,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 6"
+      ]
+    },
+    {
+      "id": 7546,
+      "fbbt_id": "FBbt:00007546",
+      "name": "ellipsoid body slice 2",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 2"
+      ]
+    },
+    {
+      "id": 7547,
+      "fbbt_id": "FBbt:00007547",
+      "name": "ellipsoid body slice 3",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 3"
+      ]
+    },
+    {
+      "id": 7548,
+      "fbbt_id": "FBbt:00007548",
+      "name": "ellipsoid body slice 4",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 4"
+      ]
+    },
+    {
+      "id": 7549,
+      "fbbt_id": "FBbt:00007549",
+      "name": "ellipsoid body slice 5",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 5"
+      ]
+    },
+    {
+      "id": 7550,
+      "fbbt_id": "FBbt:00007550",
+      "name": "ellipsoid body slice 6",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 6"
+      ]
+    },
+    {
+      "id": 7551,
+      "fbbt_id": "FBbt:00007551",
+      "name": "ellipsoid body slice 7",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 7"
+      ]
+    },
+    {
+      "id": 7552,
+      "fbbt_id": "FBbt:00007552",
+      "name": "ellipsoid body slice 8",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 8"
+      ]
+    },
+    {
+      "id": 7553,
+      "fbbt_id": "FBbt:00007553",
+      "name": "ellipsoid body inner central domain",
+      "acronym": "EBA",
+      "parentId": 40034,
+      "depth": 8,
+      "synonyms": [
+        "EBA",
+        "EBic",
+        "EBr3",
+        "ellipsoid body anterior disk",
+        "ellipsoid body anterior ring",
+        "ellipsoid body medial shell"
+      ]
+    },
+    {
+      "id": 7554,
+      "fbbt_id": "FBbt:00007554",
+      "name": "ellipsoid body outer posterior domain",
+      "acronym": "EBP",
+      "parentId": 40034,
+      "depth": 8,
+      "synonyms": [
+        "EBop",
+        "EBP",
+        "EBr6",
+        "ellipsoid body posterior disk",
+        "ellipsoid body posterior ring",
+        "ellipsoid body posterior shell"
+      ]
+    },
+    {
+      "id": 7555,
+      "fbbt_id": "FBbt:00007555",
+      "name": "ellipsoid body inner posterior domain",
+      "acronym": "EBC",
+      "parentId": 40034,
+      "depth": 8,
+      "synonyms": [
+        "EBC",
+        "EBip",
+        "EBr1",
+        "ellipsoid body center ring",
+        "ellipsoid body inner ring",
+        "ellipsoid body posterior disk",
+        "ellipsoid body posterior ring",
+        "ellipsoid body posterior shell",
+        "posterior inner ring of EB"
+      ]
+    },
+    {
+      "id": 7556,
+      "fbbt_id": "FBbt:00007556",
+      "name": "ellipsoid body outer central domain",
+      "acronym": "EBO",
+      "parentId": 40034,
+      "depth": 8,
+      "synonyms": [
+        "EBO",
+        "EBoc",
+        "EBr2r4",
+        "ellipsoid body anterior disk",
+        "ellipsoid body anterior ring",
+        "ellipsoid body medial shell",
+        "ellipsoid body outer ring"
+      ]
+    },
+    {
+      "id": 7581,
+      "fbbt_id": "FBbt:00007581",
+      "name": "optic glomerulus of the PLP",
+      "acronym": null,
+      "parentId": 40044,
+      "depth": 5,
+      "synonyms": []
+    },
+    {
+      "id": 7582,
+      "fbbt_id": "FBbt:00007582",
+      "name": "optic glomerulus of the PVLP",
+      "acronym": null,
+      "parentId": 40042,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 7584,
+      "fbbt_id": "FBbt:00007584",
+      "name": "ellipsoid body slice 1",
+      "acronym": null,
+      "parentId": 40070,
+      "depth": 8,
+      "synonyms": [
+        "ellipsoid body segment 1"
+      ]
+    },
+    {
+      "id": 7677,
+      "fbbt_id": "FBbt:00007677",
+      "name": "medial lobe of adult mushroom body",
+      "acronym": null,
+      "parentId": 13688,
+      "depth": 5,
+      "synonyms": []
+    },
+    {
+      "id": 13688,
+      "fbbt_id": "FBbt:00013688",
+      "name": "lobe system of adult mushroom body",
+      "acronym": null,
+      "parentId": 3684,
+      "depth": 4,
+      "synonyms": [
+        "lobe of corpora pedunculata",
+        "lobe of mushroom body"
+      ]
+    },
+    {
+      "id": 13691,
+      "fbbt_id": "FBbt:00013691",
+      "name": "adult mushroom body alpha'-lobe",
+      "acronym": null,
+      "parentId": 15407,
+      "depth": 6,
+      "synonyms": [
+        "adult alpha'-lobe",
+        "adult delta lobe",
+        "alpha' L",
+        "alpha'-lobe of adult mushroom body"
+      ]
+    },
+    {
+      "id": 13694,
+      "fbbt_id": "FBbt:00013694",
+      "name": "adult mushroom body beta'-lobe",
+      "acronym": null,
+      "parentId": 7677,
+      "depth": 6,
+      "synonyms": [
+        "beta' L",
+        "beta'-lobe",
+        "beta'-lobe of mushroom body"
+      ]
+    },
+    {
+      "id": 13695,
+      "fbbt_id": "FBbt:00013695",
+      "name": "adult mushroom body gamma-lobe",
+      "acronym": null,
+      "parentId": 7677,
+      "depth": 6,
+      "synonyms": [
+        "adult gamma-lobe",
+        "gamma L",
+        "gamma-lobe of adult mushroom body"
+      ]
+    },
+    {
+      "id": 14013,
+      "fbbt_id": "FBbt:00014013",
+      "name": "adult gnathal ganglion",
+      "acronym": "GNG",
+      "parentId": 47887,
+      "depth": 2,
+      "synonyms": [
+        "adult subesophageal ganglion",
+        "GNG",
+        "ipsl",
+        "SEG",
+        "SOG",
+        "suboesophageal ganglion"
+      ]
+    },
+    {
+      "id": 15407,
+      "fbbt_id": "FBbt:00015407",
+      "name": "vertical lobe of adult mushroom body",
+      "acronym": null,
+      "parentId": 13688,
+      "depth": 5,
+      "synonyms": [
+        "adult dorsal lobe",
+        "dorsal lobe of adult mushroom body",
+        "vertical branch of adult mushroom body"
+      ]
+    },
+    {
+      "id": 40001,
+      "fbbt_id": "FBbt:00040001",
+      "name": "lateral complex",
+      "acronym": "LX",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "LX"
+      ]
+    },
+    {
+      "id": 40002,
+      "fbbt_id": "FBbt:00040002",
+      "name": "ventromedial neuropils",
+      "acronym": "VMNP",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "VMNP",
+        "VMNPS"
+      ]
+    },
+    {
+      "id": 40016,
+      "fbbt_id": "FBbt:00040016",
+      "name": "lobula layer 5",
+      "acronym": null,
+      "parentId": 48344,
+      "depth": 8,
+      "synonyms": []
+    },
+    {
+      "id": 40017,
+      "fbbt_id": "FBbt:00040017",
+      "name": "lobula layer 6",
+      "acronym": null,
+      "parentId": 48344,
+      "depth": 8,
+      "synonyms": []
+    },
+    {
+      "id": 40034,
+      "fbbt_id": "FBbt:00040034",
+      "name": "ellipsoid body layer",
+      "acronym": null,
+      "parentId": 49177,
+      "depth": 7,
+      "synonyms": [
+        "ellipsoid body domain",
+        "ellipsoid body ring",
+        "layer of ellipsoid body"
+      ]
+    },
+    {
+      "id": 40035,
+      "fbbt_id": "FBbt:00040035",
+      "name": "fan-shaped body layer",
+      "acronym": null,
+      "parentId": 3679,
+      "depth": 6,
+      "synonyms": [
+        "layer of fan-shaped body"
+      ]
+    },
+    {
+      "id": 40036,
+      "fbbt_id": "FBbt:00040036",
+      "name": "fan-shaped body column",
+      "acronym": null,
+      "parentId": 3679,
+      "depth": 6,
+      "synonyms": [
+        "fan-shaped body slice",
+        "segment of fan-shaped body",
+        "stave of fan-shaped body"
+      ]
+    },
+    {
+      "id": 40037,
+      "fbbt_id": "FBbt:00040037",
+      "name": "inferior neuropils",
+      "acronym": "INP",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "inferior protocerebrum",
+        "INP"
+      ]
+    },
+    {
+      "id": 40038,
+      "fbbt_id": "FBbt:00040038",
+      "name": "rubus",
+      "acronym": "RUB",
+      "parentId": 45037,
+      "depth": 5,
+      "synonyms": [
+        "RUB"
+      ]
+    },
+    {
+      "id": 40039,
+      "fbbt_id": "FBbt:00040039",
+      "name": "gorget",
+      "acronym": "GOR",
+      "parentId": 40071,
+      "depth": 5,
+      "synonyms": [
+        "GOR",
+        "supracommissural VMC",
+        "VMCs",
+        "vmpr"
+      ]
+    },
+    {
+      "id": 40040,
+      "fbbt_id": "FBbt:00040040",
+      "name": "epaulette",
+      "acronym": "EPA",
+      "parentId": 40071,
+      "depth": 5,
+      "synonyms": [
+        "EPA",
+        "precommissural VMC",
+        "VMCpr",
+        "vmpr"
+      ]
+    },
+    {
+      "id": 40041,
+      "fbbt_id": "FBbt:00040041",
+      "name": "vest",
+      "acronym": "VES",
+      "parentId": 40071,
+      "depth": 5,
+      "synonyms": [
+        "precommissural VMC",
+        "VES",
+        "VMCpr",
+        "vmpr"
+      ]
+    },
+    {
+      "id": 40042,
+      "fbbt_id": "FBbt:00040042",
+      "name": "posterior ventrolateral protocerebrum",
+      "acronym": "PVLP",
+      "parentId": 7058,
+      "depth": 5,
+      "synonyms": [
+        "posterior VLP",
+        "PVLP"
+      ]
+    },
+    {
+      "id": 40043,
+      "fbbt_id": "FBbt:00040043",
+      "name": "anterior ventrolateral protocerebrum",
+      "acronym": "AVLP",
+      "parentId": 7058,
+      "depth": 5,
+      "synonyms": [
+        "anterior VLP",
+        "AVLP"
+      ]
+    },
+    {
+      "id": 40044,
+      "fbbt_id": "FBbt:00040044",
+      "name": "posterior lateral protocerebrum",
+      "acronym": "CVLP",
+      "parentId": 45021,
+      "depth": 4,
+      "synonyms": [
+        "CVLP",
+        "PLP",
+        "plpr",
+        "posteriolateral protocerebrum",
+        "posterior-lateral protocerebrum",
+        "posteriorlateral protocerebrum",
+        "SPP"
+      ]
+    },
+    {
+      "id": 40045,
+      "fbbt_id": "FBbt:00040045",
+      "name": "anterior superior lateral protocerebrum",
+      "acronym": "ASLP",
+      "parentId": 7054,
+      "depth": 5,
+      "synonyms": [
+        "ASLP",
+        "middle slpr",
+        "mslpr"
+      ]
+    },
+    {
+      "id": 40046,
+      "fbbt_id": "FBbt:00040046",
+      "name": "posterior superior lateral protocerebrum",
+      "acronym": "PSLP",
+      "parentId": 7054,
+      "depth": 5,
+      "synonyms": [
+        "posterior SLP",
+        "posterior splr",
+        "PSLP",
+        "pslpr"
+      ]
+    },
+    {
+      "id": 40047,
+      "fbbt_id": "FBbt:00040047",
+      "name": "clamp",
+      "acronym": "CL",
+      "parentId": 40037,
+      "depth": 4,
+      "synonyms": [
+        "CL",
+        "LPC"
+      ]
+    },
+    {
+      "id": 40048,
+      "fbbt_id": "FBbt:00040048",
+      "name": "superior clamp",
+      "acronym": "SCL",
+      "parentId": 40047,
+      "depth": 5,
+      "synonyms": [
+        "ilpr",
+        "impr",
+        "IPl",
+        "IPm",
+        "lateral inferior protocerebrum",
+        "medial inferior protocerebrum",
+        "SCL",
+        "SPP"
+      ]
+    },
+    {
+      "id": 40049,
+      "fbbt_id": "FBbt:00040049",
+      "name": "inferior clamp",
+      "acronym": "DMP",
+      "parentId": 40047,
+      "depth": 5,
+      "synonyms": [
+        "DMP",
+        "ICL",
+        "IPv",
+        "ventral inferior protocerebrum"
+      ]
+    },
+    {
+      "id": 40050,
+      "fbbt_id": "FBbt:00040050",
+      "name": "inferior bridge",
+      "acronym": "CCP",
+      "parentId": 40037,
+      "depth": 4,
+      "synonyms": [
+        "CCP",
+        "IB",
+        "IPp",
+        "posterior inferior protocerebrum",
+        "spsl"
+      ]
+    },
+    {
+      "id": 40051,
+      "fbbt_id": "FBbt:00040051",
+      "name": "prow",
+      "acronym": "PRW",
+      "parentId": 7147,
+      "depth": 4,
+      "synonyms": [
+        "anterior periesophageal neuropils",
+        "PENPa",
+        "PRW",
+        "TRv",
+        "ventral tritocerebrum"
+      ]
+    },
+    {
+      "id": 40052,
+      "fbbt_id": "FBbt:00040052",
+      "name": "superior pharyngeal sensory center",
+      "acronym": null,
+      "parentId": 40051,
+      "depth": 5,
+      "synonyms": [
+        "dorsal pharyngeal sensory center",
+        "SPhS"
+      ]
+    },
+    {
+      "id": 40054,
+      "fbbt_id": "FBbt:00040054",
+      "name": "inferior pharyngeal sensory center",
+      "acronym": null,
+      "parentId": 14013,
+      "depth": 3,
+      "synonyms": [
+        "IPhS",
+        "ventral pharyngeal sensory center"
+      ]
+    },
+    {
+      "id": 40055,
+      "fbbt_id": "FBbt:00040055",
+      "name": "labial sensory center",
+      "acronym": "LS",
+      "parentId": 110639,
+      "depth": 4,
+      "synonyms": [
+        "adult ventromedial sensory column",
+        "adult VMSC",
+        "labellar sensory branch",
+        "labellar sensory center",
+        "LS"
+      ]
+    },
+    {
+      "id": 40056,
+      "fbbt_id": "FBbt:00040056",
+      "name": "posterior maxillary sensory center",
+      "acronym": "PMS",
+      "parentId": 110639,
+      "depth": 4,
+      "synonyms": [
+        "adult ACSC",
+        "adult anterior central sensory column",
+        "PMS",
+        "posterior maxillary sensory branch"
+      ]
+    },
+    {
+      "id": 40057,
+      "fbbt_id": "FBbt:00040057",
+      "name": "anterior maxillary sensory center",
+      "acronym": "AMS",
+      "parentId": 7147,
+      "depth": 4,
+      "synonyms": [
+        "AMS",
+        "anterior maxillary sensory branch"
+      ]
+    },
+    {
+      "id": 40059,
+      "fbbt_id": "FBbt:00040059",
+      "name": "upper lateral accessory lobe",
+      "acronym": "ULAL",
+      "parentId": 3681,
+      "depth": 5,
+      "synonyms": [
+        "ULAL"
+      ]
+    },
+    {
+      "id": 40060,
+      "fbbt_id": "FBbt:00040060",
+      "name": "gall",
+      "acronym": "DSB",
+      "parentId": 53040,
+      "depth": 6,
+      "synonyms": [
+        "dorsal and ventral spindle bodies of IDFP",
+        "DSB",
+        "GA",
+        "VSB"
+      ]
+    },
+    {
+      "id": 40061,
+      "fbbt_id": "FBbt:00040061",
+      "name": "lower lateral accessory lobe",
+      "acronym": "LLAL",
+      "parentId": 3681,
+      "depth": 5,
+      "synonyms": [
+        "LLAL"
+      ]
+    },
+    {
+      "id": 40062,
+      "fbbt_id": "FBbt:00040062",
+      "name": "anterior superior medial protocerebrum",
+      "acronym": "ASMP",
+      "parentId": 7055,
+      "depth": 5,
+      "synonyms": [
+        "anterior SMP",
+        "ASMP"
+      ]
+    },
+    {
+      "id": 40063,
+      "fbbt_id": "FBbt:00040063",
+      "name": "posterior superior medial protocerebrum",
+      "acronym": "PSMP",
+      "parentId": 7055,
+      "depth": 5,
+      "synonyms": [
+        "posterior SMP",
+        "PSMP"
+      ]
+    },
+    {
+      "id": 40070,
+      "fbbt_id": "FBbt:00040070",
+      "name": "ellipsoid body slice",
+      "acronym": null,
+      "parentId": 49177,
+      "depth": 7,
+      "synonyms": [
+        "ellipsoid body glomerulus",
+        "ellipsoid body sector",
+        "ellipsoid body segment",
+        "ellipsoid body wedge",
+        "segment of ellipsoid body"
+      ]
+    },
+    {
+      "id": 40071,
+      "fbbt_id": "FBbt:00040071",
+      "name": "ventral complex",
+      "acronym": "PAN",
+      "parentId": 40002,
+      "depth": 4,
+      "synonyms": [
+        "PAN",
+        "VMP",
+        "vmpr",
+        "VX"
+      ]
+    },
+    {
+      "id": 40072,
+      "fbbt_id": "FBbt:00040072",
+      "name": "posterior slope",
+      "acronym": "CMP",
+      "parentId": 40002,
+      "depth": 4,
+      "synonyms": [
+        "CMP",
+        "PS"
+      ]
+    },
+    {
+      "id": 45000,
+      "fbbt_id": "FBbt:00045000",
+      "name": "lamina dorsal rim area",
+      "acronym": "LADRA",
+      "parentId": 3708,
+      "depth": 6,
+      "synonyms": [
+        "LADRA"
+      ]
+    },
+    {
+      "id": 45001,
+      "fbbt_id": "FBbt:00045001",
+      "name": "plexiform medulla",
+      "acronym": "MEP",
+      "parentId": 48343,
+      "depth": 7,
+      "synonyms": [
+        "medulla proper",
+        "MEP",
+        "PLME"
+      ]
+    },
+    {
+      "id": 45002,
+      "fbbt_id": "FBbt:00045002",
+      "name": "medulla dorsal rim area",
+      "acronym": "MEDRA",
+      "parentId": 48343,
+      "depth": 7,
+      "synonyms": [
+        "dorsal rim area of medulla",
+        "MEDRA"
+      ]
+    },
+    {
+      "id": 45003,
+      "fbbt_id": "FBbt:00045003",
+      "name": "accessory medulla",
+      "acronym": "AME",
+      "parentId": 3701,
+      "depth": 5,
+      "synonyms": [
+        "AME",
+        "aMe"
+      ]
+    },
+    {
+      "id": 45004,
+      "fbbt_id": "FBbt:00045004",
+      "name": "lobula complex",
+      "acronym": "LOX",
+      "parentId": 3701,
+      "depth": 5,
+      "synonyms": [
+        "LOX"
+      ]
+    },
+    {
+      "id": 45005,
+      "fbbt_id": "FBbt:00045005",
+      "name": "adult mushroom body medial calyx",
+      "acronym": "MCA",
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": [
+        "MCA"
+      ]
+    },
+    {
+      "id": 45006,
+      "fbbt_id": "FBbt:00045006",
+      "name": "adult mushroom body lateral calyx",
+      "acronym": "LCA",
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": [
+        "LCA"
+      ]
+    },
+    {
+      "id": 45007,
+      "fbbt_id": "FBbt:00045007",
+      "name": "adult mushroom body dorsal accessory calyx",
+      "acronym": "ACA",
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": [
+        "ACA",
+        "dACA",
+        "dorsal accessory calyx",
+        "mushroom body accessory calyx"
+      ]
+    },
+    {
+      "id": 45008,
+      "fbbt_id": "FBbt:00045008",
+      "name": "pedunculus neck of adult mushroom body",
+      "acronym": "PEDN",
+      "parentId": 7453,
+      "depth": 5,
+      "synonyms": [
+        "PEDN",
+        "pedunculus neck"
+      ]
+    },
+    {
+      "id": 45009,
+      "fbbt_id": "FBbt:00045009",
+      "name": "pedunculus divide of adult mushroom body",
+      "acronym": "PEDD",
+      "parentId": 7453,
+      "depth": 5,
+      "synonyms": [
+        "heel",
+        "knee",
+        "lobe junction",
+        "PEDD",
+        "pedunculus divide"
+      ]
+    },
+    {
+      "id": 45014,
+      "fbbt_id": "FBbt:00045014",
+      "name": "mushroom body vertical lobelet",
+      "acronym": null,
+      "parentId": 100256,
+      "depth": 9,
+      "synonyms": [
+        "alpha p lobe",
+        "mushroom body alpha accessory calyx fibers"
+      ]
+    },
+    {
+      "id": 45018,
+      "fbbt_id": "FBbt:00045018",
+      "name": "mushroom body medial lobelet",
+      "acronym": null,
+      "parentId": 100261,
+      "depth": 9,
+      "synonyms": [
+        "beta p lobe",
+        "mushroom body beta accessory calyx fibers"
+      ]
+    },
+    {
+      "id": 45020,
+      "fbbt_id": "FBbt:00045020",
+      "name": "central body",
+      "acronym": "CB",
+      "parentId": 3632,
+      "depth": 4,
+      "synonyms": [
+        "CB"
+      ]
+    },
+    {
+      "id": 45021,
+      "fbbt_id": "FBbt:00045021",
+      "name": "ventrolateral neuropils",
+      "acronym": "VLNP",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "VLNP"
+      ]
+    },
+    {
+      "id": 45027,
+      "fbbt_id": "FBbt:00045027",
+      "name": "wedge",
+      "acronym": "CVLP",
+      "parentId": 45021,
+      "depth": 4,
+      "synonyms": [
+        "caudal VLP",
+        "CVLP",
+        "inferior ventrolateral protocerebrum",
+        "inferior VLP",
+        "IVLP",
+        "plpr",
+        "VLCi",
+        "vlpr",
+        "WED"
+      ]
+    },
+    {
+      "id": 45030,
+      "fbbt_id": "FBbt:00045030",
+      "name": "superior neuropils",
+      "acronym": "SNP",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "SNP",
+        "superior protocerebrum"
+      ]
+    },
+    {
+      "id": 45032,
+      "fbbt_id": "FBbt:00045032",
+      "name": "superior intermediate protocerebrum",
+      "acronym": "DLP",
+      "parentId": 7145,
+      "depth": 4,
+      "synonyms": [
+        "DLP",
+        "FSPP",
+        "impr",
+        "LPC",
+        "SIP",
+        "smpr"
+      ]
+    },
+    {
+      "id": 45037,
+      "fbbt_id": "FBbt:00045037",
+      "name": "adult crepine",
+      "acronym": "CRE",
+      "parentId": 40037,
+      "depth": 4,
+      "synonyms": [
+        "aimpr",
+        "anterior inferior medial protocerebrum",
+        "anterior inferior protocerebrum",
+        "CRE",
+        "IDFP",
+        "IPa"
+      ]
+    },
+    {
+      "id": 45039,
+      "fbbt_id": "FBbt:00045039",
+      "name": "antler",
+      "acronym": "ATL",
+      "parentId": 40037,
+      "depth": 4,
+      "synonyms": [
+        "ATL",
+        "CCP",
+        "IPp",
+        "pimpr",
+        "posterior inferior protocerebrum"
+      ]
+    },
+    {
+      "id": 45040,
+      "fbbt_id": "FBbt:00045040",
+      "name": "superior posterior slope",
+      "acronym": "SPS",
+      "parentId": 40072,
+      "depth": 5,
+      "synonyms": [
+        "dorsal postcommissural VMC",
+        "SPS",
+        "spsl",
+        "VMCpod"
+      ]
+    },
+    {
+      "id": 45046,
+      "fbbt_id": "FBbt:00045046",
+      "name": "inferior posterior slope",
+      "acronym": "IPS",
+      "parentId": 40072,
+      "depth": 5,
+      "synonyms": [
+        "IPS",
+        "psl",
+        "ventral postcommissural VMC",
+        "VMCpov"
+      ]
+    },
+    {
+      "id": 45047,
+      "fbbt_id": "FBbt:00045047",
+      "name": "adult periesophageal neuropils",
+      "acronym": "PENP",
+      "parentId": 7050,
+      "depth": 3,
+      "synonyms": [
+        "PENP"
+      ]
+    },
+    {
+      "id": 45048,
+      "fbbt_id": "FBbt:00045048",
+      "name": "saddle",
+      "acronym": "AMMC",
+      "parentId": 45047,
+      "depth": 4,
+      "synonyms": [
+        "AMMC",
+        "lateral perioesophageal neuropils",
+        "PENPl",
+        "PENPvm",
+        "SAD",
+        "ventromedial perioesophageal neuropils"
+      ]
+    },
+    {
+      "id": 45050,
+      "fbbt_id": "FBbt:00045050",
+      "name": "flange",
+      "acronym": "FLA",
+      "parentId": 7147,
+      "depth": 4,
+      "synonyms": [
+        "anterior perioesophageal neuropils",
+        "dorsal tritocerebrum",
+        "FLA",
+        "PENPa",
+        "TRd"
+      ]
+    },
+    {
+      "id": 45051,
+      "fbbt_id": "FBbt:00045051",
+      "name": "cantle",
+      "acronym": "CAN",
+      "parentId": 7146,
+      "depth": 4,
+      "synonyms": [
+        "CAN",
+        "PENPp",
+        "PONPp",
+        "posterior perioesophageal neuropils",
+        "VMP"
+      ]
+    },
+    {
+      "id": 47032,
+      "fbbt_id": "FBbt:00047032",
+      "name": "fan-shaped body layer 9",
+      "acronym": null,
+      "parentId": 49532,
+      "depth": 7,
+      "synonyms": [
+        "cap of fan-shaped body",
+        "fan shaped body layer 9"
+      ]
+    },
+    {
+      "id": 47034,
+      "fbbt_id": "FBbt:00047034",
+      "name": "ellipsoid body anterior domain",
+      "acronym": null,
+      "parentId": 40034,
+      "depth": 8,
+      "synonyms": [
+        "EBa",
+        "EBr5",
+        "ellipsoid body anterior shell"
+      ]
+    },
+    {
+      "id": 47044,
+      "fbbt_id": "FBbt:00047044",
+      "name": "medial zone of anterior optic tubercle",
+      "acronym": null,
+      "parentId": 7059,
+      "depth": 5,
+      "synonyms": [
+        "AOTU LU",
+        "AOTU medial compartment",
+        "AOTUm",
+        "large unit of anterior optic tubercle",
+        "M-AOTU",
+        "optu1"
+      ]
+    },
+    {
+      "id": 47045,
+      "fbbt_id": "FBbt:00047045",
+      "name": "intermediate zone of anterior optic tubercle",
+      "acronym": null,
+      "parentId": 51217,
+      "depth": 6,
+      "synonyms": [
+        "AOTUim",
+        "AOTUin",
+        "L-AOTU1",
+        "optu2"
+      ]
+    },
+    {
+      "id": 47046,
+      "fbbt_id": "FBbt:00047046",
+      "name": "lateral zone of anterior optic tubercle",
+      "acronym": null,
+      "parentId": 51217,
+      "depth": 6,
+      "synonyms": [
+        "AOTU lateral compartment",
+        "AOTUl",
+        "L-AOTU",
+        "lateral anterior optic tubercle",
+        "optu3"
+      ]
+    },
+    {
+      "id": 47055,
+      "fbbt_id": "FBbt:00047055",
+      "name": "mushroom body core layer of alpha lobe slice 1",
+      "acronym": null,
+      "parentId": 100258,
+      "depth": 9,
+      "synonyms": [
+        "a1c",
+        "alpha1c"
+      ]
+    },
+    {
+      "id": 47056,
+      "fbbt_id": "FBbt:00047056",
+      "name": "mushroom body posterior layer of alpha lobe slice 1",
+      "acronym": null,
+      "parentId": 100256,
+      "depth": 9,
+      "synonyms": [
+        "a1p",
+        "alpha1p"
+      ]
+    },
+    {
+      "id": 47057,
+      "fbbt_id": "FBbt:00047057",
+      "name": "mushroom body surface layer of alpha lobe slice 1",
+      "acronym": null,
+      "parentId": 100257,
+      "depth": 9,
+      "synonyms": [
+        "a1s",
+        "alpha1s"
+      ]
+    },
+    {
+      "id": 47058,
+      "fbbt_id": "FBbt:00047058",
+      "name": "mushroom body core layer of alpha lobe slice 2",
+      "acronym": null,
+      "parentId": 100258,
+      "depth": 9,
+      "synonyms": [
+        "a2c",
+        "alpha2c"
+      ]
+    },
+    {
+      "id": 47059,
+      "fbbt_id": "FBbt:00047059",
+      "name": "mushroom body posterior layer of alpha lobe slice 2",
+      "acronym": null,
+      "parentId": 100256,
+      "depth": 9,
+      "synonyms": [
+        "a2p",
+        "alpha2p"
+      ]
+    },
+    {
+      "id": 47060,
+      "fbbt_id": "FBbt:00047060",
+      "name": "mushroom body surface layer of alpha lobe slice 2",
+      "acronym": null,
+      "parentId": 100257,
+      "depth": 9,
+      "synonyms": [
+        "a2s",
+        "alpha2s"
+      ]
+    },
+    {
+      "id": 47061,
+      "fbbt_id": "FBbt:00047061",
+      "name": "mushroom body core layer of alpha lobe slice 3",
+      "acronym": null,
+      "parentId": 100258,
+      "depth": 9,
+      "synonyms": [
+        "a3c",
+        "alpha3c"
+      ]
+    },
+    {
+      "id": 47062,
+      "fbbt_id": "FBbt:00047062",
+      "name": "mushroom body posterior layer of alpha lobe slice 3",
+      "acronym": null,
+      "parentId": 100256,
+      "depth": 9,
+      "synonyms": [
+        "a3p",
+        "alpha3p"
+      ]
+    },
+    {
+      "id": 47063,
+      "fbbt_id": "FBbt:00047063",
+      "name": "mushroom body surface layer of alpha lobe slice 3",
+      "acronym": null,
+      "parentId": 100257,
+      "depth": 9,
+      "synonyms": [
+        "a3s",
+        "alpha3s"
+      ]
+    },
+    {
+      "id": 47064,
+      "fbbt_id": "FBbt:00047064",
+      "name": "mushroom body anterior-posterior layer of alpha' lobe slice 1",
+      "acronym": null,
+      "parentId": 100266,
+      "depth": 9,
+      "synonyms": [
+        "a'1ap",
+        "alpha'1ap"
+      ]
+    },
+    {
+      "id": 47065,
+      "fbbt_id": "FBbt:00047065",
+      "name": "mushroom body middle layer of alpha' lobe slice 1",
+      "acronym": null,
+      "parentId": 100267,
+      "depth": 9,
+      "synonyms": [
+        "a'1m",
+        "alpha'1m"
+      ]
+    },
+    {
+      "id": 47066,
+      "fbbt_id": "FBbt:00047066",
+      "name": "mushroom body anterior-posterior layer of alpha' lobe slice 2",
+      "acronym": null,
+      "parentId": 100266,
+      "depth": 9,
+      "synonyms": [
+        "a'2ap",
+        "alpha'2ap"
+      ]
+    },
+    {
+      "id": 47067,
+      "fbbt_id": "FBbt:00047067",
+      "name": "mushroom body middle layer of alpha' lobe slice 2",
+      "acronym": null,
+      "parentId": 100267,
+      "depth": 9,
+      "synonyms": [
+        "a'2m",
+        "alpha'2m"
+      ]
+    },
+    {
+      "id": 47068,
+      "fbbt_id": "FBbt:00047068",
+      "name": "mushroom body anterior-posterior layer of alpha' lobe slice 3",
+      "acronym": null,
+      "parentId": 100266,
+      "depth": 9,
+      "synonyms": [
+        "a'3ap",
+        "alpha'3ap"
+      ]
+    },
+    {
+      "id": 47069,
+      "fbbt_id": "FBbt:00047069",
+      "name": "mushroom body middle layer of alpha' lobe slice 3",
+      "acronym": null,
+      "parentId": 100267,
+      "depth": 9,
+      "synonyms": [
+        "a'3m",
+        "alpha'3m"
+      ]
+    },
+    {
+      "id": 47070,
+      "fbbt_id": "FBbt:00047070",
+      "name": "mushroom body core layer of beta lobe slice 1",
+      "acronym": null,
+      "parentId": 100263,
+      "depth": 9,
+      "synonyms": [
+        "b1c",
+        "beta1c"
+      ]
+    },
+    {
+      "id": 47071,
+      "fbbt_id": "FBbt:00047071",
+      "name": "mushroom body posterior layer of beta lobe slice 1",
+      "acronym": null,
+      "parentId": 100261,
+      "depth": 9,
+      "synonyms": [
+        "b1p",
+        "beta1p"
+      ]
+    },
+    {
+      "id": 47072,
+      "fbbt_id": "FBbt:00047072",
+      "name": "mushroom body surface layer of beta lobe slice 1",
+      "acronym": null,
+      "parentId": 100262,
+      "depth": 9,
+      "synonyms": [
+        "b1s",
+        "beta1s"
+      ]
+    },
+    {
+      "id": 47073,
+      "fbbt_id": "FBbt:00047073",
+      "name": "mushroom body core layer of beta lobe slice 2",
+      "acronym": null,
+      "parentId": 100263,
+      "depth": 9,
+      "synonyms": [
+        "b2c",
+        "beta2c"
+      ]
+    },
+    {
+      "id": 47074,
+      "fbbt_id": "FBbt:00047074",
+      "name": "mushroom body posterior layer of beta lobe slice 2",
+      "acronym": null,
+      "parentId": 100261,
+      "depth": 9,
+      "synonyms": [
+        "b2p",
+        "beta2p"
+      ]
+    },
+    {
+      "id": 47075,
+      "fbbt_id": "FBbt:00047075",
+      "name": "mushroom body surface layer of beta lobe slice 2",
+      "acronym": null,
+      "parentId": 100262,
+      "depth": 9,
+      "synonyms": [
+        "b2s",
+        "beta2s"
+      ]
+    },
+    {
+      "id": 47076,
+      "fbbt_id": "FBbt:00047076",
+      "name": "mushroom body anterior-posterior layer of beta' lobe slice 1",
+      "acronym": null,
+      "parentId": 100269,
+      "depth": 9,
+      "synonyms": [
+        "b'1ap",
+        "beta'1ap"
+      ]
+    },
+    {
+      "id": 47077,
+      "fbbt_id": "FBbt:00047077",
+      "name": "mushroom body middle layer of beta' lobe slice 1",
+      "acronym": null,
+      "parentId": 100270,
+      "depth": 9,
+      "synonyms": [
+        "b'1m",
+        "beta'1m"
+      ]
+    },
+    {
+      "id": 47078,
+      "fbbt_id": "FBbt:00047078",
+      "name": "mushroom body anterior-posterior layer of beta' lobe slice 2",
+      "acronym": null,
+      "parentId": 100269,
+      "depth": 9,
+      "synonyms": [
+        "b'2ap",
+        "beta'2ap"
+      ]
+    },
+    {
+      "id": 47079,
+      "fbbt_id": "FBbt:00047079",
+      "name": "mushroom body middle layer of beta' lobe slice 2",
+      "acronym": null,
+      "parentId": 100270,
+      "depth": 9,
+      "synonyms": [
+        "b'2m",
+        "beta'2m"
+      ]
+    },
+    {
+      "id": 47080,
+      "fbbt_id": "FBbt:00047080",
+      "name": "mushroom body main layer of gamma lobe slice 1",
+      "acronym": null,
+      "parentId": 47091,
+      "depth": 9,
+      "synonyms": [
+        "g1main",
+        "gamma1main"
+      ]
+    },
+    {
+      "id": 47081,
+      "fbbt_id": "FBbt:00047081",
+      "name": "mushroom body dorsal layer of gamma lobe slice 1",
+      "acronym": null,
+      "parentId": 47092,
+      "depth": 9,
+      "synonyms": [
+        "g1d",
+        "gamma1d"
+      ]
+    },
+    {
+      "id": 47082,
+      "fbbt_id": "FBbt:00047082",
+      "name": "mushroom body main layer of gamma lobe slice 2",
+      "acronym": null,
+      "parentId": 47091,
+      "depth": 9,
+      "synonyms": [
+        "g2main",
+        "gamma2main"
+      ]
+    },
+    {
+      "id": 47083,
+      "fbbt_id": "FBbt:00047083",
+      "name": "mushroom body dorsal layer of gamma lobe slice 2",
+      "acronym": null,
+      "parentId": 47092,
+      "depth": 9,
+      "synonyms": [
+        "g2d",
+        "gamma2d"
+      ]
+    },
+    {
+      "id": 47084,
+      "fbbt_id": "FBbt:00047084",
+      "name": "mushroom body main layer of gamma lobe slice 3",
+      "acronym": null,
+      "parentId": 47091,
+      "depth": 9,
+      "synonyms": [
+        "g3main",
+        "gamma3main"
+      ]
+    },
+    {
+      "id": 47085,
+      "fbbt_id": "FBbt:00047085",
+      "name": "mushroom body dorsal layer of gamma lobe slice 3",
+      "acronym": null,
+      "parentId": 47092,
+      "depth": 9,
+      "synonyms": [
+        "g3d",
+        "gamma3d"
+      ]
+    },
+    {
+      "id": 47086,
+      "fbbt_id": "FBbt:00047086",
+      "name": "mushroom body main layer of gamma lobe slice 4",
+      "acronym": null,
+      "parentId": 47091,
+      "depth": 9,
+      "synonyms": [
+        "g4main",
+        "gamma4main"
+      ]
+    },
+    {
+      "id": 47087,
+      "fbbt_id": "FBbt:00047087",
+      "name": "mushroom body dorsal layer of gamma lobe slice 4",
+      "acronym": null,
+      "parentId": 47092,
+      "depth": 9,
+      "synonyms": [
+        "g4d",
+        "gamma4d"
+      ]
+    },
+    {
+      "id": 47088,
+      "fbbt_id": "FBbt:00047088",
+      "name": "mushroom body main layer of gamma lobe slice 5",
+      "acronym": null,
+      "parentId": 47091,
+      "depth": 9,
+      "synonyms": [
+        "g5main",
+        "gamma5main"
+      ]
+    },
+    {
+      "id": 47089,
+      "fbbt_id": "FBbt:00047089",
+      "name": "mushroom body dorsal layer of gamma lobe slice 5",
+      "acronym": null,
+      "parentId": 47092,
+      "depth": 9,
+      "synonyms": [
+        "g5d",
+        "gamma5d"
+      ]
+    },
+    {
+      "id": 47090,
+      "fbbt_id": "FBbt:00047090",
+      "name": "mushroom body gamma lobe layer",
+      "acronym": null,
+      "parentId": 13695,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body gamma lobe stratum"
+      ]
+    },
+    {
+      "id": 47091,
+      "fbbt_id": "FBbt:00047091",
+      "name": "mushroom body gamma lobe main layer",
+      "acronym": null,
+      "parentId": 47090,
+      "depth": 8,
+      "synonyms": []
+    },
+    {
+      "id": 47092,
+      "fbbt_id": "FBbt:00047092",
+      "name": "mushroom body gamma lobe dorsal layer",
+      "acronym": null,
+      "parentId": 47090,
+      "depth": 8,
+      "synonyms": []
+    },
+    {
+      "id": 47093,
+      "fbbt_id": "FBbt:00047093",
+      "name": "mushroom body anterior layer of beta' lobe slice 2",
+      "acronym": null,
+      "parentId": 47078,
+      "depth": 10,
+      "synonyms": [
+        "b'2a",
+        "beta'2a"
+      ]
+    },
+    {
+      "id": 47094,
+      "fbbt_id": "FBbt:00047094",
+      "name": "mushroom body posterior layer of beta' lobe slice 2",
+      "acronym": null,
+      "parentId": 47078,
+      "depth": 10,
+      "synonyms": [
+        "b'2p",
+        "beta'2p"
+      ]
+    },
+    {
+      "id": 47223,
+      "fbbt_id": "FBbt:00047223",
+      "name": "antennal lobe glomerulus VP5",
+      "acronym": null,
+      "parentId": 3926,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VP5",
+        "bean glomerulus",
+        "humid glomerulus",
+        "humid-air glomerulus",
+        "humidity glomerulus"
+      ]
+    },
+    {
+      "id": 47705,
+      "fbbt_id": "FBbt:00047705",
+      "name": "ring neuropil",
+      "acronym": "RN",
+      "parentId": 45032,
+      "depth": 5,
+      "synonyms": [
+        "RN"
+      ]
+    },
+    {
+      "id": 47887,
+      "fbbt_id": "FBbt:00047887",
+      "name": "adult central brain",
+      "acronym": null,
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": [
+        "midbrain"
+      ]
+    },
+    {
+      "id": 47895,
+      "fbbt_id": "FBbt:00047895",
+      "name": "subregion AA of AMMC zone A",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea AA",
+        "anterior region of bundle A",
+        "Johnston organ neuron bundle AA",
+        "JON bundle AA",
+        "JON-AA",
+        "primary auditory center subarea AA"
+      ]
+    },
+    {
+      "id": 47896,
+      "fbbt_id": "FBbt:00047896",
+      "name": "subregion AV of AMMC zone A",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea AV",
+        "bundle A ventral",
+        "Johnston organ neuron bundle AV",
+        "JON bundle AV",
+        "JON-AV",
+        "primary auditory center subarea AV"
+      ]
+    },
+    {
+      "id": 47897,
+      "fbbt_id": "FBbt:00047897",
+      "name": "subregion AV1 of AMMC zone A",
+      "acronym": null,
+      "parentId": 47896,
+      "depth": 8,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea AV1",
+        "bundle A ventral 1",
+        "Johnston organ neuron bundle AV1",
+        "JON bundle AV1",
+        "JON-AV1",
+        "primary auditory center subarea AV1"
+      ]
+    },
+    {
+      "id": 47898,
+      "fbbt_id": "FBbt:00047898",
+      "name": "subregion AV2 of AMMC zone A",
+      "acronym": null,
+      "parentId": 47896,
+      "depth": 8,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea AV2",
+        "bundle A ventral 2",
+        "Johnston organ neuron bundle AV2",
+        "JON bundle AV2",
+        "JON-AV2",
+        "primary auditory center subarea AV2"
+      ]
+    },
+    {
+      "id": 47899,
+      "fbbt_id": "FBbt:00047899",
+      "name": "subregion AD of AMMC zone A",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea AD",
+        "bundle A dorsal",
+        "Johnston organ neuron bundle AD",
+        "JON bundle AD",
+        "JON-AD",
+        "primary auditory center subarea AD"
+      ]
+    },
+    {
+      "id": 47900,
+      "fbbt_id": "FBbt:00047900",
+      "name": "subregion AP of AMMC zone A",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea AP",
+        "bundle A posterior",
+        "Johnston organ neuron bundle AP",
+        "JON bundle AP",
+        "JON-AP",
+        "primary auditory center subarea AP"
+      ]
+    },
+    {
+      "id": 47901,
+      "fbbt_id": "FBbt:00047901",
+      "name": "subregion BI of AMMC zone B",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea BI",
+        "inner part of bundle B",
+        "Johnston organ neuron bundle BI",
+        "JON bundle BI",
+        "JON-BI",
+        "primary auditory center subarea BI"
+      ]
+    },
+    {
+      "id": 47902,
+      "fbbt_id": "FBbt:00047902",
+      "name": "subregion BO of AMMC zone B",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea BO",
+        "Johnston organ neuron bundle BO",
+        "JON bundle BO",
+        "JON-BO",
+        "outer part of bundle B",
+        "primary auditory center subarea BO"
+      ]
+    },
+    {
+      "id": 47903,
+      "fbbt_id": "FBbt:00047903",
+      "name": "subregion CL of AMMC zone C",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea CL",
+        "bundle C lateral",
+        "Johnston organ neuron bundle CL",
+        "JON bundle CL",
+        "JON-CL bundle",
+        "primary auditory center subarea CL"
+      ]
+    },
+    {
+      "id": 47904,
+      "fbbt_id": "FBbt:00047904",
+      "name": "subregion CM of AMMC zone C",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea CM",
+        "bundle C medial",
+        "Johnston organ neuron bundle CM",
+        "JON bundle CM",
+        "JON-CM bundle",
+        "primary auditory center subarea CM"
+      ]
+    },
+    {
+      "id": 47905,
+      "fbbt_id": "FBbt:00047905",
+      "name": "subregion DA of AMMC zone D",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea DA",
+        "bundle D anterior",
+        "Johnston organ neuron bundle DA",
+        "JON bundle DA",
+        "JON-DA bundle",
+        "primary auditory center subarea DA"
+      ]
+    },
+    {
+      "id": 47906,
+      "fbbt_id": "FBbt:00047906",
+      "name": "subregion DP of AMMC zone D",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea DP",
+        "bundle D posterior",
+        "Johnston organ neuron bundle DP",
+        "JON bundle DP",
+        "JON-DP bundle",
+        "primary auditory center subarea DP"
+      ]
+    },
+    {
+      "id": 47908,
+      "fbbt_id": "FBbt:00047908",
+      "name": "subregion EDM of AMMC zone E",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea EDM",
+        "bundle E dorsomedial",
+        "Johnston organ neuron bundle EDM",
+        "JON bundle EDM",
+        "JON-EDM bundle",
+        "primary auditory center subarea EDM"
+      ]
+    },
+    {
+      "id": 47909,
+      "fbbt_id": "FBbt:00047909",
+      "name": "subregion EVM of AMMC zone E",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea EVM",
+        "bundle E ventromedial",
+        "Johnston organ neuron bundle EVM",
+        "JON bundle EVM",
+        "JON-EVM bundle",
+        "primary auditory center subarea EVM"
+      ]
+    },
+    {
+      "id": 47910,
+      "fbbt_id": "FBbt:00047910",
+      "name": "subregion EVP of AMMC zone E",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea EVP",
+        "bundle E ventroposterior",
+        "Johnston organ neuron bundle EVP",
+        "JON bundle EVP",
+        "JON-EVP bundle",
+        "primary auditory center subarea EVP"
+      ]
+    },
+    {
+      "id": 47911,
+      "fbbt_id": "FBbt:00047911",
+      "name": "subregion EDP of AMMC zone E",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea EDP",
+        "bundle E dorsoposterior",
+        "Johnston organ neuron bundle EDP",
+        "JON bundle EDP",
+        "JON-EDP bundle",
+        "primary auditory center subarea EDP"
+      ]
+    },
+    {
+      "id": 47912,
+      "fbbt_id": "FBbt:00047912",
+      "name": "subregion EDC of AMMC zone E",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "antennal mechanosensory and motor center subarea EDC",
+        "bundle E dorsal in the commissure",
+        "Johnston organ neuron bundle EDC",
+        "JON bundle EDC",
+        "JON-EDC bundle",
+        "primary auditory center subarea EDC"
+      ]
+    },
+    {
+      "id": 48332,
+      "fbbt_id": "FBbt:00048332",
+      "name": "adult mushroom body lateral accessory calyx",
+      "acronym": null,
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": [
+        "lACA",
+        "lateral accessory calyx"
+      ]
+    },
+    {
+      "id": 48343,
+      "fbbt_id": "FBbt:00048343",
+      "name": "medulla layer",
+      "acronym": null,
+      "parentId": 3748,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 48344,
+      "fbbt_id": "FBbt:00048344",
+      "name": "lobula layer",
+      "acronym": null,
+      "parentId": 3852,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 48345,
+      "fbbt_id": "FBbt:00048345",
+      "name": "lobula plate layer",
+      "acronym": null,
+      "parentId": 3885,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 48509,
+      "fbbt_id": "FBbt:00048509",
+      "name": "adult round body",
+      "acronym": "RB",
+      "parentId": 3681,
+      "depth": 5,
+      "synonyms": [
+        "RB",
+        "ROB"
+      ]
+    },
+    {
+      "id": 49146,
+      "fbbt_id": "FBbt:00049146",
+      "name": "tooth of fan-shaped body",
+      "acronym": null,
+      "parentId": 7487,
+      "depth": 8,
+      "synonyms": []
+    },
+    {
+      "id": 49147,
+      "fbbt_id": "FBbt:00049147",
+      "name": "central tooth of fan-shaped body",
+      "acronym": null,
+      "parentId": 49146,
+      "depth": 9,
+      "synonyms": [
+        "center tooth of fan-shaped body",
+        "medial tooth of fan-shaped body"
+      ]
+    },
+    {
+      "id": 49148,
+      "fbbt_id": "FBbt:00049148",
+      "name": "cryptic tooth of fan-shaped body",
+      "acronym": null,
+      "parentId": 49146,
+      "depth": 9,
+      "synonyms": []
+    },
+    {
+      "id": 49176,
+      "fbbt_id": "FBbt:00049176",
+      "name": "ellipsoid body tile",
+      "acronym": null,
+      "parentId": 49177,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 49177,
+      "fbbt_id": "FBbt:00049177",
+      "name": "ellipsoid body subdivision",
+      "acronym": null,
+      "parentId": 3678,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 49178,
+      "fbbt_id": "FBbt:00049178",
+      "name": "ellipsoid body nubbin",
+      "acronym": null,
+      "parentId": 49177,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 49532,
+      "fbbt_id": "FBbt:00049532",
+      "name": "adult dorsal fan-shaped body",
+      "acronym": null,
+      "parentId": 3679,
+      "depth": 6,
+      "synonyms": [
+        "adult dFB",
+        "adult dFSB",
+        "adult dorsal FB",
+        "adult dorsal layers of FB",
+        "dorsal layers of adult fan-shaped body"
+      ]
+    },
+    {
+      "id": 49533,
+      "fbbt_id": "FBbt:00049533",
+      "name": "adult ventral fan-shaped body",
+      "acronym": null,
+      "parentId": 3679,
+      "depth": 6,
+      "synonyms": [
+        "adult ventral and middle layers of FB",
+        "adult ventral layers of FB",
+        "adult vFB",
+        "ventral layers of adult fan-shaped body"
+      ]
+    },
+    {
+      "id": 49639,
+      "fbbt_id": "FBbt:00049639",
+      "name": "antennal lobe glomerulus VP1d",
+      "acronym": null,
+      "parentId": 3927,
+      "depth": 8,
+      "synonyms": [
+        "adult antennal lobe dorsal VP1 glomerulus"
+      ]
+    },
+    {
+      "id": 49640,
+      "fbbt_id": "FBbt:00049640",
+      "name": "antennal lobe glomerulus VP1l",
+      "acronym": null,
+      "parentId": 3927,
+      "depth": 8,
+      "synonyms": [
+        "adult antennal lobe lateral VP1 glomerulus"
+      ]
+    },
+    {
+      "id": 49641,
+      "fbbt_id": "FBbt:00049641",
+      "name": "antennal lobe glomerulus VP1m",
+      "acronym": null,
+      "parentId": 3927,
+      "depth": 8,
+      "synonyms": [
+        "adult antennal lobe medial VP1 glomerulus"
+      ]
+    },
+    {
+      "id": 49811,
+      "fbbt_id": "FBbt:00049811",
+      "name": "optic glomerulus of the AOTU",
+      "acronym": null,
+      "parentId": 7059,
+      "depth": 5,
+      "synonyms": []
+    },
+    {
+      "id": 49817,
+      "fbbt_id": "FBbt:00049817",
+      "name": "ocellar ganglion",
+      "acronym": "OCG",
+      "parentId": 53384,
+      "depth": 2,
+      "synonyms": [
+        "OCG"
+      ]
+    },
+    {
+      "id": 49829,
+      "fbbt_id": "FBbt:00049829",
+      "name": "main calyx of adult mushroom body",
+      "acronym": null,
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": [
+        "adult main calyx"
+      ]
+    },
+    {
+      "id": 49864,
+      "fbbt_id": "FBbt:00049864",
+      "name": "ellipsoid body dorsal tile",
+      "acronym": null,
+      "parentId": 49176,
+      "depth": 8,
+      "synonyms": [
+        "EB 12:00 tile",
+        "EB dorsal tile",
+        "ellipsoid body 12:00 tile"
+      ]
+    },
+    {
+      "id": 49865,
+      "fbbt_id": "FBbt:00049865",
+      "name": "ellipsoid body ventral tile",
+      "acronym": null,
+      "parentId": 49176,
+      "depth": 8,
+      "synonyms": [
+        "EB 6:00 tile",
+        "EB ventral tile",
+        "ellipsoid body 6:00 tile"
+      ]
+    },
+    {
+      "id": 49866,
+      "fbbt_id": "FBbt:00049866",
+      "name": "ellipsoid body lateral tile",
+      "acronym": null,
+      "parentId": 49176,
+      "depth": 8,
+      "synonyms": [
+        "EB 3:00 tile",
+        "EB 9:00 tile",
+        "EB lateral tile",
+        "ellipsoid body 3:00 tile",
+        "ellipsoid body 9:00 tile"
+      ]
+    },
+    {
+      "id": 49867,
+      "fbbt_id": "FBbt:00049867",
+      "name": "ellipsoid body dorsolateral tile",
+      "acronym": null,
+      "parentId": 49176,
+      "depth": 8,
+      "synonyms": [
+        "EB 10:00-11:00 tile",
+        "EB 1:00-2:00 tile",
+        "EB dorsolateral tile",
+        "ellipsoid body 10:00-11:00 tile",
+        "ellipsoid body 1:00-2:00 tile"
+      ]
+    },
+    {
+      "id": 49868,
+      "fbbt_id": "FBbt:00049868",
+      "name": "ellipsoid body ventrolateral tile",
+      "acronym": null,
+      "parentId": 49176,
+      "depth": 8,
+      "synonyms": [
+        "EB 4:00-5:00 tile",
+        "EB 7:00-8:00 tile",
+        "EB ventrolateral tile",
+        "ellipsoid body 4:00-5:00 tile",
+        "ellipsoid body 7:00-8:00 tile"
+      ]
+    },
+    {
+      "id": 49908,
+      "fbbt_id": "FBbt:00049908",
+      "name": "adult dorsal pars intercerebralis",
+      "acronym": null,
+      "parentId": 3700,
+      "depth": 4,
+      "synonyms": [
+        "adult central pars intercerebralis",
+        "cell body rind of adult mediodorsal superior medial protocerebrum",
+        "PIc",
+        "rSMPmd"
+      ]
+    },
+    {
+      "id": 49958,
+      "fbbt_id": "FBbt:00049958",
+      "name": "subregion FVA of AMMC zone F",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC subarea FVA",
+        "antennal mechanosensory and motor center subarea FVA",
+        "Johnston organ neuron bundle FVA",
+        "JON bundle FVA",
+        "ventroanterior region of zone F"
+      ]
+    },
+    {
+      "id": 49959,
+      "fbbt_id": "FBbt:00049959",
+      "name": "subregion FVP of AMMC zone F",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC subarea FVP",
+        "antennal mechanosensory and motor center subarea FVP",
+        "Johnston organ neuron bundle FVP",
+        "JON bundle FVP",
+        "ventroposterior region of zone F"
+      ]
+    },
+    {
+      "id": 49960,
+      "fbbt_id": "FBbt:00049960",
+      "name": "subregion FDA of AMMC zone F",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC subarea FDA",
+        "antennal mechanosensory and motor center subarea FDA",
+        "dorsoanterior region of zone F",
+        "Johnston organ neuron bundle FDA",
+        "JON bundle FDA"
+      ]
+    },
+    {
+      "id": 49961,
+      "fbbt_id": "FBbt:00049961",
+      "name": "subregion FDP of AMMC zone F",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC subarea FDP",
+        "antennal mechanosensory and motor center subarea FDP",
+        "dorsoposterior region of zone F",
+        "Johnston organ neuron bundle FDP",
+        "JON bundle FDP"
+      ]
+    },
+    {
+      "id": 49962,
+      "fbbt_id": "FBbt:00049962",
+      "name": "subregion FDL of AMMC zone F",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC subarea FDL",
+        "antennal mechanosensory and motor center subarea FDL",
+        "dorsolateral region of zone F",
+        "Johnston organ neuron bundle FDL",
+        "JON bundle FDL"
+      ]
+    },
+    {
+      "id": 49967,
+      "fbbt_id": "FBbt:00049967",
+      "name": "subregion CA of AMMC zone C",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC subarea CA",
+        "AMMC zone C anterior",
+        "antennal mechanosensory and motor center subarea CA",
+        "Johnston organ neuron bundle CA",
+        "JON bundle CA"
+      ]
+    },
+    {
+      "id": 49970,
+      "fbbt_id": "FBbt:00049970",
+      "name": "subregion EVL of AMMC zone E",
+      "acronym": null,
+      "parentId": 3982,
+      "depth": 7,
+      "synonyms": [
+        "AMMC zone E ventrolateral",
+        "antennal mechanosensory and motor center subarea EVL",
+        "Johnston organ neuron bundle EVL",
+        "JON bundle EVL"
+      ]
+    },
+    {
+      "id": 49981,
+      "fbbt_id": "FBbt:00049981",
+      "name": "LC6 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 49982,
+      "fbbt_id": "FBbt:00049982",
+      "name": "LC16 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 49983,
+      "fbbt_id": "FBbt:00049983",
+      "name": "LC15 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 49984,
+      "fbbt_id": "FBbt:00049984",
+      "name": "LC26 optic glomerulus",
+      "acronym": null,
+      "parentId": 3698,
+      "depth": 5,
+      "synonyms": []
+    },
+    {
+      "id": 49985,
+      "fbbt_id": "FBbt:00049985",
+      "name": "LC21 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 49999,
+      "fbbt_id": "FBbt:00049999",
+      "name": "adult anterior pars intercerebralis",
+      "acronym": null,
+      "parentId": 3700,
+      "depth": 4,
+      "synonyms": [
+        "cell body rind of adult medioanterior superior medial protocerebrum",
+        "PIa",
+        "rSMPma"
+      ]
+    },
+    {
+      "id": 51044,
+      "fbbt_id": "FBbt:00051044",
+      "name": "adult posterior pars intercerebralis",
+      "acronym": null,
+      "parentId": 3700,
+      "depth": 4,
+      "synonyms": [
+        "cell body rind of adult medioposterior superior medial protocerebrum",
+        "PIp",
+        "rSMPmp"
+      ]
+    },
+    {
+      "id": 51204,
+      "fbbt_id": "FBbt:00051204",
+      "name": "LC11 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 51217,
+      "fbbt_id": "FBbt:00051217",
+      "name": "small unit of anterior optic tubercle",
+      "acronym": null,
+      "parentId": 7059,
+      "depth": 5,
+      "synonyms": [
+        "AOTU SU",
+        "AOTUsu",
+        "lower unit of anterior optic tubercle",
+        "lower unit of AOTU"
+      ]
+    },
+    {
+      "id": 51239,
+      "fbbt_id": "FBbt:00051239",
+      "name": "left asymmetrical body",
+      "acronym": null,
+      "parentId": 110172,
+      "depth": 5,
+      "synonyms": [
+        "AB(L)",
+        "left AB"
+      ]
+    },
+    {
+      "id": 51240,
+      "fbbt_id": "FBbt:00051240",
+      "name": "right asymmetrical body",
+      "acronym": null,
+      "parentId": 110172,
+      "depth": 5,
+      "synonyms": [
+        "AB(R)",
+        "right AB"
+      ]
+    },
+    {
+      "id": 51249,
+      "fbbt_id": "FBbt:00051249",
+      "name": "LC27 optic glomerulus",
+      "acronym": null,
+      "parentId": 7581,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 51292,
+      "fbbt_id": "FBbt:00051292",
+      "name": "adult olfactory antennal lobe glomerulus",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 51296,
+      "fbbt_id": "FBbt:00051296",
+      "name": "adult thermosensory antennal lobe glomerulus",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 51297,
+      "fbbt_id": "FBbt:00051297",
+      "name": "adult hygrosensory antennal lobe glomerulus",
+      "acronym": null,
+      "parentId": 67500,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 51482,
+      "fbbt_id": "FBbt:00051482",
+      "name": "adult esophageal foramen",
+      "acronym": null,
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": []
+    },
+    {
+      "id": 51843,
+      "fbbt_id": "FBbt:00051843",
+      "name": "antennal lobe glomerulus VM6l",
+      "acronym": null,
+      "parentId": 110029,
+      "depth": 8,
+      "synonyms": [
+        "antennal lobe glomerulus VM6 lateral compartment"
+      ]
+    },
+    {
+      "id": 51844,
+      "fbbt_id": "FBbt:00051844",
+      "name": "antennal lobe glomerulus VM6m",
+      "acronym": null,
+      "parentId": 110029,
+      "depth": 8,
+      "synonyms": [
+        "antennal lobe glomerulus VM6 medial compartment"
+      ]
+    },
+    {
+      "id": 51845,
+      "fbbt_id": "FBbt:00051845",
+      "name": "antennal lobe glomerulus VM6v",
+      "acronym": null,
+      "parentId": 110029,
+      "depth": 8,
+      "synonyms": [
+        "antennal lobe glomerulus VM6 ventral compartment"
+      ]
+    },
+    {
+      "id": 52530,
+      "fbbt_id": "FBbt:00052530",
+      "name": "adult borboleta region",
+      "acronym": null,
+      "parentId": 110639,
+      "depth": 3,
+      "synonyms": []
+    },
+    {
+      "id": 52531,
+      "fbbt_id": "FBbt:00052531",
+      "name": "adult inner borboleta region",
+      "acronym": null,
+      "parentId": 52530,
+      "depth": 4,
+      "synonyms": []
+    },
+    {
+      "id": 52532,
+      "fbbt_id": "FBbt:00052532",
+      "name": "adult outer borboleta region",
+      "acronym": null,
+      "parentId": 52530,
+      "depth": 4,
+      "synonyms": []
+    },
+    {
+      "id": 52533,
+      "fbbt_id": "FBbt:00052533",
+      "name": "adult outer ventral borboleta region",
+      "acronym": null,
+      "parentId": 52530,
+      "depth": 4,
+      "synonyms": []
+    },
+    {
+      "id": 52654,
+      "fbbt_id": "FBbt:00052654",
+      "name": "LC9 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52655,
+      "fbbt_id": "FBbt:00052655",
+      "name": "LC4 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52656,
+      "fbbt_id": "FBbt:00052656",
+      "name": "LPLC2 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52657,
+      "fbbt_id": "FBbt:00052657",
+      "name": "LPLC1 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52658,
+      "fbbt_id": "FBbt:00052658",
+      "name": "LC22 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": [
+        "LPLC4 optic glomerulus"
+      ]
+    },
+    {
+      "id": 52659,
+      "fbbt_id": "FBbt:00052659",
+      "name": "LC13 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52660,
+      "fbbt_id": "FBbt:00052660",
+      "name": "LC17 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52661,
+      "fbbt_id": "FBbt:00052661",
+      "name": "LC24 optic glomerulus",
+      "acronym": null,
+      "parentId": 7582,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 52662,
+      "fbbt_id": "FBbt:00052662",
+      "name": "LC20 optic glomerulus",
+      "acronym": null,
+      "parentId": 7581,
+      "depth": 6,
+      "synonyms": []
+    },
+    {
+      "id": 52811,
+      "fbbt_id": "FBbt:00052811",
+      "name": "medial ocellar ganglion",
+      "acronym": null,
+      "parentId": 49817,
+      "depth": 3,
+      "synonyms": [
+        "medial OCG"
+      ]
+    },
+    {
+      "id": 52812,
+      "fbbt_id": "FBbt:00052812",
+      "name": "lateral ocellar ganglion",
+      "acronym": null,
+      "parentId": 49817,
+      "depth": 3,
+      "synonyms": [
+        "lateral OCG"
+      ]
+    },
+    {
+      "id": 53040,
+      "fbbt_id": "FBbt:00053040",
+      "name": "lateral domain of adult lateral accessory lobe",
+      "acronym": null,
+      "parentId": 3681,
+      "depth": 5,
+      "synonyms": [
+        "adult lateral LAL",
+        "LALlateral"
+      ]
+    },
+    {
+      "id": 53041,
+      "fbbt_id": "FBbt:00053041",
+      "name": "medial domain of adult lateral accessory lobe",
+      "acronym": null,
+      "parentId": 3681,
+      "depth": 5,
+      "synonyms": [
+        "adult medial LAL",
+        "LALmedial"
+      ]
+    },
+    {
+      "id": 53276,
+      "fbbt_id": "FBbt:00053276",
+      "name": "adult mushroom body calyx microglomerulus",
+      "acronym": null,
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": []
+    },
+    {
+      "id": 53384,
+      "fbbt_id": "FBbt:00053384",
+      "name": "adult primary visual center",
+      "acronym": null,
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": []
+    },
+    {
+      "id": 67500,
+      "fbbt_id": "FBbt:00067500",
+      "name": "adult antennal lobe glomerulus",
+      "acronym": null,
+      "parentId": 7401,
+      "depth": 5,
+      "synonyms": []
+    },
+    {
+      "id": 100251,
+      "fbbt_id": "FBbt:00100251",
+      "name": "adult mushroom body beta'' lobe",
+      "acronym": null,
+      "parentId": 7677,
+      "depth": 6,
+      "synonyms": [
+        "mushroom body beta'' lobe"
+      ]
+    },
+    {
+      "id": 100252,
+      "fbbt_id": "FBbt:00100252",
+      "name": "adult mushroom body alpha'' lobe",
+      "acronym": null,
+      "parentId": 15407,
+      "depth": 6,
+      "synonyms": [
+        "alpha''",
+        "mushroom body alpha'' lobe"
+      ]
+    },
+    {
+      "id": 100256,
+      "fbbt_id": "FBbt:00100256",
+      "name": "mushroom body alpha lobe posterior layer",
+      "acronym": null,
+      "parentId": 110004,
+      "depth": 8,
+      "synonyms": [
+        "alpha accessory calyx layer",
+        "alpha-p",
+        "alphap",
+        "mushroom body alpha lobe posterior stratum"
+      ]
+    },
+    {
+      "id": 100257,
+      "fbbt_id": "FBbt:00100257",
+      "name": "mushroom body alpha lobe surface layer",
+      "acronym": null,
+      "parentId": 110004,
+      "depth": 8,
+      "synonyms": [
+        "alpha-s",
+        "alphas",
+        "mushroom body alpha lobe surface stratum"
+      ]
+    },
+    {
+      "id": 100258,
+      "fbbt_id": "FBbt:00100258",
+      "name": "mushroom body alpha lobe core layer",
+      "acronym": null,
+      "parentId": 110004,
+      "depth": 8,
+      "synonyms": [
+        "alpha-c",
+        "alphac",
+        "mushroom body alpha lobe core stratum"
+      ]
+    },
+    {
+      "id": 100259,
+      "fbbt_id": "FBbt:00100259",
+      "name": "mushroom body alpha lobe inner core layer",
+      "acronym": null,
+      "parentId": 100258,
+      "depth": 9,
+      "synonyms": [
+        "alpha-c(i)",
+        "alphac(i)",
+        "mushroom body alpha lobe inner core stratum"
+      ]
+    },
+    {
+      "id": 100260,
+      "fbbt_id": "FBbt:00100260",
+      "name": "mushroom body alpha lobe outer core layer",
+      "acronym": null,
+      "parentId": 100258,
+      "depth": 9,
+      "synonyms": [
+        "alpha-c(o)",
+        "alphac(o)",
+        "mushroom body alpha lobe outer core stratum"
+      ]
+    },
+    {
+      "id": 100261,
+      "fbbt_id": "FBbt:00100261",
+      "name": "mushroom body beta lobe posterior layer",
+      "acronym": null,
+      "parentId": 110005,
+      "depth": 8,
+      "synonyms": [
+        "beta accessory calyx layer",
+        "beta-p",
+        "betap",
+        "mushroom body beta lobe posterior stratum"
+      ]
+    },
+    {
+      "id": 100262,
+      "fbbt_id": "FBbt:00100262",
+      "name": "mushroom body beta lobe surface layer",
+      "acronym": null,
+      "parentId": 110005,
+      "depth": 8,
+      "synonyms": [
+        "beta-s",
+        "betas",
+        "mushroom body beta lobe surface stratum"
+      ]
+    },
+    {
+      "id": 100263,
+      "fbbt_id": "FBbt:00100263",
+      "name": "mushroom body beta lobe core layer",
+      "acronym": null,
+      "parentId": 110005,
+      "depth": 8,
+      "synonyms": [
+        "beta-c",
+        "betac",
+        "mushroom body beta lobe core stratum"
+      ]
+    },
+    {
+      "id": 100264,
+      "fbbt_id": "FBbt:00100264",
+      "name": "mushroom body beta lobe inner core layer",
+      "acronym": null,
+      "parentId": 100263,
+      "depth": 9,
+      "synonyms": [
+        "beta-c(i)",
+        "betac(i)",
+        "mushroom body beta lobe inner core stratum"
+      ]
+    },
+    {
+      "id": 100265,
+      "fbbt_id": "FBbt:00100265",
+      "name": "mushroom body beta lobe outer core layer",
+      "acronym": null,
+      "parentId": 100263,
+      "depth": 9,
+      "synonyms": [
+        "beta-c(o)",
+        "betac(o)",
+        "mushroom body beta lobe outer core stratum"
+      ]
+    },
+    {
+      "id": 100266,
+      "fbbt_id": "FBbt:00100266",
+      "name": "mushroom body alpha' anterior-posterior layer",
+      "acronym": null,
+      "parentId": 110006,
+      "depth": 8,
+      "synonyms": [
+        "alpha'-a",
+        "alpha'-p",
+        "alpha'a",
+        "alpha'ap",
+        "alpha'p",
+        "alphaa",
+        "alphap",
+        "mushroom body alpha' anterior layer",
+        "mushroom body alpha' anterior stratum",
+        "mushroom body alpha' anterior-posterior stratum",
+        "mushroom body alpha' posterior layer",
+        "mushroom body alpha' posterior stratum"
+      ]
+    },
+    {
+      "id": 100267,
+      "fbbt_id": "FBbt:00100267",
+      "name": "mushroom body alpha' middle layer",
+      "acronym": null,
+      "parentId": 110006,
+      "depth": 8,
+      "synonyms": [
+        "alpha'-m",
+        "alpha'm",
+        "alpham",
+        "mushroom body alpha' middle stratum"
+      ]
+    },
+    {
+      "id": 100269,
+      "fbbt_id": "FBbt:00100269",
+      "name": "mushroom body beta' anterior-posterior layer",
+      "acronym": null,
+      "parentId": 110008,
+      "depth": 8,
+      "synonyms": [
+        "beta'-a",
+        "beta'-p",
+        "beta'a",
+        "beta'p",
+        "betaa",
+        "betap",
+        "mushroom body beta' anterior layer",
+        "mushroom body beta' anterior stratum",
+        "mushroom body beta' anterior-posterior stratum",
+        "mushroom body beta' posterior layer",
+        "mushroom body beta' posterior stratum"
+      ]
+    },
+    {
+      "id": 100270,
+      "fbbt_id": "FBbt:00100270",
+      "name": "mushroom body beta' middle layer",
+      "acronym": null,
+      "parentId": 110008,
+      "depth": 8,
+      "synonyms": [
+        "beta'-m",
+        "beta'm",
+        "betam",
+        "mushroom body beta' middle stratum"
+      ]
+    },
+    {
+      "id": 100273,
+      "fbbt_id": "FBbt:00100273",
+      "name": "mushroom body gamma lobe slice 1",
+      "acronym": null,
+      "parentId": 110002,
+      "depth": 8,
+      "synonyms": [
+        "gamma lobe 1",
+        "gamma-1",
+        "gamma1",
+        "gamma1 compartment",
+        "mushroom body gamma lobe segment 1"
+      ]
+    },
+    {
+      "id": 100274,
+      "fbbt_id": "FBbt:00100274",
+      "name": "mushroom body gamma lobe slice 2",
+      "acronym": null,
+      "parentId": 110002,
+      "depth": 8,
+      "synonyms": [
+        "gamma lobe 2",
+        "gamma-2",
+        "gamma2",
+        "gamma2 compartment",
+        "mushroom body gamma lobe segment 2"
+      ]
+    },
+    {
+      "id": 100275,
+      "fbbt_id": "FBbt:00100275",
+      "name": "mushroom body gamma lobe slice 3",
+      "acronym": null,
+      "parentId": 110002,
+      "depth": 8,
+      "synonyms": [
+        "gamma lobe 3",
+        "gamma-3",
+        "gamma3",
+        "gamma3 compartment",
+        "mushroom body gamma lobe segment 3"
+      ]
+    },
+    {
+      "id": 100276,
+      "fbbt_id": "FBbt:00100276",
+      "name": "mushroom body gamma lobe slice 4",
+      "acronym": null,
+      "parentId": 110002,
+      "depth": 8,
+      "synonyms": [
+        "gamma lobe 4",
+        "gamma-4",
+        "gamma4",
+        "gamma4 compartment",
+        "mushroom body gamma lobe segment 4"
+      ]
+    },
+    {
+      "id": 100277,
+      "fbbt_id": "FBbt:00100277",
+      "name": "mushroom body gamma lobe slice 5",
+      "acronym": null,
+      "parentId": 110002,
+      "depth": 8,
+      "synonyms": [
+        "gamma lobe 5",
+        "gamma-5",
+        "gamma5",
+        "gamma5 compartment",
+        "mushroom body gamma lobe segment 5"
+      ]
+    },
+    {
+      "id": 100278,
+      "fbbt_id": "FBbt:00100278",
+      "name": "mushroom body beta' lobe slice 1",
+      "acronym": null,
+      "parentId": 110009,
+      "depth": 8,
+      "synonyms": [
+        "beta' lobe 1",
+        "beta'1",
+        "beta'1 compartment",
+        "mushroom body beta' lobe segment 1",
+        "mushroom body beta' lobe shaft"
+      ]
+    },
+    {
+      "id": 100279,
+      "fbbt_id": "FBbt:00100279",
+      "name": "mushroom body beta' lobe slice 2",
+      "acronym": null,
+      "parentId": 110009,
+      "depth": 8,
+      "synonyms": [
+        "beta' lobe 2",
+        "beta'2",
+        "beta'2 compartment",
+        "mushroom body beta' lobe segment 2",
+        "mushroom body beta' lobe tip"
+      ]
+    },
+    {
+      "id": 100280,
+      "fbbt_id": "FBbt:00100280",
+      "name": "mushroom body beta lobe slice 1",
+      "acronym": null,
+      "parentId": 110003,
+      "depth": 8,
+      "synonyms": [
+        "beta lobe 1",
+        "beta1",
+        "beta1 compartment",
+        "mushroom body beta lobe segment 1",
+        "mushroom body beta lobe shaft"
+      ]
+    },
+    {
+      "id": 100281,
+      "fbbt_id": "FBbt:00100281",
+      "name": "mushroom body beta lobe slice 2",
+      "acronym": null,
+      "parentId": 110003,
+      "depth": 8,
+      "synonyms": [
+        "beta lobe 2",
+        "beta2",
+        "beta2 compartment",
+        "mushroom body beta lobe segment 2",
+        "mushroom body beta lobe tip"
+      ]
+    },
+    {
+      "id": 100282,
+      "fbbt_id": "FBbt:00100282",
+      "name": "mushroom body alpha' lobe slice 1",
+      "acronym": null,
+      "parentId": 110001,
+      "depth": 8,
+      "synonyms": [
+        "alpha' lobe base",
+        "alpha'-1",
+        "alpha'1",
+        "alpha'1 compartment",
+        "mushroom body alpha' lobe segment 1"
+      ]
+    },
+    {
+      "id": 100283,
+      "fbbt_id": "FBbt:00100283",
+      "name": "mushroom body alpha' lobe slice 2",
+      "acronym": null,
+      "parentId": 110001,
+      "depth": 8,
+      "synonyms": [
+        "alpha' lobe shaft",
+        "alpha'-2",
+        "alpha'2",
+        "alpha'2 compartment",
+        "mushroom body alpha' lobe segment 2"
+      ]
+    },
+    {
+      "id": 100284,
+      "fbbt_id": "FBbt:00100284",
+      "name": "mushroom body alpha' lobe slice 3",
+      "acronym": null,
+      "parentId": 110001,
+      "depth": 8,
+      "synonyms": [
+        "alpha' lobe tip",
+        "alpha'-3",
+        "alpha'3",
+        "alpha'3 compartment",
+        "mushroom body alpha' lobe segment 3"
+      ]
+    },
+    {
+      "id": 100285,
+      "fbbt_id": "FBbt:00100285",
+      "name": "mushroom body alpha lobe slice 1",
+      "acronym": null,
+      "parentId": 110000,
+      "depth": 8,
+      "synonyms": [
+        "alpha lobe base",
+        "alpha-1",
+        "alpha1",
+        "alpha1 compartment",
+        "mushroom body alpha lobe segment 1"
+      ]
+    },
+    {
+      "id": 100286,
+      "fbbt_id": "FBbt:00100286",
+      "name": "mushroom body alpha lobe slice 2",
+      "acronym": null,
+      "parentId": 110000,
+      "depth": 8,
+      "synonyms": [
+        "alpha lobe shaft",
+        "alpha-2",
+        "alpha2",
+        "alpha2 compartment",
+        "mushroom body alpha lobe segment 2"
+      ]
+    },
+    {
+      "id": 100287,
+      "fbbt_id": "FBbt:00100287",
+      "name": "mushroom body alpha lobe slice 3",
+      "acronym": null,
+      "parentId": 110000,
+      "depth": 8,
+      "synonyms": [
+        "alpha lobe tip",
+        "alpha-3",
+        "alpha3",
+        "alpha3 compartment",
+        "mushroom body alpha lobe segment 3"
+      ]
+    },
+    {
+      "id": 100349,
+      "fbbt_id": "FBbt:00100349",
+      "name": "adult superior fiber system",
+      "acronym": "SFS",
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": [
+        "SFS",
+        "superior fibre system"
+      ]
+    },
+    {
+      "id": 100350,
+      "fbbt_id": "FBbt:00100350",
+      "name": "adult inferior fiber system",
+      "acronym": "IFS",
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": [
+        "IFS",
+        "inferior fibre system",
+        "ventral fibrous center",
+        "VFC"
+      ]
+    },
+    {
+      "id": 100362,
+      "fbbt_id": "FBbt:00100362",
+      "name": "antennal lobe hub",
+      "acronym": "ALH",
+      "parentId": 7401,
+      "depth": 5,
+      "synonyms": [
+        "ALH"
+      ]
+    },
+    {
+      "id": 100363,
+      "fbbt_id": "FBbt:00100363",
+      "name": "superior bulb",
+      "acronym": "SBU",
+      "parentId": 3682,
+      "depth": 5,
+      "synonyms": [
+        "SBU"
+      ]
+    },
+    {
+      "id": 100364,
+      "fbbt_id": "FBbt:00100364",
+      "name": "inferior bulb",
+      "acronym": "IBU",
+      "parentId": 3682,
+      "depth": 5,
+      "synonyms": [
+        "IBU"
+      ]
+    },
+    {
+      "id": 100365,
+      "fbbt_id": "FBbt:00100365",
+      "name": "anterior bulb",
+      "acronym": "ABU",
+      "parentId": 3682,
+      "depth": 5,
+      "synonyms": [
+        "ABU"
+      ]
+    },
+    {
+      "id": 100366,
+      "fbbt_id": "FBbt:00100366",
+      "name": "plexiform lamina",
+      "acronym": "PLLA",
+      "parentId": 3708,
+      "depth": 6,
+      "synonyms": [
+        "PLLA"
+      ]
+    },
+    {
+      "id": 100376,
+      "fbbt_id": "FBbt:00100376",
+      "name": "antennal lobe glomerulus DL2v",
+      "acronym": null,
+      "parentId": 3969,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus DL2 ventral compartment",
+        "DL2v"
+      ]
+    },
+    {
+      "id": 100377,
+      "fbbt_id": "FBbt:00100377",
+      "name": "antennal lobe glomerulus DL2d",
+      "acronym": null,
+      "parentId": 3969,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus DL2 dorsal compartment",
+        "DL2d"
+      ]
+    },
+    {
+      "id": 100531,
+      "fbbt_id": "FBbt:00100531",
+      "name": "antennal lobe glomerulus DC4",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus 1",
+        "antennal glomerulus DC4"
+      ]
+    },
+    {
+      "id": 110000,
+      "fbbt_id": "FBbt:00110000",
+      "name": "mushroom body alpha lobe slice",
+      "acronym": null,
+      "parentId": 110657,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body alpha lobe segment"
+      ]
+    },
+    {
+      "id": 110001,
+      "fbbt_id": "FBbt:00110001",
+      "name": "mushroom body alpha' lobe slice",
+      "acronym": null,
+      "parentId": 13691,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body alpha' lobe segment"
+      ]
+    },
+    {
+      "id": 110002,
+      "fbbt_id": "FBbt:00110002",
+      "name": "mushroom body gamma lobe slice",
+      "acronym": null,
+      "parentId": 13695,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body gamma lobe segment"
+      ]
+    },
+    {
+      "id": 110003,
+      "fbbt_id": "FBbt:00110003",
+      "name": "mushroom body beta lobe slice",
+      "acronym": null,
+      "parentId": 110658,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body beta lobe segment"
+      ]
+    },
+    {
+      "id": 110004,
+      "fbbt_id": "FBbt:00110004",
+      "name": "mushroom body alpha lobe layer",
+      "acronym": null,
+      "parentId": 110657,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body alpha lobe stratum"
+      ]
+    },
+    {
+      "id": 110005,
+      "fbbt_id": "FBbt:00110005",
+      "name": "mushroom body beta lobe layer",
+      "acronym": null,
+      "parentId": 110658,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body beta lobe stratum"
+      ]
+    },
+    {
+      "id": 110006,
+      "fbbt_id": "FBbt:00110006",
+      "name": "mushroom body alpha' lobe layer",
+      "acronym": null,
+      "parentId": 13691,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body alpha' lobe stratum"
+      ]
+    },
+    {
+      "id": 110008,
+      "fbbt_id": "FBbt:00110008",
+      "name": "mushroom body beta' lobe layer",
+      "acronym": null,
+      "parentId": 13694,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body beta' lobe stratum"
+      ]
+    },
+    {
+      "id": 110009,
+      "fbbt_id": "FBbt:00110009",
+      "name": "mushroom body beta' lobe slice",
+      "acronym": null,
+      "parentId": 13694,
+      "depth": 7,
+      "synonyms": [
+        "mushroom body beta' lobe segment"
+      ]
+    },
+    {
+      "id": 110028,
+      "fbbt_id": "FBbt:00110028",
+      "name": "antennal lobe glomerulus VM7d",
+      "acronym": null,
+      "parentId": 3973,
+      "depth": 7,
+      "synonyms": [
+        "antennal lobe glomerulus VM7 dorsal compartment",
+        "VM7d"
+      ]
+    },
+    {
+      "id": 110029,
+      "fbbt_id": "FBbt:00110029",
+      "name": "antennal lobe glomerulus VM6",
+      "acronym": null,
+      "parentId": 51292,
+      "depth": 7,
+      "synonyms": [
+        "adult antennal glomerulus VC5",
+        "antennal glomerulus VM6",
+        "VC5 and VM6",
+        "VM6+VP1"
+      ]
+    },
+    {
+      "id": 110172,
+      "fbbt_id": "FBbt:00110172",
+      "name": "asymmetrical body",
+      "acronym": "AB",
+      "parentId": 3632,
+      "depth": 4,
+      "synonyms": [
+        "AB",
+        "asymmetric body"
+      ]
+    },
+    {
+      "id": 110636,
+      "fbbt_id": "FBbt:00110636",
+      "name": "adult cerebral ganglion",
+      "acronym": "CRG",
+      "parentId": 3624,
+      "depth": 1,
+      "synonyms": [
+        "adult supraesophageal ganglion",
+        "brain",
+        "cerebrum",
+        "CRG",
+        "SPG"
+      ]
+    },
+    {
+      "id": 110638,
+      "fbbt_id": "FBbt:00110638",
+      "name": "adult supraesophageal zone",
+      "acronym": "SPZ",
+      "parentId": 110636,
+      "depth": 2,
+      "synonyms": [
+        "adult supraesophageal ganglion",
+        "SPZ"
+      ]
+    },
+    {
+      "id": 110639,
+      "fbbt_id": "FBbt:00110639",
+      "name": "adult subesophageal zone",
+      "acronym": "SEG",
+      "parentId": 47887,
+      "depth": 2,
+      "synonyms": [
+        "adult subesophageal ganglion",
+        "adult suboesophageal ganglion",
+        "SEG",
+        "SEZ",
+        "SOG"
+      ]
+    },
+    {
+      "id": 110640,
+      "fbbt_id": "FBbt:00110640",
+      "name": "spur of adult mushroom body",
+      "acronym": "SPU",
+      "parentId": 3684,
+      "depth": 4,
+      "synonyms": [
+        "adult mushroom body heel",
+        "adult spur",
+        "heel of adult mushroom body",
+        "knee of adult mushroom body",
+        "SPU"
+      ]
+    },
+    {
+      "id": 110650,
+      "fbbt_id": "FBbt:00110650",
+      "name": "posterior chiasma of the central complex",
+      "acronym": "PCH",
+      "parentId": 3632,
+      "depth": 4,
+      "synonyms": [
+        "FBppl",
+        "PCH",
+        "posterior chiasm of the central complex",
+        "posterior plexus of fan-shaped body"
+      ]
+    },
+    {
+      "id": 110651,
+      "fbbt_id": "FBbt:00110651",
+      "name": "anterior chiasma of the central complex",
+      "acronym": "ACH",
+      "parentId": 3632,
+      "depth": 4,
+      "synonyms": [
+        "ACH",
+        "anterior chiasm of the central complex",
+        "anterior plexus of fan-shaped body",
+        "FBapl"
+      ]
+    },
+    {
+      "id": 110652,
+      "fbbt_id": "FBbt:00110652",
+      "name": "adult pars lateralis",
+      "acronym": "PL",
+      "parentId": 3624,
+      "depth": 3,
+      "synonyms": [
+        "PL",
+        "rSLPl"
+      ]
+    },
+    {
+      "id": 110655,
+      "fbbt_id": "FBbt:00110655",
+      "name": "fan-shaped body layer 7",
+      "acronym": null,
+      "parentId": 49532,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 7"
+      ]
+    },
+    {
+      "id": 110656,
+      "fbbt_id": "FBbt:00110656",
+      "name": "fan-shaped body layer 8",
+      "acronym": null,
+      "parentId": 49532,
+      "depth": 7,
+      "synonyms": [
+        "fan shaped body layer 8",
+        "superior arch"
+      ]
+    },
+    {
+      "id": 110657,
+      "fbbt_id": "FBbt:00110657",
+      "name": "adult mushroom body alpha-lobe",
+      "acronym": null,
+      "parentId": 15407,
+      "depth": 6,
+      "synonyms": [
+        "adult alpha-lobe",
+        "alpha L",
+        "alpha-lobe of adult mushroom body"
+      ]
+    },
+    {
+      "id": 110658,
+      "fbbt_id": "FBbt:00110658",
+      "name": "adult mushroom body beta-lobe",
+      "acronym": null,
+      "parentId": 7677,
+      "depth": 6,
+      "synonyms": [
+        "adult beta-lobe",
+        "beta L",
+        "beta-lobe of adult mushroom body"
+      ]
+    },
+    {
+      "id": 110865,
+      "fbbt_id": "FBbt:00110865",
+      "name": "antennal lobe glomerulus VP4",
+      "acronym": null,
+      "parentId": 3926,
+      "depth": 7,
+      "synonyms": [
+        "antennal glomerulus VP4",
+        "arm glomerulus",
+        "dry glomerulus",
+        "dry-air glomerulus"
+      ]
+    },
+    {
+      "id": 110991,
+      "fbbt_id": "FBbt:00110991",
+      "name": "adult mushroom body ventral accessory calyx",
+      "acronym": null,
+      "parentId": 7385,
+      "depth": 5,
+      "synonyms": [
+        "vACA"
+      ]
+    },
+    {
+      "id": 111044,
+      "fbbt_id": "FBbt:00111044",
+      "name": "adult gnathal neuromere",
+      "acronym": null,
+      "parentId": 14013,
+      "depth": 3,
+      "synonyms": []
+    },
+    {
+      "id": 111052,
+      "fbbt_id": "FBbt:00111052",
+      "name": "nodulus 1",
+      "acronym": null,
+      "parentId": 3680,
+      "depth": 5,
+      "synonyms": [
+        "NO I",
+        "NO1",
+        "nodulus layer 1",
+        "nodulus subcompartment 1",
+        "nodulus subunit I"
+      ]
+    },
+    {
+      "id": 111053,
+      "fbbt_id": "FBbt:00111053",
+      "name": "nodulus 2",
+      "acronym": null,
+      "parentId": 3680,
+      "depth": 5,
+      "synonyms": [
+        "NO II",
+        "NO2",
+        "nodulus layer 2",
+        "nodulus subcompartment 2",
+        "nodulus subunit II"
+      ]
+    },
+    {
+      "id": 111054,
+      "fbbt_id": "FBbt:00111054",
+      "name": "nodulus 3",
+      "acronym": null,
+      "parentId": 3680,
+      "depth": 5,
+      "synonyms": [
+        "NO III",
+        "NO3",
+        "nodulus layer 3",
+        "nodulus subunit III"
+      ]
+    },
+    {
+      "id": 111055,
+      "fbbt_id": "FBbt:00111055",
+      "name": "nodulus 3 posterior domain",
+      "acronym": null,
+      "parentId": 111054,
+      "depth": 6,
+      "synonyms": [
+        "NO IV",
+        "NO3P",
+        "NO4",
+        "nodulus layer 4",
+        "nodulus subcompartment 3 posterior domain",
+        "nodulus subunit III posterior domain",
+        "posterior compartment of NO3"
+      ]
+    },
+    {
+      "id": 111267,
+      "fbbt_id": "FBbt:00111267",
+      "name": "medulla sublayer M3A",
+      "acronym": null,
+      "parentId": 3752,
+      "depth": 10,
+      "synonyms": []
+    },
+    {
+      "id": 111268,
+      "fbbt_id": "FBbt:00111268",
+      "name": "medulla sublayer M3B",
+      "acronym": null,
+      "parentId": 3752,
+      "depth": 10,
+      "synonyms": []
+    },
+    {
+      "id": 111269,
+      "fbbt_id": "FBbt:00111269",
+      "name": "medulla sublayer M6A",
+      "acronym": null,
+      "parentId": 3755,
+      "depth": 10,
+      "synonyms": [
+        "M6M",
+        "medial half of the M6 layer"
+      ]
+    },
+    {
+      "id": 111270,
+      "fbbt_id": "FBbt:00111270",
+      "name": "medulla sublayer M6B",
+      "acronym": null,
+      "parentId": 3755,
+      "depth": 10,
+      "synonyms": [
+        "lateral half of the M6 layer",
+        "M6L"
+      ]
+    },
+    {
+      "id": 111503,
+      "fbbt_id": "FBbt:00111503",
+      "name": "ventral gall",
+      "acronym": "VSB",
+      "parentId": 40060,
+      "depth": 7,
+      "synonyms": [
+        "ventral spindle body of IDFP",
+        "VSB"
+      ]
+    },
+    {
+      "id": 111504,
+      "fbbt_id": "FBbt:00111504",
+      "name": "dorsal gall",
+      "acronym": "DSB",
+      "parentId": 40060,
+      "depth": 7,
+      "synonyms": [
+        "dorsal spindle body of IDFP",
+        "DSB"
+      ]
+    },
+    {
+      "id": 111505,
+      "fbbt_id": "FBbt:00111505",
+      "name": "gall tip",
+      "acronym": null,
+      "parentId": 40060,
+      "depth": 7,
+      "synonyms": []
+    },
+    {
+      "id": 111506,
+      "fbbt_id": "FBbt:00111506",
+      "name": "nodulus domain",
+      "acronym": null,
+      "parentId": 3680,
+      "depth": 5,
+      "synonyms": [
+        "nodulus compartment",
+        "nodulus subcompartment",
+        "nodulus subregion"
+      ]
+    },
+    {
+      "id": 111507,
+      "fbbt_id": "FBbt:00111507",
+      "name": "nodulus 2 dorsal domain",
+      "acronym": null,
+      "parentId": 111053,
+      "depth": 6,
+      "synonyms": [
+        "dorsal compartment of NO2",
+        "NO2D",
+        "nodulus subcompartment 2 dorsal domain",
+        "nodulus subunit II dorsal domain"
+      ]
+    },
+    {
+      "id": 111508,
+      "fbbt_id": "FBbt:00111508",
+      "name": "nodulus 2 ventral domain",
+      "acronym": null,
+      "parentId": 111053,
+      "depth": 6,
+      "synonyms": [
+        "NO2V",
+        "nodulus subcompartment 2 ventral domain",
+        "nodulus subunit II ventral domain",
+        "ventral compartment of NO2",
+        "ventral subcompartment of medial nodulus"
+      ]
+    },
+    {
+      "id": 111509,
+      "fbbt_id": "FBbt:00111509",
+      "name": "nodulus 3 anterior domain",
+      "acronym": null,
+      "parentId": 111054,
+      "depth": 6,
+      "synonyms": [
+        "anterior compartment of NO3",
+        "NO3A",
+        "nodulus subcompartment 3 anterior domain",
+        "nodulus subunit III anterior domain"
+      ]
+    },
+    {
+      "id": 111510,
+      "fbbt_id": "FBbt:00111510",
+      "name": "nodulus 3 medial domain",
+      "acronym": null,
+      "parentId": 111054,
+      "depth": 6,
+      "synonyms": [
+        "medial compartment of NO3",
+        "NO3M",
+        "NO4",
+        "nodulus layer 4",
+        "nodulus subcompartment 3 medial domain",
+        "nodulus subunit III medial domain"
+      ]
+    },
+    {
+      "id": 111511,
+      "fbbt_id": "FBbt:00111511",
+      "name": "protocerebral bridge glomerulus 1",
+      "acronym": null,
+      "parentId": 3669,
+      "depth": 6,
+      "synonyms": [
+        "protocerebral bridge slice 1"
+      ]
+    },
+    {
+      "id": 111743,
+      "fbbt_id": "FBbt:00111743",
+      "name": "lobula layer 5A",
+      "acronym": null,
+      "parentId": 40016,
+      "depth": 9,
+      "synonyms": [
+        "lobula layer Lo5A"
+      ]
+    },
+    {
+      "id": 111744,
+      "fbbt_id": "FBbt:00111744",
+      "name": "lobula layer 5B",
+      "acronym": null,
+      "parentId": 40016,
+      "depth": 9,
+      "synonyms": [
+        "lobula layer Lo5B"
+      ]
+    }
+  ]
+}

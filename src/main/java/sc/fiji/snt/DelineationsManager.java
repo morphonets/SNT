@@ -38,11 +38,14 @@ import sc.fiji.snt.analysis.detection.DetectorUtils;
 import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.gui.OntologyBrowser;
 import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.TreeToRaster;
+
+import com.formdev.flatlaf.extras.components.FlatTextField;
 
 import javax.swing.*;
 import java.awt.*;
@@ -65,6 +68,7 @@ public class DelineationsManager {
     private static final int DEF_N = 10;
     private static final int MAX_LABEL_IMAGE_CLASSES = 500;
     private static final Color DEF_COLOR = Color.GRAY;
+    private static final String HIERARCHY_SEPARATOR = "::";
     private static final String UNAFFECTED_LABEL = "Unaffected paths";
     private static final String NON_DELINEATED_LABEL = "Non-delineated";
     private final SNTUI sntui;
@@ -73,6 +77,7 @@ public class DelineationsManager {
     private final JPanel delineationsPanel;
     private Color fallbackColor;
     private SNTTable table;
+    private OntologyBrowser ontologyBrowser;
 
     /** Label image stored as ImgLib2 RAI (integer-valued, 0 = background). */
     private RandomAccessibleInterval<? extends RealType<?>> labelRAI;
@@ -334,15 +339,90 @@ public class DelineationsManager {
         return result;
     }
 
+    /**
+     * Returns the hierarchy depth of a delineation name using the {@code ::}
+     * separator. E.g., {@code "Cortex::L1::proximal"} has depth 3.
+     */
+    private static int hierarchyDepth(final String name) {
+        if (name == null || !name.contains(HIERARCHY_SEPARATOR)) return 1;
+        return name.split(HIERARCHY_SEPARATOR, -1).length;
+    }
+
+    /**
+     * Returns the prefix of a hierarchical delineation name truncated to the
+     * given level. E.g., {@code hierarchyPrefix("Cortex::L1::proximal", 2)}
+     * returns {@code "Cortex::L1"}.
+     */
+    private static String hierarchyPrefix(final String name, final int level) {
+        if (name == null || !name.contains(HIERARCHY_SEPARATOR)) return name;
+        final String[] parts = name.split(HIERARCHY_SEPARATOR, -1);
+        final int n = Math.min(level, parts.length);
+        return String.join(HIERARCHY_SEPARATOR, Arrays.copyOf(parts, n));
+    }
+
+    /**
+     * Returns the maximum hierarchy depth across all assigned delineations.
+     */
+    private int maxHierarchyDepth() {
+        return delineations.stream()
+                .filter(d -> d.roi != null)
+                .mapToInt(d -> hierarchyDepth(d.name))
+                .max().orElse(1);
+    }
+
+    /**
+     * Re-groups a path-group map by truncating hierarchical names to the
+     * specified level. Non-delineated and unaffected labels pass through
+     * unchanged.
+     */
+    private static Map<String, List<Path>> regroupByLevel(
+            final Map<String, List<Path>> pathGroups, final int level) {
+        final Map<String, List<Path>> result = new TreeMap<>(Comparator.naturalOrder());
+        pathGroups.forEach((label, sections) -> {
+            if (UNAFFECTED_LABEL.equals(label) || NON_DELINEATED_LABEL.equals(label)) {
+                result.put(label, sections);
+            } else {
+                final String key = hierarchyPrefix(label, level);
+                result.computeIfAbsent(key, k -> new ArrayList<>()).addAll(sections);
+            }
+        });
+        return result;
+    }
+
+    /**
+     * Prompts the user to select a hierarchy grouping level, if delineation
+     * names use the {@code ::} separator. Returns the chosen level, or -1 if
+     * the user cancelled.
+     */
+    private int promptForGroupingLevel() {
+        final int maxDepth = maxHierarchyDepth();
+        if (maxDepth <= 1) return maxDepth;
+        final String[] levels = new String[maxDepth];
+        for (int i = 0; i < maxDepth; i++)
+            levels[i] = "Level " + (i + 1);
+        levels[maxDepth - 1] += " (full)";
+        final String choice = sntui.guiUtils.getChoice(
+                "Delineation names contain hierarchical labels. Group by:",
+                "Hierarchy Grouping", levels, levels[maxDepth - 1]);
+        if (choice == null) return -1;
+        for (int i = 0; i < levels.length; i++)
+            if (levels[i].equals(choice)) return i + 1;
+        return maxDepth;
+    }
+
     private void measure() {
         if (sntui.noPathsError() || noAssignmentsExistError()) return;
+        final int groupingLevel = promptForGroupingLevel();
+        if (groupingLevel < 0) return;
         final List<Path> paths = pafm.getPaths();
         final boolean newTableNeeded = table == null;
         if (newTableNeeded)
             table = new SNTTable();
         else
             table.clear();
-        final Map<String, List<Path>> pathGroups = getLabeledGroups(paths);
+        Map<String, List<Path>> pathGroups = getLabeledGroups(paths);
+        if (groupingLevel < maxHierarchyDepth())
+            pathGroups = regroupByLevel(pathGroups, groupingLevel);
         // Track which label-image values have already been measured so we can
         // reuse the EDT when multiple delineations map to the same image label
         // (unlikely but possible after merges). Only one EDT is held at a time
@@ -404,6 +484,8 @@ public class DelineationsManager {
 
     private void plotDistributionFromPrompt() {
         if (sntui.noPathsError() || noAssignmentsExistError()) return;
+        final int groupingLevel = promptForGroupingLevel();
+        if (groupingLevel < 0) return;
         final List<Path> paths = pafm.getPaths();
         final String[] lastChoices = sntui.getPrefs().get("snt.delineationMetric", "Path length,Boxplot").split(",");
         final String[] choices = sntui.guiUtils.getTwoChoices("Plot Distribution...",
@@ -412,7 +494,10 @@ public class DelineationsManager {
         if (choices == null) return;
         try {
             sntui.getPrefs().set("snt.delineationMetric", choices[0] + "," + choices[1]);
-            plotDistribution(choices[0], "Boxplot".equals(choices[1]), choices[1].contains("montage"), getLabeledGroups(paths));
+            Map<String, List<Path>> pathGroups = getLabeledGroups(paths);
+            if (groupingLevel < maxHierarchyDepth())
+                pathGroups = regroupByLevel(pathGroups, groupingLevel);
+            plotDistribution(choices[0], "Boxplot".equals(choices[1]), choices[1].contains("montage"), pathGroups);
         } catch (final IllegalArgumentException ex) {
             sntui.guiUtils.error("It was not possible to retrieve valid histogram data. It is likely that '"
                     + choices[0] + "' cannot be not be computed for current paths/delineations.");
@@ -1346,19 +1431,44 @@ public class DelineationsManager {
     }
 
 
-    private class JTextFieldLabel extends JTextField {
+    private OntologyBrowser getOrCreateOntologyBrowser() {
+        if (ontologyBrowser == null) {
+            ontologyBrowser = new OntologyBrowser(true);
+            ontologyBrowser.addAllenCCFOntology();
+            ontologyBrowser.addDrosophilaOntology();
+            ontologyBrowser.setPathFormatter(OntologyBrowser.ACRONYM_ONLY_FORMATTER);
+            ontologyBrowser.setPreferredSize(new Dimension(350, 500));
+        }
+        return ontologyBrowser;
+    }
+
+    private class JTextFieldLabel extends FlatTextField {
 
         final Delineation delineation;
         final JToggleButton editButton;
+        final JButton browseButton;
 
         JTextFieldLabel(final Delineation delineation) {
             super();
             setText(delineation.name);
             this.delineation = delineation;
-            setEditable(false);
             setBorder(null);
-            GuiUtils.addClearButton(this);
-            GuiUtils.addPlaceholder(this, defaultLabel());
+            setPlaceholderText(defaultLabel());
+            setShowClearButton(true);
+
+            // Leading component: ontology browse button
+            browseButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH, getDisabledTextColor(), .75f));
+            browseButton.setToolTipText("Name from ontology...");
+            browseButton.addActionListener(e -> {
+                final OntologyBrowser browser = getOrCreateOntologyBrowser();
+                browser.clearSelection();
+                final List<String> paths = browser.showDialog(sntui, "Select Term for '" + delineation.name + "'");
+                if (paths != null && !paths.isEmpty()) {
+                    delineation.rename(paths.getFirst());
+                }
+            });
+            setLeadingComponent(browseButton);
+            setEditable(false);
             editButton = GuiUtils.Buttons.edit();
             editButton.setSelected(false);
             editButton.setToolTipText("Rename Delineation " + delineation.label);
@@ -1370,7 +1480,7 @@ public class DelineationsManager {
                     acceptInput();
                 }
             });
-            addActionListener(e -> editButton.setSelected(false) ); // triggered by Enter key
+            addActionListener(e -> editButton.setSelected(false)); // triggered by Enter key
         }
 
         private void acceptInput() {
@@ -1391,6 +1501,7 @@ public class DelineationsManager {
             super.setEditable(editable);
             super.setFocusable(editable);
             if (editable) requestFocusInWindow();
+            if (browseButton != null) browseButton.setVisible(editable);
         }
     }
 }

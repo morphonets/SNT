@@ -2618,6 +2618,7 @@ public class GuiUtils {
 		tabbedPane.putClientProperty("JTabbedPane.tabRotation", "auto");
 		tabbedPane.putClientProperty("JTabbedPane.tabWidthMode", "compact");
 		tabbedPane.putClientProperty("JTabbedPane.tabAreaAlignment", "fill");
+		tabbedPane.putClientProperty("JTabbedPane.hideTabAreaWithOneTab", true);
 		tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
 		final JPopupMenu popup = new JPopupMenu();
 		tabbedPane.setComponentPopupMenu(popup);

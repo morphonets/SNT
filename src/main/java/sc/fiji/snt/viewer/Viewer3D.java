@@ -129,7 +129,6 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
-import javax.swing.text.Position;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -1071,11 +1070,8 @@ public class Viewer3D {
             drawableVBO.unmount();
             chart.add(drawableVBO, false);
         });
-        plottedAnnotations.forEach((k, annot) -> {
-            chart.add(annot.getDrawable(), false);
-        });
-        plottedTrees.values().forEach(shapeTree -> chart.add(shapeTree.get(),
-                false));
+        plottedAnnotations.forEach((k, annot) -> chart.add(annot.getDrawable(), false));
+        plottedTrees.values().forEach(shapeTree -> chart.add(shapeTree.get(), false));
     }
 
     private void initManagerList() {
@@ -1993,9 +1989,7 @@ public class Viewer3D {
      */
     private Map<String, OBJMesh> getOBJs() {
         final Map<String, OBJMesh> newMap = new LinkedHashMap<>();
-        plottedObjs.forEach((k, drawable) -> {
-            newMap.put(k, drawable.objMesh);
-        });
+        plottedObjs.forEach((k, drawable) -> newMap.put(k, drawable.objMesh));
         return newMap;
     }
 
@@ -5311,9 +5305,7 @@ public class Viewer3D {
             final List<?> selectedValues = managerList.getSelectedValuesList();
             if (selectedValues == null) return null;
             final List<String> selectedKeys= new ArrayList<>(selectedValues.size());
-            selectedValues.forEach(sv -> {
-                selectedKeys.add(TagUtils.removeAllTags(sv.toString()));
-            });
+            selectedValues.forEach(sv -> selectedKeys.add(TagUtils.removeAllTags(sv.toString())));
             final List<String> allKeys = new ArrayList<>(map.keySet());
             if ((allowAllIfNone && map.size() == 1)
                     || (selectedKeys.size() == 1 && CheckBoxList.ALL_ENTRY.toString().equals(selectedKeys.getFirst())))
@@ -5507,9 +5499,7 @@ public class Viewer3D {
             measureMenu.add(mi);
             GuiUtils.addSeparator(measureMenu, "Data Export");
             mi = GuiUtils.MenuItems.saveTablesAndPlots(GLYPH.SAVE);
-            mi.addActionListener(e -> {
-                runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true);
-            });
+            mi.addActionListener(e -> runCmd(SaveMeasurementsCmd.class, null, CmdWorker.DO_NOTHING, false, true));
             measureMenu.add(mi);
             //measureMenu.add(mgrGuiUtils.combineChartsMenuItem());
             return measureMenu;
@@ -6571,7 +6561,7 @@ public class Viewer3D {
                 mgrGuiUtils.error("Please select a single annotation to rename.");
                 return;
             }
-            final Annotation3D annot = annots.get(0);
+            final Annotation3D annot = annots.getFirst();
             final String currentLabel = annot.getLabel();
             final String newLabel = mgrGuiUtils.getString(
                     "New label for \"" + currentLabel + "\":", "Rename Annotation", currentLabel);
@@ -6994,38 +6984,30 @@ public class Viewer3D {
 
     private class AllenCCFNavigator {
 
-        private SNTSearchableBar searchableBar;
-        private DefaultTreeModel treeModel;
-        private NavigatorTree tree;
+        private OntologyBrowser browser;
+        private OntologyBrowser.OntologyTab tab;
         private JDialog dialog;
         private GuiUtils guiUtils;
 
         public AllenCCFNavigator() {
-            treeModel = AllenUtils.getTreeModel(true);
-            tree = new NavigatorTree(treeModel);
-            tree.setRootVisible(false); // root mesh already loaded
-            tree.setShowsRootHandles(true);
-            searchableBar = new SNTSearchableBar(new TreeSearchable(tree));
-            //searchableBar.getSearchable().setRepeats(false);
-            searchableBar.setStatusLabelPlaceholder("CCF v"+ AllenUtils.VERSION);
-            searchableBar.setHighlightAll(true);
-            searchableBar.setShowMatchCount(true);
-            searchableBar.setVisibleButtons(
-                    SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_STATUS);
-            tree.setCellRenderer(new CustomRenderer(tree, searchableBar));
+            browser = new OntologyBrowser();
+            tab = browser.addAllenCCFOntology(true);
+            tab.setCheckBoxEnabledPredicate(obj -> {
+                if (obj instanceof AllenCompartment ac)
+                    return ac.isMeshAvailable() && !getOBJs().containsKey(ac.name());
+                return true;
+            });
+            tab.setCellRenderer(new CustomRenderer(tab.getTree(), tab.getSearchableBar()));
+            tab.setPopupMenu(popupMenu());
             refreshTree(false);
         }
 
         private List<AllenCompartment> getCheckedSelection() {
-            final TreePath[] treePaths = tree.getCheckBoxTreeSelectionModel().getSelectionPaths();
-            if (treePaths == null || treePaths.length == 0) {
+            final List<AllenCompartment> list =
+                    browser.getCheckedUserObjects(AllenCompartment.class);
+            if (list.isEmpty()) {
                 guiUtils().error("There are no checked ontologies.");
                 return null;
-            }
-            final List<AllenCompartment> list = new ArrayList<>(treePaths.length);
-            for (final TreePath treePath : treePaths) {
-                final DefaultMutableTreeNode selectedElement = (DefaultMutableTreeNode) treePath.getLastPathComponent();
-                list.add((AllenCompartment) selectedElement.getUserObject());
             }
             return list;
         }
@@ -7034,47 +7016,17 @@ public class Viewer3D {
             for (final String meshLabel : getOBJs().keySet())
                 meshLoaded(meshLabel);
             if (repaint)
-                tree.repaint();
+                tab.repaintTree();
         }
 
         private void meshLoaded(final String meshLabel) {
-            setCheckboxSelected(meshLabel, true);
-            setCheckboxEnabled(meshLabel);
+            tab.setCheckboxSelected(meshLabel, true);
+            tab.repaintTree();
         }
 
         private void meshRemoved(final String meshLabel) {
-            setCheckboxSelected(meshLabel, false);
-            setCheckboxEnabled(meshLabel);
-        }
-
-        private void setCheckboxEnabled(final String nodeLabel) {
-            final DefaultMutableTreeNode node = getNode(nodeLabel);
-            if (node == null)
-                return;
-            tree.isCheckBoxEnabled(new TreePath(node.getPath()));
-        }
-
-        private void setCheckboxSelected(final String nodeLabel, final boolean enable) {
-            final DefaultMutableTreeNode node = getNode(nodeLabel);
-            if (node == null)
-                return;
-            if (enable)
-                tree.getCheckBoxTreeSelectionModel().addSelectionPath(new TreePath(node.getPath()));
-            else
-                tree.getCheckBoxTreeSelectionModel().removeSelectionPath(new TreePath(node.getPath()));
-        }
-
-        private DefaultMutableTreeNode getNode(final String nodeLabel) {
-            final Enumeration<TreeNode> e = ((DefaultMutableTreeNode) tree.getModel().getRoot())
-                    .depthFirstEnumeration();
-            while (e.hasMoreElements()) {
-                final DefaultMutableTreeNode node = (DefaultMutableTreeNode) e.nextElement();
-                final AllenCompartment compartment = (AllenCompartment) node.getUserObject();
-                if (nodeLabel.equals(compartment.name())) {
-                    return node;
-                }
-            }
-            return null;
+            tab.setCheckboxSelected(meshLabel, false);
+            tab.repaintTree();
         }
 
         private void downloadMeshes() {
@@ -7169,7 +7121,7 @@ public class Viewer3D {
                 sb.append("</tr>");
             }
             sb.append("</table>");
-            guiUtils().showHTMLDialog(sb.toString(), "Info On Selected Compartments", false); // guiUtils is not null
+            guiUtils().showHTMLDialog(sb.toString(), "Info On Selected Compartments", false);
         }
 
         private JDialog show() {
@@ -7177,7 +7129,7 @@ public class Viewer3D {
             dialog.getRootPane().putClientProperty("Window.style", "small");
             frame.allenNavigator = this;
             guiUtils = new GuiUtils(dialog);
-            searchableBar.setGuiUtils(guiUtils);
+            tab.getSearchableBar().setGuiUtils(guiUtils);
             dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
             dialog.addWindowListener(new WindowAdapter() {
 
@@ -7187,15 +7139,15 @@ public class Viewer3D {
                     dialog.dispose();
                 }
             });
-            dialog.setContentPane(getContentPane());
+            tab.setBottomPanel(buttonPanel());
+            tab.expandToLevel(4);
+            dialog.setContentPane(browser);
             dialog.pack();
             if (frame.hasManager()) {
-                dialog.setPreferredSize(new Dimension(dialog.getPreferredSize().width,
-                        frame.getHeight()));
+                dialog.setPreferredSize(new Dimension(dialog.getMinimumSize().width, frame.getHeight()));
                 dialog.setLocationRelativeTo(frame.managerPanel);
             }
-            GuiUtils.JTrees.expandToLevel(tree, 4);
-            GuiUtils.JTrees.scrollToLastRow(tree);
+            GuiUtils.JTrees.scrollToLastRow(tab.getTree());
             cmdFinder.attach(dialog);
             dialog.setVisible(true);
             return dialog;
@@ -7203,25 +7155,10 @@ public class Viewer3D {
 
         private void dispose() {
             if (dialog != null) dialog.dispose();
-            searchableBar = null;
-            treeModel = null;
-            tree = null;
+            browser = null;
+            tab = null;
             dialog = null;
             guiUtils = null;
-        }
-        private JPanel getContentPane() {
-            frame.managerPanel.setFixedHeight(searchableBar);
-            final JScrollPane scrollPane = new JScrollPane(tree);
-            tree.setComponentPopupMenu(popupMenu());
-            tree.setVisibleRowCount(20);
-            scrollPane.setWheelScrollingEnabled(true);
-            final JPanel contentPane = new JPanel();
-            contentPane.setBorder(null);
-            contentPane.setLayout(new BoxLayout(contentPane, BoxLayout.Y_AXIS));
-            contentPane.add(searchableBar);
-            contentPane.add(scrollPane);
-            contentPane.add(buttonPanel());
-            return contentPane;
         }
 
         private JPanel buttonPanel() {
@@ -7238,6 +7175,8 @@ public class Viewer3D {
         }
 
         private JPopupMenu popupMenu() {
+            final CheckBoxTree tree = tab.getTree();
+            final SNTSearchableBar searchableBar = tab.getSearchableBar();
             final JPopupMenu pMenu = new JPopupMenu();
             JMenuItem jmi = new JMenuItem("Clear Selection");
             jmi.addActionListener(e -> tree.clearSelection());
@@ -7276,35 +7215,11 @@ public class Viewer3D {
             return pMenu;
         }
 
-        private class NavigatorTree extends CheckBoxTree {
-            private static final long serialVersionUID = 1L;
-
-            public NavigatorTree(final DefaultTreeModel treeModel) {
-                super(treeModel);
-                setLargeModel(true);
-                setDigIn(false);
-                setClickInCheckBoxOnly(true);
-                setEditable(false);
-                setExpandsSelectedPaths(true);
-                setRootVisible(true);
-            }
-            @Override
-            public TreePath getNextMatch(String prefix, int startingRow, Position. Bias bias) {
-                return null; // avoid conflict with search bar
-            }
-            @Override
-            public boolean isCheckBoxEnabled(final TreePath treePath) {
-                final DefaultMutableTreeNode selectedElement = (DefaultMutableTreeNode) treePath.getLastPathComponent();
-                final AllenCompartment compartment = (AllenCompartment) selectedElement.getUserObject();
-                return compartment.isMeshAvailable() && !getOBJs().containsKey(compartment.name());
-            }
-        }
-
-        static class CustomRenderer extends DefaultTreeCellRenderer {
+        static class CustomRenderer extends OntologyBrowser.AllenCCFRenderer {
             private static final long serialVersionUID = 1L;
             private final SNTSearchableBar searchableBar;
 
-            CustomRenderer(NavigatorTree tree, final SNTSearchableBar searchableBar) {
+            CustomRenderer(final JTree tree, final SNTSearchableBar searchableBar) {
                 super();
                 this.searchableBar = searchableBar;
                 searchableBar.getSearchField().getDocument().addDocumentListener(new DocumentListener() {
@@ -7331,21 +7246,15 @@ public class Viewer3D {
             @Override
             public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean sel,
                                                           final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
-                final AllenCompartment ac = (AllenCompartment) ((DefaultMutableTreeNode) value).getUserObject();
-                final Component treeCellRendererComponent = super.getTreeCellRendererComponent(tree, value, sel,
+                final Component c = super.getTreeCellRendererComponent(tree, value, sel,
                         expanded, leaf, row, hasFocus);
+                final AllenCompartment ac = (AllenCompartment) ((DefaultMutableTreeNode) value).getUserObject();
                 if (!searchableBar.getSearchingText().isEmpty() && !sel) {
-                    treeCellRendererComponent.setEnabled(false);
+                    c.setEnabled(false);
                 } else {
-                    treeCellRendererComponent.setEnabled(ac.isMeshAvailable());
+                    c.setEnabled(ac.isMeshAvailable());
                 }
-                if (ac.id() == AllenUtils.BRAIN_ROOT_ID) { // mesh color has no ontological meaning
-                    setIcon(null);
-                } else if (ac.isMeshAvailable()) {
-                    final ColorRGB color = ac.color();
-                    if (color != null) setIcon(IconFactory.nodeIcon(new java.awt.Color(color.getARGB())));
-                }
-                return treeCellRendererComponent;
+                return c;
             }
         }
     }
@@ -7962,7 +7871,7 @@ public class Viewer3D {
             final Transform tTransform = new Transform(new Translate(destination));
             // ArborVBO uses model matrix; soma uses vertex transform
             if (arborVBO != null) arborVBO.applyGeometryTransform(tTransform);
-            if (somaSubShape != null) ((Drawable) somaSubShape).applyGeometryTransform(tTransform);
+            if (somaSubShape != null) somaSubShape.applyGeometryTransform(tTransform);
             translationReset.subSelf(destination);
         }
 
@@ -10225,7 +10134,7 @@ public class Viewer3D {
             });
 
             // Apply foreground to annotation labels
-            ((AChart)chart).overlayAnnotation.labelColor = toAWTColor(newForeground);
+            chart.overlayAnnotation.labelColor = toAWTColor(newForeground);
 
             // Sync FlatLaf with scene dark mode
             syncLookAndFeel(newBackground == Color.BLACK);
