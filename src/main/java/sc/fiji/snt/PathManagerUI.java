@@ -512,12 +512,17 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
-        final JMenu menu = new JMenu("Spine/Varicosities");
+        final JMenu menu = new JMenu("Spine/Varicosities/Labels");
         final String tooltip = "Assumes spine/varicosity markers have already been assigned to selected path(s)";
         menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
 
         // Detection (automated)
-        JMenuItem jmi = new JMenuItem(MultiPathActionListener.DETECT_PERIMAXIMA_CMD);
+        JMenuItem jmi = new JMenuItem(MultiPathActionListener.DETECT_LABEL_PROXIMITY_CMD);
+        jmi.setToolTipText("Detects contact points between paths and labeled surfaces from a segmentation image");
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DETECT_LABEL_PROXIMITY_CMD + "\")");
+        menu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.DETECT_PERIMAXIMA_CMD);
         jmi.setToolTipText("Locates bright intensity peaks (synaptic/spine markers) flanking selected paths");
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DETECT_PERIMAXIMA_CMD + "\")");
@@ -2974,6 +2979,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String DENSITIES_PROFILE_CMD = "Density Profiles...";
         private static final String DETECT_PERIMAXIMA_CMD = "Detect Maxima Around Paths...";
         private static final String DETECT_SWELLINGS_CMD = "Detect Swellings Along Paths...";
+        private static final String DETECT_LABEL_PROXIMITY_CMD = "Detect Label Proximity...";
 
         // Custom tag definition: anything flanked by curly braces
         private static final Pattern TAG_CUSTOM_PATTERN = Pattern.compile(" ?\\{.*}");
@@ -3022,6 +3028,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(GROWTH_ANALYSIS_CMD, new GrowthAnalysisCommand());
             commands.put(DETECT_PERIMAXIMA_CMD, new DetectVaricositiesCommand());
             commands.put(DETECT_SWELLINGS_CMD, new DetectSwellingsCommand());
+            commands.put(DETECT_LABEL_PROXIMITY_CMD, new DetectLabelProximityCommand());
 
             // Modification commands
             commands.put(REVERSE_CMD, new ReverseCommand());
@@ -3577,6 +3584,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
                 (plugin.getUI().new DynamicCmdRunner(AlongPathDetectorCmd.class, inputs)).run();
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class DetectLabelProximityCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                final HashMap<String, Object> inputs = new HashMap<>();
+                inputs.put("paths", selectedPaths);
+                (plugin.getUI().new DynamicCmdRunner(LabelProximityDetectorCmd.class, inputs)).run();
             }
 
             @Override
