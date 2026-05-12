@@ -179,20 +179,22 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
 
         SNTUtils.log("Detected " + results.size() + " proximity contacts");
 
-        // Group results by path, resolving fitted paths back to unfitted originals
-        final Map<Path, List<Detection>> resultsByPath = results.stream()
-                .collect(Collectors.groupingBy(d ->
-                        d.path.isFittedVersionOfAnotherPath()
-                                ? d.path.getUnfitted() : d.path
-                ));
+        // Group results by path+label, resolving fitted paths back to unfitted originals
+        final Map<String, List<Detection>> resultsByPathAndLabel = results.stream()
+                .collect(Collectors.groupingBy(d -> {
+                    final Path p = d.path.isFittedVersionOfAnotherPath()
+                            ? d.path.getUnfitted() : d.path;
+                    return p.getName() + (d.labelValue >= 0 ? " [Label " + d.labelValue + "]" : "");
+                }, LinkedHashMap::new, Collectors.toList()));
 
         if (ui != null && outputChoice.toLowerCase().contains("bookmark")) {
 
-            resultsByPath.forEach((path, detections) -> {
+            resultsByPathAndLabel.forEach((groupName, detections) -> {
                 final List<double[]> locs = detections.stream()
                         .map(Detection::xyzct)
                         .collect(Collectors.toList());
-                ui.getBookmarkManager().add(path.getName() + " Proximity ", locs, path.getColor());
+                final Path refPath = detections.getFirst().path;
+                ui.getBookmarkManager().add(groupName, locs, refPath.getColor());
             });
             resetUI();
             ui.selectTab("Bookmarks");
@@ -206,10 +208,10 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
             }
             RoiManager rm = RoiManager.getInstance2();
             if (rm == null) rm = new RoiManager();
-            for (final Map.Entry<Path, List<Detection>> entry : resultsByPath.entrySet()) {
-                final Path path = entry.getKey();
-                final String name = path.getName() + " (" + entry.getValue().size() + " contacts)";
-                rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, path.getColor()));
+            for (final Map.Entry<String, List<Detection>> entry : resultsByPathAndLabel.entrySet()) {
+                final String name = entry.getKey() + " (" + entry.getValue().size() + " contacts)";
+                final Path refPath = entry.getValue().getFirst().path;
+                rm.addRoi(RoiConverter.toPointRoi(entry.getValue(), imp, name, refPath.getColor()));
             }
             resetUI();
             rm.runCommand("sort");

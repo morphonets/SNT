@@ -282,7 +282,7 @@ public class DelineationsManager {
     private void addToCapacity(final int n) {
         final int currentN = delineations.size();
         final Color[] colors = defaultDelineationColors(Math.min(256, currentN + n));
-        final long lastLabel = delineations.isEmpty() ? 0 : delineations.getLast().label;
+        final long lastLabel = delineations.stream().mapToLong(d -> d.label).max().orElse(0);
         int colorIdx = 0;
         for (int i = 0; i < n; i++) {
             final Delineation del = new Delineation(lastLabel + i + 1, colors[colorIdx++]);
@@ -1243,6 +1243,9 @@ public class DelineationsManager {
                 // labels are applied as negative numbers, so we'll impose positive labels
                 throw new IllegalArgumentException("Label must be greater than 0 and not " + UNDEFINED_LABEL);
             }
+            if (delineations.stream().anyMatch(d -> d.label == label)) {
+                throw new IllegalArgumentException("Duplicate delineation label: " + label);
+            }
             this.color = color;
             this.label = label;
             name = "Delineation " + label;
@@ -1336,7 +1339,10 @@ public class DelineationsManager {
                             "No Paths in ROI")) {
                         return;
                     }
-                    if (this.roi != null) untagNodes(paths);
+                    if (this.roi != null) {
+                        // Clear stale labels from the OLD roi's paths, not the new one
+                        untagNodes((this.roi == DUMMY_ROI) ? pafm.getPaths() : pafm.getPathsInROI(this.roi));
+                    }
                     assignRoi(roi, paths);
                     sntui.plugin.updateAllViewers();
                 }
@@ -1417,16 +1423,12 @@ public class DelineationsManager {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Delineation that = (Delineation) o;
-            return label == that.label &&
-                    Objects.equals(name, that.name) &&
-                    Objects.equals(color, that.color) &&
-                    Objects.equals(roi, that.roi);
+            return label == ((Delineation) o).label;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(label, name, color, roi);
+            return Long.hashCode(label);
         }
     }
 

@@ -181,7 +181,7 @@ public final class DetectorUtils {
 
             if (nearest != v.path || nearestIdx != v.nodeIndex) {
                 reassigned.add(new Detection(v.x, v.y, v.z, v.intensity,
-                        nearest, nearestIdx, Math.sqrt(minDist2)));
+                        nearest, nearestIdx, Math.sqrt(minDist2), v.labelValue));
             } else {
                 reassigned.add(v);
             }

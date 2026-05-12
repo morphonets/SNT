@@ -50,6 +50,13 @@ public class Detection {
     public final int nodeIndex;
     /** Distance from the path skeleton at the detection point (physical units) */
     public final double distanceFromSkeleton;
+    /**
+     * Label value from a segmentation/label image associated with this
+     * detection, or {@code -1} if not applicable. Set by
+     * {@link LabelProximityDetector} to identify which label surface
+     * produced the contact.
+     */
+    public final int labelValue;
 
     /**
      * Creates a new detection.
@@ -65,6 +72,25 @@ public class Detection {
     public Detection(final double x, final double y, final double z,
                      final double intensity, final Path path, final int nodeIndex,
                      final double distanceFromSkeleton) {
+        this(x, y, z, intensity, path, nodeIndex, distanceFromSkeleton, -1);
+    }
+
+    /**
+     * Creates a new detection with an associated label value.
+     *
+     * @param x                    X-coordinate in real-world units
+     * @param y                    Y-coordinate in real-world units
+     * @param z                    Z-coordinate in real-world units
+     * @param intensity            intensity at the detection site
+     * @param path                 associated path
+     * @param nodeIndex            index of the nearest node on the path
+     * @param distanceFromSkeleton distance from the skeleton (physical units)
+     * @param labelValue           label-image value associated with this
+     *                             detection, or {@code -1} if not applicable
+     */
+    public Detection(final double x, final double y, final double z,
+                     final double intensity, final Path path, final int nodeIndex,
+                     final double distanceFromSkeleton, final int labelValue) {
         this.x = x;
         this.y = y;
         this.z = z;
@@ -72,6 +98,7 @@ public class Detection {
         this.path = path;
         this.nodeIndex = nodeIndex;
         this.distanceFromSkeleton = distanceFromSkeleton;
+        this.labelValue = labelValue;
     }
 
     /**
@@ -105,9 +132,12 @@ public class Detection {
 
     @Override
     public String toString() {
-        return String.format(
-                "Detection[x=%.3f,y=%.3f,z=%.3f; I=%.1f; dist=%.3f; path=%s; node=%d]",
+        final String base = String.format(
+                "Detection[x=%.3f,y=%.3f,z=%.3f; I=%.1f; dist=%.3f; path=%s; node=%d",
                 x, y, z, intensity, distanceFromSkeleton,
                 path != null ? path.getName() : "null", nodeIndex);
+        return (labelValue >= 0)
+                ? base + "; label=" + labelValue + "]"
+                : base + "]";
     }
 }

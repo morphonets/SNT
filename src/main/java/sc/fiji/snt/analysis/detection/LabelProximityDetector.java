@@ -102,7 +102,7 @@ public final class LabelProximityDetector {
                         final int nodeIdx = (int) entry[0];
                         final double dist = entry[1];
                         if (dist <= config.distanceThreshold) {
-                            allDetections.add(createDetection(path, nodeIdx, dist));
+                            allDetections.add(createDetection(path, nodeIdx, dist, labelVal));
                         }
                     }
                 } else {
@@ -116,7 +116,7 @@ public final class LabelProximityDetector {
                         }
                     }
                     if (minIdx >= 0) {
-                        allDetections.add(createDetection(path, minIdx, minDist));
+                        allDetections.add(createDetection(path, minIdx, minDist, labelVal));
                     }
                 }
             }
@@ -138,15 +138,22 @@ public final class LabelProximityDetector {
     }
 
     private static Detection createDetection(final Path path, final int nodeIdx,
-                                             final double distance) {
+                                             final double distance,
+                                             final int labelVal) {
         final PointInImage node = path.getNode(nodeIdx);
         // NMS keeps the highest score, so negate distance so that the closest
         // contact point (smallest distance) survives deduplication
         return new Detection(node.x, node.y, node.z,
                 -distance,
-                path, nodeIdx, 0); // distanceFromSkeleton = 0 (detection is on-skeleton)
+                path, nodeIdx, 0, // distanceFromSkeleton = 0 (detection is on-skeleton)
+                labelVal);
     }
 
+    /**
+     * Collects unique non-zero, positive integer label values from the image.
+     * Negative values and non-integer values are excluded, consistent with
+     * the convention that 0 = background and positive integers = labels.
+     */
     private static Set<Integer> collectLabels(final RandomAccessibleInterval<? extends RealType<?>> img) {
         final Set<Integer> labels = new LinkedHashSet<>();
         final Cursor<? extends RealType<?>> cursor = img.cursor();
