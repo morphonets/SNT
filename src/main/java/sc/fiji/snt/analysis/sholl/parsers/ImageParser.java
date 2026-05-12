@@ -170,15 +170,20 @@ public class ImageParser extends ContextCommand implements Parser {
 		if (roi == null) {
 			throw new IllegalArgumentException("Cannot retrieve center: ROI is null!");
 		}
-		if (roi.getType() == Roi.LINE) {
-			final Line line = (Line) roi;
-			setCenterPx(line.x1, line.y1, imp.getZ());
-		} else if (roi.getType() == Roi.POINT) {
-			final Rectangle rect = roi.getBounds();
-			setCenterPx(rect.x, rect.y, imp.getZ());
-		} else {
-			final double[] ctd = roi.getContourCentroid();
-			setCenterPx((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp.getZ());
+		try {
+			if (roi.getType() == Roi.LINE) {
+				final Line line = (Line) roi;
+				setCenterPx(line.x1, line.y1, imp.getZ());
+			} else if (roi.getType() == Roi.POINT) {
+				final Rectangle rect = roi.getBounds();
+				setCenterPx(rect.x, rect.y, imp.getZ());
+			} else {
+				final double[] ctd = roi.getContourCentroid();
+				setCenterPx((int) Math.round(ctd[0]), (int) Math.round(ctd[1]), imp.getZ());
+			}
+		} catch (final IndexOutOfBoundsException ex) {
+			throw new IndexOutOfBoundsException(ex.getMessage()
+					+ ". Does the ROI belong to this image? ROI bounds: " + roi.getBounds());
 		}
 	}
 
@@ -192,8 +197,10 @@ public class ImageParser extends ContextCommand implements Parser {
 	 *                                   image dimensions
 	 */
 	public void setCenterPx(final int x, final int y, final int z) throws IndexOutOfBoundsException {
-		if (x > imp.getWidth() - 1 || y > imp.getHeight() || z > imp.getNSlices())
-			throw new IndexOutOfBoundsException("specified coordinates cannot be applied to image");
+		if (x < 0 || y < 0 || z < 1 || x > imp.getWidth() - 1 || y > imp.getHeight() - 1 || z > imp.getNSlices())
+			throw new IndexOutOfBoundsException(
+					String.format("Specified coordinates [%d, %d, %d] outside image bounds [%d, %d, %d]",
+							x, y, z, imp.getWidth(), imp.getHeight(), imp.getNSlices()));
 		center = new ShollPoint(x, y, z, cal);
 		profile.setCenter(center);
 		xc = x;
@@ -253,9 +260,9 @@ public class ImageParser extends ContextCommand implements Parser {
 	}
 
 	public double maxPossibleRadius() {
-		final double maxX = imp.getWidth() - 1 * cal.pixelWidth;
-		final double maxY = imp.getHeight() - 1 * cal.pixelHeight;
-		final double maxZ = imp.getNSlices() - 1 * cal.pixelDepth;
+		final double maxX = (imp.getWidth() - 1) * cal.pixelWidth;
+		final double maxY = (imp.getHeight() - 1) * cal.pixelHeight;
+		final double maxZ = (imp.getNSlices() - 1) * cal.pixelDepth;
 		final ShollPoint[] points = new ShollPoint[8];
 		points[0] = new ShollPoint(0, 0, 0);
 		points[1] = new ShollPoint(maxX, maxY, maxZ);
