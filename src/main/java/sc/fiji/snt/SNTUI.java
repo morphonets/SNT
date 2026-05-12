@@ -137,6 +137,7 @@ public class SNTUI extends JDialog {
 
     private final PlausibilityMonitor plausibilityMonitor;
     private final CurationManager curationManager;
+    private JDialog ontologyBrowserDialog;
 
     SNT plugin;
     private PathAndFillManager pathAndFillManager;
@@ -3320,7 +3321,21 @@ public class SNTUI extends JDialog {
         ScriptRecorder.setRecordingCall(figureGenerator, "snt.getUI().runCommand(\"Render Illustrations...\")");
         utilitiesMenu.add(figureGenerator);
         utilitiesMenu.add(getRecPlotterMenuItem());
+        utilitiesMenu.addSeparator();
+        final JMenuItem ontologyItem = new JMenuItem("Ontology Browser...", IconFactory.menuIcon(GLYPH.ATLAS));
+        ontologyItem.addActionListener(e -> showOntologyBrowser());
+        utilitiesMenu.add(ontologyItem);
         return utilitiesMenu;
+    }
+
+    private void showOntologyBrowser() {
+        if (ontologyBrowserDialog != null && ontologyBrowserDialog.isVisible()) {
+            ontologyBrowserDialog.toFront();
+            return;
+        }
+        final OntologyBrowser browser = new OntologyBrowser();
+        browser.addAllOntologies();
+        ontologyBrowserDialog = browser.showModelessDialog(this, "Ontology Browser");
     }
 
     private JMenuItem compareReconstructionsMenuItem() {

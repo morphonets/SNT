@@ -6998,7 +6998,6 @@ public class Viewer3D {
                 return true;
             });
             tab.setCellRenderer(new CustomRenderer(tab.getTree(), tab.getSearchableBar()));
-            tab.setPopupMenu(popupMenu());
             refreshTree(false);
         }
 
@@ -7096,32 +7095,7 @@ public class Viewer3D {
         }
 
         private void showSelectionInfo() {
-            final List<AllenCompartment> cs = getCheckedSelection();
-            if (cs == null) return;
-            cs.sort((c1, c2) -> c1.name().compareToIgnoreCase(c2.name()));
-            final StringBuilder sb = new StringBuilder("<header>");
-            sb.append(" <style>");
-            sb.append("  tr:nth-of-type(odd) {background-color:#ccc;}");
-            sb.append( " </style>");
-            sb.append( "</header>");
-            sb.append("<table>");
-            sb.append("<tr>");
-            sb.append("<th>Name</th>").append("<th>Acronym</th>").append("<th>Id</th>").append("<th>Parent</th>")
-                    .append("<th>Ontology depth</th>").append("<th>Alias(es)</th>");
-            sb.append("</tr>");
-            for (final AllenCompartment c : cs) {
-                sb.append("<tr>");
-                sb.append("<td style='text-align:left'>").append(c.name()).append("</td>");
-                sb.append("<td style='text-align:center'>").append(c.acronym()).append("</td>");
-                sb.append("<td style='text-align:center'>").append(c.id()).append("</td>");
-                final AllenCompartment parent = c.getParent();
-                sb.append("<td style='text-align:center'>").append((parent == null) ? "-" : parent.toString()).append("</td>");
-                sb.append("<td style='text-align:center'>").append(c.getOntologyDepth()).append("</td>");
-                sb.append("<td style='text-align:center'>").append(String.join(",", c.aliases())).append("</td>");
-                sb.append("</tr>");
-            }
-            sb.append("</table>");
-            guiUtils().showHTMLDialog(sb.toString(), "Info On Selected Compartments", false);
+            browser.showSelectionInfo(dialog);
         }
 
         private JDialog show() {
@@ -7172,47 +7146,6 @@ public class Viewer3D {
             button.addActionListener(e -> downloadMeshes());
             buttonPanel.add(button);
             return buttonPanel;
-        }
-
-        private JPopupMenu popupMenu() {
-            final CheckBoxTree tree = tab.getTree();
-            final SNTSearchableBar searchableBar = tab.getSearchableBar();
-            final JPopupMenu pMenu = new JPopupMenu();
-            JMenuItem jmi = new JMenuItem("Clear Selection");
-            jmi.addActionListener(e -> tree.clearSelection());
-            pMenu.add(jmi);
-            pMenu.addSeparator();
-            jmi = new JMenuItem("Collapse All");
-            jmi.addActionListener(e -> GuiUtils.JTrees.collapseAllNodes(tree));
-            pMenu.add(jmi);
-            jmi = new JMenuItem("Collapse Selected Level");
-            jmi.addActionListener(e -> {
-                final TreePath selectedPath = tree.getSelectionPath();
-                if (selectedPath != null) GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
-            });
-            pMenu.add(jmi);
-            pMenu.addSeparator();
-            jmi = new JMenuItem("Expand All");
-            jmi.addActionListener(e -> {
-                GuiUtils.JTrees.expandAllNodes(tree);
-                if (!searchableBar.getSearchField().getText().isEmpty())
-                    searchableBar.getSearchField().setText(searchableBar.getSearchField().getText());
-            });
-            pMenu.add(jmi);
-            jmi = new JMenuItem("Expand Selected Level");
-            jmi.addActionListener(e -> {
-                final TreePath selectedPath = tree.getSelectionPath();
-                if (selectedPath != null) GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
-            });
-            pMenu.add(jmi);
-            pMenu.addSeparator();
-            final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Auto-select Children", tree.getCheckBoxTreeSelectionModel().isDigIn());
-            jcmi.addItemListener(e -> tree.getCheckBoxTreeSelectionModel().setDigIn(jcmi.isSelected()));
-            pMenu.add(jcmi);
-            pMenu.addSeparator();
-            pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 2D Atlas Viewer", "https://atlas.brain-map.org/atlas?atlas=602630314"));
-            pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 3D Atlas Viewer", "https://connectivity.brain-map.org/3d-viewer"));
-            return pMenu;
         }
 
         static class CustomRenderer extends OntologyBrowser.AllenCCFRenderer {

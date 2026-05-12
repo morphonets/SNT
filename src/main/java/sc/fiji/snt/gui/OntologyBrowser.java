@@ -34,6 +34,8 @@ import javax.swing.*;
 import javax.swing.text.Position;
 import javax.swing.tree.*;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.KeyEvent;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Enumeration;
@@ -67,6 +69,15 @@ public class OntologyBrowser extends JPanel {
     public static final String SEPARATOR = "::";
 
     private static Point lastDialogLocation;
+
+    /**
+     * When {@code true}, typing in the search bar collapses the tree and
+     * expands only the paths that lead to matching nodes (filter-like UX).
+     * When {@code false}, the default JIDE behavior is used (scroll to match).
+     * This is a global flag so it can be toggled easily if behavior becomes
+     * problematic.
+     */
+    static boolean FILTER_SEARCH = true;
 
     private final JTabbedPane tabbedPane;
     private final List<OntologyTab> tabs;
@@ -113,6 +124,9 @@ public class OntologyBrowser extends JPanel {
         tabbedPane.addTab(tabLabel, tab);
         // Hide tab strip when only one ontology is loaded
         tabbedPane.putClientProperty("JTabbedPane.tabsVisible", tabs.size() > 1);
+        // Install default context menu; callers can replace or extend via
+        // tab.createDefaultPopupMenu() + tab.setPopupMenu()
+        tab.setPopupMenu(tab.createDefaultPopupMenu());
         return tab;
     }
 
@@ -137,7 +151,21 @@ public class OntologyBrowser extends JPanel {
         final OntologyTab tab = addOntology("Allen CCFv" + AllenUtils.VERSION, AllenUtils.getTreeModel(meshesOnly));
         tab.setCellRenderer(new AllenCCFRenderer());
         tab.setStatusLabelPlaceholder("CCFv" + AllenUtils.VERSION);
+        // Extend default popup with Allen-specific atlas links
+        final JPopupMenu pMenu = tab.createDefaultPopupMenu();
+        pMenu.addSeparator();
+        pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 2D Atlas Viewer", "https://atlas.brain-map.org/atlas?atlas=602630314"));
+        pMenu.add(GuiUtils.MenuItems.openHelpURL("Online 3D Atlas Viewer", "https://connectivity.brain-map.org/3d-viewer"));
+        tab.setPopupMenu(pMenu);
         return tab;
+    }
+
+    /**
+     * Adds all the default ontologies as tabs.
+     */
+    public void addAllOntologies() {
+        addAllenCCFOntology();
+        addDrosophilaOntology();
     }
 
     /**
@@ -149,6 +177,11 @@ public class OntologyBrowser extends JPanel {
         final OntologyTab tab = addOntology("Drosophila FBbt", DrosophilaUtils.getTreeModel());
         tab.setCellRenderer(new NoIconRenderer());
         tab.setStatusLabelPlaceholder("FBbt");
+        final JPopupMenu pMenu = tab.createDefaultPopupMenu();
+        pMenu.addSeparator();
+        pMenu.add(GuiUtils.MenuItems.openHelpURL("Online VFB Viewer",
+                "https://v2.virtualflybrain.org/org.geppetto.frontend/geppetto?id=VFB_00101567&i=VFB_00101567"));
+        tab.setPopupMenu(pMenu);
         return tab;
     }
 
@@ -390,7 +423,7 @@ public class OntologyBrowser extends JPanel {
         // Escape key closes the dialog
         dialog.getRootPane().registerKeyboardAction(
                 e -> dialog.dispose(),
-                KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
 
         // Place buttons below the tabbed pane (below the tab strip)
@@ -413,6 +446,131 @@ public class OntologyBrowser extends JPanel {
             return paths.isEmpty() ? null : paths;
         }
         return null;
+    }
+
+    /**
+     * Shows this browser in a modeless (non-modal) dialog for reference
+     * browsing. The dialog stays open while the user works in other windows.
+     * Includes an info button and a copy-to-clipboard button.
+     *
+     * @param parent the parent component for initial positioning
+     * @param title  the dialog title
+     * @return the modeless {@link JDialog}
+     */
+    public JDialog showModelessDialog(final Component parent, final String title) {
+        final Window window = (parent == null) ? null : SwingUtilities.getWindowAncestor(parent);
+        final JDialog dialog = new JDialog(window, title);
+        dialog.getRootPane().putClientProperty("Window.style", "small");
+        dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        final JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
+        final JButton infoButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.INFO, 1f));
+        infoButton.setToolTipText("Info on checked compartments");
+        infoButton.addActionListener(e -> showSelectionInfo(dialog));
+        buttonPanel.add(infoButton);
+        final JButton copyButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.COPY, 1f));
+        copyButton.setToolTipText("Copy checked terms to clipboard");
+        copyButton.addActionListener(e -> copySelectionToClipboard());
+        buttonPanel.add(copyButton);
+
+        // Escape key closes the dialog
+        dialog.getRootPane().registerKeyboardAction(
+                e -> dialog.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW);
+
+        final JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.add(this, BorderLayout.CENTER);
+        wrapper.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.setContentPane(wrapper);
+
+        dialog.setPreferredSize(new java.awt.Dimension(350, 550));
+        dialog.pack();
+        if (lastDialogLocation != null) {
+            dialog.setLocation(lastDialogLocation);
+        } else {
+            dialog.setLocationRelativeTo(parent);
+        }
+        dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosed(final java.awt.event.WindowEvent e) {
+                lastDialogLocation = dialog.getLocation();
+            }
+        });
+        dialog.setVisible(true);
+        return dialog;
+    }
+
+    /**
+     * Displays an HTML info table for the currently checked compartments.
+     * Works with any {@link BrainAnnotation} user objects (Allen CCF,
+     * Drosophila FBbt, etc.).
+     *
+     * @param parent the parent component for the info dialog
+     */
+    public void showSelectionInfo(final Component parent) {
+        final List<BrainAnnotation> annotations =
+                getCheckedUserObjects(BrainAnnotation.class);
+        if (annotations.isEmpty()) {
+            new GuiUtils(parent).error("There are no checked ontologies.");
+            return;
+        }
+        annotations.sort((a, b) -> a.name().compareToIgnoreCase(b.name()));
+        final StringBuilder sb = new StringBuilder("<header>");
+        sb.append(" <style>");
+        sb.append("  tr:nth-of-type(odd) {background-color:#ccc;}");
+        sb.append(" </style>");
+        sb.append("</header>");
+        sb.append("<table>");
+        sb.append("<tr>");
+        sb.append("<th>Name</th><th>Acronym</th><th>Id</th>")
+                .append("<th>Parent</th><th>Ontology depth</th><th>Alias(es)</th>");
+        sb.append("</tr>");
+        for (final BrainAnnotation a : annotations) {
+            sb.append("<tr>");
+            sb.append("<td style='text-align:left'>").append(a.name()).append("</td>");
+            sb.append("<td style='text-align:center'>").append(a.acronym()).append("</td>");
+            sb.append("<td style='text-align:center'>").append(a.id()).append("</td>");
+            final BrainAnnotation par = a.getParent();
+            sb.append("<td style='text-align:center'>")
+                    .append(par == null ? "-" : par.toString()).append("</td>");
+            sb.append("<td style='text-align:center'>")
+                    .append(a.getOntologyDepth()).append("</td>");
+            final String[] aliases = a.aliases();
+            sb.append("<td style='text-align:center'>")
+                    .append(aliases == null ? "" : String.join(", ", aliases)).append("</td>");
+            sb.append("</tr>");
+        }
+        sb.append("</table>");
+        new GuiUtils(parent).showHTMLDialog(sb.toString(),
+                "Info On Selected Compartments", false);
+    }
+
+    /**
+     * Copies the checked terms to the system clipboard. Each term is placed
+     * on its own line, formatted as {@code "acronym (id): name"}.
+     */
+    public void copySelectionToClipboard() {
+        final List<BrainAnnotation> annotations =
+                getCheckedUserObjects(BrainAnnotation.class);
+        if (annotations.isEmpty()) {
+            // Fall back to string-based checked leaves for non-BrainAnnotation trees
+            final List<String> leaves = getSelectedLeaves();
+            if (leaves.isEmpty()) return;
+            final String text = String.join("\n", leaves);
+            Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
+            return;
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (final BrainAnnotation a : annotations) {
+            if (!sb.isEmpty()) sb.append("\n");
+            final String acr = a.acronym();
+            if (acr != null && !acr.isEmpty()) {
+                sb.append(acr).append(" (").append(a.id()).append("): ");
+            }
+            sb.append(a.name());
+        }
+        Toolkit.getDefaultToolkit().getSystemClipboard()
+                .setContents(new StringSelection(sb.toString()), null);
     }
 
     /**
@@ -460,6 +618,37 @@ public class OntologyBrowser extends JPanel {
             searchableBar.setShowMatchCount(true);
             searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_NAVIGATION | SNTSearchableBar.SHOW_HIGHLIGHTS |
                     SNTSearchableBar.SHOW_STATUS);
+
+            // Filter-search: collapse all, then expand only paths to matches.
+            // Listener is always installed; the FILTER_SEARCH flag is checked
+            // at runtime so the gear-menu toggle takes effect immediately.
+            searchableBar.getSearchField().getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                @Override
+                public void insertUpdate(final javax.swing.event.DocumentEvent e) { filterTree(); }
+                @Override
+                public void removeUpdate(final javax.swing.event.DocumentEvent e) { filterTree(); }
+                @Override
+                public void changedUpdate(final javax.swing.event.DocumentEvent e) { filterTree(); }
+                private void filterTree() {
+                    if (!FILTER_SEARCH) return;
+                    // Run after JIDE's TreeSearchable handler to avoid
+                    // it re-expanding nodes we just collapsed
+                    SwingUtilities.invokeLater(() -> {
+                        final String text = searchableBar.getSearchField().getText();
+                        if (text == null || text.isBlank()) {
+                            // Restore default expansion
+                            GuiUtils.JTrees.collapseAllNodes(tree);
+                            GuiUtils.JTrees.expandToLevel(tree, 3);
+                        } else {
+                            revealMatchingNodes(text);
+                        }
+                    });
+                }
+            });
+            final JCheckBoxMenuItem filterSearchItem = new JCheckBoxMenuItem("Filter Tree on Search", FILTER_SEARCH);
+            filterSearchItem.setToolTipText("Collapse non-matching branches while searching");
+            filterSearchItem.addItemListener(e -> FILTER_SEARCH = filterSearchItem.isSelected());
+            searchableBar.addOptionsMenuItem(filterSearchItem);
 
             // Single-selection: deselect previous choice across all tabs
             if (singleSelection) {
@@ -628,6 +817,91 @@ public class OntologyBrowser extends JPanel {
          */
         public void repaintTree() {
             tree.repaint();
+        }
+
+        /**
+         * Collapses the entire tree, then expands only the ancestor paths of
+         * nodes whose {@code toString()} contains the search text
+         * (case-insensitive). Called from the filter-search DocumentListener.
+         */
+        private void revealMatchingNodes(final String text) {
+            final String lower = text.toLowerCase();
+            final DefaultMutableTreeNode root =
+                    (DefaultMutableTreeNode) tree.getModel().getRoot();
+            // Collect ancestor paths of matching leaves
+            final List<TreePath> pathsToExpand = new ArrayList<>();
+            final Enumeration<TreeNode> e = root.depthFirstEnumeration();
+            while (e.hasMoreElements()) {
+                final DefaultMutableTreeNode node =
+                        (DefaultMutableTreeNode) e.nextElement();
+                if (node.getUserObject().toString().toLowerCase().contains(lower)) {
+                    // Expand up to the parent so the matching node is visible
+                    final TreeNode[] ancestors = node.getPath();
+                    if (ancestors.length > 1) {
+                        pathsToExpand.add(new TreePath(
+                                ((DefaultMutableTreeNode) ancestors[ancestors.length - 2]).getPath()));
+                    }
+                }
+            }
+            GuiUtils.JTrees.collapseAllNodes(tree);
+            for (final TreePath p : pathsToExpand) {
+                tree.expandPath(p);
+            }
+            // Scroll to first match if any
+            if (!pathsToExpand.isEmpty()) {
+                tree.scrollPathToVisible(pathsToExpand.getFirst());
+            }
+        }
+
+        /**
+         * Creates the default popup menu with generic tree navigation actions:
+         * Deselect All, Uncheck All, Collapse/Expand All, Collapse/Expand
+         * Selected Level, and Auto-select Children toggle. Callers can append tab-specific items
+         * to the returned menu before installing it via {@link #setPopupMenu(JPopupMenu)}.
+         *
+         * @return a new popup menu with standard tree controls
+         */
+        public JPopupMenu createDefaultPopupMenu() {
+            final JPopupMenu pMenu = new JPopupMenu();
+            JMenuItem jmi = new JMenuItem("Deselect All");
+            jmi.addActionListener(e -> tree.clearSelection());
+            pMenu.add(jmi);
+            jmi = new JMenuItem("Uncheck All");
+            jmi.addActionListener(e -> tree.getCheckBoxTreeSelectionModel().clearSelection());
+            pMenu.add(jmi);
+            pMenu.addSeparator();
+            jmi = new JMenuItem("Collapse All");
+            jmi.addActionListener(e -> GuiUtils.JTrees.collapseAllNodes(tree));
+            pMenu.add(jmi);
+            jmi = new JMenuItem("Collapse Selected Level");
+            jmi.addActionListener(e -> {
+                final TreePath selectedPath = tree.getSelectionPath();
+                if (selectedPath != null)
+                    GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
+            });
+            pMenu.add(jmi);
+            pMenu.addSeparator();
+            jmi = new JMenuItem("Expand All");
+            jmi.addActionListener(e -> {
+                GuiUtils.JTrees.expandAllNodes(tree);
+                if (!searchableBar.getSearchField().getText().isEmpty())
+                    searchableBar.getSearchField().setText(
+                            searchableBar.getSearchField().getText());
+            });
+            pMenu.add(jmi);
+            jmi = new JMenuItem("Expand Selected Level");
+            jmi.addActionListener(e -> {
+                final TreePath selectedPath = tree.getSelectionPath();
+                if (selectedPath != null)
+                    GuiUtils.JTrees.expandNodesOfSameLevel(tree, selectedPath);
+            });
+            pMenu.add(jmi);
+            pMenu.addSeparator();
+            final JCheckBoxMenuItem jcmi = new JCheckBoxMenuItem("Auto-select Children",
+                    tree.getCheckBoxTreeSelectionModel().isDigIn());
+            jcmi.addItemListener(e -> tree.getCheckBoxTreeSelectionModel().setDigIn(jcmi.isSelected()));
+            pMenu.add(jcmi);
+            return pMenu;
         }
 
         List<String> getSelectedPaths() {

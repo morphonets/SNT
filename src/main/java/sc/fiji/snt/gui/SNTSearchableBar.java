@@ -399,6 +399,16 @@ public class SNTSearchableBar extends SearchableBar {
 		this.subFilteringEnabled = enable;
 	}
 
+	/**
+	 * Adds a menu item to the search bar's options (gear) menu.
+	 * The item is appended before the "Tips &amp; Shortcuts" entry.
+	 *
+	 * @param item the menu item to add
+	 */
+	public void addOptionsMenuItem(final JMenuItem item) {
+		appendToOptionsMenu(List.of(item));
+	}
+
 	public void setStatus(final String text) {
 		super._statusLabel.setText(text);
 	}
