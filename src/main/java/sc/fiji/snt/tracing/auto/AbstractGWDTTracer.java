@@ -93,6 +93,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected double resampleStep = 2.0;  // Resample step in voxels (APP2 uses ~10 for large images)
     protected int cnnType = 2;  // APP2's cnn_type: 1=6-conn, 2=18-conn (default), 3=26-conn
     private boolean allowGap = false;  // APP2's is_break_accept: bridge single dark voxels
+    protected boolean zigzagRemovalEnabled = true;  // Remove consecutive direction reversals
+    protected boolean overshootRemovalEnabled = true;  // Remove direction reversals at branch points
+    protected double branchTuneMaxAngle = 90.0;  // Max angle (degrees) for branch tuning turn test; NaN disables
 
     // Computed data
     protected double maxIntensity;
@@ -321,6 +324,47 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
+     * Enables or disables zigzag removal. When enabled, consecutive nodes that
+     * form back-and-forth direction reversals (both with angles &ge; 90&deg;) are
+     * collapsed. Default: true
+     *
+     * @param enabled true to enable zigzag removal
+     */
+    public void setZigzagRemovalEnabled(final boolean enabled) {
+        this.zigzagRemovalEnabled = enabled;
+    }
+
+    /**
+     * Enables or disables overshoot removal. When enabled, continuation nodes
+     * that reverse direction adjacent to a branch point are collapsed. This
+     * removes short stubs where the tracing overshoots past a bifurcation and
+     * doubles back. Default: true
+     *
+     * @param enabled true to enable overshoot removal
+     */
+    public void setOvershootRemovalEnabled(final boolean enabled) {
+        this.overshootRemovalEnabled = enabled;
+    }
+
+    /**
+     * Sets the maximum angle (in degrees) for the branch tuning turn test.
+     * During branch tuning, a node adjacent to a branch point is re-parented
+     * to a closer neighbor only if the original connection forms an angle
+     * &ge; this threshold (i.e., a direction reversal). Lower values make
+     * tuning more aggressive (more rewiring); higher values make it more
+     * conservative.
+     * <p>
+     * Set to {@link Double#NaN} or a negative value to disable branch tuning
+     * entirely. Default: 90.0 (equivalent to NeuTube's dot-product &le; 0 test).
+     * </p>
+     *
+     * @param maxAngleDeg maximum angle in degrees, or NaN/negative to disable
+     */
+    public void setBranchTuneMaxAngle(final double maxAngleDeg) {
+        this.branchTuneMaxAngle = maxAngleDeg;
+    }
+
+    /**
      * Sets the seed point (soma location) in voxel coordinates.
      * For 2D images, only x and y are used (z is ignored if provided).
      */
@@ -398,6 +442,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             if (smoothEnabled) {
                 log("Smoothing final curve...");
                 smoothCurve(graph, smoothWindowSize);
+            }
+
+            if (zigzagRemovalEnabled) {
+                removeZigzags(graph);
+            }
+            if (overshootRemovalEnabled) {
+                removeOvershoots(graph);
+            }
+            if (!Double.isNaN(branchTuneMaxAngle) && branchTuneMaxAngle >= 0) {
+                tuneBranches(graph, Math.cos(Math.toRadians(branchTuneMaxAngle)));
             }
 
             if (resampleEnabled) {
@@ -711,6 +765,248 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 node.z = sumZ / sumWeight;
                 node.radius = Math.max(0.5, sumR / sumWeight);
             }
+        }
+    }
+
+    /**
+     * Computes the cosine of the angle at node {@code b} in the path
+     * a&rarr;b&rarr;c. Vectors (a-b) and (b-c) are used; the result is the
+     * dot product of the unit vectors, i.e.&nbsp;cos(angle). A value of 1
+     * means straight continuation, 0 means 90&deg;, and &minus;1 means full
+     * reversal.
+     *
+     * @return cosine of the angle, or {@link Double#NaN} if either vector has
+     *         zero length
+     */
+    private static double cosAngle(final SWCPoint a, final SWCPoint b, final SWCPoint c) {
+        final double v1x = a.x - b.x, v1y = a.y - b.y, v1z = a.z - b.z;
+        final double v2x = b.x - c.x, v2y = b.y - c.y, v2z = b.z - c.z;
+        final double len1sq = v1x * v1x + v1y * v1y + v1z * v1z;
+        final double len2sq = v2x * v2x + v2y * v2y + v2z * v2z;
+        if (len1sq == 0 || len2sq == 0) return Double.NaN;
+        return (v1x * v2x + v1y * v2y + v1z * v2z) / Math.sqrt(len1sq * len2sq);
+    }
+
+    /**
+     * Tests whether three consecutive nodes form a direction reversal (angle
+     * &ge; 90&deg;). Equivalent to {@code cosAngle(a,b,c) <= 0}.
+     *
+     * @param a the first node (e.g., parent)
+     * @param b the middle node
+     * @param c the third node (e.g., child)
+     * @return true if the path a&rarr;b&rarr;c reverses direction
+     */
+    private static boolean formsTurn(final SWCPoint a, final SWCPoint b, final SWCPoint c) {
+        return cosAngle(a, b, c) <= 0;
+    }
+
+    /**
+     * Tests whether three consecutive nodes form an angle exceeding the given
+     * threshold. An angle of 90&deg; corresponds to a dot product of 0; larger
+     * angles have negative cosines.
+     *
+     * @param a            the first node
+     * @param b            the middle node
+     * @param c            the third node
+     * @param cosThreshold cosine of the maximum allowed angle (e.g., 0 for
+     *                     90&deg;, &minus;0.5 for 120&deg;). The path is a
+     *                     "turn" when cosAngle &le; this value.
+     * @return true if the angle at b exceeds the threshold
+     */
+    private static boolean formsTurn(final SWCPoint a, final SWCPoint b, final SWCPoint c,
+                                     final double cosThreshold) {
+        return cosAngle(a, b, c) <= cosThreshold;
+    }
+
+    /**
+     * Returns the parent of a node in the graph, or null if none exists.
+     */
+    private static SWCPoint getParent(final DirectedWeightedGraph graph, final SWCPoint node) {
+        final Set<SWCWeightedEdge> inEdges = graph.incomingEdgesOf(node);
+        return inEdges.isEmpty() ? null : graph.getEdgeSource(inEdges.iterator().next());
+    }
+
+    /**
+     * Returns the single child of a continuation node, or null if the node has
+     * zero or multiple children.
+     */
+    private static SWCPoint getSingleChild(final DirectedWeightedGraph graph, final SWCPoint node) {
+        return (graph.outDegreeOf(node) == 1)
+                ? graph.getEdgeTarget(graph.outgoingEdgesOf(node).iterator().next())
+                : null;
+    }
+
+    /**
+     * Removes a continuation node from the graph, reconnecting its parent to
+     * each of its children. Edge weights are updated to reflect the new
+     * Euclidean distances.
+     *
+     * @param graph the graph to modify
+     * @param node  the node to remove (must have exactly one incoming edge)
+     */
+    private static void mergeToParent(final DirectedWeightedGraph graph, final SWCPoint node) {
+        final SWCPoint parent = getParent(graph, node);
+        if (parent == null) return;
+        final List<SWCPoint> children = new ArrayList<>();
+        for (final SWCWeightedEdge e : graph.outgoingEdgesOf(node)) {
+            children.add(graph.getEdgeTarget(e));
+        }
+        graph.removeVertex(node);
+        for (final SWCPoint child : children) {
+            if (graph.containsVertex(child) && graph.containsVertex(parent)) {
+                final SWCWeightedEdge newEdge = graph.addEdge(parent, child);
+                if (newEdge != null) {
+                    graph.setEdgeWeight(newEdge, parent.distanceTo(child));
+                }
+            }
+        }
+    }
+
+    /**
+     * Removes zigzag artifacts from the graph. A zigzag is two consecutive
+     * continuation nodes that both reverse direction (angle &ge; 90&deg;). The
+     * inner node is merged to its parent, collapsing the back-and-forth
+     * pattern. The process repeats until no more zigzags are found.
+     * <p>
+     * Adapted from NeuTube's {@code Swc_Tree_Remove_Zigzag}.
+     * </p>
+     *
+     * @param graph the graph to clean
+     * @see #setZigzagRemovalEnabled(boolean)
+     */
+    protected void removeZigzags(final DirectedWeightedGraph graph) {
+        boolean changed = true;
+        int removed = 0;
+        while (changed) {
+            changed = false;
+            // Snapshot vertex set to avoid concurrent modification
+            for (final SWCPoint node : new ArrayList<>(graph.vertexSet())) {
+                if (!graph.containsVertex(node)) continue;
+                // Node must be a continuation (single parent, single child)
+                if (graph.outDegreeOf(node) != 1 || graph.inDegreeOf(node) != 1) continue;
+                final SWCPoint parent = getParent(graph, node);
+                final SWCPoint child = getSingleChild(graph, node);
+                if (parent == null || child == null) continue;
+                if (!formsTurn(parent, node, child)) continue;
+                // Child must also be a continuation and a turn
+                if (!graph.containsVertex(child)) continue;
+                if (graph.outDegreeOf(child) != 1 || graph.inDegreeOf(child) != 1) continue;
+                final SWCPoint grandchild = getSingleChild(graph, child);
+                if (grandchild == null) continue;
+                if (!formsTurn(node, child, grandchild)) continue;
+                // Both are turns: collapse the inner node (child)
+                mergeToParent(graph, child);
+                removed++;
+                changed = true;
+            }
+        }
+        if (removed > 0) {
+            log("  Zigzag removal: collapsed " + removed + " nodes");
+        }
+    }
+
+    /**
+     * Removes overshoot artifacts from the graph. An overshoot is a
+     * continuation node that reverses direction and sits adjacent to a branch
+     * point&mdash;either its parent is a branch point (and its child is not) or
+     * its child is a branch point (and its parent is not). This pattern
+     * indicates the tracing overshot past a bifurcation and doubled back.
+     * <p>
+     * Adapted from NeuTube's {@code Swc_Tree_Remove_Overshoot}.
+     * </p>
+     *
+     * @param graph the graph to clean
+     * @see #setOvershootRemovalEnabled(boolean)
+     */
+    protected void removeOvershoots(final DirectedWeightedGraph graph) {
+        int removed = 0;
+        for (final SWCPoint node : new ArrayList<>(graph.vertexSet())) {
+            if (!graph.containsVertex(node)) continue;
+            // Must be a continuation node
+            if (graph.outDegreeOf(node) != 1 || graph.inDegreeOf(node) != 1) continue;
+            final SWCPoint parent = getParent(graph, node);
+            final SWCPoint child = getSingleChild(graph, node);
+            if (parent == null || child == null) continue;
+            if (!formsTurn(parent, node, child)) continue;
+            // Overshoot: turn is adjacent to exactly one branch point
+            final boolean parentIsBP = graph.outDegreeOf(parent) > 1;
+            final boolean childIsBP = graph.outDegreeOf(child) > 1;
+            if (parentIsBP == childIsBP) continue; // both or neither — not an overshoot
+            mergeToParent(graph, node);
+            removed++;
+        }
+        if (removed > 0) {
+            log("  Overshoot removal: collapsed " + removed + " nodes");
+        }
+    }
+
+    /**
+     * Tunes branch-point topology by re-parenting nodes adjacent to
+     * bifurcations. For each continuation node whose parent is a branch point,
+     * the method considers alternative attachment targets (grandparent,
+     * siblings) and picks the closest one that does not create a turn exceeding
+     * the configured angle threshold.
+     * <p>
+     * Adapted from NeuTube's {@code Swc_Tree_Node_Tune_Branch} (Part&nbsp;1:
+     * nodes whose parent is a branch point).
+     * </p>
+     *
+     * @param graph        the graph to modify
+     * @param cosThreshold cosine of the maximum allowed angle. Connections with
+     *                     {@code cosAngle <= cosThreshold} are considered turns
+     *                     and the node becomes eligible for rewiring.
+     * @see #setBranchTuneMaxAngle(double)
+     */
+    protected void tuneBranches(final DirectedWeightedGraph graph, final double cosThreshold) {
+        int rewired = 0;
+        for (final SWCPoint node : new ArrayList<>(graph.vertexSet())) {
+            if (!graph.containsVertex(node)) continue;
+            // Must be a continuation node (single parent, single child)
+            if (graph.outDegreeOf(node) != 1 || graph.inDegreeOf(node) != 1) continue;
+            final SWCPoint parent = getParent(graph, node);
+            if (parent == null) continue;
+            // Parent must be a branch point
+            if (graph.outDegreeOf(parent) <= 1) continue;
+            final SWCPoint child = getSingleChild(graph, node);
+            if (child == null) continue;
+
+            // Current connection must be a turn to be eligible for rewiring
+            if (!formsTurn(child, node, parent, cosThreshold)) continue;
+
+            // --- Find best alternative attachment point ---
+            SWCPoint bestTarget = null;
+            double bestDist = Double.MAX_VALUE;
+
+            // Candidate: grandparent (parent's parent)
+            final SWCPoint grandparent = getParent(graph, parent);
+            if (grandparent != null && !formsTurn(child, node, grandparent, cosThreshold)) {
+                bestTarget = grandparent;
+                bestDist = node.distanceTo(grandparent);
+            }
+
+            // Candidates: siblings (other children of parent)
+            for (final SWCWeightedEdge e : new ArrayList<>(graph.outgoingEdgesOf(parent))) {
+                final SWCPoint sibling = graph.getEdgeTarget(e);
+                if (sibling.equals(node)) continue;
+                if (formsTurn(child, node, sibling, cosThreshold)) continue;
+                final double d = node.distanceTo(sibling);
+                if (d < bestDist) {
+                    bestTarget = sibling;
+                    bestDist = d;
+                }
+            }
+
+            if (bestTarget != null) {
+                graph.removeEdge(parent, node);
+                final SWCWeightedEdge newEdge = graph.addEdge(bestTarget, node);
+                if (newEdge != null) {
+                    graph.setEdgeWeight(newEdge, bestDist);
+                }
+                rewired++;
+            }
+        }
+        if (rewired > 0) {
+            log("  Branch tuning: rewired " + rewired + " nodes");
         }
     }
 
