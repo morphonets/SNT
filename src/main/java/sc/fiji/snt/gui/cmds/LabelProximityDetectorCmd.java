@@ -94,12 +94,14 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
         // Build list of open images that pass label-image heuristics
         labelCandidates = new LinkedHashMap<>();
         for (final ImagePlus imp : ImpUtils.getOpenImages()) {
-            if (imp.isHyperStack()) continue; // skip hyperstacks; only first C/T would be used
+
+            if (imp.isHyperStack() || ImpUtils.isBinary(imp))
+                continue; // skip binary and hyperstacks; only first C/T would be used
+
             // Quick dimension check: label image should match tracing image spatially
             final ImagePlus tracingImp = snt.getImagePlus();
             if (tracingImp != null) {
-                if (imp.getWidth() != tracingImp.getWidth()
-                        || imp.getHeight() != tracingImp.getHeight()) {
+                if (imp.getWidth() != tracingImp.getWidth() || imp.getHeight() != tracingImp.getHeight()) {
                     continue;
                 }
                 if (tracingImp.getNSlices() > 1 && imp.getNSlices() != tracingImp.getNSlices()) {
@@ -109,8 +111,7 @@ public class LabelProximityDetectorCmd extends CommonDynamicCmd {
             labelCandidates.put(imp.getTitle(), imp);
         }
 
-        final MutableModuleItem<String> labelItem = getInfo()
-                .getMutableInput("labelImageChoice", String.class);
+        final MutableModuleItem<String> labelItem = getInfo().getMutableInput("labelImageChoice", String.class);
         if (labelCandidates.isEmpty()) {
             labelItem.setChoices(Collections.singletonList(NO_LABEL_IMAGES));
         } else {
