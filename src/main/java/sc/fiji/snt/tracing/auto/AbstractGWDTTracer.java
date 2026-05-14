@@ -533,16 +533,19 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log("Intensity range: [" + minIntensity + ", " + maxIntensity + "]");
 
             // Step 2: Compute GWDT
+            status("Computing distance transform...");
             log("Computing GWDT...");
             storage.computeGWDT(source, threshold, spacing, minIntensity, maxIntensity);
             log("GWDT max value: " + storage.getMaxGWDT());
 
             // Step 3: Fast Marching
+            status("Fast marching...");
             log("Building initial tree via Fast Marching...");
             final long seedIndex = posToIndex(seedVoxel);
             runFastMarching(threshold, seedIndex);
 
             // Step 4: Build graph
+            status("Building graph...");
             log("Converting to graph...");
             final DirectedWeightedGraph graph = storage.buildGraph(dims, spacing, threshold);
             log("Graph: " + graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
@@ -550,12 +553,15 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             // Step 5-8: Pruning, smoothing, etc (same as before, using graph)
             recalculateRadiiFromImage(graph, threshold);
             if (scoreMapEnabled) {
+                status("Computing score map...");
                 log("Computing score map...");
                 computeAndApplyScoreMap(graph);
             }
+            status("Pruning branches...");
             darkNodeAndSegmentPruning(graph, threshold);
             hierarchicalPrune(graph, threshold);
             if (reconnectEnabled) {
+                status("Reconnecting components...");
                 log("Reconnecting disconnected components via A*...");
                 final SWCPoint root = findGraphRoot(graph);
                 if (root != null) {
@@ -567,6 +573,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             }
             removeDisconnectedComponents(graph);
 
+            status("Refining traces...");
             if (smoothEnabled) {
                 log("Smoothing final curve...");
                 smoothCurve(graph, smoothWindowSize);
@@ -2642,6 +2649,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log("Tracing failed: No meaningful vertices exist");
             return Collections.emptyList();
         }
+        status("Building trees...");
         final List<Tree> trees = tracedTrees(graph);
         if (verbose) {
             int totalPaths = 0;

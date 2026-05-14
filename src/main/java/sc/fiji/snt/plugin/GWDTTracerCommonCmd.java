@@ -267,11 +267,11 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             if (chosenImp == null || abortRun) return;
 
             status("Running GWDT tracing...", false);
-            snt.setCanvasLabelAllPanes("GWDT Autotracing...");
 
             // Create tracer
             final boolean scoreMapEnabled = !SCORE_MAP_NONE.equals(scoreMapFilter);
             final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(chosenImp);
+            tracer.setStatusListener(snt::setCanvasLabelAllPanes);
             tracer.setVerbose(debugMode);
             tracer.setBackgroundThreshold(backgroundThreshold);
             tracer.setMinSegmentLengthVoxels(lengthThreshold);

@@ -44,6 +44,7 @@ import sc.fiji.snt.util.Logger;
 import sc.fiji.snt.util.SWCPoint;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Abstract base class for grayscale-based automatic neuron tracers.
@@ -66,6 +67,7 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     protected int rootStrategy = ROI_UNSET;
     protected Logger logger;
     protected boolean verbose = false;
+    private Consumer<String> statusListener;
 
     /**
      * Computes EDT where TRUE = background, so result gives distance to nearest background.
@@ -778,6 +780,26 @@ public abstract class AbstractAutoTracer implements AutoTracer {
             }
         }
         return count > 0 ? sum / count : 1.0;
+    }
+
+    /**
+     * Sets a listener that receives short status messages at each major phase
+     * of the tracing pipeline (e.g. "Computing distance transform..."). Useful
+     * for updating UI labels or progress indicators.
+     *
+     * @param listener the status consumer, or null to clear
+     */
+    public void setStatusListener(final Consumer<String> listener) {
+        this.statusListener = listener;
+    }
+
+    /**
+     * Sends a status message to the registered listener, if any.
+     *
+     * @param message the status message
+     */
+    protected void status(final String message) {
+        if (statusListener != null) statusListener.accept(message);
     }
 
     /**
