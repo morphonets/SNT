@@ -122,7 +122,7 @@ public class AutoTraceConfig {
         }
         if (!contractions.isEmpty()) {
             config.meanContraction = contractions.stream().mapToDouble(Double::doubleValue).average().orElse(Double.NaN);
-            // Set reconnect threshold at 80% of observed minimum contraction —
+            // Set reconnect threshold at 80% of observed minimum contraction
             // real neurites are at least this straight, so bridges should be too
             final double minContraction = contractions.stream().mapToDouble(Double::doubleValue).min().orElse(0.5);
             config.reconnectMinContraction = Math.max(0.3, minContraction * 0.8);
@@ -347,7 +347,7 @@ public class AutoTraceConfig {
         final List<Double> angles = new ArrayList<>();
         for (final Path p : paths) {
             if (p.getParentPath() == null || p.size() < 2) continue;
-            // This path branches off a parent — compute extension angle
+            // This path branches off a parent: compute extension angle
             final PointInImage start = p.getNode(0);
             // Use first few nodes for tangent direction
             final int tangentLen = Math.min(5, p.size());

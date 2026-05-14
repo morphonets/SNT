@@ -64,17 +64,21 @@ import java.util.List;
 public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     // ROI strategy constants
-    protected static final String ROI_UNSET = "None. Use auto-detection";
-    protected static final String ROI_EDGE = "Area ROI around soma: One tree per primary neurite";
-    protected static final String ROI_CENTROID = "Single tree rooted at ROI centroid";
-    protected static final String ROI_CENTROID_WEIGHTED = "Single tree rooted at ROI weighted centroid";
+    private static final String ROI_UNSET = "None. Use auto-detection";
+    private static final String ROI_EDGE = "Area ROI around soma: One tree per primary neurite";
+    private static final String ROI_CENTROID = "Single tree rooted at ROI centroid";
+    private static final String ROI_CENTROID_WEIGHTED = "Single tree rooted at ROI weighted centroid";
     // Image choice constants
-    protected static final String IMG_TRACED_CHOICE = "Image being traced";
+    static final String IMG_TRACED_CHOICE = "Image being traced";
     // Score map strategy constants
-    protected static final String SCORE_MAP_NONE = "None. Disable score mapping";
-    protected static final String SCORE_MAP_TUBENESS = "Tubeness (default)";
-    protected static final String SCORE_MAP_FRANGI = "Frangi";
-    protected static final String SCORE_MAP_OTHER = "Secondary image layer";
+    static final String SCORE_MAP_NONE = "None. Disable score mapping";
+    static final String SCORE_MAP_TUBENESS = "Tubeness (default)";
+    static final String SCORE_MAP_FRANGI = "Frangi";
+    static final String SCORE_MAP_OTHER = "Secondary image layer";
+    // After-tracing action constants
+    private static final String AFTER_DO_NOTHING = "Do nothing";
+    private static final String AFTER_REPLACE = "Replace existing paths";
+    private static final String AFTER_REPLACE_AND_PROOFREAD = "Replace & prepare for proofreading";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER1 = "<HTML><b>I. Input Image";
@@ -221,19 +225,30 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     "Default: Medium")
     private String connectivityChoice = "Medium";
 
-    @Parameter(label = "Replace existing paths",
-            description = "<HTML>Whether to clear existing paths before adding new ones")
-    private boolean clearExisting;
-
-    @Parameter(label = "Apply distinct colors",
-            description = "<HTML>Whether paths should be assigned unique colors")
-    private boolean assignDistinctColors = true;
-
     @Parameter(label = "Debug mode", persist = false, callback = "debugModeCallback",
             description = "<HTML>Enable verbose logging to Console")
     protected boolean debugMode;
 
+    @Parameter(label = "After tracing",
+            choices = {AFTER_DO_NOTHING, AFTER_REPLACE, AFTER_REPLACE_AND_PROOFREAD},
+            description = "<HTML>What to do after tracing completes:<dl>" +
+                    "<dt><i>" + AFTER_DO_NOTHING + "</i></dt>" +
+                    "<dd>Keep existing paths; add new traces alongside them</dd>" +
+                    "<dt><i>" + AFTER_REPLACE + "</i></dt>" +
+                    "<dd>Clear existing paths before adding new ones</dd>" +
+                    "<dt><i>" + AFTER_REPLACE_AND_PROOFREAD + "</i></dt>" +
+                    "<dd>Replace, assign unique colors, auto-calibrate the<br>" +
+                    "Curation Manager from the traced result, and enable<br>" +
+                    "live monitoring for immediate proofreading</dd>" +
+                    "</dl>")
+    private String afterTracingChoice = AFTER_DO_NOTHING;
+
     protected boolean abortRun;
+
+    @SuppressWarnings("unused")
+    private void debugModeCallback() {
+        SNTUtils.setDebugMode(debugMode);
+    }
 
     // --- Shared init helpers ---
 
@@ -337,14 +352,16 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             }
 
             // Add to PathAndFillManager
+            final boolean replace = !AFTER_DO_NOTHING.equals(afterTracingChoice);
+            final boolean proofread = AFTER_REPLACE_AND_PROOFREAD.equals(afterTracingChoice);
             final PathAndFillManager pafm = sntService.getPathAndFillManager();
-            if (clearExisting) {
+            if (replace) {
                 pafm.clear();
             }
             for (final Tree tree : trees) {
                 tree.assignImage(chosenImp);
                 tree.list().forEach(path -> path.setCTposition(snt.getChannel(), snt.getFrame()));
-                if (assignDistinctColors) TreeUtils.assignUniqueColors(tree, "dim");
+                if (proofread) TreeUtils.assignUniqueColors(tree, "dim");
                 pafm.addTree(tree, "GWDT Autotraced");
             }
 
@@ -353,6 +370,11 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             }
 
             resetUI(false, SNTUI.READY);
+
+            if (proofread && ui != null) {
+                ui.getCurationManager().calibrateFromTrees(trees);
+            }
+
             status("Successfully traced " + trees.size() + " tree(s)", true);
 
         } catch (final Throwable ex) {

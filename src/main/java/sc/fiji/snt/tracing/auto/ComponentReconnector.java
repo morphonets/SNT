@@ -234,7 +234,7 @@ public class ComponentReconnector<T extends RealType<T>> {
 
             if (candidates.isEmpty()) continue;
 
-            // Sort by distance — try closest first
+            // Sort by distance, try closest first
             candidates.sort(Comparator.comparingDouble(c -> c.distance));
 
             // Try each candidate until one succeeds
@@ -251,7 +251,7 @@ public class ComponentReconnector<T extends RealType<T>> {
                         String.format("%.1f", pair.distance) + ")");
 
                 // Update KDTree with new nodes from the reconnected component
-                // (For simplicity, we don't rebuild the KDTree — subsequent components
+                // (For simplicity, we don't rebuild the KDTree, subsequent components
                 // can still connect to the original main tree. A full rebuild could
                 // be done here for maximum accuracy.)
                 break; // one bridge per component is enough
@@ -384,8 +384,7 @@ public class ComponentReconnector<T extends RealType<T>> {
 
         // Dot product of unit tangents
         final double dot = dotNormalized(bridgeTangent, treeTangent);
-        // We use abs(dot) because the bridge could approach from either direction
-        // along the existing branch — both are valid
+        // We use abs(dot) because the bridge could approach from either direction long the existing branch: both are valid
         return Math.abs(dot) >= cosThreshold;
     }
 

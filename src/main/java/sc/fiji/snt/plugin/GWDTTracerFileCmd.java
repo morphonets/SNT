@@ -29,7 +29,7 @@ import org.scijava.plugin.Plugin;
  * Non-interactive command for file-based GWDT autotracing. Used by
  * {@link sc.fiji.snt.SNTUI SNTUI}'s ImportAction to process images that may
  * be too large to fit into memory. Unlike {@link GWDTTracerCmd}, this command
- * does not implement {@code Interactive} — the standard SciJava OK button
+ * does not implement {@code Interactive} because the standard SciJava OK button
  * triggers {@link #run()}, which executes the tracing directly.
  *
  * @author Tiago Ferreira

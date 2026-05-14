@@ -40,9 +40,9 @@ import java.util.function.Consumer;
  * <p>
  * The dialog has two sections:
  * <ol>
- *   <li><b>Source Statistics</b> — read-only summary of what was measured from
+ *   <li><b>Source Statistics</b> Read-only summary of what was measured from
  *       the example paths (mean radius, intensity, contraction, etc.)</li>
- *   <li><b>Derived Parameters</b> — each row shows a parameter name, its derived
+ *   <li><b>Derived Parameters</b> Each row shows a parameter name, its derived
  *       value, and a checkbox for inclusion when "Apply Selected" is clicked</li>
  * </ol>
  *
@@ -69,7 +69,7 @@ public class AutoTraceConfigDialog extends JDialog {
 
     /**
      * Sets the callback invoked when "Apply Selected" is clicked. The callback
-     * receives the same {@link AutoTraceConfig} — the caller should inspect
+     * receives the same {@link AutoTraceConfig}: the caller should inspect
      * {@link #isSelected(String)} to decide which fields to apply.
      *
      * @param callback the apply action

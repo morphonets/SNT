@@ -413,7 +413,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Sets an external score/probability map to use for per-node scoring.
      * <p>
      * This can be any {@link RandomAccessibleInterval} whose values represent
-     * structure confidence at each voxel — e.g., a deep-learning prediction,
+     * structure confidence at each voxel, e.g., a deep-learning prediction,
      * a pre-computed vesselness image, or any other probability map. The RAI
      * must have the same spatial dimensions as the source image.
      * </p>
@@ -922,7 +922,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * </pre>
      * where {@code r} is the node radius in voxels. For large radii the factor
      * approaches {@code base × 1.33}; for very small radii it approaches
-     * {@code base × 1.02} — i.e., the threshold drops substantially.
+     * {@code base × 1.02}, i.e., the threshold drops substantially.
      *
      * @param baseThreshold the configured score threshold
      * @param radiusPhysical the node radius in physical units
@@ -1097,7 +1097,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             // Overshoot: turn is adjacent to exactly one branch point
             final boolean parentIsBP = graph.outDegreeOf(parent) > 1;
             final boolean childIsBP = graph.outDegreeOf(child) > 1;
-            if (parentIsBP == childIsBP) continue; // both or neither — not an overshoot
+            if (parentIsBP == childIsBP) continue; // both or neither, not an overshoot
             mergeToParent(graph, node);
             removed++;
         }

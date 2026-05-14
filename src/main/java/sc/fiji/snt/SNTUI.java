@@ -4357,7 +4357,8 @@ public class SNTUI extends JDialog {
             return;
         }
         final HashMap<String, Object> inputs = new HashMap<>();
-        inputs.put("useFileChoosers", false);
+        if (clazz != GWDTTracerCmd.class) // GWDTTracerCmd infers mode from isFileMode(); BinaryTracerCmd still uses this
+            inputs.put("useFileChoosers", false);
         (new DynamicCmdRunner(clazz, inputs)).run();
     }
 

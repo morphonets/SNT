@@ -965,6 +965,50 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         }.execute();
     }
 
+    /**
+     * Calibrates thresholds from the given in-memory trees, enables live
+     * monitoring, runs a full scan, and switches SNTUI to the Assistant tab.
+     * Intended to be called programmatically after autotracing completes.
+     *
+     * @param trees the freshly traced trees to calibrate from
+     */
+    public void calibrateFromTrees(final List<Tree> trees) {
+        if (trees == null || trees.isEmpty()) return;
+        sntui.showStatus("Calibrating thresholds...", true);
+        new SwingWorker<PlausibilityCalibrator.CalibrationResult, Void>() {
+            @Override
+            protected PlausibilityCalibrator.CalibrationResult doInBackground() {
+                final PlausibilityCalibrator calibrator = new PlausibilityCalibrator(trees);
+                return calibrator.calibrate();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    final PlausibilityCalibrator.CalibrationResult result = get();
+                    if (result == null) {
+                        sntui.showStatus("Auto-calibration failed.", true);
+                        return;
+                    }
+                    SNTUtils.log("PlausibilityCalibrator (auto):\n" + result.toTable());
+                    result.applyTo(monitor);
+                    syncUIFromMonitor();
+                    monitor.setEnabled(true);
+                    liveToggle.setSelected(true);
+                    sntui.selectTab("Assistant");
+                    sntui.showStatus(String.format("Calibrated from %d tree(s). Scanning...", result.getTreeCount()), true);
+                    // Chain directly into a full scan: all validation guards
+                    // (parameters selected, paths exist, image loaded) should
+                    // pass since we just calibrated from freshly traced data
+                    runOnDemandAsync();
+                } catch (final Exception ex) {
+                    SNTUtils.log("Auto-calibration failed: " + ex.getMessage());
+                    sntui.showStatus("Auto-calibration failed. See log.", true);
+                }
+            }
+        }.execute();
+    }
+
     private void saveCurationFile() {
         final File dir = PlausibilityCalibrator.getCurationsDirectory(sntui.getPrefs().getWorkspaceDir());
         final File suggested = new File(dir, "my-preset." + PlausibilityCalibrator.CURATION_EXTENSION);
