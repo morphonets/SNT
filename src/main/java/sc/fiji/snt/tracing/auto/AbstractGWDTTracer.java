@@ -34,13 +34,18 @@ import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SNT;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
+import sc.fiji.snt.filter.Frangi;
+import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
+import net.imglib2.img.array.ArrayImg;
+import net.imglib2.type.numeric.real.DoubleType;
 
 import java.util.*;
 
@@ -96,6 +101,14 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected boolean zigzagRemovalEnabled = true;  // Remove consecutive direction reversals
     protected boolean overshootRemovalEnabled = true;  // Remove direction reversals at branch points
     protected double branchTuneMaxAngle = 90.0;  // Max angle (degrees) for branch tuning turn test; NaN disables
+    protected boolean reconnectEnabled = true;  // Use A* to bridge gaps between disconnected components
+
+    // Score map configuration
+    protected boolean scoreMapEnabled = false;  // Compute/use per-node tubeness/vesselness scores
+    protected RandomAccessibleInterval<? extends RealType<?>> scoreMap = null;  // External probability/score map (any source)
+    protected SNT.FilterType scoreMapFilterType = SNT.FilterType.TUBENESS;  // Filter preset when computing internally
+    protected double[] scoreMapScales = null;  // Scales for filter; null = auto from radius distribution
+    protected double scoreMapPruneThreshold = 0.0;  // Min score for dark-segment pruning; 0 = use score > 0 as criterion
 
     // Computed data
     protected double maxIntensity;
@@ -365,6 +378,107 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
+     * Sets whether to attempt A*-based reconnection of disconnected components
+     * before discarding them. When enabled, the tracer uses
+     * {@link ComponentReconnector} to bridge gaps between orphan fragments and
+     * the main tree. When disabled, disconnected components are simply removed.
+     * Default: {@code true}.
+     *
+     * @param enabled whether to enable component reconnection
+     */
+    public void setReconnectEnabled(final boolean enabled) {
+        this.reconnectEnabled = enabled;
+    }
+
+    /**
+     * Enables or disables per-node score computation using a vesselness or
+     * probability map. When enabled, node scores are stored in
+     * {@link PointInImage#v} and can influence pruning decisions. The score map
+     * is also available to {@link ComponentReconnector} for bridge validation.
+     * <p>
+     * If an external score map has been set via {@link #setScoreMap}, it is used
+     * directly. Otherwise, a score map is computed internally using the filter
+     * specified by {@link #setScoreMapFilterType}. Default: {@code false}.
+     * </p>
+     *
+     * @param enabled whether to enable score-based node evaluation
+     * @see #setScoreMap(RandomAccessibleInterval)
+     * @see #setScoreMapFilterType(SNT.FilterType)
+     */
+    public void setScoreMapEnabled(final boolean enabled) {
+        this.scoreMapEnabled = enabled;
+    }
+
+    /**
+     * Sets an external score/probability map to use for per-node scoring.
+     * <p>
+     * This can be any {@link RandomAccessibleInterval} whose values represent
+     * structure confidence at each voxel — e.g., a deep-learning prediction,
+     * a pre-computed vesselness image, or any other probability map. The RAI
+     * must have the same spatial dimensions as the source image.
+     * </p>
+     * <p>
+     * Setting this automatically enables score-based evaluation (equivalent to
+     * calling {@code setScoreMapEnabled(true)}). Set to {@code null} to revert
+     * to internal filter computation.
+     * </p>
+     *
+     * @param map the score/probability map, or null to use internal computation
+     */
+    public void setScoreMap(final RandomAccessibleInterval<? extends RealType<?>> map) {
+        this.scoreMap = map;
+        if (map != null) this.scoreMapEnabled = true;
+    }
+
+    /**
+     * Returns the current score map, whether externally provided or internally
+     * computed. May be {@code null} if scoring has not yet been performed or is
+     * disabled.
+     *
+     * @return the score map RAI, or null
+     */
+    public RandomAccessibleInterval<? extends RealType<?>> getScoreMap() {
+        return scoreMap;
+    }
+
+    /**
+     * Sets the filter type used to compute the score map internally when no
+     * external map is provided. Only {@link SNT.FilterType#TUBENESS} and
+     * {@link SNT.FilterType#FRANGI} are supported. Default: TUBENESS.
+     *
+     * @param type the filter type
+     * @throws IllegalArgumentException if type is not TUBENESS or FRANGI
+     */
+    public void setScoreMapFilterType(final SNT.FilterType type) {
+        if (type != SNT.FilterType.TUBENESS && type != SNT.FilterType.FRANGI) {
+            throw new IllegalArgumentException("Only TUBENESS and FRANGI are supported for score maps");
+        }
+        this.scoreMapFilterType = type;
+    }
+
+    /**
+     * Sets the scales (in physical units) for the internal vesselness filter.
+     * Set to {@code null} to auto-derive scales from the radius distribution
+     * computed by {@link #recalculateRadiiFromImage}. Default: null (auto).
+     *
+     * @param scales array of scales in physical units, or null for auto
+     */
+    public void setScoreMapScales(final double[] scales) {
+        this.scoreMapScales = scales;
+    }
+
+    /**
+     * Sets the minimum score threshold for score-aware pruning. Nodes with
+     * scores below this value are considered unreliable. Set to 0 to use
+     * any positive score as the acceptance criterion. Default: 0.
+     *
+     * @param threshold minimum acceptable score
+     */
+    public void setScoreMapPruneThreshold(final double threshold) {
+        this.scoreMapPruneThreshold = threshold;
+    }
+
+    /**
      * Sets the seed point (soma location) in voxel coordinates.
      * For 2D images, only x and y are used (z is ignored if provided).
      */
@@ -435,8 +549,22 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
             // Step 5-8: Pruning, smoothing, etc (same as before, using graph)
             recalculateRadiiFromImage(graph, threshold);
+            if (scoreMapEnabled) {
+                log("Computing score map...");
+                computeAndApplyScoreMap(graph);
+            }
             darkNodeAndSegmentPruning(graph, threshold);
             hierarchicalPrune(graph, threshold);
+            if (reconnectEnabled) {
+                log("Reconnecting disconnected components via A*...");
+                final SWCPoint root = findGraphRoot(graph);
+                if (root != null) {
+                    final ComponentReconnector<T> reconnector = new ComponentReconnector<>(source, spacing);
+                    reconnector.setVerbose(verbose);
+                    final int bridged = reconnector.reconnect(graph, root, threshold);
+                    log("Reconnected " + bridged + " orphan component(s)");
+                }
+            }
             removeDisconnectedComponents(graph);
 
             if (smoothEnabled) {
@@ -778,6 +906,37 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * @return cosine of the angle, or {@link Double#NaN} if either vector has
      *         zero length
      */
+    /**
+     * Returns a radius-adaptive score threshold. Thinner structures produce
+     * weaker vesselness responses, so the acceptance bar is lowered for small
+     * radii. Adapted from NeuTube's {@code Local_Neuroseg_Good_Score}:
+     * <pre>
+     *   effective = base × (1 + 1 / (2 + exp(4 - r)))
+     * </pre>
+     * where {@code r} is the node radius in voxels. For large radii the factor
+     * approaches {@code base × 1.33}; for very small radii it approaches
+     * {@code base × 1.02} — i.e., the threshold drops substantially.
+     *
+     * @param baseThreshold the configured score threshold
+     * @param radiusPhysical the node radius in physical units
+     * @return the adjusted threshold (&le; baseThreshold for thin structures)
+     */
+    private double adaptiveScoreThreshold(final double baseThreshold, final double radiusPhysical) {
+        if (baseThreshold <= 0 || Double.isNaN(radiusPhysical) || radiusPhysical <= 0) {
+            return baseThreshold;
+        }
+        // Convert to voxel units (approximate, using average XY spacing)
+        final double radiusVoxels = radiusPhysical / ((spacing[0] + spacing[1]) / 2.0);
+        // NeuTube formula: factor = 1 + 1/(2 + exp(4 - r))
+        // For r=0.5 → factor≈1.03 (very lenient)
+        // For r=2   → factor≈1.07
+        // For r=5   → factor≈1.19
+        // For r=10  → factor≈1.33 (full stringency)
+        // We invert it: divide base by the factor so thin = lower threshold
+        final double factor = 1.0 + 1.0 / (2.0 + Math.exp(4.0 - radiusVoxels));
+        return baseThreshold / factor;
+    }
+
     private static double cosAngle(final SWCPoint a, final SWCPoint b, final SWCPoint c) {
         final double v1x = a.x - b.x, v1y = a.y - b.y, v1z = a.z - b.z;
         final double v2x = b.x - c.x, v2y = b.y - c.y, v2z = b.z - c.z;
@@ -1056,6 +1215,105 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
 
     /**
+     * Computes or applies a score map and stamps each graph node's
+     * {@link PointInImage#v} with its score. If an external score map was set
+     * via {@link #setScoreMap}, it is sampled directly. Otherwise, a
+     * Tubeness or Frangi filter is computed from the source image.
+     * <p>
+     * When {@code scoreMapScales} is null, scales are auto-derived from the
+     * radius distribution already present in the graph (from
+     * {@link #recalculateRadiiFromImage}), using 3 percentiles (25th, 50th,
+     * 75th) of the non-zero radii.
+     * </p>
+     *
+     * @param graph the graph whose nodes will be scored
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    protected void computeAndApplyScoreMap(final DirectedWeightedGraph graph) {
+        // Step 1: Compute score map if not externally provided
+        if (scoreMap == null) {
+            final double[] scales = (scoreMapScales != null) ? scoreMapScales : deriveScalesFromRadii(graph);
+            if (scales == null || scales.length == 0) {
+                log("  Score map: no valid scales derived; skipping");
+                return;
+            }
+            log("  Computing " + scoreMapFilterType + " score map with scales: " + Arrays.toString(scales));
+
+            final long[] outDims = Intervals.dimensionsAsLongArray(source);
+            final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(outDims);
+
+            if (scoreMapFilterType == SNT.FilterType.FRANGI) {
+                final Frangi frangi = new Frangi(scales, spacing, maxIntensity);
+                frangi.compute(source, output);
+            } else {
+                // Default to TUBENESS
+                final Tubeness tubeness = new Tubeness(scales, spacing);
+                tubeness.compute(source, output);
+            }
+            scoreMap = output;
+        }
+
+        // Step 2: Sample score map at each node position
+        final RandomAccess<? extends RealType<?>> scoreRA = scoreMap.randomAccess();
+        final long[] pos = new long[dims.length];
+        int count = 0;
+        double sumScore = 0;
+        double maxScore = Double.NEGATIVE_INFINITY;
+
+        for (final SWCPoint node : graph.vertexSet()) {
+            nodeToVoxelPos(node, pos);
+            if (isInBounds(pos)) {
+                scoreRA.setPosition(pos);
+                final double score = scoreRA.get().getRealDouble();
+                node.v = score;
+                sumScore += score;
+                maxScore = Math.max(maxScore, score);
+                count++;
+            } else {
+                node.v = 0;
+            }
+        }
+
+        if (count > 0) {
+            log("  Score map applied: avg=" + String.format("%.4f", sumScore / count) +
+                    ", max=" + String.format("%.4f", maxScore) + " (" + count + " nodes)");
+        }
+    }
+
+    /**
+     * Derives filter scales from the radius distribution in the current graph.
+     * Returns the 25th, 50th, and 75th percentiles of non-zero radii (in
+     * physical units), which correspond to the range of structure thicknesses
+     * present in the reconstruction.
+     *
+     * @param graph the graph with radii already computed
+     * @return array of scales, or null if insufficient data
+     */
+    private double[] deriveScalesFromRadii(final DirectedWeightedGraph graph) {
+        final List<Double> radii = new ArrayList<>();
+        for (final SWCPoint node : graph.vertexSet()) {
+            if (node.radius > 0) {
+                radii.add(node.radius);
+            }
+        }
+        if (radii.size() < 4) return null;  // too few nodes for meaningful percentiles
+
+        Collections.sort(radii);
+        final int n = radii.size();
+        final double p25 = radii.get(n / 4);
+        final double p50 = radii.get(n / 2);
+        final double p75 = radii.get(3 * n / 4);
+
+        // Deduplicate: only keep distinct values (within 10% tolerance)
+        final List<Double> scales = new ArrayList<>();
+        scales.add(p25);
+        if (p50 > p25 * 1.1) scales.add(p50);
+        if (p75 > (scales.get(scales.size() - 1)) * 1.1) scales.add(p75);
+
+        return scales.stream().mapToDouble(Double::doubleValue).toArray();
+    }
+
+    /**
      * Calculates radius by expanding outward until hitting background (like APP2's markerRadiusXY).
      * This is much more accurate than GWDT-based estimation.
      */
@@ -1152,7 +1410,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     srcRA.setPosition(pos);
                     final double intensity = srcRA.get().getRealDouble();
 
-                    if (intensity <= threshold) {
+                    final boolean isDark = intensity <= threshold;
+                    final boolean isLowScore = scoreMapEnabled && scoreMap != null
+                            && v.v <= adaptiveScoreThreshold(scoreMapPruneThreshold, v.radius);
+                    if (isDark || isLowScore) {
                         darkLeaves.add(v);
                     }
                 }
@@ -1218,6 +1479,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 double sumIntensity = 0;
                 int totalNodes = 0;
                 int darkNodes = 0;
+                double minScore = Double.MAX_VALUE;
+                double minRadius = Double.MAX_VALUE;
 
                 for (final SWCPoint node : segment) {
                     final long[] pos = new long[dims.length];
@@ -1231,15 +1494,27 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                         if (intensity <= threshold) {
                             darkNodes++;
                         }
+                        if (scoreMapEnabled && scoreMap != null) {
+                            minScore = Math.min(minScore, node.v);
+                            minRadius = Math.min(minRadius, node.radius);
+                        }
                     }
                 }
 
                 // APP2 criteria: delete if average <= threshold OR >= 20% dark nodes
+                // Score criteria: also delete if min score <= adaptive threshold
+                // (radius-adaptive: thinner segments get a lower bar)
                 if (totalNodes > 0) {
                     double avgIntensity = sumIntensity / totalNodes;
                     double darkRatio = (double) darkNodes / totalNodes;
 
-                    if (avgIntensity <= threshold || darkRatio >= 0.2) {
+                    boolean shouldPrune = avgIntensity <= threshold || darkRatio >= 0.2;
+                    if (!shouldPrune && scoreMapEnabled && scoreMap != null) {
+                        final double effectiveScoreThresh = adaptiveScoreThreshold(
+                                scoreMapPruneThreshold, minRadius);
+                        shouldPrune = minScore <= effectiveScoreThresh;
+                    }
+                    if (shouldPrune) {
                         segmentToRemove.addAll(segment);
                         changed = true;
                     }
