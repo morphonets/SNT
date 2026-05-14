@@ -331,7 +331,17 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     errorMsg = "The chosen ROI strategy requires an area ROI but none exists.";
                     seedPhysical = null;
                 } else {
-                    if (roi != null) tracer.setSomaRoi(roi, seedStrategy);
+                    if (roi != null) {
+                        tracer.setSomaRoi(roi, seedStrategy);
+                        if (roiPlaneOnly) {
+                            // Constrain ROI to the active Z-plane (or the ROI's own Z if set)
+                            final int activeZ = getActiveZPosFromSNT();
+                            tracer.setSomaRoiZPosition(
+                                    (roi.getZPosition() > 0) ? roi.getZPosition() - 1 : Math.max(activeZ, 0));
+                        } else {
+                            tracer.setSomaRoiZPosition(-1); // apply to all Z-slices
+                        }
+                    }
                     seedPhysical = getRoiCentroid(roi, chosenImp, getActiveZPosFromSNT());
                     errorMsg = "Could not infer soma from ROI. Please provide a valid soma contour, " +
                             "or re-run with an automated detection strategy.";

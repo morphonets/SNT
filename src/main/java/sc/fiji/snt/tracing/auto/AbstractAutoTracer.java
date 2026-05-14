@@ -418,6 +418,17 @@ public abstract class AbstractAutoTracer implements AutoTracer {
     }
 
     /**
+     * Overrides the Z-position used to constrain the soma ROI. Set to a valid
+     * 0-indexed slice to restrict the ROI to that plane, or {@code -1} to
+     * apply the ROI to all Z-slices.
+     *
+     * @param z the 0-indexed Z-slice, or -1 for all slices
+     */
+    public void setSomaRoiZPosition(final int z) {
+        this.somaRoiZPosition = z;
+    }
+
+    /**
      * Gets the current soma ROI.
      *
      * @return the soma ROI, or null if not set
