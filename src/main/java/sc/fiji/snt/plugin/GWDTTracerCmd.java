@@ -78,6 +78,22 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
         initForImage();
     }
 
+    /**
+     * Returns whether an instance of this dialog is currently visible.
+     * Used by SNTUI to enforce singleton behavior.
+     *
+     * @return true if a dialog with this command's title is showing
+     */
+    public static boolean isOpen() {
+        for (final Window w : JDialog.getWindows()) {
+            if (w instanceof JDialog && w.isVisible() && PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
+                w.toFront();
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     protected boolean isFileMode() {
         return false;

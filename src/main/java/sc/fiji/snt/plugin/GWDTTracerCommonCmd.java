@@ -76,9 +76,10 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     static final String SCORE_MAP_FRANGI = "Frangi";
     static final String SCORE_MAP_OTHER = "Secondary image layer";
     // After-tracing action constants
-    private static final String AFTER_DO_NOTHING = "Do nothing";
+    static final String AFTER_DO_NOTHING = "Do nothing";
     private static final String AFTER_REPLACE = "Replace existing paths";
-    private static final String AFTER_REPLACE_AND_PROOFREAD = "Replace & prepare for proofreading";
+    private static final String AFTER_PROOFREAD = "Prepare for proofreading";
+    private static final String AFTER_REPLACE_AND_PROOFREAD = "Replace existing paths & prepare for proofreading";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER1 = "<HTML><b>I. Input Image";
@@ -89,8 +90,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             style = ChoiceWidget.LIST_BOX_STYLE)
     protected String imgChoice;
 
-    @Parameter(label = "Path to image", required = false,
-            description = "<HTML>Path to grayscale image file",
+    @Parameter(label = "Path to image(s)", required = false,
+            description = "<HTML>Path to a grayscale image file or a directory of images",
             style = FileWidget.OPEN_STYLE)
     protected File imgFileChoice;
 
@@ -120,8 +121,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     @Parameter(label = "Background threshold", min = "-1", style = "format:#.00",
             description = "<HTML>Intensity cutoff: pixels ≤ this value are background.<br>" +
-                    "<b>Lower</b>: traces more (including noise).<br>" +
-                    "<b>Higher</b>: traces less (may miss dim neurites).<br>" +
+                    "<b>Lower</b>: Traces more (may include noise).<br>" +
+                    "<b>Higher</b>: Traces less (may miss dim neurites).<br>" +
                     "Range: [-1, image max]; Default: -1 (auto)")
     protected double backgroundThreshold = -1.00;
 
@@ -135,34 +136,36 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     "Default: Tubeness")
     protected String scoreMapFilter = SCORE_MAP_TUBENESS;
 
-    @Parameter(label = "Min. branch length", min = "0", style = NumberWidget.SPINNER_STYLE,
-            description = "<HTML>Minimum intensity-weighted length for a branch to be kept.<br>" +
-                    "<b>Lower</b>: keeps more short branches.<br>" +
-                    "<b>Higher</b>: removes short branches.<br>" +
+    @Parameter(label = "Min. branch score", min = "0", style = NumberWidget.SPINNER_STYLE,
+            description = "<HTML>Minimum branch significance for a branch to be kept.<br>" +
+                    "Measured as the sum of normalized intensities along the branch,<br>" +
+                    "so brighter/longer branches score higher.<br>" +
+                    "<b>Lower</b>: Keeps more short/dim branches.<br>" +
+                    "<b>Higher</b>: Removes short/dim branches.<br>" +
                     "Range: [0, ∞); Default: 5.0")
     protected double lengthThreshold = 5.0;
 
     @Parameter(label = "Branch sensitivity", min = "0", max = "1", stepSize = "0.05",
             style = NumberWidget.SCROLL_BAR_STYLE,
             description = "<HTML>How much signal a branch needs relative to already-traced regions.<br>" +
-                    "<b>Lower</b>: keeps more branches (permissive).<br>" +
-                    "<b>Higher</b>: keeps fewer (strict).<br>" +
+                    "<b>Lower</b>: Keeps more branches (permissive).<br>" +
+                    "<b>Higher</b>: Keeps fewer branches (strict).<br>" +
                     "Range: [0, 1]; Default: 0.3")
     private double srRatio = 0.3;
 
     @Parameter(label = "Overlap tolerance", min = "0", max = "1", stepSize = "0.05",
             style = NumberWidget.SCROLL_BAR_STYLE,
             description = "<HTML>How much a node can overlap existing traces before being pruned.<br>" +
-                    "<b>Lower</b>: less overlap allowed (stricter).<br>" +
-                    "<b>Higher</b>: more overlap allowed (permissive).<br>" +
+                    "<b>Lower</b>: Less overlap allowed (stricter).<br>" +
+                    "<b>Higher</b>: More overlap allowed (permissive).<br>" +
                     "Range: [0, 1]; Default: 0.1")
     private double sphereOverlapThreshold = 0.1;
 
     @Parameter(label = "Strict tip filtering",
-            description = "<HTML>Removes terminal branches overlapping thicker parent structures.<br>" +
-                    "<b>Enable</b>: cleaner results, may truncate thin neurites near large somas.<br>" +
-                    "<b>Disable</b>: preserves thin branches, may include spurious tips.<br>" +
-                    "Default: disabled")
+            description = "<HTML>Remove terminal branches that overlap thicker parent structures.<br>" +
+                    "<b>On</b>: Fewer spurious tips, may truncate thin neurites near large structures (e.g., the soma).<br>" +
+                    "<b>Off</b>: Preserves thin branches, may include spurious tips.<br>" +
+                    "Default: off")
     private boolean leafPruneEnabled;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
@@ -171,22 +174,24 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     @Parameter(label = "Max. branching angle (°)", min = "-1", max = "180", style = NumberWidget.SCROLL_BAR_STYLE,
             description = "<HTML>Maximum angle (degrees) for branch-point parent re-assignment.<br>" +
                     "Set to -1 to disable branch tuning.<br>" +
-                    "Range: [-1, 180]; Default: 90")
+                    "Range: [-1, 180]; Default: 90°")
     protected double branchTuneMaxAngle = 90.0;
 
     @Parameter(label = "Reconnect components",
-            description = "<HTML>Bridge small gaps between disconnected components using A* search.<br>" +
-                    "Default: enabled")
+            description = "<HTML>Bridge small gaps between disconnected tree fragments<br>" +
+                    "using A* search through the original image.<br>" +
+                    "Default: on")
     private boolean reconnectEnabled = true;
 
     @Parameter(label = "Remove zigzags",
-            description = "<HTML>Iteratively remove zigzag artifacts from traced paths.<br>" +
-                    "Default: enabled")
+            description = "<HTML>Iteratively smooth out zigzag artifacts at branch junctions.<br>" +
+                    "Default: on")
     private boolean zigzagRemovalEnabled = true;
 
     @Parameter(label = "Remove overshoots",
-            description = "<HTML>Remove overshoot nodes at branch points.<br>" +
-                    "Default: enabled")
+            description = "<HTML>Trim nodes that extend past branch points into<br>" +
+                    "the parent segment.<br>" +
+                    "Default: on")
     private boolean overshootRemovalEnabled = true;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
@@ -195,17 +200,17 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     @Parameter(label = "Smoothing window", min = "1", max = "15", stepSize = "2",
             style = NumberWidget.SCROLL_BAR_STYLE,
             description = "<HTML>Moving-average window size for path smoothing.<br>" +
-                    "<b>1</b>: disabled (no smoothing).<br>" +
-                    "<b>3–15</b>: higher = smoother curves.<br>" +
+                    "<b>1</b>: Disabled (no smoothing).<br>" +
+                    "<b>3–15</b>: Higher = smoother curves.<br>" +
                     "Default: 5")
     private int smoothWindowSize = 5;
 
     @Parameter(label = "Resample interval", min = "0", max = "10", stepSize = "1",
             style = NumberWidget.SCROLL_BAR_STYLE,
             description = "<HTML>Spacing between resampled points (in voxels).<br>" +
-                    "<b>0</b>: disabled (keep original point density).<br>" +
-                    "<b>0.5–10</b>: higher = fewer points, smaller files.<br>" +
-                    "Default: 2.0")
+                    "<b>0</b>: Disabled (keep original point density).<br>" +
+                    "<b>1–10</b>: Higher = fewer points, smaller files.<br>" +
+                    "Default: 2")
     private double resampleStep = 2.0;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
@@ -230,20 +235,24 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     protected boolean debugMode;
 
     @Parameter(label = "After tracing",
-            choices = {AFTER_DO_NOTHING, AFTER_REPLACE, AFTER_REPLACE_AND_PROOFREAD},
+            choices = {AFTER_DO_NOTHING, AFTER_REPLACE, AFTER_PROOFREAD, AFTER_REPLACE_AND_PROOFREAD},
             description = "<HTML>What to do after tracing completes:<dl>" +
                     "<dt><i>" + AFTER_DO_NOTHING + "</i></dt>" +
                     "<dd>Keep existing paths; add new traces alongside them</dd>" +
                     "<dt><i>" + AFTER_REPLACE + "</i></dt>" +
                     "<dd>Clear existing paths before adding new ones</dd>" +
+                    "<dt><i>" + AFTER_PROOFREAD + "</i></dt>" +
+                    "<dd>Keep existing paths, assign unique colors to new traces,<br>" +
+                    "auto-calibrate the Curation Manager, and enable live monitoring</dd>" +
                     "<dt><i>" + AFTER_REPLACE_AND_PROOFREAD + "</i></dt>" +
                     "<dd>Replace, assign unique colors, auto-calibrate the<br>" +
                     "Curation Manager from the traced result, and enable<br>" +
                     "live monitoring for immediate proofreading</dd>" +
                     "</dl>")
-    private String afterTracingChoice = AFTER_DO_NOTHING;
+    String afterTracingChoice = AFTER_DO_NOTHING;
 
     protected boolean abortRun;
+    protected ImgPlus<?> chosenImp;
 
     @SuppressWarnings("unused")
     private void debugModeCallback() {
@@ -270,7 +279,12 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     protected void initForFile() {
         super.init(true);
+        HEADER1 += "(s)";
         resolveInput("imgChoice");
+        resolveInput("HEADER2");
+        resolveInput("somaStrategyChoice"); // No active ROI in file mode: always auto-detect
+        resolveInput("roiPlaneOnly");
+        resolveInput("debugMode"); // debug mode is always enabled to report progress to console
         debugMode = SNTUtils.isDebugMode();
     }
 
@@ -278,7 +292,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     protected void runCommand() {
         try {
-            final ImgPlus<?> chosenImp = getImgFromImgChoice();
+            chosenImp = getImgFromImgChoice();
             if (chosenImp == null || abortRun) return;
 
             status("Running GWDT tracing...", false);
@@ -361,31 +375,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 return;
             }
 
-            // Add to PathAndFillManager
-            final boolean replace = !AFTER_DO_NOTHING.equals(afterTracingChoice);
-            final boolean proofread = AFTER_REPLACE_AND_PROOFREAD.equals(afterTracingChoice);
-            final PathAndFillManager pafm = sntService.getPathAndFillManager();
-            if (replace) {
-                pafm.clear();
-            }
-            for (final Tree tree : trees) {
-                tree.assignImage(chosenImp);
-                tree.list().forEach(path -> path.setCTposition(snt.getChannel(), snt.getFrame()));
-                if (proofread) TreeUtils.assignUniqueColors(tree, "dim");
-                pafm.addTree(tree, "GWDT Autotraced");
-            }
-
-            if (trees.size() > 1) {
-                ui.getPathManager().applyDefaultTags("Arbor ID");
-            }
-
-            resetUI(false, SNTUI.READY);
-
-            if (proofread && ui != null) {
-                ui.getCurationManager().calibrateFromTrees(trees);
-            }
-
-            status("Successfully traced " + trees.size() + " tree(s)", true);
+            handleTracedTrees(trees);
 
         } catch (final Throwable ex) {
             ex.printStackTrace();
@@ -393,6 +383,37 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         } finally {
             snt.setCanvasLabelAllPanes(null);
         }
+    }
+
+    /**
+     * Called after tracing completes with valid trees. The default implementation
+     * loads trees into PathAndFillManager and optionally triggers proofreading.
+     * Subclasses (e.g., {@link GWDTTracerFileCmd}) may override to export trees
+     * to disk instead.
+     *
+     * @param trees the traced trees (guaranteed non-empty)
+     */
+    protected void handleTracedTrees(final List<Tree> trees) {
+        final boolean replace = AFTER_REPLACE.equals(afterTracingChoice) || AFTER_REPLACE_AND_PROOFREAD.equals(afterTracingChoice);
+        final boolean proofread = AFTER_PROOFREAD.equals(afterTracingChoice) || AFTER_REPLACE_AND_PROOFREAD.equals(afterTracingChoice);
+        final PathAndFillManager pafm = sntService.getPathAndFillManager();
+        if (replace) {
+            pafm.clear();
+        }
+        for (final Tree tree : trees) {
+            tree.assignImage(chosenImp);
+            tree.list().forEach(path -> path.setCTposition(snt.getChannel(), snt.getFrame()));
+            if (proofread) TreeUtils.assignUniqueColors(tree, "dim");
+            pafm.addTree(tree, "GWDT Autotraced");
+        }
+        if (trees.size() > 1) {
+            ui.getPathManager().applyDefaultTags("Arbor ID");
+        }
+        resetUI(false, SNTUI.READY);
+        if (proofread && ui != null) {
+            ui.getCurationManager().calibrateFromTrees(trees);
+        }
+        status("Successfully traced " + trees.size() + " tree(s)", true);
     }
 
     // --- Image loading ---

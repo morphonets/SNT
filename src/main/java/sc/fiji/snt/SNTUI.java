@@ -3154,25 +3154,26 @@ public class SNTUI extends JDialog {
 
     private JMenu autoTracingMenu() {
         final JMenu menu = new JMenu("Auto-trace");
-        // Grayscale autotracing
-        final JMenuItem jmiGray = new JMenuItem("Grayscale Image (GWDT)...");
+
+        // Interactive: operates on images already loaded in SNT
+        GuiUtils.addSeparator(menu, "Interactive:");
+        final JMenuItem jmiGray = new JMenuItem("Grayscale Image...");
         jmiGray.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
         jmiGray.setToolTipText("Runs automated tracing on a grayscale image already open");
-        menu.add(jmiGray);
         jmiGray.addActionListener(e -> runAutotracingOnImage(GWDTTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiGray, "snt.getUI().runAutotracingWizard()");
+        menu.add(jmiGray);
 
-        final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
-        jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
-        jmiGrayFile.setToolTipText("Runs automated tracing on a grayscale image\n" +
-                "by specifying the path to image.\nLazy loading for large formats supported.");
-        menu.add(jmiGrayFile);
+        final JMenuItem jmiBinaryImg = new JMenuItem("Segmented Image...");
+        jmiBinaryImg.setIcon(IconFactory.menuIcon('\ue69b', true));
+        jmiBinaryImg.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
+        jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
+        ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
+        menu.add(jmiBinaryImg);
 
-        menu.addSeparator();
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
         jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.");
-        menu.add(jmiSoma);
         jmiSoma.addActionListener(e -> {
             if (plugin.accessToValidImageData())
                 (new DynamicCmdRunner(SomaDetectorCmd.class, null, RUNNING_CMD)).run();
@@ -3180,19 +3181,22 @@ public class SNTUI extends JDialog {
                 noValidImageDataErrorExtended();
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
-        menu.addSeparator();
+        menu.add(jmiSoma);
 
-        // Binary autotracing
-        final JMenuItem jmiBinaryImg = new JMenuItem("Segmented Image...");
-        jmiBinaryImg.setIcon(IconFactory.menuIcon('\ue69b', true));
-        jmiBinaryImg.setToolTipText("Runs automated tracing on a thresholded/binary image already open");
-        jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
-        ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
-        menu.add(jmiBinaryImg);
+        // From File(s): file-based / batch processing
+        GuiUtils.addSeparator(menu, "Batch Processing:");
+        final JMenuItem jmiGrayFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE);
+        jmiGrayFile.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.ROBOT));
+        jmiGrayFile.setToolTipText("Runs automated tracing on a grayscale image file or\n" +
+                "directory of images with optional SWC export.");
+        menu.add(jmiGrayFile);
+
         final JMenuItem jmiBinaryFile = getImportActionMenuItem(ImportAction.AUTO_TRACE_BINARY_IMAGE);
         jmiBinaryFile.setIcon(IconFactory.menuIcon('\ue69b', true));
-        jmiBinaryFile.setToolTipText("Runs automated tracing by specifying the path to a thresholded/binary image");
+        jmiBinaryFile.setToolTipText("Runs automated tracing on a segmented image file or\n" +
+                "directory of images with optional SWC export.");
         menu.add(jmiBinaryFile);
+
         return menu;
     }
 
@@ -4356,6 +4360,8 @@ public class SNTUI extends JDialog {
             SwingUtilities.invokeLater( (clazz == GWDTTracerCmd.class) ? this::noValidImageDataErrorExtended : this::noValidImageDataError);
             return;
         }
+        // Singleton: if GWDTTracerCmd dialog is already open, bring it to front
+        if (clazz == GWDTTracerCmd.class && GWDTTracerCmd.isOpen()) return;
         final HashMap<String, Object> inputs = new HashMap<>();
         if (clazz != GWDTTracerCmd.class) // GWDTTracerCmd infers mode from isFileMode(); BinaryTracerCmd still uses this
             inputs.put("useFileChoosers", false);
@@ -5306,8 +5312,8 @@ public class SNTUI extends JDialog {
 
         static String getImportActionName(final int type) {
             return switch (type) {
-                case ImportAction.AUTO_TRACE_BINARY_IMAGE -> "Segmented Image File...";
-                case ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE -> "Grayscale Image (GWDT) File...";
+                case ImportAction.AUTO_TRACE_BINARY_IMAGE -> "Segmented Image File(s)...";
+                case ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE -> "Grayscale Image File(s)...";
                 case ImportAction.SWC_DIR -> "Directory of SWCs...";
                 case ImportAction.SWC -> "SWC...";
                 case ImportAction.IMAGE -> "From File...";
@@ -5324,8 +5330,8 @@ public class SNTUI extends JDialog {
 
         static int getImportActionType(final String name) {
             return switch (name) {
-                case "Grayscale Image (GWDT) File..." -> ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE;
-                case "Segmented Image File..." -> ImportAction.AUTO_TRACE_BINARY_IMAGE;
+                case "Grayscale Image File(s)..." -> ImportAction.AUTO_TRACE_GRAYSCALE_IMAGE;
+                case "Segmented Image File(s)..." -> ImportAction.AUTO_TRACE_BINARY_IMAGE;
                 case "Directory of SWCs..." -> ImportAction.SWC_DIR; // backwards compatibility
                 case "e(SWC)...", "SWC..." -> ImportAction.SWC;
                 case "From File..." -> ImportAction.IMAGE;

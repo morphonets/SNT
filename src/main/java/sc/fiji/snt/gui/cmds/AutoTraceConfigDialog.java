@@ -171,28 +171,32 @@ public class AutoTraceConfigDialog extends JDialog {
     }
 
     private static List<ParamRow> buildRows(final AutoTraceConfig config) {
+        // Order matches the GWDTTracerCmd prompt sections (III → IV → V)
         final List<ParamRow> rows = new ArrayList<>();
+        // III. Thresholding
         if (!Double.isNaN(config.getBackgroundThreshold()))
             rows.add(new ParamRow("backgroundThreshold", "Background threshold",
                     fmt(config.getBackgroundThreshold()), true));
-        if (!Double.isNaN(config.getLengthThreshVoxels()))
-            rows.add(new ParamRow("lengthThreshold", "Min branch length (voxels)",
-                    fmt(config.getLengthThreshVoxels()), true));
-        if (!Double.isNaN(config.getBranchTuneMaxAngle()))
-            rows.add(new ParamRow("branchTuneMaxAngle", "Branch tune max angle (°)",
-                    fmt(config.getBranchTuneMaxAngle()), true));
+        // IV. Branch Filtering and Scoring
         if (config.getScoreMapScales() != null && config.getScoreMapScales().length > 0)
-            rows.add(new ParamRow("scoreMapEnabled", "Enable score map",
-                    "Yes (scales: " + formatArray(config.getScoreMapScales()) + ")", true));
+            rows.add(new ParamRow("scoreMapEnabled", "Score map filter",
+                    "Enabled (scales: " + formatArray(config.getScoreMapScales()) + ")", true));
+        if (!Double.isNaN(config.getLengthThreshVoxels()))
+            rows.add(new ParamRow("lengthThreshold", "Min. branch score",
+                    fmt(config.getLengthThreshVoxels()), true));
+        // V. Post-processing
+        if (!Double.isNaN(config.getBranchTuneMaxAngle()))
+            rows.add(new ParamRow("branchTuneMaxAngle", "Max. branching angle",
+                    fmt(config.getBranchTuneMaxAngle()) + "°", true));
         if (!Double.isNaN(config.getReconnectMinContraction()))
-            rows.add(new ParamRow("reconnectMinContraction", "Reconnect min contraction",
+            rows.add(new ParamRow("reconnectMinContraction", "Reconnect min. contraction",
                     fmt(config.getReconnectMinContraction()), false));
         if (!Double.isNaN(config.getReconnectMaxAngleDeg()))
-            rows.add(new ParamRow("reconnectMaxAngleDeg", "Reconnect max angle (°)",
-                    fmt(config.getReconnectMaxAngleDeg()), false));
+            rows.add(new ParamRow("reconnectMaxAngleDeg", "Reconnect max. angle",
+                    fmt(config.getReconnectMaxAngleDeg()) + "°", false));
         if (!Double.isNaN(config.getReconnectMaxBridgeDist()))
-            rows.add(new ParamRow("reconnectMaxBridgeDist", "Max bridge distance (voxels)",
-                    fmt(config.getReconnectMaxBridgeDist()), false));
+            rows.add(new ParamRow("reconnectMaxBridgeDist", "Reconnect max. bridge distance",
+                    fmt(config.getReconnectMaxBridgeDist()) + " voxels", false));
         return rows;
     }
 
