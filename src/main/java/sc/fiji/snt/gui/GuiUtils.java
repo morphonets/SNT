@@ -3440,9 +3440,80 @@ public class GuiUtils {
 		}
 	}
 
+	/**
+	 * Utility methods for {@link JTable} configuration and creation.
+	 */
 	public static class JTables {
 
 		private JTables() {}
+
+		/**
+		 * Wraps a JTable in a JScrollPane with sensible defaults: auto-resize
+		 * mode set to ALL_COLUMNS, row sorter enabled, and grid lines hidden.
+		 *
+		 * @param table the table to wrap
+		 * @return a configured JScrollPane containing the table
+		 */
+		public static JScrollPane scrollPane(final JTable table) {
+			table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+			table.setAutoCreateRowSorter(true);
+			table.setShowGrid(false);
+			table.setIntercellSpacing(new java.awt.Dimension(0, 0));
+			table.setFillsViewportHeight(true);
+			return new JScrollPane(table);
+		}
+
+		/**
+		 * Configures a Boolean column to render and edit as a checkbox, with
+		 * an optional header tooltip.
+		 *
+		 * @param table       the table
+		 * @param columnIndex the column index
+		 * @param tooltip     tooltip for the column header (null to skip)
+		 */
+		public static void configureCheckboxColumn(final JTable table, final int columnIndex, final String tooltip) {
+			final javax.swing.table.TableColumn col = table.getColumnModel().getColumn(columnIndex);
+			col.setMaxWidth(40);
+			col.setMinWidth(30);
+			col.setResizable(false);
+			if (tooltip != null) {
+				col.setHeaderRenderer(new javax.swing.table.DefaultTableCellRenderer() {
+					@Override
+					public Component getTableCellRendererComponent(final JTable t, final Object value,
+					                                               final boolean isSelected, final boolean hasFocus, final int row, final int column) {
+						final Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, column);
+						if (c instanceof JComponent jc) jc.setToolTipText(tooltip);
+						return c;
+					}
+				});
+			}
+		}
+
+		/**
+		 * Auto-sizes the preferred width of the given column to fit its content,
+		 * with padding.
+		 *
+		 * @param table       the table
+		 * @param columnIndex the column index
+		 * @param padding     extra pixels of padding per side
+		 */
+		public static void autoSizeColumn(final JTable table, final int columnIndex, final int padding) {
+			final javax.swing.table.TableColumn col = table.getColumnModel().getColumn(columnIndex);
+			int maxWidth = 0;
+			for (int row = 0; row < table.getRowCount(); row++) {
+				final javax.swing.table.TableCellRenderer renderer = table.getCellRenderer(row, columnIndex);
+				final Component comp = table.prepareRenderer(renderer, row, columnIndex);
+				maxWidth = Math.max(comp.getPreferredSize().width, maxWidth);
+			}
+			// Also consider the header
+			final javax.swing.table.TableCellRenderer headerRenderer = col.getHeaderRenderer();
+			if (headerRenderer != null) {
+				final Component headerComp = headerRenderer.getTableCellRendererComponent(
+						table, col.getHeaderValue(), false, false, -1, columnIndex);
+				maxWidth = Math.max(headerComp.getPreferredSize().width, maxWidth);
+			}
+			col.setPreferredWidth(maxWidth + 2 * padding);
+		}
 
 		public static void copyToClipboard(final JTable table, final boolean includeHeaders) {
 			final StringBuilder sb = new StringBuilder();

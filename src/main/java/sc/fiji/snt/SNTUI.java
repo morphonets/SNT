@@ -5780,8 +5780,13 @@ public class SNTUI extends JDialog {
                     if (plugin.isSecondaryDataAvailable()) {
                         flushSecondaryDataPrompt();
                     }
-                    inputs.put("useFileChoosers", true);
-                    final Class<? extends Command> cls = (type == AUTO_TRACE_BINARY_IMAGE) ? BinaryTracerCmd.class : GWDTTracerCmd.class;
+                    final Class<? extends Command> cls;
+                    if (type == AUTO_TRACE_BINARY_IMAGE) {
+                        cls = BinaryTracerCmd.class;
+                        inputs.put("useFileChoosers", true);
+                    } else {
+                        cls = GWDTTracerFileCmd.class;
+                    }
                     (new DynamicCmdRunner(cls, inputs, RUNNING_CMD)).run();
                 }
                 case DEMO -> {
