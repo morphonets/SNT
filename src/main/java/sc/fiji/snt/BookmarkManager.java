@@ -40,7 +40,6 @@ import sc.fiji.snt.viewer.Bvv;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import java.awt.*;
@@ -1424,6 +1423,7 @@ class BookmarkTable extends JTable {
         setShowHorizontalLines(true);
         setAutoResizeMode(JTable.AUTO_RESIZE_SUBSEQUENT_COLUMNS);
         setPreferredScrollableViewportSize(getPreferredSize());
+        setFillsViewportHeight(true);
         setColumnSelectionAllowed(false);
         setRowSelectionAllowed(true);
         setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -1432,13 +1432,30 @@ class BookmarkTable extends JTable {
         setDefaultRenderer(Color.class, new ColorCellRenderer());
         setDefaultEditor(Color.class, new ColorCellEditor());
         // Set icon header for Tag column
-        getColumnModel().getColumn(0).setHeaderRenderer(new IconHeaderRenderer());
+        getColumnModel().getColumn(0).setHeaderRenderer(
+                GuiUtils.JTables.iconHeaderRenderer(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, .9f),
+                        "Tag (click to sort by category)"));
     }
 
     JScrollPane getContainer() {
         final JScrollPane js = new JScrollPane(this);
         js.setComponentPopupMenu(getComponentPopupMenu()); // allow popupmenu to be displayed when clicking below last row
         return js;
+    }
+
+    @Override
+    protected void paintComponent(final java.awt.Graphics g) {
+        super.paintComponent(g);
+        if (getModel().getRowCount() == 0) {
+            final java.awt.Graphics2D g2 = (java.awt.Graphics2D) g;
+            GuiUtils.setRenderingHints(g2);
+            g2.setColor(GuiUtils.getDisabledComponentColor());
+            final java.awt.FontMetrics fm = g2.getFontMetrics();
+            final String msg = "Bookmark image locations using Shift+B";
+            final java.awt.Rectangle visible = getVisibleRect();
+            g2.drawString(msg, visible.x + (visible.width - fm.stringWidth(msg)) / 2,
+                    visible.y + (visible.height - fm.getHeight()) / 2 + fm.getAscent());
+        }
     }
 
     @Override
@@ -1544,30 +1561,6 @@ class BookmarkTable extends JTable {
     }
 
     /** Renderer for the Tag column header - displays icon instead of text */
-    private static class IconHeaderRenderer extends DefaultTableCellRenderer {
-        IconHeaderRenderer() {
-            setHorizontalAlignment(SwingConstants.CENTER);
-            setIcon(IconFactory.buttonIcon(IconFactory.GLYPH.TAG, .9f));
-            setToolTipText("Tag (click to sort by category)");
-        }
-
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus, int row, int column) {
-            // Keep default header styling but use icon instead of text
-            if (table != null) {
-                JTableHeader header = table.getTableHeader();
-                if (header != null) {
-                    setForeground(header.getForeground());
-                    setBackground(header.getBackground());
-                    setFont(header.getFont());
-                }
-            }
-            setText(""); // No text, just the icon
-            setBorder(UIManager.getBorder("TableHeader.cellBorder"));
-            return this;
-        }
-    }
 }
 
 class BookmarkModel extends AbstractTableModel {

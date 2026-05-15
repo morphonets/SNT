@@ -3455,12 +3455,65 @@ public class GuiUtils {
 		 * @return a configured JScrollPane containing the table
 		 */
 		public static JScrollPane scrollPane(final JTable table) {
-			table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+			return scrollPane(table, JTable.AUTO_RESIZE_ALL_COLUMNS, false, false);
+		}
+
+		/**
+		 * Wraps a JTable in a JScrollPane, applying common configuration.
+		 * Auto-row-sorter is enabled, the table fills the viewport, and intercell
+		 * spacing is set to zero.
+		 *
+		 * @param table              the table to wrap
+		 * @param autoResizeMode     one of the {@code JTable.AUTO_RESIZE_*} constants
+		 * @param showGrid           whether to show grid lines
+		 * @param showHorizontalLines whether to show horizontal lines
+		 * @return a configured JScrollPane containing the table
+		 */
+		public static JScrollPane scrollPane(final JTable table, final int autoResizeMode,
+		                                     final boolean showGrid, final boolean showHorizontalLines) {
+			table.setAutoResizeMode(autoResizeMode);
 			table.setAutoCreateRowSorter(true);
-			table.setShowGrid(false);
+			table.setShowGrid(showGrid);
+			table.setShowHorizontalLines(showHorizontalLines);
 			table.setIntercellSpacing(new java.awt.Dimension(0, 0));
 			table.setFillsViewportHeight(true);
 			return new JScrollPane(table);
+		}
+
+		/**
+		 * Creates a header renderer that displays a centered icon instead of
+		 * text. Inherits the default header foreground, background, font, and
+		 * border so that the column blends with the rest of the table header.
+		 *
+		 * @param icon    the icon to display
+		 * @param tooltip the tooltip for the header cell (may be {@code null})
+		 * @return a configured {@link javax.swing.table.TableCellRenderer}
+		 */
+		public static javax.swing.table.TableCellRenderer iconHeaderRenderer(final Icon icon, final String tooltip) {
+			return new javax.swing.table.DefaultTableCellRenderer() {
+				{
+					setHorizontalAlignment(SwingConstants.CENTER);
+					setIcon(icon);
+					if (tooltip != null) setToolTipText(tooltip);
+				}
+
+				@Override
+				public Component getTableCellRendererComponent(final JTable table, final Object value,
+				                                               final boolean isSelected, final boolean hasFocus,
+				                                               final int row, final int column) {
+					if (table != null) {
+						final javax.swing.table.JTableHeader header = table.getTableHeader();
+						if (header != null) {
+							setForeground(header.getForeground());
+							setBackground(header.getBackground());
+							setFont(header.getFont());
+						}
+					}
+					setText("");
+					setBorder(UIManager.getBorder("TableHeader.cellBorder"));
+					return this;
+				}
+			};
 		}
 
 		/**
@@ -3715,6 +3768,76 @@ public class GuiUtils {
 					});
 				}
 			};
+		}
+
+		/**
+		 * Auto-sizes the given column to fit its content, then freezes it
+		 * by setting preferred, minimum, and maximum width to the same value.
+		 *
+		 * @param table       the table
+		 * @param columnIndex the column index
+		 * @param padding     extra pixels of padding
+		 */
+		public static void freezeColumnWidth(final JTable table, final int columnIndex, final int padding) {
+			final javax.swing.table.TableColumn col = table.getColumnModel().getColumn(columnIndex);
+			int maxWidth = 0;
+			for (int row = 0; row < table.getRowCount(); row++) {
+				final javax.swing.table.TableCellRenderer renderer = table.getCellRenderer(row, columnIndex);
+				final Component comp = table.prepareRenderer(renderer, row, columnIndex);
+				maxWidth = Math.max(comp.getPreferredSize().width + 1, maxWidth);
+			}
+			// Also consider the header
+			final javax.swing.table.TableCellRenderer headerRenderer = col.getHeaderRenderer();
+			if (headerRenderer != null) {
+				final Component headerComp = headerRenderer.getTableCellRendererComponent(
+						table, col.getHeaderValue(), false, false, -1, columnIndex);
+				maxWidth = Math.max(headerComp.getPreferredSize().width, maxWidth);
+			}
+			final int frozen = maxWidth + padding;
+			col.setPreferredWidth(frozen);
+			col.setMinWidth(frozen);
+			col.setMaxWidth(frozen);
+		}
+
+		/**
+		 * Returns a JTable subclass that draws centered placeholder text when
+		 * the table model is empty. Two lines are supported: a primary line and
+		 * an optional secondary line rendered directly below it. Suppliers are
+		 * used so that placeholder text can change dynamically (e.g., when
+		 * filters are applied).
+		 *
+		 * @param model     the table model
+		 * @param line1     supplier for the primary placeholder text (never {@code null})
+		 * @param line2     supplier for the secondary placeholder text (may return {@code null})
+		 * @return a JTable that paints the placeholder when it has no rows
+		 */
+		public static JTable tableWithPlaceholder(final javax.swing.table.TableModel model,
+		                                          final Supplier<String> line1, final Supplier<String> line2) {
+			final JTable table = new JTable(model) {
+				@Override
+				protected void paintComponent(final Graphics g) {
+					super.paintComponent(g);
+					if (getModel().getRowCount() == 0) {
+						final Graphics2D g2 = (Graphics2D) g;
+						GuiUtils.setRenderingHints(g2);
+						g2.setColor(GuiUtils.getDisabledComponentColor());
+						final FontMetrics fm = g2.getFontMetrics();
+						final String primary = line1.get();
+						final String secondary = (line2 != null) ? line2.get() : null;
+						final int lineH = fm.getHeight();
+						final int totalH = (secondary != null) ? lineH * 2 : lineH;
+						final Rectangle visible = getVisibleRect();
+						final int y1 = visible.y + (visible.height - totalH) / 2 + fm.getAscent();
+						g2.drawString(primary, visible.x + (visible.width - fm.stringWidth(primary)) / 2, y1);
+						if (secondary != null) {
+							g2.drawString(secondary, visible.x + (visible.width - fm.stringWidth(secondary)) / 2, y1 + lineH);
+						}
+					}
+				}
+			};
+			// Required for placeholder to be visible when the table is empty
+			table.setFillsViewportHeight(true);
+			return table;
 		}
 
 		/**

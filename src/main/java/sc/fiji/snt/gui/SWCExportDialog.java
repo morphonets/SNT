@@ -348,16 +348,7 @@ public class SWCExportDialog extends JDialog {
 		});
 
 		// freeze first column
-		final TableColumnModel columnModel = table.getColumnModel();
-		int width = 30;
-		for (int row = 0; row < table.getRowCount(); row++) {
-			final TableCellRenderer renderer = table.getCellRenderer(row, 0);
-			final Component comp = table.prepareRenderer(renderer, row, 0);
-			width = Math.max(comp.getPreferredSize().width + 1, width);
-		}
-		columnModel.getColumn(0).setPreferredWidth(width + 6);
-		columnModel.getColumn(0).setMinWidth(width + 6);
-		columnModel.getColumn(0).setMaxWidth(width + 6);
+		GuiUtils.JTables.freezeColumnWidth(table, 0, 6);
 
 		// add tooltips
 		table.setDefaultRenderer(Object.class, getCellRenderer());

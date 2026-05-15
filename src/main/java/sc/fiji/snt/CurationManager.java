@@ -130,29 +130,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         this.sntui = sntui;
         this.monitor = monitor;
         this.tableModel = new WarningTableModel();
-        this.warningsTable = new JTable(tableModel) {
-            @Override
-            protected void paintComponent(final Graphics g) {
-                super.paintComponent(g);
-                if (tableModel.warnings.isEmpty()) {
-                    final Graphics2D g2 = (Graphics2D) g;
-                    GuiUtils.setRenderingHints(g2);
-                    g2.setColor(GuiUtils.getDisabledComponentColor());
-                    final FontMetrics fm = g2.getFontMetrics();
-                    final String line1 = tableModel.placeholderLine1();
-                    final String line2 = tableModel.placeholderLine2();
-                    final int lineH = fm.getHeight();
-                    final int totalH = (line2 != null) ? lineH * 2 : lineH;
-                    // Center within the visible viewport, not the full table
-                    final Rectangle visible = getVisibleRect();
-                    final int y1 = visible.y + (visible.height - totalH) / 2 + fm.getAscent();
-                    g2.drawString(line1, visible.x + (visible.width - fm.stringWidth(line1)) / 2, y1);
-                    if (line2 != null) {
-                        g2.drawString(line2, visible.x + (visible.width - fm.stringWidth(line2)) / 2, y1 + lineH);
-                    }
-                }
-            }
-        };
+        this.warningsTable = GuiUtils.JTables.tableWithPlaceholder(tableModel,
+                tableModel::placeholderLine1, tableModel::placeholderLine2);
         monitor.addWarningListener(this);
         configureTable();
         resetVisitingZoom();
@@ -172,7 +151,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private void configureTable() {
         warningsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        warningsTable.setFillsViewportHeight(true);
         warningsTable.setShowGrid(false);
         warningsTable.setAutoCreateRowSorter(true);
         // Null-safe comparator for padding rows
@@ -190,7 +168,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         sevCol.setPreferredWidth((int) GuiUtils.uiFontSize());
         sevCol.setMaxWidth((int) GuiUtils.uiFontSize());
         sevCol.setCellRenderer(new SeverityRenderer());
-        sevCol.setHeaderRenderer(new SeverityHeaderRenderer());
+        sevCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
+                IconFactory.buttonIcon(IconFactory.GLYPH.DANGER, .9f), "Severity (click to sort)"));
         // Message column: fill, with tooltip for truncated text
         final javax.swing.table.TableColumn msgCol = warningsTable.getColumnModel().getColumn(1);
         msgCol.setPreferredWidth(300);
@@ -1536,31 +1515,4 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         }
     }
 
-    /**
-     * Icon-only header for the severity column (DANGER glyph).
-     */
-    private static class SeverityHeaderRenderer extends DefaultTableCellRenderer {
-        SeverityHeaderRenderer() {
-            setHorizontalAlignment(SwingConstants.CENTER);
-            setIcon(IconFactory.buttonIcon(IconFactory.GLYPH.DANGER, .9f));
-            setToolTipText("Severity (click to sort)");
-        }
-
-        @Override
-        public Component getTableCellRendererComponent(final JTable table, final Object value,
-                                                       final boolean isSelected, final boolean hasFocus,
-                                                       final int row, final int column) {
-            if (table != null) {
-                final javax.swing.table.JTableHeader header = table.getTableHeader();
-                if (header != null) {
-                    setForeground(header.getForeground());
-                    setBackground(header.getBackground());
-                    setFont(header.getFont());
-                }
-            }
-            setText("");
-            setBorder(UIManager.getBorder("TableHeader.cellBorder"));
-            return this;
-        }
-    }
 }
