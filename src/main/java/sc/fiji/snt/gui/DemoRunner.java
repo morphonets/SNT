@@ -29,6 +29,7 @@ import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
 import sc.fiji.snt.plugin.BinaryTracerCmd;
+import sc.fiji.snt.plugin.BinaryTracerCommonCmd;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
@@ -165,18 +166,18 @@ public class DemoRunner {
                         Prune single-node paths: Yes
                         ```
                         
-                        Tip: Once tracing completes, press 'H' to
-                             toggle paths visibility
+                        Tip: Once tracing completes, press 'H'
+                             to toggle paths visibility; '1'
+                             to display only selected paths
                         """;
                 SwingUtilities.invokeLater( () -> {
                     ui.getNotesPane().getEditor().setText(txt);
                     ui.selectTab("notes");
                 });
                 final HashMap<String, Object> inputs = new HashMap<>();
-                inputs.put("useFileChoosers", false);
                 inputs.put("maskImgChoice", "Image being traced (duplicate)");
                 inputs.put("originalImgChoice", "None"); // does not matter: not used by nicking strategy
-                inputs.put("rootChoice", BinaryTracerCmd.ROI_EDGE);
+                inputs.put("rootChoice", BinaryTracerCommonCmd.ROI_EDGE);
                 inputs.put("roiPlane", false); // does not matter: 2D image
                 inputs.put("loopSolvingChoice", "Peripheral segments (preserves backbone)");
                 inputs.put("pruneByLength", true);
@@ -184,9 +185,7 @@ public class DemoRunner {
                 inputs.put("connectComponents", true);
                 inputs.put("maxConnectDist", 6);
                 inputs.put("cullSingleNodePaths", true);
-                inputs.put("clearExisting", true);
-                inputs.put("assignDistinctColors", true);
-                inputs.put("editMode", false);
+                inputs.put("afterTracingChoice", "Replace existing paths & prepare for proofreading");
                 inputs.put("debugMode", SNTUtils.isDebugMode());
                 inputs.put("headless", true);
                 ui.runCommand(BinaryTracerCmd.class, inputs);

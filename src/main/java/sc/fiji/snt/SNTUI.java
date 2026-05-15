@@ -4362,10 +4362,7 @@ public class SNTUI extends JDialog {
         }
         // Singleton: if GWDTTracerCmd dialog is already open, bring it to front
         if (clazz == GWDTTracerCmd.class && GWDTTracerCmd.isOpen()) return;
-        final HashMap<String, Object> inputs = new HashMap<>();
-        if (clazz != GWDTTracerCmd.class) // GWDTTracerCmd infers mode from isFileMode(); BinaryTracerCmd still uses this
-            inputs.put("useFileChoosers", false);
-        (new DynamicCmdRunner(clazz, inputs)).run();
+        (new DynamicCmdRunner(clazz, new HashMap<>())).run();
     }
 
     private JButton resetButton(final String description) {
@@ -5779,24 +5776,25 @@ public class SNTUI extends JDialog {
                 guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
                 return;
             }
-            if (!proceed()) return;
             final HashMap<String, Object> inputs = new HashMap<>();
             final int priorState = currentState;
             switch (type) {
                 case AUTO_TRACE_BINARY_IMAGE, AUTO_TRACE_GRAYSCALE_IMAGE -> {
+                    // Skip proceed() prompt: these commands export to disk by
+                    // default and do not necessarily affect current paths
                     if (plugin.isSecondaryDataAvailable()) {
                         flushSecondaryDataPrompt();
                     }
                     final Class<? extends Command> cls;
                     if (type == AUTO_TRACE_BINARY_IMAGE) {
-                        cls = BinaryTracerCmd.class;
-                        inputs.put("useFileChoosers", true);
+                        cls = BinaryTracerFileCmd.class;
                     } else {
                         cls = GWDTTracerFileCmd.class;
                     }
                     (new DynamicCmdRunner(cls, inputs, RUNNING_CMD)).run();
                 }
                 case DEMO -> {
+                    if (!proceed()) return;
                     if (plugin.isSecondaryDataAvailable()) {
                         flushSecondaryDataPrompt();
                     }
@@ -5821,6 +5819,7 @@ public class SNTUI extends JDialog {
                     choice.load(); // will reset UI
                 }
                 case IMAGE, IMAGE_CLIPBOARD -> {
+                    if (!proceed()) return;
                     if (plugin.isSecondaryDataAvailable()) {
                         flushSecondaryDataPrompt();
                     }
@@ -5829,14 +5828,17 @@ public class SNTUI extends JDialog {
                     (new DynamicCmdRunner(OpenDatasetCmd.class, inputs, LOADING)).run();
                 }
                 case JSON -> {
+                    if (!proceed()) return;
                     if (file != null) inputs.put("file", file);
                     (new DynamicCmdRunner(JSONImporterCmd.class, inputs, LOADING)).run();
                 }
                 case NDF -> {
+                    if (!proceed()) return;
                     if (file != null) inputs.put("file", file);
                     (new DynamicCmdRunner(NDFImporterCmd.class, inputs, LOADING)).run();
                 }
                 case NEUROLUCIDA -> {
+                    if (!proceed()) return;
                     if (file == null)
                         file = openReconstructionFile("xml");
                     if (file == null) return;
@@ -5879,10 +5881,12 @@ public class SNTUI extends JDialog {
                     changeState(priorState);
                 }
                 case SWC_DIR -> {
+                    if (!proceed()) return;
                     if (file != null) inputs.put("dir", file);
                     (new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
                 }
                 case TRACES, SWC, ANY_RECONSTRUCTION -> {
+                    if (!proceed()) return;
                     boolean succeed = false;
                     changeState(LOADING);
                     if (type == SWC) {
