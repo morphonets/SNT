@@ -35,6 +35,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.BinaryTracer;
+import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.TreeUtils;
 
@@ -53,6 +54,7 @@ import java.util.*;
 public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
 
     // ROI strategy constants
+    public static final String ROI_AUTO_DETECT = "None. Use auto-detection";
     public static final String ROI_UNSET = "None. Ignore any ROIs";
     public static final String ROI_CONTAINED = "ROI marks a single root";
     public static final String ROI_EDGE = "Path(s) branch out from ROI edge";
@@ -88,12 +90,14 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                     + "in the segmented image using brightness criteria.", style = ChoiceWidget.LIST_BOX_STYLE)
     protected String originalImgChoice;
 
-    // II. Soma/Root Detection from ROI
+    // II. Soma/Root Detection
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER2 = "<HTML>&nbsp;<br><b> II. Soma/Root Detection from ROI";
+    private String HEADER2 = "<HTML>&nbsp;<br><b> II. Soma/Root Detection";
 
-    @Parameter(label = "ROI strategy", choices = {ROI_UNSET, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED, ROI_CONTAINED}, //
-            description = "<HTML>Assumes that an active area ROI marks the root(s) of the structure.<br><dl>" //
+    @Parameter(label = "ROI strategy", choices = {ROI_AUTO_DETECT, ROI_UNSET, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED, ROI_CONTAINED}, //
+            description = "<HTML>Defines how the root(s) of the structure are determined.<br><dl>" //
+                    + "<dt><i>" + ROI_AUTO_DETECT + "</i></dt>" //
+                    + "<dd>Automatically detects the soma using EDT×intensity scoring and roots the tree at its <b>centroid</b></dd>" //
                     + "<dt><i>" + ROI_UNSET + "</i></dt>" //
                     + "<dd>An <b>arbitrary root node</b> is used</dd>" //
                     + "<dt><i>" + ROI_EDGE + "</i></dt>" //
@@ -390,7 +394,8 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                     && chosenMaskImp.getNSlices() == chosenOrigImp.getNSlices());
             final boolean isValidConnectDist = maxConnectDist > 0d;
             final boolean isValidRoi = roi != null && roi.isArea();
-            boolean inferRootFromRoi = !ROI_UNSET.equals(rootChoice);
+            final boolean autoDetectSoma = ROI_AUTO_DETECT.equals(rootChoice);
+            boolean inferRootFromRoi = !ROI_UNSET.equals(rootChoice) && !autoDetectSoma;
 
             if (isSame || !isValidOrigImg || !isSegmented || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
                     || (!isValidConnectDist && connectComponents)) {
@@ -448,7 +453,20 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                 SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter));
             }
 
-            if (inferRootFromRoi && isValidRoi) {
+            if (autoDetectSoma) {
+                // Auto-detect soma from the segmented image using EDT×intensity scoring
+                snt.setCanvasLabelAllPanes("Detecting soma...");
+                final SomaUtils.SomaResult somaResult = SomaUtils.detectSoma(
+                        ImpUtils.toImgPlus(chosenMaskImp), -1d, -1);
+                if (somaResult != null && somaResult.hasContour()) {
+                    final Roi somaRoi = somaResult.createContourRoi();
+                    if (somaResult.zSlice() >= 0) somaRoi.setPosition(somaResult.zSlice() + 1);
+                    converter.setRootRoi(somaRoi, BinaryTracer.ROI_CENTROID);
+                    SNTUtils.log("Auto-detected soma: " + somaResult);
+                } else {
+                    SNTUtils.log("Soma auto-detection did not find a soma. Using arbitrary root.");
+                }
+            } else if (inferRootFromRoi && isValidRoi) {
                 assignRoiZPosition(roi);
                 converter.setRootRoi(roi, getRootStrategy());
             }

@@ -27,13 +27,13 @@ import ij.gui.Roi;
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.numeric.RealType;
 import org.scijava.ItemVisibility;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.FileWidget;
 import org.scijava.widget.NumberWidget;
+import sc.fiji.snt.Path;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUI;
@@ -41,10 +41,10 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
-import sc.fiji.snt.tracing.auto.AbstractAutoTracer;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracer;
 import sc.fiji.snt.tracing.auto.GWDTTracerFactory;
+import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.TreeUtils;
 
@@ -65,6 +65,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     // ROI strategy constants
     private static final String ROI_UNSET = "None. Use auto-detection";
+    private static final String ROI_AUTO_EDGE = "None. Auto-detect soma: One tree per primary neurite";
     private static final String ROI_EDGE = "Area ROI around soma: One tree per primary neurite";
     private static final String ROI_CENTROID = "Single tree rooted at ROI centroid";
     private static final String ROI_CENTROID_WEIGHTED = "Single tree rooted at ROI weighted centroid";
@@ -98,10 +99,12 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER2 = "<HTML>&nbsp;<br><b>II. Soma/Root Detection";
 
-    @Parameter(required = false, label = "ROI strategy", choices = {ROI_UNSET, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED},
-            description = "<HTML>How to use any active ROI for seed/root detection:<dl>" +
+    @Parameter(required = false, label = "ROI strategy", choices = {ROI_UNSET, ROI_AUTO_EDGE, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED},
+            description = "<HTML>How to determine soma/root location:<dl>" +
                     "<dt><i>" + ROI_UNSET + "</i></dt>" +
-                    "<dd>Auto-detect soma/root at thickest/brightest region. Ignore any ROIs</dd>" +
+                    "<dd>Auto-detect soma. <b>Single tree</b> rooted at detected centroid. Ignores any ROIs</dd>" +
+                    "<dt><i>" + ROI_AUTO_EDGE + "</i></dt>" +
+                    "<dd>Auto-detect soma contour. <b>Separate trees</b> for each neurite exiting the detected soma. No ROI needed</dd>" +
                     "<dt><i>" + ROI_EDGE + "</i></dt>" +
                     "<dd>Area ROI delineates soma. <b>Separate trees</b> created for each exiting neurite</dd>" +
                     "<dt><i>" + ROI_CENTROID + "</i></dt>" +
@@ -253,6 +256,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     protected boolean abortRun;
     protected ImgPlus<?> chosenImp;
+    /** Populated by auto-detection; null when ROI-based strategy is used. */
+    private SomaUtils.SomaResult detectedSoma;
 
     @SuppressWarnings("unused")
     private void debugModeCallback() {
@@ -335,10 +340,39 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             final int seedStrategy = parseRoiStrategy();
             final double[] seedPhysical;
             final String errorMsg;
+            detectedSoma = null;
             if (seedStrategy == GWDTTracer.ROI_UNSET) {
-                seedPhysical = findSomaCenter(chosenImp);
-                errorMsg = "Automated detection of soma failed. Please Pause SNT, draw a " +
-                        "ROI around the soma, and re-run with a ROI-based strategy.";
+                // Auto-detect soma using full SomaUtils pipeline (EDT×intensity)
+                snt.setCanvasLabelAllPanes("Detecting soma...");
+                detectedSoma = detectSoma(chosenImp);
+                if (detectedSoma != null) {
+                    // Use the detected contour as a soma ROI for rooting.
+                    // ROI_AUTO_EDGE: one tree per neurite; ROI_UNSET: single tree at centroid
+                    if (detectedSoma.hasContour()) {
+                        final int autoRoiStrategy = ROI_AUTO_EDGE.equals(somaStrategyChoice)
+                                ? GWDTTracer.ROI_EDGE : GWDTTracer.ROI_CENTROID;
+                        final Roi somaRoi = detectedSoma.createContourRoi();
+                        if (detectedSoma.zSlice() >= 0) somaRoi.setPosition(detectedSoma.zSlice() + 1);
+                        tracer.setSomaRoi(somaRoi, autoRoiStrategy);
+                        tracer.setSomaRoiZPosition(detectedSoma.zSlice());
+                    }
+                    // Convert center to physical coordinates for seed
+                    final double[] spacing = ImgUtils.getSpacing(chosenImp);
+                    seedPhysical = new double[spacing.length];
+                    final long[] center = detectedSoma.center();
+                    for (int d = 0; d < Math.min(center.length, spacing.length); d++) {
+                        seedPhysical[d] = center[d] * spacing[d];
+                    }
+                    // Handle Z for 3D images where center is 2D (from a slice)
+                    if (spacing.length > 2 && center.length <= 2 && detectedSoma.zSlice() >= 0) {
+                        seedPhysical[2] = detectedSoma.zSlice() * spacing[2];
+                    }
+                    errorMsg = null;
+                } else {
+                    seedPhysical = null;
+                    errorMsg = "Automated detection of soma failed. Please Pause SNT, draw a " +
+                            "ROI around the soma, and re-run with a ROI-based strategy.";
+                }
             } else {
                 final Roi roi = getRoiFromSNT();
                 if (seedStrategy == GWDTTracer.ROI_EDGE && (roi == null || !roi.isArea())) {
@@ -399,6 +433,12 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         final PathAndFillManager pafm = sntService.getPathAndFillManager();
         if (replace) {
             pafm.clear();
+        }
+        // Add a soma-tagged path when auto-detection provided a full result
+        if (detectedSoma != null) {
+            final Path somaPath = detectedSoma.toPath(ImgUtils.getSpacing(chosenImp));
+            somaPath.setCTposition(snt.getChannel(), snt.getFrame());
+            pafm.addPath(somaPath, false, true);
         }
         for (final Tree tree : trees) {
             tree.assignImage(chosenImp);
@@ -488,6 +528,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             case ROI_EDGE -> GWDTTracer.ROI_EDGE;
             case ROI_CENTROID -> GWDTTracer.ROI_CENTROID;
             case ROI_CENTROID_WEIGHTED -> GWDTTracer.ROI_CENTROID_WEIGHTED;
+            // Both ROI_UNSET and ROI_AUTO_EDGE trigger auto-detection; they differ
+            // in which rooting strategy is applied to the detected contour
             default -> GWDTTracer.ROI_UNSET;
         };
     }
@@ -518,11 +560,13 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         return new double[]{x, y};
     }
 
-    @SuppressWarnings("unchecked")
-    private double[] findSomaCenter(final ImgPlus<?> img) {
-        final RandomAccessibleInterval<? extends RealType<?>> rai =
-                (RandomAccessibleInterval<? extends RealType<?>>) img;
-        return AbstractAutoTracer.findRootPhysical(rai, ImgUtils.getSpacing(img));
+    /**
+     * Detects the soma in the given image using EDT×intensity scoring.
+     * Returns a full {@link SomaUtils.SomaResult} with center, contour,
+     * radius, and mask — or {@code null} if detection fails.
+     */
+    private SomaUtils.SomaResult detectSoma(final ImgPlus<?> img) {
+        return SomaUtils.detectSoma(img);
     }
 
     private int parseConnectivity(final String choice) {
