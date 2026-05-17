@@ -304,7 +304,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
             // Create tracer
             final boolean scoreMapEnabled = !SCORE_MAP_NONE.equals(scoreMapFilter);
-            final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(chosenImp);
+            final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(chosenImp);
             tracer.setStatusListener(snt::setCanvasLabelAllPanes);
             tracer.setVerbose(debugMode);
             tracer.setBackgroundThreshold(backgroundThreshold);

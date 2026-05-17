@@ -27,21 +27,16 @@ import ij.gui.PointRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import net.imagej.ImgPlus;
-import net.imagej.ops.OpService;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.algorithm.labeling.ConnectedComponents;
 import net.imglib2.algorithm.morphology.distance.DistanceTransform;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgs;
-import net.imglib2.roi.labeling.ImgLabeling;
 import net.imglib2.roi.labeling.LabelRegion;
-import net.imglib2.roi.labeling.LabelRegions;
 import net.imglib2.type.logic.BitType;
 import net.imglib2.type.logic.BoolType;
 import net.imglib2.type.numeric.RealType;
-import net.imglib2.type.numeric.integer.IntType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
@@ -51,8 +46,13 @@ import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 
+import smile.clustering.HierarchicalClustering;
+import smile.clustering.linkage.Linkage;
+import smile.clustering.linkage.SingleLinkage;
+
 import java.awt.Polygon;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -94,8 +94,6 @@ public class SomaUtils {
     private SomaUtils() {
         // Static utility class
     }
-
-    // ==================== Single Soma Detection ====================
 
     /**
      * Full soma detection using ImgPlus with spacing extracted automatically.
@@ -190,8 +188,6 @@ public class SomaUtils {
         return buildSomaResult(source, center[0], center[1], effectiveThreshold);
     }
 
-    // ==================== Seed-based Detection ====================
-
     /**
      * Detects soma at a specific seed point.
      * <p>
@@ -202,15 +198,13 @@ public class SomaUtils {
      * @param seedX     X coordinate of seed point (voxels)
      * @param seedY     Y coordinate of seed point (voxels)
      * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
-     * @param spacing   voxel spacing [x, y], or null for unit spacing
      * @return SomaResult, or null if seed is in background or detection fails
      */
     public static SomaResult detectSomaAt(
             final RandomAccessibleInterval<? extends RealType<?>> source,
             final long seedX,
             final long seedY,
-            final double threshold,
-            final double[] spacing) {
+            final double threshold) {
 
         if (source == null || source.numDimensions() < 2) {
             return null;
@@ -255,7 +249,6 @@ public class SomaUtils {
             return null;
         }
 
-        final double[] spacing = ImgUtils.getSpacing(source);
         final String units = ImgUtils.getSpacingUnits(source);
 
         final RandomAccessibleInterval<?> rai;
@@ -274,7 +267,7 @@ public class SomaUtils {
         final RandomAccessibleInterval<? extends RealType<?>> typedRai =
                 (RandomAccessibleInterval<? extends RealType<?>>) rai;
 
-        final SomaResult baseResult = detectSomaAt(typedRai, seedX, seedY, threshold, spacing);
+        final SomaResult baseResult = detectSomaAt(typedRai, seedX, seedY, threshold);
         if (baseResult == null) return null;
 
         return new SomaResult(
@@ -284,21 +277,181 @@ public class SomaUtils {
     }
 
     /**
+     * Detects somas at the given seed coordinates. Each seed is passed to
+     * {@link #detectSomaAt(RandomAccessibleInterval, long, long, double)}
+     * with an auto-computed threshold (Otsu). Seeds that fall in the
+     * background or fail detection are silently skipped.
+     * <p>
+     * This is useful when soma locations are already known (e.g., from manual
+     * annotation, ROI centroids, or an external detector) and only the
+     * contour/radius characterization is needed. The returned list is directly
+     * compatible with {@link AbstractGWDTTracer#traceMultiSoma(List)}.
+     * </p>
+     * <p>
+     * <b>Important:</b> Since seeds are user-provided (i.e., pre-curated),
+     * callers should disable automatic soma filtering on the tracer before
+     * passing the results to
+     * {@link AbstractGWDTTracer#traceMultiSoma(List)}:
+     * <pre>{@code
+     * List<SomaResult> somas = SomaUtils.detectSomasAt(source, seeds);
+     * tracer.setAutoFilter(false);
+     * List<Tree> trees = tracer.traceMultiSoma(somas);
+     * }</pre>
+     * Otherwise, the tracer's heuristic reduction pipeline may discard valid
+     * somas. See {@link AbstractGWDTTracer#setAutoFilter(boolean)}.
+     * </p>
+     *
+     * @param source  input image (2D)
+     * @param seeds   list of {@code long[]{x, y}} pixel coordinates
+     * @return list of successfully detected SomaResults (may be smaller than
+     *         {@code seeds} if some seeds are invalid); sorted by radius
+     *         (largest first)
+     * @see #detectSomaAt(RandomAccessibleInterval, long, long, double)
+     * @see AbstractGWDTTracer#setAutoFilter(boolean)
+     */
+    public static List<SomaResult> detectSomasAt(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final List<long[]> seeds) {
+
+        if (source == null || seeds == null || seeds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        final List<SomaResult> results = new ArrayList<>();
+        for (final long[] seed : seeds) {
+            if (seed == null || seed.length < 2) continue;
+            final SomaResult result = detectSomaAt(source, seed[0], seed[1], -1);
+            if (result != null) {
+                results.add(result);
+            }
+        }
+        // Sort by radius descending (consistent with detectAllSomas)
+        results.sort((a, b) -> Double.compare(b.radius(), a.radius()));
+        return results;
+    }
+
+    /**
+     * Detects somas at the given seed coordinates using an ImgPlus.
+     * <p>
+     * Since seeds are user-provided, callers should call
+     * {@link AbstractGWDTTracer#setAutoFilter(boolean) setAutoFilter(false)}
+     * on the tracer before passing the results to
+     * {@link AbstractGWDTTracer#traceMultiSoma(List)}.
+     * </p>
+     *
+     * @param source  input image (2D or 3D ImgPlus)
+     * @param seeds   list of {@code long[]{x, y}} pixel coordinates
+     * @param zSlice  Z-slice to use (0-indexed), or -1 for middle slice
+     * @return list of successfully detected SomaResults, sorted by radius
+     *         (largest first)
+     * @see #detectSomasAt(RandomAccessibleInterval, List)
+     * @see AbstractGWDTTracer#setAutoFilter(boolean)
+     */
+    public static List<SomaResult> detectSomasAt(
+            final ImgPlus<?> source,
+            final List<long[]> seeds,
+            final int zSlice) {
+
+        if (source == null || seeds == null || seeds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        final List<SomaResult> results = new ArrayList<>();
+        for (final long[] seed : seeds) {
+            if (seed == null || seed.length < 2) continue;
+            final SomaResult result = detectSomaAt(source, seed[0], seed[1], -1, zSlice);
+            if (result != null) {
+                results.add(result);
+            }
+        }
+        results.sort((a, b) -> Double.compare(b.radius(), a.radius()));
+        return results;
+    }
+
+    /**
+     * Detects somas at the centroids of the given ROIs. This is a convenience
+     * method that extracts centroids via
+     * {@link sc.fiji.snt.analysis.RoiConverter#getCentroids(java.util.Collection)}
+     * and delegates to {@link #detectSomasAt(ImgPlus, List, int)}.
+     * <p>
+     * This supports any ROI type (point, area, line, composite). For area
+     * ROIs, the contour centroid is used; for point ROIs, the point
+     * coordinates are used directly.
+     * </p>
+     * <p>
+     * Since seeds are user-provided, callers should call
+     * {@link AbstractGWDTTracer#setAutoFilter(boolean) setAutoFilter(false)}
+     * on the tracer before passing the results to
+     * {@link AbstractGWDTTracer#traceMultiSoma(List)}. Example:
+     * <pre>{@code
+     * List<SomaResult> somas = SomaUtils.detectSomasAt(imp, rois, zSlice);
+     * tracer.setAutoFilter(false);
+     * List<Tree> trees = tracer.traceMultiSoma(somas);
+     * }</pre>
+     * </p>
+     *
+     * @param imp    the source image (ImagePlus)
+     * @param rois   ROIs whose centroids serve as soma seeds
+     * @param zSlice Z-slice to use (0-indexed), or -1 for middle slice
+     * @return list of successfully detected SomaResults, sorted by radius
+     *         (largest first)
+     * @see sc.fiji.snt.analysis.RoiConverter#getCentroids(java.util.Collection)
+     * @see AbstractGWDTTracer#setAutoFilter(boolean)
+     */
+    public static List<SomaResult> detectSomasAt(
+            final ij.ImagePlus imp,
+            final java.util.Collection<ij.gui.Roi> rois,
+            final int zSlice) {
+
+        if (imp == null || rois == null || rois.isEmpty()) {
+            return new ArrayList<>();
+        }
+        final List<long[]> seeds = sc.fiji.snt.analysis.RoiConverter.getCentroids(rois);
+        if (seeds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        final net.imagej.ImgPlus<?> img = sc.fiji.snt.util.ImpUtils.toImgPlus(imp);
+        return detectSomasAt(img, seeds, zSlice);
+    }
+
+    /**
      * Detects all somas using EDT local maxima approach.
      * Finds local maxima in the distance transform - these correspond to
      * centers of thick structures (somas), not thin structures (neurites).
      *
      * @param source    input image (2D)
      * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
-     * @param spacing   voxel spacing [x, y], or null for unit spacing
      * @param minRadius minimum soma radius in voxels to include (filters small debris)
      * @return list of SomaResult, sorted by radius (largest first); empty list if none found
      */
     public static List<SomaResult> detectAllSomas(
             final RandomAccessibleInterval<? extends RealType<?>> source,
             final double threshold,
-            final double[] spacing,
             final double minRadius) {
+        return detectAllSomas(source, threshold, minRadius, 0);
+    }
+
+    /**
+     * Detects all somas in a 2D image using EDT + local maxima + NMS.
+     * <p>
+     * Pipeline: threshold → binary mask → EDT → local maxima (with minRadius
+     * filter) → non-maximum suppression (with minSomaDistance) → flood fill
+     * for each maximum → SomaResult.
+     * </p>
+     *
+     * @param source           input image (2D)
+     * @param threshold        intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param minRadius        minimum soma radius in voxels to include
+     * @param minSomaDistance   minimum distance (in voxels) between soma centers.
+     *                         If &gt; 0, non-maximum suppression is applied to
+     *                         eliminate clusters of spurious detections. Should
+     *                         reflect the minimum known distance between real
+     *                         somas in the image.
+     * @return list of SomaResult, sorted by radius (largest first); empty list if none found
+     */
+    public static List<SomaResult> detectAllSomas(
+            final RandomAccessibleInterval<? extends RealType<?>> source,
+            final double threshold,
+            final double minRadius,
+            final double minSomaDistance) {
 
         final List<SomaResult> results = new ArrayList<>();
 
@@ -306,11 +459,18 @@ public class SomaUtils {
             return results;
         }
 
-        final double effectiveThreshold = resolveThreshold(source, threshold);
         final long width = source.dimension(0);
         final long height = source.dimension(1);
+        SNTUtils.log(String.format("detectAllSomas: %dx%d image, threshold=%s, minRadius=%.1f, minSomaDistance=%.1f",
+                width, height, (threshold < 0 ? "auto" : String.format("%.1f", threshold)),
+                minRadius, minSomaDistance));
 
-        // 1. Create binary mask from threshold
+        // 1. Compute threshold
+        SNTUtils.log("  Computing threshold...");
+        final double effectiveThreshold = resolveThreshold(source, threshold);
+        SNTUtils.log(String.format("  Threshold: %.1f", effectiveThreshold));
+
+        // 2. Create binary mask from threshold
         final Img<BitType> foreground = ArrayImgs.bits(width, height);
         final Cursor<? extends RealType<?>> srcCursor = Views.flatIterable(source).cursor();
         final Cursor<BitType> maskCursor = foreground.cursor();
@@ -320,7 +480,8 @@ public class SomaUtils {
             maskCursor.get().set(srcCursor.get().getRealDouble() > effectiveThreshold);
         }
 
-        // 2. Compute EDT (invert mask: TRUE = background for EDT)
+        // 3. Compute EDT (invert mask: TRUE = background for EDT)
+        SNTUtils.log("  Computing EDT...");
         final Img<BitType> inverted = ArrayImgs.bits(width, height);
         final Cursor<BitType> fc = foreground.cursor();
         final Cursor<BitType> ic = inverted.cursor();
@@ -333,10 +494,13 @@ public class SomaUtils {
         final Img<FloatType> edt = ArrayImgs.floats(width, height);
         DistanceTransform.binaryTransform(inverted, edt, DistanceTransform.DISTANCE_TYPE.EUCLIDIAN);
 
-        // 3. Find local maxima in EDT with minimum value filter
-        final List<long[]> somaCenters = findEDTLocalMaxima(edt, minRadius);
+        // 4. Find local maxima in EDT with minimum value filter and NMS
+        SNTUtils.log("  Finding EDT local maxima...");
+        final List<long[]> somaCenters = findEDTLocalMaxima(edt, minRadius, minSomaDistance);
+        SNTUtils.log("  Found " + somaCenters.size() + " local maxima");
 
-        // 4. Build SomaResult for each local maximum
+        // 5. Build SomaResult for each local maximum (flood fill per soma)
+        SNTUtils.log("  Characterizing " + somaCenters.size() + " candidate somas...");
         for (final long[] center : somaCenters) {
             final SomaResult result = buildSomaResult(source, center[0], center[1], effectiveThreshold);
             if (result != null && result.radius >= minRadius) {
@@ -347,6 +511,9 @@ public class SomaUtils {
         // Sort by radius (largest first)
         results.sort(Comparator.comparingDouble(SomaResult::radius).reversed());
 
+        SNTUtils.log(String.format("  detectAllSomas complete: %d somas detected (largest radius=%.1f)",
+                results.size(), results.isEmpty() ? 0 : results.getFirst().radius()));
+
         return results;
     }
 
@@ -354,8 +521,30 @@ public class SomaUtils {
      * Finds local maxima in EDT that exceed minimum radius.
      * A local maximum indicates a point maximally distant from background - i.e., center of a thick structure.
      */
+    @SuppressWarnings("unused")
     private static List<long[]> findEDTLocalMaxima(final Img<FloatType> edt, final double minRadius) {
+        return findEDTLocalMaxima(edt, minRadius, 0);
+    }
+
+    /**
+     * Finds local maxima in EDT exceeding {@code minRadius}, then applies
+     * non-maximum suppression (NMS) if {@code minSomaDistance > 0}. NMS
+     * iteratively keeps the highest-EDT-value maximum and suppresses any
+     * others within {@code minSomaDistance} voxels. This prevents clusters
+     * of false detections (e.g., from JPEG compression artifacts) from
+     * producing hundreds of spurious somas.
+     *
+     * @param edt              the Euclidean Distance Transform image
+     * @param minRadius        minimum EDT value to consider as a local maximum
+     * @param minSomaDistance   minimum distance (in voxels) between retained
+     *                         maxima. If &le; 0, NMS is skipped.
+     * @return list of local maxima positions, sorted by EDT value (highest first)
+     *         when NMS is applied
+     */
+    private static List<long[]> findEDTLocalMaxima(final Img<FloatType> edt, final double minRadius,
+                                                    final double minSomaDistance) {
         final List<long[]> maxima = new ArrayList<>();
+        final List<Double> edtValues = new ArrayList<>();
         final long width = edt.dimension(0);
         final long height = edt.dimension(1);
         final RandomAccess<FloatType> ra = edt.randomAccess();
@@ -383,11 +572,56 @@ public class SomaUtils {
 
                 if (isMax) {
                     maxima.add(new long[]{x, y});
+                    edtValues.add(val);
                 }
             }
         }
 
+        // Apply NMS if minSomaDistance is set
+        if (minSomaDistance > 0 && maxima.size() > 1) {
+            return applyNMS(maxima, edtValues, minSomaDistance);
+        }
+
         return maxima;
+    }
+
+    /**
+     * Non-maximum suppression: keep the highest-EDT-value maximum, suppress
+     * all others within {@code minDist}, repeat until all maxima are either
+     * kept or suppressed.
+     */
+    private static List<long[]> applyNMS(final List<long[]> maxima, final List<Double> values,
+                                          final double minDist) {
+        final int n = maxima.size();
+        final double minDistSq = minDist * minDist;
+
+        // Sort by EDT value descending (highest = most likely real soma)
+        final Integer[] indices = new Integer[n];
+        for (int i = 0; i < n; i++) indices[i] = i;
+        Arrays.sort(indices, (a, b) -> Double.compare(values.get(b), values.get(a)));
+
+        final boolean[] suppressed = new boolean[n];
+        final List<long[]> kept = new ArrayList<>();
+
+        for (final int idx : indices) {
+            if (suppressed[idx]) continue;
+
+            kept.add(maxima.get(idx));
+
+            // Suppress nearby maxima
+            final long[] pos = maxima.get(idx);
+            for (int j = 0; j < n; j++) {
+                if (j == idx || suppressed[j]) continue;
+                final long[] other = maxima.get(j);
+                final double dx = pos[0] - other[0];
+                final double dy = pos[1] - other[1];
+                if (dx * dx + dy * dy <= minDistSq) {
+                    suppressed[j] = true;
+                }
+            }
+        }
+
+        return kept;
     }
 
     /**
@@ -395,14 +629,12 @@ public class SomaUtils {
      *
      * @param source    input image (2D)
      * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
-     * @param spacing   voxel spacing [x, y], or null for unit spacing
      * @return list of SomaResult, sorted by radius (largest first)
      */
     public static List<SomaResult> detectAllSomas(
             final RandomAccessibleInterval<? extends RealType<?>> source,
-            final double threshold,
-            final double[] spacing) {
-        return detectAllSomas(source, threshold, spacing, DEFAULT_MIN_RADIUS);
+            final double threshold) {
+        return detectAllSomas(source, threshold, DEFAULT_MIN_RADIUS);
     }
 
     /**
@@ -419,12 +651,31 @@ public class SomaUtils {
             final double threshold,
             final int zSlice,
             final double minRadius) {
+        return detectAllSomas(source, threshold, zSlice, minRadius, 0);
+    }
+
+    /**
+     * Detects all somas using ImgPlus with automatic spacing and NMS.
+     *
+     * @param source           input image (2D or 3D ImgPlus)
+     * @param threshold        intensity threshold. Use -1 for Otsu, NaN for mean.
+     * @param zSlice           Z-slice to use (0-indexed), or -1 for middle slice
+     * @param minRadius        minimum soma radius in voxels
+     * @param minSomaDistance   minimum distance (in voxels) between soma centers
+     *                         for non-maximum suppression. If &le; 0, NMS is skipped.
+     * @return list of SomaResult, sorted by radius (largest first)
+     */
+    public static List<SomaResult> detectAllSomas(
+            final ImgPlus<?> source,
+            final double threshold,
+            final int zSlice,
+            final double minRadius,
+            final double minSomaDistance) {
 
         if (source == null) {
             return new ArrayList<>();
         }
 
-        final double[] spacing = ImgUtils.getSpacing(source);
         final String units = ImgUtils.getSpacingUnits(source);
 
         final RandomAccessibleInterval<?> rai;
@@ -443,7 +694,7 @@ public class SomaUtils {
         final RandomAccessibleInterval<? extends RealType<?>> typedRai =
                 (RandomAccessibleInterval<? extends RealType<?>>) rai;
 
-        final List<SomaResult> baseResults = detectAllSomas(typedRai, threshold, spacing, minRadius);
+        final List<SomaResult> baseResults = detectAllSomas(typedRai, threshold, minRadius, minSomaDistance);
 
         // Enrich with units and Z
         final List<SomaResult> enrichedResults = new ArrayList<>();
@@ -468,8 +719,480 @@ public class SomaUtils {
     }
 
     /**
+     * Computes the EDT (Euclidean Distance Transform) from the source image and
+     * samples the value at each soma center, returning an array of EDT values
+     * (one per soma, same order as input list).
+     * <p>
+     * <b>Binarization threshold:</b> Uses the Minimum auto-threshold (via
+     * {@link #computeMinimumThreshold}) rather than Otsu on the full image.
+     * Otsu can produce very low thresholds for images with large bright
+     * regions, making nearly everything foreground and causing the EDT to
+     * measure distance-to-nearest-dark-pixel rather than local structure
+     * thickness. The Minimum method, which finds the valley between two
+     * histogram peaks, produces a more restrictive threshold that better
+     * isolates bright structures.
+     * </p>
+     * <p>
+     * <b>Known limitation:</b> Even with the Minimum threshold, images that
+     * have large contiguous regions above the threshold will still produce
+     * high EDT values at points deep inside those regions, regardless of
+     * whether a real soma body exists there. A fundamentally different
+     * approach (e.g., local EDT windows or non-EDT-based ranking) may be
+     * needed for such images.
+     * </p>
+     *
+     * @param <T>    pixel type
+     * @param somas  list of detected somas
+     * @param source the original source image (2D)
+     * @return array of EDT values at each soma center (same length and order as
+     *         {@code somas})
+     * @see #computeMinimumThreshold
+     */
+    private static <T extends RealType<T>> double[] computeEdtAtSomaCenters(
+            final List<SomaResult> somas,
+            final RandomAccessibleInterval<T> source) {
+
+        final int count = somas.size();
+        final long width = source.dimension(0);
+        final long height = source.dimension(1);
+
+        // Use the Minimum auto-threshold for EDT binarization. Unlike Otsu
+        // (which can be very low for images with large bright regions, making
+        // nearly everything foreground), the Minimum method finds the valley
+        // between the two histogram peaks restricting foreground to bright
+        // soma-like structures so the EDT correctly measures body half-width.
+        final double edtThreshold = computeMinimumThreshold(source);
+
+        SNTUtils.log(String.format("  computeEdtAtSomaCenters: Minimum threshold=%.1f",
+                edtThreshold));
+
+        // Create binary mask and compute EDT
+        final Img<BitType> inverted = ArrayImgs.bits(width, height);
+        final Cursor<? extends RealType<?>> srcCursor = Views.flatIterable(source).cursor();
+        final Cursor<BitType> ic = inverted.cursor();
+        while (srcCursor.hasNext()) {
+            srcCursor.fwd();
+            ic.fwd();
+            // TRUE = background (EDT measures distance FROM background)
+            ic.get().set(srcCursor.get().getRealDouble() <= edtThreshold);
+        }
+
+        final Img<FloatType> edt = ArrayImgs.floats(width, height);
+        DistanceTransform.binaryTransform(inverted, edt, DistanceTransform.DISTANCE_TYPE.EUCLIDIAN);
+
+        // Sample EDT at each soma center
+        final RandomAccess<FloatType> edtRA = edt.randomAccess();
+        final double[] edtValues = new double[count];
+        for (int i = 0; i < count; i++) {
+            final long[] center = somas.get(i).center();
+            final long x = Math.max(0, Math.min(width - 1, center[0]));
+            final long y = Math.max(0, Math.min(height - 1, center.length > 1 ? center[1] : 0));
+            edtRA.setPosition(new long[]{x, y});
+            edtValues[i] = edtRA.get().getRealDouble();
+        }
+
+        return edtValues;
+    }
+
+    /**
+     * Selects the top-N somas by EDT thickness (distance to nearest background
+     * pixel at each soma's center), ranking by descending EDT value.
+     * <p>
+     * <b>Experimental — known limitations:</b> The EDT is computed from a
+     * binary mask obtained by applying the Minimum auto-threshold to the
+     * source image (see {@link #computeEdtAtSomaCenters}). For images with
+     * large connected foreground regions (common in compressed formats like
+     * JPEG, or images with dense neuropil), the EDT at a point measures the
+     * distance to the nearest below-threshold pixel — <em>not</em> the local
+     * soma body half-width. False detections located deep inside such regions
+     * can receive artificially high EDT values (hundreds of pixels), ranking
+     * higher than real somas whose EDT only reflects the soma's actual radius
+     * (~15-20 px). In testing, this caused 4 of 5 selected somas to be false
+     * detections.
+     * </p>
+     * <p>
+     * For reliable soma selection, prefer using
+     * {@link AbstractGWDTTracer#setMinSomaDistance(double)} instead, which
+     * drives standard NMS and consolidation without depending on global EDT.
+     * </p>
+     *
+     * @param <T>    pixel type
+     * @param somas  list of detected somas
+     * @param source the original source image (2D), used for EDT computation
+     * @param n      number of somas to keep (must be &ge; 1)
+     * @return the top-N somas sorted by EDT thickness (highest first), or the
+     *         original list if {@code n >= somas.size()} or inputs are invalid
+     * @see #computeEdtAtSomaCenters
+     * @see #filterSomasByThickness
+     */
+    public static <T extends RealType<T>> List<SomaResult> selectTopSomasByThickness(
+            final List<SomaResult> somas,
+            final RandomAccessibleInterval<T> source,
+            final int n) {
+
+        if (somas == null || source == null || n < 1 || n >= somas.size()) {
+            return somas;
+        }
+
+        final int count = somas.size();
+        final double[] edtValues = computeEdtAtSomaCenters(somas, source);
+
+        // Sort indices by EDT value descending
+        final Integer[] indices = new Integer[count];
+        for (int i = 0; i < count; i++) indices[i] = i;
+        Arrays.sort(indices, (a, b) -> Double.compare(edtValues[b], edtValues[a]));
+
+        // Take top N
+        final List<SomaResult> topN = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            topN.add(somas.get(indices[i]));
+        }
+
+        SNTUtils.log(String.format("selectTopSomasByThickness: %d → %d (EDT range of kept: [%.1f, %.1f])",
+                count, n, edtValues[indices[n - 1]], edtValues[indices[0]]));
+
+        return topN;
+    }
+
+    /**
+     * Filters a list of detected somas by their local EDT thickness, using
+     * Otsu's method on the EDT value distribution to separate thick (real
+     * soma) from thin (artifact) detections.
+     * <p>
+     * The method computes an EDT using the Minimum auto-threshold for
+     * binarization (see {@link #computeEdtAtSomaCenters}), samples the EDT
+     * value at each soma center, then applies a second Otsu threshold on those
+     * sampled values. Somas with EDT above the second Otsu are kept.
+     * </p>
+     * <p>
+     * <b>Experimental: known limitations:</b> This method shares the same
+     * fundamental limitation as {@link #selectTopSomasByThickness}: the EDT
+     * depends on a global binarization threshold, which may not produce
+     * meaningful local thickness measurements for images with large connected
+     * foreground regions. The second Otsu (on the EDT values themselves)
+     * partially compensates: it can separate the bimodal distribution of
+     * "high EDT at false detections deep inside foreground" from "low EDT at
+     * artifacts near boundaries": but the resulting threshold is image-
+     * dependent and may be too aggressive (filtering out real somas) or too
+     * lenient (keeping false detections). In testing with a JPEG image, this
+     * method reduced 495 detections to 18, losing 1 of 5 real somas.
+     * </p>
+     * <p>
+     * Used internally by the auto-estimation branch of
+     * {@link AbstractGWDTTracer#traceMultiSoma(List)} when neither
+     * {@code nSomas} nor {@code minSomaDistance} is specified.
+     * </p>
+     *
+     * @param <T>    pixel type
+     * @param somas  list of detected somas (at least 2 for meaningful filtering)
+     * @param source the original source image used for detection (2D)
+     * @return filtered list containing only somas with EDT thickness above
+     *         Otsu's threshold; returns the original list if filtering is not
+     *         applicable or produces degenerate results
+     * @see #computeEdtAtSomaCenters
+     * @see #selectTopSomasByThickness
+     */
+    public static <T extends RealType<T>> List<SomaResult> filterSomasByThickness(
+            final List<SomaResult> somas,
+            final RandomAccessibleInterval<T> source) {
+
+        if (somas == null || somas.size() < 2 || source == null) {
+            return somas;
+        }
+
+        final int n = somas.size();
+
+        // Compute EDT using soma-center-derived threshold
+        final double[] edtValues = computeEdtAtSomaCenters(somas, source);
+
+        double minEdt = Double.MAX_VALUE;
+        double maxEdt = Double.NEGATIVE_INFINITY;
+        for (final double v : edtValues) {
+            minEdt = Math.min(minEdt, v);
+            maxEdt = Math.max(maxEdt, v);
+        }
+
+        SNTUtils.log(String.format("filterSomasByThickness: EDT range=[%.1f, %.1f], %d somas",
+                minEdt, maxEdt, n));
+
+        if (maxEdt <= minEdt) return somas;
+
+        // Otsu on EDT values to find thickness threshold
+        final double edtOtsu = computeOtsuThreshold(
+                ArrayImgs.doubles(edtValues, edtValues.length));
+
+        SNTUtils.log(String.format("  EDT Otsu threshold=%.1f", edtOtsu));
+
+        // Log distribution details
+        final double[] sorted = edtValues.clone();
+        Arrays.sort(sorted);
+        SNTUtils.log(String.format("  EDT percentiles: p10=%.1f, p25=%.1f, median=%.1f, p75=%.1f, p90=%.1f",
+                sorted[(int) (n * 0.1)], sorted[(int) (n * 0.25)],
+                sorted[n / 2], sorted[(int) (n * 0.75)], sorted[(int) (n * 0.9)]));
+
+        // Filter: keep somas above EDT threshold
+        final List<SomaResult> filtered = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (edtValues[i] > edtOtsu) {
+                filtered.add(somas.get(i));
+            }
+        }
+
+        SNTUtils.log(String.format("  %d somas above EDT threshold (kept), %d below (removed)",
+                filtered.size(), n - filtered.size()));
+
+        // Safety: if filtering removed everything or kept everything, return original
+        if (filtered.isEmpty() || filtered.size() == n) {
+            SNTUtils.log("  EDT thickness filtering had no discriminative effect, returning original list");
+            return somas;
+        }
+
+        return filtered;
+    }
+
+    /**
+     * Filters a list of detected somas by sampling the source image intensity
+     * at each soma center and applying Otsu's threshold to separate real
+     * (bright) somas from false detections (dim).
+     * <p>
+     * Note: for JPEG images, intensity alone may not discriminate well because
+     * compression artifacts can create bright spots. Prefer
+     * {@link #filterSomasByThickness} which uses geometric thickness (EDT)
+     * as the discriminator.
+     * </p>
+     *
+     * @param <T>    pixel type
+     * @param somas  list of detected somas (at least 2 for meaningful filtering)
+     * @param source the original source image used for detection (2D)
+     * @return filtered list containing only somas with center intensity above
+     *         Otsu's threshold; returns the original list if filtering is not
+     *         applicable (fewer than 2 somas, or Otsu produces degenerate threshold)
+     */
+    public static <T extends RealType<T>> List<SomaResult> filterSomasByIntensity(
+            final List<SomaResult> somas,
+            final RandomAccessibleInterval<T> source) {
+
+        if (somas == null || somas.size() < 2 || source == null) {
+            return somas;
+        }
+
+        final int n = somas.size();
+        final RandomAccess<T> ra = source.randomAccess();
+
+        // Sample source intensity at each soma center
+        final double[] intensities = new double[n];
+        double minVal = Double.MAX_VALUE;
+        double maxVal = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < n; i++) {
+            final long[] center = somas.get(i).center();
+            // Clamp to image bounds
+            final long x = Math.max(source.min(0), Math.min(source.max(0), center[0]));
+            final long y = Math.max(source.min(1), Math.min(source.max(1),
+                    center.length > 1 ? center[1] : 0));
+            ra.setPosition(new long[]{x, y});
+            intensities[i] = ra.get().getRealDouble();
+            minVal = Math.min(minVal, intensities[i]);
+            maxVal = Math.max(maxVal, intensities[i]);
+        }
+
+        // Compute Otsu's threshold on the intensity distribution of soma centers
+        if (maxVal <= minVal) return somas;
+
+        final double otsuThreshold = computeOtsuThreshold(
+                ArrayImgs.doubles(intensities, intensities.length));
+
+        SNTUtils.log(String.format("filterSomasByIntensity: intensity range=[%.1f, %.1f], "
+                        + "Otsu=%.1f, %d somas input",
+                minVal, maxVal, otsuThreshold, n));
+
+        // Filter: keep somas whose center intensity exceeds Otsu threshold
+        final List<SomaResult> filtered = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            if (intensities[i] > otsuThreshold) {
+                filtered.add(somas.get(i));
+            }
+        }
+
+        SNTUtils.log(String.format("  %d somas above threshold (kept), %d below (removed)",
+                filtered.size(), n - filtered.size()));
+
+        if (filtered.isEmpty() || filtered.size() == n) {
+            SNTUtils.log("  Intensity filtering had no discriminative effect, returning original list");
+            return somas;
+        }
+
+        return filtered;
+    }
+
+    /**
+     * Estimates the minimum inter-soma distance from a list of detected somas
+     * using single-linkage hierarchical clustering with gap analysis.
+     * <p>
+     * This overload does not filter by intensity and operates directly on the
+     * provided soma list. For images with many false detections (e.g., JPEG
+     * artifacts), prefer
+     * {@link #estimateMinSomaDistance(List, RandomAccessibleInterval)}
+     * which pre-filters somas by intensity before clustering.
+     * </p>
+     *
+     * @param somas   list of detected somas (at least 3 required)
+     * @return estimated minimum distance between real soma centers (in voxels),
+     *         or 0 if fewer than 3 somas or no clear gap is found
+     * @see #estimateMinSomaDistance(List, RandomAccessibleInterval)
+     */
+    public static double estimateMinSomaDistance(final List<SomaResult> somas) {
+        return estimateMinSomaDistanceFromClustering(somas);
+    }
+
+    /**
+     * Estimates the minimum inter-soma distance using a hybrid approach:
+     * EDT-thickness filtering followed by spatial gap analysis.
+     * <p>
+     * Pipeline:
+     * <ol>
+     *   <li><b>Thickness filter</b> (experimental): recompute EDT from source
+     *       using the Minimum auto-threshold, sample EDT at each soma center,
+     *       apply Otsu on those values to separate thick from thin detections,
+     *       see {@link #filterSomasByThickness}</li>
+     *   <li><b>Spatial gap analysis</b>: run single-linkage hierarchical
+     *       clustering on the surviving somas, find the largest ratio gap in
+     *       merge heights, return the geometric mean of the gap boundaries</li>
+     * </ol>
+     * </p>
+     * <p>
+     * <b>Experimental:</b> The quality of the estimate depends heavily on
+     * step 1 (thickness filtering), which has known limitations for images
+     * with large connected foreground regions, see
+     * {@link #filterSomasByThickness} javadoc. The gap analysis in step 2 is
+     * well-founded (standard hierarchical clustering), but is only as good as
+     * the input somas it receives.
+     * </p>
+     *
+     * @param <T>    pixel type
+     * @param somas  list of detected somas (at least 3 required)
+     * @param source the original source image, used for EDT computation
+     * @return estimated minimum distance between real soma centers (in voxels),
+     *         or 0 if estimation fails
+     * @see #filterSomasByThickness
+     */
+    public static <T extends RealType<T>> double estimateMinSomaDistance(
+            final List<SomaResult> somas,
+            final RandomAccessibleInterval<T> source) {
+
+        if (somas == null || somas.size() < 3) return 0;
+
+        // Step 1: Filter by EDT thickness to remove geometrically thin false detections
+        final List<SomaResult> thickSomas = filterSomasByThickness(somas, source);
+        SNTUtils.log("estimateMinSomaDistance (hybrid): " + somas.size()
+                + " raw → " + thickSomas.size() + " after thickness filter");
+
+        if (thickSomas.size() < 2) {
+            SNTUtils.log("  Too few somas after thickness filter, returning 0");
+            return 0;
+        }
+
+        if (thickSomas.size() == 2) {
+            // With exactly 2 somas, just return their distance
+            final long[] c1 = thickSomas.get(0).center();
+            final long[] c2 = thickSomas.get(1).center();
+            double distSq = 0;
+            for (int d = 0; d < Math.min(c1.length, c2.length); d++) {
+                final double diff = c1[d] - c2[d];
+                distSq += diff * diff;
+            }
+            final double dist = Math.sqrt(distSq);
+            SNTUtils.log(String.format("  2 somas remaining, distance=%.1f voxels", dist));
+            return dist;
+        }
+
+        // Step 2: Spatial gap analysis on filtered set
+        return estimateMinSomaDistanceFromClustering(thickSomas);
+    }
+
+    /**
+     * Core single-linkage hierarchical clustering gap analysis.
+     * Finds the largest ratio gap in merge heights to separate intra-cluster
+     * distances from inter-cluster distances.
+     */
+    private static double estimateMinSomaDistanceFromClustering(final List<SomaResult> somas) {
+        if (somas == null || somas.size() < 3) return 0;
+
+        final int n = somas.size();
+
+        // Build voxel-coordinate data matrix for Smile
+        final double[][] positions = new double[n][];
+        for (int i = 0; i < n; i++) {
+            final long[] center = somas.get(i).center();
+            positions[i] = new double[center.length];
+            for (int d = 0; d < center.length; d++) {
+                positions[i][d] = center[d];
+            }
+        }
+
+        // Single-linkage hierarchical clustering via Smile
+        SNTUtils.log("estimateMinSomaDistance: computing proximity for " + n + " somas...");
+        final float[] proximity = Linkage.proximity(positions);
+        SNTUtils.log("  proximity length: " + proximity.length
+                + " (expected " + (n * (n + 1) / 2) + ")");
+        final SingleLinkage linkage = new SingleLinkage(n, proximity);
+        final HierarchicalClustering hc = HierarchicalClustering.fit(linkage);
+
+        // height() returns n-1 non-decreasing merge distances
+        final double[] heights = hc.height();
+        SNTUtils.log("  heights: " + heights.length + " merges");
+        if (heights.length < 2) return 0;
+
+        // Log a sample of heights for diagnostics
+        SNTUtils.log(String.format("  first 5 heights: [%.2f, %.2f, %.2f, %.2f, %.2f]",
+                heights[0], heights[Math.min(1, heights.length - 1)],
+                heights[Math.min(2, heights.length - 1)],
+                heights[Math.min(3, heights.length - 1)],
+                heights[Math.min(4, heights.length - 1)]));
+        SNTUtils.log(String.format("  last 5 heights: [%.2f, %.2f, %.2f, %.2f, %.2f]",
+                heights[Math.max(0, heights.length - 5)],
+                heights[Math.max(0, heights.length - 4)],
+                heights[Math.max(0, heights.length - 3)],
+                heights[Math.max(0, heights.length - 2)],
+                heights[heights.length - 1]));
+
+        // Find the largest ratio gap in consecutive merge heights.
+        // The gap separates intra-cluster merges (small, between false somas)
+        // from inter-cluster merges (large, between real cells).
+        double bestGapRatio = 0;
+        int bestGapIdx = -1;
+        for (int i = 0; i < heights.length - 1; i++) {
+            if (heights[i] > 0) {
+                final double ratio = heights[i + 1] / heights[i];
+                if (ratio > bestGapRatio) {
+                    bestGapRatio = ratio;
+                    bestGapIdx = i;
+                }
+            }
+        }
+
+        SNTUtils.log(String.format("  best gap: ratio=%.2f at index %d (%.2f -> %.2f)",
+                bestGapRatio, bestGapIdx,
+                bestGapIdx >= 0 ? heights[bestGapIdx] : 0,
+                bestGapIdx >= 0 ? heights[bestGapIdx + 1] : 0));
+
+        // Require a meaningful gap: at least 3x jump suggests real cluster separation
+        if (bestGapRatio < 3.0 || bestGapIdx < 0) {
+            SNTUtils.log("  No clear gap found (ratio < 3.0), returning 0");
+            return 0;
+        }
+
+        // Return the geometric mean of the gap boundaries as a robust midpoint
+        final double belowGap = heights[bestGapIdx];
+        final double aboveGap = heights[bestGapIdx + 1];
+        final double result = Math.sqrt(belowGap * aboveGap);
+        SNTUtils.log(String.format("  estimated minSomaDistance: %.1f voxels", result));
+        return result;
+    }
+
+    /**
      * Detects soma within a specific labeled region.
      */
+    @SuppressWarnings("unused")
     private static SomaResult detectSomaInRegion(
             final RandomAccessibleInterval<? extends RealType<?>> source,
             final LabelRegion<?> region,
@@ -604,8 +1327,6 @@ public class SomaUtils {
         return threshold;
     }
 
-    // ==================== Flood Fill ====================
-
     /**
      * Creates a binary mask of the soma region using flood fill from seed point.
      *
@@ -658,7 +1379,7 @@ public class SomaUtils {
         stack.add(new long[]{seedX, seedY});
 
         while (!stack.isEmpty()) {
-            final long[] pos = stack.remove(stack.size() - 1);
+            final long[] pos = stack.removeLast();
             final long x = pos[0];
             final long y = pos[1];
 
@@ -683,8 +1404,6 @@ public class SomaUtils {
             stack.add(new long[]{x, y - 1});
         }
     }
-
-    // ==================== Contour Extraction ====================
 
     /**
      * Extracts the boundary contour from a binary mask using Moore boundary tracing.
@@ -782,8 +1501,6 @@ public class SomaUtils {
         return false;
     }
 
-    // ==================== Mask Measurements ====================
-
     /**
      * Computes the centroid of a binary mask.
      *
@@ -836,8 +1553,6 @@ public class SomaUtils {
         return count;
     }
 
-    // ==================== Pruning ====================
-
     /**
      * Prunes narrow protrusions from mask using EDT.
      * Removes pixels where local thickness is below a fraction of maximum thickness.
@@ -877,8 +1592,6 @@ public class SomaUtils {
         }
     }
 
-    // ==================== Threshold ====================
-
     /**
      * Computes Otsu's threshold using ImageJ Ops.
      *
@@ -893,7 +1606,22 @@ public class SomaUtils {
         return thresholdObj.getRealDouble();
     }
 
-    // ==================== Result Container ====================
+    /**
+     * Computes the Minimum auto-threshold of the given image. The Minimum
+     * method finds the valley between two peaks in the histogram, making it
+     * more restrictive than Otsu for images with large bright regions.
+     *
+     * @param source the input image
+     * @return Minimum threshold value
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static double computeMinimumThreshold(final RandomAccessibleInterval<? extends RealType<?>> source) {
+        final net.imagej.ops.OpService ops = SNTUtils.getContext().getService(net.imagej.ops.OpService.class);
+        final net.imglib2.histogram.Histogram1d histogram = ops.image().histogram((Iterable) source);
+        // ops.threshold().minimum() returns a List (unlike otsu() which returns a RealType)
+        final java.util.List<?> result = (java.util.List<?>) ops.threshold().minimum(histogram);
+        return ((RealType<?>) result.getFirst()).getRealDouble();
+    }
 
     /**
      * Container for soma detection results.

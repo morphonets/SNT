@@ -44,7 +44,7 @@ import sc.fiji.snt.util.ImgUtils;
  * Usage:
  * <pre>{@code
  * // Automatic selection
- * AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(image);
+ * AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(image);
  * tracer.setSeedPhysical(somaCenter);
  * List<Tree> trees = tracer.traceTrees();
  *
@@ -146,7 +146,7 @@ public class GWDTTracerFactory {
      * @return optimal tracer implementation
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static AbstractGWDTTracer<?> createOptimal(
+    public static AbstractGWDTTracer<?> create(
             final RandomAccessibleInterval<?> source,
             final double[] spacing) {
 
@@ -182,8 +182,8 @@ public class GWDTTracerFactory {
      * @param source the grayscale image to trace
      * @return optimal tracer implementation
      */
-    public static AbstractGWDTTracer<?> createOptimal(final ImgPlus<?> source) {
-        return createOptimal(source, ImgUtils.getSpacing(source));
+    public static AbstractGWDTTracer<?> create(final ImgPlus<?> source) {
+        return create(source, ImgUtils.getSpacing(source));
     }
 
     /**
@@ -192,10 +192,10 @@ public class GWDTTracerFactory {
      * @param source the grayscale image to trace
      * @return optimal tracer implementation
      */
-    public static AbstractGWDTTracer<?> createOptimal(final ImagePlus source) {
+    public static AbstractGWDTTracer<?> create(final ImagePlus source) {
         final RandomAccessibleInterval<?> rai = ImgUtils.getCtSlice(source);
         final double[] spacing = getSpacing(source, source.getNSlices() > 1 ? 3 : 2);
-        return createOptimal(rai, spacing);
+        return create(rai, spacing);
     }
 
     /**
@@ -288,7 +288,7 @@ public class GWDTTracerFactory {
      * @return optimal tracer implementation
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    public static AbstractGWDTTracer<?> createOptimal(
+    public static AbstractGWDTTracer<?> create(
             final RandomAccessibleInterval<?> source,
             final double[] spacing,
             final long sparseThresholdMB,

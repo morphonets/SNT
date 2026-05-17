@@ -741,6 +741,29 @@ public class RoiConverter {
 		return pixelCoords;
 	}
 
+	/**
+	 * Extracts the 2D centroids from a list of ROIs as integer pixel
+	 * coordinates. Each centroid is computed via {@link #get2dCentroid(Roi)}
+	 * and rounded to the nearest pixel. Null ROIs or ROIs whose centroid
+	 * cannot be determined are silently skipped.
+	 *
+	 * @param rois the ROIs to extract centroids from
+	 * @return list of {@code long[]{x, y}} pixel coordinates, one per valid
+	 *         ROI (may be smaller than input if some ROIs are null/invalid)
+	 * @see #get2dCentroid(Roi)
+	 */
+	public static List<long[]> getCentroids(final Collection<Roi> rois) {
+		if (rois == null || rois.isEmpty()) return Collections.emptyList();
+		final List<long[]> centroids = new ArrayList<>(rois.size());
+		for (final Roi roi : rois) {
+			final double[] c = get2dCentroid(roi);
+			if (c != null && c.length >= 2) {
+				centroids.add(new long[]{Math.round(c[0]), Math.round(c[1])});
+			}
+		}
+		return centroids;
+	}
+
 	public static boolean saveRoisToZip(final List<Roi> rois, final File file) {
 		try (final ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(file))) {
 			int count = 0;

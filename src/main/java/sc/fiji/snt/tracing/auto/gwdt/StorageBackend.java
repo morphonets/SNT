@@ -25,6 +25,8 @@ package sc.fiji.snt.tracing.auto.gwdt;
 import net.imglib2.RandomAccessibleInterval;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 
+import java.util.Set;
+
 /**
  * Storage backend for GWDT tracing data structures.
  * <p>
@@ -186,6 +188,42 @@ public interface StorageBackend {
     default void setTrackAliveIndices(boolean track) {
         // Default: no-op for backwards compatibility
     }
+
+    /**
+     * Returns the set of linear indices that have been marked as ALIVE during
+     * Fast Marching. Only available when
+     * {@link #setTrackAliveIndices(boolean) ALIVE tracking} is enabled;
+     * returns {@code null} otherwise.
+     *
+     * @return the tracked ALIVE indices, or null if tracking is disabled
+     */
+    default Set<Long> getAliveIndices() {
+        return null;
+    }
+
+    /**
+     * Re-initializes Fast Marching data structures (distances, parents, state)
+     * while preserving the pre-computed GWDT. Voxels whose linear indices appear
+     * in {@code excludedIndices} are pre-marked as ALIVE with distance 0,
+     * effectively making them impassable barriers for the next FM run.
+     * <p>
+     * Excluded voxels are stamped directly into the state array <em>after</em>
+     * ALIVE tracking is initialized, so they are <b>not</b> added to the
+     * tracked ALIVE set. This ensures {@link #buildGraph} only sees voxels
+     * reached by the current FM pass, not leftover exclusions.
+     * </p>
+     * <p>
+     * This enables a NeuTube-style recovery pass: after tracing from one seed,
+     * the traced region (optionally dilated) is excluded and a new FM run can
+     * proceed from a different seed without recomputing the GWDT.
+     * </p>
+     *
+     * @param dims            image dimensions
+     * @param seedIndex       linear index of the new seed voxel
+     * @param excludedIndices set of linear indices to pre-mark as ALIVE
+     *                        (impassable); may be {@code null} or empty
+     */
+    void reinitializeFastMarching(long[] dims, long seedIndex, Set<Long> excludedIndices);
 
     /**
      * Clean up resources (close files, free memory, delete temp files).

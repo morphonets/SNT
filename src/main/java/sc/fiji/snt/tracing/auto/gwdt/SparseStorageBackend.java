@@ -232,6 +232,18 @@ public class SparseStorageBackend implements StorageBackend {
     }
 
     @Override
+    public void reinitializeFastMarching(long[] dims, long seedIndex, Set<Long> excludedIndices) {
+        initializeFastMarching(dims, seedIndex);
+        // Stamp excluded voxels directly into stateMap without tracking them
+        // as ALIVE, so buildGraph won't include them in the output graph
+        if (excludedIndices != null && !excludedIndices.isEmpty()) {
+            for (final long idx : excludedIndices) {
+                stateMap.put(idx, AbstractGWDTTracer.ALIVE);
+            }
+        }
+    }
+
+    @Override
     public void setDistance(long index, double distance) {
         if (distance == Double.MAX_VALUE) {
             distanceMap.remove(index);
@@ -376,6 +388,7 @@ public class SparseStorageBackend implements StorageBackend {
         return "Sparse (hash map)";
     }
     
+    @Override
     public Set<Long> getAliveIndices() {
         return aliveIndices;
     }

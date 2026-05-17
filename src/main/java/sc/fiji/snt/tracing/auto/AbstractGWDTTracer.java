@@ -35,6 +35,7 @@ import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
@@ -92,6 +93,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected double sphereOverlapThreshold = 0.1;  // APP2: node covered if >10% of sphere overlaps
     protected double leafPruneOverlap = 0.9;  // APP2: prune leaf if 90% overlap with parent
     protected boolean leafPruneEnabled = true;  // APP2's is_leaf_prune
+    protected boolean jointLeafPruneEnabled = true;  // Controls joint leaf pruning (see jointLeafPruning() docs)
     protected boolean smoothEnabled = true;  // APP2's is_smooth (default: true)
     protected int smoothWindowSize = 5;  // APP2's smooth window size
     protected boolean resampleEnabled = true;  // APP2's b_resample (default: true)
@@ -102,6 +104,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected boolean overshootRemovalEnabled = true;  // Remove direction reversals at branch points
     protected double branchTuneMaxAngle = 90.0;  // Max angle (degrees) for branch tuning turn test; NaN disables
     protected boolean reconnectEnabled = true;  // Use A* to bridge gaps between disconnected components
+
+    // Multi-soma recovery pass configuration
+    private int tracedRegionBuffer = 5;  // Buffer (in voxels) around traced regions excluded between multi-soma passes
+    private double minSomaDistance = 0;  // Min distance (voxels) between soma centers; used for NMS and consolidation
+    private int nSomas = -1;  // Expected number of somas; -1 = auto-estimate, 0 = disabled
+    private boolean autoFilterSomas = true;  // Whether traceMultiSoma auto-filters input somas
 
     // Score map configuration
     protected boolean scoreMapEnabled = false;  // Compute/use per-node tubeness/vesselness scores
@@ -119,9 +127,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected StorageBackend storage;
     
     // Reusable arrays for hot path optimization (reduces allocations)
-    private int[] deltaCache;
-    private long[] neighborPosCache;
-    private long[] bridgePosCache;
+    private final int[] deltaCache;
+    private final long[] neighborPosCache;
+    private final long[] bridgePosCache;
 
     /**
      * Creates a new GWDTTracer.
@@ -259,6 +267,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
+     * Enables or disables joint leaf pruning independently of leaf pruning.
+     * Joint leaf pruning removes leaves whose sphere is 90% covered by other
+     * nodes' spheres. See {@link #jointLeafPruning} for known cascading issue.
+     * Default: true
+     */
+    public void setJointLeafPruneEnabled(final boolean enabled) {
+        this.jointLeafPruneEnabled = enabled;
+    }
+
+    /**
      * Enables or disables curve smoothing. Default: true
      */
     public void setSmoothEnabled(final boolean enabled) {
@@ -388,6 +406,156 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      */
     public void setReconnectEnabled(final boolean enabled) {
         this.reconnectEnabled = enabled;
+    }
+
+    /**
+     * Sets the buffer (in voxels) applied around traced regions between passes
+     * in {@link #traceMultiSoma(List)}. After tracing from one soma, the traced
+     * voxels are expanded by this buffer before being excluded from subsequent
+     * Fast Marching runs. Larger values create wider exclusion zones, preventing
+     * re-tracing of neurites already claimed by a previous soma.
+     * <p>
+     * Set to 0 to disable buffering (only exact traced voxels are excluded).
+     * Default: 5.
+     * </p>
+     *
+     * @param buffer buffer size in voxels (non-negative)
+     */
+    public void setTracedRegionBuffer(final int buffer) {
+        this.tracedRegionBuffer = Math.max(0, buffer);
+    }
+
+    /**
+     * Returns the buffer size (in voxels) applied around traced regions between
+     * multi-soma passes.
+     *
+     * @return buffer size in voxels
+     * @see #setTracedRegionBuffer(int)
+     */
+    public int getTracedRegionBuffer() {
+        return tracedRegionBuffer;
+    }
+
+    /**
+     * Sets the minimum distance (in voxels) between soma centers for multi-soma
+     * tracing. This value controls two filtering stages:
+     * <ol>
+     *   <li>Non-maximum suppression in {@link SomaUtils#detectAllSomas} — callers
+     *       should pass this value as the {@code minSomaDistance} parameter.</li>
+     *   <li>Post-hoc consolidation in {@link #traceMultiSoma} — any somas closer
+     *       than this distance are merged before tracing.</li>
+     * </ol>
+     * <p>
+     * Set this to the minimum known distance between real soma centers in the
+     * image. If &le; 0 (default), both filtering stages are disabled.
+     * </p>
+     *
+     * @param distance minimum inter-soma distance in voxels
+     */
+    public void setMinSomaDistance(final double distance) {
+        this.minSomaDistance = distance;
+    }
+
+    /**
+     * Returns the minimum inter-soma distance (in voxels).
+     * @return minimum distance, or 0 if not set
+     * @see #setMinSomaDistance(double)
+     */
+    public double getMinSomaDistance() {
+        return minSomaDistance;
+    }
+
+    /**
+     * Sets the expected number of somas in the image for multi-soma tracing.
+     * When set to a positive value, {@link #traceMultiSoma(List)} selects the
+     * top-N somas ranked by EDT thickness via
+     * {@link SomaUtils#selectTopSomasByThickness}.
+     * <p>
+     * <b>Experimental:</b> The EDT-based ranking relies on a global
+     * binarization threshold (currently the Minimum auto-threshold) to compute
+     * the distance transform. For images with large connected foreground
+     * regions, the EDT may measure distance-to-nearest-dark-pixel rather than
+     * actual soma body half-width, causing false detections deep inside bright
+     * regions to rank higher than real somas. In practice,
+     * {@link #setMinSomaDistance(double)} is more reliable and should be
+     * preferred when the approximate inter-soma spacing is known.
+     * </p>
+     * <p>
+     * This parameter is orthogonal to {@link #setMinSomaDistance(double)}:
+     * <ul>
+     *   <li>{@code nSomas > 0} only: top-N selection by EDT thickness</li>
+     *   <li>{@code minSomaDistance > 0} only: NMS during detection,
+     *       consolidation during tracing</li>
+     *   <li>Both set: minSomaDistance drives NMS/consolidation upstream,
+     *       nSomas acts as a downstream cap</li>
+     *   <li>Neither set: auto-estimation via thickness filtering + gap
+     *       analysis (best-effort, also experimental)</li>
+     * </ul>
+     * </p>
+     * <p>
+     * Set to -1 to trigger auto-estimation (default). Set to 0 to disable
+     * the count-based filter entirely.
+     * </p>
+     *
+     * @param nSomas expected number of somas (&gt; 0), -1 for auto, or 0 to disable
+     * @see #setMinSomaDistance(double)
+     * @see SomaUtils#selectTopSomasByThickness
+     */
+    public void setNSomas(final int nSomas) {
+        this.nSomas = nSomas;
+    }
+
+    /**
+     * Returns the expected number of somas.
+     * @return expected count, -1 if auto-estimating, or 0 if disabled
+     * @see #setNSomas(int)
+     */
+    public int getNSomas() {
+        return nSomas;
+    }
+
+    /**
+     * Enables or disables automatic soma filtering in
+     * {@link #traceMultiSoma(List)}. When enabled (the default), the pipeline
+     * applies EDT-based thickness filtering, count-based selection, gap
+     * analysis, and/or NMS consolidation depending on the values of
+     * {@link #setNSomas(int)} and {@link #setMinSomaDistance(double)}.
+     * <p>
+     * <b>Set to {@code false} when providing pre-curated soma lists</b> — for
+     * example, somas detected from user-provided ROI seeds via
+     * {@link SomaUtils#detectSomasAt}. In that case the input list is
+     * authoritative and should not be reduced by heuristic filters. When
+     * disabled, the only processing applied is NMS consolidation if
+     * {@code minSomaDistance > 0} (which the caller explicitly requested).
+     * </p>
+     * <p>
+     * Example usage with user-provided seeds:
+     * <pre>{@code
+     * List<SomaUtils.SomaResult> somas = SomaUtils.detectSomasAt(imp, rois, zSlice);
+     * tracer.setAutoFilter(false);   // trust user seeds
+     * tracer.setNSomas(0);           // no count-based cap
+     * List<Tree> trees = tracer.traceMultiSoma(somas);
+     * }</pre>
+     * </p>
+     *
+     * @param enabled whether to enable automatic soma filtering (default:
+     *                {@code true})
+     * @see SomaUtils#detectSomasAt(ij.ImagePlus, java.util.Collection, int)
+     * @see #setNSomas(int)
+     * @see #setMinSomaDistance(double)
+     */
+    public void setAutoFilter(final boolean enabled) {
+        this.autoFilterSomas = enabled;
+    }
+
+    /**
+     * Returns whether automatic soma filtering is enabled.
+     *
+     * @return {@code true} if auto-filtering is active (the default)
+     * @see #setAutoFilter(boolean)
+     */
+    public boolean isAutoFilter() {
+        return autoFilterSomas;
     }
 
     /**
@@ -550,50 +718,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             final DirectedWeightedGraph graph = storage.buildGraph(dims, spacing, threshold);
             log("Graph: " + graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
 
-            // Step 5-8: Pruning, smoothing, etc (same as before, using graph)
-            recalculateRadiiFromImage(graph, threshold);
-            if (scoreMapEnabled) {
-                status("Computing score map...");
-                log("Computing score map...");
-                computeAndApplyScoreMap(graph);
-            }
-            status("Pruning branches...");
-            darkNodeAndSegmentPruning(graph, threshold);
-            hierarchicalPrune(graph, threshold);
-            if (reconnectEnabled) {
-                status("Reconnecting components...");
-                log("Reconnecting disconnected components via A*...");
-                final SWCPoint root = findGraphRoot(graph);
-                if (root != null) {
-                    final ComponentReconnector<T> reconnector = new ComponentReconnector<>(source, spacing);
-                    reconnector.setVerbose(verbose);
-                    final int bridged = reconnector.reconnect(graph, root, threshold);
-                    log("Reconnected " + bridged + " orphan component(s)");
-                }
-            }
-            removeDisconnectedComponents(graph);
-
-            status("Refining traces...");
-            if (smoothEnabled) {
-                log("Smoothing final curve...");
-                smoothCurve(graph, smoothWindowSize);
-            }
-
-            if (zigzagRemovalEnabled) {
-                removeZigzags(graph);
-            }
-            if (overshootRemovalEnabled) {
-                removeOvershoots(graph);
-            }
-            if (!Double.isNaN(branchTuneMaxAngle) && branchTuneMaxAngle >= 0) {
-                tuneBranches(graph, Math.cos(Math.toRadians(branchTuneMaxAngle)));
-            }
-
-            if (resampleEnabled) {
-                log("Resampling curve (step=" + resampleStep + ")...");
-                resampleCurve(graph, resampleStep);
-                log("After resampling: " + graph.vertexSet().size() + " vertices");
-            }
+            // Post-process: pruning, smoothing, etc.
+            postProcessGraph(graph, threshold);
 
             return graph;
 
@@ -606,11 +732,30 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Run Fast Marching using storage backend.
+     * Initializes storage and runs Fast Marching from the given seed.
+     * This is the standard entry point used by {@link #traceToGraph()}.
      */
     protected void runFastMarching(final double threshold, final long seedIndex) {
         storage.initializeFastMarching(dims, seedIndex);
+        executeFastMarching(threshold, seedIndex, 0); // 0 = no spread limit
+    }
 
+    /**
+     * Runs the Fast Marching loop from the given seed without re-initializing
+     * storage. The caller is responsible for initializing or re-initializing
+     * the FM data structures (distances, parents, state) before calling this
+     * method. Used by {@link #traceMultiSoma(List)} to run FM with a
+     * pre-configured exclusion mask.
+     *
+     * @param threshold background intensity threshold
+     * @param seedIndex linear index of the seed voxel
+     * @param maxSpreadRadius maximum Euclidean distance (in calibrated units)
+     *        from the seed beyond which FM expansion is halted. If &lt;= 0, no
+     *        limit is applied. Used in multi-soma mode to prevent FM from
+     *        spreading into neighboring cells' territory.
+     */
+    private void executeFastMarching(final double threshold, final long seedIndex,
+                                     final double maxSpreadRadius) {
         // Priority queue: (index, distance)
         final PriorityQueue<long[]> heap = new PriorityQueue<>(
                 Comparator.comparingDouble(a -> Double.longBitsToDouble(a[1]))
@@ -630,7 +775,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
         // Fast Marching main loop
         final long[] currentPos = new long[dims.length];
+        final boolean hasSpreadLimit = maxSpreadRadius > 0;
         int nodeCount = 1;
+        int skippedByRadius = 0;
 
         while (!heap.isEmpty()) {
             final long[] entry = heap.poll();
@@ -638,6 +785,19 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             indexToPos(currentIdx, currentPos);
 
             if (storage.getState(currentIdx) == ALIVE) continue;
+
+            // Caliper check: skip voxels beyond the maximum spread radius
+            if (hasSpreadLimit) {
+                double eucDistSq = 0;
+                for (int d = 0; d < dims.length; d++) {
+                    final double diff = (currentPos[d] - seedPos[d]) * spacing[d];
+                    eucDistSq += diff * diff;
+                }
+                if (eucDistSq > maxSpreadRadius * maxSpreadRadius) {
+                    skippedByRadius++;
+                    continue;
+                }
+            }
 
             // Check background
             srcRA.setPosition(currentPos);
@@ -651,7 +811,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             addNeighborsToHeap(currentPos, srcRA, heap, threshold);
         }
 
-        log("Initial tree: " + nodeCount + " nodes");
+        SNTUtils.log("Fast Marching: " + nodeCount + " ALIVE nodes"
+                + (hasSpreadLimit ? " (skipped " + skippedByRadius
+                + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : ""));
     }
 
     /**
@@ -904,16 +1066,6 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Computes the cosine of the angle at node {@code b} in the path
-     * a&rarr;b&rarr;c. Vectors (a-b) and (b-c) are used; the result is the
-     * dot product of the unit vectors, i.e.&nbsp;cos(angle). A value of 1
-     * means straight continuation, 0 means 90&deg;, and &minus;1 means full
-     * reversal.
-     *
-     * @return cosine of the angle, or {@link Double#NaN} if either vector has
-     *         zero length
-     */
-    /**
      * Returns a radius-adaptive score threshold. Thinner structures produce
      * weaker vesselness responses, so the acceptance bar is lowered for small
      * radii. Adapted from NeuTube's {@code Local_Neuroseg_Good_Score}:
@@ -944,6 +1096,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         return baseThreshold / factor;
     }
 
+    /**
+     * Computes the cosine of the angle at node {@code b} in the path
+     * a&rarr;b&rarr;c. Vectors (a-b) and (b-c) are used; the result is the
+     * dot product of the unit vectors, i.e.&nbsp;cos(angle). A value of 1
+     * means straight continuation, 0 means 90&deg;, and &minus;1 means full
+     * reversal.
+     *
+     * @return cosine of the angle, or {@link Double#NaN} if either vector has
+     *         zero length
+     */
     private static double cosAngle(final SWCPoint a, final SWCPoint b, final SWCPoint c) {
         final double v1x = a.x - b.x, v1y = a.y - b.y, v1z = a.z - b.z;
         final double v2x = b.x - c.x, v2y = b.y - c.y, v2z = b.z - c.z;
@@ -1315,7 +1477,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         final List<Double> scales = new ArrayList<>();
         scales.add(p25);
         if (p50 > p25 * 1.1) scales.add(p50);
-        if (p75 > (scales.get(scales.size() - 1)) * 1.1) scales.add(p75);
+        if (p75 > (scales.getLast()) * 1.1) scales.add(p75);
 
         return scales.stream().mapToDouble(Double::doubleValue).toArray();
     }
@@ -1735,8 +1897,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         }
 
         // Any remaining unprocessed leaves are disconnected - remove them
+        int unprocessedCount = 0;
         for (final SWCPoint leaf : leaves) {
             if (!acceptedLeaves.contains(leaf) && !rejectedLeaves.contains(leaf)) {
+                unprocessedCount++;
                 // Trace and remove
                 SWCPoint current = leaf;
                 final Set<SWCPoint> visited = new HashSet<>();
@@ -1749,6 +1913,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 }
             }
         }
+        SNTUtils.log("  hierarchicalPrune: " + leaves.size() + " leaves, kept=" + keptCount +
+                ", prunedShort=" + prunedShort + ", prunedCovered=" + prunedCovered +
+                ", unprocessed=" + unprocessedCount + ", toRemove=" + nodesToRemove.size());
 
         // Remove only unclaimed nodes
         nodesToRemove.removeAll(claimedNodes);
@@ -1759,17 +1926,24 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         log("After hierarchical pruning: " + graph.vertexSet().size() + " vertices");
 
 
+        SNTUtils.log("  After main hierarchical: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
         // APP2 additional pruning steps
         if (leafPruneEnabled) {
             leafNodePruning(graph);
-            jointLeafPruning(graph);
+            SNTUtils.log("  After leafNodePruning: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+            if (jointLeafPruneEnabled) {
+                jointLeafPruning(graph);
+                SNTUtils.log("  After jointLeafPruning: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+            }
         }
 
         // Additional: prune short terminal branches iteratively
         pruneShortTerminalBranches(graph, intensityLengthThresh);  // Same threshold
+        SNTUtils.log("  After pruneShortTerminal: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
 
         // Prune dark terminal branches (low intensity)
         pruneDarkTerminalBranches(graph, effectiveThreshold);
+        SNTUtils.log("  After pruneDarkTerminal: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
     }
 
     /**
@@ -2518,6 +2692,20 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     /**
      * APP2 Joint Leaf Pruning: Remove leaves if 90% of sphere is covered
      * by multiple other nodes (not just parent).
+     * <p>
+     * KNOWN ISSUE: This algorithm is prone to cascading collapse. When a leaf is
+     * removed, its parent becomes a new leaf. Because adjacent nodes on the same
+     * branch have overlapping spheres (minimum radius = 3 voxels), the parent's
+     * sphere is typically 90%+ covered by its own parent/siblings. This causes a
+     * chain reaction that can reduce a graph from thousands of vertices down to
+     * just the root. The cascade is especially severe on 2D images and images
+     * with low resolution where the minimum sphere radius is large relative to
+     * branch spacing. Controlled via {@link #jointLeafPruneEnabled}; disabled
+     * by default in multi-soma mode to avoid destroying valid reconstructions.
+     * TODO: Fix the algorithm to distinguish between same-branch overlap
+     * (structural adjacency, should not trigger pruning) and cross-branch
+     * overlap (genuine redundancy, should trigger pruning).
+     * </p>
      */
     private void jointLeafPruning(final DirectedWeightedGraph graph) {
         log("Performing APP2-style joint leaf pruning...");
@@ -2545,6 +2733,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         while (changed) {
             changed = false;
             iteration++;
+
             final List<SWCPoint> toRemove = new ArrayList<>();
 
             for (final SWCPoint v : graph.vertexSet()) {
@@ -2657,6 +2846,488 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log(String.format("Traced %d tree(s) with %d path(s)", trees.size(), totalPaths));
         }
         return trees;
+    }
+
+    /**
+     * Traces multiple somas in a single image using a NeuTube-style recovery
+     * pass strategy. The expensive GWDT is computed once; Fast Marching is then
+     * run once per soma, with previously-traced regions (dilated by
+     * {@link #getTracedRegionBuffer()}) excluded from each subsequent pass.
+     * <p>
+     * Somas should be sorted largest-first (as returned by
+     * {@link SomaUtils#detectAllSomas}). Each soma's contour is used to
+     * configure the ROI strategy, and the seed is placed at the soma center.
+     * Post-processing (pruning, smoothing, etc.) is applied independently to
+     * each trace.
+     * </p>
+     * <p>
+     * <b>Auto-filtering:</b> By default, the input list is processed through
+     * a soma reduction pipeline (EDT thickness filtering, count-based
+     * selection, gap analysis, and/or NMS consolidation) before tracing. This
+     * is appropriate when somas come from automatic detection (e.g.,
+     * {@link SomaUtils#detectAllSomas}), which may produce many false
+     * positives. When providing pre-curated somas — e.g., from user-supplied
+     * ROIs via {@link SomaUtils#detectSomasAt} — call
+     * {@link #setAutoFilter(boolean) setAutoFilter(false)} to bypass the
+     * reduction pipeline and trace all input somas as-is. NMS consolidation
+     * via {@link #setMinSomaDistance(double)} is still honored when
+     * auto-filtering is disabled, since the caller explicitly requested it.
+     * </p>
+     *
+     * @param somas the detected somas, sorted by radius (largest first)
+     * @return list of trees, one per successfully traced soma
+     * @throws IllegalStateException if no seed can be derived from any soma
+     * @see #setAutoFilter(boolean)
+     * @see #setTracedRegionBuffer(int)
+     * @see SomaUtils#detectAllSomas
+     * @see SomaUtils#detectSomasAt
+     */
+    public List<Tree> traceMultiSoma(final List<SomaUtils.SomaResult> somas) {
+        if (somas == null || somas.isEmpty()) {
+            throw new IllegalArgumentException("Soma list cannot be null or empty");
+        }
+
+        // --- Soma reduction pipeline ---
+        // Four modes depending on which parameters are set:
+        //   nSomas > 0 + minSomaDistance > 0 : NMS/consolidation + top-N cap
+        //   nSomas > 0 only                  : top-N by EDT thickness (experimental — see setNSomas javadoc)
+        //   minSomaDistance > 0 only          : NMS/consolidation (most reliable mode)
+        //   neither (auto)                    : thickness filter + gap analysis (experimental)
+        //
+        // The "minSomaDistance only" mode is the most robust: it uses standard NMS
+        // and consolidation, which are well-established in object detection. The
+        // EDT-based modes (nSomas, auto) depend on a global binarization threshold
+        // for the distance transform, which can be unreliable for images with large
+        // connected foreground regions (e.g., JPEGs with compression artifacts).
+        List<SomaUtils.SomaResult> workingSomas = new ArrayList<>(somas);
+        double effectiveMinSomaDist = minSomaDistance;
+        final int effectiveNSomas = nSomas;
+
+        SNTUtils.log("traceMultiSoma: " + somas.size() + " input somas, "
+                + "nSomas=" + effectiveNSomas + ", "
+                + "minSomaDistance=" + String.format("%.1f", effectiveMinSomaDist)
+                + ", autoFilter=" + autoFilterSomas);
+
+        if (autoFilterSomas) {
+            if (effectiveNSomas > 0 && somas.size() > effectiveNSomas) {
+                // Experimental: keep top-N by EDT thickness. See selectTopSomasByThickness
+                // javadoc for known limitations with global binarization thresholds.
+                workingSomas = SomaUtils.selectTopSomasByThickness(somas, source, effectiveNSomas);
+            }
+
+            if (effectiveMinSomaDist <= 0 && effectiveNSomas <= 0 && somas.size() > 2) {
+                // Experimental auto-estimation: thickness filter → gap analysis.
+                final List<SomaUtils.SomaResult> thickSomas =
+                        SomaUtils.filterSomasByThickness(somas, source);
+                if (thickSomas.size() < somas.size()) {
+                    SNTUtils.log("Thickness filter: " + somas.size() + " → " + thickSomas.size());
+                    workingSomas = thickSomas;
+                }
+
+                if (workingSomas.size() > 2) {
+                    effectiveMinSomaDist = SomaUtils.estimateMinSomaDistance(workingSomas);
+                    if (effectiveMinSomaDist > 0) {
+                        SNTUtils.log("Auto-estimated minSomaDistance: " + String.format("%.1f", effectiveMinSomaDist)
+                                + " voxels (from " + workingSomas.size() + " thickness-filtered somas)");
+                    }
+                }
+            } else if (effectiveMinSomaDist > 0) {
+                SNTUtils.log("Using user-specified minSomaDistance: " + String.format("%.1f", effectiveMinSomaDist));
+            }
+        } else {
+            SNTUtils.log("Auto-filtering disabled: using all " + somas.size() + " input somas as-is");
+            if (effectiveMinSomaDist > 0) {
+                SNTUtils.log("NMS consolidation still active (minSomaDistance=" +
+                        String.format("%.1f", effectiveMinSomaDist) + ")");
+            }
+        }
+
+        // Consolidate nearby somas (no-op if effectiveMinSomaDist <= 0)
+        final List<SomaUtils.SomaResult> consolidated = consolidateSomas(workingSomas, effectiveMinSomaDist);
+        if (consolidated.size() != workingSomas.size()) {
+            SNTUtils.log("Soma consolidation: " + workingSomas.size() + " → " + consolidated.size());
+        }
+
+        if (consolidated.size() == 1) {
+            // Single soma after consolidation: delegate to standard pipeline
+            configureSomaFromResult(consolidated.getFirst());
+            return traceTrees();
+        }
+
+        SNTUtils.log("Multi-soma tracing: " + consolidated.size() + " somas, buffer=" + tracedRegionBuffer);
+
+        storage = createStorageBackend();
+        storage.setTrackAliveIndices(true); // Required for recovery passes
+        SNTUtils.log("Using " + storage.getBackendType() + " storage backend");
+
+        try {
+            // Step 1: Compute threshold and GWDT once (image-dependent, seed-independent)
+            final double threshold = getEffectiveThreshold();
+            SNTUtils.log(String.format("Threshold: %.4f (intensity range: [%.1f, %.1f])",
+                    threshold, minIntensity, maxIntensity));
+            status("Computing distance transform...");
+            storage.computeGWDT(source, threshold, spacing, minIntensity, maxIntensity);
+            SNTUtils.log("GWDT max value: " + storage.getMaxGWDT());
+
+            final List<Tree> allTrees = new ArrayList<>();
+            Set<Long> claimedVoxels = new HashSet<>();
+
+            // Disable joint leaf pruning in multi-soma mode to avoid cascading collapse
+            // (see jointLeafPruning() javadoc for details on the known issue)
+            final boolean savedJointLeafPrune = jointLeafPruneEnabled;
+            jointLeafPruneEnabled = false;
+
+            // Compute per-soma caliper radius: half the distance to each soma's
+            // nearest neighbor (in calibrated units). This limits FM spread to
+            // prevent cross-cell contamination via the shared GWDT.
+            final double[] caliperRadii = computeCaliperRadii(consolidated);
+            for (int s = 0; s < consolidated.size(); s++) {
+                SNTUtils.log(String.format("  Soma %d: caliper radius = %.1f",
+                        s + 1, caliperRadii[s]));
+            }
+
+            for (int i = 0; i < consolidated.size(); i++) {
+                final SomaUtils.SomaResult soma = consolidated.get(i);
+                SNTUtils.log(String.format("--- Pass %d/%d: center=%s, radius=%.1f ---",
+                        i + 1, consolidated.size(), Arrays.toString(soma.center()), soma.radius()));
+
+                // Configure seed from soma center
+                configureSomaFromResult(soma);
+                if (seedVoxel == null) {
+                    SNTUtils.log("Skipping soma " + (i + 1) + ": could not derive seed");
+                    continue;
+                }
+                final long seedIndex = posToIndex(seedVoxel);
+
+                // Re-initialize FM with exclusion mask (first pass has empty mask)
+                status("Fast marching (soma " + (i + 1) + "/" + consolidated.size() + ")...");
+                if (i == 0) {
+                    storage.initializeFastMarching(dims, seedIndex);
+                } else {
+                    storage.reinitializeFastMarching(dims, seedIndex, claimedVoxels);
+                }
+
+                // Run Fast Marching from this soma's seed with caliper-limited spread
+                executeFastMarching(threshold, seedIndex, caliperRadii[i]);
+
+                // Collect newly-traced ALIVE indices before building graph
+                // (buildGraph may clear tracking state in some backends)
+                final Set<Long> currentAlive = storage.getAliveIndices();
+                if (currentAlive != null && !currentAlive.isEmpty()) {
+                    final Set<Long> newAlive = new HashSet<>(currentAlive);
+                    // Remove previously claimed voxels to get only this pass's voxels
+                    newAlive.removeAll(claimedVoxels);
+                    // Dilate and add to claimed set for next pass
+                    if (tracedRegionBuffer > 0) {
+                        claimedVoxels.addAll(dilateIndices(newAlive, tracedRegionBuffer));
+                    } else {
+                        claimedVoxels.addAll(newAlive);
+                    }
+                    SNTUtils.log("Pass " + (i + 1) + ": " + newAlive.size() + " new ALIVE voxels, "
+                            + claimedVoxels.size() + " total claimed");
+                } else {
+                    SNTUtils.log("Pass " + (i + 1) + ": 0 ALIVE voxels (FM didn't spread)");
+                }
+
+                // Build and post-process graph for this soma
+                status("Building graph (soma " + (i + 1) + ")...");
+                final DirectedWeightedGraph graph = storage.buildGraph(dims, spacing, threshold);
+                if (graph == null || graph.vertexSet().size() < 2) {
+                    SNTUtils.log("Soma " + (i + 1) + ": graph has " +
+                            (graph == null ? 0 : graph.vertexSet().size()) + " vertices, skipping");
+                    continue;
+                }
+                SNTUtils.log("Soma " + (i + 1) + ": graph before pruning: " +
+                        graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
+
+                // Apply full post-processing pipeline
+                postProcessGraph(graph, threshold);
+                SNTUtils.log("Soma " + (i + 1) + ": graph after pruning: " +
+                        graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
+
+                // Build trees from the graph
+                final List<Tree> trees = tracedTrees(graph);
+                SNTUtils.log("Soma " + (i + 1) + ": tracedTrees returned " + trees.size() + " tree(s)");
+                for (int t = 0; t < trees.size(); t++) {
+                    final Tree tree = trees.get(t);
+                    SNTUtils.log("  Tree " + (t + 1) + ": " + tree.size() + " paths, empty=" + tree.isEmpty());
+                    if (!tree.isEmpty()) {
+                        tree.setLabel("Cell " + (i + 1));
+                        allTrees.add(tree);
+                    }
+                }
+            }
+
+            // Restore joint leaf pruning setting
+            jointLeafPruneEnabled = savedJointLeafPrune;
+
+            if (allTrees.isEmpty()) {
+                SNTUtils.log("Multi-soma tracing produced no valid trees");
+            } else {
+                int totalPaths = 0;
+                for (final Tree t : allTrees) totalPaths += t.size();
+                SNTUtils.log(String.format("Multi-soma result: %d tree(s) with %d path(s)",
+                        allTrees.size(), totalPaths));
+            }
+            return allTrees;
+
+        } finally {
+            if (storage != null) {
+                storage.dispose();
+            }
+        }
+    }
+
+    /**
+     * Computes per-soma caliper radii for limiting FM spread in multi-soma mode.
+     * For each soma, the caliper radius is half the Euclidean distance (in
+     * calibrated units) to its nearest neighbor. This ensures each soma's FM
+     * expansion stays within its own "territory" and does not invade neighbors.
+     * <p>
+     * If only one soma is present, the caliper radius is set to
+     * {@link Double#MAX_VALUE} (no limit).
+     * </p>
+     *
+     * @param somas list of detected somas
+     * @return array of caliper radii (calibrated units), one per soma
+     */
+    private double[] computeCaliperRadii(final List<SomaUtils.SomaResult> somas) {
+        final int n = somas.size();
+        final double[] radii = new double[n];
+
+        if (n <= 1) {
+            Arrays.fill(radii, Double.MAX_VALUE);
+            return radii;
+        }
+
+        // Precompute calibrated positions (voxel coords * spacing)
+        final double[][] positions = new double[n][];
+        for (int i = 0; i < n; i++) {
+            final long[] center = somas.get(i).center();
+            positions[i] = new double[dims.length];
+            for (int d = 0; d < Math.min(center.length, dims.length); d++) {
+                positions[i][d] = center[d] * spacing[d];
+            }
+        }
+
+        // For each soma, find nearest-neighbor distance
+        for (int i = 0; i < n; i++) {
+            double minDistSq = Double.MAX_VALUE;
+            for (int j = 0; j < n; j++) {
+                if (i == j) continue;
+                double distSq = 0;
+                for (int d = 0; d < positions[i].length; d++) {
+                    final double diff = positions[i][d] - positions[j][d];
+                    distSq += diff * diff;
+                }
+                minDistSq = Math.min(minDistSq, distSq);
+            }
+            // Caliper = half the nearest-neighbor distance
+            radii[i] = Math.sqrt(minDistSq) / 2.0;
+        }
+
+        return radii;
+    }
+
+    /**
+     * Consolidates a list of detected somas by merging nearby detections.
+     * Uses greedy clustering: iterates through somas (assumed sorted by radius,
+     * largest first), and for each unmerged soma, absorbs any remaining somas
+     * whose center is within {@code minDist} voxels. The largest-radius soma in
+     * each cluster is kept as the representative.
+     * <p>
+     * Acts as a second line of defense after NMS in
+     * {@link SomaUtils#detectAllSomas}. Returns the input list unchanged if
+     * {@code minDist} &le; 0.
+     * </p>
+     *
+     * @param somas   list of detected somas (should be sorted by radius, largest first)
+     * @param minDist minimum distance in voxels; somas closer than this are merged
+     * @return consolidated list with nearby somas merged; same list if no merging needed
+     */
+    private List<SomaUtils.SomaResult> consolidateSomas(final List<SomaUtils.SomaResult> somas,
+                                                         final double minDist) {
+        if (minDist <= 0 || somas.size() <= 1) return new ArrayList<>(somas);
+
+        final int n = somas.size();
+        final boolean[] merged = new boolean[n];
+        final List<SomaUtils.SomaResult> consolidated = new ArrayList<>();
+
+        // Convert minDist from voxels to calibrated units for comparison
+        // Use the mean spacing as a representative scale factor
+        double meanSpacing = 0;
+        for (final double s : spacing) meanSpacing += s;
+        meanSpacing /= spacing.length;
+        final double mergeDistCal = minDist * meanSpacing;
+        final double mergeDistSq = mergeDistCal * mergeDistCal;
+
+        // Precompute calibrated positions
+        final double[][] positions = new double[n][];
+        for (int i = 0; i < n; i++) {
+            final long[] center = somas.get(i).center();
+            positions[i] = new double[dims.length];
+            for (int d = 0; d < Math.min(center.length, dims.length); d++) {
+                positions[i][d] = center[d] * spacing[d];
+            }
+        }
+
+        for (int i = 0; i < n; i++) {
+            if (merged[i]) continue;
+
+            // This soma becomes a cluster representative (largest radius due to sort order)
+            consolidated.add(somas.get(i));
+
+            // Absorb nearby somas
+            for (int j = i + 1; j < n; j++) {
+                if (merged[j]) continue;
+
+                double distSq = 0;
+                for (int d = 0; d < positions[i].length; d++) {
+                    final double diff = positions[i][d] - positions[j][d];
+                    distSq += diff * diff;
+                }
+
+                if (distSq <= mergeDistSq) {
+                    merged[j] = true;
+                }
+            }
+        }
+
+        return consolidated;
+    }
+
+    /**
+     * Configures the tracer's seed and soma ROI from a {@link SomaUtils.SomaResult}.
+     * Sets the seed voxel at the soma center and, if a contour is available,
+     * passes it to {@link #setSomaRoi(ij.gui.Roi, int)}.
+     *
+     * @param soma the detected soma result
+     */
+    private void configureSomaFromResult(final SomaUtils.SomaResult soma) {
+        // Set seed at soma center (voxel coordinates)
+        final long[] center = soma.center();
+        seedVoxel = new long[dims.length];
+        System.arraycopy(center, 0, seedVoxel, 0, Math.min(center.length, dims.length));
+        // Handle Z for 3D images
+        if (dims.length > 2 && center.length <= 2 && soma.zSlice() >= 0) {
+            seedVoxel[2] = soma.zSlice();
+        }
+        validateSeedInBounds(seedVoxel);
+
+        // Configure soma ROI if contour available
+        if (soma.hasContour()) {
+            final ij.gui.Roi contourRoi = soma.createContourRoi(); // never null if hasContour true
+            assert contourRoi != null;
+            if (soma.zSlice() >= 0) contourRoi.setPosition(soma.zSlice() + 1);
+            setSomaRoi(contourRoi, rootStrategy != ROI_UNSET ? rootStrategy : ROI_CENTROID);
+            setSomaRoiZPosition(soma.zSlice());
+        }
+    }
+
+    /**
+     * Dilates a set of voxel indices by the given radius, returning all indices
+     * within the ball neighborhood of each input index. Uses the image
+     * dimensions to stay within bounds.
+     *
+     * @param indices the seed indices to dilate
+     * @param radius  dilation radius in voxels
+     * @return dilated set including all original indices plus their neighborhoods
+     */
+    private Set<Long> dilateIndices(final Set<Long> indices, final int radius) {
+        final Set<Long> dilated = new HashSet<>(indices.size() * 2);
+        dilated.addAll(indices);
+
+        final int nDims = dims.length;
+        final long[] pos = new long[nDims];
+        final long[] neighborPos = new long[nDims];
+        final int radiusSq = radius * radius;
+
+        for (final long idx : indices) {
+            // Convert index to position
+            long remaining = idx;
+            for (int d = 0; d < nDims; d++) {
+                pos[d] = remaining % dims[d];
+                remaining /= dims[d];
+            }
+
+            // Iterate over the bounding box of the dilation ball
+            dilateRecursive(dilated, pos, neighborPos, 0, nDims, radius, radiusSq);
+        }
+        return dilated;
+    }
+
+    /**
+     * Recursive helper for {@link #dilateIndices} that iterates over all
+     * positions within a ball of given radius around a center position.
+     */
+    private void dilateRecursive(final Set<Long> dilated, final long[] center,
+                                 final long[] pos, final int dim, final int nDims,
+                                 final int radius, final int radiusSq) {
+        if (dim == nDims) {
+            // Check if within sphere
+            long distSq = 0;
+            for (int d = 0; d < nDims; d++) {
+                final long delta = pos[d] - center[d];
+                distSq += delta * delta;
+            }
+            if (distSq <= radiusSq) {
+                dilated.add(posToIndex(pos));
+            }
+            return;
+        }
+        final long lo = Math.max(0, center[dim] - radius);
+        final long hi = Math.min(dims[dim] - 1, center[dim] + radius);
+        for (long v = lo; v <= hi; v++) {
+            pos[dim] = v;
+            dilateRecursive(dilated, center, pos, dim + 1, nDims, radius, radiusSq);
+        }
+    }
+
+    /**
+     * Applies the full post-processing pipeline to a traced graph. Extracted
+     * from {@link #traceToGraph()} so it can be reused by
+     * {@link #traceMultiSoma(List)}.
+     *
+     * @param graph     the graph to post-process (modified in place)
+     * @param threshold the background threshold used during tracing
+     */
+    private void postProcessGraph(final DirectedWeightedGraph graph, final double threshold) {
+        recalculateRadiiFromImage(graph, threshold);
+        SNTUtils.log("  After recalcRadii: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+        if (scoreMapEnabled) {
+            status("Computing score map...");
+            computeAndApplyScoreMap(graph);
+            SNTUtils.log("  After scoreMap: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+        }
+        status("Pruning branches...");
+        darkNodeAndSegmentPruning(graph, threshold);
+        SNTUtils.log("  After darkPruning: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+        hierarchicalPrune(graph, threshold);
+        SNTUtils.log("  After hierarchicalPrune: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+        if (reconnectEnabled) {
+            status("Reconnecting components...");
+            final SWCPoint root = findGraphRoot(graph);
+            if (root != null) {
+                final ComponentReconnector<T> reconnector = new ComponentReconnector<>(source, spacing);
+                reconnector.setVerbose(verbose);
+                final int bridged = reconnector.reconnect(graph, root, threshold);
+                log("Reconnected " + bridged + " orphan component(s)");
+            }
+        }
+        removeDisconnectedComponents(graph);
+        SNTUtils.log("  After removeDisconnected: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+
+        status("Refining traces...");
+        if (smoothEnabled) smoothCurve(graph, smoothWindowSize);
+        if (zigzagRemovalEnabled) removeZigzags(graph);
+        if (overshootRemovalEnabled) removeOvershoots(graph);
+        if (!Double.isNaN(branchTuneMaxAngle) && branchTuneMaxAngle >= 0) {
+            tuneBranches(graph, Math.cos(Math.toRadians(branchTuneMaxAngle)));
+        }
+        if (resampleEnabled) {
+            resampleCurve(graph, resampleStep);
+            log("After resampling: " + graph.vertexSet().size() + " vertices");
+        }
     }
 
     /**
@@ -2906,15 +3577,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             final List<SWCPoint> nodes = entry.getValue();
 
             // Sort nodes by distance from leaf (closest first)
-            nodes.sort((a, b) -> Double.compare(
-                    nodeDistToLeaf.getOrDefault(a, 0.0),
-                    nodeDistToLeaf.getOrDefault(b, 0.0)
-            ));
+            nodes.sort(Comparator.comparingDouble(a -> nodeDistToLeaf.getOrDefault(a, 0.0)));
 
             // Find segment root (the node in this segment closest to root, i.e., furthest from leaf)
             SWCPoint segmentRoot = null;
             if (!nodes.isEmpty()) {
-                segmentRoot = nodes.get(nodes.size() - 1);  // Last = furthest from leaf
+                segmentRoot = nodes.getLast();  // Last = furthest from leaf
             }
 
             // Compute segment length (intensity-weighted)

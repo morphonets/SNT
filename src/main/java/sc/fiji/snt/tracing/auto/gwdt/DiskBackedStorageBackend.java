@@ -308,6 +308,21 @@ public class DiskBackedStorageBackend implements StorageBackend {
     }
 
     @Override
+    public void reinitializeFastMarching(long[] dims, long seedIndex, Set<Long> excludedIndices) {
+        initializeFastMarching(dims, seedIndex);
+        // Stamp excluded voxels directly into state array without tracking them
+        // as ALIVE, so buildGraph won't include them in the output graph
+        if (excludedIndices != null && !excludedIndices.isEmpty()) {
+            final RandomAccess<ByteType> stateRA = state.randomAccess();
+            for (final long idx : excludedIndices) {
+                final long[] pos = indexToPos(idx);
+                stateRA.setPosition(pos);
+                stateRA.get().set(AbstractGWDTTracer.ALIVE);
+            }
+        }
+    }
+
+    @Override
     public void setDistance(long index, double distance) {
         final long[] pos = indexToPos(index);
         final RandomAccess<DoubleType> ra = distances.randomAccess();
@@ -484,6 +499,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
         return "Disk-backed (out-of-core)";
     }
 
+    @Override
     public Set<Long> getAliveIndices() {
         return aliveIndices;
     }

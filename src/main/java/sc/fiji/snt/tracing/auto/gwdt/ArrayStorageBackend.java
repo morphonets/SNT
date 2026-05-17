@@ -278,12 +278,27 @@ public class ArrayStorageBackend implements StorageBackend {
         for (final DoubleType t : distances) t.set(Double.MAX_VALUE);
         for (final LongType t : parents) t.set(-1);
         // state defaults to 0 (FAR)
-        
+
         // Initialize ALIVE tracking if enabled
         if (trackAlive) {
             // Estimate: typical tree is 0.1-1% of voxels
             int expectedSize = (int) Math.min(100000, computeTotalVoxels(dims) / 100);
             aliveIndices = new HashSet<>(expectedSize);
+        }
+    }
+
+    @Override
+    public void reinitializeFastMarching(long[] dims, long seedIndex, Set<Long> excludedIndices) {
+        initializeFastMarching(dims, seedIndex);
+        // Stamp excluded voxels directly into state array without tracking them
+        // as ALIVE, so buildGraph won't include them in the output graph
+        if (excludedIndices != null && !excludedIndices.isEmpty()) {
+            final RandomAccess<ByteType> stateRA = state.randomAccess();
+            for (final long idx : excludedIndices) {
+                final long[] pos = indexToPos(idx);
+                stateRA.setPosition(pos);
+                stateRA.get().set(AbstractGWDTTracer.ALIVE);
+            }
         }
     }
 
@@ -469,6 +484,7 @@ public class ArrayStorageBackend implements StorageBackend {
         this.trackAlive = track;
     }
     
+    @Override
     public Set<Long> getAliveIndices() {
         return aliveIndices;
     }

@@ -180,7 +180,7 @@ public class GWDTStorageBackendTest {
     @Test
     public void testFactorySelectsCorrectBackend() {
         // For small OP1 image, factory should select array backend
-        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(testImage);
+        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(testImage);
         assertNotNull("Factory should create tracer", tracer);
 
         // Check it's the right type (OP1 is small, should be array)
@@ -465,7 +465,7 @@ public class GWDTStorageBackendTest {
         System.out.println("\n=== Testing Factory Automatic Selection ===");
 
         // Factory should select array for OP1 (small image)
-        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(testImage);
+        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(testImage);
         assertNotNull("Factory should create tracer", tracer);
 
         tracer.setSeedPhysical(seedPoint);
@@ -577,7 +577,7 @@ public class GWDTStorageBackendTest {
         System.out.println("\n=== Testing Custom Threshold Override ===");
 
         // Force sparse by setting low threshold
-        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.createOptimal(
+        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(
                 ImgUtils.getCtSlice(testImage),
                 new double[]{1.0, 1.0, 1.0},
                 10,    // sparseThresholdMB - very low, forces sparse for any image
