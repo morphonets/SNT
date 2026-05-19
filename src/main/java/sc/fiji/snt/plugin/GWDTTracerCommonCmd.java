@@ -180,11 +180,11 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                     "Range: [-1, 180]; Default: 90°")
     protected double branchTuneMaxAngle = 90.0;
 
-    @Parameter(label = "Reconnect components",
-            description = "<HTML>Bridge small gaps between disconnected tree fragments<br>" +
-                    "using A* search through the original image.<br>" +
-                    "Default: on")
-    private boolean reconnectEnabled = true;
+    @Parameter(label = "Tip extension distance (voxels)",
+            description = "<HTML>Maximum distance (in voxels) for A*-based tip extension.<br>" +
+                    "Extends leaf tips across gaps larger than the FM gap bridge can handle.<br>" +
+                    "Set to 0 to disable. Default: 0 (disabled, experimental)")
+    private double tipExtensionDistance = 0;
 
     @Parameter(label = "Remove zigzags",
             description = "<HTML>Iteratively smooth out zigzag artifacts at branch junctions.<br>" +
@@ -308,7 +308,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             tracer.setStatusListener(snt::setCanvasLabelAllPanes);
             tracer.setVerbose(debugMode);
             tracer.setBackgroundThreshold(backgroundThreshold);
-            tracer.setMinSegmentLengthVoxels(lengthThreshold);
+            tracer.setMinBranchIntensityLength(lengthThreshold);
             tracer.setSrRatio(srRatio);
             tracer.setSphereOverlapThreshold(sphereOverlapThreshold);
             tracer.setLeafPruneEnabled(leafPruneEnabled);
@@ -317,7 +317,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             tracer.setResampleEnabled(resampleStep > 0);
             tracer.setResampleStep(resampleStep);
             tracer.setConnectivityType(parseConnectivity(connectivityChoice));
-            tracer.setReconnectEnabled(reconnectEnabled);
+            tracer.setTipExtensionDistance(tipExtensionDistance);
             tracer.setZigzagRemovalEnabled(zigzagRemovalEnabled);
             tracer.setOvershootRemovalEnabled(overshootRemovalEnabled);
             tracer.setBranchTuneMaxAngle(branchTuneMaxAngle < 0 ? Double.NaN : branchTuneMaxAngle);

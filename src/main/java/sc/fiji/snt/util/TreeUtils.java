@@ -1026,4 +1026,55 @@ public class TreeUtils {
         }
     }
 
+    /**
+     * Returns the subset of trees whose path count falls within the specified
+     * range.
+     *
+     * @param trees    the input collection
+     * @param minPaths minimum number of paths (inclusive), or -1 for no lower
+     *                 bound
+     * @param maxPaths maximum number of paths (inclusive), or -1 for no upper
+     *                 bound
+     * @return a new list containing only the trees that satisfy the bounds
+     */
+    public static List<Tree> filterBySize(final Collection<Tree> trees,
+                                          final int minPaths,
+                                          final int maxPaths) {
+        if (trees == null || trees.isEmpty()) return new ArrayList<>();
+        final List<Tree> result = new ArrayList<>();
+        for (final Tree tree : trees) {
+            final int n = tree.size();
+            if ((minPaths < 0 || n >= minPaths) && (maxPaths < 0 || n <= maxPaths)) {
+                result.add(tree);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Returns the subset of trees whose cable length falls within the
+     * specified range.
+     *
+     * @param trees     the input collection
+     * @param minLength minimum cable length (inclusive), or {@code Double.NaN}
+     *                  for no lower bound
+     * @param maxLength maximum cable length (inclusive), or {@code Double.NaN}
+     *                  for no upper bound
+     * @return a new list containing only the trees that satisfy the bounds
+     */
+    public static List<Tree> filterByCableLength(final Collection<Tree> trees,
+                                                 final double minLength,
+                                                 final double maxLength) {
+        if (trees == null || trees.isEmpty()) return new ArrayList<>();
+        final List<Tree> result = new ArrayList<>();
+        for (final Tree tree : trees) {
+            final double len = new TreeStatistics(tree).getCableLength();
+            if ((Double.isNaN(minLength) || len >= minLength)
+                    && (Double.isNaN(maxLength) || len <= maxLength)) {
+                result.add(tree);
+            }
+        }
+        return result;
+    }
+
 }

@@ -551,6 +551,382 @@ public class ComponentReconnector<T extends RealType<T>> {
         return new Euclidean(cal);
     }
 
+    // -------------------------------------------------------------------------
+    //  Tip Extension: bridge from leaf tips across multi-voxel gaps
+    // -------------------------------------------------------------------------
+
+    /**
+     * Extends leaf tips of the tree across multi-voxel gaps by scanning for
+     * bright signal in each leaf's tangent direction and A*-bridging to it.
+     * <p>
+     * Unlike {@link #reconnect}, which bridges disconnected components already
+     * present in the graph, this method discovers unreached foreground signal
+     * beyond the Fast Marching frontier (which stops at multi-voxel gaps) and
+     * traces through the gap to reach it.
+     * </p>
+     *
+     * @param graph               the directed weighted graph to modify in place
+     * @param root                the root node of the main tree
+     * @param backgroundThreshold intensity threshold used during tracing
+     * @return the number of tips successfully extended
+     */
+    public int extendTips(final DirectedWeightedGraph graph, final SWCPoint root,
+                          final double backgroundThreshold) {
+        // Find all leaves
+        final List<SWCPoint> leaves = new ArrayList<>();
+        for (final SWCPoint v : graph.vertexSet()) {
+            if (graph.outDegreeOf(v) == 0 && !v.equals(root)) {
+                leaves.add(v);
+            }
+        }
+        if (leaves.isEmpty()) {
+            SNTUtils.log("[TipExtension] No leaves to extend");
+            return 0;
+        }
+        SNTUtils.log("[TipExtension] Scanning " + leaves.size() + " leaves"
+                + " (maxDist=" + String.format("%.0f", maxBridgeDistVoxels) + " voxels)");
+
+        // Build set of voxel indices already in graph to avoid bridging to self
+        final Set<Long> graphVoxels = new HashSet<>();
+        for (final SWCPoint v : graph.vertexSet()) {
+            final long vx = Math.round(v.x / spacing[0]);
+            final long vy = Math.round(v.y / spacing[1]);
+            final long vz = dims.length > 2 ? Math.round(v.z / spacing[2]) : 0;
+            if (vx >= 0 && vx < dims[0] && vy >= 0 && vy < dims[1]) {
+                graphVoxels.add(flatIndex(vx, vy, vz));
+            }
+        }
+
+        final Cost cost = (costFunction != null) ? costFunction : createDefaultCost();
+        final Heuristic heur = (heuristic != null) ? heuristic : createDefaultHeuristic();
+        final RandomAccess<T> ra = source.randomAccess();
+
+        // Counters for diagnostics
+        int noTangent = 0;
+        int noTarget = 0;
+        int aStarFailed = 0;
+        int rejectedContraction = 0;
+        int rejectedIntensity = 0;
+        int extended = 0;
+
+        for (final SWCPoint leaf : leaves) {
+            // Compute outward tangent at leaf (direction the neurite was heading)
+            final double[] tangent = computeLeafTangent(graph, leaf);
+            if (tangent == null) {
+                noTangent++;
+                continue;
+            }
+
+            // Only attempt extension if the leaf ended at a gap:
+            // check if the voxel just beyond the tip (along tangent) is dark
+            if (!isAtGapBoundary(leaf, tangent, ra, backgroundThreshold)) {
+                continue; // natural endpoint, no gap to bridge
+            }
+
+            // Scan for the brightest target across the gap (not just closest)
+            final long[] target = scanForBrightTarget(leaf, tangent, ra,
+                    backgroundThreshold, graphVoxels);
+            if (target == null) {
+                noTarget++;
+                continue;
+            }
+
+            // Create target point in physical coords
+            final SWCPoint targetPt = new SWCPoint(-1, Path.SWC_UNDEFINED,
+                    target[0] * spacing[0], target[1] * spacing[1],
+                    dims.length > 2 ? target[2] * spacing[2] : 0,
+                    1.0, -1);
+
+            final double gapVoxels = leaf.distanceTo(targetPt) / avgSpacing();
+            SNTUtils.log("[TipExtension]   Leaf (" + fmtCoord(leaf)
+                    + "): gap target at " + String.format("%.0f", gapVoxels) + " voxels");
+
+            // A* bridge from leaf to target
+            final Path bridge = traceBridge(leaf, targetPt, cost, heur);
+            if (bridge == null || bridge.size() < 2) {
+                SNTUtils.log("[TipExtension]     A* failed");
+                aStarFailed++;
+                continue;
+            }
+
+            // Validate: relaxed contraction (gap may cause slight meandering)
+            final double contraction = bridge.getContraction();
+            if (!Double.isNaN(contraction) && contraction < minContraction * 0.5) {
+                SNTUtils.log("[TipExtension]     Rejected: contraction="
+                        + String.format("%.2f", contraction));
+                rejectedContraction++;
+                continue;
+            }
+            // Skip mean-intensity check: bridge is expected to cross dark gap
+            // The A* cost function already penalizes dark regions
+
+            // Add bridge nodes to graph as an extension of the leaf
+            SWCPoint prev = leaf;
+            for (int i = 1; i < bridge.size(); i++) {
+                final SWCPoint node = new SWCPoint(-1, Path.SWC_UNDEFINED,
+                        bridge.getNode(i).x, bridge.getNode(i).y, bridge.getNode(i).z,
+                        1.0, -1);
+                graph.addVertex(node);
+                final SWCWeightedEdge edge = graph.addEdge(prev, node);
+                if (edge != null) graph.setEdgeWeight(edge, prev.distanceTo(node));
+                final long nx = Math.round(node.x / spacing[0]);
+                final long ny = Math.round(node.y / spacing[1]);
+                final long nz = dims.length > 2 ? Math.round(node.z / spacing[2]) : 0;
+                graphVoxels.add(flatIndex(nx, ny, nz));
+                prev = node;
+            }
+
+            // Continue tracing along the far-side structure beyond the gap
+            final int walked = traceAlongStructure(prev, graph, graphVoxels, ra, backgroundThreshold);
+            extended++;
+            SNTUtils.log("[TipExtension]     Extended: " + bridge.size()
+                    + " bridge + " + walked + " walk nodes");
+        }
+
+        SNTUtils.log("[TipExtension] Result: " + extended + " extended, "
+                + noTangent + " noTangent, " + noTarget + " noTarget, "
+                + aStarFailed + " aStarFailed, " + rejectedContraction + " rejContraction, "
+                + rejectedIntensity + " rejIntensity");
+        return extended;
+    }
+
+    /**
+     * Computes the outward tangent direction at a leaf node by walking back
+     * several nodes toward the tree interior.
+     *
+     * @return normalized tangent in physical coordinates, or null if undetermined
+     */
+    private double[] computeLeafTangent(final DirectedWeightedGraph graph, final SWCPoint leaf) {
+        SWCPoint ancestor = leaf;
+        for (int i = 0; i < 5; i++) {
+            final Set<SWCWeightedEdge> inEdges = graph.incomingEdgesOf(ancestor);
+            if (inEdges.isEmpty()) break;
+            ancestor = graph.getEdgeSource(inEdges.iterator().next());
+        }
+        if (ancestor.equals(leaf)) return null;
+
+        final double dx = leaf.x - ancestor.x;
+        final double dy = leaf.y - ancestor.y;
+        final double dz = leaf.z - ancestor.z;
+        final double mag = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (mag < 1e-9) return null;
+        return new double[]{dx / mag, dy / mag, dz / mag};
+    }
+
+    /**
+     * Checks whether a leaf tip is at a gap boundary: the tip's immediate
+     * neighborhood (a few voxels along the tangent) contains dark signal,
+     * indicating the neurite stopped because of a gap rather than ending
+     * naturally.
+     */
+    private boolean isAtGapBoundary(final SWCPoint leaf, final double[] tangentPhys,
+                                    final RandomAccess<T> ra, final double threshold) {
+        final int nDims = dims.length;
+        final long lx = Math.round(leaf.x / spacing[0]);
+        final long ly = Math.round(leaf.y / spacing[1]);
+        final long lz = nDims > 2 ? Math.round(leaf.z / spacing[2]) : 0;
+
+        // Convert tangent to voxel space
+        double tx = tangentPhys[0] / spacing[0];
+        double ty = tangentPhys[1] / spacing[1];
+        double tz = nDims > 2 ? tangentPhys[2] / spacing[2] : 0;
+        final double tmag = Math.sqrt(tx * tx + ty * ty + tz * tz);
+        if (tmag < 1e-9) return false;
+        tx /= tmag; ty /= tmag; tz /= tmag;
+
+        // Check voxels 2-4 steps ahead along the tangent
+        int darkCount = 0;
+        for (int step = 2; step <= 4; step++) {
+            final long px = lx + Math.round(tx * step);
+            final long py = ly + Math.round(ty * step);
+            final long pz = lz + Math.round(tz * step);
+            if (px < 0 || px >= dims[0] || py < 0 || py >= dims[1]) continue;
+            if (nDims > 2 && (pz < 0 || pz >= dims[2])) continue;
+            if (nDims > 2) ra.setPosition(new long[]{px, py, pz});
+            else ra.setPosition(new long[]{px, py});
+            if (ra.get().getRealDouble() <= threshold) darkCount++;
+        }
+        return darkCount >= 2; // at least 2 of 3 samples are dark → gap
+    }
+
+    /**
+     * Scans the source image in a forward cone from the leaf tip, looking for
+     * the brightest voxel not already in the graph. Scans the full range
+     * (not just the closest shell) to avoid being distracted by isolated dim
+     * pixels near the leaf. Returns the best target voxel, or null.
+     */
+    private long[] scanForBrightTarget(
+            final SWCPoint leaf, final double[] tangentPhys,
+            final RandomAccess<T> ra, final double threshold,
+            final Set<Long> graphVoxels) {
+
+        final int nDims = dims.length;
+
+        // Leaf position in voxels
+        final long lx = Math.round(leaf.x / spacing[0]);
+        final long ly = Math.round(leaf.y / spacing[1]);
+        final long lz = nDims > 2 ? Math.round(leaf.z / spacing[2]) : 0;
+
+        // Tangent in voxel space (re-normalized)
+        double tx = tangentPhys[0] / spacing[0];
+        double ty = tangentPhys[1] / spacing[1];
+        double tz = nDims > 2 ? tangentPhys[2] / spacing[2] : 0;
+        final double tmag = Math.sqrt(tx * tx + ty * ty + tz * tz);
+        if (tmag < 1e-9) return null;
+        tx /= tmag;
+        ty /= tmag;
+        tz /= tmag;
+
+        final int maxR = (int) Math.ceil(maxBridgeDistVoxels);
+        final int minR = 5; // minimum gap size worth bridging
+        final double cosCone = 0.26; // cos(75°) — wide 75° half-angle cone
+
+        // Scan the FULL cone volume and find the brightest target.
+        // Score = intensity * alignment, so a bright well-aligned target wins
+        // over a dim nearby one.
+        double bestScore = 0;
+        long[] bestTarget = null;
+        final double maxRSq = (double) maxR * maxR;
+        final double minRSq = (double) minR * minR;
+
+        for (int dx = -maxR; dx <= maxR; dx++) {
+            for (int dy = -maxR; dy <= maxR; dy++) {
+                final int dzMax = nDims > 2 ? maxR : 0;
+                final int dzMin = nDims > 2 ? -maxR : 0;
+
+                for (int dz = dzMin; dz <= dzMax; dz++) {
+                    final double dSq = (double) dx * dx + (double) dy * dy + (double) dz * dz;
+                    if (dSq > maxRSq || dSq < minRSq) continue;
+
+                    final double dist = Math.sqrt(dSq);
+                    final double dot = dx * tx + dy * ty + dz * tz;
+                    final double cosAngle = dot / dist;
+                    if (cosAngle < cosCone) continue; // outside cone
+
+                    final long px = lx + dx;
+                    final long py = ly + dy;
+                    final long pz = lz + dz;
+
+                    if (px < 0 || px >= dims[0] || py < 0 || py >= dims[1]) continue;
+                    if (nDims > 2 && (pz < 0 || pz >= dims[2])) continue;
+
+                    if (graphVoxels.contains(flatIndex(px, py, pz))) continue;
+
+                    // Check brightness
+                    if (nDims > 2)
+                        ra.setPosition(new long[]{px, py, pz});
+                    else
+                        ra.setPosition(new long[]{px, py});
+
+                    final double intensity = ra.get().getRealDouble();
+                    if (intensity > threshold) {
+                        // Score: intensity × alignment / distance
+                        // Bright, well-aligned, reasonably close targets score highest
+                        final double score = intensity * cosAngle / dist;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestTarget = new long[]{px, py, pz};
+                        }
+                    }
+                }
+            }
+        }
+
+        return bestTarget;
+    }
+
+    /**
+     * After bridging a gap, greedily follows bright signal from the landing
+     * point along the far-side structure.  At each step, picks the brightest
+     * 26-connected neighbour (8-connected in 2D) that is above threshold and
+     * not already in the graph.  Adds each new voxel as a graph node connected
+     * to the previous one.  Stops when no bright unvisited neighbour exists or
+     * the maximum walk length is reached.
+     *
+     * @return the number of nodes added
+     */
+    private int traceAlongStructure(final SWCPoint startNode,
+                                    final DirectedWeightedGraph graph,
+                                    final Set<Long> graphVoxels,
+                                    final RandomAccess<T> ra,
+                                    final double threshold) {
+
+        final int nDims = dims.length;
+        final int maxWalkNodes = 500; // safety cap
+        int added = 0;
+        SWCPoint prev = startNode;
+
+        for (int step = 0; step < maxWalkNodes; step++) {
+            // Current position in voxel space
+            final long cx = Math.round(prev.x / spacing[0]);
+            final long cy = Math.round(prev.y / spacing[1]);
+            final long cz = nDims > 2 ? Math.round(prev.z / spacing[2]) : 0;
+
+            // Find brightest unvisited neighbor
+            double bestIntensity = threshold; // must exceed threshold
+            long bestX = -1, bestY = -1, bestZ = -1;
+
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dy = -1; dy <= 1; dy++) {
+                    final int dzMin = nDims > 2 ? -1 : 0;
+                    final int dzMax = nDims > 2 ? 1 : 0;
+                    for (int dz = dzMin; dz <= dzMax; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        final long nx = cx + dx;
+                        final long ny = cy + dy;
+                        final long nz = cz + dz;
+                        if (nx < 0 || nx >= dims[0] || ny < 0 || ny >= dims[1]) continue;
+                        if (nDims > 2 && (nz < 0 || nz >= dims[2])) continue;
+                        if (graphVoxels.contains(flatIndex(nx, ny, nz))) continue;
+
+                        if (nDims > 2)
+                            ra.setPosition(new long[]{nx, ny, nz});
+                        else
+                            ra.setPosition(new long[]{nx, ny});
+
+                        final double intensity = ra.get().getRealDouble();
+                        if (intensity > bestIntensity) {
+                            bestIntensity = intensity;
+                            bestX = nx;
+                            bestY = ny;
+                            bestZ = nz;
+                        }
+                    }
+                }
+            }
+
+            if (bestX < 0) break; // no bright unvisited neighbor — done
+
+            // Add new node
+            final SWCPoint node = new SWCPoint(-1, Path.SWC_UNDEFINED,
+                    bestX * spacing[0], bestY * spacing[1],
+                    nDims > 2 ? bestZ * spacing[2] : 0,
+                    1.0, -1);
+            graph.addVertex(node);
+            final SWCWeightedEdge edge = graph.addEdge(prev, node);
+            if (edge != null) graph.setEdgeWeight(edge, prev.distanceTo(node));
+            graphVoxels.add(flatIndex(bestX, bestY, bestZ));
+            prev = node;
+            added++;
+        }
+        return added;
+    }
+
+    private long flatIndex(final long x, final long y, final long z) {
+        if (dims.length > 2) return x + y * dims[0] + z * dims[0] * dims[1];
+        return x + y * dims[0];
+    }
+
+    private double avgSpacing() {
+        double sum = 0;
+        for (final double s : spacing) sum += s;
+        return sum / spacing.length;
+    }
+
+    private String fmtCoord(final SWCPoint p) {
+        return String.format("%.0f, %.0f, %.0f", p.x, p.y, p.z);
+    }
+
     private void log(final String msg) {
         if (verbose) SNTUtils.log("[ComponentReconnector] " + msg);
     }

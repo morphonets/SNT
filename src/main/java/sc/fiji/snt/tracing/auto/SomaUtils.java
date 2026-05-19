@@ -40,6 +40,7 @@ import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
+import org.jetbrains.annotations.UnknownNullability;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.RoiConverter;
@@ -332,6 +333,19 @@ public class SomaUtils {
     /**
      * Detects somas at the given seed coordinates using an ImgPlus.
      * <p>
+     * Each seed can be either {@code long[]{x, y}} or
+     * {@code long[]{x, y, z}}. For 3D images, the Z coordinate determines
+     * which slice is used for soma characterization:
+     * </p>
+     * <ul>
+     *   <li>{@code z >= 0}: the specified slice (0-indexed) is used directly</li>
+     *   <li>{@code z < 0} (or seed has only 2 elements): Z is resolved
+     *       automatically per soma using MIP-based intensity lookup</li>
+     * </ul>
+     * <p>
+     * For 2D images, the Z component (if present) is ignored.
+     * </p>
+     * <p>
      * Since seeds are user-provided, callers should call
      * {@link AbstractGWDTTracer#setAutoFilter(boolean) setAutoFilter(false)}
      * on the tracer before passing the results to
@@ -339,8 +353,9 @@ public class SomaUtils {
      * </p>
      *
      * @param source  input image (2D or 3D ImgPlus)
-     * @param seeds   list of {@code long[]{x, y}} pixel coordinates
-     * @param zSlice  Z-slice to use (0-indexed), or -1 for middle slice
+     * @param seeds   list of {@code long[]{x, y}} or {@code long[]{x, y, z}}
+     *                pixel coordinates. Z is 0-indexed; {@code -1} means
+     *                auto-resolve via MIP-based intensity lookup
      * @return list of successfully detected SomaResults, sorted by radius
      *         (largest first)
      * @see #detectSomasAt(RandomAccessibleInterval, List)
@@ -348,16 +363,24 @@ public class SomaUtils {
      */
     public static List<SomaResult> detectSomasAt(
             final ImgPlus<?> source,
-            final List<long[]> seeds,
-            final int zSlice) {
+            final List<long[]> seeds) {
 
         if (source == null || seeds == null || seeds.isEmpty()) {
             return new ArrayList<>();
         }
+        final boolean is3D = source.numDimensions() > 2;
         final List<SomaResult> results = new ArrayList<>();
         for (final long[] seed : seeds) {
             if (seed == null || seed.length < 2) continue;
-            final SomaResult result = detectSomaAt(source, seed[0], seed[1], -1, zSlice);
+            final int z;
+            if (!is3D) {
+                z = -1;
+            } else if (seed.length >= 3 && seed[2] >= 0) {
+                z = (int) seed[2];
+            } else {
+                z = resolveZForSoma((RandomAccessibleInterval<RealType<?>>) source, seed[0], seed[1]);
+            }
+            final SomaResult result = detectSomaAt(source, seed[0], seed[1], -1, z);
             if (result != null) {
                 results.add(result);
             }
@@ -370,11 +393,14 @@ public class SomaUtils {
      * Detects somas at the centroids of the given ROIs. This is a convenience
      * method that extracts centroids via
      * {@link sc.fiji.snt.analysis.RoiConverter#getCentroids(java.util.Collection)}
-     * and delegates to {@link #detectSomasAt(ImgPlus, List, int)}.
+     * and delegates to {@link #detectSomasAt(ImgPlus, List)}.
      * <p>
      * This supports any ROI type (point, area, line, composite). For area
      * ROIs, the contour centroid is used; for point ROIs, the point
-     * coordinates are used directly.
+     * coordinates are used directly. The Z coordinate for each seed is
+     * derived from {@link ij.gui.Roi#getZPosition()}: ROIs associated with
+     * a specific slice use that slice; ROIs without slice association have
+     * their Z resolved automatically via MIP-based intensity lookup.
      * </p>
      * <p>
      * Since seeds are user-provided, callers should call
@@ -382,7 +408,7 @@ public class SomaUtils {
      * on the tracer before passing the results to
      * {@link AbstractGWDTTracer#traceMultiSoma(List)}. Example:
      * <pre>{@code
-     * List<SomaResult> somas = SomaUtils.detectSomasAt(imp, rois, zSlice);
+     * List<SomaResult> somas = SomaUtils.detectSomasAt(imp, rois);
      * tracer.setAutoFilter(false);
      * List<Tree> trees = tracer.traceMultiSoma(somas);
      * }</pre>
@@ -390,7 +416,6 @@ public class SomaUtils {
      *
      * @param imp    the source image (ImagePlus)
      * @param rois   ROIs whose centroids serve as soma seeds
-     * @param zSlice Z-slice to use (0-indexed), or -1 for middle slice
      * @return list of successfully detected SomaResults, sorted by radius
      *         (largest first)
      * @see sc.fiji.snt.analysis.RoiConverter#getCentroids(java.util.Collection)
@@ -398,8 +423,7 @@ public class SomaUtils {
      */
     public static List<SomaResult> detectSomasAt(
             final ij.ImagePlus imp,
-            final java.util.Collection<ij.gui.Roi> rois,
-            final int zSlice) {
+            final java.util.Collection<ij.gui.Roi> rois) {
 
         if (imp == null || rois == null || rois.isEmpty()) {
             return new ArrayList<>();
@@ -409,7 +433,7 @@ public class SomaUtils {
             return new ArrayList<>();
         }
         final net.imagej.ImgPlus<?> img = sc.fiji.snt.util.ImpUtils.toImgPlus(imp);
-        return detectSomasAt(img, seeds, zSlice);
+        return detectSomasAt(img, seeds);
     }
 
     /**
@@ -642,7 +666,12 @@ public class SomaUtils {
      *
      * @param source    input image (2D or 3D ImgPlus)
      * @param threshold intensity threshold. Use -1 for Otsu, NaN for mean.
-     * @param zSlice    Z-slice to use (0-indexed), or -1 for middle slice
+     * @param zSlice    Z-slice to use (0-indexed), or -1 for automatic
+     *                  detection. When -1 and the image is 3D, detection runs
+     *                  on a max-intensity projection and Z is resolved per soma
+     *                  from the peak intensity in the original stack. When
+     *                  &ge; 0, detection runs on that single Z-plane only.
+     *                  Ignored for 2D images.
      * @param minRadius minimum soma radius in voxels
      * @return list of SomaResult, sorted by radius (largest first)
      */
@@ -656,15 +685,32 @@ public class SomaUtils {
 
     /**
      * Detects all somas using ImgPlus with automatic spacing and NMS.
+     * <p>
+     * For 3D images, the behavior depends on {@code zSlice}:
+     * <ul>
+     *   <li><b>zSlice &ge; 0</b>: detection runs on the specified Z-plane only
+     *       (useful for interactive GUI where the user is viewing a specific
+     *       plane)</li>
+     *   <li><b>zSlice &lt; 0</b>: a max-intensity projection (MIP) is computed
+     *       and soma (x, y) centers are detected on it. For each detected soma,
+     *       the Z coordinate is then resolved independently by finding the
+     *       Z-plane with the peak intensity at that (x, y) column. This allows
+     *       detection of somas spread across different Z-planes without
+     *       requiring the user to specify one.</li>
+     * </ul>
+     * For 2D images, {@code zSlice} is ignored.
+     * </p>
      *
      * @param source           input image (2D or 3D ImgPlus)
      * @param threshold        intensity threshold. Use -1 for Otsu, NaN for mean.
-     * @param zSlice           Z-slice to use (0-indexed), or -1 for middle slice
+     * @param zSlice           Z-slice (0-indexed), or -1 for automatic MIP-based
+     *                         detection. See above.
      * @param minRadius        minimum soma radius in voxels
      * @param minSomaDistance   minimum distance (in voxels) between soma centers
      *                         for non-maximum suppression. If &le; 0, NMS is skipped.
      * @return list of SomaResult, sorted by radius (largest first)
      */
+    @SuppressWarnings("unchecked")
     public static List<SomaResult> detectAllSomas(
             final ImgPlus<?> source,
             final double threshold,
@@ -677,31 +723,43 @@ public class SomaUtils {
         }
 
         final String units = ImgUtils.getSpacingUnits(source);
+        final boolean is3D = source.numDimensions() > 2;
 
-        final RandomAccessibleInterval<?> rai;
-        final int effectiveZ;
-        if (source.numDimensions() > 2) {
-            effectiveZ = (zSlice >= 0 && zSlice < source.dimension(2))
-                    ? zSlice
-                    : (int) (source.dimension(2) / 2);
-            rai = Views.hyperSlice(source, 2, effectiveZ);
+        final RandomAccessibleInterval<? extends RealType<?>> detectionPlane;
+        if (!is3D) {
+            // 2D image: detect directly
+            detectionPlane = (RandomAccessibleInterval<? extends RealType<?>>) source;
+        } else if (zSlice >= 0 && zSlice < source.dimension(2)) {
+            // Explicit Z-slice requested (e.g., from interactive GUI)
+            SNTUtils.log("detectAllSomas: using explicit Z-slice " + zSlice);
+            detectionPlane = (RandomAccessibleInterval<? extends RealType<?>>)
+                    Views.hyperSlice(source, 2, zSlice);
         } else {
-            effectiveZ = -1;
-            rai = source;
+            // Auto mode: detect on max-intensity projection
+            SNTUtils.log("detectAllSomas: computing MIP from " + source.dimension(2) + " Z-planes...");
+            detectionPlane = ImgUtils.maxIntensityProjection((RandomAccessibleInterval<RealType<?>>) source);
         }
 
-        @SuppressWarnings("unchecked")
-        final RandomAccessibleInterval<? extends RealType<?>> typedRai =
-                (RandomAccessibleInterval<? extends RealType<?>>) rai;
+        final List<SomaResult> baseResults = detectAllSomas(detectionPlane, threshold, minRadius, minSomaDistance);
 
-        final List<SomaResult> baseResults = detectAllSomas(typedRai, threshold, minRadius, minSomaDistance);
-
-        // Enrich with units and Z
+        // Enrich results with units and per-soma Z
         final List<SomaResult> enrichedResults = new ArrayList<>();
         for (final SomaResult base : baseResults) {
+            final int somaZ;
+            if (!is3D) {
+                somaZ = -1;
+            } else if (zSlice >= 0 && zSlice < source.dimension(2)) {
+                // Explicit slice: all somas share the same Z
+                somaZ = zSlice;
+            } else {
+                // MIP mode: resolve per-soma Z from peak intensity in the original stack
+                somaZ = resolveZForSoma(
+                        (RandomAccessibleInterval<RealType<?>>) source,
+                        base.center[0], base.center[1]);
+            }
             enrichedResults.add(new SomaResult(
                     base.center, base.centroid, base.mask, base.contour,
-                    base.radius, base.threshold, effectiveZ, units
+                    base.radius, base.threshold, somaZ, units
             ));
         }
 
@@ -1325,6 +1383,31 @@ public class SomaUtils {
             return ImgUtils.computeIntensityStats(source)[2]; // mean
         }
         return threshold;
+    }
+
+    /**
+     * For a detected (x, y) soma center, finds the Z-plane with the highest
+     * intensity in the original 3D stack at that column. Returns 0 for 2D images.
+     */
+    private static <T extends RealType<T>> int resolveZForSoma(
+            final @UnknownNullability RandomAccessibleInterval<RealType<?>> source,
+            final long x, final long y) {
+
+        if (source.numDimensions() <= 2) return 0;
+
+        final long depth = source.dimension(2);
+        final RandomAccess<T> ra = (RandomAccess<T>) source.randomAccess();
+        double bestVal = Double.NEGATIVE_INFINITY;
+        int bestZ = 0;
+        for (int z = 0; z < depth; z++) {
+            ra.setPosition(new long[]{x, y, z});
+            final double val = ra.get().getRealDouble();
+            if (val > bestVal) {
+                bestVal = val;
+                bestZ = z;
+            }
+        }
+        return bestZ;
     }
 
     /**

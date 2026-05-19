@@ -181,9 +181,9 @@ public class AutoTraceConfigDialog extends JDialog {
         if (config.getScoreMapScales() != null && config.getScoreMapScales().length > 0)
             rows.add(new ParamRow("scoreMapEnabled", "Score map filter",
                     "Enabled (scales: " + formatArray(config.getScoreMapScales()) + ")", true));
-        if (!Double.isNaN(config.getLengthThreshVoxels()))
+        if (!Double.isNaN(config.getMinBranchIntensityLength()))
             rows.add(new ParamRow("lengthThreshold", "Min. branch score",
-                    fmt(config.getLengthThreshVoxels()), true));
+                    fmt(config.getMinBranchIntensityLength()), true));
         // V. Post-processing
         if (!Double.isNaN(config.getBranchTuneMaxAngle()))
             rows.add(new ParamRow("branchTuneMaxAngle", "Max. branching angle",

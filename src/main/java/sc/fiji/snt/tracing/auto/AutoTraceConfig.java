@@ -55,7 +55,7 @@ public class AutoTraceConfig {
     // Derived values (NaN = could not be derived)
     private double[] scoreMapScales;
     private double backgroundThreshold = Double.NaN;
-    private double lengthThreshVoxels = Double.NaN;
+    private double minBranchIntensityLength = Double.NaN;
     private double branchTuneMaxAngle = Double.NaN;
     private double reconnectMinContraction = Double.NaN;
     private double reconnectMaxAngleDeg = Double.NaN;
@@ -111,7 +111,7 @@ public class AutoTraceConfig {
             // Length threshold: scale-aware minimum. A branch shorter than the
             // thinnest observed radius is likely noise. Use p10 as floor.
             final double p10 = radii.get(Math.max(0, n / 10));
-            config.lengthThreshVoxels = Math.max(3.0, p10 / avgSpacing(spacing));
+            config.minBranchIntensityLength = Math.max(3.0, p10 / avgSpacing(spacing));
         }
 
         // Step 3: Collect contraction
@@ -170,8 +170,8 @@ public class AutoTraceConfig {
     public <T extends RealType<T>> void applyTo(final AbstractGWDTTracer<T> tracer) {
         if (!Double.isNaN(backgroundThreshold))
             tracer.setBackgroundThreshold(backgroundThreshold);
-        if (!Double.isNaN(lengthThreshVoxels))
-            tracer.setMinSegmentLengthVoxels(lengthThreshVoxels);
+        if (!Double.isNaN(minBranchIntensityLength))
+            tracer.setMinBranchIntensityLength(minBranchIntensityLength);
         if (!Double.isNaN(branchTuneMaxAngle))
             tracer.setBranchTuneMaxAngle(branchTuneMaxAngle);
         if (scoreMapScales != null && scoreMapScales.length > 0) {
@@ -203,18 +203,17 @@ public class AutoTraceConfig {
               .append(" → reconnect min: ").append(fmt(reconnectMinContraction)).append("\n");
         if (!Double.isNaN(branchTuneMaxAngle))
             sb.append("  Branch tune max angle: ").append(fmt(branchTuneMaxAngle)).append("°\n");
-        if (!Double.isNaN(lengthThreshVoxels))
-            sb.append("  Length threshold: ").append(fmt(lengthThreshVoxels)).append(" voxels\n");
+        if (!Double.isNaN(minBranchIntensityLength))
+            sb.append("  Min branch intensity-length: ").append(fmt(minBranchIntensityLength)).append("\n");
         if (!Double.isNaN(reconnectMaxBridgeDist))
             sb.append("  Max bridge distance: ").append(fmt(reconnectMaxBridgeDist)).append(" voxels\n");
         return sb.toString();
     }
 
-    // --- Getters ---
-
+    // Getters
     public double[] getScoreMapScales() { return scoreMapScales; }
     public double getBackgroundThreshold() { return backgroundThreshold; }
-    public double getLengthThreshVoxels() { return lengthThreshVoxels; }
+    public double getMinBranchIntensityLength() { return minBranchIntensityLength; }
     public double getBranchTuneMaxAngle() { return branchTuneMaxAngle; }
     public double getReconnectMinContraction() { return reconnectMinContraction; }
     public double getReconnectMaxAngleDeg() { return reconnectMaxAngleDeg; }
@@ -304,6 +303,7 @@ public class AutoTraceConfig {
     /**
      * Samples source image intensity at each node position and returns the mean.
      */
+    @SuppressWarnings("unchecked")
     private static <T extends RealType<T>> double sampleMeanIntensity(
             final List<Path> paths,
             final @UnknownNullability RandomAccessibleInterval<? extends RealType<?>> source,

@@ -175,8 +175,8 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
         if (dialog.isSelected("backgroundThreshold") && !Double.isNaN(config.getBackgroundThreshold())) {
             backgroundThreshold = config.getBackgroundThreshold();
         }
-        if (dialog.isSelected("lengthThreshold") && !Double.isNaN(config.getLengthThreshVoxels())) {
-            lengthThreshold = config.getLengthThreshVoxels();
+        if (dialog.isSelected("lengthThreshold") && !Double.isNaN(config.getMinBranchIntensityLength())) {
+            lengthThreshold = config.getMinBranchIntensityLength();
         }
         if (dialog.isSelected("branchTuneMaxAngle") && !Double.isNaN(config.getBranchTuneMaxAngle())) {
             branchTuneMaxAngle = config.getBranchTuneMaxAngle();

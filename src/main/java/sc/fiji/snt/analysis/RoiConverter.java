@@ -425,7 +425,7 @@ public class RoiConverter {
 	}
 
 	private void drawPathSegments(final Path path, final String basename, final Overlay overlay) {
-		getROIs(path, basename).forEach( roi -> overlay.add(roi));
+		getROIs(path, basename).forEach(overlay::add);
 	}
 
 	private PolygonRoi polygonToRoi(final FloatPolygon p, final int[] impPosition,
@@ -742,15 +742,23 @@ public class RoiConverter {
 	}
 
 	/**
-	 * Extracts the 2D centroids from a list of ROIs as integer pixel
+	 * Extracts centroids from a collection of ROIs as integer pixel
 	 * coordinates. Each centroid is computed via {@link #get2dCentroid(Roi)}
-	 * and rounded to the nearest pixel. Null ROIs or ROIs whose centroid
-	 * cannot be determined are silently skipped.
+	 * and rounded to the nearest pixel. The Z coordinate is derived from
+	 * {@link Roi#getZPosition()}: ROIs associated with a specific slice
+	 * produce a 0-indexed Z value ({@code getZPosition() - 1}); ROIs not
+	 * associated with a particular slice ({@code getZPosition() == 0})
+	 * produce {@code z = -1}, indicating that the Z position is unresolved
+	 * and should be determined by the caller. Null ROIs or ROIs whose
+	 * centroid cannot be determined are silently skipped.
 	 *
 	 * @param rois the ROIs to extract centroids from
-	 * @return list of {@code long[]{x, y}} pixel coordinates, one per valid
-	 *         ROI (may be smaller than input if some ROIs are null/invalid)
+	 * @return list of {@code long[]{x, y, z}} pixel coordinates (z is
+	 *         0-indexed, or {@code -1} if the ROI has no slice association),
+	 *         one per valid ROI (may be smaller than input if some ROIs are
+	 *         null/invalid)
 	 * @see #get2dCentroid(Roi)
+	 * @see Roi#getZPosition()
 	 */
 	public static List<long[]> getCentroids(final Collection<Roi> rois) {
 		if (rois == null || rois.isEmpty()) return Collections.emptyList();
@@ -758,7 +766,8 @@ public class RoiConverter {
 		for (final Roi roi : rois) {
 			final double[] c = get2dCentroid(roi);
 			if (c != null && c.length >= 2) {
-				centroids.add(new long[]{Math.round(c[0]), Math.round(c[1])});
+				final int z = roi.getZPosition() - 1; // 1-based to 0-based; 0 becomes -1 (unresolved)
+				centroids.add(new long[]{Math.round(c[0]), Math.round(c[1]), z});
 			}
 		}
 		return centroids;

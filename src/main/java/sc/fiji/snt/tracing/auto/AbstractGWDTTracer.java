@@ -88,7 +88,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected double backgroundThreshold = -1; // auto-computed if negative
 
     // Pruning parameters
-    protected double lengthThreshVoxels = 5.0;  // APP2's length_thresh: sum of normalized intensities (default: 5.0)
+    protected double minBranchIntensityLength = 5.0;  // APP2's length_thresh: sum of normalized intensities (default: 5.0)
     protected double srRatio = 1.0 / 9.0;  // APP2's SR_ratio default: 1/9 (0.111)
     protected double sphereOverlapThreshold = 0.1;  // APP2: node covered if >10% of sphere overlaps
     protected double leafPruneOverlap = 0.9;  // APP2: prune leaf if 90% overlap with parent
@@ -99,13 +99,14 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected boolean resampleEnabled = true;  // APP2's b_resample (default: true)
     protected double resampleStep = 2.0;  // Resample step in voxels (APP2 uses ~10 for large images)
     protected int cnnType = 2;  // APP2's cnn_type: 1=6-conn, 2=18-conn (default), 3=26-conn
-    private boolean allowGap = false;  // APP2's is_break_accept: bridge single dark voxels
+    private int maxGapVoxels = 3;  // 0=disabled, 1=APP2's is_break_accept, >1=multi-voxel gap bridging
     protected boolean zigzagRemovalEnabled = true;  // Remove consecutive direction reversals
     protected boolean overshootRemovalEnabled = true;  // Remove direction reversals at branch points
     protected double branchTuneMaxAngle = 90.0;  // Max angle (degrees) for branch tuning turn test; NaN disables
-    protected boolean reconnectEnabled = true;  // Use A* to bridge gaps between disconnected components
+    private double tipExtensionDistance = 0;  // 0=disabled; >0: A* tip extension range (voxels)
 
     // Multi-soma recovery pass configuration
+    private double caliperFraction = 0.5;  // Fraction of nearest-neighbor distance used as FM spread limit; <0 = disabled
     private int tracedRegionBuffer = 5;  // Buffer (in voxels) around traced regions excluded between multi-soma passes
     private double minSomaDistance = 0;  // Min distance (voxels) between soma centers; used for NMS and consolidation
     private int nSomas = -1;  // Expected number of somas; -1 = auto-estimate, 0 = disabled
@@ -130,6 +131,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     private final int[] deltaCache;
     private final long[] neighborPosCache;
     private final long[] bridgePosCache;
+
+    // Gap bridging counter — reset before each FM run, incremented inside addNeighborsToHeap
+    private int gapBridgeCount;
 
     /**
      * Creates a new GWDTTracer.
@@ -226,20 +230,40 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Sets the minimum segment length in VOXEL units. Default: 2.0
-     * Segments shorter than this are always pruned.
+     * Sets the minimum branch intensity-length threshold. This is the sum of
+     * normalized intensities ({@code intensity / maxIntensity}) along a branch
+     * segment. Branches whose cumulative score falls below this value are
+     * pruned. A value of 5.0 (default) means a branch needs the equivalent of
+     * 5 voxels at maximum intensity, or more voxels at lower intensity.
+     * <p>
+     * Note: despite the name of the APP2 parameter ({@code length_thresh}),
+     * this is NOT a Euclidean distance — it is an intensity-weighted length
+     * that favors bright branches.
+     * </p>
+     *
+     * @param threshold minimum intensity-length score (default: 5.0)
      */
-    public void setMinSegmentLengthVoxels(final double lengthInVoxels) {
-        this.lengthThreshVoxels = Math.max(0, lengthInVoxels);
+    public void setMinBranchIntensityLength(final double threshold) {
+        this.minBranchIntensityLength = Math.max(0, threshold);
     }
 
     /**
-     * Sets the minimum segment length in physical units.
-     * Internally converted to voxels using average spacing.
+     * @deprecated Use {@link #setMinBranchIntensityLength(double)} instead.
      */
+    @Deprecated
+    public void setMinSegmentLengthVoxels(final double lengthInVoxels) {
+        setMinBranchIntensityLength(lengthInVoxels);
+    }
+
+    /**
+     * @deprecated Use {@link #setMinBranchIntensityLength(double)} instead.
+     *             Note: the physical-to-voxel conversion is not meaningful for
+     *             this parameter since it is an intensity sum, not a distance.
+     */
+    @Deprecated
     public void setMinSegmentLength(final double lengthInPhysicalUnits) {
         final double avgSpacing = computeAverageSpacing();
-        this.lengthThreshVoxels = lengthInPhysicalUnits / avgSpacing;
+        setMinBranchIntensityLength(lengthInPhysicalUnits / avgSpacing);
     }
 
     /**
@@ -327,31 +351,69 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Sets whether to allow bridging small intensity gaps.
+     * Sets whether to allow bridging single-voxel intensity gaps during
+     * fast marching.
      * <p>
-     * When enabled, fast marching can cross a single dark voxel to connect
+     * When enabled, the wavefront can cross a single dark voxel to connect
      * broken neurites. The crossing is only allowed if the current voxel is
-     * above threshold (i.e., we can step from bright → dark → bright, but not
-     * dark → dark).
+     * above threshold (i.e., bright → dark → bright, but not dark → dark).
      * </p>
      * <p>
      * This is useful for images with fragmented signals or small imaging
-     * artifacts, but may falsely connect separate structures.
+     * artifacts, but may falsely connect separate structures. For bridging
+     * larger, multi-voxel gaps between disconnected tree components, see
+     * {@link #setMaxGapVoxels(int)} or {@link #setTipExtensionDistance(double)}.
      * </p>
      *
      * @param allow true to allow crossing single dark voxels (default: false)
+     * @see #setMaxGapVoxels(int)
+     * @see #setTipExtensionDistance(double)
      */
-    public void setAllowGap(final boolean allow) {
-        this.allowGap = allow;
+    public void setAllowVoxelGap(final boolean allow) {
+        this.maxGapVoxels = allow ? Math.max(1, maxGapVoxels) : 0;
     }
 
     /**
-     * Returns whether gap bridging is enabled.
+     * Returns whether gap bridging is enabled (single- or multi-voxel).
      *
-     * @return true if single dark voxels can be crossed during tracing
+     * @return true if dark voxels can be crossed during tracing
+     * @see #setAllowVoxelGap(boolean)
+     * @see #getMaxGapVoxels()
      */
-    public boolean isAllowGap() {
-        return allowGap;
+    public boolean isAllowVoxelGap() {
+        return maxGapVoxels > 0;
+    }
+
+    /**
+     * Sets the maximum number of consecutive dark voxels that Fast Marching
+     * can bridge during tracing. When the FM wavefront encounters a dark
+     * neighbor, it probes ahead along the same direction for up to this many
+     * steps looking for bright signal. If found, the far-side bright voxel is
+     * added to the FM heap with accumulated gap cost, and FM continues
+     * expanding from there normally (including all branches).
+     * <p>
+     * Set to 0 to disable gap bridging entirely, 1 for the legacy single-voxel
+     * bridge, or higher values (e.g. 50) for beaded or fragmented signal.
+     * The gap cost assumes synthetic intensity of {@code threshold + 1} for
+     * each dark voxel crossed, keeping the cost model consistent with normal
+     * FM traversal while penalizing gap traversal.
+     * </p>
+     *
+     * @param maxVoxels maximum gap width in voxels (default: 3)
+     * @see #setAllowVoxelGap(boolean)
+     */
+    public void setMaxGapVoxels(final int maxVoxels) {
+        this.maxGapVoxels = Math.max(0, maxVoxels);
+    }
+
+    /**
+     * Returns the maximum number of consecutive dark voxels FM can bridge.
+     *
+     * @return maximum gap width in voxels; 0 if disabled
+     * @see #setMaxGapVoxels(int)
+     */
+    public int getMaxGapVoxels() {
+        return maxGapVoxels;
     }
 
     /**
@@ -396,16 +458,74 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Sets whether to attempt A*-based reconnection of disconnected components
-     * before discarding them. When enabled, the tracer uses
-     * {@link ComponentReconnector} to bridge gaps between orphan fragments and
-     * the main tree. When disabled, disconnected components are simply removed.
-     * Default: {@code true}.
+     * Sets the maximum distance (in voxels) for A*-based tip extension.
+     * When set to a positive value, leaf tips that end at gap boundaries
+     * (where the signal drops below threshold) are extended by scanning
+     * for bright signal in a forward cone and running bidirectional A*
+     * to bridge the gap. This complements FM gap bridging
+     * ({@link #setMaxGapVoxels(int)}), which handles small gaps during
+     * wavefront expansion: tip extension targets larger contiguous gaps
+     * that exceed {@code maxGapVoxels}.
+     * <p>
+     * Set to 0 (the default) to disable. Typical values are 20–50 voxels.
+     * Note: this is an experimental feature — in noisy images, large
+     * values may produce spurious bridges.
+     * </p>
      *
-     * @param enabled whether to enable component reconnection
+     * @param distance maximum gap distance in voxels (default: 0 = disabled)
+     * @see #setMaxGapVoxels(int)
      */
-    public void setReconnectEnabled(final boolean enabled) {
-        this.reconnectEnabled = enabled;
+    public void setTipExtensionDistance(final double distance) {
+        this.tipExtensionDistance = Math.max(0, distance);
+    }
+
+    /**
+     * Returns the maximum distance (in voxels) for A*-based tip extension.
+     *
+     * @return maximum tip extension distance; 0 if disabled
+     * @see #setTipExtensionDistance(double)
+     */
+    public double getTipExtensionDistance() {
+        return tipExtensionDistance;
+    }
+
+    /**
+     * Sets the fraction of the nearest-neighbor soma distance used as the
+     * caliper radius for Fast Marching spread in multi-soma tracing. For each
+     * soma, the caliper radius is {@code fraction × nearest_neighbor_distance},
+     * limiting how far the wavefront can propagate. This prevents one cell's
+     * tracing from invading a neighbor's territory.
+     * <p>
+     * Smaller fractions are more conservative (less cross-cell contamination)
+     * but may truncate long processes that extend past the midpoint between
+     * cells. Larger fractions allow the tracer to follow distal processes
+     * further, relying on the exclusion mask
+     * ({@link #setTracedRegionBuffer(int)}) to prevent overlap.
+     * </p>
+     * <p>
+     * Set to a negative value (e.g., {@code -1}) to disable the caliper
+     * entirely, allowing unrestricted Fast Marching spread. In this mode,
+     * territory boundaries are enforced solely by the exclusion mask.
+     * Default: {@code 0.5}.
+     * </p>
+     *
+     * @param fraction fraction of nearest-neighbor distance (default: 0.5),
+     *                 or negative to disable the caliper
+     * @see #setTracedRegionBuffer(int)
+     */
+    public void setCaliperFraction(final double fraction) {
+        this.caliperFraction = fraction;
+    }
+
+    /**
+     * Returns the caliper fraction used for limiting Fast Marching spread in
+     * multi-soma tracing, or a negative value if the caliper is disabled.
+     *
+     * @return caliper fraction, or negative if disabled
+     * @see #setCaliperFraction(double)
+     */
+    public double getCaliperFraction() {
+        return caliperFraction;
     }
 
     /**
@@ -531,7 +651,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * <p>
      * Example usage with user-provided seeds:
      * <pre>{@code
-     * List<SomaUtils.SomaResult> somas = SomaUtils.detectSomasAt(imp, rois, zSlice);
+     * List<SomaUtils.SomaResult> somas = SomaUtils.detectSomasAt(imp, rois);
      * tracer.setAutoFilter(false);   // trust user seeds
      * tracer.setNSomas(0);           // no count-based cap
      * List<Tree> trees = tracer.traceMultiSoma(somas);
@@ -540,7 +660,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      *
      * @param enabled whether to enable automatic soma filtering (default:
      *                {@code true})
-     * @see SomaUtils#detectSomasAt(ij.ImagePlus, java.util.Collection, int)
+     * @see SomaUtils#detectSomasAt(ij.ImagePlus, java.util.Collection)
      * @see #setNSomas(int)
      * @see #setMinSomaDistance(double)
      */
@@ -778,6 +898,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         final boolean hasSpreadLimit = maxSpreadRadius > 0;
         int nodeCount = 1;
         int skippedByRadius = 0;
+        gapBridgeCount = 0;
 
         while (!heap.isEmpty()) {
             final long[] entry = heap.poll();
@@ -813,7 +934,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
         SNTUtils.log("Fast Marching: " + nodeCount + " ALIVE nodes"
                 + (hasSpreadLimit ? " (skipped " + skippedByRadius
-                + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : ""));
+                + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : "")
+                + (gapBridgeCount > 0 ? " (bridged " + gapBridgeCount + " gaps)" : ""));
     }
 
     /**
@@ -865,42 +987,56 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             euclideanDist = Math.sqrt(euclideanDist);
 
             if (intensity <= threshold) {
-                if (!allowGap || currentIntensity <= threshold) return;
+                if (maxGapVoxels <= 0 || currentIntensity <= threshold) return;
 
-                // Gap bridging: allow bright -> dark -> bright across one dark voxel.
-                for (int d = 0; d < nDims; d++) {
-                    bridgePosCache[d] = pos[d] + 2L * deltaCache[d];
-                    if (bridgePosCache[d] < 0 || bridgePosCache[d] >= dims[d]) {
-                        return;
-                    }
-                }
-
-                final long bridgeIdx = posToIndex(bridgePosCache);
-                if (storage.getState(bridgeIdx) == ALIVE) return;
-
-                srcRA.setPosition(bridgePosCache);
-                final double bridgeIntensity = srcRA.get().getRealDouble();
-                if (bridgeIntensity <= threshold) return;
-
-                final double gwdt = storage.getGWDT(bridgeIdx);
+                // Gap bridging: probe ahead along the same direction for up to
+                // maxGapVoxels steps, looking for the first bright voxel.
+                // Cost per dark step assumes synthetic intensity of threshold+1,
+                // keeping the cost model consistent with normal FM traversal.
                 final double maxGWDT = storage.getMaxGWDT();
-                final double gwdtCost = computeGWDTTraversalCost(gwdt, maxGWDT);
-                if (!Double.isFinite(gwdtCost)) return;
+                final double syntheticGapCostPerStep = euclideanDist
+                        + computeGWDTTraversalCost(
+                            computeSyntheticGapGWDT(threshold, maxGWDT), maxGWDT);
+                // Start with cost for the first dark voxel (the neighbor itself)
+                double accumulatedGapCost = syntheticGapCostPerStep;
 
-                final double stepDist = 2.0 * euclideanDist;
-                final double gapPenalty = 0.5 * euclideanDist;
-                final double edgeCost = stepDist + gwdtCost + gapPenalty;
-                final double newDist = currentDist + edgeCost;
-
-                if (newDist < storage.getDistance(bridgeIdx)) {
-                    storage.setDistance(bridgeIdx, newDist);
-                    storage.setParent(bridgeIdx, currentIdx);
-
-                    if (storage.getState(bridgeIdx) == FAR) {
-                        storage.setState(bridgeIdx, TRIAL);
+                for (int step = 2; step <= maxGapVoxels + 1; step++) {
+                    boolean probeInBounds = true;
+                    for (int d = 0; d < nDims; d++) {
+                        bridgePosCache[d] = pos[d] + (long) step * deltaCache[d];
+                        if (bridgePosCache[d] < 0 || bridgePosCache[d] >= dims[d]) {
+                            probeInBounds = false;
+                            break;
+                        }
                     }
+                    if (!probeInBounds) break;
 
-                    heap.offer(new long[]{bridgeIdx, Double.doubleToRawLongBits(newDist)});
+                    accumulatedGapCost += syntheticGapCostPerStep;
+
+                    final long probeIdx = posToIndex(bridgePosCache);
+                    if (storage.getState(probeIdx) == ALIVE) break;
+
+                    srcRA.setPosition(bridgePosCache);
+                    final double probeIntensity = srcRA.get().getRealDouble();
+                    if (probeIntensity > threshold) {
+                        // Found bright voxel across the gap — bridge to it
+                        final double gwdt = storage.getGWDT(probeIdx);
+                        final double gwdtCost = computeGWDTTraversalCost(gwdt, maxGWDT);
+                        if (!Double.isFinite(gwdtCost)) break;
+
+                        final double newDist = currentDist + accumulatedGapCost + gwdtCost;
+                        if (newDist < storage.getDistance(probeIdx)) {
+                            storage.setDistance(probeIdx, newDist);
+                            storage.setParent(probeIdx, currentIdx);
+                            if (storage.getState(probeIdx) == FAR) {
+                                storage.setState(probeIdx, TRIAL);
+                            }
+                            heap.offer(new long[]{probeIdx,
+                                    Double.doubleToRawLongBits(newDist)});
+                            gapBridgeCount++;
+                        }
+                        break; // bridge to first bright voxel only
+                    }
                 }
                 return;
             }
@@ -1721,7 +1857,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         // APP2 uses intensity-based length: sum of (intensity / maxIntensity)
         // length_thresh = 5 means total normalized intensity sum >= 5
         // This is NOT Euclidean distance!
-        final double intensityLengthThresh = lengthThreshVoxels;  // Now interpreted as intensity sum
+        final double intensityLengthThresh = minBranchIntensityLength;
 
         log("Intensity-based length threshold: " + intensityLengthThresh +
                 " (sum of normalized intensities)");
@@ -1767,6 +1903,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         int keptCount = 0;
         int prunedShort = 0;
         int prunedCovered = 0;
+        int coveredByRatio = 0;       // failed srRatio test
+        int coveredByMinSignal = 0;   // passed ratio but failed minSignalThreshold
+        int coveredByBoth = 0;        // failed both ratio and minSignal
+        int coveredAllRedundant = 0;  // sumSignal == 0 (entirely covered)
 
         // APP2 PARENT-FIRST: Process in multiple passes
         // Only evaluate a segment if its parent segment has been accepted
@@ -1870,11 +2010,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 }
 
                 // APP2 keep criterion:
-                // Keep if: no parent (root) OR no redundancy OR (signal/redundant >= srRatio AND signal >= 256)
-                // The sum_sig >= 256 (T_max for 8-bit) ensures minimum total signal
-                final double minSignalThreshold = 256.0;  // T_max for 8-bit images
-                boolean keep = (sumRedundant == 0) ||
-                        (sumSignal / sumRedundant >= srRatio && sumSignal >= minSignalThreshold);
+                // Keep if: no redundancy OR (signal/redundant >= srRatio AND signal >= minSignalThreshold)
+                // APP2 hardcoded 256 (T_max for 8-bit); we scale to actual image max
+                final double minSignalThreshold = maxIntensity;
+                final boolean ratioOk = (sumRedundant == 0) || (sumSignal / sumRedundant >= srRatio);
+                final boolean signalOk = sumSignal >= minSignalThreshold;
+                final boolean keep = (sumRedundant == 0) || (ratioOk && signalOk);
 
                 if (keep) {
                     // Claim all nodes in path - this connects leaf to the main tree
@@ -1892,6 +2033,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     rejectedLeaves.add(leaf);
                     prunedCovered++;
                     madeProgress = true;
+                    // Diagnose why this branch was rejected
+                    if (sumSignal == 0) {
+                        coveredAllRedundant++;
+                    } else if (!ratioOk && !signalOk) {
+                        coveredByBoth++;
+                    } else if (!ratioOk) {
+                        coveredByRatio++;
+                    } else {
+                        coveredByMinSignal++;
+                    }
                 }
             }
         }
@@ -1915,6 +2066,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         }
         SNTUtils.log("  hierarchicalPrune: " + leaves.size() + " leaves, kept=" + keptCount +
                 ", prunedShort=" + prunedShort + ", prunedCovered=" + prunedCovered +
+                " (allRedundant=" + coveredAllRedundant + ", failedRatio=" + coveredByRatio +
+                ", failedMinSignal=" + coveredByMinSignal + ", failedBoth=" + coveredByBoth + ")" +
                 ", unprocessed=" + unprocessedCount + ", toRemove=" + nodesToRemove.size());
 
         // Remove only unclaimed nodes
@@ -2192,6 +2345,23 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         }
         final double clampedGWDT = Math.max(0.0, Math.min(gwdt, maxGWDT));
         return (maxGWDT - clampedGWDT) / maxGWDT;
+    }
+
+    /**
+     * Computes a synthetic GWDT value for dark voxels inside a gap.
+     * Pretends the voxel has intensity {@code threshold + 1} so that
+     * gap traversal is expensive but not infinite, and the cost model
+     * stays consistent with normal FM traversal.
+     */
+    private double computeSyntheticGapGWDT(final double threshold, final double maxGWDT) {
+        // GWDT for a foreground voxel is roughly proportional to its normalized
+        // intensity.  Simulate a barely-above-threshold voxel.
+        final double syntheticIntensity = threshold + 1.0;
+        final double normIntensity = (maxIntensity > 0 && Double.isFinite(maxIntensity))
+                ? syntheticIntensity / maxIntensity : 0.0;
+        // Scale to GWDT range (approximate — real GWDT is path-based,
+        // but for a single step this is a reasonable proxy)
+        return normIntensity * maxGWDT;
     }
 
     protected long posToIndex(final long[] pos) {
@@ -3080,33 +3250,39 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     /**
      * Computes per-soma caliper radii for limiting FM spread in multi-soma mode.
-     * For each soma, the caliper radius is half the Euclidean distance (in
-     * calibrated units) to its nearest neighbor. This ensures each soma's FM
-     * expansion stays within its own "territory" and does not invade neighbors.
+     * For each soma, the caliper radius is {@code caliperFraction × nearest
+     * neighbor distance} (in calibrated units). This limits each soma's FM
+     * expansion to prevent cross-cell contamination.
      * <p>
-     * If only one soma is present, the caliper radius is set to
-     * {@link Double#MAX_VALUE} (no limit).
+     * Returns {@link Double#MAX_VALUE} for all somas if: only one soma is
+     * present, or the caliper is disabled ({@code caliperFraction < 0}).
      * </p>
      *
      * @param somas list of detected somas
      * @return array of caliper radii (calibrated units), one per soma
+     * @see #setCaliperFraction(double)
      */
     private double[] computeCaliperRadii(final List<SomaUtils.SomaResult> somas) {
         final int n = somas.size();
         final double[] radii = new double[n];
 
-        if (n <= 1) {
+        if (n <= 1 || caliperFraction < 0) {
             Arrays.fill(radii, Double.MAX_VALUE);
             return radii;
         }
 
-        // Precompute calibrated positions (voxel coords * spacing)
+        // Precompute calibrated positions (voxel coords * spacing).
+        // SomaResult.center() may be {x,y} only; backfill Z from zSlice()
         final double[][] positions = new double[n][];
         for (int i = 0; i < n; i++) {
-            final long[] center = somas.get(i).center();
+            final SomaUtils.SomaResult soma = somas.get(i);
+            final long[] center = soma.center();
             positions[i] = new double[dims.length];
             for (int d = 0; d < Math.min(center.length, dims.length); d++) {
                 positions[i][d] = center[d] * spacing[d];
+            }
+            if (dims.length > 2 && center.length <= 2 && soma.zSlice() >= 0) {
+                positions[i][2] = soma.zSlice() * spacing[2];
             }
         }
 
@@ -3122,8 +3298,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 }
                 minDistSq = Math.min(minDistSq, distSq);
             }
-            // Caliper = half the nearest-neighbor distance
-            radii[i] = Math.sqrt(minDistSq) / 2.0;
+            radii[i] = Math.sqrt(minDistSq) * caliperFraction;
         }
 
         return radii;
@@ -3304,14 +3479,20 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         SNTUtils.log("  After darkPruning: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
         hierarchicalPrune(graph, threshold);
         SNTUtils.log("  After hierarchicalPrune: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
-        if (reconnectEnabled) {
-            status("Reconnecting components...");
+        // Tip extension: use A* to extend leaf tips across gaps larger than
+        // maxGapVoxels. Disabled by default (tipExtensionDistance <= 0).
+        if (tipExtensionDistance > 0) {
             final SWCPoint root = findGraphRoot(graph);
             if (root != null) {
                 final ComponentReconnector<T> reconnector = new ComponentReconnector<>(source, spacing);
+                reconnector.setMaxBridgeDistVoxels(tipExtensionDistance);
                 reconnector.setVerbose(verbose);
-                final int bridged = reconnector.reconnect(graph, root, threshold);
-                log("Reconnected " + bridged + " orphan component(s)");
+
+                status("Extending tips across gaps...");
+                final int extended = reconnector.extendTips(graph, root, threshold);
+                log("Extended " + extended + " tip(s) across gaps");
+                SNTUtils.log("  After tipExtension: " + graph.vertexSet().size()
+                        + "v, " + graph.edgeSet().size() + "e");
             }
         }
         removeDisconnectedComponents(graph);

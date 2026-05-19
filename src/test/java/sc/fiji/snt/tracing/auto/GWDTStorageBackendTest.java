@@ -126,7 +126,7 @@ public class GWDTStorageBackendTest {
         for (AbstractGWDTTracer<?> tracer : new AbstractGWDTTracer<?>[]{arrayTracer, sparseTracer, diskTracer}) {
             tracer.setSeedPhysical(seedPoint);
             tracer.setBackgroundThreshold(-1);  // auto
-            tracer.setMinSegmentLengthVoxels(5.0);
+            tracer.setMinBranchIntensityLength(5.0);
             tracer.setSrRatio(1.0 / 9.0);
             tracer.setConnectivityType(2);
             tracer.setVerbose(false);  // Reduce log spam
@@ -414,7 +414,7 @@ public class GWDTStorageBackendTest {
                 arrayTracer, sparseTracer, diskTracer}) {
             tracer.setSeedPhysical(seedPoint);
             tracer.setBackgroundThreshold(-1);
-            tracer.setMinSegmentLengthVoxels(5.0);
+            tracer.setMinBranchIntensityLength(5.0);
             tracer.setSrRatio(1.0 / 9.0);
             tracer.setSphereOverlapThreshold(0.1);
             tracer.setLeafPruneEnabled(true);
@@ -513,7 +513,7 @@ public class GWDTStorageBackendTest {
 
         // For OP1 (dense), sparse may use more due to overhead - this is expected
         // The test verifies sparse backend works, not that it's always more efficient
-        assertTrue("Sparse backend should produce valid results", trees.size() > 0);
+        assertTrue("Sparse backend should produce valid results", !trees.isEmpty());
         assertTrue("Sparse backend should produce nodes", getTotalNodes(trees) > 0);
     }
 

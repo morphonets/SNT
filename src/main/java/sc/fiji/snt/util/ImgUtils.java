@@ -38,9 +38,11 @@ import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.converter.Converters;
 import net.imglib2.converter.RealUnsignedShortConverter;
 import net.imglib2.display.ColorTable;
+import net.imglib2.Cursor;
 import net.imglib2.img.Img;
 import net.imglib2.img.ImgView;
 import net.imglib2.img.array.ArrayImgFactory;
+import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
@@ -52,6 +54,7 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
+import org.jetbrains.annotations.UnknownNullability;
 import org.scijava.Context;
 import org.scijava.io.IOService;
 import sc.fiji.snt.SNTUtils;
@@ -1126,6 +1129,51 @@ public class ImgUtils {
     }
 
     /**
+     * Computes a max-intensity projection along the third dimension (Z) of a
+     * 3D image, returning a 2D {@link Img} with the same XY extent. For 2D
+     * inputs (2 dimensions or fewer), the source is projected trivially (the
+     * single plane is copied).
+     *
+     * @param <T>    pixel type
+     * @param source the input image (2D or 3D)
+     * @return a 2D max-intensity projection as an {@code Img<FloatType>}
+     */
+    public static <T extends RealType<T>> Img<FloatType> maxIntensityProjection(
+            final @UnknownNullability RandomAccessibleInterval<RealType<?>> source) {
+
+        final long width = source.dimension(0);
+        final long height = source.dimension(1);
+        final long depth = source.numDimensions() > 2 ? source.dimension(2) : 1;
+
+        final Img<FloatType> mip = ArrayImgs.floats(width, height);
+
+        // Initialize to -infinity
+        final Cursor<FloatType> initCursor = mip.cursor();
+        while (initCursor.hasNext()) {
+            initCursor.fwd();
+            initCursor.get().set(Float.NEGATIVE_INFINITY);
+        }
+
+        // Iterate over each Z-plane and keep the max
+        for (long z = 0; z < depth; z++) {
+            @SuppressWarnings("unchecked")
+            final RandomAccessibleInterval<T> slice = (depth > 1)
+                    ? (RandomAccessibleInterval<T>) Views.hyperSlice(source, 2, z) : (RandomAccessibleInterval<T>) source;
+            final Cursor<T> sliceCursor = Views.flatIterable(slice).cursor();
+            final Cursor<FloatType> mipCursor = mip.cursor();
+            while (sliceCursor.hasNext()) {
+                sliceCursor.fwd();
+                mipCursor.fwd();
+                final float val = sliceCursor.get().getRealFloat();
+                if (val > mipCursor.get().getRealFloat()) {
+                    mipCursor.get().set(val);
+                }
+            }
+        }
+        return mip;
+    }
+
+    /**
      * Computes the mean intensity of an image.
      *
      * @param source the input image
@@ -1659,8 +1707,7 @@ public class ImgUtils {
         if (imp == null || rai == null) return false;
         if (imp.getWidth() != rai.dimension(0)) return false;
         if (imp.getHeight() != rai.dimension(1)) return false;
-        if (rai.numDimensions() > 2 && imp.getNSlices() != rai.dimension(2)) return false;
-        return true;
+        return rai.numDimensions() <= 2 || imp.getNSlices() == rai.dimension(2);
     }
 
     /**
@@ -1686,7 +1733,7 @@ public class ImgUtils {
     public static boolean isLabelImage(final RandomAccessibleInterval<? extends RealType<?>> img,
                                         final int maxClasses) {
         final Set<Integer> uniqueLabels = new HashSet<>();
-        final Cursor<? extends RealType<?>> cursor = Views.iterable(img).cursor();
+        final Cursor<? extends RealType<?>> cursor = img.cursor();
         while (cursor.hasNext()) {
             final double raw = cursor.next().getRealDouble();
             if (raw == 0) continue;
