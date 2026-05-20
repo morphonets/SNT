@@ -1354,6 +1354,10 @@ public class SomaUtils {
         // Prune narrow protrusions (neurites)
         pruneNarrowRegions(mask, 0.05);
 
+        // After pruning, the mask may contain disconnected fragments.
+        // Keep only the connected component containing the seed point.
+        retainSeedComponent(mask, seedX, seedY);
+
         // Extract contour from pruned mask
         final Polygon contour = extractContour(mask);
 
@@ -1672,6 +1676,58 @@ public class SomaUtils {
             if (edtCursor.get().getRealDouble() < edtThreshold) {
                 maskCursor.get().set(false);
             }
+        }
+    }
+
+    /**
+     * Retains only the connected component containing the seed point in the
+     * given binary mask. All other foreground pixels are cleared. This is used
+     * after {@link #pruneNarrowRegions} to discard disconnected fragments that
+     * do not belong to the seed's soma.
+     *
+     * @param mask  binary mask (modified in place)
+     * @param seedX seed X coordinate
+     * @param seedY seed Y coordinate
+     */
+    private static void retainSeedComponent(final Img<BitType> mask, final long seedX, final long seedY) {
+        final RandomAccess<BitType> ra = mask.randomAccess();
+        ra.setPosition(new long[]{seedX, seedY});
+        if (!ra.get().get()) return; // seed was pruned; nothing to retain
+
+        final long width = mask.dimension(0);
+        final long height = mask.dimension(1);
+
+        // Flood fill from seed on the pruned mask to find its component
+        final Img<BitType> component = ArrayImgs.bits(width, height);
+        final RandomAccess<BitType> compRA = component.randomAccess();
+        final RandomAccess<BitType> maskRA = mask.randomAccess();
+
+        final List<long[]> stack = new ArrayList<>();
+        stack.add(new long[]{seedX, seedY});
+
+        while (!stack.isEmpty()) {
+            final long[] pos = stack.removeLast();
+            final long x = pos[0];
+            final long y = pos[1];
+            if (x < 0 || x >= width || y < 0 || y >= height) continue;
+            compRA.setPosition(pos);
+            if (compRA.get().get()) continue; // already visited
+            maskRA.setPosition(pos);
+            if (!maskRA.get().get()) continue; // not foreground
+            compRA.get().set(true);
+            stack.add(new long[]{x + 1, y});
+            stack.add(new long[]{x - 1, y});
+            stack.add(new long[]{x, y + 1});
+            stack.add(new long[]{x, y - 1});
+        }
+
+        // Replace mask with just the seed's component
+        final Cursor<BitType> maskCursor = mask.cursor();
+        final Cursor<BitType> compCursor = component.cursor();
+        while (maskCursor.hasNext()) {
+            maskCursor.fwd();
+            compCursor.fwd();
+            maskCursor.get().set(compCursor.get().get());
         }
     }
 

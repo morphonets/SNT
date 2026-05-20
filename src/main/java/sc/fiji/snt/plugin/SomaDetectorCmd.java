@@ -24,10 +24,11 @@ package sc.fiji.snt.plugin;
 
 import ij.ImagePlus;
 import ij.gui.Overlay;
+import ij.gui.PointRoi;
 import ij.gui.Roi;
 import net.imagej.ImgPlus;
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
-import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
@@ -36,7 +37,9 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.SomaUtils;
+import sc.fiji.snt.util.SNTColor;
 
+import java.awt.*;
 import java.util.List;
 
 /**
@@ -70,7 +73,6 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
 
     @Parameter(label = "Scope", choices = {SCOPE_BRIGHTEST, SCOPE_ALL},
             style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
-            callback = "scopeChoiceChanged",
             description = "<HTML>Detection scope:<br>" +
                     "<b>All somata</b>: Detect all cell bodies in image<br>" +
                     "<b>Brightest only</b>: Detect single brightest/largest soma")
@@ -81,12 +83,33 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
                     "-1 = auto (Otsu's method)")
     private double threshold = -1;
 
-    @Parameter(label = "Min. radius", min = "1", required = false,
-            description = "<HTML>Minimum soma radius <b>in pixels</b>.<br>" +
+    @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
+    private String HEADER = "<HTML><b>Multi-soma Detection:";
+
+    @Parameter(label = "Min. radius", min = "0", required = false,
+            description = "<HTML>Minimum soma radius in <b>spatially calibrated</b> units.<br>" +
                     "Only applies when detecting <b>" + SCOPE_ALL +"</b>.<br>" +
                     "Smaller detections are filtered out as noise.<br>" +
-                    "Default: 10 pixels")
-    private double minRadius = 10;
+                    "0 = no filtering (default)")
+    private double minRadius = 0;
+
+    @Parameter(label = "Min. inter-soma distance", min = "0", required = false,
+            description = "<HTML>Minimum distance between soma centers in <b>spatially calibrated</b> units.<br>" +
+                    "When &gt; 0, non-maximum suppression removes detections<br>" +
+                    "that are too close together, keeping only the strongest.<br>" +
+                    "Only applies when detecting <b>" + SCOPE_ALL + "</b>.<br>" +
+                    "0 = no distance-based filtering (default)")
+    private double minSomaDistance = 0;
+
+    @Parameter(label = "Expected no. of somata", min = "0", required = false,
+            description = "<HTML><b>[Experimental]</b> Expected number of cell bodies.<br>" +
+                    "When &gt; 0, keeps only the top-N detections ranked by<br>" +
+                    "EDT thickness. May not work well for images with large<br>" +
+                    "connected bright regions. <i>Min. inter-soma distance</i><br>" +
+                    "is typically more reliable.<br>" +
+                    "Only applies when detecting <b>" + SCOPE_ALL + "</b>.<br>" +
+                    "0 = no count-based filtering (default)")
+    private int nSomas = 0;
 
     private ImagePlus imp;
     private ImgPlus<?> img;
@@ -100,17 +123,6 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             error("No valid image data available.");
         }
         getInfo().setLabel(String.format("Detect Soma [C=%d;T=%d]...", snt.getChannel(), snt.getFrame()));
-        scopeChoiceChanged();
-    }
-
-    private void scopeChoiceChanged() {
-        final MutableModuleItem<Double> minRadiusItem = getInfo().getMutableInput("minRadius", Double.class);
-        if (SCOPE_BRIGHTEST.equals(scopeChoice)) {
-            minRadiusItem.setLabel("Min. radius (N/A)");
-            // Field stays visible but label indicates it's not used
-        } else {
-            minRadiusItem.setLabel("Min. radius");
-        }
     }
 
     @Override
@@ -139,32 +151,58 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             snt.getPathAndFillManager().addPath(path);
             status("Soma added to Manager", true);
         } else {
-            final Roi roi = createOutputRoi(result);
+            Roi roi = createOutputRoi(result);
+            if (roi == null && (OUTPUT_AREA_ROI.equals(outputChoice) || OUTPUT_CIRCLE_ROI.equals(outputChoice))) {
+                roi = result.createPointRoi();
+            }
             if (roi == null) {
                 error("Could not create ROI. Soma detection failed.");
             } else {
                 imp.setRoi(roi);
                 status("Soma ROI created", true);
+                if (roi instanceof PointRoi && !OUTPUT_POINT_ROI.equals(outputChoice))
+                    error(outputChoice + " could not be created. A point ROI was created instead.");
             }
         }
         SNTUtils.log(result.toString());
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     private void runAllSomas(final int zSlice, final double[] spacing) {
         snt.setCanvasLabelAllPanes("Detecting somata....");
-        final List<SomaUtils.SomaResult> results = SomaUtils.detectAllSomas(img, threshold, zSlice, minRadius);
+        // Convert calibrated distances to pixel units for detection
+        final double avgXYSpacing = (spacing[0] + spacing[1]) / 2.0;
+        final double minRadiusPx = (minRadius > 0) ? minRadius / avgXYSpacing : 0;
+        final double minSomaDistancePx = (minSomaDistance > 0) ? minSomaDistance / avgXYSpacing : 0;
+        List<SomaUtils.SomaResult> results = SomaUtils.detectAllSomas(img, threshold, zSlice, minRadiusPx, minSomaDistancePx);
         if (results.isEmpty()) {
             snt.setCanvasLabelAllPanes(null);
             error("No somata detected. Try adjusting the threshold and/or min. radius.");
             return;
         }
+        // Apply count-based filtering if nSomas is set
+        if (nSomas > 0 && results.size() > nSomas) {
+            final net.imglib2.RandomAccessibleInterval rai;
+            if (img.numDimensions() > 2) {
+                final int effectiveZ = (zSlice >= 0 && zSlice < img.dimension(2))
+                        ? zSlice : (int) (img.dimension(2) / 2);
+                rai = net.imglib2.view.Views.hyperSlice(img, 2, effectiveZ);
+            } else {
+                rai = img;
+            }
+            results = SomaUtils.selectTopSomasByThickness(results, rai, nSomas);
+            SNTUtils.log("Top-" + nSomas + " selection: " + results.size() + " soma(s) kept");
+        }
+        final Color[] colors = SNTColor.getDistinctColorsAWT(results.size());
+        int idx = 0;
         if (OUTPUT_PATH.equals(outputChoice)) {
             final Tree paths = new Tree();
-            int idx = 1;
             for (final SomaUtils.SomaResult result : results) {
                 final Path path = result.toPath(spacing);
-                path.setName(String.format("Soma %02d", idx++));
+                path.setColor(colors[idx++]);
+                path.setName(String.format("Soma %02d", idx));
                 paths.add(path);
+
             }
             snt.getPathAndFillManager().addTree(paths);
             status(results.size() + " soma(s) added to Manager", true);
@@ -172,17 +210,20 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
                 overlay = new Overlay();
-                imp.setOverlay(overlay);
             }
             for (final SomaUtils.SomaResult result : results) {
                 final Roi roi = createOutputRoi(result);
                 if (roi != null) {
+                    roi.setStrokeColor(colors[idx++]);
                     overlay.add(roi);
                 }
             }
-            imp.setHideOverlay(false);
-            imp.updateAndDraw();
-            status(results.size() + " soma ROI(s) added to overlay", true);
+            if (overlay.size() > 0) {
+                imp.setOverlay(overlay);
+                imp.setHideOverlay(false);
+                imp.updateAndDraw();
+            }
+            status(overlay.size() + " soma ROI(s) added to overlay", true);
         }
         snt.setCanvasLabelAllPanes(null);
         SNTUtils.log("Detected " + results.size() + " soma(s)");
