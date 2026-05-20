@@ -368,7 +368,10 @@ public class Path implements Comparable<Path>, Cloneable {
 	 */
 	public void setCanvasOffset(final PointInCanvas canvasOffset) {
 		this.canvasOffset = canvasOffset;
-		if (getFitted() != null) getFitted().setCanvasOffset(canvasOffset);
+		if (getFitted() != null && getFitted().canvasOffset != canvasOffset)
+			getFitted().setCanvasOffset(canvasOffset);
+		if (fittedVersionOf != null && fittedVersionOf.canvasOffset != canvasOffset)
+			fittedVersionOf.setCanvasOffset(canvasOffset);
 	}
 
 	/**

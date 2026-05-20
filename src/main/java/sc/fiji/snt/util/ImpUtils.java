@@ -47,7 +47,6 @@ import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
-import org.python.core.imp;
 import org.scijava.convert.ConvertService;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;

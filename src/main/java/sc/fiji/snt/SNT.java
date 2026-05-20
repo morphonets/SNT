@@ -4075,7 +4075,9 @@ public class SNT extends MultiDThreePanes implements
 		final Graphics2D g = canvas.getGraphics2D(bi.getGraphics());
 		g.drawImage(holdingImp.getImage(), 0, 0, null);
 		for (final Path p : pathAndFillManager.getPaths()) {
-			p.drawPathAsPoints(g, canvas, this);
+			if (p == null || p.isFittedVersionOfAnotherPath()) continue;
+			final Path drawPath = (p.getUseFitted() && p.getFitted() != null) ? p.getFitted() : p;
+			drawPath.drawPathAsPoints(g, canvas, this);
 		}
 		// this is taken from ImagePlus.flatten()
 		final ImagePlus result = new ImagePlus(viewDescription + " view snapshot",

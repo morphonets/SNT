@@ -284,7 +284,7 @@ public class TreeUtils {
      *                       Use 0 or negative to disable merging.
      * @return the number of paths that were merged (and removed from the tree)
      */
-    public int mergeContinuousPaths(final Tree tree, final double angleThreshold) {
+    public static int mergeContinuousPaths(final Tree tree, final double angleThreshold) {
         if (tree.list().isEmpty() || angleThreshold <= 0) return 0;
 
         int totalMerged = 0;
