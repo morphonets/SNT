@@ -779,7 +779,7 @@ public class ComponentReconnector<T extends RealType<T>> {
 
         final int maxR = (int) Math.ceil(maxBridgeDistVoxels);
         final int minR = 5; // minimum gap size worth bridging
-        final double cosCone = 0.26; // cos(75°) — wide 75° half-angle cone
+        final double cosCone = 0.26; // cos(75°): wide 75° half-angle cone
 
         // Scan the FULL cone volume and find the brightest target.
         // Score = intensity * alignment, so a bright well-aligned target wins
@@ -895,7 +895,7 @@ public class ComponentReconnector<T extends RealType<T>> {
                 }
             }
 
-            if (bestX < 0) break; // no bright unvisited neighbor — done
+            if (bestX < 0) break; // done: no bright unvisited neighbor
 
             // Add new node
             final SWCPoint node = new SWCPoint(-1, Path.SWC_UNDEFINED,

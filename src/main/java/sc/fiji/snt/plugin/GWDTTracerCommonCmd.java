@@ -83,7 +83,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private static final String AFTER_REPLACE_AND_PROOFREAD = "Replace existing paths & prepare for proofreading";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER1 = "<HTML><b>I. Input Image";
+    private String HEADER1 = "<HTML><b>Input Image";
 
     @Parameter(label = "Grayscale image", required = false,
             description = "<HTML>The grayscale image to trace. Should have bright foreground<br>" +
@@ -97,7 +97,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     protected File imgFileChoice;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER2 = "<HTML>&nbsp;<br><b>II. Soma/Root Detection";
+    private String HEADER2 = "<HTML>&nbsp;<br><b>Soma/Root Detection";
 
     @Parameter(required = false, label = "ROI strategy", choices = {ROI_UNSET, ROI_AUTO_EDGE, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED},
             description = "<HTML>How to determine soma/root location:<dl>" +
@@ -120,7 +120,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private boolean roiPlaneOnly;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER3 = "<HTML><b>III. Thresholding";
+    private String HEADER3 = "<HTML><b>Thresholding";
 
     @Parameter(label = "Background threshold", min = "-1", style = "format:#.00",
             description = "<HTML>Intensity cutoff: pixels ≤ this value are background.<br>" +
@@ -130,7 +130,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     protected double backgroundThreshold = -1.00;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER4 = "<HTML><b>IV. Branch Filtering and Scoring";
+    private String HEADER4 = "<HTML><b>Branch Filtering and Scoring";
 
     @Parameter(label = "Score map filter", choices = {SCORE_MAP_NONE, SCORE_MAP_TUBENESS, SCORE_MAP_FRANGI, SCORE_MAP_OTHER},
             description = "<HTML>Compute a vesselness (Tubeness/Frangi) score map to prune<br>" +
@@ -172,7 +172,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private boolean leafPruneEnabled;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER4c = "<HTML><b>V. Post-processing";
+    private String HEADER4c = "<HTML><b>Post-processing";
 
     @Parameter(label = "Max. branching angle (°)", min = "-1", max = "180", style = NumberWidget.SCROLL_BAR_STYLE,
             description = "<HTML>Maximum angle (degrees) for branch-point parent re-assignment.<br>" +
@@ -198,7 +198,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private boolean overshootRemovalEnabled = true;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER5 = "<HTML>&nbsp;<br><b>VI. Smoothing &amp; Resampling";
+    private String HEADER5 = "<HTML><b>Smoothing &amp; Resampling";
 
     @Parameter(label = "Smoothing window", min = "1", max = "15", stepSize = "2",
             style = NumberWidget.SCROLL_BAR_STYLE,
@@ -217,7 +217,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private double resampleStep = 2.0;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER6 = "<HTML>&nbsp;<br><b>VII. Options";
+    private String HEADER6 = "<HTML>&nbsp;<br><b>Options";
 
     @Parameter(label = "Connectivity", choices = {"Low", "Medium", "High"},
             style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE,
@@ -295,6 +295,48 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
     // --- Core tracing logic ---
 
+    /**
+     * Creates and configures a tracer from the shared GUI parameters. Returns
+     * {@code null} if configuration failed (e.g., missing secondary image for
+     * score map).
+     *
+     * @param img the image to trace
+     * @return configured tracer, or null on error
+     */
+    protected AbstractGWDTTracer<?> createAndConfigureTracer(final ImgPlus<?> img) {
+        final boolean scoreMapEnabled = !SCORE_MAP_NONE.equals(scoreMapFilter);
+        final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(img);
+        tracer.setStatusListener(snt::setCanvasLabelAllPanes);
+        tracer.setVerbose(debugMode);
+        tracer.setBackgroundThreshold(backgroundThreshold);
+        tracer.setMinBranchIntensityLength(lengthThreshold);
+        tracer.setSrRatio(srRatio);
+        tracer.setSphereOverlapThreshold(sphereOverlapThreshold);
+        tracer.setLeafPruneOverlap(leafPruneEnabled ? 0.9 : 0);
+        tracer.setSmoothWindowSize(smoothWindowSize);
+        tracer.setResampleStep(resampleStep);
+        tracer.setConnectivityType(parseConnectivity(connectivityChoice));
+        tracer.setTipExtensionDistance(tipExtensionDistance);
+        tracer.setZigzagRemovalEnabled(zigzagRemovalEnabled);
+        tracer.setOvershootRemovalEnabled(overshootRemovalEnabled);
+        tracer.setBranchTuneMaxAngle(branchTuneMaxAngle < 0 ? Double.NaN : branchTuneMaxAngle);
+        tracer.setScoreMapEnabled(scoreMapEnabled);
+        if (scoreMapEnabled) {
+            if (!SCORE_MAP_OTHER.equals(scoreMapFilter)) {
+                tracer.setScoreMapFilterType(
+                        SCORE_MAP_FRANGI.equals(scoreMapFilter) ? SNT.FilterType.FRANGI : SNT.FilterType.TUBENESS);
+            } else {
+                final RandomAccessibleInterval<?> secLayer = snt.getSecondaryData();
+                if (secLayer == null) {
+                    error("No secondary image has been defined. Please create or load one first.");
+                    return null;
+                }
+                tracer.setScoreMap(snt.getSecondaryData());
+            }
+        }
+        return tracer;
+    }
+
     protected void runCommand() {
         try {
             chosenImp = getImgFromImgChoice();
@@ -302,37 +344,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
             status("Running GWDT tracing...", false);
 
-            // Create tracer
-            final boolean scoreMapEnabled = !SCORE_MAP_NONE.equals(scoreMapFilter);
-            final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(chosenImp);
-            tracer.setStatusListener(snt::setCanvasLabelAllPanes);
-            tracer.setVerbose(debugMode);
-            tracer.setBackgroundThreshold(backgroundThreshold);
-            tracer.setMinBranchIntensityLength(lengthThreshold);
-            tracer.setSrRatio(srRatio);
-            tracer.setSphereOverlapThreshold(sphereOverlapThreshold);
-            tracer.setLeafPruneOverlap(leafPruneEnabled ? 0.9 : 0);
-            tracer.setSmoothWindowSize(smoothWindowSize);
-            tracer.setResampleStep(resampleStep);
-            tracer.setConnectivityType(parseConnectivity(connectivityChoice));
-            tracer.setTipExtensionDistance(tipExtensionDistance);
-            tracer.setZigzagRemovalEnabled(zigzagRemovalEnabled);
-            tracer.setOvershootRemovalEnabled(overshootRemovalEnabled);
-            tracer.setBranchTuneMaxAngle(branchTuneMaxAngle < 0 ? Double.NaN : branchTuneMaxAngle);
-            tracer.setScoreMapEnabled(scoreMapEnabled);
-            if (scoreMapEnabled) {
-                if (!SCORE_MAP_OTHER.equals(scoreMapFilter)) {
-                    tracer.setScoreMapFilterType(
-                            SCORE_MAP_FRANGI.equals(scoreMapFilter) ? SNT.FilterType.FRANGI : SNT.FilterType.TUBENESS);
-                } else {
-                    final RandomAccessibleInterval<?> secLayer = snt.getSecondaryData();
-                    if (secLayer == null) {
-                        error("No secondary image has been defined. Please create or load one first.");
-                        return;
-                    }
-                    tracer.setScoreMap(snt.getSecondaryData());
-                }
-            }
+            final AbstractGWDTTracer<?> tracer = createAndConfigureTracer(chosenImp);
+            if (tracer == null) return;
 
             // Get ROI and configure strategy
             final int seedStrategy = parseRoiStrategy();
@@ -561,7 +574,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     /**
      * Detects the soma in the given image using EDT×intensity scoring.
      * Returns a full {@link SomaUtils.SomaResult} with center, contour,
-     * radius, and mask — or {@code null} if detection fails.
+     * radius, and mask, or {@code null} if detection fails.
      */
     private SomaUtils.SomaResult detectSoma(final ImgPlus<?> img) {
         return SomaUtils.detectSoma(img);

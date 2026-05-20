@@ -433,7 +433,7 @@ public class Viewer3D {
      * }</pre>
      *
      * @param object the object to display (Tree, Path, OBJMesh, Collection,
-     *               etc. — anything accepted by {@link #add(Object)})
+     *               etc., anything accepted by {@link #add(Object)})
      * @return the viewer instance
      * @see #add(Object)
      */

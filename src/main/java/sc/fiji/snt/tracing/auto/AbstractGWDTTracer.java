@@ -135,7 +135,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     private final long[] neighborPosCache;
     private final long[] bridgePosCache;
 
-    // Gap bridging counter — reset before each FM run, incremented inside addNeighborsToHeap
+    // Gap bridging counter: reset before each FM run, incremented inside addNeighborsToHeap
     private int gapBridgeCount;
 
     /**
@@ -240,7 +240,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * 5 voxels at maximum intensity, or more voxels at lower intensity.
      * <p>
      * Note: despite the name of the APP2 parameter ({@code length_thresh}),
-     * this is NOT a Euclidean distance — it is an intensity-weighted length
+     * this is NOT a Euclidean distance: it is an intensity-weighted length
      * that favors bright branches.
      * </p>
      *
@@ -467,7 +467,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * branches that run alongside each other (their nodes stay within a
      * radius-dependent proximity threshold) are detected, and the shorter
      * sibling is removed. This eliminates redundant paths that trace the
-     * same neurite on opposite sides of its centerline — a common artifact
+     * same neurite on opposite sides of its centerline, a common artifact
      * in FM-based tracers operating on thick or bright structures.
      * <p>
      * Default: {@code true}.
@@ -525,7 +525,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * that exceed {@code maxGapVoxels}.
      * <p>
      * Set to 0 (the default) to disable. Typical values are 20–50 voxels.
-     * Note: this is an experimental feature — in noisy images, large
+     * Note: this is an experimental feature. In noisy images, large
      * values may produce spurious bridges.
      * </p>
      *
@@ -617,9 +617,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Sets the minimum distance (in voxels) between soma centers for multi-soma
      * tracing. This value controls two filtering stages:
      * <ol>
-     *   <li>Non-maximum suppression in {@link SomaUtils#detectAllSomas} — callers
+     *   <li>Non-maximum suppression in {@link SomaUtils#detectAllSomas}: callers
      *       should pass this value as the {@code minSomaDistance} parameter.</li>
-     *   <li>Post-hoc consolidation in {@link #traceMultiSoma} — any somas closer
+     *   <li>Post-hoc consolidation in {@link #traceMultiSoma}: any somas closer
      *       than this distance are merged before tracing.</li>
      * </ol>
      * <p>
@@ -698,8 +698,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * analysis, and/or NMS consolidation depending on the values of
      * {@link #setNSomas(int)} and {@link #setMinSomaDistance(double)}.
      * <p>
-     * <b>Set to {@code false} when providing pre-curated soma lists</b> — for
-     * example, somas detected from user-provided ROI seeds via
+     * <b>Set to {@code false} when providing pre-curated soma lists</b>,
+     * e.g.,somas detected from user-provided ROI seeds via
      * {@link SomaUtils#detectSomasAt}. In that case the input list is
      * authoritative and should not be reduced by heuristic filters. When
      * disabled, the only processing applied is NMS consolidation if
@@ -1076,7 +1076,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     srcRA.setPosition(bridgePosCache);
                     final double probeIntensity = srcRA.get().getRealDouble();
                     if (probeIntensity > threshold) {
-                        // Found bright voxel across the gap — bridge to it
+                        // Found bright voxel across the gap: bridge to it
                         final double gwdt = storage.getGWDT(probeIdx);
                         final double gwdtCost = computeGWDTTraversalCost(gwdt, maxGWDT);
                         if (!Double.isFinite(gwdtCost)) break;
@@ -2194,7 +2194,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Prunes parallel sibling branches — pairs of terminal branches that fork
+     * Prunes parallel sibling branches, i.e., pairs of terminal branches that fork
      * from the same branch point and then run alongside each other (their nodes
      * stay within a radius-dependent proximity threshold). This is a common FM
      * artifact: when the wavefront crosses a wide neurite, voxels on opposite
@@ -2272,7 +2272,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                             graph.removeAllVertices(shorter);
                             pruned++;
                             changed = true;
-                            break outer; // restart — graph modified
+                            break outer; // restart: graph modified
                         }
                     }
                 }
@@ -2306,10 +2306,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
             final int outDeg = graph.outDegreeOf(current);
             if (outDeg == 0 || outDeg > 1) {
-                // Reached leaf or sub-branch-point — stop
+                // Reached leaf or sub-branch-point: stop
                 break;
             }
-            // Single child — continue
+            // Single child: continue
             current = graph.getEdgeTarget(graph.outgoingEdgesOf(current).iterator().next());
         }
 
@@ -2617,7 +2617,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         final double syntheticIntensity = threshold + 1.0;
         final double normIntensity = (maxIntensity > 0 && Double.isFinite(maxIntensity))
                 ? syntheticIntensity / maxIntensity : 0.0;
-        // Scale to GWDT range (approximate — real GWDT is path-based,
+        // Scale to GWDT range (approximate: real GWDT is path-based,
         // but for a single step this is a reasonable proxy)
         return normIntensity * maxGWDT;
     }
@@ -3297,8 +3297,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * selection, gap analysis, and/or NMS consolidation) before tracing. This
      * is appropriate when somas come from automatic detection (e.g.,
      * {@link SomaUtils#detectAllSomas}), which may produce many false
-     * positives. When providing pre-curated somas — e.g., from user-supplied
-     * ROIs via {@link SomaUtils#detectSomasAt} — call
+     * positives. When providing pre-curated somas, e.g., from user-supplied
+     * ROIs via {@link SomaUtils#detectSomasAt}. Call
      * {@link #setAutoFilter(boolean) setAutoFilter(false)} to bypass the
      * reduction pipeline and trace all input somas as-is. NMS consolidation
      * via {@link #setMinSomaDistance(double)} is still honored when
@@ -3321,7 +3321,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         // --- Soma reduction pipeline ---
         // Four modes depending on which parameters are set:
         //   nSomas > 0 + minSomaDistance > 0 : NMS/consolidation + top-N cap
-        //   nSomas > 0 only                  : top-N by EDT thickness (experimental — see setNSomas javadoc)
+        //   nSomas > 0 only                  : top-N by EDT thickness (experimental see setNSomas javadoc)
         //   minSomaDistance > 0 only          : NMS/consolidation (most reliable mode)
         //   neither (auto)                    : thickness filter + gap analysis (experimental)
         //

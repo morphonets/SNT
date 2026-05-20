@@ -856,7 +856,7 @@ public class SomaUtils {
      * Selects the top-N somas by EDT thickness (distance to nearest background
      * pixel at each soma's center), ranking by descending EDT value.
      * <p>
-     * <b>Experimental — known limitations:</b> The EDT is computed from a
+     * <b>Experimental. Known limitations:</b> The EDT is computed from a
      * binary mask obtained by applying the Minimum auto-threshold to the
      * source image (see {@link #computeEdtAtSomaCenters}). For images with
      * large connected foreground regions (common in compressed formats like
