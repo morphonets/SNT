@@ -311,10 +311,8 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             tracer.setMinBranchIntensityLength(lengthThreshold);
             tracer.setSrRatio(srRatio);
             tracer.setSphereOverlapThreshold(sphereOverlapThreshold);
-            tracer.setLeafPruneEnabled(leafPruneEnabled);
-            tracer.setSmoothEnabled(smoothWindowSize > 1);
+            tracer.setLeafPruneOverlap(leafPruneEnabled ? 0.9 : 0);
             tracer.setSmoothWindowSize(smoothWindowSize);
-            tracer.setResampleEnabled(resampleStep > 0);
             tracer.setResampleStep(resampleStep);
             tracer.setConnectivityType(parseConnectivity(connectivityChoice));
             tracer.setTipExtensionDistance(tipExtensionDistance);

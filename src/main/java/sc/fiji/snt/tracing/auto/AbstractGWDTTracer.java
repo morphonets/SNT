@@ -279,18 +279,19 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Sets the leaf pruning overlap threshold.
-     * Leaves with more than this fraction overlapping parent are pruned. Default: 0.9
+     * Sets the leaf pruning overlap threshold. Leaves with more than this
+     * fraction overlapping their parent are pruned. Values &le; 0 disable
+     * leaf pruning entirely. Default: 0.9
+     *
+     * @param threshold overlap fraction in (0, 1], or &le; 0 to disable
      */
     public void setLeafPruneOverlap(final double threshold) {
-        this.leafPruneOverlap = Math.max(0, Math.min(1, threshold));
-    }
-
-    /**
-     * Enables or disables leaf pruning (both leaf and joint leaf). Default: true
-     */
-    public void setLeafPruneEnabled(final boolean enabled) {
-        this.leafPruneEnabled = enabled;
+        if (threshold <= 0) {
+            this.leafPruneEnabled = false;
+        } else {
+            this.leafPruneEnabled = true;
+            this.leafPruneOverlap = Math.min(1, threshold);
+        }
     }
 
     /**
@@ -303,33 +304,35 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         this.jointLeafPruneEnabled = enabled;
     }
 
-    /**
-     * Enables or disables curve smoothing. Default: true
-     */
-    public void setSmoothEnabled(final boolean enabled) {
-        this.smoothEnabled = enabled;
-    }
 
     /**
-     * Sets the smoothing window size. Default: 5
+     * Sets the smoothing window size (must be odd and &ge; 3). Values below 3
+     * disable smoothing entirely. Default: 5
+     *
+     * @param windowSize the moving-average window, or any value &lt; 3 to disable
      */
     public void setSmoothWindowSize(final int windowSize) {
-        this.smoothWindowSize = Math.max(3, windowSize);
+        if (windowSize < 3) {
+            this.smoothEnabled = false;
+        } else {
+            this.smoothEnabled = true;
+            this.smoothWindowSize = (windowSize % 2 == 0) ? windowSize + 1 : windowSize;
+        }
     }
 
     /**
-     * Enables/disables resampling. Default: true
-     */
-    public void setResampleEnabled(final boolean enabled) {
-        this.resampleEnabled = enabled;
-    }
-
-    /**
-     * Sets the resampling step size in voxels. Default: 2.0
-     * Points closer than this distance will be merged.
+     * Sets the resampling step size in voxels. Points closer than this distance
+     * will be merged. Values &le; 0 disable resampling entirely. Default: 2.0
+     *
+     * @param step step size in voxels, or &le; 0 to disable
      */
     public void setResampleStep(final double step) {
-        this.resampleStep = Math.max(0.5, step);
+        if (step <= 0) {
+            this.resampleEnabled = false;
+        } else {
+            this.resampleEnabled = true;
+            this.resampleStep = Math.max(0.5, step);
+        }
     }
 
     /**
@@ -3818,6 +3821,18 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             }
         }
         log("Path fitting: " + fitted + "/" + fitters.size() + " paths refined");
+        // Light post-fit smooth: PathFitter can introduce jitter from
+        // cross-sectional fits. Apply the user's smoothing window as a
+        // final polish to coordinates and radii.
+        if (smoothEnabled && smoothWindowSize >= 3) {
+            final int ws = smoothWindowSize % 2 == 0 ? smoothWindowSize + 1 : smoothWindowSize;
+            for (final Path p : tree.list()) {
+                if (p.size() > ws) {
+                    final Path smoothed = p.getSmoothedPath(ws);
+                    p.replaceNodes(smoothed);
+                }
+            }
+        }
     }
 
     /**
