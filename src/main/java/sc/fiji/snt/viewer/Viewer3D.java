@@ -423,6 +423,31 @@ public class Viewer3D {
         }
     }
 
+    /**
+     * Convenience factory that creates a viewer, adds the given object, and
+     * displays it. Equivalent to:
+     * <pre>{@code
+     * Viewer3D viewer = new Viewer3D();
+     * viewer.add(object);
+     * viewer.show();
+     * }</pre>
+     *
+     * @param object the object to display (Tree, Path, OBJMesh, Collection,
+     *               etc. — anything accepted by {@link #add(Object)})
+     * @return the viewer instance
+     * @see #add(Object)
+     */
+    @SuppressWarnings("unchecked")
+    public static Viewer3D show(final Object object) {
+        final Viewer3D viewer = new Viewer3D();
+        if (object instanceof Collection<?> col && !col.isEmpty() && col.iterator().next() instanceof Tree) {
+            TreeUtils.assignUniqueColors((Collection<Tree>) col, "dim");
+        }
+        viewer.add(object);
+        viewer.show();
+        return viewer;
+    }
+
     protected Viewer3D(final SNT snt) {
         this(snt.getContext());
         sntInstance = true;

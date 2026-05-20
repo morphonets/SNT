@@ -473,7 +473,8 @@ public class ImpUtils {
      *            'fractal' for the L-system toy neuron; 'ddaC' for the C4 ddaC
      *            drosophila neuron (demo image initially distributed with the Sholl
      *            plugin); 'OP1'/'OP_1' for the DIADEM OP_1 dataset; 'cil701', 'cil810',
-     *            or 'ci41458' for the respective Cell Image Library entries, and
+     *            or 'ci41458' for the respective Cell Image Library entries, 'microglia'
+     *            for a MIP of tiled microglia cells in the mouse retina, and
      *            'binary timelapse' for a small 4-frame sequence of neurite growth
      * @return the demo image, or null if data could not be retrieved
      */
@@ -488,9 +489,11 @@ public class ImpUtils {
         } else if (nImg.contains("op")) {
             return open("https://github.com/morphonets/SNT/raw/0b3451b8e62464a270c9aab372b4f651c4cf9af7/src/test/resources/OP_1.tif", null);
         } else if (nImg.equalsIgnoreCase("rat_hippocampal_neuron") || (nImg.contains("hip") && nImg.contains("multichannel"))) {
-            return open("http://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip", null);
+            return open("https://wsr.imagej.net/images/Rat_Hippocampal_Neuron.zip", null);
         } else if (nImg.contains("4d") || nImg.contains("701")) {
             return cil701();
+        } else if (nImg.contains("microglia")) {
+            return open("https://raw.githubusercontent.com/morphonets/misc/197b86f2b0fb249d702baa442c0168fbbcc3ebfb/dataset-demos/microglia-retina.tif.zip", null);
         } else if (nImg.contains("brainbow") || nImg.contains("458")) {
             return ci41458();
         } else if (nImg.contains("multipolar") || nImg.contains("810")) {

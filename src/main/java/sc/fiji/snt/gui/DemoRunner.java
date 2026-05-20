@@ -139,7 +139,7 @@ public class DemoRunner {
 		final Demo entry = new Demo(3, "Drosophila ddaC neuron (Autotrace demo)") {
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp = sntService.demoImage("ddaC");
+				final ImagePlus imp = ImpUtils.demo("ddaC");
 				if (imp != null)
 					imp.setRoi(322, 383, 21, 24); // mark soma
 				return imp;
@@ -200,26 +200,10 @@ public class DemoRunner {
 	}
 
 	private Demo demo04() {
-		final Demo entry = new Demo(4, "Drosophila ddaC neuron (Image only)") {
+		final Demo entry = new Demo(4, "Drosophila OP neuron (Complete 3D reconstruction)") {
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp =  sntService.demoImage("ddaC");
-				tagForQuickDisposal(imp);
-				return imp;
-			}
-		};
-		entry.summary = "Same Demo 1 dataset but no autotracing operations are performed.";
-		entry.data = "Image (2D mask, 581KB)";
-		entry.online = false;
-		entry.source = "PMID 24449841";
-		return entry;
-	}
-
-	private Demo demo05() {
-		final Demo entry = new Demo(5, "Drosophila OP neuron (Complete 3D reconstruction)") {
-			@Override
-			public ImagePlus getImage() {
-				final ImagePlus imp = sntService.demoImage("OP_1");
+				final ImagePlus imp = ImpUtils.demo("OP_1");
 				tagForQuickDisposal(imp);
 				return imp;
 			}
@@ -244,11 +228,11 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo06() {
-		final Demo entry = new Demo(6, "Hippocampal neuron (DIC timelapse)") {
+	private Demo demo05() {
+		final Demo entry = new Demo(5, "Hippocampal neuron (DIC timelapse)") {
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp = sntService.demoImage("cil701");
+				final ImagePlus imp = ImpUtils.demo("cil701");
 				tagForQuickDisposal(imp);
 				return imp;
 			}
@@ -262,11 +246,11 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo07() {
-		final Demo entry = new Demo(7, "Hippocampal neuron (Neuronal receptors)") {
+	private Demo demo06() {
+		final Demo entry = new Demo(6, "Hippocampal neuron (Neuronal receptors)") {
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp =  sntService.demoImage("Rat_Hippocampal_Neuron");
+				final ImagePlus imp =  ImpUtils.demo("Rat_Hippocampal_Neuron");
 				tagForQuickDisposal(imp);
 				return imp;
 			}
@@ -278,8 +262,8 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo08() {
-		final Demo entry = new Demo(8, "Hippocampal neuron (Synaptic labeling)") {
+	private Demo demo07() {
+		final Demo entry = new Demo(7, "Hippocampal neuron (Synaptic labeling)") {
 			@Override
 			public ImagePlus getImage() {
 				final ImagePlus imp = sntService.demoImage("cil810");
@@ -294,11 +278,11 @@ public class DemoRunner {
 		return entry;
 	}
 
-	private Demo demo09() {
-		final Demo entry = new Demo(9, "L-systems fractal (2D toy neuron)") {
+	private Demo demo08() {
+		final Demo entry = new Demo(8, "L-systems fractal (2D toy neuron)") {
 			@Override
 			public ImagePlus getImage() {
-				final ImagePlus imp = sntService.demoImage("fractal");
+				final ImagePlus imp = ImpUtils.demo("fractal");
 				tagForQuickDisposal(imp);
 				return imp;
 			}
@@ -317,6 +301,24 @@ public class DemoRunner {
 		entry.data = "Image (2D; mask, 23KB), tracings, and ROIs (25KB)";
 		entry.source = "SNT script";
 		entry.online = false;
+		return entry;
+	}
+
+	private Demo demo09() {
+		final Demo entry = new Demo(9, "Microglia cells (Autotrace demo)") {
+			@Override
+			public ImagePlus getImage() {
+				final ImagePlus imp = ImpUtils.demo("microglia");
+				tagForQuickDisposal(imp);
+				return imp;
+			}
+		};
+		entry.summary = """
+				2D Maximum Intensity Projection of microglia cells in the
+				mouse retina, provided by the Wai T. Wong lab at NEI/NIH.""";
+		entry.data = "Image (2D; grayscale, 1.4MB)";
+		entry.online = true;
+		entry.source = "PMID 29750189";
 		return entry;
 	}
 
@@ -612,7 +614,7 @@ public class DemoRunner {
 		}
 
 		ImagePlus getImage() {
-			 final ImagePlus imp = sntService.demoImage(name);
+			 final ImagePlus imp = ImpUtils.demo(name);
 			 tagForQuickDisposal(imp);
 			 return imp;
 		}

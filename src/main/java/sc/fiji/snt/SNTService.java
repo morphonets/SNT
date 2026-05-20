@@ -56,7 +56,10 @@ import sc.fiji.snt.analysis.TreeStatistics;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.io.MouseLightLoader;
+import net.imagej.ImgPlus;
+import net.imglib2.type.numeric.RealType;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.SWCPoint;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -217,6 +220,33 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
+	 * Initializes SNT from an {@link ImgPlus} image.
+	 * This is the imglib2 counterpart of {@link #initialize(ImagePlus, boolean)}.
+	 *
+	 * @param <T>     pixel type
+	 * @param img     the image to be traced (null not allowed)
+	 * @param startUI Whether SNT's UI should also be initialized
+	 * @return the SNT instance.
+	 * @see #initialize(ImagePlus, boolean)
+	 */
+	public <T extends RealType<T>> SNT initialize(final ImgPlus<T> img, final boolean startUI)
+			throws InterruptedException, InvocationTargetException {
+		if (img == null || img.size() == 0)
+			throw new IllegalArgumentException("Uninitialized image object");
+		final boolean noInstance = plugin == null;
+		if (noInstance) {
+			plugin = new SNT(img);
+			plugin.initialize(true, 1, 1);
+		} else {
+			// Re-initialization requires ImagePlus (SNT.initialize(ImagePlus))
+			plugin.initialize(ImgUtils.toImagePlus(img));
+		}
+		if (startUI && plugin.getUI() == null)
+			javax.swing.SwingUtilities.invokeAndWait(() -> plugin.startUI());
+		return plugin;
+	}
+
+	/**
 	 * @deprecated use {@link #getInstance()} instead
 	 */
 	@Deprecated
@@ -262,6 +292,17 @@ public class SNTService extends AbstractService implements ImageJService {
 		plugin.getPathAndFillManager().addTree(tree);
 	}
 
+	/**
+	 * Loads the specified collection of trees.
+	 *
+	 * @param trees the collection of {@link Tree} to be loaded (null not allowed).
+	 * @see #loadTree(Tree)
+	 * @throws UnsupportedOperationException if SNT is not running
+	 */
+	public void loadTrees(final Collection<Tree> trees) throws UnsupportedOperationException {
+		accessActiveInstance(false);
+		plugin.getPathAndFillManager().addTrees(trees);
+	}
 
 	public void loadGraph(final DirectedWeightedGraph graph) throws UnsupportedOperationException {
 		accessActiveInstance(false);
@@ -626,6 +667,21 @@ public class SNTService extends AbstractService implements ImageJService {
 	 */
 	public ImagePlus demoImage(final String img) {
 		return ImpUtils.demo(img);
+	}
+
+	/**
+	 * Returns one of the demo images bundled with SNT as an {@link ImgPlus}.
+	 * This is the imglib2 counterpart of {@link #demoImage(String)}.
+	 *
+	 * @param img a string describing the type of demo image (same options as
+	 *            {@link #demoImage(String)})
+	 * @return the demo image as an ImgPlus, or null if data could not be
+	 *         retrieved or converted
+	 * @see #demoImage(String)
+	 */
+	public ImgPlus<?> demoImg(final String img) {
+		final ImagePlus imp = demoImage(img);
+		return (imp == null) ? null : ImpUtils.toImgPlus(imp);
 	}
 
 	/**

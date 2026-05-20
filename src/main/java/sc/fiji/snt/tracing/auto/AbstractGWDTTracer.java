@@ -304,7 +304,6 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         this.jointLeafPruneEnabled = enabled;
     }
 
-
     /**
      * Sets the smoothing window size (must be odd and &ge; 3). Values below 3
      * disable smoothing entirely. Default: 5
