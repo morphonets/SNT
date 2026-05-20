@@ -34,6 +34,7 @@ import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
+import sc.fiji.snt.PathFitter;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -103,6 +104,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     protected boolean zigzagRemovalEnabled = true;  // Remove consecutive direction reversals
     protected boolean overshootRemovalEnabled = true;  // Remove direction reversals at branch points
     protected double branchTuneMaxAngle = 90.0;  // Max angle (degrees) for branch tuning turn test; NaN disables
+    protected boolean parallelBranchPruneEnabled = true;  // Remove shorter of two sibling branches that run parallel
+    private boolean pathFittingEnabled = false;  // Post-hoc PathFitter refinement of node positions and radii
     private double tipExtensionDistance = 0;  // 0=disabled; >0: A* tip extension range (voxels)
 
     // Multi-soma recovery pass configuration
@@ -455,6 +458,58 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      */
     public void setBranchTuneMaxAngle(final double maxAngleDeg) {
         this.branchTuneMaxAngle = maxAngleDeg;
+    }
+
+    /**
+     * Enables or disables parallel branch pruning. When enabled, sibling
+     * branches that run alongside each other (their nodes stay within a
+     * radius-dependent proximity threshold) are detected, and the shorter
+     * sibling is removed. This eliminates redundant paths that trace the
+     * same neurite on opposite sides of its centerline — a common artifact
+     * in FM-based tracers operating on thick or bright structures.
+     * <p>
+     * Default: {@code true}.
+     *
+     * @param enabled whether to prune parallel sibling branches
+     */
+    public void setParallelBranchPruneEnabled(final boolean enabled) {
+        this.parallelBranchPruneEnabled = enabled;
+    }
+
+    /**
+     * Returns whether parallel branch pruning is enabled.
+     *
+     * @return true if parallel branch pruning is active
+     */
+    public boolean isParallelBranchPruneEnabled() {
+        return parallelBranchPruneEnabled;
+    }
+
+    /**
+     * Enables or disables post-hoc path fitting using {@link PathFitter}.
+     * When enabled, after all graph-level processing is complete and Trees
+     * have been assembled, each path is refined using cross-sectional
+     * intensity fitting ({@link PathFitter#RADII_AND_MIDPOINTS}). This snaps
+     * node positions to the signal centerline and computes accurate radii
+     * from the local intensity profile, replacing the initial estimates from
+     * the autotracer.
+     * <p>
+     * Default: {@code false} (disabled).
+     *
+     * @param enabled whether to apply PathFitter refinement to output paths
+     * @see PathFitter
+     */
+    public void setPathFittingEnabled(final boolean enabled) {
+        this.pathFittingEnabled = enabled;
+    }
+
+    /**
+     * Returns whether post-hoc path fitting is enabled.
+     *
+     * @return true if PathFitter refinement is active
+     */
+    public boolean isPathFittingEnabled() {
+        return pathFittingEnabled;
     }
 
     /**
@@ -2137,6 +2192,207 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
+     * Prunes parallel sibling branches — pairs of terminal branches that fork
+     * from the same branch point and then run alongside each other (their nodes
+     * stay within a radius-dependent proximity threshold). This is a common FM
+     * artifact: when the wavefront crosses a wide neurite, voxels on opposite
+     * sides of the centerline form separate parent chains that never re-merge
+     * (trees have no cycles), producing two paths that trace the same structure.
+     * <p>
+     * For every branch point with 2+ children, each pair of sibling terminal
+     * segments is compared. A segment is "parallel" to its sibling when most
+     * of its nodes fall within {@code max(meanRadius * 3, 3 voxels)} of the
+     * nearest node on the other segment. The shorter parallel sibling is pruned.
+     */
+    protected void pruneParallelBranches(final DirectedWeightedGraph graph) {
+        final SWCPoint root = findGraphRoot(graph);
+        if (root == null) return;
+
+        int pruned = 0;
+        boolean changed = true;
+
+        while (changed) {
+            changed = false;
+
+            // Collect branch points (nodes with >1 outgoing edge)
+            final List<SWCPoint> branchPoints = new ArrayList<>();
+            for (final SWCPoint v : graph.vertexSet()) {
+                if (graph.outDegreeOf(v) > 1) {
+                    branchPoints.add(v);
+                }
+            }
+
+            outer:
+            for (final SWCPoint bp : branchPoints) {
+                if (!graph.containsVertex(bp)) continue;
+
+                // Collect stems rooted at this branch point. A "stem" is the
+                // chain from the child of bp downstream to the next branch point
+                // or leaf (whichever comes first), excluding bp itself.
+                final List<SWCWeightedEdge> outEdges = new ArrayList<>(graph.outgoingEdgesOf(bp));
+                final List<List<SWCPoint>> stems = new ArrayList<>();
+
+                for (final SWCWeightedEdge edge : outEdges) {
+                    final SWCPoint child = graph.getEdgeTarget(edge);
+                    final List<SWCPoint> stem = traceStem(graph, child);
+                    if (stem != null && !stem.isEmpty()) {
+                        stems.add(stem);
+                    }
+                }
+
+                if (stems.size() < 2) continue;
+
+                // Compare every pair of sibling stems
+                for (int i = 0; i < stems.size(); i++) {
+                    for (int j = i + 1; j < stems.size(); j++) {
+                        final List<SWCPoint> stemA = stems.get(i);
+                        final List<SWCPoint> stemB = stems.get(j);
+
+                        // Determine which is shorter
+                        final List<SWCPoint> shorter, longer;
+                        if (stemA.size() <= stemB.size()) {
+                            shorter = stemA;
+                            longer = stemB;
+                        } else {
+                            shorter = stemB;
+                            longer = stemA;
+                        }
+
+                        if (isParallelSegment(shorter, longer)) {
+                            // The last node of the shorter stem may be a
+                            // sub-branch-point with children. Re-parent those
+                            // children onto the nearest node of the longer stem
+                            // before removing the shorter stem's nodes.
+                            final SWCPoint shorterTip = shorter.getLast();
+                            if (graph.containsVertex(shorterTip) && graph.outDegreeOf(shorterTip) > 0) {
+                                reparentChildren(graph, shorterTip, longer);
+                            }
+                            graph.removeAllVertices(shorter);
+                            pruned++;
+                            changed = true;
+                            break outer; // restart — graph modified
+                        }
+                    }
+                }
+            }
+        }
+
+        if (pruned > 0) {
+            log("Parallel branch pruning: removed " + pruned + " redundant branch(es)");
+        }
+    }
+
+    /**
+     * Traces a stem from the given start node downstream, collecting nodes
+     * until a branch point (outDegree &gt; 1) or a leaf (outDegree == 0) is
+     * reached. The terminating node (branch point or leaf) IS included in the
+     * returned list so that children of a sub-branch-point can be re-parented
+     * when the stem is pruned.
+     *
+     * @return list of nodes in the stem (start → branch-point/leaf), or null
+     *         if start has been removed from the graph
+     */
+    private List<SWCPoint> traceStem(final DirectedWeightedGraph graph,
+                                     final SWCPoint start) {
+        final List<SWCPoint> segment = new ArrayList<>();
+        SWCPoint current = start;
+        final Set<SWCPoint> visited = new HashSet<>();
+
+        while (current != null && !visited.contains(current)) {
+            visited.add(current);
+            segment.add(current);
+
+            final int outDeg = graph.outDegreeOf(current);
+            if (outDeg == 0 || outDeg > 1) {
+                // Reached leaf or sub-branch-point — stop
+                break;
+            }
+            // Single child — continue
+            current = graph.getEdgeTarget(graph.outgoingEdgesOf(current).iterator().next());
+        }
+
+        return segment.isEmpty() ? null : segment;
+    }
+
+    /**
+     * Re-parents all children of {@code oldParent} onto the nearest node
+     * in the {@code targetStem}. For each child, a new edge is created from
+     * the closest node in targetStem to the child, preserving the subtree.
+     */
+    private void reparentChildren(final DirectedWeightedGraph graph,
+                                  final SWCPoint oldParent,
+                                  final List<SWCPoint> targetStem) {
+        final List<SWCWeightedEdge> childEdges = new ArrayList<>(graph.outgoingEdgesOf(oldParent));
+        for (final SWCWeightedEdge edge : childEdges) {
+            final SWCPoint child = graph.getEdgeTarget(edge);
+            // Find nearest node on the longer stem
+            SWCPoint nearest = targetStem.getFirst();
+            double bestDistSq = Double.MAX_VALUE;
+            for (final SWCPoint candidate : targetStem) {
+                final double dx = child.x - candidate.x;
+                final double dy = child.y - candidate.y;
+                final double dz = child.z - candidate.z;
+                final double distSq = dx * dx + dy * dy + dz * dz;
+                if (distSq < bestDistSq) {
+                    bestDistSq = distSq;
+                    nearest = candidate;
+                }
+            }
+            // Remove old edge and create new one
+            graph.removeEdge(edge);
+            graph.addEdge(nearest, child);
+        }
+    }
+
+    /**
+     * Tests whether the shorter segment runs parallel to the longer one.
+     * A segment is considered parallel if &ge; 70% of its nodes fall within
+     * a proximity threshold of the nearest node on the other segment.
+     * The threshold adapts to local radius: {@code max(meanRadius * 3, 3 * avgSpacing)}.
+     */
+    private boolean isParallelSegment(final List<SWCPoint> shorter, final List<SWCPoint> longer) {
+        if (shorter.size() < 3) return false; // too short to judge
+
+        // Compute mean radius across both segments for adaptive threshold
+        double sumRadius = 0;
+        int radiusCount = 0;
+        for (final SWCPoint n : shorter) {
+            if (n.radius > 0) { sumRadius += n.radius; radiusCount++; }
+        }
+        for (final SWCPoint n : longer) {
+            if (n.radius > 0) { sumRadius += n.radius; radiusCount++; }
+        }
+        final double avgSpacing = computeAverageSpacing();
+        final double meanRadius = radiusCount > 0 ? sumRadius / radiusCount : avgSpacing;
+
+        // Proximity threshold: 3× mean radius, floored at 3 voxels in physical units
+        final double proximityThreshold = Math.max(meanRadius * 3, 3 * avgSpacing);
+        final double proxThreshSq = proximityThreshold * proximityThreshold;
+
+        // Count how many nodes of the shorter segment are "close" to the longer
+        int closeCount = 0;
+        for (final SWCPoint sNode : shorter) {
+            double minDistSq = Double.MAX_VALUE;
+            for (final SWCPoint lNode : longer) {
+                final double dx = sNode.x - lNode.x;
+                final double dy = sNode.y - lNode.y;
+                final double dz = sNode.z - lNode.z;
+                final double distSq = dx * dx + dy * dy + dz * dz;
+                if (distSq < minDistSq) {
+                    minDistSq = distSq;
+                    if (minDistSq < proxThreshSq) break; // early exit
+                }
+            }
+            if (minDistSq < proxThreshSq) {
+                closeCount++;
+            }
+        }
+
+        final double closeRatio = (double) closeCount / shorter.size();
+        return closeRatio >= 0.7;
+    }
+
+    /**
      * Computes INTENSITY-WEIGHTED joint coverage fraction (like APP2).
      * Returns [coveredSig, totalSig] where coverage is weighted by image intensity.
      */
@@ -3010,6 +3266,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         }
         status("Building trees...");
         final List<Tree> trees = tracedTrees(graph);
+        if (pathFittingEnabled) {
+            trees.forEach(this::fitPaths);
+        }
         if (verbose) {
             int totalPaths = 0;
             for (final Tree t : trees) totalPaths += t.size();
@@ -3222,6 +3481,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                     final Tree tree = trees.get(t);
                     SNTUtils.log("  Tree " + (t + 1) + ": " + tree.size() + " paths, empty=" + tree.isEmpty());
                     if (!tree.isEmpty()) {
+                        if (pathFittingEnabled) fitPaths(tree);
                         tree.setLabel("Cell " + (i + 1));
                         allTrees.add(tree);
                     }
@@ -3479,6 +3739,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         SNTUtils.log("  After darkPruning: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
         hierarchicalPrune(graph, threshold);
         SNTUtils.log("  After hierarchicalPrune: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+        if (parallelBranchPruneEnabled) {
+            pruneParallelBranches(graph);
+            SNTUtils.log("  After parallelPrune: " + graph.vertexSet().size() + "v, " + graph.edgeSet().size() + "e");
+        }
         // Tip extension: use A* to extend leaf tips across gaps larger than
         // maxGapVoxels. Disabled by default (tipExtensionDistance <= 0).
         if (tipExtensionDistance > 0) {
@@ -3509,6 +3773,51 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             resampleCurve(graph, resampleStep);
             log("After resampling: " + graph.vertexSet().size() + " vertices");
         }
+    }
+
+    /**
+     * Refines all paths in a tree using {@link PathFitter} with
+     * {@link PathFitter#RADII_AND_MIDPOINTS} scope. Node positions are snapped
+     * to the signal centerline and radii are recomputed from cross-sectional
+     * intensity profiles. Fitting is performed in parallel; results are applied
+     * sequentially to preserve path hierarchy.
+     *
+     * @param tree the tree whose paths will be refined in-place
+     */
+    private void fitPaths(final Tree tree) {
+        status("Fitting paths to signal...");
+        final double minScale = Math.min(spacing[0], Math.min(spacing[1],
+                spacing.length > 2 ? spacing[2] : spacing[0]));
+        final double floor = 3.0 * minScale;
+        final double defaultRadius = 5.0 * minScale; // matches PathFitter's default sideSearch=10
+        final List<PathFitter> fitters = tree.list().stream()
+                .filter(p -> !p.isFittedVersionOfAnotherPath() && p.size() >= 2)
+                .map(p -> {
+                    final PathFitter fitter = new PathFitter(source, p,
+                            spacing[0], spacing[1],
+                            spacing.length > 2 ? spacing[2] : 1.0, "");
+                    fitter.setScope(PathFitter.RADII_AND_MIDPOINTS);
+                    fitter.setReplaceNodes(true);
+                    final double meanR = p.getMeanRadius();
+                    // Tighten search window for thin neurites without exceeding default
+                    final double searchRadius = (meanR > 0)
+                            ? Math.min(Math.max(meanR * 2.0, floor), defaultRadius)
+                            : defaultRadius;
+                    fitter.setCrossSectionRadius(searchRadius);
+                    return fitter;
+                })
+                .toList();
+        // Parallel fitting (thread-safe: each fitter works on its own path)
+        fitters.parallelStream().forEach(PathFitter::call);
+        // Sequential application (modifies path hierarchy)
+        int fitted = 0;
+        for (final PathFitter fitter : fitters) {
+            if (fitter.getSucceeded()) {
+                fitter.applyFit();
+                fitted++;
+            }
+        }
+        log("Path fitting: " + fitted + "/" + fitters.size() + " paths refined");
     }
 
     /**
