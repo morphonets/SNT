@@ -2908,19 +2908,20 @@ public class Path implements Comparable<Path>, Cloneable {
 			result.addNode(getNodeWithoutChecks(i));
 		}
 
-		// Apply smoothing to middle points
+		// Apply smoothing to middle points (coordinates and radii)
+		final boolean smoothRadii = hasRadii();
 		for (int i = halfWindow; i < size() - halfWindow; i++) {
-			double sumX = 0, sumY = 0, sumZ = 0;
+			double sumX = 0, sumY = 0, sumZ = 0, sumR = 0;
 			for (int j = i - halfWindow; j <= i + halfWindow; j++) {
 				final PointInImage p = getNodeWithoutChecks(j);
 				sumX += p.x;
 				sumY += p.y;
 				sumZ += p.z;
+				if (smoothRadii) sumR += p.radius;
 			}
-			final double avgX = sumX / windowSize;
-			final double avgY = sumY / windowSize;
-			final double avgZ = sumZ / windowSize;
-			result.addNode(new PointInImage(avgX, avgY, avgZ));
+			final PointInImage smoothed = new PointInImage(sumX / windowSize, sumY / windowSize, sumZ / windowSize);
+			if (smoothRadii) smoothed.radius = sumR / windowSize;
+			result.addNode(smoothed);
 		}
 
 		// Copy last few points unchanged
