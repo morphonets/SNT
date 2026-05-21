@@ -542,6 +542,8 @@ public class SNTUI extends JDialog {
     }
 
     private boolean userInteractionConstrained() {
+        if (plugin.getPrefs().getTemp("demo-running", false))
+            return false;
         return switch (getState()) {
             case PARTIAL_PATH, SEARCHING, QUERY_KEEP, RUNNING_CMD, CALCULATING_HESSIAN_I, CALCULATING_HESSIAN_II,
                  WAITING_FOR_SIGMA_POINT_I, WAITING_FOR_SIGMA_CHOICE, LOADING -> true;
@@ -725,6 +727,11 @@ public class SNTUI extends JDialog {
             return true;
         } else if ("cmdPalette".equals(cmd)) {
             commandFinder.toggleVisibility();
+            return true;
+        } else if ("computeStats".equals(cmd)) {
+            if (plugin.accessToValidImageData()) {
+                plugin.computeImgStats(plugin.getLoadedData().view(), plugin.getStats());
+            }
             return true;
         }
         return false;

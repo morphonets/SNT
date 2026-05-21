@@ -28,14 +28,14 @@ import org.scijava.command.CommandService;
 import org.scijava.plugin.Parameter;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.cmds.SpotSpineLoaderCmd;
-import sc.fiji.snt.plugin.BinaryTracerCmd;
-import sc.fiji.snt.plugin.BinaryTracerCommonCmd;
+import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Manages loading and running of demonstration datasets and reconstructions in SNT.
@@ -148,51 +148,32 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				super.load();
-                runTracing();
-			}
+				if (!imageLoaded) return;
+				snt.getPrefs().setTemp("demo-running", true);
+				ui.changeState(SNTUI.RUNNING_CMD);
+				setNotes("""
+						The Drosophila ddaC neuron autotrace demo
+						runs _Auto-trace → Segmented Image..._
+						with these parameters:
 
-            private void runTracing() {
-                final String txt = """
-                        The Drosophila ddaC neuron autotrace demo
-                        runs _Auto-trace → Segmented Image..._
-                        with these parameters:
-                        
-                        ```
-                        Intensity img:           None
-                        Roi strategy:            ROI edge
-                        Loop strategy:           Peripheral seg.
-                        Prune small components:  Yes, < 3µm
-                        Bridge gaps:             Yes, within 6µm
-                        Prune single-node paths: Yes
-                        ```
-                        
-                        Tip: Once tracing completes, press 'H'
-                             to toggle paths visibility; '1'
-                             to display only selected paths
-                        """;
-                SwingUtilities.invokeLater( () -> {
-                    ui.getNotesPane().getEditor().setText(txt);
-                    ui.selectTab("notes");
-                });
-                final HashMap<String, Object> inputs = new HashMap<>();
-                inputs.put("maskImgChoice", "Image being traced (duplicate)");
-                inputs.put("originalImgChoice", "None"); // does not matter: not used by nicking strategy
-                inputs.put("rootChoice", BinaryTracerCommonCmd.ROI_EDGE);
-                inputs.put("roiPlane", false); // does not matter: 2D image
-                inputs.put("loopSolvingChoice", "Peripheral segments (preserves backbone)");
-                inputs.put("pruneByLength", true);
-                inputs.put("lengthThreshold", 3);
-                inputs.put("connectComponents", true);
-                inputs.put("maxConnectDist", 6);
-                inputs.put("cullSingleNodePaths", true);
-                inputs.put("afterTracingChoice", "Replace existing paths & prepare for proofreading");
-                inputs.put("debugMode", SNTUtils.isDebugMode());
-                inputs.put("headless", true);
-                ui.runCommand(BinaryTracerCmd.class, inputs);
-            }
+						```
+						Intensity img:           None
+						Roi strategy:            ROI edge
+						Loop strategy:           Peripheral seg.
+						Prune small components:  Yes, < 3µm
+						Bridge gaps:             Yes, within 6µm
+						Prune single-node paths: Yes
+						```
+
+						Tip: Once tracing completes, press 'H'
+						     to toggle paths visibility; '1'
+						     to display only selected paths
+						""");
+				runDemoScript("demo_ddaC_autotrace.groovy");
+			}
 		};
 		entry.summary = "Loads a binary (thresholded) image of a Drosophila space-filling neuron (ddaC) and "
-				+ "displays autotracing options for automated reconstuction.";
+				+ "displays autotracing options for automated reconstruction.";
 		entry.data = "Image (2D mask, 581KB)";
 		entry.online = false;
 		entry.source = "PMID 24449841";
@@ -312,6 +293,34 @@ public class DemoRunner {
 				tagForQuickDisposal(imp);
 				return imp;
 			}
+
+			@Override
+			public void load() {
+				super.load();
+				if (!imageLoaded) return;
+				snt.getPrefs().setTemp("demo-running", true);
+				ui.changeState(SNTUI.RUNNING_CMD);
+				setNotes("""
+						The microglia cells autotrace demo
+						runs _Auto-trace → Grayscale Image (Multiple Cells)..._
+						with these parameters:
+
+						```
+						Background threshold:     Auto (-1)
+						Score map filter:         Tubeness
+						Smooth window:            3
+						Min. soma radius:         14
+						Min. inter-soma distance: 400
+						Territory reach:          Disabled (-1)
+						All other parameters:     Set to defaults
+						```
+
+						Tip: Once tracing completes, press 'H'
+						     to toggle paths visibility; '1'
+						     to display only selected paths
+						""");
+				runDemoScript("demo_microglia_multisoma.groovy");
+			}
 		};
 		entry.summary = """
 				2D Maximum Intensity Projection of microglia cells in the
@@ -399,7 +408,7 @@ public class DemoRunner {
 			@Override
 			public void load() {
 				super.load();
-				assert snt != null;
+				if (!imageLoaded) return;
 				snt.enableSnapCursor(true);
 				snt.getUI().setRenderingScale(6.0);
 				snt.enableAstar(true);
@@ -526,6 +535,7 @@ public class DemoRunner {
 		String source;
 		String summary;
 		boolean online;
+		boolean imageLoaded;
 
 		private Demo(final int id, final String name) {
 			this.id = id;
@@ -543,9 +553,57 @@ public class DemoRunner {
 			if (imp != null) snt.getPrefs().setTemp("ignore-close-" + imp.getID(), true);
 		}
 
+		/**
+		 * Displays text in the Notes pane and selects the Notes tab. Useful for
+		 * showing demo descriptions, parameters, and usage tips during demos.
+		 *
+		 * @param text the text to display (supports basic markdown formatting)
+		 */
+		void setNotes(final String text) {
+			if (ui == null) return;
+			SwingUtilities.invokeLater(() -> {
+				ui.getNotesPane().getEditor().setText(text);
+				ui.selectTab("notes");
+			});
+		}
+
+		/**
+		 * Runs a Groovy script from the {@code demorunner/} resource directory.
+		 * Scripts in this directory are not discoverable by scijava's script
+		 * service, keeping them internal to DemoRunner. The script receives the
+		 * provided input bindings and runs asynchronously.
+		 *
+		 * @param scriptName the script filename (e.g., "demo_microglia.groovy")
+		 * @param inputs     variable bindings passed to the script (may be empty)
+		 * @return whether the script was found and launched
+		 */
+		boolean runDemoScript(final String scriptName, final Map<String, Object> inputs) {
+			try {
+				return ScriptInstaller.runScript("demorunner", scriptName, inputs);
+			} catch (final IllegalArgumentException ex) {
+				if (ui != null)
+					ui.error("Demo script not found: " + scriptName);
+				else
+					SNTUtils.log("Demo script not found: " + scriptName);
+				return false;
+			}
+		}
+
+		/**
+		 * Convenience overload that runs a demo script with no input bindings.
+		 *
+		 * @param scriptName the script filename
+		 * @return whether the script was found and launched
+		 * @see #runDemoScript(String, Map)
+		 */
+		boolean runDemoScript(final String scriptName) {
+			return runDemoScript(scriptName, Map.of());
+		}
+
 		public void load() {
 			assert snt != null;
 			assert ui != null;
+			imageLoaded = false;
 			try {
 				final ImagePlus imp = getImage();
 				if (imp == null) {
@@ -557,6 +615,7 @@ public class DemoRunner {
 				tagForQuickDisposal(imp);
 				resetPaths();
 				snt.initialize(imp);
+				imageLoaded = true;
 				if (tracingsURL != null) {
 					snt.getPathAndFillManager().loadGuessingType(tracingsURL);
 				} else {
