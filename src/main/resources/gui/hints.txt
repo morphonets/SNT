@@ -36,6 +36,9 @@ Press L in Edit Mode to lock a node and prevent accidental changes
 Press X in Edit Mode to split a tree at the active node
 Press C in Edit Mode to connect the active node to a nearby path
 Press T in Edit Mode to tag the active node with a color label
+Press P in Edit Mode to toggle Paint Mode for brush editing
+In Paint Mode: drag to move nodes with a Gaussian brush; Alt+drag to blend radii from the center node
+In Paint Mode: use Ctrl+mouse wheel to adjust the brush radius
 
 # Analysis
 Use Quick Measurements for instant metrics without prompts

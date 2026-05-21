@@ -548,7 +548,7 @@
                             >Keyboard Shortcuts</a
                         >
                     </h1>
-                    <div class="version">v5.0.9</div>
+                    <div class="version">v5.1.0</div>
                 </div>
             </div>
 
@@ -660,7 +660,11 @@
                         <div class="label">O</div>
                         <div class="func">Orientations</div>
                     </div>
-                    <div class="key cat-none"><div class="label">P</div></div>
+                    <div class="key cat-edit">
+                        <div class="mode-dot"></div>
+                        <div class="label">P</div>
+                        <div class="func">Paint mode</div>
+                    </div>
                     <div class="key cat-none"><div class="label">[</div></div>
                     <div class="key cat-none"><div class="label">]</div></div>
                     <div class="key cat-none"><div class="label">\</div></div>
@@ -771,12 +775,16 @@
 
                 <!-- Row 5: Bottom row -->
                 <div class="kb-row">
-                    <div class="key key-ctrl cat-none">
+                    <div class="key key-ctrl cat-trace">
+                        <div class="mode-dot"></div>
                         <div class="label">Ctrl</div>
+                        <div class="func">Scroll modifier</div>
                     </div>
                     <div class="key cat-none"><div class="label">Fn</div></div>
-                    <div class="key key-alt cat-none">
+                    <div class="key key-alt cat-edit">
+                        <div class="mode-dot"></div>
                         <div class="label">Alt</div>
+                        <div class="func">Drag modifier</div>
                     </div>
                     <div class="key key-cmd cat-none">
                         <div class="label">Cmd</div>
@@ -816,11 +824,18 @@
                         Interactive Prompt
                     </h3>
                     <div class="shortcut-row">
-                        <div class="kbd"><span>Y</span></div>
+                        <div class="kbd"><span>C</span></div>
+                        <div class="shortcut-desc">Cancel current path</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd"><span>Esc</span></div>
                         <div class="shortcut-desc">
-                            Confirm temporary path (Yes) &mdash; double-tap to
-                            finish
+                            Abort operation / exit mode
                         </div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd"><span>F</span></div>
+                        <div class="shortcut-desc">Finish current path</div>
                     </div>
                     <div class="shortcut-row">
                         <div class="kbd"><span>N</span></div>
@@ -830,17 +845,10 @@
                         </div>
                     </div>
                     <div class="shortcut-row">
-                        <div class="kbd"><span>F</span></div>
-                        <div class="shortcut-desc">Finish current path</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>C</span></div>
-                        <div class="shortcut-desc">Cancel current path</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Esc</span></div>
+                        <div class="kbd"><span>Y</span></div>
                         <div class="shortcut-desc">
-                            Abort operation / exit mode
+                            Confirm temporary path (Yes) &mdash; double-tap to
+                            finish
                         </div>
                     </div>
                 </div>
@@ -869,10 +877,6 @@
                         <div class="shortcut-desc">100% zoom</div>
                     </div>
                     <div class="shortcut-row">
-                        <div class="kbd"><span>Space</span></div>
-                        <div class="shortcut-desc">Pan (Hand) tool</div>
-                    </div>
-                    <div class="shortcut-row">
                         <div class="kbd">
                             <span>&lt;</span><span class="plus">/</span
                             ><span>&gt;</span>
@@ -882,15 +886,19 @@
                         </div>
                     </div>
                     <div class="shortcut-row">
-                        <div class="kbd"><span>Shift</span></div>
-                        <div class="shortcut-desc">
-                            Synchronize XY, ZY, XZ views
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
                         <div class="kbd"><span>Enter</span></div>
                         <div class="shortcut-desc">
                             Toggle focus: image / SNT window
+                        </div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd"><span>Space</span></div>
+                        <div class="shortcut-desc">Pan (Hand) tool</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd"><span>Shift</span></div>
+                        <div class="shortcut-desc">
+                            Synchronize XY, ZY, XZ views
                         </div>
                     </div>
                     <div class="shortcut-row">
@@ -935,15 +943,6 @@
                         </div>
                     </div>
                     <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>G</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Grab + add to selection
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
                         <div class="kbd"><span>H</span></div>
                         <div class="shortcut-desc">
                             Temporarily hide all paths (hold)
@@ -953,6 +952,15 @@
                         <div class="kbd"><span>O</span></div>
                         <div class="shortcut-desc">
                             Show path orientations (hold)
+                        </div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Shift</span><span class="plus">+</span
+                            ><span>G</span>
+                        </div>
+                        <div class="shortcut-desc">
+                            Grab + add to selection
                         </div>
                     </div>
                 </div>
@@ -970,35 +978,18 @@
                         </div>
                     </div>
                     <div class="shortcut-row">
+                        <div class="kbd"><span>S</span></div>
+                        <div class="shortcut-desc">Toggle cursor snapping</div>
+                    </div>
+                    <div class="shortcut-row">
                         <div class="kbd"><span>V</span></div>
                         <div class="shortcut-desc">
                             Jump to brightest voxel (x, y)
                         </div>
                     </div>
                     <div class="shortcut-row">
-                        <div class="kbd"><span>S</span></div>
-                        <div class="shortcut-desc">Toggle cursor snapping</div>
-                    </div>
-                    <div class="shortcut-row">
                         <div class="kbd"><span>Z</span></div>
                         <div class="shortcut-desc">Undo last segment</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl</span><span class="plus">+</span
-                            ><span>Wheel</span>
-                        </div>
-                        <div class="shortcut-desc">Change path diameter</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Alt</span><span class="plus">+</span
-                            ><span>Shift</span><span class="plus">+</span
-                            ><span>Click</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Select forking point on path
-                        </div>
                     </div>
                     <div class="shortcut-row">
                         <div class="kbd">
@@ -1025,6 +1016,13 @@
                     </div>
                     <div class="shortcut-row">
                         <div class="kbd">
+                            <span>Ctrl</span><span class="plus">+</span
+                            ><span>Wheel</span>
+                        </div>
+                        <div class="shortcut-desc">Change path diameter</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
                             <span>Ctrl/Cmd</span><span class="plus">+</span
                             ><span>S</span>
                         </div>
@@ -1037,6 +1035,16 @@
                             ><span>S</span>
                         </div>
                         <div class="shortcut-desc">Backup tracings</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Alt</span><span class="plus">+</span
+                            ><span>Shift</span><span class="plus">+</span
+                            ><span>Click</span>
+                        </div>
+                        <div class="shortcut-desc">
+                            Select forking point on path
+                        </div>
                     </div>
                 </div>
 
@@ -1079,6 +1087,12 @@
                         </div>
                     </div>
                     <div class="shortcut-row">
+                        <div class="kbd"><span>P</span></div>
+                        <div class="shortcut-desc">
+                            Toggle Paint Mode (brush sculpting)
+                        </div>
+                    </div>
+                    <div class="shortcut-row">
                         <div class="kbd"><span>R</span></div>
                         <div class="shortcut-desc">
                             Change radius of active node
@@ -1094,6 +1108,24 @@
                         <div class="kbd"><span>Z</span></div>
                         <div class="shortcut-desc">Undo last operation</div>
                     </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Ctrl</span><span class="plus">+</span
+                            ><span>Wheel</span>
+                        </div>
+                        <div class="shortcut-desc">
+                            Node radius / brush size (Paint Mode)
+                        </div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Alt</span><span class="plus">+</span
+                            ><span>Drag</span>
+                        </div>
+                        <div class="shortcut-desc">
+                            Move node / blend radii (Paint Mode)
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Reconstruction Viewer -->
@@ -1102,42 +1134,6 @@
                         <div class="dot dot-viewer"></div>
                         Reconstruction Viewer
                     </h3>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>←</span><span>→</span><span>↑</span
-                            ><span>↓</span>
-                        </div>
-                        <div class="shortcut-desc">Rotate scene</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>Arrows</span>
-                        </div>
-                        <div class="shortcut-desc">Pan scene</div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd"><span>Double Click</span></div>
-                        <div class="shortcut-desc">
-                            Toggle animation (auto-detect rotation axis)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Shift</span><span class="plus">+</span
-                            ><span>Double Click</span>
-                        </div>
-                        <div class="shortcut-desc">
-                            Toggle animation (force Z-axis rotation)
-                        </div>
-                    </div>
-                    <div class="shortcut-row">
-                        <div class="kbd">
-                            <span>Ctrl</span><span class="plus">+</span
-                            ><span>Click</span>
-                        </div>
-                        <div class="shortcut-desc">Snap to top/side view</div>
-                    </div>
                     <div class="shortcut-row">
                         <div class="kbd"><span>A</span></div>
                         <div class="shortcut-desc">Toggle axes</div>
@@ -1168,6 +1164,20 @@
                     </div>
                     <div class="shortcut-row">
                         <div class="kbd">
+                            <span>←</span><span>→</span><span>↑</span
+                            ><span>↓</span>
+                        </div>
+                        <div class="shortcut-desc">Rotate scene</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Shift</span><span class="plus">+</span
+                            ><span>Arrows</span>
+                        </div>
+                        <div class="shortcut-desc">Pan scene</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
                             <span>Shift</span><span class="plus">+</span
                             ><span>F</span>
                         </div>
@@ -1180,6 +1190,28 @@
                             ><span>P</span>
                         </div>
                         <div class="shortcut-desc">Command Palette</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Ctrl</span><span class="plus">+</span
+                            ><span>Click</span>
+                        </div>
+                        <div class="shortcut-desc">Snap to top/side view</div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd"><span>Double Click</span></div>
+                        <div class="shortcut-desc">
+                            Toggle animation (auto-detect rotation axis)
+                        </div>
+                    </div>
+                    <div class="shortcut-row">
+                        <div class="kbd">
+                            <span>Shift</span><span class="plus">+</span
+                            ><span>Double Click</span>
+                        </div>
+                        <div class="shortcut-desc">
+                            Toggle animation (force Z-axis rotation)
+                        </div>
                     </div>
                 </div>
             </div>
