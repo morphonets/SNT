@@ -139,7 +139,7 @@ public class InsectBrainImporterCmd extends CommonDynamicCmd {
 		if (runningFromMainSNT) {
 			final PathAndFillManager pafm = sntService.getPathAndFillManager();
 			if (clearExisting) pafm.clear();
-			trees.forEach( tree -> pafm.addTree(tree));
+			pafm.addTrees(trees);
 			if (loadMeshes) {
 				sntService.getRecViewer().add(meshes);
 				try {

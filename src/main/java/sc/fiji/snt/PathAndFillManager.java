@@ -1030,7 +1030,10 @@ public class PathAndFillManager extends DefaultHandler implements
             return;
         }
         if (commonTag == null) {
-            tree.list().forEach(this::addPathWithoutNotify);
+            tree.list().forEach(p -> {
+                prepPathForAdding(p, false, true, true);
+                addPathWithoutNotify(p);
+            });
         } else {
             tree.list().forEach(p -> {
                 prepPathForAdding(p, true, true, true);

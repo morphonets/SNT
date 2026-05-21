@@ -40,6 +40,7 @@ import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.SNTColor;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -196,15 +197,15 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         final Color[] colors = SNTColor.getDistinctColorsAWT(results.size());
         int idx = 0;
         if (OUTPUT_PATH.equals(outputChoice)) {
-            final Tree paths = new Tree();
+            final List<Tree> somas = new ArrayList<>();
             for (final SomaUtils.SomaResult result : results) {
                 final Path path = result.toPath(spacing);
                 path.setColor(colors[idx++]);
                 path.setName(String.format("Soma %02d", idx));
-                paths.add(path);
+                somas.add(new Tree(List.of(path)));
 
             }
-            snt.getPathAndFillManager().addTree(paths);
+            snt.getPathAndFillManager().addTrees(somas);
             status(results.size() + " soma(s) added to Manager", true);
         } else {
             Overlay overlay = imp.getOverlay();
