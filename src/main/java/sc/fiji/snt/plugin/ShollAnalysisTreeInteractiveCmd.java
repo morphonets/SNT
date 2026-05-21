@@ -30,6 +30,7 @@ import org.scijava.plugin.Menu;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.Button;
+import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 
 /**
@@ -63,6 +64,7 @@ public class ShollAnalysisTreeInteractiveCmd extends ShollAnalysisTreeCmd implem
 		// There is no "OK" button in the prompt, so we don't need anything here. All functionality is run from callbacks
 		// The code here gets called once the prompt is displayed and when CommandService.run() is called, so we'll only
 		// run analysis if called from a (legacy!?) pre-recorded macro
+		getPromptWithCloseHandler("Sholl Analysis SNT" + SNTUtils.VERSION); // ensure close button resets UI state
 		if (ij.IJ.macroRunning()) {
 			try {
 				runAnalysis();

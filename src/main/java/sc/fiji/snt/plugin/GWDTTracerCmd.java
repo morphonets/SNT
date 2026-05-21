@@ -69,7 +69,6 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
     @Parameter(label = "   Run   ", callback = "runTrace", description = "<HTML>Run autotracing")
     private Button run;
 
-    private JDialog prompt;
     private AutoTraceConfigDialog configDialog;
 
     @SuppressWarnings("unused")
@@ -100,27 +99,21 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
     }
 
     private JDialog getPrompt() {
-        // HACK: See ComputeSecondaryImg#getPrompt()
-        if (prompt == null) {
-            for (final Window w : JDialog.getWindows()) {
-                if (w instanceof JDialog && PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
-                    prompt = ((JDialog) w);
-                }
-            }
-        }
-        return prompt;
+        return getPromptWithCloseHandler(PROMPT_TITLE);
     }
 
     @Override
     public void run() {
         // Called every time a widget changes in the prompt: Do nothing by default.
         // The actual run is triggered by the runTrace() callback.
+        getPrompt(); // ensure close handler is attached early
     }
 
     @SuppressWarnings("unused")
     private void runTrace() {
         if (configDialog != null) configDialog.dispose();
-        if (getPrompt() != null) prompt.dispose();
+        final JDialog prompt = getPrompt();
+        if (prompt != null) prompt.dispose();
         // Button callbacks in Interactive commands run on the EDT,
         // so we must offload the heavy tracing work to a background
         // thread; otherwise setCanvasLabelAllPanes() can never repaint.

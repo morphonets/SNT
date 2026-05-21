@@ -34,6 +34,11 @@ import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.viewer.Viewer3D;
 
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
 /**
  * Command class for GUI commands extending DynamicCommand
  *
@@ -148,6 +153,57 @@ public class CommonDynamicCmd extends DynamicCommand {
 		}
 		statusService.clearStatus();
 	}
+
+	/**
+	 * Finds the SciJava-generated prompt dialog by its title and attaches a
+	 * {@link WindowAdapter} that resets the UI state to {@link SNTUI#READY} when
+	 * the dialog is closed. This is necessary because {@link #init(boolean)} sets
+	 * the state to {@link SNTUI#RUNNING_CMD}, but if the user dismisses the
+	 * dialog without running the command, nothing else resets it.
+	 * <p>
+	 * Subclasses implementing {@link org.scijava.command.Interactive} should call
+	 * this method early (e.g., from {@link #run()}) to ensure the listener is
+	 * attached before the user can close the dialog. The dialog is cached: repeated
+	 * calls are no-ops once it has been found.
+	 *
+	 * @param title  the exact title set via {@code getInfo().setLabel()} — must be
+	 *               unique across open dialogs
+	 * @return the dialog, or {@code null} if not yet created by SciJava
+	 */
+	protected JDialog getPromptWithCloseHandler(final String title) {
+		return getPromptWithCloseHandler(title, null);
+	}
+
+	/**
+	 * Variant of {@link #getPromptWithCloseHandler(String)} that runs an extra
+	 * action when the dialog is closing (e.g., cleaning up listeners).
+	 *
+	 * @param title         the dialog title
+	 * @param extraOnClose  additional action to run on {@code windowClosing}, or
+	 *                      {@code null} for none. Runs <em>before</em> the UI
+	 *                      state is reset.
+	 * @return the dialog, or {@code null} if not yet created
+	 */
+	protected JDialog getPromptWithCloseHandler(final String title, final Runnable extraOnClose) {
+		if (cachedPrompt == null) {
+			for (final Window w : JDialog.getWindows()) {
+				if (w instanceof JDialog && title.equals(((JDialog) w).getTitle())) {
+					cachedPrompt = (JDialog) w;
+					cachedPrompt.addWindowListener(new WindowAdapter() {
+						@Override
+						public void windowClosing(final WindowEvent ignored) {
+							if (extraOnClose != null) extraOnClose.run();
+							if (ui != null) ui.changeState(SNTUI.READY);
+						}
+					});
+					break;
+				}
+			}
+		}
+		return cachedPrompt;
+	}
+
+	private JDialog cachedPrompt;
 
 	protected void notifyExternalDataLoaded() { //TODO: Implement listener
 		// If a display canvas is being used notify plugin

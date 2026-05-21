@@ -48,8 +48,6 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
     @Parameter(label = "   Run   ", callback = "runTrace", description = "<HTML>Run multi-soma autotracing")
     private Button run;
 
-    private JDialog prompt;
-
     @SuppressWarnings("unused")
     private void init() {
         getInfo().setLabel(PROMPT_TITLE);
@@ -78,24 +76,19 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
     }
 
     private JDialog getPrompt() {
-        if (prompt == null) {
-            for (final Window w : JDialog.getWindows()) {
-                if (w instanceof JDialog && PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
-                    prompt = ((JDialog) w);
-                }
-            }
-        }
-        return prompt;
+        return getPromptWithCloseHandler(PROMPT_TITLE);
     }
 
     @Override
     public void run() {
         // Called on widget change; do nothing. Tracing triggered by runTrace().
+        getPrompt(); // ensure close handler is attached early
     }
 
     @SuppressWarnings("unused")
     private void runTrace() {
-        if (getPrompt() != null) prompt.dispose();
+        final JDialog prompt = getPrompt();
+        if (prompt != null) prompt.dispose();
         new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
