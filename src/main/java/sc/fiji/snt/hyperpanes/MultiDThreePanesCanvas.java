@@ -34,7 +34,6 @@ import java.awt.geom.Rectangle2D;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ij.Prefs;
 import ij.gui.ImageCanvas;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
@@ -47,7 +46,7 @@ import sc.fiji.snt.util.PointInCanvas;
 public class MultiDThreePanesCanvas extends ImageCanvas {
 
 	private static final long serialVersionUID = 1L;
-	private static final double SCALE_FACTOR = Math.min(1.5, Prefs.getGuiScale());
+	private static final double SCALE_FACTOR = GuiUtils.uiScale();
 
 	protected PaneOwner owner;
 	protected int plane;
@@ -168,7 +167,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	private Font getScaledFont() {
-		final double size = SCALE_FACTOR * Math.max(9, Math.min(13 *
+		final double size = SCALE_FACTOR * Math.max(12, Math.min(13 *
 			magnification, 30));
 		return new Font("SansSerif", Font.PLAIN, 13).deriveFont(
 			(float) size);

@@ -74,7 +74,7 @@ public class DemoRunner {
 		prefs = null;
 		context.inject(this);
 		priorUIState = -1;
-		entries = List.of(demo01(), demo05(), demo10());
+		entries = List.of(demo02(), demo04(), demo10());
 	}
 
 	private Demo demo01() {

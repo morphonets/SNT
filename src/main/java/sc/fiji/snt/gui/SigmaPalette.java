@@ -25,7 +25,6 @@ package sc.fiji.snt.gui;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.Prefs;
 import ij.gui.*;
 import ij.measure.Calibration;
 import ij.plugin.LutLoader;
@@ -142,13 +141,10 @@ public class SigmaPalette extends Thread {
 			ic.disablePopupMenu(true);
 			ic.setShowCursorStatus(false);
 			ic.setCursor(new Cursor(Cursor.HAND_CURSOR));
-			final double scalingFactor = Prefs.getGuiScale();
+			final double scalingFactor = GuiUtils.uiScale();
 			if (scalingFactor > 1) {
 				ic.setMagnification(scalingFactor);
 				ic.zoomIn(ic.getWidth() / 2, ic.getHeight() / 2);
-			} else if (scalingFactor < 1) {
-				ic.setMagnification(scalingFactor);
-				ic.zoomOut(ic.getWidth() / 2, ic.getHeight() / 2);
 			} else {
 				ic.setMagnification(1);
 				ic.unzoom();

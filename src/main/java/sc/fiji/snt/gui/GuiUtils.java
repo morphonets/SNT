@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.icons.FlatClearIcon;
+import com.formdev.flatlaf.util.UIScale;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
 import com.jidesoft.swing.ListSearchable;
@@ -1809,6 +1810,44 @@ public class GuiUtils {
 		} catch (final Exception e) {
 			return 16;
 		}
+	}
+
+	/**
+	 * Returns the effective UI scale factor for the current display environment,
+	 * accounting for HiDPI displays and user-configured scaling.
+	 * <p>
+	 * The detection strategy is:
+	 * <ol>
+	 * <li>FlatLaf's {@code UIScale.getUserScaleFactor()}the most reliable
+	 * source when FlatLaf is active, as it combines OS-level DPI with any user
+	 * overrides</li>
+	 * <li>AWT's {@code GraphicsConfiguration.getDefaultTransform().getScaleX()},
+	 * the platform-level fallback</li>
+	 * <li>{@code ij.Prefs.getGuiScale()}: last resort</li>
+	 * </ol>
+	 *
+	 * @return the scale factor (1.0 = no scaling, 2.0 = 200%, etc.)
+	 */
+	public static double uiScale() {
+		try {
+			final float flatScale = UIScale.getUserScaleFactor();
+			if (flatScale > 0 && flatScale != 1.0f)
+				return flatScale;
+		} catch (final Exception ignored) {
+			// FlatLaf not initialized
+		}
+		try {
+			final double awtScale = GraphicsEnvironment.getLocalGraphicsEnvironment()
+					.getDefaultScreenDevice()
+					.getDefaultConfiguration()
+					.getDefaultTransform()
+					.getScaleX();
+			if (awtScale > 0)
+				return awtScale;
+		} catch (final Exception ignored) {
+			// headless or no screen
+		}
+		return Math.max(1.0, ij.Prefs.getGuiScale());
 	}
 
 	public static void initSplashScreen() {

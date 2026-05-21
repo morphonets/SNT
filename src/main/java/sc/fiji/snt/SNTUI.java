@@ -4469,7 +4469,7 @@ public class SNTUI extends JDialog {
         double zoom = plugin.getImagePlus().getCanvas().getMagnification();
         if (plugin.getImagePlus().getWidth() < 500d && plugin.getImagePlus().getCanvas().getMagnification() == 1) {
             // if the image is rather small (typically a display canvas), zoom it to more manageable dimensions
-            zoom = ImageCanvas.getLowerZoomLevel(500d/plugin.getImagePlus().getWidth() * Math.min(1.5, Prefs.getGuiScale()));
+            zoom = ImageCanvas.getLowerZoomLevel(500d/plugin.getImagePlus().getWidth() * Math.min(1.5, GuiUtils.uiScale()));
         }
         plugin.zoomAllPanes(zoom);
         plugin.disableZoomAllPanes(zoomSyncStatus);

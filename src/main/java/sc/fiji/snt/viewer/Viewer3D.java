@@ -1940,8 +1940,8 @@ public class Viewer3D {
                 frame.setLocation(0, 0);
                 frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
             }
-            final int w = (width == 0) ? (int) (ViewerFrame.DEF_WIDTH * Prefs.SCALE_FACTOR) : width;
-            final int h = (height == 0) ? (int) (ViewerFrame.DEF_HEIGHT * Prefs.SCALE_FACTOR) : height;
+            final int w = (width == 0) ? ViewerFrame.DEF_WIDTH : width;
+            final int h = (height == 0) ? ViewerFrame.DEF_HEIGHT : height;
             if (width == -1) {
                 frame.setExtendedState(JFrame.MAXIMIZED_HORIZ);
                 frame.setSize((frame.getWidth() == 0) ? w : frame.getWidth(), h);
@@ -3596,7 +3596,7 @@ public class Viewer3D {
          * @param gConfiguration
          */
         public ViewerFrame(final AChart chart, final boolean includeManager, final GraphicsConfiguration gConfiguration) {
-            this(chart, (int) (DEF_WIDTH * Prefs.SCALE_FACTOR), (int) (DEF_HEIGHT * Prefs.SCALE_FACTOR), includeManager,
+            this(chart, DEF_WIDTH, DEF_HEIGHT, includeManager,
                     gConfiguration);
         }
 
@@ -4060,7 +4060,6 @@ public class Viewer3D {
         private static final double DEF_ROTATION_STEP = ROTATION_STEPS[1];
 
         /* GUI */
-        private static final double SCALE_FACTOR = ij.Prefs.getGuiScale();
         private static final boolean DEF_NAG_USER_ON_RETRIEVE_ALL = true;
         private static final String DEF_TREE_COMPARTMENT_CHOICE = "Axon";
         private static final boolean DEF_RETRIEVE_ALL_IF_NONE_SELECTED = true;
@@ -10320,7 +10319,7 @@ public class Viewer3D {
             GuiUtils.setRenderingHints(g2d);
             if (SNTUtils.isDebugMode()) {
                 g2d.setColor(toAWTColor(view.getAxisLayout().getMainColor()));
-                g2d.setFont(g2d.getFont().deriveFont((float)view.getAxisLayout().getFont().getHeight()));
+                g2d.setFont(g2d.getFont().deriveFont((float)(view.getAxisLayout().getFont().getHeight() * 0.7)));
                 final int lineHeight = g.getFontMetrics().getHeight();
                 int lineNo = 1;
                 final Camera dbgCam = view.getCamera();
@@ -11319,7 +11318,7 @@ public class Viewer3D {
                 super(factory, scene, canvas, quality);
                 //setDisplayAxisWholeBounds(true);
                 setCameraRenderingSphereRadiusFactor(.85f);
-                setHiDPIenabled(Prefs.SCALE_FACTOR > 1);
+                setHiDPIenabled(GuiUtils.uiScale() > 1);
                 setMaximized(false);
                 get2DLayout().setVerticalAxisFlip(true); // backwards compatibility
             }

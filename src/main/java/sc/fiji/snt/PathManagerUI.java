@@ -5348,7 +5348,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             // assemble "hide others" button
             IconFactory.assignIcon(hideOthersButton, IconFactory.GLYPH.ARROWS_TO_EYE, IconFactory.GLYPH.ARROWS_TO_EYE);
-            hideOthersButton.setToolTipText("When selected, show only paths from the chosen arbor/structure");
+            hideOthersButton.setToolTipText("When selected, list only paths from the chosen arbor/structure");
             hideOthersButton.addActionListener(e -> {
                 if (arborChoiceCombo.getSelectedIndex() == -1) {
                     hideOthersButton.setSelected(false);
