@@ -3794,11 +3794,25 @@ public class SNT extends MultiDThreePanes implements
 			canvasMessageTimer = null;
 		}
 		if (activeCanvasMessage == null) return;
-
+		// Only clear if the label is still ours (not overwritten by edit/pause mode)
+		final InteractiveTracerCanvas canvas = getXYCanvas();
+		if (canvas == null || activeCanvasMessage.equals(canvas.getCanvasLabel())) {
+			// Restore the mode label if still in a labeled mode
+			setCanvasLabelAllPanes(getModeLabel());
+		}
 		setCanvasLabelBackgroundAllPanes(null);
 		activeCanvasMessage = null;
 	}
 
+	private String getModeLabel() {
+		if (isEditModeEnabled()) {
+			final InteractiveTracerCanvas c = getXYCanvas();
+			if (c != null && c.isPaintMode())
+				return InteractiveTracerCanvas.PAINT_MODE_LABEL + " r=" + c.getPaintBrushRadius();
+			return InteractiveTracerCanvas.EDIT_MODE_LABEL;
+		}
+		return null;
+	}
 
 	protected boolean getConfirmation(final String msg, final String title) {
 		return new GuiUtils(getActiveWindow()).getConfirmation(msg, title);

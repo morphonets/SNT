@@ -46,6 +46,7 @@ import javax.swing.*;
 import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
+import java.awt.geom.Arc2D;
 import java.awt.geom.Ellipse2D;
 import java.util.*;
 import java.util.List;
@@ -61,6 +62,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private final SNT tracerPlugin;
     private JPopupMenu pMenu;
     private JCheckBoxMenuItem toggleEditModeMenuItem;
+    private JCheckBoxMenuItem togglePaintModeMenuItem;
     private JMenuItem extendPathMenuItem;
     private JMenuItem finishPathMenuItem;
     private JMenuItem undoSegmentMenuItem;
@@ -74,12 +76,22 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private Path currentPath;
     private boolean lastPathUnfinished;
     private boolean editMode; // convenience flag to monitor SNT's edit mode
+    private boolean paintMode; // sub-mode of edit: drag to sculpt path
+    private boolean paintStrokeActive; // true while a paint drag is in progress
+    private boolean paintRadiusDragging; // true while Alt+drag radius smearing is in progress
+    private boolean paintBrushCursorVisible; // transient flag for brush circle during Ctrl+scroll
+    private String paintCursorLabel; // transient label rendered below the paint brush circle
+    private javax.swing.Timer paintBrushCursorTimer;
+    private int paintBrushRadius = 10; // number of flanking nodes affected on each side
+    private static final int MIN_BRUSH_RADIUS = 1;
+    private static final int MAX_BRUSH_RADIUS = 100;
 
     private Color temporaryColor;
     private Color unconfirmedColor;
     private Color fillColor;
     private GuiUtils guiUtils;
     protected static String EDIT_MODE_LABEL = "Edit Mode";
+    protected static String PAINT_MODE_LABEL = "Edit Mode (Paint)";
     protected static String SNT_PAUSED_LABEL = "SNT Paused";
     protected static String TRACING_PAUSED_LABEL = "Tracing Paused";
 
@@ -134,11 +146,15 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pMenu.setLightWeightPopupEnabled(false);
 
         final AListener listener = new AListener();
-        pMenu.add(menuItem(AListener.SELECT_NEAREST, listener, KeyStroke.getKeyStroke(KeyEvent.VK_G, 0),
-                '\uf076', true, IconFactory.defaultColor()));
-        pMenu.add(menuItem(AListener.APPEND_NEAREST, listener,
+        final JMenuItem selectNearest = menuItem(AListener.SELECT_NEAREST, listener,
+                KeyStroke.getKeyStroke(KeyEvent.VK_G, 0), '\uf076', true, IconFactory.defaultColor());
+        selectNearest.setToolTipText("Select nearest path to cursor");
+        pMenu.add(selectNearest);
+        final JMenuItem appendNearest = menuItem(AListener.APPEND_NEAREST, listener,
                 KeyStroke.getKeyStroke(KeyEvent.VK_G, KeyEvent.SHIFT_DOWN_MASK),
-                '\uf076', true, IconFactory.selectedColor()));
+                '\uf076', true, IconFactory.selectedColor());
+        appendNearest.setToolTipText("Add nearest path to current selection");
+        pMenu.add(appendNearest);
         final JMenuItem selectByRoi = getSelectRoiMenuItem();
         pMenu.add(selectByRoi);
         pMenu.addSeparator();
@@ -192,6 +208,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pMenu.add(menuItem(AListener.NODE_INSERT, listener, KeyEvent.VK_I, null));
         pMenu.add(menuItem(AListener.NODE_LOCK, listener, KeyEvent.VK_L, null));
         pMenu.add(menuItem(AListener.NODE_MOVE, listener, KeyEvent.VK_M, null));
+        togglePaintModeMenuItem = new JCheckBoxMenuItem(AListener.NODE_PAINT);
+        togglePaintModeMenuItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0));
+        togglePaintModeMenuItem.setMnemonic(KeyEvent.VK_P);
+        togglePaintModeMenuItem.addItemListener(listener);
+        pMenu.add(togglePaintModeMenuItem);
         final JMenuItem jmi = menuItem(AListener.NODE_COLOR, listener, KeyStroke.getKeyStroke(KeyEvent.VK_T, 0), null);
         jmi.setToolTipText("<HTML>Assigns a unique color to active node.<br>"
                 + "NB: Overall rendering of path may change once tag is applied");
@@ -247,6 +268,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         toggleEditModeMenuItem.setText(String.format(AListener.EDIT_TOGGLE_FORMATTER,
                 (activePath == null) ? " Mode" : getShortName(activePath)));
         toggleEditModeMenuItem.setState(be && editMode);
+        togglePaintModeMenuItem.setSelected(paintMode);
+        togglePaintModeMenuItem.setEnabled(be && editMode);
         togglePauseSNTMenuItem.setSelected(bp && tracerPlugin.getUIState() == SNTUI.SNT_PAUSED);
         togglePauseTracingMenuItem.setSelected(tracerPlugin.tracingHalted);
 
@@ -302,7 +325,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     || cmd.equals(AListener.NODE_LOCK) || cmd.equals(AListener.NODE_MOVE)
                     || cmd.equals(AListener.NODE_SET_ROOT) || cmd.equals(AListener.NODE_SPLIT)
                     || cmd.equals(AListener.NODE_RADIUS) || cmd.equals(AListener.NODE_COLOR)
-                    || cmd.equals(AListener.NODE_CONNECT_HELP)) {
+                    || cmd.equals(AListener.NODE_CONNECT_HELP)
+                    || cmd.equals(AListener.NODE_PAINT)) {
                 mItem.setEnabled(be && editMode);
             }
             // Everything else always enabled (SELECT_NEAREST, APPEND_NEAREST,
@@ -1000,8 +1024,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             super.mouseReleased(me);
             return;
         }
-        if (altDraggingNode) {
+        if (altDraggingNode || paintStrokeActive || paintRadiusDragging) {
+            if (paintRadiusDragging) paintCursorLabel = null; // clear transient radius label
             altDraggingNode = false;
+            paintStrokeActive = false;
+            paintRadiusDragging = false;
             return;
         }
         if (popupTriggered) {
@@ -1072,6 +1099,33 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
         e.consume(); // prevent IJ from also handling this Ctrl+wheel event
 
+        // In paint mode, Ctrl+scroll adjusts brush radius instead of node radius
+        if (paintMode) {
+            final int delta = (e.getWheelRotation() < 0) ? 1 : -1; // scroll up: larger
+            paintBrushRadius = Math.max(MIN_BRUSH_RADIUS,
+                    Math.min(MAX_BRUSH_RADIUS, paintBrushRadius + delta));
+            updatePaintModeLabel();
+            // Show transient label below brush circle
+            final Path ep = tracerPlugin.getEditingPath();
+            if (ep != null && ep.size() >= 2) {
+                final double avgSpacing = ep.getLength() / (ep.size() - 1);
+                paintCursorLabel = String.format("r=%d (≈%.1f %s)",
+                        paintBrushRadius, avgSpacing * paintBrushRadius, tracerPlugin.spacing_units);
+            }
+            paintBrushCursorVisible = true;
+            if (paintBrushCursorTimer == null) {
+                paintBrushCursorTimer = new javax.swing.Timer(800, ae -> {
+                    paintBrushCursorVisible = false;
+                    paintCursorLabel = null;
+                    repaint();
+                });
+                paintBrushCursorTimer.setRepeats(false);
+            }
+            paintBrushCursorTimer.restart();
+            repaint(); // refresh brush circle overlay
+            return;
+        }
+
         // Seed manualRadius: in edit mode, prefer the node's existing radius
         if (tracerPlugin.manualRadius <= 0) {
             if (editMode && !impossibleEdit(false)) {
@@ -1108,10 +1162,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             scrollRadiusUndoPushed = true;
         }
         // Reset the debounce timer so the flag clears ~600ms after the last scroll tick
-        if (scrollRadiusUndoResetTimer != null) scrollRadiusUndoResetTimer.stop();
-        scrollRadiusUndoResetTimer = new Timer(600, ae -> scrollRadiusUndoPushed = false);
-        scrollRadiusUndoResetTimer.setRepeats(false);
-        scrollRadiusUndoResetTimer.start();
+        if (scrollRadiusUndoResetTimer == null) {
+            scrollRadiusUndoResetTimer = new Timer(600, ae -> scrollRadiusUndoPushed = false);
+            scrollRadiusUndoResetTimer.setRepeats(false);
+        }
+        scrollRadiusUndoResetTimer.restart();
         final Path ep = tracerPlugin.getEditingPath();
         ep.setRadius(tracerPlugin.manualRadius, ep.getEditableNodeIndex());
         redrawEditingPath((String)null); // suppress msg; tempMsg already shows it
@@ -1152,23 +1207,50 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     @Override
     public void mouseDragged(final MouseEvent e) {
-        if (editMode && e.isAltDown() && !impossibleEdit(false)) {
-            if (tracerPlugin.getEditingPath().isEditableNodeLocked()) {
+        if (IJ.spaceBarDown()) {
+            // Spacebar always pans, even mid-stroke
+            super.mouseDragged(e);
+            return;
+        }
+        if (editMode && (e.isAltDown() || paintMode) && !impossibleEdit(false)) {
+            final Path editingPath = tracerPlugin.getEditingPath();
+            if (!paintMode && editingPath.isEditableNodeLocked()) {
                 if (!altDraggingNode) // show message only once, not on every drag event
                     canvasWarning("Node is locked. Unlock it first (L)");
                 return;
             }
-            if (!altDraggingNode) {
+            // Guard: skip paint if path is not in the current viewport
+            if (paintMode && !paintStrokeActive && !paintRadiusDragging
+                    && !editingPath.containsUnscaledNodesInViewPort(this)) {
+                canvasWarning("Path not in view. Pan back to resume painting.");
+                return;
+            }
+            if (!altDraggingNode && !paintStrokeActive && !paintRadiusDragging) {
                 // First drag event: snapshot before any movement
                 pushEditUndo();
-                altDraggingNode = true;
+                if (paintMode) {
+                    if (e.isAltDown()) paintRadiusDragging = true;
+                    else paintStrokeActive = true;
+                } else {
+                    altDraggingNode = true;
+                }
             }
             last_x_in_pane_precise = myOffScreenXD(e.getX());
             last_y_in_pane_precise = myOffScreenYD(e.getY());
-            moveEditingNodeToLastCanvasPosition(false); // silent: no tempMsg per drag event
+            if (paintMode) {
+                if (paintRadiusDragging)
+                    brushBlendRadii(editingPath);
+                else
+                    brushMoveNodes(editingPath);
+                repaint();
+            } else {
+                moveEditingNodeToLastCanvasPosition(false); // silent: no tempMsg per drag event
+            }
             return; // don't pan or do anything else
         }
         altDraggingNode = false;
+        paintStrokeActive = false;
+        paintRadiusDragging = false;
         super.mouseDragged(e);
     }
 
@@ -1247,12 +1329,30 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         tracerPlugin.showCanvasInfo(msg);
     }
 
-    private void tempMsg(final String msg) {
-        SwingUtilities.invokeLater(() -> InteractiveTracerCanvas.this.getGuiUtils().tempMsg(msg));
+    private void canvasWarning(final String msg) {
+        tracerPlugin.showCanvasWarning(msg);
     }
 
     private void redrawEditingPath(final Graphics2D g) {
-        tracerPlugin.getEditingPath().drawPathAsPoints(g, this, tracerPlugin);
+        final Path editingPath = tracerPlugin.getEditingPath();
+        // Draw the same variant the main render loop uses (fitted when
+        // getUseFitted), so the editable-node highlight aligns with
+        // what the user sees. The editableNodeIndex lives on editingPath
+        // (always the main/unfitted path), so we temporarily propagate
+        // it to the fitted copy for rendering, then clear it afterwards.
+        Path drawPath = editingPath;
+        if (editingPath.getUseFitted() && editingPath.getFitted() != null) {
+            drawPath = editingPath.getFitted();
+            drawPath.setEditableNode(editingPath.getEditableNodeIndex());
+            drawPath.setEditableNodeLocked(editingPath.isEditableNodeLocked());
+        }
+        drawPath.drawPathAsPoints(g, this, tracerPlugin);
+        if (drawPath != editingPath) {
+            // Clear transient state so the main render loop doesn't
+            // double-draw the highlight
+            drawPath.setEditableNode(-1);
+            drawPath.setEditableNodeLocked(false);
+        }
     }
 
     @Override
@@ -1277,8 +1377,11 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         if (editMode && tracerPlugin.getEditingPath() != null) {
             redrawEditingPath(g);
-            if (tracerPlugin.manualRadius > 0 && last_x_in_pane_precise != Double.MIN_VALUE) {
-                drawManualRadiusCursor(g);
+            if (last_x_in_pane_precise != Double.MIN_VALUE) {
+                if (paintRadiusDragging || paintBrushCursorVisible)
+                    drawPaintBrushCursor(g);
+                else if (!paintMode && tracerPlugin.manualRadius > 0)
+                    drawManualRadiusCursor(g);
             }
             if (connectionPreview != null) { // Draw connection preview if active
                 connectionPreview.drawPathAsPoints(this, g, getAnnotationsColor(),
@@ -1399,13 +1502,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
     }
 
-    private void drawManualRadiusCursor(final Graphics2D g) {
-        final double mag = getMagnification();
-        // Physical radius → screen pixels (use x-spacing for XY/XZ, z-spacing for ZY x-axis)
-        final double screenRadius = switch (plane) {
-            case MultiDThreePanes.ZY_PLANE -> tracerPlugin.manualRadius / tracerPlugin.z_spacing * mag;
-            default ->                        tracerPlugin.manualRadius / tracerPlugin.x_spacing * mag;
-        };
+    /**
+     * Draws a dashed circle around the cursor position. Shared by manual-radius
+     * cursor (tracing/edit) and paint-brush cursor (paint mode).
+     */
+    private static final Font CURSOR_LABEL_FONT = new Font(Font.SANS_SERIF, Font.PLAIN, 11);
+
+    private void drawDashedCircleCursor(final Graphics2D g, final double screenRadius,
+                                        final Color color, final String cursorLabel) {
         final double sx = myScreenXDprecise(last_x_in_pane_precise);
         final double sy = myScreenYDprecise(last_y_in_pane_precise);
 
@@ -1413,11 +1517,79 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         final Color savedColor = g.getColor();
         g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f,
                 new float[]{4f, 3f}, 0f)); // dashed
-        g.setColor(getUnconfirmedPathColor()); // cyan by default, consistent with unconfirmed path
+        g.setColor(color);
         g.draw(new Ellipse2D.Double(sx - screenRadius, sy - screenRadius, 2 * screenRadius, 2 * screenRadius));
         g.setStroke(savedStroke);
+        if (cursorLabel != null) {
+            // Draw label at fixed size, anchored below the circle
+            final Font savedFont = g.getFont();
+            g.setFont(CURSOR_LABEL_FONT);
+            final FontMetrics fm = g.getFontMetrics();
+            final float lx = (float) (sx - fm.stringWidth(cursorLabel) / 2.0);
+            final float ly = (float) (sy + screenRadius + fm.getAscent() + 2);
+            g.drawString(cursorLabel, lx, ly);
+            g.setFont(savedFont);
+        }
         g.setColor(savedColor);
-        setCursorText(String.format("⌀= %.3f %s", tracerPlugin.manualRadius * 2, tracerPlugin.spacing_units));
+    }
+
+    /**
+     * Draws two opposing dashed arcs (yoke-like brackets) around the cursor
+     * position. Used by paint mode to visually distinguish the brush extent
+     * from the full-circle radius indicator used during tracing.
+     */
+    private void drawDashedArcsCursor(final Graphics2D g, final double screenRadius,
+                                      final Color color, final String cursorLabel) {
+        final double sx = myScreenXDprecise(last_x_in_pane_precise);
+        final double sy = myScreenYDprecise(last_y_in_pane_precise);
+        final double d = 2 * screenRadius;
+
+        final Stroke savedStroke = g.getStroke();
+        final Color savedColor = g.getColor();
+        g.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f,
+                new float[]{4f, 3f}, 0f));
+        g.setColor(color);
+        // Left arc: 120° centered at 180° (i.e., 120°–240°)
+        g.draw(new Arc2D.Double(sx - screenRadius, sy - screenRadius, d, d, 120, 120, Arc2D.OPEN));
+        // Right arc: 120° centered at 0° (i.e., -60°–60°)
+        g.draw(new Arc2D.Double(sx - screenRadius, sy - screenRadius, d, d, -60, 120, Arc2D.OPEN));
+        g.setStroke(savedStroke);
+        if (cursorLabel != null) {
+            final Font savedFont = g.getFont();
+            g.setFont(CURSOR_LABEL_FONT);
+            final FontMetrics fm = g.getFontMetrics();
+            final float lx = (float) (sx - fm.stringWidth(cursorLabel) / 2.0);
+            final float ly = (float) (sy + screenRadius + fm.getAscent() + 2);
+            g.drawString(cursorLabel, lx, ly);
+            g.setFont(savedFont);
+        }
+        g.setColor(savedColor);
+    }
+
+    private void drawManualRadiusCursor(final Graphics2D g) {
+        final double mag = getMagnification();
+        // Physical radius → screen pixels (use x-spacing for XY/XZ, z-spacing for ZY x-axis)
+        final double screenRadius = switch (plane) {
+            case MultiDThreePanes.ZY_PLANE -> tracerPlugin.manualRadius / tracerPlugin.z_spacing * mag;
+            default ->                        tracerPlugin.manualRadius / tracerPlugin.x_spacing * mag;
+        };
+        drawDashedCircleCursor(g, screenRadius, getUnconfirmedPathColor(),
+                String.format("⌀= %.3f %s", tracerPlugin.manualRadius * 2, tracerPlugin.spacing_units));
+    }
+
+    private void drawPaintBrushCursor(final Graphics2D g) {
+        final Path editingPath = tracerPlugin.getEditingPath();
+        if (editingPath == null || editingPath.size() < 2) return;
+        // Estimate physical extent: average inter-node spacing × brush radius
+        final double pathLength = editingPath.getLength();
+        final double avgSpacing = pathLength / (editingPath.size() - 1);
+        final double physicalRadius = avgSpacing * paintBrushRadius;
+        final double mag = getMagnification();
+        final double screenRadius = switch (plane) {
+            case MultiDThreePanes.ZY_PLANE -> physicalRadius / tracerPlugin.z_spacing * mag;
+            default ->                        physicalRadius / tracerPlugin.x_spacing * mag;
+        };
+        drawDashedArcsCursor(g, screenRadius, getAnnotationsColor(), paintCursorLabel);
     }
 
     private void enableEditMode(final boolean enable) {
@@ -1538,7 +1710,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private static final String CLICK_AT_MAX = "Click on Brightest Voxel Above/Below Cursor";
         private static final String FORK_NEAREST = "Fork at Nearest Node";
         private static final String BOOKMARK_CURSOR = "Bookmark Cursor Position";
-        private static final String SELECT_NEAREST = "Select Nearest Path";
+        private static final String SELECT_NEAREST = "Grab Nearest Path";
         private static final String APPEND_NEAREST = "Add Nearest Path to Selection";
         private static final String EXTEND_SELECTED = "Continue Extending Path";
         private static final String PAUSE_SNT_TOGGLE = "Pause SNT";
@@ -1553,6 +1725,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         private final static String NODE_COLOR = "  Tag Active Node";
         private final static String NODE_SET_ROOT = "  Set Active Node as Tree Root...";
         private final static String NODE_SPLIT = "  Split Tree at Active Node...";
+        private final static String NODE_PAINT = "  Paint Mode";
         private final static String NODE_CONNECT_HELP = "  Connect to Help...";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX = "  Connect to ";
         private final static String NODE_CONNECT_TO_PREV_EDITING_PATH_PLACEHOLDER = NODE_CONNECT_TO_PREV_EDITING_PATH_PREFIX
@@ -1564,6 +1737,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         public void itemStateChanged(final ItemEvent e) {
             if (e.getSource().equals(toggleEditModeMenuItem)) {
                 enableEditMode(toggleEditModeMenuItem.getState());
+            } else if (e.getSource().equals(togglePaintModeMenuItem)) {
+                togglePaintMode();
             } else if (e.getSource().equals(togglePauseSNTMenuItem)) {
                 final boolean pause = togglePauseSNTMenuItem.isSelected();
                 tracerPlugin.pause(pause, false);
@@ -1782,16 +1957,89 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         return editMode;
     }
 
+    private static final String MANUAL_RADIUS_TEMP_KEY = "manualRadiusBeforeEdit";
+
     protected void setEditMode(final boolean editMode) {
         this.editMode = editMode;
-        if (!editMode) {
+        if (editMode) {
+            // Stash tracing-cursor radius and clear it so the circle doesn't carry over
+            tracerPlugin.getPrefs().setTemp(MANUAL_RADIUS_TEMP_KEY,
+                    String.valueOf(tracerPlugin.manualRadius));
+            tracerPlugin.manualRadius = 0;
+        } else {
+            setPaintMode(false);
+            altDraggingNode = false;
+            // Restore tracing-cursor radius
+            final String saved = tracerPlugin.getPrefs().getTemp(MANUAL_RADIUS_TEMP_KEY, "0");
+            try { tracerPlugin.manualRadius = Double.parseDouble(saved); }
+            catch (final NumberFormatException ignored) { tracerPlugin.manualRadius = 0; }
             editUndoStack.clear();
             scrollRadiusUndoPushed = false;
-            if (scrollRadiusUndoResetTimer != null) {
-                scrollRadiusUndoResetTimer.stop();
-                scrollRadiusUndoResetTimer = null;
-            }
+            if (scrollRadiusUndoResetTimer != null) scrollRadiusUndoResetTimer.stop();
         }
+    }
+
+    protected void togglePaintMode() {
+        if (!editMode) {
+            if (togglePaintModeMenuItem.isSelected() != paintMode)
+                togglePaintModeMenuItem.setSelected(paintMode);
+            return;
+        }
+        final Path editingPath = tracerPlugin.getEditingPath();
+        if (editingPath == null || !tracerPlugin.getPathAndFillManager().isSelected(editingPath)) {
+            canvasWarning("Editing path not selected");
+            if (togglePaintModeMenuItem.isSelected() != paintMode)
+                togglePaintModeMenuItem.setSelected(paintMode);
+            return;
+        }
+        // Auto-select nearest node if none is active yet (e.g., user pressed P
+        // right after Shift+E without moving the mouse over the path)
+        if (editingPath.getEditableNodeIndex() == -1) {
+            final Path matchPath = editingPath.getUseFitted()
+                    ? editingPath.getFitted() : editingPath;
+            int nearest = matchPath.indexNearestToCanvasPosition2D(
+                    last_x_in_pane_precise, last_y_in_pane_precise, nodeDiameter());
+            if (nearest == -1) nearest = 0; // fallback to first node
+            editingPath.setEditableNode(nearest);
+        }
+        setPaintMode(!paintMode);
+    }
+
+    private boolean updatingPaintMode;
+
+    private void setPaintMode(final boolean enable) {
+        if (updatingPaintMode) return;
+        updatingPaintMode = true;
+        try {
+            paintMode = enable;
+            paintStrokeActive = false;
+            paintRadiusDragging = false;
+            paintBrushCursorVisible = false;
+            paintCursorLabel = null;
+            if (paintBrushCursorTimer != null) paintBrushCursorTimer.stop();
+            if (togglePaintModeMenuItem.isSelected() != enable)
+                togglePaintModeMenuItem.setSelected(enable);
+            updatePaintModeLabel();
+        } finally {
+            updatingPaintMode = false;
+        }
+    }
+
+    private void updatePaintModeLabel() {
+        if (paintMode)
+            tracerPlugin.setCanvasLabelAllPanes(PAINT_MODE_LABEL + " r=" + paintBrushRadius);
+        else if (editMode)
+            tracerPlugin.setCanvasLabelAllPanes(EDIT_MODE_LABEL);
+        else
+            tracerPlugin.setCanvasLabelAllPanes(null);
+    }
+
+    protected boolean isPaintMode() {
+        return paintMode;
+    }
+
+    protected int getPaintBrushRadius() {
+        return paintBrushRadius;
     }
 
     private void pushEditUndo() {
@@ -1977,6 +2225,51 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             edPath.setRadius(r, edNode);
             redrawEditingPath(String.format("Radius set to %02f", r));
         }
+    }
+
+    /**
+     * Moves nodes around the cursor using a brush with cosine-squared falloff.
+     * The nearest node moves fully to the cursor position; flanking nodes within
+     * {@code paintBrushRadius} are displaced proportionally.
+     */
+    private void brushMoveNodes(final Path editingPath) {
+        // Resolve fitted path for nearest-node lookup (no distance threshold
+        // so fast drags don't outrun the nodes and stall painting)
+        final Path matchPath = editingPath.getUseFitted()
+                ? editingPath.getFitted() : editingPath;
+        final int centerNode = matchPath.indexNearestToCanvasPosition2D(
+                last_x_in_pane_precise, last_y_in_pane_precise, Double.MAX_VALUE);
+        if (centerNode == -1 || centerNode >= editingPath.size()) return;
+        editingPath.setEditableNode(centerNode);
+
+        // Compute cursor position in world coordinates
+        final double[] p = new double[3];
+        tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
+                last_y_in_pane_precise, plane, p);
+        final PointInCanvas offset = editingPath.getCanvasOffset();
+        final double cursorX = (p[0] - offset.x) * editingPath.x_spacing;
+        final double cursorY = (p[1] - offset.y) * editingPath.y_spacing;
+        final double cursorZ = (p[2] - offset.z) * editingPath.z_spacing;
+
+        // Displacement vector from the center node's current position
+        final PointInImage centerPos = editingPath.getNodeWithoutChecks(centerNode);
+        final double dx = cursorX - centerPos.x;
+        final double dy = cursorY - centerPos.y;
+        final double dz = cursorZ - centerPos.z;
+
+        editingPath.brushMove(centerNode, paintBrushRadius, dx, dy, dz);
+    }
+
+    private void brushBlendRadii(final Path editingPath) {
+        final Path matchPath = editingPath.getUseFitted() ? editingPath.getFitted() : editingPath;
+        final int centerNode = matchPath.indexNearestToCanvasPosition2D(
+                last_x_in_pane_precise, last_y_in_pane_precise, Double.MAX_VALUE);
+        if (centerNode == -1 || centerNode >= editingPath.size()) return;
+        editingPath.setEditableNode(centerNode);
+        editingPath.brushBlendRadii(centerNode, paintBrushRadius);
+        // Show center node radius as label below the brush circle
+        final double centerRadius = editingPath.getNodeRadius(centerNode);
+        paintCursorLabel = String.format("r=%.2f %s", centerRadius, tracerPlugin.spacing_units);
     }
 
     protected void moveEditingNodeToLastCanvasPosition(

@@ -1446,6 +1446,65 @@ public class Path implements Comparable<Path>, Cloneable {
     }
 
 	/**
+	 * Applies a cosine-squared-weighted displacement to nodes around a center
+	 * index. Used by paint-mode brush editing for efficient batch node movement.
+	 *
+	 * @param center the index of the node under the cursor
+	 * @param radius how many flanking nodes on each side to affect
+	 * @param dx     displacement in x (calibrated units)
+	 * @param dy     displacement in y
+	 * @param dz     displacement in z
+	 */
+	protected void brushMove(final int center, final int radius,
+	                         final double dx, final double dy, final double dz) {
+		final int lo = Math.max(0, center - radius);
+		final int hi = Math.min(size() - 1, center + radius);
+		final double halfPi = Math.PI / 2.0;
+		final Path counterpart = isFittedVersionOfAnotherPath() ? fittedVersionOf : getFitted();
+		final int cpSize = (counterpart != null) ? counterpart.size() : 0;
+		for (int i = lo; i <= hi; i++) {
+			final double cos = Math.cos(halfPi * (double) Math.abs(i - center) / radius);
+			final double w = cos * cos;
+			final PathNode node = nodes.get(i);
+			node.x += dx * w;
+			node.y += dy * w;
+			node.z += dz * w;
+			if (i < cpSize) {
+				final PathNode cn = counterpart.nodes.get(i);
+				cn.x = node.x;
+				cn.y = node.y;
+				cn.z = node.z;
+			}
+		}
+	}
+
+	/**
+	 * Smears the center node's radius to flanking nodes using cosine^2-weighted
+	 * interpolation. Each affected node's radius is pulled toward the center
+	 * node's radius proportionally to the brush weight.
+	 *
+	 * @param center the index of the center node (source radius)
+	 * @param radius the brush radius in node indices
+	 */
+	protected void brushBlendRadii(final int center, final int radius) {
+		final int lo = Math.max(0, center - radius);
+		final int hi = Math.min(size() - 1, center + radius);
+		final double halfPi = Math.PI / 2.0;
+		final double centerRadius = nodes.get(center).radius;
+		final Path counterpart = isFittedVersionOfAnotherPath() ? fittedVersionOf : getFitted();
+		final int cpSize = (counterpart != null) ? counterpart.size() : 0;
+		for (int i = lo; i <= hi; i++) {
+			final double cos = Math.cos(halfPi * (double) Math.abs(i - center) / radius);
+			final double w = cos * cos;
+			final PathNode node = nodes.get(i);
+			node.radius = node.radius + (centerRadius - node.radius) * w;
+			if (i < cpSize) {
+				counterpart.nodes.get(i).radius = node.radius;
+			}
+		}
+	}
+
+	/**
 	 * Gets the first node index associated with the specified image coordinates.
 	 * Returns -1 if no such node was found.
 	 *

@@ -548,6 +548,7 @@ class QueueJumpingKeyListener implements KeyListener {
 			switch (context.keyChar) {
 				case 'd', 'D' -> canvas.deleteEditingNode(false);
 				case 'i', 'I' -> canvas.appendLastCanvasPositionToEditingNode(false);
+				case 'p', 'P' -> canvas.togglePaintMode();
 				case 'r', 'R' -> canvas.assignRadiusToEditingNode(false);
 				case 'l', 'L' -> canvas.toggleEditingNode(true);
 				case 'm', 'M' -> canvas.moveEditingNodeToLastCanvasPosition(false);
