@@ -113,7 +113,9 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 					drawPath = p.getFitted();
 				}
 
-				final boolean isSelected = pathAndFillManager.isSelected(drawPath);
+				// Selection state is always tracked on the main (unfitted) path,
+				// not the fitted copy, so test against p rather than drawPath
+				final boolean isSelected = pathAndFillManager.isSelected(p);
 				if (!isSelected && plugin.isOnlySelectedPathsVisible()) continue;
 				if (plugin.showOnlyActiveCTposPaths && (imp.getC() != drawPath
 					.getChannel() || imp.getT() != drawPath.getFrame()))

@@ -662,8 +662,14 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 						+ "to compute the average color from all paths.");
 				return null;
 			}
+			// Use fitted positions when available, since those better
+			// represent the actual structure the user is tracing
+			final List<Path> resolvedPaths = new ArrayList<>(selectedPaths.size());
+			for (final Path p : selectedPaths) {
+				resolvedPaths.add(p.getUseFitted() && p.getFitted() != null ? p.getFitted() : p);
+			}
 			refColor = SpectralSimilarity.averageColorFromPaths(
-					img4d, new ArrayList<>(selectedPaths),
+					img4d, resolvedPaths,
 					cal.pixelWidth, cal.pixelHeight, cal.pixelDepth);
 			SNTUtils.log("Spectral similarity: reference color = " + Arrays.toString(refColor)
 					+ " (from " + selectedPaths.size() + " selected path(s))");

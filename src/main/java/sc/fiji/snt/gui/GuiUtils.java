@@ -1637,6 +1637,10 @@ public class GuiUtils {
 		return WARNING_COLOR;
 	}
 
+	public static Color linkColor() {
+		return LINK_COLOR;
+	}
+
 	public static JLabel shortSmallMsg(final String msg, final boolean enabled) {
 		final JLabel label = new JLabel(msg);
 		label.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");

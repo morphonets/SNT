@@ -565,14 +565,14 @@ public class SNT extends MultiDThreePanes implements
 
 	protected synchronized void undoLastSegment() {
 		if (confirmedSegmentSizes.isEmpty()) {
-			discreteMsg("No segment to undo");
+			showCanvasWarning("No segment to undo");
 			return;
 		}
 		if (temporaryPath != null) {
 			if (rubberBandTracing)
 				temporaryPath = null; // discard live preview silently
 			else {
-				discreteMsg("Confirm or cancel the current segment before undoing");
+				showCanvasWarning("Confirm or cancel the current segment before undoing");
 				return;
 			}
 		}
@@ -1336,7 +1336,7 @@ public class SNT extends MultiDThreePanes implements
 	protected boolean editModeAllowed(final boolean warnUserIfNot, final Path pathToEdit) {
 		final boolean uiReady = uiReadyForModeChange() || isEditModeEnabled();
 		if (warnUserIfNot && !uiReady) {
-			discreteMsg("Please finish current operation before editing paths");
+			showCanvasWarning("Please finish current operation before editing paths");
 			return false;
 		}
 		// Use provided path or detect from selection
@@ -1347,16 +1347,23 @@ public class SNT extends MultiDThreePanes implements
 		}
 		final boolean pathExists = editingPath != null;
 		if (warnUserIfNot && !pathExists) {
-			discreteMsg("You must select a single path in order to edit it");
+			showCanvasWarning("You must select a single path in order to edit it");
 			return false;
 		}
-		final boolean validPath = pathExists && !editingPath.getUseFitted();
-		if (warnUserIfNot && !validPath) {
-			discreteMsg(
-					"Only non-fitted paths can be edited.<br>Run \"Refine›Un-fit Path\" to proceed");
-			return false;
-		}
-		return uiReady && pathExists && validPath;
+		return uiReady && pathExists;
+	}
+
+	/**
+	 * Returns whether the path currently being edited is displayed as its fitted
+	 * version. Callers should use this to guard edit operations that cannot
+	 * meaningfully propagate between fitted and unfitted representations (e.g.,
+	 * structural edits such as insert/delete, or tree-level operations like
+	 * split/re-root).
+	 *
+	 * @return true if the editing path is in fitted-display mode
+	 */
+	protected boolean isEditingFittedPath() {
+		return editingPath != null && editingPath.getUseFitted();
 	}
 
 	protected void setEditingPath(final Path path) {
@@ -1587,11 +1594,14 @@ public class SNT extends MultiDThreePanes implements
 		}
 		else if (editing && !editingPath.isEditableNodeLocked()) {
 			// find the nearest node to this cursor 2D position.
-			// then activate the Z-slice of the retrieved node
-			final int eNode = editingPath.indexNearestToCanvasPosition2D(x, y,
+			// then activate the Z-slice of the retrieved node.
+			// When the fitted version is displayed, match against fitted nodes
+			// so the user clicks on what they see
+			final Path matchPath = editingPath.getUseFitted() ? editingPath.getFitted() : editingPath;
+			final int eNode = matchPath.indexNearestToCanvasPosition2D(x, y,
 					getXYCanvas().nodeDiameter());
 			if (eNode != -1) {
-				pim = editingPath.getNodeWithoutChecks(eNode);
+				pim = matchPath.getNodeWithoutChecks(eNode);
 				editingPath.setEditableNode(eNode);
 			}
 		}
@@ -2081,7 +2091,7 @@ public class SNT extends MultiDThreePanes implements
 		}
 
 		if (temporaryPath == null) {
-			discreteMsg("There is no temporary path to discard");
+			showCanvasWarning("There is no temporary path to discard");
 			return;
 		}
 
@@ -2098,7 +2108,7 @@ public class SNT extends MultiDThreePanes implements
 		// Is there an unconfirmed path? If so, warn people about it...
 		if (temporaryPath != null) {
 			if (!rubberBandTracing) {
-				discreteMsg("You need to confirm the last segment before canceling the path.");
+				showCanvasWarning("You need to confirm the last segment before canceling the path.");
 				return;
 			}
 			temporaryPath = null; // discard rubber band preview silently
@@ -2409,7 +2419,7 @@ public class SNT extends MultiDThreePanes implements
 
 	protected synchronized void replaceCurrentPath(final Path path) {
 		if (currentPath != null) {
-			discreteMsg("An active temporary path already exists...");
+			showCanvasWarning("An active temporary path already exists...");
 			return;
 		}
 		lastStartPointSet = true;
@@ -2432,7 +2442,7 @@ public class SNT extends MultiDThreePanes implements
 
 		if (currentPath == null) {
 			// this can happen through repeated hotkey presses
-			if (ui != null) discreteMsg("No temporary path to finish...");
+			if (ui != null) showCanvasWarning("No temporary path to finish...");
 			return;
 		}
 
@@ -3624,7 +3634,7 @@ public class SNT extends MultiDThreePanes implements
 		 * clicked on.
 		 */
 		if (pointsAtMaximum.isEmpty()) {
-			discreteMsg("No maxima at " + x_in_pane + ", " + y_in_pane);
+			showCanvasWarning("No maxima at " + x_in_pane + ", " + y_in_pane);
 			return;
 		}
 		final int[] p = pointsAtMaximum.get(pointsAtMaximum.size() / 2);
@@ -3707,6 +3717,88 @@ public class SNT extends MultiDThreePanes implements
 		if (pathAndFillManager.enableUIupdates)
 			new GuiUtils(getActiveWindow()).tempMsg(msg);
 	}
+
+	private static final int CANVAS_MSG_DURATION = 3000;
+	private String activeCanvasMessage;
+	private javax.swing.Timer canvasMessageTimer;
+
+	/**
+	 * Displays a timed message on the NW corner of all canvas panes.
+	 * Unlike {@link #discreteMsg(String)}, which uses a transient popup near
+	 * the lower-left that is easy to miss when zoomed in, this renders the
+	 * label directly into the canvas paint cycle so it is always visible.
+	 * <p>
+	 * Successive calls reset the timer. The label is auto-cleared after the
+	 * given duration. Callers that need to clear earlier can pass {@code null}.
+	 *
+	 * @param msg        the message text, or {@code null} to clear immediately
+	 * @param background the background color for the banner
+	 * @param durationMs how long the label stays visible (milliseconds)
+	 */
+	private void showCanvasMessage(final String msg, final Color background, final int durationMs) {
+		if (canvasMessageTimer != null) canvasMessageTimer.stop();
+		if (msg == null) {
+			clearCanvasMessage();
+			return;
+		}
+		// If the canvas is not available (e.g., image closed), fall back to
+		// discreteMsg which anchors a popup to whatever window is active, or
+		// logs to the console if no window is available either
+		if (getXYCanvas() == null) {
+			discreteMsg(msg);
+			return;
+		}
+		activeCanvasMessage = msg;
+		setCanvasLabelBackgroundAllPanes(background);
+		setCanvasLabelAllPanes(activeCanvasMessage);
+		canvasMessageTimer = new javax.swing.Timer(durationMs, e -> clearCanvasMessage());
+		canvasMessageTimer.setRepeats(false);
+		canvasMessageTimer.start();
+	}
+
+	/**
+	 * Displays a timed warning (amber background) on the canvas banner.
+	 *
+	 * @param msg        the warning text, or {@code null} to clear immediately
+	 * @param durationMs how long the label stays visible (milliseconds)
+	 */
+	protected void showCanvasWarning(final String msg, final int durationMs) {
+		showCanvasMessage(msg, GuiUtils.warningColor(), durationMs);
+	}
+
+	/** @see #showCanvasWarning(String, int) */
+	protected void showCanvasWarning(final String msg) {
+		showCanvasWarning(msg, CANVAS_MSG_DURATION);
+	}
+
+	/**
+	 * Displays a timed informational message (blue background) on the canvas
+	 * banner. Use for confirmations, status updates, and non-critical feedback.
+	 *
+	 * @param msg        the info text, or {@code null} to clear immediately
+	 * @param durationMs how long the label stays visible (milliseconds)
+	 */
+	protected void showCanvasInfo(final String msg, final int durationMs) {
+		final Color base = GuiUtils.linkColor();
+		showCanvasMessage(msg, new Color(base.getRed(), base.getGreen(), base.getBlue(), 100), durationMs);
+	}
+
+	/** @see #showCanvasInfo(String, int) */
+	protected void showCanvasInfo(final String msg) {
+		showCanvasInfo(msg, CANVAS_MSG_DURATION);
+	}
+
+	private void clearCanvasMessage() {
+		if (canvasMessageTimer != null) {
+			canvasMessageTimer.stop();
+			canvasMessageTimer = null;
+		}
+		if (activeCanvasMessage == null) return;
+
+		setCanvasLabelBackgroundAllPanes(null);
+		activeCanvasMessage = null;
+	}
+
 
 	protected boolean getConfirmation(final String msg, final String title) {
 		return new GuiUtils(getActiveWindow()).getConfirmation(msg, title);

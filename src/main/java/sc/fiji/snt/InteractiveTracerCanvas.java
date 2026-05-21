@@ -230,7 +230,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 // User still has to create ROI
                 waitingForRoiDrawing = true;
                 if (unsuitableToolForRoiSelection()) IJ.setTool("freehand");
-                getGuiUtils().tempMsg("Draw ROI around paths to be selected. Current tool: " + IJ.getToolName());
+                canvasInfo("Draw ROI around paths to be selected. Current tool: " + IJ.getToolName());
             }
         });
         return selectByRoi;
@@ -327,6 +327,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                     "No Connectable Nodes");
             return;
         }
+        if (unsupportedOnFittedPath("Connect paths")) return;
 
         // Default assignment: current path = child, previous path = parent
         Path childPath = tracerPlugin.getEditingPath();
@@ -737,7 +738,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void clickAtMaxPoint(final boolean join_modifier_pressed) {
         if (!tracerPlugin.accessToValidImageData()) {
-            tempMsg("This option requires valid image data to be loaded.");
+            canvasWarning("This option requires valid image data to be loaded.");
             return;
         }
         final int x = (int) Math.round(last_x_in_pane_precise);
@@ -803,7 +804,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             }
         }
         if (centerScaled == null) {
-            getGuiUtils().tempMsg("No selectable nodes in view");
+            canvasWarning("No selectable nodes in view");
             return;
         }
         tracerPlugin.startSholl(centerScaled);
@@ -817,7 +818,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
      */
     public Path selectNearestPathToMousePointer(final boolean addToExistingSelection) {
         if (pathAndFillManager.size() == 0) {
-            getGuiUtils().tempMsg("Nothing to select: There are no traced paths");
+            canvasWarning("Nothing to select: There are no traced paths");
             return null;
         }
 
@@ -828,7 +829,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             // it" checkbox in the GUI. We'll force select it.
             final Path onlyPath = pathAndFillManager.getPath(0);
             tracerPlugin.selectPath(onlyPath, addToExistingSelection);
-            getGuiUtils().tempMsg(onlyPath + " selected");
+            canvasInfo(onlyPath + " selected");
             return onlyPath;
         } else for (final Path path : pathAndFillManager.getPaths()) {
             if (!path.isSelected()) {
@@ -837,7 +838,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
         if (nodes.isEmpty()) {
             if (pathAndFillManager.getSelectedPaths().isEmpty())
-                getGuiUtils().tempMsg("Nothing to select. No paths in view");
+                canvasWarning("Nothing to select. No paths in view");
             // else the closest path to the pointer is an already pre-selected path in view
             return null;
         }
@@ -849,13 +850,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         final NearPointInCanvas<PointInCanvas> nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
         if (nearPoint == null) {
-            getGuiUtils().tempMsg("No selectable paths in view");
+            canvasWarning("No selectable paths in view");
             return null;
         }
         else {
             final Path selectedPath = nearPoint.getPath();
             tracerPlugin.selectPath(selectedPath, addToExistingSelection);
-            getGuiUtils().tempMsg(getShortName(selectedPath) + " selected");
+            canvasInfo(getShortName(selectedPath) + " selected");
             return selectedPath;
         }
     }
@@ -1127,7 +1128,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         getImage().deleteRoi();
         waitingForRoiDrawing = false;
         if (paths.isEmpty())
-            getGuiUtils().tempMsg("No paths selected. Invalid selection ROI?");
+            canvasWarning("No paths selected. Invalid selection ROI?");
         return !paths.isEmpty();
     }
 
@@ -1154,7 +1155,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         if (editMode && e.isAltDown() && !impossibleEdit(false)) {
             if (tracerPlugin.getEditingPath().isEditableNodeLocked()) {
                 if (!altDraggingNode) // show message only once, not on every drag event
-                    tempMsg("Node is locked. Unlock it first (L)");
+                    canvasWarning("Node is locked. Unlock it first (L)");
                 return;
             }
             if (!altDraggingNode) {
@@ -1189,8 +1190,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 startSigmaWizard(e.getX(), e.getY());
                 break;
             case SNTUI.WAITING_FOR_SIGMA_CHOICE:
-                getGuiUtils().tempMsg(
-                        "You must close the sigma palette to continue");
+                canvasWarning("You must close the sigma palette to continue");
                 break;
 
             default:
@@ -1216,19 +1216,35 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private boolean impossibleEdit(final boolean displayError) {
         boolean invalid = !tracerPlugin.getPathAndFillManager().isSelected(tracerPlugin
                 .getEditingPath());
-        if (invalid && displayError) getGuiUtils().tempMsg(
-                "Editing path not selected");
+        if (invalid && displayError) canvasWarning("Editing path not selected");
         if (!invalid) {
             invalid = (tracerPlugin.getEditingNode() == -1);
-            if (invalid && displayError) getGuiUtils().tempMsg("No node selected");
+            if (invalid && displayError) canvasWarning("No node selected");
         }
         return invalid;
+    }
+
+    /**
+     * Returns true (and optionally warns) if the current edit operation is
+     * unsupported on fitted paths. Structural edits (insert, delete) and
+     * tree-level operations (split, re-root, connect, tag) cannot meaningfully
+     * propagate between fitted and unfitted representations, so they are
+     * blocked when the path is displayed as fitted.
+     */
+    private boolean unsupportedOnFittedPath(final String operationLabel) {
+        if (!tracerPlugin.isEditingFittedPath()) return false;
+        tracerPlugin.showCanvasWarning(operationLabel + " not supported on fitted paths. Un-fit first.");
+        return true;
     }
 
     private void redrawEditingPath(final String msg) {
         redrawEditingPath(getGraphics2D(getGraphics()));
         repaint();
-        if (msg != null) tempMsg(msg);
+        if (msg != null) canvasInfo(msg);
+    }
+
+    private void canvasInfo(final String msg) {
+        tracerPlugin.showCanvasInfo(msg);
     }
 
     private void tempMsg(final String msg) {
@@ -1497,7 +1513,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         tracerPlugin.findPointInStack((int) Math.round(last_x_in_pane_precise), (int) Math.round(last_y_in_pane_precise), plane, p);
         tracerPlugin.getUI().getBookmarkManager().add(p[0], p[1], p[2], getImage());
         if (!tracerPlugin.getUI().getBookmarkManager().isShowing())
-            tempMsg("Bookmark added");
+            canvasInfo("Bookmark added");
     }
 
     protected void togglePauseTracing() {
@@ -1589,20 +1605,20 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         /** Handles the extend path menu item action. */
         private void handleExtendPath() {
             if (tracerPlugin.tracingHalted) {
-                tempMsg("Tracing functions currently disabled");
+                canvasWarning("Tracing functions currently disabled");
                 return;
             }
             if (pathAndFillManager.size() == 0) {
-                tempMsg("There are no finished paths to extend");
+                canvasWarning("There are no finished paths to extend");
                 return;
             }
             if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
-                tempMsg("Please finish current operation before extending path");
+                canvasWarning("Please finish current operation before extending path");
                 return;
             }
             final Path activePath = tracerPlugin.getSingleSelectedPath();
             if (activePath == null) {
-                getGuiUtils().tempMsg("No path selected. Please select a single path to be extended");
+                canvasWarning("No path selected. Please select a single path to be extended");
                 return;
             }
             tracerPlugin.replaceCurrentPath(activePath);
@@ -1667,15 +1683,15 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         private boolean handleForkNearest() {
             if (tracerPlugin.tracingHalted) {
-                tempMsg("Tracing functions currently disabled");
+                canvasWarning("Tracing functions currently disabled");
                 return true; // handled, just failed
             }
             if (!uiReadyForModeChange(SNTUI.WAITING_TO_START_PATH)) {
-                tempMsg("Please finish current operation before creating branch");
+                canvasWarning("Please finish current operation before creating branch");
                 return true;
             }
             if (pathAndFillManager.size() == 0) {
-                tempMsg("There are no finished paths to branch out from");
+                canvasWarning("There are no finished paths to branch out from");
                 return true;
             }
             selectNearestPathToMousePointer(false);
@@ -1685,7 +1701,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise, last_y_in_pane_precise, plane, p);
             final PointInImage joinPoint = pathAndFillManager.nearestJoinPointOnSelectedPaths(p[0], p[1], p[2]);
             if (joinPoint == null) {
-                tempMsg("No fork point found. Move cursor closer to a path node");
+                canvasWarning("No fork point found. Move cursor closer to a path node");
                 return true;
             }
             tracerPlugin.clickForTrace(last_x_in_pane_precise, last_y_in_pane_precise, plane, true);
@@ -1787,13 +1803,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void undoLastEditOperation() {
         if (editUndoStack.isEmpty()) {
-            tempMsg("Nothing to undo");
+            canvasWarning("Nothing to undo");
             return;
         }
         final Path editingPath = tracerPlugin.getEditingPath();
         if (editingPath == null) {
             editUndoStack.clear();
-            tempMsg("Nothing to undo");
+            canvasWarning("Nothing to undo");
             return;
         }
         editingPath.replaceNodes(editUndoStack.pop());
@@ -1804,7 +1820,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         if (impossibleEdit(warnOnFailure)) return;
         final Path editingPath = tracerPlugin.getEditingPath();
         if (editingPath.getEditableNodeIndex() < 0) {
-            tempMsg("No editable node detected!");
+            canvasWarning("No editable node detected!");
         } else {
             editingPath.setEditableNodeLocked(!editingPath.isEditableNodeLocked());
             redrawEditingPath("Lock toggled on active node");
@@ -1813,11 +1829,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void deleteEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
+        if (unsupportedOnFittedPath("Delete node")) return;
         final Path editingPath = tracerPlugin.getEditingPath();
         final PointInImage editingNode = editingPath.getNode(editingPath.getEditableNodeIndex());
         if (editingPath.size() > 2) {
             if (editingPath.getBranchPoints().stream().anyMatch(n -> n.equals(editingNode))) {
-                tempMsg("Cannot delete junction node. Try to split instead.");
+                canvasWarning("Cannot delete junction node. Try to split instead.");
                 return;
             }
             // Only push undo after validation passes
@@ -1827,7 +1844,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 redrawEditingPath("Node deleted");
             }
             catch (final IllegalArgumentException exc) {
-                tempMsg("Node deletion failed!");
+                canvasWarning("Node deletion failed!");
             }
         }
         else if (getGuiUtils().getConfirmation("Delete " +
@@ -1853,6 +1870,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final boolean warnOnFailure)
     {
         if (impossibleEdit(warnOnFailure)) return;
+        if (unsupportedOnFittedPath("Insert node")) return;
         pushEditUndo();
         final Path editingPath = tracerPlugin.getEditingPath();
         final int editingNode = editingPath.getEditableNodeIndex();
@@ -1868,12 +1886,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             redrawEditingPath("New node inserted (N=" + editingNode + ")");
         }
         catch (final IllegalArgumentException exc) {
-            tempMsg("Node insertion failed!");
+            canvasWarning("Node insertion failed!");
         }
     }
 
     protected void assignColorToEditingNode() {
         if (impossibleEdit(true)) return;
+        if (unsupportedOnFittedPath("Tag node")) return;
         final Path edPath = tracerPlugin.getEditingPath();
         final int edNode = edPath.getEditableNodeIndex();
         final JPopupMenu popup = GuiUtils.MenuItems.colorTagPopup(this, chosen -> {
@@ -1977,7 +1996,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             redrawEditingPath((warnOnFailure) ? "Node moved" : null);
         }
         catch (final IllegalArgumentException exc) {
-            tempMsg("Node displacement failed!");
+            canvasWarning("Node displacement failed!");
         }
     }
 
@@ -2003,12 +2022,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             redrawEditingPath(String.format("Node %d moved to Z=%3f", editingNode, newZ));
         }
         catch (final IllegalArgumentException exc) {
-            tempMsg("Adjustment of Z-position failed!");
+            canvasWarning("Adjustment of Z-position failed!");
         }
     }
 
     protected void assignTreeRootToEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
+        if (unsupportedOnFittedPath("Set tree root")) return;
         if (!getGuiUtils().getConfirmation(
                 "Set active node as tree root? This operation cannot be undone.",
                 "Confirm Re-root"))
@@ -2069,6 +2089,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     protected void splitTreeAtEditingNode(final boolean warnOnFailure) {
         if (impossibleEdit(warnOnFailure)) return;
+        if (unsupportedOnFittedPath("Split tree")) return;
         final Path editingPath = tracerPlugin.getEditingPath();
 
         try {
@@ -2084,7 +2105,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             final PointInImage editingPoint = editingPath.getNode(editingPath.getEditableNodeIndex());
 
             if (editingTree.getRoot().equals(editingPoint)) {
-                getGuiUtils().tempMsg("Cannot split tree at root node.");
+                canvasWarning("Cannot split tree at root node.");
                 return;
             }
 

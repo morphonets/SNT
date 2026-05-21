@@ -24,7 +24,6 @@ package sc.fiji.snt;
 
 import ij.ImageListener;
 import ij.ImagePlus;
-import ij.Prefs;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
 import ij.measure.Calibration;
@@ -260,7 +259,7 @@ public class SNTUI extends JDialog {
             SwingUtilities.invokeLater(() -> {
                 // Tier 2 (WARNING/ERROR): canvas label with top warning message
                 if (maxSev != PlausibilityCheck.Severity.INFO) {
-                    setWarningCanvasLabel("\u26a0 " + warnings.getFirst().message());
+                    setWarningCanvasLabel(warnings.getFirst().message());
                 }
                 // Tier 3 (ERROR): viewport tint only if assistant tab not frontmost
                 final boolean tint = maxSev == PlausibilityCheck.Severity.ERROR
@@ -654,30 +653,12 @@ public class SNTUI extends JDialog {
         return idx >= 0 && tp.getSelectedIndex() == idx;
     }
 
-    private String activeWarningLabel;
-    private javax.swing.Timer warningLabelTimer;
-
     private void setWarningCanvasLabel(final String label) {
-        activeWarningLabel = label;
-        plugin.setCanvasLabelAllPanes(label);
-        if (warningLabelTimer != null) warningLabelTimer.stop();
-        warningLabelTimer = new javax.swing.Timer(3000, e -> clearWarningCanvasLabel());
-        warningLabelTimer.setRepeats(false);
-        warningLabelTimer.start();
+        plugin.showCanvasWarning(label);
     }
 
     private void clearWarningCanvasLabel() {
-        if (warningLabelTimer != null) {
-            warningLabelTimer.stop();
-            warningLabelTimer = null;
-        }
-        if (activeWarningLabel == null) return;
-        // Only clear if the current label is still ours (not set by edit/pause mode)
-        final InteractiveTracerCanvas canvas = plugin.getXYCanvas();
-        if (canvas == null || activeWarningLabel.equals(canvas.getCanvasLabel())) {
-            plugin.setCanvasLabelAllPanes(null);
-        }
-        activeWarningLabel = null;
+        plugin.showCanvasWarning(null);
     }
 
     /**

@@ -403,11 +403,12 @@ public class PathAndFillManager extends DefaultHandler implements
     {
         selectedPathsSet.clear();
         if (selectedPaths != null) {
-            // selectedPathsSet.addAll(selectedPaths);
             selectedPaths.forEach(p -> {
-                Path pathToSelect = p;
-                if (pathToSelect.getUseFitted()) pathToSelect = pathToSelect.getFitted();
-                // pathToSelect.setSelected(true);
+                // Always store the main (unfitted) path in the selection set.
+                // Code that checks isSelected() uses the main path reference
+                // (e.g., TracerCanvas rendering, impossibleEdit guard).
+                final Path pathToSelect = p.isFittedVersionOfAnotherPath()
+                        ? p.fittedVersionOf : p;
                 selectedPathsSet.add(pathToSelect);
             });
         }

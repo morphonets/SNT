@@ -37,6 +37,7 @@ import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.BoundingBox;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.PointInCanvas;
 
 /**
@@ -54,6 +55,7 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	private boolean draw_crosshairs = true; // render crosshairs by default
 	private String cursorText; // text to be rendered near cursor
 	private String canvasText; // text to be rendered NW corner of canvas
+	private Color canvasTextBackground; // null = default gray
 	private Color annotationsColor;
 	private boolean waveInteractionsToIJ;
 	protected boolean waitingForRoiDrawing;
@@ -167,10 +169,8 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	}
 
 	private Font getScaledFont() {
-		final double size = SCALE_FACTOR * Math.max(12, Math.min(13 *
-			magnification, 30));
-		return new Font("SansSerif", Font.PLAIN, 13).deriveFont(
-			(float) size);
+		final double size = SCALE_FACTOR * Math.max(12, Math.min(13 * magnification, 30));
+		return new Font(Font.SANS_SERIF, Font.PLAIN, 13).deriveFont((float) size);
 	}
 
 	private void drawString(final Graphics2D g, final String str,
@@ -184,14 +184,23 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	private void drawCanvasText(final Graphics2D g, final String text) {
 		if (!validString(text)) return;
 		final int edge = 4;
-		final Font font = getScaledFont();
-		final FontMetrics fm = getFontMetrics(font);
-		final double w = fm.stringWidth(text) + edge;
+		final double canvasWidth = getWidth();
+		float fontSize = (float) (SCALE_FACTOR * 13);
+		Font font = new Font(Font.SANS_SERIF, Font.PLAIN, 13).deriveFont(fontSize);
+		FontMetrics fm = getFontMetrics(font);
+		// Shrink font if text overflows the canvas at low zoom
+		final double textWidth = fm.stringWidth(text) + edge;
+		if (textWidth > canvasWidth && canvasWidth > 0) {
+			fontSize = Math.max(8, fontSize * (float) (canvasWidth / textWidth));
+			font = font.deriveFont(fontSize);
+			fm = getFontMetrics(font);
+		}
 		final double h = fm.getHeight() + edge;
-		g.setColor(new Color(120, 120, 120, 100));
-		g.fill(new Rectangle2D.Double(0, 0, w, h));
+		final boolean customBg = canvasTextBackground != null;
+		g.setColor(customBg ? canvasTextBackground : new Color(120, 120, 120, 100));
+		g.fill(new Rectangle2D.Double(0, 0, canvasWidth, h));
 		g.setFont(font);
-		g.setColor(getAnnotationsColor());
+		g.setColor(customBg ? SNTColor.contrastColor(canvasTextBackground) : getAnnotationsColor());
 		g.drawString(text, edge / 2, edge / 2 + fm.getAscent());
 	}
 
@@ -344,6 +353,17 @@ public class MultiDThreePanesCanvas extends ImageCanvas {
 	 */
 	public void setCanvasLabel(final String label) {
 		canvasText = label;
+	}
+
+	/**
+	 * Sets the background color for the canvas label. When non-null, the label
+	 * is drawn with dark text on the specified background (useful for warnings).
+	 * When null, the default semi-transparent gray background is used.
+	 *
+	 * @param color the background color, or null to reset to default
+	 */
+	public void setCanvasLabelBackground(final Color color) {
+		canvasTextBackground = color;
 	}
 
 	/**

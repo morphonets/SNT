@@ -23,6 +23,7 @@
 package sc.fiji.snt.hyperpanes;
 
 import java.awt.*;
+import java.awt.Color;
 import java.awt.image.ColorModel;
 
 import ij.ImagePlus;
@@ -243,6 +244,14 @@ public class MultiDThreePanes implements PaneOwner {
 			xz_canvas.repaint();
 			zy_canvas.setCanvasLabel(label);
 			zy_canvas.repaint();
+		}
+	}
+
+	protected void setCanvasLabelBackgroundAllPanes(final Color color) {
+		if (xy_canvas != null) xy_canvas.setCanvasLabelBackground(color);
+		if (!single_pane) {
+			xz_canvas.setCanvasLabelBackground(color);
+			zy_canvas.setCanvasLabelBackground(color);
 		}
 	}
 

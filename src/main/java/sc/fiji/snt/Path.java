@@ -425,6 +425,28 @@ public class Path implements Comparable<Path>, Cloneable {
 		}
 		return parentPath.getNode(branchPointIndex);
 	}
+
+	/**
+	 * Returns the branch point as it should be rendered on screen. When the
+	 * parent path is displayed as its fitted version, returns the fitted node
+	 * so the connection line matches the visual representation. Otherwise
+	 * identical to {@link #getBranchPoint()}.
+	 *
+	 * @return the display branch point, or null if this is a primary path
+	 */
+	protected PointInImage getBranchPointDisplay() {
+		if (parentPath == null || branchPointIndex < 0) {
+			return null;
+		}
+		final Path displayParent = parentPath.getUseFitted()
+				&& parentPath.getFitted() != null
+				&& branchPointIndex < parentPath.getFitted().size()
+				? parentPath.getFitted() : parentPath;
+		if (branchPointIndex >= displayParent.size()) {
+			return null;
+		}
+		return displayParent.getNode(branchPointIndex);
+	}
 	
 	/**
 	 * Gets the index of the branch point in the parent path.
@@ -1381,12 +1403,18 @@ public class Path implements Comparable<Path>, Cloneable {
 		node.x = destination.x;
 		node.y = destination.y;
 		node.z = destination.z;
-		
-		// Update fitted path if it exists (avoid recursion by checking if this is not already a fitted path)
-		if (getFitted() != null && !isFittedVersionOfAnotherPath() && index < getFitted().size()) {
-			getFitted().moveNode(index, destination);
+
+		// Propagate to counterpart path. We set coordinates directly on the
+		// counterpart's node (instead of calling moveNode recursively) to avoid
+		// infinite recursion between fitted <-> unfitted paths.
+		final Path counterpart = isFittedVersionOfAnotherPath() ? fittedVersionOf : getFitted();
+		if (counterpart != null && index < counterpart.size()) {
+			final PathNode cn = counterpart.getNodeWithChecks(index);
+			cn.x = destination.x;
+			cn.y = destination.y;
+			cn.z = destination.z;
 		}
-		
+
 		// Note: Branch points now automatically stay in sync since they reference the actual parent nodes
 		// No manual synchronization needed!
 	}
@@ -1407,8 +1435,13 @@ public class Path implements Comparable<Path>, Cloneable {
         node.x = x;
         node.y = y;
         node.z = z;
-        if (getFitted() != null && !isFittedVersionOfAnotherPath() && index < getFitted().size()) {
-            getFitted().moveNode(index, x, y, z);
+        // Propagate to counterpart (direct assignment to avoid recursion)
+        final Path counterpart = isFittedVersionOfAnotherPath() ? fittedVersionOf : getFitted();
+        if (counterpart != null && index < counterpart.size()) {
+            final PathNode cn = counterpart.getNodeWithChecks(index);
+            cn.x = x;
+            cn.y = y;
+            cn.z = z;
         }
     }
 
@@ -2054,7 +2087,7 @@ public class Path implements Comparable<Path>, Cloneable {
         // Pre-compute values constant across the loop
         final BasicStroke connectionStroke = new BasicStroke(
                 (float) (canvas.nodeDiameter() / 3), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND);
-        final PointInImage branchPoint = getBranchPoint();
+        final PointInImage branchPoint = getBranchPointDisplay();
         final int editableNodeIndex = getEditableNodeIndex();
         final int defaultTransparency = canvas.getDefaultTransparency();
         final int outOfBoundsTransparency = canvas.getOutOfBoundsTransparency();
@@ -4357,6 +4390,15 @@ public class Path implements Comparable<Path>, Cloneable {
 		getNodeWithChecks(index).setRadius(r);
 		// Update tangents if this is the first radius being set
 		if (!hasTangents()) setGuessedTangents(2);
+		// Propagate to counterpart path:
+		// unfitted -> fitted
+		if (getFitted() != null && !isFittedVersionOfAnotherPath() && index < getFitted().size()) {
+			getFitted().getNodeWithChecks(index).setRadius(r);
+		}
+		// fitted -> unfitted
+		if (isFittedVersionOfAnotherPath() && index < fittedVersionOf.size()) {
+			fittedVersionOf.getNodeWithChecks(index).setRadius(r);
+		}
 	}
 
 	/**

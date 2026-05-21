@@ -1388,6 +1388,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         @Override
         void applyResults(final List<PathFitter> workers) {
             workers.forEach(PathFitter::applyFit);
+            // Wire up parent-child connections on the newly created fitted
+            // copies so branch points render correctly
+            workers.forEach(w -> w.getPath().rebuildConnectionsOfFittedVersion());
         }
 
         @Override
