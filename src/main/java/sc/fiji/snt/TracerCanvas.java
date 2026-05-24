@@ -82,6 +82,14 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 		 * if( plane == ThreePanes.XY_PLANE ) { current_z = imp.getZ() - 1; }
 		 */
 
+		final SNT plugin = pathAndFillManager.getPlugin();
+
+		// SeedOverlay sits at the bottom of the canvas overlay stack: drawn
+		// FIRST so paths, search artists, crosshairs, cursor text, and the
+		// canvas error/warning messages (showCanvasMessage / drawCanvasText)
+		// all render on top of it. Does nothing when no seeds have been imported.
+		SeedOverlayRenderer.draw(g, this, plugin.getSeedOverlay(), plugin);
+
 		super.drawOverlay(g); // render crosshairs, cursor text and canvas label
 
 		final int current_z = imp.getZ() - 1;
@@ -91,7 +99,6 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 				sa.drawProgressOnSlice(plane, current_z, this, g);
 		}
 
-		final SNT plugin = pathAndFillManager.getPlugin();
 		final Color selectedColor = plugin.selectedColor;
 		final Color deselectedColor = plugin.deselectedColor;
 
@@ -139,7 +146,6 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 				g.setStroke(stroke);
 			}
 		}
-
 	}
 
 	/* Keep another Graphics for double-buffering... */
@@ -188,7 +194,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 	 *
 	 * @return Either MultiDThreePanes.XY_PLANE, XZ_PLANE, or ZY_PLANE
 	 */
-	protected int getPlane() {
+    public int getPlane() {
 		return super.plane;
 	}
 

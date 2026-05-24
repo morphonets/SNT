@@ -23,7 +23,6 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
-import ij.gui.ImageCanvas;
 import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
@@ -40,8 +39,6 @@ import sc.fiji.snt.viewer.Bvv;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.TableColumn;
-import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -71,8 +68,13 @@ public class BookmarkManager {
     private final GuiUtils guiUtils;
     private final BookmarkModel model;
     private final BookmarkTable table;
-    private int visitingZoomPercentage;
+    /** Preferred zoom level applied when double-clicking a bookmark to visit it. */
+    private final GuiUtils.JTables.VisitingZoom visitingZoom = new GuiUtils.JTables.VisitingZoom();
     private JDialog bvvFrame; // floating dialog for BVV mode (non-modal, owned by viewer frame)
+    // Detachable table state, owned by the helper.
+    private JPanel panel; // cached panel built by getPanel()
+    private JScrollPane tableScroll; // single scroll pane wrapping `table` (created in assembleTable)
+    private GridBagConstraints tableScrollGbc; // captured constraints for re-docking
 
 
     /**
@@ -81,10 +83,10 @@ public class BookmarkManager {
     public BookmarkManager(final SNTUI sntui) {
         this.sntui = sntui;
         this.bvv = null;
-        this.guiUtils = sntui.guiUtils;
+        this.guiUtils = sntui != null ? sntui.guiUtils : new GuiUtils();
         model = new BookmarkModel(false);
         table = assembleTable(model);
-        resetVisitingZoom();
+        visitingZoom.resetFor(sntui != null ? sntui.plugin.getImagePlus() : null);
     }
 
     /**
@@ -164,12 +166,13 @@ public class BookmarkManager {
     }
 
     protected JPanel getPanel() {
-        final JPanel container = (sntui != null)
+        if (panel != null) return panel;
+        panel = (sntui != null)
                 ? SNTUI.InternalUtils.getTab() : new JPanel(new GridBagLayout());
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
         if (sntui != null) {
-            SNTUI.InternalUtils.addSeparatorWithURL(container, "Bookmarks:", true, gbc);
+            SNTUI.InternalUtils.addSeparatorWithURL(panel, "Bookmarks:", true, gbc);
             gbc.gridy++;
         }
         final String msg = (bvv != null)
@@ -180,30 +183,66 @@ public class BookmarkManager {
                 This pane stores image locations that you can quickly (re)visit while \
                 tracing. Bookmarks can be saved to the workspace directory using the \
                 toolbar button or via File>Save Session.
-                
+
                 To create a bookmark: Right-click on the image and choose "Bookmark Cursor \
                 Location" from the contextual menu (or press Shift+B). To bookmark crossovers \
                 and other positions along paths use the menu in the navigation toolbar of the \
                 Path Manager.
                 """;
         gbc.weighty = 0.0;
-        container.add(GuiUtils.longSmallMsg(msg, container), gbc);
+        panel.add(GuiUtils.longSmallMsg(msg, panel), gbc);
         gbc.gridy++;
-        container.add(assembleHighlightToolbar(), gbc);
+        panel.add(assembleHighlightToolbar(), gbc);
         gbc.gridy++;
         gbc.weighty = 0.95;
-        container.add(table.getContainer(), gbc);
+        // Use the cached scroll pane (created in assembleTable) so the
+        // DetachableTable helper can move it in and out of a floating dialog.
+        // Capture the constraints used here so redockTableScroll() can
+        // restore the pane to the same grid cell after a detach.
+        tableScrollGbc = (GridBagConstraints) gbc.clone();
+        panel.add(tableScroll, tableScrollGbc);
         gbc.gridy++;
         gbc.weighty = 0.0;
-        container.add(assembleToolbar(), gbc);
+        panel.add(assembleToolbar(), gbc);
         // Initialize column widths after layout is complete
         SwingUtilities.invokeLater(() -> resetOrResizeColumns(false, true));
-        return container;
+        return panel;
+    }
+
+    /**
+     * Re-attaches the table scroll pane to its original grid cell after a
+     * dock. Invoked by the {@link GuiUtils.JTables.DetachableTable} helper.
+     * GridBag constraints aren't preserved across remove/add, so we replay
+     * the cloned constraints captured by {@link #getPanel()}.
+     */
+    private void redockTableScroll() {
+        if (panel == null || tableScroll == null || tableScrollGbc == null) return;
+        panel.add(tableScroll, tableScrollGbc);
+        panel.revalidate();
+        panel.repaint();
     }
 
     private BookmarkTable assembleTable(final BookmarkModel model) {
         final BookmarkTable table = new BookmarkTable(model);
-        table.setComponentPopupMenu(assembleTablePopupMenu(table));
+        final JPopupMenu pMenu = assembleTablePopupMenu(table);
+        table.setComponentPopupMenu(pMenu);
+        // Cache the scroll pane so the detacher can move it between dock and
+        // floating dialog. BookmarkTable.getContainer() copies the table's
+        // popup onto the scroll pane, so we must set the popup BEFORE this.
+        tableScroll = table.getContainer();
+        // Detach/Dock toggle, placed right after Resize/Reset Columns so the
+        // table-management actions stay grouped. The Searchable items are
+        // appended last so they remain at the bottom of the popup.
+        final GuiUtils.JTables.DetachableTable tableDetacher = new GuiUtils.JTables.DetachableTable(
+                tableScroll, "Bookmarks", this::redockTableScroll);
+        tableDetacher.installMenuItem(pMenu);
+        GuiUtils.JTables.assignSearchable(table, element -> {
+            if (element == null) return "";
+            if (element instanceof Color color) {
+                return BookmarkTable.ColorCellEditor.getColorName(color);
+            }
+            return element.toString();
+        }, pMenu);
         if (bvv != null) {
             // Prevent the table's searchable from consuming BVV shortcuts.
             // NONE means "do nothing" the keystroke falls through to the BVV viewer.
@@ -251,45 +290,29 @@ public class BookmarkManager {
     }
 
     private void resetOrResizeColumns(final boolean reset, final boolean resize) {
-        assert table != null;
-        assert model != null;
-        if (reset) {
-            final TableColumnModel tcm = table.getColumnModel();
-            for (int i = 0; i < model.getColumnCount() - 1; i++) {
-                int location = tcm.getColumnIndex(model.getColumnName(i));
-                tcm.moveColumn(location, i);
-            }
-        }
-        if (resize) {
-            // SNT: {Tag, Label, X, Y, Z, C, T}; BVV: {Tag, Label, X, Y, Z, Size}
-            final float[] columnWidthPercentage = (bvv != null)
-                    ? new float[]{0.05f, 0.50f, 0.12f, 0.12f, 0.12f, 0.09f}   // BVV: Tag|Label|X|Y|Z|Size
-                    : new float[]{0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f}; // SNT: Tag|Label|X|Y|Z|C|T
-            final int tW = table.getColumnModel().getTotalColumnWidth();
-            final TableColumnModel jTableColumnModel = table.getColumnModel();
-            final int cantCols = jTableColumnModel.getColumnCount();
-            for (int i = 0; i < cantCols; i++) {
-                final TableColumn column = jTableColumnModel.getColumn(i);
-                column.setPreferredWidth(Math.round(columnWidthPercentage[i] * tW));
-            }
-        }
+        if (table == null || model == null) return;
+        if (reset) GuiUtils.JTables.resetColumnOrder(table);
+        if (resize) GuiUtils.JTables.resizeColumns(table, columnWidthFractions());
+    }
+
+    /**
+     * Preferred width fractions for the bookmark table: SNT mode shows
+     * {@code {Tag, Label, X, Y, Z, C, T}} (7 columns) and BVV mode shows
+     * {@code {Tag, Label, X, Y, Z, Size}} (6 columns).
+     */
+    private float[] columnWidthFractions() {
+        return (bvv != null)
+                ? new float[]{0.05f, 0.50f, 0.12f, 0.12f, 0.12f, 0.09f}
+                : new float[]{0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
     }
 
     private JPopupMenu assembleTablePopupMenu(final BookmarkTable table) {
         final JPopupMenu pMenu = new JPopupMenu();
-        JMenuItem mi = new JMenuItem("Deselect / Select All", IconFactory.menuIcon(IconFactory.GLYPH.CHECK_DOUBLE));
-        mi.addActionListener(e -> {
-            if (table.getSelectedRows().length > 0) {
-                table.clearSelection();
-            } else if (model.getRowCount() > 0) {
-                table.setRowSelectionInterval(0, model.getRowCount() - 1);
-            }
-            recordCmd("clearSelection()"); // Note: only records clear, not select all
-        });
-        pMenu.add(mi);
+        pMenu.add(GuiUtils.JTables.deselectSelectAllMenuItem(table,
+                () -> recordCmd("clearSelection()"))); // recordCmd only records clear, not select all
         pMenu.addSeparator();
 
-        mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
+        JMenuItem mi = new JMenuItem("Rename...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
             final int[] rows = table.getSelectedRows();
@@ -393,21 +416,13 @@ public class BookmarkManager {
         pMenu.add(mi);
 
         pMenu.addSeparator();
-        mi = new JMenuItem("Resize/Reset Columns", IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
-        mi.addActionListener(e -> {
-            resetOrResizeColumns(true, true);
-            recordComment("Bookmark Manager: resizeColumns()");
-        });
-        pMenu.add(mi);
-        // Disabled type-to-search: search is only accessible via the context menu.
-        // This frees single-key shortcuts (H, O) for hold-to-toggle behavior.
-        GuiUtils.JTables.assignSearchable(table, element -> {
-            if (element == null) return "";
-            if (element instanceof Color color) {
-                return BookmarkTable.ColorCellEditor.getColorName(color);
-            }
-            return element.toString();
-        }, pMenu);
+        pMenu.add(GuiUtils.JTables.resetAndResizeColumnsMenuItem(
+                table, () -> recordComment("Bookmark Manager: resizeColumns()"),
+                columnWidthFractions()));
+        // Detach/Dock and Searchable items are appended in assembleTable() so
+        // they can reference the scroll pane and stay grouped with other
+        // table-management actions (the Searchable items will be the last
+        // entries in the menu).
         return pMenu;
     }
 
@@ -441,7 +456,7 @@ public class BookmarkManager {
             byChannel.computeIfAbsent(b.c, k -> new ArrayList<>()).add(b);
         }
         final List<Integer> channels = new ArrayList<>(byChannel.keySet());
-        final List<Bookmark> seedList = byChannel.get(channels.get(0));
+        final List<Bookmark> seedList = byChannel.get(channels.getFirst());
         final List<List<Bookmark>> otherLists = new ArrayList<>();
         for (int ci = 1; ci < channels.size(); ci++)
             otherLists.add(byChannel.get(channels.get(ci)));
@@ -698,24 +713,6 @@ public class BookmarkManager {
         }
     }
 
-    void resetVisitingZoom() {
-        if (sntui == null) return;
-        try {
-            final ImagePlus imp = sntui.plugin.getImagePlus();
-            final ImageCanvas canvas = (imp == null) ? null : imp.getCanvas();
-            if (canvas == null) {
-                visitingZoomPercentage = 600;
-                return;
-            }
-            final double currentMag = canvas.getMagnification();
-            final double nextUp1x = ImageCanvas.getHigherZoomLevel(currentMag);
-            final double nextUp2x = ImageCanvas.getHigherZoomLevel(nextUp1x);
-            visitingZoomPercentage = (int) Math.round(nextUp2x * 100);
-        } catch (final NullPointerException ignored) {
-            visitingZoomPercentage = 600;
-        }
-    }
-
     private void highlightBookmarks() {
         if (noBookmarksError()) return;
         final ImagePlus imp = sntui.plugin.getImagePlus();
@@ -843,9 +840,7 @@ public class BookmarkManager {
         if (sntui != null) {
             tb.addSeparator();
             tb.add(Box.createHorizontalGlue());
-            final JSpinner spinner = GuiUtils.integerSpinner(Math.clamp(visitingZoomPercentage, 25, 3200),
-                    25, 3200, 50, true);
-            spinner.addChangeListener(e -> visitingZoomPercentage = (int) spinner.getValue());
+            final JSpinner spinner = visitingZoom.buildSpinner();
             spinner.setToolTipText("The preferred zoom level (between 25 and 3200%) for visiting a bookmarked location");
             final JButton autoButton = GuiUtils.Buttons.undo();
             autoButton.setToolTipText("<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
@@ -853,12 +848,11 @@ public class BookmarkManager {
                 if (null == sntui.plugin.getImagePlus()) {
                     sntui.showStatus("Current zoom unknown: No image is loaded...", true);
                 } else {
-                    resetVisitingZoom();
-                    visitingZoomPercentage = Math.clamp(visitingZoomPercentage, 25, 3200);
-                    spinner.setValue(visitingZoomPercentage);
+                    visitingZoom.resetFor(sntui.plugin.getImagePlus());
+                    spinner.setValue(visitingZoom.percentage());
                 }
             });
-            tb.add(new JLabel("Preferred zoom level (%): "));
+            tb.add(new JLabel("Visiting zoom level (%): "));
             tb.add(spinner);
             tb.add(autoButton);
         }
@@ -933,7 +927,7 @@ public class BookmarkManager {
             imp.setPosition(b.c, (int) b.z, b.t);
         }
         // Side views don't need setPosition - they show all Z by definition
-        ImpUtils.zoomTo(imp, (double) visitingZoomPercentage / 100, (int) viewX, (int) viewY);
+        ImpUtils.zoomTo(imp, visitingZoom.fraction(), (int) viewX, (int) viewY);
     }
 
     private void goTo(final int row, final ImagePlus imp) {
@@ -1472,7 +1466,7 @@ class BookmarkTable extends JTable {
         return result;
     }
 
-    /** Renderer for the Tag/Color column */
+    /** Renderer for the Tag column header: displays icon instead of text */
     private static class ColorCellRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
@@ -1560,7 +1554,6 @@ class BookmarkTable extends JTable {
         }
     }
 
-    /** Renderer for the Tag column header - displays icon instead of text */
 }
 
 class BookmarkModel extends AbstractTableModel {

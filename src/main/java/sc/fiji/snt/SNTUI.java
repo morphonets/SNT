@@ -144,6 +144,7 @@ public class SNTUI extends JDialog {
     private final PathManagerUI pmUI;
     private final FillManagerUI fmUI;
     private final BookmarkManager bookmarkManager;
+    private SeedManager seedManager;
     private final NotesUI notesui;
     private final DelineationsManager delineationsManager;
     /* Reconstruction Viewer */
@@ -409,16 +410,19 @@ public class SNTUI extends JDialog {
         tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
         tabbedPane.addTab("3D", tab3);
         tabbedPane.addTab("Delineations", delineationsManager.getPanel());
+        seedManager = new SeedManager(this);
+        tabbedPane.addTab("Seeds", seedManager);
         tabbedPane.addTab("Notes", notesui.getPanel());
 
-        // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Notes
+        // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Seeds, Notes
         tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
         tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
         tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.USER_DOCTOR));
         tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
         tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
         tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
-        tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
+        tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.SEEDLING));
+        tabbedPane.setIconAt(7, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
 
         setJMenuBar(createMenuBar());
         setLayout(new GridBagLayout());
@@ -438,6 +442,7 @@ public class SNTUI extends JDialog {
         //registerTabInCmdFInder("Options Tab", "Options Tab");
         registerTabInCmdFInder("Assistant Tab", "Curation Assistant");
         registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
+        registerTabInCmdFInder("Seeds Tab", "Seeds (Anchor Points) Manager");
         //registerTabInCmdFInder("3D Tab", "3D Viewers");
         registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
         registerTabInCmdFInder("Notes Tab", "Notepad");
@@ -945,6 +950,7 @@ public class SNTUI extends JDialog {
         commandFinder.dispose();
         pmUI.dispose();
         fmUI.dispose();
+        if (seedManager != null) seedManager.dispose();
         if (recViewer != null) recViewer.dispose();
         if (recorder != null) recorder.dispose();
         dispose();

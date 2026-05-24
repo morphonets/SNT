@@ -2197,7 +2197,7 @@ public class GuiUtils {
 	public static double extractDouble(final JTextField textfield) {
 		try {
 			final NumberFormat nf = NumberFormat.getInstance(Locale.US);
-			final Number number = nf.parse(textfield.getText());
+			final Number number = nf.parse(textfield.getText().trim());
 			return number.doubleValue();
 		}
 		catch (final NullPointerException | ParseException ignored) {
@@ -3920,6 +3920,285 @@ public class GuiUtils {
 					}
 				});
 			});
+		}
+
+		/**
+		 * Stateful helper that extracts a {@link JScrollPane} from its current
+		 * parent into a free-floating, modeless {@link JDialog}, and re-attaches
+		 * it on demand. Designed for "Detach Table / Dock Table" UI patterns.
+		 * <p>
+		 * Because Swing layouts (notably {@code GridBagLayout}) don't preserve
+		 * per-component constraints across {@code remove}/{@code add}, the
+		 * {@code redocker} callback supplied by the caller is responsible for
+		 * re-adding the scroll pane to its original parent with the appropriate
+		 * constraints.
+		 * <p>
+		 * Closing the detached dialog (window-close button) triggers a dock.
+		 *
+		 * @see #installMenuItem(JPopupMenu)
+		 */
+		public static class DetachableTable {
+
+			private final JScrollPane scroll;
+			private final String detachedTitle;
+			private final Runnable redocker;
+			private final Dimension detachedSize;
+			private JDialog dialog;
+
+			/**
+			 * @param scroll        the scroll pane that wraps the JTable
+			 * @param detachedTitle title for the detached {@link JDialog}
+			 * @param redocker      caller-supplied logic that re-adds
+			 *                      {@code scroll} to its original parent with
+			 *                      the correct layout constraints; called once
+			 *                      per dock (including when the user closes
+			 *                      the detached window)
+			 */
+			public DetachableTable(final JScrollPane scroll, final String detachedTitle,
+			                       final Runnable redocker) {
+				this(scroll, detachedTitle, redocker, new Dimension(500, 240));
+			}
+
+			/**
+			 * @param detachedSize initial size of the detached {@link JDialog}
+			 *                     (e.g. {@code new Dimension(500, 240)})
+			 */
+			public DetachableTable(final JScrollPane scroll, final String detachedTitle,
+			                       final Runnable redocker, final Dimension detachedSize) {
+				this.scroll = scroll;
+				this.detachedTitle = detachedTitle;
+				this.redocker = redocker;
+				this.detachedSize = detachedSize;
+			}
+
+			/** @return {@code true} when the table is currently floating in its own dialog. */
+			public boolean isDetached() {
+				return dialog != null;
+			}
+
+			/** Detaches into a floating dialog. No-op if already detached. */
+			public void detach() {
+				if (isDetached()) return;
+				final Container parent = scroll.getParent();
+				final Window owner = SwingUtilities.getWindowAncestor(scroll);
+				if (parent != null) {
+					parent.remove(scroll);
+					parent.revalidate();
+					parent.repaint();
+				}
+				dialog = new JDialog(owner instanceof Frame f ? f : null, detachedTitle, false);
+				dialog.getRootPane().putClientProperty("Window.style", "small");
+				dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
+				dialog.addWindowListener(new WindowAdapter() {
+					@Override
+					public void windowClosing(final WindowEvent e) {
+						dock();
+					}
+				});
+				dialog.getContentPane().add(scroll, BorderLayout.CENTER);
+				if (detachedSize != null) dialog.setSize(detachedSize);
+				else dialog.pack();
+				if (owner != null) dialog.setLocationRelativeTo(owner);
+				dialog.setVisible(true);
+			}
+
+			/** Re-attaches via the caller's {@code redocker}. No-op if already docked. */
+			public void dock() {
+				if (!isDetached()) return;
+				dialog.getContentPane().remove(scroll);
+				dialog.dispose();
+				dialog = null;
+				if (redocker != null) redocker.run();
+			}
+
+			/** Convenience: {@link #dock()} when detached, {@link #detach()} otherwise. */
+			public void toggle() {
+				if (isDetached()) dock(); else detach();
+			}
+
+			/**
+			 * Adds a "Detach Table" / "Dock Table" toggle item to the given
+			 * popup menu. The label is kept in sync via a
+			 * {@link javax.swing.event.PopupMenuListener}, so closing the
+			 * detached dialog with its window-close button is reflected next
+			 * time the popup opens.
+			 *
+			 * @param menu the popup to append the item to
+			 * @return the installed {@link JMenuItem} (already added to {@code menu})
+			 */
+			public JMenuItem installMenuItem(final JPopupMenu menu) {
+				final JMenuItem item = new JMenuItem("Detach Table",
+						IconFactory.menuIcon(IconFactory.GLYPH.EXTERNAL_LINK));
+				item.addActionListener(e -> {
+					toggle();
+					item.setText(isDetached() ? "Dock Table" : "Detach Table");
+				});
+				menu.add(item);
+				menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+					@Override
+					public void popupMenuWillBecomeVisible(final javax.swing.event.PopupMenuEvent e) {
+						item.setText(isDetached() ? "Dock Table" : "Detach Table");
+					}
+					@Override public void popupMenuWillBecomeInvisible(final javax.swing.event.PopupMenuEvent e) {}
+					@Override public void popupMenuCanceled(final javax.swing.event.PopupMenuEvent e) {}
+				});
+				return item;
+			}
+		}
+
+		/**
+		 * Common "Deselect / Select All" toggle menu item. Clears the
+		 * selection if any rows are selected; otherwise selects every row.
+		 *
+		 * @param table    the table whose selection is toggled
+		 * @param onChange optional callback invoked after the selection
+		 *                 mutates (e.g., for recording / scripting);
+		 *                 may be {@code null}
+		 */
+		public static JMenuItem deselectSelectAllMenuItem(final JTable table, final Runnable onChange) {
+			final JMenuItem mi = new JMenuItem("Deselect / Select All",
+					IconFactory.menuIcon(IconFactory.GLYPH.CHECK_DOUBLE));
+			mi.addActionListener(e -> {
+				if (table.getSelectedRows().length > 0) {
+					table.clearSelection();
+				} else if (table.getRowCount() > 0) {
+					table.setRowSelectionInterval(0, table.getRowCount() - 1);
+				}
+				if (onChange != null) onChange.run();
+			});
+			return mi;
+		}
+
+		/**
+		 * Restores the table's column order to match the model order (in
+		 * case the user dragged columns around).
+		 */
+		public static void resetColumnOrder(final JTable table) {
+			final javax.swing.table.TableColumnModel cm = table.getColumnModel();
+			final javax.swing.table.TableModel m = table.getModel();
+			if (cm == null || m == null) return;
+			for (int i = 0; i < m.getColumnCount(); i++) {
+				final int loc = cm.getColumnIndex(m.getColumnName(i));
+				if (loc != i) cm.moveColumn(loc, i);
+			}
+		}
+
+		/**
+		 * Applies a sequence of preferred column widths to the table, each
+		 * expressed as a fraction of the current total column width. If
+		 * fewer fractions are supplied than the table has columns, the
+		 * trailing columns are left untouched.
+		 *
+		 * @param table          the table to resize
+		 * @param widthFractions fractions of the total column width
+		 *                       (e.g. {@code 0.10f, 0.20f, …}); ignored
+		 *                       when {@code null} or empty
+		 */
+		public static void resizeColumns(final JTable table, final float... widthFractions) {
+			if (widthFractions == null || widthFractions.length == 0) return;
+			final javax.swing.table.TableColumnModel cm = table.getColumnModel();
+			final int total = cm.getTotalColumnWidth();
+			final int n = Math.min(cm.getColumnCount(), widthFractions.length);
+			for (int i = 0; i < n; i++) {
+				cm.getColumn(i).setPreferredWidth(Math.round(widthFractions[i] * total));
+			}
+		}
+
+		/**
+		 * "Resize/Reset Columns" menu item that {@linkplain #resetColumnOrder
+		 * restores model column order} and then
+		 * {@linkplain #resizeColumns applies width fractions}.
+		 *
+		 * @param table          the table to act on
+		 * @param onAction       optional callback fired after the operation
+		 *                       (e.g., for recording); may be {@code null}
+		 * @param widthFractions fractions used by the resize step; pass an
+		 *                       empty array to only restore column order
+		 */
+		public static JMenuItem resetAndResizeColumnsMenuItem(final JTable table,
+		                                                     final Runnable onAction,
+		                                                     final float... widthFractions) {
+			final JMenuItem mi = new JMenuItem("Resize/Reset Columns",
+					IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
+			mi.addActionListener(e -> {
+				resetColumnOrder(table);
+				resizeColumns(table, widthFractions);
+				if (onAction != null) onAction.run();
+			});
+			return mi;
+		}
+
+		/**
+		 * Stateful "visiting zoom" helper used by table panels that navigate
+		 * the canvas on double-click (BookmarkManager, CurationManager,
+		 * SeedOverlayPanel). Holds the percentage, exposes it as a fraction
+		 * (for {@code ImpUtils.zoomTo(...)}), and produces a bound
+		 * {@link JSpinner}. The default is roughly two zoom steps above the
+		 * current canvas magnification, falling back to
+		 * {@value #DEFAULT_PERCENT}% when no image is loaded.
+		 */
+		public static class VisitingZoom {
+
+			public static final int MIN_PERCENT = 25;
+			public static final int MAX_PERCENT = 3200;
+			public static final int DEFAULT_PERCENT = 600;
+			private static final int STEP = 50;
+
+			private int percentage;
+
+			public VisitingZoom() { this(DEFAULT_PERCENT); }
+
+			public VisitingZoom(final int initialPercentage) {
+				this.percentage = clamp(initialPercentage);
+			}
+
+			/** @return current zoom level in percent (in {@code [25, 3200]}). */
+			public int percentage() { return percentage; }
+
+			/** @return current zoom level as a fraction (e.g. {@code 6.0} for 600%). */
+			public double fraction() { return percentage / 100.0; }
+
+			/** Sets the percentage, clamped to the allowed range. */
+			public void setPercentage(final int p) { this.percentage = clamp(p); }
+
+			/**
+			 * Resets the percentage to roughly two zoom steps above the
+			 * image canvas's current magnification, or
+			 * {@value #DEFAULT_PERCENT}% when {@code imp == null} or has no
+			 * canvas yet.
+			 */
+			public void resetFor(final ij.ImagePlus imp) {
+				try {
+					if (imp == null) { percentage = DEFAULT_PERCENT; return; }
+					final ij.gui.ImageCanvas canvas = imp.getCanvas();
+					if (canvas == null) { percentage = DEFAULT_PERCENT; return; }
+					final double currentMag = canvas.getMagnification();
+					final double nextUp1x = ij.gui.ImageCanvas.getHigherZoomLevel(currentMag);
+					final double nextUp2x = ij.gui.ImageCanvas.getHigherZoomLevel(nextUp1x);
+					percentage = clamp((int) Math.round(nextUp2x * 100));
+				} catch (final NullPointerException ignored) {
+					percentage = DEFAULT_PERCENT;
+				}
+			}
+
+			/**
+			 * Builds a {@link JSpinner} bound to this state. Editing the
+			 * spinner updates the percentage; external mutations need to
+			 * call {@link JSpinner#setValue(Object) setValue} on the spinner
+			 * directly.
+			 */
+			public JSpinner buildSpinner() {
+				final JSpinner s = GuiUtils.integerSpinner(
+						percentage, MIN_PERCENT, MAX_PERCENT, STEP, true);
+				s.setToolTipText("Zoom level (" + MIN_PERCENT + "–" + MAX_PERCENT
+						+ "%) used when navigating to a row");
+				s.addChangeListener(e -> setPercentage((int) s.getValue()));
+				return s;
+			}
+
+			private static int clamp(final int p) {
+				return Math.clamp(p, MIN_PERCENT, MAX_PERCENT);
+			}
 		}
 	}
 

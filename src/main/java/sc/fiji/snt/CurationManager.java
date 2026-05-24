@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
 import ij.ImagePlus;
-import ij.gui.ImageCanvas;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
@@ -118,12 +117,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JToggleButton liveToggle;
     private JButton onDemandButton;
     // Navigation
-    private int visitingZoomPercentage;
+    /** Preferred zoom level applied when navigating to a flagged issue. */
+    private final GuiUtils.JTables.VisitingZoom visitingZoom = new GuiUtils.JTables.VisitingZoom();
     // Menus
     private JPopupMenu optionsMenu;
-    // Detachable table
+    // Detachable table (state is owned by the helper)
     private JScrollPane tableScroll;
-    private JDialog detachedDialog;
+    private GuiUtils.JTables.DetachableTable tableDetacher;
 
 
     public CurationManager(final SNTUI sntui, final PlausibilityMonitor monitor) {
@@ -134,7 +134,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 tableModel::placeholderLine1, tableModel::placeholderLine2);
         monitor.addWarningListener(this);
         configureTable();
-        resetVisitingZoom();
+        visitingZoom.resetFor(sntui != null ? sntui.plugin.getImagePlus() : null);
     }
 
     /**
@@ -143,9 +143,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
      */
     public void dispose() {
         monitor.removeWarningListener(this);
-        if (detachedDialog != null) {
-            detachedDialog.dispose();
-            detachedDialog = null;
+        if (tableDetacher != null && tableDetacher.isDetached()) {
+            tableDetacher.dock(); // ensure the floating dialog is closed
         }
     }
 
@@ -284,10 +283,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         popup.addSeparator();
 
         // Preferred zoom level: inline panel with spinner + reset
-        final JSpinner zoomSpinner = GuiUtils.integerSpinner(
-                Math.clamp(visitingZoomPercentage, 25, 3200), 25, 3200, 50, true);
-        zoomSpinner.addChangeListener(e -> visitingZoomPercentage = (int) zoomSpinner.getValue());
-        zoomSpinner.setToolTipText( "Preferred zoom level (25–3200%) when navigating to an issue location");
+        final JSpinner zoomSpinner = visitingZoom.buildSpinner();
+        zoomSpinner.setToolTipText("Preferred zoom level (25–3200%) when navigating to an issue location");
 
         final JPanel zoomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         zoomPanel.setOpaque(false);
@@ -303,34 +300,22 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (sntui.plugin.getImagePlus() == null) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
             } else {
-                resetVisitingZoom();
-                visitingZoomPercentage = Math.clamp(visitingZoomPercentage, 25, 3200);
-                zoomSpinner.setValue(visitingZoomPercentage);
+                visitingZoom.resetFor(sntui.plugin.getImagePlus());
+                zoomSpinner.setValue(visitingZoom.percentage());
             }
         });
         popup.add(resetZoomItem);
         popup.addSeparator();
 
-        // Detach / dock table
-        final JMenuItem detachItem = new JMenuItem("Detach Table",
-                IconFactory.menuIcon(IconFactory.GLYPH.EXTERNAL_LINK));
-        detachItem.addActionListener(e -> {
-            if (detachedDialog == null) {
-                detachTable();
-                detachItem.setText("Dock Table");
-            } else {
-                dockTable();
-                detachItem.setText("Detach Table");
-            }
-        });
-        popup.add(detachItem);
+        // Detach / dock table: the helper needs the JScrollPane to exist, which won't happen until
+        // getPanel() runs. We finish wiring it there (installDetachMenuItem) instead of here
 
-        // Sync spinner and detach label whenever the popup is shown
+        // Sync the zoom spinner whenever the popup is shown (detach-item text is kept in sync by
+        // the helper's own PopupMenuListener that installDetachMenuItem will add later)
         popup.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
             @Override
             public void popupMenuWillBecomeVisible(final javax.swing.event.PopupMenuEvent e) {
-                zoomSpinner.setValue(Math.clamp(visitingZoomPercentage, 25, 3200));
-                detachItem.setText(detachedDialog == null ? "Detach Table" : "Dock Table");
+                zoomSpinner.setValue(visitingZoom.percentage());
             }
 
             @Override
@@ -345,36 +330,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         return popup;
     }
 
-    private void detachTable() {
-        if (detachedDialog != null || panel == null) return;
-        panel.remove(tableScroll);
-        panel.revalidate();
-        panel.repaint();
-
-        final Window owner = SwingUtilities.getWindowAncestor(panel);
-        detachedDialog = new JDialog(owner instanceof Frame f ? f : null,
-                "Issues (Curation Assistant)", false);
-        detachedDialog.getRootPane().putClientProperty("Window.style", "small");
-        detachedDialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        detachedDialog.addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(final java.awt.event.WindowEvent e) {
-                dockTable();
-            }
-        });
-        detachedDialog.getContentPane().add(tableScroll, BorderLayout.CENTER);
-        detachedDialog.setSize(500, 200);
-        if (owner != null) detachedDialog.setLocationRelativeTo(owner);
-        detachedDialog.setVisible(true);
-    }
-
-    private void dockTable() {
-        if (detachedDialog == null || panel == null) return;
-        detachedDialog.getContentPane().remove(tableScroll);
-        detachedDialog.dispose();
-        detachedDialog = null;
-
-        // Re-add to the panel at the bottom with fill constraints
+    /**
+     * Re-attaches the table scroll pane after a dock. Called by the
+     * {@link GuiUtils.JTables.DetachableTable} helper since GridBag constraints
+     * aren't preserved by remove/add.
+     */
+    private void redockTableScroll() {
+        if (panel == null || tableScroll == null) return;
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.gridy = GridBagConstraints.RELATIVE;
         gbc.weighty = 1.0;
@@ -397,10 +359,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 // Zoom to the warning's focal point (e.g. fork node), using the
                 // first affected path to resolve any canvas offset
                 final Path offsetPath = affected.isEmpty() ? null : affected.getFirst();
-                ImpUtils.zoomTo(imp, visitingZoomPercentage / 100.0, location, offsetPath);
+                ImpUtils.zoomTo(imp, visitingZoom.fraction(), location, offsetPath);
             } else if (!affected.isEmpty()) {
                 // No specific location: fall back to fitting affected paths
-                ImpUtils.zoomTo(imp, visitingZoomPercentage / 100.0, affected,
+                ImpUtils.zoomTo(imp, visitingZoom.fraction(), affected,
                         sc.fiji.snt.hyperpanes.MultiDThreePanes.XY_PLANE);
             }
         } else {
@@ -409,22 +371,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         }
     }
 
-    private void resetVisitingZoom() {
-        try {
-            final ImagePlus imp = sntui.plugin.getImagePlus();
-            final ImageCanvas canvas = (imp == null) ? null : imp.getCanvas();
-            if (canvas == null) {
-                visitingZoomPercentage = 600;
-                return;
-            }
-            final double currentMag = canvas.getMagnification();
-            final double nextUp1x = ImageCanvas.getHigherZoomLevel(currentMag);
-            final double nextUp2x = ImageCanvas.getHigherZoomLevel(nextUp1x);
-            visitingZoomPercentage = (int) Math.round(nextUp2x * 100);
-        } catch (final NullPointerException ignored) {
-            visitingZoomPercentage = 600;
-        }
-    }
 
     /**
      * Builds and returns the panel to be added as a tab in SNTUI.
@@ -466,6 +412,20 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         tableScroll.setMinimumSize(new Dimension(0, 0)); // allow shrinking
         warningsTable.setPreferredScrollableViewportSize(null); // defer to layout
         panel.add(tableScroll, gbc);
+
+        // Detach / dock table: the helper needs the scroll pane to exist
+        // (it captures a reference to it). We can't wire it inside
+        // buildTablePopupMenu() because that runs from the constructor,
+        // long before tableScroll is created here. Append the toggle item
+        // to the existing popup now that everything it needs is in place.
+        if (tableDetacher == null) {
+            tableDetacher = new GuiUtils.JTables.DetachableTable(
+                    tableScroll, "Issues (Curation Assistant)", this::redockTableScroll,
+                    new Dimension(500, 200));
+            final javax.swing.JPopupMenu existing =
+                    (javax.swing.JPopupMenu) warningsTable.getComponentPopupMenu();
+            if (existing != null) tableDetacher.installMenuItem(existing);
+        }
 
         // Bind display filter shortcuts (same keys as QueueJumpingKeyListener)
         final int condition = JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT;

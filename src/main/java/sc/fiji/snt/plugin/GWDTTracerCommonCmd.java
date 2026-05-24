@@ -27,6 +27,7 @@ import ij.gui.Roi;
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import org.scijava.ItemVisibility;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
@@ -368,7 +369,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
      *         disabled); {@code false} to abort the command
      */
     protected boolean configureSecondaryScoreMap(final AbstractGWDTTracer<?> tracer) {
-        final RandomAccessibleInterval<?> secLayer = snt.getSecondaryData();
+        final RandomAccessibleInterval<? extends RealType<?>> secLayer = snt.getSecondaryData();
         if (secLayer == null) {
             error("No secondary image has been defined. Please create or load one first.");
             return false;
