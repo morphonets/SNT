@@ -23,13 +23,15 @@
 package sc.fiji.snt;
 
 import ij.ImagePlus;
-import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import net.imglib2.display.ColorTable;
+import org.jspecify.annotations.NonNull;
 import org.scijava.command.CommandService;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.cmds.ImportSeedPointsCmd;
+import sc.fiji.snt.gui.cmds.LoadSeedsFromLabelsImageCmd;
+import sc.fiji.snt.gui.cmds.LoadSeedsFromROIsCmd;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.seed.SeedPointEditDialog;
@@ -469,7 +471,7 @@ public class SeedManager extends JPanel {
         if (s == null) return;
         final ImagePlus imp = snt.getImagePlus();
         if (imp == null) {
-            sntui.error("No image is loaded.");
+            sntui.error("No image is currently open.");
             return;
         }
         final double sx = snt.getPixelWidth();
@@ -669,10 +671,7 @@ public class SeedManager extends JPanel {
         GuiUtils.addSeparator(menu, "Export:");
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
-        jmi.addActionListener(e -> {
-            if (noSeedsError()) return;
-            exportToFile();
-        });
+        jmi.addActionListener(e -> exportToFile());
         return menu;
     }
 
@@ -685,8 +684,7 @@ public class SeedManager extends JPanel {
         }
         final File file = new File(sessionDir, "seeds.csv");
         if (!file.exists() || !file.canRead()) {
-            sntui.error("No seeds.csv found in current session ("
-                    + sessionDir.getAbsolutePath() + ").");
+            sntui.error("No seeds.csv found in current session (" + sessionDir.getAbsolutePath() + ").");
             return;
         }
         final CommandService cs = getCommandService();
@@ -694,18 +692,28 @@ public class SeedManager extends JPanel {
             cs.run(ImportSeedPointsCmd.class, true,
                     "csvFile", file, // input file
                     "unitsChoice", ImportSeedPointsCmd.UNITS_PHYSICAL, // dropdown choice
-                    "append", !overlay.isEmpty()// append checkbox
+                    "replace", overlay.isEmpty()// append checkbox
             );
     }
 
-    private void loadFromROIs(final Roi[] rois) {
-        //TODO: Import from ROI centroids (no radius if not not area/line ROIs; no confidence)
-        gu.error("Not yet implemented!");
+    /**
+     * Opens the ROI-importer command. The harvester prompts for type label,
+     * confidence (default 1.0), and append flag; the command reads the
+     * RoiManager directly.
+     */
+    private void loadFromROIs() {
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(LoadSeedsFromROIsCmd.class, true);
     }
 
+    /**
+     * Opens the labels-image command. The harvester prompts for type label,
+     * minimum confidence, and append flag; the labels image is picked
+     * interactively via {@code ChooseDataset} inside the command.
+     */
     private void loadFromLabelsImage() {
-        //TODO: Import from labels Image (e.g., cellpose somata -> infer centroid and radius; no confidence)
-        gu.error("Not yet implemented!");
+        final CommandService cs = getCommandService();
+        if (cs != null) cs.run(LoadSeedsFromLabelsImageCmd.class, true);
     }
 
     private File getSessionDir() {
@@ -731,7 +739,7 @@ public class SeedManager extends JPanel {
     }
 
     private void exportToFile() {
-        if (overlay.isEmpty()) return;
+        if (noSeedsError()) return;
         final File file = sntui.guiUtils.getSaveFile("Export Seed Points (CSV)",
                 new File("seeds.csv"), "csv");
         if (file == null) return;
