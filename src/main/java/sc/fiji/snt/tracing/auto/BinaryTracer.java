@@ -45,6 +45,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.RoiConverter;
+import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.util.*;
@@ -954,6 +955,50 @@ public class BinaryTracer implements AutoTracer {
             }
             imp.setRoi(existingROi);
         }
+    }
+
+    /**
+     * Binary tracers currently consume only the {@link SeedRole#ROOT} role.
+     * Future iterations may add {@link SeedRole#TIP} / {@link SeedRole#WAYPOINT}
+     * to constrain skeleton traversal.
+     */
+    @Override
+    public EnumSet<SeedRole> honouredSeedRoles() {
+        return EnumSet.of(SeedRole.ROOT);
+    }
+
+    /**
+     * Sets the run's root from a collection of seeds. v1 takes the
+     * <i>first</i> seed and bridges to the existing
+     * {@link #setRootRoi(Roi, int)} API by synthesizing an oval ROI around
+     * the seed (diameter derived from {@link SeedPoint#radius}, with a
+     * minimum of one voxel when radius is unset) and using
+     * {@link #ROI_CENTROID} placement. Any additional seeds are ignored;
+     * the wrapper command is expected to iterate one tracer run per seed.
+     *
+     * @param seeds candidate roots; {@code null}/empty is a silent no-op
+     */
+    @Override
+    public void setRoots(final Collection<SeedPoint> seeds) {
+        if (seeds == null || seeds.isEmpty()) return;
+        final SeedPoint s = seeds.iterator().next();
+        // Convert physical -> voxel using the same calibration the tracer was constructed with.
+        final double vx = s.x / pixelWidth;
+        final double vy = s.y / pixelHeight;
+        final double vz = s.z / pixelDepth;
+        // Radius in voxels: use the larger of the in-plane axes so the oval
+        // is at least 2x2 even on anisotropic stacks. radius == 0 (e.g. from
+        // PointRoi imports) collapses to a 1-voxel-diameter dot.
+        final double inPlaneSpacing = Math.max(pixelWidth, pixelHeight);
+        final double vRadius = (s.radius > 0) ? s.radius / inPlaneSpacing : 0.5;
+        final int vDiameter = (int) Math.max(1, Math.round(2 * vRadius));
+        final int rx = (int) Math.round(vx - vRadius);
+        final int ry = (int) Math.round(vy - vRadius);
+        final ij.gui.OvalRoi roi = new ij.gui.OvalRoi(rx, ry, vDiameter, vDiameter);
+        // Pin the ROI to the seed's Z slice (1-based ImageJ convention, clamped to image bounds).
+        final int zSlice = Math.max(1, Math.min(imp.getNSlices(), (int) Math.round(vz) + 1));
+        roi.setPosition(0, zSlice, 0);
+        setRootRoi(roi, ROI_CENTROID);
     }
 
     /**

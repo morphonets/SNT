@@ -798,7 +798,6 @@ public class BookmarkManager {
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.add(impButton);
-        tb.addSeparator();
         tb.add(expButton);
         if (bvv != null) {
             tb.add(Box.createHorizontalGlue());

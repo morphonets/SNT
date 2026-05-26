@@ -42,6 +42,7 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
+import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
@@ -857,6 +858,32 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         }
         validateSeedInBounds(this.seedVoxel);
         log("Seed voxel: " + Arrays.toString(seedVoxel));
+    }
+
+    /**
+     * GWDT tracers currently consume only the {@link SeedRole#ROOT} role.
+     * Future iterations may add {@link SeedRole#TIP} (cost biasing toward
+     * targets) and {@link SeedRole#WAYPOINT} (must-pass-through points).
+     */
+    @Override
+    public EnumSet<SeedRole> honouredSeedRoles() {
+        return EnumSet.of(SeedRole.ROOT);
+    }
+
+    /**
+     * Sets the run's root from a collection of seeds. Currently takes the
+     * <i>first</i> seed and delegates to {@link #setSeedPhysical(double[])};
+     * any additional seeds are ignored. The wrapper command is expected to
+     * iterate one tracer run per seed if it wants per-seed trees. Future
+     * iterations may handle multi-root expansion in a single run.
+     *
+     * @param seeds candidate roots; {@code null}/empty is a silent no-op
+     */
+    @Override
+    public void setRoots(final Collection<SeedPoint> seeds) {
+        if (seeds == null || seeds.isEmpty()) return;
+        final SeedPoint first = seeds.iterator().next();
+        setSeedPhysical(new double[]{first.x, first.y, first.z});
     }
 
     @Override

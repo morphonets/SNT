@@ -25,7 +25,6 @@ package sc.fiji.snt;
 import ij.ImagePlus;
 import ij.plugin.frame.RoiManager;
 import net.imglib2.display.ColorTable;
-import org.jspecify.annotations.NonNull;
 import org.scijava.command.CommandService;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -43,6 +42,7 @@ import javax.swing.event.ChangeListener;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -69,7 +69,7 @@ public class SeedManager extends JPanel {
     private static final String MSG_SYNOPSIS = """
                 Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
                 used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
-                (confidence, type, source, or index), and inspect/edit/delete seeds in the table below.
+                (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
                 
                 Double-click a row to navigate to its location; Alt+Click on the canvas (while SNT is paused) \
                 to edit the nearest seed.""";
@@ -78,8 +78,7 @@ public class SeedManager extends JPanel {
     private final SNTUI sntui;
     private final SeedOverlay overlay;
     private final SeedOverlay.SeedOverlayListener overlayListener;
-    private final Actions actions;
-
+    private final Action toggleVisibilityAction;
     private JLabel countLabel;
     private LutRamp lutRamp;
     private JComboBox<SeedOverlay.ColorMode> colorModeCombo;
@@ -114,8 +113,8 @@ public class SeedManager extends JPanel {
         this.sntui = sntui;
         this.snt = sntui.plugin;
         this.overlay = snt.getSeedOverlay();
-        this.actions = new Actions();
         this.overlayListener = source -> SwingUtilities.invokeLater(this::refreshFromOverlay);
+        toggleVisibilityAction = toggleVisibilityAction();
         visitingZoom.resetFor(snt.getImagePlus());
         buildLayout();
         overlay.addListener(overlayListener);
@@ -169,8 +168,14 @@ public class SeedManager extends JPanel {
         gbc.gridy++;
         add(buildSliderRow("Upper:", false), gbc);
         gbc.gridy++;
+        // Wrap countLabel in a toolbar-styled panel so its left/right margins
+        // line up with the slider rows above (and the display toolbar above
+        // those). Adding the bare JLabel here would float against the panel's
+        // raw insets.
         countLabel = new JLabel();
-        add(countLabel, gbc);
+        final JPanel countRow = toolbarStyledRow();
+        countRow.add(countLabel);
+        add(countRow, gbc);
         gbc.gridy++;
 
         // Seeds (table) section
@@ -195,7 +200,7 @@ public class SeedManager extends JPanel {
         p.setFloatable(false);
 
         final JToggleButton visibilityToggle = GuiUtils.Buttons.toolbarToggleButton(
-                actions.toggleVisibility,
+                toggleVisibilityAction,
                 "Show/hide seeds",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
         p.add(visibilityToggle);
@@ -218,7 +223,9 @@ public class SeedManager extends JPanel {
             final JCheckBoxMenuItem menuItem = new JCheckBoxMenuItem(choice);
             bg.add(menuItem);
             popupMenu.add(menuItem);
-            menuItem.addItemListener(e -> overlay.setColorTable(choice));
+            menuItem.addItemListener(e -> {
+                if (e.getStateChange() == ItemEvent.SELECTED) overlay.setColorTable(choice);
+            });
         }
         popupMenu.addSeparator();
         popupMenu.add(getTransparencyMenuItem());
@@ -286,6 +293,22 @@ public class SeedManager extends JPanel {
     }
 
     /**
+     * Returns a {@link JPanel} wearing the L&amp;F-defined {@code ToolBar.border}
+     * and a horizontal {@link BoxLayout}, so non-icon rows line up vertically
+     * with adjacent {@link JToolBar}s
+     */
+    private static JPanel toolbarStyledRow() {
+        final JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.LINE_AXIS));
+        javax.swing.border.Border border = UIManager.getBorder("ToolBar.border");
+        if (border == null) border = BorderFactory.createEmptyBorder(0, SNTUI.InternalUtils.MARGIN,
+                0, SNTUI.InternalUtils.MARGIN);
+        p.setBorder(border);
+        p.setOpaque(false);
+        return p;
+    }
+
+    /**
      * Either of the two confidence-limit slider rows. {@code lower=true} drives
      * the lower bound; {@code lower=false} drives the upper bound. Each row
      * keeps the bounds ordered ({@code low ≤ high}) by pushing the other slider
@@ -293,8 +316,8 @@ public class SeedManager extends JPanel {
      * value label so the user can type/scroll an exact value (resolution 0.01,
      * matching the slider's integer step).
      */
-    private JToolBar buildSliderRow(final String labelText, final boolean lower) {
-        final JToolBar tb = new JToolBar();
+    private JPanel buildSliderRow(final String labelText, final boolean lower) {
+        final JPanel tb = toolbarStyledRow();
         final JLabel label = new JLabel(labelText);
         label.setToolTipText(lower
                 ? "Hide seeds with confidence below this value"
@@ -397,7 +420,7 @@ public class SeedManager extends JPanel {
 
         JMenuItem jmi = new JMenuItem("Edit...", IconFactory.menuIcon(IconFactory.GLYPH.PEN));
         jmi.setToolTipText("Edit selected seed(s)");
-        jmi.addActionListener(actions.editSelected);
+        jmi.addActionListener(e -> editSelected());
         menu.add(jmi);
         jmi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
@@ -546,12 +569,11 @@ public class SeedManager extends JPanel {
         }
     }
 
-    // --- Refresh from overlay state ---
-
+    // Refresh from overlay state
     private void refreshFromOverlay() {
         updatingFromOverlay = true;
         try {
-            actions.refreshFromOverlay();
+            toggleVisibilityAction.putValue(Action.SELECTED_KEY, overlay.isVisible());
             updateCountLabel();
             final int loVal = (int) Math.round(overlay.getLowConfidence() * 100);
             final int hiVal = (int) Math.round(overlay.getHighConfidence() * 100);
@@ -559,8 +581,7 @@ public class SeedManager extends JPanel {
             if (upperSlider.getValue() != hiVal) upperSlider.setValue(hiVal);
             lowerSpinner.setValue(overlay.getLowConfidence());
             upperSpinner.setValue(overlay.getHighConfidence());
-            if (colorModeCombo != null
-                    && colorModeCombo.getSelectedItem() != overlay.getColorMode()) {
+            if (colorModeCombo != null && colorModeCombo.getSelectedItem() != overlay.getColorMode()) {
                 colorModeCombo.setSelectedItem(overlay.getColorMode());
             }
             pullOverlaySelectionToTable();
@@ -577,8 +598,7 @@ public class SeedManager extends JPanel {
             countLabel.setText("No seeds loaded");
             countLabel.setIcon(null);
         } else if (shown == total) {
-            countLabel.setText(String.format("%,d seeds shown", total));
-            countLabel.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.LIST));
+            countLabel.setText(String.format("All %,d seeds shown", total));
             countLabel.setIcon(null);
         } else {
             countLabel.setText(String.format("%,d of %,d shown", shown, total));
@@ -591,9 +611,8 @@ public class SeedManager extends JPanel {
         impButton.setToolTipText("Import seeds");
         final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
         expButton.setToolTipText("Export seeds");
-        final JButton editButton = new JButton(actions.editSelected);
-        IconFactory.assignIcon(editButton, IconFactory.GLYPH.PEN, IconFactory.defaultColor(), GuiUtils.getDisabledComponentColor(), 1f);
-        editButton.setHideActionText(true); // toolbar shows icon-only; tooltip is the action's SHORT_DESCRIPTION
+        final JButton traceButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.ROBOT, 1f, seedTracingMenu());
+        traceButton.setToolTipText("<HTML>Run auto-tracers from listed seeds.");
 
         // Visiting-zoom spinner (BookmarkManager parity): applied when
         // double-clicking a row to fly to the seed's location.
@@ -607,7 +626,7 @@ public class SeedManager extends JPanel {
             if (null == snt.getImagePlus()) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
             } else {
-                visitingZoom.resetFor(sntui.plugin.getImagePlus());
+                visitingZoom.resetFor(snt.getImagePlus());
                 zoomSpinner.setValue(visitingZoom.percentage());
             }
         });
@@ -615,17 +634,39 @@ public class SeedManager extends JPanel {
         final JToolBar tb = new JToolBar();
         tb.setFloatable(false);
         tb.add(impButton);
-        tb.addSeparator();
         tb.add(expButton);
         tb.addSeparator();
         tb.add(Box.createHorizontalGlue());
-        tb.add(editButton);
+        tb.add(traceButton);
         tb.addSeparator();
         tb.add(Box.createHorizontalGlue());
         tb.add(zoomLabel);
         tb.add(zoomSpinner);
         tb.add(resetZoomButton);
         return tb;
+    }
+
+    /**
+     * Invokes {@code AutotraceFromSeedsCmd}. If the user has any rows
+     * selected in the table, the command is pre-populated with
+     * {@code "Selection only"} as the source filter; otherwise the user's
+     * choice in the harvester is honored (default: visible).
+     */
+    private void traceFromSeeds() {
+        if (noSeedsError()) return;
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        final boolean hasSelection = !overlay.getSelectedSeeds().isEmpty();
+        // Record intent. The CommandService.run call below pops the harvester
+        // where the user can still adjust GWDT knobs; the comment documents
+        // which seed-source we pre-targeted before the dialog opened.
+        recordComment("Seed Manager: traceFromSeeds(source=" + (hasSelection ? "selection" : "harvester-default") + ")");
+        if (hasSelection) {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromSeedsCmd.class, true,
+                    "sourceFilter", sc.fiji.snt.plugin.AutotraceFromSeedsCmd.SOURCE_SELECTION);
+        } else {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromSeedsCmd.class, true);
+        }
     }
 
     private JPopupMenu importMenu() {
@@ -644,7 +685,7 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Extracts seeds from a segmented image as produced by e.g., cellpose, Labkit, or StarDist.");
         menu.add(jmi);
         jmi.addActionListener(e -> loadFromLabelsImage());
-        jmi = new JMenuItem("From ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
+        jmi = new JMenuItem("From ROI Manager...", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
         jmi.setToolTipText("Extracts seeds from ROI centroids");
         menu.add(jmi);
         jmi.addActionListener(e -> {
@@ -672,9 +713,22 @@ public class SeedManager extends JPanel {
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> exportToFile());
+        // TODO: more formats later
         return menu;
     }
 
+    private JPopupMenu seedTracingMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+        GuiUtils.addSeparator(menu, "Seeds as Roots:");
+        JMenuItem jmi = new JMenuItem("Grayscale Image (1 Seed → 1 Tree)...");
+        jmi.addActionListener(e -> traceFromSeeds());
+        jmi.setToolTipText("<HTML>Runs GWDT auto-tracing from seeds.<br>" +
+                "Pre-targets the current table selection; falls back to visible seeds if no rows are selected.");
+        menu.add(jmi);
+        GuiUtils.addSeparator(menu, "Seeds as Tips:");
+        // TODO: Not yet implemented
+        return menu;
+    }
     // Button actions
     private void loadFromSessionDir() {
         final File sessionDir = getSessionDir();
@@ -750,49 +804,29 @@ public class SeedManager extends JPanel {
             sntui.error("Could not save seeds: " + ex.getMessage());
         }
     }
-
-    // Actions (toggle visibility, delete selected, etc.)
-
+    
     /**
      * Groups stateful Swing {@link Action}s used by toolbar buttons and the
      * table context menu so they can be shared (and their enabled/selected
      * state mass-refreshed) from {@link #refreshFromOverlay}.
      */
-    private final class Actions {
-        final Action toggleVisibility;
-        final Action editSelected;
+    private Action toggleVisibilityAction() {
+        final Action toggleVisibility = new AbstractAction("Show/hide seeds") {
+            private static final long serialVersionUID = 1L;
 
-        Actions() {
-            toggleVisibility = new AbstractAction("Show/hide seeds") {
-                private static final long serialVersionUID = 1L;
-
-                @Override
-                public void actionPerformed(final ActionEvent e) {
-                    if (updatingFromOverlay) return;
-                    overlay.setVisible(!overlay.isVisible());
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (updatingFromOverlay) return;
+                if (noSeedsError()) { // Reset the JToggleButton
+                    putValue(Action.SELECTED_KEY, overlay.isVisible());
+                    return;
                 }
-            };
-            toggleVisibility.putValue(Action.SHORT_DESCRIPTION, "Show/hide seeds on canvas");
-            toggleVisibility.putValue(Action.SELECTED_KEY, overlay.isVisible());
-
-            editSelected = new AbstractAction("Edit…") {
-                private static final long serialVersionUID = 1L;
-
-                @Override
-                public void actionPerformed(final ActionEvent e) {
-                    editSelected();
-                }
-            };
-            editSelected.putValue(Action.SHORT_DESCRIPTION, "Edit seeds");
-            editSelected.setEnabled(false);
-        }
-
-        void refreshFromOverlay() {
-            toggleVisibility.putValue(Action.SELECTED_KEY, overlay.isVisible());
-            // Edit is dynamic: single, bulk-on-selection, or bulk-on-all. As
-            // long as the overlay has any seeds, the action is usable.
-            editSelected.setEnabled(!overlay.isEmpty());
-        }
+                overlay.setVisible(!overlay.isVisible());
+            }
+        };
+        toggleVisibility.putValue(Action.SHORT_DESCRIPTION, "Show/hide seeds on canvas");
+        toggleVisibility.putValue(Action.SELECTED_KEY, overlay.isVisible());
+        return toggleVisibility;
     }
 
     /**
@@ -844,7 +878,7 @@ public class SeedManager extends JPanel {
 
     private boolean noSeedsError() {
         if (overlay.isEmpty()) {
-            sntui.error("No seeds exist.");
+            sntui.error("No seeds exist. Import or generate seeds first.");
             return true;
         }
         return false;

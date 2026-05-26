@@ -3170,7 +3170,7 @@ public class SNTUI extends JDialog {
         jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiBinaryImg);
-
+        menu.addSeparator();
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
         jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.");
@@ -3182,6 +3182,10 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
         menu.add(jmiSoma);
+        final JMenuItem jmiFromSeeds = new JMenuItem("From Seeds...", IconFactory.menuIcon(GLYPH.SEEDLING));
+        jmiFromSeeds.setToolTipText("Open the Seeds tab to import/generate candidates and trace from them.");
+        jmiFromSeeds.addActionListener(e -> selectTab("Seeds")); // Navigation only: actual tracing lives in the Seeds tab pop
+        menu.add(jmiFromSeeds);
 
         // From File(s): file-based / batch processing
         GuiUtils.addSeparator(menu, "Batch Processing:");
