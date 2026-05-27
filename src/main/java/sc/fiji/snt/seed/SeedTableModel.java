@@ -107,6 +107,13 @@ public class SeedTableModel extends AbstractTableModel {
     private String[] cachedStatuses;
 
     /**
+     * Row count observed at the previous listener fire. Used to decide whether
+     * to emit a {@link #fireTableDataChanged()} or a {@link #fireTableRowsUpdated(int, int)}
+     * (values may have changed but row identities are stable).
+     */
+    private int lastKnownRowCount = -1;
+
+    /**
      * Builds a model without the Status column.
      */
     public SeedTableModel(final SeedOverlay overlay) {
@@ -121,11 +128,24 @@ public class SeedTableModel extends AbstractTableModel {
         this.overlay = overlay;
         this.snt = snt;
         this.includeStatus = (snt != null);
-        this.listener = source -> SwingUtilities.invokeLater(() -> {
-            cachedStatuses = null;
-            fireTableDataChanged();
-        });
+        this.listener = source -> SwingUtilities.invokeLater(this::onOverlayChanged);
         overlay.addListener(listener);
+    }
+
+    /**
+     * Dispatches overlay-change notifications without wiping the JTable's
+     * selection on every fire. Only emits a {@link #fireTableDataChanged()}
+     * when the row count actually changes.
+     */
+    private void onOverlayChanged() {
+        cachedStatuses = null;
+        final int newCount = getRowCount();
+        if (newCount != lastKnownRowCount) {
+            lastKnownRowCount = newCount;
+            fireTableDataChanged();
+        } else if (newCount > 0) {
+            fireTableRowsUpdated(0, newCount - 1);
+        }
     }
 
     /**

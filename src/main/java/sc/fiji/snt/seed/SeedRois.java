@@ -24,62 +24,58 @@ package sc.fiji.snt.seed;
 
 import ij.ImagePlus;
 import ij.gui.Line;
+import ij.gui.OvalRoi;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.process.FloatPolygon;
 import ij.process.ImageStatistics;
 
-import java.awt.Rectangle;
+import java.awt.*;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 /**
- * Pure-logic helper that turns ImageJ {@link Roi}s into {@link SeedPoint}s.
- * <p>
- * Rules per ROI type:
- * <ul>
- *   <li><b>Area ROIs</b> (oval, polygon, rectangle, freehand, traced):
- *       centroid as position, radius derived from the area of the matched
- *       circle ({@code r = sqrt(area / pi)})
- *   <li><b>Line ROIs</b>: midpoint as position, radius = half the path
- *       length
- *   <li><b>Point ROIs</b>: each contained point becomes its own seed with
- *       {@code radius = 0}. All points inherit the ROI's hyperstack position.
- *   <li><b>Other (e.g. ANGLE, COMPOSITE)</b>: bounds center as position,
- *       {@code radius = 0}.
- * </ul>
- * Centroids and radii are converted to physical units using
- * {@code imp.getCalibration()}. Channel and frame come from the ROI's
- * hyperstack position when set ({@code roi.getCPosition() / getTPosition()});
- * otherwise they fall back to {@code imp}'s active C/T.
+ * Bidirectional {@link SeedPoint}-{@link Roi} converter.
  *
  * @author Tiago Ferreira
  */
-public final class RoisToSeeds {
+public final class SeedRois {
 
-    private RoisToSeeds() {
+    private SeedRois() {
     }
 
     /**
      * Converts the given ROIs to seeds.
+     * <p>
+     * Rules per ROI type:
+     * <ul>
+     *   <li><b>Area ROIs</b> (oval, polygon, rectangle, freehand, traced):
+     *       centroid as position, radius derived from the area of the matched
+     *       circle ({@code r = sqrt(area / pi)})
+     *   <li><b>Line ROIs</b>: midpoint as position, radius = half the path
+     *       length
+     *   <li><b>Point ROIs</b>: each contained point becomes its own seed with
+     *       {@code radius = 0}. All points inherit the ROI's hyperstack position.
+     *   <li><b>Other (e.g. ANGLE, COMPOSITE)</b>: bounds center as position,
+     *       {@code radius = 0}.
+     * </ul>
      *
-     * @param rois       the input ROIs. {@code null}/empty array returns an
-     *                   empty list. {@code null} entries are skipped.
+     * @param rois       the input ROIs. {@code null}/empty array returns an empty list.
+     *                   {@code null} entries are skipped.
      * @param imp        provides calibration and default C/T/Z. {@code null}
-     *                   yields uncalibrated (voxel-unit) coordinates and
-     *                   unset channel/frame.
-     * @param confidence value assigned to every produced seed, clamped to
-     *                   {@code [0, 1]}.
+     *                   yields uncalibrated (voxel-unit) coordinates and unset CT position.
+     * @param confidence value assigned to every produced seed, clamped to {@code [0, 1]}.
      * @param type       value assigned to each seed's {@code type} field.
-     *                   {@code null} → {@code ""}.
-     * @param source     value assigned to each seed's {@code source} field
-     *                   (e.g. {@code "roi-manager"}). {@code null} → {@code ""}.
-     * @return a fresh list of seeds. Point ROIs may produce multiple seeds
+     *                   {@code null} -> {@code ""}.
+     * @param source     value assigned to each seed's {@code source} field (e.g.
+     *                   {@code "roi"}). {@code null} -> {@code ""}.
+     * @return a list of seeds. Point ROIs may produce multiple seeds
      * (one per contained point); a ROI with no usable geometry is
      * skipped.
      */
-    public static List<SeedPoint> compute(final Roi[] rois, final ImagePlus imp,
+    public static List<SeedPoint> toSeeds(final Roi[] rois, final ImagePlus imp,
                                           final double confidence,
                                           final String type, final String source) {
         if (rois == null || rois.length == 0) return new ArrayList<>(0);
@@ -172,4 +168,40 @@ public final class RoisToSeeds {
         }
         return seeds;
     }
+
+    /**
+     * Converts the given seeds to ROIs.
+     *<p>
+     * Seed radius is converted using the geometric mean of pixelWidth and pixelHeight
+     * so a 2D seed round-trip preserves the physical area of the equivalent disk
+     *
+     * @param seeds the input seed points. {@code null}/empty array returns
+     *              an empty list. {@code null} entries are skipped.
+     * @param imp   provides calibration. {@code null}  yields uncalibrated
+     *              (voxel-unit) coordinates
+     * @return a list of ROIs (either PointROI (seeds without radius) or OvalRoi.
+     */
+    public static List<Roi> toRois(final Collection<SeedPoint> seeds, final ImagePlus imp) {
+        if (seeds == null || seeds.isEmpty()) return new ArrayList<>(0);
+        final Calibration cal = (imp == null) ? new Calibration() : imp.getCalibration();
+        final List<Roi> rois = new ArrayList<>(seeds.size());
+        for (final SeedPoint seed : seeds) {
+            if (seed == null) continue;
+            final double xVox = seed.x / cal.pixelWidth;
+            final double yVox = seed.y / cal.pixelHeight;
+            final double rVox = seed.radius / Math.sqrt(cal.pixelWidth * cal.pixelHeight);
+            final int zSlice = (int) Math.round(cal.getRawZ(seed.z)) + 1; // 1-based index
+            final int c = (seed.channel >= 1) ? seed.channel : 0;
+            final int t = (seed.frame >= 1) ? seed.frame : 0;
+            final Roi roi = (seed.radius > 0)
+                    ? new OvalRoi(xVox - rVox, yVox - rVox, 2 * rVox, 2 * rVox)
+                    : new PointRoi(xVox, yVox);
+            roi.setPosition(c, zSlice, t);
+            if (seed.type != null && !seed.type.isBlank())
+                roi.setName(seed.type);
+            rois.add(roi);
+        }
+        return rois;
+    }
+
 }

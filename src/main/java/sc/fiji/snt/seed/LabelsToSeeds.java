@@ -25,11 +25,20 @@ package sc.fiji.snt.seed;
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.algorithm.labeling.ConnectedComponents;
+import net.imglib2.converter.Converters;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.roi.labeling.ImgLabeling;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.type.numeric.integer.IntType;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.ImpUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -158,5 +167,110 @@ public final class LabelsToSeeds {
                     channel, frame, typeSafe, srcSafe));
         }
         return seeds;
+    }
+
+    /**
+     * Detects whether {@code imp} is a binary mask, i.e. all non-zero voxels
+     * share a single value.
+     *
+     * @param imp the candidate image. {@code null} triggers an {@link IllegalArgumentException}.
+     * @return {@code true} if exactly one distinct non-zero value is present.
+     * An all-zero image returns {@code false}
+     */
+    public static <T extends RealType<T>> boolean isBinaryMask(final ImagePlus imp) {
+        if (imp == null) throw new IllegalArgumentException("imp must not be null");
+        if (ImpUtils.isBinary(imp)) return true;
+        final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(imp);
+        final Cursor<T> cursor = rai.cursor();
+        double firstNonZero = 0;
+        boolean seen = false;
+        while (cursor.hasNext()) {
+            cursor.fwd();
+            final double v = cursor.get().getRealDouble();
+            if (v == 0) continue;
+            if (!seen) {
+                firstNonZero = v;
+                seen = true;
+            } else if (v != firstNonZero) {
+                return false;
+            }
+        }
+        return seen;
+    }
+
+    /**
+     * Labels the connected components of a binary mask, returning a new
+     * labels image suitable for {@link #compute(ImagePlus, double, String, String)}.
+     * Operates on the active C/T 3D slice of {@code mask}; each non-zero
+     * voxel is treated as foreground, every distinct connected region gets a
+     * unique integer label. The result inherits the input's calibration.
+     * <p>
+     * Connectivity is binary:
+     * <ul>
+     *   <li>{@code fullyConnected = true}: 8-connected in 2D, 26-connected in 3D.</li>
+     *   <li>{@code fullyConnected = false}: 4-connected in 2D, 6-connected in 3D.</li>
+     * </ul>
+     *
+     * @param mask           a binary mask (any RealType; non-zero = foreground).
+     *                       Multi-label images can be passed safely: every
+     *                       non-zero voxel is collapsed to foreground first,
+     *                       so calling this on a labels image is equivalent
+     *                       to re-running CCA on its non-zero union.
+     * @param fullyConnected if {@code true}, use the more permissive
+     *                       structuring element (8-/26-connected); else use
+     *                       face-connected (4-/6-connected).
+     * @return a labeled {@link ImagePlus} with one distinct integer per
+     * component. Background remains 0. Same dimensions and calibration
+     * as {@code mask}.
+     */
+    public static <T extends RealType<T>> ImagePlus connectedComponents(final ImagePlus mask, final boolean fullyConnected) {
+        if (mask == null) throw new IllegalArgumentException("mask must not be null");
+        final RandomAccessibleInterval<T> source = ImgUtils.getCtSlice(mask);
+
+        // Binarize via a view: any non-zero voxel becomes 1. No data copied
+        final RandomAccessibleInterval<IntType> binary = Converters.convert(
+                source,
+                (in, out) -> out.set(in.getRealFloat() != 0 ? 1 : 0),
+                new IntType());
+
+        // Output label image: same shape, IntType so we can address > 65k components
+        final long[] dims = new long[binary.numDimensions()];
+        binary.dimensions(dims);
+        final Img<IntType> labelImg = ArrayImgs.ints(dims);
+        final ImgLabeling<Integer, IntType> labeling = new ImgLabeling<>(labelImg);
+
+        final ConnectedComponents.StructuringElement se = fullyConnected
+                ? ConnectedComponents.StructuringElement.EIGHT_CONNECTED
+                : ConnectedComponents.StructuringElement.FOUR_CONNECTED;
+        ConnectedComponents.labelAllConnectedComponents(binary, labeling, sequentialLabelGenerator(), se);
+
+        // Wrap as a native ImagePlus and detach from the lazy view via duplicate()
+        final String title = mask.getTitle() + " [CCA]";
+        final ImagePlus wrapped = ImageJFunctions.wrap(labelImg, title);
+        final ImagePlus result = wrapped.duplicate();
+        result.setTitle(title);
+        result.setCalibration(mask.getCalibration().copy());
+        return result;
+    }
+
+    /**
+     * Yields 1, 2, 3, ... for the {@link ConnectedComponents} label generator.
+     * One instance per CCA invocation: the iterator is not thread-safe and
+     * is consumed exactly once.
+     */
+    private static Iterator<Integer> sequentialLabelGenerator() {
+        return new Iterator<>() {
+            private int next = 1;
+
+            @Override
+            public boolean hasNext() {
+                return next > 0; // false on overflow; ConnectedComponents stops when input is exhausted
+            }
+
+            @Override
+            public Integer next() {
+                return next++;
+            }
+        };
     }
 }

@@ -22,19 +22,19 @@
 
 package sc.fiji.snt;
 
+import ij.IJ;
 import ij.ImagePlus;
+import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import net.imglib2.display.ColorTable;
 import org.scijava.command.CommandService;
+import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.cmds.ImportSeedPointsCmd;
 import sc.fiji.snt.gui.cmds.LoadSeedsFromLabelsImageCmd;
 import sc.fiji.snt.gui.cmds.LoadSeedsFromROIsCmd;
-import sc.fiji.snt.seed.SeedOverlay;
-import sc.fiji.snt.seed.SeedPoint;
-import sc.fiji.snt.seed.SeedPointEditDialog;
-import sc.fiji.snt.seed.SeedTableModel;
+import sc.fiji.snt.seed.*;
 import sc.fiji.snt.util.ImpUtils;
 
 import javax.swing.*;
@@ -378,7 +378,15 @@ public class SeedManager extends JPanel {
 
     private JScrollPane buildTablePane() {
         tableModel = new SeedTableModel(overlay, snt);
-        seedTable = new JTable(tableModel);
+        seedTable = new JTable(tableModel) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            protected void paintComponent(final Graphics g) {
+                super.paintComponent(g);
+                if (getModel().getRowCount() != 0) return;
+                paintEmptyStatePlaceholder((Graphics2D) g, this);
+            }
+        };
         seedTable.setAutoCreateRowSorter(true);
         seedTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         seedTable.setFillsViewportHeight(true);
@@ -435,7 +443,17 @@ public class SeedManager extends JPanel {
         seedTable.setComponentPopupMenu(menu);
 
         final JScrollPane scroll = new JScrollPane(seedTable);
-        scroll.setPreferredSize(new Dimension(250, 250)); // otherwise SNTUI resizes!?
+        scroll.setPreferredSize(new Dimension(250, 250)); // otherwise SNTUI resizes
+
+        // Drag-and-drop: dropping CSV / ROI / labels-image files invokes the
+        // corresponding import command. SNTUI has its own dialog-wide fileDrop
+        // which runs later in the SNTUI constructor and recursively overwrites
+        // drop targets on every child. We use the invokeLater wueueing so that
+        // this FileDrop is installed last and wins (both for the initial
+        // setDropTarget call and for subsequent HierarchyListener fires, e.g.
+        // when the table is detached/docked).
+        SwingUtilities.invokeLater(() -> new FileDrop(scroll,
+                files -> SwingUtilities.invokeLater(() -> handleDroppedFiles(files))));
 
         // Detach / dock table  helper
         tableDetacher = new GuiUtils.JTables.DetachableTable(
@@ -443,6 +461,91 @@ public class SeedManager extends JPanel {
                 new Dimension(600, 320));
         tableDetacher.installMenuItem(menu);
         return scroll;
+    }
+
+    private static void paintEmptyStatePlaceholder(final Graphics2D g2, final JTable table) {
+        GuiUtils.setRenderingHints(g2);
+        g2.setColor(GuiUtils.getDisabledComponentColor());
+        final FontMetrics fm = g2.getFontMetrics();
+        final Rectangle vis = table.getVisibleRect();
+        final String[] lines = {
+                "No seeds loaded.",
+                "Use the Import menu or drop a file here.",
+                "Supported: CSV | ROIs (.roi, .zip) | labels image (.tif)"
+        };
+        final int top = vis.y + Math.max(fm.getHeight() + 8, vis.height / 3);
+        for (int i = 0; i < lines.length; i++) {
+            final String s = lines[i];
+            g2.drawString(s, vis.x + (vis.width - fm.stringWidth(s)) / 2, top + i * fm.getHeight());
+        }
+    }
+
+    private void handleDroppedFiles(final File[] files) {
+        if (files == null || files.length == 0) return;
+        String kind = null;
+        for (final File f : files) {
+            final String k = classifyFile(f);
+            if (k == null) {
+                sntui.error("Unsupported file type: " + f.getName() + ".\nSupported: .csv, .roi/.zip, .tif/.tiff.");
+                return;
+            }
+            if (kind == null) kind = k;
+            else if (!kind.equals(k)) {
+                sntui.error("Please drop files of a single kind at a time (CSV, ROIs, or labels image).");
+                return;
+            }
+        }
+        switch (kind) {
+            case "csv"    -> dispatchCsvDrop(files);
+            case "roi"    -> dispatchRoiDrop(files);
+            case "labels" -> dispatchLabelsDrop(files);
+            default -> { /* unreachable */ }
+        }
+    }
+
+    private static String classifyFile(final File f) {
+        final String n = f.getName().toLowerCase(Locale.ROOT);
+        if (n.endsWith(".csv") || n.endsWith(".tsv")) return "csv";
+        if (n.endsWith(".roi") || n.endsWith(".zip")) return "roi";
+        if (n.endsWith(".tif") || n.endsWith(".tiff")) return "labels";
+        return null;
+    }
+
+    private void dispatchCsvDrop(final File[] files) {
+        if (files.length > 1) {
+            SNTUtils.log("Multiple CSV files dropped; importing the first: " + files[0].getName());
+        }
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        recordComment("Seed Manager: drag-and-drop CSV: " + files[0].getName());
+        cs.run(ImportSeedPointsCmd.class, true, "csvFile", files[0], "replace", overlay.isEmpty());
+    }
+
+    private void dispatchRoiDrop(final File[] files) {
+        RoiManager rm = RoiManager.getInstance2();
+        if (rm == null) rm = new RoiManager();
+        final int before = rm.getCount();
+        for (final File f : files) rm.runCommand("Open", f.getAbsolutePath());
+        if (rm.getCount() == before) {
+            sntui.error("Could not load ROIs from the dropped file(s).");
+            return;
+        }
+        recordComment("Seed Manager: drag-and-drop ROIs (" + files.length + " file(s))");
+        loadFromROIs();
+    }
+
+    private void dispatchLabelsDrop(final File[] files) {
+        if (files.length > 1) {
+            SNTUtils.log("Multiple labels images dropped; opening the first: " + files[0].getName());
+        }
+        final ImagePlus imp = ImpUtils.open(files[0]);
+        if (imp == null) {
+            sntui.error("Could not open " + files[0].getName() + " as an image.");
+            return;
+        }
+        imp.show();
+        recordComment("Seed Manager: drag-and-drop labels image: " + files[0].getName());
+        loadFromLabelsImage();
     }
 
     private void recordComment(final String comment) {
@@ -682,7 +785,7 @@ public class SeedManager extends JPanel {
             if (cs != null) cs.run(ImportSeedPointsCmd.class, true);
         });
         jmi = new JMenuItem("From Labels/Masks Image...", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
-        jmi.setToolTipText("Extracts seeds from a segmented image as produced by e.g., cellpose, Labkit, or StarDist.");
+        jmi.setToolTipText("Extracts seeds from a segmented image as produced by e.g., cellpose, Labkit, StarDist, etc.");
         menu.add(jmi);
         jmi.addActionListener(e -> loadFromLabelsImage());
         jmi = new JMenuItem("From ROI Manager...", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
@@ -713,7 +816,22 @@ public class SeedManager extends JPanel {
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> exportToFile());
-        // TODO: more formats later
+        jmi = new JMenuItem("To ROI Manager...", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
+        jmi.setToolTipText( "Stores selected seed(s) (or all seeds when none are selected) in the ROI Manager.");
+        menu.add(jmi);
+        jmi.addActionListener(e -> {
+            final RoiManager rm = RoiManager.getInstance2();
+            if (rm != null && rm.getCount() > 0 && sntui.guiUtils.getConfirmation("Clear existing ROI Manager ROIs?",
+                    "Clear ROI Manager")) {
+                rm.reset();
+            }
+            saveToROIs();
+        });
+        menu.addSeparator();
+        jmi = new JMenuItem("To Workspace...", IconFactory.menuIcon('\ue066', true));
+        jmi.setToolTipText("Saves seeds to the current session as seeds.csv");
+        menu.add(jmi);
+        jmi.addActionListener(e -> saveToSessionDir());
         return menu;
     }
 
@@ -725,11 +843,10 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("<HTML>Runs GWDT auto-tracing from seeds.<br>" +
                 "Pre-targets the current table selection; falls back to visible seeds if no rows are selected.");
         menu.add(jmi);
-        GuiUtils.addSeparator(menu, "Seeds as Tips:");
-        // TODO: Not yet implemented
+        // TODO: Implement Seeds as Tips, etc.
         return menu;
     }
-    // Button actions
+
     private void loadFromSessionDir() {
         final File sessionDir = getSessionDir();
         if (sessionDir == null) {
@@ -750,6 +867,28 @@ public class SeedManager extends JPanel {
             );
     }
 
+    private void saveToSessionDir() {
+        if (noSeedsError()) return;
+        final File sessionDir = getSessionDir();
+        if (sessionDir == null) {
+            sntui.error("Session directory is not accessible.");
+            return;
+        }
+        final File file = new File(sessionDir, "seeds.csv");
+        if (file.exists() && !sntui.guiUtils.getConfirmation(
+                "Overwrite existing seeds.csv in " + sessionDir.getName() + "?",
+                "Overwrite Seeds?")) {
+            return;
+        }
+        try {
+            overlay.saveAs(file);
+            SNTUtils.log("Exported " + overlay.size() + " seeds to " + file.getAbsolutePath());
+            sntui.showStatus(String.format("%,d seed(s) exported to workspace", overlay.size()), true);
+        } catch (final IOException ex) {
+            sntui.error("Could not save seeds: " + ex.getMessage());
+        }
+    }
+
     /**
      * Opens the ROI-importer command. The harvester prompts for type label,
      * confidence (default 1.0), and append flag; the command reads the
@@ -758,6 +897,28 @@ public class SeedManager extends JPanel {
     private void loadFromROIs() {
         final CommandService cs = getCommandService();
         if (cs != null) cs.run(LoadSeedsFromROIsCmd.class, true);
+    }
+
+    private void saveToROIs() {
+        if (noSeedsError()) return;
+        Collection<SeedPoint> sel = overlay.getSelectedSeeds();
+        if (sel.isEmpty())
+            sel = overlay.list();
+        final List<Roi> rois;
+        try {
+            rois = SeedRois.toRois(sel, snt.getImagePlus());
+        } catch (final Throwable ex) {
+            sntui.error("Failed to convert seeds to ROIs: " + ex.getMessage());
+            return;
+        }
+        if (rois.isEmpty()) {
+            sntui.error("No ROIs could be produced from the " + sel.size() + " selected seeds.");
+            return;
+        }
+        RoiManager rm = RoiManager.getInstance2();
+        if (rm == null) rm = new RoiManager();
+        rois.forEach(rm::addRoi);
+        sntui.showStatus(String.format("%d ROI(s) exported", rois.size()), true);
     }
 
     /**

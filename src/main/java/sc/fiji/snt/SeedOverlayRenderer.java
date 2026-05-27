@@ -74,10 +74,6 @@ public final class SeedOverlayRenderer {
      */
     private static final double MIN_PIXEL_RADIUS = 2.0;
     /**
-     * Cap on-screen radius to prevent a single big seed from filling the canvas.
-     */
-    private static final double MAX_PIXEL_RADIUS = 40.0;
-    /**
      * Maximum slice distance that still receives a non-zero alpha when not filtering.
      */
     private static final int DEFAULT_DEPTH_FALLOFF_SLICES = 8;
@@ -205,17 +201,9 @@ public final class SeedOverlayRenderer {
         final double mag = canvas.getMagnification();
         final double inPlaneSpacing = inPlaneSpacing(plane, sx, sy, sz);
 
-        // Canvas screen bounds for visible-window culling. Inflated by a generous
-        // margin so we don't pop seeds in/out near the edges as a function of radius.
-        // (Using getWidth/getHeight rather than getVisibleRect for AWT-Canvas
-        // compatibility; the canvas is always rendered in full inside SNT.)
+        // Canvas screen bounds for visible-window culling
         final int canvasW = canvas.getWidth();
         final int canvasH = canvas.getHeight();
-        final int marginPx = (int) MAX_PIXEL_RADIUS + 2;
-        final int clipMinX = -marginPx;
-        final int clipMaxX = canvasW + marginPx;
-        final int clipMinY = -marginPx;
-        final int clipMaxY = canvasH + marginPx;
 
         // Save graphics state we mutate
         final Object oldAA = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
@@ -239,15 +227,14 @@ public final class SeedOverlayRenderer {
                 final double screenX = screen[0];
                 final double screenY = screen[1];
 
-                // Visible-window cull (cheap; biggest win when zoomed in).
-                if (screenX < clipMinX || screenX > clipMaxX
-                        || screenY < clipMinY || screenY > clipMaxY) continue;
-
-                // Pixel radius from the seed's physical radius. Floor + cap so the
-                // marker is always visible but never absurdly big at extreme zooms.
+                // Pixel radius from the seed's physical radius. Floor so the marker stays visible at low zoom
                 double pixelRadius = (s.radius > 0 ? s.radius : inPlaneSpacing) / inPlaneSpacing * mag;
                 if (pixelRadius < MIN_PIXEL_RADIUS) pixelRadius = MIN_PIXEL_RADIUS;
-                else if (pixelRadius > MAX_PIXEL_RADIUS) pixelRadius = MAX_PIXEL_RADIUS;
+
+                // Visible-window cull using this seed's own radius: skip only when the entire ellipse
+                // lies off-canvas. Java2D handles the clipping for seeds that straddle the edge
+                if (screenX + pixelRadius < 0 || screenX - pixelRadius > canvasW
+                        || screenY + pixelRadius < 0 || screenY - pixelRadius > canvasH) continue;
 
                 final double depthFalloff = depthFalloff(depthDiff, band);
                 final Color color = colorForSeed(colorTable, colorMode, s,
@@ -272,7 +259,7 @@ public final class SeedOverlayRenderer {
                 } else if (colorMode == ColorMode.CONFIDENCE && s.confidence >= 0.8) {
                     // White outline on high-confidence seeds is only meaningful
                     // when color encodes confidence; in other modes it would
-                    // arbitrarily single out seeds that happen to score high.
+                    // arbitrarily single out seeds that happen to score high
                     g.setStroke(OUTLINE_STROKE);
                     g.setColor(new Color(255, 255, 255, color.getAlpha()));
                     g.draw(ellipse);

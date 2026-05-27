@@ -110,7 +110,8 @@ public class ColorMaps {
             case "spectrum" -> ColorTables.SPECTRUM;
             case "viridis" -> VIRIDIS;
             case "glasbey", "glasbey-no-grays", "distinct" -> glasbeyNoGrays();
-            case "glasbey-on-dark" -> glasbeyNoGraysOnDark();
+            case "glasbey-on-dark" -> glasbeyNoGrays(0);
+            case "glasbey-on-light" -> glasbeyNoGrays(255);
             default -> null;
         };
     }
@@ -150,9 +151,11 @@ public class ColorMaps {
         return custom(glasbey_bw_minc_20());
     }
 
-    private static ColorTable glasbeyNoGraysOnDark() {
+    private static ColorTable glasbeyNoGrays(final int backgroundValue) {
         final int[][] values = glasbey_bw_minc_20();
-        values[0] = new int[]{0, 0, 0};
+        values[0][0] = backgroundValue; // R
+        values[1][0] = backgroundValue; // G
+        values[2][0] = backgroundValue; // B
         return custom(values);
     }
 

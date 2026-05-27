@@ -28,7 +28,7 @@ import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.NumberWidget;
-import sc.fiji.snt.seed.RoisToSeeds;
+import sc.fiji.snt.seed.SeedRois;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
 
@@ -37,10 +37,10 @@ import java.util.List;
 /**
  * Generates {@link SeedPoint}s from the contents of the {@link RoiManager}.
  * One seed per area / line / point-like ROI (point ROIs expand to one seed per
- * contained point). Geometry rules and coordinate conventions live in {@link RoisToSeeds}.
+ * contained point). Geometry rules and coordinate conventions live in {@link SeedRois}.
  *
  * @author Tiago Ferreira
- * @see RoisToSeeds
+ * @see SeedRois
  */
 @Plugin(type = Command.class, label = "Generate Seeds from ROI Manager...")
 public class LoadSeedsFromROIsCmd extends CommonDynamicCmd {
@@ -78,7 +78,7 @@ public class LoadSeedsFromROIsCmd extends CommonDynamicCmd {
 
         final List<SeedPoint> seeds;
         try {
-            seeds = RoisToSeeds.compute(rois, snt.getImagePlus(), confidence, typeLabel, "roi");
+            seeds = SeedRois.toSeeds(rois, snt.getImagePlus(), confidence, typeLabel, "roi");
         } catch (final RuntimeException ex) {
             error("Failed to convert ROIs to seeds: " + ex.getMessage());
             return;
