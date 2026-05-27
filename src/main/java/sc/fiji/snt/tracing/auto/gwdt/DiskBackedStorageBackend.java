@@ -276,6 +276,14 @@ public class DiskBackedStorageBackend implements StorageBackend {
     }
 
     @Override
+    public void setGWDT(long index, double value) {
+        final long[] pos = indexToPos(index);
+        final RandomAccess<DoubleType> ra = gwdtImage.randomAccess();
+        ra.setPosition(pos);
+        ra.get().set(value);
+    }
+
+    @Override
     public double getMaxGWDT() {
         return maxGWDT;
     }

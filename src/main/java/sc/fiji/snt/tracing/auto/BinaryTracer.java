@@ -963,7 +963,7 @@ public class BinaryTracer implements AutoTracer {
      * to constrain skeleton traversal.
      */
     @Override
-    public EnumSet<SeedRole> honouredSeedRoles() {
+    public EnumSet<SeedRole> honoredSeedRoles() {
         return EnumSet.of(SeedRole.ROOT);
     }
 

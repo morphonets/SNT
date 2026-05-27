@@ -75,8 +75,8 @@ public interface AutoTracer {
     int ROI_CONTAINED = 4;
 
     /**
-     * Role a {@link SeedPoint} plays in a tracing run. Tracers honour the
-     * subset they implement (see {@link #honouredSeedRoles()}) and silently
+     * Role a {@link SeedPoint} plays in a tracing run. Tracers honor the
+     * subset they implement (see {@link #honoredSeedRoles()}) and silently
      * ignore the rest. The role list is intentionally small; new roles can
      * be added without breaking existing implementors because each role
      * maps to its own {@code default}-method setter.
@@ -123,12 +123,12 @@ public interface AutoTracer {
     }
 
     /**
-     * @return the {@link SeedRole}s this tracer actually honours. Callers
+     * @return the {@link SeedRole}s this tracer actually honors. Callers
      *         (e.g. an "Autotrace from Seeds" wrapper command) can use this
      *         to gate UI choices and to error early when the user picks a
      *         role the tracer ignores. Default: empty set.
      */
-    default EnumSet<SeedRole> honouredSeedRoles() {
+    default EnumSet<SeedRole> honoredSeedRoles() {
         return EnumSet.noneOf(SeedRole.class);
     }
 

@@ -530,7 +530,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 return null;
             }
         } else {
-            final boolean secLayer = !imgChoice.startsWith(IMG_TRACED_CHOICE);
+            final boolean secLayer = imgChoice != null && !imgChoice.startsWith(IMG_TRACED_CHOICE);
             chosenImp = snt.getLoadedDataAsImg(secLayer);
             if (chosenImp == null) {
                 if (secLayer)

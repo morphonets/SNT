@@ -392,13 +392,17 @@ public class SeedManager extends JPanel {
         seedTable.setFillsViewportHeight(true);
         seedTable.setRowHeight(seedTable.getRowHeight() + 2);
 
-        // Hide rows whose seed confidence is outside [low, high]. The sorter
-        // listens to fireTableDataChanged events; SeedOverlay -> model -> table
-        // change propagation re-evaluates the predicate automatically, so the
-        // table view updates as the user moves the confidence sliders/spinners.
+        // Hide rows whose seed confidence is outside [low, high]. The filter reads the live bounds from the overlay
+        // each call, so the sorter just needs to be told to re-evaluate when the model fires updates. The default
+        // RowSorter behavior (sortsOnUpdates=false) suppresses filter re-evaluation on UPDATE events which is fine for
+        // fireTableData-Changed (full reload re-filters anyway) but breaks for the fireTableRowsUpdated we now emit on
+        // overlay changes (selection-preservation requirement, see SeedTableModel#onOverlayChanged).
+        // setSortsOnUpdates(true) makes the sorter re-include/re-exclude rows on each UPDATE event without forcing a
+        // full data-changed reset, so confidence-slider moves hide/show rows AND the selection survives
         @SuppressWarnings("unchecked") final TableRowSorter<SeedTableModel> sorter =
                 (TableRowSorter<SeedTableModel>) seedTable.getRowSorter();
         sorter.setRowFilter(tableModel.confidenceRangeFilter());
+        sorter.setSortsOnUpdates(true);
 
         // Bidirectional selection sync: table -> overlay
         seedTable.getSelectionModel().addListSelectionListener(e -> {
@@ -837,14 +841,77 @@ public class SeedManager extends JPanel {
 
     private JPopupMenu seedTracingMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Seeds as Roots:");
-        JMenuItem jmi = new JMenuItem("Grayscale Image (1 Seed → 1 Tree)...");
+
+        GuiUtils.addSeparator(menu, "Seeds as Roots/Somata:");
+        JMenuItem jmi = new JMenuItem("Grayscale Image (One Tree per Seed)...");
         jmi.addActionListener(e -> traceFromSeeds());
-        jmi.setToolTipText("<HTML>Runs GWDT auto-tracing from seeds.<br>" +
-                "Pre-targets the current table selection; falls back to visible seeds if no rows are selected.");
+        jmi.setToolTipText("<HTML>Runs GWDT auto-tracing with <b>each seed as a tree root</b>.<br>" +
+                "Each filtered seed becomes the root of its own tree (the soma<br>" +
+                "ROI strategy is ignored). Output is one tree per seed; failures<br>" +
+                "(unreachable or background seeds) are logged to the Console.");
         menu.add(jmi);
-        // TODO: Implement Seeds as Tips, etc.
+
+        GuiUtils.addSeparator(menu, "Seeds as Endpoints/Tips:");
+        jmi = new JMenuItem("Grayscale Image (Single Cell)...");
+        jmi.addActionListener(e -> traceToSeeds());
+        jmi.setToolTipText("<HTML>Runs GWDT single-cell auto-tracing <b>toward seeded endpoints</b>.<br>" +
+                "The soma ROI on the canvas (or its auto-detection) is the root;<br>" +
+                "filtered seeds are the tips. Output is one tree connecting the<br>" +
+                "soma to every reachable tip.");
+        menu.add(jmi);
+
+        GuiUtils.addSeparator(menu, "Seeds as Waypoints / Path Attractors:");
+        jmi = new JMenuItem("Grayscale Image (Single Cell, Constrained)...");
+        jmi.addActionListener(e -> traceThroughSeeds());
+        jmi.setToolTipText("<HTML>Runs GWDT single-cell auto-tracing with <b>seeds as soft<br>" +
+                "path attractors</b>. The soma ROI on the canvas (or its auto-<br>" +
+                "detection) is the root; filtered seeds bias the GWDT cost map<br>" +
+                "so the trace preferentially routes through (or near) them.<br>" +
+                "Bias scales with each seed's confidence by default and is<br>" +
+                "configurable in the harvester (source, strength, sphere radius).");
+        menu.add(jmi);
         return menu;
+    }
+
+    /**
+     * Invokes {@code AutotraceFromWaypointsCmd}. Pre-populates {@code sourceFilter}
+     * with {@code "Selection only"} when the user has rows selected in the
+     * table; otherwise the harvester opens with its default of "Visible".
+     */
+    private void traceThroughSeeds() {
+        if (noSeedsError()) return;
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        final boolean hasSelection = !overlay.getSelectedSeeds().isEmpty();
+        recordComment("Seed Manager: traceThroughSeeds(source="
+                + (hasSelection ? "selection" : "harvester-default") + ")");
+        if (hasSelection) {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromWaypointsCmd.class, true,
+                    "sourceFilter", sc.fiji.snt.plugin.AutotraceFromWaypointsCmd.SOURCE_SELECTION);
+        } else {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromWaypointsCmd.class, true);
+        }
+    }
+
+    /**
+     * Invokes {@code AutotraceFromTipsCmd}. Pre-populates {@code sourceFilter}
+     * with {@code "Selection only"} when the user has rows selected in the
+     * table (those become the tip set); otherwise the harvester opens with
+     * its default of "Visible".
+     */
+    private void traceToSeeds() {
+        if (noSeedsError()) return;
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        final boolean hasSelection = !overlay.getSelectedSeeds().isEmpty();
+        recordComment("Seed Manager: traceToSeeds(source="
+                + (hasSelection ? "selection" : "harvester-default") + ")");
+        if (hasSelection) {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromTipsCmd.class, true,
+                    "sourceFilter", sc.fiji.snt.plugin.AutotraceFromTipsCmd.SOURCE_SELECTION);
+        } else {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromTipsCmd.class, true);
+        }
     }
 
     private void loadFromSessionDir() {

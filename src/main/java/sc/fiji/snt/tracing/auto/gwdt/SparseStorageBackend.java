@@ -204,6 +204,11 @@ public class SparseStorageBackend implements StorageBackend {
     }
 
     @Override
+    public void setGWDT(long index, double value) {
+        gwdtMap.put(index, value);
+    }
+
+    @Override
     public double getMaxGWDT() {
         return maxGWDT;
     }

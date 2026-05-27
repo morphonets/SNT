@@ -144,7 +144,7 @@ public class SNTUI extends JDialog {
     private final PathManagerUI pmUI;
     private final FillManagerUI fmUI;
     private final BookmarkManager bookmarkManager;
-    private SeedManager seedManager;
+    private final SeedManager seedManager;
     private final NotesUI notesui;
     private final DelineationsManager delineationsManager;
     /* Reconstruction Viewer */
@@ -424,7 +424,7 @@ public class SNTUI extends JDialog {
         tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.SEEDLING));
         tabbedPane.setIconAt(7, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
 
-        setJMenuBar(createMenuBar());
+        setJMenuBar(createMenuBar(tabbedPane));
         setLayout(new GridBagLayout());
         final GridBagConstraints dialogGbc = GuiUtils.defaultGbc();
         dialogGbc.insets.top = InternalUtils.MARGIN;
@@ -2930,11 +2930,11 @@ public class SNTUI extends JDialog {
 
     }
 
-    private JMenuBar createMenuBar() {
+    private JMenuBar createMenuBar(final JTabbedPane tabbedPane) {
         final JMenuBar menuBar = new JMenuBar();
         final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), SNTUI.this);
         menuBar.add(fileMenu(installer));
-        menuBar.add(autoTracingMenu());
+        menuBar.add(autoTracingMenu(tabbedPane));
         menuBar.add(analysisMenu());
         menuBar.add(installer.getScriptsMenu());
         menuBar.add(viewMenu());
@@ -3146,7 +3146,7 @@ public class SNTUI extends JDialog {
         return fileMenu;
     }
 
-    private JMenu autoTracingMenu() {
+    private JMenu autoTracingMenu(final JTabbedPane tabbedPane) {
         final JMenu menu = new JMenu("Auto-trace");
 
         // Interactive: operates on images already loaded in SNT
@@ -3184,7 +3184,15 @@ public class SNTUI extends JDialog {
         menu.add(jmiSoma);
         final JMenuItem jmiFromSeeds = new JMenuItem("From Seeds...", IconFactory.menuIcon(GLYPH.SEEDLING));
         jmiFromSeeds.setToolTipText("Open the Seeds tab to import/generate candidates and trace from them.");
-        jmiFromSeeds.addActionListener(e -> selectTab("Seeds")); // Navigation only: actual tracing lives in the Seeds tab pop
+        jmiFromSeeds.addActionListener(e -> {
+            final int idx = tabbedPane.getSelectedIndex();
+            if (idx > -1 && "Seeds".equals(tabbedPane.getTitleAt(idx))) {
+                showMessage("The \"Seeds\" tab is already active. Use its toolbar to access seed-based tracing.",
+                        "Seeds Tab Already Selected");
+            } else {
+                selectTab("Seeds");
+            }
+        }); // Navigation only: actual tracing lives in the Seeds tab pop
         menu.add(jmiFromSeeds);
 
         // From File(s): file-based / batch processing
