@@ -89,6 +89,7 @@ public class SeedManager extends JPanel {
     private JSpinner upperSpinner;
     private JTable seedTable;
     private SeedTableModel tableModel;
+    private TableRowSorter<SeedTableModel> tableSorter;
     private JScrollPane tableScroll;
     private GridBagConstraints tableScrollGbc;
     private GuiUtils.JTables.DetachableTable tableDetacher;
@@ -200,15 +201,16 @@ public class SeedManager extends JPanel {
     private JToolBar buildDisplayRow() {
         final JToolBar p = new JToolBar();
         p.setFloatable(false);
-
         final JToggleButton visibilityToggle = GuiUtils.Buttons.toolbarToggleButton(
                 toggleVisibilityAction,
                 "Show/hide seeds",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
         p.add(visibilityToggle);
-
         p.add(Box.createHorizontalGlue());
         lutRamp = new LutRamp(overlay::getColorTable, overlay::getLowConfidence, overlay::getHighConfidence);
+        final int h = visibilityToggle.getPreferredSize().height - 2;
+        lutRamp.setPreferredSize(new Dimension(lutRamp.getPreferredSize().width, h));
+        lutRamp.setMaximumSize(new Dimension(lutRamp.getMaximumSize().width, h));
         p.add(lutRamp);
         p.add(GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.COLOR2, 1f, colorTablePopupMenu()));
         colorModeCombo = buildColorModeCombo();
@@ -405,6 +407,15 @@ public class SeedManager extends JPanel {
                 (TableRowSorter<SeedTableModel>) seedTable.getRowSorter();
         sorter.setRowFilter(tableModel.confidenceRangeFilter());
         sorter.setSortsOnUpdates(true);
+        tableSorter = sorter;
+
+        // Color swatch follows the active color mode: chip sits next to the
+        // column whose value drives the encoding (Conf / Type / Source), so
+        // the chip's meaning is self-evident at a glance. INDEX mode has no
+        // semantic anchor column and falls back to the X column. The
+        // installation is re-run from refreshFromOverlay() whenever the
+        // color mode changes.
+        installSwatchOnEncodingColumn();
 
         // Bidirectional selection sync: table -> overlay
         seedTable.getSelectionModel().addListSelectionListener(e -> {
@@ -469,6 +480,186 @@ public class SeedManager extends JPanel {
                 new Dimension(600, 320));
         tableDetacher.installMenuItem(menu);
         return scroll;
+    }
+
+    /** Cached singleton renderer reused as the chip is moved between columns. */
+    private SwatchCellRenderer swatchRenderer;
+    /**
+     * Model index of the column currently hosting {@link #swatchRenderer},
+     * or {@code -1} if the renderer hasn't been installed yet. Tracked so
+     * that {@link #installSwatchOnEncodingColumn()} can detach the
+     * renderer from the previous host before re-installing on the new one
+     * (without this, switching color modes would leave a stale chip
+     * column alongside the new one).
+     */
+    private int swatchHostModelIndex = -1;
+
+    /**
+     * Installs (or moves) the color-swatch renderer onto the column whose
+     * value drives the active color encoding:
+     * <ul>
+     *   <li>CONFIDENCE → "Conf" column (model index 3)</li>
+     *   <li>TYPE       → "Type" column (model index 5)</li>
+     *   <li>SOURCE     → "Source" column (model index 6)</li>
+     *   <li>INDEX      → "X" column (model index 0; INDEX has no semantic
+     *       anchor column, so this is the stable fallback)</li>
+     * </ul>
+     * Idempotent: if the swatch is already on the right column, this is a
+     * no-op. Safe to call from any state — column lookups by model index
+     * survive user-side column reordering.
+     */
+    private void installSwatchOnEncodingColumn() {
+        final int target = colorEncodingModelIndex(overlay.getColorMode());
+        if (target == swatchHostModelIndex) return; // already in place
+
+        if (swatchRenderer == null) swatchRenderer = new SwatchCellRenderer();
+
+        // Remove from the previous host (if any) so we don't leave a stale chip.
+        if (swatchHostModelIndex >= 0) {
+            final javax.swing.table.TableColumn prev = columnByModelIndex(swatchHostModelIndex);
+            if (prev != null) prev.setCellRenderer(null);
+        }
+        // Install on the new host.
+        final javax.swing.table.TableColumn next = columnByModelIndex(target);
+        if (next != null) {
+            next.setCellRenderer(swatchRenderer);
+            swatchHostModelIndex = target;
+            seedTable.repaint();
+        }
+    }
+
+    /** Maps a color mode to the model-index of its encoding column. */
+    private static int colorEncodingModelIndex(final SeedOverlay.ColorMode mode) {
+        // Indices mirror SeedTableModel.COLUMN_NAMES_NO_STATUS layout:
+        // {"X","Y","Z","Conf","Radius","Type","Source"}.
+        if (mode == null) return 0;
+        return switch (mode) {
+            case CONFIDENCE -> 3; // Conf
+            case TYPE -> 5;       // Type
+            case SOURCE -> 6;     // Source
+            case INDEX -> 0;      // X (fallback)
+        };
+    }
+
+    /**
+     * Finds the {@link javax.swing.table.TableColumn} object whose underlying
+     * model index matches {@code modelIndex}, regardless of any view-side
+     * reordering the user has done. Returns {@code null} if no such column
+     * exists (e.g. the column hasn't been added yet).
+     */
+    private javax.swing.table.TableColumn columnByModelIndex(final int modelIndex) {
+        final java.util.Enumeration<javax.swing.table.TableColumn> cols =
+                seedTable.getColumnModel().getColumns();
+        while (cols.hasMoreElements()) {
+            final javax.swing.table.TableColumn col = cols.nextElement();
+            if (col.getModelIndex() == modelIndex) return col;
+        }
+        return null;
+    }
+
+    /**
+     * Cached per-render-pass color-map state, owned by the
+     * {@link SwatchCellRenderer}. Built lazily on the first cell paint after
+     * an overlay change (which bumps {@link #swatchCacheGeneration}) and
+     * reused for the rest of the pass.
+     */
+    private Map<SeedPoint, Integer> swatchIndexMap;
+    /** Companion to {@link #swatchIndexMap} for TYPE / SOURCE color modes. */
+    private Map<String, Integer> swatchCategoryOrdinals;
+    /** Monotonic counter bumped whenever the swatch caches need rebuilding. */
+    private int swatchCacheGeneration;
+    /** Generation observed at last cache rebuild; rebuild when generations diverge. */
+    private int swatchCacheBuilt = -1;
+    /** Color mode observed at last cache rebuild; rebuild on mode change. */
+    private SeedOverlay.ColorMode swatchCacheMode;
+
+    /**
+     * Invalidates the swatch color caches. Called from
+     * {@link #refreshFromOverlay()} so that overlay add/remove/clear,
+     * color-mode toggles, and confidence-range edits all force the next
+     * paint to recompute. Cheap (single int bump); the actual rebuild
+     * happens on demand in {@link SwatchCellRenderer}.
+     */
+    private void invalidateSwatchCaches() {
+        swatchCacheGeneration++;
+    }
+
+    /**
+     * Rebuilds the swatch caches for the current color mode. INDEX needs
+     * the seed→position map (so two seeds at the same XY still get
+     * distinct slots); TYPE and SOURCE need a sorted-key→ordinal map (so
+     * distinct categories spread maximally across the LUT). CONFIDENCE
+     * needs neither.
+     */
+    private void rebuildSwatchCaches() {
+        final SeedOverlay.ColorMode mode = overlay.getColorMode();
+        swatchCacheMode = mode;
+        if (mode == SeedOverlay.ColorMode.INDEX) {
+            final List<SeedPoint> all = overlay.list();
+            swatchIndexMap = new HashMap<>(Math.max(16, all.size() * 2));
+            for (int i = 0; i < all.size(); i++) swatchIndexMap.put(all.get(i), i);
+            swatchCategoryOrdinals = null;
+        } else if (mode == SeedOverlay.ColorMode.TYPE || mode == SeedOverlay.ColorMode.SOURCE) {
+            final TreeSet<String> keys = new TreeSet<>();
+            if (mode == SeedOverlay.ColorMode.TYPE) {
+                for (final SeedPoint sp : overlay.list()) keys.add(sp.type);
+            } else {
+                for (final SeedPoint sp : overlay.list()) keys.add(sp.source);
+            }
+            swatchCategoryOrdinals = new HashMap<>(Math.max(16, keys.size() * 2));
+            int i = 0;
+            for (final String k : keys) swatchCategoryOrdinals.put(k, i++);
+            swatchIndexMap = null;
+        } else {
+            swatchIndexMap = null;
+            swatchCategoryOrdinals = null;
+        }
+        swatchCacheBuilt = swatchCacheGeneration;
+    }
+
+    /**
+     * Renderer for the active color-encoding column's cells. Prepends a
+     * small accent icon (via {@link IconFactory#accentIcon(Color, boolean)}
+     * for visual consistency with other SNT tables) to the cell label,
+     * colored to match what the seed receives on the canvas. The icon
+     * sits left of the existing cell text
+     */
+    private final class SwatchCellRenderer extends javax.swing.table.DefaultTableCellRenderer {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public Component getTableCellRendererComponent(final JTable table, final Object value,
+                                                       final boolean isSelected, final boolean hasFocus,
+                                                       final int row, final int column) {
+            final Component c = super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column);
+            if (!(c instanceof JLabel label)) return c;
+            label.setIcon(swatchIconFor(row));
+            label.setHorizontalTextPosition(SwingConstants.RIGHT);
+            label.setIconTextGap(6);
+            return c;
+        }
+
+        /**
+         * Looks up the seed for the given view row, computes its current
+         * canvas color, and returns an {@link IconFactory#accentIcon}
+         * filled with that color. Rebuilds the renderer-side color-map
+         * caches if the overlay has fired changes since the last paint.
+         */
+        private javax.swing.Icon swatchIconFor(final int viewRow) {
+            final int modelRow = seedTable.convertRowIndexToModel(viewRow);
+            if (modelRow < 0 || modelRow >= overlay.size()) return null;
+            final SeedPoint s = overlay.get(modelRow);
+            final SeedOverlay.ColorMode mode = overlay.getColorMode();
+            if (swatchCacheBuilt != swatchCacheGeneration || swatchCacheMode != mode) {
+                rebuildSwatchCaches();
+            }
+            final Color col = SeedOverlayRenderer.colorForSeed(
+                    overlay.getColorTable(), mode, s,
+                    overlay.getLowConfidence(), overlay.getHighConfidence(),
+                    1.0, swatchIndexMap, swatchCategoryOrdinals);
+            return (col == null) ? null : IconFactory.accentIcon(col, true);
+        }
     }
 
     private static void paintEmptyStatePlaceholder(final Graphics2D g2, final JTable table) {
@@ -695,8 +886,23 @@ public class SeedManager extends JPanel {
             if (colorModeCombo != null && colorModeCombo.getSelectedItem() != overlay.getColorMode()) {
                 colorModeCombo.setSelectedItem(overlay.getColorMode());
             }
+            // The row filter reads the live confidence bounds, but the sorter
+            // only re-applies it on row-update events when there are active sort
+            // keys. With no sort applied (the default), moving a confidence
+            // slider would leave rows in the wrong include/exclude state until
+            // *another* model event came in. Force a sort() here so the filter
+            // is always re-evaluated against the current bounds before we then
+            // restore the selection (which is view-row-based: filtered-out rows
+            // must already be excluded from the view at this point).
+            if (tableSorter != null) tableSorter.sort();
             pullOverlaySelectionToTable();
             if (lutRamp != null) lutRamp.repaint();
+            // Color mode / LUT / range may have changed: invalidate the swatch
+            // caches so the next cell paint rebuilds them from the new state,
+            // and move the chip to whichever column the new color mode encodes
+            // (a no-op if the mode hasn't changed since the last refresh).
+            invalidateSwatchCaches();
+            installSwatchOnEncodingColumn();
         } finally {
             updatingFromOverlay = false;
         }
@@ -1214,6 +1420,7 @@ public class SeedManager extends JPanel {
             this.highSupplier = high;
             setPreferredSize(new Dimension(150, RAMP_HEIGHT));
             setMinimumSize(new Dimension(50, RAMP_HEIGHT));
+            setBorder(BorderFactory.createLineBorder(getForeground()));
         }
 
         @Override
@@ -1243,9 +1450,6 @@ public class SeedManager extends JPanel {
             final int highX = (int) Math.round(high * w);
             if (lowX > 0) g.fillRect(0, 0, lowX, h);
             if (highX < w) g.fillRect(highX, 0, w - highX, h);
-            // Border
-            g.setColor(getForeground());
-            g.drawRect(0, 0, w - 1, h - 1);
         }
     }
 }
