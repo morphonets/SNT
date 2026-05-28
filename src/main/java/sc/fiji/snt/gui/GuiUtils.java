@@ -43,6 +43,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
+import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 
@@ -4169,13 +4170,7 @@ public class GuiUtils {
 			 */
 			public void resetFor(final ij.ImagePlus imp) {
 				try {
-					if (imp == null) { percentage = DEFAULT_PERCENT; return; }
-					final ij.gui.ImageCanvas canvas = imp.getCanvas();
-					if (canvas == null) { percentage = DEFAULT_PERCENT; return; }
-					final double currentMag = canvas.getMagnification();
-					final double nextUp1x = ij.gui.ImageCanvas.getHigherZoomLevel(currentMag);
-					final double nextUp2x = ij.gui.ImageCanvas.getHigherZoomLevel(nextUp1x);
-					percentage = clamp((int) Math.round(nextUp2x * 100));
+					percentage = defaultPercentageFor(imp);
 				} catch (final NullPointerException ignored) {
 					percentage = DEFAULT_PERCENT;
 				}
@@ -4198,6 +4193,18 @@ public class GuiUtils {
 
 			private static int clamp(final int p) {
 				return Math.clamp(p, MIN_PERCENT, MAX_PERCENT);
+			}
+
+			public int defaultPercentageFor(final ij.ImagePlus imp) {
+				if (imp == null)
+					return DEFAULT_PERCENT;
+				final ij.gui.ImageCanvas canvas = imp.getCanvas();
+				if (canvas == null)
+					return DEFAULT_PERCENT;
+				final double currentMag = canvas.getMagnification();
+				final double nextUp1x = ImpUtils.nextZoomLevel(currentMag);
+				final double nextUp2x = ImpUtils.nextZoomLevel(nextUp1x);
+				return clamp((int) Math.round(nextUp2x * 100));
 			}
 		}
 	}

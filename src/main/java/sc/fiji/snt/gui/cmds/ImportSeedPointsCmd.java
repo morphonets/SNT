@@ -78,7 +78,7 @@ public class ImportSeedPointsCmd extends CommonDynamicCmd {
     private File csvFile;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String HEADER = "<HTML>NB: File must have header:<code>x,y,z,confidence,radius</code>, w/" +
+    private String HEADER = "<HTML>File must have header:<code>x,y,z,confidence,radius</code>, w/" +
             "<br>optional columns: <code>type,source,channel,frame</code>";
 
     @Parameter(label = "Coordinate units", choices = {UNITS_PHYSICAL, UNITS_VOXEL},

@@ -1950,6 +1950,21 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         menuBar.setEnabled(enabled);
     }
 
+    /**
+     * Repaints the Path Manager view for the given paths. Public hook used by
+     * external mutators (e.g. the Curation Assistant's review-tag actions in
+     * {@code CurationManager}) that change path names directly and need the
+     * table to pick the change up; bypasses the heavier viewer-update pass
+     * because path mutations like tag-suffix edits don't affect 3D viewers.
+     *
+     * @param paths the paths whose representation in the manager needs to
+     *              refresh; {@code null} or empty repaints the current
+     *              selection.
+     */
+    public void refreshForPaths(final Collection<Path> paths) {
+        refreshManager(false, false, paths);
+    }
+
     private void refreshManager(final boolean refreshCmds,
                                 final boolean refreshViewers, final Collection<Path> selectedPaths)
     {

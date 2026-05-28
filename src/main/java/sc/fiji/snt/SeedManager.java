@@ -22,12 +22,12 @@
 
 package sc.fiji.snt;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import net.imglib2.display.ColorTable;
 import org.scijava.command.CommandService;
+import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.gui.FileDrop;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -36,6 +36,7 @@ import sc.fiji.snt.gui.cmds.LoadSeedsFromLabelsImageCmd;
 import sc.fiji.snt.gui.cmds.LoadSeedsFromROIsCmd;
 import sc.fiji.snt.seed.*;
 import sc.fiji.snt.util.ImpUtils;
+import sc.fiji.snt.util.PointInImage;
 
 import javax.swing.*;
 import javax.swing.event.ChangeListener;
@@ -150,7 +151,8 @@ public class SeedManager extends JPanel {
         gbc.gridy = 0;
 
         // Seeds section: heading + short synopsis
-        SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeds:", false, gbc);
+        SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeds:",
+                "https://imagej.net/plugins/snt/seeds", false, gbc);
         gbc.gridy++;
         final JTextArea synopsis = GuiUtils.longSmallMsg(MSG_SYNOPSIS, this);
         add(synopsis, gbc);
@@ -438,6 +440,8 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
         jmi.addActionListener( e -> deleteSelected());
         menu.add(jmi);
+        menu.addSeparator();
+        menu.add(buildSendToCurationSubmenu());
         menu.addSeparator();
 
         menu.add(GuiUtils.JTables.resetAndResizeColumnsMenuItem(
@@ -1125,6 +1129,69 @@ public class SeedManager extends JPanel {
         if (sntui.guiUtils.getConfirmation("Delete " + sel.size() + " selected seed(s)?", "Delete Selected Seeds?")) {
             overlay.removeSelected();
         }
+    }
+
+    private JMenu buildSendToCurationSubmenu() {
+        final JMenu sub = new JMenu("Send to Curation Assistant");
+        sub.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.USER_DOCTOR));
+        sub.setToolTipText("<HTML>Append the seeds currently selected in this table to the<br>" +
+                "Curation Assistant's warnings list at the chosen severity.<br>" +
+                "Useful for flagging detector candidates for human review.");
+        for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
+            final String label = switch (sev) {
+                case INFO -> "As Info Message";
+                case WARNING -> "As Warning";
+                case ERROR -> "As Error";
+            };
+            final JMenuItem item = new JMenuItem(label,
+                    IconFactory.accentIcon(CurationManager.severityColor(sev), true));
+            item.addActionListener(e -> sendSelectedToCuration(sev));
+            sub.add(item);
+        }
+        return sub;
+    }
+
+    /**
+     * Materializes the table's currently-selected rows as
+     * {@link PlausibilityCheck.Warning} entries and hands them to the
+     * Curation Assistant via {@link CurationManager#addWarnings(List)}.
+     * Selection is required (no fallback to visible rows) because appending
+     * to the Assistant's log is a one-way action: there's no bulk-delete on
+     * the receiving end, so accidentally flooding it would be quite annoying.
+     */
+    private void sendSelectedToCuration(final PlausibilityCheck.Severity severity) {
+        if (noSeedsError()) return;
+        final Set<SeedPoint> sel = overlay.getSelectedSeeds();
+        if (sel.isEmpty()) {
+            sntui.error("Select one or more rows in the Seeds table first.");
+            return;
+        }
+        final CurationManager cm = sntui.getCurationManager();
+        if (cm == null) {
+            sntui.error("Curation Assistant is not available.");
+            return;
+        }
+        final List<PlausibilityCheck.Warning> warnings = new ArrayList<>(sel.size());
+        for (final SeedPoint s : sel) {
+            final String message = String.format(
+                    "Seed candidate — confidence %.2f, type=%s, source=%s",
+                    s.confidence,
+                    s.type.isEmpty() ? "—" : s.type,
+                    s.source.isEmpty() ? "—" : s.source);
+            warnings.add(new PlausibilityCheck.Warning(
+                    "Seed Review",
+                    severity,
+                    message,
+                    new PointInImage(s.x, s.y, s.z),
+                    java.util.Collections.emptyList(),
+                    s.confidence,
+                    0.0));
+        }
+        cm.addWarnings(warnings);
+        recordComment("Seed Manager: sendSelectedToCuration(" + severity + ", n=" + warnings.size() + ")");
+        sntui.selectTab("Assistant");
+        sntui.showStatus(String.format("Sent %,d seed(s) to Curation Assistant as %s.",
+                warnings.size(), severity), true);
     }
 
     /**

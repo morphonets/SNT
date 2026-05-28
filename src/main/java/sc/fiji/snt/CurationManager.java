@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
 import ij.ImagePlus;
+import sc.fiji.snt.analysis.curation.CurationTags;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
 import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
@@ -40,9 +41,8 @@ import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
-import java.util.ArrayList;
+import java.util.*;
 import java.util.List;
-import java.util.Objects;
 
 
 /**
@@ -149,7 +149,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private void configureTable() {
-        warningsTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        warningsTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         warningsTable.setShowGrid(false);
         warningsTable.setAutoCreateRowSorter(true);
         // Null-safe comparator for padding rows
@@ -272,6 +272,55 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         popup.addSeparator();
 
+        // Review-tag actions: mark the affected paths of the selected
+        // warning(s) as positive / negative training examples. The
+        // Path Manager view is refreshed afterward so the new tag is
+        // visible without the user having to click anything.
+        final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As...");
+        reviewMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        reviewMenu.setToolTipText("<HTML>Tag the path(s) referenced by the selected warning(s)<br>" +
+                "as either positive or negative training examples.<br>" +
+                "Tags use the reserved <code>cur:</code> prefix and survive<br>" +
+                ".traces round-trips, so they can be filtered/exported later<br>" +
+                "from the Path Manager.");
+        final LinkedHashMap<String, Color> colors = GuiUtils.MenuItems.colorTagPresets();
+        final JMenuItem positiveItem = new JMenuItem("Positive Example",
+                IconFactory.accentIcon(colors.get("Green"), true));
+        positiveItem.setToolTipText("Tag affected paths as positive (accepted) training examples.");
+        positiveItem.addActionListener(e -> applyReviewTag(CurationTags::markPositive, "positive examples", true));
+        reviewMenu.add(positiveItem);
+
+        final JMenuItem negativeItem = new JMenuItem("Negative Example",
+                IconFactory.accentIcon(colors.get("Red"), true));
+        negativeItem.setToolTipText("Tag affected paths as negative (rejected/suspect) training examples.");
+        negativeItem.addActionListener(e -> applyReviewTag(CurationTags::markNegative, "negative examples", true));
+        reviewMenu.add(negativeItem);
+
+        final JMenuItem unsureItem = new JMenuItem("Needs Follow-up Review",
+                IconFactory.accentIcon(colors.get("Yellow"), true));
+        unsureItem.setToolTipText("Tag affected paths as needing a second pass (\"not sure\").");
+        unsureItem.addActionListener(e -> applyReviewTag(CurationTags::markUnsure, "needs-follow-up", true));
+        reviewMenu.add(unsureItem);
+
+        reviewMenu.addSeparator();
+
+        final JMenuItem clearReviewItem = new JMenuItem("Clear Review Status",
+                IconFactory.menuIcon(IconFactory.GLYPH.TIMES));
+        clearReviewItem.setToolTipText("Remove any cur:* review tag from affected paths.");
+        clearReviewItem.addActionListener(e -> applyReviewTag(CurationTags::clearReview, "(review tags cleared)", false));
+        reviewMenu.add(clearReviewItem);
+
+        popup.add(reviewMenu);
+
+        final JMenuItem showCuratedItem = new JMenuItem("Show Reviewed Paths in Path Manager",
+                IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
+        showCuratedItem.setToolTipText("<HTML>Switches to the Path Manager and filters its list to<br>" +
+                "show only paths carrying a <code>cur:*</code> review tag.");
+        showCuratedItem.addActionListener(e -> showCuratedPathsInPathManager());
+        popup.add(showCuratedItem);
+
+        popup.addSeparator();
+
         final JMenuItem clearItem = new JMenuItem("Clear All Issues",
                 IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         clearItem.addActionListener(e -> {
@@ -279,20 +328,52 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             refreshTableHeader();
         });
         popup.add(clearItem);
-
         popup.addSeparator();
+        popup.add(getVisitingZoomControls());
+        popup.addSeparator();
+        return popup;
+    }
 
-        // Preferred zoom level: inline panel with spinner + reset
-        final JSpinner zoomSpinner = visitingZoom.buildSpinner();
-        zoomSpinner.setToolTipText("Preferred zoom level (25–3200%) when navigating to an issue location");
+    private JMenu getVisitingZoomControls() {
+        final JMenu presetsMenu = new JMenu("Visiting Zoom Level");
+        presetsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
+        final ButtonGroup buttonGroup = new ButtonGroup();
+        final int currentZl = visitingZoom.percentage();
+        final Map<Integer, JRadioButtonMenuItem> presets = new TreeMap<>();
+        for (final int zl : new int[]{50, 100, 200, 400, 600, 800, 1000}) {
+            final JRadioButtonMenuItem item = new JRadioButtonMenuItem(zl + "%");
+            item.setSelected(currentZl == zl);
+            item.addActionListener(e -> {
+                visitingZoom.setPercentage(zl);
+                sntui.showStatus("Visiting zoom set to " + zl + "%", true);
+            });
+            buttonGroup.add(item);
+            presetsMenu.add(item);
+            presets.put(zl, item);
+        }
+        //presetsMenu.addSeparator();
+        final JRadioButtonMenuItem chooseOther = new JRadioButtonMenuItem("Other...", !presets.containsKey(currentZl));
+        buttonGroup.add(chooseOther);
+        presetsMenu.add(chooseOther);
+        chooseOther.addActionListener(e -> {
+            final String suffixMsg;
+            final ImagePlus imp = sntui.plugin.getImagePlus();
+            if (imp != null) {
+                suffixMsg = String.format(" (image default: %d%%):", visitingZoom.defaultPercentageFor(imp));
+            } else {
+                suffixMsg = ":";
+            }
+            final Integer zl = sntui.guiUtils.getInt(
+                    "Preferred zoom level (%) when navigating to an issue" + suffixMsg,
+                    "Visiting Zoom Level", visitingZoom.percentage(), 25, 3200);
+            if (zl != null) {
+                visitingZoom.setPercentage(zl);
+                sntui.showStatus("Visiting zoom set to " + zl + "%", true);
+                if (presets.get(zl) != null) presets.get(zl).setSelected(true);
 
-        final JPanel zoomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        zoomPanel.setOpaque(false);
-        zoomPanel.add(new JLabel("Visiting Zoom (%):"));
-        zoomPanel.add(zoomSpinner);
-        popup.add(zoomPanel);
-
-        // Reset zoom
+            }
+        });
+        presetsMenu.addSeparator();
         final JMenuItem resetZoomItem = new JMenuItem("Reset Zoom Level", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         resetZoomItem.setToolTipText(
                 "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
@@ -300,34 +381,34 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (sntui.plugin.getImagePlus() == null) {
                 sntui.showStatus("Current zoom unknown: No image is loaded...", true);
             } else {
-                visitingZoom.resetFor(sntui.plugin.getImagePlus());
-                zoomSpinner.setValue(visitingZoom.percentage());
+                final int resetZl = visitingZoom.defaultPercentageFor(sntui.plugin.getImagePlus());
+                visitingZoom.setPercentage(resetZl);
+                final JRadioButtonMenuItem match = presets.get(resetZl);
+                if (match != null) match.setSelected(true);
+                else chooseOther.setSelected(true);
+                sntui.showStatus("Visiting zoom reset to " + resetZl + "%", true);
             }
         });
-        popup.add(resetZoomItem);
-        popup.addSeparator();
-
-        // Detach / dock table: the helper needs the JScrollPane to exist, which won't happen until
-        // getPanel() runs. We finish wiring it there (installDetachMenuItem) instead of here
-
-        // Sync the zoom spinner whenever the popup is shown (detach-item text is kept in sync by
-        // the helper's own PopupMenuListener that installDetachMenuItem will add later)
-        popup.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
+        presetsMenu.add(resetZoomItem);
+        // sync radio state every time the menu is about to open
+        presetsMenu.addMenuListener(new javax.swing.event.MenuListener() {
             @Override
-            public void popupMenuWillBecomeVisible(final javax.swing.event.PopupMenuEvent e) {
-                zoomSpinner.setValue(visitingZoom.percentage());
+            public void menuSelected(javax.swing.event.MenuEvent e) {
+                final int now = visitingZoom.percentage();
+                final JRadioButtonMenuItem match = presets.get(now);
+                if (match != null) match.setSelected(true);
+                else chooseOther.setSelected(true);
             }
 
             @Override
-            public void popupMenuWillBecomeInvisible(final javax.swing.event.PopupMenuEvent e) {
+            public void menuDeselected(javax.swing.event.MenuEvent e) {
             }
 
             @Override
-            public void popupMenuCanceled(final javax.swing.event.PopupMenuEvent e) {
+            public void menuCanceled(javax.swing.event.MenuEvent e) {
             }
         });
-
-        return popup;
+        return presetsMenu;
     }
 
     /**
@@ -382,7 +463,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
 
         // Header & description
-        SNTUI.InternalUtils.addSeparatorWithURL(panel, "Curation Assistant:", false, gbc);
+        SNTUI.InternalUtils.addSeparatorWithURL(panel, "Curation Assistant:",
+                "https://imagej.net/plugins/snt/curation", false, gbc);
         gbc.gridy++;
         gbc.weighty = 0.0;
         panel.add(GuiUtils.longSmallMsg("Flags implausible morphology during tracing and editing. "
@@ -422,8 +504,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             tableDetacher = new GuiUtils.JTables.DetachableTable(
                     tableScroll, "Issues (Curation Assistant)", this::redockTableScroll,
                     new Dimension(500, 200));
-            final javax.swing.JPopupMenu existing =
-                    (javax.swing.JPopupMenu) warningsTable.getComponentPopupMenu();
+            final javax.swing.JPopupMenu existing = warningsTable.getComponentPopupMenu();
             if (existing != null) tableDetacher.installMenuItem(existing);
         }
 
@@ -1314,6 +1395,107 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
     }
 
+    /**
+     * Appends warnings to the table without replacing existing ones. Used by
+     * external producers that want to inject items into the warnings log alongside
+     * the ones already produced by the live/deep checks. The severity filter is
+     * re-applied automatically; entries whose severity is currently hidden are
+     * accepted into the underlying list but stay invisible until the user
+     * re-enables their severity in the toolbar.
+     *
+     * @param warnings entries to append; {@code null} or empty is ignored.
+     */
+    public void addWarnings(final List<PlausibilityCheck.Warning> warnings) {
+        if (warnings == null || warnings.isEmpty()) return;
+        SwingUtilities.invokeLater(() -> {
+            tableModel.appendWarnings(warnings);
+            refreshTableHeader();
+        });
+    }
+
+    /**
+     * @return the per-severity accent color used in the Assistant tab's table, filter menu, and severity icons.
+     */
+    public static Color severityColor(final PlausibilityCheck.Severity severity) {
+        if (severity == null) return SEVERITY_INFO;
+        return switch (severity) {
+            case ERROR -> SEVERITY_ERROR;
+            case WARNING -> SEVERITY_WARNING;
+            case INFO -> SEVERITY_INFO;
+        };
+    }
+
+    /**
+     * Applies a review-tag action (mark positive / mark negative / clear) to every {@code Path} carried by
+     * the currently-selected warnings. If nothing is selected, falls back to all warnings in the table.
+     * After tagging, the affected paths are highlighted in the Path Manager and the manager view is refreshed
+     * so the new tag suffix is visible immediately.
+     *
+     * @param mutator        the per-Path action (typically a {@link CurationTags} method reference)
+     * @param descriptor     short description used in the status line ("positive examples", "negative examples", ...)
+     * @param requiresIssues Whether the mutator requires the  warningsTable   to be populated
+     */
+    private void applyReviewTag(final java.util.function.Consumer<Path> mutator,
+                                final String descriptor, final boolean requiresIssues) {
+        if (requiresIssues && warningsTable.getModel().getRowCount() < 1) {
+            sntui.error("No issues exist.");
+            return;
+        }
+        final int[] selectedRows = warningsTable.getSelectedRows();
+        final List<PlausibilityCheck.Warning> source;
+        if (selectedRows.length == 0) {
+            source = tableModel.warnings;
+        } else {
+            source = new ArrayList<>(selectedRows.length);
+            for (final int viewRow : selectedRows) {
+                final int modelRow = warningsTable.convertRowIndexToModel(viewRow);
+                if (modelRow >= 0 && modelRow < tableModel.warnings.size())
+                    source.add(tableModel.warnings.get(modelRow));
+            }
+        }
+        if (source.isEmpty()) return;
+        // Deduplicate: a single path may be referenced by several warnings
+        final java.util.LinkedHashSet<Path> affected = new java.util.LinkedHashSet<>();
+        for (final PlausibilityCheck.Warning w : source) {
+            if (w.affectedPaths() != null) affected.addAll(w.affectedPaths());
+        }
+        if (affected.isEmpty()) {
+            sntui.error("Selected issue(s) reference no paths.");
+            return;
+        }
+        affected.forEach(mutator);
+        // Surface what changed: highlight the affected paths and refresh the
+        // Path Manager so the new tag suffix is visible on each row
+        final PathManagerUI pmUI = sntui.getPathManager();
+        if (pmUI != null) {
+            pmUI.refreshForPaths(affected);
+            pmUI.setSelectedPaths(new java.util.HashSet<>(affected), this);
+        }
+        sntui.plugin.setUnsavedChanges(true);
+        sntui.showStatus(String.format("Tagged %,d path(s) as %s.",
+                affected.size(), descriptor), true);
+    }
+
+    private void showCuratedPathsInPathManager() {
+        final PathManagerUI pmUI = sntui.getPathManager();
+        if (pmUI == null) {
+            sntui.error("Path Manager is not available.");
+            return;
+        }
+        // PathManagerUI is its own JDialog rather than a tab inside SNTUI,
+        // so we bring its window forward rather than calling selectTab()
+        pmUI.setVisible(true);
+        pmUI.toFront();
+        try {
+            final List<Integer> hits = pmUI.getSearchable().findAll("{cur:");
+            if (hits.isEmpty()) {
+                sntui.error("No paths have been tagged with 'Positive','Negative', or 'Needs Follow-up' tags.");
+            }
+        } catch (final Throwable t) {
+            sntui.error("Could not set Path Manager filter: " + t.getMessage());
+        }
+    }
+
     private static String getDocAnchor(final String checkName) {
         return switch (checkName) {
             case "Branch angle" -> "#min-fork-angle-";
@@ -1327,6 +1509,9 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             case "Radius jumps" -> "#max-ratio-of-abrupt-radius-changes";
             case "Radius monotonicity" -> "#min-run-length-for-radius-inversions";
             case "Image signal quality" -> "#min-signal-contrast-ratio";
+            // Externally-contributed warnings (e.g. from the Seeds tab's
+            // "Send Selected Seeds to Curation Assistant" submenu).
+            case "Seed Review" -> "#seed-review";
             default -> "";
         };
     }
@@ -1384,6 +1569,17 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         void setWarnings(final List<PlausibilityCheck.Warning> warnings) {
             this.allWarnings = new ArrayList<>(warnings);
+            applyFilter();
+        }
+
+        /**
+         * Appends to {@link #allWarnings} and re-applies the severity filter. Counterpart of
+         * {@link #setWarnings(List)} for callers that contribute warnings incrementally
+         * rather than as a fresh full snapshot.
+         */
+        void appendWarnings(final List<PlausibilityCheck.Warning> extra) {
+            if (extra == null || extra.isEmpty()) return;
+            this.allWarnings.addAll(extra);
             applyFilter();
         }
 

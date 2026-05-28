@@ -5384,8 +5384,13 @@ public class SNTUI extends JDialog {
 
         static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
                                         final GridBagConstraints c) {
+            addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c);
+        }
+
+        static void addSeparatorWithURL(final JComponent component, final String label, final String baseUrl,
+                                        final boolean vgap, final GridBagConstraints c) {
             final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
-            final String uri = "https://imagej.net/plugins/snt/manual#" + anchor;
+            final String uri = baseUrl + "#" + anchor;
             final JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
             GuiUtils.addSeparator(component, jLabel, vgap, c);
         }

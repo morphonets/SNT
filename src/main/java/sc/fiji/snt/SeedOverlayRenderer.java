@@ -335,12 +335,18 @@ public final class SeedOverlayRenderer {
      * legacy confidence-position behaviour (alpha rides on confidence);
      * INDEX / TYPE / SOURCE use a categorical key and full opacity so every
      * seed contributes equal visual weight.
+     * <p>
+     * Public so that non-canvas consumers (e.g. the Seeds table's swatch
+     * column) can compute the exact same color a seed would receive on the
+     * canvas, ensuring row⇄canvas correspondence is visually identical.
+     * Stateless: pass {@code depthFalloff = 1.0} when there's no slice-distance
+     * concept (table rows have no Z).
      */
-    private static Color colorForSeed(final ColorTable table, final ColorMode mode,
-                                      final SeedPoint s, final double low, final double high,
-                                      final double depthFalloff,
-                                      final Map<SeedPoint, Integer> seedIndexMap,
-                                      final Map<String, Integer> categoryOrdinals) {
+    public static Color colorForSeed(final ColorTable table, final ColorMode mode,
+                                     final SeedPoint s, final double low, final double high,
+                                     final double depthFalloff,
+                                     final Map<SeedPoint, Integer> seedIndexMap,
+                                     final Map<String, Integer> categoryOrdinals) {
         return switch (mode) {
             case CONFIDENCE -> colorFromTable(table, s.confidence, low, high, depthFalloff);
             case INDEX -> {
