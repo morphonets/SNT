@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -43,10 +43,9 @@ import java.io.File;
 import java.util.*;
 
 /**
- * Abstract base command providing shared parameters and logic for
- * {@link BinaryTracer}-based autotracing. Subclassed by
- * {@link BinaryTracerCmd} (interactive, image already loaded) and
- * file-based variants (non-interactive, batch processing).
+ * Abstract base command providing shared parameters and logic for {@link BinaryTracer}-based autotracing. Subclassed by
+ * {@link BinaryTracerCmd} (interactive, image already loaded) and file-based variants (non-interactive,
+ * batch processing).
  *
  * @author Cameron Arshadi
  * @author Tiago Ferreira
@@ -78,7 +77,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
 
     @Parameter(label = "Segmented Image", required = false, description = "<HTML>Image from which paths will be extracted. Will be skeletonized by the algorithm.<br>"
             + "If thresholded, only highlighted pixels are considered, otherwise all non-zero<br>intensities will be taken into account", style = ChoiceWidget.LIST_BOX_STYLE)
-    private String maskImgChoice;
+    String maskImgChoice;
 
     @Parameter(label = "Input directory", required = false, style = "directory",
             description = "<HTML>Directory containing segmented images to be traced.<br>" +
@@ -212,7 +211,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
      * from file paths) or in image-choice mode (selecting from open images).
      *
      * @return {@code true} for file-based operation, {@code false} for
-     *         choice-widget operation
+     * choice-widget operation
      */
     protected abstract boolean isFileMode();
 
@@ -419,39 +418,10 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             snt.setCanvasLabelAllPanes("Skeletonizing..");
             BinaryTracer.skeletonize(chosenMaskImp, chosenMaskImp.getNSlices() == 1);
 
-            // fallback loop-solving strategy if intensity image is not available
-            final int fallbackLoopSolvingStrategy = BinaryTracer.PERIPHERAL_SEGMENTS;
-
             // Now we can finally run the conversion!
             snt.setCanvasLabelAllPanes("Autotracer running...");
             status("Creating Trees from Skeleton...", false);
-            final BinaryTracer converter = new BinaryTracer(chosenMaskImp, false);
-            SNTUtils.log("Converting....");
-            setPruneMode(converter);
-            converter.setPruneByLength(pruneByLength);
-            SNTUtils.log("Prune by length: " + pruneByLength);
-            converter.setLengthThreshold(lengthThreshold);
-            SNTUtils.log("Length threshold: " + lengthThreshold);
-            converter.setConnectComponents(connectComponents);
-            SNTUtils.log("Connect components: " + connectComponents);
-            converter.setMaxConnectDist(maxConnectDist);
-            SNTUtils.log("Max connecting dist.: " + maxConnectDist);
-
-            final int chosenMode = converter.getPruneMode();
-            if (chosenOrigImp == null) {
-                // User chose intensity-based but no intensity image available: fallback
-                if (chosenMode == BinaryTracer.LOWEST_INTENSITY_BRANCH ||
-                        chosenMode == BinaryTracer.LOWEST_INTENSITY_VOXEL) {
-                    converter.setPruneMode(fallbackLoopSolvingStrategy);
-                    SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter) +
-                            " (fallback; intensity image not available)");
-                } else {
-                    SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter));
-                }
-            } else {
-                converter.setOrigIP(chosenOrigImp);
-                SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter));
-            }
+            final BinaryTracer converter = createAndConfigureConverter(chosenMaskImp, chosenOrigImp);
 
             if (autoDetectSoma) {
                 // Auto-detect soma from the segmented image using EDT×intensity scoring
@@ -478,7 +448,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                         (converter.getPruneMode() == BinaryTracer.LOWEST_INTENSITY_BRANCH ||
                                 converter.getPruneMode() == BinaryTracer.LOWEST_INTENSITY_VOXEL))
                     SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to fallback strategy");
-                converter.setPruneMode(fallbackLoopSolvingStrategy);
+                converter.setPruneMode(BinaryTracer.PERIPHERAL_SEGMENTS);
 
                 try {
                     trees = converter.getTrees();
@@ -578,12 +548,59 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Called after tracing completes with valid trees. The default implementation
-     * honors {@link #afterTracingChoice}: optionally replaces existing paths,
-     * assigns colors (per-tree "dim" palette when proofreading, inter-tree
-     * otherwise), adds trees via PathAndFillManager, and optionally calibrates
-     * the Curation Manager for proofreading. Subclasses may override to export
-     * trees to disk or adopt the mask image as tracing canvas.
+     * Builds and configures a {@link BinaryTracer} for the supplied images. Wraps the constructor with the standard
+     * configuration  (prune mode, length threshold, component-connection options, loop-solving strategy,
+     * original-intensity image), so {@link #runCommand}  and seed-driven subclasses
+     * (e.g. {@code AutotraceFromBinarySeedsCmd}) can share the same configuration pipeline without duplicating it.
+     * <p>
+     * Caller is expected to supply a mask image that has already been skeletonized; this method does <em>not</em>
+     * re-skeletonize. The  intensity image is optional: when {@code null}, intensity-based loop solving falls back to
+     * {@link BinaryTracer#PERIPHERAL_SEGMENTS}. Root placement (via {@code setRootRoi} / {@code setRoots}) is the
+     * caller's responsibility — this method leaves the tracer's root unset so the same flow can serve both ROI-driven
+     * and seed-driven runs.
+     *
+     * @param maskImp the skeletonized mask image (required).
+     * @param origImp the original intensity image (optional; may be {@code null}).
+     * @return a configured but unrooted {@link BinaryTracer}; caller adds a root and invokes
+     * {@link BinaryTracer#getTrees()}.
+     */
+    protected BinaryTracer createAndConfigureConverter(final ImagePlus maskImp,
+                                                       final ImagePlus origImp) {
+        final BinaryTracer converter = new BinaryTracer(maskImp, false);
+        SNTUtils.log("Converting....");
+        setPruneMode(converter);
+        converter.setPruneByLength(pruneByLength);
+        SNTUtils.log("Prune by length: " + pruneByLength);
+        converter.setLengthThreshold(lengthThreshold);
+        SNTUtils.log("Length threshold: " + lengthThreshold);
+        converter.setConnectComponents(connectComponents);
+        SNTUtils.log("Connect components: " + connectComponents);
+        converter.setMaxConnectDist(maxConnectDist);
+        SNTUtils.log("Max connecting dist.: " + maxConnectDist);
+
+        // Loop-solving fallback when intensity image is not available
+        final int fallbackLoopSolvingStrategy = BinaryTracer.PERIPHERAL_SEGMENTS;
+        final int chosenMode = converter.getPruneMode();
+        if (origImp == null) {
+            if (chosenMode == BinaryTracer.LOWEST_INTENSITY_BRANCH || chosenMode == BinaryTracer.LOWEST_INTENSITY_VOXEL) {
+                converter.setPruneMode(fallbackLoopSolvingStrategy);
+                SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter) +
+                        " (fallback; intensity image not available)");
+            } else {
+                SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter));
+            }
+        } else {
+            converter.setOrigIP(origImp);
+            SNTUtils.log("Loop-resolving method: " + pruneModeToString(converter));
+        }
+        return converter;
+    }
+
+    /**
+     * Called after tracing completes with valid trees. The default implementation honors {@link #afterTracingChoice}:
+     * optionally replaces existing paths, assigns colors (per-tree "dim" palette when proofreading, inter-tree
+     * otherwise), adds trees via PathAndFillManager, and optionally calibrates the Curation Manager for proofreading.
+     * Subclasses may override to export trees to disk or adopt the mask image as tracing canvas.
      *
      * @param trees the traced trees (guaranteed non-null and non-empty)
      */
@@ -611,8 +628,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Returns the {@link BinaryTracer} root strategy constant corresponding
-     * to the current {@link #rootChoice} selection.
+     * Returns the {@link BinaryTracer} root strategy constant corresponding to the current {@link #rootChoice} selection.
      *
      * @return the root strategy constant
      */
@@ -627,8 +643,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Assigns or clears the Z-position on the given ROI based on
-     * {@link #roiPlane} and the current mask image.
+     * Assigns or clears the Z-position on the given ROI based on  {@link #roiPlane} and the current mask image.
      *
      * @param roi the ROI to configure
      */
@@ -654,8 +669,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Configures the prune mode on a {@link BinaryTracer} based on the
-     * current {@link #loopSolvingChoice} selection.
+     * Configures the prune mode on a {@link BinaryTracer} based on the  current {@link #loopSolvingChoice} selection.
      *
      * @param skConverter the tracer to configure
      */
@@ -679,8 +693,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Returns a human-readable string for the current prune mode of the
-     * given tracer.
+     * Returns a human-readable string for the current prune mode of the given tracer.
      *
      * @param binaryTracer the tracer to inspect
      * @return a string describing the prune mode
@@ -698,8 +711,8 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Retrieves the first non-null ROI from the supplied images. Falls back
-     * to the first ROI in each image's overlay if no direct ROI is set.
+     * Retrieves the first non-null ROI from the supplied images. Falls back to the first ROI in each image's overlay if
+     * no direct ROI is set.
      *
      * @param imps the images to search for ROIs
      * @return the first ROI found, or {@code null} if none exists
@@ -720,8 +733,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Displays an informational message via the SNT UI, or logs it if no UI
-     * is available.
+     * Displays an informational message via the SNT UI, or logs it if no UI is available.
      *
      * @param msg the message to display
      */
@@ -732,10 +744,6 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             SNTUtils.log(msg);
     }
 
-    /**
-     * Displays an error indicating that no open images are available for
-     * tracing.
-     */
     protected void noImgError() {
         error("To run this command you must first open a pre-processed image from which paths can be extracted (i.e., "
                 + "in which background pixels have been removed). E.g.:"

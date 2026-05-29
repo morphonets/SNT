@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.plugin;
 
+import ij.ImagePlus;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.module.MutableModuleItem;
@@ -31,27 +32,36 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedPoint;
-import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.AutoTracer;
+import sc.fiji.snt.tracing.auto.BinaryTracer;
 
 import java.util.*;
 
 /**
- * Batch autotracing wrapper that iterates over the seeds currently held by SNT's {@link SeedOverlay} and runs the GWDT
- * tracer once per seed (each seed acts as the root of a new {@link Tree}). Trees are accumulated and loaded into the
- * active {@link sc.fiji.snt.PathAndFillManager} at the end.
+ * Batch autotracing wrapper that iterates over the seeds currently held by SNT's {@link SeedOverlay} and runs the
+ * {@link BinaryTracer} (skeleton-based autotracer) once per seed, each seed acting as the root of its own tree.
+ * Trees are accumulated and loaded into the active path manager at the end.
  * <p>
- * Inherits all GWDT tracing knobs from {@link GWDTTracerCommonCmd}; adds three seed-source filter parameters (source,
- * type, channel override). Failures on individual seeds are logged and reported but do not abort the whole run.
+ * This is the binary/skeleton counterpart of {@link AutotraceFromSeedsCmd}. The typical workflow is to start from a
+ * labels image (e.g. cellpose / StarDist segmentations), generate one seed per labeled object via
+ * {@link sc.fiji.snt.gui.cmds.LoadSeedsFromLabelsImageCmd Generate Seeds from Labels Image}, and then run this command
+ * to produce per-cell skeleton trees in a single batch.
+ * <p>
+ * Inherits every binary-tracer knob from {@link BinaryTracerCommonCmd} (segmented-image choice, optional intensity
+ * image, loop-resolution strategy, gap bridging, prune-by-length, etc.); adds the same seed ource/type filters used
+ * by {@link AutotraceFromSeedsCmd}. Failures on individual seeds are logged and reported but do not abort the whole run.
  *
  * @author Tiago Ferreira
- * @see GWDTTracerCommonCmd
+ * @see BinaryTracerCommonCmd
+ * @see AutotraceFromSeedsCmd
  * @see SeedOverlay
  */
-@Plugin(type = Command.class, initializer = "init", label = "Autotrace from Seeds (GWDT)...")
-public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
+@Plugin(type = Command.class, initializer = "init",
+        label = "Autotrace Binary Image from Seeds...")
+public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
 
-    // Source filter labels
+    // Source filter labels: package-private so SNTUI / SeedManager can pass them via the
+    // SciJava input map when invoking the command headless-ish
     static final String SOURCE_ALL = "All seeds";
     static final String SOURCE_VISIBLE = "Visible (within confidence range)";
     public static final String SOURCE_SELECTION = "Selection only";
@@ -65,10 +75,10 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
     /**
      * Common prefix for all log lines emitted by this command.
      */
-    private static final String LOG_PREFIX = "Autotrace from Seeds: ";
+    private static final String LOG_PREFIX = "Autotrace Binary from Seeds: ";
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
-    private String SEEDS_HEADER = "<HTML><b>Seed Selection</b>";
+    private String SEEDS_HEADER = "<HTML>&nbsp;<br><b>Seed Selection</b>";
 
     @Parameter(label = "Seed source",
             choices = {SOURCE_VISIBLE, SOURCE_ALL, SOURCE_SELECTION},
@@ -89,25 +99,21 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
     private String typeFilterChoice = TYPE_ANY;
 
     /**
-     * Snapshot of the overlay taken at {@link #runCommand} start; subsequent edits to the overlay don't affect this run.
-     */
-    private List<SeedPoint> seedSnapshot;
-
-    /**
-     * Initializer. Inherits image-related setup from {@link GWDTTracerCommonCmd#initForImage()}, hides ROI-strategy
-     * parameters that don't apply (seeds drive root placement), and populates the  type-filter choices from the
-     * distinct types currently on the overlay.
+     * Initializer. Inherits image-related setup from {@link BinaryTracerCommonCmd#initForImage()}, hides root-strategy
+     * and active-plane-only parameters (seeds drive root placement here, not an ROI), and populates the type-filter
+     * choices from the distinct types currently on the overlay.
      */
     @SuppressWarnings("unused")
     protected void init() {
         initForImage();
-        if (isCanceled() || abortRun) return;
+        if (isCanceled()) return;
 
         // Seeds, not ROI strategies, drive root placement here.
-        resolveInput("somaStrategyChoice");
-        resolveInput("roiPlaneOnly");
+        resolveInput("rootChoice");
+        resolveInput("roiPlane");
 
-        // Dynamic type-filter choices.
+        // Dynamic type-filter choices populated from the distinct types  currently in the overlay
+        // (mirrors AutotraceFromSeedsCmd).
         final SeedOverlay overlay = snt.getSeedOverlay();
         final List<String> typeChoices = new ArrayList<>();
         typeChoices.add(TYPE_ANY);
@@ -124,79 +130,80 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
     }
 
     @Override
-    public void run() {
-        if (!isCanceled() && !abortRun) runCommand();
+    protected boolean isFileMode() {
+        return false;
     }
 
     @Override
     protected void runCommand() {
+        if (abortRun || isCanceled()) return;
+
+        // Pre-flight: validate the overlay + tip set
+        final SeedOverlay overlay = snt.getSeedOverlay();
+        if (overlay == null || overlay.isEmpty()) {
+            error("Seed overlay is empty. Import or generate seeds first.");
+            return;
+        }
+        final List<SeedPoint> filtered = applyFilters(overlay.list(), overlay);
+        if (filtered.isEmpty()) {
+            error("No seeds match the chosen filters (source=" + sourceFilter
+                    + ", type=" + typeFilterChoice + ").");
+            return;
+        }
+
         try {
-            chosenImp = getImgFromImgChoice();
-            if (chosenImp == null || abortRun) {
-                SNTUtils.log(LOG_PREFIX + "aborted before tracing (image="
-                        + (chosenImp == null ? "null" : "'" + chosenImp.getName() + "'")
-                        + ", abortRun=" + abortRun + ").");
-                return;
-            }
-            SNTUtils.log(LOG_PREFIX + "image='" + chosenImp.getName() + "'.");
+            // Resolve the mask + optional intensity images. v1 supports only  the active-image / duplicate /
+            // secondary-layer choices; file mode is not exposed (isFileMode() returns false). If a future
+            // user wants to feed external files, BinaryTracerCommonCmd's existing image-resolution block
+            // in runCommand can be lifted into a shared protected helper
+            final ImagePlus maskImp = resolveMaskImage();
+            if (maskImp == null) return;
+            final ImagePlus origImp = resolveOptionalOrigImage();
+            chosenMaskImp = maskImp; // exposed for parent helpers/handleTracedTrees
 
-            // Snapshot + filter the seeds.
-            final SeedOverlay overlay = snt.getSeedOverlay();
-            if (overlay == null || overlay.isEmpty()) {
-                error("Seed overlay is empty. Import or generate seeds first.");
-                return;
-            }
-            seedSnapshot = overlay.list(); // already a fresh snapshot post-refactor
-
-            final List<SeedPoint> filtered = applyFilters(seedSnapshot, overlay);
-            if (filtered.isEmpty()) {
-                error("No seeds match the chosen filters (source=" + sourceFilter
-                        + ", type=" + typeFilterChoice + ").");
-                return;
-            }
+            SNTUtils.log(LOG_PREFIX + "mask='" + maskImp.getTitle()
+                    + "', orig=" + (origImp == null ? "—" : "'" + origImp.getTitle() + "'"));
             SNTUtils.log(String.format(
-                    "%s%,d of %,d seed(s) match filters (source=%s, type=%s).",
-                    LOG_PREFIX, filtered.size(), seedSnapshot.size(),
+                    "%s%,d of %,d seed(s) selected (source=%s, type=%s).",
+                    LOG_PREFIX, filtered.size(), overlay.size(),
                     sourceFilter, typeFilterChoice));
 
-            // Iterate one tracer run per seed; aggregate trees.
-            status(String.format("Tracing from %,d seed(s)...", filtered.size()), false);
+            // Skeletonize once before the per-seed loop so each per-seed. BinaryTracer reads from the same
+            // pre-skeletonized image
+            snt.setCanvasLabelAllPanes("Skeletonizing...");
+            BinaryTracer.skeletonize(maskImp, maskImp.getNSlices() == 1);
 
+            // Per-seed iteration. Each seed yields one or more trees (the skeleton component connected to that seed);
+            // we accumulate them and dispatch via handleTracedTrees at the end
+            status(String.format("Tracing from %,d seed(s)...", filtered.size()), false);
             final List<Tree> allTrees = new ArrayList<>();
             final List<String> failures = new ArrayList<>();
-            int succeeded = 0;
             final boolean debug = SNTUtils.isDebugMode();
+            int succeeded = 0;
             for (int i = 0; i < filtered.size(); i++) {
                 if (isCanceled()) {
                     SNTUtils.log(LOG_PREFIX + "cancelled after " + i + " seed(s).");
                     break;
                 }
                 final SeedPoint seed = filtered.get(i);
-                // Per-seed log is debug-only: at thousands of seeds it would
-                // otherwise drown out the higher-signal summary lines
                 if (debug) SNTUtils.log(String.format(
                         "%s  seed %,d/%,d: x=%.3f y=%.3f z=%.3f type='%s'",
                         LOG_PREFIX, i + 1, filtered.size(),
                         seed.x, seed.y, seed.z, seed.type));
-
                 status(String.format("Tracing seed %,d / %,d (type=%s)…",
                         i + 1, filtered.size(),
                         seed.type.isEmpty() ? "—" : seed.type), false);
                 try {
-                    final AbstractGWDTTracer<?> tracer = createAndConfigureTracer(chosenImp);
-                    if (tracer == null) {
-                        failures.add(formatFailure(i, seed, "tracer config failed"));
+                    final BinaryTracer converter = createAndConfigureConverter(maskImp, origImp);
+                    if (!converter.honoredSeedRoles().contains(AutoTracer.SeedRole.ROOT)) {
+                        failures.add(formatFailure(i, seed,
+                                "tracer does not consume root seeds"));
                         continue;
                     }
-                    // Cap-check: the tracer must honor ROOT seeds
-                    if (!tracer.honoredSeedRoles().contains(AutoTracer.SeedRole.ROOT)) {
-                        failures.add(formatFailure(i, seed, "tracer does not consume root seeds"));
-                        continue;
-                    }
-                    tracer.setRoots(Collections.singletonList(seed));
-                    final List<Tree> trees = tracer.traceTrees();
+                    converter.setRoots(Collections.singletonList(seed));
+                    final List<Tree> trees = converter.getTrees();
                     if (trees == null || trees.isEmpty()) {
-                        failures.add(formatFailure(i, seed, "no path extracted"));
+                        failures.add(formatFailure(i, seed, "no tree extracted"));
                         continue;
                     }
                     allTrees.addAll(trees);
@@ -208,7 +215,6 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
                 }
             }
 
-            // Summarize failures (each entry is already prefixed with its seed coords)
             for (final String f : failures) SNTUtils.log(LOG_PREFIX + f);
             if (allTrees.isEmpty()) {
                 error("No traces could be produced from any of the " + filtered.size()
@@ -230,30 +236,61 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
         }
     }
 
-    @Override
-    protected boolean isFileMode() {
-        return false;
+    /**
+     * Resolves the segmented/mask image from {@code maskImgChoice}. Handles the three non-file-mode cases: active
+     * image (duplicate), secondary layer, and other open image picked from the dropdown. Calls {@link #error(String)}
+     * and returns {@code null} on failure.
+     */
+    private ImagePlus resolveMaskImage() {
+        if (IMG_TRACED_DUP_CHOICE.equals(maskImgChoice)) {
+            final ImagePlus dup = snt.getLoadedDataAsImp().duplicate();
+            if (snt.getImagePlus() != null && snt.getImagePlus().isThreshold()) {
+                dup.getProcessor().setThreshold(
+                        snt.getImagePlus().getProcessor().getMinThreshold(),
+                        snt.getImagePlus().getProcessor().getMaxThreshold());
+            }
+            return dup;
+        }
+        if (IMG_TRACED_SEC_LAYER_CHOICE.equals(maskImgChoice)) {
+            final ImagePlus sec = snt.getSecondaryDataAsImp();
+            if (sec == null) {
+                error("No secondary layer image exists. Please load one first.");
+                return null;
+            }
+            return sec;
+        }
+        final ImagePlus imp = (impMap == null) ? null : impMap.get(maskImgChoice);
+        if (imp == null) {
+            noImgError();
+            return null;
+        }
+        return imp;
     }
 
     /**
-     * Applies the source-filter (Selection / Visible / All) and the
-     * type-filter to a snapshot of the overlay, returning a fresh list.
+     * Resolves the optional intensity image; returns {@code null} when none was chosen.
+     */
+    private ImagePlus resolveOptionalOrigImage() {
+        if (originalImgChoice == null) return null;
+        if (IMG_TRACED_CHOICE.equals(originalImgChoice)) return snt.getLoadedDataAsImp();
+        return (impMap == null) ? null : impMap.get(originalImgChoice);
+    }
+
+    /**
+     * Applies the source-filter (Selection / Visible / All) and the type-filter to a snapshot of the overlay,
+     * returning a fresh list. Logic mirrors {@code AutotraceFromSeedsCmd.applyFilters}.
      */
     private List<SeedPoint> applyFilters(final Collection<SeedPoint> snapshot,
                                          final SeedOverlay overlay) {
-        // Source filter first
         List<SeedPoint> stream;
         switch (sourceFilter) {
             case SOURCE_SELECTION -> {
-                // Materialize selection into a list, then restrict to seeds
-                // still present in the snapshot (defensive)
                 final Set<SeedPoint> sel = overlay.getSelectedSeeds();
                 stream = new ArrayList<>(sel.size());
                 for (final SeedPoint s : snapshot) if (sel.contains(s)) stream.add(s);
             }
             case SOURCE_ALL -> stream = new ArrayList<>(snapshot);
             default -> {
-                // SOURCE_VISIBLE
                 final double low = overlay.getLowConfidence();
                 final double high = overlay.getHighConfidence();
                 stream = new ArrayList<>(snapshot.size());
@@ -262,7 +299,6 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
                 }
             }
         }
-        // Type filter
         if (!TYPE_ANY.equals(typeFilterChoice)) {
             final String wanted = TYPE_UNSET_LABEL.equals(typeFilterChoice)
                     ? SeedPoint.TAG_UNSET : typeFilterChoice;

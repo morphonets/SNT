@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
 public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 
 	private static final long serialVersionUID = 1L;
-	private Tree tree;
+	Tree tree;
 
 	/**
 	 * Creates a DirectedWeightedGraph from a Tree with edge weights corresponding

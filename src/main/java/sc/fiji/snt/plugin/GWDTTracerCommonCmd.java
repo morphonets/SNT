@@ -283,8 +283,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         }
     }
 
-    // --- Shared init helpers ---
-
     protected void initForImage() {
         super.init(true);
         if (!snt.accessToValidImageData()) {
@@ -311,8 +309,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         resolveInput("debugMode"); // debug mode is always enabled to report progress to console
         debugMode = SNTUtils.isDebugMode();
     }
-
-    // --- Core tracing logic ---
 
     /**
      * Creates and configures a tracer from the shared GUI parameters. Returns
@@ -508,11 +504,10 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         status("Successfully traced " + trees.size() + " tree(s)", true);
     }
 
-    // --- Image loading ---
-
     protected abstract boolean isFileMode();
 
     protected ImgPlus<?> getImgFromImgChoice() {
+        if (isCanceled() || abortRun) return null; // honor init()'s cancel
         ImgPlus<?> chosenImp;
         if (isFileMode()) {
             if (!SNTUtils.fileAvailable(imgFileChoice)) {
@@ -542,8 +537,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         }
         return (binaryImgError(chosenImp)) ? null : chosenImp;
     }
-
-    // --- Helpers ---
 
     protected void noValidImgError() {
         error("This option requires valid image data to be loaded. " +

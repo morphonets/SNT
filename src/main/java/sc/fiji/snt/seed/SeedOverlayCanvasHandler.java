@@ -73,10 +73,8 @@ public final class SeedOverlayCanvasHandler {
     private static void onAltClick(final TracerCanvas canvas, final SNT snt, final MouseEvent e) {
         //Use only Alt+Click on a paused state so it doesn't compete with the
         // tracer's active-mode mouse handlers. Headless / UI-less callers
-        // (snt.getUI() == null) ignore this
-        if (snt.getUI() != null) {
-            final int state = snt.getUI().getState();
-            if (state != SNTUI.TRACING_PAUSED && state != SNTUI.SNT_PAUSED) return;
+        if (snt.getUI() != null && snt.getUI().getState() != SNTUI.TRACING_PAUSED) {
+            return;
         }
         final SeedOverlay overlay = snt.getSeedOverlay();
         if (overlay == null || overlay.isEmpty()) return;

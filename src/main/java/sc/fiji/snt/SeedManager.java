@@ -71,8 +71,8 @@ public class SeedManager extends JPanel {
                 Seeds are candidate 3D points (e.g. deep-learning detections, ROI centroids, segmentation masks) \
                 used as anchors by autotracers and other commands. Filter by confidence, color by attribute \
                 (confidence, index, source, or type), and inspect/edit/delete seeds in the table below.
-                
-                Double-click a row to navigate to its location; Alt+Click on the canvas (while SNT is paused) \
+
+                Double-click a row to navigate to its location; Alt+Click on the canvas (while tracing is paused) \
                 to edit the nearest seed.""";
 
     private final SNT snt;
@@ -152,11 +152,10 @@ public class SeedManager extends JPanel {
         gbc.gridy = 0;
 
         // Seeds section: heading + short synopsis
-        SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeds:",
-                "https://imagej.net/plugins/snt/seeds", false, gbc);
+        SNTUI.InternalUtils.addSeparatorWithURL(this, "Seeded Tracing Assistant:",
+                "https://imagej.net/plugins/snt/seeds", true, gbc);
         gbc.gridy++;
-        final JTextArea synopsis = GuiUtils.longSmallMsg(MSG_SYNOPSIS, this);
-        add(synopsis, gbc);
+        add(GuiUtils.longSmallMsg(MSG_SYNOPSIS, this), gbc);
         gbc.gridy++;
 
         // Display section
@@ -986,6 +985,27 @@ public class SeedManager extends JPanel {
         }
     }
 
+    /**
+     * Invokes {@code AutotraceFromBinarySeedsCmd}. Binary/skeleton counterpart
+     * of {@link #traceFromSeeds()}. Same selection-aware smart-targeting:
+     * pre-populates {@code sourceFilter = "Selection only"} when rows are
+     * selected; otherwise the harvester opens with its default of "Visible".
+     */
+    private void traceFromSeedsOnBinary() {
+        if (noSeedsError()) return;
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        final boolean hasSelection = !overlay.getSelectedSeeds().isEmpty();
+        recordComment("Seed Manager: traceFromSeedsOnBinary(source="
+                + (hasSelection ? "selection" : "harvester-default") + ")");
+        if (hasSelection) {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromBinarySeedsCmd.class, true,
+                    "sourceFilter", sc.fiji.snt.plugin.AutotraceFromBinarySeedsCmd.SOURCE_SELECTION);
+        } else {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromBinarySeedsCmd.class, true);
+        }
+    }
+
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
         GuiUtils.addSeparator(menu, "Import:");
@@ -1061,6 +1081,15 @@ public class SeedManager extends JPanel {
                 "(unreachable or background seeds) are logged to the Console.");
         menu.add(jmi);
 
+        jmi = new JMenuItem("Binary/Skeleton Image (One Tree per Seed)...");
+        jmi.addActionListener(e -> traceFromSeedsOnBinary());
+        jmi.setToolTipText("<HTML>Runs skeleton-based auto-tracing with <b>each seed as a tree root</b>.<br>" +
+                "Each filtered seed becomes the root of its own tree, extracted from the<br>" +
+                "skeleton component connected to that seed. Suitable for cellpose/StarDist<br>" +
+                "labels images and other pre-segmented data: one seed per labeled object<br>" +
+                "produces one tree per object.");
+        menu.add(jmi);
+
         GuiUtils.addSeparator(menu, "Seeds as Endpoints/Tips:");
         jmi = new JMenuItem("Grayscale Image (Single Cell)...");
         jmi.addActionListener(e -> traceToSeeds());
@@ -1068,6 +1097,15 @@ public class SeedManager extends JPanel {
                 "The soma ROI on the canvas (or its auto-detection) is the root;<br>" +
                 "filtered seeds are the tips. Output is one tree connecting the<br>" +
                 "soma to every reachable tip.");
+        menu.add(jmi);
+
+        jmi = new JMenuItem("Binary/Skeleton Image (Single Cell)...");
+        jmi.addActionListener(e -> traceToSeedsOnBinary());
+        jmi.setToolTipText("<HTML>Runs skeleton-based single-cell auto-tracing <b>toward seeded endpoints</b>.<br>" +
+                "The soma ROI on the canvas (or its auto-detection) is the root; the full<br>" +
+                "skeleton tree is traced, then pruned to keep only paths on a root-to-tip<br>" +
+                "route. Tips whose nearest skeleton node lies in a different connected<br>" +
+                "component than the soma are reported as unreachable.");
         menu.add(jmi);
 
         GuiUtils.addSeparator(menu, "Seeds as Waypoints / Path Attractors:");
@@ -1114,13 +1152,31 @@ public class SeedManager extends JPanel {
         final CommandService cs = getCommandService();
         if (cs == null) return;
         final boolean hasSelection = !overlay.getSelectedSeeds().isEmpty();
-        recordComment("Seed Manager: traceToSeeds(source="
-                + (hasSelection ? "selection" : "harvester-default") + ")");
+        recordComment("Seed Manager: traceToSeeds(source=" + (hasSelection ? "selection" : "harvester-default") + ")");
         if (hasSelection) {
             cs.run(sc.fiji.snt.plugin.AutotraceFromTipsCmd.class, true,
                     "sourceFilter", sc.fiji.snt.plugin.AutotraceFromTipsCmd.SOURCE_SELECTION);
         } else {
             cs.run(sc.fiji.snt.plugin.AutotraceFromTipsCmd.class, true);
+        }
+    }
+
+    /**
+     * Invokes {@code AutotraceFromBinaryTipsCmd}. Binary/skeleton counterpart
+     * of {@link #traceToSeeds()}. Same selection-aware smart-targeting.
+     */
+    private void traceToSeedsOnBinary() {
+        if (noSeedsError()) return;
+        final CommandService cs = getCommandService();
+        if (cs == null) return;
+        final boolean hasSelection = !overlay.getSelectedSeeds().isEmpty();
+        recordComment("Seed Manager: traceToSeedsOnBinary(source="
+                + (hasSelection ? "selection" : "harvester-default") + ")");
+        if (hasSelection) {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromBinaryTipsCmd.class, true,
+                    "sourceFilter", sc.fiji.snt.plugin.AutotraceFromBinaryTipsCmd.SOURCE_SELECTION);
+        } else {
+            cs.run(sc.fiji.snt.plugin.AutotraceFromBinaryTipsCmd.class, true);
         }
     }
 
