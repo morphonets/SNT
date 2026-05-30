@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -130,7 +130,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     // Storage backend (created by subclass)
     protected StorageBackend storage;
-    
+
     // Reusable arrays for hot path optimization (reduces allocations)
     private final int[] deltaCache;
     private final long[] neighborPosCache;
@@ -1018,7 +1018,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
         SNTUtils.log("Fast Marching: " + nodeCount + " ALIVE nodes"
                 + (hasSpreadLimit ? " (skipped " + skippedByRadius
-                + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : "")
+                                    + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : "")
                 + (gapBridgeCount > 0 ? " (bridged " + gapBridgeCount + " gaps)" : ""));
     }
 
@@ -1027,13 +1027,13 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Uses cached arrays to reduce allocations in hot path.
      */
     protected void addNeighborsToHeap(final long[] pos, final RandomAccess<T> srcRA,
-                                     final PriorityQueue<long[]> heap, final double threshold) {
+                                      final PriorityQueue<long[]> heap, final double threshold) {
         final int nDims = dims.length;
         final long currentIdx = posToIndex(pos);
         final double currentDist = storage.getDistance(currentIdx);
         srcRA.setPosition(pos);
         final double currentIntensity = srcRA.get().getRealDouble();
-        
+
         // Reuse cached arrays to avoid allocations
         Arrays.fill(deltaCache, 0);
 
@@ -1080,7 +1080,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 final double maxGWDT = storage.getMaxGWDT();
                 final double syntheticGapCostPerStep = euclideanDist
                         + computeGWDTTraversalCost(
-                            computeSyntheticGapGWDT(threshold, maxGWDT), maxGWDT);
+                        computeSyntheticGapGWDT(threshold, maxGWDT), maxGWDT);
                 // Start with cost for the first dark voxel (the neighbor itself)
                 double accumulatedGapCost = syntheticGapCostPerStep;
 
@@ -1617,9 +1617,14 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      *
      * @param graph the graph whose nodes will be scored
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     protected void computeAndApplyScoreMap(final DirectedWeightedGraph graph) {
-        // Step 1: Compute score map if not externally provided
+        // Step 1: Compute score map if not externally provided.
+        // Two tracks:
+        //   - small images: allocate an ArrayImg score map up front and run the filter across the whole
+        //   volume (one shot, fast random access afterward)
+        //   - large images: wrap the filter in a Lazy / DiskCachedCellImg so blocks are computed on demand
+        //   and evicted under memory pressure. Avoids the OOM that Tubeness/Frangi otherwise hit at full
+        //   volume, since they  allocate Hessian/eigenvalue intermediates proportional to the output
         if (scoreMap == null) {
             final double[] scales = (scoreMapScales != null) ? scoreMapScales : deriveScalesFromRadii(graph);
             if (scales == null || scales.length == 0) {
@@ -1628,18 +1633,24 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             }
             log("  Computing " + scoreMapFilterType + " score map with scales: " + Arrays.toString(scales));
 
-            final long[] outDims = Intervals.dimensionsAsLongArray(source);
-            final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(outDims);
-
+            final UnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<DoubleType>> op;
             if (scoreMapFilterType == SNT.FilterType.FRANGI) {
-                final Frangi frangi = new Frangi(scales, spacing, maxIntensity);
-                frangi.compute(source, output);
+                op = new Frangi<>(scales, spacing, maxIntensity);
             } else {
-                // Default to TUBENESS
-                final Tubeness tubeness = new Tubeness(scales, spacing);
-                tubeness.compute(source, output);
+                op = new Tubeness<>(scales, spacing);
             }
-            scoreMap = output;
+
+            if (shouldUseLazyScoreMap()) {
+                final int[] blockSize = chooseScoreMapBlockSize();
+                log("  Score map: using lazy/disk-backed computation, block=" + Arrays.toString(blockSize));
+                final CachedCellImg<DoubleType, ?> lazy = Lazy.process(source, source, blockSize, new DoubleType(), op);
+                scoreMap = lazy;
+            } else {
+                final long[] outDims = Intervals.dimensionsAsLongArray(source);
+                final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(outDims);
+                op.compute(source, output);
+                scoreMap = output;
+            }
         }
 
         // Step 2: Sample score map at each node position
@@ -1667,6 +1678,48 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log("  Score map applied: avg=" + String.format("%.4f", sumScore / count) +
                     ", max=" + String.format("%.4f", maxScore) + " (" + count + " nodes)");
         }
+    }
+
+    /**
+     * Decides between the in-memory ArrayImg track (fast) and the lazy/disk-backed path (chunked, bounded memory).
+     * Lazy wins when:
+     * <ul>
+     *   <li>the storage backend is disk-backed or</li>
+     *   <li>the score map's array allocation would exceed a comfortable fraction of remaining heap. Tubeness/Frangi
+     *      allocate Hessian / eigenvalue intermediates at ~5–6× the output size, so we compare against roughly that</li>
+     * </ul>
+     */
+    private boolean shouldUseLazyScoreMap() {
+        if (storage != null && storage.getBackendType() != null
+                && storage.getBackendType().toLowerCase().contains("disk")) {
+            return true;
+        }
+        // Estimate: output ArrayImg + ~5× intermediates, all DoubleType (8 B/voxel).
+        long voxels = 1L;
+        for (long dim : dims) voxels *= dim;
+        final long estimatedBytes = voxels * 8L * 6L;
+        final long freeHeap = Runtime.getRuntime().maxMemory() - usedHeap();
+        // Bail to lazy if the estimate would consume more than half the free heap.
+        return estimatedBytes > freeHeap / 2;
+    }
+
+    private static long usedHeap() {
+        final Runtime rt = Runtime.getRuntime();
+        return rt.totalMemory() - rt.freeMemory();
+    }
+
+    /**
+     * Score-map cell dimensions. 64³ in 3D / 256² in 2D: Clamped to image dims so we don't ask for cells bigger
+     * than the volume on tiny inputs.
+     */
+    private int[] chooseScoreMapBlockSize() {
+        final int n = dims.length;
+        final int target = (n >= 3) ? 64 : 256;
+        final int[] block = new int[n];
+        for (int d = 0; d < n; d++) {
+            block[d] = (int) Math.max(8, Math.min(target, dims[d]));
+        }
+        return block;
     }
 
     /**
@@ -2426,8 +2479,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Returns [coveredSig, totalSig] where coverage is weighted by image intensity.
      */
     protected double[] computeIntensityWeightedJointCoverage(final SWCPoint node,
-                                                           final RandomAccess<UnsignedShortType> countRA,
-                                                           final RandomAccess<? extends RealType<?>> srcRA) {
+                                                             final RandomAccess<UnsignedShortType> countRA,
+                                                             final RandomAccess<? extends RealType<?>> srcRA) {
         final long cx = Math.round(node.x / spacing[0]);
         final long cy = Math.round(node.y / spacing[1]);
         final long cz = dims.length > 2 ? Math.round(node.z / spacing[2]) : 0;
@@ -3610,7 +3663,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * @return consolidated list with nearby somas merged; same list if no merging needed
      */
     private List<SomaUtils.SomaResult> consolidateSomas(final List<SomaUtils.SomaResult> somas,
-                                                         final double minDist) {
+                                                        final double minDist) {
         if (minDist <= 0 || somas.size() <= 1) return new ArrayList<>(somas);
 
         final int n = somas.size();

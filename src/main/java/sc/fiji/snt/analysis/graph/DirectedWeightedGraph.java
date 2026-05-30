@@ -97,6 +97,19 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 	}
 
 	/**
+	 * Subclass hook for installing a custom {@link org.jgrapht.graph.GraphSpecificsStrategy}.
+	 * Not part of the public API — used by {@link SparseDirectedWeightedGraph} to swap
+	 * jgrapht's default {@code FastLookupDirectedSpecifics} for a CSR-backed variant
+	 * without otherwise altering this class's behavior.
+	 */
+	protected DirectedWeightedGraph(final java.util.function.Supplier<SWCPoint> vertexSupplier,
+	                                final java.util.function.Supplier<SWCWeightedEdge> edgeSupplier,
+	                                final org.jgrapht.GraphType type,
+	                                final org.jgrapht.graph.GraphSpecificsStrategy<SWCPoint, SWCWeightedEdge> specificsStrategy) {
+		super(vertexSupplier, edgeSupplier, type, specificsStrategy);
+	}
+
+	/**
 	 * Creates a DirectedWeightedGraph from a collection of reconstruction nodes.
 	 *
 	 * @param nodes                    the collections of SWC nodes
@@ -108,7 +121,7 @@ public class DirectedWeightedGraph extends SNTGraph<SWCPoint, SWCWeightedEdge> {
 		init(nodes, assignDistancesToWeight);
 	}
 
-	private void init(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeights) {
+	protected void init(final Collection<SWCPoint> nodes, final boolean assignDistancesToWeights) {
 		final Map<Integer, SWCPoint> map = new HashMap<>();
 		for (final SWCPoint node : nodes) {
 			map.put(node.id, node);

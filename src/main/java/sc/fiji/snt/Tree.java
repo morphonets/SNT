@@ -40,6 +40,7 @@ import ij.ImageStack;
 import ij.measure.Calibration;
 import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.SWCExportException;
@@ -74,6 +75,7 @@ public class Tree implements TreeProperties, Cloneable {
 	private PathAndFillManager pafm;
 	private DirectedWeightedGraph graph;
 	private DirectedWeightedGraph simplifiedGraph;
+	private SparseDirectedWeightedGraph sparseGraph;
 	private double value;
 	private Properties properties;
 
@@ -1293,7 +1295,26 @@ public class Tree implements TreeProperties, Cloneable {
 	private void nullifyGraphsAndPafm() {
 		graph = null;
 		simplifiedGraph = null;
+		sparseGraph = null;
 		pafm = null;
+	}
+
+	/**
+	 * Assembles a memory-efficient CSR-backed {@link DirectedWeightedGraph} from this Tree. Functionally equivalent to
+	 * {@link #getGraph()} (same vertex / edge content, same edge weights), but the underlying storage uses ~20x less
+	 * heap per vertex than the default jgrapht specifics. Useful in batch workflows where many trees' graphs are held
+	 * simultaneously, or where an analyzer is run across very large neuron collections.
+	 * <p>
+	 * Trade-off: {@code getEdge(v1, v2)} is O(out-degree of v1) instead of O(1), and per-vertex edge iteration is in
+	 * reverse insertion order. Both are negligible for permutation-invariant analyses such as Strahler ordering.
+	 *
+	 * @return the Tree's CSR-backed graph (cached on the Tree instance, separately from {@link #getGraph()})
+	 * @throws IllegalArgumentException if tree contains multiple roots or loops
+	 * @see SparseDirectedWeightedGraph
+	 */
+	public SparseDirectedWeightedGraph getSparseGraph() throws IllegalArgumentException {
+		if (sparseGraph == null) sparseGraph = new SparseDirectedWeightedGraph(this);
+		return sparseGraph;
 	}
 
 	/**
