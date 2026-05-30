@@ -22,6 +22,7 @@
 
 package sc.fiji.snt;
 
+import com.formdev.flatlaf.ui.FlatRoundBorder;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
@@ -170,10 +171,8 @@ public class SeedManager extends JPanel {
         gbc.gridy++;
         add(buildSliderRow("Upper:", false), gbc);
         gbc.gridy++;
-        // Wrap countLabel in a toolbar-styled panel so its left/right margins
-        // line up with the slider rows above (and the display toolbar above
-        // those). Adding the bare JLabel here would float against the panel's
-        // raw insets.
+        // Wrap countLabel in a toolbar-styled panel so its left/right margins line up with the slider rows above
+        // (and the display toolbar above  those). Adding the bare JLabel here would float against the panel's raw insets
         countLabel = new JLabel();
         final JPanel countRow = toolbarStyledRow();
         countRow.add(countLabel);
@@ -207,7 +206,7 @@ public class SeedManager extends JPanel {
         p.add(visibilityToggle);
         p.add(Box.createHorizontalGlue());
         lutRamp = new LutRamp(overlay::getColorTable, overlay::getLowConfidence, overlay::getHighConfidence);
-        final int h = visibilityToggle.getPreferredSize().height - 2;
+        final int h = visibilityToggle.getPreferredSize().height;
         lutRamp.setPreferredSize(new Dimension(lutRamp.getPreferredSize().width, h));
         lutRamp.setMaximumSize(new Dimension(lutRamp.getMaximumSize().width, h));
         p.add(lutRamp);
@@ -885,21 +884,17 @@ public class SeedManager extends JPanel {
             if (colorModeCombo != null && colorModeCombo.getSelectedItem() != overlay.getColorMode()) {
                 colorModeCombo.setSelectedItem(overlay.getColorMode());
             }
-            // The row filter reads the live confidence bounds, but the sorter
-            // only re-applies it on row-update events when there are active sort
-            // keys. With no sort applied (the default), moving a confidence
-            // slider would leave rows in the wrong include/exclude state until
-            // *another* model event came in. Force a sort() here so the filter
-            // is always re-evaluated against the current bounds before we then
-            // restore the selection (which is view-row-based: filtered-out rows
-            // must already be excluded from the view at this point).
+            // The row filter reads the live confidence bounds, but the sorter only re-applies it on row-update events
+            // when there are active sort keys. With no sort applied (the default), moving a confidence slider would
+            // leave rows in the wrong include/exclude state until *another* model event came in. Force a sort() here
+            // so the filter is always re-evaluated against the current bounds before we then restore the selection
+            // (which is view-row-based: filtered-out rows must already be excluded from the view at this point)
             if (tableSorter != null) tableSorter.sort();
             pullOverlaySelectionToTable();
             if (lutRamp != null) lutRamp.repaint();
-            // Color mode / LUT / range may have changed: invalidate the swatch
-            // caches so the next cell paint rebuilds them from the new state,
-            // and move the chip to whichever column the new color mode encodes
-            // (a no-op if the mode hasn't changed since the last refresh).
+            // Color mode / LUT / range may have changed: invalidate the swatch caches so the next cell paint rebuilds
+            // them from the new state, and move the chip to whichever column the new color mode encodes
+            // (nothing happens if the mode hasn't changed since the last refresh).
             invalidateSwatchCaches();
             installSwatchOnEncodingColumn();
         } finally {
@@ -910,16 +905,50 @@ public class SeedManager extends JPanel {
     private void updateCountLabel() {
         final int total = overlay.size();
         final int shown = overlay.visibleSize();
+        final String baseText;
         if (total == 0) {
-            countLabel.setText("No seeds loaded");
+            baseText = "No seeds loaded";
             countLabel.setIcon(null);
         } else if (shown == total) {
-            countLabel.setText(String.format("All %,d seeds shown", total));
+            baseText = String.format("All %,d seeds shown", total);
             countLabel.setIcon(null);
         } else {
-            countLabel.setText(String.format("%,d of %,d shown", shown, total));
+            baseText = String.format("%,d of %,d shown", shown, total);
             countLabel.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
         }
+        // Append a passive out-of-bounds indicator when applicable
+        final int oob = countSeedsOutOfBounds();
+        if (oob > 0) {
+            countLabel.setText(String.format(
+                    "<html>%s &nbsp;·&nbsp; <span style='color:#E53E4D;'>⚠ %,d outside image</span></html>",
+                    baseText, oob));
+            countLabel.setToolTipText(String.format(
+                    "<HTML>%,d seed(s) lie outside the current image bounds.<br>" +
+                    "Likely causes: Seeds were prepared for a different image, the image was<br>" +
+                    "replaced or recalibrated, or coordinates were imported in the wrong units.<br>" +
+                    "Use the table or canvas to inspect and remove them.", oob));
+        } else {
+            countLabel.setText(baseText);
+            countLabel.setToolTipText(null);
+        }
+    }
+
+    /**
+     * Out-of-bounds seed count against the currently loaded image, or 0 if no
+     * image is available (in which case the indicator stays silent).
+     */
+    private int countSeedsOutOfBounds() {
+        if (snt.getImagePlus() == null) return 0;
+        final boolean is3D = snt.getDepth() > 1;
+        final long[] dims = new long[is3D ? 3 : 2];
+        dims[0] = snt.getWidth();
+        dims[1] = snt.getHeight();
+        if (is3D) dims[2] = snt.getDepth();
+        final double[] spacing = new double[dims.length];
+        spacing[0] = snt.getPixelWidth();
+        spacing[1] = snt.getPixelHeight();
+        if (is3D) spacing[2] = snt.getPixelDepth();
+        return overlay.countOutOfBounds(dims, spacing);
     }
 
     private JToolBar bottomToolbar() {
@@ -1014,8 +1043,7 @@ public class SeedManager extends JPanel {
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final CommandService cs = getCommandService();
-            // Pass no input map -> SciJava harvester prompts the user for the
-            // CSV file + units + append flag.
+            // Pass no input map -> SciJava harvester prompts the user for the  CSV file + units + append flag
             if (cs != null) cs.run(ImportSeedPointsCmd.class, true);
         });
         jmi = new JMenuItem("From Labels/Masks Image...", IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
@@ -1026,9 +1054,6 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Extracts seeds from ROI centroids");
         menu.add(jmi);
         jmi.addActionListener(e -> {
-            // Pre-flight: catch the empty case early so the user gets a
-            // friendly message instead of the SciJava harvester then an
-            // error. The command itself re-validates defensively.
             final RoiManager rm = RoiManager.getInstance2();
             if (rm == null || rm.getCount() == 0) {
                 sntui.error("ROI Manager is either closed or empty.");
@@ -1196,8 +1221,9 @@ public class SeedManager extends JPanel {
             cs.run(ImportSeedPointsCmd.class, true,
                     "csvFile", file, // input file
                     "unitsChoice", ImportSeedPointsCmd.UNITS_PHYSICAL, // dropdown choice
-                    "replace", overlay.isEmpty()// append checkbox
-            );
+                    "replace", overlay.isEmpty(), // append checkbox
+                    // Resolve the MESSAGE-only HEADER so the InputHarvester sees no unresolved @Parameter and skips opening a dialog
+                    "HEADER", null);
     }
 
     private void saveToSessionDir() {
@@ -1476,36 +1502,49 @@ public class SeedManager extends JPanel {
             this.highSupplier = high;
             setPreferredSize(new Dimension(150, RAMP_HEIGHT));
             setMinimumSize(new Dimension(50, RAMP_HEIGHT));
-            setBorder(BorderFactory.createLineBorder(getForeground()));
+            setBorder(new FlatRoundBorder());
         }
 
         @Override
         protected void paintComponent(final Graphics g0) {
-            final Graphics2D g = (Graphics2D) g0;
-            final int w = getWidth();
-            final int h = getHeight();
-            final ColorTable table = tableSupplier.get();
-            if (table == null || w <= 0 || h <= 0) return;
-            final int len = table.getLength();
-            for (int x = 0; x < w; x++) {
-                final double t = (double) x / Math.max(1, w - 1);
-                int idx = (int) Math.round(t * (len - 1));
-                if (idx < 0) idx = 0;
-                else if (idx >= len) idx = len - 1;
-                final int r = table.get(ColorTable.RED, idx);
-                final int gr = table.get(ColorTable.GREEN, idx);
-                final int b = table.get(ColorTable.BLUE, idx);
-                g.setColor(new Color(r, gr, b));
-                g.fillRect(x, 0, 1, h);
+            // Work on a copy so the clip we install for the rounded corners doesn't leak to subsequent painting
+            final Graphics2D g = (Graphics2D) g0.create();
+            try {
+                final int w = getWidth();
+                final int h = getHeight();
+                final ColorTable table = tableSupplier.get();
+                if (table == null || w <= 0 || h <= 0) return;
+
+                // Clip the gradient + dim overlays to the same rounded shape FlatRoundBorder draws, so we don't paint
+                // past the corner arcs. FlatLaf publishes the corner radius via the "Component.arc", fall back to a
+                // something similar if the LaF isn't FlatLaf
+                int arc = UIManager.getInt("Component.arc");
+                if (arc <= 0) arc = 6;
+                GuiUtils.setRenderingHints(g);
+                g.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, w, h, arc, arc));
+                final int len = table.getLength();
+                for (int x = 0; x < w; x++) {
+                    final double t = (double) x / Math.max(1, w - 1);
+                    int idx = (int) Math.round(t * (len - 1));
+                    if (idx < 0) idx = 0;
+                    else if (idx >= len) idx = len - 1;
+                    final int r = table.get(ColorTable.RED, idx);
+                    final int gr = table.get(ColorTable.GREEN, idx);
+                    final int b = table.get(ColorTable.BLUE, idx);
+                    g.setColor(new Color(r, gr, b));
+                    g.fillRect(x, 0, 1, h);
+                }
+                // Dim the regions outside [low, high]
+                final double low = lowSupplier.getAsDouble();
+                final double high = highSupplier.getAsDouble();
+                g.setColor(new Color(0, 0, 0, 120));
+                final int lowX = (int) Math.round(low * w);
+                final int highX = (int) Math.round(high * w);
+                if (lowX > 0) g.fillRect(0, 0, lowX, h);
+                if (highX < w) g.fillRect(highX, 0, w - highX, h);
+            } finally {
+                g.dispose();
             }
-            // Dim the regions outside [low, high]
-            final double low = lowSupplier.getAsDouble();
-            final double high = highSupplier.getAsDouble();
-            g.setColor(new Color(0, 0, 0, 120));
-            final int lowX = (int) Math.round(low * w);
-            final int highX = (int) Math.round(high * w);
-            if (lowX > 0) g.fillRect(0, 0, lowX, h);
-            if (highX < w) g.fillRect(highX, 0, w - highX, h);
         }
     }
 }

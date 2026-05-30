@@ -197,11 +197,9 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	private javax.swing.Timer seedOverlayRepaintTimer;
 	{
-		// Repaint all canvases whenever the seed overlay changes (add/clear/
-		// threshold/visibility). Coalesced through a Swing Timer so rapid fires
-		// (e.g. slider drag) collapse to one repaint per frame.
-		// repaintAllPanes() null-guards each canvas, so this is safe to fire
-		// before canvases are assigned.
+		// Repaint all canvases whenever the seed overlay changes (add/clear/  threshold/visibility).
+		// Coalesced through a Swing Timer so rapid fires (e.g. slider drag) collapse to one repaint per frame.
+		// repaintAllPanes() null-guards each canvas, so this is safe to fire before canvases are assigned
 		seedOverlay.addListener(o -> {
 			if (seedOverlayRepaintTimer == null) {
 				seedOverlayRepaintTimer = new javax.swing.Timer(16, e -> repaintAllPanes());
@@ -806,15 +804,23 @@ public class SNT extends MultiDThreePanes implements
 		}
 		nullifyCanvases(!sameImp);
 		setFieldsFromImage(imp);
-		// Imported seeds are tied to a specific image's coordinate space; discard
-		// them when switching to a different primary image so we never render
-		// stale points on the wrong canvas.
-		if (!sameImp && !seedOverlay.isEmpty()) seedOverlay.clear();
 		changeUIState(SNTUI.LOADING);
 		initialize(getSinglePane(), channel = imp.getC(), frame = imp.getT());
 		tracingHalted = !accessToValidImageData();
 		updateUIFromInitializedImp(imp.isVisible());
 		xy.setRoi(sourceImageROI);
+		if (!sameImp && !seedOverlay.isEmpty()) {
+			// Imported seeds are tied to a specific image's coordinate space; discard them when switching to a
+			// different primary image so we never render stale points on the wrong canvas.
+			final boolean discard = (getUI() == null) || getConfirmation(
+					"The " + seedOverlay.size() + " seed point(s) currently in memory come from a different image."
+							+"<br><br>"
+							+ "If the new image is a different channel/time-point of the same dataset, the seeds remain "
+							+ "valid and can be kept. Otherwise they will likely sit in the wrong place on the new image."
+							+ " <br><br>Discard existing seed points?",
+					"Discard Seeds?");
+			if (discard) seedOverlay.clear();
+		}
 	}
 
 	/**
