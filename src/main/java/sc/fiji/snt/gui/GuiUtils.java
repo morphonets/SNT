@@ -1627,8 +1627,8 @@ public class GuiUtils {
 	}
 
 	private static final Color LINK_COLOR = new Color(0, 128, 255);
-	private static final Color ERROR_COLOR = new Color(229, 62, 77);
-	private static final Color WARNING_COLOR = new Color(254, 210, 132);
+	private static final Color ERROR_COLOR = new Color(229, 62, 77); // #E53E4D
+	private static final Color WARNING_COLOR = new Color(254, 210, 132); //#FED284
 
 	public static Color errorColor() {
 		return ERROR_COLOR;

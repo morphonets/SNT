@@ -167,6 +167,42 @@ public class SeedOverlay {
     }
 
     /**
+     * Counts seeds whose voxel coordinates fall outside the given image bounds.
+     * <p>
+     * Coordinates are interpreted as physical (calibrated) units, divided by the corresponding {@code spacing} to yield
+     * voxel indices. A seed is considered out-of-bounds when its rounded voxel index is negative or &ge; the dimension
+     * on any axis. The z-axis is only checked when {@code dims.length >= 3}.
+     *
+     * @param dims    image dimensions in voxels (length 2 for 2D, 3 for 3D); if {@code null} or length &lt; 2, returns 0
+     * @param spacing pixel size per axis in physical units; should match  {@code dims} length. {@code null} returns 0
+     * @return number of seeds outside the image bounds
+     */
+    public int countOutOfBounds(final long[] dims, final double[] spacing) {
+        if (dims == null || dims.length < 2 || spacing == null) return 0;
+        int n = 0;
+        for (final SeedPoint s : seeds) {
+            if (isOutOfBounds(s, dims, spacing)) n++;
+        }
+        return n;
+    }
+
+    private static boolean isOutOfBounds(final SeedPoint s, final long[] dims, final double[] spacing) {
+        if (!inAxis(s.x, spacing[0], dims[0])) return true;
+        if (!inAxis(s.y, spacing[1], dims[1])) return true;
+        if (dims.length > 2) {
+            final double sz = (spacing.length > 2) ? spacing[2] : 1.0;
+            return !inAxis(s.z, sz, dims[2]);
+        }
+        return false;
+    }
+
+    private static boolean inAxis(final double physicalCoord, final double spacing, final long dim) {
+        if (spacing <= 0) return true; // can't validate without calibration; treat as in-bounds
+        final long voxel = Math.round(physicalCoord / spacing);
+        return voxel >= 0 && voxel < dim;
+    }
+
+    /**
      * @return the number of seeds whose confidence falls in
      * {@code [lowConfidence, highConfidence]}.
      */
