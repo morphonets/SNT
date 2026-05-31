@@ -580,7 +580,15 @@ public class RoiConverter {
 			return roi;
 		if (roi.isLine())
 			roi = Roi.convertLineToArea(roi);
-		return (Math.abs(pixels) < 256) ? RoiEnlarger.enlarge255(roi, pixels) : RoiEnlarger.enlarge(roi, pixels);
+		try {
+			final Roi enlarged = (Math.abs(pixels) < 256) ? RoiEnlarger.enlarge255(roi, pixels)
+					: RoiEnlarger.enlarge(roi, pixels);
+			// RoiEnlarger can return null or throw NPE for degenerate inputs (e.g., sub-pixel area ROIs, or ROIs
+			// that shrink to nothing mid-iteration). Fall back to the original ROI in those cases
+			return (enlarged != null) ? enlarged : roi;
+		} catch (final NullPointerException ignored) {
+			return roi;
+		}
 	}
 
 	public static Roi combine(final List<Roi> rois) {

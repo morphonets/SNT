@@ -32,6 +32,7 @@ import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNTUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.ChooseDatasetCmd;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.BinaryTracer;
@@ -51,6 +52,8 @@ import java.util.*;
  * @author Tiago Ferreira
  */
 public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
+
+    static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
     // ROI strategy constants
     public static final String ROI_AUTO_DETECT = "None. Use auto-detection";
@@ -93,7 +96,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER2 = "<HTML>&nbsp;<br><b> II. Soma/Root Detection";
 
-    @Parameter(label = "ROI strategy", choices = {ROI_AUTO_DETECT, ROI_UNSET, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED, ROI_CONTAINED}, //
+    @Parameter(required = false, label = "ROI strategy", choices = {ROI_AUTO_DETECT, ROI_UNSET, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED, ROI_CONTAINED}, //
             description = "<HTML>Defines how the root(s) of the structure are determined.<br><dl>" //
                     + "<dt><i>" + ROI_AUTO_DETECT + "</i></dt>" //
                     + "<dd>Automatically detects the soma using EDT×intensity scoring and roots the tree at its <b>centroid</b></dd>" //
@@ -110,7 +113,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                     + "</dl>")
     protected String rootChoice;
 
-    @Parameter(label = "Active plane only", description = "<HTML>Assumes that the root(s) highlighted by the ROI occur at the<br>"
+    @Parameter(required = false, label = "Active plane only", description = "<HTML>Assumes that the root(s) highlighted by the ROI occur at the<br>"
             + "ROI's Z-plane. Ensures other possible end-/junction- points above or below<br>the ROI are not considered. Ignored if image is 2D")
     protected boolean roiPlane;
 
@@ -289,8 +292,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
         resolveInput("headless");
         resolveInput("maskImgChoice");
         resolveInput("originalImgChoice");
-        debugMode = true;
-        SNTUtils.setDebugMode(true);
+        SNTUtils.setDebugMode(debugMode = true);
         if (headless) {
             resolveAllInputs();
         }
@@ -383,14 +385,10 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             final Roi roi = getRoi(chosenMaskImp, chosenOrigImp, (snt != null) ? snt.getImagePlus() : null);
 
             // Aggregate unexpected settings for validation
-            final boolean isSame = !isFileMode()
-                    && (maskImgChoice != null && maskImgChoice.equals(originalImgChoice));
+            final boolean isSame = !isFileMode() && (maskImgChoice != null && maskImgChoice.equals(originalImgChoice));
             final boolean isSegmented = isSegmented(chosenMaskImp);
-            final boolean isCompatible = chosenOrigImp == null
-                    || chosenMaskImp.getCalibration().equals(chosenOrigImp.getCalibration());
-            final boolean isSameDim = chosenOrigImp == null || (chosenMaskImp.getWidth() == chosenOrigImp.getWidth()
-                    && chosenMaskImp.getHeight() == chosenOrigImp.getHeight()
-                    && chosenMaskImp.getNSlices() == chosenOrigImp.getNSlices());
+            final boolean isCompatible = chosenOrigImp == null || ImpUtils.sameCalibration(chosenMaskImp, chosenOrigImp);
+            final boolean isSameDim = chosenOrigImp == null || ImpUtils.sameXYZDimensions(chosenOrigImp, chosenMaskImp);
             final boolean isValidConnectDist = maxConnectDist > 0d;
             final boolean isValidRoi = roi != null && roi.isArea();
             final boolean autoDetectSoma = ROI_AUTO_DETECT.equals(rootChoice);
@@ -430,13 +428,13 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                         ImpUtils.toImgPlus(chosenMaskImp), -1d, -1);
                 if (somaResult != null && somaResult.hasContour()) {
                     final Roi somaRoi = somaResult.createContourRoi();
-                    if (somaResult.zSlice() >= 0) somaRoi.setPosition(somaResult.zSlice() + 1);
+                    if (somaRoi != null && somaResult.zSlice() >= 0) somaRoi.setPosition(somaResult.zSlice() + 1);
                     converter.setRootRoi(somaRoi, BinaryTracer.ROI_CENTROID);
                     SNTUtils.log("Auto-detected soma: " + somaResult);
                 } else {
                     SNTUtils.log("Soma auto-detection did not find a soma. Using arbitrary root.");
                 }
-            } else if (inferRootFromRoi && isValidRoi) {
+            } else if (inferRootFromRoi) {
                 assignRoiZPosition(roi);
                 converter.setRootRoi(roi, getRootStrategy());
             }
@@ -517,7 +515,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                                             final boolean isValidOrigImg, final boolean isSameDim,
                                             final boolean isCompatible, final boolean isValidConnectDist,
                                             final boolean isValidRoi) {
-        // Non-interactive: log warnings and proceed
+        // Log every warning regardless of UI presence
         if (isSame) {
             SNTUtils.log("Warning: Choices for segmented and original image point to the same image");
         }
@@ -542,9 +540,76 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
         if (!isValidConnectDist && connectComponents) {
             SNTUtils.log("Warning: Max. connection distance must be > 0. Connection of components will be disabled");
         }
+        // Headless / file-based mode (no UI): proceed after logging.
+        if (ui == null) {
+            connectComponents = connectComponents && isValidConnectDist;
+            return true;
+        }
+        // UI present: present the warnings as a confirmation dialog.
+        final int width = GuiUtils.renderedWidth(
+                "      Warning: Images do not share the same spatial calibration<");
+        final StringBuilder sb = new StringBuilder("<HTML><div WIDTH=").append(Math.max(550, width))
+                .append("><p>The following issue(s) were detected:</p><ul>");
+        if (isSame) {
+            sb.append("<li>Warning: Choices for segmented and original image point to the same image</li>");
+        }
+        if (!isValidOrigImg) {
+            sb.append("<li>Warning: Original image is not valid and will be ignored</li>");
+        }
+        if (!isSameDim) {
+            sb.append("<li>Warning: Images do not share the same dimensions. Algorithm will likely fail</li>");
+        }
+        if (!isSegmented) {
+            sb.append("<li>Info: Image is not thresholded: Non-zero intensities will be used as foreground</li>");
+        }
+        if (!isCompatible) {
+            sb.append("<li>Warning: Images do not share the same spatial calibration</li>");
+        }
+        if (!isValidRoi && inferRootFromRoi) {
+            sb.append("<li>Warning: Image does not contain an active area ROI. Root detection will be disabled</li>");
+        }
+        if (!isValidConnectDist && connectComponents) {
+            sb.append("<li>Warning: Max. connection distance must be > 0. Connection of components will be disabled</li>");
+        }
+        sb.append("</ul><p>Would you like to proceed? If you abort, ");
+        if (ensureMaskImgVisibleOnAbort) {
+            sb.append("the segmented image will be displayed so that you can edit it accordingly. You can then rerun");
+        } else {
+            sb.append("you can rerun later");
+        }
+        sb.append(" using <i>Utilities &gt; Extract Paths From Segmented Image...</i></p>");
+        if (!new GuiUtils().getConfirmation(sb.toString(), "Proceed Despite Warnings?",
+                "Proceed. I'm Feeling Lucky", "Abort")) {
+            if (ensureMaskImgVisibleOnAbort && chosenMaskImp != null) chosenMaskImp.show();
+            resetUI(false, SNTUI.SNT_PAUSED); // waive image to IJ for easier ROI editing, etc.
+            cancel();
+            return false;
+        }
         // Adjust flags
         connectComponents = connectComponents && isValidConnectDist;
         return true;
+    }
+
+    /**
+     * Focused pre-flight for seed-driven subclasses that bypass {@link #runCommand}
+     * (and therefore {@link #validateBeforeTracing}). Confirms with the user
+     * before treating a non-segmented (grayscale) image as a tracing mask.
+     * Returns {@code true} (proceed) when the image is already segmented, when
+     * running headless, or when the user accepts the prompt.
+     *
+     * @param mask the candidate mask image
+     * @return {@code true} to proceed with tracing, {@code false} to abort
+     */
+    protected boolean confirmIfNotSegmented(final ImagePlus mask) {
+        if (mask == null || isSegmented(mask)) return true;
+        SNTUtils.log("Info: Image is not thresholded: Non-zero intensities will be used as foreground");
+        if (ui == null) return true;
+        return new GuiUtils().getConfirmation(
+                "<HTML><div WIDTH=550>The chosen image (<i>" + mask.getTitle() + "</i>) is not thresholded " +
+                        "or binarized. Non-zero intensities will be used as foreground, which is rarely what " +
+                        "you want when tracing skeleton-style structures.<br><br>Proceed anyway?",
+                "Image Not Segmented",
+                "Proceed", "Abort");
     }
 
     /**
@@ -618,7 +683,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             TreeUtils.assignUniqueColors(trees);
         }
         pafm.addTrees(trees, "BinaryTracer");
-        if (trees.size() > 1)
+        if (ui != null && trees.size() > 1)
             ui.getPathManager().applyDefaultTags("Arbor ID");
         resetUI(false, SNTUI.READY);
         if (proofread && ui != null) {
@@ -638,7 +703,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             case ROI_CENTROID_WEIGHTED -> BinaryTracer.ROI_CENTROID_WEIGHTED;
             case ROI_EDGE -> BinaryTracer.ROI_EDGE;
             case ROI_CONTAINED -> BinaryTracer.ROI_CONTAINED;
-            default -> BinaryTracer.ROI_UNSET;
+            case null, default -> BinaryTracer.ROI_UNSET;
         };
     }
 
@@ -660,9 +725,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
      * @param imp the image to check
      * @return {@code true} if the image is binary or has an active threshold
      */
-    protected boolean isSegmented(final ImagePlus imp) {
-        return imp.getProcessor().isBinary() || imp.isThreshold();
-    }
+    protected boolean isSegmented(final ImagePlus imp) { return ImpUtils.isBinary(imp) || imp.isThreshold(); }
 
     private boolean isHyperstack(final ImagePlus imp) {
         return imp.getNChannels() > 1 || imp.getNFrames() > 1;

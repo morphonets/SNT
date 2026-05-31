@@ -56,8 +56,7 @@ import java.util.*;
  * @see AutotraceFromSeedsCmd
  * @see SeedOverlay
  */
-@Plugin(type = Command.class, initializer = "init",
-        label = "Autotrace Binary Image from Seeds...")
+@Plugin(type = Command.class, initializer = "init", label = "Autotrace Binary Image from Seeds...")
 public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
 
     // Source filter labels: package-private so SNTUI / SeedManager can pass them via the
@@ -108,10 +107,10 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
         initForImage();
         if (isCanceled()) return;
 
-        // Seeds, not ROI strategies, drive root placement here.
+        // Seeds, not ROI strategies, drive root placement here
+        resolveInput("HEADER2");
         resolveInput("rootChoice");
         resolveInput("roiPlane");
-
         // Dynamic type-filter choices populated from the distinct types  currently in the overlay
         // (mirrors AutotraceFromSeedsCmd).
         final SeedOverlay overlay = snt.getSeedOverlay();
@@ -124,9 +123,13 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
                 typeChoices.add(t.isEmpty() ? TYPE_UNSET_LABEL : t);
             }
         }
-        final MutableModuleItem<String> typeItem =
-                getInfo().getMutableInput("typeFilterChoice", String.class);
+        final MutableModuleItem<String> typeItem = getInfo().getMutableInput("typeFilterChoice", String.class);
         typeItem.setChoices(typeChoices);
+    }
+
+    @Override
+    public void run() {
+        if (!isCanceled() && !abortRun) runCommand();
     }
 
     @Override
@@ -158,6 +161,9 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
             // in runCommand can be lifted into a shared protected helper
             final ImagePlus maskImp = resolveMaskImage();
             if (maskImp == null) return;
+            // Seeds-driven runCommand bypasses BinaryTracerCommonCmd.runCommand so the "grayscale image"  confirmation
+            // that protects the standard binary commands is added here
+            if (!confirmIfNotSegmented(maskImp)) return;
             final ImagePlus origImp = resolveOptionalOrigImage();
             chosenMaskImp = maskImp; // exposed for parent helpers/handleTracedTrees
 

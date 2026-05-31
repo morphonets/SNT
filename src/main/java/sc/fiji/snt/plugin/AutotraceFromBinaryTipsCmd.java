@@ -133,6 +133,11 @@ public class AutotraceFromBinaryTipsCmd extends BinaryTracerCommonCmd {
     }
 
     @Override
+    public void run() {
+        if (!isCanceled() && !abortRun) runCommand();
+    }
+
+    @Override
     protected boolean isFileMode() {
         return false;
     }
