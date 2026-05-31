@@ -144,6 +144,7 @@ public class SNTUI extends JDialog {
     private final PathManagerUI pmUI;
     private final FillManagerUI fmUI;
     private final BookmarkManager bookmarkManager;
+    private final SeedManager seedManager;
     private final NotesUI notesui;
     private final DelineationsManager delineationsManager;
     /* Reconstruction Viewer */
@@ -409,18 +410,21 @@ public class SNTUI extends JDialog {
         tabbedPane.addTab("Bookmarks", bookmarkManager.getPanel());
         tabbedPane.addTab("3D", tab3);
         tabbedPane.addTab("Delineations", delineationsManager.getPanel());
+        seedManager = new SeedManager(this);
+        tabbedPane.addTab("Seeds", seedManager);
         tabbedPane.addTab("Notes", notesui.getPanel());
 
-        // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Notes
+        // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Seeds, Notes
         tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
         tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
         tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.USER_DOCTOR));
         tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
         tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
         tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
-        tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
+        tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.SEEDLING));
+        tabbedPane.setIconAt(7, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
 
-        setJMenuBar(createMenuBar());
+        setJMenuBar(createMenuBar(tabbedPane));
         setLayout(new GridBagLayout());
         final GridBagConstraints dialogGbc = GuiUtils.defaultGbc();
         dialogGbc.insets.top = InternalUtils.MARGIN;
@@ -438,6 +442,7 @@ public class SNTUI extends JDialog {
         //registerTabInCmdFInder("Options Tab", "Options Tab");
         registerTabInCmdFInder("Assistant Tab", "Curation Assistant");
         registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
+        registerTabInCmdFInder("Seeds Tab", "Seeds (Anchor Points) Manager");
         //registerTabInCmdFInder("3D Tab", "3D Viewers");
         registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
         registerTabInCmdFInder("Notes Tab", "Notepad");
@@ -945,6 +950,7 @@ public class SNTUI extends JDialog {
         commandFinder.dispose();
         pmUI.dispose();
         fmUI.dispose();
+        if (seedManager != null) seedManager.dispose();
         if (recViewer != null) recViewer.dispose();
         if (recorder != null) recorder.dispose();
         dispose();
@@ -2924,11 +2930,11 @@ public class SNTUI extends JDialog {
 
     }
 
-    private JMenuBar createMenuBar() {
+    private JMenuBar createMenuBar(final JTabbedPane tabbedPane) {
         final JMenuBar menuBar = new JMenuBar();
         final ScriptInstaller installer = new ScriptInstaller(plugin.getContext(), SNTUI.this);
         menuBar.add(fileMenu(installer));
-        menuBar.add(autoTracingMenu());
+        menuBar.add(autoTracingMenu(tabbedPane));
         menuBar.add(analysisMenu());
         menuBar.add(installer.getScriptsMenu());
         menuBar.add(viewMenu());
@@ -3140,7 +3146,7 @@ public class SNTUI extends JDialog {
         return fileMenu;
     }
 
-    private JMenu autoTracingMenu() {
+    private JMenu autoTracingMenu(final JTabbedPane tabbedPane) {
         final JMenu menu = new JMenu("Auto-trace");
 
         // Interactive: operates on images already loaded in SNT
@@ -3164,7 +3170,7 @@ public class SNTUI extends JDialog {
         jmiBinaryImg.addActionListener(e -> runAutotracingOnImage(BinaryTracerCmd.class));
         ScriptRecorder.setRecordingCall(jmiBinaryImg, "snt.getUI().runAutotracingWizard()");
         menu.add(jmiBinaryImg);
-
+        menu.addSeparator();
         final JMenuItem jmiSoma = new JMenuItem("Detect Soma(s)...");
         jmiSoma.setIcon(IconFactory.menuIcon(GLYPH.MARKER));
         jmiSoma.setToolTipText("Runs automated detection of soma/cell body. Multiple cells supported.");
@@ -3176,6 +3182,18 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(jmiSoma, "snt.getUI().runCommand(\"Detect Soma(s)...\")");
         menu.add(jmiSoma);
+        final JMenuItem jmiFromSeeds = new JMenuItem("From Seeds...", IconFactory.menuIcon(GLYPH.SEEDLING));
+        jmiFromSeeds.setToolTipText("Open the Seeds tab to import/generate candidates and trace from them.");
+        jmiFromSeeds.addActionListener(e -> {
+            final int idx = tabbedPane.getSelectedIndex();
+            if (idx > -1 && "Seeds".equals(tabbedPane.getTitleAt(idx))) {
+                showMessage("The \"Seeds\" tab is already active. Use its toolbar to access seed-based tracing.",
+                        "Seeds Tab Already Selected");
+            } else {
+                selectTab("Seeds");
+            }
+        }); // Navigation only: actual tracing lives in the Seeds tab pop
+        menu.add(jmiFromSeeds);
 
         // From File(s): file-based / batch processing
         GuiUtils.addSeparator(menu, "Batch Processing:");
@@ -5366,8 +5384,13 @@ public class SNTUI extends JDialog {
 
         static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
                                         final GridBagConstraints c) {
+            addSeparatorWithURL(component, label, "https://imagej.net/plugins/snt/manual", vgap, c);
+        }
+
+        static void addSeparatorWithURL(final JComponent component, final String label, final String baseUrl,
+                                        final boolean vgap, final GridBagConstraints c) {
             final String anchor = label.toLowerCase().replace(" ", "-").replace(":", "");
-            final String uri = "https://imagej.net/plugins/snt/manual#" + anchor;
+            final String uri = baseUrl + "#" + anchor;
             final JLabel jLabel = GuiUtils.leftAlignedLabel(label, uri, true);
             GuiUtils.addSeparator(component, jLabel, vgap, c);
         }

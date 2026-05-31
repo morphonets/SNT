@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-3.0.html>.
@@ -23,31 +23,31 @@
 package sc.fiji.snt.tracing.auto;
 
 import ij.ImagePlus;
+import net.imagej.ops.special.computer.UnaryComputerOp;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.cache.img.CachedCellImg;
 import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.type.logic.BitType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
+import net.imglib2.type.numeric.real.DoubleType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.Views;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.PathFitter;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.Tree;
+import sc.fiji.snt.*;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.filter.Frangi;
+import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
+import sc.fiji.snt.seed.SeedPoint;
 import sc.fiji.snt.tracing.auto.gwdt.StorageBackend;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SWCPoint;
-import net.imglib2.img.array.ArrayImg;
-import net.imglib2.type.numeric.real.DoubleType;
 
 import java.util.*;
 
@@ -71,11 +71,17 @@ import java.util.*;
  */
 public abstract class AbstractGWDTTracer<T extends RealType<T>> extends AbstractAutoTracer {
 
-    /** Fast Marching state: voxel has not yet been reached. */
+    /**
+     * Fast Marching state: voxel has not yet been reached.
+     */
     public static final byte FAR = 0;
-    /** Fast Marching state: voxel is in the narrow-band trial set. */
+    /**
+     * Fast Marching state: voxel is in the narrow-band trial set.
+     */
     public static final byte TRIAL = 1;
-    /** Fast Marching state: voxel distance has been finalized. */
+    /**
+     * Fast Marching state: voxel distance has been finalized.
+     */
     public static final byte ALIVE = 2;
 
     // Input
@@ -129,7 +135,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     // Storage backend (created by subclass)
     protected StorageBackend storage;
-    
+
     // Reusable arrays for hot path optimization (reduces allocations)
     private final int[] deltaCache;
     private final long[] neighborPosCache;
@@ -260,8 +266,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     /**
      * @deprecated Use {@link #setMinBranchIntensityLength(double)} instead.
-     *             Note: the physical-to-voxel conversion is not meaningful for
-     *             this parameter since it is an intensity sum, not a distance.
+     * Note: the physical-to-voxel conversion is not meaningful for
+     * this parameter since it is an intensity sum, not a distance.
      */
     @Deprecated
     public void setMinSegmentLength(final double lengthInPhysicalUnits) {
@@ -635,6 +641,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     /**
      * Returns the minimum inter-soma distance (in voxels).
+     *
      * @return minimum distance, or 0 if not set
      * @see #setMinSomaDistance(double)
      */
@@ -684,6 +691,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     /**
      * Returns the expected number of somas.
+     *
      * @return expected count, -1 if auto-estimating, or 0 if disabled
      * @see #setNSomas(int)
      */
@@ -859,6 +867,141 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         log("Seed voxel: " + Arrays.toString(seedVoxel));
     }
 
+    /**
+     * GWDT tracers consume {@link SeedRole#ROOT} (the Fast-Marching source voxel), {@link SeedRole#TIP} (target
+     * endpoints reachable from the root via parent pointers), and {@link SeedRole#WAYPOINT} (soft path attractors
+     * implemented by biasing the GWDT cost map before Fast Marching). When tips are supplied, the resulting tree
+     * is the union of root-to-tip walks. When waypoints are supplied, the GWDT values at and around each waypoint
+     * voxel are pulled toward {@code maxGWDT} (making those voxels cheap to traverse) so the FM wavefront
+     * preferentially routes paths through them; the root-to-waypoint paths are then protected from the pruning
+     * passes that would otherwise eliminate them.
+     */
+    @Override
+    public EnumSet<SeedRole> honoredSeedRoles() {
+        return EnumSet.of(SeedRole.ROOT, SeedRole.TIP, SeedRole.WAYPOINT);
+    }
+
+    /**
+     * Sets the run's root from a collection of seeds. Currently, takes the <i>first</i> seed and delegates to
+     * {@link #setSeedPhysical(double[])}; any additional seeds are ignored. The wrapper command is expected to
+     * iterate one tracer run per seed if it wants per-seed trees. Future iterations may handle multi-root
+     * expansion in a single run.
+     *
+     * @param seeds candidate roots; {@code null}/empty is a silent no-op
+     */
+    @Override
+    public void setRoots(final Collection<SeedPoint> seeds) {
+        if (seeds == null || seeds.isEmpty()) return;
+        final SeedPoint first = seeds.iterator().next();
+        setSeedPhysical(new double[]{first.x, first.y, first.z});
+    }
+
+    /**
+     * Tip seeds for the current run. When non-null and non-empty, the graph
+     * built by {@link #traceToGraph()} is restricted to the union of
+     * root-to-tip walks (parent-pointer chains from each tip back to the
+     * Fast-Marching root). Pruning is skipped because the user's tips are
+     * by definition the desired endpoints; only cosmetic post-processing
+     * (smoothing / resampling) is applied.
+     */
+    private List<SeedPoint> tipsList;
+
+    /**
+     * Configures the run's tips. Stores an internal snapshot; {@code null}
+     * or empty disables tip-driven extraction (the tracer falls back to the
+     * usual full-graph + hierarchical-prune flow).
+     */
+    @Override
+    public void setTips(final Collection<SeedPoint> seeds) {
+        this.tipsList = (seeds == null || seeds.isEmpty())
+                ? null
+                : new ArrayList<>(seeds);
+    }
+
+    /**
+     * How the per-waypoint bias amount is derived. See
+     * {@link AbstractGWDTTracer#setWaypointBiasSource(WaypointBiasSource)}.
+     */
+    public enum WaypointBiasSource {
+        /**
+         * Bias proportional to each seed's {@code confidence} (default).
+         */
+        CONFIDENCE,
+        /**
+         * Bias proportional to each seed's {@code radius} (normalised over the waypoint set).
+         */
+        RADIUS,
+        /**
+         * Uniform bias for every waypoint, controlled by
+         * {@link AbstractGWDTTracer#setWaypointBiasFixedFactor(double)}.
+         */
+        FIXED
+    }
+
+    /**
+     * Waypoint seeds, treated as soft path attractors via GWDT cost
+     * biasing applied before Fast Marching. {@code null} or empty disables
+     * the bias step (the tracer falls back to the usual full-graph flow).
+     */
+    private List<SeedPoint> waypointsList;
+    /**
+     * Source used to derive each waypoint's bias amount. Default {@link WaypointBiasSource#CONFIDENCE}.
+     */
+    private WaypointBiasSource waypointBiasSource = WaypointBiasSource.CONFIDENCE;
+    /**
+     * Overall bias strength in {@code [0, 1]}; multiplies the per-seed amount. Default 0.9.
+     */
+    private double waypointBiasStrength = 0.9;
+    /**
+     * Spatial extent of the bias (sphere radius, in voxels). Default 2.0.
+     */
+    private double waypointBiasRadiusVoxels = 2.0;
+    /**
+     * Fixed bias amount used when {@link #waypointBiasSource} is {@link WaypointBiasSource#FIXED}.
+     */
+    private double waypointBiasFixedFactor = 0.9;
+
+    /**
+     * Configures the run's waypoints. Stores an internal snapshot; {@code null}
+     * or empty disables the bias step.
+     */
+    @Override
+    public void setWaypoints(final Collection<SeedPoint> seeds) {
+        this.waypointsList = (seeds == null || seeds.isEmpty())
+                ? null
+                : new ArrayList<>(seeds);
+    }
+
+    /**
+     * Sets {@link WaypointBiasSource}; {@code null} resets to {@link WaypointBiasSource#CONFIDENCE}.
+     */
+    public void setWaypointBiasSource(final WaypointBiasSource source) {
+        this.waypointBiasSource = (source == null) ? WaypointBiasSource.CONFIDENCE : source;
+    }
+
+    /**
+     * Sets the overall bias strength; values are clamped to {@code [0, 1]}.
+     */
+    public void setWaypointBiasStrength(final double strength) {
+        this.waypointBiasStrength = Math.clamp(strength, 0.0, 1.0);
+    }
+
+    /**
+     * Sets the bias sphere radius in voxels; non-positive disables the spherical extent
+     * (only the exact waypoint voxel is biased).
+     */
+    public void setWaypointBiasRadiusVoxels(final double radius) {
+        this.waypointBiasRadiusVoxels = Math.max(0.0, radius);
+    }
+
+    /**
+     * Sets the fixed bias factor used when source is {@link WaypointBiasSource#FIXED};
+     * clamped to {@code [0, 1]}.
+     */
+    public void setWaypointBiasFixedFactor(final double factor) {
+        this.waypointBiasFixedFactor = Math.clamp(factor, 0.0, 1.0);
+    }
+
     @Override
     public DirectedWeightedGraph traceToGraph() {
         if (seedVoxel == null) {
@@ -869,7 +1012,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         // Create storage backend
         storage = createStorageBackend();
         log("Using " + storage.getBackendType() + " storage backend");
-        log("Estimated memory: " + (storage.estimateMemoryUsage() / (1024*1024)) + " MB");
+        log("Estimated memory: " + (storage.estimateMemoryUsage() / (1024 * 1024)) + " MB");
 
         try {
             // Step 1: Threshold
@@ -883,6 +1026,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             storage.computeGWDT(source, threshold, spacing, minIntensity, maxIntensity);
             log("GWDT max value: " + storage.getMaxGWDT());
 
+            // Step 2.5: Waypoint cost biasing. Pulls GWDT at and around each
+            // waypoint voxel toward maxGWDT, lowering its traversal cost so the
+            // FM wavefront preferentially routes paths through it. Runs strictly
+            // between GWDT and FM so the bias is visible to FM but doesn't
+            // perturb the GWDT computation itself.
+            if (waypointsList != null) {
+                status("Applying waypoint attractors...");
+                applyWaypointBias();
+            }
+
             // Step 3: Fast Marching
             status("Fast marching...");
             log("Building initial tree via Fast Marching...");
@@ -891,12 +1044,38 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
             // Step 4: Build graph
             status("Building graph...");
-            log("Converting to graph...");
-            final DirectedWeightedGraph graph = storage.buildGraph(dims, spacing, threshold);
-            log("Graph: " + graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
+            final DirectedWeightedGraph graph;
+            if (tipsList != null) {
+                // Tip-driven mode: build the smallest tree that connects the root to every reachable tip by
+                // walking parent pointers, then apply only cosmetic post-processing (no pruning: tips ARE the desired
+                // endpoints, and the hierarchical pruner would happily delete the
+                // branches we just extracted).
+                log("Converting to graph (tip-driven; " + tipsList.size() + " tip(s))...");
+                graph = buildGraphFromTips(tipsList, seedIndex);
+                log("Tips graph: " + graph.vertexSet().size() + " vertices, "
+                        + graph.edgeSet().size() + " edges");
+                postProcessTipsGraph(graph, threshold);
+            } else {
+                log("Converting to graph...");
+                graph = storage.buildGraph(dims, spacing, threshold);
+                log("Graph: " + graph.vertexSet().size() + " vertices, " + graph.edgeSet().size() + " edges");
 
-            // Post-process: pruning, smoothing, etc.
-            postProcessGraph(graph, threshold);
+                // Snapshot waypoint -> root paths BEFORE pruning so that
+                // postProcessGraph's pruning passes can do their normal job
+                // without us having to thread protection through each pruner.
+                // We re-attach the snapshot after pruning completes.
+                final List<List<SWCPoint>> protectedPaths = (waypointsList != null)
+                        ? snapshotWaypointPaths(graph, seedIndex)
+                        : null;
+
+                postProcessGraph(graph, threshold);
+
+                if (protectedPaths != null) {
+                    final int reattached = reattachProtectedPaths(graph, protectedPaths);
+                    if (reattached > 0) log("Re-attached " + reattached
+                            + " waypoint-path node(s) and edges removed by pruning.");
+                }
+            }
 
             return graph;
 
@@ -924,12 +1103,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * method. Used by {@link #traceMultiSoma(List)} to run FM with a
      * pre-configured exclusion mask.
      *
-     * @param threshold background intensity threshold
-     * @param seedIndex linear index of the seed voxel
+     * @param threshold       background intensity threshold
+     * @param seedIndex       linear index of the seed voxel
      * @param maxSpreadRadius maximum Euclidean distance (in calibrated units)
-     *        from the seed beyond which FM expansion is halted. If &lt;= 0, no
-     *        limit is applied. Used in multi-soma mode to prevent FM from
-     *        spreading into neighboring cells' territory.
+     *                        from the seed beyond which FM expansion is halted. If &lt;= 0, no
+     *                        limit is applied. Used in multi-soma mode to prevent FM from
+     *                        spreading into neighboring cells' territory.
      */
     private void executeFastMarching(final double threshold, final long seedIndex,
                                      final double maxSpreadRadius) {
@@ -991,7 +1170,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
         SNTUtils.log("Fast Marching: " + nodeCount + " ALIVE nodes"
                 + (hasSpreadLimit ? " (skipped " + skippedByRadius
-                + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : "")
+                                    + " beyond radius " + String.format("%.1f", maxSpreadRadius) + ")" : "")
                 + (gapBridgeCount > 0 ? " (bridged " + gapBridgeCount + " gaps)" : ""));
     }
 
@@ -1000,13 +1179,13 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Uses cached arrays to reduce allocations in hot path.
      */
     protected void addNeighborsToHeap(final long[] pos, final RandomAccess<T> srcRA,
-                                     final PriorityQueue<long[]> heap, final double threshold) {
+                                      final PriorityQueue<long[]> heap, final double threshold) {
         final int nDims = dims.length;
         final long currentIdx = posToIndex(pos);
         final double currentDist = storage.getDistance(currentIdx);
         srcRA.setPosition(pos);
         final double currentIntensity = srcRA.get().getRealDouble();
-        
+
         // Reuse cached arrays to avoid allocations
         Arrays.fill(deltaCache, 0);
 
@@ -1053,7 +1232,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 final double maxGWDT = storage.getMaxGWDT();
                 final double syntheticGapCostPerStep = euclideanDist
                         + computeGWDTTraversalCost(
-                            computeSyntheticGapGWDT(threshold, maxGWDT), maxGWDT);
+                        computeSyntheticGapGWDT(threshold, maxGWDT), maxGWDT);
                 // Start with cost for the first dark voxel (the neighbor itself)
                 double accumulatedGapCost = syntheticGapCostPerStep;
 
@@ -1269,7 +1448,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * approaches {@code base × 1.33}; for very small radii it approaches
      * {@code base × 1.02}, i.e., the threshold drops substantially.
      *
-     * @param baseThreshold the configured score threshold
+     * @param baseThreshold  the configured score threshold
      * @param radiusPhysical the node radius in physical units
      * @return the adjusted threshold (&le; baseThreshold for thin structures)
      */
@@ -1297,7 +1476,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * reversal.
      *
      * @return cosine of the angle, or {@link Double#NaN} if either vector has
-     *         zero length
+     * zero length
      */
     private static double cosAngle(final SWCPoint a, final SWCPoint b, final SWCPoint c) {
         final double v1x = a.x - b.x, v1y = a.y - b.y, v1z = a.z - b.z;
@@ -1590,9 +1769,14 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      *
      * @param graph the graph whose nodes will be scored
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
     protected void computeAndApplyScoreMap(final DirectedWeightedGraph graph) {
-        // Step 1: Compute score map if not externally provided
+        // Step 1: Compute score map if not externally provided.
+        // Two tracks:
+        //   - small images: allocate an ArrayImg score map up front and run the filter across the whole
+        //   volume (one shot, fast random access afterward)
+        //   - large images: wrap the filter in a Lazy / DiskCachedCellImg so blocks are computed on demand
+        //   and evicted under memory pressure. Avoids the OOM that Tubeness/Frangi otherwise hit at full
+        //   volume, since they  allocate Hessian/eigenvalue intermediates proportional to the output
         if (scoreMap == null) {
             final double[] scales = (scoreMapScales != null) ? scoreMapScales : deriveScalesFromRadii(graph);
             if (scales == null || scales.length == 0) {
@@ -1601,18 +1785,24 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             }
             log("  Computing " + scoreMapFilterType + " score map with scales: " + Arrays.toString(scales));
 
-            final long[] outDims = Intervals.dimensionsAsLongArray(source);
-            final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(outDims);
-
+            final UnaryComputerOp<RandomAccessibleInterval<T>, RandomAccessibleInterval<DoubleType>> op;
             if (scoreMapFilterType == SNT.FilterType.FRANGI) {
-                final Frangi frangi = new Frangi(scales, spacing, maxIntensity);
-                frangi.compute(source, output);
+                op = new Frangi<>(scales, spacing, maxIntensity);
             } else {
-                // Default to TUBENESS
-                final Tubeness tubeness = new Tubeness(scales, spacing);
-                tubeness.compute(source, output);
+                op = new Tubeness<>(scales, spacing);
             }
-            scoreMap = output;
+
+            if (shouldUseLazyScoreMap()) {
+                final int[] blockSize = chooseScoreMapBlockSize();
+                log("  Score map: using lazy/disk-backed computation, block=" + Arrays.toString(blockSize));
+                final CachedCellImg<DoubleType, ?> lazy = Lazy.process(source, source, blockSize, new DoubleType(), op);
+                scoreMap = lazy;
+            } else {
+                final long[] outDims = Intervals.dimensionsAsLongArray(source);
+                final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(outDims);
+                op.compute(source, output);
+                scoreMap = output;
+            }
         }
 
         // Step 2: Sample score map at each node position
@@ -1640,6 +1830,48 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             log("  Score map applied: avg=" + String.format("%.4f", sumScore / count) +
                     ", max=" + String.format("%.4f", maxScore) + " (" + count + " nodes)");
         }
+    }
+
+    /**
+     * Decides between the in-memory ArrayImg track (fast) and the lazy/disk-backed path (chunked, bounded memory).
+     * Lazy wins when:
+     * <ul>
+     *   <li>the storage backend is disk-backed or</li>
+     *   <li>the score map's array allocation would exceed a comfortable fraction of remaining heap. Tubeness/Frangi
+     *      allocate Hessian / eigenvalue intermediates at ~5–6× the output size, so we compare against roughly that</li>
+     * </ul>
+     */
+    private boolean shouldUseLazyScoreMap() {
+        if (storage != null && storage.getBackendType() != null
+                && storage.getBackendType().toLowerCase().contains("disk")) {
+            return true;
+        }
+        // Estimate: output ArrayImg + ~5× intermediates, all DoubleType (8 B/voxel).
+        long voxels = 1L;
+        for (long dim : dims) voxels *= dim;
+        final long estimatedBytes = voxels * 8L * 6L;
+        final long freeHeap = Runtime.getRuntime().maxMemory() - usedHeap();
+        // Bail to lazy if the estimate would consume more than half the free heap.
+        return estimatedBytes > freeHeap / 2;
+    }
+
+    private static long usedHeap() {
+        final Runtime rt = Runtime.getRuntime();
+        return rt.totalMemory() - rt.freeMemory();
+    }
+
+    /**
+     * Score-map cell dimensions. 64³ in 3D / 256² in 2D: Clamped to image dims so we don't ask for cells bigger
+     * than the volume on tiny inputs.
+     */
+    private int[] chooseScoreMapBlockSize() {
+        final int n = dims.length;
+        final int target = (n >= 3) ? 64 : 256;
+        final int[] block = new int[n];
+        for (int d = 0; d < n; d++) {
+            block[d] = (int) Math.max(8, Math.min(target, dims[d]));
+        }
+        return block;
     }
 
     /**
@@ -2292,7 +2524,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * when the stem is pruned.
      *
      * @return list of nodes in the stem (start → branch-point/leaf), or null
-     *         if start has been removed from the graph
+     * if start has been removed from the graph
      */
     private List<SWCPoint> traceStem(final DirectedWeightedGraph graph,
                                      final SWCPoint start) {
@@ -2359,10 +2591,16 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         double sumRadius = 0;
         int radiusCount = 0;
         for (final SWCPoint n : shorter) {
-            if (n.radius > 0) { sumRadius += n.radius; radiusCount++; }
+            if (n.radius > 0) {
+                sumRadius += n.radius;
+                radiusCount++;
+            }
         }
         for (final SWCPoint n : longer) {
-            if (n.radius > 0) { sumRadius += n.radius; radiusCount++; }
+            if (n.radius > 0) {
+                sumRadius += n.radius;
+                radiusCount++;
+            }
         }
         final double avgSpacing = computeAverageSpacing();
         final double meanRadius = radiusCount > 0 ? sumRadius / radiusCount : avgSpacing;
@@ -2399,8 +2637,8 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Returns [coveredSig, totalSig] where coverage is weighted by image intensity.
      */
     protected double[] computeIntensityWeightedJointCoverage(final SWCPoint node,
-                                                           final RandomAccess<UnsignedShortType> countRA,
-                                                           final RandomAccess<? extends RealType<?>> srcRA) {
+                                                             final RandomAccess<UnsignedShortType> countRA,
+                                                             final RandomAccess<? extends RealType<?>> srcRA) {
         final long cx = Math.round(node.x / spacing[0]);
         final long cy = Math.round(node.y / spacing[1]);
         final long cz = dims.length > 2 ? Math.round(node.z / spacing[2]) : 0;
@@ -2626,7 +2864,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         return posToIndex(pos, dims);
     }
 
-    /** Converts an N-dimensional position to a flat array index using row-major order. */
+    /**
+     * Converts an N-dimensional position to a flat array index using row-major order.
+     */
     public static long posToIndex(final long[] pos, final long[] dims) {
         long idx = 0;
         long stride = 1;
@@ -3583,7 +3823,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * @return consolidated list with nearby somas merged; same list if no merging needed
      */
     private List<SomaUtils.SomaResult> consolidateSomas(final List<SomaUtils.SomaResult> somas,
-                                                         final double minDist) {
+                                                        final double minDist) {
         if (minDist <= 0 || somas.size() <= 1) return new ArrayList<>(somas);
 
         final int n = somas.size();
@@ -3721,9 +3961,359 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Applies the full post-processing pipeline to a traced graph. Extracted
-     * from {@link #traceToGraph()} so it can be reused by
-     * {@link #traceMultiSoma(List)}.
+     * Builds a {@link DirectedWeightedGraph} by walking parent pointers from each tip back to the Fast-Marching root.
+     * The resulting graph is the union of root-to-tip paths, i.e., a tree, because the parent map produced by Fast
+     * Marching is itself a tree rooted at {@code seedIndex}.
+     * <p>
+     * Tips that fall outside the image bounds, or whose nearest voxel was not reached by Fast Marching
+     * (state != {@link #ALIVE}), are logged and skipped. Tips that resolve to the root voxel itself contribute the root
+     * vertex only.
+     *
+     * @param tips      seeds whose voxels are the desired endpoints
+     * @param seedIndex linear index of the Fast-Marching root; used only for diagnostics and to recognize tips that
+     *                  coincide with it
+     * @return a new graph; may be vertex-only or empty if no tip is reachable. Caller is expected to validate and report.
+     */
+    private DirectedWeightedGraph buildGraphFromTips(final List<SeedPoint> tips, final long seedIndex) {
+        final DirectedWeightedGraph graph = new DirectedWeightedGraph();
+        final Map<Long, SWCPoint> indexToNode = new HashMap<>(tips.size() * 32);
+        final long[] posScratch = new long[dims.length];
+
+        int reached = 0;
+        int unreachable = 0;
+        int outOfBounds = 0;
+        for (final SeedPoint tip : tips) {
+            final long[] tipVoxel = physicalToVoxel(tip);
+            if (tipVoxel == null) {
+                outOfBounds++;
+                continue;
+            }
+            final long tipIdx = posToIndex(tipVoxel);
+            if (storage.getState(tipIdx) != ALIVE) {
+                if (verbose) log(String.format(
+                        "Tip (%.3f, %.3f, %.3f) unreachable from root (voxel state != ALIVE).",
+                        tip.x, tip.y, tip.z));
+                unreachable++;
+                continue;
+            }
+            // Walk parent pointers from tip back to root, materializing each voxel on first encounter
+            // and wiring parent -> child edges. Voxels touched by earlier tips are reused: that's how
+            // shared upstream branches dedupe naturally.
+            long current = tipIdx;
+            SWCPoint currentNode = ensureNode(graph, indexToNode, current, posScratch);
+            while (true) {
+                final long parent = storage.getParent(current);
+                if (parent == current || parent < 0) break; // reached root (or orphan)
+                final SWCPoint parentNode = ensureNode(graph, indexToNode, parent, posScratch);
+                if (graph.getEdge(parentNode, currentNode) == null) {
+                    graph.addEdge(parentNode, currentNode, new SWCWeightedEdge());
+                }
+                current = parent;
+                currentNode = parentNode;
+            }
+            reached++;
+        }
+
+        log("Tip walk: " + reached + " reached, " + unreachable
+                + " unreachable, " + outOfBounds + " out-of-bounds (root index="
+                + seedIndex + ").");
+        return graph;
+    }
+
+    /**
+     * Looks up (or lazily creates) the {@link SWCPoint} for a voxel index. Coordinates are in physical (calibrated)
+     * units; the type defaults to dendrite (the downstream {@code tracedTrees} step promotes the run's root to a soma
+     * node as needed). {@code posScratch} is reused across calls to avoid per-node allocations.
+     */
+    private SWCPoint ensureNode(final DirectedWeightedGraph graph,
+                                final Map<Long, SWCPoint> indexToNode,
+                                final long idx,
+                                final long[] posScratch) {
+        SWCPoint node = indexToNode.get(idx);
+        if (node != null) return node;
+        indexToPos(idx, posScratch);
+        final double x = posScratch[0] * spacing[0];
+        final double y = posScratch[1] * spacing[1];
+        final double z = (dims.length > 2) ? posScratch[2] * spacing[2] : 0;
+        node = new SWCPoint(-1, 2, x, y, z, 1.0, -1);
+        indexToNode.put(idx, node);
+        graph.addVertex(node);
+        return node;
+    }
+
+    /**
+     * Converts a tip's physical coordinates to a voxel index array, rounding to the nearest voxel.
+     * Returns {@code null} if any axis falls outside {@code [0, dim)}
+     */
+    private long[] physicalToVoxel(final SeedPoint s) {
+        final long[] voxel = new long[dims.length];
+        voxel[0] = Math.round(s.x / spacing[0]);
+        voxel[1] = Math.round(s.y / spacing[1]);
+        if (dims.length > 2) voxel[2] = Math.round(s.z / spacing[2]);
+        for (int d = 0; d < dims.length; d++) {
+            if (voxel[d] < 0 || voxel[d] >= dims[d]) return null;
+        }
+        return voxel;
+    }
+
+    /**
+     * Applies waypoint cost-biasing to the GWDT storage. For each waypoint,
+     * resolves a per-seed bias amount in {@code [0, 1]} (from confidence,
+     * radius, or a fixed factor as per {@link WaypointBiasSource}), then
+     * within a sphere of {@link #waypointBiasRadiusVoxels} voxels around the
+     * waypoint pulls each voxel's GWDT value toward {@link StorageBackend#getMaxGWDT()} using:
+     * <pre>
+     *     newGwdt = oldGwdt + biasAmount * (maxGwdt - oldGwdt)
+     * </pre>
+     * The result is a lower traversal cost at and around the waypoint
+     * (see {@link #computeGWDTTraversalCost(double, double)}), so the FM
+     * wavefront prefers to route through it.
+     * <p>
+     * Voxels outside the image, voxels at zero GWDT (background, below
+     * threshold), and zero-amount biases are skipped; the rest are mutated
+     * in place on {@link #storage}. Idempotent for the same waypoint set
+     * but cumulative across distinct sets re-running with new waypoints
+     * after a prior run will pile biases on top.
+     */
+    private void applyWaypointBias() {
+        if (waypointsList == null || waypointsList.isEmpty()) return;
+        final double maxGWDT = storage.getMaxGWDT();
+        if (!(maxGWDT > 0) || !Double.isFinite(maxGWDT)) {
+            log("Waypoint bias skipped: GWDT max is " + maxGWDT + ".");
+            return;
+        }
+
+        // Normalize radii against the max radius in the set (only used by
+        // WaypointBiasSource.RADIUS). Falls back to confidence-like
+        // semantics if all radii are zero.
+        double maxRadius = 0;
+        if (waypointBiasSource == WaypointBiasSource.RADIUS) {
+            for (final SeedPoint w : waypointsList) {
+                if (w.radius > maxRadius) maxRadius = w.radius;
+            }
+        }
+
+        final double rVox = waypointBiasRadiusVoxels;
+        final int rCeil = (int) Math.ceil(rVox);
+        final double rVoxSq = rVox * rVox;
+        final long[] posScratch = new long[dims.length];
+
+        int applied = 0;
+        int outOfBounds = 0;
+        int voxelsTouched = 0;
+        for (final SeedPoint w : waypointsList) {
+            final double amount = biasAmountFor(w, maxRadius);
+            if (amount <= 0) continue;
+            final long[] wVoxel = physicalToVoxel(w);
+            if (wVoxel == null) {
+                outOfBounds++;
+                continue;
+            }
+            voxelsTouched += biasSphere(wVoxel, amount, rVox, rVoxSq, rCeil, maxGWDT, posScratch);
+            applied++;
+        }
+        log("Waypoint bias: " + applied + " seed(s) applied, " + outOfBounds
+                + " out-of-bounds, " + voxelsTouched + " voxel(s) modified "
+                + "(source=" + waypointBiasSource + ", strength="
+                + String.format("%.2f", waypointBiasStrength)
+                + ", radius=" + String.format("%.1f", rVox) + " vox).");
+    }
+
+    /**
+     * Computes the bias amount in {@code [0, 1]} for a single waypoint
+     * according to {@link #waypointBiasSource} and clamped by
+     * {@link #waypointBiasStrength}.
+     */
+    private double biasAmountFor(final SeedPoint seed, final double maxRadius) {
+        final double raw = switch (waypointBiasSource) {
+            case CONFIDENCE -> Math.clamp(seed.confidence, 0.0, 1.0);
+            case RADIUS -> (maxRadius > 0) ? Math.clamp(seed.radius / maxRadius, 0.0, 1.0) : 1.0;
+            case FIXED -> Math.clamp(waypointBiasFixedFactor, 0.0, 1.0);
+        };
+        return Math.clamp(raw * waypointBiasStrength, 0.0, 1.0);
+    }
+
+    /**
+     * Biases every voxel within a sphere of radius {@code rVox} voxels around
+     * {@code center}. Returns the number of voxels actually modified
+     * (excludes voxels outside the image and voxels where {@code oldGwdt == 0},
+     * those are background and biasing them would create cheap paths
+     * through background, not what we want)
+     */
+    private int biasSphere(final long[] center, final double amount,
+                           final double rVox, final double rVoxSq, final int rCeil,
+                           final double maxGWDT, final long[] posScratch) {
+        if (rVox <= 0) {
+            // Degenerate sphere: bias only the center voxel.
+            return biasVoxel(center, amount, maxGWDT) ? 1 : 0;
+        }
+        int touched = 0;
+        final int nDims = dims.length;
+        // Walk a box of side 2*rCeil+1 around center; accept voxels inside the sphere.
+        final long[] lo = new long[nDims];
+        final long[] hi = new long[nDims];
+        for (int d = 0; d < nDims; d++) {
+            lo[d] = Math.max(0, center[d] - rCeil);
+            hi[d] = Math.min(dims[d] - 1, center[d] + rCeil);
+        }
+        if (nDims == 2) {
+            for (long y = lo[1]; y <= hi[1]; y++) {
+                final double dy = y - center[1];
+                for (long x = lo[0]; x <= hi[0]; x++) {
+                    final double dx = x - center[0];
+                    if (dx * dx + dy * dy > rVoxSq) continue;
+                    posScratch[0] = x;
+                    posScratch[1] = y;
+                    if (biasVoxel(posScratch, amount, maxGWDT)) touched++;
+                }
+            }
+        } else {
+            for (long z = lo[2]; z <= hi[2]; z++) {
+                final double dz = z - center[2];
+                for (long y = lo[1]; y <= hi[1]; y++) {
+                    final double dy = y - center[1];
+                    for (long x = lo[0]; x <= hi[0]; x++) {
+                        final double dx = x - center[0];
+                        if (dx * dx + dy * dy + dz * dz > rVoxSq) continue;
+                        posScratch[0] = x;
+                        posScratch[1] = y;
+                        posScratch[2] = z;
+                        if (biasVoxel(posScratch, amount, maxGWDT)) touched++;
+                    }
+                }
+            }
+        }
+        return touched;
+    }
+
+    /**
+     * Biases a single voxel. Skips voxels with {@code oldGwdt <= 0} (treated
+     * as background; biasing those creates phantom attractors).
+     *
+     * @return {@code true} if the voxel was modified.
+     */
+    private boolean biasVoxel(final long[] pos, final double amount, final double maxGWDT) {
+        final long idx = posToIndex(pos);
+        final double oldGwdt = storage.getGWDT(idx);
+        if (!(oldGwdt > 0) || !Double.isFinite(oldGwdt) || oldGwdt == Double.MAX_VALUE) return false;
+        final double newGwdt = oldGwdt + amount * (maxGWDT - oldGwdt);
+        if (newGwdt <= oldGwdt) return false;
+        storage.setGWDT(idx, newGwdt);
+        return true;
+    }
+
+    /**
+     * Snapshots, for each waypoint, the parent-walk chain from the
+     * waypoint voxel back to the root as a list of {@link SWCPoint}
+     * <em>references</em> from the freshly-built graph. The references stay
+     * valid across pruning (pruning removes nodes from the graph's vertex
+     * set but doesn't destroy the objects), so {@link
+     * #reattachProtectedPaths(DirectedWeightedGraph, List)} can re-insert
+     * them later if a pruner removed them.
+     * <p>
+     * Tips that fall outside the image, or whose voxel isn't {@link #ALIVE},
+     * are silently skipped
+     */
+    private List<List<SWCPoint>> snapshotWaypointPaths(final DirectedWeightedGraph graph,
+                                                       final long seedIndex) {
+        if (waypointsList == null || waypointsList.isEmpty()) return Collections.emptyList();
+
+        // One-pass coord -> SWCPoint map keyed by linear voxel index. Letting
+        // the lookup be O(1) on the parent walk makes the whole step O(V + Σ pathLen).
+        final Map<Long, SWCPoint> indexToNode = new HashMap<>(graph.vertexSet().size() * 2);
+        final long[] pos = new long[dims.length];
+        for (final SWCPoint node : graph.vertexSet()) {
+            pos[0] = Math.round(node.x / spacing[0]);
+            pos[1] = Math.round(node.y / spacing[1]);
+            if (dims.length > 2) pos[2] = Math.round(node.z / spacing[2]);
+            indexToNode.put(posToIndex(pos), node);
+        }
+
+        final List<List<SWCPoint>> paths = new ArrayList<>(waypointsList.size());
+        int unreachable = 0;
+        for (final SeedPoint w : waypointsList) {
+            final long[] wVoxel = physicalToVoxel(w);
+            if (wVoxel == null) continue;
+            final long wIdx = posToIndex(wVoxel);
+            if (storage.getState(wIdx) != ALIVE) {
+                unreachable++;
+                continue;
+            }
+
+            // Collect root-to-waypoint by walking parents from waypoint, then reversing.
+            final List<SWCPoint> rev = new ArrayList<>();
+            long current = wIdx;
+            while (true) {
+                final SWCPoint node = indexToNode.get(current);
+                if (node != null) rev.add(node);
+                final long parent = storage.getParent(current);
+                if (parent == current || parent < 0) break;
+                current = parent;
+            }
+            if (!rev.isEmpty()) {
+                Collections.reverse(rev); // now in root -> waypoint order
+                paths.add(rev);
+            }
+        }
+        log("Snapshotted " + paths.size() + " waypoint protected path(s); "
+                + unreachable + " unreachable from root (state != ALIVE).");
+        return paths;
+    }
+
+    /**
+     * Restores any waypoint-path vertices/edges that pruning removed. Walks
+     * each snapshotted path in root-to-waypoint order, re-adding any vertex
+     * that's no longer in the graph and any missing parent→child edge.
+     * {@link DirectedWeightedGraph#addVertex(Object)} and {@code addEdge}
+     * are idempotent for already-present elements, so paths that survived
+     * pruning intact are no-ops.
+     *
+     * @return the number of vertices that had to be re-added (a coarse
+     * "how much did pruning eat into the protected paths" diagnostic).
+     */
+    private int reattachProtectedPaths(final DirectedWeightedGraph graph,
+                                       final List<List<SWCPoint>> paths) {
+        if (paths == null || paths.isEmpty()) return 0;
+        int reAddedVertices = 0;
+        for (final List<SWCPoint> path : paths) {
+            SWCPoint prev = null;
+            for (final SWCPoint node : path) {
+                if (!graph.containsVertex(node)) {
+                    graph.addVertex(node);
+                    reAddedVertices++;
+                }
+                if (prev != null && graph.getEdge(prev, node) == null) {
+                    graph.addEdge(prev, node, new SWCWeightedEdge());
+                }
+                prev = node;
+            }
+        }
+        return reAddedVertices;
+    }
+
+    /**
+     * Lighter post-process for tip-driven graphs: recalculates per-node radii
+     * from image intensity (the tree is otherwise built with placeholder
+     * radii), then applies smoothing / resampling if those flags are set.
+     * Skips every pruning stage from {@link #postProcessGraph} because the
+     * user-supplied tips are by definition the desired endpoints. Running
+     * hierarchical pruning on this graph would delete the branches we just
+     * worked to extract.
+     */
+    private void postProcessTipsGraph(final DirectedWeightedGraph graph, final double threshold) {
+        if (graph.vertexSet().isEmpty()) return;
+        recalculateRadiiFromImage(graph, threshold);
+        SNTUtils.log("  After recalcRadii (tips): " + graph.vertexSet().size()
+                + "v, " + graph.edgeSet().size() + "e");
+        if (smoothEnabled) smoothCurve(graph, smoothWindowSize);
+        if (resampleEnabled) {
+            resampleCurve(graph, resampleStep);
+            SNTUtils.log("  After resampling (tips): " + graph.vertexSet().size() + " vertices");
+        }
+    }
+
+    /**
+     * Applies the full post-processing pipeline to a traced graph.
      *
      * @param graph     the graph to post-process (modified in place)
      * @param threshold the background threshold used during tracing

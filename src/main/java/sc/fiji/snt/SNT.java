@@ -80,6 +80,8 @@ import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
+import sc.fiji.snt.seed.SeedOverlay;
+import sc.fiji.snt.seed.SeedOverlayCanvasHandler;
 import sc.fiji.snt.tracing.*;
 import sc.fiji.snt.tracing.artist.FillerThreadArtist;
 import sc.fiji.snt.tracing.artist.SearchArtist;
@@ -187,6 +189,25 @@ public class SNT extends MultiDThreePanes implements
 	protected static final int ballRadiusMultiplier = 5;
 
 	private final PathAndFillManager pathAndFillManager;
+	private final SeedOverlay seedOverlay = new SeedOverlay();
+	/**
+	 * Coalesces seed-overlay-change repaint requests to one per ~16ms so a
+	 * dragged slider doesn't fire 20 listener events per second x 3 canvases.
+	 * Lazy-created the first time the overlay fires; restartable.
+	 */
+	private javax.swing.Timer seedOverlayRepaintTimer;
+	{
+		// Repaint all canvases whenever the seed overlay changes (add/clear/  threshold/visibility).
+		// Coalesced through a Swing Timer so rapid fires (e.g. slider drag) collapse to one repaint per frame.
+		// repaintAllPanes() null-guards each canvas, so this is safe to fire before canvases are assigned
+		seedOverlay.addListener(o -> {
+			if (seedOverlayRepaintTimer == null) {
+				seedOverlayRepaintTimer = new javax.swing.Timer(16, e -> repaintAllPanes());
+				seedOverlayRepaintTimer.setRepeats(false);
+			}
+			seedOverlayRepaintTimer.restart();
+		});
+	}
 	private final SNTPrefs prefs;
 	private GuiUtils guiUtils;
 
@@ -788,6 +809,18 @@ public class SNT extends MultiDThreePanes implements
 		tracingHalted = !accessToValidImageData();
 		updateUIFromInitializedImp(imp.isVisible());
 		xy.setRoi(sourceImageROI);
+		if (!sameImp && !seedOverlay.isEmpty()) {
+			// Imported seeds are tied to a specific image's coordinate space; discard them when switching to a
+			// different primary image so we never render stale points on the wrong canvas.
+			final boolean discard = (getUI() == null) || getConfirmation(
+					"The " + seedOverlay.size() + " seed point(s) currently in memory come from a different image."
+							+"<br><br>"
+							+ "If the new image is a different channel/time-point of the same dataset, the seeds remain "
+							+ "valid and can be kept. Otherwise they will likely sit in the wrong place on the new image."
+							+ " <br><br>Discard existing seed points?",
+					"Discard Seeds?");
+			if (discard) seedOverlay.clear();
+		}
 	}
 
 	/**
@@ -826,6 +859,9 @@ public class SNT extends MultiDThreePanes implements
 		xz_tracer_canvas = (InteractiveTracerCanvas) xz_canvas;
 		zy_tracer_canvas = (InteractiveTracerCanvas) zy_canvas;
 		addListener(xy_tracer_canvas);
+		// Alt+Click -> edit the nearest seed under the cursor. Defers to SeedOverlay.nearest(...).
+		// Does nothing when  the overlay is empty. Should not interact with existing tracing handlers.
+		SeedOverlayCanvasHandler.install(xy_tracer_canvas, this);
 
 		if (accessToValidImageData()) {
 			loadDatasetFromImagePlus(getImagePlus());
@@ -838,6 +874,8 @@ public class SNT extends MultiDThreePanes implements
 			zy.setDisplayRange(min, max);
 			addListener(xz_tracer_canvas);
 			addListener(zy_tracer_canvas);
+			SeedOverlayCanvasHandler.install(xz_tracer_canvas, this);
+			SeedOverlayCanvasHandler.install(zy_tracer_canvas, this);
 		}
 
 	}
@@ -947,6 +985,22 @@ public class SNT extends MultiDThreePanes implements
 
 	public PathAndFillManager getPathAndFillManager() {
 		return pathAndFillManager;
+	}
+
+	/**
+	 * Returns the {@link SeedOverlay} associated with this SNT instance. The
+	 * overlay holds candidate {@link sc.fiji.snt.seed.SeedPoint}s (e.g., output of upstream
+	 * point detectors) and is rendered on the tracing canvas when non-empty.
+	 * <p>
+	 * The overlay is <b>transient</b>: it is automatically cleared when the
+	 * active image changes (see {@link #initialize(ImagePlus)}) and is not
+	 * persisted with the {@code .traces} file. Importers should use
+	 * {@link SeedOverlay#addAll(java.util.Collection)} for bulk loads.
+	 *
+	 * @return the seed overlay (never {@code null})
+	 */
+	public SeedOverlay getSeedOverlay() {
+		return seedOverlay;
 	}
 
 	InteractiveTracerCanvas getXYCanvas() {

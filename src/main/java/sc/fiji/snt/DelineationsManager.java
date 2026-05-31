@@ -112,7 +112,8 @@ public class DelineationsManager {
         final JPanel container = SNTUI.InternalUtils.getTab();
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
-        SNTUI.InternalUtils.addSeparatorWithURL(container, "Delineations:", true, gbc);
+        SNTUI.InternalUtils.addSeparatorWithURL(container, "Delineations:",
+                "https://imagej.net/plugins/snt/delineations", true, gbc);
         gbc.gridy++;
         final String msg = """
                 Delineations allow measuring proportions of paths within other structures defined by ROIs, \

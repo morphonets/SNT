@@ -55,6 +55,10 @@ import java.util.stream.Collectors;
 public abstract class SNTGraph<V, E extends DefaultWeightedEdge>
         extends AbstractBaseGraph<V, E>
 {
+    // Adds an optional GraphSpecificsStrategy constructor (below) so memory-sensitive subclasses
+    // (e.g. SparseDirectedWeightedGraph) can swap jgrapht's default FastLookup specifics for a
+    // CSR-backed implementation without touching the rest of SNT.  See CsrDirectedSpecifics,
+    // CsrGraphSpecificsStrategy
 
 	private static final long serialVersionUID = 8458292348918037500L;
 
@@ -64,6 +68,24 @@ public abstract class SNTGraph<V, E extends DefaultWeightedEdge>
 
     protected SNTGraph(Supplier<V> vertexSupplier, Supplier<E> edgeSupplier, GraphType type) {
         super(vertexSupplier, edgeSupplier, type);
+        vertexColorRGBMap = new HashMap<>();
+        edgeColorRGBMap = new HashMap<>();
+        vertexValueMap = new HashMap<>();
+    }
+
+    /**
+     * Variant constructor that lets a subclass pick a custom {@link org.jgrapht.graph.GraphSpecificsStrategy}:
+     * e.g. a CSR-backed implementation to keep memory usage proportional to (V+E) rather than to the per-vertex
+     * object overhead jgrapht's default strategies use. The default 3-arg constructor continues to inherit
+     * jgrapht's defaults; subclasses that don't need specialized storage should keep using it.
+     *
+     * @see sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph
+     */
+    protected SNTGraph(final Supplier<V> vertexSupplier,
+                       final Supplier<E> edgeSupplier,
+                       final GraphType type,
+                       final org.jgrapht.graph.GraphSpecificsStrategy<V, E> specificsStrategy) {
+        super(vertexSupplier, edgeSupplier, type, specificsStrategy);
         vertexColorRGBMap = new HashMap<>();
         edgeColorRGBMap = new HashMap<>();
         vertexValueMap = new HashMap<>();

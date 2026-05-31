@@ -70,6 +70,21 @@ public interface StorageBackend {
     double getGWDT(long index);
 
     /**
+     * Overwrites the GWDT value at a linear index. Used to apply waypoint
+     * attractors between GWDT computation and Fast Marching: pulling a
+     * voxel's GWDT value toward {@link #getMaxGWDT()} makes its traversal
+     * cost approach zero, so the FM wavefront prefers it.
+     * <p>
+     * The maximum reported by {@link #getMaxGWDT()} is not automatically
+     * recomputed; callers that bias above the original max should refresh
+     * it externally if needed.
+     *
+     * @param index linear voxel index
+     * @param value the new GWDT value
+     */
+    void setGWDT(long index, double value);
+
+    /**
      * Get maximum GWDT value across the entire image.
      *
      * @return maximum GWDT value

@@ -36,6 +36,7 @@ import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.util.SWCPoint;
@@ -276,6 +277,14 @@ public class DiskBackedStorageBackend implements StorageBackend {
     }
 
     @Override
+    public void setGWDT(long index, double value) {
+        final long[] pos = indexToPos(index);
+        final RandomAccess<DoubleType> ra = gwdtImage.randomAccess();
+        ra.setPosition(pos);
+        ra.get().set(value);
+    }
+
+    @Override
     public double getMaxGWDT() {
         return maxGWDT;
     }
@@ -383,7 +392,10 @@ public class DiskBackedStorageBackend implements StorageBackend {
 
         SNTUtils.log("Building graph from disk-backed data...");
 
-        final DirectedWeightedGraph graph = new DirectedWeightedGraph();
+        // Disk-backed mode is used precisely because the ALIVE forest is too large for the array storage backend.
+        // The same scale that motivates disk-backed GWDT also OOMs jgrapht's default object-based graph
+        // (FastLookupDirectedSpecifics), so we use the CSR-backed variant.
+        final DirectedWeightedGraph graph = new SparseDirectedWeightedGraph();
 
         // Map from linear index to SWCPoint
         final Map<Long, SWCPoint> indexToNode = new HashMap<>();

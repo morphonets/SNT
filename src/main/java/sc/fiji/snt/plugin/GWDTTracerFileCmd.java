@@ -22,11 +22,16 @@
 
 package sc.fiji.snt.plugin;
 
+import net.imagej.ImgPlus;
+import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
+import sc.fiji.snt.util.ImgUtils;
 
 import java.io.File;
 import java.util.List;
@@ -51,6 +56,16 @@ public class GWDTTracerFileCmd extends GWDTTracerCommonCmd {
             description = "<HTML>Directory for saving traced trees as SWC files.")
     private File exportDir;
 
+    @Parameter(label = "Secondary image suffix", required = false,
+            description = "<HTML>Suffix used to locate a paired secondary image for each input.<br>" +
+                    "Only used when <i>Score map filter</i> is set to '" + SCORE_MAP_OTHER + "'.<br>" +
+                    "For input <i>foo.tif</i> and suffix <i>_probmap</i>, a sibling file<br>" +
+                    "<i>foo_probmap.*</i> in the same directory is loaded as the score map.<br>" +
+                    "If no match is found, the file cannot be opened, or its dimensions<br>" +
+                    "do not match the input, score mapping is silently disabled for that<br>" +
+                    "input and a warning is logged (the trace still runs).")
+    private String secondaryImageSuffix = "_probmap";
+
     private boolean batchMode;
     private boolean batchImageFailed;
 
@@ -64,6 +79,8 @@ public class GWDTTracerFileCmd extends GWDTTracerCommonCmd {
             resolveInput("afterTracingChoice");
             afterTracingChoice = AFTER_DO_NOTHING;
         }
+        // Apply initial visibility of secondaryImageSuffix based on current scoreMapFilter
+        scoreMapFilterCallback();
     }
 
     @Override
@@ -97,11 +114,17 @@ public class GWDTTracerFileCmd extends GWDTTracerCommonCmd {
         SNTUtils.setDebugMode(true); // or SNTUtils.log() calls won't occur
         int processed = 0;
         int failed = 0;
+        final boolean skipSecondaries = SCORE_MAP_OTHER.equals(scoreMapFilter)
+                && secondaryImageSuffix != null && !secondaryImageSuffix.isBlank();
         for (int i = 0; i < files.length; i++) {
             final File file = files[i];
             if (file.isDirectory() || file.isHidden()) continue;
 
             final String name = file.getName();
+            if (skipSecondaries && SNTUtils.stripExtension(name).endsWith(secondaryImageSuffix)) {
+                SNTUtils.log(String.format("Batch [%d/%d]: skipping likely secondary image %s", i + 1, files.length, name));
+                continue;
+            }
             SNTUtils.log(String.format("Batch [%d/%d]: %s", i + 1, files.length, name));
             status(String.format("Processing %d/%d: %s", i + 1, files.length, name), false);
 
@@ -162,5 +185,86 @@ public class GWDTTracerFileCmd extends GWDTTracerCommonCmd {
         if (!AFTER_DO_NOTHING.equals(afterTracingChoice)) {  // Optionally load into SNT as well
             super.handleTracedTrees(trees);
         }
+    }
+
+    /**
+     * Locates a paired secondary image on disk via {@link #secondaryImageSuffix}.
+     * The expected file is {@code <inputBase><suffix>.<any-ext>} in the same
+     * directory as {@link #imgFileChoice}.
+     * <p>
+     * Failures (missing file, unreadable image, dimension mismatch, exception)
+     * are logged and result in score mapping being <b>disabled</b> for the
+     * current input; the trace still proceeds. This keeps batch runs robust to
+     * partial coverage of secondary maps.
+     */
+    @Override
+    protected boolean configureSecondaryScoreMap(final AbstractGWDTTracer<?> tracer) {
+        final File secFile = findSecondarySibling(imgFileChoice, secondaryImageSuffix);
+        if (secFile == null) {
+            SNTUtils.log("No secondary image matching suffix '" + secondaryImageSuffix +
+                    "' found for " + (imgFileChoice != null ? imgFileChoice.getName() : "input") +
+                    ". Disabling score map.");
+            tracer.setScoreMapEnabled(false);
+            return true;
+        }
+        try {
+            final ImgPlus<?> secImg = ImgUtils.open(secFile);
+            if (secImg == null) {
+                SNTUtils.log("Could not open secondary image '" + secFile.getName() +
+                        "'. Disabling score map.");
+                tracer.setScoreMapEnabled(false);
+                return true;
+            }
+            if (ImgUtils.isRGB(secImg) || ImgUtils.isMultiChannelRGB(secImg)) {
+                SNTUtils.log("Secondary image '" + secFile.getName() + "' is RGB; only " +
+                        "grayscale score maps are supported. Disabling score map.");
+                tracer.setScoreMapEnabled(false);
+                return true;
+            }
+            if (!dimensionsCompatible(secImg, chosenImp)) {
+                SNTUtils.log("Secondary image '" + secFile.getName() + "' has incompatible " +
+                        "dimensions with " + imgFileChoice.getName() + ". Disabling score map.");
+                tracer.setScoreMapEnabled(false);
+                return true;
+            }
+            @SuppressWarnings({"rawtypes", "unchecked"})
+            final RandomAccessibleInterval<? extends RealType<?>> scoreMap =
+                    (RandomAccessibleInterval) secImg;
+            tracer.setScoreMap(scoreMap);
+            SNTUtils.log("Using secondary image: " + secFile.getName());
+            return true;
+        } catch (final Exception ex) {
+            SNTUtils.log("Failed to load secondary image '" + secFile.getName() + "': " +
+                    ex.getMessage() + ". Disabling score map.");
+            tracer.setScoreMapEnabled(false);
+            return true;
+        }
+    }
+
+    /**
+     * Finds a sibling file whose basename (without extension) equals
+     * {@code stripExtension(inputFile.name) + suffix}. The input file itself is
+     * always excluded. Returns {@code null} if no match is found or if any
+     * argument is invalid.
+     */
+    private File findSecondarySibling(final File inputFile, final String suffix) {
+        if (inputFile == null || suffix == null || suffix.isBlank()) return null;
+        final File dir = inputFile.getParentFile();
+        if (dir == null || !dir.isDirectory()) return null;
+        final String targetBase = SNTUtils.stripExtension(inputFile.getName()) + suffix;
+        final File[] candidates = dir.listFiles((d, name) -> {
+            if (name.equals(inputFile.getName())) return false;
+            return SNTUtils.stripExtension(name).equals(targetBase);
+        });
+        return (candidates != null && candidates.length > 0) ? candidates[0] : null;
+    }
+
+    private boolean dimensionsCompatible(final ImgPlus<?> a, final ImgPlus<?> b) {
+        if (a == null || b == null) return false;
+        if (a.numDimensions() != b.numDimensions()) return false;
+        for (int d = 0; d < a.numDimensions(); d++) {
+            if (a.dimension(d) != b.dimension(d)) return false;
+        }
+        return true;
     }
 }

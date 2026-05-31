@@ -33,6 +33,7 @@ import net.imglib2.view.Views;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph;
 import sc.fiji.snt.analysis.graph.SWCWeightedEdge;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.util.SWCPoint;
@@ -204,6 +205,11 @@ public class SparseStorageBackend implements StorageBackend {
     }
 
     @Override
+    public void setGWDT(long index, double value) {
+        gwdtMap.put(index, value);
+    }
+
+    @Override
     public double getMaxGWDT() {
         return maxGWDT;
     }
@@ -297,7 +303,10 @@ public class SparseStorageBackend implements StorageBackend {
             throw new IllegalStateException("Seed index not set. Call initializeFastMarching first.");
         }
 
-        final DirectedWeightedGraph graph = new DirectedWeightedGraph();
+        // Sparse storage handles large foreground populations efficiently at the  GWDT layer, but the post-FM forest
+        // can still run to millions of  vertices. Use the CSR-backed graph variant to keep per-vertex/edge overhead
+        // grounded
+        final DirectedWeightedGraph graph = new SparseDirectedWeightedGraph();
 
         // Map from linear index to SWCPoint
         final Map<Long, SWCPoint> indexToNode = new HashMap<>();

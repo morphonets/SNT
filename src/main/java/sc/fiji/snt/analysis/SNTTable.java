@@ -117,18 +117,73 @@ public class SNTTable extends DefaultGenericTable {
 	private Table<?, ?> loadTable(final FileLocation fileLocation, final DefaultTableIOPlugin tableIO, final char colDelimiter) throws IOException {
 		final TableIOOptions options = new TableIOOptions();
 		options.columnDelimiter(colDelimiter);
-		Table<?, ?> table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
-		if (table.isEmpty())
-			table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
-		if (table.isEmpty())
-			table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(true));
-		if (table.isEmpty())
-			table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(false));
-		if (table.isEmpty())
-			table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(true));
-		if (table.isEmpty())
-			throw new IllegalArgumentException(fileLocation.getName() + " does not seem to contain valid data!?");
-		return table;
+		try {
+			Table<?, ?> table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(false));
+			if (table.isEmpty())
+				table = tableIO.open(fileLocation, options.readColumnHeaders(true).readRowHeaders(true));
+			if (table.isEmpty())
+				table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(false));
+			if (table.isEmpty())
+				table = tableIO.open(fileLocation, options.readColumnHeaders(false).readRowHeaders(true));
+			if (table.isEmpty())
+				throw new IllegalArgumentException(fileLocation.getName() + " does not seem to contain valid data!?");
+			return table;
+		} catch (final NumberFormatException exception) {
+			// Common gotcha: CSVs round-tripped through other software often have ASCII characters
+			// silently replaced with "smart" Unicode counterparts (curly quotes, en/em dashes, math
+			// minus, non-breaking spaces, etc.). Many of these survive CSV unquoting. Here we detect
+			// the first offender and surface an actionable hint instead of the raw exception
+			final String msg = String.valueOf(exception.getMessage());
+			final int bad = findProblematicChar(msg);
+			if (bad != -1) {
+				throw new IOException(String.format("%s: the value contains a %s (U+%04X). "
+								+ "Re-save the file using plain ASCII characters.",
+						msg, describeProblematicChar((char) bad), bad), exception);
+			}
+			throw new IOException(exception);
+		}
+	}
+
+	private static int findProblematicChar(final String s) {
+		if (s == null) return -1;
+		for (int i = 0; i < s.length(); i++) {
+			final char c = s.charAt(i);
+			if (isProblematic(c)) return c;
+		}
+		return -1;
+	}
+
+	private static boolean isProblematic(final char c) {
+		// Hyphens & dashes (U+2010-U+2015), math minus (U+2212), small/full-width hyphen-minus (U+FE63, U+FF0D)
+		if ((c >= 0x2010 && c <= 0x2015) || c == 0x2212 || c == 0xFE63 || c == 0xFF0D) return true;
+		// Smart single quotes / apostrophes (U+2018..U+201B) and primes (U+2032..U+2035)
+		if ((c >= 0x2018 && c <= 0x201B) || (c >= 0x2032 && c <= 0x2035)) return true;
+		// Smart double quotes (U+201C..U+201F)
+		if (c >= 0x201C && c <= 0x201F) return true;
+		// Non-breaking / narrow / figure spaces and word-joiner
+		if (c == 0x00A0 || c == 0x202F || c == 0x2007 || c == 0x2060) return true;
+		// Zero-width characters and BOM (often pasted from web)
+		if (c == 0x200B || c == 0x200C || c == 0x200D || c == 0xFEFF) return true;
+		// Full-width digits (U+FF10-U+FF19) and full-width period (U+FF0E)
+        return (c >= 0xFF10 && c <= 0xFF19) || c == 0xFF0E;
+    }
+
+	private static String describeProblematicChar(final char c) {
+		if ((c >= 0x2010 && c <= 0x2015) || c == 0x2212 || c == 0xFE63 || c == 0xFF0D)
+			return "non-ASCII minus/dash (en-dash, em-dash, or similar)";
+		if ((c >= 0x2018 && c <= 0x201B) || (c >= 0x2032 && c <= 0x2035))
+			return "smart single-quote / apostrophe / prime";
+		if (c >= 0x201C && c <= 0x201F)
+			return "smart double-quote";
+		if (c == 0x00A0 || c == 0x202F || c == 0x2007 || c == 0x2060)
+			return "non-breaking / narrow space";
+		if (c == 0x200B || c == 0x200C || c == 0x200D || c == 0xFEFF)
+			return "zero-width or BOM character";
+		if (c >= 0xFF10 && c <= 0xFF19)
+			return "full-width digit";
+		if (c == 0xFF0E)
+			return "full-width period";
+		return "non-ASCII character";
 	}
 
 	protected void validate() {

@@ -189,6 +189,7 @@ public class IconFactory {
         SEARCH_MINUS('\uf010', true), //
         SEARCH_PLUS('\uf00e', true), //
         SEARCH_ARROW('\ue521', true), //
+        SEEDLING('\uf4d8', true),
         SHUFFLE('\uf074', true), //
         SIGNS('\uf277', true), //
         SLIDERS('\uf1de', true), //

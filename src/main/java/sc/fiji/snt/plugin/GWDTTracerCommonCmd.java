@@ -27,6 +27,7 @@ import ij.gui.Roi;
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.numeric.RealType;
 import org.scijava.ItemVisibility;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
@@ -133,6 +134,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private String HEADER4 = "<HTML><b>Branch Filtering and Scoring";
 
     @Parameter(label = "Score map filter", choices = {SCORE_MAP_NONE, SCORE_MAP_TUBENESS, SCORE_MAP_FRANGI, SCORE_MAP_OTHER},
+            callback = "scoreMapFilterCallback",
             description = "<HTML>Compute a vesselness (Tubeness/Frangi) score map to prune<br>" +
                     "low-confidence segments. Expensive but effective for noisy data.<br>" +
                     "Tubeness is faster; Frangi may be more selective.<br>" +
@@ -264,7 +266,22 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         SNTUtils.setDebugMode(debugMode);
     }
 
-    // --- Shared init helpers ---
+    /**
+     * Toggles visibility of secondary-image inputs that are only relevant when
+     * {@code scoreMapFilter == SCORE_MAP_OTHER}. The base implementation handles
+     * any {@code secondaryImageSuffix} input declared by subclasses; subclasses
+     * may override to control additional related inputs. Safe to call when the
+     * input is not declared (no-op in that case).
+     */
+    @SuppressWarnings("unused")
+    protected void scoreMapFilterCallback() {
+        final MutableModuleItem<String> suffixItem =
+                getInfo().getMutableInput("secondaryImageSuffix", String.class);
+        if (suffixItem != null) {
+            suffixItem.setVisibility(SCORE_MAP_OTHER.equals(scoreMapFilter)
+                    ? ItemVisibility.NORMAL : ItemVisibility.INVISIBLE);
+        }
+    }
 
     protected void initForImage() {
         super.init(true);
@@ -292,8 +309,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         resolveInput("debugMode"); // debug mode is always enabled to report progress to console
         debugMode = SNTUtils.isDebugMode();
     }
-
-    // --- Core tracing logic ---
 
     /**
      * Creates and configures a tracer from the shared GUI parameters. Returns
@@ -325,16 +340,38 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             if (!SCORE_MAP_OTHER.equals(scoreMapFilter)) {
                 tracer.setScoreMapFilterType(
                         SCORE_MAP_FRANGI.equals(scoreMapFilter) ? SNT.FilterType.FRANGI : SNT.FilterType.TUBENESS);
-            } else {
-                final RandomAccessibleInterval<?> secLayer = snt.getSecondaryData();
-                if (secLayer == null) {
-                    error("No secondary image has been defined. Please create or load one first.");
-                    return null;
-                }
-                tracer.setScoreMap(snt.getSecondaryData());
+            } else if (!configureSecondaryScoreMap(tracer)) {
+                return null;
             }
         }
         return tracer;
+    }
+
+    /**
+     * Hook for configuring the tracer's score map from a user-supplied secondary
+     * image. Invoked only when {@code scoreMapFilter == SCORE_MAP_OTHER}.
+     * <p>
+     * Default implementation pulls from {@link SNT#getSecondaryData()} (the
+     * secondary layer currently loaded in the GUI) and aborts the command via
+     * {@link #error(String)} if none is available.
+     * <p>
+     * Subclasses may override to source the secondary from disk (or elsewhere)
+     * and may choose to handle missing/incompatible inputs gracefully by
+     * disabling score mapping ({@code tracer.setScoreMapEnabled(false)}) and
+     * returning {@code true} so tracing proceeds without it.
+     *
+     * @param tracer the tracer being configured
+     * @return {@code true} to continue (score map configured, or gracefully
+     *         disabled); {@code false} to abort the command
+     */
+    protected boolean configureSecondaryScoreMap(final AbstractGWDTTracer<?> tracer) {
+        final RandomAccessibleInterval<? extends RealType<?>> secLayer = snt.getSecondaryData();
+        if (secLayer == null) {
+            error("No secondary image has been defined. Please create or load one first.");
+            return false;
+        }
+        tracer.setScoreMap(secLayer);
+        return true;
     }
 
     protected void runCommand() {
@@ -467,11 +504,10 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         status("Successfully traced " + trees.size() + " tree(s)", true);
     }
 
-    // --- Image loading ---
-
     protected abstract boolean isFileMode();
 
     protected ImgPlus<?> getImgFromImgChoice() {
+        if (isCanceled() || abortRun) return null; // honor init()'s cancel
         ImgPlus<?> chosenImp;
         if (isFileMode()) {
             if (!SNTUtils.fileAvailable(imgFileChoice)) {
@@ -489,7 +525,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 return null;
             }
         } else {
-            final boolean secLayer = !imgChoice.startsWith(IMG_TRACED_CHOICE);
+            final boolean secLayer = imgChoice != null && !imgChoice.startsWith(IMG_TRACED_CHOICE);
             chosenImp = snt.getLoadedDataAsImg(secLayer);
             if (chosenImp == null) {
                 if (secLayer)
@@ -501,8 +537,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         }
         return (binaryImgError(chosenImp)) ? null : chosenImp;
     }
-
-    // --- Helpers ---
 
     protected void noValidImgError() {
         error("This option requires valid image data to be loaded. " +

@@ -23,7 +23,10 @@
 package sc.fiji.snt.tracing.auto;
 
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.seed.SeedPoint;
 
+import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 
 /**
@@ -71,6 +74,63 @@ public interface AutoTracer {
      */
     int ROI_CONTAINED = 4;
 
+    /**
+     * Role a {@link SeedPoint} plays in a tracing run. Tracers honor the
+     * subset they implement (see {@link #honoredSeedRoles()}) and silently
+     * ignore the rest. The role list is intentionally small; new roles can
+     * be added without breaking existing implementors because each role
+     * maps to its own {@code default}-method setter.
+     */
+    enum SeedRole {
+        /** Starting point: tree grows outward from here. */
+        ROOT,
+        /** Target / endpoint: trace toward this point. */
+        TIP,
+        /** Intermediate constraint: path should pass through / near this. */
+        WAYPOINT
+    }
+
+    /**
+     * Hands the tracer a collection of seeds to use as roots in this run.
+     * Default: no-op. Concrete tracers that consume root seeds override.
+     *
+     * @param seeds candidate roots; may be {@code null} or empty
+     */
+    default void setRoots(final Collection<SeedPoint> seeds) {
+        // Do nothing. Tracers consuming root seeds override.
+    }
+
+    /**
+     * Hands the tracer a collection of seeds to use as tips / targets in
+     * this run. Default: no-op. Concrete tracers that consume tip seeds
+     * override.
+     *
+     * @param seeds candidate tips; may be {@code null} or empty
+     */
+    default void setTips(final Collection<SeedPoint> seeds) {
+        // Do nothing. Tracers consuming tip seeds override.
+    }
+
+    /**
+     * Hands the tracer a collection of seeds to use as waypoints (path
+     * constraints) in this run. Default: no-op. Concrete tracers that
+     * consume waypoint seeds override.
+     *
+     * @param seeds candidate waypoints; may be {@code null} or empty
+     */
+    default void setWaypoints(final Collection<SeedPoint> seeds) {
+        // Do nothing. Tracers consuming waypoint seeds override.
+    }
+
+    /**
+     * @return the {@link SeedRole}s this tracer actually honors. Callers
+     *         (e.g. an "Autotrace from Seeds" wrapper command) can use this
+     *         to gate UI choices and to error early when the user picks a
+     *         role the tracer ignores. Default: empty set.
+     */
+    default EnumSet<SeedRole> honoredSeedRoles() {
+        return EnumSet.noneOf(SeedRole.class);
+    }
 
     /**
      * Traces the neuronal structure and returns a list of Trees.

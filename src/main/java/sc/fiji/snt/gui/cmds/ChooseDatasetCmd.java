@@ -39,6 +39,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ImpUtils;
 
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * Implements the 'Choose Tracing Image (From Open Image)...' command.
@@ -48,9 +49,8 @@ import java.util.*;
 @Plugin(initializer = "init", type = Command.class)
 public class ChooseDatasetCmd extends CommonDynamicCmd {
 
-	@Parameter(persist = false, required = false,
-		style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
-	private String choice;
+	@Parameter(persist = false, required = false, style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE)
+    String choice;
 
 	@Parameter(label = "Validate spatial calibration", required = false,
 		description = "Checks whether voxel dimensions of chosen image differ from those of loaded image (if any)")
@@ -61,9 +61,9 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 	private boolean restoreImg;
 
 	@Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
-	private boolean secondaryLayer;
+    boolean secondaryLayer;
 
-	private HashMap<String, ImagePlus> impMap;
+	HashMap<String, ImagePlus> impMap;
 	private boolean accessToValidImagePlus;
 
 	@Override
@@ -114,6 +114,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 
 	protected void init() {
 		super.init(true);
+		if (isCanceled()) return;
 		if (!snt.accessToValidImageData() && secondaryLayer) {
 			resolveInputs();
 			error("A secondary tracing layer can only be used when a main tracing image exists.");
@@ -130,33 +131,56 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			mItem.setLabel("New tracing image:");
 			resolveInput("secondaryLayer");
 		}
-		final Collection<ImagePlus> impCollection = getImpInstances();
-		if (impCollection == null || impCollection.isEmpty()) {
-			noImgsOpenError();
-			return;
-		}
-		impMap = new HashMap<>(impCollection.size());
-		final ImagePlus existingImp = snt.getImagePlus();
-		accessToValidImagePlus =  existingImp != null && existingImp.getProcessor() != null;
-		for (final ImagePlus imp : impCollection) {
-			if (imp.equals(existingImp)) continue;
-			impMap.put(imp.getTitle(), imp);
-		}
-		if (impMap.isEmpty()) {
-			noImgsOpenError();
-			return;
-		}
+		if (!populateImpChoices(null)) return;
 		if (!accessToValidImagePlus) {
 			restoreImg = false;
 			resolveInput("restoreImg");
 		}
-		final List<String> choices = new ArrayList<>(impMap.keySet());
-		Collections.sort(choices);
-		mItem.setChoices(choices);
-		if (choices.size() > 10) mItem.setWidgetStyle(ChoiceWidget.LIST_BOX_STYLE);
 	}
 
-	private void noImgsOpenError() {
+	/**
+	 * Populates {@link #impMap} and the "choice" parameter's widget with the
+	 * titles of all open {@link ImagePlus} instances, excluding the SNT main
+	 * tracing image (when present) and any image rejected by the optional
+	 * filter. Also updates {@link #accessToValidImagePlus}.
+	 *
+	 * @param accept optional predicate; only images for which
+	 *               {@code accept.test(imp)} is {@code true} are included.
+	 *               {@code null} accepts every open image other than the
+	 *               tracing image.
+	 * @return {@code true} if at least one candidate remains; {@code false} if
+	 *         none are available, in which case {@link #noImgsOpenError()}
+	 *         has already been called.
+	 */
+	protected boolean populateImpChoices(final Predicate<ImagePlus> accept) {
+		final Collection<ImagePlus> impCollection = getImpInstances();
+		if (impCollection == null || impCollection.isEmpty()) {
+			noImgsOpenError();
+			return false;
+		}
+		impMap = new HashMap<>(impCollection.size());
+		final ImagePlus existingImp = snt.getImagePlus();
+		accessToValidImagePlus = existingImp != null && existingImp.getProcessor() != null;
+		for (final ImagePlus imp : impCollection) {
+			// NB: == is preferred over equals ImagePlus doesn't override equals()
+			// and IJ keeps a single instance per open image
+			if (imp == existingImp) continue;
+			if (accept != null && !accept.test(imp)) continue;
+			impMap.put(imp.getTitle(), imp);
+		}
+		if (impMap.isEmpty()) {
+			noImgsOpenError();
+			return false;
+		}
+		final List<String> choices = new ArrayList<>(impMap.keySet());
+		Collections.sort(choices);
+		final MutableModuleItem<String> mItem = getInfo().getMutableInput("choice", String.class);
+		mItem.setChoices(choices);
+		if (choices.size() > 10) mItem.setWidgetStyle(ChoiceWidget.LIST_BOX_STYLE);
+		return true;
+	}
+
+	void noImgsOpenError() {
 		resolveInputs();
 		error("No other open images seem to be available.");
 	}
