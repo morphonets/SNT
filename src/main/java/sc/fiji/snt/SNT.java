@@ -161,7 +161,16 @@ public class SNT extends MultiDThreePanes implements
 			}
 			return StringUtils.capitalize(super.toString().toLowerCase());
 		}
+
+		public static CostType fromString(final String text) {
+			for (final CostType c : CostType.values()) {
+				if (c.toString().equalsIgnoreCase(text))
+					return c;
+			}
+			return null;
+		}
 	}
+
 	public enum HeuristicType {
 		EUCLIDEAN, DIJKSTRA;
 		@Override
@@ -1003,9 +1012,7 @@ public class SNT extends MultiDThreePanes implements
 		return seedOverlay;
 	}
 
-	InteractiveTracerCanvas getXYCanvas() {
-		return xy_tracer_canvas;
-	}
+	InteractiveTracerCanvas getXYCanvas() {return xy_tracer_canvas;}
 
 	InteractiveTracerCanvas getXZCanvas() {
 		return xz_tracer_canvas;
@@ -1013,6 +1020,15 @@ public class SNT extends MultiDThreePanes implements
 
 	InteractiveTracerCanvas getZYCanvas() {
 		return zy_tracer_canvas;
+	}
+
+	public TracerCanvas getCanvas(final int pane) {
+        return switch (pane) {
+            case XY_PLANE -> xy_tracer_canvas;
+            case XZ_PLANE -> xz_tracer_canvas;
+            case ZY_PLANE -> zy_tracer_canvas;
+            default -> null;
+        };
 	}
 
 	/**
@@ -1047,11 +1063,8 @@ public class SNT extends MultiDThreePanes implements
 
 	/* This overrides the method in ThreePanes... */
 	@Override
-	public InteractiveTracerCanvas createCanvas(final ImagePlus imagePlus,
-												final int plane)
-	{
-		return new InteractiveTracerCanvas(imagePlus, this, plane,
-				pathAndFillManager);
+	public InteractiveTracerCanvas createCanvas(final ImagePlus imagePlus, final int plane) {
+		return new InteractiveTracerCanvas(imagePlus, this, plane, pathAndFillManager);
 	}
 
 	protected void dispose() {
@@ -1941,7 +1954,10 @@ public class SNT extends MultiDThreePanes implements
 		return imgStats;
 	}
 
-	private <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
+	// Promoted from private to public so external callers (e.g. CostPalette,
+	// the cost-function wizard) can compute the same per-CostType sub-volume
+	// statistics SNT uses internally when building an A* search.
+	public <T extends RealType<T>> ImageStatistics computeImgStats(final Iterable<T> in,
 																	final ImageStatistics imgStats,
 																	final CostType costType)
 	{
@@ -3549,8 +3565,7 @@ public class SNT extends MultiDThreePanes implements
 		if (ui.getPathManager() != null) {
 			return ui.getPathManager().getSelectedPaths(false);
 		}
-		throw new IllegalArgumentException(
-				"getSelectedPaths was called when PathManagerUI was null");
+		throw new IllegalArgumentException("getSelectedPaths was called when PathManagerUI was null");
 	}
 
 	@Override
@@ -3919,7 +3934,7 @@ public class SNT extends MultiDThreePanes implements
 		activateFinishedPath = enable;
 	}
 
-	protected boolean isTracingOnSecondaryImageActive() {
+	public boolean isTracingOnSecondaryImageActive() {
 		return doSearchOnSecondaryData && isSecondaryDataAvailable();
 	}
 

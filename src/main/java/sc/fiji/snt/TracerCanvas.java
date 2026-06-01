@@ -194,8 +194,23 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 	 *
 	 * @return Either MultiDThreePanes.XY_PLANE, XZ_PLANE, or ZY_PLANE
 	 */
-    public int getPlane() {
+	public int getPlane() {
 		return super.plane;
+	}
+
+	/**
+	 * @return the depth-band radius (in slices either side of the current
+	 * slice) used when {@link #isJustNearSlices()} is {@code true}.
+	 */
+	public int getEitherSide() {
+		return eitherSide;
+	}
+
+	/**
+	 * @return whether per-slice depth-band rendering is currently enabled  (i.e. paths only render near the active slice).
+	 */
+	public boolean isJustNearSlices() {
+		return just_near_slices;
 	}
 
 	/**

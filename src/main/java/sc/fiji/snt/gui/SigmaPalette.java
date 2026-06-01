@@ -27,7 +27,6 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.*;
 import ij.measure.Calibration;
-import ij.plugin.LutLoader;
 import ij.process.FloatProcessor;
 import ij.process.ImageStatistics;
 import net.imagej.ops.OpService;
@@ -43,14 +42,10 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.filter.Frangi;
 import sc.fiji.snt.filter.Tubeness;
-import sc.fiji.snt.util.ImpUtils;
 
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
-import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -77,6 +72,7 @@ public class SigmaPalette extends Thread {
 	private int croppedHeight;
 	private PaletteStackWindow paletteWindow;
 	private ImagePlus paletteImage;
+	private PaletteOptions paletteOptions;
 
 	private int selectedSigmaIndex = 0;
 	private int mouseMovedSigmaIndex = -1;
@@ -110,14 +106,10 @@ public class SigmaPalette extends Thread {
 	}
 
 	private int getMaxScales() {
-		switch(analysisType) {
-		case GAUSS:
-		case MEDIAN:
-			return 1;
-		default:
-			return sigmaValues.length;
-		
-		}
+        return switch (analysisType) {
+            case GAUSS, MEDIAN -> 1;
+            default -> sigmaValues.length;
+        };
 	}
 
 	private class PaletteStackWindow extends StackWindow {
@@ -162,18 +154,6 @@ public class SigmaPalette extends Thread {
 			// shortcuts
 			removeKeyListener(IJ.getInstance());
 			getCanvas().removeKeyListener(IJ.getInstance());
-			addKeyListener(new KeyAdapter() {
-				@Override
-				public void keyPressed(final KeyEvent e) {
-					helpMsg(e);
-				}
-			});
-			getCanvas().addKeyListener(new KeyAdapter() {
-				@Override
-				public void keyPressed(final KeyEvent e) {
-					helpMsg(e);
-				}
-			});
 
 			// final rendering
 			updateSliceSelector();
@@ -206,102 +186,50 @@ public class SigmaPalette extends Thread {
 		}
 
 		private Button assembleOptionsButton() {
-			final PopupMenu pm = new PopupMenu();
-			GUI.scalePopupMenu(pm);
-			add(pm); // Menu must be added before being displayed
-			final Button menuButton = new Button("More \u00bb"); // for consistency with IJ1
-			menuButton.addActionListener(e -> {
-				pm.show(menuButton, menuButton.getWidth() / 2, menuButton.getHeight() / 2);
+			// Standard items (help / LUT / MIP / snapshot / dismiss) come from
+			// PaletteOptions; the sigma-specific "Reset All Scales" item is
+			// inserted via the extras callback.
+			return paletteOptions.buildMoreButton(this, helpHtml(), pm -> {
+				final MenuItem reset = new MenuItem("Reset All Scales");
+				reset.setEnabled(getMaxScales() > 1);
+				reset.addActionListener(e -> {
+					if (scaleSettings != null && !scaleSettings.isEmpty()) {
+						scaleSettings.clear();
+						advanceToFirstScale();
+						((PaletteCanvas) getCanvas()).updateOverlayLabels();
+						updateLabels();
+					}
+				});
+				pm.add(reset);
 			});
-			MenuItem mi = new MenuItem("Help    (H or F1)");
-			mi.addActionListener(e -> helpMsg());
-			pm.add(mi);
-			pm.addSeparator();
-			final Menu lutMenu = new Menu("Lookup Table");
-			pm.add(lutMenu);
-			addLutEntry(lutMenu, "Default", "reset");
-			lutMenu.addSeparator();
-			addLutEntry(lutMenu, "Edges", "edges");
-			addLutEntry(lutMenu, "Fire", "fire");
-			addLutEntry(lutMenu, "Grayscale ", "grays");
-			addLutEntry(lutMenu, "Inferno", "mpl-inferno");
-			addLutEntry(lutMenu, "Magma", "mpl-magma");
-			addLutEntry(lutMenu, "Plasma", "mpl-plasma");
-			addLutEntry(lutMenu, "Viridis", "mpl-viridis");
-			final CheckboxMenuItem showMip = new CheckboxMenuItem("Overlay MIP");
-			showMip.addItemListener(e -> {
-				if (showMip.getState())
-					createMIP();
-				else
-					disposeMIP(true);
-			});
-			showMip.setEnabled(paletteImage.getNSlices() > 1);
-			pm.add(showMip);
-			pm.addSeparator();
-			mi = new MenuItem("Reset All Scales");
-			mi.setEnabled(getMaxScales() > 1);
-			mi.addActionListener(e -> {
-				if (scaleSettings != null && !scaleSettings.isEmpty()) {
-					scaleSettings.clear();
-					advanceToFirstScale();
-					((PaletteCanvas)getCanvas()).updateOverlayLabels();
-					updateLabels();
-				}
-			});
-			pm.add(mi);
-			mi = new MenuItem("Take Snapshot");
-			mi.addActionListener(e -> {
-				final ImagePlus imp = paletteImage.duplicate();
-				imp.setTitle("Sigmas_Snaphsot");
-				imp.show();
-			});
-			pm.add(mi);
-			pm.addSeparator();
-			mi = new MenuItem("Dismiss");
-			mi.addActionListener(e -> dismiss());
-			pm.add(mi);
-			return menuButton;
 		}
 
-		private void addLutEntry(final Menu menu, final String menuItemLabel, final String lutName) {
-			final MenuItem mi = new MenuItem(menuItemLabel);
-			mi.addActionListener(e -> applyLUT(lutName));
-			menu.add(mi);
-		}
-
-		private void helpMsg(KeyEvent e) {
-			if (KeyEvent.VK_F1 == e.getKeyCode() || e.getKeyChar() == 'h' || e.getKeyChar() == 'H')
-				helpMsg();
-		}
-
-		private void helpMsg() {
-			final String msg = //
-					"<p>" //
-					+ "Each tile in the grid previews the effect of the <i>Sigma parameter</i> (&sigma;) &ndash an " //
+		private String helpHtml() {
+			return "<p>"
+					+ "Each tile in the grid previews the effect of the <i>Sigma parameter</i> (&sigma;) &ndash an "
 					+ "estimate of the radii of the structures being traced &ndash on the the image processing filter:"
-					+ "</p>" //
-					+"<p><b>How to Use the <i>Sigma Preview Palette</i>:</b></p>" //
-					+ "<ul>" //
+					+ "</p>"
+					+ "<p><b>How to Use the <i>Sigma Preview Palette</i>:</b></p>"
+					+ "<ul>"
 					+ "<li>You can select has many values (scales) as relevant: Some filters (e.g., Tubeness, Frangi)"
-					+ "    allow multiple scales, while others (e.g., Gaussian, Median) only a single scale</li>" //
-					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>" //
+					+ "    allow multiple scales, while others (e.g., Gaussian, Median) only a single scale</li>"
+					+ "<li>With 3D images, use the main slider to navigate Z-planes</li>"
 					+ "<li>Setting multiple scales:</li>"
-					+ "<ul>"//
-					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd> (or double-click on it)</li>" //
-					+ "<li>To un-select a &sigma; value, click on its tile while holding <kbd>Alt</kbd></li>" //
-					+ "<li>You can also use the <i>Scale</i> slider and its <i>Set</i> button to "//
-					+ "set/replace a value" //
-					+ "</ul>" //
+					+ "<ul>"
+					+ "<li>To select a &sigma; value, click on its tile while holding <kbd>Shift</kbd> (or double-click on it)</li>"
+					+ "<li>To un-select a &sigma; value, click on its tile while holding <kbd>Alt</kbd></li>"
+					+ "<li>You can also use the <i>Scale</i> slider and its <i>Set</i> button to "
+					+ "set/replace a value"
+					+ "</ul>"
 					+ "<li>Setting a single scale:</li>"
-					+ "<ul>"//
-					+ "<li>Simply click on a tile to select its &sigma; value</li>" //
-					+ "</ul>" //
-					+ "</ul>" //
-					+ "<p>" //
-					+ "Use the B&amp;C button to adjust the Brightness/Contrast of the grid. Have a look at the " //
-					+ "<i>More &raquo;</i> menu for further options." //
-					+ "</p>"; //
-			guiUtils.showHTMLDialog(msg, "Help: How to Choose Scale(s)", false);
+					+ "<ul>"
+					+ "<li>Simply click on a tile to select its &sigma; value</li>"
+					+ "</ul>"
+					+ "</ul>"
+					+ "<p>"
+					+ "Use the B&amp;C button to adjust the Brightness/Contrast of the grid. Have a look at the "
+					+ "<i>More &raquo;</i> menu for further options."
+					+ "</p>";
 		}
 
 		private void assembleScrollbars(final Panel panel, final GridBagConstraints c) {
@@ -669,7 +597,7 @@ public class SigmaPalette extends Thread {
 		selectedMax = max;
 		paletteImage.getProcessor().setMinAndMax(paletteImage.getProcessor().getMin(), max);
 		paletteImage.updateAndDraw();
-		updateMIP();
+		if (paletteOptions != null) paletteOptions.updateMip();
 	}
 
 	private int getSelectedSigmaIndex() {
@@ -796,7 +724,7 @@ public class SigmaPalette extends Thread {
 			paletteWindow.guiUtils.error("Prompt has been closed. Settings cannot be applied.");
 			return;
 		}
-		if (scaleSettings == null || scaleSettings.isEmpty() || getSelectedSigma() == -1) {
+		if (scaleSettings == null || scaleSettings.isEmpty() || Double.isNaN(getSelectedSigma())) {
 			if (getMaxScales() > 1) {
 				paletteWindow.guiUtils.error("You must specify settings for at least one scale.");
 				return;
@@ -869,7 +797,11 @@ public class SigmaPalette extends Thread {
 		}
 		paletteImage = new ImagePlus("Pick Sigmas", newStack);
 		paletteImage.setZ(initial_z - z_min + 1);
-		applyLUT("reset");
+		// Helper bundles LUT / MIP / snapshot / dismiss menu state. Created
+		// before the window so we can apply the "reset" LUT here and reuse
+		// the same instance from PaletteStackWindow's More » button later.
+		paletteOptions = new PaletteOptions(paletteImage, image, "Sigmas_Snapshot", this::dismiss);
+		paletteOptions.applyLut("reset");
 		for (int sigmaIndex = 0; sigmaIndex < sigmaValues.length; ++sigmaIndex) {
 			final int sigmaY = sigmaIndex / sigmasAcross;
 			final int sigmaX = sigmaIndex % sigmasAcross;
@@ -922,57 +854,17 @@ public class SigmaPalette extends Thread {
 			setMax(suggestedMax);
 			copyIntoPalette(processed, paletteImage, offsetX, offsetY);
 		}
-		listeners.forEach( listener -> listener.paletteDisplayed());
+		listeners.forEach(SigmaPaletteListener::paletteDisplayed);
 		final PaletteCanvas paletteCanvas = new PaletteCanvas(paletteImage, croppedWidth, croppedHeight,
 			sigmasAcross, sigmasDown);
 		paletteWindow = new PaletteStackWindow(paletteImage, paletteCanvas, suggestedMax);
 		paletteCanvas.requestFocusInWindow(); // required to trigger keylistener events
 	}
 
-	private void createMIP() {
-		final ImagePlus mip = ImpUtils.getMIP(paletteImage); // will have same lut
-		mip.setDisplayRange(paletteImage.getDisplayRangeMin(), paletteImage.getDisplayRangeMax());
-		mip.updateAndDraw();
-		final ImageRoi roi = new ImageRoi(0, 0, mip.getProcessor());
-		roi.setName("mip");
-		roi.setOpacity(0.2);
-		paletteImage.getOverlay().add(roi);
-		paletteImage.getCanvas().repaint();
-	}
-
-	private void disposeMIP(final boolean update) {
-		paletteImage.getOverlay().remove("mip");
-		if (update) paletteImage.getCanvas().repaint();
-	}
-
-	private void updateMIP() {
-		if (paletteImage.getOverlay() != null && paletteImage.getOverlay().get("mip") != null) {
-			// TODO: Is this really the most efficient way to 'refresh' an ImageRoi?
-			disposeMIP(false); createMIP();
-		}
-	}
-
-	private void applyLUT(final String lutname) {
-		if ("reset".equals(lutname) && image.getLuts().length > 0) {
-			final double min = paletteImage.getDisplayRangeMin();
-			final double max = paletteImage.getDisplayRangeMax();
-			paletteImage.setLut(image.getLuts()[0]);
-			paletteImage.setDisplayRange(min, max);
-			updateMIP();
-			return;
-		}
-		final IndexColorModel lut = LutLoader.getLut(lutname);
-		if (lut == null) {
-			paletteWindow.guiUtils.error(
-					"Somehow LUT could not be retrieved. Perhaps some file(s) are missing from your installation?");
-		} else {
-			paletteImage.getProcessor().setColorModel(lut);
-			if (paletteImage.getStackSize() > 1)
-				paletteImage.getStack().setColorModel(lut);
-			paletteImage.updateAndDraw();
-			updateMIP();
-		}
-	}
+	// createMIP / disposeMIP / updateMIP / applyLUT were moved to PaletteOptions
+	// so the same logic could be reused by the CostPalette wizard. Internal
+	// callers (setMax → updateMip, run → applyLut("reset")) now delegate via
+	// the paletteOptions field.
 
 	public void addListener(final SigmaPaletteListener listener) {
 		if (listener != null) listeners.add(listener);

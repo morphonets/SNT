@@ -3934,6 +3934,15 @@ public class SNTUI extends JDialog {
                 }
             });
         });
+        // Cost-function wizard launcher: compares all four CostTypes on a representative path and lets the ser pick
+        // the best one visually (SigmaPalette-style)
+        final JMenuItem tuneCost = new JMenuItem("Cost Function Selection Wizard...", IconFactory.menuIcon(GLYPH.WIZARD));
+        tuneCost.setToolTipText("Compare cost-function variants on a probe segment to pick the most suitable one");
+        tuneCost.addActionListener(e -> {
+            final CommandService cs = plugin.getContext().getService(CommandService.class);
+            if (cs != null) cs.run(CostFunctionSelectionCmd.class, true);
+        });
+        optionsMenu.add(tuneCost);
 
         optionsMenu.addSeparator();
         optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
