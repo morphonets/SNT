@@ -563,8 +563,15 @@ public class DelineationsManager {
 
     private JToolBar bottomToolBar() {
         final JToolBar toolbar = new JToolBar();
-        toolbar.add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/delineations"));
+        final JButton impButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.IMPORT, 1f, importMenu());
+        impButton.setToolTipText("Import seeds");
+        toolbar.add(impButton);
+        final JButton expButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.EXPORT, 1f, exportMenu());
+        expButton.setToolTipText("Export seeds");
+        toolbar.add(expButton);
+        toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
         toolbar.add(optionsButton());
         toolbar.addSeparator();
         final JButton button2 = new JButton("Plot", IconFactory.buttonIcon(IconFactory.GLYPH.CHART, 1.1f));
@@ -628,20 +635,17 @@ public class DelineationsManager {
         return null;
     }
 
-    JButton optionsButton() {
-        final JButton optionsButton = GuiUtils.Buttons.options();
-        optionsButton.setFocusable(false);
-        optionsButton.setToolTipText("Options");
-        final JPopupMenu optionsMenu = new JPopupMenu();
-
-        GuiUtils.addSeparator(optionsMenu, "Import of Delineations:");
+    JPopupMenu importMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+        GuiUtils.addSeparator(menu, "Import of Delineations:");
         JMenuItem jmi = new JMenuItem("Import Assignments from Atlas Annotations", IconFactory.menuIcon(IconFactory.GLYPH.ATLAS));
+        menu.add(jmi);
         jmi.setToolTipText("Import delineations from neuropil labels. Previous delineations will be overridden.");
         jmi.addActionListener(e -> delineateFromPrompt());
-        optionsMenu.add(jmi);
 
-        jmi = new JMenuItem("Import Assignments from Label Image...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
-        jmi.setToolTipText("Import delineations from a label/segmentation image (e.g., from Weka, Labkit, cellpose).\n" +
+        jmi = new JMenuItem("Import Assignments from Labels/Masks Image...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        menu.add(jmi);
+        jmi.setToolTipText("Import delineations from a labels/masks image (e.g., from Weka, Labkit, cellpose).\n" +
                 "Each non-zero label becomes a delineation.");
         jmi.addActionListener(e -> {
             if (sntui.noPathsError()) return;
@@ -667,19 +671,18 @@ public class DelineationsManager {
             final int n = importFromLabelImage(labelImp);
             if (n < 0)
                 sntui.guiUtils.error("The selected image does not appear to be a valid "
-                        + "label/segmentation image. Expected: integer values with 0 as "
+                        + "labels/masks image. Expected: integer values with 0 as "
                         + "background. See Console for details.");
             else if (n == 0)
                 sntui.guiUtils.error("No non-zero labels found in the image.");
             else
                 sntui.guiUtils.centeredMsg(n + " label(s) imported as delineations. "
                                 + "Distance-to-boundary metrics will be included in Measure output.",
-                        "Label Image Imported");
+                        "Labels Image Imported");
         });
-        optionsMenu.add(jmi);
 
         jmi = new JMenuItem("Import Assignments from ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
-        optionsMenu.add(jmi);
+        menu.add(jmi);
         jmi.addActionListener(e -> {
             final RoiManager rm = RoiManager.getInstance2();
             if (rm == null || rm.getCount() == 0) {
@@ -708,10 +711,14 @@ public class DelineationsManager {
                         "Delineations Imported");
             }
         });
+        return menu;
+    }
 
-        GuiUtils.addSeparator(optionsMenu, "Export of Delineations:");
-        jmi = new JMenuItem("Export Assignments to Label Image", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
-        jmi.setToolTipText("Rasterize delineation assignments as a tube-filled label image using node radii.");
+    JPopupMenu exportMenu() {
+        final JPopupMenu menu = new JPopupMenu();
+        GuiUtils.addSeparator(menu, "Export of Delineations:");
+        JMenuItem jmi = new JMenuItem("Export Assignments to a Labels Image", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        jmi.setToolTipText("Rasterize delineation assignments as a tube-filled labels image using node radii.");
         jmi.addActionListener(e -> {
             if (sntui.noPathsError() || noAssignmentsExistError()) return;
             final List<Path> paths = pafm.getPaths();
@@ -724,7 +731,7 @@ public class DelineationsManager {
             labelImp.setTitle("Delineation Labels");
             labelImp.show();
         });
-        optionsMenu.add(jmi);
+        menu.add(jmi);
         jmi = new JMenuItem("Export Assignments to ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
         jmi.addActionListener(e -> {
             final List<Roi> rois = getValidDelineationROIs();
@@ -733,10 +740,18 @@ public class DelineationsManager {
             else
                 toRoiManager(rois);
         });
-        optionsMenu.add(jmi);
+        menu.add(jmi);
+        return menu;
+    }
+
+    JButton optionsButton() {
+        final JButton optionsButton = GuiUtils.Buttons.options();
+        optionsButton.setFocusable(false);
+        optionsButton.setToolTipText("Options");
+        final JPopupMenu optionsMenu = new JPopupMenu();
 
         GuiUtils.addSeparator(optionsMenu, "Rendering of Delineated Paths:");
-        jmi = new JMenuItem("Restore Pre-Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        JMenuItem jmi = new JMenuItem("Restore Pre-Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         jmi.addActionListener(e -> removeDelineationColorsFromAllPaths(false));
         optionsMenu.add(jmi);
         jmi = new JMenuItem("(Re)Apply Delineation Colors", IconFactory.menuIcon(IconFactory.GLYPH.REDO));
@@ -813,8 +828,8 @@ public class DelineationsManager {
         final ImagePlus labelImp;
         if (candidates.length > 0) {
             final String[] titles = Arrays.stream(candidates).map(ImagePlus::getTitle).toArray(String[]::new);
-            final String choice = sntui.guiUtils.getChoice("Select the label/segmentation image:",
-                    "Import from Label Image", titles, titles[0]);
+            final String choice = sntui.guiUtils.getChoice("Select the labels/masks image:",
+                    "Import from Labels Image", titles, titles[0]);
             if (choice == null) return null;
             labelImp = Arrays.stream(candidates).filter(imp -> choice.equals(imp.getTitle()))
                     .findFirst().orElse(null);
@@ -825,7 +840,7 @@ public class DelineationsManager {
         if (labelImp.getNChannels() > 1 || labelImp.getNFrames() > 1) {
             sntui.guiUtils.error("The selected image is a hyperstack (" + labelImp.getNChannels()
                     + " channel(s), " + labelImp.getNFrames() + " frame(s)). Please select a single-channel,"
-                    + " single-timepoint label image.");
+                    + " single-timepoint labels image.");
             return null;
         }
         return labelImp;
@@ -945,12 +960,12 @@ public class DelineationsManager {
     }
 
     /**
-     * Imports delineations from a label image. Each unique non-zero integer
+     * Imports delineations from a labels image. Each unique non-zero integer
      * value becomes a delineation. Path nodes are assigned based on the label
      * value at their pixel coordinates. The label image is stored internally
      * for on-the-fly distance computation in {@link #measure()}.
      *
-     * @param labelImg the label image (XYZ or XY); 0 = background
+     * @param labelImg the labels image (XYZ or XY); 0 = background
      * @return the number of unique labels imported
      */
     public int importFromLabelImage(final RandomAccessibleInterval<? extends RealType<?>> labelImg) {
@@ -958,9 +973,9 @@ public class DelineationsManager {
     }
 
     /**
-     * Imports delineations from a label image with explicit pixel spacing.
+     * Imports delineations from a labels image with explicit pixel spacing.
      *
-     * @param labelImg the label image (XYZ or XY); 0 = background
+     * @param labelImg the labels image (XYZ or XY); 0 = background
      * @param spacing  pixel spacing [x, y] or [x, y, z]; if {@code null},
      *                 spacing is inferred from axes metadata (if
      *                 {@link ImgPlus}) or defaults to [1, 1, 1]
@@ -970,9 +985,9 @@ public class DelineationsManager {
                                      final double[] spacing) {
         if (labelImg == null) return 0;
 
-        // Validate that the image is a plausible label/segmentation image
+        // Validate that the image is a plausible labels/masks image
         if (!ImgUtils.isLabelImage(labelImg, MAX_LABEL_IMAGE_CLASSES)) {
-            SNTUtils.log("Image does not appear to be a valid label/segmentation "
+            SNTUtils.log("Image does not appear to be a valid labels/masks "
                     + "image. Expected: non-negative integer values, 0 = background, "
                     + "at most " + MAX_LABEL_IMAGE_CLASSES + " unique classes.");
             return -1;
@@ -1012,7 +1027,7 @@ public class DelineationsManager {
                 final long px = p.getXUnscaled(i);
                 final long py = p.getYUnscaled(i);
                 final long pz = (nDims > 2) ? p.getZUnscaled(i) : 0;
-                // Skip nodes outside the label image bounds
+                // Skip nodes outside the labels image bounds
                 if (px < labelImg.min(0) || px > labelImg.max(0)
                         || py < labelImg.min(1) || py > labelImg.max(1)
                         || (nDims > 2 && (pz < labelImg.min(2) || pz > labelImg.max(2)))) {
@@ -1036,8 +1051,8 @@ public class DelineationsManager {
             }
         }
         if (outOfBoundsCount > 0) {
-            SNTUtils.log("Label import: " + outOfBoundsCount
-                    + " node(s) were outside the label image bounds and left unassigned.");
+            SNTUtils.log("Labels import: " + outOfBoundsCount
+                    + " node(s) were outside the labels image bounds and left unassigned.");
         }
 
         delineations.forEach(Delineation::updateWidget);
@@ -1049,7 +1064,7 @@ public class DelineationsManager {
      * Convenience overload accepting an {@link ImagePlus}, which is converted
      * to an {@link ImgPlus} via {@link ImpUtils#toImgPlus3D(ImagePlus, int, int)}.
      *
-     * @param labelImp the label ImagePlus
+     * @param labelImp the labels ImagePlus
      * @return the number of unique labels imported
      */
     public int importFromLabelImage(final ImagePlus labelImp) {
