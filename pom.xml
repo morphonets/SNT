@@ -167,9 +167,16 @@
 			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
 		<repository>
+			<!-- jzy3d: SciJava proxy -->
 			<id>jzy3d-releases</id>
 			<name>Jzy3d Releases (via SciJava proxy)</name>
 			<url>https://maven.scijava.org/repository/jzy3d-releases/</url>
+		</repository>
+		<repository>
+			<!-- jzy3d: jzy3d own release: CI jobs seem to be failing w/ scijava mirror at times!? -->
+			<id>jzy3d-releases</id>
+			<name>Jzy3d Releases</name>
+			<url>https://maven.jzy3d.org/releases/</url>
 		</repository>
 	</repositories>
 
