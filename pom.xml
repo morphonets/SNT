@@ -166,6 +166,11 @@
 			<id>scijava.public</id>
 			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
+		<repository>
+			<id>jzy3d-releases</id>
+			<name>Jzy3d Releases (via SciJava proxy)</name>
+			<url>https://maven.scijava.org/repository/jzy3d-releases/</url>
+		</repository>
 	</repositories>
 
 	<build>
