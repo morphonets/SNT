@@ -674,11 +674,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      *   <li>Neither set: auto-estimation via thickness filtering + gap
      *       analysis (best-effort, also experimental)</li>
      * </ul>
-     * </p>
      * <p>
      * Set to -1 to trigger auto-estimation (default). Set to 0 to disable
      * the count-based filter entirely.
-     * </p>
      *
      * @param nSomas expected number of somas (&gt; 0), -1 for auto, or 0 to disable
      * @see #setMinSomaDistance(double)
@@ -720,7 +718,6 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * tracer.setNSomas(0);           // no count-based cap
      * List<Tree> trees = tracer.traceMultiSoma(somas);
      * }</pre>
-     * </p>
      *
      * @param enabled whether to enable automatic soma filtering (default:
      *                {@code true})

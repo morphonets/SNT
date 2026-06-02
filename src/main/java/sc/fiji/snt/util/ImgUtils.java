@@ -1724,7 +1724,6 @@ public class ImgUtils {
      *       {@code maxClasses}.</li>
      * </ul>
      * The scan terminates early if either condition is violated.
-     * </p>
      *
      * @param img        the image to check
      * @param maxClasses maximum number of distinct non-zero labels allowed

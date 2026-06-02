@@ -300,7 +300,6 @@ public class SomaUtils {
      * }</pre>
      * Otherwise, the tracer's heuristic reduction pipeline may discard valid
      * somas. See {@link AbstractGWDTTracer#setAutoFilter(boolean)}.
-     * </p>
      *
      * @param source  input image (2D)
      * @param seeds   list of {@code long[]{x, y}} pixel coordinates
@@ -412,7 +411,6 @@ public class SomaUtils {
      * tracer.setAutoFilter(false);
      * List<Tree> trees = tracer.traceMultiSoma(somas);
      * }</pre>
-     * </p>
      *
      * @param imp    the source image (ImagePlus)
      * @param rois   ROIs whose centroids serve as soma seeds
@@ -699,7 +697,6 @@ public class SomaUtils {
      *       requiring the user to specify one.</li>
      * </ul>
      * For 2D images, {@code zSlice} is ignored.
-     * </p>
      *
      * @param source           input image (2D or 3D ImgPlus)
      * @param threshold        intensity threshold. Use -1 for Otsu, NaN for mean.
@@ -1116,7 +1113,6 @@ public class SomaUtils {
      *       clustering on the surviving somas, find the largest ratio gap in
      *       merge heights, return the geometric mean of the gap boundaries</li>
      * </ol>
-     * </p>
      * <p>
      * <b>Experimental:</b> The quality of the estimate depends heavily on
      * step 1 (thickness filtering), which has known limitations for images
@@ -1124,7 +1120,6 @@ public class SomaUtils {
      * {@link #filterSomasByThickness} javadoc. The gap analysis in step 2 is
      * well-founded (standard hierarchical clustering), but is only as good as
      * the input somas it receives.
-     * </p>
      *
      * @param <T>    pixel type
      * @param somas  list of detected somas (at least 3 required)

@@ -63,7 +63,6 @@ import java.util.concurrent.*;
  *       signal</li>
  *   <li><b>Length:</b> the bridge must not exceed the maximum gap distance</li>
  * </ul>
- * </p>
  * <p>
  * Adapted from NeuTube's chain connection logic ({@code Locseg_Chain_Connection_Test}).
  * </p>
