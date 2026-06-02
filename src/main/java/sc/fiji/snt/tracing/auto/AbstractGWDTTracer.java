@@ -27,7 +27,6 @@ import net.imagej.ops.special.computer.UnaryComputerOp;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.cache.img.CachedCellImg;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImg;
 import net.imglib2.img.array.ArrayImgs;
@@ -1065,7 +1064,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 // without us having to thread protection through each pruner.
                 // We re-attach the snapshot after pruning completes.
                 final List<List<SWCPoint>> protectedPaths = (waypointsList != null)
-                        ? snapshotWaypointPaths(graph, seedIndex)
+                        ? snapshotWaypointPaths(graph)
                         : null;
 
                 postProcessGraph(graph, threshold);
@@ -1795,8 +1794,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             if (shouldUseLazyScoreMap()) {
                 final int[] blockSize = chooseScoreMapBlockSize();
                 log("  Score map: using lazy/disk-backed computation, block=" + Arrays.toString(blockSize));
-                final CachedCellImg<DoubleType, ?> lazy = Lazy.process(source, source, blockSize, new DoubleType(), op);
-                scoreMap = lazy;
+                scoreMap = Lazy.process(source, source, blockSize, new DoubleType(), op);
             } else {
                 final long[] outDims = Intervals.dimensionsAsLongArray(source);
                 final ArrayImg<DoubleType, ?> output = ArrayImgs.doubles(outDims);
@@ -2390,9 +2388,23 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
     /**
      * Unmarks a node's sphere from the coverage count mask.
-     * APP2: Only decrement if count > 1 (prevents underflow and maintains proper counting)
+     * APP2: Only decrement if count > 1 (prevents underflow and maintains proper counting).
      */
     private void unmarkSphereInCountMaskConditional(final SWCPoint node, final RandomAccess<UnsignedShortType> countRA) {
+        walkSphereInCountMask(node, countRA, false);
+    }
+
+    /**
+     * Walks the discrete sphere centred on a node's voxel coordinates and updates the count cell at each in-sphere
+     * voxel. With {@code increment == true} the cell is bumped by 1; otherwise it is decremented by 1 unless already
+     * at 1 (APP2 behavior: prevents underflow and maintains proper counting).
+     * <p>
+     * Shared by {@link #markSphereInCountMask(SWCPoint, RandomAccess)} and
+     * {@link #unmarkSphereInCountMaskConditional(SWCPoint, RandomAccess)} so the sphere
+     * geometry only lives in one place.
+     */
+    private void walkSphereInCountMask(final SWCPoint node, final RandomAccess<UnsignedShortType> countRA,
+                                       final boolean increment) {
         final long cx = Math.round(node.x / spacing[0]);
         final long cy = Math.round(node.y / spacing[1]);
         final long cz = dims.length > 2 ? Math.round(node.z / spacing[2]) : 0;
@@ -2416,9 +2428,12 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                         pos[1] = y;
                         if (dims.length > 2) pos[2] = z;
                         countRA.setPosition(pos);
-                        int current = countRA.get().getInteger();
-                        // APP2: Only decrement if > 1
-                        if (current > 1) countRA.get().set(current - 1);
+                        final int current = countRA.get().getInteger();
+                        if (increment) {
+                            countRA.get().set(current + 1);
+                        } else if (current > 1) {
+                            countRA.get().set(current - 1);
+                        }
                     }
                 }
             }
@@ -3439,35 +3454,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * Marks a node's sphere in the coverage count mask (increment count).
      */
     private void markSphereInCountMask(final SWCPoint node, final RandomAccess<UnsignedShortType> countRA) {
-        final long cx = Math.round(node.x / spacing[0]);
-        final long cy = Math.round(node.y / spacing[1]);
-        final long cz = dims.length > 2 ? Math.round(node.z / spacing[2]) : 0;
-        final int r = (int) Math.max(3, Math.round(node.radius / spacing[0]));
-
-        final double rr = r * r;
-        final long[] pos = new long[dims.length];
-
-        for (int dz = -r; dz <= r; dz++) {
-            final long z = cz + dz;
-            if (dims.length > 2 && (z < 0 || z >= dims[2])) continue;
-            for (int dy = -r; dy <= r; dy++) {
-                final long y = cy + dy;
-                if (y < 0 || y >= dims[1]) continue;
-                for (int dx = -r; dx <= r; dx++) {
-                    final long x = cx + dx;
-                    if (x < 0 || x >= dims[0]) continue;
-
-                    if (dx * dx + dy * dy + dz * dz <= rr) {
-                        pos[0] = x;
-                        pos[1] = y;
-                        if (dims.length > 2) pos[2] = z;
-                        countRA.setPosition(pos);
-                        int current = countRA.get().getInteger();
-                        countRA.get().set(current + 1);
-                    }
-                }
-            }
-        }
+        walkSphereInCountMask(node, countRA, true);
     }
 
     // ==================== Tree Building Methods ====================
@@ -4203,19 +4190,14 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
-     * Snapshots, for each waypoint, the parent-walk chain from the
-     * waypoint voxel back to the root as a list of {@link SWCPoint}
-     * <em>references</em> from the freshly-built graph. The references stay
-     * valid across pruning (pruning removes nodes from the graph's vertex
-     * set but doesn't destroy the objects), so {@link
-     * #reattachProtectedPaths(DirectedWeightedGraph, List)} can re-insert
-     * them later if a pruner removed them.
+     * Snapshots, for each waypoint, the parent-walk chain from the waypoint voxel back to the root as a list of
+     * {@link SWCPoint} <em>references</em> from the freshly-built graph. The references stay valid across pruning
+     * (pruning removes nodes from the graph's vertex set but doesn't destroy the objects), so {@link
+     * #reattachProtectedPaths(DirectedWeightedGraph, List)} can re-insert them later if a pruner removed them.
      * <p>
-     * Tips that fall outside the image, or whose voxel isn't {@link #ALIVE},
-     * are silently skipped
+     * Tips that fall outside the image, or whose voxel isn't {@link #ALIVE}, are silently skipped
      */
-    private List<List<SWCPoint>> snapshotWaypointPaths(final DirectedWeightedGraph graph,
-                                                       final long seedIndex) {
+    private List<List<SWCPoint>> snapshotWaypointPaths(final DirectedWeightedGraph graph) {
         if (waypointsList == null || waypointsList.isEmpty()) return Collections.emptyList();
 
         // One-pass coord -> SWCPoint map keyed by linear voxel index. Letting

@@ -125,7 +125,7 @@ public class ImageParser2D extends ImageParser {
 	}
 
 	public void setRadiiSpan(final int nSamples, final int integrationFlag) {
-		nSpans = Math.max(1, Math.min(MAX_N_SPANS, nSamples));
+		nSpans = Math.clamp(nSamples, 1, MAX_N_SPANS);
 		properties.setProperty(KEY_NSAMPLES, String.valueOf(nSpans));
 		switch (integrationFlag) {
 			case NONE:
@@ -426,37 +426,9 @@ public class ImageParser2D extends ImageParser {
 			// If not a single-pixel group, try again
 			if (multigroup) continue;
 
-			// Store the coordinates of this point
-			final int dx = points[i][0];
-			final int dy = points[i][1];
-
-			// Calculate the 8 neighbors surrounding this point
-			final int[][] testpoints = new int[8][2];
-			testpoints[0][0] = dx - 1;
-			testpoints[0][1] = dy + 1;
-			testpoints[1][0] = dx;
-			testpoints[1][1] = dy + 1;
-			testpoints[2][0] = dx + 1;
-			testpoints[2][1] = dy + 1;
-			testpoints[3][0] = dx - 1;
-			testpoints[3][1] = dy;
-			testpoints[4][0] = dx + 1;
-			testpoints[4][1] = dy;
-			testpoints[5][0] = dx - 1;
-			testpoints[5][1] = dy - 1;
-			testpoints[6][0] = dx;
-			testpoints[6][1] = dy - 1;
-			testpoints[7][0] = dx + 1;
-			testpoints[7][1] = dy - 1;
-
-			// Pull out the pixel values for these points
-			final int[] px = getPixels(testpoints);
-
-			// Stair checks (legacy behavior)
-			if ((px[0] != 0 && px[1] != 0 && px[3] != 0 && px[4] == 0 && px[6] == 0 && px[7] == 0)
-					|| (px[1] != 0 && px[2] != 0 && px[4] != 0 && px[3] == 0 && px[5] == 0 && px[6] == 0)
-					|| (px[4] != 0 && px[6] != 0 && px[7] != 0 && px[0] == 0 && px[1] == 0 && px[3] == 0)
-					|| (px[3] != 0 && px[5] != 0 && px[6] != 0 && px[1] == 0 && px[2] == 0 && px[4] == 0)) {
+			// Stair-pattern check (legacy spike suppression). Single-pixel hit removed when its 8-neighborhood
+			// matches one of the four legacy diagonal stair configurations.
+			if (isLegacyStairPattern(points[i][0], points[i][1])) {
 				positions.remove(i);
 			}
 		}
@@ -536,36 +508,33 @@ public class ImageParser2D extends ImageParser {
 			final int right = (i + 1) % n;
 			if (mask[left] != 0 || mask[right] != 0) continue; // only isolated ring samples
 
-			final int dx = ring[i][0];
-			final int dy = ring[i][1];
-
-			final int[][] testpoints = new int[8][2];
-			testpoints[0][0] = dx - 1;
-			testpoints[0][1] = dy + 1;
-			testpoints[1][0] = dx;
-			testpoints[1][1] = dy + 1;
-			testpoints[2][0] = dx + 1;
-			testpoints[2][1] = dy + 1;
-			testpoints[3][0] = dx - 1;
-			testpoints[3][1] = dy;
-			testpoints[4][0] = dx + 1;
-			testpoints[4][1] = dy;
-			testpoints[5][0] = dx - 1;
-			testpoints[5][1] = dy - 1;
-			testpoints[6][0] = dx;
-			testpoints[6][1] = dy - 1;
-			testpoints[7][0] = dx + 1;
-			testpoints[7][1] = dy - 1;
-
-			final int[] px = getPixels(testpoints);
-			if ((px[0] != 0 && px[1] != 0 && px[3] != 0 && px[4] == 0 && px[6] == 0 && px[7] == 0)
-					|| (px[1] != 0 && px[2] != 0 && px[4] != 0 && px[3] == 0 && px[5] == 0 && px[6] == 0)
-					|| (px[4] != 0 && px[6] != 0 && px[7] != 0 && px[0] == 0 && px[1] == 0 && px[3] == 0)
-					|| (px[3] != 0 && px[5] != 0 && px[6] != 0 && px[1] == 0 && px[2] == 0 && px[4] == 0)) {
+			if (isLegacyStairPattern(ring[i][0], ring[i][1])) {
 				drop[i] = true;
 			}
 		}
 		for (int i = 0; i < n; i++) if (drop[i]) mask[i] = 0;
+	}
+
+	/**
+	 * Tests whether the pixel at {@code (dx, dy)} sits in one of the four legacy diagonal "stair" configurations
+	 * used by spike-suppression. Builds the 8-neighbor sample array, fetches their pixel values via
+	 * {@link #getPixels(int[][])}, and evaluates the four-clause predicate.
+	 */
+	private boolean isLegacyStairPattern(final int dx, final int dy) {
+		final int[][] testpoints = new int[8][2];
+		testpoints[0][0] = dx - 1; testpoints[0][1] = dy + 1;
+		testpoints[1][0] = dx;     testpoints[1][1] = dy + 1;
+		testpoints[2][0] = dx + 1; testpoints[2][1] = dy + 1;
+		testpoints[3][0] = dx - 1; testpoints[3][1] = dy;
+		testpoints[4][0] = dx + 1; testpoints[4][1] = dy;
+		testpoints[5][0] = dx - 1; testpoints[5][1] = dy - 1;
+		testpoints[6][0] = dx;     testpoints[6][1] = dy - 1;
+		testpoints[7][0] = dx + 1; testpoints[7][1] = dy - 1;
+		final int[] px = getPixels(testpoints);
+		return (px[0] != 0 && px[1] != 0 && px[3] != 0 && px[4] == 0 && px[6] == 0 && px[7] == 0)
+				|| (px[1] != 0 && px[2] != 0 && px[4] != 0 && px[3] == 0 && px[5] == 0 && px[6] == 0)
+				|| (px[4] != 0 && px[6] != 0 && px[7] != 0 && px[0] == 0 && px[1] == 0 && px[3] == 0)
+				|| (px[3] != 0 && px[5] != 0 && px[6] != 0 && px[1] == 0 && px[2] == 0 && px[4] == 0);
 	}
 
 	/** Linearized length on a ring from a 0/1 mask; no extra allocations. */

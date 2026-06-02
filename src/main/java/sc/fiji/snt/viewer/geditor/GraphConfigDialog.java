@@ -23,7 +23,6 @@
 package sc.fiji.snt.viewer.geditor;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.awt.GridLayout;
@@ -33,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 
-import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
@@ -247,21 +245,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Number of nodes"));
 			panel.add(numNodesField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int nodeCount = Integer.parseInt(numNodesField.getText());
 				graph.getModel().beginUpdate();
@@ -304,16 +288,6 @@ class GraphConfigDialog extends JDialog
 				graph.getModel().endUpdate();
 				setVisible(false);
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if (graphType2 == GraphType.COMPLETE)
 		{
@@ -327,21 +301,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int vertexNumParam = Integer.parseInt(numNodesField.getText());
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
@@ -364,16 +324,6 @@ class GraphConfigDialog extends JDialog
 				layout.execute(graph.getDefaultParent());
 				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if (graphType2 == GraphType.FULL_WINDMILL || graphType2 == GraphType.FRIENDSHIP_WINDMILL)
 		{
@@ -389,21 +339,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				graph.selectAll();
 				graph.removeCells();
@@ -430,16 +366,6 @@ class GraphConfigDialog extends JDialog
 				mxGraphStructure.setDefaultGraphStyle(aGraph, false);
 				setVisible(false);
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if ((graphType2 == GraphType.WHEEL) || (graphType2 == GraphType.STAR) || (graphType2 == GraphType.PATH))
 		{
@@ -453,21 +379,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int numNodesParam = Integer.parseInt(numNodesField.getText());
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
@@ -501,17 +413,6 @@ class GraphConfigDialog extends JDialog
 				setVisible(false);
 				graph.getModel().endUpdate();
 			});
-
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if (graphType2 == GraphType.PETERSEN)
 		{
@@ -523,21 +424,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
@@ -558,16 +445,6 @@ class GraphConfigDialog extends JDialog
 
 				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if (graphType2 == GraphType.GRID)
 		{
@@ -585,21 +462,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int yDim = Integer.parseInt(numRowsField.getText());
 				int xDim = Integer.parseInt(numColumnsField.getText());
@@ -623,17 +486,6 @@ class GraphConfigDialog extends JDialog
 				setVisible(false);
 				graph.getModel().endUpdate();
 			});
-
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if ((graphType2 == GraphType.KNIGHT) || (graphType2 == GraphType.KING))
 		{
@@ -645,21 +497,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Grid spacing"));
 			panel.add(gridSpacingField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int yDim = Integer.parseInt(numRowsField.getText());
 				int xDim = Integer.parseInt(numColumnsField.getText());
@@ -687,16 +525,6 @@ class GraphConfigDialog extends JDialog
 				setVisible(false);
 				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if (graphType2 == GraphType.KNIGHT_TOUR)
 		{
@@ -710,21 +538,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Grid spacing"));
 			panel.add(gridSpacingField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int yDim = Integer.parseInt(numRowsField.getText());
 				int xDim = Integer.parseInt(numColumnsField.getText());
@@ -752,16 +566,6 @@ class GraphConfigDialog extends JDialog
 				setVisible(false);
 				graph.getModel().endUpdate();
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if ((graphType2 == GraphType.BIPARTITE) || (graphType2 == GraphType.COMPLETE_BIPARTITE))
 		{
@@ -779,21 +583,7 @@ class GraphConfigDialog extends JDialog
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
 
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
-
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int leftNodeCount = Integer.parseInt(numVertexesLeftField.getText());
 				int rightNodeCount = Integer.parseInt(numVertexesRightField.getText());
@@ -823,17 +613,6 @@ class GraphConfigDialog extends JDialog
 				setVisible(false);
 				graph.getModel().endUpdate();
 			});
-
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if (graphType2 == GraphType.SIMPLE_RANDOM)
 		{
@@ -851,21 +630,8 @@ class GraphConfigDialog extends JDialog
 			panel.add(selfLoopBox = new JCheckBox("Allow self-loops", false));
 			panel.add(multipleEdgeBox = new JCheckBox("Allow multiple edges", false));
 			panel.add(forceConnectedBox = new JCheckBox("Always connected (edge count may be inaccurate)", false));
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
 
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int nodeCount = Integer.parseInt(numNodesField.getText());
 				int edgeCount = Integer.parseInt(numEdgesField.getText());
@@ -888,15 +654,6 @@ class GraphConfigDialog extends JDialog
 				graph.getModel().endUpdate();
 				setVisible(false);
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
 		}
 		else if (graphType2 == GraphType.RESET_STYLE)
 		{
@@ -907,21 +664,8 @@ class GraphConfigDialog extends JDialog
 			panel.add(minWeightField);
 			panel.add(new JLabel("Max. weight"));
 			panel.add(maxWeightField);
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
 
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Generate");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Generate", e -> {
 				applyValues();
 				int minWeightParam = Integer.parseInt(minWeightField.getText());
 				int maxWeightParam = Integer.parseInt(maxWeightField.getText());
@@ -937,16 +681,6 @@ class GraphConfigDialog extends JDialog
 				graph.getModel().endUpdate();
 				setVisible(false);
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if ((graphType2 == GraphType.BFS_DIR) || (graphType2 == GraphType.DFS_DIR) || (graphType2 == GraphType.BFS_UNDIR)
 				|| (graphType2 == GraphType.DFS_UNDIR) || (graphType2 == GraphType.MAKE_TREE_DIRECTED)
@@ -955,21 +689,8 @@ class GraphConfigDialog extends JDialog
 			JPanel panel = new JPanel(new GridLayout(1, 2, 4, 4));
 			panel.add(new JLabel("Starting vertex"));
 			panel.add(startVertexValueField);
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
 
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Start");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(e -> {
+			finalizeBranchDialog(panel, "Start", e -> {
 				applyValues();
 				int value = Integer.parseInt(startVertexValueField.getText());
 				Object startVertex = mxGraphStructure.getVertexWithValue(aGraph, value);
@@ -1109,16 +830,6 @@ class GraphConfigDialog extends JDialog
 				}
 				setVisible(false);
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
 		else if ((graphType2 == GraphType.DIJKSTRA) || (graphType2 == GraphType.BELLMAN_FORD))
 		{
@@ -1127,22 +838,8 @@ class GraphConfigDialog extends JDialog
 			panel.add(startVertexValueField);
 			panel.add(new JLabel("End vertex"));
 			panel.add(endVertexValueField);
-			JPanel panelBorder = new JPanel();
-			panelBorder.setBorder(new EmptyBorder(10, 10, 10, 10));
-			panelBorder.add(panel);
 
-			JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-			panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, Color.GRAY),
-					BorderFactory.createEmptyBorder(16, 8, 8, 8)));
-
-			JButton applyButton = new JButton("Start");
-			JButton closeButton = new JButton("Cancel");
-			buttonPanel.add(closeButton);
-			buttonPanel.add(applyButton);
-			getRootPane().setDefaultButton(applyButton);
-
-			applyButton.addActionListener(new ActionListener()
-			{
+			finalizeBranchDialog(panel, "Start", new ActionListener() {
 				double distance = 0;
 
 				public void actionPerformed(ActionEvent e)
@@ -1248,17 +945,33 @@ class GraphConfigDialog extends JDialog
 					setVisible(false);
 				}
 			});
-			closeButton.addActionListener(e -> {
-				insertGraph = false;
-				setVisible(false);
-			});
-
-			getContentPane().add(panelBorder, BorderLayout.CENTER);
-			getContentPane().add(buttonPanel, BorderLayout.SOUTH);
-			pack();
-			setResizable(false);
-			// setLocationRelativeTo(parent);
 		}
+	}
+
+	/**
+	 * Wraps the supplied form {@code panel} w/ Generate/Cancel (or Start/Cancel) button row, content-pane wiring,
+	 * {@code pack()} & {@code setResizable(false)}). The {@code onApply} listener is bound to the apply button;
+	 * the cancel button uniformly clears {@code insertGraph} and hides the dialog.
+	 */
+	private void finalizeBranchDialog(final JPanel panel, final String applyLabel, final ActionListener onApply) {
+		JPanel panelBorder = new JPanel();
+		panelBorder.setBorder(new EmptyBorder(4, 4, 4, 4));
+		panelBorder.add(panel);
+		JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+		JButton applyButton = new JButton(applyLabel);
+		JButton closeButton = new JButton("Cancel");
+		buttonPanel.add(closeButton);
+		buttonPanel.add(applyButton);
+		getRootPane().setDefaultButton(applyButton);
+		applyButton.addActionListener(onApply);
+		closeButton.addActionListener(e -> {
+			insertGraph = false;
+			setVisible(false);
+		});
+		getContentPane().add(panelBorder, BorderLayout.CENTER);
+		getContentPane().add(buttonPanel, BorderLayout.SOUTH);
+		pack();
+		setResizable(false);
 	}
 
 	public void configAnalysisGraph(mxGraph graph, mxGraphGenerator generator, Map<String, Object> props)
