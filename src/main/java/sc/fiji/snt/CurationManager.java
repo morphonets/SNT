@@ -309,8 +309,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         clearReviewItem.setToolTipText("Remove any cur:* review tag from affected paths.");
         clearReviewItem.addActionListener(e -> applyReviewTag(CurationTags::clearReview, "(review tags cleared)", false));
         reviewMenu.add(clearReviewItem);
-
         popup.add(reviewMenu);
+        popup.addSeparator();
+        popup.add(GuiUtils.MenuItems.openHelpURL("Help on Seed Reviews",
+                "https://imagej.net/plugins/snt/curation#seed-review"));
 
         final JMenuItem showCuratedItem = new JMenuItem("Show Reviewed Paths in Path Manager",
                 IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
@@ -1017,9 +1019,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                     liveToggle.setSelected(true);
                     sntui.selectTab("Assistant");
                     sntui.showStatus(String.format("Calibrated from %d tree(s). Scanning...", result.getTreeCount()), true);
-                    // Chain directly into a full scan: all validation guards
-                    // (parameters selected, paths exist, image loaded) should
-                    // pass since we just calibrated from freshly traced data
+                    // Chain directly into a full scan: all validation guards (parameters selected, paths
+                    // exist, image loaded) should pass since we just calibrated from freshly traced data
                     runOnDemandAsync();
                 } catch (final Exception ex) {
                     SNTUtils.log("Auto-calibration failed: " + ex.getMessage());

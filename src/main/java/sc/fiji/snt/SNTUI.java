@@ -1597,7 +1597,7 @@ public class SNTUI extends JDialog {
         if (nag) {
             final boolean[] options = guiUtils.getPersistentConfirmation(promptMsg //
                             + " Reset spatial calibration of paths?<br>" //
-                            + "This will force paths and display canvas(es) to have unitary spacing (e.g.,"//
+                            + "This will force paths and display canvas(es) to have unitary spacing ("//
                             + "1px&rarr;1" + GuiUtils.micrometer() + "). Path lengths will be preserved.",//
                     "Reset Path Calibrations?");
             plugin.getPrefs().setTemp("pathscaling", reset = options[0]);
