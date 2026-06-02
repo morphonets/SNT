@@ -29,6 +29,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: target/site/apidocs
+          publish_dir: target/reports/apidocs
           # Each release overwrites the previous docs (no history accumulation).
           force_orphan: true
