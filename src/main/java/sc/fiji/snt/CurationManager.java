@@ -309,10 +309,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         clearReviewItem.setToolTipText("Remove any cur:* review tag from affected paths.");
         clearReviewItem.addActionListener(e -> applyReviewTag(CurationTags::clearReview, "(review tags cleared)", false));
         reviewMenu.add(clearReviewItem);
-        popup.add(reviewMenu);
-        popup.addSeparator();
-        popup.add(GuiUtils.MenuItems.openHelpURL("Help on Seed Reviews",
+        reviewMenu.addSeparator();
+        reviewMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Seed Reviews",
                 "https://imagej.net/plugins/snt/curation#seed-review"));
+        popup.add(reviewMenu);
 
         final JMenuItem showCuratedItem = new JMenuItem("Show Reviewed Paths in Path Manager",
                 IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
