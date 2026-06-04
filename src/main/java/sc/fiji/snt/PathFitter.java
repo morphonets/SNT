@@ -1163,13 +1163,13 @@ public class PathFitter implements Callable<Path> {
                 for (int j = 0; j < side; ++j) {
                     final float value = data[j * side + i];
                     final double dy = j - y;
+                    final double diff;
                     if (rSquared > (dxSquared + dy * dy)) {
-                        final double diff = maxValueInData - value;
-                        badness += diff * diff;
+                        diff = maxValueInData - value;
                     } else {
-                        final double diff = value - minValueInData;
-                        badness += diff * diff;
+                        diff = value - minValueInData;
                     }
+                    badness += diff * diff;
                 }
             }
 

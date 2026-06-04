@@ -442,7 +442,7 @@ public class SNTUI extends JDialog {
         //registerTabInCmdFInder("Options Tab", "Options Tab");
         registerTabInCmdFInder("Assistant Tab", "Curation Assistant");
         registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
-        registerTabInCmdFInder("Seeds Tab", "Seeds (Anchor Points) Manager");
+        registerTabInCmdFInder("Seeds Tab", "Seeded Tracing Assistant");
         //registerTabInCmdFInder("3D Tab", "3D Viewers");
         registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
         registerTabInCmdFInder("Notes Tab", "Notepad");
@@ -903,7 +903,7 @@ public class SNTUI extends JDialog {
         sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
         sb.append( (plugin.autoCT) ? " (auto-loaded)" : " (manually-loaded)");
         sb.append("\n");
-        sb.append("Auto-tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
+        sb.append("Interactive tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
         sb.append("\n");
         sb.append("    Data structure: ").append(plugin.searchImageType);
         sb.append("\n");
@@ -2693,17 +2693,17 @@ public class SNTUI extends JDialog {
         final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
                 IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
         ScriptRecorder.setRecordingCall(mi1, "snt.getUI().runSecondaryLayerWizard()");
-        commandFinder.register(mi1, "Main tab", "Auto-tracing (II Layer)");
+        commandFinder.register(mi1, "Main tab", "Interactive tracing (II Layer)");
         mi1.setToolTipText("Create a secondary layer using built-in image processing routines");
         mi1.addActionListener(e -> runSecondaryLayerWizard(true));
         final JMenuItem mi2 = GuiUtils.MenuItems.fromOpenImage();
         mi2.addActionListener(e -> loadSecondaryImage(true));
-        commandFinder.register(mi2, "Main tab", "Auto-tracing (II Layer)");
+        commandFinder.register(mi2, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi3 = GuiUtils.MenuItems.fromFileImage();
         mi3.addActionListener(e -> loadSecondaryImage(false));
-        commandFinder.register(mi3, "Main tab", "Auto-tracing (II Layer)");
+        commandFinder.register(mi3, "Main tab", "Interactive tracing (II Layer)");
         final JMenuItem mi4 = new JMenuItem("Flush Current Layer...", IconFactory.menuIcon(IconFactory.GLYPH.TOILET));
-        registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Auto-tracing");
+        registerInCommandFinder(mi4, "Flush Secondary Layer", "Main tab", "Interactive tracing");
         mi4.addActionListener(e -> {
             if (!noSecondaryDataAvailableError()
                     && guiUtils.getConfirmation("Flush secondary layer? (RAM will be released but "
@@ -2723,7 +2723,7 @@ public class SNTUI extends JDialog {
             (new DynamicCmdRunner(WekaModelLoader.class, null)).run();
         });
         ScriptRecorder.setRecordingCall(mi5, "snt.getUI().runCommand(\"From Labkit/TWS Model...\")");
-        commandFinder.register(mi5, "Main tab", "Auto-tracing (II Layer)");
+        commandFinder.register(mi5, "Main tab", "Interactive tracing (II Layer)");
         GuiUtils.addSeparator(secLayerMenu, "Create:");
         secLayerMenu.add(mi1);
         GuiUtils.addSeparator(secLayerMenu, "Load Precomputed:");
@@ -2736,7 +2736,7 @@ public class SNTUI extends JDialog {
         secLayerMenu.addSeparator();
         final JMenuItem mi6 = GuiUtils.MenuItems.openHelpURL("Help on Secondary Layers",
                 "https://imagej.net/plugins/snt/manual#tracing-on-secondary-image");
-        commandFinder.register(mi6, "Main tab", "Auto-tracing (II Layer)");
+        commandFinder.register(mi6, "Main tab", "Interactive tracing (II Layer)");
         secLayerMenu.add(mi6);
 
         // Assemble panel
@@ -3938,6 +3938,7 @@ public class SNTUI extends JDialog {
         // the best one visually (SigmaPalette-style)
         final JMenuItem tuneCost = new JMenuItem("Cost Function Selection Wizard...", IconFactory.menuIcon(GLYPH.WIZARD));
         tuneCost.setToolTipText("Compare cost-function variants on a probe segment to pick the most suitable one");
+        commandFinder.register(tuneCost, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tuneCost.addActionListener(e -> {
             final CommandService cs = plugin.getContext().getService(CommandService.class);
             if (cs != null) cs.run(CostFunctionSelectionCmd.class, true);
@@ -3994,6 +3995,7 @@ public class SNTUI extends JDialog {
         final JRadioButtonMenuItem rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
         GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse.<br>"
                 + "Click to confirm each segment. Only recommended for 2D images.");
+        commandFinder.register(rubberBandTracingRbmi, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tracingModeButtonGroup.add(standardTracingRbmi);
         tracingModeButtonGroup.add(rubberBandTracingRbmi);
         optionsMenu.add(standardTracingRbmi);

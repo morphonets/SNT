@@ -946,12 +946,10 @@ public class FileDrop {
 				return true;
 
 			// String
-			if (flavor.equals(java.awt.datatransfer.DataFlavor.stringFlavor))
-				return true;
+            return flavor.equals(DataFlavor.stringFlavor);
 
 			// We can't do anything else
-			return false;
-		} // end isDataFlavorSupported
+        } // end isDataFlavorSupported
 
 		/* ******** I N N E R I N T E R F A C E F E T C H E R ******** */
 

@@ -120,7 +120,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     /** Preferred zoom level applied when navigating to a flagged issue. */
     private final GuiUtils.JTables.VisitingZoom visitingZoom = new GuiUtils.JTables.VisitingZoom();
     // Menus
-    private JPopupMenu optionsMenu;
+    private JPopupMenu calibrationMenu;
     // Detachable table (state is owned by the helper)
     private JScrollPane tableScroll;
     private GuiUtils.JTables.DetachableTable tableDetacher;
@@ -302,8 +302,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         unsureItem.addActionListener(e -> applyReviewTag(CurationTags::markUnsure, "needs-follow-up", true));
         reviewMenu.add(unsureItem);
 
-        reviewMenu.addSeparator();
-
         final JMenuItem clearReviewItem = new JMenuItem("Clear Review Status",
                 IconFactory.menuIcon(IconFactory.GLYPH.TIMES));
         clearReviewItem.setToolTipText("Remove any cur:* review tag from affected paths.");
@@ -342,7 +340,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final ButtonGroup buttonGroup = new ButtonGroup();
         final int currentZl = visitingZoom.percentage();
         final Map<Integer, JRadioButtonMenuItem> presets = new TreeMap<>();
-        for (final int zl : new int[]{50, 100, 200, 400, 600, 800, 1000}) {
+        for (final int zl : new int[]{33, 50, 100, 200, 400, 600, 800, 1000}) {
             final JRadioButtonMenuItem item = new JRadioButtonMenuItem(zl + "%");
             item.setSelected(currentZl == zl);
             item.addActionListener(e -> {
@@ -367,7 +365,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             }
             final Integer zl = sntui.guiUtils.getInt(
                     "Preferred zoom level (%) when navigating to an issue" + suffixMsg,
-                    "Visiting Zoom Level", visitingZoom.percentage(), 25, 3200);
+                    "Visiting Zoom Level", visitingZoom.percentage(), 200, 3200);
             if (zl != null) {
                 visitingZoom.setPercentage(zl);
                 sntui.showStatus("Visiting zoom set to " + zl + "%", true);
@@ -800,6 +798,58 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         tb.add(Box.createHorizontalGlue());
 
         // Filter button: restrict table by severity
+        final JButton filterButton = GuiUtils.Buttons.OptionsButton(
+                IconFactory.GLYPH.EYE, 1.1f, getFilterVisibilityMenu());
+        filterButton.setToolTipText("Filter warnings by severity");
+        tb.add(filterButton);
+        tb.addSeparator();
+
+        // Calibration button
+        calibrationMenu = new JPopupMenu();
+        GuiUtils.addSeparator(calibrationMenu, "Auto-tuning:");
+        final JMenuItem calibrateItem = new JMenuItem("Calibrate Thresholds from Traced Cells...");
+        calibrateItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CALCULATOR));
+        calibrateItem.setToolTipText("Infer parameter thresholds from the statistics of existing reconstructions");
+        calibrateItem.addActionListener(e -> runCalibration());
+        calibrationMenu.add(calibrateItem);
+        GuiUtils.addSeparator(calibrationMenu, "Built-in Presets:");
+        populateBuiltInPresetEntries();
+        GuiUtils.addSeparator(calibrationMenu, "User Presets:");
+        populateUserPresetEntries();
+        final JMenuItem saveItem = new JMenuItem("Create From Current Parameters...");
+        saveItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.PLUS));
+        saveItem.setToolTipText("Save current thresholds and enabled states to a .curation file");
+        saveItem.addActionListener(e -> saveCurationFile());
+        calibrationMenu.add(saveItem);
+        calibrationMenu.addSeparator();
+        final JMenuItem refreshItem = new JMenuItem("Reload User Presets");
+        refreshItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.REDO));
+        refreshItem.addActionListener(e -> {
+            final int changedItems = populateUserPresetEntries();
+            sntui.showStatus(
+                    (changedItems > 0) ? changedItems + " new item(s) loaded." : "No new presets detected.",
+                    true);
+        });
+        calibrationMenu.add(refreshItem);
+        final JMenuItem openDirItem = new JMenuItem("Reveal User Presets Directory");
+        openDirItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.OPEN_FOLDER));
+        openDirItem.addActionListener(e -> {
+            try {
+                FileChooser.reveal(PlausibilityCalibrator.getCurationsDirectory(sntui.getPrefs().getWorkspaceDir()));
+            } catch (final Exception ex) {
+                SNTUtils.log("Could not open directory: " + ex.getMessage());
+            }
+        });
+        calibrationMenu.add(openDirItem);
+        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(
+                IconFactory.GLYPH.OPTIONS, 1.1f, calibrationMenu);
+        optionsButton.setToolTipText("Auto-tuning and calibration options");
+        tb.add(optionsButton);
+
+        return tb;
+    }
+
+    private JPopupMenu getFilterVisibilityMenu() {
         final JPopupMenu filterMenu = new JPopupMenu();
         GuiUtils.addSeparator(filterMenu, "Show:");
         for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
@@ -818,58 +868,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             item.addActionListener(e -> {
                 tableModel.setSeverityVisible(sev, item.isSelected());
                 refreshTableHeader();
+                if (tableModel.visibleSeverities.isEmpty()) {
+                    sntui.showMessage("All severity levels disabled. No issues will be listed.",
+                            "All Issues Filtered Out");
+                }
             });
             filterMenu.add(item);
         }
-        final JButton filterButton = GuiUtils.Buttons.OptionsButton(
-                IconFactory.GLYPH.EYE, 1.1f, filterMenu);
-        filterButton.setToolTipText("Filter warnings by severity");
-        tb.add(filterButton);
-        tb.addSeparator();
-
-        // Options button
-        optionsMenu = new JPopupMenu();
-        GuiUtils.addSeparator(optionsMenu, "Auto-tuning:");
-        final JMenuItem calibrateItem = new JMenuItem("Calibrate Thresholds from Traced Cells...");
-        calibrateItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.CALCULATOR));
-        calibrateItem.setToolTipText("Infer parameter thresholds from the statistics of existing reconstructions");
-        calibrateItem.addActionListener(e -> runCalibration());
-        optionsMenu.add(calibrateItem);
-        GuiUtils.addSeparator(optionsMenu, "Built-in Presets:");
-        populateBuiltInPresetEntries();
-        GuiUtils.addSeparator(optionsMenu, "User Presets:");
-        populateUserPresetEntries();
-        final JMenuItem saveItem = new JMenuItem("Create From Current Parameters...");
-        saveItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.PLUS));
-        saveItem.setToolTipText("Save current thresholds and enabled states to a .curation file");
-        saveItem.addActionListener(e -> saveCurationFile());
-        optionsMenu.add(saveItem);
-        optionsMenu.addSeparator();
-        final JMenuItem refreshItem = new JMenuItem("Reload User Presets");
-        refreshItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.REDO));
-        refreshItem.addActionListener(e -> {
-            final int changedItems = populateUserPresetEntries();
-            sntui.showStatus(
-                    (changedItems > 0) ? changedItems + " new item(s) loaded." : "No new presets detected.",
-                    true);
-        });
-        optionsMenu.add(refreshItem);
-        final JMenuItem openDirItem = new JMenuItem("Reveal User Presets Directory");
-        openDirItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.OPEN_FOLDER));
-        openDirItem.addActionListener(e -> {
-            try {
-                FileChooser.reveal(PlausibilityCalibrator.getCurationsDirectory(sntui.getPrefs().getWorkspaceDir()));
-            } catch (final Exception ex) {
-                SNTUtils.log("Could not open directory: " + ex.getMessage());
-            }
-        });
-        optionsMenu.add(openDirItem);
-        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(
-                IconFactory.GLYPH.OPTIONS, 1.1f, optionsMenu);
-        optionsButton.setToolTipText("Options");
-        tb.add(optionsButton);
-
-        return tb;
+        return filterMenu;
     }
 
     private void runOnDemandAsync() {
@@ -1059,13 +1065,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private void populateBuiltInPresetEntries() {
-        final int sepIdx = findSeparatorIndex(optionsMenu, "Built-in Presets:");
+        final int sepIdx = findSeparatorIndex(calibrationMenu, "Built-in Presets:");
         if (sepIdx < 0) return;
-        final int nextSepIdx = findSeparatorIndex(optionsMenu, "User Presets:");
+        final int nextSepIdx = findSeparatorIndex(calibrationMenu, "User Presets:");
         // Remove items between the two separators
         if (nextSepIdx > sepIdx) {
             for (int i = nextSepIdx - 1; i > sepIdx; i--) {
-                optionsMenu.remove(i);
+                calibrationMenu.remove(i);
             }
         }
         // Insert built-in preset entries
@@ -1073,25 +1079,25 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         if (builtIns.length == 0) {
             final JMenuItem emptyItem = new JMenuItem("None Available");
             emptyItem.setEnabled(false);
-            optionsMenu.insert(emptyItem, sepIdx + 1);
+            calibrationMenu.insert(emptyItem, sepIdx + 1);
         } else {
             for (int i = 0; i < builtIns.length; i++) {
                 final String resourceName = builtIns[i];
                 final JMenuItem item = new JMenuItem(resourceName);
                 item.setToolTipText("Load built-in preset: " + resourceName);
                 item.addActionListener(e -> loadBuiltInPreset(resourceName));
-                optionsMenu.insert(item, sepIdx + 1 + i);
+                calibrationMenu.insert(item, sepIdx + 1 + i);
             }
         }
     }
 
     private int populateUserPresetEntries() {
-        final int sepIdx = findSeparatorIndex(optionsMenu, "User Presets:");
+        final int sepIdx = findSeparatorIndex(calibrationMenu, "User Presets:");
         if (sepIdx < 0) return -1;
         // Find the "Create From Current Parameters..." item that marks the end of dynamic entries
         int createIdx = -1;
-        for (int i = sepIdx + 1; i < optionsMenu.getComponentCount(); i++) {
-            if (optionsMenu.getComponent(i) instanceof JMenuItem mi
+        for (int i = sepIdx + 1; i < calibrationMenu.getComponentCount(); i++) {
+            if (calibrationMenu.getComponent(i) instanceof JMenuItem mi
                     && "Create From Current Parameters...".equals(mi.getText())) {
                 createIdx = i;
                 break;
@@ -1101,14 +1107,14 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         int nItemsRemoved = 0;
         if (createIdx > sepIdx + 1) {
             for (int i = createIdx - 1; i > sepIdx; i--) {
-                optionsMenu.remove(i);
+                calibrationMenu.remove(i);
                 nItemsRemoved++;
             }
         }
         // Re-find createIdx after removals
         createIdx = sepIdx + 1;
-        for (int i = sepIdx + 1; i < optionsMenu.getComponentCount(); i++) {
-            if (optionsMenu.getComponent(i) instanceof JMenuItem mi
+        for (int i = sepIdx + 1; i < calibrationMenu.getComponentCount(); i++) {
+            if (calibrationMenu.getComponent(i) instanceof JMenuItem mi
                     && "Create From Current Parameters...".equals(mi.getText())) {
                 createIdx = i;
                 break;
@@ -1119,7 +1125,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         if (files.length == 0) {
             final JMenuItem emptyItem = new JMenuItem("No User Presets Found");
             emptyItem.setEnabled(false);
-            optionsMenu.insert(emptyItem, createIdx);
+            calibrationMenu.insert(emptyItem, createIdx);
         } else {
             for (int i = 0; i < files.length; i++) {
                 final File f = files[i];
@@ -1127,7 +1133,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 final JMenuItem item = new JMenuItem(name);
                 item.setToolTipText("Load preset from " + f.getName());
                 item.addActionListener(e -> loadCurationFile(f));
-                optionsMenu.insert(item, createIdx + i);
+                calibrationMenu.insert(item, createIdx + i);
             }
         }
         return (files.length - nItemsRemoved);
