@@ -193,6 +193,19 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             }
         });
 
+        // Impact column: percentage + bar, sortable. Width is tight because the values are short, and we want
+        // the message column to dominate
+        final javax.swing.table.TableColumn impactCol = warningsTable.getColumnModel().getColumn(2);
+        final int impactColWidth = (int) (GuiUtils.uiFontSize() * 4); // character length of 100%
+        impactCol.setPreferredWidth(impactColWidth);
+        impactCol.setMaxWidth(impactColWidth * 2);
+        impactCol.setCellRenderer(new ImpactRenderer());
+        impactCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
+                IconFactory.buttonIcon(IconFactory.GLYPH.GAUGE, .9f),
+                "<html>Impact: fraction of the reconstruction affected if this " +
+                "is a true error.<br>Higher = more downstream content at " +
+                "stake. Click to sort."));
+
         // Double-click navigates to warning location
         warningsTable.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override
@@ -215,7 +228,6 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JPopupMenu buildTablePopupMenu() {
         final JPopupMenu popup = new JPopupMenu();
 
-        // Copy issue description(s) to clipboard
         final JMenuItem copyItem = new JMenuItem("Copy Issue Description",
                 IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
         copyItem.addActionListener(e -> {
@@ -270,14 +282,20 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             GuiUtils.openURL("https://imagej.net/plugins/snt/curation" + anchor);
         });
         popup.add(explainItem);
+        final JMenuItem clearItem = new JMenuItem("Clear All Issues",
+                IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        clearItem.addActionListener(e -> {
+            tableModel.setWarnings(List.of());
+            refreshTableHeader();
+        });
+        popup.add(clearItem);
 
-        popup.addSeparator();
+        GuiUtils.addSeparator(popup, "Seed Reviews:");
 
-        // Review-tag actions: mark the affected paths of the selected
-        // warning(s) as positive / negative training examples. The
-        // Path Manager view is refreshed afterward so the new tag is
-        // visible without the user having to click anything.
-        final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As...");
+        // Review-tag actions: mark the affected paths of the selected warning(s) as positive / negative training
+        // examples. The Path Manager view is refreshed afterward so the new tag is visible without the user having
+        // to click anything.
+        final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As");
         reviewMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
         reviewMenu.setToolTipText("<HTML>Tag the path(s) referenced by the selected warning(s)<br>" +
                 "as either positive or negative training examples.<br>" +
@@ -319,19 +337,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 "show only paths carrying a <code>cur:*</code> review tag.");
         showCuratedItem.addActionListener(e -> showCuratedPathsInPathManager());
         popup.add(showCuratedItem);
-
-        popup.addSeparator();
-
-        final JMenuItem clearItem = new JMenuItem("Clear All Issues",
-                IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
-        clearItem.addActionListener(e -> {
-            tableModel.setWarnings(List.of());
-            refreshTableHeader();
-        });
-        popup.add(clearItem);
         popup.addSeparator();
         popup.add(getVisitingZoomControls());
-        popup.addSeparator();
+
+       // popup.addSeparator();
         return popup;
     }
 
@@ -553,7 +562,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Branch angle min
         final PlausibilityCheck.BranchAngle angleCheck =
                 monitor.getLiveCheck(PlausibilityCheck.BranchAngle.class);
-        branchAngleMinCheckbox = new JCheckBox("Min. fork angle (°):",
+        branchAngleMinCheckbox = new JCheckBox("Min. fork angle (°)",
                 angleCheck != null && angleCheck.isEnabled());
         branchAngleMinCheckbox.setToolTipText("Warns when a child branch emerges nearly parallel to its parent");
         branchAngleMinSpinner = new JSpinner(new SpinnerNumberModel(
@@ -579,7 +588,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 spinnerWithHistogram(branchAngleMinSpinner, branchAngleMinHist));
 
         // Branch angle max
-        branchAngleMaxCheckbox = new JCheckBox("Max. fork angle (°):",
+        branchAngleMaxCheckbox = new JCheckBox("Max. fork angle (°)",
                 angleCheck != null && angleCheck.isEnabled());
         branchAngleMaxCheckbox.setToolTipText("Warns when a child branch doubles back, nearly anti-parallel to its parent");
         branchAngleMaxSpinner = new JSpinner(new SpinnerNumberModel(
@@ -605,7 +614,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Direction continuity
         final PlausibilityCheck.DirectionContinuity dirCheck =
                 monitor.getLiveCheck(PlausibilityCheck.DirectionContinuity.class);
-        directionCheckbox = new JCheckBox("Max. direction change at fork (°):",
+        directionCheckbox = new JCheckBox("Max. direction change at fork (°)",
                 dirCheck != null && dirCheck.isEnabled());
         directionCheckbox.setToolTipText("Detects possible U-turns where the child reverses the parent's trajectory");
         directionSpinner = new JSpinner(new SpinnerNumberModel(
@@ -625,7 +634,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Radius continuity
         final PlausibilityCheck.RadiusContinuity radiusCheck =
                 monitor.getLiveCheck(PlausibilityCheck.RadiusContinuity.class);
-        radiusCheckbox = new JCheckBox("Max. ratio of radius change at fork:",
+        radiusCheckbox = new JCheckBox("Max. ratio of radius change at fork",
                 radiusCheck != null && radiusCheck.isEnabled());
         radiusCheckbox.setToolTipText("Flags forks where the child's caliber differs sharply from the parent's");
         radiusSpinner = new JSpinner(new SpinnerNumberModel(
@@ -645,7 +654,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Terminal branch length
         final PlausibilityCheck.TerminalBranchLength termCheck =
                 monitor.getLiveCheck(PlausibilityCheck.TerminalBranchLength.class);
-        termBranchCheckbox = new JCheckBox("Min. length of terminal branches:",
+        termBranchCheckbox = new JCheckBox("Min. length of terminal branches",
                 termCheck != null && termCheck.isEnabled());
         termBranchCheckbox.setToolTipText("Catches stub branches that may be accidental clicks or tracing artifacts");
         termBranchSpinner = new JSpinner(new SpinnerNumberModel(
@@ -665,7 +674,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Soma distance
         final PlausibilityCheck.SomaDistance somaCheck =
                 monitor.getLiveCheck(PlausibilityCheck.SomaDistance.class);
-        somaDistCheckbox = new JCheckBox("Max. distance from soma/root:",
+        somaDistCheckbox = new JCheckBox("Max. distance from soma/root",
                 somaCheck != null && somaCheck.isEnabled());
         somaDistCheckbox.setToolTipText("Flags paths that originate unexpectedly far from a soma marker (when tagged) or the tree's root");
         somaDistSpinner = new JSpinner(new SpinnerNumberModel(
@@ -685,7 +694,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Tortuosity consistency
         final PlausibilityCheck.TortuosityConsistency tortCheck =
                 monitor.getLiveCheck(PlausibilityCheck.TortuosityConsistency.class);
-        tortuosityCheckbox = new JCheckBox("Max. tortuosity mismatch at fork:",
+        tortuosityCheckbox = new JCheckBox("Max. tortuosity mismatch at fork",
                 tortCheck != null && tortCheck.isEnabled());
         tortuosityCheckbox.setToolTipText("Warns when a child's path sinuosity differs markedly from its parent's");
         tortuositySpinner = new JSpinner(new SpinnerNumberModel(
@@ -726,7 +735,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JPanel p = new JPanel(new GridBagLayout());
         final GridBagConstraints c = GuiUtils.defaultGbc();
 
-        onDemandHeaderCheckbox = createSectionHeader(p, "On-Demand Monitoring Parameters:", c);
+        onDemandHeaderCheckbox = createSectionHeader(p, "On-Demand Monitoring Parameters", c);
         c.gridy++;
         final int savedLeft = c.insets.left;
         c.insets.left += sectionChildIndent(onDemandHeaderCheckbox);
@@ -734,7 +743,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Path overlap
         final PlausibilityCheck.PathOverlap overlapCheck = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
         // On-demand check UI controls
-        overlapCheckbox = new JCheckBox("Max. proximity for path cross-overs:",
+        overlapCheckbox = new JCheckBox("Max. proximity for path cross-overs",
                 overlapCheck != null && overlapCheck.isEnabled());
         overlapCheckbox.setToolTipText("Detects regions where distinct paths run suspiciously close, suggesting duplicate tracing");
         overlapSpinner = new JSpinner(new SpinnerNumberModel(
@@ -754,7 +763,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Radius jumps
         final PlausibilityCheck.RadiusJumps jumpsCheck =
                 monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
-        radiusJumpsCheckbox = new JCheckBox("Max. ratio of abrupt radius changes:",
+        radiusJumpsCheckbox = new JCheckBox("Max. ratio of abrupt radius changes",
                 jumpsCheck != null && jumpsCheck.isEnabled());
         radiusJumpsCheckbox.setToolTipText("Finds adjacent nodes with a sudden radius jump, often from fitting errors");
         radiusJumpsSpinner = new JSpinner(new SpinnerNumberModel(
@@ -774,7 +783,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Radius monotonicity
         final PlausibilityCheck.RadiusMonotonicity monoCheck =
                 monitor.getDeepCheck(PlausibilityCheck.RadiusMonotonicity.class);
-        radiusMonoCheckbox = new JCheckBox("Min. run length for radius inversions:",
+        radiusMonoCheckbox = new JCheckBox("Min. run length for radius inversions",
                 monoCheck != null && monoCheck.isEnabled());
         radiusMonoCheckbox.setToolTipText("Flags sustained centripetal radius increases, which violate the expected centrifugal taper");
         radiusMonoSpinner = new JSpinner(new SpinnerNumberModel(
@@ -794,7 +803,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Image signal quality
         final PlausibilityCheck.SignalQuality signalCheck =
                 monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
-        signalQualityCheckbox = new JCheckBox("Min. signal contrast ratio:",
+        signalQualityCheckbox = new JCheckBox("Min. signal contrast ratio",
                 signalCheck != null && signalCheck.isEnabled());
         signalQualityCheckbox.setToolTipText(
                 "Flags paths with poor signal-to-background contrast (requires image).\n" +
@@ -948,7 +957,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             final String sevLabel = switch (sev) {
                 case ERROR -> "Errors";
                 case WARNING -> "Warnings";
-                case INFO -> "Informational Notes";
+                case INFO -> "Advisory Notes";
             };
             final JCheckBoxMenuItem item = new JCheckBoxMenuItem(sevLabel,
                     IconFactory.accentIcon(sevColor, true), tableModel.isSeverityVisible(sev));
@@ -962,7 +971,40 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             });
             filterMenu.add(item);
         }
+
+        // Sort options. The TableRowSorter preserves sort keys across fireTableDataChanged, so toggling
+        // this once keeps the table sorted by impact through subsequent scans and filter changes
+        GuiUtils.addSeparator(filterMenu, "Sort:");
+        final JCheckBoxMenuItem sortByImpact = new JCheckBoxMenuItem("Sort by Descending Impact",
+                IconFactory.menuIcon(IconFactory.GLYPH.GAUGE));
+        sortByImpact.setToolTipText("<html>When enabled, the warnings table is sorted by " +
+                "impact (highest first).<br>Useful for triage: rows with more of the " +
+                "reconstruction at stake float to the top.<br>Clicking a column header " +
+                "manually overrides this preference until re-enabled.");
+        // Reflect the current sort state when the menu is shown
+        sortByImpact.setSelected(isSortedByImpactDesc(warningsTable.getRowSorter()));
+        sortByImpact.addActionListener(e -> {
+            final javax.swing.RowSorter<?> sorter = warningsTable.getRowSorter();
+            if (sorter == null) return;
+            if (sortByImpact.isSelected()) {
+                sorter.setSortKeys(List.of(new javax.swing.RowSorter.SortKey(2, javax.swing.SortOrder.DESCENDING)));
+            } else {
+                sorter.setSortKeys(null); // back to model order
+            }
+        });
+        filterMenu.add(sortByImpact);
         return filterMenu;
+    }
+
+    /**
+     * @return {@code true} if the row sorter's primary sort key targets the impact column (index 2) in descending order
+     */
+    private static boolean isSortedByImpactDesc(final javax.swing.RowSorter<?> sorter) {
+        if (sorter == null) return false;
+        final List<? extends javax.swing.RowSorter.SortKey> keys = sorter.getSortKeys();
+        if (keys == null || keys.isEmpty()) return false;
+        final javax.swing.RowSorter.SortKey first = keys.getFirst();
+        return first.getColumn() == 2 && first.getSortOrder() == javax.swing.SortOrder.DESCENDING;
     }
 
     private void runOnDemandAsync() {
@@ -975,13 +1017,21 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             onDemandButton.setEnabled(true);
             return;
         }
-        // Signal quality requires an image. Abort early if selected but no image.
-        final PlausibilityCheck.SignalQuality sq =
-                monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
+        // Signal quality requires an image. Instead of aborting the entire scan when no image is loaded, soft-disable
+        // just this check and proceed with the rest. The user gets a non-blocking status update explaining why;
+        // they can re-enable manually after loading an image
+        final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
         if (sq != null && sq.isEnabled() && sntui.plugin.getLoadedData() == null) {
-            sntui.error("\"Min. signal contrast ratio\" requires valid image data to be loaded.");
-            onDemandButton.setEnabled(true);
-            return;
+            // Untick the checkbox AND fire its listener so the underlying check is also disabled. Using
+            // doClick() toggles the selected state and triggers all registered action listeners in one call
+            sntui.error("\"Min. signal contrast ratio\" disabled: It requires a loaded image.");
+            if (signalQualityCheckbox.isSelected()) signalQualityCheckbox.doClick(0);
+            // If SignalQuality was the only enabled parameter, there's nothing left to scan.
+            // Re-check after auto-disabling
+            if (noParametersSelected()) {
+                onDemandButton.setEnabled(true);
+                return;
+            }
         }
         // Provide image context for checks that need it (e.g., SignalQuality)
         monitor.setImageData(sntui.plugin.getLoadedData());
@@ -1680,11 +1730,18 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private boolean noParametersSelected(final List<JCheckBox> scope, final String category) {
-        final List<JCheckBox> checkboxes = (scope != null) ? scope
-                : new ArrayList<>(liveCheckboxes.size() + onDemandCheckboxes.size());
-        if (scope == null) {
-            checkboxes.addAll(liveCheckboxes);
-            checkboxes.addAll(onDemandCheckboxes);
+        // Defensive null-handling: liveCheckboxes / onDemandCheckboxes are assigned only after the panel has been
+        // built. Callers that arrive before construction (script-driven scans, programmatic triggers from external
+        // commands) would otherwise NPE here
+        final List<JCheckBox> live = (liveCheckboxes != null) ? liveCheckboxes : Collections.emptyList();
+        final List<JCheckBox> deep = (onDemandCheckboxes != null) ? onDemandCheckboxes : Collections.emptyList();
+        final List<JCheckBox> checkboxes;
+        if (scope != null) {
+            checkboxes = scope;
+        } else {
+            checkboxes = new ArrayList<>(live.size() + deep.size());
+            checkboxes.addAll(live);
+            checkboxes.addAll(deep);
         }
         if (checkboxes.stream().noneMatch(AbstractButton::isSelected)) {
             sntui.error(String.format("At least one %s parameter needs to be selected.", category));
@@ -1749,15 +1806,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         @Override
         public int getColumnCount() {
-            return 2;
+            return 3;
         }
 
         @Override
         public String getColumnName(final int column) {
             return switch (column) {
-                case 0 -> "";
                 case 1 -> warnings.isEmpty() ? "Issues" : "Issues (" + warnings.size() + ")";
-                default -> "";
+                case 2 -> ""; // header icon supplied by iconHeaderRenderer
+                default -> ""; // case 0
             };
         }
 
@@ -1765,6 +1822,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         public Class<?> getColumnClass(final int column) {
             return switch (column) {
                 case 0 -> PlausibilityCheck.Severity.class;
+                case 2 -> Double.class;
                 default -> String.class;
             };
         }
@@ -1776,6 +1834,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             return switch (column) {
                 case 0 -> w.severity();
                 case 1 -> w.message();
+                case 2 -> w.impact();
                 default -> "";
             };
         }
@@ -1801,6 +1860,72 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 setToolTipText(null);
             }
             return this;
+        }
+    }
+
+    /**
+     * Renders the {@link PlausibilityCheck.Warning#impact()} value as a right-aligned percentage with a small
+     * horizontal bar drawn behind the text. Bar width is proportional to the impact value (clamped [0, 1]).
+     * NaN is displayed as an em-dash with an explanatory tooltip.
+     */
+    private static class ImpactRenderer extends DefaultTableCellRenderer {
+
+        /** Cached impact value used by {@link #paintComponent} to draw the bar. */
+        private double impactValue = Double.NaN;
+        private boolean rowSelected = false;
+
+        @Override
+        public Component getTableCellRendererComponent(final JTable table, final Object value,
+                                                       final boolean isSelected, final boolean hasFocus,
+                                                       final int row, final int column) {
+            super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
+            setHorizontalAlignment(SwingConstants.RIGHT);
+            rowSelected = isSelected;
+            if (value instanceof Double d && !Double.isNaN(d)) {
+                impactValue = Math.clamp(d, 0, 1);
+                final double pct = impactValue * 100;
+                // "<1%" branch keeps the em dash reserved for "not applicable":
+                // a measurable-but-tiny impact is informationally different
+                // from an absent one, even if both round to 0% under %.0f.
+                if (pct > 0 && pct < 0.5) {
+                    setText("<1% ");
+                } else {
+                    setText(String.format("%.0f%% ", pct));
+                }
+                setToolTipText(String.format(
+                        "<html>Impact: <b>%.2f%%</b> of the reconstruction's total " +
+                        "length is at stake if this flag turns out to be a tracing error.",
+                        pct));
+            } else {
+                impactValue = Double.NaN;
+                setText("— "); // em-dash
+                setToolTipText("Impact metric not applicable for this check.");
+            }
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(final Graphics g) {
+            // Draw a subtle bar behind the text so the eye gets a quick
+            // visual cue without having to read the percentage.
+            if (!Double.isNaN(impactValue) && impactValue > 0) {
+                final int w = getWidth();
+                final int h = getHeight();
+                final int barW = (int) Math.round(w * impactValue);
+                // Go from a 'quiet' blue (low impact) to the severity-error 'pop' red (high impact)
+                final int r = (int) (SEVERITY_INFO.getRed()
+                        + (SEVERITY_ERROR.getRed() - SEVERITY_INFO.getRed()) * impactValue);
+                final int gC = (int) (SEVERITY_INFO.getGreen()
+                        + (SEVERITY_ERROR.getGreen() - SEVERITY_INFO.getGreen()) * impactValue);
+                final int b = (int) (SEVERITY_INFO.getBlue()
+                        + (SEVERITY_ERROR.getBlue() - SEVERITY_INFO.getBlue()) * impactValue);
+                // Translucent so text remains legible and selection highlight (when present)
+                // still reads as the selection color
+                final int alpha = rowSelected ? 40 : 70;
+                g.setColor(new Color(r, gC, b, alpha));
+                g.fillRect(0, 0, barW, h);
+            }
+            super.paintComponent(g);
         }
     }
 

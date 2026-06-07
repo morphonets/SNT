@@ -214,17 +214,21 @@ public class PlausibilityMonitor {
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
         pushImageContext();
         synchronized (currentWarnings) {
-            currentWarnings.clear();
+            // Collect into a local list so impact can be computed against
+            // the path collection before warnings become observable.
+            final List<PlausibilityCheck.Warning> collected = new ArrayList<>();
             for (final PlausibilityCheck.DeepCheck check : deepChecks) {
                 if (check.isEnabled()) {
                     try {
-                        currentWarnings.addAll(check.scan(paths));
+                        collected.addAll(check.scan(paths));
                     } catch (final Exception e) {
                         SNTUtils.log("PlausibilityMonitor: deep check '" + check.getName() +
                                 "' threw: " + e.getMessage());
                     }
                 }
             }
+            currentWarnings.clear();
+            currentWarnings.addAll(annotateImpact(collected, paths));
             Collections.sort(currentWarnings);
         }
         fireWarningsUpdated();
@@ -247,9 +251,11 @@ public class PlausibilityMonitor {
         if (paths == null || paths.isEmpty()) return Collections.emptyList();
         pushImageContext();
         synchronized (currentWarnings) {
-            currentWarnings.clear();
+            // Collect into a local list so impact can be computed against
+            // the path collection before warnings become observable.
+            final List<PlausibilityCheck.Warning> collected = new ArrayList<>();
 
-            // Live checks: iterate every parent–child relationship
+            // Live checks: iterate every parent-child relationship
             for (final Path path : paths) {
                 final Path parent = path.getParentPath();
                 if (parent == null) continue;
@@ -257,7 +263,7 @@ public class PlausibilityMonitor {
                 for (final PlausibilityCheck.LiveCheck check : liveChecks) {
                     if (check.isEnabled()) {
                         try {
-                            currentWarnings.addAll(check.check(parent, path, branchIdx));
+                            collected.addAll(check.check(parent, path, branchIdx));
                         } catch (final Exception e) {
                             SNTUtils.log("PlausibilityMonitor: live check '" + check.getName() +
                                     "' threw (full scan): " + e.getMessage());
@@ -270,7 +276,7 @@ public class PlausibilityMonitor {
             for (final PlausibilityCheck.DeepCheck check : deepChecks) {
                 if (check.isEnabled()) {
                     try {
-                        currentWarnings.addAll(check.scan(paths));
+                        collected.addAll(check.scan(paths));
                     } catch (final Exception e) {
                         SNTUtils.log("PlausibilityMonitor: deep check '" + check.getName() +
                                 "' threw (full scan): " + e.getMessage());
@@ -278,10 +284,145 @@ public class PlausibilityMonitor {
                 }
             }
 
+            currentWarnings.clear();
+            currentWarnings.addAll(annotateImpact(collected, paths));
             Collections.sort(currentWarnings);
         }
         fireWarningsUpdated();
         return getCurrentWarnings();
+    }
+
+    /**
+     * Annotates each warning with its impact: a normalized [0, 1] fraction representing what portion of the
+     * reconstruction is affected if the warning is a true error. Topology-class checks (declaring
+     * {@link PlausibilityCheck.ImpactKind#SUBTREE}) use the subtree rooted at the affected path; caliber/local checks
+     * ({@code LOCAL}) use just the affected path's own length. Returns the input list unchanged when the total tree
+     * length cannot be determined.
+     *
+     * @param warnings the warnings to annotate (replaced via {@link PlausibilityCheck.Warning#withImpact}, which
+     *                 returns  a new record since {@code Warning} is immutable; the returned list is itself a new list)
+     * @param paths    the path collection used as the denominator (e.g., the same collection passed to {@code scan} or
+     *                 {@code runFullScan})
+     */
+    private List<PlausibilityCheck.Warning> annotateImpact(final List<PlausibilityCheck.Warning> warnings,
+            final Collection<Path> paths) {
+        if (warnings == null || warnings.isEmpty()) return warnings;
+        double totalLen = 0;
+        if (paths != null) {
+            for (final Path p : paths) {
+                if (p != null) totalLen += p.getLength();
+            }
+        }
+        if (totalLen <= 0) return warnings; // no denominator: leave impact NaN
+        final List<PlausibilityCheck.Warning> out = new ArrayList<>(warnings.size());
+        for (final PlausibilityCheck.Warning w : warnings) {
+            out.add(w.withImpact(computeImpact(w, totalLen)));
+        }
+        return out;
+    }
+
+    /**
+     * Computes the impact for a single warning.
+     * <p>
+     * For multi-path warnings we cannot take the maximum subtree fraction across all affected paths: It over-reports
+     * for fork-point warnings where one participant is a primary trunk: a tortuosity mismatch between path1 (trunk
+     * hosting most of the tree) and path2 (a tiny terminal) read as 100% impact even though it almost certainly
+     * indicates a problem with path2 specifically, not the trunk.
+     * <p>
+     * Instead, when the affected paths contain a parent-child relation we  identify the descendant as the warning's
+     * structural focus. Fork-point checks (BranchAngle, DirectionContinuity, TortuosityConsistency,  RadiusContinuity)
+     * all evaluate the child's plausibility at the fork, so the child's subtree is the meaningful answer to "what's at
+     * stake if this is a true error". When the trunk genuinely is misassigned, the same warning typically also fires
+     * further up the lineage; a cluster of small-impact warnings climbing a trunk is how upstream problems surface
+     * visually, without needing to inflate any single warning's score.
+     * <p>
+     * For warnings with no parent-child relation among participants (e.g., {@code PathOverlap}, where the
+     * {@code CrossoverFinder} explicitly excludes direct children), we fall back to the maximum because the
+     * two paths are symmetrically suspect.
+     */
+    private double computeImpact(final PlausibilityCheck.Warning w, final double totalLen) {
+        final PlausibilityCheck.ImpactKind kind = impactKindFor(w.checkName());
+        if (kind == PlausibilityCheck.ImpactKind.NONE) return Double.NaN;
+        if (w.affectedPaths() == null || w.affectedPaths().isEmpty()) return Double.NaN;
+        final Path focus = focusPath(w.affectedPaths());
+        if (focus != null) {
+            final double frac = (kind == PlausibilityCheck.ImpactKind.SUBTREE)
+                    ? subtreeLength(focus) / totalLen
+                    : focus.getLength() / totalLen;
+            return Math.min(1.0, frac);
+        }
+        // No parent-child relation among affected paths: keep max-over-affected as the worst-case signal
+        // (symmetric pair, neither is "junior")
+        double maxFrac = 0;
+        for (final Path p : w.affectedPaths()) {
+            if (p == null) continue;
+            final double frac = (kind == PlausibilityCheck.ImpactKind.SUBTREE)
+                    ? subtreeLength(p) / totalLen
+                    : p.getLength() / totalLen;
+            if (frac > maxFrac) maxFrac = frac;
+        }
+        return Math.min(1.0, maxFrac);
+    }
+
+    /**
+     * Identifies the structural focus of a multi-path warning. Returns the descendant when any affected path is a
+     * parent of another, or the sole affected path when only one is supplied. Returns {@code null} when no
+     * parent-child relation exists among the affected paths (caller should fall back to a symmetric metric, e.g., max).
+     * <p>
+     * Tiebreaker: when several affected paths qualify as descendants of others (unusual but possible if a future
+     * warning carries three or more affected paths in a lineage), prefer the one with the smallest subtree. This
+     * errs on the side of the most conservative focus and keeps headline numbers from inflating.
+     */
+    private static Path focusPath(final List<Path> affected) {
+        if (affected == null || affected.isEmpty()) return null;
+        if (affected.size() == 1) return affected.get(0);
+        Path bestDescendant = null;
+        double bestSubtree = Double.POSITIVE_INFINITY;
+        for (final Path candidate : affected) {
+            if (candidate == null) continue;
+            boolean isDescendant = false;
+            for (final Path other : affected) {
+                if (other == null || other == candidate) continue;
+                if (candidate.getParentPath() == other) {
+                    isDescendant = true;
+                    break;
+                }
+            }
+            if (isDescendant) {
+                final double st = subtreeLength(candidate);
+                if (st < bestSubtree) {
+                    bestSubtree = st;
+                    bestDescendant = candidate;
+                }
+            }
+        }
+        return bestDescendant; // null when no parent-child relation found
+    }
+
+    /**
+     * Looks up the impact kind declared by the check that produced this warning.
+     * Linear search over the (typically &lt; 20) registered checks.
+     */
+    private PlausibilityCheck.ImpactKind impactKindFor(final String checkName) {
+        if (checkName == null) return PlausibilityCheck.ImpactKind.NONE;
+        for (final PlausibilityCheck.LiveCheck lc : liveChecks) {
+            if (checkName.equals(lc.getName())) return lc.impactKind();
+        }
+        for (final PlausibilityCheck.DeepCheck dc : deepChecks) {
+            if (checkName.equals(dc.getName())) return dc.impactKind();
+        }
+        return PlausibilityCheck.ImpactKind.NONE;
+    }
+
+    /** Recursive sum of path length over the subtree rooted at {@code path}. */
+    private static double subtreeLength(final Path path) {
+        if (path == null) return 0;
+        double total = path.getLength();
+        final List<Path> kids = path.getChildren();
+        if (kids != null) {
+            for (final Path c : kids) total += subtreeLength(c);
+        }
+        return total;
     }
 
     /** Pushes the current image context to any deep check that supports it. */

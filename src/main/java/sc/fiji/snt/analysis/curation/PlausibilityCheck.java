@@ -65,6 +65,18 @@ public final class PlausibilityCheck {
     }
 
     /**
+     * Classifies how an error propagates through the reconstruction. Used to pick the right denominator/numerator pair
+     * when computing a warning's impact:
+     *   - {@code SUBTREE}: errors at this point cascade to every downstream path. Impact = (length of the subtree
+     *   rooted at the affected path) / (total tree length). Use for topology checks where the affected path's parent
+     *   assignment, direction, or origin is suspect.
+     *   - {@code LOCAL}: errors stay within the affected path itself.
+     *   Impact = (affected path length) / (total tree length). Use for caliber, terminal-length, and image-signal checks.
+     *   - {@code NONE}: no meaningful impact metric; the warning carries {@code NaN} as its impact value.
+     */
+    public enum ImpactKind { SUBTREE, LOCAL, NONE }
+
+    /**
      * A plausibility warning produced by a check.
      *
      * @param checkName     the name of the check that produced this warning
@@ -74,6 +86,9 @@ public final class PlausibilityCheck {
      * @param affectedPaths the paths involved in this warning (never {@code null}, may be empty)
      * @param value         the measured value that triggered the warning
      * @param threshold     the threshold that was exceeded
+     * @param impact        normalized fraction in {@code [0, 1]} indicating what portion of the reconstruction is
+     *                      affected if this warning is a true error. {@link Double#NaN}  when not yet computed.
+     *                      See {@link ImpactKind}.
      */
     public record Warning(
             String checkName,
@@ -82,12 +97,28 @@ public final class PlausibilityCheck {
             PointInImage location,
             List<Path> affectedPaths,
             double value,
-            double threshold
+            double threshold,
+            double impact
     ) implements Comparable<Warning> {
 
         /** Compact constructor: guarantees affectedPaths is never null. */
         public Warning {
             if (affectedPaths == null) affectedPaths = List.of();
+        }
+
+        /**
+         * Convenience constructor for callers that don't yet know the impact (filled in later by {@code PlausibilityMonitor}).
+         */
+        public Warning(final String checkName, final Severity severity, final String message,
+                       final PointInImage location, final List<Path> affectedPaths,
+                       final double value, final double threshold) {
+            this(checkName, severity, message, location, affectedPaths, value, threshold, Double.NaN);
+        }
+
+        /** Returns a copy of this warning with {@link #impact} replaced. */
+        public Warning withImpact(final double newImpact) {
+            return new Warning(checkName, severity, message, location, affectedPaths,
+                    value, threshold, newImpact);
         }
 
         @Override
@@ -215,6 +246,16 @@ public final class PlausibilityCheck {
             return Measurements.EMPTY;
         }
 
+        /**
+         * Declares how this check's errors propagate. Default {@code SUBTREE}
+         * for live checks because most live checks (branch angle, direction,
+         * tortuosity, soma distance) catch topology problems whose
+         * consequences cascade downstream. Caliber-only checks (e.g.,
+         * {@code RadiusContinuity}, {@code ConstantRadii}) override to
+         * {@link ImpactKind#LOCAL}.
+         */
+        public ImpactKind impactKind() { return ImpactKind.SUBTREE; }
+
         public boolean isEnabled() { return enabled; }
         public void setEnabled(final boolean enabled) { this.enabled = enabled; }
     }
@@ -249,6 +290,13 @@ public final class PlausibilityCheck {
         public Measurements measure(final Collection<Path> paths) {
             return Measurements.EMPTY;
         }
+
+        /**
+         * Declares how this check's errors propagate. Default {@code LOCAL} for deep checks because most deep checks
+         * (radius jumps, monotonicity, signal quality) measure intrinsic per-path properties that don't propagate to
+         * descendants. Topology-class checks (e.g., {@code PathOverlap}) override to {@link ImpactKind#SUBTREE}.
+         */
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
 
         public boolean isEnabled() {
             return enabled;
@@ -290,6 +338,9 @@ public final class PlausibilityCheck {
 
         @Override
         public String getName() { return "Radius continuity"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
 
         public void setMaxRatio(final double maxRatio) { this.maxRatio = maxRatio; }
         public double getMaxRatio() { return maxRatio; }
@@ -675,6 +726,17 @@ public final class PlausibilityCheck {
         @Override
         public String getName() { return "Constant radii"; }
 
+        /**
+         * No meaningful impact metric for this check. ConstantRadii is a
+         * data-completeness flag, not a morphological one: the path's
+         * geometry is fine, the user just hasn't run Fit Volumes (or set
+         * radii manually) yet. Reporting an impact fraction would suggest
+         * structural consequences that don't apply. Em dash is the honest
+         * display.
+         */
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.NONE; }
+
         @Override
         public List<Warning> check(final Path parent, final Path child, final int branchIndex) {
             if (child == null || child.size() < 3 || !child.hasRadii()) return Collections.emptyList();
@@ -704,6 +766,9 @@ public final class PlausibilityCheck {
         @Override
         public String getName() { return "Terminal branch length"; }
 
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
         public void setMinLengthUm(final double len) { this.minLengthUm = len; }
         public double getMinLengthUm() { return minLengthUm; }
 
@@ -728,7 +793,9 @@ public final class PlausibilityCheck {
             int skipped = 0;
             for (final Path path : paths) {
                 if (path == null || path.size() < 2) { skipped++; continue; }
-                // Domain restricted to terminal paths (no children), mirroring check()
+                // Domain restricted to terminal paths (no children), mirroring check(). Non-terminal paths are outside
+                // this check's domain entirely, so they're filtered (not counted toward skipped); Keeping the
+                // denominator in formatCounts() as "terminal branches we tried to assess" rather than "all paths"
                 if (path.getChildren() != null && !path.getChildren().isEmpty()) continue;
                 vals.add(path.getLength());
             }
@@ -746,6 +813,9 @@ public final class PlausibilityCheck {
 
         @Override
         public String getName() { return "Path overlap"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.SUBTREE; }
 
         public void setProximityUm(final double um) { this.proximityUm = um; }
         public double getProximityUm() { return proximityUm; }
@@ -779,7 +849,10 @@ public final class PlausibilityCheck {
          */
         @Override
         public Measurements measure(final Collection<Path> paths) {
-            if (paths == null || paths.size() < 2) return Measurements.EMPTY;
+            final String pathOverlapHint = "This check needs at least two paths near each other to look for cross-overs.";
+            if (paths == null || paths.size() < 2) {
+                return Measurements.EMPTY.withHint(pathOverlapHint);
+            }
             final CrossoverFinder.Config cfg = new CrossoverFinder.Config()
                     .proximity(proximityUm * 5.0)
                     .includeSelfCrossovers(false)
@@ -789,7 +862,7 @@ public final class PlausibilityCheck {
             try {
                 events = CrossoverFinder.find(paths, cfg);
             } catch (final Exception e) {
-                return Measurements.EMPTY;
+                return Measurements.EMPTY.withHint(pathOverlapHint);
             }
             final List<Double> vals = new ArrayList<>(events.size());
             for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianMinDist);
@@ -846,7 +919,11 @@ public final class PlausibilityCheck {
                     vals.add(Math.max(r1, r2) / Math.min(r1, r2));
                 }
             }
-            return toMeasurements(vals, skipped, "Adjacent radius ratio", "ratio", "node pair");
+            final Measurements m = toMeasurements(vals, skipped, "Adjacent radius ratio", "ratio", "node pair");
+            return vals.isEmpty()
+                    ? m.withHint("This check needs paths with fitted radii. Run " +
+                                 "Run \"Refine › Fit Paths...\" or set radii manually in the Path Manager.")
+                    : m;
         }
     }
 
@@ -928,7 +1005,12 @@ public final class PlausibilityCheck {
                 }
                 if (runLength >= 2) vals.add((double) runLength);
             }
-            return toMeasurements(vals, skipped, "Monotonic-increase run length", "nodes", "monotonic run");
+            final Measurements m = toMeasurements(vals, skipped, "Monotonic-increase run length",
+                    "nodes", "monotonic run");
+            return vals.isEmpty()
+                    ? m.withHint("This check needs paths with fitted radii. Run " +
+                            "\"Fit Volumes...\" or set radii manually in the Path Manager.")
+                    : m;
         }
     }
 
@@ -1022,7 +1104,11 @@ public final class PlausibilityCheck {
             return scanMinMax((RandomAccessibleInterval) rai);
         }
 
-        /** Linear min/max scan; returns {@code {0, 0}} for an empty iterable. */
+        /**
+         * Linear min/max scan; returns {@code {NaN, NaN}} for an empty iterable so callers can distinguish "no data"
+         * from "data with min=max=0". {@link #resolveThreshold} already treats {@code NaN} stats as "uncomputed" and
+         * falls back to its hardcoded default.
+         */
         private static <T extends RealType<T>> double[] scanMinMax(final RandomAccessibleInterval<T> rai) {
             double min = Double.POSITIVE_INFINITY;
             double max = Double.NEGATIVE_INFINITY;
@@ -1032,7 +1118,7 @@ public final class PlausibilityCheck {
                 if (v < min) min = v;
                 if (v > max) max = v;
             }
-            if (min == Double.POSITIVE_INFINITY) return new double[]{0, 0};
+            if (min == Double.POSITIVE_INFINITY) return new double[]{Double.NaN, Double.NaN};
             return new double[]{min, max};
         }
 
