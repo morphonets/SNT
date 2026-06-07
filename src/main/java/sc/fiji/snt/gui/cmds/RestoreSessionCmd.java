@@ -78,6 +78,15 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
     @Parameter(required = false, label = "ROIs (.zip)")
     private boolean restoreROIs = true;
 
+    @Parameter(required = false, label = "Seeds (.csv)")
+    private boolean restoreSeeds = true;
+
+    @Parameter(required = false, label = "Curation settings (.curation)")
+    private boolean restoreCuration = true;
+
+    @Parameter
+    private org.scijava.command.CommandService cmdService;
+
     private int failures = 0;
     private int successes = 0;
 
@@ -117,7 +126,8 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
         if (restoreBookmarks) restoreBookmarksFile();
         if (restoreNotes) restoreNotesFile();
         if (restoreROIs) restoreROIsFile();
-        restoreCurationSettings();
+        if (restoreSeeds) restoreSeedsFile();
+        if (restoreCuration) restoreCurationSettings();
 
         // Show session info if available
         showSessionInfo();
@@ -202,8 +212,8 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
     private void restoreROIsFile() {
         final File roisDir = new File(sessionDir, "rois");
         if (!roisDir.exists()) {
+            // Treat absence as "nothing to restore" rather than a failure like restoreTracesFile, etc.
             SNTUtils.log("No ROIs directory found in session");
-            failures++;
             return;
         }
         try {
@@ -268,7 +278,30 @@ public class RestoreSessionCmd extends CommonDynamicCmd {
                 }
             }
         } catch (final Exception e) {
-            SNTUtils.error("Failed to restore notes", e);
+            SNTUtils.error("Failed to restore ROIs", e);
+            failures++;
+        }
+    }
+
+    private void restoreSeedsFile() {
+        final File file = new File(sessionDir, "seeds.csv");
+        if (!file.exists()) {
+            SNTUtils.log("No seeds file found in session");
+            return;
+        }
+        try {
+            // Mirror SeedManager.loadFromSessionDir(): delegate to ImportSeedPointsCmd so we get the same CSV handling,
+            // etc. "replace = true" is correct for session restore: the seed overlay should reflect what was saved,
+            // not be appended to.
+            cmdService.run(sc.fiji.snt.gui.cmds.ImportSeedPointsCmd.class, true,
+                    "csvFile", file,
+                    "unitsChoice", sc.fiji.snt.gui.cmds.ImportSeedPointsCmd.UNITS_PHYSICAL,
+                    "replace", true,
+                    "HEADER", null);
+            SNTUtils.log("Restored seeds: " + file);
+            successes++;
+        } catch (final Exception e) {
+            SNTUtils.error("Failed to restore seeds", e);
             failures++;
         }
     }

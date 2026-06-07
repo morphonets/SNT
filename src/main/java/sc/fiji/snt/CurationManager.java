@@ -162,6 +162,18 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (b == null) return -1;
             return ((Comparable) a).compareTo(b);
         });
+        // Impact column: NaN-aware comparator. Default Double.compareTo
+        // treats NaN as greater than any finite value, so descending sort
+        // would put em-dashes (NaN impact, e.g., live warnings or
+        // ImpactKind.NONE) at the top. Treat NaN as the lowest value
+        // instead: descending puts high-impact rows first, em-dashes last.
+        sorter.setComparator(2, (a, b) -> {
+            final double da = (a instanceof Double) ? (Double) a : Double.NEGATIVE_INFINITY;
+            final double db = (b instanceof Double) ? (Double) b : Double.NEGATIVE_INFINITY;
+            final double na = Double.isNaN(da) ? Double.NEGATIVE_INFINITY : da;
+            final double nb = Double.isNaN(db) ? Double.NEGATIVE_INFINITY : db;
+            return Double.compare(na, nb);
+        });
 
         // Severity column: icon-width + icon header + color renderer
         final javax.swing.table.TableColumn sevCol = warningsTable.getColumnModel().getColumn(0);
@@ -201,7 +213,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         impactCol.setMaxWidth(impactColWidth * 2);
         impactCol.setCellRenderer(new ImpactRenderer());
         impactCol.setHeaderRenderer(GuiUtils.JTables.iconHeaderRenderer(
-                IconFactory.buttonIcon(IconFactory.GLYPH.GAUGE, .9f),
+                IconFactory.buttonIcon(IconFactory.GLYPH.SCALE_BALANCED, .9f),
                 "<html>Impact: fraction of the reconstruction affected if this " +
                 "is a true error.<br>Higher = more downstream content at " +
                 "stake. Click to sort."));
@@ -477,10 +489,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 "https://imagej.net/plugins/snt/curation", false, gbc);
         gbc.gridy++;
         gbc.weighty = 0.0;
-        panel.add(GuiUtils.longSmallMsg("Flags implausible morphology during tracing and editing. "
-                + "Adjust thresholds below to calibrate for specific cell types.", panel), gbc);
+        panel.add(GuiUtils.longSmallMsg("Flags implausible morphology in real time and on demand. "
+                + "Adjust thresholds below to calibrate for specific cell types. "
+                + "Double-click an issue to navigate to its location; "
+                + "right-click the issues table for actions.", panel), gbc);
         gbc.gridy++;
-
         // Live Monitoring Parameters
         gbc.weighty = 0.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -976,7 +989,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // this once keeps the table sorted by impact through subsequent scans and filter changes
         GuiUtils.addSeparator(filterMenu, "Sort:");
         final JCheckBoxMenuItem sortByImpact = new JCheckBoxMenuItem("Sort by Descending Impact",
-                IconFactory.menuIcon(IconFactory.GLYPH.GAUGE));
+                IconFactory.menuIcon(IconFactory.GLYPH.SCALE_BALANCED));
         sortByImpact.setToolTipText("<html>When enabled, the warnings table is sorted by " +
                 "impact (highest first).<br>Useful for triage: rows with more of the " +
                 "reconstruction at stake float to the top.<br>Clicking a column header " +
@@ -1868,7 +1881,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
      * horizontal bar drawn behind the text. Bar width is proportional to the impact value (clamped [0, 1]).
      * NaN is displayed as an em-dash with an explanatory tooltip.
      */
-    private static class ImpactRenderer extends DefaultTableCellRenderer {
+    private class ImpactRenderer extends DefaultTableCellRenderer {
 
         /** Cached impact value used by {@link #paintComponent} to draw the bar. */
         private double impactValue = Double.NaN;
@@ -1884,7 +1897,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (value instanceof Double d && !Double.isNaN(d)) {
                 impactValue = Math.clamp(d, 0, 1);
                 final double pct = impactValue * 100;
-                // "<1%" branch keeps the em dash reserved for "not applicable":
+                // "<1%" branch keeps the em dash reserved for "not computed":
                 // a measurable-but-tiny impact is informationally different
                 // from an absent one, even if both round to 0% under %.0f.
                 if (pct > 0 && pct < 0.5) {
@@ -1899,9 +1912,31 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             } else {
                 impactValue = Double.NaN;
                 setText("— "); // em-dash
-                setToolTipText("Impact metric not applicable for this check.");
+                // Differentiate "metric not applicable" (NONE-kind check, e.g., ConstantRadii) from "not yet computed"
+                // (live warning awaiting a Full Scan)
+                setToolTipText(tooltipForUncomputedImpact(table, row));
             }
             return this;
+        }
+
+        /**
+         * Resolves which em-dash explanation applies by looking up the warning at the given view row and asking
+         * the monitor about its check's {@link PlausibilityCheck.ImpactKind}
+         */
+        private String tooltipForUncomputedImpact(final JTable table, final int viewRow) {
+            try {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                if (modelRow >= 0 && modelRow < tableModel.warnings.size()) {
+                    final PlausibilityCheck.Warning w = tableModel.warnings.get(modelRow);
+                    final PlausibilityCheck.ImpactKind kind = monitor.impactKindFor(w.checkName());
+                    if (kind == PlausibilityCheck.ImpactKind.NONE) {
+                        return "Impact metric not applicable for this check.";
+                    }
+                }
+            } catch (final Exception ignored) {
+                // fall through to default
+            }
+            return "Impact not yet computed. Click \"Run Full Scan\" to compute.";
         }
 
         @Override

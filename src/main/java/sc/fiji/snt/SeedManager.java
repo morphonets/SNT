@@ -449,7 +449,7 @@ public class SeedManager extends JPanel {
         jmi.setToolTipText("Remove selected seed(s) from the overlay");
         jmi.addActionListener( e -> deleteSelected());
         menu.add(jmi);
-        menu.addSeparator();
+        GuiUtils.addSeparator(menu, "Seed Reviews:");
         menu.add(buildSendToCurationSubmenu());
         menu.addSeparator();
 
@@ -1427,7 +1427,7 @@ public class SeedManager extends JPanel {
                 "Useful for flagging detector candidates for human review.");
         for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
             final String label = switch (sev) {
-                case INFO -> "As Info Message";
+                case INFO -> "As Advisory Note";
                 case WARNING -> "As Warning";
                 case ERROR -> "As Error";
             };

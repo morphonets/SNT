@@ -375,7 +375,7 @@ public class PlausibilityMonitor {
      */
     private static Path focusPath(final List<Path> affected) {
         if (affected == null || affected.isEmpty()) return null;
-        if (affected.size() == 1) return affected.get(0);
+        if (affected.size() == 1) return affected.getFirst();
         Path bestDescendant = null;
         double bestSubtree = Double.POSITIVE_INFINITY;
         for (final Path candidate : affected) {
@@ -400,10 +400,10 @@ public class PlausibilityMonitor {
     }
 
     /**
-     * Looks up the impact kind declared by the check that produced this warning.
-     * Linear search over the (typically &lt; 20) registered checks.
+     * Looks up the impact kind declared by the check that produced a warning with the given {@code checkName}.
+     * Returns {@link PlausibilityCheck.ImpactKind#NONE} when no check with that name is registered.
      */
-    private PlausibilityCheck.ImpactKind impactKindFor(final String checkName) {
+    public PlausibilityCheck.ImpactKind impactKindFor(final String checkName) {
         if (checkName == null) return PlausibilityCheck.ImpactKind.NONE;
         for (final PlausibilityCheck.LiveCheck lc : liveChecks) {
             if (checkName.equals(lc.getName())) return lc.impactKind();

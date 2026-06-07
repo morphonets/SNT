@@ -78,6 +78,12 @@ public class SaveSessionCmd extends CommonDynamicCmd {
     @Parameter(label = "ROIs (.zip)")
     private boolean saveROIs = true;
 
+    @Parameter(label = "Seeds (.csv)")
+    private boolean saveSeeds = true;
+
+    @Parameter(label = "Curation settings (.curation)")
+    private boolean saveCuration = true;
+
     @Parameter(label = "Image/session info (.md)")
     private boolean saveSessionInfo = true;
 
@@ -119,8 +125,9 @@ public class SaveSessionCmd extends CommonDynamicCmd {
         if (saveTables) saveAllTables();
         if (saveCharts) saveAllCharts();
         if (saveROIs) saveROIs(imp);
+        if (saveSeeds) saveSeedsFile();
         if (saveSessionInfo) saveSessionInfoFile(imp);
-        saveCurationSettings();
+        if (saveCuration) saveCurationSettings();
 
         // Report results
         if (failures > 0) {
@@ -387,6 +394,19 @@ public class SaveSessionCmd extends CommonDynamicCmd {
                     cal.getUnit()));
         }
         pw.println("- **Bit Depth:** " + imp.getBitDepth() + "-bit");
+    }
+
+    private void saveSeedsFile() {
+        final sc.fiji.snt.seed.SeedOverlay overlay = snt.getSeedOverlay();
+        if (overlay == null || overlay.size() == 0) return;
+        try {
+            final File file = new File(sessionDir, "seeds.csv");
+            overlay.saveAs(file);
+            SNTUtils.log("Saved seeds: " + file);
+        } catch (final Exception e) {
+            SNTUtils.error("Failed to save seeds", e);
+            failures++;
+        }
     }
 
     private void saveCurationSettings() {
