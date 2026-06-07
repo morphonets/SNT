@@ -293,6 +293,48 @@ public class PlausibilityMonitor {
         }
     }
 
+    /**
+     * Collects the raw distribution of {@code liveCheck}'s metric across {@code paths} without applying its warning
+     * threshold. Used by the Curation Assistant's per-check histogram popups.
+     *
+     * @param liveCheck the live check to query
+     * @param paths     the paths to evaluate
+     * @return the {@link PlausibilityCheck.Measurements} record (never {@code null})
+     */
+    public PlausibilityCheck.Measurements measure(final PlausibilityCheck.LiveCheck liveCheck,
+                                                  final Collection<Path> paths) {
+        if (liveCheck == null) return PlausibilityCheck.Measurements.EMPTY;
+        try {
+            return liveCheck.measure(paths);
+        } catch (final Exception e) {
+            SNTUtils.log("PlausibilityMonitor: measure() for '" + liveCheck.getName() +
+                    "' threw: " + e.getMessage());
+            return PlausibilityCheck.Measurements.EMPTY;
+        }
+    }
+
+    /**
+     * Collects the raw distribution of {@code deepCheck}'s metric across {@code paths} without applying its
+     * warning threshold. Image context is pushed first so checks like {@link PlausibilityCheck.SignalQuality} see
+     * the current image stack.
+     *
+     * @param deepCheck the deep check to query
+     * @param paths     the paths to evaluate
+     * @return the {@link PlausibilityCheck.Measurements} record (never {@code null})
+     */
+    public PlausibilityCheck.Measurements measure(final PlausibilityCheck.DeepCheck deepCheck,
+                                                  final Collection<Path> paths) {
+        if (deepCheck == null) return PlausibilityCheck.Measurements.EMPTY;
+        pushImageContext();
+        try {
+            return deepCheck.measure(paths);
+        } catch (final Exception e) {
+            SNTUtils.log("PlausibilityMonitor: measure() for '" + deepCheck.getName() +
+                    "' threw: " + e.getMessage());
+            return PlausibilityCheck.Measurements.EMPTY;
+        }
+    }
+
     private void clearWarnings() {
         synchronized (currentWarnings) {
             if (currentWarnings.isEmpty()) return;

@@ -70,6 +70,7 @@ import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.general.PieDataset;
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.HistogramType;
+import org.jfree.data.xy.DefaultXYDataset;
 import org.jfree.data.xy.XYDataset;
 import org.scijava.command.CommandService;
 import org.scijava.plot.CategoryChart;
@@ -193,6 +194,29 @@ public class SNTChart extends ChartPanel {
 	}
 
 	/**
+	 * Walks every dataset currently attached to {@code polarPlot} and returns
+	 * the largest y-value (radius) found. Used by the polar branches of
+	 * {@link #annotateXline} and {@link #shadeXRegion} so that overlaid
+	 * annotation series extend to the histogram's outer edge without
+	 * triggering an axis rescale. Returns 1.0 as a safe fallback when no
+	 * dataset is present or every value is non-finite.
+	 */
+	private static double polarMaxRadius(final PolarPlot polarPlot) {
+		double max = 0;
+		for (int d = 0; d < polarPlot.getDatasetCount(); d++) {
+			final XYDataset ds = polarPlot.getDataset(d);
+			if (ds == null) continue;
+			for (int s = 0; s < ds.getSeriesCount(); s++) {
+				for (int i = 0; i < ds.getItemCount(s); i++) {
+					final double y = ds.getYValue(s, i);
+					if (!Double.isNaN(y) && y > max) max = y;
+				}
+			}
+		}
+		return (max > 0) ? max : 1.0;
+	}
+
+	/**
 	 * Annotates the specified X-value (XY plots and histograms).
 	 *
 	 * @param xValue the X value to be annotated.
@@ -210,18 +234,99 @@ public class SNTChart extends ChartPanel {
 	 * @param color the font color
 	 */
 	public void annotateXline(final double xValue, final String label, final String color) {
-		final Marker marker = new ValueMarker(xValue);
-		final Color c = getColorFromString(color);
-		marker.setPaint(c);
-		marker.setLabelBackgroundColor(new Color(255,255,255,0));
-		if (label != null && !label.isEmpty()) {
-			marker.setLabelPaint(c);
-			marker.setLabel(label);
-			marker.setLabelAnchor(RectangleAnchor.TOP_LEFT);
-			marker.setLabelTextAnchor(TextAnchor.TOP_RIGHT);
-			marker.setLabelFont(getXYPlot().getDomainAxis().getTickLabelFont());
+		if (getChart().getPlot() instanceof XYPlot xyplot) {
+			final Marker marker = new ValueMarker(xValue);
+			final Color c = getColorFromString(color);
+			marker.setPaint(c);
+			marker.setLabelBackgroundColor(new Color(255, 255, 255, 0));
+			if (label != null && !label.isEmpty()) {
+				marker.setLabelPaint(c);
+				marker.setLabel(label);
+				marker.setLabelAnchor(RectangleAnchor.TOP_LEFT);
+				marker.setLabelTextAnchor(TextAnchor.TOP_RIGHT);
+				marker.setLabelFont(xyplot.getDomainAxis().getTickLabelFont());
+			}
+			xyplot.addDomainMarker(marker);
+		} else if (getChart().getPlot() instanceof PolarPlot polarPlot) {
+			// PolarPlot has no Marker concept. Workaround: add a 2-point
+			// series at angle = xValue (radius 0 -> maxR) as a separate
+			// dataset, rendered as a colored polyline.
+			final Color c = getColorFromString(color);
+			final double maxR = polarMaxRadius(polarPlot);
+			final DefaultXYDataset ds = new DefaultXYDataset();
+			ds.addSeries("__threshold__" + xValue,
+					new double[][]{ {xValue, xValue}, {0, maxR} });
+			final int idx = polarPlot.getDatasetCount();
+			polarPlot.setDataset(idx, ds);
+			final DefaultPolarItemRenderer r = new DefaultPolarItemRenderer();
+			r.setShapesVisible(false);
+			r.setConnectFirstAndLastPoint(false);
+			r.setSeriesPaint(0, c);
+			r.setSeriesStroke(0, new BasicStroke(1.5f));
+			polarPlot.setRenderer(idx, r);
+			// Labels: PolarPlot has no Marker-style label slot. Use corner
+			// text (it's the only place that won't get clipped by the
+			// circular axis), prefixed with a swatch character so multiple
+			// thresholds can be color-distinguished at a glance.
+			if (label != null && !label.isEmpty()) {
+				polarPlot.addCornerTextItem(label);
+			}
 		}
-		getXYPlot().addDomainMarker(marker);
+	}
+
+	/**
+	 * Shades a region of the domain (X) axis as a background band.
+	 *
+	 * @param from  the lower X value of the shaded region
+	 * @param to    the upper X value of the shaded region
+	 * @param color the fill color (any string accepted by {@link sc.fiji.snt.util.SNTColor}); a translucent variant is
+	 *              applied so the histogram bars remain visible
+	 */
+	public void shadeXRegion(final double from, final double to, final String color) {
+		if (getChart().getPlot() instanceof XYPlot xyplot) {
+			if (Double.isNaN(from) || Double.isNaN(to) || from == to) return;
+			final double lo = Math.min(from, to);
+			final double hi = Math.max(from, to);
+			final Color base = getColorFromString(color);
+			final Color fill = new Color(base.getRed(), base.getGreen(), base.getBlue(), 40);
+			final IntervalMarker marker = new IntervalMarker(lo, hi, fill);
+			marker.setOutlinePaint(null);
+			xyplot.addDomainMarker(marker, Layer.BACKGROUND);
+		} else if (getChart().getPlot() instanceof PolarPlot polarPlot) {
+			if (Double.isNaN(from) || Double.isNaN(to) || from == to) return;
+			final double lo = Math.min(from, to);
+			final double hi = Math.max(from, to);
+			// PolarPlot has no IntervalMarker. Workaround: build a wedge
+			// polygon (origin -> arc-sweep at maxR -> origin) and render
+			// as a translucent filled series via DefaultPolarItemRenderer.
+			// Translucent fill is intentional: it lets the histogram bars
+			// remain visible regardless of dataset z-order (PolarPlot's
+			// z-order semantics for overlaid datasets are fragile).
+			final double maxR = polarMaxRadius(polarPlot);
+			final int steps = Math.max(8, (int) Math.ceil(Math.abs(hi - lo))); // ~1 deg per step
+			final int n = steps + 3; // origin + (steps+1 arc points) + origin
+			final double[] xs = new double[n];
+			final double[] ys = new double[n];
+			xs[0] = lo; ys[0] = 0;
+			for (int i = 0; i <= steps; i++) {
+				xs[1 + i] = lo + (hi - lo) * i / steps;
+				ys[1 + i] = maxR;
+			}
+			xs[n - 1] = hi; ys[n - 1] = 0;
+			final DefaultXYDataset ds = new DefaultXYDataset();
+			ds.addSeries("__shade__" + lo + "_" + hi, new double[][]{ xs, ys });
+			final int idx = polarPlot.getDatasetCount();
+			polarPlot.setDataset(idx, ds);
+			final DefaultPolarItemRenderer r = new DefaultPolarItemRenderer();
+			r.setShapesVisible(false);
+			r.setConnectFirstAndLastPoint(true);
+			r.setSeriesFilled(0, true);
+			final Color base = getColorFromString(color);
+			r.setSeriesPaint(0, new Color(base.getRed(), base.getGreen(), base.getBlue(), 40));
+			r.setSeriesOutlinePaint(0, null);
+			polarPlot.setRenderer(idx, r);
+		}
+
 	}
 
 	/**
@@ -615,9 +720,8 @@ public class SNTChart extends ChartPanel {
 				legend.setItemFont(legend.getItemFont().deriveFont(size));
 			for (int i = 0; i < getChart().getSubtitleCount(); i++) {
 				final Title title = getChart().getSubtitle(i);
-				if (title instanceof PaintScaleLegend) {
-					final PaintScaleLegend lt = (PaintScaleLegend) title;
-					lt.getAxis().setLabelFont(lt.getAxis().getLabelFont().deriveFont(size));
+				if (title instanceof PaintScaleLegend lt) {
+                    lt.getAxis().setLabelFont(lt.getAxis().getLabelFont().deriveFont(size));
 					lt.getAxis().setTickLabelFont(lt.getAxis().getTickLabelFont().deriveFont(size));
 				}
 				else if (title instanceof TextTitle tt) {
@@ -1860,7 +1964,7 @@ public class SNTChart extends ChartPanel {
             }
 		}
 
-		private void editPlotBackground(final PlotEntity plotEntity) {
+		private void editPlotBackground(final PlotEntity ignored) {
 			final Color newColor = getCustomColor("New Background Color");
 			if (newColor != null) {
 				getChart().getPlot().setBackgroundPaint(newColor);
@@ -2373,6 +2477,47 @@ public class SNTChart extends ChartPanel {
 
 	public static SNTChart getHistogram(final SNTTable table, final boolean polar) {
 		return getHistogram(table, IntStream.range(0, table.getColumnCount()).toArray(), polar);
+	}
+
+	/**
+	 * Builds a single-series histogram from an array of values. The number of bins is chosen automatically
+	 * (Freedman-Diaconis rule).
+	 *
+	 * @param values    the data points to histogram
+	 * @param axisLabel the x-axis label (typically the metric name)
+	 * @param unit      the unit string (appended to the axis label; use {@code ""} when dimensionless)
+	 * @return a single-series histogram chart
+	 */
+	public static SNTChart getHistogram(final double[] values, final String axisLabel, final String unit) {
+		return getHistogram(values, axisLabel, unit, false);
+	}
+
+	/**
+	 * Builds a single-series polar histogram from an array of values. The number of bins is chosen automatically
+	 * (Freedman-Diaconis rule).
+	 *
+	 * @param values    the data points to histogram
+	 * @param axisLabel the label (typically the metric name)
+	 * @param unit      the unit string (appended to the axis label; use {@code ""} when dimensionless)
+	 * @return a single-series polar histogram chart
+	 */
+	public static SNTChart getPolarHistogram(final double[] values, final String axisLabel, final String unit) {
+		return getHistogram(values, axisLabel, unit, true);
+	}
+
+	private static SNTChart getHistogram(final double[] values, final String axisLabel, final String unit,
+	                                     final boolean polar) {
+		final DescriptiveStatistics stats = new DescriptiveStatistics();
+		if (values != null) {
+			for (final double v : values) {
+				if (!Double.isNaN(v)) stats.addValue(v);
+			}
+		}
+		final String xLabel = (axisLabel == null) ? "" : axisLabel;
+		final String xUnit = (unit == null) ? "" : unit;
+		return (polar)
+				? AnalysisUtils.createPolarHistogram(xLabel, xUnit, stats, "")
+				: AnalysisUtils.createHistogram(xLabel, xUnit, stats);
 	}
 
     private static Color toAwtColor(ColorRGB c) {

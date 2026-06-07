@@ -4355,6 +4355,17 @@ public class GuiUtils {
 			return button;
 		}
 
+		/**
+		 * Small borderless icon button styled to sit next to a spinner. Used by the Curation Assistant's per-check
+		 * histogram popups, but generic.
+		 */
+		public static JButton histogram() {
+			final JButton button = new JButton();
+			makeSmallBorderless(button, GLYPH.CHART, UIManager.getColor("Spinner.buttonArrowColor"),
+					getDisabledComponentColor());
+			return button;
+		}
+
 		public static JButton show(final Color color) {
 			final JButton button = new JButton();
 			makeSmallBorderless(button, GLYPH.EYE, color, getDisabledComponentColor());

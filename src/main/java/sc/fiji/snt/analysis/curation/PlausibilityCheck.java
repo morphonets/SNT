@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.analysis.curation;
 
+import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.numeric.RealType;
 
@@ -29,6 +30,7 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ProfileProcessor;
 import sc.fiji.snt.util.CrossoverFinder;
 import sc.fiji.snt.util.PointInImage;
@@ -95,9 +97,94 @@ public final class PlausibilityCheck {
     }
 
     /**
-     * A lightweight check that evaluates the plausibility of a single fork
-     * operation (parent + child + branch index). Designed to execute in
-     * sub-millisecond time so it can run inline at Hook 2 (QUERY_KEEP).
+     * Full distribution of a check's raw measurements across a reconstruction, collected without applying the
+     * warning threshold. Powers the per-check histogram popups in the Curation Assistant: showing the user where their
+     * data sits relative to the configured threshold is more informative than
+     * showing only the flagged subset.
+     *
+     * @param values        the raw metric values (one per fork, node-pair, run,  or path depending on the check).
+     *                      Never {@code null}.
+     * @param notAssessable the number of candidate units (forks, paths, etc.) that could not be evaluated (too few
+     *                      nodes, missing radii, missing image, etc.).
+     * @param metric        short human-readable name of the metric used as the  histogram's x-axis label.
+     * @param unit          unit string ({@code "µm"}, {@code "ratio"}, or {@code ""} when dimensionless).
+     * @param subject       singular noun describing what each value counts ({@code "fork"}, {@code "path"},
+     *                      {@code "cross-over"}, {@code "node pair"},  {@code "monotonic run"}, etc.).
+     * @param domainMin     optional lower bound of the metric's natural domain. {@link Double#NaN} when unknown.
+     * @param domainMax     optional upper bound of the metric's natural domain. {@link Double#NaN} when unknown.
+     * @param emptyHint     optional check-specific message shown to the user when the result is empty or unassessable
+     */
+    public record Measurements(double[] values, int notAssessable, String metric, String unit, String subject,
+                               double domainMin, double domainMax, String emptyHint) {
+
+        /**
+         * Sentinel returned when no measurements can be produced.
+         */
+        public static final Measurements EMPTY = new Measurements(new double[0], 0, "", "", "",
+                Double.NaN, Double.NaN, "");
+
+        /**
+         * Compact constructor: guarantees non-null arrays and strings.
+         */
+        public Measurements {
+            if (values == null) values = new double[0];
+            if (metric == null) metric = "";
+            if (unit == null) unit = "";
+            if (subject == null) subject = "";
+            if (emptyHint == null) emptyHint = "";
+            if (notAssessable < 0) notAssessable = 0;
+        }
+
+        /**
+         * Returns a copy of this record with {@link #emptyHint} replaced. Avoids forcing every {@code measure()}
+         * call site to pass a hint through the constructor when only special cases need one.
+         */
+        public Measurements withHint(final String hint) {
+            return new Measurements(values, notAssessable, metric, unit, subject,
+                    domainMin, domainMax, hint == null ? "" : hint);
+        }
+
+        /**
+         * @return {@code true} if no values were collected.
+         */
+        public boolean isEmpty() {
+            return values.length == 0;
+        }
+
+        /**
+         * @return the count of evaluated units (size of {@link #values}).
+         */
+        public int assessed() {
+            return values.length;
+        }
+
+        /**
+         * @return the plural form of {@link #subject}.
+         */
+        String subjectPlural() {
+            if (subject == null || subject.isEmpty()) return "";
+            if (subject.endsWith("s") || subject.endsWith("x") || subject.endsWith("ch") || subject.endsWith("sh")) {
+                return subject + "es";
+            }
+            return subject + "s";
+        }
+
+        /**
+         * Convenience formatter for UI footers and warning text.
+         */
+        String formatCounts() {
+            final int n = assessed();
+            final String s1 = (n == 1) ? subject : subjectPlural();
+            if (subject == null || subject.isEmpty()) {
+                return String.format("%d/%d assessed", n, (notAssessable + n));
+            }
+            return String.format("%d/%d %s assessed", n, (notAssessable + n), s1);
+        }
+    }
+
+    /**
+     * A lightweight check that evaluates the plausibility of a single fork operation (parent + child + branch index).
+     * Designed to execute in sub-millisecond time so it can run inline at Hook 2 (QUERY_KEEP).
      */
     public static abstract class LiveCheck {
 
@@ -115,6 +202,18 @@ public final class PlausibilityCheck {
          * @return list of warnings (empty if the operation is plausible)
          */
         public abstract List<Warning> check(Path parent, Path child, int branchIndex);
+
+        /**
+         * Computes the full distribution of this check's metric across {@code paths}, without applying the warning
+         * threshold. Default implementation returns {@link Measurements#EMPTY}; subclasses override to enable
+         * per-check histogram popups in the Curation Assistant.
+         *
+         * @param paths the paths to evaluate; {@code null} or empty yields  {@link Measurements#EMPTY}.
+         * @return a {@link Measurements} record; never {@code null}.
+         */
+        public Measurements measure(final Collection<Path> paths) {
+            return Measurements.EMPTY;
+        }
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(final boolean enabled) { this.enabled = enabled; }
@@ -139,8 +238,46 @@ public final class PlausibilityCheck {
          */
         public abstract List<Warning> scan(Collection<Path> paths);
 
-        public boolean isEnabled() { return enabled; }
-        public void setEnabled(final boolean enabled) { this.enabled = enabled; }
+        /**
+         * Computes the full distribution of this check's metric across {@code paths}, without applying the warning
+         * threshold. Default implementation returns {@link Measurements#EMPTY}; subclasses override to enable
+         * per-check histogram popups in the Curation Assistant.
+         *
+         * @param paths the paths to evaluate; {@code null} or empty yields {@link Measurements#EMPTY}.
+         * @return a {@link Measurements} record; never {@code null}.
+         */
+        public Measurements measure(final Collection<Path> paths) {
+            return Measurements.EMPTY;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(final boolean enabled) {
+            this.enabled = enabled;
+        }
+    }
+
+    /**
+     * Internal helper: packages a {@code List<Double>} as a {@link Measurements} record. Saves every per-check
+     * {@code measure()} from copying boilerplate. Domain bounds default to {@link Double#NaN} (unknown).
+     */
+    private static Measurements toMeasurements(final List<Double> vals, final int notAssessable,
+                                               final String metric, final String unit, final String subject) {
+        return toMeasurements(vals, notAssessable, metric, unit, subject, Double.NaN, Double.NaN);
+    }
+
+    /**
+     * Variant of {@link #toMeasurements(List, int, String, String, String)} that also carries the metric's natural
+     * domain bounds (used by polar histograms to clamp shading).
+     */
+    private static Measurements toMeasurements(final List<Double> vals, final int notAssessable,
+                                               final String metric, final String unit, final String subject,
+                                               final double domainMin, final double domainMax) {
+        final double[] arr = new double[vals.size()];
+        for (int i = 0; i < arr.length; i++) arr[i] = vals.get(i);
+        return new Measurements(arr, notAssessable, metric, unit, subject, domainMin, domainMax, "");
     }
 
     /**
@@ -186,11 +323,39 @@ public final class PlausibilityCheck {
             }
             return Collections.emptyList();
         }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path child : paths) {
+                if (child == null) continue;
+                final Path parent = child.getParentPath();
+                if (parent == null) continue; // primary path: outside this check's domain
+                if (child.size() == 0) { skipped++; continue; }
+                final int branchIndex = child.getBranchPointIndex();
+                if (branchIndex < 0 || branchIndex >= parent.size()) { skipped++; continue; }
+                final double parentRadius = parent.getNode(branchIndex).radius;
+                if (parentRadius <= 0) { skipped++; continue; }
+                final int sampleSize = Math.min(5, child.size());
+                final List<Double> childRadii = new ArrayList<>(sampleSize);
+                for (int i = 0; i < sampleSize; i++) {
+                    final double r = child.getNode(i).radius;
+                    if (r > 0) childRadii.add(r);
+                }
+                if (childRadii.isEmpty()) { skipped++; continue; }
+                Collections.sort(childRadii);
+                final double childRadius = childRadii.get(childRadii.size() / 2);
+                vals.add(childRadius / parentRadius);
+            }
+            return toMeasurements(vals, skipped, "Radius ratio (child / parent)", "ratio", "fork");
+        }
     }
 
     /**
-     * Warns when the child path's initial direction deviates sharply from
-     * the parent's tangent at the branch point (potential U-turn).
+     * Warns when the child path's initial direction deviates sharply from the parent's tangent at the branch point
+     * (potential U-turn).
      */
     public static class DirectionContinuity extends LiveCheck {
 
@@ -236,6 +401,35 @@ public final class PlausibilityCheck {
                         parent.getNode(branchIndex), List.of(parent, child), deviationFromParent, minAlignmentDeg));
             }
             return Collections.emptyList();
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path child : paths) {
+                if (child == null) continue;
+                final Path parent = child.getParentPath();
+                if (parent == null) continue;
+                if (child.size() < 2 || parent.size() < 3) { skipped++; continue; }
+                final int branchIndex = child.getBranchPointIndex();
+                if (branchIndex < 0 || branchIndex >= parent.size()) { skipped++; continue; }
+                final double[] parentTangent = new double[3];
+                parent.getTangent(branchIndex, Math.min(2, branchIndex), parentTangent);
+                final double parentMag = mag(parentTangent);
+                if (parentMag == 0) { skipped++; continue; }
+                final double[] childDir = child.getInitialDirection(5);
+                if (childDir == null) { skipped++; continue; }
+                final double childMag = mag(childDir);
+                if (childMag == 0) { skipped++; continue; }
+                final double dot = (parentTangent[0] * childDir[0] +
+                        parentTangent[1] * childDir[1] +
+                        parentTangent[2] * childDir[2]) / (parentMag * childMag);
+                final double angleDeg = Math.toDegrees(Math.acos(Math.clamp(dot, -1.0, 1.0)));
+                vals.add(180.0 - angleDeg); // deviation from reversal (matches check())
+            }
+            return toMeasurements(vals, skipped, "Deviation from reversal", "°", "fork", 0.0, 180.0);
         }
     }
 
@@ -285,22 +479,57 @@ public final class PlausibilityCheck {
 
             final double dot = (parentCont[0] * childDir[0] + parentCont[1] * childDir[1] +
                     parentCont[2] * childDir[2]) / (m1 * m2);
-            final double angleDeg = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, dot))));
+            final double angleDeg = Math.toDegrees(Math.acos(Math.clamp(dot, -1.0, 1.0)));
 
             final List<Path> affected = List.of(parent, child);
             final List<Warning> warnings = new ArrayList<>();
             if (angleDeg < minAngleDeg) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
-                        String.format("Fork angle too narrow: %.1f° (min %.1f°)",
-                                angleDeg, minAngleDeg),
+                        String.format("Fork angle too narrow: %.1f° (min %.1f°)", angleDeg, minAngleDeg),
                         branchNode, affected, angleDeg, minAngleDeg));
             } else if (angleDeg > maxAngleDeg) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
-                        String.format("Fork angle too wide: %.1f° (max %.1f°)",
-                                angleDeg, maxAngleDeg),
+                        String.format("Fork angle too wide: %.1f° (max %.1f°)", angleDeg, maxAngleDeg),
                         branchNode, affected, angleDeg, maxAngleDeg));
             }
             return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path child : paths) {
+                if (child == null) continue;
+                final Path parent = child.getParentPath();
+                if (parent == null) continue;
+                if (child.size() < 2) { skipped++; continue; }
+                final int branchIndex = child.getBranchPointIndex();
+                if (branchIndex < 0 || branchIndex >= parent.size()) { skipped++; continue; }
+                final PointInImage branchNode = parent.getNode(branchIndex);
+                final double[] parentCont;
+                if (branchIndex < parent.size() - 1) {
+                    final PointInImage next = parent.getNode(branchIndex + 1);
+                    parentCont = new double[]{next.x - branchNode.x, next.y - branchNode.y, next.z - branchNode.z};
+                } else if (branchIndex > 0) {
+                    final PointInImage prev = parent.getNode(branchIndex - 1);
+                    parentCont = new double[]{branchNode.x - prev.x, branchNode.y - prev.y, branchNode.z - prev.z};
+                } else { skipped++; continue; }
+                final int childEnd = Math.min(5, child.size() - 1);
+                final double[] childDir = {
+                        child.getNode(childEnd).x - child.getNode(0).x,
+                        child.getNode(childEnd).y - child.getNode(0).y,
+                        child.getNode(childEnd).z - child.getNode(0).z
+                };
+                final double m1 = mag(parentCont), m2 = mag(childDir);
+                if (m1 == 0 || m2 == 0) { skipped++; continue; }
+                final double dot = (parentCont[0] * childDir[0] + parentCont[1] * childDir[1] +
+                        parentCont[2] * childDir[2]) / (m1 * m2);
+                final double angleDeg = Math.toDegrees(Math.acos(Math.clamp(dot, -1.0, 1.0)));
+                vals.add(angleDeg);
+            }
+            return toMeasurements(vals, skipped, "Fork angle", "°", "fork", 0.0, 180.0);
         }
     }
 
@@ -329,6 +558,23 @@ public final class PlausibilityCheck {
                         parent.getNode(branchIndex), List.of(parent, child), diff, maxContractionDiff));
             }
             return Collections.emptyList();
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path child : paths) {
+                if (child == null) continue;
+                final Path parent = child.getParentPath();
+                if (parent == null) continue;
+                if (child.size() < 5 || parent.size() < 5) { skipped++; continue; }
+                final double cc = child.getContraction(), pc = parent.getContraction();
+                if (Double.isNaN(cc) || Double.isNaN(pc)) { skipped++; continue; }
+                vals.add(Math.abs(cc - pc));
+            }
+            return toMeasurements(vals, skipped, "Tortuosity mismatch (|child - parent|)", "", "fork", 0.0, 1.0);
         }
     }
 
@@ -373,15 +619,57 @@ public final class PlausibilityCheck {
             if (minDist > maxDistUm) {
                 final Severity sev = minDist > maxDistUm * 3 ? Severity.ERROR : Severity.WARNING;
                 return List.of(new Warning(getName(), sev,
-                        String.format("%.0f \u00b5m from nearest soma (max %.0f \u00b5m)",
-                                minDist, maxDistUm),
+                        String.format("%.0f µm from nearest soma/root (max %.0f µm)", minDist, maxDistUm),
                         start, List.of(), minDist, maxDistUm));
             }
             return Collections.emptyList();
         }
+
+        /**
+         * Measures the start-to-nearest-reference distance for every path's first node. The reference point set is
+         * the tree's tagged soma node(s) when present; otherwise we fall back to the tree's root (first node of the
+         * primary path).
+         */
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<PointInImage> refs;
+            try {
+                refs = referencePoints(paths);
+            } catch (final Exception e) {
+                return Measurements.EMPTY;
+            }
+            if (refs.isEmpty()) return Measurements.EMPTY; // truly empty tree
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null || path.size() == 0) { skipped++; continue; }
+                final PointInImage start = path.getNode(0);
+                double minDist = Double.MAX_VALUE;
+                for (final PointInImage ref : refs) {
+                    final double d = start.distanceTo(ref);
+                    if (d < minDist) minDist = d;
+                }
+                if (minDist == Double.MAX_VALUE) { skipped++; continue; }
+                vals.add(minDist);
+            }
+            return toMeasurements(vals, skipped, "Distance to nearest soma/root", "µm", "path");
+        }
+
+        /**
+         * Returns the soma node(s) for the tree built from {@code paths}, or a single-element list with the tree's
+         * root when no soma is tagged. Empty list only when the tree itself has no root (empty Path Manager edge case).
+         */
+        private static List<PointInImage> referencePoints(final Collection<Path> paths) {
+            final Tree tree = new Tree(paths);
+            final List<PointInImage> soma = tree.getSomaNodes();
+            if (soma != null && !soma.isEmpty()) return soma;
+            final PointInImage root = tree.getRoot();
+            return (root == null) ? Collections.emptyList() : List.of(root);
+        }
     }
 
-    /** Warns when a path has radii assigned but they are all identical (likely unfitted defaults). */
+    /** Warns when a path has radii assigned, but they are all identical (likely unfitted defaults). */
     public static class ConstantRadii extends LiveCheck {
 
         @Override
@@ -427,11 +715,24 @@ public final class PlausibilityCheck {
             final double length = child.getLength();
             if (length < minLengthUm) {
                 return List.of(new Warning(getName(), Severity.INFO,
-                        String.format("Terminal branch too short: %.2f \u00b5m (min %.2f \u00b5m)",
-                                length, minLengthUm),
+                        String.format("Terminal branch too short: %.2fµm (min %.2fµm)", length, minLengthUm),
                         child.getNode(0), List.of(child), length, minLengthUm));
             }
             return Collections.emptyList();
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null || path.size() < 2) { skipped++; continue; }
+                // Domain restricted to terminal paths (no children), mirroring check()
+                if (path.getChildren() != null && !path.getChildren().isEmpty()) continue;
+                vals.add(path.getLength());
+            }
+            return toMeasurements(vals, skipped, "Terminal branch length", "µm", "terminal branch");
         }
     }
 
@@ -461,13 +762,38 @@ public final class PlausibilityCheck {
             final List<Warning> warnings = new ArrayList<>();
             for (final CrossoverFinder.CrossoverEvent ev : events) {
                 warnings.add(new Warning(getName(), Severity.WARNING,
-                        String.format("Cross-over detected: %.1f \u00b5m apart, %.0f° angle",
+                        String.format("Cross-over detected: %.1f µm apart, %.0f° angle",
                                 ev.medianMinDist, ev.medianAngleDeg),
                         new PointInImage(ev.x, ev.y, ev.z),
                         new ArrayList<>(ev.participants),
                         ev.medianMinDist, proximityUm));
             }
             return warnings;
+        }
+
+        /**
+         * Sweeps {@link CrossoverFinder} at 5x the current proximity threshold
+         * so the histogram shows context around the cutoff, not just flagged
+         * events. The threshold marker indicates where the user's current
+         * cutoff lies; events at distance &gt; proximityUm appear unflagged.
+         */
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.size() < 2) return Measurements.EMPTY;
+            final CrossoverFinder.Config cfg = new CrossoverFinder.Config()
+                    .proximity(proximityUm * 5.0)
+                    .includeSelfCrossovers(false)
+                    .includeDirectChildren(false)
+                    .minRunNodes(2);
+            final List<CrossoverFinder.CrossoverEvent> events;
+            try {
+                events = CrossoverFinder.find(paths, cfg);
+            } catch (final Exception e) {
+                return Measurements.EMPTY;
+            }
+            final List<Double> vals = new ArrayList<>(events.size());
+            for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianMinDist);
+            return toMeasurements(vals, 0, "Cross-over distance", "µm", "cross-over");
         }
     }
 
@@ -504,6 +830,23 @@ public final class PlausibilityCheck {
                 }
             }
             return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null || path.size() < 2 || !path.hasRadii()) { skipped++; continue; }
+                for (int i = 0; i < path.size() - 1; i++) {
+                    final double r1 = path.getNode(i).radius;
+                    final double r2 = path.getNode(i + 1).radius;
+                    if (r1 <= 0 || r2 <= 0) { skipped++; continue; }
+                    vals.add(Math.max(r1, r2) / Math.min(r1, r2));
+                }
+            }
+            return toMeasurements(vals, skipped, "Adjacent radius ratio", "ratio", "node pair");
         }
     }
 
@@ -558,6 +901,34 @@ public final class PlausibilityCheck {
                 }
             }
             return warnings;
+        }
+
+        /**
+         * Collects every monotonic-increase run of length &gt;= 2 (regardless
+         * of the current {@code minIncreasingRun} threshold) so the histogram
+         * shows the full distribution of run lengths in the reconstruction.
+         */
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null || path.size() < 2 || !path.hasRadii()) { skipped++; continue; }
+                int runLength = 0;
+                for (int i = 0; i < path.size() - 1; i++) {
+                    final double r1 = path.getNode(i).radius;
+                    final double r2 = path.getNode(i + 1).radius;
+                    if (r1 > 0 && r2 > 0 && r2 > r1) {
+                        runLength++;
+                    } else {
+                        if (runLength >= 2) vals.add((double) runLength);
+                        runLength = 0;
+                    }
+                }
+                if (runLength >= 2) vals.add((double) runLength);
+            }
+            return toMeasurements(vals, skipped, "Monotonic-increase run length", "nodes", "monotonic run");
         }
     }
 
@@ -622,15 +993,56 @@ public final class PlausibilityCheck {
             this.imageMax = max;
         }
 
+        /**
+         * Sets the image and computes its full-volume min/max stats by scanning every voxel. Use this instead of
+         * {@link #setImage} + {@link #setImageStats} when the caller wants the resolved auto-threshold to reflect the
+         * actual image range, independent of any lazily-populated stats elsewhere.
+         * <p>
+         * Should always be called from a worker thread.
+         *
+         * @param rai the image data; {@code null} clears the image and stats.
+         */
+        public void prepareImage(final RandomAccessibleInterval<? extends RealType<?>> rai) {
+            setImage(rai);
+            if (rai == null) {
+                this.imageMin = Double.NaN;
+                this.imageMax = Double.NaN;
+                return;
+            }
+            final double[] mm = scanMinMaxRaw(rai);
+            this.imageMin = mm[0];
+            this.imageMax = mm[1];
+            SNTUtils.log(String.format("SignalQuality.prepareImage: full-volume scan => min=%.3f, max=%.3f",
+                    imageMin, imageMax));
+        }
+
+        /** Wildcard-erasing adapter so the generic helper can iterate the RAI. */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private static double[] scanMinMaxRaw(final RandomAccessibleInterval<? extends RealType<?>> rai) {
+            return scanMinMax((RandomAccessibleInterval) rai);
+        }
+
+        /** Linear min/max scan; returns {@code {0, 0}} for an empty iterable. */
+        private static <T extends RealType<T>> double[] scanMinMax(final RandomAccessibleInterval<T> rai) {
+            double min = Double.POSITIVE_INFINITY;
+            double max = Double.NEGATIVE_INFINITY;
+            final Cursor<T> c = rai.cursor();
+            while (c.hasNext()) {
+                final double v = c.next().getRealDouble();
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+            if (min == Double.POSITIVE_INFINITY) return new double[]{0, 0};
+            return new double[]{min, max};
+        }
+
         /** @return whether image data has been provided */
         public boolean hasImage() { return image != null; }
 
         /**
-         * Resolves the effective contrast threshold. If set to
-         * {@link #AUTO_THRESHOLD} and image statistics are available,
-         * derives it as half the best possible contrast ratio for the
-         * image: {@code (max + 1) / (min + 1) / 2}. This accounts
-         * for the full dynamic range of the image.
+         * Resolves the effective contrast threshold. If set to {@link #AUTO_THRESHOLD} and image statistics are
+         * available, derives it as half the best possible contrast ratio for the image:
+         * {@code (max + 1) / (min + 1) / 2}. This accounts for the full dynamic range of the image.
          */
         private double resolveThreshold() {
             if (minContrast != AUTO_THRESHOLD) return minContrast;
@@ -729,6 +1141,79 @@ public final class PlausibilityCheck {
             SNTUtils.log(String.format("SignalQuality: done. %d warnings, %d paths skipped",
                     warnings.size(), skipped));
             return warnings;
+        }
+
+        /**
+         * Computes the signal/background contrast ratio for a single path, using the same per-path procedure as
+         * {@link #scan(Collection)}.
+         *
+         * @return the contrast ratio, or {@link Double#NaN} when the path cannot be evaluated (too few nodes,
+         *         no image, or insufficient samples). Callers should treat NaN as "not assessable".
+         */
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        private double contrastFor(final Path path) {
+            if (path == null || path.size() < 3 || image == null) return Double.NaN;
+            final SortedMap<Integer, List<Double>> rawValues;
+            try {
+                final ProfileProcessor pp = new ProfileProcessor(image, path);
+                pp.setShape(ProfileProcessor.Shape.LINE);
+                final int lineRadius = path.hasRadii()
+                        ? Math.max((int) Math.round(path.getMeanRadius() * 3), 5)
+                        : 5;
+                pp.setRadius(lineRadius);
+                rawValues = pp.getRawValues(1);
+            } catch (final Exception e) {
+                return Double.NaN;
+            }
+            if (rawValues == null || rawValues.isEmpty()) return Double.NaN;
+            final DescriptiveStatistics ds = new DescriptiveStatistics();
+            for (final List<Double> nodeVals : rawValues.values()) {
+                for (final double v : nodeVals) {
+                    if (!Double.isNaN(v)) ds.addValue(v);
+                }
+            }
+            if (ds.getN() < 10) return Double.NaN;
+            final double p25 = ds.getPercentile(25);
+            final double p75 = ds.getPercentile(75);
+            final DescriptiveStatistics bgStats = new DescriptiveStatistics();
+            final DescriptiveStatistics sigStats = new DescriptiveStatistics();
+            for (final List<Double> nodeVals : rawValues.values()) {
+                for (final double v : nodeVals) {
+                    if (Double.isNaN(v)) continue;
+                    if (v <= p25) bgStats.addValue(v);
+                    else if (v >= p75) sigStats.addValue(v);
+                }
+            }
+            if (bgStats.getN() < 2 || sigStats.getN() < 2) return Double.NaN;
+            return (sigStats.getPercentile(50) + 1) / (bgStats.getPercentile(50) + 1);
+        }
+
+        /**
+         * @return the resolved threshold (auto-derived from image stats when the spinner is set to
+         * {@link #AUTO_THRESHOLD}). Exposed so  the curation UI can draw the marker at the effective cutoff
+         * even in auto mode.
+         */
+        public double getResolvedThreshold() { return resolveThreshold(); }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            // No image: surface the prerequisite explicitly rather than returning an empty Measurements.
+            // The UI then displays a check-specific hint instead of the generic empty-state text
+            if (image == null) {
+                return toMeasurements(new ArrayList<>(), paths.size(),
+                        "Signal/background contrast", "ratio", "path")
+                        .withHint("Load an image first. This check measures signal contrast along each path; " +
+                                "it cannot run without valid image data.");
+            }
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                final double c = contrastFor(path);
+                if (Double.isNaN(c)) skipped++;
+                else vals.add(c);
+            }
+            return toMeasurements(vals, skipped, "Signal/background contrast", "ratio", "path");
         }
     }
 

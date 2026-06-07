@@ -25,6 +25,7 @@ package sc.fiji.snt;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.components.FlatTriStateCheckBox;
 import ij.ImagePlus;
+import sc.fiji.snt.analysis.curation.CurationHistograms;
 import sc.fiji.snt.analysis.curation.CurationTags;
 import sc.fiji.snt.analysis.curation.PlausibilityCalibrator;
 import sc.fiji.snt.analysis.curation.PlausibilityCheck;
@@ -565,7 +566,17 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         branchAngleMinSpinner.addChangeListener(e -> {
             if (angleCheck != null) angleCheck.setMinAngleDeg((Double) branchAngleMinSpinner.getValue());
         });
-        addCheckRow(p, c, branchAngleMinCheckbox, branchAngleMinSpinner);
+        // Histogram button: both BranchAngle spinners share the same OUTSIDE-flagged
+        // distribution. Clicking either button opens the same chart with both markers.
+        final JButton branchAngleMinHist = (angleCheck == null) ? null
+                : CurationHistograms.button("Fork angle",
+                        paths -> monitor.measure(angleCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) branchAngleMinSpinner.getValue()).doubleValue(),
+                        () -> ((Number) branchAngleMaxSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.OUTSIDE_FLAGGED, p);
+        addCheckRow(p, c, branchAngleMinCheckbox,
+                spinnerWithHistogram(branchAngleMinSpinner, branchAngleMinHist));
 
         // Branch angle max
         branchAngleMaxCheckbox = new JCheckBox("Max. fork angle (°):",
@@ -581,7 +592,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         branchAngleMaxSpinner.addChangeListener(e -> {
             if (angleCheck != null) angleCheck.setMaxAngleDeg((Double) branchAngleMaxSpinner.getValue());
         });
-        addCheckRow(p, c, branchAngleMaxCheckbox, branchAngleMaxSpinner);
+        final JButton branchAngleMaxHist = (angleCheck == null) ? null
+                : CurationHistograms.button("Fork angle",
+                        paths -> monitor.measure(angleCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) branchAngleMaxSpinner.getValue()).doubleValue(),
+                        () -> ((Number) branchAngleMinSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.OUTSIDE_FLAGGED, p);
+        addCheckRow(p, c, branchAngleMaxCheckbox,
+                spinnerWithHistogram(branchAngleMaxSpinner, branchAngleMaxHist));
 
         // Direction continuity
         final PlausibilityCheck.DirectionContinuity dirCheck =
@@ -595,7 +614,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         directionSpinner.addChangeListener(e -> {
             if (dirCheck != null) dirCheck.setMinAlignmentDeg((Double) directionSpinner.getValue());
         });
-        addCheckRow(p, c, directionCheckbox, directionSpinner);
+        final JButton directionHist = (dirCheck == null) ? null
+                : CurationHistograms.button("Direction continuity",
+                        paths -> monitor.measure(dirCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) directionSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.LEFT_FLAGGED, p);
+        addCheckRow(p, c, directionCheckbox, spinnerWithHistogram(directionSpinner, directionHist));
 
         // Radius continuity
         final PlausibilityCheck.RadiusContinuity radiusCheck =
@@ -609,7 +634,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         radiusSpinner.addChangeListener(e -> {
             if (radiusCheck != null) radiusCheck.setMaxRatio((Double) radiusSpinner.getValue());
         });
-        addCheckRow(p, c, radiusCheckbox, radiusSpinner);
+        final JButton radiusHist = (radiusCheck == null) ? null
+                : CurationHistograms.button("Radius continuity",
+                        paths -> monitor.measure(radiusCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) radiusSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.RIGHT_FLAGGED, p);
+        addCheckRow(p, c, radiusCheckbox, spinnerWithHistogram(radiusSpinner, radiusHist));
 
         // Terminal branch length
         final PlausibilityCheck.TerminalBranchLength termCheck =
@@ -623,21 +654,33 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         termBranchSpinner.addChangeListener(e -> {
             if (termCheck != null) termCheck.setMinLengthUm((Double) termBranchSpinner.getValue());
         });
-        addCheckRow(p, c, termBranchCheckbox, termBranchSpinner);
+        final JButton termBranchHist = (termCheck == null) ? null
+                : CurationHistograms.button("Terminal branch length",
+                        paths -> monitor.measure(termCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) termBranchSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.LEFT_FLAGGED, p);
+        addCheckRow(p, c, termBranchCheckbox, spinnerWithHistogram(termBranchSpinner, termBranchHist));
 
         // Soma distance
         final PlausibilityCheck.SomaDistance somaCheck =
                 monitor.getLiveCheck(PlausibilityCheck.SomaDistance.class);
-        somaDistCheckbox = new JCheckBox("Max. distance from soma:",
+        somaDistCheckbox = new JCheckBox("Max. distance from soma/root:",
                 somaCheck != null && somaCheck.isEnabled());
-        somaDistCheckbox.setToolTipText("Flags paths that originate unexpectedly far from any soma marker");
+        somaDistCheckbox.setToolTipText("Flags paths that originate unexpectedly far from a soma marker (when tagged) or the tree's root");
         somaDistSpinner = new JSpinner(new SpinnerNumberModel(
                 somaCheck != null ? somaCheck.getMaxDistUm() : 500.0, 10.0, 10000.0, 50.0));
         wireCheckbox(somaDistCheckbox, somaDistSpinner, somaCheck);
         somaDistSpinner.addChangeListener(e -> {
             if (somaCheck != null) somaCheck.setMaxDistUm((Double) somaDistSpinner.getValue());
         });
-        addCheckRow(p, c, somaDistCheckbox, somaDistSpinner);
+        final JButton somaDistHist = (somaCheck == null) ? null
+                : CurationHistograms.button("Soma/root distance",
+                        paths -> monitor.measure(somaCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) somaDistSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.RIGHT_FLAGGED, p);
+        addCheckRow(p, c, somaDistCheckbox, spinnerWithHistogram(somaDistSpinner, somaDistHist));
 
         // Tortuosity consistency
         final PlausibilityCheck.TortuosityConsistency tortCheck =
@@ -651,7 +694,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         tortuositySpinner.addChangeListener(e -> {
             if (tortCheck != null) tortCheck.setMaxContractionDiff((Double) tortuositySpinner.getValue());
         });
-        addCheckRow(p, c, tortuosityCheckbox, tortuositySpinner);
+        final JButton tortuosityHist = (tortCheck == null) ? null
+                : CurationHistograms.button("Tortuosity consistency",
+                        paths -> monitor.measure(tortCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) tortuositySpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.RIGHT_FLAGGED, p);
+        addCheckRow(p, c, tortuosityCheckbox, spinnerWithHistogram(tortuositySpinner, tortuosityHist));
 
         // Constant radii
         final PlausibilityCheck.ConstantRadii constCheck =
@@ -694,7 +743,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         overlapSpinner.addChangeListener(e -> {
             if (overlapCheck != null) overlapCheck.setProximityUm((Double) overlapSpinner.getValue());
         });
-        addCheckRow(p, c, overlapCheckbox, overlapSpinner);
+        final JButton overlapHist = (overlapCheck == null) ? null
+                : CurationHistograms.button("Path overlap",
+                        paths -> monitor.measure(overlapCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) overlapSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.LEFT_FLAGGED, p);
+        addCheckRow(p, c, overlapCheckbox, spinnerWithHistogram(overlapSpinner, overlapHist));
 
         // Radius jumps
         final PlausibilityCheck.RadiusJumps jumpsCheck =
@@ -708,7 +763,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         radiusJumpsSpinner.addChangeListener(e -> {
             if (jumpsCheck != null) jumpsCheck.setMaxJumpRatio((Double) radiusJumpsSpinner.getValue());
         });
-        addCheckRow(p, c, radiusJumpsCheckbox, radiusJumpsSpinner);
+        final JButton radiusJumpsHist = (jumpsCheck == null) ? null
+                : CurationHistograms.button("Radius jumps",
+                        paths -> monitor.measure(jumpsCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) radiusJumpsSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.RIGHT_FLAGGED, p);
+        addCheckRow(p, c, radiusJumpsCheckbox, spinnerWithHistogram(radiusJumpsSpinner, radiusJumpsHist));
 
         // Radius monotonicity
         final PlausibilityCheck.RadiusMonotonicity monoCheck =
@@ -722,7 +783,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         radiusMonoSpinner.addChangeListener(e -> {
             if (monoCheck != null) monoCheck.setMinIncreasingRun((Integer) radiusMonoSpinner.getValue());
         });
-        addCheckRow(p, c, radiusMonoCheckbox, radiusMonoSpinner);
+        final JButton radiusMonoHist = (monoCheck == null) ? null
+                : CurationHistograms.button("Radius monotonicity",
+                        paths -> monitor.measure(monoCheck, paths),
+                        this::currentPaths,
+                        () -> ((Number) radiusMonoSpinner.getValue()).doubleValue(),
+                        CurationHistograms.Side.RIGHT_FLAGGED, p);
+        addCheckRow(p, c, radiusMonoCheckbox, spinnerWithHistogram(radiusMonoSpinner, radiusMonoHist));
 
         // Image signal quality
         final PlausibilityCheck.SignalQuality signalCheck =
@@ -746,13 +813,33 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             signalQualitySpinner.setValue(PlausibilityCheck.SignalQuality.AUTO_THRESHOLD);
             if (signalCheck != null) signalCheck.setMinContrast(PlausibilityCheck.SignalQuality.AUTO_THRESHOLD);
         });
-        addCheckRow(p, c, signalQualityCheckbox, sqUndoBtn, signalQualitySpinner);
+        // Histogram button. The image-context setup happens inside the worker  which runs a full-volume min/max
+        // scan independent of SNT.stats. This bypasses the scenario where the cached SNT.stats object is lazily
+        // populated by e.g. a local search, causing the auto-resolved threshold to be drawn at a meaningless value.
+        // After prepareImage runs on the worker, done() sees fresh image stats and resolves the AUTO value
+        final JButton signalHist = (signalCheck == null) ? null
+                : CurationHistograms.button("Image signal quality",
+                        paths -> {
+                            // prepareImage is null-safe (clears stats when no image is loaded). We always defer to
+                            // signalCheck.measure(), which returns its own withHint("Load an image first.") when the
+                            // image is missing: returning EMPTY here would strip that hint and the user would see the
+                            // generic "trace some paths" fallback instead.
+                            signalCheck.prepareImage(sntui.plugin.getLoadedData());
+                            return signalCheck.measure(paths);
+                        },
+                        this::currentPaths,
+                        () -> {
+                            final double v = ((Number) signalQualitySpinner.getValue()).doubleValue();
+                            return (v == PlausibilityCheck.SignalQuality.AUTO_THRESHOLD)
+                                    ? signalCheck.getResolvedThreshold() : v;
+                        },
+                        CurationHistograms.Side.LEFT_FLAGGED, p);
+        addCheckRow(p, c, signalQualityCheckbox, sqUndoBtn, spinnerWithHistogram(signalQualitySpinner, signalHist));
 
         c.insets.left = savedLeft;
 
         // Collect and wire section-level toggling
-        onDemandCheckboxes = List.of(overlapCheckbox, radiusJumpsCheckbox,
-                radiusMonoCheckbox, signalQualityCheckbox);
+        onDemandCheckboxes = List.of(overlapCheckbox, radiusJumpsCheckbox, radiusMonoCheckbox, signalQualityCheckbox);
         wireSectionHeader(onDemandHeaderCheckbox, onDemandCheckboxes);
 
         return p;
@@ -1249,26 +1336,28 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     /**
-     * Adds a row: [checkbox | spacer | spinner]. The spacer column keeps all
-     * spinners aligned with the signal-quality row that has an undo button
-     * in that column.
+     * Adds a row: [checkbox | spacer | spinnerArea]. The spacer column keeps
+     * all spinners aligned with the signal-quality row that has an undo
+     * button in that column. {@code spinnerArea} is typically a JSpinner, but
+     * may be any JComponent (for example, a JPanel packing a spinner with a
+     * trailing histogram button via {@link #spinnerWithHistogram}).
      */
     private void addCheckRow(final JPanel panel, final GridBagConstraints c,
-                             final JCheckBox checkbox, final JSpinner spinner) {
-        addCheckRow(panel, c, checkbox, null, spinner);
+                             final JCheckBox checkbox, final JComponent spinnerArea) {
+        addCheckRow(panel, c, checkbox, null, spinnerArea);
     }
 
     /**
-     * Adds a row: [checkbox | middleComponent | spinner]. Use this overload
-     * when the middle column should contain a button (e.g., undo) instead
-     * of a spacer.
+     * Adds a row: [checkbox | middleComponent | spinnerArea]. Use this
+     * overload when the middle column should contain a button (e.g., undo)
+     * instead of a spacer.
      */
     private void addCheckRow(final JPanel panel, final GridBagConstraints c,
                              final JCheckBox checkbox, final JComponent middle,
-                             final JSpinner spinner) {
+                             final JComponent spinnerArea) {
         c.gridx = 0;
         c.weightx = 1.0;
-        if (spinner == null) {
+        if (spinnerArea == null) {
             // Checkbox-only row: span all columns
             c.gridwidth = GridBagConstraints.REMAINDER;
             panel.add(checkbox, c);
@@ -1284,12 +1373,49 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             c.weightx = 0.0;
             c.gridwidth = 1;
             panel.add(Objects.requireNonNullElseGet(middle, () -> Box.createHorizontalStrut(undoButtonWidth)), c);
-            // Column 2: spinner
+            // Column 2: spinner area (spinner alone, or spinner + histogram button)
             c.gridx = 2;
             c.gridwidth = GridBagConstraints.REMAINDER;
-            panel.add(spinner, c);
+            panel.add(spinnerArea, c);
         }
         c.gridy++;
+    }
+
+    /**
+     * Packs a spinner with a trailing histogram button into a single cell. The
+     * button is placed at the row's end so all spinners remain visually
+     * aligned across the panel. The spinner's text-field width is also tightened
+     * here (default SpinnerNumberModel columns are wider than needed for our
+     * value ranges) so the histogram button doesn't squeeze the checkbox label.
+     */
+    private JComponent spinnerWithHistogram(final JSpinner spinner, final JButton histButton) {
+        tightenSpinner(spinner);
+        if (histButton == null) return spinner;
+        final JPanel p = new JPanel(new BorderLayout(0, 0));
+        p.setOpaque(false);
+        p.add(spinner, BorderLayout.CENTER);
+        p.add(histButton, BorderLayout.EAST);
+        return p;
+    }
+
+    /**
+     * Reduces a spinner's editor to a compact column count. All curation
+     * spinners hold short numeric values (typically 3-5 characters); the
+     * default of ~9 columns wastes horizontal space and pushes the checkbox
+     * label into truncation.
+     */
+    private static void tightenSpinner(final JSpinner spinner) {
+        if (spinner == null) return;
+        final JComponent editor = spinner.getEditor();
+        if (editor instanceof JSpinner.DefaultEditor de) {
+            de.getTextField().setColumns(4);
+        }
+    }
+
+    /** Snapshot of the paths currently visible to the Path Manager. */
+    private java.util.Collection<Path> currentPaths() {
+        if (sntui == null || sntui.plugin == null) return java.util.Collections.emptyList();
+        return sntui.plugin.getPathAndFillManager().getPathsFiltered();
     }
 
     /**
