@@ -109,7 +109,7 @@ public class PlausibilityCalibrator {
                         final PlausibilityCheck.RadiusContinuity chk = monitor.getLiveCheck(PlausibilityCheck.RadiusContinuity.class);
                         if (chk != null) chk.setMaxRatio(s.computedValue);
                     }
-                    case "Terminal branch length" -> {
+                    case "Terminal path length" -> {
                         final PlausibilityCheck.TerminalBranchLength chk = monitor.getLiveCheck(PlausibilityCheck.TerminalBranchLength.class);
                         if (chk != null) chk.setMinLengthUm(s.computedValue);
                     }
@@ -125,11 +125,11 @@ public class PlausibilityCalibrator {
                         final PlausibilityCheck.PathOverlap chk = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
                         if (chk != null) chk.setProximityUm(s.computedValue);
                     }
-                    case "Radius jumps" -> {
+                    case "Thickness jumps" -> {
                         final PlausibilityCheck.RadiusJumps chk = monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
                         if (chk != null) chk.setMaxJumpRatio(s.computedValue);
                     }
-                    case "Radius monotonicity" -> {
+                    case "Thickness inversions" -> {
                         final PlausibilityCheck.RadiusMonotonicity chk = monitor.getDeepCheck(PlausibilityCheck.RadiusMonotonicity.class);
                         if (chk != null) chk.setMinIncreasingRun((int) Math.round(s.computedValue));
                     }
@@ -313,7 +313,7 @@ public class PlausibilityCalibrator {
                 stats.addValue(path.getLength());
             }
         }
-        addSummary(result, "Terminal branch length", "Min. length",
+        addSummary(result, "Terminal path length", "Min. length",
                 stats, lowerPercentile);
     }
 
@@ -395,7 +395,7 @@ public class PlausibilityCalibrator {
                 }
             }
         }
-        addSummary(result, "Radius jumps", "Max. jump ratio",
+        addSummary(result, "Thickness jumps", "Max. jump ratio",
                 stats, upperPercentile);
     }
 
@@ -418,7 +418,7 @@ public class PlausibilityCalibrator {
                 if (runLength > 0) stats.addValue(runLength);
             }
         }
-        addSummary(result, "Radius monotonicity", "Max. increasing run",
+        addSummary(result, "Thickness inversions", "Max. increasing run",
                 stats, upperPercentile);
     }
 
@@ -543,6 +543,11 @@ public class PlausibilityCalibrator {
         if (cr != null) {
             entries.put("constantRadii.enabled", String.valueOf(cr.isEnabled()));
         }
+        final PlausibilityCheck.InterForkDistance ifd = monitor.getLiveCheck(PlausibilityCheck.InterForkDistance.class);
+        if (ifd != null) {
+            entries.put("interForkDistance.minDistance", String.valueOf(ifd.getMinDistanceUm()));
+            entries.put("interForkDistance.enabled", String.valueOf(ifd.isEnabled()));
+        }
 
         // Deep checks
         final PlausibilityCheck.PathOverlap po = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
@@ -564,6 +569,42 @@ public class PlausibilityCalibrator {
         if (sq != null) {
             entries.put("signalQuality.minContrast", String.valueOf(sq.getMinContrast()));
             entries.put("signalQuality.enabled", String.valueOf(sq.isEnabled()));
+        }
+        final PlausibilityCheck.UncertainTerminal ut = monitor.getDeepCheck(PlausibilityCheck.UncertainTerminal.class);
+        if (ut != null) {
+            entries.put("uncertainTerminal.minTipContrast", String.valueOf(ut.getMinTipContrast()));
+            entries.put("uncertainTerminal.tailNodes", String.valueOf(ut.getTailNodes()));
+            entries.put("uncertainTerminal.enabled", String.valueOf(ut.isEnabled()));
+        }
+        final PlausibilityCheck.IntensityValley iv = monitor.getDeepCheck(PlausibilityCheck.IntensityValley.class);
+        if (iv != null) {
+            // Property key keeps the class-name root (intensityValley) for stability
+            // even though the user-facing label was renamed to "Path signal quality dips".
+            entries.put("intensityValley.minProminence", String.valueOf(iv.getMinProminence()));
+            entries.put("intensityValley.enabled", String.valueOf(iv.isEnabled()));
+        }
+        final PlausibilityCheck.TerminalNearAncestor tna = monitor.getDeepCheck(PlausibilityCheck.TerminalNearAncestor.class);
+        if (tna != null) {
+            entries.put("terminalNearAncestor.maxProximity", String.valueOf(tna.getMaxProximityUm()));
+            entries.put("terminalNearAncestor.enabled", String.valueOf(tna.isEnabled()));
+        }
+        final PlausibilityCheck.BoundaryProximity bp = monitor.getDeepCheck(PlausibilityCheck.BoundaryProximity.class);
+        if (bp != null) {
+            // Off by default and not exposed in the GUI; still serialized so scripts/presets can opt in.
+            entries.put("boundaryProximity.minVoxels", String.valueOf(bp.getMinVoxelsFromBoundary()));
+            entries.put("boundaryProximity.enabled", String.valueOf(bp.isEnabled()));
+        }
+        final PlausibilityCheck.ZExtentRatio ze = monitor.getDeepCheck(PlausibilityCheck.ZExtentRatio.class);
+        if (ze != null) {
+            entries.put("zExtentRatio.minRatio", String.valueOf(ze.getMinRatio()));
+            entries.put("zExtentRatio.enabled", String.valueOf(ze.isEnabled()));
+        }
+        final PlausibilityCheck.BundledPaths bd = monitor.getDeepCheck(PlausibilityCheck.BundledPaths.class);
+        if (bd != null) {
+            entries.put("bundledPaths.maxParallelAngle", String.valueOf(bd.getMaxParallelAngleDeg()));
+            entries.put("bundledPaths.minRunNodes", String.valueOf(bd.getMinRunNodes()));
+            entries.put("bundledPaths.proximity", String.valueOf(bd.getProximityUm()));
+            entries.put("bundledPaths.enabled", String.valueOf(bd.isEnabled()));
         }
 
         // Monitor-level state
@@ -657,6 +698,11 @@ public class PlausibilityCalibrator {
         if (cr != null) {
             setEnabled(props, "constantRadii.enabled", cr::setEnabled);
         }
+        final PlausibilityCheck.InterForkDistance ifd = monitor.getLiveCheck(PlausibilityCheck.InterForkDistance.class);
+        if (ifd != null) {
+            setDouble(props, "interForkDistance.minDistance", ifd::setMinDistanceUm);
+            setEnabled(props, "interForkDistance.enabled", ifd::setEnabled);
+        }
 
         // Deep checks
         final PlausibilityCheck.PathOverlap po = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
@@ -678,6 +724,39 @@ public class PlausibilityCalibrator {
         if (sq != null) {
             setDouble(props, "signalQuality.minContrast", sq::setMinContrast);
             setEnabled(props, "signalQuality.enabled", sq::setEnabled);
+        }
+        final PlausibilityCheck.UncertainTerminal ut = monitor.getDeepCheck(PlausibilityCheck.UncertainTerminal.class);
+        if (ut != null) {
+            setDouble(props, "uncertainTerminal.minTipContrast", ut::setMinTipContrast);
+            setInt(props, "uncertainTerminal.tailNodes", ut::setTailNodes);
+            setEnabled(props, "uncertainTerminal.enabled", ut::setEnabled);
+        }
+        final PlausibilityCheck.IntensityValley iv = monitor.getDeepCheck(PlausibilityCheck.IntensityValley.class);
+        if (iv != null) {
+            setDouble(props, "intensityValley.minProminence", iv::setMinProminence);
+            setEnabled(props, "intensityValley.enabled", iv::setEnabled);
+        }
+        final PlausibilityCheck.TerminalNearAncestor tna = monitor.getDeepCheck(PlausibilityCheck.TerminalNearAncestor.class);
+        if (tna != null) {
+            setDouble(props, "terminalNearAncestor.maxProximity", tna::setMaxProximityUm);
+            setEnabled(props, "terminalNearAncestor.enabled", tna::setEnabled);
+        }
+        final PlausibilityCheck.BoundaryProximity bp = monitor.getDeepCheck(PlausibilityCheck.BoundaryProximity.class);
+        if (bp != null) {
+            setDouble(props, "boundaryProximity.minVoxels", bp::setMinVoxelsFromBoundary);
+            setEnabled(props, "boundaryProximity.enabled", bp::setEnabled);
+        }
+        final PlausibilityCheck.ZExtentRatio ze = monitor.getDeepCheck(PlausibilityCheck.ZExtentRatio.class);
+        if (ze != null) {
+            setDouble(props, "zExtentRatio.minRatio", ze::setMinRatio);
+            setEnabled(props, "zExtentRatio.enabled", ze::setEnabled);
+        }
+        final PlausibilityCheck.BundledPaths bd = monitor.getDeepCheck(PlausibilityCheck.BundledPaths.class);
+        if (bd != null) {
+            setDouble(props, "bundledPaths.maxParallelAngle", bd::setMaxParallelAngleDeg);
+            setInt(props, "bundledPaths.minRunNodes", bd::setMinRunNodes);
+            setDouble(props, "bundledPaths.proximity", bd::setProximityUm);
+            setEnabled(props, "bundledPaths.enabled", bd::setEnabled);
         }
 
         // Monitor-level state (only present in session files, not calibration presets)

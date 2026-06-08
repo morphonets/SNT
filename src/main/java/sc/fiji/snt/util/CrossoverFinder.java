@@ -187,6 +187,7 @@ public class CrossoverFinder {
         final double medDist = median(dists);
         final double medAng = median(angles);
         if (cfg.thetaMinDeg > 0 && medAng < cfg.thetaMinDeg) return Optional.empty();
+        if (cfg.thetaMaxDeg > 0 && medAng > cfg.thetaMaxDeg) return Optional.empty();
         final Vector3d c = mean(midpoints);
 
         final Set<Path> participants = new LinkedHashSet<>(Arrays.asList(A, B));
@@ -398,6 +399,17 @@ public class CrossoverFinder {
         double thetaMinDeg = 0.0;
 
         /**
+         * Maximum crossing angle in <b>degrees</b> allowed for an event to be accepted.
+         * Pairs whose angle exceeds this value are rejected. Symmetric inverse
+         * of {@link #thetaMinDeg}: setting a low {@code thetaMaxDeg} (e.g.,
+         * {@code 20}) keeps only nearly‑parallel near‑pairs, which is useful
+         * for detecting bundled paths (used by {@code BundleDetector}). Set
+         * to {@code 0} to disable.
+         * <p>Default: {@code 0.0} (disabled).</p>
+         */
+        double thetaMaxDeg = 0.0;
+
+        /**
          * Minimum number of consecutive near node‑pairs (monotonic in both paths)
          * required to form a candidate window. Higher values increase robustness by
          * requiring a short “track” of proximity. Note: single‑pair windows may still
@@ -455,6 +467,17 @@ public class CrossoverFinder {
          */
         public Config thetaMinDeg(final double v) {
             this.thetaMinDeg = Math.max(0, v);
+            return this;
+        }
+
+        /**
+         * Sets {@link #thetaMaxDeg}.
+         *
+         * @param v maximum crossing angle in degrees; {@code < 0} is clamped to {@code 0} (disables filtering)
+         * @return this config (for chaining)
+         */
+        public Config thetaMaxDeg(final double v) {
+            this.thetaMaxDeg = Math.max(0, v);
             return this;
         }
 
@@ -519,6 +542,7 @@ public class CrossoverFinder {
                     + ", minRunNodes=" + minRunNodes
                     + ", includeSelfCrossovers=" + includeSelfCrossovers
                     + ", thetaMinDeg=" + thetaMinDeg
+                    + ", thetaMaxDeg=" + thetaMaxDeg
                     + ", sameCTOnly=" + sameCTOnly
                     + ", nodeWitnessRadius=" + nodeWitnessRadius + "}";
         }

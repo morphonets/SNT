@@ -870,6 +870,11 @@ public class AnalysisUtils {
 				} else {
 					nBins = (int) Math.ceil((max - min) / binWidth);
 				}
+				// Cap nBins to protect against exaggeration when the distribution has a heavy tail or an extreme
+				// outlier: Freedman-Diaconis picks the bin width robustly from the IQR,  but the bin count uses
+				// (max - min), which is not robust. A single outlier can push nBins into the tens of thousands
+				// The cap (1.5x the formal square-root rule) keeps the count proportional to the data
+				nBins = Math.min(nBins, (int) Math.ceil(1.5 * Math.sqrt(n)));
 				nBins = Math.max(1, nBins);
 			}
 		}

@@ -208,9 +208,8 @@ public final class CurationHistograms {
             new GuiUtils(parent).centeredMsg(msg, WordUtils.capitalizeFully(checkName));
             return;
         }
-
-        final boolean polar = checkName != null && (checkName.toLowerCase().contains("angle")
-                || checkName.toLowerCase().contains("°") || checkName.toLowerCase().contains("direction"));
+        final boolean polar = m.unit() != null && m.unit().contains("°") ||
+                checkName != null && (checkName.toLowerCase().contains("angle") || checkName.toLowerCase().contains("direction"));
         final SNTChart chart = (polar) ?
                 SNTChart.getPolarHistogram(m.values(), m.metric(), m.unit())
                 : SNTChart.getHistogram(m.values(), m.metric(), m.unit());

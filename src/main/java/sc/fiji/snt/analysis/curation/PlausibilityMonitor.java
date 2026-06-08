@@ -97,14 +97,21 @@ public class PlausibilityMonitor {
         liveChecks.add(new PlausibilityCheck.RadiusContinuity());
         liveChecks.add(new PlausibilityCheck.ConstantRadii());
         liveChecks.add(new PlausibilityCheck.TerminalBranchLength());
+        liveChecks.add(new PlausibilityCheck.InterForkDistance());
         liveChecks.add(new PlausibilityCheck.SomaDistance());
         liveChecks.add(new PlausibilityCheck.TortuosityConsistency());
 
         // Deep checks: ordered: most impactful first
         deepChecks.add(new PlausibilityCheck.PathOverlap());
+        deepChecks.add(new PlausibilityCheck.BundledPaths());
+        deepChecks.add(new PlausibilityCheck.TerminalNearAncestor());
         deepChecks.add(new PlausibilityCheck.RadiusJumps());
         deepChecks.add(new PlausibilityCheck.RadiusMonotonicity());
+        deepChecks.add(new PlausibilityCheck.BoundaryProximity());
+        deepChecks.add(new PlausibilityCheck.ZExtentRatio());
         deepChecks.add(new PlausibilityCheck.SignalQuality());
+        deepChecks.add(new PlausibilityCheck.UncertainTerminal());
+        deepChecks.add(new PlausibilityCheck.IntensityValley());
     }
 
     /**
@@ -432,6 +439,19 @@ public class PlausibilityMonitor {
             sq.setImage(imageData);
             sq.setImageStats(imageMin, imageMax);
         }
+        final PlausibilityCheck.BoundaryProximity bp = getDeepCheck(PlausibilityCheck.BoundaryProximity.class);
+        if (bp != null) bp.setImage(imageData);
+        final PlausibilityCheck.UncertainTerminal ut = getDeepCheck(PlausibilityCheck.UncertainTerminal.class);
+        if (ut != null) {
+            ut.setImage(imageData);
+            ut.setImageStats(imageMin, imageMax);
+            // Re-wire the peer on every push so toggling SignalQuality's
+            // enabled state mid-session propagates: when sq is disabled the
+            // peer-borrow predicate skips it and ut falls back to own stats.
+            ut.setSignalQualityPeer(sq);
+        }
+        final PlausibilityCheck.IntensityValley iv = getDeepCheck(PlausibilityCheck.IntensityValley.class);
+        if (iv != null) iv.setImage(imageData);
     }
 
     /**

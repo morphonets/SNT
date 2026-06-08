@@ -32,6 +32,7 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ProfileProcessor;
+import sc.fiji.snt.tracing.CrossSectionUtils;
 import sc.fiji.snt.util.CrossoverFinder;
 import sc.fiji.snt.util.PointInImage;
 
@@ -634,6 +635,17 @@ public final class PlausibilityCheck {
 
         private double maxDistUm = 500.0;
 
+        public SomaDistance() {
+            // Off by default: the check's diagnostic value is genuinely
+            // limited (Path Manager's tree view already shows disconnected
+            // primaries, SWC validators like xyz2swc handle topology
+            // compliance, and multi-cell collections produce false positives
+            // when one cell's soma isn't tagged). Kept registered so scripts
+            // and .curation presets can still enable it; just not exposed in
+            // the GUI.
+            setEnabled(false);
+        }
+
         @Override
         public String getName() { return "Soma distance"; }
 
@@ -727,12 +739,10 @@ public final class PlausibilityCheck {
         public String getName() { return "Constant radii"; }
 
         /**
-         * No meaningful impact metric for this check. ConstantRadii is a
-         * data-completeness flag, not a morphological one: the path's
-         * geometry is fine, the user just hasn't run Fit Volumes (or set
-         * radii manually) yet. Reporting an impact fraction would suggest
-         * structural consequences that don't apply. Em dash is the honest
-         * display.
+         * No meaningful impact metric for this check. ConstantRadii is a data-completeness flag, not a
+         * morphological one: the path's geometry is fine, the user just hasn't run path fitting (or set
+         * radii manually) yet. Reporting an impact fraction would suggest structural consequences that
+         * don't apply.
          */
         @Override
         public ImpactKind impactKind() { return ImpactKind.NONE; }
@@ -758,13 +768,92 @@ public final class PlausibilityCheck {
         }
     }
 
-    /** Warns when a terminal branch is suspiciously short. */
+    /**
+     * Warns when two consecutive forks on the same parent path are
+     * implausibly close together. Catches the misclick pattern where the
+     * user accidentally created two forks at nearly the same location, or
+     * cases where a fitted radius collapsed a single fork into two.
+     */
+    public static class InterForkDistance extends LiveCheck {
+
+        private double minDistanceUm = 5.0;
+
+        @Override
+        public String getName() { return "Inter-fork distance"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
+        public void setMinDistanceUm(final double um) { this.minDistanceUm = um; }
+        public double getMinDistanceUm() { return minDistanceUm; }
+
+        @Override
+        public List<Warning> check(final Path parent, final Path child, final int branchIndex) {
+            if (parent == null || child == null) return Collections.emptyList();
+            if (branchIndex < 0 || branchIndex >= parent.size()) return Collections.emptyList();
+            // Find the next-most-distal fork point on the parent (a node
+            // whose index hosts another child branching off). We need access
+            // to all of parent's children: any child whose branch index sits
+            // before ours on the parent is a candidate; pick the closest.
+            final List<Path> siblings = parent.getChildren();
+            if (siblings == null || siblings.size() < 2) return Collections.emptyList();
+            double minNeighborDist = Double.MAX_VALUE;
+            for (final Path sib : siblings) {
+                if (sib == null || sib == child) continue;
+                final int sibIdx = sib.getBranchPointIndex();
+                if (sibIdx < 0 || sibIdx == branchIndex) continue;
+                final double d = parent.getNode(branchIndex).distanceTo(parent.getNode(sibIdx));
+                if (d < minNeighborDist) minNeighborDist = d;
+            }
+            if (minNeighborDist == Double.MAX_VALUE) return Collections.emptyList();
+            if (minNeighborDist < minDistanceUm) {
+                return List.of(new Warning(getName(), Severity.WARNING,
+                        String.format("Inter-fork distance too short: %.2fµm (min %.2fµm)",
+                                minNeighborDist, minDistanceUm),
+                        parent.getNode(branchIndex), List.of(parent, child),
+                        minNeighborDist, minDistanceUm));
+            }
+            return Collections.emptyList();
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            // For each parent path with at least two children, sort children
+            // by branch index and compute consecutive inter-fork distances.
+            // A path is "domain-eligible" only when it has 2+ children;
+            // single-child parents are filtered (not skipped).
+            for (final Path parent : paths) {
+                if (parent == null || parent.size() < 2) continue;
+                final List<Path> kids = parent.getChildren();
+                if (kids == null || kids.size() < 2) continue;
+                final List<Integer> indices = new ArrayList<>();
+                for (final Path k : kids) {
+                    if (k == null) continue;
+                    final int idx = k.getBranchPointIndex();
+                    if (idx >= 0 && idx < parent.size()) indices.add(idx);
+                }
+                if (indices.size() < 2) { skipped++; continue; }
+                Collections.sort(indices);
+                for (int i = 1; i < indices.size(); i++) {
+                    final PointInImage a = parent.getNode(indices.get(i - 1));
+                    final PointInImage b = parent.getNode(indices.get(i));
+                    vals.add(a.distanceTo(b));
+                }
+            }
+            return toMeasurements(vals, skipped, "Inter-fork distance", "µm", "internal segment");
+        }
+    }
+
+    /** Warns when a terminal path is suspiciously short. */
     public static class TerminalBranchLength extends LiveCheck {
 
         private double minLengthUm = 2.0;
 
         @Override
-        public String getName() { return "Terminal branch length"; }
+        public String getName() { return "Terminal path length"; }
 
         @Override
         public ImpactKind impactKind() { return ImpactKind.LOCAL; }
@@ -780,7 +869,7 @@ public final class PlausibilityCheck {
             final double length = child.getLength();
             if (length < minLengthUm) {
                 return List.of(new Warning(getName(), Severity.INFO,
-                        String.format("Terminal branch too short: %.2fµm (min %.2fµm)", length, minLengthUm),
+                        String.format("Terminal path too short: %.2fµm (min %.2fµm)", length, minLengthUm),
                         child.getNode(0), List.of(child), length, minLengthUm));
             }
             return Collections.emptyList();
@@ -799,7 +888,7 @@ public final class PlausibilityCheck {
                 if (path.getChildren() != null && !path.getChildren().isEmpty()) continue;
                 vals.add(path.getLength());
             }
-            return toMeasurements(vals, skipped, "Terminal branch length", "µm", "terminal branch");
+            return toMeasurements(vals, skipped, "Terminal path length", "µm", "terminal branch");
         }
     }
 
@@ -871,6 +960,101 @@ public final class PlausibilityCheck {
     }
 
     /**
+     * Detects regions where two unconnected paths run <em>parallel</em> to
+     * each other for an extended distance. Complementary to {@link PathOverlap}
+     * (which catches brief perpendicular near-crossings -- the X-shape):
+     * this check catches sustained parallel proximity (the ||-shape) that
+     * {@code CrossoverFinder}'s default high-angle filter intentionally
+     * discards. Wraps {@link sc.fiji.snt.util.BundleDetector}, which is
+     * itself a thin reuse layer over {@link CrossoverFinder} with an
+     * inverted angle filter.
+     * <p>
+     * Off by default. The check serves the "is this a duplicate trace?"
+     * curation question rather than the "did I miss a fork?" question
+     * served by {@code PathOverlap}. Bundled axons exist legitimately in
+     * many neuroanatomies (parallel fibers, callosal projections, optic
+     * tract), so the check will flag those as well -- it's an INFO prompt
+     * asking the user to verify, not an assertion of error.
+     */
+    public static class BundledPaths extends DeepCheck {
+
+        private double maxParallelAngleDeg = 20.0;
+        private int minRunNodes = 10;
+        private double proximityUm = 3.0;
+
+        public BundledPaths() {
+            setEnabled(false); // opt-in; noisy on legitimately-bundled biology
+        }
+
+        @Override
+        public String getName() { return "Bundled paths"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.SUBTREE; }
+
+        public void setMaxParallelAngleDeg(final double v) { this.maxParallelAngleDeg = v; }
+        public double getMaxParallelAngleDeg() { return maxParallelAngleDeg; }
+
+        public void setMinRunNodes(final int n) { this.minRunNodes = Math.max(1, n); }
+        public int getMinRunNodes() { return minRunNodes; }
+
+        public void setProximityUm(final double um) { this.proximityUm = um; }
+        public double getProximityUm() { return proximityUm; }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.size() < 2) return Collections.emptyList();
+            final sc.fiji.snt.util.BundleDetector.Config cfg = new sc.fiji.snt.util.BundleDetector.Config()
+                    .proximity(proximityUm)
+                    .maxParallelAngleDeg(maxParallelAngleDeg)
+                    .minRunNodes(minRunNodes);
+            final List<CrossoverFinder.CrossoverEvent> events;
+            try {
+                events = sc.fiji.snt.util.BundleDetector.find(paths, cfg);
+            } catch (final Exception e) {
+                return Collections.emptyList();
+            }
+            final List<Warning> warnings = new ArrayList<>(events.size());
+            for (final CrossoverFinder.CrossoverEvent ev : events) {
+                warnings.add(new Warning(getName(), Severity.INFO,
+                        String.format("Bundled run detected: %.1fµm apart, %.0f° angle (min run %d nodes)",
+                                ev.medianMinDist, ev.medianAngleDeg, minRunNodes),
+                        new PointInImage(ev.x, ev.y, ev.z),
+                        new ArrayList<>(ev.participants),
+                        ev.medianAngleDeg, maxParallelAngleDeg));
+            }
+            return warnings;
+        }
+
+        /**
+         * The measurement is each event's median angle: a histogram lets the
+         * user see how their {@code maxParallelAngleDeg} sits in the
+         * distribution of detected angles. Sweep at 2x the configured angle
+         * for context, so the histogram shows the tail beyond the threshold.
+         */
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.size() < 2) {
+                return Measurements.EMPTY.withHint(
+                        "This check needs at least two paths to look for sustained parallel proximity.");
+            }
+            final sc.fiji.snt.util.BundleDetector.Config cfg = new sc.fiji.snt.util.BundleDetector.Config()
+                    .proximity(proximityUm)
+                    .maxParallelAngleDeg(Math.min(90.0, maxParallelAngleDeg * 2.0))
+                    .minRunNodes(minRunNodes);
+            final List<CrossoverFinder.CrossoverEvent> events;
+            try {
+                events = sc.fiji.snt.util.BundleDetector.find(paths, cfg);
+            } catch (final Exception e) {
+                return Measurements.EMPTY;
+            }
+            final List<Double> vals = new ArrayList<>(events.size());
+            for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianAngleDeg);
+            return toMeasurements(vals, 0, "Bundle approach angle", "°", "bundled run", 0.0, 90.0);
+        }
+    }
+
+    /**
      * Detects abrupt radius jumps between adjacent nodes within a path.
      */
     public static class RadiusJumps extends DeepCheck {
@@ -878,7 +1062,7 @@ public final class PlausibilityCheck {
         private double maxJumpRatio = 3.0;
 
         @Override
-        public String getName() { return "Radius jumps"; }
+        public String getName() { return "Thickness jumps"; }
 
         public void setMaxJumpRatio(final double ratio) { this.maxJumpRatio = ratio; }
         public double getMaxJumpRatio() { return maxJumpRatio; }
@@ -936,7 +1120,7 @@ public final class PlausibilityCheck {
         private int minIncreasingRun = 10;
 
         @Override
-        public String getName() { return "Radius monotonicity"; }
+        public String getName() { return "Thickness inversions"; }
 
         public void setMinIncreasingRun(final int n) { this.minIncreasingRun = n; }
         public int getMinIncreasingRun() { return minIncreasingRun; }
@@ -1009,7 +1193,7 @@ public final class PlausibilityCheck {
                     "nodes", "monotonic run");
             return vals.isEmpty()
                     ? m.withHint("This check needs paths with fitted radii. Run " +
-                            "\"Fit Volumes...\" or set radii manually in the Path Manager.")
+                                 "Run \"Refine › Fit Paths...\" or set radii manually in the Path Manager.")
                     : m;
         }
     }
@@ -1040,7 +1224,7 @@ public final class PlausibilityCheck {
         private double imageMax = Double.NaN;
 
         @Override
-        public String getName() { return "Image signal quality"; }
+        public String getName() { return "Path signal quality"; }
 
         /**
          * Sets the minimum signal-to-background contrast ratio below which
@@ -1236,42 +1420,9 @@ public final class PlausibilityCheck {
          * @return the contrast ratio, or {@link Double#NaN} when the path cannot be evaluated (too few nodes,
          *         no image, or insufficient samples). Callers should treat NaN as "not assessable".
          */
-        @SuppressWarnings({ "unchecked", "rawtypes" })
         private double contrastFor(final Path path) {
-            if (path == null || path.size() < 3 || image == null) return Double.NaN;
-            final SortedMap<Integer, List<Double>> rawValues;
-            try {
-                final ProfileProcessor pp = new ProfileProcessor(image, path);
-                pp.setShape(ProfileProcessor.Shape.LINE);
-                final int lineRadius = path.hasRadii()
-                        ? Math.max((int) Math.round(path.getMeanRadius() * 3), 5)
-                        : 5;
-                pp.setRadius(lineRadius);
-                rawValues = pp.getRawValues(1);
-            } catch (final Exception e) {
-                return Double.NaN;
-            }
-            if (rawValues == null || rawValues.isEmpty()) return Double.NaN;
-            final DescriptiveStatistics ds = new DescriptiveStatistics();
-            for (final List<Double> nodeVals : rawValues.values()) {
-                for (final double v : nodeVals) {
-                    if (!Double.isNaN(v)) ds.addValue(v);
-                }
-            }
-            if (ds.getN() < 10) return Double.NaN;
-            final double p25 = ds.getPercentile(25);
-            final double p75 = ds.getPercentile(75);
-            final DescriptiveStatistics bgStats = new DescriptiveStatistics();
-            final DescriptiveStatistics sigStats = new DescriptiveStatistics();
-            for (final List<Double> nodeVals : rawValues.values()) {
-                for (final double v : nodeVals) {
-                    if (Double.isNaN(v)) continue;
-                    if (v <= p25) bgStats.addValue(v);
-                    else if (v >= p75) sigStats.addValue(v);
-                }
-            }
-            if (bgStats.getN() < 2 || sigStats.getN() < 2) return Double.NaN;
-            return (sigStats.getPercentile(50) + 1) / (bgStats.getPercentile(50) + 1);
+            if (path == null) return Double.NaN;
+            return contrastOverNodeRange(image, path, 0, path.size());
         }
 
         /**
@@ -1280,6 +1431,17 @@ public final class PlausibilityCheck {
          * even in auto mode.
          */
         public double getResolvedThreshold() { return resolveThreshold(); }
+
+        /**
+         * @return true when a full-volume scan has populated the min/max
+         *         intensity stats (i.e., {@link #prepareImage} has run).
+         *         Used by sibling checks (e.g., {@link UncertainTerminal})
+         *         to decide whether to borrow this check's resolved
+         *         threshold or scan the volume themselves.
+         */
+        public boolean hasValidStats() {
+            return !Double.isNaN(imageMin) && !Double.isNaN(imageMax) && imageMax > imageMin;
+        }
 
         @Override
         public Measurements measure(final Collection<Path> paths) {
@@ -1303,7 +1465,701 @@ public final class PlausibilityCheck {
         }
     }
 
-    static double mag(final double[] v) {
+    /**
+     * Flags terminal branches whose final few nodes have low signal/background
+     * contrast: the tip's spatial location is poorly determined because the
+     * neurite faded into the background before the trace stopped. Distinct
+     * from {@link SignalQuality} (whole-path contrast) and {@link BoundaryProximity}
+     * (FOV truncation) -- this check is tip-specific and image-based.
+     * <p>
+     * The check reuses the same contrast machinery as {@code SignalQuality}
+     * via {@link PlausibilityCheck#contrastOverNodeRange}, restricted to the
+     * last {@link #tailNodes} of each terminal. A naturally tapering ending
+     * with bright signal scores high contrast; a tip that fades into noise
+     * scores low.
+     */
+    public static class UncertainTerminal extends DeepCheck {
+
+        /** Sentinel value indicating the threshold should be auto-resolved. */
+        public static final double AUTO_THRESHOLD = -1.0;
+
+        private double minTipContrast = AUTO_THRESHOLD;
+        private int tailNodes = 5;
+        private RandomAccessibleInterval<? extends RealType<?>> image;
+        private double imageMin = Double.NaN;
+        private double imageMax = Double.NaN;
+        // Optional peer SignalQuality. When wired and ready, its resolved
+        // threshold is adopted rather than re-deriving from a duplicate scan.
+        private SignalQuality peer;
+
+        @Override
+        public String getName() { return "Tip signal quality"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
+        public void setMinTipContrast(final double v) { this.minTipContrast = v; }
+        public double getMinTipContrast() { return minTipContrast; }
+
+        public void setTailNodes(final int n) { this.tailNodes = Math.max(3, n); }
+        public int getTailNodes() { return tailNodes; }
+
+        /** Sets the image whose intensities define signal vs background. */
+        public void setImage(final RandomAccessibleInterval<? extends RealType<?>> image) {
+            this.image = image;
+        }
+
+        public boolean hasImage() { return image != null; }
+
+        /**
+         * Wires a peer {@link SignalQuality}. When set, {@link #resolveThreshold}
+         * prefers the peer's resolved threshold (provided the peer is enabled and
+         * has run {@link SignalQuality#prepareImage}). This avoids a duplicate
+         * full-volume scan and keeps the two checks numerically in sync.
+         * Pass {@code null} to disable peer borrowing.
+         */
+        public void setSignalQualityPeer(final SignalQuality peer) { this.peer = peer; }
+
+        /**
+         * Sets image-level statistics used to auto-compute the contrast threshold
+         * when {@link #getMinTipContrast()} == {@link #AUTO_THRESHOLD} and the peer
+         * cannot supply a value.
+         */
+        public void setImageStats(final double min, final double max) {
+            this.imageMin = min;
+            this.imageMax = max;
+        }
+
+        /**
+         * Sets the image and, if no peer can supply equivalent stats, scans the
+         * full volume to populate min/max. Mirrors {@link SignalQuality#prepareImage}.
+         * Skips the scan when a wired, enabled peer already has valid stats: in
+         * that case the peer's resolved threshold is reused, so rescanning would
+         * be wasted work.
+         * <p>
+         * Should always be called from a worker thread.
+         */
+        public void prepareImage(final RandomAccessibleInterval<? extends RealType<?>> rai) {
+            setImage(rai);
+            if (rai == null) {
+                this.imageMin = Double.NaN;
+                this.imageMax = Double.NaN;
+                return;
+            }
+            if (canBorrowFromPeer()) {
+                // No need for own stats: resolveThreshold defers to peer.
+                this.imageMin = Double.NaN;
+                this.imageMax = Double.NaN;
+                return;
+            }
+            final double[] mm = SignalQuality.scanMinMaxRaw(rai);
+            this.imageMin = mm[0];
+            this.imageMax = mm[1];
+        }
+
+        /**
+         * Whether the peer SignalQuality can supply a resolved threshold for the
+         * current image. The peer must be wired, enabled, currently hold an image,
+         * and have populated stats (i.e., already ran prepareImage).
+         */
+        private boolean canBorrowFromPeer() {
+            return peer != null && peer.isEnabled() && peer.hasImage() && peer.hasValidStats();
+        }
+
+        /**
+         * Resolves the effective contrast threshold. When the spinner is set to
+         * {@link #AUTO_THRESHOLD}, prefers the peer's resolved value; falls back
+         * to deriving from own image stats using the same formula as
+         * {@link SignalQuality}; final fallback is a conservative constant.
+         */
+        private double resolveThreshold() {
+            if (minTipContrast != AUTO_THRESHOLD) return minTipContrast;
+            if (canBorrowFromPeer()) return peer.getResolvedThreshold();
+            if (!Double.isNaN(imageMax) && !Double.isNaN(imageMin) && imageMax > imageMin) {
+                return (imageMax + 1.0) / (imageMin + 1.0) / 2.0;
+            }
+            return 1.2; // last-resort fallback when no stats are available
+        }
+
+        /** @return the resolved threshold (adopted from peer or derived from own stats). */
+        public double getResolvedThreshold() { return resolveThreshold(); }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty() || image == null) return Collections.emptyList();
+            final double threshold = resolveThreshold();
+            final List<Warning> warnings = new ArrayList<>();
+            for (final Path terminal : paths) {
+                if (!isTerminal(terminal)) continue;
+                if (terminal.size() < tailNodes) continue;
+                final double c = tipContrast(terminal);
+                if (Double.isNaN(c)) continue;
+                if (c < threshold) {
+                    final int tipIdx = terminal.size() - 1;
+                    warnings.add(new Warning(getName(), Severity.INFO,
+                            String.format("Low tip signal quality: contrast %.2f (min %.2f) in \"%s\"",
+                                    c, threshold, terminal.getName()),
+                            terminal.getNode(tipIdx), List.of(terminal),
+                            c, threshold));
+                }
+            }
+            return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            if (image == null) {
+                return toMeasurements(new ArrayList<>(), paths.size(),
+                        "Tip signal/background contrast", "ratio", "terminal branch")
+                        .withHint("Load an image first. This check needs image " +
+                                "data to estimate the signal/background ratio at " +
+                                "each terminal's tip.");
+            }
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path terminal : paths) {
+                if (!isTerminal(terminal)) continue;
+                if (terminal.size() < tailNodes) { skipped++; continue; }
+                final double c = tipContrast(terminal);
+                if (Double.isNaN(c)) { skipped++; continue; }
+                vals.add(c);
+            }
+            return toMeasurements(vals, skipped, "Tip signal/background contrast",
+                    "ratio", "terminal branch");
+        }
+
+        /** Terminal = path with no children. Mirrors other terminal-only checks. */
+        private static boolean isTerminal(final Path path) {
+            if (path == null) return false;
+            return path.getChildren() == null || path.getChildren().isEmpty();
+        }
+
+        /**
+         * Contrast computed over the last {@code tailNodes} of the terminal.
+         * Delegates to {@link PlausibilityCheck#contrastOverNodeRange} so the
+         * percentile/profile mechanics stay in sync with {@code SignalQuality}.
+         */
+        private double tipContrast(final Path path) {
+            return contrastOverNodeRange(image, path,
+                    path.size() - tailNodes, path.size());
+        }
+    }
+
+    /**
+     * Flags localized intensity valleys along a path's intensity profile:
+     * discrete dips of one or a few nodes whose intensity is markedly below
+     * the surrounding peaks. Useful for catching nodes that pass through
+     * ambiguous regions (low local signal flanked by bright signal on both
+     * sides) where the trace's exact position is suspect.
+     * <p>
+     * Detection mirrors the inverted form of
+     * {@code scipy.signal.find_peaks(prominence=...)}: for each candidate
+     * node, the prominence is computed as
+     * {@code (min(leftMax, rightMax) - intensity[i]) / min(leftMax, rightMax)}
+     * with the left/right maxima taken over a half-window around the
+     * candidate. Two-sided constraint (must be strictly below both window
+     * maxima) prevents flagging the start or end of a path's intensity
+     * profile. Adjacent candidates are merged into a single valley centered
+     * on the deepest node.
+     * <p>
+     * Off by default; intended to be enabled only on images where the
+     * pattern is meaningful (e.g., en-passant axons crossing dim regions).
+     */
+    public static class IntensityValley extends DeepCheck {
+
+        private double minProminence = 0.30;
+        private RandomAccessibleInterval<? extends RealType<?>> image;
+
+        public IntensityValley() {
+            setEnabled(false); // opt-in: typically only on certain images
+        }
+
+        @Override
+        public String getName() { return "Path signal quality dips"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
+        public void setMinProminence(final double v) { this.minProminence = v; }
+        public double getMinProminence() { return minProminence; }
+
+        public void setImage(final RandomAccessibleInterval<? extends RealType<?>> image) {
+            this.image = image;
+        }
+
+        public boolean hasImage() { return image != null; }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty() || image == null) return Collections.emptyList();
+            final List<Warning> warnings = new ArrayList<>();
+            for (final Path path : paths) {
+                if (path == null) continue;
+                for (final Valley v : findValleys(path)) {
+                    warnings.add(new Warning(getName(), Severity.INFO,
+                            String.format("Signal quality dip at node %d in \"%s\": signal drop %.2f (min %.2f)",
+                                    v.centroidIdx, path.getName(), v.prominence, minProminence),
+                            path.getNode(v.centroidIdx), List.of(path),
+                            v.prominence, minProminence));
+                }
+            }
+            return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            if (image == null) {
+                return toMeasurements(new ArrayList<>(), paths.size(),
+                        "Signal drop", "ratio", "dip")
+                        .withHint("Load an image first. This check needs image " +
+                                "data to detect localized signal-quality dips along each path.");
+            }
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null) continue;
+                if (path.size() < 3) { skipped++; continue; }
+                // Collect every detectable local minimum (prominence floor 0)
+                // rather than only those passing the user's threshold: otherwise
+                // raising the spinner above the data would zero out the histogram
+                // even though the underlying distribution is unchanged.
+                for (final Valley v : findValleys(path, 0.0)) vals.add(v.prominence);
+            }
+            return toMeasurements(vals, skipped, "Signal drop",
+                    "ratio", "dip", 0.0, 1.0);
+        }
+
+        /** Lightweight pair: centroid node index and that valley's relative prominence. */
+        private record Valley(int centroidIdx, double prominence) {}
+
+        /**
+         * Detects valleys along {@code path}'s intensity profile. Samples
+         * one intensity per node via {@link ProfileProcessor#profilePathNodes}
+         * (the same path-intensity helper used by {@link sc.fiji.snt.analysis.PathProfiler}),
+         * then delegates minimum detection to {@link CrossSectionUtils#findMinima1D},
+         * the inverse symmetric counterpart of {@code findMaxima1D}.
+         * <p>
+         * The user threshold {@code minProminence} is interpreted as a
+         * fraction of the path's brightest node: it is converted to an
+         * absolute prominence ({@code pathMax * minProminence}) before
+         * being passed to the detector. Reported per-valley prominence is
+         * the depth below {@code pathMax}, also as a fraction.
+         */
+        private List<Valley> findValleys(final Path path) {
+            return findValleys(path, minProminence);
+        }
+
+        /**
+         * Variant that lets the caller pick the prominence floor independently
+         * of {@link #minProminence}. {@code scan()} uses the user's threshold
+         * (only valleys deep enough to warn); {@code measure()} passes 0.0 so
+         * the histogram reflects the full candidate distribution irrespective
+         * of where the user has set the warning cutoff.
+         *
+         * @param relProminenceFloor relative prominence floor (fraction of
+         *                           the path's brightest node); use 0.0 to
+         *                           collect every strict local minimum
+         */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private List<Valley> findValleys(final Path path, final double relProminenceFloor) {
+            if (path == null || path.size() < 3) return Collections.emptyList();
+            // Sample one intensity per node via the existing utility
+            final double[] doubleProfile;
+            try {
+                doubleProfile = ProfileProcessor.profilePathNodes(
+                        (RandomAccessibleInterval) image, path, new double[path.size()]);
+            } catch (final Exception e) {
+                return Collections.emptyList();
+            }
+            double pathMax = Double.NEGATIVE_INFINITY;
+            for (final double v : doubleProfile) {
+                if (!Double.isNaN(v) && v > pathMax) pathMax = v;
+            }
+            if (pathMax <= 0 || pathMax == Double.NEGATIVE_INFINITY) return Collections.emptyList();
+            // CrossSectionUtils.findMinima1D works on float[] with an absolute
+            // prominence threshold. Convert the relative floor (fraction of
+            // pathMax) to absolute units.
+            final float[] floatProfile = new float[doubleProfile.length];
+            for (int i = 0; i < floatProfile.length; i++) {
+                final double v = doubleProfile[i];
+                floatProfile[i] = Double.isNaN(v) ? Float.NaN : (float) v;
+            }
+            final double absoluteProm = pathMax * relProminenceFloor;
+            final int[] indices = CrossSectionUtils.findMinima1D(floatProfile, absoluteProm);
+            final List<Valley> valleys = new ArrayList<>(indices.length);
+            for (final int idx : indices) {
+                // Report prominence as depth below pathMax, as a fraction.
+                // This is a slightly different metric than the saddle-walk
+                // prominence used during detection (which uses the lower
+                // saddle, not the path max), but it's the more intuitive
+                // value for users and is bounded by the saddle-walk value
+                // from above -- i.e., passing the threshold guarantees this
+                // reported value is at least as large.
+                final double relProm = (pathMax - doubleProfile[idx]) / pathMax;
+                valleys.add(new Valley(idx, relProm));
+            }
+            return valleys;
+        }
+    }
+
+    /**
+     * Flags terminal branches whose endpoint sits suspiciously close to a
+     * node on a non-ancestor path. Pattern: the user traced two paths that
+     * should really have been one branching event off a shared ancestor;
+     * the terminal "ends" near the ancestor it should have forked off of.
+     * Direct parents and ancestors are excluded from the proximity check
+     * (it's normal for a terminal to be near its own parent right after the
+     * fork), so we only flag "stranger" proximity.
+     */
+    public static class TerminalNearAncestor extends DeepCheck {
+
+        private double maxProximityUm = 3.0;
+
+        @Override
+        public String getName() { return "Missed-fork candidate"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
+        public void setMaxProximityUm(final double um) { this.maxProximityUm = um; }
+        public double getMaxProximityUm() { return maxProximityUm; }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.size() < 2) return Collections.emptyList();
+            final List<Warning> warnings = new ArrayList<>();
+            for (final Path terminal : paths) {
+                if (terminal == null || terminal.size() < 1) continue;
+                if (terminal.getChildren() != null && !terminal.getChildren().isEmpty()) continue;
+                final double d = nearestNonAncestorDistance(terminal, paths);
+                if (Double.isNaN(d)) continue;
+                if (d < maxProximityUm) {
+                    warnings.add(new Warning(getName(), Severity.INFO,
+                            String.format("Missed-fork candidate: terminal endpoint %.2fµm from a non-ancestor path (max %.2fµm)",
+                                    d, maxProximityUm),
+                            terminal.getNode(terminal.size() - 1), List.of(terminal),
+                            d, maxProximityUm));
+                }
+            }
+            return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.size() < 2) {
+                return Measurements.EMPTY.withHint(
+                        "This check needs at least two paths so terminal endpoints have non-ancestor neighbors to compare against.");
+            }
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path terminal : paths) {
+                if (terminal == null || terminal.size() < 1) { skipped++; continue; }
+                if (terminal.getChildren() != null && !terminal.getChildren().isEmpty()) continue;
+                final double d = nearestNonAncestorDistance(terminal, paths);
+                if (Double.isNaN(d)) { skipped++; continue; }
+                vals.add(d);
+            }
+            return toMeasurements(vals, skipped, "Distance to nearest non-ancestor", "µm", "terminal branch");
+        }
+
+        /**
+         * Returns the smallest distance between {@code terminal}'s endpoint
+         * and any node on a path that is not {@code terminal}'s parent,
+         * grandparent, etc. Returns {@link Double#NaN} when no other
+         * candidate path exists in the collection.
+         */
+        private static double nearestNonAncestorDistance(final Path terminal,
+                                                         final Collection<Path> paths) {
+            final PointInImage tip = terminal.getNode(terminal.size() - 1);
+            // Build the ancestor chain so we can exclude it cheaply.
+            final java.util.Set<Path> ancestors = new java.util.HashSet<>();
+            ancestors.add(terminal);
+            Path walk = terminal.getParentPath();
+            while (walk != null) {
+                ancestors.add(walk);
+                walk = walk.getParentPath();
+            }
+            double best = Double.POSITIVE_INFINITY;
+            for (final Path other : paths) {
+                if (other == null || ancestors.contains(other)) continue;
+                for (int i = 0; i < other.size(); i++) {
+                    final double d = tip.distanceTo(other.getNode(i));
+                    if (d < best) best = d;
+                }
+            }
+            return (best == Double.POSITIVE_INFINITY) ? Double.NaN : best;
+        }
+    }
+
+    /**
+     * Flags terminal branches whose endpoint lies suspiciously close to the
+     * image's field-of-view boundary. Pattern: the trace was truncated by
+     * the imaging window, not by an actual neurite ending. The check
+     * requires image data so it knows the FOV dimensions.
+     */
+    public static class BoundaryProximity extends DeepCheck {
+
+        private double minVoxelsFromBoundary = 1.0;
+        private RandomAccessibleInterval<? extends RealType<?>> image;
+
+        public BoundaryProximity() {
+            // Off by default: during interactive tracing the user already
+            // sees when a neurite runs into the FOV edge. The check earns
+            // its keep in batch/scripting contexts (e.g., validating
+            // imported SWCs against the source image), so the class stays
+            // registered and can be enabled programmatically.
+            setEnabled(false);
+        }
+
+        @Override
+        public String getName() { return "Boundary proximity"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
+        public void setMinVoxelsFromBoundary(final double v) { this.minVoxelsFromBoundary = v; }
+        public double getMinVoxelsFromBoundary() { return minVoxelsFromBoundary; }
+
+        /** Sets the image whose FOV dimensions are used as the reference. */
+        public void setImage(final RandomAccessibleInterval<? extends RealType<?>> image) {
+            this.image = image;
+        }
+
+        public boolean hasImage() { return image != null; }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty() || image == null) return Collections.emptyList();
+            final long[] dims = imageDims();
+            final List<Warning> warnings = new ArrayList<>();
+            for (final Path terminal : paths) {
+                if (terminal == null || terminal.size() < 1) continue;
+                if (terminal.getChildren() != null && !terminal.getChildren().isEmpty()) continue;
+                final double d = endpointBoundaryDistance(terminal, dims);
+                if (Double.isNaN(d)) continue;
+                if (d < minVoxelsFromBoundary) {
+                    warnings.add(new Warning(getName(), Severity.INFO,
+                            String.format("Terminal endpoint near image boundary: %.2f voxels (min %.2f)",
+                                    d, minVoxelsFromBoundary),
+                            terminal.getNode(terminal.size() - 1), List.of(terminal),
+                            d, minVoxelsFromBoundary));
+                }
+            }
+            return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            if (image == null) {
+                return toMeasurements(new ArrayList<>(), paths.size(),
+                        "Distance to image boundary", "voxels", "terminal branch")
+                        .withHint("Load an image first. This check measures " +
+                                "terminal-endpoint distance to the field-of-view edge.");
+            }
+            final long[] dims = imageDims();
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path terminal : paths) {
+                if (terminal == null || terminal.size() < 1) { skipped++; continue; }
+                if (terminal.getChildren() != null && !terminal.getChildren().isEmpty()) continue;
+                final double d = endpointBoundaryDistance(terminal, dims);
+                if (Double.isNaN(d)) { skipped++; continue; }
+                vals.add(d);
+            }
+            return toMeasurements(vals, skipped, "Distance to image boundary", "voxels", "terminal branch");
+        }
+
+        private long[] imageDims() {
+            final long[] dims = new long[Math.max(2, image.numDimensions())];
+            for (int i = 0; i < image.numDimensions() && i < dims.length; i++)
+                dims[i] = image.dimension(i);
+            return dims;
+        }
+
+        /**
+         * Distance (in voxels) from {@code terminal}'s endpoint to the
+         * nearest image edge. Computed in voxel coordinates rather than
+         * physical units so the threshold is invariant to image calibration.
+         */
+        private static double endpointBoundaryDistance(final Path terminal, final long[] dims) {
+            // Voxel coordinates (Double variants preserve sub-voxel precision)
+            // are the right metric for FOV proximity since the FOV is itself
+            // a voxel grid, independent of physical calibration.
+            final int tipIdx = terminal.size() - 1;
+            final double xV = terminal.getXUnscaledDouble(tipIdx);
+            final double yV = terminal.getYUnscaledDouble(tipIdx);
+            final double zV = terminal.getZUnscaledDouble(tipIdx);
+            // Distance to each face in voxel units; min across all faces is
+            // the answer. dims[i] - 1 is the index of the last voxel in dim i.
+            double min = Math.min(xV, dims[0] - 1 - xV);
+            min = Math.min(min, Math.min(yV, dims[1] - 1 - yV));
+            if (dims.length >= 3 && dims[2] > 1) {
+                min = Math.min(min, Math.min(zV, dims[2] - 1 - zV));
+            }
+            return Math.max(0, min);
+        }
+    }
+
+    /**
+     * Flags paths whose Z-extent is implausibly small relative to their
+     * length. Pattern: the user traced in a single image slice instead of
+     * following the neurite through the stack. Caveat: legitimate flat
+     * arbors exist (RGC dendrites, some interneurons), so this check is
+     * disabled by default and is best enabled via a cell-type-specific
+     * preset. Also: if every path in the collection has zero Z-extent the
+     * dataset is treated as 2D and the check returns empty silently rather
+     * than flagging every path.
+     */
+    public static class ZExtentRatio extends DeepCheck {
+
+        private double minRatio = 0.01; // 1% of path length
+
+        public ZExtentRatio() {
+            setEnabled(false); // disabled by default; opt-in via preset or UI
+        }
+
+        @Override
+        public String getName() { return "Z-extent ratio"; }
+
+        @Override
+        public ImpactKind impactKind() { return ImpactKind.LOCAL; }
+
+        public void setMinRatio(final double r) { this.minRatio = r; }
+        public double getMinRatio() { return minRatio; }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Collections.emptyList();
+            if (datasetIs2D(paths)) return Collections.emptyList();
+            final List<Warning> warnings = new ArrayList<>();
+            for (final Path path : paths) {
+                if (path == null || path.size() < 3) continue;
+                final double ratio = zExtentRatio(path);
+                if (Double.isNaN(ratio)) continue;
+                if (ratio < minRatio) {
+                    final int mid = path.size() / 2;
+                    warnings.add(new Warning(getName(), Severity.INFO,
+                            String.format("Path is nearly flat in Z: ratio %.3f (min %.3f) in \"%s\"",
+                                    ratio, minRatio, path.getName()),
+                            path.getNode(mid), List.of(path), ratio, minRatio));
+                }
+            }
+            return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            if (datasetIs2D(paths)) {
+                return Measurements.EMPTY.withHint(
+                        "Dataset appears to be 2D (no path varies in Z); this check is skipped.");
+            }
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null || path.size() < 3) { skipped++; continue; }
+                final double ratio = zExtentRatio(path);
+                if (Double.isNaN(ratio)) { skipped++; continue; }
+                vals.add(ratio);
+            }
+            return toMeasurements(vals, skipped, "Z-extent / path length",
+                    "ratio", "path", 0.0, 1.0);
+        }
+
+        /** {@code (zMax - zMin) / pathLength}, or NaN when the path has zero length. */
+        private static double zExtentRatio(final Path path) {
+            double zMin = Double.POSITIVE_INFINITY;
+            double zMax = Double.NEGATIVE_INFINITY;
+            for (int i = 0; i < path.size(); i++) {
+                final double z = path.getNode(i).z;
+                if (z < zMin) zMin = z;
+                if (z > zMax) zMax = z;
+            }
+            final double length = path.getLength();
+            if (length <= 0) return Double.NaN;
+            return (zMax - zMin) / length;
+        }
+
+        /** True when every path's Z values are identical (i.e., dataset is effectively 2D). */
+        private static boolean datasetIs2D(final Collection<Path> paths) {
+            for (final Path p : paths) {
+                if (p == null) continue;
+                for (int i = 1; i < p.size(); i++) {
+                    if (p.getNode(i).z != p.getNode(0).z) return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    protected static double mag(final double[] v) {
         return Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    }
+
+    /**
+     * Computes the signal/background contrast ratio over a range of nodes in
+     * {@code path}. Mechanically identical to {@link SignalQuality#contrastFor}
+     * but restricts the sampled region to {@code [fromNode, toNode)}. Shared
+     * by {@link SignalQuality} (whole-path mode) and {@link UncertainTerminal}
+     * (tip-window mode) so the two checks always agree on what "contrast"
+     * means.
+     * <p>
+     * Returns {@link Double#NaN} when the range cannot be assessed (fewer
+     * than 3 nodes in the window, image missing, profile sampling threw,
+     * insufficient pixels for the quartile split).
+     *
+     * @param image    image data; {@code null} yields NaN
+     * @param path     the path being sampled
+     * @param fromNode inclusive lower node index (clamped to 0)
+     * @param toNode   exclusive upper node index (clamped to {@code path.size()})
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    static double contrastOverNodeRange(final RandomAccessibleInterval<? extends RealType<?>> image,
+                                        final Path path, final int fromNode, final int toNode) {
+        if (path == null || image == null) return Double.NaN;
+        final int lo = Math.max(0, fromNode);
+        final int hi = Math.min(path.size(), toNode);
+        if (hi - lo < 3) return Double.NaN; // LINE shape skips first/last; need >=3 nodes
+        final java.util.SortedMap<Integer, List<Double>> rawValues;
+        try {
+            final ProfileProcessor pp = new ProfileProcessor((RandomAccessibleInterval) image, path);
+            pp.setShape(ProfileProcessor.Shape.LINE);
+            final int lineRadius = path.hasRadii()
+                    ? Math.max((int) Math.round(path.getMeanRadius() * 3), 5)
+                    : 5;
+            pp.setRadius(lineRadius);
+            rawValues = pp.getRawValues(1);
+        } catch (final Exception e) {
+            return Double.NaN;
+        }
+        if (rawValues == null || rawValues.isEmpty()) return Double.NaN;
+
+        // Restrict to the requested node window. subMap(lo, hi) gives nodes
+        // in [lo, hi) -- matches the inclusive/exclusive convention.
+        final java.util.SortedMap<Integer, List<Double>> window = rawValues.subMap(lo, hi);
+        if (window.isEmpty()) return Double.NaN;
+        final DescriptiveStatistics ds = new DescriptiveStatistics();
+        for (final List<Double> nodeVals : window.values()) {
+            for (final double v : nodeVals) {
+                if (!Double.isNaN(v)) ds.addValue(v);
+            }
+        }
+        if (ds.getN() < 10) return Double.NaN;
+        final double p25 = ds.getPercentile(25);
+        final double p75 = ds.getPercentile(75);
+        final DescriptiveStatistics bgStats = new DescriptiveStatistics();
+        final DescriptiveStatistics sigStats = new DescriptiveStatistics();
+        for (final List<Double> nodeVals : window.values()) {
+            for (final double v : nodeVals) {
+                if (Double.isNaN(v)) continue;
+                if (v <= p25) bgStats.addValue(v);
+                else if (v >= p75) sigStats.addValue(v);
+            }
+        }
+        if (bgStats.getN() < 2 || sigStats.getN() < 2) return Double.NaN;
+        return (sigStats.getPercentile(50) + 1) / (bgStats.getPercentile(50) + 1);
     }
 }

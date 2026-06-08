@@ -382,6 +382,62 @@ public final class CrossSectionUtils {
     }
 
     /**
+     * Finds local minima in a 1D profile using prominence-based filtering.
+     * Symmetric inversion of {@link #findMaxima1D}: a sample is a local
+     * minimum if it is strictly less than both its neighbors (ignoring NaN)
+     * and its prominence (the height it would need to climb to escape the
+     * basin and reach a deeper minimum, or the profile boundary) exceeds
+     * the threshold.
+     * <p>
+     * Useful for detecting localized intensity valleys along a path's
+     * intensity profile -- the inverse of finding peaks.
+     *
+     * @param profile    the 1D intensity profile (may contain NaN for masked regions)
+     * @param prominence minimum prominence threshold (absolute units; same
+     *                   scale as {@code profile})
+     * @return array of indices into {@code profile} where minima were found
+     */
+    public static int[] findMinima1D(final float[] profile, final double prominence) {
+        final java.util.List<Integer> minima = new java.util.ArrayList<>();
+        final int n = profile.length;
+
+        for (int i = 1; i < n - 1; i++) {
+            if (Float.isNaN(profile[i])) continue;
+
+            // Find valid left and right neighbors (skip NaN)
+            int li = i - 1;
+            while (li >= 0 && Float.isNaN(profile[li])) li--;
+            int ri = i + 1;
+            while (ri < n && Float.isNaN(profile[ri])) ri++;
+
+            if (li < 0 || ri >= n) continue;
+            if (profile[i] >= profile[li] || profile[i] >= profile[ri]) continue;
+
+            // Compute prominence: walk each direction to find the maximum
+            // before reaching a lower minimum or the edge.
+            float leftMax = profile[i];
+            for (int j = i - 1; j >= 0; j--) {
+                if (Float.isNaN(profile[j])) continue;
+                if (profile[j] < profile[i]) break;
+                leftMax = Math.max(leftMax, profile[j]);
+            }
+            float rightMax = profile[i];
+            for (int j = i + 1; j < n; j++) {
+                if (Float.isNaN(profile[j])) continue;
+                if (profile[j] < profile[i]) break;
+                rightMax = Math.max(rightMax, profile[j]);
+            }
+            // Prominence = lower saddle - valley (i.e., the shallower escape route)
+            final float prom = Math.min(leftMax, rightMax) - profile[i];
+            if (prom >= prominence) {
+                minima.add(i);
+            }
+        }
+
+        return minima.stream().mapToInt(Integer::intValue).toArray();
+    }
+
+    /**
      * Paints an annular cross-section into a 3D output image. For each pixel in
      * the annulus (between {@code innerRadius} and {@code outerRadius} in grid
      * space), the corresponding voxel in the output image is set to

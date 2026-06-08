@@ -390,7 +390,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	private List<Integer> getChannels() {
 		if (channelString == null || channelString.trim().isEmpty() || "all".equalsIgnoreCase(channelString.trim()))
 			return getAllChannels();
-		final List<String> stringChannels = new ArrayList<>(Arrays.asList(channelString.split("\\s*(,|\\s)\\s*")));
+		final List<String> stringChannels = new ArrayList<>(Arrays.asList(channelString.split("\\s*([,\\s])\\s*")));
 		final List<Integer> validChannels = new ArrayList<>();
 		for (final String chString : stringChannels) {
 			try {
@@ -531,7 +531,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	public int[] findMaxima(final Path path, final int channel) {
 		final double[] profile = getValues(path, channel).get(PathProfiler.Y_VALUES).stream().mapToDouble(d -> d).toArray();
 		final SummaryStatistics stats = new SummaryStatistics();
-		Arrays.stream(profile).forEach(v -> stats.addValue(v));
+		Arrays.stream(profile).forEach(stats::addValue);
 		return MaximumFinder.findMaxima(profile, stats.getStandardDeviation(), false);
 	}
 
@@ -548,7 +548,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	public int[] findMinima(final Path path, final int channel) {
 		final double[] profile = getValues(path, channel).get(PathProfiler.Y_VALUES).stream().mapToDouble(d -> d).toArray();
 		final SummaryStatistics stats = new SummaryStatistics();
-		Arrays.stream(profile).forEach(v -> stats.addValue(v));
+		Arrays.stream(profile).forEach(stats::addValue);
 		return MaximumFinder.findMinima(profile, stats.getStandardDeviation(), false);
 	}
 

@@ -2932,7 +2932,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String APPEND_ALL_CHILDREN_CMD = "Append All Children To Selection";
         private static final String APPEND_DIRECT_CHILDREN_CMD = "Append Direct Children To Selection";
         private static final String ASSIGN_DISTINCT_COLORS = "Distinct Colors";
-        private static final String ASSIGN_CUSTOM_COLOR = "Other...";
+        private static final String ASSIGN_CUSTOM_COLOR = "Other... "; // must be unique: space to differentiate CUSTOM_TAG_CMD
         private static final String COLORS_MENU = "Color";
         private static final String DELETE_CMD = "Delete...";
         private static final String AUTO_CONNECT_CMD = "Auto-connect...";
@@ -4202,7 +4202,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             double minDist = p1StartToP2;
             Path suggestedParent = p2;
             Path suggestedChild = p1;
-            boolean childStartIsCloser = true;
+            boolean childStartIsCloser;
 
             if (p1EndToP2 < minDist) {
                 minDist = p1EndToP2;
@@ -5994,9 +5994,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 tagsMap.keySet().forEach( tagName -> saveTagColor(tagName, null));
                 tagsMap.clear();
                 initializeTagColors();
-                colorButtons.forEach( (tagName, button) -> {
-                    button.setSelectedColor(tagsMap.get(tagName), true);
-                });
+                colorButtons.forEach( (tagName, button) -> button.setSelectedColor(tagsMap.get(tagName), true));
             });
             panel.add(resetButton, c);
 
