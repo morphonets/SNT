@@ -30,8 +30,12 @@ import sc.fiji.snt.gui.GuiUtils;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -63,6 +67,12 @@ public final class CurationHistograms {
          */
         OUTSIDE_FLAGGED
     }
+
+    /**
+     * Tracks the currently open histogram popup for each check, keyed by {@code checkName}. Used to enforce
+     * one-instance-per-check window
+     */
+    private static final Map<String, SNTChart> openHistograms = new HashMap<>();
 
     private CurationHistograms() {
     } // static utility
@@ -195,7 +205,7 @@ public final class CurationHistograms {
                                       final Component parent) {
         if (m == null || m.isEmpty()) {
             final String msg = getNoHistErrorMsg(checkName, m);
-            new GuiUtils(parent).centeredMsg(msg, checkName);
+            new GuiUtils(parent).centeredMsg(msg, WordUtils.capitalizeFully(checkName));
             return;
         }
 
@@ -248,6 +258,24 @@ public final class CurationHistograms {
             }
         }
         chart.annotate(m.formatCounts());
+        // One-instance-per-check window management: if a previous popup for this check is still open, dispose it
+        // before showing the new one.
+        final SNTChart previous = openHistograms.put(checkName, chart);
+        if (previous != null && previous != chart) {
+            try {
+                previous.dispose();
+            } catch (final Exception ignored) {
+                // do nothing if the previous chart was already manually closed
+            }
+        }
+        // Keep the map clean on manual close so the next click for this check doesn't try to dispose an
+        // already-disposed chart.
+        chart.getFrame().addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(final WindowEvent e) {
+                openHistograms.remove(checkName, chart);
+            }
+        });
         chart.show();
     }
 
