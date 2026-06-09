@@ -1221,22 +1221,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             onDemandButton.setEnabled(true);
             return;
         }
-        // Signal quality requires an image. Instead of aborting the entire scan when no image is loaded, soft-disable
-        // just this check and proceed with the rest. The user gets a non-blocking status update explaining why;
-        // they can re-enable manually after loading an image
-        final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
-        if (sq != null && sq.isEnabled() && sntui.plugin.getLoadedData() == null) {
-            // Untick the checkbox AND fire its listener so the underlying check is also disabled. Using
-            // doClick() toggles the selected state and triggers all registered action listeners in one call
-            sntui.error("\"Min. signal contrast ratio\" disabled: It requires a loaded image.");
-            if (signalQualityCheckbox.isSelected()) signalQualityCheckbox.doClick(0);
-            // If SignalQuality was the only enabled parameter, there's nothing left to scan.
-            // Re-check after auto-disabling
-            if (noParametersSelected()) {
-                onDemandButton.setEnabled(true);
-                return;
-            }
+        // Image-requiring checks: when no image is loaded, soft-disable each
+        // one (rather than aborting the scan) and proceed with the rest.
+        if (disableImageDependentChecksIfNoImage()) {
+            onDemandButton.setEnabled(true);
+            return;
         }
+        final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
         // Provide image context for checks that need it (e.g., SignalQuality)
         monitor.setImageData(sntui.plugin.getLoadedData());
         // Ensure image statistics are available for auto-threshold. If not yet
@@ -1805,6 +1796,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Set initial enabled state
         if (spinner != null) {
             spinner.setEnabled(cb.isSelected());
+            enableLiveCommit(spinner);
         }
         cb.addActionListener(e -> {
             final boolean sel = cb.isSelected();
@@ -1812,6 +1804,20 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             else if (check instanceof PlausibilityCheck.DeepCheck dc) dc.setEnabled(sel);
             if (spinner != null) spinner.setEnabled(sel);
         });
+    }
+
+    /**
+     * Configures the spinner's editor so typed values commit on every valid keystroke rather than only on
+     * Enter / focus loss / arrow click. Fixes the case where typing a new threshold and then clicking the
+     * histogram button (or running a full scan) would otherwise use the previously-committed value.
+     */
+    private static void enableLiveCommit(final JSpinner spinner) {
+        if (spinner.getEditor() instanceof JSpinner.DefaultEditor de) {
+            final javax.swing.JFormattedTextField tf = de.getTextField();
+            if (tf.getFormatter() instanceof javax.swing.text.DefaultFormatter df) {
+                df.setCommitsOnValidEdit(true);
+            }
+        }
     }
 
     @Override
@@ -1924,31 +1930,29 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     }
 
     private static String getDocAnchor(final String checkName) {
-        // Anchor strings here must match the auto-generated header IDs in
-        // curation.md (Jekyll/kramdown: lowercase, strip punctuation, replace
-        // spaces with hyphens). Update both sides together when renaming
-        // sections in the docs.
+        // Anchor strings here must match the auto-generated header IDs in curation.md (Jekyll/kramdown:
+        // all lowercase, strip punctuation, replace spaces with hyphens).
         return switch (checkName) {
             // Live checks
-            case "Branch angle" -> "#min-fork-angle-";
-            case "Direction continuity" -> "#max-direction-change-at-fork-";
-            case "Radius continuity" -> "#max-ratio-of-radius-change-at-fork";
-            case "Inter-fork distance" -> "#min-inter-fork-distance";
-            case "Terminal path length" -> "#min-length-of-terminal-paths";
-            case "Tortuosity consistency" -> "#max-tortuosity-mismatch-at-fork";
-            case "Constant radii" -> "#flag-paths-with-uniform-radii";
+            case "Branch angle" -> "#fork-angle-min-";
+            case "Direction continuity" -> "#fork-direction-flow-max-change-";
+            case "Radius continuity" -> "#radius-continuity-max-ratio-at-fork";
+            case "Inter-fork distance" -> "#inter-fork-distance-min";
+            case "Terminal path length" -> "#terminal-paths-min-length";
+            case "Tortuosity consistency" -> "#tortuosity-max-mismatch-at-fork";
+            case "Constant radii" -> "#uniform-thickness-flag";
             // On-demand (deep) checks
-            case "Path overlap" -> "#max-proximity-for-path-cross-overs";
-            case "Bundled paths" -> "#max-proximity-for-bundled-paths";
-            case "Missed-fork candidate" -> "#min-distance-for-missed-fork-candidates";
-            case "Z-extent ratio" -> "#min-z-extent-ratio";
-            case "Thickness jumps" -> "#max-ratio-of-abrupt-thickness-changes";
-            case "Thickness inversions" -> "#min-run-length-for-thickness-inversions";
-            case "Path signal quality" -> "#min-signal-contrast-ratio";
-            case "Tip signal quality" -> "#min-tip-signal-contrast-ratio";
-            case "Path signal quality dips" -> "#min-signal-quality-dip";
+            case "Path overlap" -> "#cross-over-detection-max-proximity";
+            case "Bundled paths" -> "#bundle-detection-max-angle-";
+            case "Missed-fork candidate" -> "#missed-fork-candidate-max-proximity";
+            case "Z-extent ratio" -> "#z-extent-min-ratio";
+            case "Thickness jumps" -> "#thickness-jumps-max-ratio";
+            case "Thickness inversions" -> "#thickness-inversions-min-run-length";
+            case "Path signal quality" -> "#path-signal-quality-min-contrast";
+            case "Tip signal quality" -> "#tip-signal-quality-min-contrast";
+            case "Path signal quality dips" -> "#path-signal-quality-dips-min-drop";
             // Scripting-only checks (no UI but Help on Issue... still routes here)
-            case "Soma distance" -> "#max-distance-from-soma-or-root";
+            case "Soma distance" -> "#max-distance-from-soma-root";
             case "Boundary proximity" -> "#min-distance-from-image-boundary";
             // Externally-contributed warnings (e.g. from the Seeds tab's
             // "Send Selected Seeds to Curation Assistant" submenu).
@@ -1985,6 +1989,45 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private boolean noParametersSelected() {
         return noParametersSelected(null, "");
+    }
+
+    /**
+     * Soft-disables any image-dependent on-demand check when no image is loaded: unticks the corresponding checkbox
+     * (and fires its listener via {@code doClick()} so the underlying {@code PlausibilityCheck}  also gets disabled),
+     * then surfaces a single consolidated error naming the disabled checks. Returns {@code true} when the caller
+     * should abort the scan because no enabled parameters remain after the auto-disable; {@code false} when the scan
+     * can proceed (either because an image is loaded, no image-based check was enabled, or other checks remain enabled).
+     */
+    private boolean disableImageDependentChecksIfNoImage() {
+        if (sntui.plugin.getLoadedData() != null) return false;
+        final List<String> disabled = new ArrayList<>(3);
+        autoDisableImageCheck(monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class),
+                signalQualityCheckbox, "Min. signal contrast ratio", disabled);
+        autoDisableImageCheck(monitor.getDeepCheck(PlausibilityCheck.UncertainTerminal.class),
+                uncertainTerminalCheckbox, "Min. tip signal contrast ratio", disabled);
+        autoDisableImageCheck(monitor.getDeepCheck(PlausibilityCheck.IntensityValley.class),
+                intensityValleyCheckbox, "Min. signal-quality dip", disabled);
+        if (disabled.isEmpty()) return false;
+        final String msg = (disabled.size() == 1)
+                ? "\"" + disabled.getFirst() + "\" disabled: it requires a loaded image."
+                : "The following validations were disabled because no image is loaded: " + String.join(", ", disabled) + ".";
+        sntui.error(msg);
+        // Re-check after auto-disabling: if every parameter is now off,
+        // the caller should abort the scan rather than running with nothing.
+        return noParametersSelected();
+    }
+
+    /**
+     * Helper for {@link #disableImageDependentChecksIfNoImage}: if the given image-dependent check is currently
+     * enabled, unticks its checkbox (firing the listener) and appends its display label to {@code tracker}.
+     * Does nothing if the check is null, already disabled, or the checkbox is null/unselected.
+     */
+    private static void autoDisableImageCheck(final PlausibilityCheck.DeepCheck check,
+                                              final JCheckBox checkbox, final String label,
+                                              final List<String> tracker) {
+        if (check == null || !check.isEnabled()) return;
+        if (checkbox != null && checkbox.isSelected()) checkbox.doClick(0);
+        tracker.add(label);
     }
 
     private boolean noParametersSelected(final List<JCheckBox> scope, final String category) {

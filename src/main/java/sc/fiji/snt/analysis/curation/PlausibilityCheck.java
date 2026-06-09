@@ -1027,10 +1027,9 @@ public final class PlausibilityCheck {
         }
 
         /**
-         * The measurement is each event's median angle: a histogram lets the
-         * user see how their {@code maxParallelAngleDeg} sits in the
-         * distribution of detected angles. Sweep at 2x the configured angle
-         * for context, so the histogram shows the tail beyond the threshold.
+         * The measurement is each detected proximity-run's median angle: the histogram lets the user see how
+         * their {@code maxParallelAngleDeg}  sits in the angle distribution. Sweep at the full 0-90° range so
+         * the histogram reflects the true distribution irrespective of the spinner value
          */
         @Override
         public Measurements measure(final Collection<Path> paths) {
@@ -1040,7 +1039,7 @@ public final class PlausibilityCheck {
             }
             final sc.fiji.snt.util.BundleDetector.Config cfg = new sc.fiji.snt.util.BundleDetector.Config()
                     .proximity(proximityUm)
-                    .maxParallelAngleDeg(Math.min(90.0, maxParallelAngleDeg * 2.0))
+                    .maxParallelAngleDeg(90.0)
                     .minRunNodes(minRunNodes);
             final List<CrossoverFinder.CrossoverEvent> events;
             try {
