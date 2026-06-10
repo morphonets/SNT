@@ -34,6 +34,7 @@ import net.imagej.axis.CalibratedAxis;
 import net.imagej.axis.DefaultLinearAxis;
 import net.imagej.axis.LinearAxis;
 import net.imglib2.*;
+import net.imglib2.RandomAccess;
 import net.imglib2.algorithm.stats.ComputeMinMax;
 import net.imglib2.converter.Converters;
 import net.imglib2.converter.RealUnsignedShortConverter;
@@ -42,7 +43,6 @@ import net.imglib2.Cursor;
 import net.imglib2.img.Img;
 import net.imglib2.img.ImgView;
 import net.imglib2.img.array.ArrayImgFactory;
-import net.imglib2.img.array.ArrayImgs;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.loops.LoopBuilder;
 import net.imglib2.type.NativeType;
@@ -54,7 +54,6 @@ import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.util.Intervals;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
-import org.jetbrains.annotations.UnknownNullability;
 import org.scijava.Context;
 import org.scijava.io.IOService;
 import sc.fiji.snt.SNTUtils;
@@ -1129,48 +1128,62 @@ public class ImgUtils {
     }
 
     /**
-     * Computes a max-intensity projection along the third dimension (Z) of a
-     * 3D image, returning a 2D {@link Img} with the same XY extent. For 2D
-     * inputs (2 dimensions or fewer), the source is projected trivially (the
-     * single plane is copied).
+     * Computes a type-preserving max-intensity projection along the Z axis of an {@link ImgPlus}.
+     * <p>
+     * The Z axis is located via {@link Axes#Z} metadata, falling back to dim 2 if no labeled Z axis is found. The input
+     * pixel type {@code T} is preserved in the output, and the non-Z axes' calibration is copied across.
+     * <p>
+     * If the source has no Z axis (e.g., a 2D image), the source is returned unchanged. If the Z axis exists but has
+     * depth 1, a 2D copy is returned.
      *
-     * @param <T>    pixel type
-     * @param source the input image (2D or 3D)
-     * @return a 2D max-intensity projection as an {@code Img<FloatType>}
+     * @param <T>    pixel type (must support comparison; satisfied by every  {@link RealType})
+     * @param source the input image
+     * @return a 2D max-intensity projection preserving {@code T}, or the original source if it has no Z axis
      */
-    public static <T extends RealType<T>> Img<FloatType> maxIntensityProjection(
-            final @UnknownNullability RandomAccessibleInterval<RealType<?>> source) {
+    public static <T extends RealType<T> & NativeType<T>> ImgPlus<T> maxIntensityProjection(final ImgPlus<T> source) {
+        if (source == null) throw new IllegalArgumentException("source cannot be null");
 
-        final long width = source.dimension(0);
-        final long height = source.dimension(1);
-        final long depth = source.numDimensions() > 2 ? source.dimension(2) : 1;
+        // Locate Z; if no labeled Z axis assume dim 2
+        int zIdx = -1;
+        for (int d = 0; d < source.numDimensions(); d++)
+            if (source.axis(d).type() == Axes.Z) { zIdx = d; break; }
+        if (zIdx < 0 && source.numDimensions() >= 3) zIdx = 2;
+        if (zIdx < 0) return source;
 
-        final Img<FloatType> mip = ArrayImgs.floats(width, height);
+        final long w = source.dimension(0);
+        final long h = source.dimension(1);
+        final long depth = source.dimension(zIdx);
 
-        // Initialize to -infinity
-        final Cursor<FloatType> initCursor = mip.cursor();
-        while (initCursor.hasNext()) {
-            initCursor.fwd();
-            initCursor.get().set(Float.NEGATIVE_INFINITY);
-        }
+        final ArrayImgFactory<T> factory = new ArrayImgFactory<>(source.getType());
+        final Img<T> mip = factory.create(w, h);
 
-        // Iterate over each Z-plane and keep the max
-        for (long z = 0; z < depth; z++) {
-            @SuppressWarnings("unchecked")
-            final RandomAccessibleInterval<T> slice = (depth > 1)
-                    ? (RandomAccessibleInterval<T>) Views.hyperSlice(source, 2, z) : (RandomAccessibleInterval<T>) source;
-            final Cursor<T> sliceCursor = Views.flatIterable(slice).cursor();
-            final Cursor<FloatType> mipCursor = mip.cursor();
-            while (sliceCursor.hasNext()) {
-                sliceCursor.fwd();
-                mipCursor.fwd();
-                final float val = sliceCursor.get().getRealFloat();
-                if (val > mipCursor.get().getRealFloat()) {
-                    mipCursor.get().set(val);
+        // Walk pixel by pixel; for the typical small slabs this is negligible
+        final RandomAccess<T> dst = mip.randomAccess();
+        final RandomAccess<T> src = source.randomAccess();
+        final T tmp = source.getType().createVariable();
+        for (long y = 0; y < h; y++) {
+            for (long x = 0; x < w; x++) {
+                src.setPosition(x, 0);
+                src.setPosition(y, 1);
+                src.setPosition(0L, zIdx);
+                tmp.set(src.get());
+                for (long z = 1; z < depth; z++) {
+                    src.setPosition(z, zIdx);
+                    if (src.get().compareTo(tmp) > 0) tmp.set(src.get());
                 }
+                dst.setPosition(x, 0);
+                dst.setPosition(y, 1);
+                dst.get().set(tmp);
             }
         }
-        return mip;
+        final ImgPlus<T> out = new ImgPlus<>(mip, source.getName() + "_MIP");
+        // Copy non-Z axes
+        int target = 0;
+        for (int d = 0; d < source.numDimensions() && target < 2; d++) {
+            if (d == zIdx) continue;
+            out.setAxis(source.axis(d).copy(), target++);
+        }
+        return out;
     }
 
     /**

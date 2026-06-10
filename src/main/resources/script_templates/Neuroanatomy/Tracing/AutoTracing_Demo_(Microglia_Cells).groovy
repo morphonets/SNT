@@ -19,7 +19,7 @@ import sc.fiji.snt.tracing.auto.*
 
 // Ensure we are running a compatible version & retrieve demo image
 snt.requireVersion("5.0.10")
-img = snt.demoImg("microglia") // ImgPlus object
+img = snt.demoImgPlus("microglia") // ImgPlus object
 
 // Step 1: Detect all somas in the image. These will serve as seeds for the
 // multi-cell reconstruction. Parameters:

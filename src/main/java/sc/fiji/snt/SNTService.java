@@ -670,16 +670,14 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
-	 * Returns one of the demo images bundled with SNT as an {@link ImgPlus}.
-	 * This is the imglib2 counterpart of {@link #demoImage(String)}.
+	 * Returns one of the demo images bundled with SNT as an {@link ImgPlus}. This is the imglib2 counterpart
+	 * of {@link #demoImage(String)}.
 	 *
-	 * @param img a string describing the type of demo image (same options as
-	 *            {@link #demoImage(String)})
-	 * @return the demo image as an ImgPlus, or null if data could not be
-	 *         retrieved or converted
+	 * @param img a string describing the type of demo image (same options as {@link #demoImage(String)})
+	 * @return the demo image as an ImgPlus, or null if data could not be retrieved or converted
 	 * @see #demoImage(String)
 	 */
-	public ImgPlus<?> demoImg(final String img) {
+	public ImgPlus<?> demoImgPlus(final String img) {
 		final ImagePlus imp = demoImage(img);
 		return (imp == null) ? null : ImpUtils.toImgPlus(imp);
 	}

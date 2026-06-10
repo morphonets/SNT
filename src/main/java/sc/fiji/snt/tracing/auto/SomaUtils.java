@@ -734,7 +734,7 @@ public class SomaUtils {
         } else {
             // Auto mode: detect on max-intensity projection
             SNTUtils.log("detectAllSomas: computing MIP from " + source.dimension(2) + " Z-planes...");
-            detectionPlane = ImgUtils.maxIntensityProjection((RandomAccessibleInterval<RealType<?>>) source);
+            detectionPlane = ImgUtils.maxIntensityProjection((ImgPlus) source);
         }
 
         final List<SomaResult> baseResults = detectAllSomas(detectionPlane, threshold, minRadius, minSomaDistance);
