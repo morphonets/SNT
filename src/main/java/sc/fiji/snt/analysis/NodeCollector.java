@@ -90,6 +90,7 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
     private int channel = -1;       // -1 -> infer from path (else 0)
     private int frame = -1;         // -1 -> infer from path (else 0)
     private boolean materialize = false;
+    private boolean pointsInPixelSpace = false;
     private Projection projection = Projection.NONE;
     private Function<SNTPoint, String> labelProvider;
 
@@ -191,6 +192,19 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
      */
     public NodeCollector<T> setMaterialize(final boolean materialize) {
         this.materialize = materialize;
+        return this;
+    }
+
+    /**
+     * If true, the {@code x/y/z} of input points are treated as pixel coordinates (no calibration conversion is
+     * performed).
+     * <p>
+     * If false (default), points are assumed to be in calibrated units; SNT points carrying an {@code onPath}
+     * reference are unscaled via the path's calibration, otherwise the image's axis metadata is used.
+     * </p>
+     */
+    public NodeCollector<T> setPointsInPixelSpace(final boolean pointsInPixelSpace) {
+        this.pointsInPixelSpace = pointsInPixelSpace;
         return this;
     }
 
@@ -379,6 +393,9 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
 
 
     private long[] toPixelCoords(final SNTPoint p) {
+        // Pixel-space override: use coords as-is (e.g., clicked points)
+        if (pointsInPixelSpace)
+            return new long[]{Math.round(p.getX()), Math.round(p.getY()), Math.round(p.getZ())};
         // Prefer Path-based unscaling when available (matches Path#getXUnscaled, etc.); fall back to ImgPlus axes
         if (p instanceof PointInImage pim && pim.onPath != null) {
             final PointInCanvas q = pim.getUnscaledPoint();

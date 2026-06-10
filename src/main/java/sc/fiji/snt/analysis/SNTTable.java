@@ -234,6 +234,17 @@ public class SNTTable extends DefaultGenericTable {
 		}
 	}
 
+	/** Case-/whitespace-insensitive column lookup. */
+	public int findColumnIndex(final String columnHeader) {
+		if (columnHeader == null) return -1;
+		final int direct = getColumnIndex(columnHeader);
+		if (direct >= 0) return direct;
+		final String target = columnHeader.toLowerCase().trim();
+		for (int i = 0; i < getColumnCount(); i++)
+			if (target.equals(getColumnHeader(i).toLowerCase().trim())) return i;
+		return -1;
+	}
+
 	/**
 	 * Checks if the table has unsaved data.
 	 * <p>
@@ -626,19 +637,15 @@ public class SNTTable extends DefaultGenericTable {
 		final boolean hasRowHeaders = table.getRowCount() > 0 && table.getRowHeader(0) != null;
 		if (hasRowHeaders)
 			sb.append("-").append(sep); // column header for row labels
-		IntStream.range(0, table.getColumnCount()).forEach( col -> {
-			sb.append(table.getColumnHeader(col)).append(sep);
-		});
+		IntStream.range(0, table.getColumnCount()).forEach( col -> sb.append(table.getColumnHeader(col)).append(sep));
 		sb.append("\n\r");
 		IntStream.rangeClosed(fRow, lRow).forEach( row -> {
 			if (hasRowHeaders)
 				sb.append(table.getRowHeader(row)).append(sep);
-			IntStream.range(0, table.getColumnCount()).forEach( col -> {
-				sb.append(table.get(col, row)).append(sep);
-			});
+			IntStream.range(0, table.getColumnCount()).forEach( col -> sb.append(table.get(col, row)).append(sep));
 			sb.append("\n\r");
 		});
-		return sb.toString().replaceAll("null", " ");
+		return sb.toString().replace("null", " ");
 	}
 
 	public static void save(final Table<?, ?> table, final char columnSep, final boolean saveColHeaders,
