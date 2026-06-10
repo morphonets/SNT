@@ -295,7 +295,7 @@ public final class PlausibilityCheck {
         /**
          * Declares how this check's errors propagate. Default {@code LOCAL} for deep checks because most deep checks
          * (radius jumps, monotonicity, signal quality) measure intrinsic per-path properties that don't propagate to
-         * descendants. Topology-class checks (e.g., {@code PathOverlap}) override to {@link ImpactKind#SUBTREE}.
+         * descendants. Topology-class checks (e.g., {@code Crossovers}) override to {@link ImpactKind#SUBTREE}.
          */
         public ImpactKind impactKind() { return ImpactKind.LOCAL; }
 
@@ -896,12 +896,24 @@ public final class PlausibilityCheck {
      * Detects paths that run very close to each other without being
      * topologically connected. Wraps {@link CrossoverFinder}.
      */
-    public static class PathOverlap extends DeepCheck {
+    /**
+     * Detects suspicious crossings between paths via {@link CrossoverFinder}:
+     * X-shape near-coincidences where two paths almost touch. Complementary
+     * to {@link BundledPaths} (||-shape parallel runs).
+     * <p>
+     * By default ignores self-crossovers (a path crossing itself) and
+     * direct parent/child overlap at fork points. Enable
+     * {@link #setIncludeSelfCrossovers(boolean)} to also catch paths that
+     * loop back through themselves.
+     * </p>
+     */
+    public static class Crossovers extends DeepCheck {
 
         private double proximityUm = 2.0;
+        private boolean includeSelfCrossovers = false;
 
         @Override
-        public String getName() { return "Path overlap"; }
+        public String getName() { return "Crossovers"; }
 
         @Override
         public ImpactKind impactKind() { return ImpactKind.SUBTREE; }
@@ -909,12 +921,21 @@ public final class PlausibilityCheck {
         public void setProximityUm(final double um) { this.proximityUm = um; }
         public double getProximityUm() { return proximityUm; }
 
+        /**
+         * If true, paths that cross themselves (loops back through their own
+         * trajectory) are also flagged. Default {@code false}: only
+         * between-path crossings are reported.
+         */
+        public void setIncludeSelfCrossovers(final boolean b) { this.includeSelfCrossovers = b; }
+        public boolean getIncludeSelfCrossovers() { return includeSelfCrossovers; }
+
         @Override
         public List<Warning> scan(final Collection<Path> paths) {
-            if (paths == null || paths.size() < 2) return Collections.emptyList();
+            if (paths == null || paths.isEmpty()) return Collections.emptyList();
+            if (paths.size() < 2 && !includeSelfCrossovers) return Collections.emptyList();
             final CrossoverFinder.Config cfg = new CrossoverFinder.Config()
                     .proximity(proximityUm)
-                    .includeSelfCrossovers(false)
+                    .includeSelfCrossovers(includeSelfCrossovers)
                     .includeDirectChildren(false)
                     .minRunNodes(2);
             final List<CrossoverFinder.CrossoverEvent> events = CrossoverFinder.find(paths, cfg);
@@ -938,20 +959,23 @@ public final class PlausibilityCheck {
          */
         @Override
         public Measurements measure(final Collection<Path> paths) {
-            final String pathOverlapHint = "This check needs at least two paths near each other to look for cross-overs.";
-            if (paths == null || paths.size() < 2) {
-                return Measurements.EMPTY.withHint(pathOverlapHint);
+            final String crossoversHint = "This check needs at least two paths near each other to look for cross-overs.";
+            if (paths == null || paths.isEmpty()) {
+                return Measurements.EMPTY.withHint(crossoversHint);
+            }
+            if (paths.size() < 2 && !includeSelfCrossovers) {
+                return Measurements.EMPTY.withHint(crossoversHint);
             }
             final CrossoverFinder.Config cfg = new CrossoverFinder.Config()
                     .proximity(proximityUm * 5.0)
-                    .includeSelfCrossovers(false)
+                    .includeSelfCrossovers(includeSelfCrossovers)
                     .includeDirectChildren(false)
                     .minRunNodes(2);
             final List<CrossoverFinder.CrossoverEvent> events;
             try {
                 events = CrossoverFinder.find(paths, cfg);
             } catch (final Exception e) {
-                return Measurements.EMPTY.withHint(pathOverlapHint);
+                return Measurements.EMPTY.withHint(crossoversHint);
             }
             final List<Double> vals = new ArrayList<>(events.size());
             for (final CrossoverFinder.CrossoverEvent ev : events) vals.add(ev.medianMinDist);
@@ -961,7 +985,7 @@ public final class PlausibilityCheck {
 
     /**
      * Detects regions where two unconnected paths run <em>parallel</em> to
-     * each other for an extended distance. Complementary to {@link PathOverlap}
+     * each other for an extended distance. Complementary to {@link Crossovers}
      * (which catches brief perpendicular near-crossings -- the X-shape):
      * this check catches sustained parallel proximity (the ||-shape) that
      * {@code CrossoverFinder}'s default high-angle filter intentionally
@@ -971,7 +995,7 @@ public final class PlausibilityCheck {
      * <p>
      * Off by default. The check serves the "is this a duplicate trace?"
      * curation question rather than the "did I miss a fork?" question
-     * served by {@code PathOverlap}. Bundled axons exist legitimately in
+     * served by {@code Crossovers}. Bundled axons exist legitimately in
      * many neuroanatomies (parallel fibers, callosal projections, optic
      * tract), so the check will flag those as well -- it's an INFO prompt
      * asking the user to verify, not an assertion of error.
@@ -2161,4 +2185,64 @@ public final class PlausibilityCheck {
         if (bgStats.getN() < 2 || sigStats.getN() < 2) return Double.NaN;
         return (sigStats.getPercentile(50) + 1) / (bgStats.getPercentile(50) + 1);
     }
+
+    /**
+     * Flags nodes whose radius is zero, negative, or {@code NaN}. These usually
+     * indicate radii that were never fitted (e.g., path edited after fitting)
+     * or that the fitter could not assess. Previously surfaced as a manual
+     * "Bookmark QC Locations" command in the Path Manager toolbar.
+     */
+    public static class InvalidRadius extends DeepCheck {
+
+        @Override
+        public String getName() { return "Invalid radius"; }
+
+        @Override
+        public List<Warning> scan(final Collection<Path> paths) {
+            if (paths == null) return Collections.emptyList();
+            final List<Warning> warnings = new ArrayList<>();
+            for (final Path path : paths) {
+                if (path == null || !path.hasRadii()) continue;
+                int count = 0;
+                int firstBad = -1;
+                for (int i = 0; i < path.size(); i++) {
+                    final double r = path.getNodeRadius(i);
+                    if (r <= 0d || Double.isNaN(r)) {
+                        if (firstBad < 0) firstBad = i;
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    warnings.add(new Warning(getName(), Severity.WARNING,
+                            String.format("%d node(s) with invalid radius in \"%s\"",
+                                    count, path.getName()),
+                            path.getNode(firstBad), List.of(path), count, 0));
+                }
+            }
+            return warnings;
+        }
+
+        @Override
+        public Measurements measure(final Collection<Path> paths) {
+            if (paths == null || paths.isEmpty()) return Measurements.EMPTY;
+            final List<Double> vals = new ArrayList<>();
+            int skipped = 0;
+            for (final Path path : paths) {
+                if (path == null || !path.hasRadii()) { skipped++; continue; }
+                int count = 0;
+                for (int i = 0; i < path.size(); i++) {
+                    final double r = path.getNodeRadius(i);
+                    if (r <= 0d || Double.isNaN(r)) count++;
+                }
+                vals.add((double) count);
+            }
+            final Measurements m = toMeasurements(vals, skipped,
+                    "Invalid-radius nodes per path", "count", "path");
+            return vals.isEmpty()
+                    ? m.withHint("This check needs paths with fitted radii. Run " +
+                                 "\"Refine → Fit Paths...\" or set radii manually in the Path Manager.")
+                    : m;
+        }
+    }
+
 }

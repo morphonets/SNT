@@ -586,7 +586,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		if (nodes.size() < 2) return 0;
 		
 		double totalLength = 0;
-		PathNode prevNode = nodes.get(0);
+		PathNode prevNode = nodes.getFirst();
 		for (int i = 1; i < nodes.size(); ++i) {
 			final PathNode currentNode = nodes.get(i);
 			final double xdiff = currentNode.x - prevNode.x;
@@ -947,7 +947,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		// Calculate angle between direction and reference vector
 		final double dotProduct = direction.dot(referenceVector);
 		// Clamp to [-1, 1] to handle floating point precision issues
-		final double clampedDot = Math.max(-1.0, Math.min(1.0, dotProduct));
+		final double clampedDot = Math.clamp(dotProduct, -1.0, 1.0);
 		final double angle = Math.acos(clampedDot);
 		
 		return Math.toDegrees(angle);
@@ -1254,9 +1254,29 @@ public class Path implements Comparable<Path>, Cloneable {
                         .max(java.util.Comparator.comparingDouble(Path.PathNode::getZ))
                         .orElse(null);
             }
-            default -> {
-                throw new IllegalArgumentException("unsupported filter");
+            case "min angle", "max angle" -> {
+                // Walk interior nodes (index >= 3 per Path#getAngle) tracking the chosen extremum.
+                // Returns null if no interior angle can be computed (size < 4 or all NaN).
+                final boolean wantMin = "min angle".equals(filter.toLowerCase().trim());
+                int bestIdx = -1;
+                double best = wantMin ? Double.POSITIVE_INFINITY : Double.NEGATIVE_INFINITY;
+                for (int i = 3; i < size(); i++) {
+                    final double a = getAngle(i);
+                    if (Double.isNaN(a)) continue;
+                    if (wantMin ? a < best : a > best) { best = a; bestIdx = i; }
+                }
+                return (bestIdx < 0) ? null : getNodeWithoutChecks(bestIdx);
             }
+            case "min value", "max value" -> {
+                // Requires intensity values to have been assigned via PathProfiler#assignValues
+                if (!hasNodeValues()) return null;
+                final boolean wantMin = "min value".equals(filter.toLowerCase().trim());
+                final java.util.Comparator<Path.PathNode> byV = java.util.Comparator.comparingDouble(n -> n.v);
+                return wantMin
+                        ? nodes.stream().filter(n -> !Double.isNaN(n.v)).min(byV).orElse(null)
+                        : nodes.stream().filter(n -> !Double.isNaN(n.v)).max(byV).orElse(null);
+            }
+            default -> throw new IllegalArgumentException("unsupported filter");
         }
     }
 
@@ -3254,7 +3274,7 @@ public class Path implements Comparable<Path>, Cloneable {
             }
 
             // Clamp to valid range
-            r = Math.max(clampMin, Math.min(clampMax, r));
+            r = Math.clamp(r, clampMin, clampMax);
 
             result.put(nodeIdx, r);
             if (apply) {
@@ -3884,7 +3904,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		
 		double totalVolume = 0;
 		// Cache node references to avoid repeated method calls
-		PathNode prevNode = nodes.get(0);
+		PathNode prevNode = nodes.getFirst();
 		for (int i = 1; i < nodes.size(); ++i) {
 			final PathNode currentNode = nodes.get(i);
 			
@@ -3924,7 +3944,7 @@ public class Path implements Comparable<Path>, Cloneable {
 		
 		double totalSurface = 0;
 		// Cache node references to avoid repeated method calls
-		PathNode prevNode = nodes.get(0);
+		PathNode prevNode = nodes.getFirst();
 		for (int i = 1; i < nodes.size(); ++i) {
 			final PathNode currentNode = nodes.get(i);
 			

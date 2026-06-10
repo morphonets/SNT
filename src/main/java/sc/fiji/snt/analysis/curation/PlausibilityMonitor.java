@@ -102,9 +102,10 @@ public class PlausibilityMonitor {
         liveChecks.add(new PlausibilityCheck.TortuosityConsistency());
 
         // Deep checks: ordered: most impactful first
-        deepChecks.add(new PlausibilityCheck.PathOverlap());
+        deepChecks.add(new PlausibilityCheck.Crossovers());
         deepChecks.add(new PlausibilityCheck.BundledPaths());
         deepChecks.add(new PlausibilityCheck.TerminalNearAncestor());
+        deepChecks.add(new PlausibilityCheck.InvalidRadius());
         deepChecks.add(new PlausibilityCheck.RadiusJumps());
         deepChecks.add(new PlausibilityCheck.RadiusMonotonicity());
         deepChecks.add(new PlausibilityCheck.BoundaryProximity());
@@ -343,7 +344,7 @@ public class PlausibilityMonitor {
      * further up the lineage; a cluster of small-impact warnings climbing a trunk is how upstream problems surface
      * visually, without needing to inflate any single warning's score.
      * <p>
-     * For warnings with no parent-child relation among participants (e.g., {@code PathOverlap}, where the
+     * For warnings with no parent-child relation among participants (e.g., {@code Crossovers}, where the
      * {@code CrossoverFinder} explicitly excludes direct children), we fall back to the maximum because the
      * two paths are symmetrically suspect.
      */

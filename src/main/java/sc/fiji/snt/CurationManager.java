@@ -98,6 +98,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JCheckBox terminalNearAncestorCheckbox;
     private JCheckBox radiusJumpsCheckbox;
     private JCheckBox radiusMonoCheckbox;
+    private JCheckBox invalidRadiusCheckbox;
     private JCheckBox zExtentCheckbox;
     private JCheckBox uncertainTerminalCheckbox;
     private JCheckBox intensityValleyCheckbox;
@@ -817,8 +818,8 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final int savedLeft = c.insets.left;
         c.insets.left += sectionChildIndent(onDemandHeaderCheckbox);
 
-        // Path overlap
-        final PlausibilityCheck.PathOverlap overlapCheck = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
+        // Crossovers
+        final PlausibilityCheck.Crossovers overlapCheck = monitor.getDeepCheck(PlausibilityCheck.Crossovers.class);
         // On-demand check UI controls
         overlapCheckbox = new JCheckBox("Cross-over detection: max proximity", overlapCheck != null && overlapCheck.isEnabled());
         overlapCheckbox.setToolTipText("Detects regions where distinct paths run suspiciously close, suggesting duplicate tracing");
@@ -829,7 +830,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             if (overlapCheck != null) overlapCheck.setProximityUm((Double) overlapSpinner.getValue());
         });
         final JButton overlapHist = (overlapCheck == null) ? null
-                : CurationHistograms.button("Path overlap",
+                : CurationHistograms.button("Crossovers",
                 paths -> monitor.measure(overlapCheck, paths),
                 this::currentPaths,
                 () -> ((Number) overlapSpinner.getValue()).doubleValue(),
@@ -934,6 +935,15 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
                 () -> ((Number) radiusMonoSpinner.getValue()).doubleValue(),
                 CurationHistograms.Side.RIGHT_FLAGGED, p);
         addCheckRow(p, c, radiusMonoCheckbox, spinnerWithHistogram(radiusMonoSpinner, radiusMonoHist));
+
+        // Invalid radii (zero/NaN) -- flag-only, no threshold
+        final PlausibilityCheck.InvalidRadius invalidRadiusCheck =
+                monitor.getDeepCheck(PlausibilityCheck.InvalidRadius.class);
+        invalidRadiusCheckbox = new JCheckBox("Invalid thickness: flag",
+                invalidRadiusCheck != null && invalidRadiusCheck.isEnabled());
+        invalidRadiusCheckbox.setToolTipText("Flags paths containing nodes with zero, negative, or NaN radius (typically un-fitted nodes)");
+        wireCheckbox(invalidRadiusCheckbox, null, invalidRadiusCheck);
+        addCheckRow(p, c, invalidRadiusCheckbox, null);
 
         // Image signal quality
         final PlausibilityCheck.SignalQuality signalCheck = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
@@ -1050,7 +1060,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         // Collect and wire section-level toggling
         onDemandCheckboxes = List.of(overlapCheckbox, bundledPathsCheckbox,
                 terminalNearAncestorCheckbox, zExtentCheckbox,
-                radiusJumpsCheckbox, radiusMonoCheckbox,
+                radiusJumpsCheckbox, radiusMonoCheckbox, invalidRadiusCheckbox,
                 signalQualityCheckbox, uncertainTerminalCheckbox,
                 intensityValleyCheckbox);
         wireSectionHeader(onDemandHeaderCheckbox, onDemandCheckboxes);
@@ -1542,11 +1552,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             constantRadiiCheckbox.setSelected(cr.isEnabled());
         }
         // Deep checks
-        final PlausibilityCheck.PathOverlap po = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
-        if (po != null) {
-            overlapSpinner.setValue(po.getProximityUm());
-            overlapCheckbox.setSelected(po.isEnabled());
-            overlapSpinner.setEnabled(po.isEnabled());
+        final PlausibilityCheck.Crossovers co = monitor.getDeepCheck(PlausibilityCheck.Crossovers.class);
+        if (co != null) {
+            overlapSpinner.setValue(co.getProximityUm());
+            overlapCheckbox.setSelected(co.isEnabled());
+            overlapSpinner.setEnabled(co.isEnabled());
         }
         final PlausibilityCheck.RadiusJumps rj = monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
         if (rj != null) {
@@ -1559,6 +1569,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             radiusMonoSpinner.setValue(rm.getMinIncreasingRun());
             radiusMonoCheckbox.setSelected(rm.isEnabled());
             radiusMonoSpinner.setEnabled(rm.isEnabled());
+        }
+        final PlausibilityCheck.InvalidRadius ir = monitor.getDeepCheck(PlausibilityCheck.InvalidRadius.class);
+        if (ir != null && invalidRadiusCheckbox != null) {
+            invalidRadiusCheckbox.setSelected(ir.isEnabled());
         }
         final PlausibilityCheck.SignalQuality sq =
                 monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
@@ -1942,12 +1956,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             case "Tortuosity consistency" -> "#tortuosity-max-mismatch-at-fork";
             case "Constant radii" -> "#uniform-thickness-flag";
             // On-demand (deep) checks
-            case "Path overlap" -> "#cross-over-detection-max-proximity";
+            case "Crossovers" -> "#cross-over-detection-max-proximity";
             case "Bundled paths" -> "#bundle-detection-max-angle-";
             case "Missed-fork candidate" -> "#missed-fork-candidate-max-proximity";
             case "Z-extent ratio" -> "#z-extent-min-ratio";
             case "Thickness jumps" -> "#thickness-jumps-max-ratio";
             case "Thickness inversions" -> "#thickness-inversions-min-run-length";
+            case "Invalid radius" -> "#invalid-thickness-flag";
             case "Path signal quality" -> "#path-signal-quality-min-contrast";
             case "Tip signal quality" -> "#tip-signal-quality-min-contrast";
             case "Path signal quality dips" -> "#path-signal-quality-dips-min-drop";

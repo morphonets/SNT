@@ -121,8 +121,8 @@ public class PlausibilityCalibrator {
                         final PlausibilityCheck.TortuosityConsistency chk = monitor.getLiveCheck(PlausibilityCheck.TortuosityConsistency.class);
                         if (chk != null) chk.setMaxContractionDiff(s.computedValue);
                     }
-                    case "Path overlap" -> {
-                        final PlausibilityCheck.PathOverlap chk = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
+                    case "Crossovers" -> {
+                        final PlausibilityCheck.Crossovers chk = monitor.getDeepCheck(PlausibilityCheck.Crossovers.class);
                         if (chk != null) chk.setProximityUm(s.computedValue);
                     }
                     case "Thickness jumps" -> {
@@ -221,7 +221,7 @@ public class PlausibilityCalibrator {
         calibrateTerminalBranchLength(result);
         calibrateSomaDistance(result);
         calibrateTortuosityConsistency(result);
-        calibratePathOverlap(result);
+        calibrateCrossovers(result);
         calibrateRadiusJumps(result);
         calibrateRadiusMonotonicity(result);
         // SignalQuality skipped: requires image data during calibration
@@ -354,7 +354,7 @@ public class PlausibilityCalibrator {
                 stats, upperPercentile);
     }
 
-    private void calibratePathOverlap(final CalibrationResult result) {
+    private void calibrateCrossovers(final CalibrationResult result) {
         final DescriptiveStatistics stats = new DescriptiveStatistics();
         for (final Tree tree : trees) {
             // Compute median inter-node distance for this tree
@@ -375,7 +375,7 @@ public class PlausibilityCalibrator {
                 stats.addValue(ev.medianMinDist);
             }
         }
-        addSummary(result, "Path overlap", "Cross-over proximity",
+        addSummary(result, "Crossovers", "Cross-over proximity",
                 stats, lowerPercentile);
     }
 
@@ -550,10 +550,11 @@ public class PlausibilityCalibrator {
         }
 
         // Deep checks
-        final PlausibilityCheck.PathOverlap po = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
-        if (po != null) {
-            entries.put("pathOverlap.proximity", String.valueOf(po.getProximityUm()));
-            entries.put("pathOverlap.enabled", String.valueOf(po.isEnabled()));
+        final PlausibilityCheck.Crossovers co = monitor.getDeepCheck(PlausibilityCheck.Crossovers.class);
+        if (co != null) {
+            entries.put("crossovers.proximity", String.valueOf(co.getProximityUm()));
+            entries.put("crossovers.includeSelfCrossovers", String.valueOf(co.getIncludeSelfCrossovers()));
+            entries.put("crossovers.enabled", String.valueOf(co.isEnabled()));
         }
         final PlausibilityCheck.RadiusJumps rj = monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
         if (rj != null) {
@@ -564,6 +565,10 @@ public class PlausibilityCalibrator {
         if (rm != null) {
             entries.put("radiusMonotonicity.minRun", String.valueOf(rm.getMinIncreasingRun()));
             entries.put("radiusMonotonicity.enabled", String.valueOf(rm.isEnabled()));
+        }
+        final PlausibilityCheck.InvalidRadius ir = monitor.getDeepCheck(PlausibilityCheck.InvalidRadius.class);
+        if (ir != null) {
+            entries.put("invalidRadius.enabled", String.valueOf(ir.isEnabled()));
         }
         final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
         if (sq != null) {
@@ -705,10 +710,14 @@ public class PlausibilityCalibrator {
         }
 
         // Deep checks
-        final PlausibilityCheck.PathOverlap po = monitor.getDeepCheck(PlausibilityCheck.PathOverlap.class);
-        if (po != null) {
-            setDouble(props, "pathOverlap.proximity", po::setProximityUm);
-            setEnabled(props, "pathOverlap.enabled", po::setEnabled);
+        final PlausibilityCheck.Crossovers co = monitor.getDeepCheck(PlausibilityCheck.Crossovers.class);
+        if (co != null) {
+            // Legacy keys (pre-rename): honor them when present, then let the new keys override
+            setDouble(props, "pathOverlap.proximity", co::setProximityUm);
+            setEnabled(props, "pathOverlap.enabled", co::setEnabled);
+            setDouble(props, "crossovers.proximity", co::setProximityUm);
+            setEnabled(props, "crossovers.includeSelfCrossovers", co::setIncludeSelfCrossovers);
+            setEnabled(props, "crossovers.enabled", co::setEnabled);
         }
         final PlausibilityCheck.RadiusJumps rj = monitor.getDeepCheck(PlausibilityCheck.RadiusJumps.class);
         if (rj != null) {
@@ -719,6 +728,10 @@ public class PlausibilityCalibrator {
         if (rm != null) {
             setInt(props, "radiusMonotonicity.minRun", rm::setMinIncreasingRun);
             setEnabled(props, "radiusMonotonicity.enabled", rm::setEnabled);
+        }
+        final PlausibilityCheck.InvalidRadius ir = monitor.getDeepCheck(PlausibilityCheck.InvalidRadius.class);
+        if (ir != null) {
+            setEnabled(props, "invalidRadius.enabled", ir::setEnabled);
         }
         final PlausibilityCheck.SignalQuality sq = monitor.getDeepCheck(PlausibilityCheck.SignalQuality.class);
         if (sq != null) {

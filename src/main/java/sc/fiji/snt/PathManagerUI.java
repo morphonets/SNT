@@ -5456,15 +5456,190 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private JButton zoomToNodeButton() {
-            final JButton button = new JButton(IconFactory.buttonIcon('\uf601', true));
-            button.setActionCommand("Zoom To Selected Nodes");
-            button.addActionListener( e -> zoomToNodes(getSelectedPathsUsingToolbarOptions(false)));
-            button.setToolTipText("Zoom to selected nodes");
+            final ActionListener action = e -> {
+                final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
+                if (paths == null || paths.isEmpty()) {
+                    guiUtils.error("No path(s) selected.");
+                    return;
+                }
+                final Path placeholder = paths.iterator().next().createPath(); // empty path from a representative path
+                final String cmd = e.getActionCommand();
+                // "Global extremum" items resolve to a single node across the entire selection (radius, intensity,
+                // angle). Other items remain per-path so multi-select gives a population-level overview.
+                final String filter = switch (cmd) {
+                    case "Smallest Radius Node" -> "min radius";
+                    case "Largest Radius Node"  -> "max radius";
+                    case "Sharpest Angle Node"  -> "min angle";
+                    case "Dimmest Node"         -> "min value";
+                    default -> null;
+                };
+                if (filter != null) {
+                    // For "Dimmest Node": node intensities (Path#getNode(i).v) are shared with other features
+                    // (delineations, color coding, ...), so we snapshot the existing values, overwrite them
+                    // transiently for the search, then restore
+                    final boolean intensitySearch = "min value".equals(filter);
+                    final Map<Path, double[]> snapshot = intensitySearch ? snapshotNodeValues(paths) : null;
+                    try {
+                        if (intensitySearch) ensureNodeValues(paths);
+                        Path.PathNode globalExtremum = null;
+                        for (final Path path : paths) {
+                            final Path.PathNode local = path.getNode(filter);
+                            if (local == null) continue;
+                            if (globalExtremum == null || isBetter(filter, local, globalExtremum)) {
+                                globalExtremum = local;
+                            }
+                        }
+                        if (globalExtremum != null) placeholder.addNode(globalExtremum);
+                    } finally {
+                        if (snapshot != null) restoreNodeValues(snapshot);
+                    }
+                } else {
+                    for (final Path path : paths) {
+                        switch (cmd) {
+                            case "First Node" -> placeholder.addNode(path.getNode(0));
+                            case "First Branch Point" -> {
+                                final TreeSet<Integer> junctions = path.findJunctionIndices();
+                                if (junctions.size() > 1) {
+                                    final var it = junctions.iterator();
+                                    it.next(); // skip first (root)
+                                    placeholder.addNode(path.getNode(it.next()));
+                                }
+                            }
+                            case "Last Branch Point" -> {
+                                final TreeSet<Integer> junctions = path.findJunctionIndices(); // sorted
+                                if (!junctions.isEmpty()) placeholder.addNode(path.getNode(junctions.last()));
+                            }
+                            case "Midpoint" -> placeholder.addNode(path.getNode(path.size() / 2));
+                            case "Last Node" -> placeholder.addNode(path.getNode(path.size() - 1));
+                            default -> {} // Do nothing
+                        }
+                    }
+                }
+                if (placeholder.size() == 0) {
+                    final String msg = switch (cmd) {
+                        case "Smallest Radius Node", "Largest Radius Node" -> "radii";
+                        case "Dimmest Node"        -> "intensity values (no image, or sampling failed)";
+                        case "Sharpest Angle Node" -> "computable angles (paths too short)";
+                        default                    -> "branch-points";
+                    };
+                    guiUtils.error(String.format("Selected path(s) have no %s.", msg));
+                } else {
+                    zoomToBoundingBox(List.of(placeholder));
+                    // zoomToBoundingBox only adjusts XY. For node-level navigation we also want to bring the target
+                    // slice into view: use the median Z across the placeholder so multi-node selections land in the
+                    // middle of the range
+                    final ImagePlus imp = plugin.getImagePlus();
+                    if (imp != null) {
+                        final int[] zs = new int[placeholder.size()];
+                        for (int i = 0; i < placeholder.size(); i++) zs[i] = placeholder.getZUnscaled(i) + 1; // 1-indexed
+                        java.util.Arrays.sort(zs);
+                        final int zSlice = Math.max(1, Math.min(imp.getNSlices(), zs[zs.length / 2]));
+                        imp.setPosition(imp.getC(), zSlice, imp.getT());
+                    }
+                }
+            };
+
+            final JPopupMenu menu = new JPopupMenu();
+            List.of("-Path Positions:", "First Node", "Last Node", "Midpoint",
+                            "-Structure:", "First Branch Point", "Last Branch Point", "Sharpest Angle Node",
+                            "-Thickness:", "Smallest Radius Node", "Largest Radius Node",
+                            "-Intensity:", "Dimmest Node" )
+                    .forEach(cmd -> {
+                        if (cmd.startsWith("-")) {
+                            GuiUtils.addSeparator(menu, cmd.substring(1));
+                        } else {
+                            final JMenuItem mi = new JMenuItem(cmd);
+                            mi.addActionListener(action);
+                            menu.add(mi);
+                        }
+                    });
+
+            final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MAGNIFIED_LOCATION, 1f, menu);
+            button.setActionCommand("Zoom To Nodes");
+            button.putClientProperty("cmdFinder", "Zoom To Nodes");
+            button.setToolTipText("Zoom to notable node(s) of selected path(s)");
             return button;
         }
 
+        /**
+         * Compares {@code candidate} against {@code current} under the natural ordering of the filter
+         * (lower-is-better for "min ..." filters, higher-is-better for "max ..."). Used to find a single global
+         * extremum across a path selection.
+         */
+        private boolean isBetter(final String filter, final Path.PathNode candidate, final Path.PathNode current) {
+            return switch (filter) {
+                case "min radius" -> candidate.radius < current.radius;
+                case "max radius" -> candidate.radius > current.radius;
+                case "min value"  -> candidate.v < current.v;
+                case "max value"  -> candidate.v > current.v;
+                case "min angle"  -> {
+                    // Compare via parent path's angle at the node index. Cheaper:
+                    // PathNode#v is unrelated; fall back to recomputing through the
+                    // PointInImage's onPath reference.
+                    final double cA = candidate.onPath.getAngle(candidate.onPath.getNodeIndex(candidate));
+                    final double oA = current.onPath.getAngle(current.onPath.getNodeIndex(current));
+                    yield cA < oA;
+                }
+                case "max angle" -> {
+                    final double cA = candidate.onPath.getAngle(candidate.onPath.getNodeIndex(candidate));
+                    final double oA = current.onPath.getAngle(current.onPath.getNodeIndex(current));
+                    yield cA > oA;
+                }
+                default -> false;
+            };
+        }
+
+        /**
+         * Populates per-node intensity values via {@link PathProfiler} for any
+         * path in {@code paths} that does not already carry them. No-op when
+         * the SNT instance has no image.
+         */
+        private void ensureNodeValues(final Collection<Path> paths) {
+            if (noValidImageDataError()) return;
+            for (final Path p : paths) {
+                // Always (re)assign with point sampling so the values array is densely populated. PathProfiler's
+                // default LINE shape skips the first and last node, leaving them as a literal 0.0 in the values
+                // array, which would always look like "dimmest"
+                try {
+                    final PathProfiler profiler = new PathProfiler(p, plugin.getDataset());
+                    profiler.setShape(ProfileProcessor.Shape.NONE);
+                    profiler.assignValues(p);
+                } catch (final Exception ex) {
+                    // Out of bounds, missing channel, etc.: leave path without values.
+                }
+            }
+        }
+
+        /**
+         * Snapshots the per-node intensity values ({@code node.v}) for each path so they can be
+         * restored later. Used to keep {@link #ensureNodeValues(Collection)} non-destructive:
+         * node values are shared with other features (delineations, color coding) and must not
+         * be permanently overwritten by a transient intensity search.
+         *
+         * @return map keyed by path; entries are {@code null} when the path had no assigned
+         *         values (matching {@link Path#setNodeValues(double[])}'s null-means-clear contract)
+         */
+        private Map<Path, double[]> snapshotNodeValues(final Collection<Path> paths) {
+            final Map<Path, double[]> snapshot = new LinkedHashMap<>();
+            for (final Path p : paths) {
+                if (!p.hasNodeValues()) {
+                    snapshot.put(p, null);
+                } else {
+                    final double[] vals = new double[p.size()];
+                    for (int i = 0; i < p.size(); i++) vals[i] = p.getNode(i).v;
+                    snapshot.put(p, vals);
+                }
+            }
+            return snapshot;
+        }
+
+        /** Restores per-path node values captured by {@link #snapshotNodeValues(Collection)}. */
+        private void restoreNodeValues(final Map<Path, double[]> snapshot) {
+            snapshot.forEach(Path::setNodeValues);
+        }
+
         private JButton zoomToPathsButton() {
-            final JButton button = new JButton(IconFactory.buttonIcon('\uf248', false));
+            final JButton button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, 1f));
             button.setActionCommand("Zoom To Selected Paths");
             button.addActionListener( e -> {
                 zoomToBoundingBox(getSelectedPathsUsingToolbarOptions(true));
@@ -5503,20 +5678,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         suffix = "EP";
                         for (final Path path : paths) map.put(path, Set.of(path.size()-1));
                     }
-                    case "Nodes With Invalid Radius" -> {
-                        suffix = "Inv. rad. ";
-                        for (final Path path : paths) {
-                            if (!path.hasRadii()) continue;
-                            final TreeSet<Integer> result = new TreeSet<>();
-                            for (int i = 0; i < path.size(); i++) {
-                                final double r = path.getNodeRadius(i);
-                                if (r == 0d || Double.isNaN(r)) {
-                                    result.add(i);
-                                }
-                            }
-                            if (!result.isEmpty()) map.put(path, result);
-                        }
-                    }
                     case "Manually Tagged Nodes" -> {
                         suffix = "";
                         for (final Path path : paths) {
@@ -5541,8 +5702,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             };
 
             final JPopupMenu menu = new JPopupMenu();
-            List.of("-Bookmark Topological Locations:", "Branch Points", "End Points", "Start Points",
-                            "-Bookmark QC Locations:", "Manually Tagged Nodes", "Nodes With Invalid Radius")
+            List.of("-Topology:","Branch Points","End Points","Start Points","-Annotations:","Manually Tagged Nodes")
                     .forEach(cmd -> {
                         if (cmd.startsWith("-")) {
                             GuiUtils.addSeparator(menu, cmd.substring(1));
@@ -5552,55 +5712,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             menu.add(mi);
                         }
                     });
-            menu.add(getBookmarkCrossoverMenuItem());
             final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.BOOKMARK, .9f, menu);
             button.putClientProperty("cmdFinder", "Bookmarks");
-            button.setToolTipText("Bookmark key locations along selected path(s)");
+            button.setToolTipText("Bookmark key locations along selected path(s).\n"
+                    + "For QC locations (invalid radius, putative crossovers, etc.), use the Curation Assistant.");
             return button;
-        }
-
-        private JMenuItem getBookmarkCrossoverMenuItem() {
-            final JMenuItem mi = new JMenuItem("Putative Crossovers");
-            mi.setToolTipText("Detect crossovers between paths");
-            mi.addActionListener(e -> {
-                final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
-                if (paths == null || paths.isEmpty()) {
-                    guiUtils.error("No path(s) selected.");
-                    return;
-                }
-                final double defProximity = plugin.getAverageSeparation() * 10;
-                final Double n = guiUtils.getDouble(
-                        String.format("Specify the size (in %s) of the search neighborhood for cross-over detection. "
-                                        + "Only paths interacting within this distance will be considered as candidates.<br>"
-                                        + "Default is <i>%.2f%s</i>, i.e., <i>≈10 voxels</i>.",
-                                plugin.getSpacingUnits(), defProximity, plugin.getSpacingUnits()),
-                        "Cross-over Parameters", defProximity);
-                if (n == null) return;
-                if (Double.isNaN(n) || n <= 0)
-                    guiUtils.error("Invalid search neighborhood: Must be > 0.");
-                else
-                    bookmarkCrossOvers(paths, n);
-            });
-            return mi;
-        }
-
-        private void bookmarkCrossOvers(final Collection<Path> selectedPaths, final double proximity) {
-            var cfg = new CrossoverFinder.Config()
-                    .proximity(proximity)
-                    .thetaMinDeg(0) // disable angle filtering
-                    .minRunNodes(2)
-                    .sameCTOnly(true)
-                    .includeSelfCrossovers(true)
-                    .nodeWitnessRadius(-1); // assign proximity threshold
-            final List<CrossoverFinder.CrossoverEvent> events = CrossoverFinder.find(selectedPaths, cfg);
-            final List<double[]> output = new ArrayList<>(events.size());
-            events.forEach(event -> output.add(event.xyzct()));
-            if (output.isEmpty()) {
-                guiUtils.error("No crossover locations detected.");
-            } else {
-                plugin.getUI().getBookmarkManager().add("Put. Crossover", output);
-                plugin.getUI().selectTab("Bookmarks");
-            }
         }
 
         void sortArbors() {
@@ -5638,58 +5754,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     model.addNode(jTreeRoot, primaryPath);
             }
             model.reload();
-        }
-
-        private void zoomToNodes(final Collection<Path> paths) {
-            if (!canExecuteZoomOperation(paths)) return;
-
-            // Create options for the user to choose from
-            final String[] options = (paths.size() == 1) ?
-                    new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node",
-                            "Smallest radius node", "Largest-radius node"}
-                    : new String[]{"First node", "First branch-point", "Last branch-point", "Midpoint", "Last node"};
-            final String prevChoice = plugin.getPrefs().getTemp("gtChoice", options[0]);
-            final String choice = guiUtils.getChoice("Navigate to which node(s) of selected path(s)?",
-                    "Zoom To Nodes...", options, prevChoice);
-            if (choice == null) return; // User cancelled
-            plugin.getPrefs().setTemp("gtChoice", choice);
-
-            final Path placeholder = paths.iterator().next().createPath(); // empty path from a representative path
-            for (final Path path : paths) {
-                switch (choice) {
-                    case "First node" -> placeholder.addNode(path.getNode(0));
-                    case "First branch-point" -> {
-                        final TreeSet<Integer> junctions = path.findJunctionIndices();
-                        if (junctions.size() > 1) {
-                            final var it = junctions.iterator();
-                            it.next(); // skip first (root)
-                            placeholder.addNode(path.getNode(it.next()));
-                        }
-                    }
-                    case "Last branch-point" -> {
-                        final TreeSet<Integer> junctions = path.findJunctionIndices(); // sorted
-                        if (!junctions.isEmpty()) placeholder.addNode(path.getNode(junctions.last()));
-                    }
-                    case "Midpoint" -> placeholder.addNode(path.getNode(path.size() / 2));
-                    case "Last node" -> placeholder.addNode(path.getNode(path.size() - 1));
-                    case "Smallest radius node" -> {
-                        final Path.PathNode thinnest = path.getNode("min radius");
-                        if (thinnest != null) placeholder.addNode(thinnest);
-                    }
-                    case "Largest-radius node" -> {
-                        final Path.PathNode widest = path.getNode("max radius");
-                        if (widest != null) placeholder.addNode(widest);
-                    }
-                    default -> {
-                    } // Do nothing
-                }
-            }
-            if (placeholder.size() == 0) {
-                final String msg = (choice.contains("radius")) ? "radii" : "branch-points";
-                guiUtils.error(String.format("Selected path(s) have no %s.", msg));
-            } else {
-                zoomToBoundingBox(List.of(placeholder));
-            }
         }
 
         private boolean canExecuteZoomOperation(final Collection<Path> paths) {
