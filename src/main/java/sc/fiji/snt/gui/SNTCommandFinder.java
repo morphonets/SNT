@@ -467,6 +467,40 @@ public class SNTCommandFinder {
         scriptCall = false;
     }
 
+    /**
+     * Registers a pseudo entry that isn't backed by any UI button. Useful for surfacing tabs, panels, or actions that
+     * have no immediate clickable action.
+     * <p>
+     * The entry survives subsequent {@link CmdScrapper#scrape() index rebuilds}  and matches against the supplied
+     * {@code keywords}, {@code label}, and {@code path}.
+     * </p>
+     *
+     * @param label    primary entry name (matched against id; also displayed in the palette)
+     * @param path     parent-path description shown in the palette, e.g. {@code List.of("PM Tabs")}
+     * @param keywords additional searchable terms; any match brings up the entry
+     *                 (e.g., synonyms, related concepts, or names of nested features)
+     * @param action   what to run when the entry is invoked
+     */
+    public void registerKeywords(final String label, final List<String> path,
+                                 final List<String> keywords, final Runnable action) {
+        if (label == null || action == null)
+            throw new IllegalArgumentException("label and action cannot be null");
+        final CmdAction entry = new CmdAction(label);
+        entry.path = (path == null) ? new ArrayList<>() : new ArrayList<>(path);
+        entry.setKeywords(keywords);
+        entry.action = new AbstractAction(label) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            public void actionPerformed(final ActionEvent e) { action.run(); }
+        };
+        cmdScrapper.extras.add(entry);
+        // If the scrapper has already populated the index, splice the entry
+        // in now so it's findable without waiting for the next rebuild
+        if (!cmdScrapper.scrapeFailed()) {
+            cmdScrapper.cmdMap.put(CmdScrapper.compositeKey(entry.id, entry.path), entry);
+        }
+    }
+
     private void recordComment(final String string) {
         if (recorder == null)
             System.out.println(">> " + string);
@@ -499,8 +533,8 @@ public class SNTCommandFinder {
             int y = bounds.y + (bounds.height - frame.getHeight()) / 2;
             // Clamp to visible screen area so the palette never overflows off-screen
             final Rectangle screen = activeWindow.getGraphicsConfiguration().getBounds();
-            x = Math.max(screen.x, Math.min(x, screen.x + screen.width - frame.getWidth()));
-            y = Math.max(screen.y, Math.min(y, screen.y + screen.height - frame.getHeight()));
+            x = Math.clamp(x, screen.x, screen.x + screen.width - frame.getWidth());
+            y = Math.clamp(y, screen.y, screen.y + screen.height - frame.getHeight());
             frame.setLocation(x, y);
         } else if (sntui != null) {
             GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
@@ -1011,6 +1045,10 @@ public class SNTCommandFinder {
         String hotkey;
         AbstractButton button;
         Action action;
+        /** Extra searchable terms (case-insensitive); null when not provided. */
+        List<String> keywords;
+        /** Pre-lowercased, whitespace-stripped cache of {@link #keywords}. */
+        private String keywordsHaystack;
 
         CmdAction(final String cmdName) {
             this.id = capitalize(cmdName);
@@ -1023,6 +1061,12 @@ public class SNTCommandFinder {
             this.button = button;
             if (button.getAction() instanceof AbstractAction)
                 action = button.getAction();
+        }
+
+        /** Sets the additional searchable keywords for this command. */
+        void setKeywords(final List<String> keywords) {
+            this.keywords = keywords;
+            this.keywordsHaystack = null; // recompute lazily
         }
 
         boolean hasButton() {
@@ -1062,7 +1106,8 @@ public class SNTCommandFinder {
         boolean matches(final String query) {
             final String q = (ignoreWhiteSpace) ? query.replaceAll("\\s+","") : query;
             return caseAndWhitespaceSensitiveId().contains(q) || caseAndWhitespaceSensitivePathDescription().contains(q)
-                    || caseAndWhitespaceSensitiveTooltip().contains(q);
+                    || caseAndWhitespaceSensitiveTooltip().contains(q)
+                    || caseAndWhitespaceSensitiveKeywords().contains(q);
         }
 
         String caseAndWhitespaceSensitiveId() {
@@ -1077,6 +1122,22 @@ public class SNTCommandFinder {
 
         String caseAndWhitespaceSensitiveTooltip() {
             final String result = (caseSensitive) ? tooltip() : tooltip().toLowerCase();
+            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
+        }
+
+        String caseAndWhitespaceSensitiveKeywords() {
+            if (keywords == null || keywords.isEmpty()) return "";
+            if (keywordsHaystack == null) {
+                // Build "kw1 kw2 kw3" so each keyword is matchable independently after the substring containment check
+                final StringBuilder sb = new StringBuilder();
+                for (final String kw : keywords) {
+                    if (kw == null || kw.isEmpty()) continue;
+                    if (!sb.isEmpty()) sb.append(' ');
+                    sb.append(kw);
+                }
+                keywordsHaystack = sb.toString();
+            }
+            final String result = (caseSensitive) ? keywordsHaystack : keywordsHaystack.toLowerCase();
             return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
         }
 
@@ -1101,6 +1162,8 @@ public class SNTCommandFinder {
     private class CmdScrapper {
         private final TreeMap<String, CmdAction> cmdMap;
         private TreeMap<String, CmdAction> otherMap;
+        /** Synthetic entries that survive scrape() cycles (see {@link SNTCommandFinder#registerKeywords}). */
+        private final List<CmdAction> extras = new ArrayList<>();
 
         CmdScrapper() {
             cmdMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
@@ -1183,7 +1246,10 @@ public class SNTCommandFinder {
 
                 }
             }
-
+            // Re-merge synthetic entries that aren't backed by any scraped UI component
+            for (final CmdAction extra : extras) {
+                cmdMap.put(compositeKey(extra.id, extra.path), extra);
+            }
         }
 
         private void parseMenu(final JMenu menu, final List<String> path) {

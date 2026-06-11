@@ -414,6 +414,8 @@ public class SNTUI extends JDialog {
         tabbedPane.addTab("Seeds", seedManager);
         tabbedPane.addTab("Notes", notesui.getPanel());
 
+        registerTabCommandFinderAliases();
+
         // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Seeds, Notes
         tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
         tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
@@ -4639,6 +4641,49 @@ public class SNTUI extends JDialog {
     /** Returns the plausibility monitor used by the Curation Manager (Curation Assistant). */
     public PlausibilityMonitor getPlausibilityMonitor() {
         return plausibilityMonitor;
+    }
+
+    /**
+     * Registers Command Palette aliases for the tabs that aren't otherwise discoverable through a menu/toolbar entry.
+     * Each registration adds a palette entry whose primary label is the tab name, with extra keywords that route
+     * searches to it.
+     */
+    private void registerTabCommandFinderAliases() {
+        if (commandFinder == null) return;
+        // Curation Assistant
+        final List<String> qcKeywords = new ArrayList<>(List.of("QC", "validation", "warning", "issues", "plausibility",
+                "deep scan", "live monitor"));
+        plausibilityMonitor.getLiveChecks().forEach(c -> qcKeywords.add(c.getName()));
+        plausibilityMonitor.getDeepChecks().forEach(c -> qcKeywords.add(c.getName()));
+        commandFinder.registerKeywords(
+                "Curation Assistant",
+                List.of("Tabs"),
+                qcKeywords, () -> selectTab("Assistant"));
+        // Bookmarks tab
+        commandFinder.registerKeywords(
+                "Bookmarks",
+                List.of("Tabs"),
+                List.of("bookmark", "marker", "tagged location", "tagged node", "colocalize", "location",
+                        "click-on-point", "export csv"), //
+                () -> selectTab("Bookmarks"));
+        // Delineations tab
+        commandFinder.registerKeywords(
+                "Delineations",
+                List.of("Tabs"),
+                List.of("delineation", "region", "atlas annotation", "assignment", "labels/mask image", "roi"),
+                () -> selectTab("Delineations"));
+        // Seeds tab
+        commandFinder.registerKeywords(
+                "Seeds",
+                List.of("Tabs"),
+                List.of("seed", "soma", "import csv", "labels/mask image", "autotrace", "candidate points", "prediction", "waypoint"),
+                () -> selectTab("Seeds"));
+        // Notes tab
+        commandFinder.registerKeywords(
+                "Notes",
+                List.of("Tabs"),
+                List.of("note", "comment", "record"),
+                () -> selectTab("Notes"));
     }
 
     /** Returns the Curation Manager (Curation Assistant). */
