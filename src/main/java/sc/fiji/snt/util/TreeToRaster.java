@@ -31,9 +31,8 @@ import ij.process.ShortProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
-
-import org.apache.commons.math3.distribution.PoissonDistribution;
 
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
@@ -80,6 +79,7 @@ public class TreeToRaster {
 	private double lateralRes; // spatial units per voxel (x, y)
 	private double axialRes;   // spatial units per voxel (z)
 	private double defaultRadius = -1; // <0 means use lateralRes/2
+	private double radiusScale = 1.0;  // uniform multiplier applied to all node radii
 
 	// Noise parameters (disabled by default)
 	private double background = 0;
@@ -122,16 +122,72 @@ public class TreeToRaster {
 	}
 
 	/**
-	 * Sets the axial (z) voxel size.
+	 * Gets the lateral (x, y) voxel size.
 	 *
-	 * @param axialRes voxel size in the tree's spatial units (typically µm)
+	 * @return the lateral (x,y) voxel size in the tree's spatial units (typically µm)
+	 */
+	public double getLateralRes() {
+		return lateralRes;
+	}
+
+	/**
+	 * Sets the axial (z) voxel size.
+	 * <p>
+	 * A value of {@code 0} switches the rasterizer to 2D mode: the z coordinates
+	 * of the tree are ignored (every node is projected onto the {@code z = 0}
+	 * plane) and the output image is a single slice. In-plane (x, y) thickness
+	 * from node radii is preserved.
+	 * </p>
+	 *
+	 * @param axialRes voxel size in the tree's spatial units (typically µm), or
+	 *                 {@code 0} to flatten the output to a 2D image
 	 * @return this instance for chaining
 	 */
 	public TreeToRaster setAxialRes(final double axialRes) {
-		if (axialRes <= 0)
-			throw new IllegalArgumentException("Axial resolution must be positive");
+		if (axialRes < 0)
+			throw new IllegalArgumentException("Axial resolution must be non-negative (0 == 2D)");
 		this.axialRes = axialRes;
 		return this;
+	}
+
+	/**
+	 * Gets the axial (z) voxel size.
+	 *
+	 * @return the axial (z) voxel size in the tree's spatial units (typically µm),
+	 *         or {@code 0} when rasterizing in 2D mode
+	 */
+	public double getAxialRes() {
+		return axialRes;
+	}
+
+	/**
+	 * @return whether the rasterizer is in 2D mode (z coordinates ignored), i.e.
+	 *         {@link #setAxialRes(double)} was called with {@code 0}.
+	 */
+	private boolean is2D() {
+		return axialRes <= 0;
+	}
+
+	/**
+	 * Debug timing probe: logs the elapsed time since {@code startNs} for the named
+	 * phase plus current heap usage, and returns the current timestamp so probes can
+	 * be chained ({@code t = logPhase("...", t)}). Output is gated by SNT's debug
+	 * mode (see {@link SNTUtils#log(String)}), so this is a no-op in normal use.
+	 *
+	 * @param phase   a short phase label
+	 * @param startNs the {@link System#nanoTime()} value at the start of the phase
+	 * @return the current {@link System#nanoTime()} value
+	 */
+	private static long logPhase(final String phase, final long startNs) {
+		final long now = System.nanoTime();
+		if (SNTUtils.isDebugMode()) {
+			final Runtime rt = Runtime.getRuntime();
+			final long usedMB = (rt.totalMemory() - rt.freeMemory()) / (1024 * 1024);
+			final long maxMB = rt.maxMemory() / (1024 * 1024);
+			SNTUtils.log(String.format("TreeToRaster:   %-20s %8.1f ms   [heap %d/%d MB]",
+					phase, (now - startNs) / 1e6, usedMB, maxMB));
+		}
+		return now;
 	}
 
 	/**
@@ -147,6 +203,36 @@ public class TreeToRaster {
 			throw new IllegalArgumentException("Default radius must be positive");
 		this.defaultRadius = radius;
 		return this;
+	}
+
+	/**
+	 * Sets a uniform multiplier applied to every node radius (and to the default
+	 * radius for nodes without radii) when rasterizing. Values above 1 dilate the
+	 * rendered neurites, e.g. to make thin or sparse structures cover more voxels;
+	 * values below 1 erode them. Because scaling is uniform, the relative thickness
+	 * order (and thus thickest-wins label priority) is unchanged.
+	 * <p>
+	 * Note that larger radii increase the rasterized extent and the per-voxel
+	 * supersampling cost.
+	 * </p>
+	 *
+	 * @param scale the radius multiplier (default 1.0). Must be positive.
+	 * @return this instance for chaining
+	 */
+	public TreeToRaster setRadiusScale(final double scale) {
+		if (scale <= 0)
+			throw new IllegalArgumentException("Radius scale must be positive");
+		this.radiusScale = scale;
+		return this;
+	}
+
+	/**
+	 * Gets the uniform radius multiplier applied to node radii.
+	 *
+	 * @return the radius multiplier (1.0 by default)
+	 */
+	public double getRadiusScale() {
+		return radiusScale;
 	}
 
 	/**
@@ -274,17 +360,24 @@ public class TreeToRaster {
 	 */
 	public ImagePlus rasterize() {
 
+		long t = System.nanoTime();
 		final RasterContext ctx = prepareRasterization();
 		final int width = ctx.width, height = ctx.height, depth = ctx.depth;
 		final int xo = ctx.xo, yo = ctx.yo, zo = ctx.zo;
 		final FrustumGrid grid = ctx.grid;
 		final List<Frustum> frustums = ctx.frustums;
+		t = logPhase("prepare + grid", t);
 
-		// img starts as the flag map from Pass 1; Pass 2 overwrites flagged
-		// voxels with sub-voxel hit counts, then we normalize in-place
-		final float[][] img = ctx.flagMap;
+		// img is the Pass 1 flag map (-1 where any frustum overlaps); Pass 2
+		// overwrites flagged voxels with sub-voxel hit counts, then we normalize
+		// in-place (so the density path reuses this float buffer as accumulator)
+		final float[][] img = new float[depth][width * height];
+		fillFlagMap(ctx, img);
+		t = logPhase("Pass 1 flag fill", t);
 
 		// Pass 2: partial-volume supersampling (parallel by z-slice)
+		// In 2D mode the z axis is collapsed: a single sub-voxel layer at wz=0.
+		final int superZ = is2D() ? 1 : SUPER;
 		final boolean doModulation = thicknessModulation > 0;
 		final float[][] radImg = doModulation ? new float[depth][width * height] : null;
 		final double[] sliceMaxDensity = new double[depth];
@@ -300,7 +393,7 @@ public class TreeToRaster {
 					if (slice[idx] != -1) continue;
 					int count = 0;
 					double voxelMaxR = 0;
-					for (int kk = 0; kk < SUPER; kk++) {
+					for (int kk = 0; kk < superZ; kk++) {
 						final double wz = (z - zo + (kk + 0.5) / SUPER) * axialRes;
 						for (int jj = 0; jj < SUPER; jj++) {
 							final double wy = (y - yo + (jj + 0.5) / SUPER) * lateralRes;
@@ -325,13 +418,14 @@ public class TreeToRaster {
 			}
 			sliceMaxDensity[z] = localMax;
 		});
+		t = logPhase("Pass 2 supersample", t);
 
 		double maxDensity = 0;
 		for (final double d : sliceMaxDensity)
 			if (d > maxDensity) maxDensity = d;
 
-		// Normalize density to [0, 1]
-		final double superCubed = (double) SUPER * SUPER * SUPER;
+		// Normalize density to [0, 1] (superZ < SUPER collapses the z axis in 2D mode)
+		final double superCubed = (double) SUPER * SUPER * superZ;
 		if (maxDensity > 0) {
 			final float norm = (float) superCubed;
 			IntStream.range(0, depth).parallel().forEach(z -> {
@@ -340,6 +434,7 @@ public class TreeToRaster {
 					if (slice[i] > 0) slice[i] /= norm;
 				}
 			});
+			t = logPhase("normalize", t);
 		}
 
 		// Thickness modulation (before adding noise)
@@ -370,6 +465,7 @@ public class TreeToRaster {
 					}
 				});
 			}
+			t = logPhase("thickness mod", t);
 		}
 
 		// Pass 3 (optional): Poisson shot noise
@@ -380,8 +476,8 @@ public class TreeToRaster {
 			final double temp = snr + Math.sqrt(snr * snr + 4 * background);
 			final double peak = 0.25 * temp * temp;
 			final double scale = peak - background; // density already in [0,1]
-			// Note: Poisson sampling uses thread-local RNG implicitly via
-			// PoissonDistribution, so parallel should be safe here
+			// Note: poissonSample() uses ThreadLocalRandom, so parallel is safe
+			// and allocation-free (no per-voxel distribution object)
 			IntStream.range(0, depth).parallel().forEach(z -> {
 				final float[] slice = img[z];
 				for (int i = 0; i < slice.length; i++) {
@@ -389,6 +485,7 @@ public class TreeToRaster {
 					slice[i] = (float) poissonSample(mean);
 				}
 			});
+			t = logPhase("Poisson noise", t);
 		}
 
 		// Pass 4 (optional): Gaussian blur
@@ -397,8 +494,9 @@ public class TreeToRaster {
 		if (gaussSigma > 0) {
 			SNTUtils.log("TreeToRaster: applying Gaussian blur (sigma=" + gaussSigma + ")");
 			final double sigmaXY = gaussSigma / lateralRes; // convert to pixels
-			final double sigmaZ = gaussSigma / axialRes;
+			final double sigmaZ = is2D() ? 0 : gaussSigma / axialRes; // no z blur in 2D
 			applyGaussianBlur3D(img, width, height, depth, sigmaXY, sigmaZ);
+			t = logPhase("Gaussian blur", t);
 		}
 
 		// Build ImagePlus
@@ -410,6 +508,7 @@ public class TreeToRaster {
 			imp.setDisplayRange(0, 1);
 		else
 			imp.resetDisplayRange();
+		logPhase("build ImagePlus", t);
 		return imp;
 	}
 
@@ -490,25 +589,33 @@ public class TreeToRaster {
 	 */
 	private ImagePlus rasterizeWithLabels(final List<Frustum> frustums,
 										   final String prefix) {
+		long t = System.nanoTime();
 		final RasterContext ctx = prepareRasterization(frustums);
+		t = logPhase("prepare + grid", t);
 		final int width = ctx.width, height = ctx.height, depth = ctx.depth;
 		final int xo = ctx.xo, yo = ctx.yo, zo = ctx.zo;
 		final FrustumGrid grid = ctx.grid;
-		final float[][] flagMap = ctx.flagMap;
+
+		// Pass 1 flag map as a byte mask (1 = supersample, 0 = background); a float
+		// buffer here would waste 3 bytes/voxel since only a flag is needed
+		final byte[][] flagMap = new byte[depth][width * height];
+		fillFlagMap(ctx, flagMap);
+		t = logPhase("Pass 1 flag fill", t);
 
 		final short[][] labels = new short[depth][width * height];
+		final int superZ = is2D() ? 1 : SUPER; // collapse z sampling in 2D mode
 
 		IntStream.range(0, depth).parallel().forEach(z -> {
-			final float[] flags = flagMap[z];
+			final byte[] flags = flagMap[z];
 			final short[] labelSlice = labels[z];
 			for (int y = 0; y < height; y++) {
 				final int row = y * width;
 				for (int x = 0; x < width; x++) {
 					final int idx = row + x;
-					if (flags[idx] != -1) continue;
+					if (flags[idx] != 1) continue;
 					double bestR = -1;
 					int bestId = 0;
-					for (int kk = 0; kk < SUPER; kk++) {
+					for (int kk = 0; kk < superZ; kk++) {
 						final double wz = (z - zo + (kk + 0.5) / SUPER) * axialRes;
 						for (int jj = 0; jj < SUPER; jj++) {
 							final double wy = (y - yo + (jj + 0.5) / SUPER)
@@ -531,6 +638,7 @@ public class TreeToRaster {
 				}
 			}
 		});
+		t = logPhase("label supersample", t);
 
 		final ImageStack stack = new ImageStack(width, height);
 		for (int z = 0; z < depth; z++)
@@ -539,16 +647,22 @@ public class TreeToRaster {
 		imp.setCalibration(buildCalibration());
 		ImpUtils.applyColorTable(imp, ColorMaps.get("glasbey-on-dark"));
 		imp.resetDisplayRange();
+		logPhase("build ImagePlus", t);
 		return imp;
 	}
 
-	/** Shared state computed once for rasterization passes. */
+	/**
+	 * Shared geometry computed once for rasterization passes. The coarse "flag"
+	 * buffer (which voxels to supersample) is allocated and filled by each caller,
+	 * because its element type differs by path: the density pass reuses a
+	 * {@code float[][]} as its accumulator, whereas the label pass only needs a
+	 * {@code byte[][]} mask (avoiding a wasteful 32-bit-per-voxel buffer).
+	 */
 	private static class RasterContext {
 		int width, height, depth;
 		int xo, yo, zo;
 		List<Frustum> frustums;
 		FrustumGrid grid;
-		float[][] flagMap; // -1 where any frustum overlaps, 0 elsewhere
 	}
 
 	/**
@@ -592,39 +706,81 @@ public class TreeToRaster {
 			ctx.zo = BORDER_Z  - zm;
 		}
 
-		SNTUtils.log("TreeToRaster: allocating " + ctx.width + "x" + ctx.height
-				+ "x" + ctx.depth);
+		if (is2D()) {
+			// 2D mode: single slice, z ignored (worldBounds and frustums are flattened to z=0)
+			ctx.depth = 1;
+			ctx.zo = 0;
+		}
 
+		final long voxels = (long) ctx.width * ctx.height * ctx.depth;
+		SNTUtils.log(String.format("TreeToRaster: allocating %dx%dx%d = %,d voxels (~%d MB per 32-bit buffer, %,d frustums)",
+				ctx.width, ctx.height, ctx.depth, voxels, (voxels * 4) / (1024 * 1024), frustums.size()));
+
+		final long tp = System.nanoTime();
 		ctx.frustums = frustums;
 		ctx.grid = new FrustumGrid(frustums, bounds, lateralRes, axialRes);
+		logPhase("grid build", tp);
+		// Pass 1 (coarse voxel map) is performed by the caller via fillFlagMap, since
+		// the flag buffer's type differs by path (float accumulator vs byte mask).
+		return ctx;
+	}
 
-		// Pass 1: coarse voxel map
-		ctx.flagMap = new float[ctx.depth][ctx.width * ctx.height];
-		for (final Frustum f : frustums) {
-			final int fxm = ctx.xo + (int) Math.floor(f.xMin / lateralRes);
-			final int fym = ctx.yo + (int) Math.floor(f.yMin / lateralRes);
-			final int fzm = ctx.zo + (int) Math.floor(f.zMin / axialRes);
-			final int fxM = ctx.xo + (int) Math.ceil(f.xMax / lateralRes);
-			final int fyM = ctx.yo + (int) Math.ceil(f.yMax / lateralRes);
-			final int fzM = ctx.zo + (int) Math.ceil(f.zMax / axialRes);
-			for (int z = Math.max(fzm, 0); z < Math.min(fzM, ctx.depth); z++) {
-				final float[] slice = ctx.flagMap[z];
-				for (int y = Math.max(fym, 0); y < Math.min(fyM, ctx.height); y++) {
+	/**
+	 * Computes the clamped voxel-index range [zMin,zMax,yMin,yMax,xMin,xMax) of a
+	 * frustum's axis-aligned bounding box within the given context.
+	 */
+	private int[] aabbVoxelRange(final RasterContext ctx, final Frustum f) {
+		final int fxm = Math.max(ctx.xo + (int) Math.floor(f.xMin / lateralRes), 0);
+		final int fxM = Math.min(ctx.xo + (int) Math.ceil(f.xMax / lateralRes), ctx.width);
+		final int fym = Math.max(ctx.yo + (int) Math.floor(f.yMin / lateralRes), 0);
+		final int fyM = Math.min(ctx.yo + (int) Math.ceil(f.yMax / lateralRes), ctx.height);
+		// In 2D mode the single slice (z=0) holds the whole projection
+		final int fzm = is2D() ? 0 : Math.max(ctx.zo + (int) Math.floor(f.zMin / axialRes), 0);
+		final int fzM = is2D() ? 1 : Math.min(ctx.zo + (int) Math.ceil(f.zMax / axialRes), ctx.depth);
+		return new int[] { fzm, fzM, fym, fyM, fxm, fxM };
+	}
+
+	/**
+	 * Pass 1 for the density path: marks with {@code -1f} every voxel whose coarse
+	 * AABB overlaps a frustum. The float buffer is reused as the accumulator in
+	 * {@link #rasterize()}.
+	 */
+	private void fillFlagMap(final RasterContext ctx, final float[][] flag) {
+		for (final Frustum f : ctx.frustums) {
+			final int[] r = aabbVoxelRange(ctx, f);
+			for (int z = r[0]; z < r[1]; z++) {
+				final float[] slice = flag[z];
+				for (int y = r[2]; y < r[3]; y++) {
 					final int row = y * ctx.width;
-					for (int x = Math.max(fxm, 0); x < Math.min(fxM, ctx.width); x++) {
-						slice[row + x] = -1;
-					}
+					for (int x = r[4]; x < r[5]; x++) slice[row + x] = -1f;
 				}
 			}
 		}
-		return ctx;
+	}
+
+	/**
+	 * Pass 1 for the label path: marks with {@code 1} every voxel whose coarse AABB
+	 * overlaps a frustum. Uses a {@code byte} mask (1 byte/voxel) rather than the
+	 * density path's float buffer (4 bytes/voxel), since only a flag is needed here.
+	 */
+	private void fillFlagMap(final RasterContext ctx, final byte[][] flag) {
+		for (final Frustum f : ctx.frustums) {
+			final int[] r = aabbVoxelRange(ctx, f);
+			for (int z = r[0]; z < r[1]; z++) {
+				final byte[] slice = flag[z];
+				for (int y = r[2]; y < r[3]; y++) {
+					final int row = y * ctx.width;
+					for (int x = r[4]; x < r[5]; x++) slice[row + x] = 1;
+				}
+			}
+		}
 	}
 
 	private Calibration buildCalibration() {
 		final Calibration cal = new Calibration();
 		cal.pixelWidth = lateralRes;
 		cal.pixelHeight = lateralRes;
-		cal.pixelDepth = axialRes;
+		cal.pixelDepth = is2D() ? 1.0 : axialRes; // pixelDepth must be positive; irrelevant for 2D
 		final String unit = tree.getBoundingBox().getUnit();
 		if (unit != null && !unit.isEmpty()) {
 			cal.setXUnit(unit);
@@ -643,7 +799,7 @@ public class TreeToRaster {
 				final double x = p.getNode(i).x;
 				final double y = p.getNode(i).y;
 				final double z = p.getNode(i).z;
-				final double r = (p.hasRadii()) ? p.getNodeRadius(i) : defR;
+				final double r = nodeRadius(p, i, defR);
 				if (x - r < xMin) xMin = x - r;
 				if (x + r > xMax) xMax = x + r;
 				if (y - r < yMin) yMin = y - r;
@@ -652,7 +808,27 @@ public class TreeToRaster {
 				if (z + r > zMax) zMax = z + r;
 			}
 		}
+		if (is2D()) {
+			// Collapse the z extent so the grid is a single z-cell aligned with the
+			// flattened (z=0) frustums and the single output slice.
+			zMin = 0;
+			zMax = 0;
+		}
 		return new double[] { xMin, xMax, yMin, yMax, zMin, zMax };
+	}
+
+	/** Returns the node z to use when building frustums: 0 in 2D mode, else z. */
+	private double fz(final double z) {
+		return is2D() ? 0 : z;
+	}
+
+	/**
+	 * Returns the (scaled) radius for a node: its own radius when the path has
+	 * radii, otherwise the default {@code defR}, multiplied by {@link #radiusScale}.
+	 */
+	private double nodeRadius(final Path p, final int idx, final double defR) {
+		final double r = (p.hasRadii()) ? p.getNodeRadius(idx) : defR;
+		return r * radiusScale;
 	}
 
 	private List<Frustum> buildFrustums(final double defR) {
@@ -669,24 +845,24 @@ public class TreeToRaster {
 				if (bpIdx >= 0 && bpIdx < parent.size()) {
 					final PointInImage bp = parent.getNode(bpIdx);
 					final PointInImage n0 = p.getNode(0);
-					final double rBp = (parent.hasRadii()) ? parent.getNodeRadius(bpIdx) : defR;
-					final double r0 = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
-					frustums.add(new Frustum(bp.x, bp.y, bp.z, rBp,
-							n0.x, n0.y, n0.z, r0, id));
+					final double rBp = nodeRadius(parent, bpIdx, defR);
+					final double r0 = nodeRadius(p, 0, defR);
+					frustums.add(new Frustum(bp.x, bp.y, fz(bp.z), rBp,
+							n0.x, n0.y, fz(n0.z), r0, id));
 				}
 			}
 			for (int i = 0; i < p.size() - 1; i++) {
 				final PointInImage n0 = p.getNode(i);
 				final PointInImage n1 = p.getNode(i + 1);
-				final double r0 = (p.hasRadii()) ? p.getNodeRadius(i) : defR;
-				final double r1 = (p.hasRadii()) ? p.getNodeRadius(i + 1) : defR;
-				frustums.add(new Frustum(n0.x, n0.y, n0.z, r0,
-						n1.x, n1.y, n1.z, r1, id));
+				final double r0 = nodeRadius(p, i, defR);
+				final double r1 = nodeRadius(p, i + 1, defR);
+				frustums.add(new Frustum(n0.x, n0.y, fz(n0.z), r0,
+						n1.x, n1.y, fz(n1.z), r1, id));
 			}
 			if (p.size() == 1) {
 				final PointInImage n = p.getNode(0);
-				final double r = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
-				frustums.add(new Frustum(n.x, n.y, n.z, r, n.x, n.y, n.z, r, id));
+				final double r = nodeRadius(p, 0, defR);
+				frustums.add(new Frustum(n.x, n.y, fz(n.z), r, n.x, n.y, fz(n.z), r, id));
 			}
 		}
 		return frustums;
@@ -711,27 +887,27 @@ public class TreeToRaster {
 				if (bpIdx >= 0 && bpIdx < parent.size()) {
 					final PointInImage bp = parent.getNode(bpIdx);
 					final PointInImage n0 = p.getNode(0);
-					final double rBp = (parent.hasRadii()) ? parent.getNodeRadius(bpIdx) : defR;
-					final double r0 = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
+					final double rBp = nodeRadius(parent, bpIdx, defR);
+					final double r0 = nodeRadius(p, 0, defR);
 					final int lbl = nodeValueToLabel(p, 0);
-					frustums.add(new Frustum(bp.x, bp.y, bp.z, rBp,
-							n0.x, n0.y, n0.z, r0, lbl));
+					frustums.add(new Frustum(bp.x, bp.y, fz(bp.z), rBp,
+							n0.x, n0.y, fz(n0.z), r0, lbl));
 				}
 			}
 			for (int i = 0; i < p.size() - 1; i++) {
 				final PointInImage n0 = p.getNode(i);
 				final PointInImage n1 = p.getNode(i + 1);
-				final double r0 = (p.hasRadii()) ? p.getNodeRadius(i) : defR;
-				final double r1 = (p.hasRadii()) ? p.getNodeRadius(i + 1) : defR;
+				final double r0 = nodeRadius(p, i, defR);
+				final double r1 = nodeRadius(p, i + 1, defR);
 				final int lbl = nodeValueToLabel(p, i);
-				frustums.add(new Frustum(n0.x, n0.y, n0.z, r0,
-						n1.x, n1.y, n1.z, r1, lbl));
+				frustums.add(new Frustum(n0.x, n0.y, fz(n0.z), r0,
+						n1.x, n1.y, fz(n1.z), r1, lbl));
 			}
 			if (p.size() == 1) {
 				final PointInImage n = p.getNode(0);
-				final double r = (p.hasRadii()) ? p.getNodeRadius(0) : defR;
+				final double r = nodeRadius(p, 0, defR);
 				final int lbl = nodeValueToLabel(p, 0);
-				frustums.add(new Frustum(n.x, n.y, n.z, r, n.x, n.y, n.z, r, lbl));
+				frustums.add(new Frustum(n.x, n.y, fz(n.z), r, n.x, n.y, fz(n.z), r, lbl));
 			}
 		}
 		return frustums;
@@ -750,19 +926,29 @@ public class TreeToRaster {
 	}
 
 	/**
-	 * Draws a single Poisson sample for the given mean. For very small means
-	 * the distribution degenerates, so we clamp.
+	 * Draws a single Poisson sample for the given mean. Allocation-free: it uses
+	 * the per-thread {@link ThreadLocalRandom} rather than constructing a
+	 * distribution object per call (this method is invoked once per voxel from a
+	 * parallel stream, so per-call allocation is prohibitive). Knuth's algorithm
+	 * is used for small means; for larger means the Gaussian approximation
+	 * N(mean, mean) is statistically excellent and avoids the exp() underflow and
+	 * unbounded iteration count that Knuth would incur.
 	 */
 	private static double poissonSample(final double mean) {
 		if (mean <= 0) return 0;
-		// PoissonDistribution throws for mean > ~1e7; for large means
-		// the Gaussian approximation N(mean, mean) is excellent
-		if (mean > 1e6) {
-			return Math.max(0, mean + Math.sqrt(mean)
-					* java.util.concurrent.ThreadLocalRandom.current()
-							.nextGaussian());
+		final ThreadLocalRandom rng = ThreadLocalRandom.current();
+		if (mean < 30) {
+			// Knuth: expected iterations ~= mean, so cheap in this range
+			final double l = Math.exp(-mean);
+			int k = 0;
+			double p = 1;
+			do {
+				k++;
+				p *= rng.nextDouble();
+			} while (p > l);
+			return k - 1;
 		}
-		return new PoissonDistribution(mean).sample();
+		return Math.max(0, Math.round(mean + Math.sqrt(mean) * rng.nextGaussian()));
 	}
 
 	/**
@@ -775,15 +961,18 @@ public class TreeToRaster {
 
 		// XY blur per slice (parallel)
 		if (sigmaXY > 0) {
+			final long txy = System.nanoTime();
 			IntStream.range(0, depth).parallel().forEach(z -> {
 				final GaussianBlur gb = new GaussianBlur();
 				final FloatProcessor fp = new FloatProcessor(width, height, img[z]);
 				gb.blurGaussian(fp, sigmaXY, sigmaXY, 0.0002);
 			});
+			logPhase("  blur XY", txy);
 		}
 
 		// Z blur: 1D Gaussian convolution per (x,y) column
 		if (sigmaZ > 0 && depth > 1) {
+			final long tz = System.nanoTime();
 			final int kRadius = (int) Math.ceil(3 * sigmaZ);
 			final double[] kernel = new double[2 * kRadius + 1];
 			double sum = 0;
@@ -809,6 +998,7 @@ public class TreeToRaster {
 				}
 				for (int z = 0; z < depth; z++) img[z][idx] = result[z];
 			});
+			logPhase("  blur Z", tz);
 		}
 	}
 
