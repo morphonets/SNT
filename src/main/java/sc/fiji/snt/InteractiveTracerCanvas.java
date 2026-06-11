@@ -239,7 +239,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private JMenuItem getSelectRoiMenuItem() {
         final JMenuItem selectByRoi = new JMenuItem(AListener.SELECT_BY_ROI);
-        IconFactory.assignIcon(selectByRoi, '\uf248', false, IconFactory.defaultColor());
+        IconFactory.assignIcon(selectByRoi, '\uf5ee', true, IconFactory.defaultColor());
         selectByRoi.addActionListener( e -> {
             if (pathAndFillManager.size() == 0) {
                 getGuiUtils().error("There are no traced paths.", "Nothing to Select");

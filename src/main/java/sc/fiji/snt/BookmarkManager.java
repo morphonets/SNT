@@ -63,6 +63,7 @@ public class BookmarkManager {
 
     private final SNTUI sntui;
     private final Bvv bvv;
+    private JToggleButton highlightToggle;
     /** BVV-injected toolbar components (e.g. slab toggle). Added via {@link #addBvvToolbarButton}. */
     private final java.util.List<javax.swing.JComponent> bvvToolbarButtons = new java.util.ArrayList<>();
     private final GuiUtils guiUtils;
@@ -195,10 +196,9 @@ public class BookmarkManager {
         panel.add(assembleHighlightToolbar(), gbc);
         gbc.gridy++;
         gbc.weighty = 0.95;
-        // Use the cached scroll pane (created in assembleTable) so the
-        // DetachableTable helper can move it in and out of a floating dialog.
-        // Capture the constraints used here so redockTableScroll() can
-        // restore the pane to the same grid cell after a detach.
+        // Use the cached scroll pane (created in assembleTable) so the DetachableTable helper can move it in and out
+        // of a floating dialog. Capture the constraints used here so redockTableScroll() can  restore the pane to the
+        // same grid cell after a detach.
         tableScrollGbc = (GridBagConstraints) gbc.clone();
         panel.add(tableScroll, tableScrollGbc);
         gbc.gridy++;
@@ -226,6 +226,17 @@ public class BookmarkManager {
         final BookmarkTable table = new BookmarkTable(model);
         final JPopupMenu pMenu = assembleTablePopupMenu(table);
         table.setComponentPopupMenu(pMenu);
+        // Live-sync the overlay highlights with the table selection when the
+        // toggle is on. valueIsAdjusting is filtered so click-and-drag selections
+        // only repaint once at the end, not on every intermediate index. Empty
+        // model is guarded here to avoid showHighlights() popping an error
+        // dialog during table-clear operations.
+        table.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            if (highlightToggle == null || !highlightToggle.isSelected()) return;
+            if (model.getRowCount() == 0) return;
+            showHighlights();
+        });
         // Cache the scroll pane so the detacher can move it between dock and
         // floating dialog. BookmarkTable.getContainer() copies the table's
         // popup onto the scroll pane, so we must set the popup BEFORE this.
@@ -622,6 +633,7 @@ public class BookmarkManager {
                 load(imp.getOverlay().toArray());
                 sntui.showStatus(model.getDataList().size() + " listed bookmarks ", true);
                 recordCmd("load(snt.getInstance().getImagePlus().getOverlay().toArray())");
+                clearImportedOverlay(imp);
             });
             jmi = new JMenuItem("From ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
             menu.add(jmi);
@@ -649,6 +661,32 @@ public class BookmarkManager {
             });
         }
         return menu;
+    }
+
+    private void clearImportedOverlay(final ImagePlus imp) {
+        final Overlay ov = imp.getOverlay();
+        if (ov == null || ov.size() == 0) return;
+        final boolean nag = sntui.plugin.getPrefs().getTemp("clear-imported-overlay-nag", true);
+        boolean wipe = sntui.plugin.getPrefs().getTemp("clear-imported-overlay", true);
+        if (nag) {
+            final boolean[] options = guiUtils.getPersistentConfirmation(
+                    "Now that ROIs have been imported as bookmarks, remove them from the image overlay? "
+                            + "(This clears all ROIs from the overlay, including any drawn by other tools.)",
+                    "Remove Imported Overlay?");
+            sntui.plugin.getPrefs().setTemp("clear-imported-overlay", wipe = options[0]);
+            sntui.plugin.getPrefs().setTemp("clear-imported-overlay-nag", !options[1]);
+        }
+        if (wipe) {
+            // Preserve our own highlight ROIs (named with HIGHLIGHT_PREFIX) so the
+            // toggle doesn't desync when the user happens to clear during a highlight
+            final Roi[] all = ov.toArray();
+            for (int i = all.length - 1; i >= 0; i--) {
+                final String name = all[i].getName();
+                if (name != null && name.startsWith(HIGHLIGHT_PREFIX)) continue;
+                ov.remove(i);
+            }
+            imp.updateAndDraw();
+        }
     }
 
     private JPopupMenu exportMenu() {
@@ -713,11 +751,22 @@ public class BookmarkManager {
         }
     }
 
-    private void highlightBookmarks() {
-        if (noBookmarksError()) return;
+    /**
+     * Adds (or refreshes) overlay highlights for the currently selected
+     * bookmarks. Re-invoking re-evaluates the current selection (used by
+     * the table's ListSelectionListener to keep highlights in sync). Sole
+     * entry point for showing highlights; syncs {@link #highlightToggle}
+     * state.
+     */
+    private void showHighlights() {
+        if (noBookmarksError()) {
+            syncHighlightToggle(false);
+            return;
+        }
         final ImagePlus imp = sntui.plugin.getImagePlus();
         if (imp == null) {
             sntui.guiUtils.error("No image is currently open.");
+            syncHighlightToggle(false);
             return;
         }
         Overlay overlay = imp.getOverlay();
@@ -725,7 +774,7 @@ public class BookmarkManager {
             overlay = new Overlay();
             imp.setOverlay(overlay);
         }
-        // Remove any existing highlights first
+        // Remove any existing highlights first (so re-clicking refreshes against the current selection)
         removeHighlightROIs(overlay);
         final int[] rows = getSelectedRowsAllIfNone();
         int idx = 0;
@@ -734,22 +783,38 @@ public class BookmarkManager {
             final Bookmark b = model.getDataList().get(modelRow);
             final PointRoi roi = b.toRoi();
             roi.setName(HIGHLIGHT_PREFIX + idx++);
-            roi.setPointType(PointRoi.CIRCLE);
+            roi.setPointType(PointRoi.DOT);
+            roi.setSize(3); // mid size: 0=tiny, 6=XXXL
             if (roi.getStrokeColor() == null)
                 roi.setStrokeColor(Color.CYAN);
             overlay.add(roi);
         }
         imp.updateAndDraw();
         sntui.showStatus(rows.length + " bookmark(s) highlighted on overlay", true);
+        syncHighlightToggle(true);
     }
 
-    private void clearHighlights() {
+    /**
+     * Removes highlight ROIs from the overlay. Sole entry point for hiding
+     * highlights; syncs {@link #highlightToggle} state.
+     */
+    private void hideHighlights() {
         final ImagePlus imp = (sntui == null) ? null : sntui.plugin.getImagePlus();
-        if (imp == null || imp.getOverlay() == null) return;
-        if (removeHighlightROIs(imp.getOverlay())) {
+        if (imp != null && imp.getOverlay() != null && removeHighlightROIs(imp.getOverlay())) {
             imp.updateAndDraw();
-            sntui.showStatus("Highlights cleared", true);
+            if (sntui != null) sntui.showStatus("Highlights cleared", true);
         }
+        syncHighlightToggle(false);
+    }
+
+    /** Updates the toggle without retriggering its action listener. */
+    private void syncHighlightToggle(final boolean selected) {
+        if (highlightToggle == null || highlightToggle.isSelected() == selected) return;
+        // Detach listeners briefly so toggling state programmatically doesn't loop back into show/hide
+        final java.awt.event.ActionListener[] ls = highlightToggle.getActionListeners();
+        for (final java.awt.event.ActionListener l : ls) highlightToggle.removeActionListener(l);
+        highlightToggle.setSelected(selected);
+        for (final java.awt.event.ActionListener l : ls) highlightToggle.addActionListener(l);
     }
 
     /**
@@ -778,14 +843,15 @@ public class BookmarkManager {
         tb.add(Box.createHorizontalGlue());
         if (sntui != null) { // no functionality in BVV Markers table
             tb.addSeparator();
-            final JButton highlightButton = new JButton(IconFactory.buttonIcon('\uf0eb', false));
-            highlightButton.setToolTipText("Highlight selected bookmarks on the image (all if none selected)");
-            highlightButton.addActionListener(e -> highlightBookmarks());
-            final JButton clearHighlightButton = GuiUtils.Buttons.undo();
-            clearHighlightButton.setToolTipText("Remove bookmark highlights from the image");
-            clearHighlightButton.addActionListener(e -> clearHighlights());
-            tb.add(highlightButton);
-            tb.add(clearHighlightButton);
+            highlightToggle = new JToggleButton(IconFactory.buttonIcon('\uf0eb', false));
+            highlightToggle.setToolTipText("<html>Show bookmark locations on the image. With nothing selected,<br>"
+                    + "all bookmarks are highlighted; otherwise only the selected ones.<br>"
+                    + "Click again to toggle.");
+            highlightToggle.addActionListener(e -> {
+                if (highlightToggle.isSelected()) showHighlights();
+                else hideHighlights();
+            });
+            tb.add(highlightToggle);
         }
         return tb;
     }
