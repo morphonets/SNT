@@ -4293,6 +4293,57 @@ public class GuiUtils {
 
 		private Buttons() {}
 
+		/** Default LUT choices offered by {@link #ColorTableButton}. */
+		private static final String[] DEFAULT_LUTS =
+				{"Distinct", "Fire", "Ice", "Plasma", "Red-Green", "Spectrum", "Viridis"};
+
+		/**
+		 * Convenience variant of {@link #ColorTableButton(float, Consumer, String[], String, JMenuItem...)}
+		 * using the {@link #DEFAULT_LUTS} choices and no pre-selected entry.
+		 */
+		public static OptionsButton ColorTableButton(final float scalingFactor,
+		                                             final Consumer<String> colorTableAction,
+		                                             final JMenuItem... extraItems) {
+			return ColorTableButton(scalingFactor, colorTableAction, DEFAULT_LUTS, null, extraItems);
+		}
+
+		/**
+		 * Builds a dropdown button whose popup lists color-table choices as a mutually
+		 * exclusive group. The supplied action is invoked with the chosen name whenever a
+		 * selection is made; any {@code extraItems} are appended below a separator.
+		 *
+		 * @param scalingFactor   icon scaling factor
+		 * @param colorTableAction action applied with the selected choice (may be null)
+		 * @param choices         the color-table names to offer
+		 * @param selected        the name to pre-check (may be null for none)
+		 * @param extraItems      optional app-specific items appended after a separator
+		 */
+		public static OptionsButton ColorTableButton(final float scalingFactor,
+		                                             final Consumer<String> colorTableAction,
+		                                             final String[] choices, final String selected,
+		                                             final JMenuItem... extraItems) {
+			final JPopupMenu popupMenu = new JPopupMenu();
+			GuiUtils.addSeparator(popupMenu, "Color Scheme:");
+			final ButtonGroup bg = new ButtonGroup();
+			for (final String choice : choices) {
+				final JCheckBoxMenuItem menuItem = new JCheckBoxMenuItem(choice);
+				// Set state before registering the listener: setSelected(true) fires an
+				// ItemEvent, which would otherwise trigger the action during construction
+				menuItem.setSelected(choice.equals(selected));
+				bg.add(menuItem);
+				popupMenu.add(menuItem);
+				menuItem.addItemListener(e -> {
+					if (e.getStateChange() == ItemEvent.SELECTED && colorTableAction != null)
+						colorTableAction.accept(choice);
+				});
+			}
+			if (extraItems != null && extraItems.length > 0) {
+				popupMenu.addSeparator();
+				for (final JMenuItem item : extraItems) popupMenu.add(item);
+			}
+			return OptionsButton(IconFactory.GLYPH.COLOR2, scalingFactor, popupMenu);
+		}
+
 		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
 			return new OptionsButton(glyph, scalingFactor, menu);
 		}

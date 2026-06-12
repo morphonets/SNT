@@ -39,11 +39,7 @@ import sc.fiji.snt.annotation.BrainAnnotation;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.OntologyBrowser;
-import sc.fiji.snt.util.ColorMaps;
-import sc.fiji.snt.util.ImgUtils;
-import sc.fiji.snt.util.ImpUtils;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.TreeToRaster;
+import sc.fiji.snt.util.*;
 
 import com.formdev.flatlaf.extras.components.FlatTextField;
 
@@ -54,6 +50,7 @@ import java.awt.event.MouseEvent;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -184,24 +181,24 @@ public class DelineationsManager {
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
-        final JButton colorSchemeButton = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.COLOR2, 1.1f));
+        final String[] colorSchemeChoices = {"Distinct", "Fire", "Ice", "Plasma", "Spectrum", "Viridis"};
+        final String lastColorScheme = sntui.getPrefs().get("snt.dmColorScheme", "Distinct");
+        final Consumer<String> applyColorSchemeChoice = choice -> {
+            sntui.getPrefs().set("snt.dmColorScheme", choice);
+            final int n = Math.min(256, delineations.size());
+            final Color[] colors = "Distinct".equals(choice)
+                    ? defaultDelineationColors(n)
+                    : ColorMaps.discreteColorsAWT(ColorMaps.get(choice), n);
+            applyColorScheme(colors);
+        };
+        final JMenuItem colorSchemeResetItem = new JMenuItem("Reset Color Scheme", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
+        colorSchemeResetItem.setToolTipText("Reset color scheme");
+        colorSchemeResetItem.addActionListener(e -> applyColorScheme(defaultDelineationColors(Math.min(256, delineations.size()))));
+        final GuiUtils.Buttons.OptionsButton colorSchemeButton = GuiUtils.Buttons.ColorTableButton(
+                1.1f, applyColorSchemeChoice, colorSchemeChoices, lastColorScheme, colorSchemeResetItem);
         colorSchemeButton.setToolTipText("Change color scheme");
         toolbar.add(colorSchemeButton);
-        colorSchemeButton.addActionListener(e -> {
-            final String[] choices = new String[]{"Distinct", "Fire", "Ice", "Plasma", "Spectrum", "Viridis"};
-            final String lastChoice = sntui.getPrefs().get("snt.dmColorScheme", "Distinct");
-            final String choice = sntui.guiUtils.getChoice("", "Color Scheme...", choices, lastChoice);
-            if (choice == null) return;
-            sntui.getPrefs().set("snt.dmColorScheme", choice);
-            final Color[] colors = (choices[0].equals(choice))
-                    ? defaultDelineationColors(Math.min(256, delineations.size()))
-                    : ColorMaps.discreteColorsAWT(ColorMaps.get(choice), Math.min(256, delineations.size()));
-            applyColorScheme(colors);
-        });
-        final JButton colorSchemeUndoButton = GuiUtils.Buttons.undo();
-        colorSchemeUndoButton.setToolTipText("Reset color scheme");
-        colorSchemeUndoButton.addActionListener(e -> applyColorScheme(defaultDelineationColors(Math.min(256, delineations.size()))));
-        toolbar.add(colorSchemeUndoButton);
+
 
         final JToggleButton directEditingButton = new JToggleButton();
         IconFactory.assignIcon(directEditingButton, IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN, 1.1f);
@@ -637,13 +634,13 @@ public class DelineationsManager {
 
     JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Import of Delineations:");
-        JMenuItem jmi = new JMenuItem("Import Assignments from Atlas Annotations", IconFactory.menuIcon(IconFactory.GLYPH.ATLAS));
+        GuiUtils.addSeparator(menu, "Import Delineations:");
+        JMenuItem jmi = new JMenuItem("From Atlas Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.ATLAS));
         menu.add(jmi);
         jmi.setToolTipText("Import delineations from neuropil labels. Previous delineations will be overridden.");
         jmi.addActionListener(e -> delineateFromPrompt());
 
-        jmi = new JMenuItem("Import Assignments from Labels/Masks Image...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        jmi = new JMenuItem("From Labels/Masks Image...", IconFactory.menuIcon(IconFactory.GLYPH.TAG));
         menu.add(jmi);
         jmi.setToolTipText("Import delineations from a labels/masks image (e.g., from Weka, Labkit, cellpose).\n" +
                 "Each non-zero label becomes a delineation.");
@@ -681,7 +678,7 @@ public class DelineationsManager {
                         "Labels Image Imported");
         });
 
-        jmi = new JMenuItem("Import Assignments from ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
+        jmi = new JMenuItem("From ROI Manager's ROIs...", IconFactory.menuIcon(IconFactory.GLYPH.LIST_ALT));
         menu.add(jmi);
         jmi.addActionListener(e -> {
             final RoiManager rm = RoiManager.getInstance2();
@@ -716,23 +713,14 @@ public class DelineationsManager {
 
     JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Export of Delineations:");
-        JMenuItem jmi = new JMenuItem("Export Assignments to a Labels Image", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        GuiUtils.addSeparator(menu, "Export Delineations:");
+        JMenuItem jmi = new JMenuItem("To Labels/Mask Image", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
         jmi.setToolTipText("Rasterize delineation assignments as a tube-filled labels image using node radii.");
         jmi.addActionListener(e -> {
-            if (sntui.noPathsError() || noAssignmentsExistError()) return;
-            final List<Path> paths = pafm.getPaths();
-            final Tree tree = new Tree(paths);
-            final ImagePlus refImp = sntui.accessToValidImagePlus() ? sntui.plugin.getImagePlus() : null;
-            if (refImp != null)  tree.assignImage(refImp);
-            final TreeToRaster rasterizer = new TreeToRaster(tree);
-            if (refImp != null) rasterizer.setReferenceBounds(refImp);
-            final ImagePlus labelImp = rasterizer.rasterizeNodeValueLabels();
-            labelImp.setTitle("Delineation Labels");
-            labelImp.show();
+            if ( !(sntui.noPathsError() || noAssignmentsExistError()) ) showLabels();
         });
         menu.add(jmi);
-        jmi = new JMenuItem("Export Assignments to ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
+        jmi = new JMenuItem("To ROI Manager", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT));
         jmi.addActionListener(e -> {
             final List<Roi> rois = getValidDelineationROIs();
             if (rois.isEmpty())
@@ -742,6 +730,101 @@ public class DelineationsManager {
         });
         menu.add(jmi);
         return menu;
+    }
+
+    /** Guards against launching concurrent label rasterizations (can be heavy for some images)  */
+    private volatile boolean rasterizingLabels;
+
+    private void showLabels() {
+        if (rasterizingLabels) {
+            sntui.showStatus("Label rasterization already in progress...", true);
+            return;
+        }
+        // Set up the rasterizer on the EDT (getScaledRaster shows a modal dialog)
+        final ImagePlus refImp = sntui.accessToValidImagePlus() ? sntui.plugin.getImagePlus() : null;
+        final Tree tree = new Tree(pafm.getPaths());
+        TreeToRaster rasterizer = new TreeToRaster(tree);
+        if (refImp != null) {
+            // an image exists. Resolution is fixed by the image; only prompt for radius scaling
+            tree.assignImage(refImp);
+            rasterizer.setReferenceBounds(refImp);
+            final Double mult = sntui.guiUtils.getDouble("Radius multiplier for the label tubes:",
+                    "Radius Scaling", rasterizer.getRadiusScale());
+            if (mult == null) return; // user canceled
+            if (Double.isNaN(mult) || mult <= 0) {
+                sntui.guiUtils.error("Invalid radius multiplier. Must be > 0.");
+                return;
+            }
+            rasterizer.setRadiusScale(mult);
+        } else {
+            // No image. Large data may be present. Ask for downsampling factor and radius scaling
+            rasterizer = getScaledRaster(rasterizer);
+            if (rasterizer == null) return; // user canceled or invalid input
+        }
+
+        // Rasterization can be slow and memory-heavy, so run it off the EDT to keep the UI responsive;
+        // show/report the result back on the EDT
+        final TreeToRaster raster = rasterizer; // effectively final for the worker
+        final boolean hadRef = refImp != null;
+        rasterizingLabels = true;
+        final int prevState = sntui.getState();
+        sntui.changeState(SNTUI.RUNNING_CMD);
+        sntui.showStatus("Rasterizing delineation labels...", false);
+        new SwingWorker<ImagePlus, Void>() {
+            @Override
+            protected ImagePlus doInBackground() {
+                return raster.rasterizeNodeValueLabels();
+            }
+
+            @Override
+            protected void done() {
+                rasterizingLabels = false;
+                try {
+                    final ImagePlus labelImp = get();
+                    labelImp.setTitle("Delineation Labels");
+                    labelImp.show();
+                    sntui.showStatus("Delineation labels created.", true);
+                } catch (final Exception ex) {
+                    final Throwable cause = (ex instanceof java.util.concurrent.ExecutionException
+                            && ex.getCause() != null) ? ex.getCause() : ex;
+                    if (cause instanceof OutOfMemoryError) {
+                        sntui.guiUtils.error(hadRef ? "The program ran out of memory."
+                                : "SNT ran out of memory. Increase voxel size and retry.");
+                        SNTUtils.error("SNT ran out of memory", cause);
+                    } else {
+                        sntui.guiUtils.error("An error occurred. See Console for details");
+                        SNTUtils.error("Rasterization of delineation labels failed", cause);
+                    }
+                    sntui.showStatus("Label rasterization failed.", true);
+                } finally {
+                    sntui.changeState(prevState);
+                }
+            }
+        }.execute();
+    }
+
+    private TreeToRaster getScaledRaster(final TreeToRaster treeToRaster) {
+        final Number[] pos = sntui.guiUtils.getThreeNumbers("",
+                "Resolution & Scale of Rasterized Labels",
+                new Number[]{treeToRaster.getLateralRes(), treeToRaster.getAxialRes(), treeToRaster.getRadiusScale()},
+                new String[]{"Voxel XY size", "Voxel depth (0 for 2D image)", "Radius multiplier"}, 3);
+        if (pos == null) {
+            return null; // user pressed cancel
+        }
+        final double lateral = pos[0].doubleValue();
+        final double axial = pos[1].doubleValue();
+        final double radiusMult = pos[2].doubleValue();
+        // Lateral size must be strictly positive; axial may be 0 (2D rastering); multiplier must be > 0
+        if (Double.isNaN(lateral) || lateral <= 0 || Double.isNaN(axial) || axial < 0
+                || Double.isNaN(radiusMult) || radiusMult <= 0) {
+            sntui.guiUtils.error("Invalid values. Lateral (XY) must be > 0; axial (Z) must be >= 0 (0 = 2D); "
+                    + "radius multiplier must be > 0.");
+            return null;
+        }
+        treeToRaster.setLateralRes(lateral);
+        treeToRaster.setAxialRes(axial);
+        treeToRaster.setRadiusScale(radiusMult);
+        return treeToRaster;
     }
 
     JButton optionsButton() {
