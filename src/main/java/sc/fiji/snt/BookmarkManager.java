@@ -355,6 +355,7 @@ public class BookmarkManager {
                 final int modelRow = table.convertRowIndexToModel(viewRow);
                 model.setValueAt(color, modelRow, 0); // if color is null user chose "Remove Tag"
             }
+            if (highlightToggle.isSelected()) showHighlights();
         });
         tagMenu.setText("Tag");
         tagMenu.setIcon(IconFactory.menuIcon((IconFactory.GLYPH.TAG)));
@@ -369,6 +370,7 @@ public class BookmarkManager {
                 final int modelRow = table.convertRowIndexToModel(viewRow);
                 model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
             }
+            if (highlightToggle.isSelected()) showHighlights();
         });
         tagMenu.addSeparator();
         tagMenu.add(mi);
@@ -843,8 +845,9 @@ public class BookmarkManager {
         tb.add(Box.createHorizontalGlue());
         if (sntui != null) { // no functionality in BVV Markers table
             tb.addSeparator();
-            highlightToggle = new JToggleButton(IconFactory.buttonIcon('\uf0eb', false));
-            highlightToggle.setToolTipText("<html>Show bookmark locations on the image. With nothing selected,<br>"
+            highlightToggle = new JToggleButton(IconFactory.buttonIcon('\uf591', true));
+            highlightToggle.setSelectedIcon(IconFactory.buttonIcon('\uf591', true, IconFactory.selectedColor()));
+            highlightToggle.setToolTipText("<html>Highlight bookmark locations on the image. With nothing selected,<br>"
                     + "all bookmarks are highlighted; otherwise only the selected ones.<br>"
                     + "Click again to toggle.");
             highlightToggle.addActionListener(e -> {

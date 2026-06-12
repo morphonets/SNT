@@ -44,7 +44,6 @@ import javax.swing.event.ChangeListener;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -210,28 +209,10 @@ public class SeedManager extends JPanel {
         lutRamp.setPreferredSize(new Dimension(lutRamp.getPreferredSize().width, h));
         lutRamp.setMaximumSize(new Dimension(lutRamp.getMaximumSize().width, h));
         p.add(lutRamp);
-        p.add(GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.COLOR2, 1f, colorTablePopupMenu()));
+        p.add(GuiUtils.Buttons.ColorTableButton(1f, overlay::setColorTable, getTransparencyMenuItem()));
         colorModeCombo = buildColorModeCombo();
         p.add(colorModeCombo);
         return p;
-    }
-
-    private JPopupMenu colorTablePopupMenu() {
-        final JPopupMenu popupMenu = new JPopupMenu();
-        GuiUtils.addSeparator(popupMenu, "Color Table:");
-        final ButtonGroup bg = new ButtonGroup();
-        final String[] lutChoices = {"Distinct", "Fire", "Ice", "Plasma", "Red-Green", "Spectrum", "Viridis"};
-        for (final String choice : lutChoices) {
-            final JCheckBoxMenuItem menuItem = new JCheckBoxMenuItem(choice);
-            bg.add(menuItem);
-            popupMenu.add(menuItem);
-            menuItem.addItemListener(e -> {
-                if (e.getStateChange() == ItemEvent.SELECTED) overlay.setColorTable(choice);
-            });
-        }
-        popupMenu.addSeparator();
-        popupMenu.add(getTransparencyMenuItem());
-        return popupMenu;
     }
 
     private JMenuItem getTransparencyMenuItem() {
@@ -1037,7 +1018,7 @@ public class SeedManager extends JPanel {
 
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Import:");
+        GuiUtils.addSeparator(menu, "Import Seeds:");
         JMenuItem jmi = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         jmi.setToolTipText("Loads seeds from tabular data");
         menu.add(jmi);
@@ -1071,7 +1052,7 @@ public class SeedManager extends JPanel {
 
     private JPopupMenu exportMenu() {
         final JPopupMenu menu = new JPopupMenu();
-        GuiUtils.addSeparator(menu, "Export:");
+        GuiUtils.addSeparator(menu, "Export Seeds:");
         JMenuItem jmi = new JMenuItem("To CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> exportToFile());
