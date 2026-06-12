@@ -118,6 +118,7 @@ public class IconFactory {
         EXPORT('\uf56e', true), //
         EXTERNAL_LINK('\uf35d', true), //
         EYE('\uf06e', false), //
+        EYE_LOW_VISION('\uf2a8', true), //
         EYE_SLASH('\uf070', false), //
         FILE('\uf15b', false), //
         FILE_IMAGE('\uf1c5', false), //

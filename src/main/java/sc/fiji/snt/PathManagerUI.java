@@ -5328,7 +5328,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private final JComponent embeddingParent;
         private final JComboBox<String> arborChoiceCombo;
         private final JToggleButton hideOthersButton;
-        private final JButton showAllArborsButton;
+        private final JToggleButton showAllArborsButton;
         private final JButton sortArborsButton;
         private final JButton nextArborButton;
         private String arborChoice = null; // currently chosen tree label
@@ -5346,13 +5346,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             this.embeddingParent = scrollPaneOfJTree.getColumnHeader();
             arborChoiceCombo = new JComboBox<>();
-            hideOthersButton = new JToggleButton();
             sortArborsButton = sortButton();
             nextArborButton = nextArborButton();
-            showAllArborsButton = showAllButton();
+            showAllArborsButton = GuiUtils.Buttons.toolbarToggleButton(showAllAction(), "Show all structures",
+                    IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE);
+            showAllArborsButton.setSelected(true);
+            hideOthersButton = GuiUtils.Buttons.toolbarToggleButton(hideOthersAction(), "Show only selected structure",
+                    IconFactory.GLYPH.EYE_LOW_VISION, IconFactory.GLYPH.EYE_LOW_VISION);
 
             // assemble combo box
-            arborChoiceCombo.setToolTipText("Jump to an arbor (rooted structure)");
+            arborChoiceCombo.setToolTipText("Jump to a structure (arbor / rooted tree)");
             arborChoiceCombo.setPrototypeDisplayValue("XXXXXXXXXXXXXX"); // 14 chars - safe cross-platform!?
             arborChoiceCombo.addActionListener(e -> {
                 if (navSyncGuard) return;
@@ -5364,26 +5367,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     expandAndRevealTree(arborChoice);
             });
 
-            // assemble "hide others" button
-            IconFactory.assignIcon(hideOthersButton, IconFactory.GLYPH.ARROWS_TO_EYE, IconFactory.GLYPH.ARROWS_TO_EYE);
-            hideOthersButton.setToolTipText("When selected, list only paths from the chosen arbor/structure");
-            hideOthersButton.addActionListener(e -> {
-                if (arborChoiceCombo.getSelectedIndex() == -1) {
-                    hideOthersButton.setSelected(false);
-                    guiUtils.error("No arbor/structure chosen.");
-                } else
-                    applyHideOthers(hideOthersButton.isSelected());
-            });
 
-            // add components
+            // add sorter, choice combo, and prev/next button
             add(sortArborsButton);
             addSeparator();
-            add(showAllArborsButton);
             add(arborChoiceCombo);
             add(nextArborButton);
+
+            // add show all/selected as a group
             add(hideOthersButton);
+            add(showAllArborsButton);
+            final ButtonGroup group = new ButtonGroup();
+            group.add(showAllArborsButton);
+            group.add(hideOthersButton);
             addSeparator();
 
+            // zoom/go to
             add(zoomToPathsButton());
             add(zoomToNodeButton());
             addSeparator();
@@ -5396,7 +5395,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final String label = (String) arborChoiceCombo.getSelectedItem();
             arborChoice = (label == null || label.isEmpty()) ? null : label;
             // Keep the toggle enabled if filtering is active, even if combo shows no selection
-            hideOthersButton.setEnabled(arborChoice != null || hideOthersButton.isSelected());
+           // hideOthersButton.setEnabled(arborChoice != null || hideOthersButton.isSelected());
         }
 
         private Collection<Path> getSelectedPathsUsingToolbarOptions(final boolean ifNoneSelectedGetAll) {
@@ -5416,8 +5415,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private JButton nextArborButton() {
             final JButton b = new JButton(); //
-            IconFactory.assignIcon(b, IconFactory.GLYPH.CARET_UP_DOWN, IconFactory.GLYPH.CARET_UP_DOWN, 1f);
-            b.setToolTipText("Next arbor");
+            IconFactory.assignIcon(b, IconFactory.GLYPH.NEXT, IconFactory.GLYPH.NEXT, 1f);
+            b.setToolTipText("Next structure");
             b.addActionListener(e -> {
                 final int n = arborChoiceCombo.getItemCount();
                 if ( n== 0) return;
@@ -5434,8 +5433,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private JButton sortButton() {
             final JButton b = new JButton(); //
             IconFactory.assignIcon(b, IconFactory.GLYPH.SORT, IconFactory.GLYPH.SORT, 1f);
-            b.setToolTipText("Sort Arbors/Root-level Paths...");
-            b.setActionCommand("Sort Arbors/Root-level Paths...");
+            b.setToolTipText("Sort Structures...");
+            b.setActionCommand("Sort Structures...");
             b.addActionListener( e -> {
                 sortArbors(); // full model will be restored
                 arborChoiceCombo.setSelectedIndex(-1);
@@ -5443,16 +5442,27 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             return b;
         }
 
-        private JButton showAllButton() {
-            final JButton b = new JButton(); // home
-            IconFactory.assignIcon(b, IconFactory.GLYPH.UNDO, IconFactory.GLYPH.UNDO, .8f);
-            b.setToolTipText("Show all arbors");
-            b.setActionCommand("Show All Arbors");
-            b.addActionListener(e -> {
-                restoreFullModelState(); // Reset to full model, clear filtering, and ensure hide others is off
-                arborChoiceCombo.setSelectedIndex(-1);
-            });
-            return b;
+        private Action showAllAction() {
+            return new AbstractAction("Show All Structures") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    restoreFullModelState(); // Reset to full model, clear filtering, and ensure hide others is off
+                    arborChoiceCombo.setSelectedIndex(-1);
+                }
+            };
+        }
+
+        private Action hideOthersAction() {
+            return new AbstractAction("Show Only Selected Structure") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (arborChoiceCombo.getSelectedIndex() == -1) {
+                        showAllArborsButton.setSelected(true);
+                        guiUtils.error("No structure selected. Choose one from the list first.");
+                    } else
+                        applyHideOthers(hideOthersButton.isSelected());
+                }
+            };
         }
 
         private JButton zoomToNodeButton() {
@@ -5480,7 +5490,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     final boolean intensitySearch = "min value".equals(filter);
                     final Map<Path, double[]> snapshot = intensitySearch ? snapshotNodeValues(paths) : null;
                     try {
-                        if (intensitySearch) ensureNodeValues(paths);
+                        // Abort the whole operation if there is no image to sample intensities from:
+                        // ensureNodeValues has already shown the error. Proceeding would search
+                        // unpopulated values and zoom to an arbitrary node.
+                        if (intensitySearch && !ensureNodeValues(paths)) return;
                         Path.PathNode globalExtremum = null;
                         for (final Path path : paths) {
                             final Path.PathNode local = path.getNode(filter);
@@ -5591,11 +5604,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         /**
          * Populates per-node intensity values via {@link PathProfiler} for any
-         * path in {@code paths} that does not already carry them. No-op when
-         * the SNT instance has no image.
+         * path in {@code paths} that does not already carry them.
+         *
+         * @return {@code true} if values could be assigned; {@code false} when no
+         *         valid image is available (in which case an error has already been
+         *         shown and the caller should abort the intensity-based operation)
          */
-        private void ensureNodeValues(final Collection<Path> paths) {
-            if (noValidImageDataError()) return;
+        private boolean ensureNodeValues(final Collection<Path> paths) {
+            if (noValidImageDataError()) return false;
             for (final Path p : paths) {
                 // Always (re)assign with point sampling so the values array is densely populated. PathProfiler's
                 // default LINE shape skips the first and last node, leaving them as a literal 0.0 in the values
@@ -5608,6 +5624,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     // Out of bounds, missing channel, etc.: leave path without values.
                 }
             }
+            return true;
         }
 
         /**
@@ -5794,6 +5811,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             arborChoice = null;
             tree.setModel(fullTreeModel);
             hideOthersButton.setSelected(false);
+            // Re-enable sorting now that the full (multi-arbor) model is restored:
+            // applyHideOthers(true) disables it while a single arbor is isolated, and
+            // this path (e.g. the "show all structures" button) must undo that.
+            sortArborsButton.setEnabled(getAllTreeLabels().size() > 1);
             GuiUtils.JTrees.expandAllNodes(tree);
         }
 
@@ -6026,16 +6047,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         void addExtras() {
             final JPopupMenu popupMenu = new JPopupMenu();
-            final JMenuItem customizeItem = new JMenuItem("Change Colors...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+            final JMenuItem customizeItem = new JMenuItem("Change Tag Colors...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
             customizeItem.addActionListener(e -> showColorCustomizationDialog());
             popupMenu.add(customizeItem);
-            popupMenu.addSeparator();
             final JMenuItem hideItem = new JMenuItem("Hide " + getName(), IconFactory.menuIcon('\uf070', true));
             hideItem.addActionListener(e -> setVisible(false));
             popupMenu.add(hideItem);
-            setComponentPopupMenu(popupMenu);
+            popupMenu.addSeparator();
+            popupMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Proofreading Tags", "https://imagej.net/plugins/snt/manual#tag-"));
             add(Box.createHorizontalGlue());
-            add(GuiUtils.Buttons.help("https://imagej.net/plugins/snt/manual#tag-"));
+            add(GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.SLIDERS, 1f, popupMenu));
         }
 
         private void showColorCustomizationDialog() {
