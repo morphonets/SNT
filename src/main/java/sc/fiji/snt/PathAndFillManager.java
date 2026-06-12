@@ -2418,6 +2418,13 @@ public class PathAndFillManager extends DefaultHandler implements
     }
 
     public void dispose() {
+        // A non-headless manager with a live plugin reference is almost certainly SNT's shared instance;
+        // disposing it (which clears all paths and nulls the plugin) is usually a mistake. Flag it when debugging
+        if (plugin != null && !headless) {
+            SNTUtils.log("WARNING: PathAndFillManager.dispose() called on a UI-attached manager "
+                    + "(plugin set, headless=false, " + size() + " path(s)). Disposing the shared "
+                    + "manager clears all paths. Caller: " + new Throwable().getStackTrace()[1]);
+        }
         clear();
         boundingBox = null;
         endJoins = null;

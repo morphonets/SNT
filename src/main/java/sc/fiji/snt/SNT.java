@@ -1074,11 +1074,15 @@ public class SNT extends MultiDThreePanes implements
 		flushSecondaryData(); // will discard secondaryData
 		if (searchArtists != null) searchArtists.clear();
 		if (fillerSet != null) fillerSet.clear();
+		// Close the tracing panes (removing the canvases) BEFORE disposing the
+		// PathAndFillManager: pathAndFillManager.dispose() nulls its plugin
+		// reference, and a still-open canvas receiving a late system repaint would
+		// otherwise NPE in TracerCanvas.drawOverlay (plugin == null).
+		closeAndResetAllPanes();
 		if (pathAndFillManager != null) pathAndFillManager.dispose();
 		if (univ != null && univ.getWindow() != null) univ.getWindow().dispose();
 		if (ui != null) ui.dispose();
 		notifyListeners(new SNTEvent(SNTEvent.QUIT));
-		closeAndResetAllPanes();
 		colorImage = null;
 		ctSlice3d = null;
 		currentPath = null;

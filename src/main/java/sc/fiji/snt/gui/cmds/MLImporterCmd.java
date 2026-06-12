@@ -171,7 +171,11 @@ public class MLImporterCmd extends CommonDynamicCmd {
 		else {
 			status("Successful imported " + result.size() + " reconstruction(s)...", true);
 		}
-		if (pafm != null) pafm.dispose();
+		// Only dispose the throwaway manager created for a stand-alone viewer.
+		// When recViewer == null, pafm is SNT's shared PathAndFillManager
+		// (sntService.getPathAndFillManager()); disposing it here would clear the
+		// just-imported paths and null its plugin reference, blanking the canvas.
+		if (recViewer != null && pafm != null) pafm.dispose();
 	}
 
 	/**
