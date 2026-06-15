@@ -42,11 +42,7 @@ import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.*;
 import smile.math.MathEx;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.Callable;
 
 import org.apache.commons.lang3.StringUtils;
@@ -207,10 +203,7 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 	public double[] call() {
 		values = new double[path.size()];
 
-		if (path.size() == 1)
-			return values;
-
-		if (shape == Shape.NONE)
+		if (shape == Shape.NONE || path.size() == 1)
 			return profilePathNodes(rai, path, values);
 
 		final int start = (shape == Shape.LINE) ? 1 : 0;
@@ -236,6 +229,10 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
                 default -> throw new IllegalArgumentException("Unknown profiler method: " + metric);
             };
             values[i] = value;
+		}
+		if (shape == Shape.LINE) {
+			values[0] = Double.NaN;
+			values[path.size()-1] = Double.NaN;
 		}
 		return values;
 	}
@@ -281,19 +278,12 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 	private static <T> Cursor<T> getSuitableCursor2d(final RandomAccessible<T> rai, final Shape shape,
 			final long radius, final Path path, final int i) {
 		final Localizable centerPoint = new Point(path.getXUnscaled(i), path.getYUnscaled(i));
-		switch (shape) {
-		case CIRCLE:
-			return new CircleCursor<>(rai, centerPoint, radius);
-		case HYPERSPHERE:
-		case DISK:
-			return new HyperSphere<>(rai, centerPoint, radius).cursor();
-		case LINE:
-			return getLineCursor(rai, radius, path, i);
-		case NONE:
-		default:
-			throw new IllegalArgumentException("Unsupported shape: " + shape);
-
-		}
+        return switch (shape) {
+            case CIRCLE -> new CircleCursor<>(rai, centerPoint, radius);
+            case HYPERSPHERE, DISK -> new HyperSphere<>(rai, centerPoint, radius).cursor();
+            case LINE -> getLineCursor(rai, radius, path, i);
+            default -> throw new IllegalArgumentException("Unsupported shape: " + shape);
+        };
 	}
 
 	private static <T> Cursor<T> getSuitableCursor3d(final RandomAccessible<T> rai, final Shape shape,
@@ -339,10 +329,10 @@ public class ProfileProcessor<T extends RealType<T>> implements Callable<double[
 		final double dx = radius * Math.sin(phi);
 		final double dy = radius * Math.cos(phi);
 		if (rai.numDimensions() == 3)
-			return new BresenhamLine<T>(rai, new Point((int) (x0 - dx), (int) (y0 + dy), path.getZUnscaled(i)),
-					new Point((int) (x0 + dx), (int) (y0 - dy), path.getZUnscaled(i)));
-		return new BresenhamLine<T>(rai, new Point((int) (x0 - dx), (int) (y0 + dy)),
-				new Point((int) (x0 + dx), (int) (y0 - dy)));
+			return new BresenhamLine<>(rai, new Point((int) (x0 - dx), (int) (y0 + dy), path.getZUnscaled(i)),
+                    new Point((int) (x0 + dx), (int) (y0 - dy), path.getZUnscaled(i)));
+		return new BresenhamLine<>(rai, new Point((int) (x0 - dx), (int) (y0 + dy)),
+                new Point((int) (x0 + dx), (int) (y0 - dy)));
 	}
 
 	private List<Double> getAllValues(final Cursor<T> cursor) {
