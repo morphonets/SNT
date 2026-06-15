@@ -282,6 +282,8 @@ public class Bvv {
                         pathOverlay.overlayRenderer.farClip = cam[2];
                     }
                     attachControlPanel(chSource);
+                    if (annotationOverlay != null)
+                        annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
                 }
             } else {
                 followerSources.add(chSource);
@@ -1004,6 +1006,9 @@ public class Bvv {
             pathOverlay.overlayRenderer.farClip = cam[2];
         }
         attachControlPanel(source);
+        // Sync annotation overlay (created inside attachControlPanel) with image-derived params
+        if (annotationOverlay != null)
+            annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
         // Wrap single-channel source as BvvMultiSource so show(List) can track it uniformly
         final int groupIdx = multiSources.size();
         final int srcIdx = bvvHandle.getViewerPanel().state().getSources().size() - 1;
@@ -1066,6 +1071,8 @@ public class Bvv {
                         pathOverlay.overlayRenderer.farClip = cam[2];
                     }
                     attachControlPanel(chSource);
+                    if (annotationOverlay != null)
+                        annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
                 }
             } else {
                 followerSources.add(chSource);
@@ -2210,7 +2217,7 @@ public class Bvv {
             bvvInstance.getViewerFrame().getViewerPanel().setCamParams(
                     overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             if (bvvInstance.annotationOverlay != null)
-                bvvInstance.annotationOverlay.setCamParams(overlayRenderer.nearClip, overlayRenderer.farClip);
+                bvvInstance.annotationOverlay.setCamParams(overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             bvvInstance.syncOverlays();
         }
 
@@ -3323,8 +3330,9 @@ public class Bvv {
             viewerPanel.requestRepaint();
         }
 
-        /** Syncs slab clip planes from OverlayRenderer so both renderers clip consistently. */
-        void setCamParams(final double nearClip, final double farClip) {
+        /** Syncs camera/slab params from OverlayRenderer so perspective and clipping are consistent. */
+        void setCamParams(final double dCam, final double nearClip, final double farClip) {
+            annRenderer.dCamAnn     = dCam;
             annRenderer.nearClipAnn = nearClip;
             annRenderer.farClipAnn  = farClip;
         }
@@ -3341,7 +3349,7 @@ public class Bvv {
         private static class AnnRenderer implements bdv.viewer.OverlayRenderer {
 
             // Camera parameters kept in sync w/ OverlayRenderer via AnnotationOverlay.setCamParams()
-            private static final double D_CAM = BvvUtils.DEFAULT_D_CAM;
+            double dCamAnn     = BvvUtils.DEFAULT_D_CAM;
             double nearClipAnn = BvvUtils.DEFAULT_NEAR_CLIP;
             double farClipAnn  = BvvUtils.DEFAULT_FAR_CLIP;
             private final VolumeViewerPanel viewerPanel;
@@ -3490,7 +3498,7 @@ public class Bvv {
                     // ann.radiusUm is in physical (world-space) units. Multiplying by
                     // scale converts it to screen pixels at the current zoom level, then
                     // pf applies perspective foreshortening, matching path node rendering.
-                    final double pf = D_CAM / (D_CAM + viewerCoords[2]);
+                    final double pf = dCamAnn / (dCamAnn + viewerCoords[2]);
                     data.screenX = centerX + (viewerCoords[0] - centerX) * pf;
                     data.screenY = centerY + (viewerCoords[1] - centerY) * pf;
                     data.screenRadius = Math.max(1.0, ann.radiusUm * scale * pf);
@@ -4528,7 +4536,7 @@ public class Bvv {
             pathOverlay.overlayRenderer.farClip = kf.farClip;
         }
         if (annotationOverlay != null)
-            annotationOverlay.setCamParams(kf.nearClip, kf.farClip);
+            annotationOverlay.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
         syncOverlays();
         // Groups
         final bdv.viewer.SynchronizedViewerState state = vp.state();
