@@ -103,6 +103,7 @@ public class BookmarkManager {
         this.guiUtils = new GuiUtils(bvv.getViewerFrame());
         model = new BookmarkModel(true);
         table = assembleTable(model);
+        table.placeholderMsg = "Bookmark volume locations using M";
         // Sync overlay whenever the model changes
         model.addTableModelListener(e -> syncBvvOverlay());
     }
@@ -1479,6 +1480,8 @@ class CellEditor extends DefaultCellEditor {
 
 class BookmarkTable extends JTable {
 
+    String placeholderMsg =   "Bookmark image locations using Shift+B";
+
     BookmarkTable(final BookmarkModel model) {
         super(model);
         setAutoCreateRowSorter(true);
@@ -1513,9 +1516,8 @@ class BookmarkTable extends JTable {
             GuiUtils.setRenderingHints(g2);
             g2.setColor(GuiUtils.getDisabledComponentColor());
             final java.awt.FontMetrics fm = g2.getFontMetrics();
-            final String msg = "Bookmark image locations using Shift+B";
             final java.awt.Rectangle visible = getVisibleRect();
-            g2.drawString(msg, visible.x + (visible.width - fm.stringWidth(msg)) / 2,
+            g2.drawString(placeholderMsg, visible.x + (visible.width - fm.stringWidth(placeholderMsg)) / 2,
                     visible.y + (visible.height - fm.getHeight()) / 2 + fm.getAscent());
         }
     }
