@@ -511,6 +511,16 @@ public class ImpUtils {
         return ij.WindowManager.getCurrentImage();
     }
 
+    /**
+     * @return the Image current magnification. A value between 0.0139 (1.4%), and 32 (3200%) or -1, if the zoom factor
+     * could not be assessed.
+     */
+    public static double getMagnification(final ImagePlus imp) {
+        final ImageCanvas canvas = imp.getCanvas();
+        if (canvas == null) return -1;
+        return canvas.getMagnification();
+    }
+
     public static void zoomTo(final ImagePlus imp, final double zoomMagnification, final int x, final int y) {
         final ImageCanvas canvas = imp.getCanvas();
         if (canvas == null) return;

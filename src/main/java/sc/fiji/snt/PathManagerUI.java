@@ -5466,6 +5466,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         private JButton zoomToNodeButton() {
+            final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
             final ActionListener action = e -> {
                 final Collection<Path> paths = getSelectedPathsUsingToolbarOptions(true);
                 if (paths == null || paths.isEmpty()) {
@@ -5537,18 +5538,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     };
                     guiUtils.error(String.format("Selected path(s) have no %s.", msg));
                 } else {
-                    zoomToBoundingBox(List.of(placeholder));
-                    // zoomToBoundingBox only adjusts XY. For node-level navigation we also want to bring the target
-                    // slice into view: use the median Z across the placeholder so multi-node selections land in the
-                    // middle of the range
-                    final ImagePlus imp = plugin.getImagePlus();
-                    if (imp != null) {
-                        final int[] zs = new int[placeholder.size()];
-                        for (int i = 0; i < placeholder.size(); i++) zs[i] = placeholder.getZUnscaled(i) + 1; // 1-indexed
-                        java.util.Arrays.sort(zs);
-                        final int zSlice = Math.max(1, Math.min(imp.getNSlices(), zs[zs.length / 2]));
-                        imp.setPosition(imp.getC(), zSlice, imp.getT());
-                    }
+                    zoomToNode(placeholder, visitingZoom);
                 }
             };
 
@@ -5566,7 +5556,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             menu.add(mi);
                         }
                     });
-
+            GuiUtils.addSeparator(menu, "Zoom Control:");
+            final JMenu zMenu = visitingZoom.zoomControls("Zoom to Node", "nodes");
+            zMenu.setText("Preferred Zoom Level");
+            zMenu.setToolTipText("The magnification to be used when zooming into a node");
+            menu.add(zMenu);
             final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MAGNIFIED_LOCATION, 1f, menu);
             button.setActionCommand("Zoom To Nodes");
             button.putClientProperty("cmdFinder", "Zoom To Nodes");
@@ -5785,26 +5779,35 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             return true;
         }
 
+        private void zoomToNode(final Path nodeAsPath, GuiUtils.VisitingZoom visitingZoom) {
+            final List<Path> nodeAsPathCollection = List.of(nodeAsPath);
+            if (!canExecuteZoomOperation(nodeAsPathCollection)) return;
+            ImpUtils.zoomTo(plugin.getImagePlus(), visitingZoom.fraction(), nodeAsPath.getNode(0), nodeAsPath);
+            zoomOtherPanesAsNeeded(nodeAsPathCollection, visitingZoom.fraction());
+        }
+
         private void zoomToBoundingBox(final Collection<Path> paths) {
             if (!canExecuteZoomOperation(paths)) return;
-
             final double prevMag = plugin.getImagePlus().getCanvas().getMagnification();
             final double zoom = ImpUtils.zoomTo(plugin.getImagePlus(), paths);
             plugin.setCanvasLabelAllPanes((zoom == prevMag) ? "Selected paths already in view" :
                     String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
+            zoomOtherPanesAsNeeded(paths, zoom);
+            final Timer timer = new Timer(600, ae -> plugin.setCanvasLabelAllPanes(null));
+            timer.setRepeats(false);
+            timer.start();
+        }
 
+        private void zoomOtherPanesAsNeeded(final Collection<Path> paths, final double magnification) {
             // Sync side views to same zoom level if enabled
             if (!plugin.getSinglePane()) {
                 final ImagePlus zyImp = plugin.getImagePlus(SNT.ZY_PLANE);
                 if (zyImp != null)
-                    ImpUtils.zoomTo(zyImp, zoom, paths, RoiConverter.ZY_PLANE);
+                    ImpUtils.zoomTo(zyImp, magnification, paths, RoiConverter.ZY_PLANE);
                 final ImagePlus xzImp = plugin.getImagePlus(SNT.XZ_PLANE);
                 if (xzImp != null)
-                    ImpUtils.zoomTo(xzImp, zoom, paths, RoiConverter.XZ_PLANE);
+                    ImpUtils.zoomTo(xzImp, magnification, paths, RoiConverter.XZ_PLANE);
             }
-            final Timer timer = new Timer(600, ae -> plugin.setCanvasLabelAllPanes(null));
-            timer.setRepeats(false);
-            timer.start();
         }
 
         void restoreFullModelState() {

@@ -130,7 +130,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JButton onDemandButton;
     // Navigation
     /** Preferred zoom level applied when navigating to a flagged issue. */
-    private final GuiUtils.JTables.VisitingZoom visitingZoom = new GuiUtils.JTables.VisitingZoom();
+    private final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
     // Menus
     private JPopupMenu calibrationMenu;
     // Detachable table (state is owned by the helper)
@@ -361,88 +361,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         showCuratedItem.addActionListener(e -> showCuratedPathsInPathManager());
         popup.add(showCuratedItem);
         popup.addSeparator();
-        popup.add(getVisitingZoomControls());
-
+        popup.add(visitingZoom.zoomControls("Visiting Zoom Level", "issues"));
         // popup.addSeparator();
         return popup;
     }
 
-    private JMenu getVisitingZoomControls() {
-        final JMenu presetsMenu = new JMenu("Visiting Zoom Level");
-        presetsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
-        final ButtonGroup buttonGroup = new ButtonGroup();
-        final int currentZl = visitingZoom.percentage();
-        final Map<Integer, JRadioButtonMenuItem> presets = new TreeMap<>();
-        for (final int zl : new int[]{33, 50, 100, 200, 400, 600, 800, 1000}) {
-            final JRadioButtonMenuItem item = new JRadioButtonMenuItem(zl + "%");
-            item.setSelected(currentZl == zl);
-            item.addActionListener(e -> {
-                visitingZoom.setPercentage(zl);
-                sntui.showStatus("Visiting zoom set to " + zl + "%", true);
-            });
-            buttonGroup.add(item);
-            presetsMenu.add(item);
-            presets.put(zl, item);
-        }
-        //presetsMenu.addSeparator();
-        final JRadioButtonMenuItem chooseOther = new JRadioButtonMenuItem("Other...", !presets.containsKey(currentZl));
-        buttonGroup.add(chooseOther);
-        presetsMenu.add(chooseOther);
-        chooseOther.addActionListener(e -> {
-            final String suffixMsg;
-            final ImagePlus imp = sntui.plugin.getImagePlus();
-            if (imp != null) {
-                suffixMsg = String.format(" (image default: %d%%):", visitingZoom.defaultPercentageFor(imp));
-            } else {
-                suffixMsg = ":";
-            }
-            final Integer zl = sntui.guiUtils.getInt(
-                    "Preferred zoom level (%) when navigating to an issue" + suffixMsg,
-                    "Visiting Zoom Level", visitingZoom.percentage(), 200, 3200);
-            if (zl != null) {
-                visitingZoom.setPercentage(zl);
-                sntui.showStatus("Visiting zoom set to " + zl + "%", true);
-                if (presets.get(zl) != null) presets.get(zl).setSelected(true);
-
-            }
-        });
-        presetsMenu.addSeparator();
-        final JMenuItem resetZoomItem = new JMenuItem("Reset Zoom Level", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
-        resetZoomItem.setToolTipText(
-                "<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
-        resetZoomItem.addActionListener(e -> {
-            if (sntui.plugin.getImagePlus() == null) {
-                sntui.showStatus("Current zoom unknown: No image is loaded...", true);
-            } else {
-                final int resetZl = visitingZoom.defaultPercentageFor(sntui.plugin.getImagePlus());
-                visitingZoom.setPercentage(resetZl);
-                final JRadioButtonMenuItem match = presets.get(resetZl);
-                if (match != null) match.setSelected(true);
-                else chooseOther.setSelected(true);
-                sntui.showStatus("Visiting zoom reset to " + resetZl + "%", true);
-            }
-        });
-        presetsMenu.add(resetZoomItem);
-        // sync radio state every time the menu is about to open
-        presetsMenu.addMenuListener(new javax.swing.event.MenuListener() {
-            @Override
-            public void menuSelected(javax.swing.event.MenuEvent e) {
-                final int now = visitingZoom.percentage();
-                final JRadioButtonMenuItem match = presets.get(now);
-                if (match != null) match.setSelected(true);
-                else chooseOther.setSelected(true);
-            }
-
-            @Override
-            public void menuDeselected(javax.swing.event.MenuEvent e) {
-            }
-
-            @Override
-            public void menuCanceled(javax.swing.event.MenuEvent e) {
-            }
-        });
-        return presetsMenu;
-    }
 
     /**
      * Re-attaches the table scroll pane after a dock. Called by the

@@ -70,7 +70,7 @@ public class BookmarkManager {
     private final BookmarkModel model;
     private final BookmarkTable table;
     /** Preferred zoom level applied when double-clicking a bookmark to visit it. */
-    private final GuiUtils.JTables.VisitingZoom visitingZoom = new GuiUtils.JTables.VisitingZoom();
+    private final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
     private JDialog bvvFrame; // floating dialog for BVV mode (non-modal, owned by viewer frame)
     // Detachable table state, owned by the helper.
     private JPanel panel; // cached panel built by getPanel()

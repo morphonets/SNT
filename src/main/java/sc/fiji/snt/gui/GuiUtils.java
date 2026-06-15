@@ -2843,6 +2843,169 @@ public class GuiUtils {
 		return false;
 	}
 
+	/**
+	 * Stateful "visiting zoom" helper used by widgets that navigate the canvas with "GoTo"-type of actions
+	 * The default zoom is roughly two zoom steps above the current canvas magnification, falling back to
+	 * {@value #DEFAULT_PERCENT}% when no image is loaded.
+	 */
+	public static class VisitingZoom {
+
+		public static final int MIN_PERCENT = 25;
+		public static final int MAX_PERCENT = 3200;
+		public static final int DEFAULT_PERCENT = 600;
+		private static final int STEP = 50;
+
+		private int percentage;
+
+		public VisitingZoom() { this(DEFAULT_PERCENT); }
+
+		public VisitingZoom(final int initialPercentage) {
+			this.percentage = clamp(initialPercentage);
+		}
+
+		/** @return current zoom level in percent (in {@code [25, 3200]}). */
+		public int percentage() { return percentage; }
+
+		/** @return current zoom level as a fraction (e.g. {@code 6.0} for 600%). */
+		public double fraction() { return percentage / 100.0; }
+
+		/** Sets the percentage, clamped to the allowed range. */
+		public void setPercentage(final int p) { this.percentage = clamp(p); }
+
+		/**
+		 * Resets the percentage to roughly two zoom steps above the
+		 * image canvas's current magnification, or
+		 * {@value #DEFAULT_PERCENT}% when {@code imp == null} or has no
+		 * canvas yet.
+		 */
+		public void resetFor(final ij.ImagePlus imp) {
+			try {
+				percentage = defaultPercentageFor(imp);
+			} catch (final NullPointerException ignored) {
+				percentage = DEFAULT_PERCENT;
+			}
+		}
+
+		/**
+		 * Builds a {@link JSpinner} bound to this state. Editing the
+		 * spinner updates the percentage; external mutations need to
+		 * call {@link JSpinner#setValue(Object) setValue} on the spinner
+		 * directly.
+		 */
+		public JSpinner buildSpinner() {
+			final JSpinner s = GuiUtils.integerSpinner(
+					percentage, MIN_PERCENT, MAX_PERCENT, STEP, true);
+			s.setToolTipText("Zoom level (" + MIN_PERCENT + "–" + MAX_PERCENT
+					+ "%) used when navigating to a row");
+			s.addChangeListener(e -> setPercentage((int) s.getValue()));
+			return s;
+		}
+
+		private static int clamp(final int p) {
+			return Math.clamp(p, MIN_PERCENT, MAX_PERCENT);
+		}
+
+		public int defaultPercentageFor(final ij.ImagePlus imp) {
+			if (imp == null)
+				return DEFAULT_PERCENT;
+			final ij.gui.ImageCanvas canvas = imp.getCanvas();
+			if (canvas == null)
+				return DEFAULT_PERCENT;
+			final double currentMag = canvas.getMagnification();
+			final double nextUp1x = ImpUtils.nextZoomLevel(currentMag);
+			final double nextUp2x = ImpUtils.nextZoomLevel(nextUp1x);
+			return clamp((int) Math.round(nextUp2x * 100));
+		}
+
+		void showStatus(final String msg) {
+			final sc.fiji.snt.SNT snt = SNTUtils.getInstance();
+			if (snt != null && snt.getUI() != null) snt.getUI().showStatus(msg, true);
+		}
+
+		ij.ImagePlus getImagePlus() {
+			final sc.fiji.snt.SNT snt = SNTUtils.getInstance();
+			return (snt == null) ? null : snt.getImagePlus();
+		}
+
+		public JMenu zoomControls(final String title, final String description) {
+			final JMenu presetsMenu = new JMenu(title);
+			presetsMenu.setIcon(IconFactory.menuIcon(GLYPH.MAGNIFIED_LOCATION));
+			final ButtonGroup buttonGroup = new ButtonGroup();
+			final int currentZl = percentage();
+			final Map<Integer, JRadioButtonMenuItem> presets = new TreeMap<>();
+			for (final int zl : new int[]{33, 50, 100, 200, 400, 600, 800, 1000}) {
+				final JRadioButtonMenuItem item = new JRadioButtonMenuItem(zl + "%");
+				item.setSelected(currentZl == zl);
+				item.addActionListener(e -> {
+					setPercentage(zl);
+					showStatus(title + " set to " + zl + "%");
+				});
+				buttonGroup.add(item);
+				presetsMenu.add(item);
+				presets.put(zl, item);
+			}
+			//presetsMenu.addSeparator();
+			final JRadioButtonMenuItem chooseOther = new JRadioButtonMenuItem("Other...", !presets.containsKey(currentZl));
+			buttonGroup.add(chooseOther);
+			presetsMenu.add(chooseOther);
+			chooseOther.addActionListener(e -> {
+				final String suffixMsg;
+				final ij.ImagePlus imp = SNTUtils.getInstance().getImagePlus();
+				if (imp != null) {
+					suffixMsg = String.format(" (image default: %d%%):", defaultPercentageFor(imp));
+				} else {
+					suffixMsg = ":";
+				}
+				final Integer zl = new GuiUtils().getInt(
+						"Preferred zoom level (%) when navigating to " + description + suffixMsg,
+						title, percentage(), 200, 3200);
+				if (zl != null) {
+					setPercentage(zl);
+					showStatus(title + " set to " + zl + "%");
+					if (presets.get(zl) != null) presets.get(zl).setSelected(true);
+				}
+			});
+			presetsMenu.addSeparator();
+			final JMenuItem resetZoomItem = new JMenuItem("Reset Zoom Level", IconFactory.menuIcon(GLYPH.UNDO));
+			resetZoomItem.setToolTipText(
+					"<HTML>Resets level to two <i>Zoom In [+]</i> operations above the current image zoom");
+			resetZoomItem.addActionListener(e -> {
+				final ij.ImagePlus imp = getImagePlus();
+				if (imp == null) {
+					showStatus("Current zoom unknown: No image is loaded...");
+				} else {
+					final int resetZl = defaultPercentageFor(imp);
+					setPercentage(resetZl);
+					final JRadioButtonMenuItem match = presets.get(resetZl);
+					if (match != null) match.setSelected(true);
+					else chooseOther.setSelected(true);
+					showStatus(title + " reset to " + resetZl + "%");
+				}
+			});
+			presetsMenu.add(resetZoomItem);
+
+			// sync radio state every time the menu is about to open
+			presetsMenu.addMenuListener(new javax.swing.event.MenuListener() {
+				@Override
+				public void menuSelected(javax.swing.event.MenuEvent e) {
+					final int now = percentage();
+					final JRadioButtonMenuItem match = presets.get(now);
+					if (match != null) match.setSelected(true);
+					else chooseOther.setSelected(true);
+				}
+
+				@Override
+				public void menuDeselected(javax.swing.event.MenuEvent e) {
+				}
+
+				@Override
+				public void menuCanceled(javax.swing.event.MenuEvent e) {
+				}
+			});
+			return presetsMenu;
+		}
+	}
+
 
 	private class FloatingDialog extends JDialog implements ComponentListener, WindowListener {
 
@@ -3650,8 +3813,8 @@ public class GuiUtils {
 		}
 
 		public static void assignSearchable(final JTable table,
-												 final Function<Object, String> elementConverter,
-												 final JPopupMenu menu) {
+		                                    final Function<Object, String> elementConverter,
+		                                    final JPopupMenu menu) {
 			final TableSearchable searchable = getSearchable(table, elementConverter);
 			final JCheckBoxMenuItem findItem = new JCheckBoxMenuItem("Find...", IconFactory.menuIcon(GLYPH.SEARCH));
 			findItem.addActionListener(e -> {
@@ -3697,7 +3860,7 @@ public class GuiUtils {
 		}
 
 		private static TableSearchable getSearchable(final JTable table,
-													 final Function<Object, String> elementConverter) {
+		                                             final Function<Object, String> elementConverter) {
 			return new TableSearchable(table) {
 				private boolean helpShowing = false;
 
@@ -3796,10 +3959,10 @@ public class GuiUtils {
 						final JDialog d = new GuiUtils().floatingMsg(msg, false);
 						if (d == null) return;
 						final AWTEventListener listener = e -> {
-                            if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
-                                d.dispose();
-                            }
-                        };
+							if (e instanceof KeyEvent ke && ke.getID() == KeyEvent.KEY_PRESSED && ke.getKeyChar() != '?') {
+								d.dispose();
+							}
+						};
 						Toolkit.getDefaultToolkit().addAWTEventListener(listener, AWTEvent.KEY_EVENT_MASK);
 						d.addWindowListener(new WindowAdapter() {
 							@Override
@@ -4117,8 +4280,8 @@ public class GuiUtils {
 		 *                       empty array to only restore column order
 		 */
 		public static JMenuItem resetAndResizeColumnsMenuItem(final JTable table,
-		                                                     final Runnable onAction,
-		                                                     final float... widthFractions) {
+		                                                      final Runnable onAction,
+		                                                      final float... widthFractions) {
 			final JMenuItem mi = new JMenuItem("Resize/Reset Columns",
 					IconFactory.menuIcon(IconFactory.GLYPH.RESIZE));
 			mi.addActionListener(e -> {
@@ -4129,84 +4292,6 @@ public class GuiUtils {
 			return mi;
 		}
 
-		/**
-		 * Stateful "visiting zoom" helper used by table panels that navigate
-		 * the canvas on double-click (BookmarkManager, CurationManager,
-		 * SeedOverlayPanel). Holds the percentage, exposes it as a fraction
-		 * (for {@code ImpUtils.zoomTo(...)}), and produces a bound
-		 * {@link JSpinner}. The default is roughly two zoom steps above the
-		 * current canvas magnification, falling back to
-		 * {@value #DEFAULT_PERCENT}% when no image is loaded.
-		 */
-		public static class VisitingZoom {
-
-			public static final int MIN_PERCENT = 25;
-			public static final int MAX_PERCENT = 3200;
-			public static final int DEFAULT_PERCENT = 600;
-			private static final int STEP = 50;
-
-			private int percentage;
-
-			public VisitingZoom() { this(DEFAULT_PERCENT); }
-
-			public VisitingZoom(final int initialPercentage) {
-				this.percentage = clamp(initialPercentage);
-			}
-
-			/** @return current zoom level in percent (in {@code [25, 3200]}). */
-			public int percentage() { return percentage; }
-
-			/** @return current zoom level as a fraction (e.g. {@code 6.0} for 600%). */
-			public double fraction() { return percentage / 100.0; }
-
-			/** Sets the percentage, clamped to the allowed range. */
-			public void setPercentage(final int p) { this.percentage = clamp(p); }
-
-			/**
-			 * Resets the percentage to roughly two zoom steps above the
-			 * image canvas's current magnification, or
-			 * {@value #DEFAULT_PERCENT}% when {@code imp == null} or has no
-			 * canvas yet.
-			 */
-			public void resetFor(final ij.ImagePlus imp) {
-				try {
-					percentage = defaultPercentageFor(imp);
-				} catch (final NullPointerException ignored) {
-					percentage = DEFAULT_PERCENT;
-				}
-			}
-
-			/**
-			 * Builds a {@link JSpinner} bound to this state. Editing the
-			 * spinner updates the percentage; external mutations need to
-			 * call {@link JSpinner#setValue(Object) setValue} on the spinner
-			 * directly.
-			 */
-			public JSpinner buildSpinner() {
-				final JSpinner s = GuiUtils.integerSpinner(
-						percentage, MIN_PERCENT, MAX_PERCENT, STEP, true);
-				s.setToolTipText("Zoom level (" + MIN_PERCENT + "–" + MAX_PERCENT
-						+ "%) used when navigating to a row");
-				s.addChangeListener(e -> setPercentage((int) s.getValue()));
-				return s;
-			}
-
-			private static int clamp(final int p) {
-				return Math.clamp(p, MIN_PERCENT, MAX_PERCENT);
-			}
-
-			public int defaultPercentageFor(final ij.ImagePlus imp) {
-				if (imp == null)
-					return DEFAULT_PERCENT;
-				final ij.gui.ImageCanvas canvas = imp.getCanvas();
-				if (canvas == null)
-					return DEFAULT_PERCENT;
-				final double currentMag = canvas.getMagnification();
-				final double nextUp1x = ImpUtils.nextZoomLevel(currentMag);
-				final double nextUp2x = ImpUtils.nextZoomLevel(nextUp1x);
-				return clamp((int) Math.round(nextUp2x * 100));
-			}
-		}
 	}
 
 	public static class JTrees {

@@ -96,9 +96,9 @@ public class SeedManager extends JPanel {
     /**
      * Zoom level applied when navigating to a seed by double-clicking a table
      * row. Initialised to roughly two zoom steps above the current canvas
-     * magnification (see {@link GuiUtils.JTables.VisitingZoom#resetFor}).
+     * magnification (see {@link GuiUtils.VisitingZoom#resetFor}).
      */
-    private final GuiUtils.JTables.VisitingZoom visitingZoom = new GuiUtils.JTables.VisitingZoom();
+    private final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
 
     /**
      * Guards against feedback loops between widget listeners and overlay fires.
