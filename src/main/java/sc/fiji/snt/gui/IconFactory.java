@@ -221,8 +221,10 @@ public class IconFactory {
         WINDOWS('\uf2d2', false), //
         WINDOWS2('\uf2d2', true), //
         WIZARD('\uf6e8', true),//
-        X_RAY('\uf497', true);
-
+        X_RAY('\uf497', true),//
+        X('X', true), //
+        Y('Y', true), //
+        Z('Z', true);
         private final char id;
         private final boolean solid;
 
@@ -309,16 +311,25 @@ public class IconFactory {
         return border;
     }
 
+    public static Icon doubleIcon(final GLYPH entry1, final GLYPH entry2, final float scalingFactor, final Color color) {
+        final Icon rightIcon = new FADerivedIcon(entry2.id, scalingFactor * FADerivedIcon.defSize(), color, entry2.solid);
+        return dropdownIcon(entry1, scalingFactor, color, rightIcon);
+    }
+
     public static Icon dropdownMenuIcon(final GLYPH entry, final float scalingFactor, final Color color) {
+        return dropdownIcon(entry, scalingFactor, color, UIManager.getIcon("Tree.expandedIcon"));
+    }
+
+    private static Icon dropdownIcon(final GLYPH entry, final float scalingFactor, final Color color, final Icon rightIcon) {
         class DropdownIcon implements Icon {
 
             static final int ICON_GAP = 2;
             final Icon leftIcon;
             final Icon rightIcon;
 
-            DropdownIcon(final GLYPH entry, final float scalingFactor) {
+            DropdownIcon(final GLYPH entry, final float scalingFactor, final Icon rightIcon) {
                 leftIcon = new FADerivedIcon(entry.id, scalingFactor * FADerivedIcon.defSize(), color, entry.solid);
-                rightIcon = UIManager.getIcon("Tree.expandedIcon");
+                this.rightIcon = rightIcon;
             }
 
             @Override
@@ -342,7 +353,7 @@ public class IconFactory {
                 return Math.max(leftIcon.getIconHeight(), rightIcon.getIconHeight());
             }
         }
-        return new DropdownIcon(entry, scalingFactor);
+        return new DropdownIcon(entry, scalingFactor, rightIcon);
     }
 
     public static void assignIcon(final AbstractButton button, final GLYPH glyph, final Color color, final float scalingFactor) {

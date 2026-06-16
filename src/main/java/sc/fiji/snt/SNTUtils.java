@@ -449,6 +449,8 @@ public class SNTUtils {
 	 *         valid, readable directory.
 	 */
 	public static File[] getReconstructionFiles(final File dir, final String pattern) {
+		if (dir != null && dir.isFile() && dir.canRead() && isReconstructionFile(dir))
+			return new File[]{dir};
 		if (dir == null || !dir.isDirectory() || !dir.exists() || !dir.canRead()) {
 			return null;
 		}

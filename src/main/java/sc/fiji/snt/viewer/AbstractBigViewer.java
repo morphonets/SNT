@@ -22,11 +22,15 @@
 
 package sc.fiji.snt.viewer;
 
+import bdv.util.Prefs;
+import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.Tree;
@@ -38,6 +42,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.*;
+import java.util.List;
 
 /**
  * Abstract base for SNT's BigDataViewer-family viewers ({@link Bvv}, {@link Bdv}, etc.).
@@ -96,6 +101,20 @@ public abstract class AbstractBigViewer {
     protected AbstractBigViewer(final SNT snt) {
         this.snt = snt;
         lastInstance = this;
+    }
+
+    /**
+     * Creates a {@link JToolBar} whose minimum width is zero, allowing
+     * horizontal glue components to absorb all available shrinkage before
+     * any buttons are clipped at the panel edge.
+     */
+    static JToolBar createToolbar() {
+        return new JToolBar() {
+            @Override
+            public Dimension getMinimumSize() {
+                return new Dimension(0, super.getPreferredSize().height);
+            }
+        };
     }
 
     /**
@@ -186,6 +205,41 @@ public abstract class AbstractBigViewer {
      */
     public abstract void getGlobalMouseCoordinates(RealPoint pos);
 
+
+    /**
+     * Creates an {@link Action} that calls {@code onToggle} with the toggle button's
+     * selected state whenever triggered. Useful for wiring toolbar toggle buttons to
+     * viewer overlay state (scale bar, text overlay, etc.).
+     *
+     * @param name         action name (used for accessibility)
+     * @param initialState initial selected state (returned when source is not a button)
+     * @param onToggle     consumer called with the new boolean state on each action event
+     * @return the constructed action
+     */
+    protected static Action overlayToggleAction(final String name, final boolean initialState,
+                                                final java.util.function.Consumer<Boolean> onToggle) {
+        return new AbstractAction(name) {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                final boolean selected = (e.getSource() instanceof AbstractButton btn)
+                        ? btn.isSelected() : !initialState;
+                onToggle.accept(selected);
+            }
+        };
+    }
+
+    /**
+     * Returns the currently active source, or null if none.
+     */
+    protected abstract SourceAndConverter<?> getCurrentSource();
+
+    /**
+     * Looks up a named action from the viewer's keybindings action map.
+     * Returns null if the action is not registered or the viewer is not ready.
+     *
+     * @param name the action key (e.g., "align XY plane")
+     */
+    protected abstract Action getViewerAction(String name);
 
     /**
      * Registers an M-key binding on {@code component} that places a marker at the
@@ -383,6 +437,132 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Creates an action that fits the view to the bounding box of the currently
+     * selected source, with a short animation.
+     */
+    protected Action fitToCurrentSourceAction() {
+        return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                final SourceAndConverter<?> src = getCurrentSource();
+                if (src == null) { showViewerMessage("No source selected"); return; }
+                final int cw = getViewerWidth(), ch = getViewerHeight();
+                if (cw <= 0 || ch <= 0) return;
+                final AffineTransform3D srcToWorld = new AffineTransform3D();
+                src.getSpimSource().getSourceTransform(0, 0, srcToWorld);
+                final net.imglib2.RandomAccessibleInterval<?> rai = src.getSpimSource().getSource(0, 0);
+                if (rai == null) return;
+                final long[] min = new long[3], max = new long[3];
+                for (int d = 0; d < 3; d++) { min[d] = rai.min(d); max[d] = rai.max(d); }
+                double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+                final double[] corner = new double[3], world = new double[3];
+                for (int i = 0; i < 8; i++) {
+                    corner[0] = (i & 1) == 0 ? min[0] : max[0];
+                    corner[1] = (i & 2) == 0 ? min[1] : max[1];
+                    corner[2] = (i & 4) == 0 ? min[2] : max[2];
+                    srcToWorld.apply(corner, world);
+                    minX = Math.min(minX, world[0]); maxX = Math.max(maxX, world[0]);
+                    minY = Math.min(minY, world[1]); maxY = Math.max(maxY, world[1]);
+                    minZ = Math.min(minZ, world[2]); maxZ = Math.max(maxZ, world[2]);
+                }
+                final double physW = maxX - minX, physH = maxY - minY, physZ = maxZ - minZ;
+                if (physW <= 0 || physH <= 0) return;
+                final double scale = Math.min(cw / physW, ch / physH);
+                final AffineTransform3D target = new AffineTransform3D();
+                target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
+                target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
+                target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
+                target.set(-scale * (minZ + physZ / 2.0), 2, 3);
+                setViewerTransform(target, 300);
+            }
+        };
+    }
+
+    /**
+     * Prompts the user for voxel spacing and updates calibration.
+     *
+     * @param parent component used to anchor the dialog
+     */
+    protected void showCalibrationDialog(final java.awt.Component parent) {
+        final double[] curCal = getCalibration();
+        final Number[] defaults = {
+                curCal != null && curCal.length > 0 ? curCal[0] : 1.0,
+                curCal != null && curCal.length > 1 ? curCal[1] : 1.0,
+                curCal != null && curCal.length > 2 ? curCal[2] : 1.0
+        };
+        final GuiUtils gu = new GuiUtils(SwingUtilities.getWindowAncestor(parent));
+        final Number[] result = gu.getThreeNumbers(
+                "Voxel spacing (" + GuiUtils.micrometer() + "):",
+                "Set Calibration", defaults, new String[]{"X", "Y", "Z"}, 4);
+        if (result == null) return;
+        final double[] spacing = { result[0].doubleValue(), result[1].doubleValue(), result[2].doubleValue() };
+        setCalibration(spacing, GuiUtils.micrometer());
+        SNTUtils.log("Calibration overridden: " + spacing[0] + "x" + spacing[1] + "x" + spacing[2]
+                + " " + GuiUtils.micrometer());
+    }
+
+    /**
+     * Builds the shared scene-control toolbar: fit-source button, align-plane
+     * buttons (XY, XZ, YZ), minimap toggle, text-overlay toggle, scale-bar toggle.
+     *
+     * Subclasses call this and may prepend or append viewer-specific buttons.
+     *
+     * @return a partially populated JToolBar ready for additional buttons
+     */
+    protected JToolBar buildBaseSceneControlToolbar() {
+        final JToolBar bar = createToolbar();
+        bar.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(),
+                "Fit view to the current (selected) source"));
+        bar.addSeparator();
+        // Action names match those registered by BDV/BVV NavigationActions
+        final java.util.LinkedHashMap<String, List<IconFactory.GLYPH>> planes = new java.util.LinkedHashMap<>();
+        planes.put("align XY plane", List.of(IconFactory.GLYPH.X, IconFactory.GLYPH.Y));
+        planes.put("align XZ plane", List.of(IconFactory.GLYPH.X, IconFactory.GLYPH.Z));
+        planes.put("align ZY plane", List.of(IconFactory.GLYPH.Z, IconFactory.GLYPH.Y));
+        final javax.swing.ButtonGroup alignGroup = new javax.swing.ButtonGroup();
+        for (final Map.Entry<String, List<IconFactory.GLYPH>> entry : planes.entrySet()) {
+            final Action a = getViewerAction(entry.getKey());
+            if (a == null) continue;
+            final JButton btn = GuiUtils.Buttons.toolbarButton(a, entry.getKey());
+            btn.setIcon(IconFactory.doubleIcon(entry.getValue().get(0), entry.getValue().get(1), .75f, null));
+            alignGroup.add(btn);
+            bar.add(btn);
+        }
+        bar.addSeparator();
+        bar.add(Box.createHorizontalGlue());
+        bar.addSeparator();
+        final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
+                overlayToggleAction("Minimap", Prefs.showMultibox(),
+                        show -> { Prefs.showMultibox(show); repaint(); }),
+                "Show/hide minimap", IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
+        multiboxToggle.setSelected(Prefs.showMultibox());
+        bar.add(multiboxToggle);
+        final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
+                overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
+                        show -> { Prefs.showTextOverlay(show); repaint(); }),
+                "Show/hide text overlay", IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
+        textToggle.setSelected(Prefs.showTextOverlay());
+        bar.add(textToggle);
+        final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
+                overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
+                        show -> { Prefs.showScaleBar(show); repaint(); }),
+                "Show/hide scale bar (right-click: set calibration)",
+                IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
+        scaleBarToggle.setSelected(Prefs.showScaleBar());
+        scaleBarToggle.addMouseListener(new java.awt.event.MouseAdapter() {
+            private void handlePopup(final java.awt.event.MouseEvent ev) {
+                if (ev.isPopupTrigger()) { ev.consume(); showCalibrationDialog(scaleBarToggle); }
+            }
+            @Override public void mousePressed(final java.awt.event.MouseEvent ev)  { handlePopup(ev); }
+            @Override public void mouseReleased(final java.awt.event.MouseEvent ev) { handlePopup(ev); }
+        });
+        bar.add(scaleBarToggle);
+        return bar;
+    }
+
+    /**
      * Common contract for all viewer annotation overlays.
      *
      * <p>Concrete implementations live inside each viewer subclass (e.g.,
@@ -424,5 +604,24 @@ public abstract class AbstractBigViewer {
          * and requests a repaint. Call after bulk modifications.
          */
         void updateScene();
+
+        /**
+         * Replaces all annotations atomically and requests a single repaint.
+         * Prefer this over calling clear() + addAnnotation() in a loop, which
+         * would trigger one repaint per call and may cause visible flicker.
+         *
+         * @param points list of positions (world coordinates); null entries are skipped
+         * @param sizes  sphere radii in physical units, parallel to points
+         * @param colors fill colors, parallel to points; null entries use Color.YELLOW
+         */
+        default void replaceAll(final java.util.List<SNTPoint> points,
+                                final java.util.List<Float>    sizes,
+                                final java.util.List<Color>    colors) {
+            clear(); // clears data; subclasses may suppress the repaint here
+            for (int i = 0; i < points.size(); i++) {
+                final Color c = (colors.get(i) != null) ? colors.get(i) : Color.YELLOW;
+                addAnnotation(points.get(i), sizes.get(i), c);
+            }
+        }
     }
 }

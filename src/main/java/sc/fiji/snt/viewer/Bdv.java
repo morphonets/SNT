@@ -32,6 +32,7 @@ import bdv.util.BdvFunctions;
 import bdv.util.BdvHandle;
 import bdv.util.BdvOptions;
 import bdv.util.BdvStackSource;
+import bdv.viewer.SourceAndConverter;
 import bdv.viewer.ViewerPanel;
 import bdv.viewer.animate.SimilarityTransformAnimator;
 import ij.ImagePlus;
@@ -53,8 +54,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.File;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -107,6 +107,9 @@ public class Bdv extends AbstractBigViewer {
     private Bvv.PathOverlay pathOverlay;
     private Bvv.AnnotationOverlay annotationOverlay;
     private final Bvv.PathRenderingOptions renderingOptions = new Bvv.PathRenderingOptions();
+
+    // Guard so addTransformListener is called only once across reinits
+    private boolean sliceClipListenerRegistered = false;
 
     // -- Construction --
 
@@ -279,12 +282,12 @@ public class Bdv extends AbstractBigViewer {
 
     @Override
     public int getViewerWidth() {
-        return (viewerPanel == null) ? 0 : viewerPanel.getWidth();
+        return (viewerPanel == null) ? 0 : viewerPanel.getDisplay().getWidth();
     }
 
     @Override
     public int getViewerHeight() {
-        return (viewerPanel == null) ? 0 : viewerPanel.getHeight();
+        return (viewerPanel == null) ? 0 : viewerPanel.getDisplay().getHeight();
     }
 
     @Override
@@ -313,11 +316,25 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    protected SourceAndConverter<?> getCurrentSource() {
+        return (viewerPanel == null) ? null : viewerPanel.state().getCurrentSource();
+    }
+
+    @Override
+    protected Action getViewerAction(final String name) {
+        if (bdvHandle.getSplitPanel().getTopLevelAncestor() instanceof bdv.viewer.ViewerFrame vf)
+            return vf.getKeybindings().getConcatenatedActionMap().get(name);
+        return null;
+    }
+
+    @Override
     public void resetView() {
         if (viewerPanel == null) return;
         InitializeViewerState.initTransform(
-                viewerPanel.getWidth(), viewerPanel.getHeight(),
+                viewerPanel.getDisplay().getWidth(),
+                viewerPanel.getDisplay().getHeight(),
                 false, viewerPanel.state());
+        viewerPanel.requestRepaint();
     }
 
     @Override
@@ -434,13 +451,27 @@ public class Bdv extends AbstractBigViewer {
 
         if (pathOverlay != null) pathOverlay.dispose();
         pathOverlay = new Bvv.PathOverlay(bvp, this, renderingOptions);
-        pathOverlay.overlayRenderer.dCam     = Double.MAX_VALUE;
-        pathOverlay.overlayRenderer.nearClip = Double.MAX_VALUE;
-        pathOverlay.overlayRenderer.farClip  = Double.MAX_VALUE;
+        pathOverlay.overlayRenderer.dCam = Double.MAX_VALUE; // orthographic projection
 
         if (annotationOverlay != null) annotationOverlay.dispose();
         annotationOverlay = new Bvv.AnnotationOverlay(bvp, renderingOptions);
+        // dCam=MAX_VALUE => orthographic (same formula as pathOverlay); near/far set by updateSliceClip
         annotationOverlay.setCamParams(Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE);
+
+        // Slice-aware clipping: paths and annotations outside +-0.5 voxels are hidden.
+        renderingOptions.setClipPathsToSlab(true);
+        renderingOptions.setClipAnnotationsToSlab(true);
+
+        // Seed clip values from the current transform, then keep them live.
+        final AffineTransform3D initialTransform = new AffineTransform3D();
+        viewerPanel.state().getViewerTransform(initialTransform);
+        updateSliceClip(initialTransform);
+
+        if (!sliceClipListenerRegistered) {
+            sliceClipListenerRegistered = true;
+            viewerPanel.transformListeners().add(this::updateSliceClip);
+        }
+
         initializeCardPanel();
     }
 
@@ -485,24 +516,45 @@ public class Bdv extends AbstractBigViewer {
     }
 
     /**
-     * Injects the "SNT Annotations" card into BDV's collapsible right-side panel
-     * and registers the M-key marker binding via BDV's keybindings system.
-     * Called once per viewer instance, from initializeOverlays().
-     * <p>
-     * The M key must be registered through BDV's InputActionBindings layer, not
-     * via a plain Swing InputMap, because BDV's input-trigger layer shadows the
-     * Swing layer and would consume the keystroke before it reaches the panel.
+     * Updates the overlay slice-clip bounds whenever the viewer transform changes.
+     * In BDV, viewerCoords[2] = depth of a world point from the current viewing plane.
+     * We allow paths within +-halfZ viewer units, where halfZ is half the voxel extent
+     * projected onto the viewing direction. This accounts for oblique views: all three
+     * world axes contribute to viewer-Z when the view is rotated.
      */
+    private void updateSliceClip(final AffineTransform3D transform) {
+        if (pathOverlay == null) return;
+        final double cX = (cal != null && cal.length > 0) ? cal[0] : 1.0;
+        final double cY = (cal != null && cal.length > 1) ? cal[1] : 1.0;
+        final double cZ = (cal != null && cal.length > 2) ? cal[2] : 1.0;
+        // Half-voxel extent along the viewing direction (Z row of the viewer transform)
+        final double halfZ = 0.5 * (Math.abs(transform.get(2, 0)) * cX
+                + Math.abs(transform.get(2, 1)) * cY
+                + Math.abs(transform.get(2, 2)) * cZ);
+        // Floor of 0.5 prevents all paths disappearing at degenerate transforms
+        final double slabZ = Math.max(halfZ, 0.5);
+        pathOverlay.overlayRenderer.nearClip = slabZ;
+        pathOverlay.overlayRenderer.farClip  = slabZ;
+        pathOverlay.overlayRenderer.invalidateCache();
+        if (annotationOverlay != null)
+            annotationOverlay.setCamParams(Double.MAX_VALUE, slabZ, slabZ);
+    }
+
     private void initializeCardPanel() {
-        // Card panel
+        bdvHandle.getSplitPanel().setCollapsed(false);
+        final BdvActions actions = new BdvActions();
         final bdv.ui.CardPanel cp = bdvHandle.getCardPanel();
         if (cp != null) {
-            final BdvActions actions = new BdvActions();
+            cp.addCard("Scene Controls", buildSceneControlToolbar(), true);
             cp.addCard("SNT Annotations", sntAnnotationsCard(actions), true);
-            SwingUtilities.invokeLater(() -> cp.setCardExpanded("SNT Annotations", true));
+            cp.setCardExpanded("Groups", false);
+            SwingUtilities.invokeLater(() -> {
+                cp.setCardExpanded("Scene Controls", true);
+                cp.setCardExpanded("SNT Annotations", true);
+            });
         }
 
-        // M-key via BDV's keybindings system so the trigger layer sees it
+        // M and H keys via BDV's keybindings system so the trigger layer sees them
         if (bdvHandle.getSplitPanel().getTopLevelAncestor() instanceof bdv.viewer.ViewerFrame vf) {
             final javax.swing.InputMap sntIMap = new javax.swing.InputMap();
             final javax.swing.ActionMap sntAMap = new javax.swing.ActionMap();
@@ -519,6 +571,10 @@ public class Bdv extends AbstractBigViewer {
                     showViewerMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
                 }
             });
+            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, false), "snt-hide-annotations-press");
+            sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true),  "snt-hide-annotations-release");
+            sntAMap.put("snt-hide-annotations-press",   actions.hideAnnotationsPressAction());
+            sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
             vf.getKeybindings().addInputMap("snt", sntIMap);
             vf.getKeybindings().addActionMap("snt", sntAMap);
         }
@@ -547,6 +603,7 @@ public class Bdv extends AbstractBigViewer {
         bar.addSeparator();
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
+
         final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
                 actions.showMarkerManagerAction(),
                 "<html>Show/hide the Markers table.<br>"
@@ -582,12 +639,53 @@ public class Bdv extends AbstractBigViewer {
         return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
     }
 
+    private JToolBar buildSceneControlToolbar() {
+        return buildBaseSceneControlToolbar();
+    }
+
     private class BdvActions {
         private final GuiUtils guiUtils;
         private float lastClippingDistance = 100f;
+        private boolean hideActive;
+        private boolean pathsWereVisible;
+        private boolean annotationsWereVisible;
 
         BdvActions() {
             guiUtils = new GuiUtils(getViewerFrame());
+        }
+
+        Action hideAnnotationsPressAction() {
+            return new AbstractAction("Hide annotations (hold)") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (hideActive) return;
+                    final boolean hasPaths = pathOverlay != null && pathOverlay.isRenderingEnable()
+                            && !getRenderedTrees().isEmpty();
+                    final boolean hasAnnotations = annotationOverlay != null
+                            && annotationOverlay.isVisible() && annotationOverlay.getCount() > 0;
+                    if (!hasPaths && !hasAnnotations) {
+                        showViewerMessage("Nothing to hide");
+                        return;
+                    }
+                    pathsWereVisible = pathOverlay != null && pathOverlay.isRenderingEnable();
+                    annotationsWereVisible = annotationOverlay != null && annotationOverlay.isVisible();
+                    if (pathOverlay != null) pathOverlay.disableRendering(true);
+                    if (annotationOverlay != null) annotationOverlay.setVisible(false);
+                    hideActive = true;
+                }
+            };
+        }
+
+        Action hideAnnotationsReleaseAction() {
+            return new AbstractAction("Restore annotations") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!hideActive) return;
+                    if (pathOverlay != null) pathOverlay.disableRendering(!pathsWereVisible);
+                    if (annotationOverlay != null) annotationOverlay.setVisible(annotationsWereVisible);
+                    hideActive = false;
+                }
+            };
         }
 
         Action toggleVisibilityAction() {

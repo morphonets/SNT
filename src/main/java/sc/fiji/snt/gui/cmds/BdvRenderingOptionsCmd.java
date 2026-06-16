@@ -60,19 +60,18 @@ public class BdvRenderingOptionsCmd extends DynamicCommand {
     private boolean usePathRadius;
 
     @Parameter(label = "Thickness multiplier", min = "0.1", max = "10.0", stepSize = "0.1",
-            style = NumberWidget.SLIDER_STYLE,
-            description = "Scale factor applied to all path radii. "
+            style = "slider,format:0.00", description = "Scale factor applied to all path radii. "
                     + "1.0x = natural size; increase if paths appear too thin.")
     private double thicknessMultiplier;
 
     @Parameter(label = "Min. thickness", min = "0.1", max = "20.0", stepSize = "0.1",
-            style = NumberWidget.SLIDER_STYLE,
+            style = "slider,format:0.0",
             description = "Minimum rendered thickness in physical units. "
                     + "Controls line width in centerline mode and the floor radius in tube mode.")
     private double minThickness;
 
     @Parameter(label = "Max. thickness", min = "1", max = "100.0", stepSize = "0.5",
-            style = NumberWidget.SLIDER_STYLE,
+            style = "slider,format:0.0",
             description = "Maximum rendered thickness in physical units. "
                     + "Controls line width in centerline mode and the ceiling radius in tube mode.")
     private double maxThickness;

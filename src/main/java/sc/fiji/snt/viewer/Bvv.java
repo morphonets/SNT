@@ -281,6 +281,7 @@ public class Bvv extends AbstractBigViewer {
         // Initialize brightness from data percentiles for all channels just added.
         // attachControlPanel only runs for the first window; subsequent volumes
         // added to an existing viewer would otherwise keep BVV's 0-65535 default.
+        assert bvvHandle != null;
         final BigVolumeViewer bvvForInit = ((BvvHandleFrame) bvvHandle).getBigVolumeViewer();
         SwingUtilities.invokeLater(() ->
                 InitializeViewerState.initBrightness(0.001, 0.999,
@@ -288,10 +289,8 @@ public class Bvv extends AbstractBigViewer {
 
         // Group assignment: must run after all channels are added
         final int groupIdx = multiSources.size();
-        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size()
-                - (followerSources.size() + 1);
-        assignToNamedGroup(imageName, groupIdx, startIdx, followerSources.size() + 1,
-                bvvHandle.getViewerPanel());
+        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size() - (followerSources.size() + 1);
+        assignToNamedGroup(imageName, groupIdx, startIdx, followerSources.size() + 1, bvvHandle.getViewerPanel());
         final BvvMultiSource multi = new BvvMultiSource(leaderSource, followerSources);
         multiSources.add(multi);
         // Add channel unmixing card for 2+ channel images
@@ -1362,20 +1361,6 @@ public class Bvv extends AbstractBigViewer {
         };
     }
 
-    /**
-     * Creates a {@link JToolBar} whose minimum width is zero, allowing
-     * horizontal glue components to absorb all available shrinkage before
-     * any buttons are clipped at the panel edge.
-     */
-    private static JToolBar createToolbar() {
-        return new JToolBar() {
-            @Override
-            public Dimension getMinimumSize() {
-                return new Dimension(0, super.getPreferredSize().height);
-            }
-        };
-    }
-
     private JToolBar sourceTransformsToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.exportTransformedSourceAction(multiSources),
@@ -1794,56 +1779,6 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Computes the target {@link AffineTransform3D} for the given plane alignment,
-     * or for "default" (fit-to-viewport). Returns {@code null} if calibration is
-     * unavailable or the plane string is unrecognized.
-     */
-    private AffineTransform3D computeAlignTransform(final String vMode) {
-        final VolumeViewerPanel viewerPanel = currentBvv.getViewer();
-        final int cw = viewerPanel.getDisplay().getWidth();
-        final int ch = viewerPanel.getDisplay().getHeight();
-        if (cw <= 0 || ch <= 0 || cal == null || dims == null) return null;
-        final double px = cal[0] > 0 ? cal[0] : 1;
-        final double py = cal[1] > 0 ? cal[1] : 1;
-        final double pz = cal[2] > 0 ? cal[2] : 1;
-        final double physX = dims[0] * px, physY = dims[1] * py, physZ = dims[2] * pz;
-        final AffineTransform3D t = new AffineTransform3D();
-        switch (vMode) {
-            case "default", "xy" -> {
-                final double s = Math.min(cw / physX, ch / physY);
-                t.set(s, 0, 0);
-                t.set(s, 1, 1);
-                t.set(s, 2, 2);
-                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
-                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
-                t.set(-s * physZ / 2.0, 2, 3);
-            }
-            case "xz" -> {
-                final double s = Math.min(cw / physX, ch / physZ);
-                t.set(s, 0, 0);
-                t.set(s, 2, 1);
-                t.set(s, 1, 2);
-                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
-                t.set(ch / 2.0 - s * physZ / 2.0, 1, 3);
-                t.set(-s * physY / 2.0, 2, 3);
-            }
-            case "yz" -> {
-                final double s = Math.min(cw / physZ, ch / physY);
-                t.set(s, 2, 0);
-                t.set(s, 1, 1);
-                t.set(s, 0, 2);
-                t.set(cw / 2.0 - s * physZ / 2.0, 0, 3);
-                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
-                t.set(-s * physX / 2.0, 2, 3);
-            }
-            default -> {
-                return null;
-            }
-        }
-        return t;
-    }
-
-    /**
      * @return a reference to the viewer's frame.
      */
     @Override
@@ -1906,6 +1841,63 @@ public class Bvv extends AbstractBigViewer {
         final AffineTransform3D t = new AffineTransform3D();
         if (getViewerPanel() != null)
             getViewerPanel().state().getViewerTransform(t);
+        return t;
+    }
+
+    @Override
+    protected SourceAndConverter<?> getCurrentSource() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return p == null ? null : p.state().getCurrentSource();
+    }
+
+    @Override
+    protected Action getViewerAction(final String name) {
+        final VolumeViewerFrame f = getViewerFrame();
+        return f == null ? null : f.getKeybindings().getConcatenatedActionMap().get(name);
+    }
+
+    /**
+     * Computes a viewer transform aligned to a canonical plane, scaled to fit
+     * the volume in the current viewport. Used by snapshot() for off-screen
+     * rendering; the interactive toolbar uses getViewerAction() instead.
+     *
+     * @param vMode "xy" (or "default"), "xz", "yz"
+     * @return the target transform, or null if not ready
+     */
+    private AffineTransform3D computeAlignTransform(final String vMode) {
+        final VolumeViewerPanel vp = getViewerPanel();
+        final int cw = vp == null ? 0 : vp.getDisplay().getWidth();
+        final int ch = vp == null ? 0 : vp.getDisplay().getHeight();
+        if (cw <= 0 || ch <= 0 || cal == null || dims == null) return null;
+        final double px = cal[0] > 0 ? cal[0] : 1;
+        final double py = cal[1] > 0 ? cal[1] : 1;
+        final double pz = cal[2] > 0 ? cal[2] : 1;
+        final double physX = dims[0] * px, physY = dims[1] * py, physZ = dims[2] * pz;
+        final AffineTransform3D t = new AffineTransform3D();
+        switch (vMode) {
+            case "default", "xy" -> {
+                final double s = Math.min(cw / physX, ch / physY);
+                t.set(s, 0, 0); t.set(s, 1, 1); t.set(s, 2, 2);
+                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
+                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
+                t.set(-s * physZ / 2.0, 2, 3);
+            }
+            case "xz" -> {
+                final double s = Math.min(cw / physX, ch / physZ);
+                t.set(s, 0, 0); t.set(s, 2, 1); t.set(s, 1, 2);
+                t.set(cw / 2.0 - s * physX / 2.0, 0, 3);
+                t.set(ch / 2.0 - s * physZ / 2.0, 1, 3);
+                t.set(-s * physY / 2.0, 2, 3);
+            }
+            case "yz" -> {
+                final double s = Math.min(cw / physZ, ch / physY);
+                t.set(s, 2, 0); t.set(s, 1, 1); t.set(s, 0, 2);
+                t.set(cw / 2.0 - s * physZ / 2.0, 0, 3);
+                t.set(ch / 2.0 - s * physY / 2.0, 1, 3);
+                t.set(-s * physX / 2.0, 2, 3);
+            }
+            default -> { return null; }
+        }
         return t;
     }
 
@@ -2300,72 +2292,6 @@ public class Bvv extends AbstractBigViewer {
             };
         }
 
-        private Action fitToCurrentSourceAction() {
-            return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
-                    final bdv.viewer.SourceAndConverter<?> current = viewerPanel.state().getCurrentSource();
-                    if (current == null) {
-                        viewerPanel.showMessage("No source selected");
-                        return;
-                    }
-                    final int cw = viewerPanel.getDisplay().getWidth(), ch = viewerPanel.getDisplay().getHeight();
-                    if (cw <= 0 || ch <= 0) return;
-                    final AffineTransform3D srcToWorld = new AffineTransform3D();
-                    current.getSpimSource().getSourceTransform(0, 0, srcToWorld);
-                    final net.imglib2.RandomAccessibleInterval<?> rai = current.getSpimSource().getSource(0, 0);
-                    if (rai == null) return;
-                    final long[] min = new long[3], max = new long[3];
-                    for (int d = 0; d < 3; d++) {
-                        min[d] = rai.min(d);
-                        max[d] = rai.max(d);
-                    }
-                    double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-                    double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-                    double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
-                    final double[] corner = new double[3], world = new double[3];
-                    for (int i = 0; i < 8; i++) {
-                        corner[0] = (i & 1) == 0 ? min[0] : max[0];
-                        corner[1] = (i & 2) == 0 ? min[1] : max[1];
-                        corner[2] = (i & 4) == 0 ? min[2] : max[2];
-                        srcToWorld.apply(corner, world);
-                        minX = Math.min(minX, world[0]);
-                        maxX = Math.max(maxX, world[0]);
-                        minY = Math.min(minY, world[1]);
-                        maxY = Math.max(maxY, world[1]);
-                        minZ = Math.min(minZ, world[2]);
-                        maxZ = Math.max(maxZ, world[2]);
-                    }
-                    final double physW = maxX - minX, physH = maxY - minY, physZ = maxZ - minZ;
-                    if (physW <= 0 || physH <= 0) return;
-                    final double scale = Math.min(cw / physW, ch / physH);
-                    final AffineTransform3D currentT = new AffineTransform3D();
-                    viewerPanel.state().getViewerTransform(currentT);
-                    final AffineTransform3D target = new AffineTransform3D();
-                    target.set(scale, 0, 0);
-                    target.set(scale, 1, 1);
-                    target.set(scale, 2, 2);
-                    target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
-                    target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
-                    target.set(-scale * (minZ + physZ / 2.0), 2, 3);
-                    viewerPanel.setTransformAnimator(new SimilarityTransformAnimator(currentT, target, 0, 0, 300));
-                }
-            };
-        }
-
-        private static Action overlayToggleAction(final String name, final boolean initialState,
-                                                  final java.util.function.Consumer<Boolean> onToggle) {
-            return new AbstractAction(name) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final boolean selected = (e.getSource() instanceof AbstractButton btn)
-                            ? btn.isSelected() : !initialState;
-                    onToggle.accept(selected);
-                }
-            };
-        }
-
         // Main toolbar
         public JComponent getToolbar(final BvvActions bvvActions) {
 
@@ -2645,7 +2571,7 @@ public class Bvv extends AbstractBigViewer {
             }
 
             // Icon toolbar spans all 6 columns
-            final JToolBar iconBar = buildIconToolbar(bvvActions);
+            final JToolBar iconBar = buildSceneControlToolbar(bvvActions);
             c.gridx = 0;
             c.gridy = row[0];
             c.gridwidth = 6;
@@ -2669,73 +2595,25 @@ public class Bvv extends AbstractBigViewer {
             c2.setMinimumSize(mDim);
         }
 
-        /** Builds the icon toolbar row (reset/fit/overlay toggles/options). */
-        private JToolBar buildIconToolbar(final BvvActions bvvActions) {
-            final JToolBar bar = createToolbar();
-            bar.add(GuiUtils.Buttons.toolbarButton(resetViewAction(), "Reset view to startup state"));
-            bar.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(), "Fit view to the current (selected) source"));
-            bar.addSeparator();
-            bar.add(Box.createHorizontalGlue());
-            bar.addSeparator();
-            final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Bounding Boxes", Prefs.showMultibox(),
-                            show -> {
-                                Prefs.showMultibox(show);
-                                bvvInstance.repaint();
-                            }),
-                    "Show/hide minimap", IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
-            multiboxToggle.setSelected(Prefs.showMultibox());
-            bar.add(multiboxToggle);
-            final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
-                            show -> {
-                                Prefs.showTextOverlay(show);
-                                bvvInstance.repaint();
-                            }),
-                    "Show/hide text overlay", IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
-            textToggle.setSelected(Prefs.showTextOverlay());
-            bar.add(textToggle);
-            final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
-                            show -> {
-                                Prefs.showScaleBar(show);
-                                bvvInstance.repaint();
-                            }),
-                    "Show/hide scale bar (right-click: set calibration)",
-                    IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
-            scaleBarToggle.setSelected(Prefs.showScaleBar());
-            scaleBarToggle.addMouseListener(new java.awt.event.MouseAdapter() {
-                private void handlePopup(final java.awt.event.MouseEvent e) {
-                    if (e.isPopupTrigger()) {
-                        e.consume();
-                        showCalibrationDialog(scaleBarToggle);
-                    }
-                }
-                @Override public void mousePressed(final java.awt.event.MouseEvent e) { handlePopup(e); }
-                @Override public void mouseReleased(final java.awt.event.MouseEvent e) { handlePopup(e); }
-            });
-            bar.add(scaleBarToggle);
+        /** Builds the icon toolbar row (reset/fit/align-plane buttons/overlay toggles/options). */
+        private JToolBar buildSceneControlToolbar(final BvvActions bvvActions) {
+            final JToolBar bar = bvvInstance.buildBaseSceneControlToolbar();
+            // Prepend reset button before the fit button
+            bar.add(GuiUtils.Buttons.toolbarButton(resetViewAction(),
+                    "Reset view to startup state"), 0);
+            // Append BVV-specific scene overlays
             final JToggleButton axesToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Axes", false,
-                            show -> {
-                                if (sceneOverlay != null) {
-                                    sceneOverlay.showAxes = show;
-                                    bvvInstance.repaint();
-                                }
-                            }),
-                    "Show/hide coordinate axes at the volume origin.\n" +
-                            "X: Red; Y: Green; Z: Blue",
+                    overlayToggleAction("Axes", false, show -> {
+                        if (sceneOverlay != null) { sceneOverlay.showAxes = show; bvvInstance.repaint(); }
+                    }),
+                    "Show/hide coordinate axes at the volume origin.\nX: Red; Y: Green; Z: Blue",
                     IconFactory.GLYPH.CHART_LINE, IconFactory.GLYPH.CHART_LINE);
             axesToggle.setSelected(false);
             bar.add(axesToggle);
             final JToggleButton boxToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Volume Box", false,
-                            show -> {
-                                if (sceneOverlay != null) {
-                                    sceneOverlay.showBox = show;
-                                    bvvInstance.repaint();
-                                }
-                            }),
+                    overlayToggleAction("Volume Box", false, show -> {
+                        if (sceneOverlay != null) { sceneOverlay.showBox = show; bvvInstance.repaint(); }
+                    }),
                     "Show/hide bounding box around all loaded volumes",
                     IconFactory.GLYPH.CUBE, IconFactory.GLYPH.CUBE);
             boxToggle.setSelected(false);
@@ -2745,29 +2623,6 @@ public class Bvv extends AbstractBigViewer {
             bar.addSeparator();
             bar.add(optionsButton(bvvActions));
             return bar;
-        }
-
-        /**
-         * Shows a dialog allowing the user to override the voxel spacing.
-         * The unit is assumed to be µm (the standard for most microscopy data).
-         */
-        private void showCalibrationDialog(final java.awt.Component parent) {
-            final double[] curCal = bvvInstance.getCal();
-            final Number[] defaults = {
-                    curCal != null && curCal.length > 0 ? curCal[0] : 1.0,
-                    curCal != null && curCal.length > 1 ? curCal[1] : 1.0,
-                    curCal != null && curCal.length > 2 ? curCal[2] : 1.0
-            };
-            final GuiUtils guiUtils = new GuiUtils(SwingUtilities.getWindowAncestor(parent));
-            final Number[] result = guiUtils.getThreeNumbers(
-                    "Voxel spacing (" + GuiUtils.micrometer() + "):",
-                    "Set Calibration", defaults,
-                    new String[]{"X", "Y", "Z"}, 4);
-            if (result == null) return;
-            final double[] spacing = { result[0].doubleValue(), result[1].doubleValue(), result[2].doubleValue() };
-            bvvInstance.setCalibration(spacing, GuiUtils.micrometer());
-            SNTUtils.log("Calibration overridden: " + spacing[0] + "×" + spacing[1] + "×" + spacing[2]
-                    + " " + GuiUtils.micrometer());
         }
 
         private JButton optionsButton(final BvvActions actions) {
@@ -3338,6 +3193,24 @@ public class Bvv extends AbstractBigViewer {
         public void updateScene() {
             annRenderer.setAnnotations(annotations);
             viewerPanel.requestRepaint();
+        }
+
+        /**
+         * Replaces all annotations in one shot with a single repaint.
+         * Overrides the default to avoid the per-call repaints from
+         * clear() and addAnnotation(), which can produce visible flicker.
+         */
+        @Override
+        public void replaceAll(final java.util.List<sc.fiji.snt.util.SNTPoint> points,
+                               final java.util.List<Float>                     sizes,
+                               final java.util.List<java.awt.Color>            colors) {
+            annotations.clear();
+            for (int i = 0; i < points.size(); i++) {
+                final java.awt.Color c = (colors.get(i) != null) ? colors.get(i) : java.awt.Color.YELLOW;
+                final sc.fiji.snt.util.SNTPoint p = points.get(i);
+                if (p != null) annotations.add(new Annotation(p, sizes.get(i), c));
+            }
+            updateScene(); // single repaint
         }
 
         /** Syncs camera/slab params from OverlayRenderer so perspective and clipping are consistent. */

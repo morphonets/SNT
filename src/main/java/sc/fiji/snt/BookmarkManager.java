@@ -35,6 +35,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.AbstractBigViewer;
+import sc.fiji.snt.viewer.Bvv;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -114,14 +115,18 @@ public class BookmarkManager {
         final List<SNTPoint> points = new ArrayList<>();
         final List<Float> sizes = new ArrayList<>();
         final List<Color> colors = new ArrayList<>();
+        final Color viewerDefault = viewer.getDefaultMarkerColor();
         for (final Bookmark b : model.getDataList()) {
             points.add(b);
             sizes.add(b.size > 0 ? b.size : viewer.getDefaultMarkerSize());
-            colors.add(b.getColor() != null ? b.getColor() : viewer.getDefaultMarkerColor());
+            // Guarantee a non-null color: bookmark color > viewer default > yellow
+            final Color c = b.getColor() != null ? b.getColor()
+                          : viewerDefault        != null ? viewerDefault
+                          : Color.YELLOW;
+            colors.add(c);
         }
-        viewer.annotations().clear();
-        for (int i = 0; i < points.size(); i++)
-            viewer.annotations().addAnnotation(points.get(i), sizes.get(i), colors.get(i));
+        // replaceAll() does clear + re-add with a single repaint, avoiding flicker
+        viewer.annotations().replaceAll(points, sizes, colors);
     }
 
     /** Returns the floating dialog for viewer mode, creating it on first call. */
@@ -179,7 +184,7 @@ public class BookmarkManager {
         }
         final String msg = (viewer != null)
                 ? "Place markers with the M key. Double-click a row to fly to that location. " +
-                "Color and size are applied to the BVV overlay in real time. Hold H to temporarily " +
+                "Color and size are applied to the viewer's overlay in real time. Hold H to temporarily " +
                 "hide markers."
                 : """
                 This pane stores image locations that you can quickly (re)visit while \
@@ -356,7 +361,7 @@ public class BookmarkManager {
                 final int modelRow = table.convertRowIndexToModel(viewRow);
                 model.setValueAt(color, modelRow, 0); // if color is null user chose "Remove Tag"
             }
-            if (highlightToggle.isSelected()) showHighlights();
+            if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
         });
         tagMenu.setText("Tag");
         tagMenu.setIcon(IconFactory.menuIcon((IconFactory.GLYPH.TAG)));
@@ -891,7 +896,12 @@ public class BookmarkManager {
             resetButton.setToolTipText("Reset view to fit volume");
             resetButton.addActionListener(e -> viewer.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
-            helpButton.addActionListener(e -> displayMarkerHelp());
+            helpButton.addActionListener(e -> {
+                if (viewer instanceof Bvv)
+                    displayMarkerHelp3D();
+                else
+                    displayMarkerHelp2D();
+            });
             tb.add(prevButton);
             tb.add(nextButton);
             tb.addSeparator();
@@ -928,11 +938,25 @@ public class BookmarkManager {
         return tb;
     }
 
-    private void displayMarkerHelp() {
+    private void displayMarkerHelp2D() {
         final String MARKER_HELP_MSG =
                 "<html><body style='width:350px; font-family:sans-serif'>" +
                         "<h3>Placing Markers (M key)</h3>" +
-                        "Press <b>M</b> in the BVV viewer to place a marker at the current cursor position. " +
+                        "Press <b>M</b> in BDV to place a marker at the current cursor position. " +
+                        "Markers are rendered as circles at 3D world coordinates and listed in this table." +
+                        "<h3>Navigation</h3>" +
+                        "Double-click a row to fly to that marker. Use the <b>&uarr;</b> / <b>&darr;</b> " +
+                        "buttons to step through markers in order without touching the table with the mouse." +
+                        "</body></html>";
+        new GuiUtils((table==null) ? null : table.getParent())
+                .showHTMLDialog(MARKER_HELP_MSG, "About Markers", false);
+    }
+
+    private void displayMarkerHelp3D() {
+        final String MARKER_HELP_MSG =
+                "<html><body style='width:350px; font-family:sans-serif'>" +
+                        "<h3>Placing Markers (M key)</h3>" +
+                        "Press <b>M</b> in BVV to place a marker at the current cursor position. " +
                         "Markers are rendered as spheres at 3D world coordinates and listed in this table." +
                         "<h3>Important: View Orientation</h3>" +
                         "Marker coordinates are computed by projecting the 2D cursor position onto the " +
