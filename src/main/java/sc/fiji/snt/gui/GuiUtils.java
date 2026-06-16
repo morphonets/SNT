@@ -4384,12 +4384,13 @@ public class GuiUtils {
 
 		/**
 		 * Convenience variant of {@link #ColorTableButton(float, Consumer, String[], String, JMenuItem...)}
-		 * using the {@link #DEFAULT_LUTS} choices and no pre-selected entry.
+		 * using the {@link #DEFAULT_LUTS} choices.
 		 */
 		public static OptionsButton ColorTableButton(final float scalingFactor,
 		                                             final Consumer<String> colorTableAction,
+		                                             final String selected,
 		                                             final JMenuItem... extraItems) {
-			return ColorTableButton(scalingFactor, colorTableAction, DEFAULT_LUTS, null, extraItems);
+			return ColorTableButton(scalingFactor, colorTableAction, DEFAULT_LUTS, selected, extraItems);
 		}
 
 		/**
