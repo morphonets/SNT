@@ -34,7 +34,7 @@ import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.util.*;
-import sc.fiji.snt.viewer.Bvv;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
@@ -62,16 +62,16 @@ public class BookmarkManager {
     private static final String HIGHLIGHT_PREFIX = "__bm_highlight_";
 
     private final SNTUI sntui;
-    private final Bvv bvv;
+    private final AbstractBigViewer viewer;
     private JToggleButton highlightToggle;
-    /** BVV-injected toolbar components (e.g. slab toggle). Added via {@link #addBvvToolbarButton}. */
-    private final java.util.List<javax.swing.JComponent> bvvToolbarButtons = new java.util.ArrayList<>();
+    /** Viewer-injected toolbar components (e.g. slab toggle). Added via {@link #addViewerToolbarButton}. */
+    private final java.util.List<javax.swing.JComponent> viewerToolbarButtons = new java.util.ArrayList<>();
     private final GuiUtils guiUtils;
     private final BookmarkModel model;
     private final BookmarkTable table;
     /** Preferred zoom level applied when double-clicking a bookmark to visit it. */
     private final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
-    private JDialog bvvFrame; // floating dialog for BVV mode (non-modal, owned by viewer frame)
+    private JDialog viewerFrame; // floating dialog for viewer mode (non-modal, owned by viewer frame)
     // Detachable table state, owned by the helper.
     private JPanel panel; // cached panel built by getPanel()
     private JScrollPane tableScroll; // single scroll pane wrapping `table` (created in assembleTable)
@@ -83,7 +83,7 @@ public class BookmarkManager {
      */
     public BookmarkManager(final SNTUI sntui) {
         this.sntui = sntui;
-        this.bvv = null;
+        this.viewer = null;
         this.guiUtils = sntui != null ? sntui.guiUtils : new GuiUtils();
         model = new BookmarkModel(false);
         table = assembleTable(model);
@@ -91,78 +91,78 @@ public class BookmarkManager {
     }
 
     /**
-     * BVV constructor: implements a standalone marker manager for a BVV viewer.
-     * Markers are rendered as spheres in the BVV overlay and can be placed with
-     * the {@code M} key. The manager is displayed as a floating panel.
+     * Viewer constructor: implements a standalone marker manager for a BigDataViewer-family
+     * viewer (Bvv, Bdv, etc.). Markers are rendered as spheres/circles in the viewer overlay
+     * and can be placed with the {@code M} key. The manager is displayed as a floating panel.
      *
-     * @param bvv the BVV viewer instance to attach to
+     * @param viewer the viewer instance to attach to
      */
-    public BookmarkManager(final Bvv bvv) {
+    public BookmarkManager(final AbstractBigViewer viewer) {
         this.sntui = null;
-        this.bvv = bvv;
-        this.guiUtils = new GuiUtils(bvv.getViewerFrame());
+        this.viewer = viewer;
+        this.guiUtils = new GuiUtils(viewer.getViewerFrame());
         model = new BookmarkModel(true);
         table = assembleTable(model);
         table.placeholderMsg = "Bookmark volume locations using M";
         // Sync overlay whenever the model changes
-        model.addTableModelListener(e -> syncBvvOverlay());
+        model.addTableModelListener(e -> syncViewerOverlay());
     }
 
-    /** In BVV mode: pushes all markers to the annotation overlay. */
-    private void syncBvvOverlay() {
-        if (bvv == null || bvv.annotations() == null) return;
+    /** In viewer mode: pushes all markers to the annotation overlay. */
+    private void syncViewerOverlay() {
+        if (viewer == null || viewer.annotations() == null) return;
         final List<SNTPoint> points = new ArrayList<>();
         final List<Float> sizes = new ArrayList<>();
         final List<Color> colors = new ArrayList<>();
         for (final Bookmark b : model.getDataList()) {
             points.add(b);
-            sizes.add(b.size > 0 ? b.size : bvv.getRenderingOptions().getMinThickness());
-            colors.add(b.getColor() != null ? b.getColor() : bvv.getRenderingOptions().fallbackColor);
+            sizes.add(b.size > 0 ? b.size : viewer.getDefaultMarkerSize());
+            colors.add(b.getColor() != null ? b.getColor() : viewer.getDefaultMarkerColor());
         }
-        bvv.annotations().clear();
+        viewer.annotations().clear();
         for (int i = 0; i < points.size(); i++)
-            bvv.annotations().addAnnotation(points.get(i), sizes.get(i), colors.get(i));
+            viewer.annotations().addAnnotation(points.get(i), sizes.get(i), colors.get(i));
     }
 
-    /** Returns the floating dialog for BVV mode, creating it on first call. */
-    public JDialog getBvvPanel() {
-        if (bvvFrame == null) {
-            bvvFrame = new JDialog(bvv.getViewerFrame(), "BVV Markers", false);
-            bvvFrame.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
-            bvvFrame.add(getPanel());
-            bvvFrame.pack();
+    /** Returns the floating dialog for viewer mode, creating it on first call. */
+    public JDialog getViewerDialogPanel() {
+        if (viewerFrame == null) {
+            viewerFrame = new JDialog(viewer.getViewerFrame(), "Markers", false);
+            viewerFrame.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
+            viewerFrame.add(getPanel());
+            viewerFrame.pack();
             // Ensure the frame is tall enough to show at least 5 table rows
             final int minHeight = table.getRowHeight() * 5
                     + table.getTableHeader().getPreferredSize().height + 120; // 120 for toolbar + description
-            if (bvvFrame.getHeight() < minHeight)
-                bvvFrame.setSize(bvvFrame.getWidth(), minHeight);
-            bvvFrame.setMinimumSize(new Dimension(bvvFrame.getWidth(), minHeight));
-            bvvFrame.setLocationRelativeTo(bvv.getViewerFrame());
+            if (viewerFrame.getHeight() < minHeight)
+                viewerFrame.setSize(viewerFrame.getWidth(), minHeight);
+            viewerFrame.setMinimumSize(new Dimension(viewerFrame.getWidth(), minHeight));
+            viewerFrame.setLocationRelativeTo(viewer.getViewerFrame());
         }
-        return bvvFrame;
+        return viewerFrame;
     }
 
     /**
-     * Adds a component to the BVV toolbar section of this panel.
+     * Adds a component to the viewer toolbar section of this panel.
      * The component is appended after a separator the first time this method is called.
-     * Bvv uses this to inject context-specific controls (e.g. a slab-clip toggle).
+     * Viewer subclasses use this to inject context-specific controls (e.g. a slab-clip toggle).
      *
      * @param component the component to add; must not be {@code null}
      */
-    public void addBvvToolbarButton(final javax.swing.JComponent component) {
-        bvvToolbarButtons.add(component);
+    public void addViewerToolbarButton(final javax.swing.JComponent component) {
+        viewerToolbarButtons.add(component);
     }
 
-    /** Shows or hides the floating BVV marker panel. */
-    public void toggleBvvPanel() {
-        final JDialog f = getBvvPanel();
+    /** Shows or hides the floating viewer marker panel. */
+    public void toggleViewerPanel() {
+        final JDialog f = getViewerDialogPanel();
         guiUtils.setParent(f);
         f.setVisible(!f.isVisible());
     }
 
-    /** Alias for {@link #toggleBvvPanel()} shows the marker panel. */
+    /** Shows the marker panel, bringing it to front if already visible. */
     public void showPanel() {
-        final JDialog f = getBvvPanel();
+        final JDialog f = getViewerDialogPanel();
         if (!f.isVisible()) f.setVisible(true);
         else f.toFront();
     }
@@ -177,7 +177,7 @@ public class BookmarkManager {
             SNTUI.InternalUtils.addSeparatorWithURL(panel, "Bookmarks:", true, gbc);
             gbc.gridy++;
         }
-        final String msg = (bvv != null)
+        final String msg = (viewer != null)
                 ? "Place markers with the M key. Double-click a row to fly to that location. " +
                 "Color and size are applied to the BVV overlay in real time. Hold H to temporarily " +
                 "hide markers."
@@ -255,7 +255,7 @@ public class BookmarkManager {
             }
             return element.toString();
         }, pMenu);
-        if (bvv != null) {
+        if (viewer != null) {
             // Prevent the table's searchable from consuming BVV shortcuts.
             // NONE means "do nothing" the keystroke falls through to the BVV viewer.
             for (final char key : new char[]{'m', 'M', 'b', 'B', 'p', 'P', 'r', 'R', 's', 'S', 'f', 'F'}) {
@@ -275,8 +275,8 @@ public class BookmarkManager {
                         guiUtils.error("No bookmark selected.");
                         return;
                     }
-                    if (bvv != null) {
-                        // BVV mode: animate camera to marker world position
+                    if (viewer != null) {
+                        // viewer mode: animate camera to marker world position
                         flyTo(row);
                     } else {
                         final ImagePlus imp = sntui.plugin.getImagePlus();
@@ -313,7 +313,7 @@ public class BookmarkManager {
      * {@code {Tag, Label, X, Y, Z, Size}} (6 columns).
      */
     private float[] columnWidthFractions() {
-        return (bvv != null)
+        return (viewer != null)
                 ? new float[]{0.05f, 0.50f, 0.12f, 0.12f, 0.12f, 0.09f}
                 : new float[]{0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
     }
@@ -376,7 +376,7 @@ public class BookmarkManager {
         tagMenu.addSeparator();
         tagMenu.add(mi);
         pMenu.addSeparator();
-        if (bvv != null) {
+        if (viewer != null) {
             mi = new JMenuItem("Size...", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
             mi.addActionListener(e -> {
                 if (noBookmarksError()) return;
@@ -450,7 +450,7 @@ public class BookmarkManager {
 
     private void colocalizeBookmarks() {
         if (noBookmarksError()) return;
-        if (bvv != null) {
+        if (viewer != null) {
             guiUtils.error("Colocalization is not available in BVV mode.");
             return;
         }
@@ -480,7 +480,7 @@ public class BookmarkManager {
 
     private void mergeBookmarks() {
         if (noBookmarksError()) return;
-        if (bvv != null) {
+        if (viewer != null) {
             guiUtils.error("Merge is not available in BVV mode.");
             return;
         }
@@ -869,7 +869,7 @@ public class BookmarkManager {
         tb.setFloatable(false);
         tb.add(impButton);
         tb.add(expButton);
-        if (bvv != null) {
+        if (viewer != null) {
             tb.add(Box.createHorizontalGlue());
             // Navigation: Prev / Next / Reset
             tb.addSeparator();
@@ -889,7 +889,7 @@ public class BookmarkManager {
             });
             final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.EXPAND));
             resetButton.setToolTipText("Reset view to fit volume");
-            resetButton.addActionListener(e -> bvv.resetView());
+            resetButton.addActionListener(e -> viewer.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
             helpButton.addActionListener(e -> displayMarkerHelp());
             tb.add(prevButton);
@@ -898,10 +898,10 @@ public class BookmarkManager {
             tb.add(resetButton);
             tb.addSeparator();
             tb.add(Box.createHorizontalGlue());
-            // Inject any BVV-provided toolbar buttons (e.g. slab-clip toggle)
-            if (!bvvToolbarButtons.isEmpty()) {
+            // Inject any viewer-provided toolbar buttons (e.g. slab-clip toggle)
+            if (!viewerToolbarButtons.isEmpty()) {
                 tb.addSeparator();
-                bvvToolbarButtons.forEach(tb::add);
+                viewerToolbarButtons.forEach(tb::add);
             }
             tb.add(Box.createHorizontalGlue());
             tb.add(helpButton);
@@ -955,7 +955,7 @@ public class BookmarkManager {
     private boolean noBookmarksError() {
         final List<Bookmark> list = model.getDataList();
         if (list.isEmpty()) {
-            final String msg = (bvv != null)
+            final String msg = (viewer != null)
                     ? "No markers exist. Use the M key to place markers."
                     : "No bookmarks exist. To create one, right-click on the image and choose \"Bookmark cursor location\" (Shift+B).";
             guiUtils.error(msg);
@@ -1003,12 +1003,11 @@ public class BookmarkManager {
         goTo(row, imp, SNT.XY_PLANE);
     }
 
-    /** BVV mode: animates the camera to the world position of the selected marker row. */
+    /** Viewer mode: animates the camera to the world position of the selected marker row. */
     private void flyTo(final int row) {
-        if (bvv == null) return;
+        if (viewer == null) return;
         final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
-        final net.imglib2.realtransform.AffineTransform3D current = new net.imglib2.realtransform.AffineTransform3D();
-        bvv.getViewerPanel().state().getViewerTransform(current);
+        final net.imglib2.realtransform.AffineTransform3D current = viewer.getViewerTransform();
         // The viewer transform maps world -> screen. To centre the bookmark on
         // screen we keep the current rotation/scale but adjust the translation
         // so that the bookmark's world position maps to the screen centre.
@@ -1020,15 +1019,14 @@ public class BookmarkManager {
         final double rx = mapped[0] - current.get(0, 3);
         final double ry = mapped[1] - current.get(1, 3);
         final double rz = mapped[2] - current.get(2, 3);
-        final double cX = bvv.getViewerPanel().getWidth()  / 2.0;
-        final double cY = bvv.getViewerPanel().getHeight() / 2.0;
+        final double cX = viewer.getViewerWidth()  / 2.0;
+        final double cY = viewer.getViewerHeight() / 2.0;
         final net.imglib2.realtransform.AffineTransform3D target = current.copy();
         target.set(cX - rx, 0, 3);
         target.set(cY - ry, 1, 3);
         target.set(   - rz, 2, 3);
-        bvv.getViewerPanel().setTransformAnimator(
-                new bdv.viewer.animate.SimilarityTransformAnimator(current, target, 0, 0, 300));
-        bvv.getViewer().getViewer().showMessage(String.format("Flying to %s", b.label));
+        viewer.setViewerTransform(target, 300);
+        viewer.showViewerMessage(String.format("Flying to %s", b.label));
     }
 
     private void loadBookmarksFromFile(final File file) {
@@ -1095,7 +1093,7 @@ public class BookmarkManager {
             exportTable.appendToLastRow("X", b.x);
             exportTable.appendToLastRow("Y", b.y);
             exportTable.appendToLastRow("Z", b.z);
-            if (bvv != null) {
+            if (viewer != null) {
                 exportTable.appendToLastRow("Size", b.size);
             } else {
                 exportTable.appendToLastRow("C", b.c);

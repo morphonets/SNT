@@ -79,32 +79,27 @@ import java.util.List;
 /**
  * Support for Big Volume Viewer.
  **/
-public class Bvv {
+public class Bvv extends AbstractBigViewer {
 
     static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
-    /** The most recently created Bvv instance, for scripting convenience. */
-    private static volatile Bvv lastInstance;
-
     /**
      * Returns the most recently created {@link Bvv} instance, or {@code null}
-     * if none has been created yet. This is a convenience accessor for scripts
-     * that need to reference the active BVV viewer without passing it around.
+     * if none has been created yet. Convenience accessor for scripts.
      *
      * @return the last initialised Bvv, or {@code null}
      */
     public static Bvv getInstance() {
-        return lastInstance;
+        return (lastInstance instanceof Bvv b) ? b : null;
     }
 
     /** Auto-incrementing counter for keyframe identifiers (K hotkey). */
     private static final java.util.concurrent.atomic.AtomicInteger keyframeCounter =
             new java.util.concurrent.atomic.AtomicInteger(1);
 
-    private final SNT snt;
+    // snt, cal, dims, calUnit, renderedTrees, spimDataFilePaths, markerManager -- inherited from AbstractBigViewer
 
     private final BvvOptions options;
-    private final Map<String, Tree> renderedTrees;
     private JProgressBar progressBar; // Docked at CardPanel bottom via addToCardPanelBottom().
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private final PathRenderingOptions renderingOptions;
@@ -113,14 +108,9 @@ public class Bvv {
     private SceneOverlay sceneOverlay;
     private BigVolumeViewer currentBvv;
     private BvvHandle bvvHandle;
-    private double[] cal; // Pixel size of the volume being rendered
-    private long[] dims; // Dimensions in pixels of volume being rendered
-    private String calUnit; // Physical unit string (e.g. "µm", "pixel") for the volume
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
-    private BookmarkManager markerManager; // lazily initialized on first use
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
-    private final Map<AbstractSpimData<?>, String> spimDataFilePaths = new IdentityHashMap<>(); // tracks source file path per dataset
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
 
     /**
@@ -136,8 +126,7 @@ public class Bvv {
      * @param snt the snt instance providing paths and imagery to be rendered
      */
     public Bvv(final SNT snt) {
-        this.snt = snt;
-        this.renderedTrees = new HashMap<>();
+        super(snt); // sets this.snt and AbstractBigViewer.lastInstance
         options = bvv.vistools.Bvv.options();
         this.renderingOptions = new PathRenderingOptions();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
@@ -146,7 +135,6 @@ public class Bvv {
         options.maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB);
         options.ditherWidth(1); // dither window. 1 = full resolution; 8 = coarsest resolution
         options.numDitherSamples(8); // no. of nearest neighbors to interpolate from when dithering
-        lastInstance = this;
     }
 
     /**
@@ -504,31 +492,6 @@ public class Bvv {
         for (final ConverterSetup setup : getConverterSetups(group))
             setup.setDisplayRange(min, max);
         repaint();
-    }
-
-    /**
-     * Returns the {@link BookmarkManager} used for placing and managing markers
-     * in this BVV instance. The manager is created lazily on first call.
-     * Use {@link BookmarkManager#showPanel()} to display the floating marker panel,
-     * and {@link BookmarkManager#save(File)} to persist markers to CSV.
-     *
-     * @return the marker manager (never null)
-     */
-    public BookmarkManager getMarkerManager() {
-        if (markerManager == null) {
-            markerManager = new BookmarkManager(this);
-            slabAnnotationsToggle = new JToggleButton("Slab Annotations");
-            slabAnnotationsToggle.setToolTipText("<html>Restrict marker rendering to the active slab.<br>"
-                    + "Markers outside the slab bounds are hidden.<br>"
-                    + "Only effective when Slab View is active.");
-            slabAnnotationsToggle.setEnabled(false);
-            slabAnnotationsToggle.addActionListener(e -> {
-                renderingOptions.setClipAnnotationsToSlab(slabAnnotationsToggle.isSelected());
-                syncOverlays();
-            });
-            markerManager.addBvvToolbarButton(slabAnnotationsToggle);
-        }
-        return markerManager;
     }
 
     /**
@@ -1373,18 +1336,30 @@ public class Bvv {
 
     /** Initializes the path overlay system for drawing traced paths. */
     private void initializePathOverlay(final BigVolumeViewer bvv) {
-        if (pathOverlay != null) {
-            pathOverlay.dispose();
-        }
-        pathOverlay = new PathOverlay(bvv, this);
+        if (pathOverlay != null) pathOverlay.dispose();
+        pathOverlay = new PathOverlay(adapt(bvv.getViewer()), this, renderingOptions);
     }
 
     /** Initializes the annotation overlay system for drawing spheres at SNTPoint locations. */
     private void initializeAnnotationOverlay(final BigVolumeViewer bvv) {
-        if (annotationOverlay != null) {
-            annotationOverlay.dispose();
-        }
-        annotationOverlay = new AnnotationOverlay(bvv, this);
+        if (annotationOverlay != null) annotationOverlay.dispose();
+        annotationOverlay = new AnnotationOverlay(adapt(bvv.getViewer()), renderingOptions);
+    }
+
+    /**
+     * Adapts a BVV {@code VolumeViewerPanel} to the {@link BigViewerPanel} interface
+     * so that {@link OverlayRenderer} and {@link AnnotationOverlay.AnnRenderer} can be shared with BDV.
+     */
+    static BigViewerPanel adapt(final VolumeViewerPanel p) {
+        return new BigViewerPanel() {
+            @Override public int getDisplayWidth()  { return p.getDisplay().getWidth();  }
+            @Override public int getDisplayHeight() { return p.getDisplay().getHeight(); }
+            @Override public void addOverlay(final bdv.viewer.OverlayRenderer r)    { p.getDisplay().overlays().add(r); } //NOSONAR
+            @Override public void removeOverlay(final bdv.viewer.OverlayRenderer r) { p.getDisplay().overlays().remove(r); } //NOSONAR
+            @Override public void getViewerTransform(final AffineTransform3D t) { p.state().getViewerTransform(t); }
+            @Override public void getGlobalMouseCoordinates(final RealPoint pos) { p.getGlobalMouseCoordinates(pos); }
+            @Override public void requestRepaint() { p.requestRepaint(); }
+        };
     }
 
     /**
@@ -1446,7 +1421,7 @@ public class Bvv {
                         + "Press M in the viewer to place a marker at the cursor position.",
                 IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
         // Keep button state in sync with frame visibility
-        getMarkerManager().getBvvPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
+        getMarkerManager().getViewerDialogPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
             public void componentShown(java.awt.event.ComponentEvent e) {
                 markerButton.setSelected(true);
@@ -1480,29 +1455,26 @@ public class Bvv {
 
 
     /**
-     * Adds a Tree to the viewer as overlay
-     *
-     * @param tree the Tree to render
-     */
-    public void addTree(final Tree tree) {
-        addTree(tree, true);
-    }
-
-    /**
      * Script friendly method to add a supported object ({@link Tree},
-     * {@link DirectedWeightedGraph}) to the viewer overlay.
+     * {@link DirectedWeightedGraph}, {@link Path}) to the viewer overlay.
      * Collections are also supported, which is an effective way of adding
      * multiple items since the scene is only updated once all items
      * have been added.
      *
-     * @param object the object to be added. Null objects are ignored
-     * @throws IllegalArgumentException if object is not supported
+     * @param object the object to be added; null is silently ignored
+     * @throws IllegalArgumentException if object is not a supported type
      */
+    @Override
     public void add(final Object object) {
         add(object, true);
     }
 
-    private void add(final Object object, final boolean updateScene) {
+    /**
+     * Internal dispatcher with deferred sync support. Extends the parent's
+     * handling with support for {@link Path} objects and null-tolerant behavior.
+     */
+    @Override
+    protected void add(final Object object, final boolean updateScene) {
         switch (object) {
             case null -> SNTUtils.log("Null object ignored for scene addition");
             case Tree tree1 -> addTree(tree1, updateScene);
@@ -1516,24 +1488,9 @@ public class Bvv {
                 tree.setColor(SNTColor.getDistinctColors(1)[0]);
                 addTree(tree, updateScene);
             }
-            case Collection<?> collection -> addCollection(collection, true);
+            case Collection<?> collection -> addCollection(collection, updateScene);
             default -> throw new IllegalArgumentException("Unsupported object: " + object.getClass().getName());
         }
-    }
-
-    private void addCollection(final Collection<?> collection, final boolean updateView) {
-        for (final Object o : collection)
-            add(o, false);
-        if (updateView) syncOverlays();
-    }
-
-    private void addTree(final Tree tree, final boolean updateScene) {
-        if (tree == null || tree.isEmpty()) {
-            throw new IllegalArgumentException("Tree cannot be null or empty");
-        }
-        final String label = getUniqueLabel(tree);
-        renderedTrees.put(label, tree);
-        if (updateScene) syncOverlays();
     }
 
     /**
@@ -1544,6 +1501,7 @@ public class Bvv {
      *
      * @param reconstructionFiles the reconstruction files (SWC, JSON, etc.) to load
      */
+    @Override
     public void add(final java.io.File[] reconstructionFiles) {
         if (reconstructionFiles == null || reconstructionFiles.length == 0) return;
         new SwingWorker<Void, Tree>() {
@@ -1648,11 +1606,13 @@ public class Bvv {
      * This method should be called after modifying the collection of rendered objects
      * to ensure the display is synchronized.
      */
+    @Override
     public void syncOverlays() {
         if (pathOverlay != null) pathOverlay.updatePaths();
         if (annotationOverlay != null) annotationOverlay.updateScene();
     }
 
+    @Override
     public AnnotationOverlay annotations() {
         return annotationOverlay;
     }
@@ -1660,6 +1620,7 @@ public class Bvv {
     /**
      * Forces a repaint of the viewer, updating volume renderings but not overlays.
      */
+    @Override
     public void repaint() {
         if (currentBvv != null) {
             currentBvv.getViewer().requestRepaint();
@@ -1671,6 +1632,7 @@ public class Bvv {
      * volume in the canvas. Equivalent to the Reset button in Camera Controls.
      * No-op if no volume has been loaded.
      */
+    @Override
     public void resetView() {
         if (currentBvv == null || bvvHandle == null) return;
         final VolumeViewerPanel viewerPanel = currentBvv.getViewer();
@@ -1881,50 +1843,10 @@ public class Bvv {
         return t;
     }
 
-    @SuppressWarnings("unused")
-    public boolean removeTree(final String treeLabel) {
-        final Tree removedTree = renderedTrees.remove(treeLabel);
-        if (removedTree != null && pathOverlay != null) {
-            syncOverlays();
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Clears all rendered trees from the overlay.
-     */
-    public void clearAllTrees() {
-        renderedTrees.clear();
-        syncOverlays();
-    }
-
-    private String getUniqueLabel(final Tree tree) {
-        String baseLabel = tree.getLabel();
-        if (baseLabel == null || baseLabel.trim().isEmpty()) {
-            baseLabel = "Tree";
-        }
-
-        String label = baseLabel;
-        int counter = 1;
-        while (renderedTrees.containsKey(label)) {
-            label = baseLabel + " (" + (++counter) + ")";
-        }
-        return label;
-    }
-
-    /**
-     * Gets all the trees currently rendered.
-     *
-     * @return collection of rendered trees
-     */
-    public Collection<Tree> getRenderedTrees() {
-        return renderedTrees.values();
-    }
-
     /**
      * @return a reference to the viewer's frame.
      */
+    @Override
     public VolumeViewerFrame getViewerFrame() {
         return (currentBvv == null) ? null : currentBvv.getViewerFrame();
     }
@@ -1959,11 +1881,83 @@ public class Bvv {
         return renderingOptions;
     }
 
+    // ── Implementations of AbstractBigViewer abstract methods ──
+
+    @Override
+    public boolean isOpen() {
+        return currentBvv != null && currentBvv.getViewerFrame() != null
+                && currentBvv.getViewerFrame().isDisplayable();
+    }
+
+    @Override
+    public int getViewerWidth() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return (p == null) ? 0 : p.getDisplay().getWidth();
+    }
+
+    @Override
+    public int getViewerHeight() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return (p == null) ? 0 : p.getDisplay().getHeight();
+    }
+
+    @Override
+    public AffineTransform3D getViewerTransform() {
+        final AffineTransform3D t = new AffineTransform3D();
+        if (getViewerPanel() != null)
+            getViewerPanel().state().getViewerTransform(t);
+        return t;
+    }
+
+    @Override
+    public void setViewerTransform(final AffineTransform3D target, final long durationMs) {
+        final VolumeViewerPanel p = getViewerPanel();
+        if (p == null) return;
+        final AffineTransform3D current = getViewerTransform();
+        p.setTransformAnimator(new bdv.viewer.animate.SimilarityTransformAnimator(
+                current, target, 0, 0, durationMs));
+    }
+
+    @Override
+    public void showViewerMessage(final String msg) {
+        if (currentBvv != null) currentBvv.getViewer().showMessage(msg);
+    }
+
+    @Override
+    public void getGlobalMouseCoordinates(final RealPoint pos) {
+        if (currentBvv != null) currentBvv.getViewer().getGlobalMouseCoordinates(pos);
+    }
+
+    @Override
+    public float getDefaultMarkerSize() {
+        return renderingOptions.getMinThickness();
+    }
+
+    @Override
+    public Color getDefaultMarkerColor() {
+        return renderingOptions.fallbackColor;
+    }
+
+    @Override
+    protected sc.fiji.snt.BookmarkManager createMarkerManager() {
+        final sc.fiji.snt.BookmarkManager mm = new sc.fiji.snt.BookmarkManager(this);
+        slabAnnotationsToggle = new JToggleButton("Slab Annotations");
+        slabAnnotationsToggle.setToolTipText(
+                "<html>Restrict marker rendering to the active slab.<br>"
+                + "Markers outside the slab bounds are hidden.<br>"
+                + "Only effective when Slab View is active.");
+        slabAnnotationsToggle.setEnabled(false);
+        slabAnnotationsToggle.addActionListener(e -> {
+            renderingOptions.setClipAnnotationsToSlab(slabAnnotationsToggle.isSelected());
+            syncOverlays();
+        });
+        mm.addViewerToolbarButton(slabAnnotationsToggle);
+        return mm;
+    }
+
     // ── Package-private accessors for ChannelUnmixingCard ──
 
     double[] getCal() { return cal; }
-
-    String getCalUnit() { return calUnit; }
 
     /**
      * Overrides the voxel calibration (spacing and unit) for all loaded sources.
@@ -1975,6 +1969,7 @@ public class Bvv {
      * @param spacing voxel size in {x, y, z} order
      * @param unit    physical unit string (e.g. "µm")
      */
+    @Override
     public void setCalibration(final double[] spacing, final String unit) {
         if (spacing == null || spacing.length < 2)
             throw new IllegalArgumentException("spacing must have at least 2 elements (x, y)");
@@ -2097,7 +2092,8 @@ public class Bvv {
      * Checks (in order): calUnit field, SNT spacing units, first source's
      * VoxelDimensions (same source used by the scale bar renderer).
      */
-    private String getPhysicalUnit() {
+    @Override
+    public String getPhysicalUnit() {
         if (calUnit != null && !calUnit.isBlank() && !"pixel".equalsIgnoreCase(calUnit))
             return calUnit;
         if (snt != null) {
@@ -2583,6 +2579,20 @@ public class Bvv {
                     if (slabOn[0]) {
                         savedClip[0] = nearSlider.getValue();
                         savedClip[1] = farSlider.getValue();
+                        // Sync position slider to current viewer Z before activating slab,
+                        // so the view does not jump when the user is zoomed in.
+                        // The viewer transform satisfies t[2,3] = -scale * worldZ (for the focal plane
+                        // at viewer Z=0), so worldZ = -t[2,3] / scale.
+                        final AffineTransform3D cur = new AffineTransform3D();
+                        viewerPanel.state().getViewerTransform(cur);
+                        final double curScale = Math.sqrt(
+                                cur.get(0, 0) * cur.get(0, 0) +
+                                cur.get(1, 0) * cur.get(1, 0) +
+                                cur.get(2, 0) * cur.get(2, 0));
+                        if (curScale > 0) {
+                            final int sliderPos = (int) Math.round(-cur.get(2, 3) / (curScale * zStep));
+                            posSlider.setValue(Math.max(0, Math.min(nSlices, sliderPos)));
+                        }
                         final double zCenter = posSlider.getValue() * zStep;
                         final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
                         applySlab(viewerPanel, physZ, zCenter, halfThick * 2.0);
@@ -2592,7 +2602,7 @@ public class Bvv {
                         if (slabAnnotationsToggle != null) slabAnnotationsToggle.setEnabled(true);
                     } else {
                         setSliderValues(dCamSlider.getValue(), savedClip[0], savedClip[1]);
-                        applyZCenter(viewerPanel, physZ / 2);
+                        // Do not re-center Z on deactivation -- leave the view where it is.
                         renderingOptions.clearSlabZBounds();
                         if (sceneOverlay != null) sceneOverlay.showSlabPlanes = false;
                         // Deactivate and disable Slab Paths + Slab Annotations when slab is turned off
@@ -2837,9 +2847,9 @@ public class Bvv {
         private boolean usePathRadius = true;
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
-        private SNTPoint canvasOffset;
+        SNTPoint canvasOffset;
         public Color fallbackColor = Color.MAGENTA;
-        private float clippingDistance;
+        float clippingDistance;
 
         /**
          * Gets the thickness multiplier for path rendering.
@@ -3136,7 +3146,7 @@ public class Bvv {
                     final double pfFar  = dCam / (dCam + fc);  // viewerZ = +fc
 
                     // Helper: scale screen AABB corners by a perspective ratio around center
-                    // (corner = centre + (corner-centre) * ratio)
+                    // (corner = center + (corner-center) * ratio)
                     final double ratioN = pfNear / pfVol;
                     final double ratioF = pfFar  / pfVol;
 
@@ -3217,17 +3227,17 @@ public class Bvv {
     }
 
 
-    private static class PathOverlay {
-        private final Bvv sntBvv;
-        private final VolumeViewerPanel viewerPanel;
-        private final OverlayRenderer overlayRenderer;
+    static class PathOverlay {
+        private final AbstractBigViewer sntViewer;
+        private final BigViewerPanel viewerPanel;
+        final OverlayRenderer overlayRenderer;
 
-        PathOverlay(final BigVolumeViewer bvv, final Bvv sntBvv) {
-            this.sntBvv = sntBvv;
-            this.viewerPanel = bvv.getViewer();
-            // Add the overlay renderer to the viewer
-            this.overlayRenderer = new OverlayRenderer(viewerPanel, sntBvv.getRenderingOptions());
-            viewerPanel.getDisplay().overlays().add(overlayRenderer);
+        PathOverlay(final BigViewerPanel viewerPanel, final AbstractBigViewer sntViewer,
+                    final PathRenderingOptions renderingOptions) {
+            this.sntViewer = sntViewer;
+            this.viewerPanel = viewerPanel;
+            this.overlayRenderer = new OverlayRenderer(viewerPanel, renderingOptions);
+            viewerPanel.addOverlay(overlayRenderer);
         }
 
         void disableRendering(final boolean disable) {
@@ -3240,14 +3250,14 @@ public class Bvv {
         }
 
         void updatePaths() {
-            final Collection<Tree> trees = sntBvv.getRenderedTrees();
+            final Collection<Tree> trees = sntViewer.getRenderedTrees();
             overlayRenderer.updatePaths(trees);
             viewerPanel.requestRepaint();
         }
 
         void dispose() {
             if (viewerPanel != null && overlayRenderer != null) {
-                viewerPanel.getDisplay().overlays().remove(overlayRenderer);
+                viewerPanel.removeOverlay(overlayRenderer);
             }
         }
     }
@@ -3256,16 +3266,16 @@ public class Bvv {
      * Renders spherical annotations at {@link SNTPoint} world coordinates.
      * Rendered with CPU (Java2D) but optimized with caching and batched rendering.
      */
-    public static class AnnotationOverlay {
+    public static class AnnotationOverlay implements AbstractBigViewer.AnnotationOverlay {
 
-        private final VolumeViewerPanel viewerPanel;
+        private final BigViewerPanel viewerPanel;
         private final AnnRenderer annRenderer;
         private final List<Annotation> annotations = new ArrayList<>();
 
-        AnnotationOverlay(final BigVolumeViewer bvv, final Bvv sntBvv) {
-            this.viewerPanel = bvv.getViewer();
-            this.annRenderer = new AnnRenderer(viewerPanel, sntBvv.getRenderingOptions());
-            viewerPanel.getDisplay().overlays().add(annRenderer);
+        AnnotationOverlay(final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+            this.viewerPanel = viewerPanel;
+            this.annRenderer = new AnnRenderer(viewerPanel, renderingOptions);
+            viewerPanel.addOverlay(annRenderer);
         }
 
         /**
@@ -3339,20 +3349,22 @@ public class Bvv {
 
         void dispose() {
             if (viewerPanel != null && annRenderer != null) {
-                viewerPanel.getDisplay().overlays().remove(annRenderer);
+                viewerPanel.removeOverlay(annRenderer);
             }
         }
 
         /**
          * Optimized annotation renderer with caching and batched drawing.
+         * Uses BigViewerPanel so it works with both BDV and BVV.
+         * For BDV, dCamAnn = Double.MAX_VALUE yields pf = 1.0 (orthographic).
          */
-        private static class AnnRenderer implements bdv.viewer.OverlayRenderer {
+        static class AnnRenderer implements bdv.viewer.OverlayRenderer {
 
             // Camera parameters kept in sync w/ OverlayRenderer via AnnotationOverlay.setCamParams()
             double dCamAnn     = BvvUtils.DEFAULT_D_CAM;
             double nearClipAnn = BvvUtils.DEFAULT_NEAR_CLIP;
             double farClipAnn  = BvvUtils.DEFAULT_FAR_CLIP;
-            private final VolumeViewerPanel viewerPanel;
+            private final BigViewerPanel viewerPanel;
             private final PathRenderingOptions renderingOptions;
             private final AffineTransform3D viewerTransform = new AffineTransform3D();
             // === CACHING ===
@@ -3370,7 +3382,7 @@ public class Bvv {
             private int canvasWidth, canvasHeight;
             private double centerX, centerY;
 
-            AnnRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+            AnnRenderer(final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
                 this.viewerPanel = viewerPanel;
                 this.renderingOptions = renderingOptions;
             }
@@ -3390,14 +3402,14 @@ public class Bvv {
                 if (annotations.isEmpty() || hide) return;
 
                 // Update canvas dimensions
-                canvasWidth = viewerPanel.getDisplay().getWidth();
-                canvasHeight = viewerPanel.getDisplay().getHeight();
+                canvasWidth = viewerPanel.getDisplayWidth();
+                canvasHeight = viewerPanel.getDisplayHeight();
                 centerX = canvasWidth / 2.0;
                 centerY = canvasHeight / 2.0;
 
                 // Check if transform changed
                 synchronized (viewerTransform) {
-                    viewerPanel.state().getViewerTransform(viewerTransform);
+                    viewerPanel.getViewerTransform(viewerTransform);
                 }
 
                 if (!transformEquals(viewerTransform, cachedTransform)) {
@@ -3565,10 +3577,12 @@ public class Bvv {
     /**
      * Optimized overlay renderer for drawing SNT paths.
      * Uses caching, batching, bounding box culling, and LOD to improve performance.
+     * Uses BigViewerPanel so it works with both BDV and BVV.
+     * For BDV, set dCam = Double.MAX_VALUE; the formula dCam/(dCam+z) then yields 1.0 (orthographic).
      */
-    private static class OverlayRenderer implements bdv.viewer.OverlayRenderer {
+    static class OverlayRenderer implements bdv.viewer.OverlayRenderer {
 
-        final VolumeViewerPanel viewerPanel;
+        final BigViewerPanel viewerPanel;
         final PathRenderingOptions renderingOptions;
         final AffineTransform3D viewerTransform = new AffineTransform3D();
         private final AffineTransform3D cachedTransform = new AffineTransform3D();
@@ -3594,11 +3608,11 @@ public class Bvv {
         private int canvasWidth, canvasHeight;
         private double centerX, centerY;
 
-        OverlayRenderer(final VolumeViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+        OverlayRenderer(final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
             this.renderingOptions = renderingOptions;
-            // Camera params are set externally via VolumeViewerPanel.setCamParams() after image loading;
-            // store BVV defaults here as initial values. These will be overridden by computeCamParams()
+            // BVV: dCam is overridden after image loading via computeCamParams().
+            // BDV: caller sets dCam = Double.MAX_VALUE so pf = dCam/(dCam+z) = 1.0 (orthographic).
             dCam = BvvUtils.DEFAULT_D_CAM;
             nearClip = BvvUtils.DEFAULT_NEAR_CLIP;
             farClip = BvvUtils.DEFAULT_FAR_CLIP;
@@ -3619,14 +3633,14 @@ public class Bvv {
             if (trees.isEmpty() || hide) return;
 
             // Update canvas dimensions
-            canvasWidth = viewerPanel.getDisplay().getWidth();
-            canvasHeight = viewerPanel.getDisplay().getHeight();
+            canvasWidth = viewerPanel.getDisplayWidth();
+            canvasHeight = viewerPanel.getDisplayHeight();
             centerX = canvasWidth / 2.0;
             centerY = canvasHeight / 2.0;
 
             // Check if transform changed
             synchronized (viewerTransform) {
-                viewerPanel.state().getViewerTransform(viewerTransform);
+                viewerPanel.getViewerTransform(viewerTransform);
             }
 
             if (!transformEquals(viewerTransform, cachedTransform)) {
@@ -4142,7 +4156,7 @@ public class Bvv {
         }
 
         /**
-         * Normalises an accel name: lowercase, trim, underscores → spaces.
+         * Normalizes an accel name: lowercase, trim, underscores → spaces.
          */
         private static String normalizeAccelName(final String name) {
             return name.toLowerCase().trim().replace('_', ' ');
@@ -4650,7 +4664,7 @@ public class Bvv {
             return new AbstractAction("Show/hide All Annotations") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final boolean hasAnnotations = (pathOverlay != null && !pathOverlay.sntBvv.getRenderedTrees().isEmpty())
+                    final boolean hasAnnotations = (pathOverlay != null && !pathOverlay.sntViewer.getRenderedTrees().isEmpty())
                             || (annotationOverlay != null && annotationOverlay.isVisible());
                     if (!hasAnnotations && (annotationOverlay == null || annotationOverlay.getCount() == 0)) {
                         bvv.getViewer().showMessage("No annotations exist.");
@@ -4680,7 +4694,7 @@ public class Bvv {
                     if (hideActive) return; // key repeat guard
                     // Check if there is anything to hide (markers are part of annotationOverlay)
                     final boolean hasPaths = pathOverlay != null && pathOverlay.isRenderingEnable()
-                            && !pathOverlay.sntBvv.getRenderedTrees().isEmpty();
+                            && !pathOverlay.sntViewer.getRenderedTrees().isEmpty();
                     final boolean hasAnnotations = annotationOverlay != null
                             && annotationOverlay.isVisible() && annotationOverlay.getCount() > 0;
                     if (!hasPaths && !hasAnnotations) {
@@ -4770,7 +4784,7 @@ public class Bvv {
                                 Arrays.stream(dims).asDoubleStream().max().orElse(1000d),
                                 calUnit);
                         if (newDist == null) {
-                            // User cancelled: revert button state
+                            // User canceled: revert button state
                             toggleButton.setSelected(false);
                             return;
                         }
@@ -4862,7 +4876,7 @@ public class Bvv {
             return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    getMarkerManager().toggleBvvPanel();
+                    getMarkerManager().toggleViewerPanel();
                 }
             };
         }

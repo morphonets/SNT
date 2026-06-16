@@ -83,8 +83,8 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 		shortcuts.add(new Shortcut("SNT...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend. For tracing start here."));
 		shortcuts.add(null);
-		shortcuts.add(new Shortcut("BVV...", BvvCmd.class,
-				"Initialize SNT's Big Volume Viewer with support for big data pyramidal images."));
+		shortcuts.add(new Shortcut("BDV/BVV...", BvvCmd.class,
+				"Initialize SNT's Big Data/Volume Viewer with support for big data pyramidal images."));
 		shortcuts.add(new Shortcut("Rec. Plotter...", PlotterCmd.class,
 				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
 		shortcuts.add(new Shortcut("Rec. Viewer", ReconstructionViewerCmd.class,

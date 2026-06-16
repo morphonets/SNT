@@ -37,6 +37,8 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.viewer.AbstractBigViewer;
+import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 
 import java.io.File;
@@ -50,7 +52,7 @@ import java.util.stream.Stream;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "BVV")
+@Plugin(type = Command.class, label = "BDV/BVV")
 public class BvvCmd extends ContextCommand {
 
     private static final String TOOLTIP =
@@ -65,6 +67,7 @@ public class BvvCmd extends ContextCommand {
     private static final String DOWNSAMPLE = "Downsample to fit";
     private static final String CONVERT = "Show me how to convert to multi-resolution pyramid image";
 
+
     @Parameter(label = "Main volume", description = "Primary image volume.\n"+ TOOLTIP)
     File img1File;
 
@@ -75,6 +78,10 @@ public class BvvCmd extends ContextCommand {
             description = "Either a single file (TRACES, SWC, JSON), or a folder containing multiple reconstruction files.")
     File recFiles;
 
+    @Parameter(label = "Viewer type", choices = {"2D: Big Data Viewer (BDV)", "3D: Big Volume Viewer (BVV)"},
+            description = "The type of viewer")
+    String viewerChoice;
+
     @Override
     public void run() {
         SNTUtils.setDebugMode(true);
@@ -82,62 +89,83 @@ public class BvvCmd extends ContextCommand {
             error("Main volume is required.");
             return;
         }
+        final String[] filePaths = Stream.of(img1File, img2File)
+                .filter(Objects::nonNull)
+                .map(File::getAbsolutePath)
+                .toArray(String[]::new);
+        if (filePaths.length == 0) {
+            error("No volume files specified.");
+            return;
+        }
+        final boolean threeD = viewerChoice == null || viewerChoice.toLowerCase().contains("bvv")
+                || viewerChoice.toLowerCase().contains("vol") || viewerChoice.toLowerCase().contains("3d");
+        SNTUtils.setIsLoading(true);
         try {
-            final String[] filePaths = Stream.of(img1File, img2File)
-                    .filter(Objects::nonNull)
-                    .map(File::getAbsolutePath)
-                    .toArray(String[]::new);
-            if (filePaths.length == 0) {
-                error("No volume files specified.");
-                return;
-            }
-            SNTUtils.setIsLoading(true);
-
-            // Resolve sources and check texture limits before creating BVV
-            final int maxTexSize = queryMaxTexture3DSize();
-            SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
-            final List<Object> resolvedSources = new ArrayList<>();
-            for (final String path : filePaths) {
-                final Object source = SpimDataUtils.resolvePathToSource(path);
-                if (source instanceof ImgPlus<?> img && ImgUtils.exceedsDimension(img, maxTexSize)) {
-                    SNTUtils.setIsLoading(false);
-                    final Object handled = handleOversizedImage(img, maxTexSize, path);
-                    if (handled == null) return; // user chose Abort
-                    resolvedSources.add(handled);
-                } else {
-                    resolvedSources.add(source);
-                }
-            }
-
-            // All sources are ready: create BVV and show them
-            final Bvv bvv = new Bvv();
-            for (final Object source : resolvedSources) {
-                if (source instanceof AbstractSpimData)
-                    bvv.show((AbstractSpimData<?>) source);
-                else {
-                    //noinspection unchecked,rawtypes
-                    bvv.show((ImgPlus) source);
-                }
-            }
-
-            if (recFiles == null) return;
-            if (!recFiles.exists()) {
-                error(String.format("%s does not exist or is not available.", recFiles.getName()));
-                return;
-            }
-            final File[] files = SNTUtils.getReconstructionFiles(recFiles, null);
-            final int fileCount = (files == null) ? 0 : files.length;
-            SNTUtils.log(String.format("Loading %d reconstruction file(s) from %s.", fileCount, recFiles.getAbsolutePath()));
-            if (fileCount == 0) {
-                error(String.format("No reconstruction files found in %s.", recFiles.getName()));
-                return;
-            }
-            bvv.add(files);
+            if (threeD)
+                runBvv(filePaths);
+            else
+                runBdv(filePaths);
         } catch (final Exception e) {
             error("An error occurred: " + e.getMessage());
         } finally {
             SNTUtils.setIsLoading(false);
         }
+    }
+
+    /** Resolves sources, enforces GPU texture limits, then opens BVV. */
+    private void runBvv(final String[] filePaths) {
+        final int maxTexSize = queryMaxTexture3DSize();
+        SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
+        final List<Object> sources = new ArrayList<>();
+        for (final String path : filePaths) {
+            final Object source = SpimDataUtils.resolvePathToSource(path);
+            if (source instanceof ImgPlus<?> img && ImgUtils.exceedsDimension(img, maxTexSize)) {
+                SNTUtils.setIsLoading(false);
+                final Object handled = handleOversizedImage(img, maxTexSize, path);
+                if (handled == null) return; // user chose Abort
+                sources.add(handled);
+            } else {
+                sources.add(source);
+            }
+        }
+        final Bvv bvv = new Bvv();
+        for (final Object source : sources) {
+            if (source instanceof AbstractSpimData<?> spim) bvv.show(spim);
+                //noinspection unchecked,rawtypes
+            else if (source instanceof ImgPlus<?> img) bvv.show((ImgPlus) img);
+        }
+        loadReconstructions(bvv);
+    }
+
+    /** Resolves sources (no texture-size constraint) then opens BDV. */
+    private void runBdv(final String[] filePaths) {
+        final Bdv bdv = new Bdv();
+        for (final String path : filePaths) {
+            final Object source = SpimDataUtils.resolvePathToSource(path);
+            if (source instanceof AbstractSpimData<?> spim)
+                bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
+            //noinspection unchecked,rawtypes
+            else if (source instanceof ImgPlus<?> img)
+                bdv.show((ImgPlus) img);
+        }
+        loadReconstructions(bdv);
+    }
+
+    /** Loads reconstruction files into the viewer, if any were specified. */
+    private void loadReconstructions(final AbstractBigViewer viewer) {
+        if (recFiles == null) return;
+        if (!recFiles.exists()) {
+            error(String.format("%s does not exist or is not available.", recFiles.getName()));
+            return;
+        }
+        final File[] files = SNTUtils.getReconstructionFiles(recFiles, null);
+        final int fileCount = (files == null) ? 0 : files.length;
+        SNTUtils.log(String.format("Loading %d reconstruction file(s) from %s.", fileCount, recFiles.getAbsolutePath()));
+        if (fileCount == 0) {
+            error(String.format("No reconstruction files found in %s.", recFiles.getName()));
+            return;
+        }
+        viewer.add(files);
     }
 
     /**
