@@ -50,9 +50,6 @@ import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.*;
 import java.awt.*;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
@@ -1424,11 +1421,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         // dialog now correctly cancels the operation, matching the behavior
         // of MultiSpectralRefineHelper and the base class.
 
-        public void fitUsingPrompAsNeeded() {
+        public void fitUsingPromptAsNeeded() {
             workers = pathsToFit;
             executeUsingPromptAsNeeded();
         }
 
+        @SuppressWarnings("unused")
         public void fit() {
             workers = pathsToFit;
             execute();
@@ -1719,228 +1717,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 setIcon(IconFactory.nodeIcon( p.getColor(), isLeaf, expanded));
             }
             return c;
-        }
-
-    }
-
-    private static class TreeTransferHandler extends TransferHandler {
-
-        private static final long serialVersionUID = 1L;
-        DataFlavor nodesFlavor;
-        final DataFlavor[] flavors = new DataFlavor[1];
-        DefaultMutableTreeNode[] nodesToRemove;
-
-        public TreeTransferHandler() {
-            try {
-                final String mimeType = DataFlavor.javaJVMLocalObjectMimeType +
-                        ";class=\"" + DefaultMutableTreeNode[].class
-                        .getName() + "\"";
-                nodesFlavor = new DataFlavor(mimeType);
-                flavors[0] = nodesFlavor;
-            }
-            catch (final ClassNotFoundException e) {
-                System.out.println("ClassNotFound: " + e.getMessage());
-            }
-        }
-
-        @Override
-        public boolean canImport(final TransferSupport support) {
-            if (!support.isDrop()) {
-                return false;
-            }
-            support.setShowDropLocation(true);
-            if (!support.isDataFlavorSupported(nodesFlavor)) {
-                return false;
-            }
-            // Do not allow a drop on the drag source selections.
-            final JTree.DropLocation dl = (JTree.DropLocation) support
-                    .getDropLocation();
-            final JTree tree = (JTree) support.getComponent();
-            final int dropRow = tree.getRowForPath(dl.getPath());
-            final int[] selRows = tree.getSelectionRows();
-            assert selRows != null;
-            for (int selRow : selRows) {
-                if (selRow == dropRow) {
-                    return false;
-                }
-            }
-            // Do not allow MOVE-action drops if a non-leaf node is
-            // selected unless all of its children are also selected.
-            final int action = support.getDropAction();
-            if (action == MOVE) {
-                return haveCompleteNode(tree);
-            }
-            // Do not allow a non-leaf node to be copied to a level
-            // which is less than its source level.
-            final TreePath dest = dl.getPath();
-            final DefaultMutableTreeNode target = (DefaultMutableTreeNode) dest
-                    .getLastPathComponent();
-            final TreePath path = tree.getPathForRow(selRows[0]);
-            final DefaultMutableTreeNode firstNode = (DefaultMutableTreeNode) path
-                    .getLastPathComponent();
-            return firstNode.getChildCount() <= 0 || target.getLevel() >= firstNode
-                    .getLevel();
-        }
-
-        private boolean haveCompleteNode(final JTree tree) {
-            final int[] selRows = tree.getSelectionRows();
-            assert selRows != null;
-            TreePath path = tree.getPathForRow(selRows[0]);
-            final DefaultMutableTreeNode first = (DefaultMutableTreeNode) path
-                    .getLastPathComponent();
-            final int childCount = first.getChildCount();
-            // first has children and no children are selected.
-            if (childCount > 0 && selRows.length == 1) return false;
-            // first may have children.
-            for (int i = 1; i < selRows.length; i++) {
-                path = tree.getPathForRow(selRows[i]);
-                final DefaultMutableTreeNode next = (DefaultMutableTreeNode) path
-                        .getLastPathComponent();
-                if (first.isNodeChild(next)) {
-                    // Found a child of first.
-                    if (childCount > selRows.length - 1) {
-                        // Not all children of first are selected.
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        @Override
-        protected Transferable createTransferable(final JComponent c) {
-            final JTree tree = (JTree) c;
-            final TreePath[] paths = tree.getSelectionPaths();
-            if (paths != null) {
-                // Make up a node array of copies for transfer and
-                // another for/of the nodes that will be removed in
-                // exportDone after a successful drop.
-                final List<DefaultMutableTreeNode> copies = new ArrayList<>();
-                final List<DefaultMutableTreeNode> toRemove = new ArrayList<>();
-                final DefaultMutableTreeNode node = (DefaultMutableTreeNode) paths[0]
-                        .getLastPathComponent();
-                final DefaultMutableTreeNode copy = copy(node);
-                copies.add(copy);
-                toRemove.add(node);
-                for (int i = 1; i < paths.length; i++) {
-                    final DefaultMutableTreeNode next = (DefaultMutableTreeNode) paths[i]
-                            .getLastPathComponent();
-                    // Do not allow higher level nodes to be added to list.
-                    if (next.getLevel() < node.getLevel()) {
-                        break;
-                    }
-                    else if (next.getLevel() > node.getLevel()) { // child node
-                        copy.add(copy(next));
-                        // node already contains child
-                    }
-                    else { // sibling
-                        copies.add(copy(next));
-                        toRemove.add(next);
-                    }
-                }
-                final DefaultMutableTreeNode[] nodes = copies.toArray(
-                        new DefaultMutableTreeNode[0]);
-                nodesToRemove = toRemove.toArray(new DefaultMutableTreeNode[0]);
-                return new NodesTransferable(nodes);
-            }
-            return null;
-        }
-
-        /** Defensive copy used in createTransferable. */
-        private DefaultMutableTreeNode copy(final TreeNode node) {
-            final DefaultMutableTreeNode n = (DefaultMutableTreeNode) node;
-            return (DefaultMutableTreeNode) n.clone();
-        }
-
-        @Override
-        protected void exportDone(final JComponent source, final Transferable data,
-                                  final int action)
-        {
-            if ((action & MOVE) == MOVE) {
-                final JTree tree = (JTree) source;
-                final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
-                // Remove nodes saved in nodesToRemove in createTransferable.
-                for (DefaultMutableTreeNode defaultMutableTreeNode : nodesToRemove) {
-                    model.removeNodeFromParent(defaultMutableTreeNode);
-                }
-            }
-        }
-
-        @Override
-        public int getSourceActions(final JComponent c) {
-            return COPY_OR_MOVE;
-        }
-
-        @Override
-        public boolean importData(final TransferSupport support) {
-            if (!canImport(support)) {
-                return false;
-            }
-            // Extract transfer data.
-            DefaultMutableTreeNode[] nodes = null;
-            try {
-                final Transferable t = support.getTransferable();
-                nodes = (DefaultMutableTreeNode[]) t.getTransferData(nodesFlavor);
-            }
-            catch (final UnsupportedFlavorException ufe) {
-                System.out.println("UnsupportedFlavor: " + ufe.getMessage());
-            }
-            catch (final IOException ioe) {
-                System.out.println("I/O error: " + ioe.getMessage());
-            }
-            // Get drop location info.
-            final JTree.DropLocation dl = (JTree.DropLocation) support
-                    .getDropLocation();
-            final int childIndex = dl.getChildIndex();
-            final TreePath dest = dl.getPath();
-            final DefaultMutableTreeNode parent = (DefaultMutableTreeNode) dest
-                    .getLastPathComponent();
-            final JTree tree = (JTree) support.getComponent();
-            final DefaultTreeModel model = (DefaultTreeModel) tree.getModel();
-            // Configure for drop mode.
-            int index = childIndex; // DropMode.INSERT
-            if (childIndex == -1) { // DropMode.ON
-                index = parent.getChildCount();
-            }
-            // Add data to model.
-            assert nodes != null;
-            for (DefaultMutableTreeNode node : nodes) {
-                model.insertNodeInto(node, parent, index++);
-            }
-            return true;
-        }
-
-        @Override
-        public String toString() {
-            return getClass().getName();
-        }
-
-        public class NodesTransferable implements Transferable {
-
-            final DefaultMutableTreeNode[] nodes;
-
-            public NodesTransferable(final DefaultMutableTreeNode[] nodes) {
-                this.nodes = nodes;
-            }
-
-            @Override
-            public Object getTransferData(final DataFlavor flavor)
-                    throws UnsupportedFlavorException
-            {
-                if (!isDataFlavorSupported(flavor))
-                    throw new UnsupportedFlavorException(flavor);
-                return nodes;
-            }
-
-            @Override
-            public DataFlavor[] getTransferDataFlavors() {
-                return flavors;
-            }
-
-            @Override
-            public boolean isDataFlavorSupported(final DataFlavor flavor) {
-                return nodesFlavor.equals(flavor);
-            }
         }
     }
 
@@ -5024,7 +4800,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 else if (!pathsToFit.isEmpty()) {
                     if (fittingHelper == null) fittingHelper = new FitHelper();
                     fittingHelper.pathsToFit = pathsToFit;
-                    fittingHelper.fitUsingPrompAsNeeded(); // call refreshManager
+                    fittingHelper.fitUsingPromptAsNeeded(); // call refreshManager
                     if (skippedFits > 0) {
                         guiUtils.centeredMsg("Since no image data is available, " + skippedFits + "/"
                                 + selectedPaths.size() + " fits could not be computed", "Valid Image Data Unavailable");
@@ -5473,7 +5249,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     guiUtils.error("No path(s) selected.");
                     return;
                 }
-                final Path placeholder = paths.iterator().next().createPath(); // empty path from a representative path
+                Path.PathNode result = null;
                 final String cmd = e.getActionCommand();
                 // "Global extremum" items resolve to a single node across the entire selection (radius, intensity,
                 // angle). Other items remain per-path so multi-select gives a population-level overview.
@@ -5482,13 +5258,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     case "Largest Radius Node"  -> "max radius";
                     case "Sharpest Angle Node"  -> "min angle";
                     case "Dimmest Node"         -> "min value";
+                    case "Brightest Node"       -> "max value";
                     default -> null;
                 };
                 if (filter != null) {
-                    // For "Dimmest Node": node intensities (Path#getNode(i).v) are shared with other features
-                    // (delineations, color coding, ...), so we snapshot the existing values, overwrite them
-                    // transiently for the search, then restore
-                    final boolean intensitySearch = "min value".equals(filter);
+                    // For "Brightest/Dimmest Node": node intensities (Path#getNode(i).v) are shared with other
+                    // features (delineations, color coding, ...), so we snapshot the existing values, overwrite
+                    // them transiently for the search, then restore
+                    final boolean intensitySearch = "min value".equals(filter) || "max value".equals((filter));
                     final Map<Path, double[]> snapshot = intensitySearch ? snapshotNodeValues(paths) : null;
                     try {
                         // Abort the whole operation if there is no image to sample intensities from:
@@ -5503,50 +5280,50 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                                 globalExtremum = local;
                             }
                         }
-                        if (globalExtremum != null) placeholder.addNode(globalExtremum);
+                        if (globalExtremum != null) result = globalExtremum;
                     } finally {
                         if (snapshot != null) restoreNodeValues(snapshot);
                     }
                 } else {
                     for (final Path path : paths) {
                         switch (cmd) {
-                            case "First Node" -> placeholder.addNode(path.getNode(0));
+                            case "First Node" -> result = path.getNode(0);
                             case "First Branch Point" -> {
                                 final TreeSet<Integer> junctions = path.findJunctionIndices();
                                 if (junctions.size() > 1) {
                                     final var it = junctions.iterator();
                                     it.next(); // skip first (root)
-                                    placeholder.addNode(path.getNode(it.next()));
+                                    result = path.getNode(it.next());
                                 }
                             }
                             case "Last Branch Point" -> {
                                 final TreeSet<Integer> junctions = path.findJunctionIndices(); // sorted
-                                if (!junctions.isEmpty()) placeholder.addNode(path.getNode(junctions.last()));
+                                if (!junctions.isEmpty()) result = path.getNode(junctions.last());
                             }
-                            case "Midpoint" -> placeholder.addNode(path.getNode(path.size() / 2));
-                            case "Last Node" -> placeholder.addNode(path.getNode(path.size() - 1));
+                            case "Midpoint" -> result = path.getNode(path.size() / 2);
+                            case "Last Node" -> result = path.getNode(path.size() - 1);
                             default -> {} // Do nothing
                         }
                     }
                 }
-                if (placeholder.size() == 0) {
+                if (result == null) {
                     final String msg = switch (cmd) {
                         case "Smallest Radius Node", "Largest Radius Node" -> "radii";
-                        case "Dimmest Node"        -> "intensity values (no image, or sampling failed)";
+                        case "Brightest Node", "Dimmest Node" -> "intensity values (no image, or sampling failed)";
                         case "Sharpest Angle Node" -> "computable angles (paths too short)";
                         default                    -> "branch-points";
                     };
                     guiUtils.error(String.format("Selected path(s) have no %s.", msg));
                 } else {
-                    zoomToNode(placeholder, visitingZoom);
+                    zoomToNode(result, visitingZoom);
                 }
             };
 
             final JPopupMenu menu = new JPopupMenu();
-            List.of("-Path Positions:", "First Node", "Last Node", "Midpoint",
+            List.of("-Position in Path:", "First Node", "Last Node", "Midpoint",
                             "-Structure:", "First Branch Point", "Last Branch Point", "Sharpest Angle Node",
                             "-Thickness:", "Smallest Radius Node", "Largest Radius Node",
-                            "-Intensity:", "Dimmest Node" )
+                            "-Intensity:", "Brightest Node", "Dimmest Node" )
                     .forEach(cmd -> {
                         if (cmd.startsWith("-")) {
                             GuiUtils.addSeparator(menu, cmd.substring(1));
@@ -5581,8 +5358,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 case "max value"  -> candidate.v > current.v;
                 case "min angle"  -> {
                     // Compare via parent path's angle at the node index. Cheaper:
-                    // PathNode#v is unrelated; fall back to recomputing through the
-                    // PointInImage's onPath reference.
+                    // PathNode#v is unrelated; fall back to recomputing through the PointInImage's onPath reference
                     final double cA = candidate.onPath.getAngle(candidate.onPath.getNodeIndex(candidate));
                     final double oA = current.onPath.getAngle(current.onPath.getNodeIndex(current));
                     yield cA < oA;
@@ -5607,9 +5383,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private boolean ensureNodeValues(final Collection<Path> paths) {
             if (noValidImageDataError()) return false;
             for (final Path p : paths) {
-                // Always (re)assign with point sampling so the values array is densely populated. PathProfiler's
-                // default LINE shape skips the first and last node, leaving them as a literal 0.0 in the values
-                // array, which would always look like "dimmest"
+                // Always (re)assign with point sampling so the values array is densely populated
                 try {
                     final PathProfiler profiler = new PathProfiler(p, plugin.getDataset());
                     profiler.setShape(ProfileProcessor.Shape.NONE);
@@ -5779,11 +5553,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             return true;
         }
 
-        private void zoomToNode(final Path nodeAsPath, GuiUtils.VisitingZoom visitingZoom) {
+        private void zoomToNode(final Path.PathNode node, GuiUtils.VisitingZoom visitingZoom) {
+            assert node != null && node.onPath != null;
+            final Path nodeAsPath = node.onPath.createPath();
+            nodeAsPath.addNode(node);
             final List<Path> nodeAsPathCollection = List.of(nodeAsPath);
             if (!canExecuteZoomOperation(nodeAsPathCollection)) return;
-            ImpUtils.zoomTo(plugin.getImagePlus(), visitingZoom.fraction(), nodeAsPath.getNode(0), nodeAsPath);
+            ImpUtils.zoomTo(plugin.getImagePlus(), visitingZoom.fraction(), node, node.onPath);
             zoomOtherPanesAsNeeded(nodeAsPathCollection, visitingZoom.fraction());
+            if (!node.onPath.isEditableNodeLocked()) {
+                // If path editable node is not locked, highlight it temporarily
+                final int editNodeIndex = node.onPath.getEditableNodeIndex();
+                final Timer timer = new Timer(600, ae -> node.onPath.setEditableNode(editNodeIndex));
+                timer.setRepeats(false);
+                node.onPath.setEditableNode(node.onPath.getNodeIndex(node));
+                timer.start();
+            }
         }
 
         private void zoomToBoundingBox(final Collection<Path> paths) {
