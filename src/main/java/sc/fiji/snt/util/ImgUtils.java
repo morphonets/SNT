@@ -786,6 +786,12 @@ public class ImgUtils {
         // Copy axes for remaining dimensions
         copyAxes(imgPlus, result, channelDim, timeDim, extractedChannel, extractedTime);
 
+        // Initialize color table slots before copying channel metadata.
+        // ImgPlus.setColorTable uses ArrayList.set(), which throws if the list is empty.
+        final int destChannelDim = result.dimensionIndex(Axes.CHANNEL);
+        final int numDestChannels = destChannelDim >= 0 ? (int) result.dimension(destChannelDim) : 1;
+        result.initializeColorTables(numDestChannels);
+
         // Copy channel metadata for the extracted channel
         copyChannelMetadata(imgPlus, result, extractedChannel);
 
