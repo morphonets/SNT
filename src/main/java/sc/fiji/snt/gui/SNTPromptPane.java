@@ -28,17 +28,14 @@ import org.scijava.thread.ThreadService;
 import org.scijava.ui.swing.script.OutputPane;
 import org.scijava.ui.swing.script.VarsPane;
 import org.scijava.widget.UIComponent;
-import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
-import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 
 import static java.awt.event.KeyEvent.*;
-import static sc.fiji.snt.SNTUtils.isDebugMode;
 
 /**
  * Syntax-highlighted prompt pane for the SNT scripting REPL. Replaces the

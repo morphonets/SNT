@@ -156,10 +156,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         add(scrollPane, BorderLayout.CENTER);
 
         // Create all the menu items:
-        final SinglePathActionListener singlePathListener =
-                new SinglePathActionListener();
-        final MultiPathActionListener multiPathListener =
-                new MultiPathActionListener();
+        final SinglePathActionListener singlePathListener = new SinglePathActionListener();
+        final MultiPathActionListener multiPathListener = new MultiPathActionListener();
 
         GuiUtils.removeIcon(this);
         menuBar = new JMenuBar();
@@ -427,12 +425,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Measure Path(s)...\")");
         measureMenu.add(jmi);
 
-        advanced.addSeparator();
+        //advanced.addSeparator();
         jmi = new JMenuItem(MultiPathActionListener.MULTI_METRIC_PLOT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
         jmi.setToolTipText("Plots a Path metric against several others");
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Multimetric Plot...\")");
         advanced.add(jmi);
+        GuiUtils.addSeparator(advanced, "Intensity Profilers:");
         jmi = new JMenuItem(SinglePathActionListener.NODE_PROFILER, IconFactory.menuIcon(IconFactory.GLYPH.CHART_MAGNIFIED));
         jmi.setToolTipText("Cross-section profiles of single paths");
         jmi.addActionListener(singlePathListener);
@@ -511,9 +510,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
         final JMenu menu = new JMenu("Spine/Varicosities/Labels");
         final String tooltip = "Assumes spine/varicosity markers have already been assigned to selected path(s)";
-        menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.MAP_PIN));
+        menu.setIcon(IconFactory.menuIcon('\ue29c', true));
 
         // Detection (automated)
+        GuiUtils.addSeparator(menu, "Automated Detectors:");
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.DETECT_LABEL_PROXIMITY_CMD);
         jmi.setToolTipText("Detects contact points between paths and labeled surfaces from a segmentation image");
         jmi.addActionListener(multiPathListener);
@@ -529,9 +529,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.DETECT_SWELLINGS_CMD + "\")");
         menu.add(jmi);
-        menu.addSeparator();
 
         // Post-annotation analysis (requires markers already assigned)
+        GuiUtils.addSeparator(menu, "Post-Annotation:");
         jmi = new JMenuItem(MultiPathActionListener.DENSITIES_EXTRACT_CMD);
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
@@ -546,7 +546,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Density Profiles...\")");
         menu.add(jmi);
-        menu.addSeparator();
+        GuiUtils.addSeparator(menu, "External Tools:");
         jmi = new JMenuItem("Start Spot Spine...");
         jmi.addActionListener(e -> plugin.getContext().getService(CommandService.class).run(SpotSpineLoaderCmd.class, true, new HashMap<>()));
         menu.add(jmi);
@@ -566,26 +566,44 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         final JMenu menu = new JMenu("Time-lapses");
         final String tooltip = "Assumes selected path(s) belong to a time-lapse series";
         menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.VIDEO));
-        JMenuItem jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD);
+
+        // 'Generic' commands that do not require matching paths across time
+        GuiUtils.addSeparator(menu, "Generic:");
+        JMenuItem jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD, IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
-        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Match Paths Across Time...\")");
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_COLOR_CODING_CMD + "\")");
         menu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.GROWTH_ANALYSIS_CMD);
+        jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILER_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_LINE));
+        jmi.setToolTipText("Timelapse version of " + MultiPathActionListener.PLOT_PROFILE_CMD);
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_PROFILER_CMD + "\")");
+        menu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_UNMATCHED_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
+        jmi.setToolTipText(tooltip);
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_PROFILE_UNMATCHED_CMD + "\")");
+        menu.add(jmi);
+
+        // Commands that require paths to be matched across time
+        GuiUtils.addSeparator(menu, "Neurite-based:");
+        jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD, IconFactory.menuIcon('\ue4af', true));
+        jmi.setToolTipText(tooltip);
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD + "\")");
+        menu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_MATCHED_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
+        jmi.setToolTipText(tooltip);
+        jmi.addActionListener(multiPathListener);
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_PROFILE_MATCHED_CMD + "\")");
+        menu.add(jmi);
+        jmi = new JMenuItem(MultiPathActionListener.GROWTH_ANALYSIS_CMD, IconFactory.menuIcon('\ue4b7', true));
         jmi.setToolTipText("Growth rate and growth phase analysis for matched time-lapse paths");
         jmi.addActionListener(multiPathListener);
-        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Growth Analysis...\")");
+        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.GROWTH_ANALYSIS_CMD + "\")");
         menu.add(jmi);
-        menu.addSeparator();
-        jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD);
-        jmi.setToolTipText(tooltip);
-        jmi.addActionListener(multiPathListener);
-        menu.add(jmi);
-        jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_CMD);
-        jmi.setToolTipText(tooltip);
-        jmi.addActionListener(multiPathListener);
-        ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"Time Profile...\")");
-        menu.add(jmi);
+
+        // Other
         menu.addSeparator();
         jmi = GuiUtils.MenuItems.openHelpURL("Time-lapse Utilities Help",
                 "https://imagej.net/plugins/snt/walkthroughs#time-lapse-analysis");
@@ -2764,7 +2782,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         // timelapse analysis, etc.
         private static final String MATCH_PATHS_ACROSS_TIME_CMD = "Match Paths Across Time...";
-        private static final String TIME_PROFILE_CMD = "Time Profile...";
+        private static final String TIME_PROFILE_UNMATCHED_CMD = "Time Profile (Morphometry)...";
+        private static final String TIME_PROFILE_MATCHED_CMD = "Summarized Growth...";
+        private static final String TIME_PROFILER_CMD = "Time Profile (Intensities)...";
         private static final String TIME_COLOR_CODING_CMD = "Color Code Paths Across Time...";
         private static final String GROWTH_ANALYSIS_CMD = "Growth Analysis...";
         private static final String MULTI_METRIC_PLOT_CMD = "Multimetric Plot...";
@@ -2814,7 +2834,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(HISTOGRAM_2D_CMD, new Histogram2DCommand());
 
             // Time analysis/varicosity commands
-            commands.put(TIME_PROFILE_CMD, new TimeProfileCommand());
+            commands.put(TIME_PROFILE_UNMATCHED_CMD, new TimeProfileUngroupedCommand());
+            commands.put(TIME_PROFILE_MATCHED_CMD, new TimeProfileGroupedCommand());
+            commands.put(TIME_PROFILER_CMD, new TimeProfilerCommand());
             commands.put(DENSITIES_PROFILE_CMD, new SpineProfileCommand());
             commands.put(MULTI_METRIC_PLOT_CMD, new MultiMetricPlotCommand());
             commands.put(DENSITIES_EXTRACT_CMD, new SpineExtractCommand());
@@ -2976,10 +2998,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
                 if (noValidImageDataError()) return;
+                warnOnTimeLapse(selectedPaths);
                 final HashMap<String, Object> input = new HashMap<>();
                 input.put("tree", new Tree(selectedPaths));
                 input.put("dataset", plugin.getDataset());
                 (plugin.getUI().new DynamicCmdRunner(PathProfiler.class, input)).run();
+            }
+
+            private void warnOnTimeLapse(final List<Path> selectedPaths) {
+                final boolean timelapse = selectedPaths.stream().anyMatch(p -> p.getFrame() != 1);
+                if (!timelapse) return;
+                Boolean nag = plugin.getPrefs().getTemp("timeprofile-nag", true);
+                if (nag) {
+                    nag = guiUtils.getConfirmation2(
+                            "Intensity profiles across time (e.g., calcium dynamics) can be obtained using " +
+                            "Analyze › Time-lapses › " + MultiPathActionListener.TIME_PROFILER_CMD,
+                            "Tip: Time-lapse Profiles",
+                            "Got it", "Got It. Stop Reminding Me");
+                    plugin.getPrefs().setTemp("timeprofile-nag", nag);
+                }
             }
 
             @Override
@@ -3336,12 +3373,43 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
 
-        private class TimeProfileCommand implements PathCommand {
+        private class TimeProfileUngroupedCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("paths", selectedPaths);
+                inputs.put("includeMatchingOptions", false);
                 (plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class TimeProfileGroupedCommand extends TimeProfileUngroupedCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                final HashMap<String, Object> inputs = new HashMap<>();
+                inputs.put("paths", selectedPaths);
+                inputs.put("includeMatchingOptions", true);
+                (plugin.getUI().new DynamicCmdRunner(PathTimeAnalysisCmd.class, inputs)).run();
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class TimeProfilerCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                final HashMap<String, Object> inputs = new HashMap<>();
+                inputs.put("tree", new Tree(selectedPaths));
+                inputs.put("imp", plugin.getImagePlus());
+                (plugin.getUI().new DynamicCmdRunner(TimeProfiler.class, inputs)).run();
             }
 
             @Override
@@ -5081,7 +5149,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return "";
     }
 
-    static String removeTags(final Path p) {
+    public static String removeTags(final Path p) {
         final String name = p.getName();
         final int delimiterIdx = name.indexOf("{");
         if (delimiterIdx == -1) {
@@ -5266,7 +5334,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     // features (delineations, color coding, ...), so we snapshot the existing values, overwrite
                     // them transiently for the search, then restore
                     final boolean intensitySearch = "min value".equals(filter) || "max value".equals((filter));
-                    final Map<Path, double[]> snapshot = intensitySearch ? snapshotNodeValues(paths) : null;
+                    final Map<Path, double[]> snapshot = intensitySearch ? TreeUtils.snapshotNodeValues(new Tree(paths)) : null;
                     try {
                         // Abort the whole operation if there is no image to sample intensities from:
                         // ensureNodeValues has already shown the error. Proceeding would search
@@ -5282,7 +5350,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         }
                         if (globalExtremum != null) result = globalExtremum;
                     } finally {
-                        if (snapshot != null) restoreNodeValues(snapshot);
+                        if (snapshot != null) TreeUtils.restoreNodeValues(snapshot);
                     }
                 } else {
                     for (final Path path : paths) {
@@ -5393,34 +5461,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
             }
             return true;
-        }
-
-        /**
-         * Snapshots the per-node intensity values ({@code node.v}) for each path so they can be
-         * restored later. Used to keep {@link #ensureNodeValues(Collection)} non-destructive:
-         * node values are shared with other features (delineations, color coding) and must not
-         * be permanently overwritten by a transient intensity search.
-         *
-         * @return map keyed by path; entries are {@code null} when the path had no assigned
-         *         values (matching {@link Path#setNodeValues(double[])}'s null-means-clear contract)
-         */
-        private Map<Path, double[]> snapshotNodeValues(final Collection<Path> paths) {
-            final Map<Path, double[]> snapshot = new LinkedHashMap<>();
-            for (final Path p : paths) {
-                if (!p.hasNodeValues()) {
-                    snapshot.put(p, null);
-                } else {
-                    final double[] vals = new double[p.size()];
-                    for (int i = 0; i < p.size(); i++) vals[i] = p.getNode(i).v;
-                    snapshot.put(p, vals);
-                }
-            }
-            return snapshot;
-        }
-
-        /** Restores per-path node values captured by {@link #snapshotNodeValues(Collection)}. */
-        private void restoreNodeValues(final Map<Path, double[]> snapshot) {
-            snapshot.forEach(Path::setNodeValues);
         }
 
         private JButton zoomToPathsButton() {

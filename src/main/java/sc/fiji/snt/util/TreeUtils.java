@@ -1077,4 +1077,27 @@ public class TreeUtils {
         return result;
     }
 
+    /**
+     * Snapshots the per-node values ({@code node.v}) for each path in a Tree so they can be restored later.
+     *
+     * @return map keyed by path; entries are {@code null} when the path had no assigned values
+     */
+    public static Map<Path, double[]> snapshotNodeValues(final Tree tree) {
+        final Map<Path, double[]> snapshot = new LinkedHashMap<>();
+        for (final Path p : tree.list()) {
+            if (!p.hasNodeValues()) {
+                snapshot.put(p, null);
+            } else {
+                final double[] vals = new double[p.size()];
+                for (int i = 0; i < p.size(); i++) vals[i] = p.getNode(i).v;
+                snapshot.put(p, vals);
+            }
+        }
+        return snapshot;
+    }
+
+    /** Restores per-path node values captured by {@link #snapshotNodeValues(Tree)}. */
+    public static void restoreNodeValues(final Map<Path, double[]> snapshot) {
+        snapshot.forEach(Path::setNodeValues);
+    }
 }

@@ -87,6 +87,8 @@ import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.SaveMeasurementsCmd;
 import sc.fiji.snt.util.SNTColor;
+import smile.plot.swing.Heatmap;
+import smile.plot.swing.Palette;
 
 /**
  * Extension of {@link ChartPanel} modified for scientific publications and
@@ -104,7 +106,7 @@ public class SNTChart extends ChartPanel {
 	private List<SNTChart> otherCombinedCharts;
 	private JFrame frame;
 	private String title;
-    private boolean equalizedXY;
+	private boolean equalizedXY;
 
 	private static double scalingFactor = 1;
 
@@ -160,9 +162,9 @@ public class SNTChart extends ChartPanel {
 			frame.setLocationByPlatform(true);
 			if (isCombined()) {
 				SwingUtilities.invokeLater(() -> otherCombinedCharts.forEach(chart -> {
-                    if (chart.frame != null)
-                        chart.frame.setVisible(false);
-                }));
+					if (chart.frame != null)
+						chart.frame.setVisible(false);
+				}));
 			}
 			frame.setContentPane(this);
 			frame.setBackground(SNTChart.BACKGROUND_COLOR); // provided contrast to otherwise transparent background
@@ -406,7 +408,7 @@ public class SNTChart extends ChartPanel {
 		} else if (getChart().getPlot() instanceof CategoryPlot plot) {
 			return plot.isDomainGridlinesVisible() || plot.isRangeGridlinesVisible();
 		} else if (getChart().getPlot() instanceof PolarPlot plot) {
-            return plot.isRadiusGridlinesVisible();
+			return plot.isRadiusGridlinesVisible();
 		}
 		return false;
 	}
@@ -433,7 +435,7 @@ public class SNTChart extends ChartPanel {
 			plot.setRangeGridlinesVisible(visible);
 			//plot.setRangeMinorGridlinesVisible(visible);
 		} else if (getChart().getPlot() instanceof PolarPlot plot) {
-            plot.setRadiusGridlinesVisible(visible);
+			plot.setRadiusGridlinesVisible(visible);
 			plot.setRadiusMinorGridlinesVisible(visible);
 			plot.setAngleGridlinesVisible(visible);
 		}
@@ -451,44 +453,44 @@ public class SNTChart extends ChartPanel {
 		getChart().getPlot().setOutlineVisible(visible);
 	}
 
-    /**
-     * Sets whether the axes of the underlying XY plot should be equalized (same scale).
-     * <p>
-     * When enabled, both X and Y axes will use the same scale to maintain
-     * equal aspect ratio. When disabled, each axis maximizes its range.
-     * </p>
-     *
-     * @param equalize true to equalize axes, false otherwise
-     * @throws IllegalArgumentException if the underlying plot is not a XY plot
-     */
-    public void setEqualizeAxes(final boolean equalize) {
-        if (!(getChart().getPlot() instanceof XYPlot)) {
-            throw new IllegalArgumentException("Equalized axes apply only to XY plots");
-        }
-        this.equalizedXY = equalize;
-        if (!equalize) {
-            getXYPlot().getDomainAxis().setAutoRange(true);
-            getXYPlot().getRangeAxis().setAutoRange(true);
-            return;
-        }
-        final ValueAxis xAxis = getXYPlot().getDomainAxis();
-        final ValueAxis yAxis = getXYPlot().getRangeAxis();
-        if (xAxis.getRange().getLength() < yAxis.getRange().getLength()) {
-            double idealXRange = yAxis.getRange().getLength();
-            double currXRange = xAxis.getRange().getLength();
-            double xDelta = (idealXRange - currXRange) / 2;
-            double xLower = xAxis.getLowerBound();
-            double xUpper = xAxis.getUpperBound();
-            xAxis.setRange(new Range(xLower - xDelta, xUpper + xDelta), true, true);
-        } else if (xAxis.getRange().getLength() > yAxis.getRange().getLength()) {
-            double idealYRange = xAxis.getRange().getLength();
-            double currYRange = yAxis.getRange().getLength();
-            double yDelta = (idealYRange - currYRange) / 2;
-            double yLower = yAxis.getLowerBound();
-            double yUpper = yAxis.getUpperBound();
-            yAxis.setRange(new Range(yLower - yDelta, yUpper + yDelta), true, true);
-        }
-    }
+	/**
+	 * Sets whether the axes of the underlying XY plot should be equalized (same scale).
+	 * <p>
+	 * When enabled, both X and Y axes will use the same scale to maintain
+	 * equal aspect ratio. When disabled, each axis maximizes its range.
+	 * </p>
+	 *
+	 * @param equalize true to equalize axes, false otherwise
+	 * @throws IllegalArgumentException if the underlying plot is not a XY plot
+	 */
+	public void setEqualizeAxes(final boolean equalize) {
+		if (!(getChart().getPlot() instanceof XYPlot)) {
+			throw new IllegalArgumentException("Equalized axes apply only to XY plots");
+		}
+		this.equalizedXY = equalize;
+		if (!equalize) {
+			getXYPlot().getDomainAxis().setAutoRange(true);
+			getXYPlot().getRangeAxis().setAutoRange(true);
+			return;
+		}
+		final ValueAxis xAxis = getXYPlot().getDomainAxis();
+		final ValueAxis yAxis = getXYPlot().getRangeAxis();
+		if (xAxis.getRange().getLength() < yAxis.getRange().getLength()) {
+			double idealXRange = yAxis.getRange().getLength();
+			double currXRange = xAxis.getRange().getLength();
+			double xDelta = (idealXRange - currXRange) / 2;
+			double xLower = xAxis.getLowerBound();
+			double xUpper = xAxis.getUpperBound();
+			xAxis.setRange(new Range(xLower - xDelta, xUpper + xDelta), true, true);
+		} else if (xAxis.getRange().getLength() > yAxis.getRange().getLength()) {
+			double idealYRange = xAxis.getRange().getLength();
+			double currYRange = yAxis.getRange().getLength();
+			double yDelta = (idealYRange - currYRange) / 2;
+			double yLower = yAxis.getLowerBound();
+			double yUpper = yAxis.getUpperBound();
+			yAxis.setRange(new Range(yLower - yDelta, yUpper + yDelta), true, true);
+		}
+	}
 
 	/**
 	 * Checks if the axes of the underlying XY plot are equalized.
@@ -499,7 +501,7 @@ public class SNTChart extends ChartPanel {
 	 * @return true if axes are equalized, false otherwise
 	 */
 	public boolean isEqualized() {
-        return (getChart().getPlot() instanceof XYPlot) && equalizedXY;
+		return (getChart().getPlot() instanceof XYPlot) && equalizedXY;
 	}
 
 	public void setLegendVisible(final boolean visible) {
@@ -683,14 +685,14 @@ public class SNTChart extends ChartPanel {
 		case "axis":
 		case "axes":
 		case "ticks":
-			if (getChart().getPlot() instanceof XYPlot) {
-				if (getXYPlot().getDomainAxis() != null) {
-					final Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
-					getXYPlot().getDomainAxis().setTickLabelFont(font);
-					getXYPlot().getDomainAxis().setLabelFont(font);
-				}
-				if (getXYPlot().getRangeAxis() != null) {
-					final Font font = getXYPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
+				if (getChart().getPlot() instanceof XYPlot) {
+					if (getXYPlot().getDomainAxis() != null) {
+						final Font font = getXYPlot().getDomainAxis().getTickLabelFont().deriveFont(size);
+						getXYPlot().getDomainAxis().setTickLabelFont(font);
+						getXYPlot().getDomainAxis().setLabelFont(font);
+					}
+					if (getXYPlot().getRangeAxis() != null) {
+						final Font font = getXYPlot().getRangeAxis().getTickLabelFont().deriveFont(size);
 					getXYPlot().getRangeAxis().setTickLabelFont(font);
 					getXYPlot().getRangeAxis().setLabelFont(font);
 				}
@@ -707,19 +709,19 @@ public class SNTChart extends ChartPanel {
                 for (int i = 0; i < plot.getAxisCount(); i++) {
 					final Font font = plot.getAxis(i).getTickLabelFont().deriveFont(size);
 					plot.getAxis(i).setTickLabelFont(font);
+					}
+					plot.setAngleLabelFont(plot.getAngleLabelFont().deriveFont(size));
 				}
-				plot.setAngleLabelFont(plot.getAngleLabelFont().deriveFont(size));
-			}
-			break;
-		case "legend":
-		case "legends":
-		case "subtitle":
-		case "subtitles":
-			final LegendTitle legend = getChart().getLegend();
-			if (legend != null)
-				legend.setItemFont(legend.getItemFont().deriveFont(size));
-			for (int i = 0; i < getChart().getSubtitleCount(); i++) {
-				final Title title = getChart().getSubtitle(i);
+				break;
+			case "legend":
+			case "legends":
+			case "subtitle":
+			case "subtitles":
+				final LegendTitle legend = getChart().getLegend();
+				if (legend != null)
+					legend.setItemFont(legend.getItemFont().deriveFont(size));
+				for (int i = 0; i < getChart().getSubtitleCount(); i++) {
+					final Title title = getChart().getSubtitle(i);
 				if (title instanceof PaintScaleLegend lt) {
                     lt.getAxis().setLabelFont(lt.getAxis().getLabelFont().deriveFont(size));
 					lt.getAxis().setTickLabelFont(lt.getAxis().getTickLabelFont().deriveFont(size));
@@ -728,22 +730,22 @@ public class SNTChart extends ChartPanel {
                     tt.setFont(tt.getFont().deriveFont(size));
 				} else if (title instanceof LegendTitle lt) {
                     lt.setItemFont(lt.getItemFont().deriveFont(size));
-				}
-			}
-			break;
-		default: // labels  annotations
-			if (getChart().getPlot() instanceof XYPlot) {
-				final List<?> annotations = getXYPlot().getAnnotations();
-				if (annotations != null) {
-					for (int i = 0; i < getXYPlot().getAnnotations().size(); i++) {
-						final XYAnnotation annotation = getXYPlot().getAnnotations().get(i);
-						if (annotation instanceof XYTextAnnotation) {
-							((XYTextAnnotation) annotation)
-									.setFont(((XYTextAnnotation) annotation).getFont().deriveFont(size));
-						}
 					}
 				}
-				adjustMarkersFont(getXYPlot().getDomainMarkers(Layer.FOREGROUND), size);
+				break;
+			default: // labels  annotations
+				if (getChart().getPlot() instanceof XYPlot) {
+					final List<?> annotations = getXYPlot().getAnnotations();
+					if (annotations != null) {
+						for (int i = 0; i < getXYPlot().getAnnotations().size(); i++) {
+							final XYAnnotation annotation = getXYPlot().getAnnotations().get(i);
+							if (annotation instanceof XYTextAnnotation) {
+								((XYTextAnnotation) annotation)
+										.setFont(((XYTextAnnotation) annotation).getFont().deriveFont(size));
+							}
+						}
+					}
+					adjustMarkersFont(getXYPlot().getDomainMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getXYPlot().getDomainMarkers(Layer.BACKGROUND), size);
 				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getXYPlot().getRangeMarkers(Layer.BACKGROUND), size);
@@ -752,14 +754,14 @@ public class SNTChart extends ChartPanel {
 				final List<?> annotations = getCategoryPlot().getAnnotations();
 				if (annotations != null) {
                     for (Object o : annotations) {
-                        final CategoryAnnotation annotation = (CategoryAnnotation) o;
-                        if (annotation instanceof TextAnnotation) {
-                            ((TextAnnotation) annotation)
-                                    .setFont(((TextAnnotation) annotation).getFont().deriveFont(size));
-                        }
-                    }
-				}
-				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.FOREGROUND), size);
+							final CategoryAnnotation annotation = (CategoryAnnotation) o;
+							if (annotation instanceof TextAnnotation) {
+								((TextAnnotation) annotation)
+										.setFont(((TextAnnotation) annotation).getFont().deriveFont(size));
+							}
+						}
+					}
+					adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getDomainMarkers(Layer.BACKGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.FOREGROUND), size);
 				adjustMarkersFont(getCategoryPlot().getRangeMarkers(Layer.BACKGROUND), size);
@@ -780,8 +782,8 @@ public class SNTChart extends ChartPanel {
 		case "axis":
 		case "axes":
 		case "ticks":
-			if (getChart().getPlot() instanceof XYPlot)
-				return getXYPlot().getDomainAxis().getTickLabelFont().getSize();
+				if (getChart().getPlot() instanceof XYPlot)
+					return getXYPlot().getDomainAxis().getTickLabelFont().getSize();
 			else if (getChart().getPlot() instanceof CategoryPlot)
 				return getCategoryPlot().getDomainAxis().getTickLabelFont().getSize();
 			else if (getChart().getPlot() instanceof PolarPlot)
@@ -789,20 +791,20 @@ public class SNTChart extends ChartPanel {
 			break;
 		case "legend":
 		case "legends":
-		case "subtitle":
-		case "subtitles":
-			final LegendTitle legend = getChart().getLegend();
-			if (legend != null)
-				return legend.getItemFont().getSize();
-			for (int i = 0; i < getChart().getSubtitleCount(); i++) {
-				final Title title = getChart().getSubtitle(i);
-				if (title instanceof TextTitle) {
-					return ((TextTitle) title).getFont().getSize();
-				} else if (title instanceof LegendTitle) {
-					return ((LegendTitle) title).getItemFont().getSize();
+			case "subtitle":
+			case "subtitles":
+				final LegendTitle legend = getChart().getLegend();
+				if (legend != null)
+					return legend.getItemFont().getSize();
+				for (int i = 0; i < getChart().getSubtitleCount(); i++) {
+					final Title title = getChart().getSubtitle(i);
+					if (title instanceof TextTitle) {
+						return ((TextTitle) title).getFont().getSize();
+					} else if (title instanceof LegendTitle) {
+						return ((LegendTitle) title).getItemFont().getSize();
+					}
 				}
-			}
-			break;
+				break;
 		default: // labels  annotations
 			if (getChart().getPlot() instanceof XYPlot) {
 				return getXYPlot().getDomainAxis().getLabelFont().getSize();
@@ -872,23 +874,23 @@ public class SNTChart extends ChartPanel {
      * @param file the output file (null not permitted). The extension of its filename (".svg", ".png", ".pdf"),
      *             determines the file format
      * @return true if file was successfully saved, false otherwise
-     */
-    public boolean save(final File file) {
-        try {
-            final String name = file.getName().toLowerCase();
-            if (name.endsWith("svg")) {
-                saveAsSVG(file, 1);
-            } else if (name.endsWith("pdf")) {
-                saveAsPDF(file, 1);
-            } else {
-                saveAsPNG(file, 1);
-            }
-            return true;
-        } catch (final IOException e) {
-            SNTUtils.log("Failed to save chart: " + e.getMessage());
-            return false;
-        }
-    }
+	 */
+	public boolean save(final File file) {
+		try {
+			final String name = file.getName().toLowerCase();
+			if (name.endsWith("svg")) {
+				saveAsSVG(file, 1);
+			} else if (name.endsWith("pdf")) {
+				saveAsPDF(file, 1);
+			} else {
+				saveAsPNG(file, 1);
+			}
+			return true;
+		} catch (final IOException e) {
+			SNTUtils.log("Failed to save chart: " + e.getMessage());
+			return false;
+		}
+	}
 
     /**
      * Saves this chart.
@@ -897,49 +899,49 @@ public class SNTChart extends ChartPanel {
      * @return true if file was successfully saved, false otherwise
      */
     public boolean save(final String filePath, final double scalingFactor) {
-        try {
-            final String name = filePath.toLowerCase();
-            if (name.endsWith("svg")) {
-                saveAsSVG(filePath, scalingFactor);
-            } else if (name.endsWith("pdf")) {
-                saveAsPDF(filePath, scalingFactor);
-            } else {
-                saveAsPNG(filePath, scalingFactor);
-            }
-            return true;
-        } catch (final IOException e) {
-            SNTUtils.log("Failed to save chart: " + e.getMessage());
-            return false;
-        }
-    }
+		try {
+			final String name = filePath.toLowerCase();
+			if (name.endsWith("svg")) {
+				saveAsSVG(filePath, scalingFactor);
+			} else if (name.endsWith("pdf")) {
+				saveAsPDF(filePath, scalingFactor);
+			} else {
+				saveAsPNG(filePath, scalingFactor);
+			}
+			return true;
+		} catch (final IOException e) {
+			SNTUtils.log("Failed to save chart: " + e.getMessage());
+			return false;
+		}
+	}
 
-    public void saveAsPNG(final File file) throws IOException {
-        saveAsPNG(file, 1);
-    }
+	public void saveAsPNG(final File file) throws IOException {
+		saveAsPNG(file, 1);
+	}
 
-    public void saveAsPNG(final File file, final double scalingFactor) throws IOException {
-        if (isCombined()) {
-            for (int i = 0; i < otherCombinedCharts.size(); i++) {
-                final SNTChart chart = otherCombinedCharts.get(i);
-                final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".png");
-                final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".png");
-                ChartUtils.saveChartAsPNG(outputFile, chart.getChart(),
-                        (int) (chart.getValidWidth(false) * scalingFactor),
-                        (int) (chart.getValidHeight(false) * scalingFactor));
-            }
-        } else {
-            final File f = (file.isDirectory()) ? new File(file, getTitle() + ".png") : file;
-            final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".png");
-            ChartUtils.saveChartAsPNG(outputFile, getChart(),
-                    (int) (getValidWidth(false) * scalingFactor),
-                    (int) (getValidHeight(false) * scalingFactor));
+	public void saveAsPNG(final File file, final double scalingFactor) throws IOException {
+		if (isCombined()) {
+			for (int i = 0; i < otherCombinedCharts.size(); i++) {
+				final SNTChart chart = otherCombinedCharts.get(i);
+				final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".png");
+				final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".png");
+				ChartUtils.saveChartAsPNG(outputFile, chart.getChart(),
+						(int) (chart.getValidWidth(false) * scalingFactor),
+						(int) (chart.getValidHeight(false) * scalingFactor));
+			}
+		} else {
+			final File f = (file.isDirectory()) ? new File(file, getTitle() + ".png") : file;
+			final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".png");
+			ChartUtils.saveChartAsPNG(outputFile, getChart(),
+					(int) (getValidWidth(false) * scalingFactor),
+					(int) (getValidHeight(false) * scalingFactor));
 
-        }
-    }
+		}
+	}
 
-    public void saveAsPNG(final String filePath) throws IOException {
-        saveAsPNG(filePath, 1);
-    }
+	public void saveAsPNG(final String filePath) throws IOException {
+		saveAsPNG(filePath, 1);
+	}
 
     public void saveAsPNG(final String filePath, final double scalingFactor) throws IOException {
         final File f = new File((filePath.toLowerCase().endsWith(".png")) ? filePath : filePath + ".png");
@@ -947,9 +949,9 @@ public class SNTChart extends ChartPanel {
         saveAsPNG(f, scalingFactor);
     }
 
-    public void saveAsPDF(final String filePath) throws IOException {
-        saveAsPDF(filePath, 1);
-    }
+	public void saveAsPDF(final String filePath) throws IOException {
+		saveAsPDF(filePath, 1);
+	}
 
     public void saveAsPDF(final String filePath, final double scalingFactor) throws IOException {
         final File f = new File((filePath.toLowerCase().endsWith(".pdf")) ? filePath : filePath + ".pdf");
@@ -957,28 +959,28 @@ public class SNTChart extends ChartPanel {
         saveAsPDF(f, scalingFactor);
     }
 
-    public void saveAsPDF(final File file, final double scalingFactor) throws IOException {
-        if (isCombined()) {
-            for (int i = 0; i < otherCombinedCharts.size(); i++) {
-                final SNTChart chart = otherCombinedCharts.get(i);
-                final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".pdf");
-                final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".pdf");
-                ExportUtils.writeAsPDF(chart.getChart(),
-                        (int) (chart.getValidWidth(false) * scalingFactor),
-                        (int) (chart.getValidHeight(false) * scalingFactor), outputFile);
-            }
-        } else {
-            final File f = (file.isDirectory()) ? new File(file, getTitle() + ".pdf") : file;
-            final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".pdf");
-            ExportUtils.writeAsPDF(getChart(),
-                    (int) (getValidWidth(false) * scalingFactor),
-                    (int) (getValidHeight(false) * scalingFactor), outputFile);
-        }
-    }
+	public void saveAsPDF(final File file, final double scalingFactor) throws IOException {
+		if (isCombined()) {
+			for (int i = 0; i < otherCombinedCharts.size(); i++) {
+				final SNTChart chart = otherCombinedCharts.get(i);
+				final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".pdf");
+				final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".pdf");
+				ExportUtils.writeAsPDF(chart.getChart(),
+						(int) (chart.getValidWidth(false) * scalingFactor),
+						(int) (chart.getValidHeight(false) * scalingFactor), outputFile);
+			}
+		} else {
+			final File f = (file.isDirectory()) ? new File(file, getTitle() + ".pdf") : file;
+			final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".pdf");
+			ExportUtils.writeAsPDF(getChart(),
+					(int) (getValidWidth(false) * scalingFactor),
+					(int) (getValidHeight(false) * scalingFactor), outputFile);
+		}
+	}
 
-    public void saveAsSVG(final String filePath) throws IOException {
-        saveAsSVG(filePath, 1);
-    }
+	public void saveAsSVG(final String filePath) throws IOException {
+		saveAsSVG(filePath, 1);
+	}
 
     public void saveAsSVG(final String filePath, final double scalingFactor) throws IOException {
         final File f = new File((filePath.toLowerCase().endsWith(".svg")) ? filePath : filePath + ".svg");
@@ -986,24 +988,24 @@ public class SNTChart extends ChartPanel {
         saveAsSVG(f, scalingFactor);
     }
 
-    public void saveAsSVG(final File file, final double scalingFactor) throws IOException {
-        if (isCombined()) {
-            for (int i = 0; i < otherCombinedCharts.size(); i++) {
-                final SNTChart chart = otherCombinedCharts.get(i);
-                final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".svg");
-                final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".svg");
-                ExportUtils.writeAsSVG(chart.getChart(),
-                        (int) (chart.getValidWidth(false) * scalingFactor),
-                        (int) (chart.getValidHeight(false) * scalingFactor), outputFile);
-            }
-        } else {
-            final File f = (file.isDirectory()) ? new File(file, getTitle() + ".svg") : file;
-            final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".svg");
-            ExportUtils.writeAsSVG(getChart(),
-                    (int) (getValidWidth(false) * scalingFactor),
-                    (int) (getValidHeight(false) * scalingFactor), outputFile);
-        }
-    }
+	public void saveAsSVG(final File file, final double scalingFactor) throws IOException {
+		if (isCombined()) {
+			for (int i = 0; i < otherCombinedCharts.size(); i++) {
+				final SNTChart chart = otherCombinedCharts.get(i);
+				final File candidateFile = new File(file.getParentFile(), SNTUtils.stripExtension(file.getName()) + "-" + (i + 1) + ".svg");
+				final File outputFile = SNTUtils.getUniquelySuffixedFile(candidateFile, ".svg");
+				ExportUtils.writeAsSVG(chart.getChart(),
+						(int) (chart.getValidWidth(false) * scalingFactor),
+						(int) (chart.getValidHeight(false) * scalingFactor), outputFile);
+			}
+		} else {
+			final File f = (file.isDirectory()) ? new File(file, getTitle() + ".svg") : file;
+			final File outputFile = SNTUtils.getUniquelySuffixedFile(f, ".svg");
+			ExportUtils.writeAsSVG(getChart(),
+					(int) (getValidWidth(false) * scalingFactor),
+					(int) (getValidHeight(false) * scalingFactor), outputFile);
+		}
+	}
 
 	private void adjustMarkersFont(final Collection<?> markers, final float size) {
 		if (markers != null) {
@@ -1025,10 +1027,10 @@ public class SNTChart extends ChartPanel {
 		for (int i = 0; i < getChart().getSubtitleCount(); i++) {
 			final Title title = getChart().getSubtitle(i);
 			if (title instanceof TextTitle tt) {
-                if (tt.getBackgroundPaint() == oldColor)
+				if (tt.getBackgroundPaint() == oldColor)
 					tt.setBackgroundPaint(newColor);
 			} else if (title instanceof LegendTitle lt) {
-                if (lt.getBackgroundPaint() == oldColor)
+				if (lt.getBackgroundPaint() == oldColor)
 					lt.setBackgroundPaint(newColor);
 			}
 		}
@@ -1152,7 +1154,7 @@ public class SNTChart extends ChartPanel {
 				rndr.setDefaultOutlinePaint(newColor);
 		}
 		if (render instanceof AbstractCategoryItemRenderer rndr) {
-            for (int series = 0; series < rndr.getRowCount(); series++) {
+			for (int series = 0; series < rndr.getRowCount(); series++) {
 				if (rndr.getSeriesFillPaint(series) == oldColor)
 					rndr.setSeriesFillPaint(series, newColor);
 				if (rndr.getSeriesOutlinePaint(series) == oldColor)
@@ -1294,17 +1296,17 @@ public class SNTChart extends ChartPanel {
 		tLabel.setPosition(RectangleEdge.BOTTOM);
 		tLabel.setToolTipText(tooltip);
 		switch (alignment.toLowerCase()) {
-		case "left":
-			tLabel.setHorizontalAlignment(HorizontalAlignment.LEFT);
-			tLabel.setTextAlignment(HorizontalAlignment.LEFT);
-			break;
-		case "right":
-			tLabel.setHorizontalAlignment(HorizontalAlignment.RIGHT);
-			tLabel.setTextAlignment(HorizontalAlignment.RIGHT);
-			break;
-		default:
-			tLabel.setHorizontalAlignment(HorizontalAlignment.CENTER);
-			tLabel.setTextAlignment(HorizontalAlignment.CENTER);
+			case "left":
+				tLabel.setHorizontalAlignment(HorizontalAlignment.LEFT);
+				tLabel.setTextAlignment(HorizontalAlignment.LEFT);
+				break;
+			case "right":
+				tLabel.setHorizontalAlignment(HorizontalAlignment.RIGHT);
+				tLabel.setTextAlignment(HorizontalAlignment.RIGHT);
+				break;
+			default:
+				tLabel.setHorizontalAlignment(HorizontalAlignment.CENTER);
+				tLabel.setTextAlignment(HorizontalAlignment.CENTER);
 		}
 		getChart().addSubtitle(tLabel);
 	}
@@ -1312,7 +1314,7 @@ public class SNTChart extends ChartPanel {
 	/**
 	 * Highlights a point in a histogram/XY plot by drawing a labeled arrow at the
 	 * specified location.
-	 * 
+	 *
 	 * @param x     the x-coordinate
 	 * @param y     the y-coordinate
 	 * @param label the annotation label
@@ -1510,31 +1512,31 @@ public class SNTChart extends ChartPanel {
 		SwingUtilities.invokeLater(() -> getFrame().show());
 	}
 
-    private int getValidWidth(final boolean preferred) {
-        // e.g., width will be unset in headless calls from pysnt
-        return (getWidth() < 1) ? (int) (400 * scalingFactor) : (preferred) ? getPreferredSize().width : getWidth();
-    }
+	private int getValidWidth(final boolean preferred) {
+		// e.g., width will be unset in headless calls from pysnt
+		return (getWidth() < 1) ? (int) (400 * scalingFactor) : (preferred) ? getPreferredSize().width : getWidth();
+	}
 
-    private int getValidHeight(final boolean preferred) {
-        // e.g., width will be unset in headless calls from pysnt
-        return (getHeight() < 1) ? (int) (400 * scalingFactor) : (preferred) ? getPreferredSize().height : getHeight();
-    }
+	private int getValidHeight(final boolean preferred) {
+		// e.g., width will be unset in headless calls from pysnt
+		return (getHeight() < 1) ? (int) (400 * scalingFactor) : (preferred) ? getPreferredSize().height : getHeight();
+	}
 
 	public void show(final String title) {
 		setTitle(title);
 		show();
 	}
 
-    private void customizePopupMenu() {
-        if (getPopupMenu() == null) {
-            return;
-        }
-        addExportDataOption(getPopupMenu());
-        if (getChart().getPlot() instanceof XYPlot) {
-            addSquarifyOption(getPopupMenu());
-        }
-        addCustomizationPanel(getPopupMenu());
-    }
+	private void customizePopupMenu() {
+		if (getPopupMenu() == null) {
+			return;
+		}
+		addExportDataOption(getPopupMenu());
+		if (getChart().getPlot() instanceof XYPlot) {
+			addSquarifyOption(getPopupMenu());
+		}
+		addCustomizationPanel(getPopupMenu());
+	}
 
     private void addSquarifyOption(final JPopupMenu popupMenu) {
         final JCheckBoxMenuItem squarify = new JCheckBoxMenuItem("Equalize Axes", isEqualized());
@@ -1542,52 +1544,52 @@ public class SNTChart extends ChartPanel {
         final JMenu autoRange = getMenu(popupMenu, "Auto Range");
         if (autoRange != null) {
             autoRange.addSeparator();
-            autoRange.add(squarify);
-        } else
-            popupMenu.add(squarify);
-        popupMenu.addPopupMenuListener(new PopupMenuListener() {
-            @Override
-            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
-                squarify.setSelected(isEqualized());
-            }
+			autoRange.add(squarify);
+		} else
+			popupMenu.add(squarify);
+		popupMenu.addPopupMenuListener(new PopupMenuListener() {
+			@Override
+			public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+				squarify.setSelected(isEqualized());
+			}
 
-            @Override
-            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
-                // do nothing
-            }
+			@Override
+			public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+				// do nothing
+			}
 
-            @Override
-            public void popupMenuCanceled(PopupMenuEvent e) {
-                // do nothing
-            }
-        });
-    }
+			@Override
+			public void popupMenuCanceled(PopupMenuEvent e) {
+				// do nothing
+			}
+		});
+	}
 
-    private void addExportDataOption(final JPopupMenu popupMenu) {
-        final JMenuItem mi = new JMenuItem("Data (as CSV)...");
-        mi.addActionListener(e -> {
-            final String filename = (getTitle() == null) ? "SNTChartData" : getTitle();
-            final File file = new GuiUtils(frame).getSaveFile("Export to CSV (Experimental)",
-                    new File(getDefaultDirectoryForSaveAs(), filename + ".csv"), "csv");
-            if (file == null)
-                return;
-            try {
-                exportAsCSV(file);
-            } catch (final IllegalStateException ise) {
-                new GuiUtils(frame).error("Could not save data. See Console for details.");
-                ise.printStackTrace();
-            }
-        });
-        final JMenu saveAs = getMenu(popupMenu, "Save as");
-        if (saveAs != null) {
-            saveAs.addSeparator();
-            saveAs.add(mi);
-        } else {
-            popupMenu.add(mi);
-        }
-    }
+	private void addExportDataOption(final JPopupMenu popupMenu) {
+		final JMenuItem mi = new JMenuItem("Data (as CSV)...");
+		mi.addActionListener(e -> {
+			final String filename = (getTitle() == null) ? "SNTChartData" : getTitle();
+			final File file = new GuiUtils(frame).getSaveFile("Export to CSV (Experimental)",
+					new File(getDefaultDirectoryForSaveAs(), filename + ".csv"), "csv");
+			if (file == null)
+				return;
+			try {
+				exportAsCSV(file);
+			} catch (final IllegalStateException ise) {
+				new GuiUtils(frame).error("Could not save data. See Console for details.");
+				ise.printStackTrace();
+			}
+		});
+		final JMenu saveAs = getMenu(popupMenu, "Save as");
+		if (saveAs != null) {
+			saveAs.addSeparator();
+			saveAs.add(mi);
+		} else {
+			popupMenu.add(mi);
+		}
+	}
 
-    private void addCustomizationPanel(final JPopupMenu popup) {
+	private void addCustomizationPanel(final JPopupMenu popup) {
         final JCheckBoxMenuItem dark = new JCheckBoxMenuItem("Dark Theme", false);
         final Paint DEF_ZOP = getZoomOutlinePaint();
         final Paint DEF_ZFP = getZoomFillPaint();
@@ -1595,21 +1597,21 @@ public class SNTChart extends ChartPanel {
             if (dark.isSelected()) {
                 replaceBackground(Color.WHITE, Color.BLACK);
                 replaceForegroundColor(Color.BLACK, Color.WHITE);
-                if (DEF_ZOP instanceof Color)
-                    setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
-                if (DEF_ZFP instanceof Color)
-                    setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
-            } else {
-                replaceBackground(Color.BLACK, Color.WHITE);
-                replaceForegroundColor(Color.WHITE, Color.BLACK);
-                setZoomOutlinePaint(DEF_ZOP);
-                setZoomOutlinePaint(DEF_ZFP);
-            }
-        });
-        popup.addSeparator();
+				if (DEF_ZOP instanceof Color)
+					setZoomOutlinePaint(((Color) DEF_ZOP).brighter());
+				if (DEF_ZFP instanceof Color)
+					setZoomOutlinePaint(((Color) DEF_ZFP).brighter());
+			} else {
+				replaceBackground(Color.BLACK, Color.WHITE);
+				replaceForegroundColor(Color.WHITE, Color.BLACK);
+				setZoomOutlinePaint(DEF_ZOP);
+				setZoomOutlinePaint(DEF_ZFP);
+			}
+		});
+		popup.addSeparator();
 
-        final JMenu cMenu = new JMenu("Contents & Curve Fitting");
-        popup.add(cMenu);
+		final JMenu cMenu = new JMenu("Contents & Curve Fitting");
+		popup.add(cMenu);
         GuiUtils.addSeparator(cMenu, "General:");
         final JCheckBoxMenuItem grid = new JCheckBoxMenuItem("Grid Lines", isGridlinesVisible());
         grid.setEnabled(!isFlowPlot() && !isCombinedPlot()); // somehow the current toggle does not work with combined plots!?
@@ -1624,22 +1626,22 @@ public class SNTChart extends ChartPanel {
         cMenu.add(outline);
         GuiUtils.addSeparator(cMenu, "Histograms:");
         final JCheckBoxMenuItem fit1 = new JCheckBoxMenuItem("Gaussian");
-        fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
-        fit1.addActionListener(e -> {
-            try {
-                final List<XYItemRenderer> renders = AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot());
-                if (renders.isEmpty()) {
-                    new GuiUtils(frame).error("Fitting to Normal distribution is not available.", "Option Not Available");
-                    fit1.setSelected(false);
-                } else {
-                    //AnalysisUtils.getGMMCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
-                    renders.forEach(r -> r.setDefaultSeriesVisible(fit1.isSelected()));
-                }
-            } catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
-                new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
-                fit1.setSelected(false);
-            }
-        });
+		fit1.setEnabled(getChart().getPlot() instanceof XYPlot);
+		fit1.addActionListener(e -> {
+			try {
+				final List<XYItemRenderer> renders = AnalysisUtils.getNormalCurveRenderers(getChart().getXYPlot());
+				if (renders.isEmpty()) {
+					new GuiUtils(frame).error("Fitting to Normal distribution is not available.", "Option Not Available");
+					fit1.setSelected(false);
+				} else {
+					//AnalysisUtils.getGMMCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
+					renders.forEach(r -> r.setDefaultSeriesVisible(fit1.isSelected()));
+				}
+			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+				fit1.setSelected(false);
+			}
+		});
         cMenu.add(fit1);
         final JCheckBoxMenuItem fit2 = new JCheckBoxMenuItem("Gaussian Mixture Model");
         fit2.setEnabled(getChart().getPlot() instanceof XYPlot);
@@ -1647,30 +1649,30 @@ public class SNTChart extends ChartPanel {
             try {
                 final List<XYItemRenderer> gmmRenders = AnalysisUtils.getGMMCurveRenderers(getChart().getXYPlot());
                 if (gmmRenders.isEmpty()) {
-                    new GuiUtils(frame).error("Gaussian mixture model is not available. Note that at least 20 data"
-                            + " points are required for GMM computation.", "Option Not Available");
-                    fit2.setSelected(false);
-                } else {
-                    //AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
-                    gmmRenders.forEach(r -> r.setDefaultSeriesVisible(fit2.isSelected()));
-                }
-            } catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
-                new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
-                fit2.setSelected(false);
-            }
-        });
-        cMenu.add(fit2);
-        final JCheckBoxMenuItem fit3 = new JCheckBoxMenuItem("Quartile Marks");
-        fit3.setEnabled(getChart().getPlot() instanceof XYPlot);
-        fit3.addActionListener(e -> {
-            try {
-                final XYItemRenderer r = AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot());
-                r.setDefaultSeriesVisible(fit3.isSelected());
-            } catch (final NullPointerException | ClassCastException ignored) {
-                new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
-                fit3.setSelected(false);
-            }
-        });
+					new GuiUtils(frame).error("Gaussian mixture model is not available. Note that at least 20 data"
+							+ " points are required for GMM computation.", "Option Not Available");
+					fit2.setSelected(false);
+				} else {
+					//AnalysisUtils.getNormalCurveRenderer(getChart().getXYPlot()).forEach(r -> r.setDefaultSeriesVisible(false));
+					gmmRenders.forEach(r -> r.setDefaultSeriesVisible(fit2.isSelected()));
+				}
+			} catch (final NullPointerException | IllegalArgumentException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+				fit2.setSelected(false);
+			}
+		});
+		cMenu.add(fit2);
+		final JCheckBoxMenuItem fit3 = new JCheckBoxMenuItem("Quartile Marks");
+		fit3.setEnabled(getChart().getPlot() instanceof XYPlot);
+		fit3.addActionListener(e -> {
+			try {
+				final XYItemRenderer r = AnalysisUtils.getQuartileMarkersRenderer(getChart().getXYPlot());
+				r.setDefaultSeriesVisible(fit3.isSelected());
+			} catch (final NullPointerException | ClassCastException ignored) {
+				new GuiUtils(frame).error("This option requires a (non-polar) histogram.", "Option Not Available");
+				fit3.setSelected(false);
+			}
+		});
         cMenu.add(fit3);
         GuiUtils.addSeparator(cMenu, "Polar Plots:");
         JMenuItem jmi = new JMenuItem("Clockwise/Counterclockwise");
@@ -1678,17 +1680,17 @@ public class SNTChart extends ChartPanel {
             if (getChart().getPlot() instanceof PolarPlot) {
                 ((PolarPlot) getChart().getPlot()).setCounterClockwise(!((PolarPlot) getChart().getPlot()).isCounterClockwise());
                 getChart().fireChartChanged();
-            } else {
-                new GuiUtils(frame).error("This option requires a polar plot.", "Option Not Available");
-            }
-        });
-        cMenu.add(jmi);
-        popup.add(cMenu);
+			} else {
+				new GuiUtils(frame).error("This option requires a polar plot.", "Option Not Available");
+			}
+		});
+		cMenu.add(jmi);
+		popup.add(cMenu);
 
-        final JMenu utils = new JMenu("Utilities");
-        jmi = GuiUtils.MenuItems.combineCharts();
-        jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
-        utils.add(jmi);
+		final JMenu utils = new JMenu("Utilities");
+		jmi = GuiUtils.MenuItems.combineCharts();
+		jmi.addActionListener(e -> new GuiUtils(frame).combineSNTChartPrompt());
+		utils.add(jmi);
         GuiUtils.addSeparator(utils, "Operations on All Open Charts:");
         jmi = new JMenuItem("Close...");
         utils.add(jmi);
@@ -1702,12 +1704,12 @@ public class SNTChart extends ChartPanel {
             if (new GuiUtils(frame).getConfirmation("Merge all plots? (Undoable operation)", "Merge Into Stack?")) {
                 SNTChart.combineAsImagePlus(openInstances).show();
                 SNTChart.closeAll();
-            }
-        });
-        jmi = new JMenuItem("Tile");
-        utils.add(jmi);
-        jmi.addActionListener(e -> SNTChart.tileAll());
-        utils.add(jmi);
+			}
+		});
+		jmi = new JMenuItem("Tile");
+		utils.add(jmi);
+		jmi.addActionListener(e -> SNTChart.tileAll());
+		utils.add(jmi);
         utils.addSeparator();
         jmi = new JMenuItem("Save All...");
         utils.add(jmi);
@@ -1718,19 +1720,19 @@ public class SNTChart extends ChartPanel {
             } catch (final Exception ex) {
                 new GuiUtils(frame).error("Could not proceed with operation. " +
                         "Please run \"Save Tables & Analysis Plots...\" manually.", "Command Not Found");
-            }
-        });
-        popup.addSeparator();
-        jmi = new JMenuItem("Frame Size...");
-        jmi.addActionListener(
-                e -> new GuiUtils(frame).adjustComponentThroughPrompt((frame == null) ? SNTChart.this : frame));
-        popup.add(jmi);
-        popup.add(fontScalingMenu());
-        popup.addSeparator();
-        popup.add(dark);
-        popup.addSeparator();
-        popup.add(utils);
-    }
+			}
+		});
+		popup.addSeparator();
+		jmi = new JMenuItem("Frame Size...");
+		jmi.addActionListener(
+				e -> new GuiUtils(frame).adjustComponentThroughPrompt((frame == null) ? SNTChart.this : frame));
+		popup.add(jmi);
+		popup.add(fontScalingMenu());
+		popup.addSeparator();
+		popup.add(dark);
+		popup.addSeparator();
+		popup.add(utils);
+	}
 
 	private JMenu fontScalingMenu() {
 		final JMenu fontScaleMenu = new JMenu("Font Scaling");
@@ -1797,63 +1799,63 @@ public class SNTChart extends ChartPanel {
 	protected void exportAsCSV(final File file) throws IllegalStateException {
 		// https://stackoverflow.com/a/58530238
 		final ArrayList<String> csv = new ArrayList<>();
-        switch (getChart().getPlot()) {
-            case XYPlot xyplot -> {
-                for (int d = 0; d < xyplot.getDatasetCount(); d++) {
-                    final XYDataset xyDataset = xyplot.getDataset(d);
-                    if (!xyplot.getRenderer(d).getDefaultSeriesVisible())
-                        continue;
-                    csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
-                    final int seriesCount = xyDataset.getSeriesCount();
-                    for (int i = 0; i < seriesCount; i++) {
-                        final int itemCount = xyDataset.getItemCount(i);
-                        for (int j = 0; j < itemCount; j++) {
-                            final Comparable<?> key = xyDataset.getSeriesKey(i);
-                            final Number x = xyDataset.getX(i, j);
-                            final Number y = xyDataset.getY(i, j);
-                            csv.add(String.format("%s,%s,%s", key, x, y));
-                        }
-                    }
-                }
-            }
-            case PolarPlot polarPlot -> {
-                csv.add("Series,Angle,Radius");
-                final XYDataset dataset = polarPlot.getDataset();
-                for (int series = 0; series < dataset.getSeriesCount(); series++) {
-                    final String seriesName = (String) dataset.getSeriesKey(series);
-                    for (int item = 0; item < dataset.getItemCount(series); item++) {
-                        final double angle = dataset.getXValue(series, item);
-                        final double radius = dataset.getYValue(series, item);
-                        csv.add(String.format("%s,%s,%s", seriesName, angle, radius));
-                    }
-                }
-            }
-            case CategoryPlot categoryPlotPlot -> {
-                for (int d = 0; d < categoryPlotPlot.getDatasetCount(); d++) {
-                    final CategoryDataset categoryDataset = categoryPlotPlot.getDataset(d);
-                    if (!categoryPlotPlot.getRenderer(d).getDefaultSeriesVisible())
-                        continue;
-                    csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
-                    final int columnCount = categoryDataset.getColumnCount();
-                    final int rowCount = categoryDataset.getRowCount();
-                    for (int i = 0; i < rowCount; i++) {
-                        for (int j = 0; j < columnCount; j++) {
-                            final Comparable<?> key1 = categoryDataset.getRowKey(i);
-                            final Comparable<?> key2 = categoryDataset.getColumnKey(j);
-                            final Number n = categoryDataset.getValue(i, j);
-                            csv.add(String.format("%s,%s,%s", key1, key2, n));
-                        }
-                    }
-                }
-            }
-            case RingPlot ringPlot -> {
-                final PieDataset<?> dataset = ringPlot.getDataset();
-                for (int i = 0; i < dataset.getItemCount(); i++) {
-                    csv.add(String.format("%s,%s", dataset.getKey(i), dataset.getValue(i)));
-                }
-            }
-            case null, default -> throw new IllegalStateException("Export of this type of dataset is not supported.");
-        }
+		switch (getChart().getPlot()) {
+			case XYPlot xyplot -> {
+				for (int d = 0; d < xyplot.getDatasetCount(); d++) {
+					final XYDataset xyDataset = xyplot.getDataset(d);
+					if (!xyplot.getRenderer(d).getDefaultSeriesVisible())
+						continue;
+					csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
+					final int seriesCount = xyDataset.getSeriesCount();
+					for (int i = 0; i < seriesCount; i++) {
+						final int itemCount = xyDataset.getItemCount(i);
+						for (int j = 0; j < itemCount; j++) {
+							final Comparable<?> key = xyDataset.getSeriesKey(i);
+							final Number x = xyDataset.getX(i, j);
+							final Number y = xyDataset.getY(i, j);
+							csv.add(String.format("%s,%s,%s", key, x, y));
+						}
+					}
+				}
+			}
+			case PolarPlot polarPlot -> {
+				csv.add("Series,Angle,Radius");
+				final XYDataset dataset = polarPlot.getDataset();
+				for (int series = 0; series < dataset.getSeriesCount(); series++) {
+					final String seriesName = (String) dataset.getSeriesKey(series);
+					for (int item = 0; item < dataset.getItemCount(series); item++) {
+						final double angle = dataset.getXValue(series, item);
+						final double radius = dataset.getYValue(series, item);
+						csv.add(String.format("%s,%s,%s", seriesName, angle, radius));
+					}
+				}
+			}
+			case CategoryPlot categoryPlotPlot -> {
+				for (int d = 0; d < categoryPlotPlot.getDatasetCount(); d++) {
+					final CategoryDataset categoryDataset = categoryPlotPlot.getDataset(d);
+					if (!categoryPlotPlot.getRenderer(d).getDefaultSeriesVisible())
+						continue;
+					csv.add(String.format("Dataset%02d,Xaxis,Yaxis", (d + 1)));
+					final int columnCount = categoryDataset.getColumnCount();
+					final int rowCount = categoryDataset.getRowCount();
+					for (int i = 0; i < rowCount; i++) {
+						for (int j = 0; j < columnCount; j++) {
+							final Comparable<?> key1 = categoryDataset.getRowKey(i);
+							final Comparable<?> key2 = categoryDataset.getColumnKey(j);
+							final Number n = categoryDataset.getValue(i, j);
+							csv.add(String.format("%s,%s,%s", key1, key2, n));
+						}
+					}
+				}
+			}
+			case RingPlot ringPlot -> {
+				final PieDataset<?> dataset = ringPlot.getDataset();
+				for (int i = 0; i < dataset.getItemCount(); i++) {
+					csv.add(String.format("%s,%s", dataset.getKey(i), dataset.getValue(i)));
+				}
+			}
+			case null, default -> throw new IllegalStateException("Export of this type of dataset is not supported.");
+		}
 		try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
 			for (final String line : csv) {
 				writer.append(line);
@@ -1919,7 +1921,7 @@ public class SNTChart extends ChartPanel {
 			}
 		}
 
-        private void editTitle(TitleEntity titleEntity) {
+		private void editTitle(TitleEntity titleEntity) {
 			final Title title = titleEntity.getTitle();
 			if (title instanceof TextTitle) {
 				final String newLabel = getCustomString(((TextTitle) title).getText());
@@ -1956,12 +1958,12 @@ public class SNTChart extends ChartPanel {
 					break;
 			}
 		}
-		
+
 		private void editAxisTitle(final AxisEntity axisEntity) {
-            final String newLabel = getCustomString(axisEntity.getAxis().getLabel());
-            if (newLabel != null) {
-                axisEntity.getAxis().setLabel(newLabel);
-            }
+			final String newLabel = getCustomString(axisEntity.getAxis().getLabel());
+			if (newLabel != null) {
+				axisEntity.getAxis().setLabel(newLabel);
+			}
 		}
 
 		private void editPlotBackground(final PlotEntity ignored) {
@@ -1970,11 +1972,11 @@ public class SNTChart extends ChartPanel {
 				getChart().getPlot().setBackgroundPaint(newColor);
 			}
 		}
-		
+
 		private void showUneditableMessage() {
 			new GuiUtils(frame).error(
 					"This component cannot be edited by double-click. "
-					+ "Please use options in right-click menu.");
+							+ "Please use options in right-click menu.");
 		}
 		
 		// Helper methods for series editing
@@ -1991,25 +1993,25 @@ public class SNTChart extends ChartPanel {
 				getXYPlot().getRenderer().setSeriesStroke(seriesIndex, newStroke);
 			}
 		}
-		
+
 		private Stroke getCustomStroke(final String promptTitle) {
 			final String[] options = {"Thin", "Normal", "Thick", "Dashed", "Dotted"};
 			final String choice = new GuiUtils(frame).getChoice("Line Style",
-                    promptTitle, options, options[1]);
+					promptTitle, options, options[1]);
 			if (choice == null) return null;
-            return switch (choice) {
-                case "Thin" -> new BasicStroke(1.0f);
-                case "Thick" -> new BasicStroke(4.0f);
-                case "Dashed" -> new BasicStroke(2.0f, BasicStroke.CAP_BUTT,
-                        BasicStroke.JOIN_MITER, 10.0f, new float[]{5.0f}, 0.0f);
-                case "Dotted" -> new BasicStroke(2.0f, BasicStroke.CAP_BUTT,
-                        BasicStroke.JOIN_MITER, 10.0f, new float[]{2.0f}, 0.0f);
-                default -> new BasicStroke(2.0f);
-            };
+			return switch (choice) {
+				case "Thin" -> new BasicStroke(1.0f);
+				case "Thick" -> new BasicStroke(4.0f);
+				case "Dashed" -> new BasicStroke(2.0f, BasicStroke.CAP_BUTT,
+						BasicStroke.JOIN_MITER, 10.0f, new float[]{5.0f}, 0.0f);
+				case "Dotted" -> new BasicStroke(2.0f, BasicStroke.CAP_BUTT,
+						BasicStroke.JOIN_MITER, 10.0f, new float[]{2.0f}, 0.0f);
+				default -> new BasicStroke(2.0f);
+			};
 		}
 
 		String getCustomString(final String old) {
-            return new GuiUtils(frame).getString("", "Edit Label", old);
+			return new GuiUtils(frame).getString("", "Edit Label", old);
 		}
 
 		Color getCustomColor(final String prompt) {
@@ -2049,7 +2051,7 @@ public class SNTChart extends ChartPanel {
 		numberAxis.setTickLabelFont(numberAxis.getTickLabelFont().deriveFont(GuiUtils.uiFontSize()));
         if (title != null) numberAxis.setLabel(title);
 
-        final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
+		final PaintScaleLegend psl = new PaintScaleLegend(paintScale, numberAxis);
 		psl.setBackgroundPaint(null); // transparent
 		psl.setPosition(RectangleEdge.RIGHT);
 		psl.setAxisLocation(AxisLocation.TOP_OR_RIGHT);
@@ -2069,27 +2071,27 @@ public class SNTChart extends ChartPanel {
 	public static void closeAll() {
         for (SNTChart openInstance : openInstances) {
             openInstance.disposeInternal();
-        }
+		}
 		openInstances.clear();
 	}
 
-    /**
-     * Tiles all open charts displaying them on a grid. Charts's windows are made visible if not displayed.
-     */
-    public static void tileAll() {
-        tile(openInstances);
-    }
+	/**
+	 * Tiles all open charts displaying them on a grid. Charts's windows are made visible if not displayed.
+	 */
+	public static void tileAll() {
+		tile(openInstances);
+	}
 
-    /**
-     * Tiles specified charts displaying them on a grid. Charts's windows are made visible if not displayed.
-     *
-     * @param charts the charts to be tiled
-     */
-    public static void tile(final Collection<SNTChart> charts) {
-        final List<JFrame> frames = new ArrayList<>();
-        charts.forEach(oi -> frames.add(oi.getFrame()));
-        GuiUtils.tile(frames);
-    }
+	/**
+	 * Tiles specified charts displaying them on a grid. Charts's windows are made visible if not displayed.
+	 *
+	 * @param charts the charts to be tiled
+	 */
+	public static void tile(final Collection<SNTChart> charts) {
+		final List<JFrame> frames = new ArrayList<>();
+		charts.forEach(oi -> frames.add(oi.getFrame()));
+		GuiUtils.tile(frames);
+	}
 
 	/**
 	 * Combines a collection of charts into a ImageJ1 stack.
@@ -2128,25 +2130,25 @@ public class SNTChart extends ChartPanel {
 		return combine(charts, -1, -1, labelPanels);
 	}
 
-    /**
-     * Combines a collection of charts into a multipanel montage.
-     *
-     * @param charts      input charts
-     * @param rows        the number of rows in the montage
-     * @param cols        the number of columns in the montage
-     * @param labelPanels whether each panel in the montage should be labeled
-     * @return the frame containing the montage
-     */
-    public static SNTChart combine(final Collection<SNTChart> charts, final int rows, final int cols,
-                                   final boolean labelPanels) {
-        return combine(charts, null, rows, cols, labelPanels);
-    }
+	/**
+	 * Combines a collection of charts into a multipanel montage.
+	 *
+	 * @param charts      input charts
+	 * @param rows        the number of rows in the montage
+	 * @param cols        the number of columns in the montage
+	 * @param labelPanels whether each panel in the montage should be labeled
+	 * @return the frame containing the montage
+	 */
+	public static SNTChart combine(final Collection<SNTChart> charts, final int rows, final int cols,
+	                               final boolean labelPanels) {
+		return combine(charts, null, rows, cols, labelPanels);
+	}
 
 	/**
 	 * Combines a collection of charts into a multipanel montage.
 	 *
 	 * @param charts      input charts
-     * @param commonTitle Common title for the montage
+	 * @param commonTitle Common title for the montage
 	 * @param rows        the number of rows in the montage
 	 * @param cols        the number of columns in the montage
 	 * @param labelPanels whether each panel in the montage should be labeled
@@ -2163,118 +2165,207 @@ public class SNTChart extends ChartPanel {
 	/**
 	 * Shows a bivariate histogram (two-dimensional histogram) from a matrix. The number of
 	 * bins is automatically determined using the Freedman-Diaconis rule.
-	 * @param data the matrix holding the two distributions to be plotted
+	 *
+	 * @param data       the matrix holding the two distributions to be plotted
 	 * @param colorTable the color table (LUT) used to color histogram bars (null allowed)
-	 * @param prob	Whether frequencies should be normalized to probabilities
+	 * @param prob       Whether frequencies should be normalized to probabilities
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException if the histogram cannot be displayed
+	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
 	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final boolean prob, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[0]));
 		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[1]));
-		showSmilePlot(smile.plot.swing.Histogram3D.class, data, nBins1, nBins2, prob, colorTable, axisLabels);
+		showSmilePlot(smile.plot.swing.Histogram3D.class, null, data, nBins1, nBins2, prob, colorTable, axisLabels);
 	}
 
 	/**
 	 * Shows a two-dimensional heatmap from a two-dimensional data matrix.
-	 * @param data the two-dimensional matrix holding the data to be plotted
+	 *
+	 * @param data       the two-dimensional matrix holding the data to be plotted
 	 * @param colorTable the heatmap color table (LUT) (null not allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException if the heatmap cannot be displayed
+	 * @return the frame holding the heatmap
+	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
 	 */
-	public static void showHeatmap(final double[][] data, final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
-		showSmilePlot(smile.plot.swing.Heatmap.class, data, -1, -1, false, colorTable, axisLabels);
+	public static JFrame showHeatmap(final double[][] data, final ColorTable colorTable, final String... axisLabels)
+			throws InterruptedException, InvocationTargetException {
+		return showHeatmap(null, data, colorTable, axisLabels);
+
+	}
+
+	/**
+	 * Shows a two-dimensional heatmap from a two-dimensional data matrix.
+	 *
+	 * @param title      the heatmap title (null allowed)
+	 * @param data       the two-dimensional matrix holding the data to be plotted
+	 * @param colorTable the heatmap color table (LUT) (null not allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @return the frame holding the heatmap
+	 * @throws InterruptedException      if the heatmap cannot be displayed
+	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 */
+	public static JFrame showHeatmap(final String title, final double[][] data, final ColorTable colorTable, final String... axisLabels)
+			throws InterruptedException, InvocationTargetException {
+		if (data == null || data.length < 2 || data[0].length < 2)
+			throw new IllegalArgumentException("Heatmap requires at least a 2x2 matrix (got " + (data == null ? "null" : data.length + "x" + data[0].length) + ")");
+		return showSmilePlot(smile.plot.swing.Heatmap.class, title, data, -1, -1, false, colorTable, axisLabels);
 	}
 
 	/**
 	 * Shows a bivariate histogram (two-dimensional histogram) from two collections of values. The number of
 	 * bins is automatically determined using the Freedman-Diaconis rule.
-	 * @param values1 the values of the first distribution to be plotted
-	 * @param values2 the values of the second distribution to be plotted
+	 *
+	 * @param values1    the values of the first distribution to be plotted
+	 * @param values2    the values of the second distribution to be plotted
 	 * @param colorTable the color table (LUT) used to color histogram bars (null allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException if the histogram cannot be displayed
+	 * @return the frame holding the histogram
+	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
-	public static void showHistogram3D(final Collection<Double> values1, final Collection<Double> values2,
-									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	public static JFrame showHistogram3D(final Collection<Double> values1, final Collection<Double> values2,
+	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final double[] v1 = values1.stream().mapToDouble(Double::doubleValue).toArray();
 		final double[] v2 = values2.stream().mapToDouble(Double::doubleValue).toArray();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v1));
 		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v2));
-		showSmilePlot(smile.plot.swing.Histogram3D.class, data, nBins1, nBins2, false, colorTable, axisLabels);
+		return showSmilePlot(smile.plot.swing.Histogram3D.class, null, data, nBins1, nBins2, false, colorTable, axisLabels);
 	}
 
 	/**
 	 * Shows a two-dimensional heatmap for a two-dimensional data matrix assembled from two collections
-	 * @param values1 the values of the first matrix column
-	 * @param values2 the values of the second matrix column
+	 *
+	 * @param values1    the values of the first matrix column
+	 * @param values2    the values of the second matrix column
 	 * @param colorTable the heatmap color table (LUT) (null not allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException if the heatmap cannot be displayed
+	 * @return the frame holding the heatmap
+	 * @throws InterruptedException      if the heatmap cannot be displayed
 	 * @throws InvocationTargetException if the heatmap cannot be displayed
 	 */
-	public static void showHeatmap(final Collection<Double> values1, final Collection<Double> values2,
-									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	public static JFrame showHeatmap(final Collection<Double> values1, final Collection<Double> values2,
+	                                 final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		return showHeatmap(null, values1, values2, colorTable, axisLabels);
+	}
+
+	/**
+	 * Shows a two-dimensional heatmap for a two-dimensional data matrix assembled from two collections
+	 *
+	 * @param title      The heatmap title
+	 * @param values1    the values of the first matrix column
+	 * @param values2    the values of the second matrix column
+	 * @param colorTable the heatmap color table (LUT) (null not allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @return the frame holding the heatmap
+	 * @throws InterruptedException      if the heatmap cannot be displayed
+	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 */
+	public static JFrame showHeatmap(final String title, final Collection<Double> values1, final Collection<Double> values2,
+	                                 final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final double[] v1 = values1.stream().mapToDouble(Double::doubleValue).toArray();
 		final double[] v2 = values2.stream().mapToDouble(Double::doubleValue).toArray();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
-		showSmilePlot(smile.plot.swing.Heatmap.class, data, -1, -1, false, colorTable, axisLabels);
+		return showSmilePlot(smile.plot.swing.Heatmap.class, title, data, -1, -1, false, colorTable, axisLabels);
+	}
+
+	/**
+	 * Shows a two-dimensional heatmap from a two-dimensional data matrix.
+	 *
+	 * @param xCoords    x coordinate of data matrix cells. Must be in ascending order.
+	 * @param yCoords    y coordinate of data matrix cells. Must be in ascending order.
+	 * @param data       the two-dimensional matrix holding the data to be plotted
+	 * @param colorTable the heatmap color table (LUT) (null not allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @return the frame holding the heatmap
+	 * @throws InterruptedException      if the heatmap cannot be displayed
+	 * @throws InvocationTargetException if the heatmap cannot be displayed
+	 */
+	public static JFrame showHeatmap(final String title, final double[] xCoords, final double[] yCoords,
+	                                 final double[][] data, final ColorTable colorTable, final String... axisLabels)
+			throws InterruptedException, InvocationTargetException {
+		final Color[] palette = alphaColorsFromColorTable(colorTable);
+		smile.plot.swing.Figure figure = new Heatmap(xCoords, yCoords, data, palette).figure();
+		figure.setTitle(title != null ? title : "Heatmap");
+		if (axisLabels != null && axisLabels.length > 0)
+			figure.setAxisLabels(Arrays.copyOf(axisLabels, figure.getAxisLabels().length));
+		return figure.show();
 	}
 
 	/**
 	 * Shows a bivariate histogram (two-dimensional histogram) from two DescriptiveStatistics objects. The number of
 	 * bins is automatically determined using the Freedman-Diaconis rule.
-	 * @param stats1 DescriptiveStatistics for the first distribution
-	 * @param stats2 DescriptiveStatistics for the second distribution
+	 *
+	 * @param title      The histogram title
+	 * @param stats1     DescriptiveStatistics for the first distribution
+	 * @param stats2     DescriptiveStatistics for the second distribution
 	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
 	 * @param axisLabels Labels for the axes (optional)
-	 * @throws InterruptedException if the histogram cannot be displayed
+	 * @return the frame holding the histogram
+	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
-	public static void showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
-									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
-		showSmileHistogram(smile.plot.swing.Histogram3D.class, stats1, stats2, colorTable, axisLabels);
+	public static JFrame showHistogram3D(final String title, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
+	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		return showSmileHistogram(smile.plot.swing.Histogram3D.class, title, stats1, stats2, colorTable, axisLabels);
 	}
 
-	private static <T extends smile.plot.swing.Plot> void showSmileHistogram(final Class<T> smilePlotClass, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
-									   final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	/**
+	 * Shows a bivariate histogram (two-dimensional histogram) from two DescriptiveStatistics objects. The number of
+	 * bins is automatically determined using the Freedman-Diaconis rule.
+	 *
+	 * @param stats1     DescriptiveStatistics for the first distribution
+	 * @param stats2     DescriptiveStatistics for the second distribution
+	 * @param colorTable the color table (LUT) used to color histogram bars (Null allowed)
+	 * @param axisLabels Labels for the axes (optional)
+	 * @return the frame holding the histogram
+	 * @throws InterruptedException      if the histogram cannot be displayed
+	 * @throws InvocationTargetException if the histogram cannot be displayed
+	 */
+	public static JFrame showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
+	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+		return showSmileHistogram(smile.plot.swing.Histogram3D.class, null, stats1, stats2, colorTable, axisLabels);
+	}
+
+	private static <T extends smile.plot.swing.Plot> JFrame showSmileHistogram(final Class<T> smilePlotClass, final String title, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
+	                                                                           final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final double[] v1 = stats1.getValues();
 		final double[] v2 = stats2.getValues();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
 		final int nBins1 = AnalysisUtils.computeNBins(stats1);
 		final int nBins2 = AnalysisUtils.computeNBins(stats2);
-		showSmilePlot(smilePlotClass, data, nBins1, nBins2, false, colorTable, axisLabels);
+		return showSmilePlot(smilePlotClass, title, data, nBins1, nBins2, false, colorTable, axisLabels);
 	}
 
-	private static <T extends smile.plot.swing.Plot> void showSmilePlot(final Class<T> smilePlotClass,
-												final double[][] data, // data to be plotted
-												final int nBins1, final int nBins2, // no. of bins. Ignored if not Histogram3D
-												final boolean prob, // normalize frequencies? Ignored if not Histogram3D
-												final ColorTable colorTable,
-												final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	private static <T extends smile.plot.swing.Plot> JFrame showSmilePlot(final Class<T> smilePlotClass,
+	                                                                      final String title,
+	                                                                      final double[][] data, // data to be plotted
+	                                                                      final int nBins1, final int nBins2, // no. of bins. Ignored if not Histogram3D
+	                                                                      final boolean prob, // normalize frequencies? Ignored if not Histogram3D
+	                                                                      final ColorTable colorTable,
+	                                                                      final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final Color[] palette = alphaColorsFromColorTable(colorTable);
 		smile.plot.swing.Figure figure;
-		String title;
+		String ttl = title;
 		if (smile.plot.swing.Histogram3D.class.equals(smilePlotClass)) {
             figure = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).figure();
-			title = "Two-Dimensional Histogram";
+			ttl = "Two-Dimensional Histogram";
+			if (ttl == null) ttl = "Two-Dimensional Histogram";
 		} else if (smile.plot.swing.Heatmap.class.equals(smilePlotClass)) {
             figure = smile.plot.swing.Heatmap.of(data, palette).figure();
-			title = "Heatmap";
+			if (ttl == null) ttl = "Heatmap";
 		} else {
 			throw new IllegalArgumentException("Unsupported plot type: " + smilePlotClass);
 		}
 		if (axisLabels != null && axisLabels.length > 0)
             figure.setAxisLabels(Arrays.copyOf(axisLabels, figure.getAxisLabels().length));
-        figure.setTitle(title);
-        figure.show();
+        figure.setTitle(ttl);
+        return figure.show();
 	}
 
 	private static Color[] alphaColorsFromColorTable(final ColorTable colorTable) {

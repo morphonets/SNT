@@ -23,15 +23,11 @@
 package sc.fiji.snt.analysis;
 
 import java.awt.Color;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import net.imagej.axis.Axes;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
@@ -64,6 +60,7 @@ import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.util.TreeUtils;
 
 /**
  * Command to retrieve Path profiles (plots of voxel intensities values along a
@@ -134,13 +131,13 @@ public class PathProfiler extends CommonDynamicCmd {
 	private String channelString;
 
 	@Parameter(required  = false, label = "Spatially calibrated distances")
-	private boolean usePhysicalUnits;
+	protected boolean usePhysicalUnits;
 
 	@Parameter(label = "tree")
-	private Tree tree;
+    protected Tree tree;
 
 	@Parameter(label = "dataset")
-	private Dataset dataset;
+    protected Dataset dataset;
 
 	@Parameter(label = "imp", required = false)
 	private ImagePlus imp;
@@ -171,7 +168,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		this.tree = tree;
 		initContextAsNeeded();
 		dataset = getDatasetFromImp(imp);
-		setUnitAndAvgSept();
+		setSpatialUnitAndAvgSept();
 		setRadius(0);
 		setShape(ProfileProcessor.Shape.LINE);
 		setMetric(ProfileProcessor.Metric.MEAN);
@@ -201,7 +198,7 @@ public class PathProfiler extends CommonDynamicCmd {
 			throw new IllegalArgumentException("Tree cannot be null");
 		this.tree = tree;
 		this.dataset = dataset;
-		setUnitAndAvgSept();
+		setSpatialUnitAndAvgSept();
 		setRadius(0);
 		setShape(ProfileProcessor.Shape.LINE);
 		setMetric(ProfileProcessor.Metric.MEAN);
@@ -223,20 +220,20 @@ public class PathProfiler extends CommonDynamicCmd {
 		if (avgSep == 0) {
 			msg = "";
 		} else {
-			if (radius == 0)
+			if (radius <= 0)
 				msg = "Radius set by path radii";
 			else
-				msg = "Aprox.: " + SNTUtils.formatDouble(avgSep * radius, 2) + unit;
+				msg = String.format("Aprox.: %.2f%s", (avgSep * radius), unit);
 		}
 	}
 
 	@SuppressWarnings("unused")
-	private void init() {
+    protected void init() {
 		initContextAsNeeded();
 		super.init(false);
 		if (dataset == null)
 			dataset = getDatasetFromImp(imp);
-		setUnitAndAvgSept();
+		setSpatialUnitAndAvgSept();
 		try {
 			// adjust shapeStr options
 			final MutableModuleItem<String> mi = getInfo().getMutableInput("shapeStr", String.class);
@@ -269,12 +266,16 @@ public class PathProfiler extends CommonDynamicCmd {
 		return dataset;
 	}
 
-	private void setUnitAndAvgSept() {
-		unit = dataset.axis(0).unit();
+	private void setSpatialUnitAndAvgSept() {
+		unit = dataset.axis(dataset.dimensionIndex(Axes.X)).unit();
 		avgSep = 0;
-		for (int i = 0; i < dataset.numDimensions(); i++)
+		int nSpatialAxes = 0;
+		for (int i = 0; i < dataset.numDimensions(); i++) {
+			if (!dataset.axis(i).type().isSpatial()) continue;
 			avgSep += dataset.axis(i).calibratedValue(1);
-		avgSep /= dataset.numDimensions();
+			nSpatialAxes++;
+		}
+		avgSep /= nSpatialAxes;
 	}
 
 	private void initContextAsNeeded() {
@@ -298,7 +299,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 	}
 
-	private void evalParameters() {
+	protected void evalParameters() {
 		switch (metricStr.toLowerCase()) {
 			case "sum" -> metric = ProfileProcessor.Metric.SUM;
 			case "min" -> metric = ProfileProcessor.Metric.MIN;
@@ -387,7 +388,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		}
 	}
 
-	private List<Integer> getChannels() {
+	protected List<Integer> getChannels() {
 		if (channelString == null || channelString.trim().isEmpty() || "all".equalsIgnoreCase(channelString.trim()))
 			return getAllChannels();
 		final List<String> stringChannels = new ArrayList<>(Arrays.asList(channelString.split("\\s*([,\\s])\\s*")));
@@ -484,8 +485,24 @@ public class PathProfiler extends CommonDynamicCmd {
 	 * @throws IllegalArgumentException if image does not contain the path's channel
 	 */
 	public <T extends RealType<T>> void assignValues(final Path p, final int channel) throws ArrayIndexOutOfBoundsException {
+		assignValues(p, channel, p.getFrame()-1);
+		//ImgUtils.getCtSlice3d(dataset, channel, channel);
+	}
+
+	/**
+	 * Retrieves pixel intensities at each node of the Path storing them as Path
+	 * {@code values}
+	 *
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @param frame the frame to be parsed (base-0 index)
+	 * @param p       the Path to be profiled
+	 * @see Path#setNodeValues(double[])
+	 *
+	 * @throws IllegalArgumentException if image does not contain the path's channel
+	 */
+	public <T extends RealType<T>> void assignValues(final Path p, final int channel, final int frame) throws ArrayIndexOutOfBoundsException {
 		validateChannelRange(channel);
-		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel, p.getFrame() - 1);
+		final RandomAccessibleInterval<T> rai = ImgUtils.getCtSlice(dataset, channel, frame);
 		final ProfileProcessor<T> processor = new ProfileProcessor<>(rai, p);
 		processor.setShape(shape);
 		processor.setRadius(radius);
@@ -578,14 +595,30 @@ public class PathProfiler extends CommonDynamicCmd {
 	/**
 	 * Gets the profile for the specified path as a map of lists, with distances (or
 	 * indices) stored under {@link #X_VALUES} ({@value #X_VALUES}) and intensities
-	 * under {@link #Y_VALUES} ({@value #Y_VALUES}).
+	 * under {@link #Y_VALUES} ({@value #Y_VALUES}). If dataset is a time-lapse, the
+	 * path's assigned frame is profiled.
 	 * 
 	 * @param p       the path to be profiled
 	 * @param channel the channel to be parsed (base-0 index)
 	 * @return the profile map
 	 */
 	public Map<String, List<Double>> getValues(final Path p, final int channel) {
-		if (!p.hasNodeValues()) assignValues(p, channel);
+		return getValues(p, channel, p.getFrame()-1);
+	}
+
+	/**
+	 * Gets the profile for the specified path as a map of lists, with distances (or
+	 * indices) stored under {@link #X_VALUES} ({@value #X_VALUES}) and intensities
+	 * under {@link #Y_VALUES} ({@value #Y_VALUES}).
+	 *
+	 * @param p       the path to be profiled
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @param frame   the frame to be parsed (base-0 index)
+	 * @return the profile map
+	 */
+	public Map<String, List<Double>> getValues(final Path p, final int channel, final int frame) {
+
+		if (!p.hasNodeValues()) assignValues(p, channel, frame);
 		final List<Double> xList = new ArrayList<>();
 		final List<Double> yList = new ArrayList<>();
 
@@ -664,12 +697,12 @@ public class PathProfiler extends CommonDynamicCmd {
 		return colors;
 	}
 
-	private String getXAxisLabel() {
+	protected String getXAxisLabel() {
 		return (nodeIndices) ? "Node indices"
 				: String.format("Distance (%s)", tree.getProperties().getProperty(Tree.KEY_SPATIAL_UNIT, "? units"));
 	}
 
-	private String getYAxisLabel(final int channel) {
+	protected String getYAxisLabel(final int channel) {
 		final boolean detailed = shape != Shape.NONE;
 		final StringBuilder sb = new StringBuilder();
 		if (channel > 0 && dataset.getChannels() > 1) {
@@ -678,7 +711,13 @@ public class PathProfiler extends CommonDynamicCmd {
 		sb.append(dataset.getValidBits()).append("-bit ");
 		if (detailed) {
 			sb.append("Int. (").append(metric).append("; ");
-			sb.append(shape).append(", r=").append((radius==0) ? "Node radius" : radius + "px");
+			sb.append(shape).append(", r=");
+			if (radius <=0) {
+				sb.append("Node radius");
+			} else {
+				sb.append(String.format("%.2f", (usePhysicalUnits) ?  (avgSep * radius) : radius))
+								.append((usePhysicalUnits) ?  unit : "px");
+			}
 			sb.append(")");
 		} else {
 			sb.append("Intensity");
@@ -824,6 +863,155 @@ public class PathProfiler extends CommonDynamicCmd {
 			if (refColor != null && !refColor.equals(path.getColorRGB())) return true;
 		}
 		return false;
+	}
+
+	/**
+	 * Resamples the intensity profile of a path onto a uniform distance grid via
+	 * linear interpolation. Entries beyond the path's actual length are set to
+	 * {@link Double#NaN}, which allows variable-length paths to be compared in
+	 * the same matrix without padding with zeros.
+	 *
+	 * @param p        the path to profile (values are assigned if not yet set)
+	 * @param channel  the channel to sample (base-0 index)
+	 * @param nSamples the number of output grid points (&gt;= 2)
+	 * @param gridMax  the upper bound of the distance grid. Use the path's actual
+	 *                 length for a per-path-normalized grid (0..length), or a
+	 *                 shared maximum across all paths for an absolute grid
+	 * @return array of length {@code nSamples} with interpolated intensities
+	 */
+	public double[] getResampledValues(final Path p, final int channel,
+	                                   final int nSamples, final double gridMax) {
+		if (nSamples < 2)
+			throw new IllegalArgumentException("nSamples must be >= 2");
+		assignValues(p, channel); // uses p.getFrame()-1
+		return resampleAssignedValues(getValues(p, channel), nSamples, gridMax);
+	}
+
+	/**
+	 * Resamples the intensity profile of a path onto a uniform distance grid via
+	 * linear interpolation. Entries beyond the path's actual length are set to
+	 * {@link Double#NaN}, which allows variable-length paths to be compared in
+	 * the same matrix without padding with zeros.
+	 *
+	 * @param p        the path to profile (values are assigned if not yet set)
+	 * @param channel  the channel to sample (base-0 index)
+	 * @param frame    the frame to sample (base-0 index)
+	 * @param nSamples the number of output grid points (&gt;= 2)
+	 * @param gridMax  the upper bound of the distance grid. Use the path's actual
+	 *                 length for a per-path-normalized grid (0..length), or a
+	 *                 shared maximum across all paths for an absolute grid
+	 * @return array of length {@code nSamples} with interpolated intensities
+	 */
+	public double[] getResampledValues(final Path p, final int channel, final int frame,
+	                                   final int nSamples, final double gridMax) {
+		if (nSamples < 2)
+			throw new IllegalArgumentException("nSamples must be >= 2");
+		assignValues(p, channel, frame);
+		return resampleAssignedValues(getValues(p, channel, frame), nSamples, gridMax);
+	}
+
+	private double[] resampleAssignedValues(final Map<String, List<Double>> values,
+											final int nSamples, final double gridMax) {
+		if (nSamples < 2)
+			throw new IllegalArgumentException("nSamples must be >= 2");
+		// Always assign values explicitly: PointInImage.v defaults to 0.0, not NaN,
+		// so hasNodeValues() returns true for unsampled paths, causing getValues()
+		// to silently skip assignValues() and return all-zero intensities.
+		final List<Double> srcX = values.get(X_VALUES);
+		final List<Double> srcY = values.get(Y_VALUES);
+		final double pathLen = srcX.getLast();
+		final double step = gridMax / (nSamples - 1);
+		final double[] result = new double[nSamples];
+		int j = 0; // pointer into srcX/srcY
+		for (int i = 0; i < nSamples; i++) {
+			final double x = i * step;
+			if (x > pathLen + 1e-9) {
+				result[i] = Double.NaN;
+				continue;
+			}
+			// advance j so srcX[j] <= x < srcX[j+1]
+			while (j < srcX.size() - 2 && srcX.get(j + 1) <= x) j++;
+			if (j >= srcX.size() - 1) {
+				result[i] = srcY.get(srcX.size() - 1);
+			} else {
+				final double x0 = srcX.get(j), x1 = srcX.get(j + 1);
+				final double y0 = srcY.get(j), y1 = srcY.get(j + 1);
+				result[i] = (x1 == x0) ? y0 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Builds a multi-frame intensity profile matrix from a list of matched paths
+	 * (one per time frame, ordered by frame number), suitable for kymograph-style
+	 * visualization via {@link SNTChart#showHeatmap}.
+	 * <p>
+	 * The returned matrix has dimensions [nPaths][nSamples], where
+	 * {@code matrix[i][j]} is the interpolated intensity at distance sample j for
+	 * the i-th path. Entries beyond a path's actual length are {@link Double#NaN}.
+	 * </p>
+	 *
+	 * @param paths             ordered list of paths, one per time frame
+	 * @param channel           the channel to sample (base-0 index)
+	 * @param nSamples          number of distance samples (columns in the result)
+	 * @param normalizeDistance if true, distances are normalized to [0,1] so all
+	 *                          rows span the full width regardless of path length;
+	 *                          if false, absolute distances are used and the grid
+	 *                          max equals the longest path in the list
+	 * @return a 2D array [nPaths][nSamples] of intensity values
+	 */
+	public double[][] getMultiFrameProfile(final List<Path> paths, final int channel,
+			final int nSamples, final boolean normalizeDistance) {
+		if (paths == null || paths.isEmpty())
+			throw new IllegalArgumentException("Paths list cannot be null or empty");
+		// For absolute distances, share a single grid max so all rows are comparable.
+		// For normalized distances, each path is resampled over its OWN length so
+		// the grid always spans [0, pathLen] and maps to [0, 1] conceptually --
+		// passing gridMax = 1.0 is wrong because source x-values are in physical
+		// units (e.g. um), which would confine sampling to the first sub-unit segment.
+		final double sharedGridMax;
+		if (normalizeDistance) {
+			sharedGridMax = -1; // unused; each path uses its own length below
+		} else {
+			double maxLen = 0;
+			for (final Path p : paths) {
+				final double len = p.getLength();
+				if (len > maxLen) maxLen = len;
+			}
+			sharedGridMax = maxLen;
+		}
+		final double[][] matrix = new double[paths.size()][nSamples];
+		for (int i = 0; i < paths.size(); i++) {
+			final Path p = paths.get(i);
+			final double gridMax = normalizeDistance ? p.getLength() : sharedGridMax;
+			matrix[i] = getResampledValues(p, channel, nSamples, gridMax);
+		}
+		return matrix;
+	}
+
+	/**
+	 * Gets the time profile for the specified path as a list of {@link #getValues(Path, int, int)} profiles,
+	 * with one entry per frame of the dataset.
+	 *
+	 * @param path    the path to be profiled
+	 * @param channel the channel to be parsed (base-0 index)
+	 * @return the list of profile values (one entry per frame)
+	 */
+	public List<Map<String, List<Double>>> getTimeProfile(final Path path, final int channel) {
+		if (path == null || path.size()==0)
+			throw new IllegalArgumentException("Path cannot be null or empty");
+		final Map<Path, double[]> nodeValuesSnapshot = TreeUtils.snapshotNodeValues(new Tree(List.of(path)));
+		final List<Map<String, List<Double>>> result = new ArrayList<>();
+		try {
+			for (int frame = 0; frame < dataset.getFrames(); frame++) {
+				assignValues(path, channel, frame);
+				result.add(getValues(path, channel, frame));
+			}
+		} finally {
+			TreeUtils.restoreNodeValues(nodeValuesSnapshot);
+		}
+		return result;
 	}
 
 	/* IDE debug method **/

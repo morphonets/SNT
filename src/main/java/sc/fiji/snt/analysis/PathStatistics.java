@@ -143,7 +143,7 @@ public class PathStatistics extends TreeStatistics {
 	@Override
 	public Number getMetric(final String metric) throws UnknownMetricException {
 		if ("Path ID".equalsIgnoreCase(metric))
-			return (tree.size() == 1) ? tree.list().get(0).getID() : Double.NaN;
+			return (tree.size() == 1) ? tree.list().getFirst().getID() : Double.NaN;
 		return super.getMetric(metric);
 	}
 
@@ -373,8 +373,8 @@ public class PathStatistics extends TreeStatistics {
 				table.set(getCol(metric), row, new PathStatistics(path).getMetric(metric, path));
 			});
 		});
-		if (summarize && table instanceof SNTTable) {
-			((SNTTable) table).summarize();
+		if (summarize && table != null) {
+			table.summarize();
 		}
 		updateAndDisplayTable();
 	}

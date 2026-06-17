@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.command.Command;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.table.DefaultColumn;
@@ -50,11 +51,7 @@ import org.scijava.plot.XYSeries;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.analysis.MultiTreeStatistics;
-import sc.fiji.snt.analysis.PathStatistics;
-import sc.fiji.snt.analysis.SNTChart;
-import sc.fiji.snt.analysis.SNTTable;
-import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.*;
 import sc.fiji.snt.analysis.growth.GrowthAnalyzer;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
@@ -87,7 +84,8 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	})
 	private String measurementChoice;
 
-	@Parameter(label = "Grouping Strategy", choices = { "No grouping", "Individual neurite(s) across time", "Individual neurite(s) across time (≥2 time-points)"})
+	@Parameter(label = "Grouping Strategy",
+			choices = { "No grouping", "Individual neurite(s) across time", "Individual neurite(s) across time (≥2 time-points)"})
 	private String scopeChoice;
 
 	@Parameter(label = "Output", choices = { "Plot", "Table", "Plot and Table" })
@@ -96,10 +94,23 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	@Parameter(required = true)
 	private Collection<Path> paths;
 
+	@Parameter(required = false, persist = false)
+	private boolean includeMatchingOptions;
+
 
 	@SuppressWarnings("unused")
 	private void init() {
 		super.init(false);
+		if (includeMatchingOptions) {
+			final MutableModuleItem<String> mi = getInfo().getMutableInput("scopeChoice", String.class);
+			mi.setChoices(List.of("No grouping", "Individual neurite(s) across time", "Individual neurite(s) across time (≥2 time-points)"));
+			getInfo().setLabel("Summarized Growth");
+			unresolveInput("scopeChoice");
+		} else {
+			scopeChoice = "No grouping";
+			getInfo().setLabel("Time Profile (Morphometry)");
+			resolveInput("scopeChoice");
+		}
 	}
 
 	private String getMasurementChoiceMetric() {
@@ -130,7 +141,7 @@ public class PathTimeAnalysisCmd extends CommonDynamicCmd {
 	private void runNonMatchedAnalysis() {
 		final Map<Integer, List<Path>> map = getPathListMap();
 		if (map.size() < 2) {
-			error("Selected Paths seem to be all asociated with the same time-point. "
+			error("Selected Paths seem to be all associated with the same time-point. "
 				+ "Make sure to select paths associated with at least two time-points (frames).");
 			return;
 		}
