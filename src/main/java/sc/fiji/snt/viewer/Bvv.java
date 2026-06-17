@@ -2400,6 +2400,9 @@ public class Bvv extends AbstractBigViewer {
 
                 final int[] savedClip = {nearSlider.getValue(), farSlider.getValue()};
                 final boolean[] slabOn = {false};
+                // Guards posSlider.setValue() calls that are programmatic (not from the user
+                // dragging the slider), so slabListener does not fire a second applySlab().
+                final boolean[] updatingSlab = {false};
 
                 final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
 
@@ -2522,7 +2525,9 @@ public class Bvv extends AbstractBigViewer {
                                 cur.get(2, 0) * cur.get(2, 0));
                         if (curScale > 0) {
                             final int sliderPos = (int) Math.round(-cur.get(2, 3) / (curScale * zStep));
+                            updatingSlab[0] = true;
                             posSlider.setValue(Math.max(0, Math.min(nSlices, sliderPos)));
+                            updatingSlab[0] = false;
                         }
                         final double zCenter = posSlider.getValue() * zStep;
                         final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
@@ -2551,7 +2556,7 @@ public class Bvv extends AbstractBigViewer {
                 });
 
                 final javax.swing.event.ChangeListener slabListener = ev -> {
-                    if (slabOn[0]) {
+                    if (slabOn[0] && !updatingSlab[0]) {
                         final double zCenter = posSlider.getValue() * zStep;
                         final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
                         applySlab(viewerPanel, physZ, zCenter, halfThick * 2.0);
