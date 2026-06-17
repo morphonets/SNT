@@ -26,7 +26,6 @@ import bdv.spimdata.XmlIoSpimDataMinimal;
 import bdv.tools.InitializeViewerState;
 import bdv.tools.brightness.ConverterSetup;
 import bdv.tools.transformation.TransformedSource;
-import bdv.util.Prefs;
 import bdv.util.AxisOrder;
 import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.generic.AbstractSpimData;
@@ -1856,6 +1855,12 @@ public class Bvv extends AbstractBigViewer {
         return f == null ? null : f.getKeybindings().getConcatenatedActionMap().get(name);
     }
 
+    @Override
+    public void addMouseListenerToDisplay(final java.awt.event.MouseListener ml) {
+        final VolumeViewerPanel vp = getViewerPanel();
+        if (vp != null) vp.getDisplay().getComponent().addMouseListener(ml);
+    }
+
     /**
      * Computes a viewer transform aligned to a canonical plane, scaled to fit
      * the volume in the current viewport. Used by snapshot() for off-screen
@@ -3195,6 +3200,31 @@ public class Bvv extends AbstractBigViewer {
             viewerPanel.requestRepaint();
         }
 
+        @Override
+        public void setSelectedIndex(final int index) {
+            if (annRenderer.selectedIndex == index) return;
+            annRenderer.selectedIndex = index;
+            viewerPanel.requestRepaint();
+        }
+
+        /**
+         * Hit-tests the last-rendered screen circles against (screenX, screenY).
+         * Uses a minimum hit radius of 4 px so tiny markers remain clickable.
+         */
+        @Override
+        public int hitTest(final int screenX, final int screenY) {
+            final AnnRenderer.AnnotationScreenData[] data = annRenderer.screenData;
+            if (data == null) return -1;
+            for (int i = 0; i < data.length; i++) {
+                if (data[i] == null || !data[i].visible) continue;
+                final double dx = screenX - data[i].screenX;
+                final double dy = screenY - data[i].screenY;
+                final double r  = Math.max(data[i].screenRadius, 4.0);
+                if (dx * dx + dy * dy <= r * r) return i;
+            }
+            return -1;
+        }
+
         /**
          * Replaces all annotations in one shot with a single repaint.
          * Overrides the default to avoid the per-call repaints from
@@ -3246,6 +3276,7 @@ public class Bvv extends AbstractBigViewer {
             private final double[] worldCoords = new double[3];
             private final double[] viewerCoords = new double[3];
             boolean hide;
+            int selectedIndex = -1;
             // Source annotations
             private List<Annotation> annotations = new ArrayList<>();
             private boolean cacheValid = false;
@@ -3328,7 +3359,10 @@ public class Bvv extends AbstractBigViewer {
                     // Skip subpixel annotations
                     if (data.screenRadius < 0.5) continue;
 
-                    colorBatches.computeIfAbsent(data.color, k -> new ArrayList<>()).add(i);
+                    final Color drawColor = (i == selectedIndex)
+                            ? sc.fiji.snt.util.SNTColor.contrastHueColor(data.color)
+                            : data.color;
+                    colorBatches.computeIfAbsent(drawColor, k -> new ArrayList<>()).add(i);
                 }
 
                 // Draw batches

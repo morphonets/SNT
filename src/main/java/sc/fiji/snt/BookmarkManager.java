@@ -239,9 +239,17 @@ public class BookmarkManager {
         // dialog during table-clear operations.
         table.getSelectionModel().addListSelectionListener(e -> {
             if (e.getValueIsAdjusting()) return;
-            if (highlightToggle == null || !highlightToggle.isSelected()) return;
             if (model.getRowCount() == 0) return;
-            showHighlights();
+            if (viewer != null && viewer.annotations() != null) {
+                // Viewer mode: highlight the selected marker in the overlay.
+                final int viewRow = table.getSelectedRow();
+                final int modelIdx = (viewRow < 0) ? -1
+                        : table.convertRowIndexToModel(viewRow);
+                viewer.annotations().setSelectedIndex(modelIdx);
+            } else {
+                if (highlightToggle == null || !highlightToggle.isSelected()) return;
+                showHighlights();
+            }
         });
         // Cache the scroll pane so the detacher can move it between dock and
         // floating dialog. BookmarkTable.getContainer() copies the table's
@@ -267,6 +275,19 @@ public class BookmarkManager {
                 table.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
                         .put(javax.swing.KeyStroke.getKeyStroke(key), "none");
             }
+            // Click on a marker in the viewer -> select the matching table row.
+            viewer.addMouseListenerToDisplay(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseClicked(final java.awt.event.MouseEvent e) {
+                    if (viewer.annotations() == null) return;
+                    final int modelIdx = viewer.annotations().hitTest(e.getX(), e.getY());
+                    if (modelIdx < 0) return;
+                    final int viewRow = table.convertRowIndexToView(modelIdx);
+                    if (viewRow < 0 || viewRow >= table.getRowCount()) return;
+                    table.setRowSelectionInterval(viewRow, viewRow);
+                    table.scrollRectToVisible(table.getCellRect(viewRow, 0, true));
+                }
+            });
         }
         table.addMouseListener(new MouseAdapter() {
             @Override
