@@ -111,7 +111,7 @@ public class Bvv extends AbstractBigViewer {
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
-
+    private final long CENTER_ANIMATION_DURATION_MS = 250;
     /**
      * Constructor for standalone BVV instance.
      */
@@ -1130,11 +1130,12 @@ public class Bvv extends AbstractBigViewer {
             currentBvv = bvv;
             initializePathOverlay(currentBvv);
             initializeAnnotationOverlay(currentBvv);
+            registerCenterOnDoubleClickListener(currentBvv);
             sceneOverlay = new SceneOverlay();
             currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();
             final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
-            final BvvActions actions = new BvvActions(bvv);
+            final BvvActions actions = new BvvActions(this, bvv);
             // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
             // Scene controls
@@ -1332,6 +1333,58 @@ public class Bvv extends AbstractBigViewer {
         return dir.resolve("BVV-" + ts + ".png").toFile();
     }
 
+    /**
+     * Registers a mouse listener that centers the view on the clicked point.
+     * Left-double-click finds the intensity peak along the click ray (or falls back to
+     * the focal-plane intersection) and translates the viewer transform so that
+     * world point maps to the screen center at viewerZ = 0 (the focal plane).
+     * This forces BVV to load tiles at the clicked location, making subsequent
+     * findClickRayMaxima() calls accurate.
+     */
+    private void registerCenterOnDoubleClickListener(final BigVolumeViewer bvv) {
+        bvv.getViewer().getDisplay().getComponent().addMouseListener(
+                new java.awt.event.MouseAdapter() {
+                    @Override
+                    public void mouseClicked(final java.awt.event.MouseEvent e) {
+                        // Only react to plain left double-clicks; ignore modifiers and
+                        // right/middle buttons so BVV's own drag/rotate interactions are unaffected.
+                        if (e.getButton() != java.awt.event.MouseEvent.BUTTON1
+                                || e.getClickCount() != 2 || e.getModifiersEx() != 0) {
+                            return;
+                        }
+                        final VolumeViewerPanel vp = getViewerPanel();
+                        if (vp == null) return;
+
+                        // Find the world point to center on.
+                        double[] target = findClickRayMaxima();
+                        if (target == null) {
+                            // Ray missed the volume: fall back to focal-plane intersection.
+                            final RealPoint pos = new RealPoint(3);
+                            vp.getGlobalMouseCoordinates(pos);
+                            target = new double[]{pos.getDoublePosition(0),
+                                    pos.getDoublePosition(1),
+                                    pos.getDoublePosition(2)};
+                        }
+
+                        // Compute target transform: translate so that the clicked world point maps to (cx, cy, 0), i.e,
+                        // screen center at the focal plane. SimilarityTransformAnimator adds cX/cY internally, so pass
+                        // cX=cY=0 and bake the full translation into the target directly (see resetViewAction note)
+                        final AffineTransform3D current = new AffineTransform3D();
+                        vp.state().getViewerTransform(current);
+                        final double[] viewerPt = new double[3];
+                        current.apply(target, viewerPt);
+                        final double cx = vp.getDisplay().getWidth() / 2.0;
+                        final double cy = vp.getDisplay().getHeight() / 2.0;
+                        final AffineTransform3D dest = current.copy();
+                        dest.set(current.get(0, 3) + (cx - viewerPt[0]), 0, 3);
+                        dest.set(current.get(1, 3) + (cy - viewerPt[1]), 1, 3);
+                        dest.set(current.get(2, 3) + (0  - viewerPt[2]), 2, 3);
+                        // Calling setTransformAnimator replaces any running animation immediately (interruptible)
+                        vp.setTransformAnimator(new SimilarityTransformAnimator(current, dest, 0, 0, CENTER_ANIMATION_DURATION_MS));
+                    }
+                });
+    }
+
     /** Initializes the path overlay system for drawing traced paths. */
     private void initializePathOverlay(final BigVolumeViewer bvv) {
         if (pathOverlay != null) pathOverlay.dispose();
@@ -1341,7 +1394,7 @@ public class Bvv extends AbstractBigViewer {
     /** Initializes the annotation overlay system for drawing spheres at SNTPoint locations. */
     private void initializeAnnotationOverlay(final BigVolumeViewer bvv) {
         if (annotationOverlay != null) annotationOverlay.dispose();
-        annotationOverlay = new AnnotationOverlay(adapt(bvv.getViewer()), renderingOptions);
+        annotationOverlay = new AnnotationOverlay(adapt(bvv.getViewer()), this, renderingOptions);
     }
 
     /**
@@ -1925,6 +1978,74 @@ public class Bvv extends AbstractBigViewer {
         if (currentBvv != null) currentBvv.getViewer().getGlobalMouseCoordinates(pos);
     }
 
+    /**
+     * Returns the world-space endpoints of the perspective ray through the current mouse cursor position:
+     * result[0] = near-clip world point, result[1] = far-clip world point. Returns null if the mouse is
+     * outside the display or the viewer is not initialized.
+     *
+     * <p>The ray correctly accounts for BVV's perspective projection ({@code pf = dCam/(dCam+viewerZ)}),
+     * giving a well-defined 3D ray for every screen pixel regardless of where the volume's focal plane sits.
+     * Use this instead of {@link #getGlobalMouseCoordinates} when the Z coordinate of the picked point is
+     * important (e.g. landmark placement).
+     */
+    public double[][] findClickRay() {
+        if (pathOverlay == null) return null;
+        final double dCam = pathOverlay.overlayRenderer.dCam;
+        final double near = pathOverlay.overlayRenderer.nearClip;
+        final double far = pathOverlay.overlayRenderer.farClip;
+        return BvvUtils.findClickRay(getViewerPanel(), dCam, near, far);
+    }
+
+    /**
+     * Finds the world-space point of maximum intensity along the perspective ray
+     * through the current mouse cursor position.
+     * <p>
+     * Casts a ray from the near clip plane to the far clip plane, samples the
+     * active source at 0.5-voxel intervals, and refines the peak location to
+     * sub-voxel accuracy via a 3-point parabola fit. Use this for landmark
+     * placement when the Z coordinate from the focal plane alone is unreliable.
+     *
+     * @return world-space [x, y, z] of the intensity maximum, or null if the
+     * ray misses the volume, the mouse is outside the display, or no
+     * source is loaded
+     */
+    public double[] findClickRayMaxima() {
+        if (pathOverlay == null) return null;
+        final double near = pathOverlay.overlayRenderer.nearClip;
+        final double far  = pathOverlay.overlayRenderer.farClip;
+        final double[][] ray = findClickRay();
+        if (ray == null) return null;
+        final VolumeViewerPanel vp = getViewerPanel();
+        if (vp == null) return null;
+        final int tp = vp.state().getCurrentTimepoint();
+        // focalT: parametric t where viewerZ = 0 (the focal plane).
+        // viewerZ is linear along the ray: -nearClip at t=0, +farClip at t=1.
+        final double focalT = near / (near + far);
+        // Use the current source if the user has explicitly selected it and it is
+        // visible (e.g. clicked channel 2 in the sources panel to adjust its LUT).
+        // Otherwise sample all visible sources -- handles freshly opened multi-channel
+        // images where no source has been singled out yet.
+        final java.util.Set<bdv.viewer.SourceAndConverter<?>> visible =
+                vp.state().getVisibleAndPresentSources();
+        final bdv.viewer.SourceAndConverter<?> current = vp.state().getCurrentSource();
+        final java.util.Collection<bdv.viewer.SourceAndConverter<?>> toSample =
+                (current != null && visible.contains(current))
+                ? java.util.Collections.singleton(current)
+                : visible;
+        double[] bestPeak = null;
+        double   bestVal  = Double.NEGATIVE_INFINITY;
+        for (final bdv.viewer.SourceAndConverter<?> sac : toSample) {
+            final bdv.viewer.Source<?> src = sac.getSpimSource();
+            final int level = BvvUtils.bestMipLevel(vp, src, tp,
+                    pathOverlay.overlayRenderer.dCam, near, far);
+            final double[] peak = BvvUtils.rayMaxima(ray[0], ray[1], src, tp, focalT, level);
+            if (peak == null) continue;
+            final double val = BvvUtils.peakValue(peak, src, tp, level);
+            if (val > bestVal) { bestVal = val; bestPeak = peak; }
+        }
+        return bestPeak;
+    }
+
     @Override
     public float getDefaultMarkerSize() {
         return renderingOptions.getMinThickness();
@@ -2198,7 +2319,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         private int pctToTick(final double pct) {
-            return Math.max(1, Math.min(1000, (int) Math.round(pct)));
+            return Math.clamp((int) Math.round(pct), 1, 1000);
         }
 
         private double tickToPct(final int tick) { return tick; }
@@ -2612,6 +2733,14 @@ public class Bvv extends AbstractBigViewer {
             bar.add(GuiUtils.Buttons.toolbarButton(resetViewAction(),
                     "Reset view to startup state"), 0);
             // Append BVV-specific scene overlays
+            final JToggleButton crosshairToggle = GuiUtils.Buttons.toolbarToggleButton(
+                    overlayToggleAction("Crosshair", true, show -> {
+                        if (sceneOverlay != null) { sceneOverlay.showCrosshair = show; bvvInstance.repaint(); }
+                    }),
+                    "Show/hide center crosshair (focal anchor for double-click navigation)",
+                    IconFactory.GLYPH.CROSSHAIR, IconFactory.GLYPH.CROSSHAIR);
+            crosshairToggle.setSelected(true);
+            bar.add(crosshairToggle);
             final JToggleButton axesToggle = GuiUtils.Buttons.toolbarToggleButton(
                     overlayToggleAction("Axes", false, show -> {
                         if (sceneOverlay != null) { sceneOverlay.showAxes = show; bvvInstance.repaint(); }
@@ -2749,7 +2878,7 @@ public class Bvv extends AbstractBigViewer {
          * @param transparency transparency level (1.0 = opaque, 0.0 = fully transparent)
          */
         public void setTransparency(float transparency) {
-            this.transparency = Math.max(0.0f, Math.min(1.0f, transparency));
+            this.transparency = Math.clamp(transparency, 0.0f, 1.0f);
         }
 
         /**
@@ -2908,6 +3037,7 @@ public class Bvv extends AbstractBigViewer {
         volatile boolean showAxes = false;
         volatile boolean showBox = false;
         volatile boolean showSlabPlanes = false;
+        volatile boolean showCrosshair = true;
 
         private int canvasW, canvasH;
 
@@ -2919,8 +3049,9 @@ public class Bvv extends AbstractBigViewer {
 
         @Override
         public void drawOverlays(final java.awt.Graphics g) {
-            if (!showAxes && !showBox) return;
             if (canvasW == 0 || canvasH == 0) return;
+            if (showCrosshair) drawCrosshair((java.awt.Graphics2D) g);
+            if (!showAxes && !showBox) return;
 
             // Get current viewer transform and camera depth
             final VolumeViewerPanel viewer = currentBvv.getViewer();
@@ -3089,6 +3220,41 @@ public class Bvv extends AbstractBigViewer {
             }
             return minX == Float.MAX_VALUE ? null : new float[]{minX, minY, minZ, maxX, maxY, maxZ};
         }
+
+        /**
+         * Draws a small crosshair at the screen center. The crosshair acts as a
+         * persistent focal anchor so that after a double-click re-center the user
+         * can immediately see where the new focal point is. It is drawn in two
+         * passes (dark shadow + light stroke) for visibility against any background.
+         */
+        private void drawCrosshair(final java.awt.Graphics2D g) {
+            final int cx = canvasW / 2;
+            final int cy = canvasH / 2;
+            final int arm = 12;   // half-length of each arm in pixels
+            final int gap =  4;   // gap around the center point
+
+            final java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
+                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Shadow pass (dark, slightly thicker) for contrast on bright backgrounds.
+            g2.setStroke(new java.awt.BasicStroke(2.5f));
+            g2.setColor(new java.awt.Color(0, 0, 0, 120));
+            g2.drawLine(cx - arm, cy, cx - gap, cy);
+            g2.drawLine(cx + gap, cy, cx + arm, cy);
+            g2.drawLine(cx, cy - arm, cx, cy - gap);
+            g2.drawLine(cx, cy + gap, cx, cy + arm);
+
+            // Foreground pass (white, thinner).
+            g2.setStroke(new java.awt.BasicStroke(1.2f));
+            g2.setColor(new java.awt.Color(255, 255, 255, 200));
+            g2.drawLine(cx - arm, cy, cx - gap, cy);
+            g2.drawLine(cx + gap, cy, cx + arm, cy);
+            g2.drawLine(cx, cy - arm, cx, cy - gap);
+            g2.drawLine(cx, cy + gap, cx, cy + arm);
+
+            g2.dispose();
+        }
     }
 
 
@@ -3101,7 +3267,7 @@ public class Bvv extends AbstractBigViewer {
                     final PathRenderingOptions renderingOptions) {
             this.sntViewer = sntViewer;
             this.viewerPanel = viewerPanel;
-            this.overlayRenderer = new OverlayRenderer(viewerPanel, renderingOptions);
+            this.overlayRenderer = new OverlayRenderer(sntViewer, viewerPanel, renderingOptions);
             viewerPanel.addOverlay(overlayRenderer);
         }
 
@@ -3135,12 +3301,18 @@ public class Bvv extends AbstractBigViewer {
 
         private final BigViewerPanel viewerPanel;
         private final AnnRenderer annRenderer;
+        private final Bvv viewer;
         private final List<Annotation> annotations = new ArrayList<>();
 
-        AnnotationOverlay(final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+        AnnotationOverlay(final BigViewerPanel viewerPanel, final Bvv viewer, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
+            this.viewer = viewer;
             this.annRenderer = new AnnRenderer(viewerPanel, renderingOptions);
             viewerPanel.addOverlay(annRenderer);
+        }
+
+        AnnotationOverlay(final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+            this(viewerPanel, null, renderingOptions);
         }
 
         /**
@@ -3266,7 +3438,7 @@ public class Bvv extends AbstractBigViewer {
          * Uses BigViewerPanel so it works with both BDV and BVV.
          * For BDV, dCamAnn = Double.MAX_VALUE yields pf = 1.0 (orthographic).
          */
-        static class AnnRenderer implements bdv.viewer.OverlayRenderer {
+        class AnnRenderer implements bdv.viewer.OverlayRenderer {
 
             // Camera parameters kept in sync w/ OverlayRenderer via AnnotationOverlay.setCamParams()
             double dCamAnn     = BvvUtils.DEFAULT_D_CAM;
@@ -3438,9 +3610,11 @@ public class Bvv extends AbstractBigViewer {
             }
 
             private double[] getClipPosition() {
-                final double[] gPos = new double[3];
-                viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(gPos));
-                return gPos;
+                final double[] pos = new double[3];
+                final double[] peak = viewer.findClickRayMaxima();
+                if (peak != null) { pos[0] = peak[0]; pos[1] = peak[1]; pos[2] = peak[2]; }
+                else viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(pos)); // fallback to focal-plane intersection
+                return pos;
             }
 
             private boolean transformEquals(final AffineTransform3D a, final AffineTransform3D b) {
@@ -3493,7 +3667,7 @@ public class Bvv extends AbstractBigViewer {
      * For BDV, set dCam = Double.MAX_VALUE; the formula dCam/(dCam+z) then yields 1.0 (orthographic).
      */
     static class OverlayRenderer implements bdv.viewer.OverlayRenderer {
-
+        final AbstractBigViewer viewer;
         final BigViewerPanel viewerPanel;
         final PathRenderingOptions renderingOptions;
         final AffineTransform3D viewerTransform = new AffineTransform3D();
@@ -3520,7 +3694,8 @@ public class Bvv extends AbstractBigViewer {
         private int canvasWidth, canvasHeight;
         private double centerX, centerY;
 
-        OverlayRenderer(final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+        OverlayRenderer(final AbstractBigViewer viewer, final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
+            this.viewer = viewer;
             this.viewerPanel = viewerPanel;
             this.renderingOptions = renderingOptions;
             // BVV: dCam is overridden after image loading via computeCamParams().
@@ -3651,7 +3826,17 @@ public class Bvv extends AbstractBigViewer {
         }
 
         private double[] getClipPosition() {
-            viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(clipPosReuse));
+            if (viewer instanceof Bvv bvv) {
+                final double[] peak = bvv.findClickRayMaxima();
+                if (peak != null) {
+                    clipPosReuse[0] = peak[0];
+                    clipPosReuse[1] = peak[1];
+                    clipPosReuse[2] = peak[2];
+                } else
+                    viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(clipPosReuse)); // fallback to focal-plane intersection
+            } else {
+                viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(clipPosReuse)); // fallback to focal-plane intersection
+            }
             return clipPosReuse;
         }
 
@@ -4489,10 +4674,12 @@ public class Bvv extends AbstractBigViewer {
     /** Actions for BVV GUI components. */
     private class BvvActions {
         private final BigVolumeViewer bvv;
+        private final Bvv sntBvv;
         private final GuiUtils guiUtils;
         private float lastClippingDistance = 100f;
 
-        BvvActions(final BigVolumeViewer bvv) {
+        BvvActions(final Bvv sntBvv, final BigVolumeViewer bvv) {
+            this.sntBvv = sntBvv;
             this.bvv = bvv;
             this.guiUtils = new GuiUtils(bvv.getViewerFrame());
         }
@@ -4741,16 +4928,22 @@ public class Bvv extends AbstractBigViewer {
             return new AbstractAction("Add Marker") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final RealPoint pos = new RealPoint(3);
-                    bvv.getViewer().getGlobalMouseCoordinates(pos);
-                    final double x = pos.getDoublePosition(0);
-                    final double y = pos.getDoublePosition(1);
-                    final double z = pos.getDoublePosition(2);
+                    // Use ray-maxima for accurate Z; fall back to focal-plane if ray misses.
+                    final double[] peak = sntBvv.findClickRayMaxima();
+                    final double x, y, z;
+                    if (peak != null) {
+                        x = peak[0]; y = peak[1]; z = peak[2];
+                    } else {
+                        final RealPoint pos = new RealPoint(3);
+                        bvv.getViewer().getGlobalMouseCoordinates(pos);
+                        x = pos.getDoublePosition(0);
+                        y = pos.getDoublePosition(1);
+                        z = pos.getDoublePosition(2);
+                    }
                     // Validate X and Y against the source's world-space bounding box.
-                    // Only XY are checked: Z is controlled by the user's focal-plane navigation
-                    // and can legitimately sit anywhere along the depth axis. Out-of-range XY
-                    // indicates the view was obliquely rotated when M was pressed, making the
-                    // focal-plane projection meaningless.
+                    // Only XY are checked: Z is derived from the intensity peak along the
+                    // ray and needs no range check. Out-of-range XY indicates the view was
+                    // obliquely rotated, making coordinate recovery unreliable.
                     if (dims != null && cal != null) {
                         final bdv.viewer.SourceAndConverter<?> currentSac =
                                 bvv.getViewer().state().getCurrentSource();
