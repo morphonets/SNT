@@ -328,6 +328,11 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    public void addMouseListenerToDisplay(final java.awt.event.MouseListener ml) {
+        if (viewerPanel != null) viewerPanel.getDisplay().addMouseListener(ml);
+    }
+
+    @Override
     public void resetView() {
         if (viewerPanel == null) return;
         InitializeViewerState.initTransform(

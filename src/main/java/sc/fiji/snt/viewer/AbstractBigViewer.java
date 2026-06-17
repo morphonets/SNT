@@ -234,6 +234,15 @@ public abstract class AbstractBigViewer {
     protected abstract SourceAndConverter<?> getCurrentSource();
 
     /**
+     * Adds a mouse listener to the viewer's canvas component so that
+     * click events on the display surface can be handled (e.g. for hit testing
+     * annotation markers).
+     *
+     * @param ml the listener to add
+     */
+    public abstract void addMouseListenerToDisplay(java.awt.event.MouseListener ml);
+
+    /**
      * Looks up a named action from the viewer's keybindings action map.
      * Returns null if the action is not registered or the viewer is not ready.
      *
@@ -604,6 +613,23 @@ public abstract class AbstractBigViewer {
          * and requests a repaint. Call after bulk modifications.
          */
         void updateScene();
+
+        /**
+         * Highlights the annotation at the given model index by rendering it in
+         * a contrasting color. Pass -1 to clear any existing highlight.
+         *
+         * @param index model index of the annotation to highlight, or -1 for none
+         */
+        default void setSelectedIndex(int index) {}
+
+        /**
+         * Returns the model index of the annotation whose rendered circle/sphere
+         * contains the given screen point, or -1 if none is hit.
+         *
+         * @param screenX x coordinate in viewer-display pixels
+         * @param screenY y coordinate in viewer-display pixels
+         */
+        default int hitTest(int screenX, int screenY) { return -1; }
 
         /**
          * Replaces all annotations atomically and requests a single repaint.

@@ -293,7 +293,7 @@ public class SNTColor {
 	}
 
 	/**
-	 * Returns a suitable 'contrast' color.
+	 * Returns a BW 'contrast' color
 	 *
 	 * @param c the input color
 	 * @return Either white or black, as per hue of input color.
@@ -301,6 +301,57 @@ public class SNTColor {
 	public static Color contrastColor(final Color c) {
 		final int intensity = (c.getRed() + c.getGreen() + c.getBlue()) / 3;
 		return intensity < 128 ? Color.WHITE : Color.BLACK;
+	}
+
+	/**
+	 * Returns a suitable 'opposite' color.
+	 *
+	 * @param c the input color
+	 * @return The opposite color
+	 */
+	public static Color oppositeColor(final Color c) {
+		// Invert the RGB bits while keeping the alpha (opacity) channel unchanged
+		int invertedRGB = c.getRGB() ^ 0x00FFFFFF;
+		return new Color(invertedRGB, true);
+	}
+
+	/**
+	 * Returns a 'contrasting' color using warm/cool contrast adjustments.
+	 *
+	 * @param c the input color
+	 * @return The contrasting color
+	 */
+	public static Color contrastHueColor(final Color c) {
+
+		// Calculate relative luminance w/ "human perception weights". Range: from 0.0 (pure black) to 1.0 (pure white)
+		final double luminance = 0.2126 * linearize(c.getRed()) + 0.7152 * linearize(c.getGreen()) + 0.0722 * linearize(c.getBlue());
+
+		// Determine if the color feels perceptually "light" or "dark"
+		final boolean isPerceptuallyLight = luminance > 0.179; // standard WCAG threshold
+		int r = c.getRed();
+		int g = c.getGreen();
+		int b = c.getBlue();
+
+		final float shiftAmount = .4f; // 40% shift
+
+		if (isPerceptuallyLight) {
+			// Darken the color by scaling towards zero (black)
+			r = (int) Math.max(0, r * (1 - shiftAmount));
+			g = (int) Math.max(0, g * (1 - shiftAmount));
+			b = (int) Math.max(0, b * (1 - shiftAmount));
+		} else {
+			// Lighten the color by blending towards 255 (white)
+			r = (int) Math.min(255, r + (255 - r) * shiftAmount);
+			g = (int) Math.min(255, g + (255 - g) * shiftAmount);
+			b = (int) Math.min(255, b + (255 - b) * shiftAmount);
+		}
+		return new Color(r, g, b, c.getAlpha());
+	}
+
+	// linearize a sRGB channel (0-255) to linear light
+	private static double linearize(int c) {
+		double v = c / 255.0;
+		return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
 	}
 
 	/**
