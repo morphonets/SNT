@@ -855,9 +855,13 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             tracerPlugin.selectPath(onlyPath, addToExistingSelection);
             canvasInfo(onlyPath + " selected");
             return onlyPath;
-        } else for (final Path path : pathAndFillManager.getPaths()) {
-            if (!path.isSelected()) {
-                nodes.addAll(path.getUnscaledNodesInViewPort(this));
+        } else {
+            final boolean allSelected = pathAndFillManager.getSelectedPaths().isEmpty() ||
+                    pathAndFillManager.getSelectedPaths().size() == pathAndFillManager.getPaths().size();
+            for (final Path path : pathAndFillManager.getPaths()) {
+                if (allSelected || !path.isSelected()) {
+                    nodes.addAll(path.getUnscaledNodesInViewPort(this));
+                }
             }
         }
         if (nodes.isEmpty()) {
@@ -868,8 +872,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
 
         final double[] p = new double[3];
-        tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
-                last_y_in_pane_precise, plane, p);
+        tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise, last_y_in_pane_precise, plane, p);
         final PointInCanvas cursor = new PointInCanvas(p[0], p[1], 0);
 
         final NearPointInCanvas<PointInCanvas> nearPoint = NearPointInCanvas.nearestPointInCanvas(nodes, cursor);
