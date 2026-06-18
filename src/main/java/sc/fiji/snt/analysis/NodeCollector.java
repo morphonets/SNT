@@ -373,7 +373,11 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
             LoopBuilder.setImages(view, copy).forEachPixel((s, t) -> t.set(s));
             rai = copy;
         } else {
-            rai = view;
+            // Views.interval does NOT translate coordinates: position (0,0,0) in the view
+            // still maps to absolute position (0,0,0) in the source, not to (min[0],min[1],min[2]).
+            // Views.zeroMin shifts the coordinate origin so that position 0 == min, which is
+            // required for ImgView.wrap and ImageJFunctions.wrap to read the correct pixels.
+            rai = Views.zeroMin(view);
         }
         // Wrap back to ImgPlus, preserving axes & calibration (origin offsets updated to reflect the crop position)
         final ImgPlus<T> out = new ImgPlus<>(ImgView.wrap(rai), spatial.getName() + "_crop");
@@ -401,11 +405,13 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
             final PointInCanvas q = pim.getUnscaledPoint();
             return new long[]{Math.round(q.x), Math.round(q.y), Math.round(q.z)};
         }
-        final double[] spacing = ImgUtils.getSpacing(img);
+        // Use axis-type-aware lookups so that axis order (e.g. CXYZ vs XYZCT) does not matter.
+        // getSpacing() returns spacing indexed by dimension position, which is inconsistent
+        // with getOrigins() that uses axis types -- use getOrigin/getSpacingForAxis instead.
+        final double sx = ImgUtils.getSpacing(img, net.imagej.axis.Axes.X);
+        final double sy = ImgUtils.getSpacing(img, net.imagej.axis.Axes.Y);
+        final double sz = ImgUtils.getSpacing(img, net.imagej.axis.Axes.Z);
         final double[] origins = ImgUtils.getOrigins(img);
-        final double sx = spacing[0] == 0 ? 1 : spacing[0];
-        final double sy = spacing[1] == 0 ? 1 : spacing[1];
-        final double sz = spacing.length > 2 && spacing[2] != 0 ? spacing[2] : 1;
         return new long[]{
                 Math.round((p.getX() - origins[0]) / sx),
                 Math.round((p.getY() - origins[1]) / sy),

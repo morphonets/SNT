@@ -148,6 +148,22 @@ public class ImgUtils {
     }
 
     /**
+     * Returns the voxel spacing for a specific axis type, defaulting to 1.0 if
+     * the axis is absent or has zero scale. Unlike {@link #getSpacing(ImgPlus)},
+     * this is axis-order-independent.
+     */
+    public static double getSpacing(final ImgPlus<?> img, final net.imagej.axis.AxisType axisType) {
+        for (int d = 0; d < img.numDimensions(); d++) {
+            final CalibratedAxis axis = img.axis(d);
+            if (axis.type() == axisType) {
+                final double s = axis.averageScale(0, 1);
+                return s == 0 ? 1.0 : s;
+            }
+        }
+        return 1.0;
+    }
+
+    /**
      * Get the origin offsets as {xOrigin, yOrigin, zOrigin} from an ImgPlus.
      *
      * @param img the ImgPlus

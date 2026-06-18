@@ -3,6 +3,7 @@
 #@File(required = false, label = "Image file") imgFile
 #@int(label = "Window XY size (in pixels)", min = 4) windowXY
 #@int(label = "Window Z thickness (in pixels, 1=2D)", min = 1) windowZ
+#@int(label = "Channel (1-based index)", min = 1) channel
 #@SNTService sntService
 #@UIService uiService
 
@@ -58,6 +59,7 @@ if (!imgPlus || !points) {
 def collector = new NodeCollector(imgPlus, points)
 collector.setPointsInPixelSpace(pixelPositions)
 collector.setWindow(windowXY, windowZ)
+collector.setChannel(channel-1)
 
 // If the window depth is a slab of multiple planes, we will project it:
 def doMIP = (windowZ > 1) ? NodeCollector.Projection.MIP_Z: NodeCollector.Projection.NONE
