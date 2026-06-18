@@ -92,14 +92,10 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     private JCheckBox termBranchCheckbox;
     private JCheckBox constantRadiiCheckbox;
     private JCheckBox tortuosityCheckbox;
-    private JCheckBox interForkCheckbox;
     private JCheckBox overlapCheckbox;
-    private JCheckBox bundledPathsCheckbox;
-    private JCheckBox terminalNearAncestorCheckbox;
     private JCheckBox radiusJumpsCheckbox;
     private JCheckBox radiusMonoCheckbox;
     private JCheckBox invalidRadiusCheckbox;
-    private JCheckBox zExtentCheckbox;
     private JCheckBox uncertainTerminalCheckbox;
     private JCheckBox intensityValleyCheckbox;
     private JCheckBox signalQualityCheckbox;
@@ -250,27 +246,13 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
     private JPopupMenu buildTablePopupMenu() {
         final JPopupMenu popup = new JPopupMenu();
-
-        final JMenuItem copyItem = new JMenuItem("Copy Issue Description",
-                IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
+        final JMenuItem copyItem = new JMenuItem("Copy Issue Description", IconFactory.menuIcon(IconFactory.GLYPH.CLIPBOARD));
         copyItem.addActionListener(e -> {
-            if (warningsTable.getModel().getRowCount() < 1) {
+            final List<PlausibilityCheck.Warning> toCopy = tableModel.getSelectedWarnings(warningsTable, true);
+            if (toCopy.isEmpty()) {
                 sntui.error("No issues exist.");
                 return;
             }
-            final int[] selectedRows = warningsTable.getSelectedRows();
-            final List<PlausibilityCheck.Warning> toCopy;
-            if (selectedRows.length == 0) {
-                toCopy = tableModel.warnings; // copy all if none selected
-            } else {
-                toCopy = new ArrayList<>();
-                for (final int viewRow : selectedRows) {
-                    final int modelRow = warningsTable.convertRowIndexToModel(viewRow);
-                    if (modelRow >= 0 && modelRow < tableModel.warnings.size())
-                        toCopy.add(tableModel.warnings.get(modelRow));
-                }
-            }
-            if (toCopy.isEmpty()) return;
             final StringBuilder sb = new StringBuilder();
             for (final PlausibilityCheck.Warning w : toCopy) {
                 sb.append(w.severity()).append('\t').append(w.message());
@@ -290,79 +272,25 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         popup.add(copyItem);
 
         // Explain issue: open documentation page anchored to the relevant check
-        final JMenuItem explainItem = new JMenuItem("Help on Issue...",
-                IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+        final JMenuItem explainItem = new JMenuItem("Help on Issue...", IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
         explainItem.addActionListener(e -> {
-            final int viewRow = warningsTable.getSelectedRow();
-            if (viewRow < 0) {
-                sntui.error("No issue selected.");
+            final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
+            if (warnings.size() != 1) {
+                sntui.error("No issue selected. Please re-run after selecting a single issue.");
                 return;
             }
-            final int modelRow = warningsTable.convertRowIndexToModel(viewRow);
-            final PlausibilityCheck.Warning w = (modelRow >= 0 && modelRow < tableModel.warnings.size())
-                    ? tableModel.warnings.get(modelRow) : null;
-            final String anchor = (w != null) ? getDocAnchor(w.checkName()) : "";
+            final String anchor = getDocAnchor(warnings.getFirst().checkName());
             GuiUtils.openURL("https://imagej.net/plugins/snt/curation" + anchor);
         });
         popup.add(explainItem);
-        final JMenuItem clearItem = new JMenuItem("Clear All Issues",
-                IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
+        popup.addSeparator();
+        final JMenuItem clearItem = new JMenuItem("Clear All Issues", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         clearItem.addActionListener(e -> {
             tableModel.setWarnings(List.of());
             refreshTableHeader();
         });
         popup.add(clearItem);
-
-        GuiUtils.addSeparator(popup, "Seed Reviews:");
-
-        // Review-tag actions: mark the affected paths of the selected warning(s) as positive / negative training
-        // examples. The Path Manager view is refreshed afterward so the new tag is visible without the user having
-        // to click anything.
-        final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As");
-        reviewMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
-        reviewMenu.setToolTipText("<HTML>Tag the path(s) referenced by the selected warning(s)<br>" +
-                "as either positive or negative training examples.<br>" +
-                "Tags use the reserved <code>cur:</code> prefix and survive<br>" +
-                ".traces round-trips, so they can be filtered/exported later<br>" +
-                "from the Path Manager.");
-        final LinkedHashMap<String, Color> colors = GuiUtils.MenuItems.colorTagPresets();
-        final JMenuItem positiveItem = new JMenuItem("Positive Example",
-                IconFactory.accentIcon(colors.get("Green"), true));
-        positiveItem.setToolTipText("Tag affected paths as positive (accepted) training examples.");
-        positiveItem.addActionListener(e -> applyReviewTag(CurationTags::markPositive, "positive examples", true));
-        reviewMenu.add(positiveItem);
-
-        final JMenuItem negativeItem = new JMenuItem("Negative Example",
-                IconFactory.accentIcon(colors.get("Red"), true));
-        negativeItem.setToolTipText("Tag affected paths as negative (rejected/suspect) training examples.");
-        negativeItem.addActionListener(e -> applyReviewTag(CurationTags::markNegative, "negative examples", true));
-        reviewMenu.add(negativeItem);
-
-        final JMenuItem unsureItem = new JMenuItem("Needs Follow-up Review",
-                IconFactory.accentIcon(colors.get("Yellow"), true));
-        unsureItem.setToolTipText("Tag affected paths as needing a second pass (\"not sure\").");
-        unsureItem.addActionListener(e -> applyReviewTag(CurationTags::markUnsure, "needs-follow-up", true));
-        reviewMenu.add(unsureItem);
-
-        final JMenuItem clearReviewItem = new JMenuItem("Clear Review Status",
-                IconFactory.menuIcon(IconFactory.GLYPH.TIMES));
-        clearReviewItem.setToolTipText("Remove any cur:* review tag from affected paths.");
-        clearReviewItem.addActionListener(e -> applyReviewTag(CurationTags::clearReview, "(review tags cleared)", false));
-        reviewMenu.add(clearReviewItem);
-        reviewMenu.addSeparator();
-        reviewMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Seed Reviews",
-                "https://imagej.net/plugins/snt/curation#seed-review"));
-        popup.add(reviewMenu);
-
-        final JMenuItem showCuratedItem = new JMenuItem("Show Reviewed Paths in Path Manager",
-                IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
-        showCuratedItem.setToolTipText("<HTML>Switches to the Path Manager and filters its list to<br>" +
-                "show only paths carrying a <code>cur:*</code> review tag.");
-        showCuratedItem.addActionListener(e -> showCuratedPathsInPathManager());
-        popup.add(showCuratedItem);
         popup.addSeparator();
-        popup.add(visitingZoom.zoomControls("Visiting Zoom Level", "issues"));
-        // popup.addSeparator();
         return popup;
     }
 
@@ -677,7 +605,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         // Inter-fork distance
         final PlausibilityCheck.InterForkDistance interForkCheck = monitor.getLiveCheck(PlausibilityCheck.InterForkDistance.class);
-        interForkCheckbox = new JCheckBox("Inter-fork distance: min",
+        final JCheckBox interForkCheckbox = new JCheckBox("Inter-fork distance: min",
                 interForkCheck != null && interForkCheck.isEnabled());
         interForkCheckbox.setToolTipText("Flags consecutive forks on the same parent path that sit suspiciously close together");
         interForkSpinner = new JSpinner(new SpinnerNumberModel(
@@ -762,7 +690,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         // Bundled paths (sustained parallel proximity)
         final PlausibilityCheck.BundledPaths bundledCheck = monitor.getDeepCheck(PlausibilityCheck.BundledPaths.class);
-        bundledPathsCheckbox = new JCheckBox("Bundle detection: max angle (°)",
+        final JCheckBox bundledPathsCheckbox = new JCheckBox("Bundle detection: max angle (°)",
                 bundledCheck != null && bundledCheck.isEnabled());
         bundledPathsCheckbox.setToolTipText("<html>Flags regions where two paths run nearly parallel for a sustained " +
                 "distance<br>(complement of path cross-overs). Useful for catching duplicate traces<br>" +
@@ -783,7 +711,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         // Terminal near ancestor
         final PlausibilityCheck.TerminalNearAncestor tnaCheck = monitor.getDeepCheck(PlausibilityCheck.TerminalNearAncestor.class);
-        terminalNearAncestorCheckbox = new JCheckBox("Missed-fork candidate: max proximity",
+        final JCheckBox terminalNearAncestorCheckbox = new JCheckBox("Missed-fork candidate: max proximity",
                 tnaCheck != null && tnaCheck.isEnabled());
         terminalNearAncestorCheckbox.setToolTipText("Flags terminal branches whose endpoint sits near a non-direct-ancestor path (possible missed fork)");
         terminalNearAncestorSpinner = new JSpinner(new SpinnerNumberModel(
@@ -802,7 +730,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
 
         // Z-extent ratio (flat-in-z detection; off by default)
         final PlausibilityCheck.ZExtentRatio zCheck = monitor.getDeepCheck(PlausibilityCheck.ZExtentRatio.class);
-        zExtentCheckbox = new JCheckBox("Z-extent: min ratio", zCheck != null && zCheck.isEnabled());
+        final JCheckBox zExtentCheckbox = new JCheckBox("Z-extent: min ratio", zCheck != null && zCheck.isEnabled());
         zExtentCheckbox.setToolTipText("<html>Flags paths whose nodes barely vary in Z relative to path length.<br>" +
                 "Off by default: enable for cell types that span multiple Z slices.<br>" +
                 "Silently skipped when the dataset is 2D.");
@@ -1036,7 +964,11 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         filterButton.setToolTipText("Filter warnings by severity");
         tb.add(filterButton);
         tb.addSeparator();
-
+        // Tools button
+        final JButton toolsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOLBOX, 1f, getToolsMenu());
+        toolsButton.setToolTipText("Actions & utilities");
+        tb.add(toolsButton);
+        tb.addSeparator();
         // Calibration button
         calibrationMenu = new JPopupMenu();
         GuiUtils.addSeparator(calibrationMenu, "Auto-tuning:");
@@ -1074,8 +1006,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             }
         });
         calibrationMenu.add(openDirItem);
-        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(
-                IconFactory.GLYPH.OPTIONS, 1.1f, calibrationMenu);
+        final JButton optionsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.OPTIONS, 1.1f, calibrationMenu);
         optionsButton.setToolTipText("Auto-tuning and calibration options");
         tb.add(optionsButton);
 
@@ -1086,11 +1017,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JPopupMenu filterMenu = new JPopupMenu();
         GuiUtils.addSeparator(filterMenu, "Show:");
         for (final PlausibilityCheck.Severity sev : PlausibilityCheck.Severity.values()) {
-            final Color sevColor = switch (sev) {
-                case ERROR -> SEVERITY_ERROR;
-                case WARNING -> SEVERITY_WARNING;
-                case INFO -> SEVERITY_INFO;
-            };
+            final Color sevColor = severityColor(sev);
             final String sevLabel = switch (sev) {
                 case ERROR -> "Errors";
                 case WARNING -> "Warnings";
@@ -1131,6 +1058,75 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         });
         filterMenu.add(sortByImpact);
         return filterMenu;
+    }
+
+    private JPopupMenu getToolsMenu() {
+        final JPopupMenu popup = new JPopupMenu();
+        GuiUtils.addSeparator(popup, "Navigation:");
+        popup.add(visitingZoom.zoomControls("Visiting Zoom Level", "issues"));
+        GuiUtils.addSeparator(popup, "Path Tagging:");
+        final JMenuItem colorMenuItem = new JMenuItem("Color Affected Paths by Issue Severity");
+        colorMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.DANGER));
+        popup.add(colorMenuItem);
+        colorMenuItem.addActionListener(e -> {
+            final List<PlausibilityCheck.Warning> warnings = tableModel.getSelectedWarnings(warningsTable, true);
+            if (warnings.isEmpty()) {
+                sntui.error("No issue selected.");
+                return;
+            }
+            for (final PlausibilityCheck.Warning warning : warnings) {
+                warning.affectedPaths().forEach(p -> {
+                    p.setColor(severityColor(warning.severity()));
+                });
+            }
+            sntui.plugin.updateAllViewers();
+        });
+        GuiUtils.addSeparator(popup, "Seed Reviews:");
+
+        // Review-tag actions: mark the affected paths of the selected warning(s) as + / - training examples
+        final JMenu reviewMenu = new JMenu("Mark Affected Path(s) As");
+        reviewMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SEEDLING));
+        reviewMenu.setToolTipText("<HTML>Tag the path(s) referenced by the selected warning(s)<br>" +
+                "as either positive or negative training examples.<br>" +
+                "Tags use the reserved <code>cur:</code> prefix and survive<br>" +
+                ".traces round-trips, so they can be filtered/exported later<br>" +
+                "from the Path Manager.");
+        final LinkedHashMap<String, Color> colors = GuiUtils.MenuItems.colorTagPresets();
+        final JMenuItem positiveItem = new JMenuItem("Positive Example",
+                IconFactory.accentIcon(colors.get("Green"), true));
+        positiveItem.setToolTipText("Tag affected paths as positive (accepted) training examples.");
+        positiveItem.addActionListener(e -> applyReviewTag(CurationTags::markPositive, "positive examples", true));
+        reviewMenu.add(positiveItem);
+
+        final JMenuItem negativeItem = new JMenuItem("Negative Example",
+                IconFactory.accentIcon(colors.get("Red"), true));
+        negativeItem.setToolTipText("Tag affected paths as negative (rejected/suspect) training examples.");
+        negativeItem.addActionListener(e -> applyReviewTag(CurationTags::markNegative, "negative examples", true));
+        reviewMenu.add(negativeItem);
+
+        final JMenuItem unsureItem = new JMenuItem("Needs Follow-up Review",
+                IconFactory.accentIcon(colors.get("Yellow"), true));
+        unsureItem.setToolTipText("Tag affected paths as needing a second pass (\"not sure\").");
+        unsureItem.addActionListener(e -> applyReviewTag(CurationTags::markUnsure, "needs-follow-up", true));
+        reviewMenu.add(unsureItem);
+
+        final JMenuItem clearReviewItem = new JMenuItem("Clear Review Status",
+                IconFactory.menuIcon(IconFactory.GLYPH.TIMES));
+        clearReviewItem.setToolTipText("Remove any cur:* review tag from affected paths.");
+        clearReviewItem.addActionListener(e -> applyReviewTag(CurationTags::clearReview, "(review tags cleared)", false));
+        reviewMenu.add(clearReviewItem);
+        reviewMenu.addSeparator();
+        reviewMenu.add(GuiUtils.MenuItems.openHelpURL("Help on Seed Reviews",
+                "https://imagej.net/plugins/snt/curation#seed-review"));
+        popup.add(reviewMenu);
+
+        final JMenuItem showCuratedItem = new JMenuItem("Show Reviewed Paths in Path Manager",
+                IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
+        showCuratedItem.setToolTipText("<HTML>Switches to the Path Manager and filters its list to<br>" +
+                "show only paths carrying a <code>cur:*</code> review tag.");
+        showCuratedItem.addActionListener(e -> showCuratedPathsInPathManager());
+        popup.add(showCuratedItem);
+        return popup;
     }
 
     /**
@@ -1807,23 +1803,12 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
      */
     private void applyReviewTag(final java.util.function.Consumer<Path> mutator,
                                 final String descriptor, final boolean requiresIssues) {
-        if (requiresIssues && warningsTable.getModel().getRowCount() < 1) {
-            sntui.error("No issues exist.");
+
+        final List<PlausibilityCheck.Warning> source = tableModel.getSelectedWarnings(warningsTable, false);
+        if (source.isEmpty()) {
+            if (requiresIssues) sntui.error("No issues exist.");
             return;
         }
-        final int[] selectedRows = warningsTable.getSelectedRows();
-        final List<PlausibilityCheck.Warning> source;
-        if (selectedRows.length == 0) {
-            source = tableModel.warnings;
-        } else {
-            source = new ArrayList<>(selectedRows.length);
-            for (final int viewRow : selectedRows) {
-                final int modelRow = warningsTable.convertRowIndexToModel(viewRow);
-                if (modelRow >= 0 && modelRow < tableModel.warnings.size())
-                    source.add(tableModel.warnings.get(modelRow));
-            }
-        }
-        if (source.isEmpty()) return;
         // Deduplicate: a single path may be referenced by several warnings
         final java.util.LinkedHashSet<Path> affected = new java.util.LinkedHashSet<>();
         for (final PlausibilityCheck.Warning w : source) {
@@ -1842,8 +1827,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             pmUI.setSelectedPaths(new java.util.HashSet<>(affected), this);
         }
         sntui.plugin.setUnsavedChanges(true);
-        sntui.showStatus(String.format("Tagged %,d path(s) as %s.",
-                affected.size(), descriptor), true);
+        sntui.showStatus(String.format("Tagged %,d path(s) as %s.", affected.size(), descriptor), true);
     }
 
     private void showCuratedPathsInPathManager() {
@@ -1996,6 +1980,21 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         private List<PlausibilityCheck.Warning> allWarnings = new ArrayList<>();
         private List<PlausibilityCheck.Warning> warnings = new ArrayList<>();
 
+        /** never null */
+        List<PlausibilityCheck.Warning> getSelectedWarnings(final JTable table, final boolean allIfNoneSelected) {
+            final int[] viewRows = table.getSelectedRows();
+            if ( (viewRows.length == 0 && allIfNoneSelected) || viewRows.length == warnings.size()) {
+                return warnings;
+            }
+            final List<PlausibilityCheck.Warning> result = new ArrayList<>();
+            for (int viewRow : viewRows) {
+                final int modelRow = table.convertRowIndexToModel(viewRow);
+                if ((modelRow >= 0 && modelRow < warnings.size()))
+                    result.add(warnings.get(modelRow));
+            }
+            return result;
+        }
+
         void setWarnings(final List<PlausibilityCheck.Warning> warnings) {
             this.allWarnings = new ArrayList<>(warnings);
             applyFilter();
@@ -2145,12 +2144,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
             super.getTableCellRendererComponent(table, "", isSelected, hasFocus, row, column);
             setHorizontalAlignment(SwingConstants.CENTER);
             if (value instanceof PlausibilityCheck.Severity sev) {
-                final Color c = switch (sev) {
-                    case ERROR -> SEVERITY_ERROR;
-                    case WARNING -> SEVERITY_WARNING;
-                    case INFO -> SEVERITY_INFO;
-                };
-                setIcon(IconFactory.accentIcon(c, true));
+                setIcon(IconFactory.accentIcon(severityColor(sev), true));
                 setToolTipText(sev.name());
             } else {
                 setIcon(null);

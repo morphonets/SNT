@@ -2148,14 +2148,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         final int edNode = edPath.getEditableNodeIndex();
         final JPopupMenu popup = GuiUtils.MenuItems.colorTagPopup(this, chosen -> {
             pushEditUndo();
-            Color[] nodeColors = edPath.getNodeColors();
-            if (nodeColors == null) {
-                nodeColors = new Color[edPath.size()];
-                Arrays.fill(nodeColors, edPath.getColor() != null
-                        ? edPath.getColor() : tracerPlugin.selectedColor.darker());
-            }
-            nodeColors[edNode] = chosen; // null = remove tag
-            edPath.setNodeColors(nodeColors);
+            edPath.setNodeColor(chosen, edNode);
             redrawEditingPath((chosen == null) ? String.format("Tag removed from node #%d", edNode) : null);
             if (tracerPlugin.getUI() != null) {
                 tracerPlugin.getUI().getPathManager().update(true);

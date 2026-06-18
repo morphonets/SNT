@@ -5335,7 +5335,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     });
             GuiUtils.addSeparator(menu, "Zoom Control:");
             final JMenu zMenu = visitingZoom.zoomControls("Zoom to Node", "nodes");
-            zMenu.setText("Preferred Zoom Level");
+            zMenu.setText("Visiting Zoom Level");
             zMenu.setToolTipText("The magnification to be used when zooming into a node");
             menu.add(zMenu);
             final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MAGNIFIED_LOCATION, 1f, menu);
@@ -5466,7 +5466,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     case "Manually Tagged Nodes" -> {
                         suffix = "";
                         for (final Path path : paths) {
-                            if (!path.getName().toLowerCase().contains("tagged node(s)") || !path.hasNodeColors())
+                            if (Arrays.stream(path.getNodeColors()).noneMatch(Objects::isNull))
                                 continue; // see Tag Active Node... command in InteractiveTracerCanvas
                             final TreeSet<Integer> result = new TreeSet<>();
                             for (int i = 0; i < path.size(); i++) {

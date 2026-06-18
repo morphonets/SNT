@@ -1894,7 +1894,7 @@ public class GuiUtils {
 
 	public static void addSeparator(final JPopupMenu menu, final String header) {
 		final JLabel label = leftAlignedLabel(header, false);
-		if (menu.getComponentCount() > 1) menu.addSeparator();
+		if (menu.getComponentCount() > 0) menu.addSeparator();
 		menu.add(label);
 	}
 
@@ -4434,7 +4434,7 @@ public class GuiUtils {
 			return new OptionsButton(glyph, scalingFactor, menu);
 		}
 
-		public static class OptionsButton extends JButton {
+		 public static class OptionsButton extends JButton {
 			public final JPopupMenu popupMenu;
 
 			private OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu popupMenu) {

@@ -210,6 +210,7 @@ public class IconFactory {
         TIMES('\uf00d', true), //
         TOILET('\uf7d8', true), //
         TOOL('\uf0ad', true), //
+        TOOLBOX('\uf552', true), //
         TRASH('\uf2ed', false), //
         TREE('\uf1bb', true), //
         UPLOAD('\uf093', true), //
