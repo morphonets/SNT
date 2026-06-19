@@ -3011,6 +3011,11 @@ public class Bvv extends AbstractBigViewer {
             this.slabZMax = Double.POSITIVE_INFINITY;
         }
 
+        /** Returns true if a slab view is currently active. */
+        public boolean isSlabActive() {
+            return slabZMin != Double.NEGATIVE_INFINITY;
+        }
+
         /** Returns {@code true} if path rendering is restricted to the slab Z range. */
         public boolean isClipPathsToSlab() { return clipPathsToSlab; }
 
@@ -3303,10 +3308,12 @@ public class Bvv extends AbstractBigViewer {
         private final AnnRenderer annRenderer;
         private final Bvv viewer;
         private final List<Annotation> annotations = new ArrayList<>();
+        private final PathRenderingOptions renderingOptions;
 
         AnnotationOverlay(final BigViewerPanel viewerPanel, final Bvv viewer, final PathRenderingOptions renderingOptions) {
             this.viewerPanel = viewerPanel;
             this.viewer = viewer;
+            this.renderingOptions = renderingOptions;
             this.annRenderer = new AnnRenderer(viewerPanel, renderingOptions);
             viewerPanel.addOverlay(annRenderer);
         }
@@ -3425,6 +3432,14 @@ public class Bvv extends AbstractBigViewer {
             annRenderer.dCamAnn     = dCam;
             annRenderer.nearClipAnn = nearClip;
             annRenderer.farClipAnn  = farClip;
+            // Base params reflect the full-volume clip planes (never narrowed by slab).
+            // Update them only when slab view is not active, so that the unconditional
+            // scene-boundary cull (viewerZ outside [-baseNear, baseFar]) always fires,
+            // independently of the "Slab Annotations" toggle.
+            if (!renderingOptions.isSlabActive()) {
+                annRenderer.baseNearClipAnn = nearClip;
+                annRenderer.baseFarClipAnn  = farClip;
+            }
         }
 
         void dispose() {
@@ -3444,6 +3459,11 @@ public class Bvv extends AbstractBigViewer {
             double dCamAnn     = BvvUtils.DEFAULT_D_CAM;
             double nearClipAnn = BvvUtils.DEFAULT_NEAR_CLIP;
             double farClipAnn  = BvvUtils.DEFAULT_FAR_CLIP;
+            // Full-volume scene boundary. Never narrowed by slab activation.
+            // Used for the unconditional depth cull that always hides annotations
+            // outside the rendered volume, regardless of the Slab Annotations toggle.
+            double baseNearClipAnn = BvvUtils.DEFAULT_NEAR_CLIP;
+            double baseFarClipAnn  = BvvUtils.DEFAULT_FAR_CLIP;
             private final BigViewerPanel viewerPanel;
             private final PathRenderingOptions renderingOptions;
             private final AffineTransform3D viewerTransform = new AffineTransform3D();
@@ -3528,7 +3548,15 @@ public class Bvv extends AbstractBigViewer {
                         if (dx*dx + dy*dy + dz*dz > clipDist * clipDist) continue;
                     }
 
-                    // Slab clipping: hide annotations outside the slab's viewer-Z range
+                    // Scene boundary clip (always active): hide annotations outside the
+                    // full-volume near/far planes. baseNearClipAnn/baseFarClipAnn are
+                    // never narrowed by slab activation, so this fires even when the
+                    // Slab Annotations toggle is off or the slab controls are not shown.
+                    if (data.viewerZ > baseFarClipAnn || data.viewerZ < -baseNearClipAnn) continue;
+
+                    // Slab clip (toggle-controlled): when a slab view is active and the
+                    // Slab Annotations toggle is on, additionally restrict to the narrower
+                    // slab clip planes (nearClipAnn/farClipAnn = slab bounds).
                     if (renderingOptions.isClipAnnotationsToSlab()) {
                         if (data.viewerZ > farClipAnn || data.viewerZ < -nearClipAnn) continue;
                     }
