@@ -1194,20 +1194,7 @@ public class Bvv extends AbstractBigViewer {
             bvvFrame.getKeybindings().addInputMap("snt", sntIMap);
             bvvFrame.getKeybindings().addActionMap("snt", sntAMap);
             SwingUtilities.invokeLater(bvv::expandAndFocusCardPanel);
-            // Ensure the card panel is wide enough to show all controls without clipping.
-            // Use the Scene Controls panel's own preferred width since it's the widest,
-            // and its GridBagLayout has already computed the correct natural width.
-            final int cardPrefW = sceneControlsCard.getMinimumSize().width + 16; // minor padding
-            SwingUtilities.invokeLater(() -> {
-                final javax.swing.JSplitPane split = bvv.getViewerFrame().getSplitPanel();
-                final java.awt.Component cards = split.getRightComponent();
-                if (cards == null) return;
-                cards.setPreferredSize(new java.awt.Dimension(cardPrefW, cards.getPreferredSize().height));
-                final int frameW = bvv.getViewerFrame().getWidth();
-                if (frameW > cardPrefW)
-                    split.setDividerLocation(frameW - cardPrefW - split.getDividerSize());
-                bvv.getViewerFrame().revalidate();
-            });
+            resizeCardPanelsAsNeeded(sceneControlsCard);
         }
         // Initialize brightness from data percentiles (BVV doesn't do this automatically)
         SwingUtilities.invokeLater(() ->
@@ -1836,6 +1823,11 @@ public class Bvv extends AbstractBigViewer {
     @Override
     public VolumeViewerFrame getViewerFrame() {
         return (currentBvv == null) ? null : currentBvv.getViewerFrame();
+    }
+
+    @Override
+    protected JSplitPane getViewerSplitPanel() {
+        return (currentBvv==null) ? null : currentBvv.getViewerFrame().getSplitPanel();
     }
 
     /**
@@ -4750,7 +4742,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         Action syncPathManagerAction() {
-            return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.REDO)) {
+            return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (pathOverlay != null && syncPathManagerList()) {

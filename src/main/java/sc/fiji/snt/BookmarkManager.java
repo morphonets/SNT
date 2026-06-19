@@ -431,6 +431,7 @@ public class BookmarkManager {
             pMenu.add(mi);
             pMenu.addSeparator();
         }
+
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;

@@ -23,6 +23,7 @@
 package sc.fiji.snt.viewer;
 
 import bdv.tools.InitializeViewerState;
+import bdv.viewer.ViewerFrame;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.type.numeric.NumericType;
 import sc.fiji.snt.*;
@@ -147,11 +148,8 @@ public class Bdv extends AbstractBigViewer {
                 final BdvOptions chOpts = (firstSrc == null)
                         ? baseOpts()
                         : BdvOptions.options().addTo(bdvHandle);
-                // BDV requires 3D sources; add singleton Z for 2D images
-                RandomAccessibleInterval<?> chRai = ImpUtils.toImgPlus(ch);
-                if (chRai.numDimensions() < 3) chRai = Views.addDimension(chRai, 0, 0);
                 final BdvStackSource<?> cs = showCalibratedBdvSource(
-                        chRai, imp.getTitle() + " [C" + c + "]", chOpts);
+                        ImpUtils.toImgPlus(ch), imp.getTitle() + " [C" + c + "]", chOpts);
                 if (firstSrc == null) {
                     firstSrc = cs;
                     if (bdvHandle == null) {
@@ -214,9 +212,7 @@ public class Bdv extends AbstractBigViewer {
             BdvStackSource<?> firstSrc = null;
             final int nC = (int) img.dimension(chDim);
             for (int c = 0; c < nC; c++) {
-                // BDV requires 3D sources; add singleton Z for 2D images
-                RandomAccessibleInterval<T> ch = Views.hyperSlice(img, chDim, c);
-                if (ch.numDimensions() < 3) ch = Views.addDimension(ch, 0, 0);
+                final RandomAccessibleInterval<T> ch = Views.hyperSlice(img, chDim, c);
                 final BdvOptions chOpts = (firstSrc == null)
                         ? baseOpts().sourceTransform(calToTransform())
                         : BdvOptions.options().addTo(bdvHandle).sourceTransform(calToTransform());
@@ -324,9 +320,15 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
-    public JFrame getViewerFrame() {
-        return (bdvHandle == null) ? null
-                : bdvHandle.getSplitPanel().getTopLevelAncestor() instanceof JFrame f ? f : null;
+    public ViewerFrame getViewerFrame() {
+        if (bdvHandle == null) return null;
+        final java.awt.Container top = bdvHandle.getSplitPanel().getTopLevelAncestor();
+        return (top instanceof ViewerFrame f) ? f : null;
+    }
+
+    @Override
+    protected JSplitPane getViewerSplitPanel() {
+        return (bdvHandle == null) ? null : bdvHandle.getSplitPanel();
     }
 
     @Override
@@ -561,9 +563,12 @@ public class Bdv extends AbstractBigViewer {
             final RandomAccessibleInterval<?> rai,
             final String name,
             final BdvOptions opts) {
+        // BDV's renderer always calls realMax(2); add a singleton Z for 2D inputs
+        final RandomAccessibleInterval<?> rai3d = (rai.numDimensions() < 3)
+                ? Views.addDimension(rai, 0, 0) : rai;
         final SpimDataUtils.CalibratedSource src =
                 new SpimDataUtils.CalibratedSource(
-                        rai, (NumericType) rai.getType(), calToTransform(), name,
+                        rai3d, (NumericType) rai3d.getType(), calToTransform(), name,
                         cal != null ? cal : new double[]{1, 1, 1},
                         calUnit != null ? calUnit : "pixel");
         return BdvFunctions.show(src, 1, opts);
@@ -601,11 +606,12 @@ public class Bdv extends AbstractBigViewer {
         if (cp != null) {
             cp.addCard("Scene Controls", buildSceneControlToolbar(), true);
             cp.addCard("SNT Annotations", sntAnnotationsCard(actions), true);
-            cp.setCardExpanded("Groups", false);
             SwingUtilities.invokeLater(() -> {
+                cp.setCardExpanded("Groups", false);
                 cp.setCardExpanded("Scene Controls", true);
                 cp.setCardExpanded("SNT Annotations", true);
             });
+            resizeCardPanelsAsNeeded(cp.getComponent());
         }
 
         // M and H keys via BDV's keybindings system so the trigger layer sees them
@@ -874,7 +880,7 @@ public class Bdv extends AbstractBigViewer {
         }
 
         Action syncPathManagerAction() {
-            return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.REDO)) {
+            return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (syncPathManagerList()) {

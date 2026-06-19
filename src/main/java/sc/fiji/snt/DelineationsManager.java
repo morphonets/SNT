@@ -122,13 +122,14 @@ public class DelineationsManager {
                 """;
         gbc.weighty = 0.1;
         container.add(GuiUtils.longSmallMsg(msg, container), gbc);
-        gbc.weighty = 0;
+        gbc.weighty = 0.5;
         final JScrollPane sp = new JScrollPane(delineationsPanel);
         sp.setMinimumSize(delineationsPanel.getPreferredSize());
         sp.setBorder(null);
         gbc.gridy++;
         container.add(sp, gbc);
         gbc.gridy++;
+        gbc.weighty = 0.1;
         container.add(outsideColorAndAddMoreEntriesWidget(), gbc);
         gbc.insets = new Insets(5, 0, 5, 0);
         gbc.gridy++;
@@ -238,7 +239,7 @@ public class DelineationsManager {
             delineationsPanel.repaint();
         });
 
-        final JLabel label = new JLabel(" Outside color:");
+        final JLabel label = new JLabel("Non-delineating color:");
         label.setToolTipText("Fallback color for non-delineated sections");
         toolbar.add(label);
         final JButton fColorButton = new JButton(IconFactory.accentIcon(fallbackColor, true));

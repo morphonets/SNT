@@ -4492,9 +4492,12 @@ public class GuiUtils {
 			return button;
 		}
 
-		public static JButton sync(final Action action) {
-			final JButton button = (action == null) ? new JButton() : new JButton(action);
-			makeSmallBorderless(button, GLYPH.SYNC, UIManager.getColor("Spinner.buttonArrowColor"));
+		public static JButton sync(final boolean borderless) {
+			final JButton button = new JButton();
+			if (borderless)
+				makeSmallBorderless(button, GLYPH.SYNC, UIManager.getColor("Spinner.buttonArrowColor"));
+			else
+				IconFactory.assignIcon(button, GLYPH.SYNC, UIManager.getColor("Spinner.buttonArrowColor"), .8f);
 			return button;
 		}
 

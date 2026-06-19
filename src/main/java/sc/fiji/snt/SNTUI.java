@@ -34,7 +34,6 @@ import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
-import net.imglib2.RandomAccessibleInterval;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -2094,7 +2093,9 @@ public class SNTUI extends JDialog {
         final JButton applyUnivChoice = new JButton("Apply");
         final JComboBox<String> displayChoice = new JComboBox<>();
         final JButton applyDisplayChoice = new JButton("Apply");
-        final JButton refreshList = GuiUtils.Buttons.sync(null);
+        final JButton refreshList = GuiUtils.Buttons.sync(false);
+        refreshList.setToolTipText("Refresh list");
+        refreshList.setPreferredSize(new Dimension(refreshList.getPreferredSize().width, applyUnivChoice.getPreferredSize().height));
         final JComboBox<String> actionChoice = new JComboBox<>();
         final JButton applyActionChoice = new JButton("Apply");
 
@@ -4161,9 +4162,8 @@ public class SNTUI extends JDialog {
         toolbar.addSeparator();
 
         // Quick Toggles dropdown
-        final JButton quickToggles = new JButton(IconFactory.menuIcon('\ue0b7', true, IconFactory.defaultColor()));
+        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f,quickTogglesMenu() );
         quickToggles.setToolTipText("Quick Toggles for common actions");
-        quickToggles.addActionListener(e -> quickTogglesMenu().show(quickToggles, 0, quickToggles.getHeight()));
         toolbar.add(quickToggles);
 
         // Status text (full width, below toolbar)

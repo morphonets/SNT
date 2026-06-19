@@ -117,11 +117,38 @@ public abstract class AbstractBigViewer {
         };
     }
 
+    void resizeCardPanelsAsNeeded(final JComponent refPanel) {
+        // Ensure the card panel is wide enough to show all controls without clipping.
+        // Use the Scene Controls panel's own preferred width since it's the widest,
+        // and its GridBagLayout has already computed the correct natural width.
+        final int cardPrefW = refPanel.getMinimumSize().width + 16; // minor padding
+        SwingUtilities.invokeLater(() -> {
+            final javax.swing.JSplitPane split = getViewerSplitPanel();
+            if (split == null) return;
+            final java.awt.Component cards = split.getRightComponent();
+            if (cards == null) return;
+            cards.setPreferredSize(new java.awt.Dimension(cardPrefW, cards.getPreferredSize().height));
+            final JFrame frame = getViewerFrame();
+            final int frameW = frame != null ? frame.getWidth() : 0;
+            if (frameW > cardPrefW)
+                split.setDividerLocation(frameW - cardPrefW - split.getDividerSize());
+            if (frame != null) frame.revalidate();
+        });
+    }
+
     /**
-     * Returns the top-level Swing window for this viewer.
-     * May be null if the viewer has not been opened yet.
+     * Returns the top-level Swing window for this viewer, or null if not yet open.
      */
     public abstract JFrame getViewerFrame();
+
+    /**
+     * Returns the JSplitPane that separates the viewer canvas from the card panel.
+     * Both BDV and BVV frames expose this via their own getSplitPanel() methods,
+     * but those classes share no common supertype above JFrame, so this method
+     * lets subclasses expose the split pane without the abstract method returning
+     * a viewer-specific frame type.
+     */
+    protected abstract javax.swing.JSplitPane getViewerSplitPanel();
 
     /**
      * Returns the width of the viewer canvas in logical pixels,
@@ -515,7 +542,6 @@ public abstract class AbstractBigViewer {
     /**
      * Builds the shared scene-control toolbar: fit-source button, align-plane
      * buttons (XY, XZ, YZ), minimap toggle, text-overlay toggle, scale-bar toggle.
-     *
      * Subclasses call this and may prepend or append viewer-specific buttons.
      *
      * @return a partially populated JToolBar ready for additional buttons
