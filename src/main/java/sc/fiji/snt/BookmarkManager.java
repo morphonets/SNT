@@ -913,20 +913,10 @@ public class BookmarkManager {
                 final int target = (row < 0 || row >= table.getRowCount() - 1) ? 0 : row + 1;
                 if (target < table.getRowCount()) { table.setRowSelectionInterval(target, target); flyTo(target); }
             });
-            final JButton resetButton = new JButton(IconFactory.menuIcon(IconFactory.GLYPH.EXPAND));
-            resetButton.setToolTipText("Reset view to fit volume");
-            resetButton.addActionListener(e -> viewer.resetView());
             final JButton helpButton = GuiUtils.Buttons.help(null);
-            helpButton.addActionListener(e -> {
-                if (viewer instanceof Bvv)
-                    displayMarkerHelp3D();
-                else
-                    displayMarkerHelp2D();
-            });
+            helpButton.addActionListener(e -> bigViewerMarkerHelp(viewer));
             tb.add(prevButton);
             tb.add(nextButton);
-            tb.addSeparator();
-            tb.add(resetButton);
             tb.addSeparator();
             tb.add(Box.createHorizontalGlue());
             // Inject any viewer-provided toolbar buttons (e.g. slab-clip toggle)
@@ -959,42 +949,26 @@ public class BookmarkManager {
         return tb;
     }
 
-    private void displayMarkerHelp2D() {
+    private void bigViewerMarkerHelp(final AbstractBigViewer viewer) {
+        final String viewerType = (viewer instanceof Bvv) ? "BVV" : "BDV";
+        final String markerType = (viewer instanceof Bvv) ? "spheres" : "circles";
         final String MARKER_HELP_MSG =
                 "<html><body style='width:350px; font-family:sans-serif'>" +
                         "<h3>Placing Markers (M key)</h3>" +
-                        "Press <b>M</b> in BDV to place a marker at the current cursor position. " +
-                        "Markers are rendered as circles at 3D world coordinates and listed in this table." +
+                        "Press <b>M</b> in " + viewerType + " to place a marker at the current cursor position. " +
+                        "Markers are rendered as " + markerType + " and listed in this table in calibrated coordinates." +
+                        "<h3>Toggling Markers (H key)</h3>" +
+                        "Press <b>H</b> in the viewer to temporarily hide markers. Use <i>Rendering options</i> in the " +
+                        "SNT Annotations toolbar to set their opacity." +
+                        "<h3>Activating Markers</h3>" +
+                        "In " + viewerType + ", click on a marker to have its row selected. In the table, select a row " +
+                        "to have the marker highlighted in the viewer." +
                         "<h3>Navigation</h3>" +
                         "Double-click a row to fly to that marker. Use the <b>&uarr;</b> / <b>&darr;</b> " +
-                        "buttons to step through markers in order without touching the table with the mouse." +
+                        "buttons/keys to step through markers sequentially. Use the contextual menu for positional sorting." +
                         "</body></html>";
         new GuiUtils((table==null) ? null : table.getParent())
-                .showHTMLDialog(MARKER_HELP_MSG, "About Markers", false);
-    }
-
-    private void displayMarkerHelp3D() {
-        final String MARKER_HELP_MSG =
-                "<html><body style='width:350px; font-family:sans-serif'>" +
-                        "<h3>Placing Markers (M key)</h3>" +
-                        "Press <b>M</b> in BVV to place a marker at the current cursor position. " +
-                        "Markers are rendered as spheres at 3D world coordinates and listed in this table." +
-                        "<h3>Important: View Orientation</h3>" +
-                        "Marker coordinates are computed by projecting the 2D cursor position onto the " +
-                        "<em>focal plane</em> — the plane at the centre of the volume that faces the camera. " +
-                        "This projection is only accurate when the view is aligned to a principal axis " +
-                        "(X&ndash;Y, X&ndash;Z, or Y&ndash;Z), because the focal plane then cuts cleanly " +
-                        "through the volume. When the volume is rotated to an oblique angle the focal plane " +
-                        "may not intersect the data at all, and the resulting coordinates can fall far outside " +
-                        "the image bounds. Markers placed in that situation are automatically rejected." +
-                        "<p><b>Tip:</b> Use the <em>Reset</em> button to restore the default axis-aligned view " +
-                        "before placing markers, then rotate freely to inspect them.</p>" +
-                        "<h3>Navigation</h3>" +
-                        "Double-click a row to fly to that marker. Use the <b>&uarr;</b> / <b>&darr;</b> " +
-                        "buttons to step through markers in order without touching the table with the mouse." +
-                        "</body></html>";
-        new GuiUtils((table==null) ? null : table.getParent())
-                .showHTMLDialog(MARKER_HELP_MSG, "About Markers", false);
+                .showHTMLDialog(MARKER_HELP_MSG, "About " + viewerType + " Markers", false);
     }
 
     private boolean noBookmarksError() {

@@ -22,6 +22,7 @@
 
 package sc.fiji.snt;
 
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
@@ -2429,6 +2430,7 @@ public class SNTUI extends JDialog {
 
     private JPanel reconstructionViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         openRecViewer = new JButton("Open Rec. Viewer");
+        InternalUtils.assignSVGIcon(openRecViewer, "morphonets-logo-icon.svg");
         registerInCommandFinder(openRecViewer, "Open Reconstruction Viewer (RV)", "3D Tab");
         openRecViewer.addActionListener(e -> {
             if (noPathsError()) return; // otherwise list in RV controls won't update once paths are added
@@ -2484,8 +2486,10 @@ public class SNTUI extends JDialog {
 
     private JPanel sciViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         openSciView = new JButton("Open sciview");
+        InternalUtils.assignSVGIcon(openSciView, "sciview-logo-icon.svg");
         registerInCommandFinder(openSciView, null, "3D Tab");
         openSciView.addActionListener(e -> {
+            if (noPathsError()) return; // for consistency with rec. viewer
             if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
                 final CommandService cmdService = plugin.getContext().getService(CommandService.class);
                 cmdService.run(EnableSciViewUpdateSiteCmd.class, true);
@@ -2555,6 +2559,7 @@ public class SNTUI extends JDialog {
 
     private JPanel bvvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         final JButton openBVV = new JButton("Open BVV");
+        InternalUtils.assignSVGIcon(openBVV, "bdv-logo-light.svg");
         registerInCommandFinder(openBVV, "Open Big Volume Viewer (BVV)", "3D Tab");
         openBVV.addActionListener(e -> {
             if (!plugin.accessToValidImageData()) {
@@ -2586,6 +2591,7 @@ public class SNTUI extends JDialog {
 
     private JPanel bdvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         final JButton openBDV = new JButton("Open BDV");
+        InternalUtils.assignSVGIcon(openBDV, "bdv-logo-dark.svg");
         registerInCommandFinder(openBDV, "Open Big Data Viewer (BDV)", "3D Tab");
         openBDV.addActionListener(e -> {
             if (!plugin.accessToValidImageData()) {
@@ -5496,6 +5502,11 @@ public class SNTUI extends JDialog {
             if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
                 return ImportAction.IMAGE;
             return -1;
+        }
+
+        static void assignSVGIcon(final AbstractButton button, final String svgFile) {
+            final int size = button.getFontMetrics(button.getFont()).getHeight();
+            button.setIcon(new FlatSVGIcon("gui/" + svgFile, size , size));
         }
 
         static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
