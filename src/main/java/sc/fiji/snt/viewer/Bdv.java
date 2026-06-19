@@ -41,6 +41,7 @@ import net.imagej.axis.Axes;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
+import net.imglib2.view.Views;
 import net.imglib2.type.NativeType;
 import net.imglib2.type.numeric.RealType;
 import org.scijava.command.CommandService;
@@ -136,16 +137,42 @@ public class Bdv extends AbstractBigViewer {
                            imp.getCalibration().pixelDepth};
         dims = new long[]{imp.getWidth(), imp.getHeight(), Math.max(imp.getNSlices(), 1)};
         calUnit = imp.getCalibration().getUnit();
-        // Use CalibratedSource so the unit propagates to the BDV scale bar.
-        // BdvFunctions.show(ImgPlus) leaves VoxelDimensions.unit() as "pixel".
-        final BdvStackSource<?> src = showCalibratedBdvSource(
-                ImpUtils.toImgPlus(imp), imp.getTitle(), baseOpts());
-        if (bdvHandle == null) {
-            bdvHandle = src.getBdvHandle();
-            viewerPanel = bdvHandle.getViewerPanel();
-            initializeOverlays();
-            InitializeViewerState.initBrightness(0.001, 0.999,
-                    viewerPanel.state(), bdvHandle.getConverterSetups());
+        final BdvStackSource<?> src;
+        if (imp.getNChannels() > 1) {
+            // Multichannel: show each channel as a separate BDV source.
+            // Passing the full [W,H,C] RAI directly to CalibratedSource treats C as Z.
+            BdvStackSource<?> firstSrc = null;
+            for (int c = 1; c <= imp.getNChannels(); c++) {
+                final ImagePlus ch = ImpUtils.getChannel(imp, c);
+                final BdvOptions chOpts = (firstSrc == null)
+                        ? baseOpts()
+                        : BdvOptions.options().addTo(bdvHandle);
+                // BDV requires 3D sources; add singleton Z for 2D images
+                RandomAccessibleInterval<?> chRai = ImpUtils.toImgPlus(ch);
+                if (chRai.numDimensions() < 3) chRai = Views.addDimension(chRai, 0, 0);
+                final BdvStackSource<?> cs = showCalibratedBdvSource(
+                        chRai, imp.getTitle() + " [C" + c + "]", chOpts);
+                if (firstSrc == null) {
+                    firstSrc = cs;
+                    if (bdvHandle == null) {
+                        bdvHandle = cs.getBdvHandle();
+                        viewerPanel = bdvHandle.getViewerPanel();
+                        initializeOverlays();
+                        InitializeViewerState.initBrightness(0.001, 0.999,
+                                viewerPanel.state(), bdvHandle.getConverterSetups());
+                    }
+                }
+            }
+            src = firstSrc;
+        } else {
+            src = showCalibratedBdvSource(ImpUtils.toImgPlus(imp), imp.getTitle(), baseOpts());
+            if (bdvHandle == null) {
+                bdvHandle = src.getBdvHandle();
+                viewerPanel = bdvHandle.getViewerPanel();
+                initializeOverlays();
+                InitializeViewerState.initBrightness(0.001, 0.999,
+                        viewerPanel.state(), bdvHandle.getConverterSetups());
+            }
         }
         return src;
     }
@@ -181,13 +208,35 @@ public class Bdv extends AbstractBigViewer {
         final int chDim = img.dimensionIndex(Axes.CHANNEL);
         BdvStackSource<?> src;
         if (chDim >= 0 && img.dimension(chDim) > 1) {
-            // Multichannel: BdvFunctions handles axis ordering; unit will be "pixel" in
-            // scale bar (known limitation -- CalibratedSource is per-channel only).
-            src = BdvFunctions.show(img, title, baseOpts().sourceTransform(calToTransform()));
+            // Multichannel: show each channel as a separate BDV source.
+            // BdvFunctions.show(ImgPlus) has no ImgPlus-specific overload and falls back
+            // to the RAI overload, which treats the channel dim as Z regardless of axis labels.
+            BdvStackSource<?> firstSrc = null;
+            final int nC = (int) img.dimension(chDim);
+            for (int c = 0; c < nC; c++) {
+                // BDV requires 3D sources; add singleton Z for 2D images
+                RandomAccessibleInterval<T> ch = Views.hyperSlice(img, chDim, c);
+                if (ch.numDimensions() < 3) ch = Views.addDimension(ch, 0, 0);
+                final BdvOptions chOpts = (firstSrc == null)
+                        ? baseOpts().sourceTransform(calToTransform())
+                        : BdvOptions.options().addTo(bdvHandle).sourceTransform(calToTransform());
+                final BdvStackSource<?> cs = showCalibratedBdvSource(
+                        ch, title + " [C" + (c + 1) + "]", chOpts);
+                if (firstSrc == null) {
+                    firstSrc = cs;
+                    if (bdvHandle == null) {
+                        bdvHandle = cs.getBdvHandle();
+                        viewerPanel = bdvHandle.getViewerPanel();
+                        initializeOverlays();
+                    }
+                }
+            }
+            src = firstSrc;
         } else {
             // Single-channel: wrap in CalibratedSource so unit propagates to scale bar
             src = showCalibratedBdvSource(img, title, baseOpts());
         }
+        // Single-channel path init (multichannel handles this inside the loop above)
         if (bdvHandle == null) {
             bdvHandle = src.getBdvHandle();
             viewerPanel = bdvHandle.getViewerPanel();

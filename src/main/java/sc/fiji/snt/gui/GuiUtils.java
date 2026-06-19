@@ -4492,6 +4492,12 @@ public class GuiUtils {
 			return button;
 		}
 
+		public static JButton sync(final Action action) {
+			final JButton button = (action == null) ? new JButton() : new JButton(action);
+			makeSmallBorderless(button, GLYPH.SYNC, UIManager.getColor("Spinner.buttonArrowColor"));
+			return button;
+		}
+
 		/**
 		 * Small borderless icon button styled to sit next to a spinner. Used by the Curation Assistant's per-check
 		 * histogram popups, but generic.

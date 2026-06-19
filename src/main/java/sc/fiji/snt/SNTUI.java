@@ -33,6 +33,7 @@ import ij3d.Content;
 import ij3d.ContentConstants;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
+import net.imglib2.RandomAccessibleInterval;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
@@ -60,6 +61,7 @@ import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.TreeUtils;
+import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -159,6 +161,7 @@ public class SNTUI extends JDialog {
 
     /* Bvv */
     private Bvv bvvSNT;
+    private Bdv bdvSNT;
 
     private final GuiListener listener;
 
@@ -377,16 +380,27 @@ public class SNTUI extends JDialog {
         tab3.add(GuiUtils.longSmallMsg(msg3, tab3), c3);
         c3.gridy++;
         tab3.add(sciViewerPanel(viewerPanelBuilder), c3);
+
+
         c3.gridy++;
+        InternalUtils.addSeparatorWithURL(tab3, "Big Data Viewer:", true, c3);
+        ++c3.gridy;
+        final String msg5 = "Big Data Viewer (BDV) is Fiji's interactive re-slicing browser for " +
+                "images too large to fit into memory.";
+        tab3.add(GuiUtils.longSmallMsg(msg5, tab3), c3);
+        c3.gridy++;
+        tab3.add(bdvPanel(viewerPanelBuilder), c3);
+        c3.gridy++;
+
         InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", true, c3);
         ++c3.gridy;
         final String msg4 = "Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
-                "capable of GPU volume rendering of images too large to fit into memory. " +
-                "Discrete graphics card recommended.";
+                "capable of GPU volume rendering. Discrete graphics card recommended.";
         tab3.add(GuiUtils.longSmallMsg(msg4, tab3), c3);
         c3.gridy++;
         tab3.add(bvvPanel(viewerPanelBuilder), c3);
         c3.gridy++;
+
         InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
         ++c3.gridy;
         final String msg2 =
@@ -2079,7 +2093,7 @@ public class SNTUI extends JDialog {
         final JButton applyUnivChoice = new JButton("Apply");
         final JComboBox<String> displayChoice = new JComboBox<>();
         final JButton applyDisplayChoice = new JButton("Apply");
-        final JButton refreshList = GuiUtils.Buttons.smallButton("Refresh List");
+        final JButton refreshList = GuiUtils.Buttons.sync(null);
         final JComboBox<String> actionChoice = new JComboBox<>();
         final JButton applyActionChoice = new JButton("Apply");
 
@@ -2322,6 +2336,8 @@ public class SNTUI extends JDialog {
         p.add(univChoice, c);
         c.gridx++;
         c.weightx = 0;
+        p.add(refreshList, c);
+        c.gridx++;
         p.add(applyUnivChoice, c);
 
         // row 2
@@ -2330,7 +2346,7 @@ public class SNTUI extends JDialog {
         c.gridwidth = 1;
         c.anchor = GridBagConstraints.EAST;
         c.fill = GridBagConstraints.NONE;
-        p.add(refreshList, c);
+       // p.add(refreshList, c);
 
         // row 3
         c.gridy++;
@@ -2340,9 +2356,12 @@ public class SNTUI extends JDialog {
         p.add(GuiUtils.leftAlignedLabel("Mode: ", true), c);
         c.gridx++;
         c.fill = GridBagConstraints.HORIZONTAL;
+        c.gridwidth=2;
         p.add(displayChoice, c);
         c.gridx++;
         c.fill = GridBagConstraints.NONE;
+        c.gridx++;
+        c.gridwidth=1;
         p.add(applyDisplayChoice, c);
 
         // row 4
@@ -2352,15 +2371,18 @@ public class SNTUI extends JDialog {
         p.add(GuiUtils.leftAlignedLabel("Actions: ", true), c);
         c.gridx++;
         c.fill = GridBagConstraints.HORIZONTAL;
+        c.gridwidth=2;
         p.add(actionChoice, c);
         c.gridx++;
         c.fill = GridBagConstraints.NONE;
+        c.gridx++;
+        c.gridwidth=1;
         p.add(applyActionChoice, c);
 
         // row 5
         c.gridy++;
         c.gridx = 0;
-        c.gridwidth = 3;
+        c.gridwidth = 4;
         final JCheckBox jcbx = new JCheckBox("Quiet mode (log errors to Console)", ij.IJ.redirectingErrorMessages());
         jcbx.addActionListener(e -> ij.IJ.redirectErrorMessages(jcbx.isSelected()));
         jcbx.setToolTipText("""
@@ -2560,6 +2582,44 @@ public class SNTUI extends JDialog {
             }
         });
         return viewerPanelBuilder.createViewerPanel(openBVV, syncBVV);
+    }
+
+    private JPanel bdvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
+        final JButton openBDV = new JButton("Open BDV");
+        registerInCommandFinder(openBDV, "Open Big Data Viewer (BDV)", "3D Tab");
+        openBDV.addActionListener(e -> {
+            if (!plugin.accessToValidImageData()) {
+                noValidImageDataError();
+            } else {
+                try {
+                    bdvSNT = new Bdv();
+                    bdvSNT.show(plugin.getImagePlus());
+                    if (bdvSNT.getViewerFrame() != null) {
+                        bdvSNT.getViewerFrame().addWindowListener(new WindowAdapter() {
+                            @Override
+                            public void windowClosing(WindowEvent e) {
+                                super.windowClosing(e);
+                                bdvSNT = null;
+                            }
+                        });
+                    }
+                } catch (final Throwable exc) {
+                    error(exc);
+                }
+            }
+        });
+        final JButton syncBDV = viewerPanelBuilder.createSyncButton("Sync Big Data Viewer");
+        syncBDV.addActionListener(e -> {
+            if (bdvSNT == null) {
+                guiUtils.error("Big Data Viewer is not open.");
+                openBDV.setEnabled(true);
+            } else {
+                bdvSNT.syncPathManagerList();
+                final String msg = (pathAndFillManager.size() == 0) ? "There are no traced paths" : "BDV synchronized";
+                showStatus(msg, true);
+            }
+        });
+        return viewerPanelBuilder.createViewerPanel(openBDV, syncBDV);
     }
 
     private void initializeBvvFromPrompt() {
