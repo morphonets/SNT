@@ -40,6 +40,7 @@ import sc.fiji.snt.viewer.Bvv;
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -357,9 +358,10 @@ public class BookmarkManager {
             if (rows.length == 0) {
                 guiUtils.error("No bookmark selected.");
             } else if (rows.length == 1) {
+                final int modelCol = table.convertColumnIndexToView(1);
                 if (table.getRowCount() > 10)
-                    table.scrollRectToVisible(new Rectangle(table.getCellRect(rows[0], 0, true)));
-                table.editCellAt(rows[0], 1); // Column 1 is now Label
+                    table.scrollRectToVisible(new Rectangle(table.getCellRect(rows[0], modelCol, true)));
+                table.editCellAt(rows[0], modelCol);
             } else {
                 final String seed = guiUtils.getString(
                         "Common label to be applied to " + rows.length + " bookmarks:", // msg
@@ -378,8 +380,7 @@ public class BookmarkManager {
         // Color tags submenu
         final JMenu tagMenu = GuiUtils.MenuItems.colorTagMenu(sntui, color -> {
             if (noBookmarksError()) return;
-            for (final int viewRow : getSelectedRowsAllIfNone()) {
-                final int modelRow = table.convertRowIndexToModel(viewRow);
+            for (final int modelRow : getSelectedModelRowsAllIfNone()) {
                 model.setValueAt(color, modelRow, 0); // if color is null user chose "Remove Tag"
             }
             if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
@@ -390,11 +391,10 @@ public class BookmarkManager {
         mi = new JMenuItem("Distinct Tags", IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
-            final int[] rows = getSelectedRowsAllIfNone();
-            final Color[] distinctColors =  ColorMaps.glasbeyColorsAWT(rows.length);
+            final int[] modelRows = getSelectedModelRowsAllIfNone();
+            final Color[] distinctColors = ColorMaps.glasbeyColorsAWT(modelRows.length);
             int colorIdx = 0;
-            for (final int viewRow : rows) {
-                final int modelRow = table.convertRowIndexToModel(viewRow);
+            for (final int modelRow : modelRows) {
                 model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
             }
             if (highlightToggle.isSelected()) showHighlights();
@@ -406,15 +406,16 @@ public class BookmarkManager {
             mi = new JMenuItem("Size...", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
             mi.addActionListener(e -> {
                 if (noBookmarksError()) return;
-                final int[] rows = getSelectedRowsAllIfNone();
-                final int lastCol = model.getColumnCount() - 1;
+                final int[] modelRows = getSelectedModelRowsAllIfNone();
                 final Double size = guiUtils.getDouble("Marker size (in calibrated units):",
-                        "Marker Size", (float)model.getValueAt(rows[rows.length-1], lastCol));
-                if (size != null) {
-                    for (final int viewRow : rows) {
-                        final int modelRow = table.convertRowIndexToModel(viewRow);
-                        model.setValueAt(size, modelRow, lastCol);
-                    }
+                        "Marker Size", model.getDataList().get(modelRows[modelRows.length-1]).size);
+                if (size == null) return;
+                if (size.isNaN() || size < 0) {
+                    guiUtils.error("Invalid value: Size must be a non-negative value.");
+                } else {
+                    for (final int modelRow : modelRows)
+                        model.getDataList().get(modelRow).size = size.floatValue();
+                    model.fireTableRowsUpdated(modelRows[0], modelRows[modelRows.length-1]);
                 }
             });
             pMenu.add(mi);
@@ -425,18 +426,20 @@ public class BookmarkManager {
             mi.setToolTipText("Matches bookmarks across channels within a distance threshold, replacing them with centroids");
             mi.addActionListener(e -> colocalizeBookmarks());
             pMenu.add(mi);
-            mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-            mi.setToolTipText("Merges nearby bookmarks within each channel, replacing them with centroids");
-            mi.addActionListener(e -> mergeBookmarks());
-            pMenu.add(mi);
-            pMenu.addSeparator();
         }
+
+        mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
+        mi.setToolTipText("Merges nearby bookmarks within each channel, replacing them with centroids");
+        mi.addActionListener(e -> mergeBookmarks());
+        pMenu.add(mi);
+        pMenu.add(sortByDistanceMenu());
+        pMenu.addSeparator();
 
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
         mi.addActionListener(e -> {
             if (noBookmarksError()) return;
-            final int[] viewRows = getSelectedRowsAllIfNone();
-            if (viewRows.length == table.getRowCount()) {
+            int[] modelRows = getSelectedModelRowsAllIfNone();
+            if (modelRows.length == table.getRowCount()) {
                 if (!guiUtils.getConfirmation("Delete all bookmarks?", "Delete All?")) {
                     return;
                 }
@@ -444,9 +447,7 @@ public class BookmarkManager {
                 recordCmd("reset()");
                 return; // Don't continue to delete rows that no longer exist
             }
-            // Convert view indices to model indices (handles sorted table)
-            final int[] modelRows = Arrays.stream(viewRows)
-                    .map(table::convertRowIndexToModel)
+            modelRows = Arrays.stream(modelRows)
                     .boxed()
                     .sorted(Comparator.reverseOrder()) // Delete from end to preserve indices
                     .mapToInt(Integer::intValue)
@@ -467,10 +468,13 @@ public class BookmarkManager {
         return pMenu;
     }
 
-    private int[] getSelectedRowsAllIfNone() {
+    private int[] getSelectedModelRowsAllIfNone() {
         int[] viewRows = table.getSelectedRows();
         if (viewRows.length == 0) {
             viewRows = IntStream.range(0, table.getRowCount()).toArray();
+        }
+        for (int i = 0; i < viewRows.length; i++) {
+            viewRows[i] = table.convertRowIndexToModel(viewRows[i]);
         }
         return viewRows;
     }
@@ -507,10 +511,6 @@ public class BookmarkManager {
 
     private void mergeBookmarks() {
         if (noBookmarksError()) return;
-        if (viewer != null) {
-            guiUtils.error("Merge is not available in BVV mode.");
-            return;
-        }
         final List<Bookmark> candidates = getSelectedBookmarks();
         if (candidates.size() < 2) {
             guiUtils.error("At least 2 bookmarks are required for merging.");
@@ -543,12 +543,47 @@ public class BookmarkManager {
     }
 
     private List<Bookmark> getSelectedBookmarks() {
-        final int[] viewRows = getSelectedRowsAllIfNone();
-        final List<Bookmark> candidates = new ArrayList<>();
-        for (final int viewRow : viewRows) {
-            candidates.add(model.getDataList().get(table.convertRowIndexToModel(viewRow)));
+        final int[] modelRows = getSelectedModelRowsAllIfNone();
+        final List<Bookmark> candidates = new ArrayList<>(modelRows.length);
+        for (final int modelRow : modelRows) {
+            candidates.add(model.getDataList().get(modelRow));
         }
         return candidates;
+    }
+
+    private JMenu sortByDistanceMenu() {
+        final JMenu menu = new JMenu("Sort by Distance");
+        menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.SORT));
+        JMenuItem item = new JMenuItem("To Reference Location...", IconFactory.menuIcon(IconFactory.GLYPH.CROSSHAIR));
+        item.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final SNTPoint input = SNTPoint.average(getSelectedBookmarks());
+            final SNTPoint ref = guiUtils.getCoordinates("", "Reference Point (Calibrated Distances)",
+                    input, 2);
+            if (ref != null) sortByPosition(new Bookmark("reference", ref.getX(), ref.getY(), ref.getZ(), 1, 1));
+        });
+        menu.add(item);
+        item = new JMenuItem("To Selected Row Location", IconFactory.menuIcon(IconFactory.GLYPH.POINTER));
+        item.addActionListener(e -> {
+            if (noBookmarksError()) return;
+            final List<Bookmark> selection = getSelectedBookmarks();
+            if (selection.size() > 1) {
+                guiUtils.error("Select a single row to be used as reference location and re-run.");
+            } else {
+                sortByPosition(selection.getFirst());
+            }
+        });
+        menu.add(item);
+        return menu;
+    }
+
+    private void sortByPosition(final Bookmark origin) {
+        if (table.isEditing()) table.getCellEditor().stopCellEditing();
+        // Sort the backing list directly by 3D distance to origin
+        model.getDataList().sort(Comparator.comparingDouble(b -> b.distanceSquaredTo(origin)));
+        // Clear active column sort keys so the sorter does not re-order our result
+        if (table.getRowSorter() instanceof TableRowSorter<?> sorter) sorter.setSortKeys(null);
+        model.fireTableDataChanged();
     }
 
     /**
@@ -806,10 +841,9 @@ public class BookmarkManager {
         }
         // Remove any existing highlights first (so re-clicking refreshes against the current selection)
         removeHighlightROIs(overlay);
-        final int[] rows = getSelectedRowsAllIfNone();
+        final int[] modelRows = getSelectedModelRowsAllIfNone();
         int idx = 0;
-        for (final int viewRow : rows) {
-            final int modelRow = table.convertRowIndexToModel(viewRow);
+        for (final int modelRow : modelRows) {
             final Bookmark b = model.getDataList().get(modelRow);
             final PointRoi roi = b.toRoi();
             roi.setName(HIGHLIGHT_PREFIX + idx++);
@@ -820,7 +854,7 @@ public class BookmarkManager {
             overlay.add(roi);
         }
         imp.updateAndDraw();
-        sntui.showStatus(rows.length + " bookmark(s) highlighted on overlay", true);
+        sntui.showStatus(modelRows.length + " bookmark(s) highlighted on overlay", true);
         syncHighlightToggle(true);
     }
 
@@ -966,7 +1000,8 @@ public class BookmarkManager {
                         "to have the marker highlighted in the viewer." +
                         "<h3>Navigation</h3>" +
                         "Double-click a row to fly to that marker. Use the <b>&uarr;</b> / <b>&darr;</b> " +
-                        "buttons/keys to step through markers sequentially. Use the contextual menu for positional sorting." +
+                        "buttons/keys to step through markers sequentially. Use the contextual menu for positional sorting, " +
+                        "size/color adjustments, etc." +
                         "</body></html>";
         new GuiUtils((table==null) ? null : table.getParent())
                 .showHTMLDialog(MARKER_HELP_MSG, "About " + viewerType + " Markers", false);
