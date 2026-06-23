@@ -27,12 +27,12 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import ij.gui.PlotWindow;
 import net.imagej.axis.Axes;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.CommandService;
-import org.scijava.convert.ConvertService;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plot.LineStyle;
 import org.scijava.plot.MarkerStyle;
@@ -57,10 +57,7 @@ import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.ProfileProcessor.Shape;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
-import sc.fiji.snt.util.ImgUtils;
-import sc.fiji.snt.util.PointInImage;
-import sc.fiji.snt.util.SNTColor;
-import sc.fiji.snt.util.TreeUtils;
+import sc.fiji.snt.util.*;
 
 /**
  * Command to retrieve Path profiles (plots of voxel intensities values along a
@@ -259,8 +256,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	private Dataset getDatasetFromImp(final ImagePlus imp) {
 		if (imp == null)
 			throw new IllegalArgumentException("ImagePlus is null");
-		final ConvertService convertService = getContext().service(ConvertService.class);
-		dataset = convertService.convert(imp, Dataset.class);
+		dataset = ImpUtils.toDataset(imp);
 		if (dataset == null)
 			throw new UnsupportedOperationException("BUG: Could not convert ImagePlus to Dataset");
 		return dataset;
@@ -735,7 +731,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	private Plot getMeanSDPlot(final int channel) {
-		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), getYAxisLabel(channel));
+		final Plot plot = new SNTPlot(getPlotTitle(channel), getXAxisLabel(), getYAxisLabel(channel));
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < tree.size(); i++) {
@@ -767,7 +763,7 @@ public class PathProfiler extends CommonDynamicCmd {
 		if (!valuesAssignedToTree || (channel > 0 && channel != lastprofiledChannel) ) {
 			assignValues(channel);
 		}
-		final Plot plot = new Plot(getPlotTitle(channel), getXAxisLabel(), getYAxisLabel(channel));
+		final Plot plot = new SNTPlot(getPlotTitle(channel), getXAxisLabel(), getYAxisLabel(channel));
 		final Color[] colors = getSeriesColorsAWT();
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 0; i < tree.size(); i++) {
@@ -785,7 +781,7 @@ public class PathProfiler extends CommonDynamicCmd {
 	}
 
 	private Plot getMeanSDPlot(final Path path) {
-		final Plot plot = new Plot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel(-1));
+		final Plot plot = new SNTPlot(getPlotTitle(-1), getXAxisLabel(), getYAxisLabel(-1));
 		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
 		final StringBuilder legend = new StringBuilder();
 		for (int i = 1; i <= dataset.getChannels(); i++) {
@@ -1012,6 +1008,20 @@ public class PathProfiler extends CommonDynamicCmd {
 			TreeUtils.restoreNodeValues(nodeValuesSnapshot);
 		}
 		return result;
+	}
+
+	protected static class SNTPlot extends Plot {
+
+		public SNTPlot(String title, String xLabel, String yLabel) {
+			super(title, xLabel, yLabel);
+		}
+
+		@Override
+		public PlotWindow show() {
+			final PlotWindow pw = super.show();
+			pw.setName("snt-plot"); // See GuiUtils.closeAllPlots()
+			return pw;
+		}
 	}
 
 	/* IDE debug method **/

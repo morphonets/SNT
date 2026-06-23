@@ -34,16 +34,15 @@ import sc.fiji.snt.PathManagerUI;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.*;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.ColorMaps;
 import sc.fiji.snt.util.TreeUtils;
-import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
+import java.awt.*;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -100,13 +99,14 @@ public class TimeProfiler extends PathProfiler {
         }
         evalParameters();
         status("Retrieving profile(s). This may take a while...", false);
+        final List<Frame> shownPlots = new ArrayList<>();
         try {
             getChannels().forEach(ch -> {
                 try {
                     if ("table".equalsIgnoreCase(outputStr)) {
                        showTimeProfileAsTable(ch);
                     } else {
-                        showTimeProfileAsHeatmap(ch);
+                        shownPlots.add(showTimeProfileAsHeatmap(ch));
                     }
                 } catch (final InterruptedException | InvocationTargetException e) {
                     throw new RuntimeException(e);
@@ -117,14 +117,14 @@ public class TimeProfiler extends PathProfiler {
             SNTUtils.error("TimeProfiler", ex);
         } finally {
             resetUI();
+            GuiUtils.tile(shownPlots, false);
         }
     }
 
-    final void showTimeProfileAsHeatmap(final int ch) throws InterruptedException, InvocationTargetException {
+    final Frame showTimeProfileAsHeatmap(final int ch) throws InterruptedException, InvocationTargetException {
         if (filteredPaths.size() == 1)
-            showTimeProfileAsHeatmap(filteredPaths.iterator().next(), ch);
-        else
-            showTimeProfileAsHeatmap(filteredPaths, ch);
+            return showTimeProfileAsHeatmap(filteredPaths.iterator().next(), ch);
+        return showTimeProfileAsHeatmap(filteredPaths, ch);
     }
 
     final void showTimeProfileAsTable(final int ch) throws InterruptedException, InvocationTargetException {
@@ -134,7 +134,7 @@ public class TimeProfiler extends PathProfiler {
             showTimeProfileAsTable(filteredPaths, ch);
     }
 
-    private void showTimeProfileAsHeatmap(final Path path, final int channel) throws InterruptedException, InvocationTargetException {
+    private JFrame showTimeProfileAsHeatmap(final Path path, final int channel) throws InterruptedException, InvocationTargetException {
         final List<Map<String, List<Double>>> profile = getTimeProfile(path, channel);
         final int nFrames = profile.size();
         // X_VALUES are cumulative distances: identical across all frames
@@ -154,11 +154,12 @@ public class TimeProfiler extends PathProfiler {
         final JFrame frame = SNTChart.showHeatmap(fullTitle,
                 xCoords, yCoords, matrix, ColorMaps.VIRIDIS, getXAxisLabel(), getTimeAxisLabel());
         SwingUtilities.invokeLater(() -> frame.setTitle(sanitizedOutputName(path, channel, true) + "_Heatmap"));
+        return frame;
     }
 
 
 
-    private void showTimeProfileAsHeatmap(final Collection<Path> paths, final int channel)
+    private JFrame showTimeProfileAsHeatmap(final Collection<Path> paths, final int channel)
             throws InterruptedException, InvocationTargetException {
         if (paths == null || paths.isEmpty())
             throw new IllegalArgumentException("paths cannot be null or empty");
@@ -184,8 +185,9 @@ public class TimeProfiler extends PathProfiler {
             TreeUtils.restoreNodeValues(snapshot);
         }
         final String title = "Timelapse Profile: Ch" + (channel + 1) + " (N=" + paths.size() + " paths), " + getYAxisLabel(channel);
-        final JFrame jframe = SNTChart.showHeatmap(title, xCoords, yCoords, matrix, ColorMaps.VIRIDIS, "Normalized distance", getTimeAxisLabel());
-        SwingUtilities.invokeLater(() -> jframe.setTitle(sanitizedOutputName(paths, channel, true) +"_Heatmap"));
+        final JFrame frame = SNTChart.showHeatmap(title, xCoords, yCoords, matrix, ColorMaps.VIRIDIS, "Normalized distance", getTimeAxisLabel());
+        SwingUtilities.invokeLater(() -> frame.setTitle(sanitizedOutputName(paths, channel, true) +"_Heatmap"));
+        return frame;
     }
 
     private void showTimeProfileAsTable(final Path path, final int channel) {
@@ -239,36 +241,9 @@ public class TimeProfiler extends PathProfiler {
         return "Frame No.";
     }
 
-    @SuppressWarnings("unused")
-    private void showTimeProfileAs3DPlot(final Path path, final int channel) {
-        final List<Map<String, List<Double>>> profile = getTimeProfile(path, channel);
-        final List<Tree> profileContainers = new ArrayList<>(profile.size());
-        int frameIndex = 1;
-        for (final Map<String, List<Double>> frameEntry : profile) {
-            final List<Double> xValues = frameEntry.get(X_VALUES);
-            final List<Double> yValues = frameEntry.get(Y_VALUES);
-            final Path p = new Path();
-            for (int i = 0; i < Math.min(xValues.size(), yValues.size()); i++) {
-                p.addPointDouble(xValues.get(i), yValues.get(i), frameIndex);
-            }
-            final Tree profileContainer = new Tree(List.of(p));
-            profileContainer.setLabel("Frame" + frameIndex++);
-            profileContainers.add(profileContainer);
-        }
-        final Viewer3D viewer = new Viewer3D(false);
-        viewer.setAxesLabels(getXAxisLabel(), getYAxisLabel(channel), getTimeAxisLabel());
-        viewer.setEnableAxes(true);
-        viewer.setEnableDarkMode(false);
-        final MultiTreeColorMapper colorMapper = new MultiTreeColorMapper(profileContainers);
-        colorMapper.map(MultiTreeColorMapper.Z_COORDINATES, ColorMaps.VIRIDIS);
-        viewer.addColorBarLegend(colorMapper);
-        viewer.add(profileContainers);
-        viewer.getFrame().setTitle(sanitizedOutputName(path, channel, true));
-        viewer.show();
-    }
-
     private String sanitizedOutputName(final Path path, final int channel, final boolean replaceWhiteSpace) {
-        final String result = "Timelapse Profile: Ch" + (channel + 1) + " " + PathManagerUI.removeTags(path).trim();
+        String result = "Timelapse Profile: Ch" + (channel + 1) + " " + PathManagerUI.removeTags(path).trim();
+        result = result.replaceAll("\\s*\\[[^]]+:\\d+]", ""); // Remove all square brackets containing colons
         // Replace: one or more spaces OR a comma with optional surrounding spaces
         return (replaceWhiteSpace) ? result.replaceAll("\\s+|\\s*,\\s*", "_") : result;
     }

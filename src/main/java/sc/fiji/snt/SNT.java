@@ -2159,14 +2159,13 @@ public class SNT extends MultiDThreePanes implements
 		if (!lastStartPointSet) {
 			discreteMsg(
 					"No initial start point has been set yet.<br>Do that with a mouse click or a Shift+" +
-							GuiUtils.ctrlKey() +
-							"-click if the start of the path should join another.");
+							GuiUtils.ctrlKey() + "-click if the start of the path should join another.");
 			return;
 		}
 
 		if (temporaryPath == null) {
-			showCanvasWarning("There is no temporary path to discard");
-			return;
+			//showCanvasWarning("There is no temporary path to discard");
+			return; // nothing else to do
 		}
 
 		removeSphere(targetBallName);

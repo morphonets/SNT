@@ -308,7 +308,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @return The profile (Mean±SD of all the profiled data)
 	 */
 	public Plot getPlot(final Path path) {
-		final Plot plot = new Plot(getTitle(path, -1), getXAxisLabel(path), getYAxisLabel(path, -1));
+		final Plot plot = new PathProfiler.SNTPlot(getTitle(path, -1), getXAxisLabel(path), getYAxisLabel(path, -1));
 		final Color[] colors = SNTColor.getDistinctColorsAWT((int) dataset.getChannels());
 		StringBuilder legend = new StringBuilder();
 		for (int ch = 0; ch < dataset.getChannels(); ch++) {
@@ -346,7 +346,7 @@ public class NodeProfiler extends CommonDynamicCmd {
 	 * @return The profile (Mean±SD of all the profiled data)
 	 */
 	public Plot getPlot(final Path path, final int channel) {
-		final Plot plot = new Plot(getTitle(path, channel), getXAxisLabel(path), getYAxisLabel(path, channel));
+		final Plot plot = new PathProfiler.SNTPlot(getTitle(path, channel), getXAxisLabel(path), getYAxisLabel(path, channel));
 		final SNTTable table = getTable(path, channel);
 		final ArrayList<Double> ymeans = new ArrayList<>();
 		final ArrayList<Double> ystds = new ArrayList<>();

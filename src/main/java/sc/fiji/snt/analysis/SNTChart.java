@@ -88,7 +88,6 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.SaveMeasurementsCmd;
 import sc.fiji.snt.util.SNTColor;
 import smile.plot.swing.Heatmap;
-import smile.plot.swing.Palette;
 
 /**
  * Extension of {@link ChartPanel} modified for scientific publications and
@@ -2069,7 +2068,7 @@ public class SNTChart extends ChartPanel {
 
 	/** Closes all open charts */
 	public static void closeAll() {
-        for (SNTChart openInstance : openInstances) {
+        for (final SNTChart openInstance : openInstances) {
             openInstance.disposeInternal();
 		}
 		openInstances.clear();
@@ -2090,7 +2089,7 @@ public class SNTChart extends ChartPanel {
 	public static void tile(final Collection<SNTChart> charts) {
 		final List<JFrame> frames = new ArrayList<>();
 		charts.forEach(oi -> frames.add(oi.getFrame()));
-		GuiUtils.tile(frames);
+		GuiUtils.tile(frames, charts.size() > 4);
 	}
 
 	/**
@@ -2170,13 +2169,16 @@ public class SNTChart extends ChartPanel {
 	 * @param colorTable the color table (LUT) used to color histogram bars (null allowed)
 	 * @param prob       Whether frequencies should be normalized to probabilities
 	 * @param axisLabels Labels for the axes (optional)
+	 * @return the frame holding the histogram
 	 * @throws InterruptedException      if the histogram cannot be displayed
 	 * @throws InvocationTargetException if the histogram cannot be displayed
 	 */
-	public static void showHistogram3D(final double[][] data, final ColorTable colorTable, final boolean prob, final String... axisLabels) throws InterruptedException, InvocationTargetException {
+	public static JFrame showHistogram3D(final double[][] data, final ColorTable colorTable, final boolean prob, final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[0]));
 		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(data[1]));
-		showSmilePlot(smile.plot.swing.Histogram3D.class, null, data, nBins1, nBins2, prob, colorTable, axisLabels);
+		final JFrame frame = showSmilePlot(smile.plot.swing.Histogram3D.class, null, data, nBins1, nBins2, prob, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2191,8 +2193,9 @@ public class SNTChart extends ChartPanel {
 	 */
 	public static JFrame showHeatmap(final double[][] data, final ColorTable colorTable, final String... axisLabels)
 			throws InterruptedException, InvocationTargetException {
-		return showHeatmap(null, data, colorTable, axisLabels);
-
+		final JFrame frame = showHeatmap(null, data, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2210,7 +2213,9 @@ public class SNTChart extends ChartPanel {
 			throws InterruptedException, InvocationTargetException {
 		if (data == null || data.length < 2 || data[0].length < 2)
 			throw new IllegalArgumentException("Heatmap requires at least a 2x2 matrix (got " + (data == null ? "null" : data.length + "x" + data[0].length) + ")");
-		return showSmilePlot(smile.plot.swing.Heatmap.class, title, data, -1, -1, false, colorTable, axisLabels);
+		final JFrame frame = showSmilePlot(smile.plot.swing.Heatmap.class, title, data, -1, -1, false, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2233,7 +2238,9 @@ public class SNTChart extends ChartPanel {
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
 		final int nBins1 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v1));
 		final int nBins2 = AnalysisUtils.computeNBins(new DescriptiveStatistics(v2));
-		return showSmilePlot(smile.plot.swing.Histogram3D.class, null, data, nBins1, nBins2, false, colorTable, axisLabels);
+		final JFrame frame = showSmilePlot(smile.plot.swing.Histogram3D.class, null, data, nBins1, nBins2, false, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2249,7 +2256,9 @@ public class SNTChart extends ChartPanel {
 	 */
 	public static JFrame showHeatmap(final Collection<Double> values1, final Collection<Double> values2,
 	                                 final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
-		return showHeatmap(null, values1, values2, colorTable, axisLabels);
+		final JFrame frame = showHeatmap(null, values1, values2, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2270,7 +2279,9 @@ public class SNTChart extends ChartPanel {
 		final double[] v2 = values2.stream().mapToDouble(Double::doubleValue).toArray();
 		final double[][] data = IntStream.range(0, Math.min(v1.length, v2.length))
 				.mapToObj(i -> new double[]{v1[i], v2[i]}).toArray(double[][]::new);
-		return showSmilePlot(smile.plot.swing.Heatmap.class, title, data, -1, -1, false, colorTable, axisLabels);
+		final JFrame frame = showSmilePlot(smile.plot.swing.Heatmap.class, title, data, -1, -1, false, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2293,7 +2304,9 @@ public class SNTChart extends ChartPanel {
 		figure.setTitle(title != null ? title : "Heatmap");
 		if (axisLabels != null && axisLabels.length > 0)
 			figure.setAxisLabels(Arrays.copyOf(axisLabels, figure.getAxisLabels().length));
-		return figure.show();
+		final JFrame frame = figure.show();
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2311,7 +2324,9 @@ public class SNTChart extends ChartPanel {
 	 */
 	public static JFrame showHistogram3D(final String title, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
 	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
-		return showSmileHistogram(smile.plot.swing.Histogram3D.class, title, stats1, stats2, colorTable, axisLabels);
+		final JFrame frame = showSmileHistogram(smile.plot.swing.Histogram3D.class, title, stats1, stats2, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	/**
@@ -2328,7 +2343,9 @@ public class SNTChart extends ChartPanel {
 	 */
 	public static JFrame showHistogram3D(final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,
 	                                     final ColorTable colorTable, final String... axisLabels) throws InterruptedException, InvocationTargetException {
-		return showSmileHistogram(smile.plot.swing.Histogram3D.class, null, stats1, stats2, colorTable, axisLabels);
+		final JFrame frame = showSmileHistogram(smile.plot.swing.Histogram3D.class, null, stats1, stats2, colorTable, axisLabels);
+		frame.setName("snt-smile-plot"); // see GuiUtils.closeAllPlots
+		return frame;
 	}
 
 	private static <T extends smile.plot.swing.Plot> JFrame showSmileHistogram(final Class<T> smilePlotClass, final String title, final DescriptiveStatistics stats1, final DescriptiveStatistics stats2,

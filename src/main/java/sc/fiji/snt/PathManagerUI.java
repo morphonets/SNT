@@ -365,7 +365,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.setToolTipText("Creates a 'linear image' from the pixels associated with single paths");
         jmi.addActionListener(singlePathListener);
         process.add(jmi);
-        process.addSeparator();
+        GuiUtils.addSeparator(process, "Semantic Segmentation:");
         jmi = new JMenuItem(MultiPathActionListener.SEND_TO_LABKIT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.KIWI_BIRD));
         jmi.setToolTipText("Starts a Labkit session loaded with labels from selected paths");
         jmi.addActionListener(multiPathListener);
@@ -508,7 +508,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     }
 
     private JMenu getSpineUtilsMenu(final MultiPathActionListener multiPathListener) {
-        final JMenu menu = new JMenu("Spine/Varicosities/Labels");
+        final JMenu menu = new JMenu("Spines/Varicosities/Labels");
         final String tooltip = "Assumes spine/varicosity markers have already been assigned to selected path(s)";
         menu.setIcon(IconFactory.menuIcon('\ue29c', true));
 
@@ -568,25 +568,25 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         menu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.VIDEO));
 
         // 'Generic' commands that do not require matching paths across time
-        GuiUtils.addSeparator(menu, "Generic:");
         JMenuItem jmi = new JMenuItem(MultiPathActionListener.TIME_COLOR_CODING_CMD, IconFactory.menuIcon(IconFactory.GLYPH.COLOR2));
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_COLOR_CODING_CMD + "\")");
         menu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILER_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_LINE));
-        jmi.setToolTipText("Timelapse version of " + MultiPathActionListener.PLOT_PROFILE_CMD);
+        jmi.setToolTipText("Timelapse version of " + MultiPathActionListener.PLOT_PROFILE_CMD
+                +".\nMonitor intensities profiles across time, e.g., calcium dynamics along neurites.");
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_PROFILER_CMD + "\")");
         menu.add(jmi);
         jmi = new JMenuItem(MultiPathActionListener.TIME_PROFILE_UNMATCHED_CMD, IconFactory.menuIcon(IconFactory.GLYPH.CHART_AREA));
-        jmi.setToolTipText(tooltip);
+        jmi.setToolTipText("Plots a measurement across time");
         jmi.addActionListener(multiPathListener);
         ScriptRecorder.setRecordingCall(jmi, "snt.getUI().getPathManager().runCommand(\"" + MultiPathActionListener.TIME_PROFILE_UNMATCHED_CMD + "\")");
         menu.add(jmi);
 
         // Commands that require paths to be matched across time
-        GuiUtils.addSeparator(menu, "Neurite-based:");
+        GuiUtils.addSeparator(menu, "Neurite-based Analysis:");
         jmi = new JMenuItem(MultiPathActionListener.MATCH_PATHS_ACROSS_TIME_CMD, IconFactory.menuIcon('\ue4af', true));
         jmi.setToolTipText(tooltip);
         jmi.addActionListener(multiPathListener);

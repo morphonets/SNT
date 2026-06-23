@@ -354,7 +354,6 @@ public class ImpUtils {
         return convertService.convert(imp, Dataset.class);
     }
 
-
     /* see net.imagej.legacy.translate.ColorTableHarmonizer */
     public static void applyColorTable(final ImagePlus imp, final ColorTable cTable) {
         final byte[] reds = new byte[256];

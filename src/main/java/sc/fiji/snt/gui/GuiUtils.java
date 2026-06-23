@@ -31,6 +31,7 @@ import com.jidesoft.swing.ListSearchable;
 import com.jidesoft.swing.TableSearchable;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.utils.ProductNames;
+import ij.gui.PlotWindow;
 import org.apache.commons.lang3.StringUtils;
 import org.scijava.command.CommandService;
 import org.scijava.ui.DialogPrompt.Result;
@@ -42,6 +43,7 @@ import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.analysis.SNTChart;
 import sc.fiji.snt.analysis.SNTTable;
+import sc.fiji.snt.analysis.sholl.gui.ShollPlot;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.SNTColor;
@@ -2429,7 +2431,7 @@ public class GuiUtils {
 		return label;
 	}
 
-	public static void tile(final List<? extends Window> windowList) {
+	public static void tile(final List<? extends Window> windowList, final boolean resize) {
 		if (windowList == null || windowList.isEmpty()) return;
 
 		final List<? extends Window> windows = List.copyOf(windowList);
@@ -2445,8 +2447,12 @@ public class GuiUtils {
 
 		// Calculate tile size with small gap
 		final int gap = 2;
-		final int tileWidth = (screen.width - (cols + 1) * gap) / cols;
-		final int tileHeight = (screen.height - (rows + 1) * gap) / rows;
+		final int tileWidth = (resize)
+				? (screen.width - (cols + 1) * gap) / cols
+				: windows.stream().mapToInt(w -> w.getSize().width).max().orElse(500);
+		final int tileHeight = (resize)
+				? (screen.height - (rows + 1) * gap) / rows
+				: windows.stream().mapToInt(w -> w.getSize().height).max().orElse(500);
 
 		// Position windows in grid
 		for (int i = 0; i < n; i++) {
@@ -2456,7 +2462,11 @@ public class GuiUtils {
 			final int y = screen.y + gap + row * (tileHeight + gap);
 
 			final Window window = windows.get(i);
-			window.setBounds(x, y, tileWidth, tileHeight);
+			if (resize) {
+				window.setBounds(x, y, tileWidth, tileHeight);
+			} else {
+				window.setLocation(x, y);
+			}
 			window.toFront();
 		}
 
@@ -2778,6 +2788,7 @@ public class GuiUtils {
 				if (jTable != null) {
 					final JPopupMenu menu = enhanceTablePopupMenu(table, jTable);
 					JTables.assignSearchable(jTable, null, menu);
+					frame.setName(SNTTable.class.getName());
 				}
 			} catch (final Throwable ignored) {
 				// Fail silently
@@ -2785,12 +2796,42 @@ public class GuiUtils {
 		});
 	}
 
-	private static JFrame findWindowWithTitle(final String title) {
-		for (final Window window : Window.getWindows()) {
-			if (window instanceof JFrame && window.isVisible()) {
-				if (title.equals(((JFrame) window).getTitle())) {
-					return (JFrame) window;
+	public static void closeAllTables() {
+		try {
+			final Window[] windows = Window.getWindows();
+			for (final Window window : windows) {
+				if (window instanceof JFrame frame && SNTTable.class.getName().equals(frame.getName())) {
+					frame.dispose();
 				}
+			}
+		} catch (final Throwable ignored) {
+			// Fail silently
+		}
+	}
+
+	public static void closeAllPlots() {
+		try {
+			SNTChart.closeAll();
+			final Window[] windows = Window.getWindows();
+			for (final Window window : windows) {
+				if (window.getName() != null && window.getName().toLowerCase().startsWith("snt")) {
+					window.dispose();
+				} else if (window instanceof PlotWindow pw && pw.getPlot() instanceof ShollPlot) {
+					window.dispose();
+				}
+			}
+		} catch (final Throwable ignored) {
+			// Fail silently
+		}
+	}
+
+	private static JFrame findWindowWithTitle(final String title) {
+		final Window[] windows = Window.getWindows(); //  returns windows in the order they were created
+		for (int i = windows.length - 1; i >= 0; i--) {
+			// iterate in reverse order so that in case of non-unique titles the latest is retrieved
+			final Window window = windows[i];
+			if (window instanceof JFrame && window.isVisible()  && title.equals(((JFrame) window).getTitle())) {
+				return (JFrame) window;
 			}
 		}
 		return null;

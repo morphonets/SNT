@@ -978,6 +978,8 @@ public class SNTUI extends JDialog {
         guiUtils = null;
         recViewerFrame = null;
         sciViewSNT = null;
+        GuiUtils.closeAllPlots();
+        GuiUtils.closeAllTables();
         GuiUtils.restoreLookAndFeel();
     }
 
@@ -3330,9 +3332,9 @@ public class SNTUI extends JDialog {
         final JMenuItem shollMenuItem = GuiUtils.MenuItems.shollAnalysis();
         shollMenuItem.addActionListener(e -> {
             if (noPathsShollError()) return;
+            softWarningOnShollPreview();
             final Tree tree = getPathManager().getSingleTree();
             if (tree == null) return;
-            softWarningOnShollPreview();
             final HashMap<String, Object> inputs = new HashMap<>();
             inputs.put("tree", tree);
             inputs.put("snt", plugin);
