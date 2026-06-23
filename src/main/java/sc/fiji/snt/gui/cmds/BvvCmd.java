@@ -48,7 +48,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 /**
- * Convenience command for starting a standalone Bvv instance.
+ * Convenience command for starting a standalone Bdv/Bvv instance.
  *
  * @author Tiago Ferreira
  */
@@ -75,8 +75,12 @@ public class BvvCmd extends ContextCommand {
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction files (optional)",
-            description = "Either a single file (TRACES, SWC, JSON), or a folder containing multiple reconstruction files.")
+            description = "Either a single file (TRACES, SWC, JSON), or a folder containing multiple reconstruction files")
     File recFiles;
+
+    @Parameter(required = false, label = "Markers file (optional)",
+            description = "A CSV file containing bookmarked locations")
+    File markerFile;
 
     @Parameter(label = "Viewer type", choices = {"2D: Big Data Viewer (BDV)", "3D: Big Volume Viewer (BVV)"},
             description = "The type of viewer")
@@ -135,6 +139,7 @@ public class BvvCmd extends ContextCommand {
             else if (source instanceof ImgPlus<?> img) bvv.show((ImgPlus) img);
         }
         loadReconstructions(bvv);
+        loadMarkers(bvv);
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */
@@ -149,12 +154,21 @@ public class BvvCmd extends ContextCommand {
                 bdv.show((ImgPlus) img);
         }
         loadReconstructions(bdv);
+        loadMarkers(bdv);
+    }
+
+    private void loadMarkers(final AbstractBigViewer viewer) {
+        if (!SNTUtils.fileAvailable(markerFile)) {
+            error(String.format("%s does not exist or is not available.", markerFile.getName()));
+            return;
+        }
+        viewer.getMarkerManager().showPanel();
+        viewer.getMarkerManager().load(markerFile); // error if invalid file
     }
 
     /** Loads reconstruction files into the viewer, if any were specified. */
     private void loadReconstructions(final AbstractBigViewer viewer) {
-        if (recFiles == null) return;
-        if (!recFiles.exists()) {
+        if (!SNTUtils.fileAvailable(recFiles)) {
             error(String.format("%s does not exist or is not available.", recFiles.getName()));
             return;
         }

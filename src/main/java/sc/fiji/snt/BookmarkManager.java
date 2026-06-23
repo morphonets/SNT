@@ -1718,14 +1718,14 @@ class BookmarkModel extends AbstractTableModel {
 
     void populateFromFile(final File file) throws IOException {
         final SNTTable table = new SNTTable(file.getAbsolutePath());
-        final int tagIdx = table.getColumnIndex(HEADER[0]);
-        final int lIdx   = table.getColumnIndex(HEADER[1]);
-        final int xIdx   = table.getColumnIndex(HEADER[2]);
-        final int yIdx   = table.getColumnIndex(HEADER[3]);
-        final int zIdx   = table.getColumnIndex(HEADER[4]);
-        final int sizeIdx = bvvMode ? table.getColumnIndex("Size") : -1;
-        final int cIdx = bvvMode ? -1 : table.getColumnIndex(HEADER[5]);
-        final int tIdx = bvvMode ? -1 : table.getColumnIndex(HEADER[6]);
+        int tagIdx = table.findColumnIndex(HEADER[0]);
+        final int lIdx   = table.findColumnIndex(HEADER[1]);
+        final int xIdx   = table.findColumnIndex(HEADER[2]);
+        final int yIdx   = table.findColumnIndex(HEADER[3]);
+        final int zIdx   = table.findColumnIndex(HEADER[4]);
+        final int sizeIdx = bvvMode ? table.findColumnIndex("Size") : -1;
+        final int cIdx = bvvMode ? -1 : table.findColumnIndex(HEADER[5]);
+        final int tIdx = bvvMode ? -1 : table.findColumnIndex(HEADER[6]);
 
         if (lIdx == -1 || xIdx == -1 || yIdx == -1 || zIdx == -1)
             throw new IOException("Unexpected column header(s) in CSV file.");
