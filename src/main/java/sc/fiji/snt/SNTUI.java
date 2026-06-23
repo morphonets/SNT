@@ -41,10 +41,10 @@ import org.scijava.command.CommandService;
 import org.scijava.ui.UIService;
 import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
-import sc.fiji.snt.analysis.curation.PlausibilityCheck;
-import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
+import sc.fiji.snt.analysis.curation.PlausibilityCheck;
+import sc.fiji.snt.analysis.curation.PlausibilityMonitor;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.event.SNTEvent;
 import sc.fiji.snt.gui.*;
@@ -53,8 +53,8 @@ import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.FlyCircuitLoader;
-import sc.fiji.snt.io.NeurolucidaImporter;
 import sc.fiji.snt.io.NeuroMorphoLoader;
+import sc.fiji.snt.io.NeurolucidaImporter;
 import sc.fiji.snt.io.WekaModelLoader;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImgUtils;
@@ -65,22 +65,24 @@ import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
 
-import javax.swing.Timer;
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.ChangeListener;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.*;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Supplier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
@@ -140,9 +142,9 @@ public class SNTUI extends JDialog {
     private final CurationManager curationManager;
     private JDialog ontologyBrowserDialog;
 
-    SNT plugin;
-    private PathAndFillManager pathAndFillManager;
+    protected SNT plugin;
     protected GuiUtils guiUtils;
+    private PathAndFillManager pathAndFillManager;
     private final PathManagerUI pmUI;
     private final FillManagerUI fmUI;
     private final BookmarkManager bookmarkManager;
@@ -159,7 +161,7 @@ public class SNTUI extends JDialog {
     private JButton openSciView;
     private JButton svSyncPathManager;
 
-    /* Bvv */
+    /* AbstractBigViewers */
     private Bvv bvvSNT;
     private Bdv bdvSNT;
 
@@ -2601,8 +2603,9 @@ public class SNTUI extends JDialog {
                 noValidImageDataError();
             } else {
                 try {
-                    bdvSNT = new Bdv();
+                    bdvSNT = new Bdv(plugin);
                     bdvSNT.show(plugin.getImagePlus());
+                    bdvSNT.syncPathManagerList();
                     if (bdvSNT.getViewerFrame() != null) {
                         bdvSNT.getViewerFrame().addWindowListener(new WindowAdapter() {
                             @Override
@@ -4164,7 +4167,7 @@ public class SNTUI extends JDialog {
         toolbar.addSeparator();
 
         // Quick Toggles dropdown
-        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f,quickTogglesMenu() );
+        final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f, quickTogglesMenu() );
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4194,19 +4197,19 @@ public class SNTUI extends JDialog {
 
         // Display Filters
         GuiUtils.addSeparator(menu, "Path Display Filters:");
-        final JCheckBoxMenuItem selPaths = GuiUtils.MenuItems.checkboxMenuItem("Only selected paths",
+        final JCheckBoxMenuItem selPaths = GuiUtils.MenuItems.checkboxMenuItem("Only Selected Paths",
                 showPathsSelected.isSelected(),
                 e -> showPathsSelected.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('1'));
         selPaths.setEnabled(showPathsSelected.isEnabled());
         menu.add(selPaths);
-        final JCheckBoxMenuItem nearbyZ = GuiUtils.MenuItems.checkboxMenuItem("Only nearby Z-slices",
+        final JCheckBoxMenuItem nearbyZ = GuiUtils.MenuItems.checkboxMenuItem("Only Nearby Z-slices",
                 partsNearbyCSpinner.isSelected(),
                 e -> partsNearbyCSpinner.getCheckBox().setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('2'));
         nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled());
         menu.add(nearbyZ);
-        final JCheckBoxMenuItem activeCT = GuiUtils.MenuItems.checkboxMenuItem("Only active channel/frame",
+        final JCheckBoxMenuItem activeCT = GuiUtils.MenuItems.checkboxMenuItem("Only Active Channel/Frame",
                 onlyActiveCTposition.isSelected(),
                 e -> onlyActiveCTposition.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 KeyStroke.getKeyStroke('3'));
@@ -4215,33 +4218,92 @@ public class SNTUI extends JDialog {
 
         // Rendering
         GuiUtils.addSeparator(menu, "Rendering:");
-        menu.add(GuiUtils.MenuItems.checkboxMenuItem("Draw diameters",
+        final JCheckBoxMenuItem diameters = GuiUtils.MenuItems.checkboxMenuItem("Draw Diameters",
                 diametersCheckBox.isSelected(),
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
-                null));
+                null);
+        IconFactory.assignIcon(diameters, GLYPH.CIRCLE);
+        menu.add(diameters);
 
         // Tracing Toggles
         GuiUtils.addSeparator(menu, "Tracing:");
         final JCheckBoxMenuItem snap = GuiUtils.MenuItems.checkboxMenuItem("Cursor Auto-snapping",
                 useSnapWindow.isSelected(),
-                e -> useSnapWindow.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
+                e -> {
+                    if (useSnapWindow.isEnabled()) {
+                        useSnapWindow.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected());
+                    } else {
+                        guiUtils.error(String.format("%s is currently disabled.", useSnapWindow.getText()));
+                    }
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(useSnapWindow.isSelected()); // re-sync, e.g., no valid image exists
+                },
                 KeyStroke.getKeyStroke('S'));
         snap.setEnabled(useSnapWindow.isEnabled());
+        IconFactory.assignIcon(snap, GLYPH.POINTER);
         menu.add(snap);
         final JCheckBoxMenuItem secLayer = GuiUtils.MenuItems.checkboxMenuItem("Secondary Layer",
                 secLayerActivateCheckbox.isSelected(),
-                e -> secLayerActivateCheckbox.doClick(),
+                e -> {
+                    if (secLayerActivateCheckbox.isEnabled()) {
+                        secLayerActivateCheckbox.doClick();
+                    } else {
+                        guiUtils.error(String.format("%s is currently disabled.", secLayerActivateCheckbox.getText()));
+                        ((JCheckBoxMenuItem) e.getSource()).setSelected(false); // re-sync
+                    }
+                },
                 KeyStroke.getKeyStroke('L'));
         secLayer.setEnabled(secLayerActivateCheckbox.isEnabled());
+        IconFactory.assignIcon(secLayer, GLYPH.LAYERS);
         menu.add(secLayer);
         final JCheckBoxMenuItem pauseTracing = GuiUtils.MenuItems.checkboxMenuItem("Pause Tracing",
                 plugin.tracingHalted,
-                e -> pauseTracing(!plugin.tracingHalted),
+                e -> {
+                    if (!accessToTracingCanvas()) {
+                        error("No tracing image available.");
+                    } else {
+                        plugin.pauseTracing(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
+                    }
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(currentState == TRACING_PAUSED); // re-sync
+                },
                 KeyStroke.getKeyStroke("shift P"));
-        final int state = getState();
         IconFactory.assignIcon(pauseTracing, '\uf04c', true, IconFactory.defaultColor());
-        pauseTracing.setEnabled(plugin.accessToValidImageData() && (state == READY || state == TRACING_PAUSED));
         menu.add(pauseTracing);
+        menu.addSeparator();
+        final JCheckBoxMenuItem stopSNT = GuiUtils.MenuItems.checkboxMenuItem("Pause SNT",
+                currentState == SNT_PAUSED,
+                e -> {
+                    plugin.pause(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
+                    ((JCheckBoxMenuItem) e.getSource()).setSelected(currentState == SNT_PAUSED); // re-sync
+                },
+                null);
+        IconFactory.assignIcon(stopSNT, '\uf04d', true, IconFactory.defaultColor());
+        menu.add(stopSNT);
+        menu.addPopupMenuListener(new PopupMenuListener() {
+            @Override
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                selPaths.setSelected(showPathsSelected.isSelected());
+                nearbyZ.setSelected(partsNearbyCSpinner.isSelected());
+                nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled());
+                activeCT.setSelected(onlyActiveCTposition.isSelected());
+                diameters.setSelected(diametersCheckBox.isSelected());
+                snap.setSelected(useSnapWindow.isSelected());
+                secLayer.setSelected(secLayerActivateCheckbox.isSelected());
+                secLayer.setEnabled(secLayerActivateCheckbox.isEnabled());
+                pauseTracing.setSelected(currentState == TRACING_PAUSED);
+                stopSNT.setSelected(currentState == SNT_PAUSED);
+                // disable all but the pause SNT toggle
+                List.of(selPaths, nearbyZ, activeCT, diameters, snap, secLayer, pauseTracing).forEach( jCheckBoxMenuItem -> {
+                    jCheckBoxMenuItem.setEnabled(currentState != SNT_PAUSED);
+                });
+            }
+
+            @Override
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {} // do nothing
+
+            @Override
+            public void popupMenuCanceled(PopupMenuEvent e) {} // do nothing
+
+        });
         return menu;
     }
 
@@ -5054,6 +5116,16 @@ public class SNTUI extends JDialog {
         final ImagePlus imp = plugin.getImagePlus();
         return imp != null && imp.getProcessor() != null
                 && !plugin.isDisplayCanvas(imp) && (imp.getWidth() > 1 || imp.getHeight() > 1);
+    }
+
+    private boolean accessToTracingCanvas() {
+        for (final int pane : List.of(SNT.XY_PLANE, SNT.XY_PLANE, SNT.XY_PLANE)) {
+            if (plugin.getCanvas(pane) != null && plugin.getCanvas(pane).getImage() != null
+                    && (plugin.getCanvas(pane).getImage().getWidth() > 1
+                    || plugin.getCanvas(pane).getImage().getHeight() > 1))
+                return true;
+        }
+        return false;
     }
 
     protected void noValidImageDataError() {

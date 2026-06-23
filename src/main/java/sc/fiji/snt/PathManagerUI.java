@@ -474,7 +474,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         popup.addSeparator();
         popup.add(new JTreeMenuItem(JTreeMenuItem.SELECT_NONE_CMD));
         popup.addSeparator();
-        popup.add(new JTreeMenuItem(JTreeMenuItem.TOGGLE_NAV_TOOLBAR));
+        popup.add(new JTreeCheckboxMenuItem(JTreeCheckboxMenuItem.TOGGLE_NAV_TOOLBAR, navToolbar.isVisible()));
         tree.setComponentPopupMenu(popup);
         tree.addMouseListener(new MouseAdapter() {
 
@@ -2351,7 +2351,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String EXPAND_ALL_CMD = "Expand All";
         private static final String EXPAND_SELECTED_LEVEL = "Expand Selected Level";
         private static final String SELECT_NONE_CMD = "Deselect / Select All";
-        private static final String TOGGLE_NAV_TOOLBAR = "Toggle Navigation Toolbar";
 
         private JTreeMenuItem(final String tag) {
             super(tag);
@@ -2371,7 +2370,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 case EXPAND_ALL_CMD -> IconFactory.GLYPH.RESIZE;
                 case EXPAND_SELECTED_LEVEL -> IconFactory.GLYPH.CARET_UP;
                 case SELECT_NONE_CMD -> IconFactory.GLYPH.CHECK_DOUBLE;
-                case TOGGLE_NAV_TOOLBAR -> IconFactory.GLYPH.NAVIGATE;
                 default -> null;
             };
             if (iconGlyph != null) setIcon(IconFactory.menuIcon(iconGlyph));
@@ -2380,7 +2378,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         @Override
         public void actionPerformed(final ActionEvent e) {
             switch (e.getActionCommand()) {
-                case TOGGLE_NAV_TOOLBAR -> navToolbar.setVisible(!navToolbar.isVisible());
                 case SELECT_NONE_CMD -> tree.clearSelection();
                 case EXPAND_ALL_CMD -> GuiUtils.JTrees.expandAllNodes(tree);
                 case COLLAPSE_ALL_CMD -> GuiUtils.JTrees.collapseAllNodes(tree);
@@ -2396,6 +2393,34 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         GuiUtils.JTrees.collapseNodesOfSameLevel(tree, selectedPath);
                 }
                 default -> SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
+            }
+        }
+    }
+
+    private class JTreeCheckboxMenuItem extends JCheckBoxMenuItem implements ItemListener {
+
+        private static final long serialVersionUID = 1L;
+        private static final String TOGGLE_NAV_TOOLBAR = "Navigation Toolbar";
+
+        private JTreeCheckboxMenuItem(final String text, final boolean state) {
+            super(text, state);
+            setIcon(text);
+            addItemListener(this);
+        }
+
+        void setIcon(final String text) {
+            if (TOGGLE_NAV_TOOLBAR.equals(text)) {
+                IconFactory.assignIcon(this, IconFactory.GLYPH.NAVIGATE);
+            }
+        }
+
+        @Override
+        public void itemStateChanged(final ItemEvent e) {
+            final AbstractButton button = (AbstractButton) e.getItemSelectable();
+            if (TOGGLE_NAV_TOOLBAR.equals(button.getActionCommand())) {
+                navToolbar.setVisible(e.getStateChange() == ItemEvent.SELECTED);
+            } else {
+                SNTUtils.error("Unexpectedly got an event from an unknown source: " + e);
             }
         }
     }
