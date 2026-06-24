@@ -4227,7 +4227,7 @@ public class SNTUI extends JDialog {
                 diametersCheckBox.isSelected(),
                 e -> diametersCheckBox.setSelected(((JCheckBoxMenuItem) e.getSource()).isSelected()),
                 null);
-        IconFactory.assignIcon(diameters, GLYPH.CIRCLE);
+        IconFactory.assignIcon(diameters, GLYPH.DOTCIRCLE);
         menu.add(diameters);
 
         // Tracing Toggles

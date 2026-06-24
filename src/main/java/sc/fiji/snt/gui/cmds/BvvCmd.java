@@ -134,12 +134,15 @@ public class BvvCmd extends ContextCommand {
         }
         final Bvv bvv = new Bvv();
         for (final Object source : sources) {
-            if (source instanceof AbstractSpimData<?> spim) bvv.show(spim);
+            if (source instanceof AbstractSpimData<?> spim) {
+                bvv.show(spim);
+            } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
-            else if (source instanceof ImgPlus<?> img) bvv.show((ImgPlus) img);
+                bvv.show((ImgPlus) img);
+            }
         }
-        loadReconstructions(bvv);
-        loadMarkers(bvv);
+        if (recFiles != null) loadReconstructions(bvv);
+        if (markerFile != null) loadMarkers(bvv);
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */
@@ -147,11 +150,12 @@ public class BvvCmd extends ContextCommand {
         final Bdv bdv = new Bdv();
         for (final String path : filePaths) {
             final Object source = SpimDataUtils.resolvePathToSource(path);
-            if (source instanceof AbstractSpimData<?> spim)
+            if (source instanceof AbstractSpimData<?> spim) {
                 bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
-            //noinspection unchecked,rawtypes
-            else if (source instanceof ImgPlus<?> img)
+            } else if (source instanceof ImgPlus<?> img) {
+                //noinspection unchecked,rawtypes
                 bdv.show((ImgPlus) img);
+            }
         }
         loadReconstructions(bdv);
         loadMarkers(bdv);

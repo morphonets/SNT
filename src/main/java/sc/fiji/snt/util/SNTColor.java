@@ -204,12 +204,16 @@ public class SNTColor {
 				return legacyColor;
 			throw new IllegalArgumentException("Unsupported format. Only (#)RRGGBB(AA) allowed");
 		}
-		final String input = hex.charAt(0) == '#' ? hex.substring(1) : hex;
-		final int r = Integer.parseInt(input.substring(0, 2), 16);
-		final int g = Integer.parseInt(input.substring(2, 4), 16);
-		final int b = Integer.parseInt(input.substring(4, 6), 16);
-		final int a = (input.length() < 8) ? 255 : Integer.parseInt(input.substring(6, 8), 16);
-		return new Color(r / 255f, g / 255f, b / 255f, a / 255f);
+		try {
+			final String input = hex.charAt(0) == '#' ? hex.substring(1) : hex;
+			final int r = Integer.parseInt(input.substring(0, 2), 16);
+			final int g = Integer.parseInt(input.substring(2, 4), 16);
+			final int b = Integer.parseInt(input.substring(4, 6), 16);
+			final int a = (input.length() < 8) ? 255 : Integer.parseInt(input.substring(6, 8), 16);
+			return new Color(r / 255f, g / 255f, b / 255f, a / 255f);
+		} catch (final NumberFormatException ignored) {
+			return null;
+		}
 	}
 
 	private static Color getLegacyColor(String colorName) {

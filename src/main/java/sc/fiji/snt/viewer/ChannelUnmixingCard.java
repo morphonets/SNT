@@ -177,7 +177,7 @@ class ChannelUnmixingCard {
         final double[] cal = owner.getCal();
         final double zCal = (cal != null && cal.length > 2 && cal[2] > 0) ? cal[2] : 1.0;
         final double maxSlabThickness = zCal * 10;
-        final Bvv.PathRenderingOptions renderingOptions = owner.getRenderingOptions();
+        final AbstractBigViewer.PathRenderingOptions renderingOptions = owner.getRenderingOptions();
 
         final java.util.function.BooleanSupplier slabRequired = () -> spimData != null || hasPyramid;
 

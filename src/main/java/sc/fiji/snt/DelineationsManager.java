@@ -65,7 +65,7 @@ public class DelineationsManager {
     private static final int DEF_N = 10;
     private static final int MAX_LABEL_IMAGE_CLASSES = 500;
     private static final Color DEF_COLOR = Color.GRAY;
-    private static final String HIERARCHY_SEPARATOR = "::";
+    private static final String HIERARCHY_SEPARATOR = ":";
     private static final String UNAFFECTED_LABEL = "Unaffected paths";
     private static final String NON_DELINEATED_LABEL = "Non-delineated";
     private final SNTUI sntui;
@@ -339,8 +339,8 @@ public class DelineationsManager {
     }
 
     /**
-     * Returns the hierarchy depth of a delineation name using the {@code ::}
-     * separator. E.g., {@code "Cortex::L1::proximal"} has depth 3.
+     * Returns the hierarchy depth of a delineation name using the {@code :}
+     * separator. E.g., {@code "Cortex:L1:proximal"} has depth 3.
      */
     private static int hierarchyDepth(final String name) {
         if (name == null || !name.contains(HIERARCHY_SEPARATOR)) return 1;
@@ -349,8 +349,8 @@ public class DelineationsManager {
 
     /**
      * Returns the prefix of a hierarchical delineation name truncated to the
-     * given level. E.g., {@code hierarchyPrefix("Cortex::L1::proximal", 2)}
-     * returns {@code "Cortex::L1"}.
+     * given level. E.g., {@code hierarchyPrefix("Cortex:L1:proximal", 2)}
+     * returns {@code "Cortex:L1"}.
      */
     private static String hierarchyPrefix(final String name, final int level) {
         if (name == null || !name.contains(HIERARCHY_SEPARATOR)) return name;
@@ -390,8 +390,8 @@ public class DelineationsManager {
 
     /**
      * Prompts the user to select a hierarchy grouping level, if delineation
-     * names use the {@code ::} separator. Returns the chosen level, or -1 if
-     * the user cancelled.
+     * names use the {@code :} separator. Returns the chosen level, or -1 if
+     * the user canceled.
      */
     private int promptForGroupingLevel() {
         final int maxDepth = maxHierarchyDepth();
@@ -457,10 +457,8 @@ public class DelineationsManager {
                     if (cachedEDT.get() != null) {
                         final double[] dists = sampleDistancesForPaths(sections, cachedEDT.get());
                         if (dists.length > 0) {
-                            final DoubleSummaryStatistics stats =
-                                    Arrays.stream(dists).summaryStatistics();
-                            final long insideCount = Arrays.stream(dists)
-                                    .filter(v -> v == 0.0).count();
+                            final DoubleSummaryStatistics stats = Arrays.stream(dists).summaryStatistics();
+                            final long insideCount = Arrays.stream(dists).filter(v -> v == 0.0).count();
                             table.set("Mean dist. to boundary", label, stats.getAverage());
                             table.set("Min dist. to boundary", label, stats.getMin());
                             table.set("Max dist. to boundary", label, stats.getMax());

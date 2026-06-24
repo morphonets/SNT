@@ -395,7 +395,7 @@ public class OntologyBrowser extends JPanel {
 
     /**
      * Shows this browser in a modal dialog and returns the selected paths,
-     * or {@code null} if the user cancelled.
+     * or {@code null} if the user canceled.
      *
      * @param parent the parent component for dialog positioning
      * @param title  the dialog title

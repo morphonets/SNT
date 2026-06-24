@@ -28,6 +28,7 @@ import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
 import sc.fiji.snt.SNT;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
@@ -85,6 +86,9 @@ public abstract class AbstractBigViewer {
 
     /** Pixel dimensions [x, y, z] of the primary loaded volume. */
     protected long[] dims;
+
+    /** Rendering options shared across all path/annotation overlays in this viewer. */
+    protected PathRenderingOptions renderingOptions = new PathRenderingOptions();
 
     /** Physical unit for calibration values (e.g., "um", "pixel"). */
     protected String calUnit;
@@ -217,6 +221,15 @@ public abstract class AbstractBigViewer {
     public abstract void syncOverlays();
 
     /**
+     * Sets whether paths are rendered as frusta (tubes) or simple centerlines,
+     * and triggers an overlay cache invalidation.
+     *
+     * @param display {@code true} to render frusta using per-node radii;
+     *                {@code false} for fast centerline rendering
+     */
+    public abstract void setDisplayRadii(boolean display);
+
+    /**
      * Returns the annotation overlay for this viewer.
      * The overlay renders point markers in the viewer's world coordinate space.
      * May return null if the viewer has not been opened yet.
@@ -248,29 +261,6 @@ public abstract class AbstractBigViewer {
      * @param pos 3D point to receive the world-space cursor position
      */
     public abstract void getGlobalMouseCoordinates(RealPoint pos);
-
-
-    /**
-     * Creates an {@link Action} that calls {@code onToggle} with the toggle button's
-     * selected state whenever triggered. Useful for wiring toolbar toggle buttons to
-     * viewer overlay state (scale bar, text overlay, etc.).
-     *
-     * @param name         action name (used for accessibility)
-     * @param initialState initial selected state (returned when source is not a button)
-     * @param onToggle     consumer called with the new boolean state on each action event
-     * @return the constructed action
-     */
-    protected static Action overlayToggleAction(final String name, final boolean initialState,
-                                                final java.util.function.Consumer<Boolean> onToggle) {
-        return new AbstractAction(name) {
-            @Override
-            public void actionPerformed(final ActionEvent e) {
-                final boolean selected = (e.getSource() instanceof AbstractButton btn)
-                        ? btn.isSelected() : !initialState;
-                onToggle.accept(selected);
-            }
-        };
-    }
 
     /**
      * Returns the currently active source, or null if none.
@@ -489,94 +479,301 @@ public abstract class AbstractBigViewer {
         return base + " (" + n + ")";
     }
 
+    /** Returns true if path/tree overlay rendering is currently enabled. */
+    protected abstract boolean isPathRenderingEnabled();
+
+    /** Enables or disables path/tree overlay rendering. */
+    protected abstract void setPathRenderingEnabled(boolean enabled);
+
     /**
-     * Creates an action that fits the view to the bounding box of the currently
-     * selected source, with a short animation.
+     * Applies a world-space offset to all rendered path annotations.
+     *
+     * @param offsetX x offset in calibrated units
+     * @param offsetY y offset in calibrated units
+     * @param offsetZ z offset in calibrated units
      */
-    protected Action fitToCurrentSourceAction() {
-        return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
-            @Override
-            public void actionPerformed(final ActionEvent e) {
-                final SourceAndConverter<?> src = getCurrentSource();
-                if (src == null) { showViewerMessage("No source selected"); return; }
-                final int cw = getViewerWidth(), ch = getViewerHeight();
-                if (cw <= 0 || ch <= 0) return;
-                final AffineTransform3D srcToWorld = new AffineTransform3D();
-                src.getSpimSource().getSourceTransform(0, 0, srcToWorld);
-                final net.imglib2.RandomAccessibleInterval<?> rai = src.getSpimSource().getSource(0, 0);
-                if (rai == null) return;
-                final long[] min = new long[3], max = new long[3];
-                for (int d = 0; d < 3; d++) { min[d] = rai.min(d); max[d] = rai.max(d); }
-                double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-                double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-                double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
-                final double[] corner = new double[3], world = new double[3];
-                for (int i = 0; i < 8; i++) {
-                    corner[0] = (i & 1) == 0 ? min[0] : max[0];
-                    corner[1] = (i & 2) == 0 ? min[1] : max[1];
-                    corner[2] = (i & 4) == 0 ? min[2] : max[2];
-                    srcToWorld.apply(corner, world);
-                    minX = Math.min(minX, world[0]); maxX = Math.max(maxX, world[0]);
-                    minY = Math.min(minY, world[1]); maxY = Math.max(maxY, world[1]);
-                    minZ = Math.min(minZ, world[2]); maxZ = Math.max(maxZ, world[2]);
-                }
-                final double physW = maxX - minX, physH = maxY - minY, physZ = maxZ - minZ;
-                if (physW <= 0 || physH <= 0) return;
-                final double scale = Math.min(cw / physW, ch / physH);
-                final AffineTransform3D target = new AffineTransform3D();
-                target.set(scale, 0, 0); target.set(scale, 1, 1); target.set(scale, 2, 2);
-                target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
-                target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
-                target.set(-scale * (minZ + physZ / 2.0), 2, 3);
-                setViewerTransform(target, 300);
-            }
-        };
-    }
+    public abstract void setCanvasOffset(double offsetX, double offsetY, double offsetZ);
 
-    Action loadBookmarksAction() {
-        return new AbstractAction("Load Markers From Bookmarks", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
-            @Override
-            public void actionPerformed(final java.awt.event.ActionEvent e) {
-                try {
-                    final java.util.List<SNTPoint> pos = snt.getUI().getBookmarkManager().getPositions(false);
-                    if (pos.isEmpty()) {
-                        new GuiUtils(getViewerFrame()).error("The Bookmarks table is empty.");
-                    } else {
-                        getMarkerManager().add("BM", pos, 1, 1);
-                        getMarkerManager().showPanel();
-                        showViewerMessage(String.format("Imported %d bookmarks", pos.size()));
+    /** Returns the rendering options shared across this viewer's overlays. */
+    public PathRenderingOptions getRenderingOptions() { return renderingOptions; }
+
+    protected class Actions {
+        private GuiUtils guiUtils;
+        // State for hide-annotations (H key) press/release tracking
+        float lastClippingDistance = 100f;
+        private boolean hideActive;
+        private boolean pathsWereVisible;
+        private boolean annotationsWereVisible;
+
+
+        /**
+         * Creates an {@link Action} that calls {@code onToggle} with the toggle button's
+         * selected state whenever triggered. Useful for wiring toolbar toggle buttons to
+         * viewer overlay state (scale bar, text overlay, etc.).
+         *
+         * @param name         action name (used for accessibility)
+         * @param initialState initial selected state (returned when source is not a button)
+         * @param onToggle     consumer called with the new boolean state on each action event
+         * @return the constructed action
+         */
+        protected static Action overlayToggleAction(final String name, final boolean initialState,
+                                                    final java.util.function.Consumer<Boolean> onToggle) {
+            return new AbstractAction(name) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    final boolean selected = (e.getSource() instanceof AbstractButton btn)
+                            ? btn.isSelected() : !initialState;
+                    onToggle.accept(selected);
+                }
+            };
+        }
+
+        /**
+         * Creates an action that fits the view to the bounding box of the currently
+         * selected source, with a short animation.
+         */
+        Action fitToCurrentSourceAction() {
+            return new AbstractAction("Fit Source", IconFactory.menuIcon(IconFactory.GLYPH.EXPAND)) {
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    final SourceAndConverter<?> src = getCurrentSource();
+                    if (src == null) {
+                        showViewerMessage("No source selected");
+                        return;
                     }
-                } catch (final NullPointerException ex) {
-                    showViewerMessage("Bookmark Manager unavailable");
+                    final int cw = getViewerWidth(), ch = getViewerHeight();
+                    if (cw <= 0 || ch <= 0) return;
+                    final AffineTransform3D srcToWorld = new AffineTransform3D();
+                    src.getSpimSource().getSourceTransform(0, 0, srcToWorld);
+                    final net.imglib2.RandomAccessibleInterval<?> rai = src.getSpimSource().getSource(0, 0);
+                    if (rai == null) return;
+                    final long[] min = new long[3], max = new long[3];
+                    for (int d = 0; d < 3; d++) {
+                        min[d] = rai.min(d);
+                        max[d] = rai.max(d);
+                    }
+                    double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                    double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                    double minZ = Double.MAX_VALUE, maxZ = -Double.MAX_VALUE;
+                    final double[] corner = new double[3], world = new double[3];
+                    for (int i = 0; i < 8; i++) {
+                        corner[0] = (i & 1) == 0 ? min[0] : max[0];
+                        corner[1] = (i & 2) == 0 ? min[1] : max[1];
+                        corner[2] = (i & 4) == 0 ? min[2] : max[2];
+                        srcToWorld.apply(corner, world);
+                        minX = Math.min(minX, world[0]);
+                        maxX = Math.max(maxX, world[0]);
+                        minY = Math.min(minY, world[1]);
+                        maxY = Math.max(maxY, world[1]);
+                        minZ = Math.min(minZ, world[2]);
+                        maxZ = Math.max(maxZ, world[2]);
+                    }
+                    final double physW = maxX - minX, physH = maxY - minY, physZ = maxZ - minZ;
+                    if (physW <= 0 || physH <= 0) return;
+                    final double scale = Math.min(cw / physW, ch / physH);
+                    final AffineTransform3D target = new AffineTransform3D();
+                    target.set(scale, 0, 0);
+                    target.set(scale, 1, 1);
+                    target.set(scale, 2, 2);
+                    target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
+                    target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
+                    target.set(-scale * (minZ + physZ / 2.0), 2, 3);
+                    setViewerTransform(target, 300);
                 }
-            }
-        };
-    }
+            };
+        }
 
-    Action syncPathManagerAction() {
-        return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
-            @Override
-            public void actionPerformed(final java.awt.event.ActionEvent e) {
-                if (syncPathManagerList()) {
-                    showViewerMessage("Path Manager synced");
-                } else {
-                    showViewerMessage("No paths or SNT unavailable");
+        Action loadBookmarksAction() {
+            return new AbstractAction("Load Markers From Bookmarks", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    try {
+                        final java.util.List<SNTPoint> pos = snt.getUI().getBookmarkManager().getPositions(false);
+                        if (pos.isEmpty()) {
+                            getGuiUtils().error("The Bookmarks table is empty.");
+                        } else {
+                            getMarkerManager().add("BM", pos, 1, 1, SNTColor.colorToString(getRenderingOptions().fallbackColor));
+                            getMarkerManager().showPanel();
+                            showViewerMessage(String.format("Imported %d bookmarks", pos.size()));
+                        }
+                    } catch (final NullPointerException ex) {
+                        showViewerMessage("Bookmark Manager unavailable");
+                    }
                 }
-            }
-        };
-    }
+            };
+        }
 
-    Action clearAllPathsAction() {
-        return new AbstractAction("Remove All Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
-            @Override
-            public void actionPerformed(final java.awt.event.ActionEvent e) {
-                if (new GuiUtils(getViewerFrame()).getConfirmation("Remove all reconstructions? (undoable action)",
-                        "Remove All Annotations?")) {
-                    clearAllTrees();
-                    showViewerMessage("Annotations cleared");
+        Action syncPathManagerAction() {
+            return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (syncPathManagerList()) {
+                        showViewerMessage("Path Manager synced");
+                    } else {
+                        showViewerMessage("No paths or SNT unavailable");
+                    }
                 }
-            }
-        };
+            };
+        }
+
+        Action clearAllPathsAction() {
+            return new AbstractAction("Remove All Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (getGuiUtils().getConfirmation("Remove all reconstructions? (undoable action)",
+                            "Remove All Annotations?")) {
+                        clearAllTrees();
+                        showViewerMessage("Annotations cleared");
+                    }
+                }
+            };
+        }
+
+        Action showMarkerManagerAction() {
+            return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    getMarkerManager().toggleViewerPanel();
+                }
+            };
+        }
+
+        Action importAction() {
+            return new AbstractAction("Import Reconstructions...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final File[] files = getGuiUtils().getReconstructionFiles(getDefaultDir());
+                    if (files == null || files.length == 0) return;
+                    setDefaultDir(files[0]);
+                    add(files);
+                }
+            };
+        }
+
+        Action hideAnnotationsPressAction() {
+            return new AbstractAction("Hide annotations (hold)") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (hideActive) return;
+                    final boolean hasPaths = isPathRenderingEnabled() && !getRenderedTrees().isEmpty();
+                    final boolean hasAnnotations = annotations() != null
+                            && annotations().isVisible() && annotations().getCount() > 0;
+                    if (!hasPaths && !hasAnnotations) {
+                        showViewerMessage("Nothing to hide");
+                        return;
+                    }
+                    pathsWereVisible = isPathRenderingEnabled();
+                    annotationsWereVisible = annotations() != null && annotations().isVisible();
+                    setPathRenderingEnabled(false);
+                    if (annotations() != null) annotations().setVisible(false);
+                    hideActive = true;
+                }
+            };
+        }
+
+        Action hideAnnotationsReleaseAction() {
+            return new AbstractAction("Restore annotations") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!hideActive) return;
+                    setPathRenderingEnabled(pathsWereVisible);
+                    if (annotations() != null) annotations().setVisible(annotationsWereVisible);
+                    hideActive = false;
+                }
+            };
+        }
+
+        Action toggleVisibilityAction() {
+            return new AbstractAction("Show/hide All Annotations") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final boolean hasContent = !getRenderedTrees().isEmpty()
+                            || (annotations() != null && annotations().getCount() > 0);
+                    if (!hasContent) {
+                        showViewerMessage("No annotations exist.");
+                        return;
+                    }
+                    final boolean hide = (e.getSource() instanceof AbstractButton btn)
+                            ? btn.isSelected() : isPathRenderingEnabled();
+                    setPathRenderingEnabled(!hide);
+                    if (annotations() != null) annotations().setVisible(!hide);
+                    showViewerMessage(hide ? "Annotations hidden" : "Annotations visible");
+                }
+            };
+        }
+
+        Action togglePersistentAnnotationsAction() {
+            return new AbstractAction("Toggle Annotations Around Cursor") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!(e.getSource() instanceof AbstractButton toggleButton)) return;
+                    if (renderingOptions.isClippingEnabled()) {
+                        lastClippingDistance = renderingOptions.clippingDistance;
+                        renderingOptions.setClippingDistance(0);
+                    } else {
+                        final Double newDist = getGuiUtils().getDouble(
+                                "<html>Only annotations within this distance from the cursor will be displayed.<br>"
+                                        + "Set it to 0, or cancel this prompt to disable this option.",
+                                "Annotations Near Cursor",
+                                lastClippingDistance, 0d,
+                                java.util.Arrays.stream(dims != null ? dims : new long[]{1000})
+                                        .asDoubleStream().max().orElse(1000d),
+                                calUnit != null ? calUnit : "px");
+                        if (newDist == null) {
+                            toggleButton.setSelected(false);
+                            return;
+                        }
+                        renderingOptions.setClippingDistance(newDist == 0 ? 0 : newDist.floatValue());
+                    }
+                    toggleButton.setSelected(renderingOptions.isClippingEnabled());
+                    repaint();
+                    showViewerMessage(renderingOptions.isClippingEnabled()
+                            ? "Visibility: Around cursor" : "Visibility: All visible");
+                }
+            };
+        }
+
+        Action setCanvasOffsetAction() {
+            return new AbstractAction("Annotations Offset...", IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, 1f)) {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    final SNTPoint offset = getGuiUtils().getCoordinates(
+                            "Offsets:", "Annotations Offset (Calibrated Distances)",
+                            renderingOptions.canvasOffset, 2);
+                    if (offset == null) return;
+                    if (offset.getX() == 0 && offset.getY() == 0 && offset.getZ() == 0) {
+                        resetCanvasOffsetAction().actionPerformed(e);
+                    } else {
+                        setCanvasOffset(offset.getX(), offset.getY(), offset.getZ());
+                        showViewerMessage("Offset applied");
+                    }
+                }
+            };
+        }
+
+        Action resetCanvasOffsetAction() {
+            return new AbstractAction() {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    setCanvasOffset(0, 0, 0);
+                    showViewerMessage("Offset removed");
+                }
+            };
+        }
+
+        GuiUtils getGuiUtils() {
+            if (guiUtils == null) guiUtils = new GuiUtils(getViewerFrame());
+            return guiUtils;
+        }
+
+        protected static File getDefaultDir() {
+            return SNTPrefs.lastKnownDir(); // never null
+        }
+
+        protected static void setDefaultDir(final File newDir) {
+            SNTPrefs.setLastKnownDir(newDir);
+        }
+
     }
 
     /**
@@ -611,7 +808,7 @@ public abstract class AbstractBigViewer {
      */
     protected JToolBar buildBaseSceneControlToolbar() {
         final JToolBar bar = createToolbar();
-        bar.add(GuiUtils.Buttons.toolbarButton(fitToCurrentSourceAction(),
+        bar.add(GuiUtils.Buttons.toolbarButton(new Actions().fitToCurrentSourceAction(),
                 "Fit view to the current (selected) source"));
         bar.addSeparator();
         // Action names match those registered by BDV/BVV NavigationActions
@@ -632,19 +829,19 @@ public abstract class AbstractBigViewer {
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
         final JToggleButton multiboxToggle = GuiUtils.Buttons.toolbarToggleButton(
-                overlayToggleAction("Minimap", Prefs.showMultibox(),
+                Actions.overlayToggleAction("Minimap", Prefs.showMultibox(),
                         show -> { Prefs.showMultibox(show); repaint(); }),
                 "Show/hide minimap", IconFactory.GLYPH.NAVIGATE, IconFactory.GLYPH.NAVIGATE);
         multiboxToggle.setSelected(Prefs.showMultibox());
         bar.add(multiboxToggle);
         final JToggleButton textToggle = GuiUtils.Buttons.toolbarToggleButton(
-                overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
+                Actions.overlayToggleAction("Text Overlay", Prefs.showTextOverlay(),
                         show -> { Prefs.showTextOverlay(show); repaint(); }),
                 "Show/hide text overlay", IconFactory.GLYPH.TEXT, IconFactory.GLYPH.TEXT);
         textToggle.setSelected(Prefs.showTextOverlay());
         bar.add(textToggle);
         final JToggleButton scaleBarToggle = GuiUtils.Buttons.toolbarToggleButton(
-                overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
+                Actions.overlayToggleAction("Scale Bar", Prefs.showScaleBar(),
                         show -> { Prefs.showScaleBar(show); repaint(); }),
                 "Show/hide scale bar (right-click: set calibration)",
                 IconFactory.GLYPH.RULER, IconFactory.GLYPH.RULER);
@@ -738,5 +935,206 @@ public abstract class AbstractBigViewer {
                 addAnnotation(points.get(i), sizes.get(i), c);
             }
         }
+    }
+
+    /**
+     * Configuration options for path rendering.
+     * Controls thickness, transparency, and other visual properties.
+     */
+    public static class PathRenderingOptions {
+        private float thicknessMultiplier = 1.0f;
+        private float transparency = 1.0f; // 1.0 = opaque, 0.0 = transparent
+        private boolean usePathRadius = true;
+        private float minThickness = 1.0f;
+        private float maxThickness = 100.0f;
+        SNTPoint canvasOffset;
+        public Color fallbackColor = Color.MAGENTA;
+        float clippingDistance;
+
+        /**
+         * Gets the thickness multiplier for path rendering.
+         *
+         * @return thickness multiplier (default: 1.0)
+         */
+        public float getThicknessMultiplier() {
+            return thicknessMultiplier;
+        }
+
+        /**
+         * Sets the thickness multiplier for path rendering.
+         *
+         * @param multiplier thickness multiplier (1.0 = normal, 2.0 = double thickness, etc.)
+         */
+        public void setThicknessMultiplier(float multiplier) {
+            this.thicknessMultiplier = Math.max(0.1f, multiplier);
+        }
+
+        /**
+         * Gets the transparency level for path rendering.
+         *
+         * @return transparency (1.0 = opaque, 0.0 = fully transparent)
+         */
+        public float getTransparency() {
+            return transparency;
+        }
+
+        /**
+         * Sets the transparency level for path rendering.
+         *
+         * @param transparency transparency level (1.0 = opaque, 0.0 = fully transparent)
+         */
+        public void setTransparency(float transparency) {
+            this.transparency = Math.clamp(transparency, 0.0f, 1.0f);
+        }
+
+        /**
+         * Gets whether to use path radius for thickness calculation.
+         *
+         * @return true if using path radius
+         */
+        public boolean isUsePathRadius() {
+            return usePathRadius;
+        }
+
+        /**
+         * Sets whether to use path radius for thickness calculation.
+         *
+         * @param usePathRadius true to use path radius, false for uniform thickness
+         */
+        @SuppressWarnings("unused")
+        public void setUsePathRadius(boolean usePathRadius) {
+            this.usePathRadius = usePathRadius;
+        }
+
+        /**
+         * Gets the minimum thickness for path rendering.
+         *
+         * @return minimum thickness in pixels
+         */
+        public float getMinThickness() {
+            return minThickness;
+        }
+
+        /**
+         * Sets the minimum thickness for path rendering.
+         *
+         * @param minThickness minimum thickness in physical (world-space) units
+         */
+        @SuppressWarnings("unused")
+        public void setMinThickness(float minThickness) {
+            this.minThickness = Math.max(0.1f, minThickness);
+        }
+
+        /**
+         * Gets the maximum thickness for path rendering.
+         *
+         * @return maximum thickness in pixels
+         */
+        public float getMaxThickness() {
+            return maxThickness;
+        }
+
+        /**
+         * Sets the maximum thickness for path rendering.
+         *
+         * @param maxThickness maximum thickness in pixels
+         */
+        @SuppressWarnings("unused")
+        public void setMaxThickness(float maxThickness) {
+            this.maxThickness = Math.max(1.0f, maxThickness);
+        }
+
+        /**
+         * Returns whether paths are rendered as tapered frustums (true) or simple
+         * lines (false). Line rendering is dramatically faster for large datasets.
+         *
+         * @return true if frustum/radius rendering is active
+         */
+        public boolean isDisplayRadii() {
+            return displayRadii;
+        }
+
+        /**
+         * Controls whether paths are rendered as tapered frustums with per-node
+         * radii ({@code true}) or as simple anti-aliased lines ({@code false}).
+         * <p>
+         * Line rendering uses Java2D's {@link java.awt.BasicStroke} with
+         * {@code ROUND_CAP} / {@code ROUND_JOIN}, which is GPU-accelerated and
+         * avoids all manual geometry and per-node {@code fillOval} calls.
+         * This is the preferred mode for datasets with many paths.
+         *
+         * @param displayRadii {@code true} for frustum rendering, {@code false}
+         *                     for fast line rendering
+         */
+        public void setDisplayRadii(final boolean displayRadii) {
+            this.displayRadii = displayRadii;
+        }
+        private boolean displayRadii = true;
+
+
+        /**
+         * Enables or disables 'clipped visibility' for path overlays.
+         * When enabled, only path nodes within the specified distance from cursor are displayed.
+         * When disabled, paths are always visible regardless of cursor positon
+         *
+         * @param clippingDistance the clippingDistance (in real world units). Set to zero to disable clipping
+         */
+        @SuppressWarnings("unused")
+        public void setClippingDistance(final float clippingDistance) {
+            this.clippingDistance = clippingDistance;
+        }
+
+        /**
+         * Gets whether 'clipped visibility' is enabled
+         *
+         * @return true if persistent visibility is enabled
+         * @see #setClippingDistance(float)
+         */
+        public boolean isClippingEnabled() {
+            return clippingDistance > 0;
+        }
+
+        // Slab clipping
+        private double slabZMin = Double.NEGATIVE_INFINITY;
+        private double slabZMax = Double.POSITIVE_INFINITY;
+        /** Controls whether paths (not annotations) are clipped to the slab. */
+        private boolean clipPathsToSlab = false;
+        /** Controls whether annotations/markers are clipped to the slab. */
+        private boolean clipAnnotationsToSlab = false;
+
+        /**
+         * Sets the world-Z bounds of the current slab. Called by the slab position/
+         * thickness controls so the overlay renderer can cull paths outside the slab.
+         */
+        public void setSlabZBounds(final double zMin, final double zMax) {
+            this.slabZMin = zMin;
+            this.slabZMax = zMax;
+        }
+
+        /** Clears slab Z bounds (reverts to no slab culling). */
+        public void clearSlabZBounds() {
+            this.slabZMin = Double.NEGATIVE_INFINITY;
+            this.slabZMax = Double.POSITIVE_INFINITY;
+        }
+
+        /** Returns true if a slab view is currently active. */
+        public boolean isSlabActive() {
+            return slabZMin != Double.NEGATIVE_INFINITY;
+        }
+
+        /** Returns {@code true} if path rendering is restricted to the slab Z range. */
+        public boolean isClipPathsToSlab() { return clipPathsToSlab; }
+
+        /** Restricts path rendering to the slab Z range when {@code true}. */
+        public void setClipPathsToSlab(final boolean clip) { this.clipPathsToSlab = clip; }
+
+        /** Returns {@code true} if annotation/marker rendering is restricted to the slab Z range. */
+        public boolean isClipAnnotationsToSlab() { return clipAnnotationsToSlab; }
+
+        /** Restricts annotation/marker rendering to the slab Z range when {@code true}. */
+        public void setClipAnnotationsToSlab(final boolean clip) { this.clipAnnotationsToSlab = clip; }
+
+        public double getSlabZMin() { return slabZMin; }
+        public double getSlabZMax() { return slabZMax; }
     }
 }

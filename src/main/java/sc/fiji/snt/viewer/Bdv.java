@@ -55,7 +55,6 @@ import sc.fiji.snt.util.SNTPoint;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
-import java.io.File;
 import java.util.*;
 import java.util.List;
 
@@ -108,7 +107,6 @@ public class Bdv extends AbstractBigViewer {
     // Shared overlay infrastructure (same classes as BVV; dCam = MAX_VALUE => orthographic)
     private Bvv.PathOverlay pathOverlay;
     private Bvv.AnnotationOverlay annotationOverlay;
-    private final Bvv.PathRenderingOptions renderingOptions = new Bvv.PathRenderingOptions();
 
     // Guard so addTransformListener is called only once across reinits
     private boolean sliceClipListenerRegistered = false;
@@ -449,7 +447,8 @@ public class Bdv extends AbstractBigViewer {
      * Returns the rendering options controlling path thickness, transparency, etc.
      * For BDV, slab clipping options have no effect (slab mode is BVV-only).
      */
-    public Bvv.PathRenderingOptions getRenderingOptions() {
+    @Override
+    public PathRenderingOptions getRenderingOptions() {
         return renderingOptions;
     }
 
@@ -457,6 +456,7 @@ public class Bdv extends AbstractBigViewer {
      * Shifts all rendered trees by (offsetX, offsetY, offsetZ) in world coordinates
      * and records the offset in the rendering options so it survives a syncOverlays() call.
      */
+    @Override
     public void setCanvasOffset(final double offsetX, final double offsetY, final double offsetZ) {
         for (final Tree tree : renderedTrees.values())
             tree.applyCanvasOffset(offsetX, offsetY, offsetZ);
@@ -465,10 +465,21 @@ public class Bdv extends AbstractBigViewer {
                 ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
     }
 
+    @Override
+    protected boolean isPathRenderingEnabled() {
+        return pathOverlay != null && pathOverlay.isRenderingEnable();
+    }
+
+    @Override
+    protected void setPathRenderingEnabled(final boolean enabled) {
+        if (pathOverlay != null) pathOverlay.disableRendering(!enabled);
+    }
+
     /**
      * Switches between frustum (radius-based) and centerline rendering.
      * Invalidates the overlay cache and requests a repaint.
      */
+    @Override
     public void setDisplayRadii(final boolean display) {
         renderingOptions.setDisplayRadii(display);
         if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
@@ -675,11 +686,11 @@ public class Bdv extends AbstractBigViewer {
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
-            menu.add(new JMenuItem(loadBookmarksAction()));
-            menu.add(new JMenuItem(syncPathManagerAction()));
+            menu.add(new JMenuItem(actions.loadBookmarksAction()));
+            menu.add(new JMenuItem(actions.syncPathManagerAction()));
         }
         menu.addSeparator();
-        menu.add(new JMenuItem(clearAllPathsAction()));
+        menu.add(new JMenuItem(actions.clearAllPathsAction()));
         return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
     }
 
@@ -687,128 +698,7 @@ public class Bdv extends AbstractBigViewer {
         return buildBaseSceneControlToolbar();
     }
 
-    private class BdvActions {
-        private final GuiUtils guiUtils;
-        private float lastClippingDistance = 100f;
-        private boolean hideActive;
-        private boolean pathsWereVisible;
-        private boolean annotationsWereVisible;
-
-        BdvActions() {
-            guiUtils = new GuiUtils(getViewerFrame());
-        }
-
-        Action hideAnnotationsPressAction() {
-            return new AbstractAction("Hide annotations (hold)") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (hideActive) return;
-                    final boolean hasPaths = pathOverlay != null && pathOverlay.isRenderingEnable()
-                            && !getRenderedTrees().isEmpty();
-                    final boolean hasAnnotations = annotationOverlay != null
-                            && annotationOverlay.isVisible() && annotationOverlay.getCount() > 0;
-                    if (!hasPaths && !hasAnnotations) {
-                        showViewerMessage("Nothing to hide");
-                        return;
-                    }
-                    pathsWereVisible = pathOverlay != null && pathOverlay.isRenderingEnable();
-                    annotationsWereVisible = annotationOverlay != null && annotationOverlay.isVisible();
-                    if (pathOverlay != null) pathOverlay.disableRendering(true);
-                    if (annotationOverlay != null) annotationOverlay.setVisible(false);
-                    hideActive = true;
-                }
-            };
-        }
-
-        Action hideAnnotationsReleaseAction() {
-            return new AbstractAction("Restore annotations") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (!hideActive) return;
-                    if (pathOverlay != null) pathOverlay.disableRendering(!pathsWereVisible);
-                    if (annotationOverlay != null) annotationOverlay.setVisible(annotationsWereVisible);
-                    hideActive = false;
-                }
-            };
-        }
-
-        Action toggleVisibilityAction() {
-            return new AbstractAction("Show/hide All Annotations") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final boolean hasContent =
-                            (pathOverlay != null && !getRenderedTrees().isEmpty())
-                                    || (annotationOverlay != null && annotationOverlay.getCount() > 0);
-                    if (!hasContent) {
-                        showViewerMessage("No annotations exist.");
-                        return;
-                    }
-                    final boolean hide = (e.getSource() instanceof AbstractButton btn)
-                            ? btn.isSelected()
-                            : pathOverlay == null || pathOverlay.isRenderingEnable();
-                    if (pathOverlay != null) pathOverlay.disableRendering(hide);
-                    if (annotationOverlay != null) annotationOverlay.setVisible(!hide);
-                    showViewerMessage(hide ? "Annotations hidden" : "Annotations visible");
-                }
-            };
-        }
-
-        Action togglePersistentAnnotationsAction() {
-            return new AbstractAction("Toggle Annotations Around Cursor") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (!(e.getSource() instanceof AbstractButton toggleButton)) return;
-                    if (renderingOptions.isClippingEnabled()) {
-                        lastClippingDistance = renderingOptions.clippingDistance;
-                        renderingOptions.setClippingDistance(0);
-                    } else {
-                        final Double newDist = guiUtils.getDouble(
-                                "<html>Only annotations within this distance from the cursor will be displayed.<br>"
-                                        + "Set it to 0, or cancel this prompt to disable this option.",
-                                "Annotations Near Cursor",
-                                lastClippingDistance, 0d,
-                                Arrays.stream(dims != null ? dims : new long[]{1000}).asDoubleStream().max().orElse(1000d),
-                                calUnit != null ? calUnit : "px");
-                        if (newDist == null) {
-                            toggleButton.setSelected(false);
-                            return;
-                        }
-                        renderingOptions.setClippingDistance(newDist == 0 ? 0 : newDist.floatValue());
-                    }
-                    toggleButton.setSelected(renderingOptions.isClippingEnabled());
-                    repaint();
-                    showViewerMessage(renderingOptions.isClippingEnabled()
-                            ? "Visibility: Around cursor" : "Visibility: All visible");
-                }
-            };
-        }
-
-        Action setCanvasOffsetAction() {
-            return new AbstractAction("Annotations Offset...", IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, 1f)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final SNTPoint offset = guiUtils.getCoordinates("Offsets:", "Annotations Offset (Calibrated Distances)",
-                            renderingOptions.canvasOffset, 2);
-                    if (offset == null) return;
-                    if (offset.getX() == 0 && offset.getY() == 0 && offset.getZ() == 0) {
-                        resetCanvasOffsetAction().actionPerformed(e);
-                    } else {
-                        setCanvasOffset(offset.getX(), offset.getY(), offset.getZ());
-                        showViewerMessage("Offset applied");
-                    }
-                }
-            };
-        }
-
-        Action resetCanvasOffsetAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    setCanvasOffset(0, 0, 0);
-                    showViewerMessage("Offset removed");
-                }
-            };
-        }
+    private class BdvActions extends Actions {
 
         Action pathRenderingOptionsAction() {
             return new AbstractAction("Path Rendering Options", IconFactory.buttonIcon(IconFactory.GLYPH.SLIDERS, 1f)) {
@@ -821,26 +711,6 @@ public class Bdv extends AbstractBigViewer {
             };
         }
 
-        Action showMarkerManagerAction() {
-            return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    getMarkerManager().toggleViewerPanel();
-                }
-            };
-        }
-
-        Action importAction() {
-            return new AbstractAction("Import Reconstructions...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File[] files = guiUtils.getReconstructionFiles(SNTPrefs.lastKnownDir());
-                    if (files == null || files.length == 0) return;
-                    SNTPrefs.setLastKnownDir(files[0]);
-                    add(files);
-                }
-            };
-        }
     }
 
     /**

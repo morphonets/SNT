@@ -101,7 +101,6 @@ public class Bvv extends AbstractBigViewer {
     private final BvvOptions options;
     private JProgressBar progressBar; // Docked at CardPanel bottom via addToCardPanelBottom().
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
-    private final PathRenderingOptions renderingOptions;
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
     private SceneOverlay sceneOverlay;
@@ -127,7 +126,6 @@ public class Bvv extends AbstractBigViewer {
     public Bvv(final SNT snt) {
         super(snt); // sets this.snt and AbstractBigViewer.lastInstance
         options = bvv.vistools.Bvv.options();
-        this.renderingOptions = new PathRenderingOptions();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
         options.cacheBlockSize(32); // GPU cache tile size
@@ -1419,7 +1417,7 @@ public class Bvv extends AbstractBigViewer {
 
     private JComponent sntToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
-        toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togggleVisibilityAction(),
+        toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(),
                 "Show/hide annotations",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH));
         toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
@@ -1469,11 +1467,11 @@ public class Bvv extends AbstractBigViewer {
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
-            menu.add(new JMenuItem(loadBookmarksAction()));
-            menu.add(new JMenuItem(syncPathManagerAction()));
+            menu.add(new JMenuItem(actions.loadBookmarksAction()));
+            menu.add(new JMenuItem(actions.syncPathManagerAction()));
         }
         menu.addSeparator();
-        menu.add(new JMenuItem(clearAllPathsAction()));
+        menu.add(new JMenuItem(actions.clearAllPathsAction()));
         return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
     }
 
@@ -1856,6 +1854,7 @@ public class Bvv extends AbstractBigViewer {
      *
      * @return the rendering options
      */
+    @Override
     public PathRenderingOptions getRenderingOptions() {
         return renderingOptions;
     }
@@ -2122,6 +2121,7 @@ public class Bvv extends AbstractBigViewer {
      * @param display {@code true} for frustum/radius rendering (default),
      *                {@code false} for fast line rendering
      */
+    @Override
     public void setDisplayRadii(final boolean display) {
         renderingOptions.setDisplayRadii(display);
         if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
@@ -2146,12 +2146,23 @@ public class Bvv extends AbstractBigViewer {
      * @param offsetY Y offset (calibrated distance)
      * @param offsetZ Z offset (calibrated distance)
      */
+    @Override
     public void setCanvasOffset(final double offsetX, final double offsetY, final double offsetZ) {
         for (final Tree tree : renderedTrees.values()) {
             tree.applyCanvasOffset(offsetX, offsetY, offsetZ);
         }
         syncOverlays();
         renderingOptions.canvasOffset = (offsetX == 0 && offsetY == 0d && offsetZ == 0d) ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
+    }
+
+    @Override
+    protected boolean isPathRenderingEnabled() {
+        return pathOverlay != null && pathOverlay.isRenderingEnable();
+    }
+
+    @Override
+    protected void setPathRenderingEnabled(final boolean enabled) {
+        if (pathOverlay != null) pathOverlay.disableRendering(!enabled);
     }
 
     /**
@@ -2726,7 +2737,7 @@ public class Bvv extends AbstractBigViewer {
                     "Reset view to startup state"), 0);
             // Append BVV-specific scene overlays
             final JToggleButton crosshairToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Crosshair", true, show -> {
+                    BvvActions.overlayToggleAction("Crosshair", true, show -> {
                         if (sceneOverlay != null) { sceneOverlay.showCrosshair = show; bvvInstance.repaint(); }
                     }),
                     "Show/hide center crosshair (focal anchor for double-click navigation)",
@@ -2734,7 +2745,7 @@ public class Bvv extends AbstractBigViewer {
             crosshairToggle.setSelected(true);
             bar.add(crosshairToggle);
             final JToggleButton axesToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Axes", false, show -> {
+                    BvvActions.overlayToggleAction("Axes", false, show -> {
                         if (sceneOverlay != null) { sceneOverlay.showAxes = show; bvvInstance.repaint(); }
                     }),
                     "Show/hide coordinate axes at the volume origin.\nX: Red; Y: Green; Z: Blue",
@@ -2742,7 +2753,7 @@ public class Bvv extends AbstractBigViewer {
             axesToggle.setSelected(false);
             bar.add(axesToggle);
             final JToggleButton boxToggle = GuiUtils.Buttons.toolbarToggleButton(
-                    overlayToggleAction("Volume Box", false, show -> {
+                    BvvActions.overlayToggleAction("Volume Box", false, show -> {
                         if (sceneOverlay != null) { sceneOverlay.showBox = show; bvvInstance.repaint(); }
                     }),
                     "Show/hide bounding box around all loaded volumes",
@@ -2821,207 +2832,6 @@ public class Bvv extends AbstractBigViewer {
         sep.setIcon(IconFactory.menuIcon(glyph, GuiUtils.getDisabledComponentColor()));
         sep.setDisabledIcon(IconFactory.menuIcon(glyph, GuiUtils.getDisabledComponentColor()));
         menu.add(sep);
-    }
-
-    /**
-     * Configuration options for path rendering.
-     * Controls thickness, transparency, and other visual properties.
-     */
-    public static class PathRenderingOptions {
-        private float thicknessMultiplier = 1.0f;
-        private float transparency = 1.0f; // 1.0 = opaque, 0.0 = transparent
-        private boolean usePathRadius = true;
-        private float minThickness = 1.0f;
-        private float maxThickness = 100.0f;
-        SNTPoint canvasOffset;
-        public Color fallbackColor = Color.MAGENTA;
-        float clippingDistance;
-
-        /**
-         * Gets the thickness multiplier for path rendering.
-         *
-         * @return thickness multiplier (default: 1.0)
-         */
-        public float getThicknessMultiplier() {
-            return thicknessMultiplier;
-        }
-
-        /**
-         * Sets the thickness multiplier for path rendering.
-         *
-         * @param multiplier thickness multiplier (1.0 = normal, 2.0 = double thickness, etc.)
-         */
-        public void setThicknessMultiplier(float multiplier) {
-            this.thicknessMultiplier = Math.max(0.1f, multiplier);
-        }
-
-        /**
-         * Gets the transparency level for path rendering.
-         *
-         * @return transparency (1.0 = opaque, 0.0 = fully transparent)
-         */
-        public float getTransparency() {
-            return transparency;
-        }
-
-        /**
-         * Sets the transparency level for path rendering.
-         *
-         * @param transparency transparency level (1.0 = opaque, 0.0 = fully transparent)
-         */
-        public void setTransparency(float transparency) {
-            this.transparency = Math.clamp(transparency, 0.0f, 1.0f);
-        }
-
-        /**
-         * Gets whether to use path radius for thickness calculation.
-         *
-         * @return true if using path radius
-         */
-        public boolean isUsePathRadius() {
-            return usePathRadius;
-        }
-
-        /**
-         * Sets whether to use path radius for thickness calculation.
-         *
-         * @param usePathRadius true to use path radius, false for uniform thickness
-         */
-        @SuppressWarnings("unused")
-        public void setUsePathRadius(boolean usePathRadius) {
-            this.usePathRadius = usePathRadius;
-        }
-
-        /**
-         * Gets the minimum thickness for path rendering.
-         *
-         * @return minimum thickness in pixels
-         */
-        public float getMinThickness() {
-            return minThickness;
-        }
-
-        /**
-         * Sets the minimum thickness for path rendering.
-         *
-         * @param minThickness minimum thickness in physical (world-space) units
-         */
-        @SuppressWarnings("unused")
-        public void setMinThickness(float minThickness) {
-            this.minThickness = Math.max(0.1f, minThickness);
-        }
-
-        /**
-         * Gets the maximum thickness for path rendering.
-         *
-         * @return maximum thickness in pixels
-         */
-        public float getMaxThickness() {
-            return maxThickness;
-        }
-
-        /**
-         * Sets the maximum thickness for path rendering.
-         *
-         * @param maxThickness maximum thickness in pixels
-         */
-        @SuppressWarnings("unused")
-        public void setMaxThickness(float maxThickness) {
-            this.maxThickness = Math.max(1.0f, maxThickness);
-        }
-
-        /**
-         * Returns whether paths are rendered as tapered frustums (true) or simple
-         * lines (false). Line rendering is dramatically faster for large datasets.
-         *
-         * @return true if frustum/radius rendering is active
-         */
-        public boolean isDisplayRadii() {
-            return displayRadii;
-        }
-
-        /**
-         * Controls whether paths are rendered as tapered frustums with per-node
-         * radii ({@code true}) or as simple anti-aliased lines ({@code false}).
-         * <p>
-         * Line rendering uses Java2D's {@link java.awt.BasicStroke} with
-         * {@code ROUND_CAP} / {@code ROUND_JOIN}, which is GPU-accelerated and
-         * avoids all manual geometry and per-node {@code fillOval} calls.
-         * This is the preferred mode for datasets with many paths.
-         *
-         * @param displayRadii {@code true} for frustum rendering, {@code false}
-         *                     for fast line rendering
-         */
-        public void setDisplayRadii(final boolean displayRadii) {
-            this.displayRadii = displayRadii;
-        }
-        private boolean displayRadii = true;
-
-
-        /**
-         * Enables or disables 'clipped visibility' for path overlays.
-         * When enabled, only path nodes within the specified distance from cursor are displayed.
-         * When disabled, paths are always visible regardless of cursor positon
-         *
-         * @param clippingDistance the clippingDistance (in real world units). Set to zero to disable clipping
-         */
-        @SuppressWarnings("unused")
-        public void setClippingDistance(final float clippingDistance) {
-            this.clippingDistance = clippingDistance;
-        }
-
-        /**
-         * Gets whether 'clipped visibility' is enabled
-         *
-         * @return true if persistent visibility is enabled
-         * @see #setClippingDistance(float)
-         */
-        public boolean isClippingEnabled() {
-            return clippingDistance > 0;
-        }
-
-        // Slab clipping
-        private double slabZMin = Double.NEGATIVE_INFINITY;
-        private double slabZMax = Double.POSITIVE_INFINITY;
-        /** Controls whether paths (not annotations) are clipped to the slab. */
-        private boolean clipPathsToSlab = false;
-        /** Controls whether annotations/markers are clipped to the slab. */
-        private boolean clipAnnotationsToSlab = false;
-
-        /**
-         * Sets the world-Z bounds of the current slab. Called by the slab position/
-         * thickness controls so the overlay renderer can cull paths outside the slab.
-         */
-        public void setSlabZBounds(final double zMin, final double zMax) {
-            this.slabZMin = zMin;
-            this.slabZMax = zMax;
-        }
-
-        /** Clears slab Z bounds (reverts to no slab culling). */
-        public void clearSlabZBounds() {
-            this.slabZMin = Double.NEGATIVE_INFINITY;
-            this.slabZMax = Double.POSITIVE_INFINITY;
-        }
-
-        /** Returns true if a slab view is currently active. */
-        public boolean isSlabActive() {
-            return slabZMin != Double.NEGATIVE_INFINITY;
-        }
-
-        /** Returns {@code true} if path rendering is restricted to the slab Z range. */
-        public boolean isClipPathsToSlab() { return clipPathsToSlab; }
-
-        /** Restricts path rendering to the slab Z range when {@code true}. */
-        public void setClipPathsToSlab(final boolean clip) { this.clipPathsToSlab = clip; }
-
-        /** Returns {@code true} if annotation/marker rendering is restricted to the slab Z range. */
-        public boolean isClipAnnotationsToSlab() { return clipAnnotationsToSlab; }
-
-        /** Restricts annotation/marker rendering to the slab Z range when {@code true}. */
-        public void setClipAnnotationsToSlab(final boolean clip) { this.clipAnnotationsToSlab = clip; }
-
-        public double getSlabZMin() { return slabZMin; }
-        public double getSlabZMax() { return slabZMax; }
     }
 
     /**
@@ -4692,30 +4502,27 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /** Actions for BVV GUI components. */
-    private class BvvActions {
+    private class BvvActions extends Actions {
         private final BigVolumeViewer bvv;
         private final Bvv sntBvv;
-        private final GuiUtils guiUtils;
-        private float lastClippingDistance = 100f;
 
         BvvActions(final Bvv sntBvv, final BigVolumeViewer bvv) {
             this.sntBvv = sntBvv;
             this.bvv = bvv;
-            this.guiUtils = new GuiUtils(bvv.getViewerFrame());
         }
 
         Action loadSettingsAction() {
             return new AbstractAction("Load Settings...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = guiUtils.getFile(new File(getDefaultDir(), ".xml"), "xml");
+                    final File f = getGuiUtils().getFile(new File(getDefaultDir(), ".xml"), "xml");
                     if (SNTUtils.fileAvailable(f)) {
                         try {
                             bvv.loadSettings(f.getAbsolutePath());
                             bvv.getViewer().showMessage(String.format("%s loaded", f.getName()));
                             setDefaultDir(f);
                         } catch (final Exception ex) {
-                            guiUtils.error(ex.getMessage());
+                            getGuiUtils().error(ex.getMessage());
                         }
                     }
                 }
@@ -4726,7 +4533,7 @@ public class Bvv extends AbstractBigViewer {
             return new AbstractAction("Save Settings...", IconFactory.menuIcon(IconFactory.GLYPH.EXPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File f = guiUtils.getSaveFile("Save BVV Settings...",
+                    final File f = getGuiUtils().getSaveFile("Save BVV Settings...",
                             new File(getDefaultDir(), "settings.xml"), "xml");
                     if (SNTUtils.fileAvailable(f)) {
                         try {
@@ -4734,7 +4541,7 @@ public class Bvv extends AbstractBigViewer {
                             bvv.getViewer().showMessage(String.format("%s saved", f.getName()));
                             setDefaultDir(f);
                         } catch (final Exception ex) {
-                            guiUtils.error(ex.getMessage());
+                            getGuiUtils().error(ex.getMessage());
                         }
                     }
                 }
@@ -4745,92 +4552,10 @@ public class Bvv extends AbstractBigViewer {
             return new AbstractAction("Import Reconstructions...", IconFactory.menuIcon(IconFactory.GLYPH.IMPORT)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final File[] files = guiUtils.getReconstructionFiles(getDefaultDir());
+                    final File[] files = getGuiUtils().getReconstructionFiles(getDefaultDir());
                     if (files == null || files.length == 0) return;
                     setDefaultDir(files[0]);
                     add(files); // delegates to SwingWorker with progress bar
-                }
-            };
-        }
-
-        Action togggleVisibilityAction() {
-            return new AbstractAction("Show/hide All Annotations") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final boolean hasAnnotations = (pathOverlay != null && !pathOverlay.sntViewer.getRenderedTrees().isEmpty())
-                            || (annotationOverlay != null && annotationOverlay.isVisible());
-                    if (!hasAnnotations && (annotationOverlay == null || annotationOverlay.getCount() == 0)) {
-                        bvv.getViewer().showMessage("No annotations exist.");
-                        return;
-                    }
-                    // When the toggle button is selected, we are in "hide" state
-                    final boolean hide = (e.getSource() instanceof AbstractButton btn)
-                            ? btn.isSelected() : pathOverlay == null || pathOverlay.isRenderingEnable();
-                    if (pathOverlay != null) pathOverlay.disableRendering(hide);
-                    if (annotationOverlay != null) annotationOverlay.setVisible(!hide);
-                    bvv.getViewer().showMessage(hide ? "Annotations hidden" : "Annotations visible");
-                }
-            };
-        }
-
-        /** Tracks whether paths were visible before H was pressed */
-        private boolean pathsWereVisible;
-        /** Tracks whether annotations were visible before H was pressed */
-        private boolean annotationsWereVisible;
-        /** Guard against key-repeat firing multiple press events */
-        private boolean hideActive;
-
-        Action hideAnnotationsPressAction() {
-            return new AbstractAction("Hide annotations (hold)") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (hideActive) return; // key repeat guard
-                    // Check if there is anything to hide (markers are part of annotationOverlay)
-                    final boolean hasPaths = pathOverlay != null && pathOverlay.isRenderingEnable()
-                            && !pathOverlay.sntViewer.getRenderedTrees().isEmpty();
-                    final boolean hasAnnotations = annotationOverlay != null
-                            && annotationOverlay.isVisible() && annotationOverlay.getCount() > 0;
-                    if (!hasPaths && !hasAnnotations) {
-                        bvv.getViewer().showMessage("Nothing to hide");
-                        return;
-                    }
-                    // Save current state
-                    pathsWereVisible = pathOverlay != null && pathOverlay.isRenderingEnable();
-                    annotationsWereVisible = annotationOverlay != null && annotationOverlay.isVisible();
-                    // Hide overlays (markers table window stays open)
-                    if (pathOverlay != null) pathOverlay.disableRendering(true);
-                    if (annotationOverlay != null) annotationOverlay.setVisible(false);
-                    hideActive = true;
-                }
-            };
-        }
-
-        Action hideAnnotationsReleaseAction() {
-            return new AbstractAction("Restore annotations") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (!hideActive) return;
-                    // Restore prior state
-                    if (pathOverlay != null) pathOverlay.disableRendering(!pathsWereVisible);
-                    if (annotationOverlay != null) annotationOverlay.setVisible(annotationsWereVisible);
-                    hideActive = false;
-                }
-            };
-        }
-
-        Action setCanvasOffsetAction() {
-            return new AbstractAction("Annotations Offset...", IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, 1f)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final SNTPoint offset = guiUtils.getCoordinates("Offsets:", "Annotations Offset (Calibrated Distances) ",
-                            renderingOptions.canvasOffset, 2);
-                    if (offset == null) return;
-                    if (offset.getX() == 0 && offset.getY() == 0 && offset.getZ() == 0) {
-                        resetCanvasOffsetAction().actionPerformed(e);
-                    } else {
-                        setCanvasOffset(offset.getX(), offset.getY(), offset.getZ());
-                        bvv.getViewer().showMessage("Offset applied");
-                    }
                 }
             };
         }
@@ -4842,52 +4567,6 @@ public class Bvv extends AbstractBigViewer {
                     final HashMap<String, Object> inputs = new HashMap<>();
                     inputs.put("bvv", Bvv.this);
                     SNTUtils.getContext().getService(CommandService.class).run(BvvRenderingOptionsCmd.class, true, inputs);
-                }
-            };
-        }
-
-        Action resetCanvasOffsetAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    setCanvasOffset(0, 0, 0);
-                    bvv.getViewer().showMessage("Offset removed");
-                }
-            };
-        }
-
-        Action togglePersistentAnnotationsAction() {
-            return new AbstractAction("Toggle Annotations Around Cursor") {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (!(e.getSource() instanceof AbstractButton toggleButton)) return;
-
-                    if (renderingOptions.isClippingEnabled()) {
-                        // Turning OFF: save current distance and disable
-                        lastClippingDistance = renderingOptions.clippingDistance;
-                        renderingOptions.setClippingDistance(0);
-                    } else {
-                        // Turning ON: prompt for distance
-                        final Double newDist = guiUtils.getDouble(
-                                "<HTMl>Only annotations within this distance from the cursor will be displayed.<br>"
-                                        + "Set it to 0, or cancel this prompt to disable this option.",
-                                "Annotations Near Cursor",
-                                lastClippingDistance,
-                                0d,
-                                Arrays.stream(dims).asDoubleStream().max().orElse(1000d),
-                                calUnit);
-                        if (newDist == null) {
-                            // User canceled: revert button state
-                            toggleButton.setSelected(false);
-                            return;
-                        }
-                        renderingOptions.setClippingDistance(newDist == 0 ? 0 : newDist.floatValue());
-                    }
-
-                    toggleButton.setSelected(renderingOptions.isClippingEnabled());
-                    bvv.getViewer().requestRepaint();
-                    bvv.getViewer().showMessage(renderingOptions.isClippingEnabled()
-                            ? "Visibility: Around cursor" : "Visibility: All visible");
                 }
             };
         }
@@ -4950,20 +4629,11 @@ public class Bvv extends AbstractBigViewer {
             };
         }
 
-        Action showMarkerManagerAction() {
-            return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    getMarkerManager().toggleViewerPanel();
-                }
-            };
-        }
-
         Action showHelpAction() {
             return new AbstractAction("Shortcuts...", IconFactory.menuIcon('\uf11c', true)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    guiUtils.showKeyboardShortcuts(
+                    getGuiUtils().showKeyboardShortcuts(
                             new InputMap[]{
                                     bvv.getViewerFrame().getKeybindings().getConcatenatedInputMap(),
                                     bvv.getViewer().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
@@ -4995,7 +4665,7 @@ public class Bvv extends AbstractBigViewer {
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final BvvMultiSource target = chooseMultiSource("Save transform of:");
                     if (target == null) return;
-                    final File file = guiUtils.getSaveFile("Save Transform...",
+                    final File file = getGuiUtils().getSaveFile("Save Transform...",
                             new File(getDefaultDir(), "transform.xml"), "xml");
                     if (file == null) return;
                     setDefaultDir(file);
@@ -5021,7 +4691,7 @@ public class Bvv extends AbstractBigViewer {
                         }
                         bvv.getViewer().showMessage("Transform saved: " + file.getName());
                     } catch (final Exception ex) {
-                        guiUtils.error("Could not save transform: " + ex.getMessage());
+                        getGuiUtils().error("Could not save transform: " + ex.getMessage());
                     }
                 }
             };
@@ -5032,27 +4702,19 @@ public class Bvv extends AbstractBigViewer {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (multiSources.isEmpty()) {
-                        guiUtils.error("No grouped sources available to apply a transform to.");
+                        getGuiUtils().error("No grouped sources available to apply a transform to.");
                         return;
                     }
-                    final File file = guiUtils.getFile(new File(getDefaultDir(), ".xml"), "xml");
+                    final File file = getGuiUtils().getFile(new File(getDefaultDir(), ".xml"), "xml");
                     if (file == null) return;
                     try {
                         applyTransformFile(file, multiSources);
                         setDefaultDir(file);
                     } catch (final Exception ex) {
-                        guiUtils.error("Could not load transform: " + ex.getMessage());
+                        getGuiUtils().error("Could not load transform: " + ex.getMessage());
                     }
                 }
             };
-        }
-
-        private File getDefaultDir() {
-            return SNTPrefs.lastKnownDir(); // never null
-        }
-
-        private void setDefaultDir(final File newDir) {
-            SNTPrefs.setLastKnownDir(newDir);
         }
 
         private boolean applyTransformFile(final File file, final List<BvvMultiSource> multiSources) throws JDOMException, IOException {
@@ -5095,13 +4757,13 @@ public class Bvv extends AbstractBigViewer {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     if (multiSources.isEmpty()) {
-                        guiUtils.error("No sources available.");
+                        getGuiUtils().error("No sources available.");
                         return;
                     }
                     // Choose the moving source (the one carrying the manual transform)
                     final Map<String, BvvMultiSource> choiceMap = multiSourceToChoiceMap(multiSources);
                     final String[] choiceKeys = choiceMap.keySet().toArray(new String[0]);
-                    final String[] choices = guiUtils.getTwoChoices(
+                    final String[] choices = getGuiUtils().getTwoChoices(
                             "Export Registered Image", // title
                             "Fixed image (output will match its dimensions):", choiceKeys, choiceKeys[0], // choice 1
                             "Moving image (to resample and export):", choiceKeys, choiceKeys[choiceKeys.length - 1] // choice 2
@@ -5115,7 +4777,7 @@ public class Bvv extends AbstractBigViewer {
                     final File proposed = new File(getDefaultDir(), String.format("%s_registered_to_%s.tif",
                             SNTUtils.stripExtension(choices[1]),   // moving
                             SNTUtils.stripExtension(choices[0]))); // fixed/reference
-                    final File file = guiUtils.getSaveFile("Export Transformed Image...", proposed, "tif");
+                    final File file = getGuiUtils().getSaveFile("Export Transformed Image...", proposed, "tif");
                     if (file == null) return;
                     final String outPath = (file.getName().endsWith(".tif") || file.getName().endsWith(".tiff"))
                             ? file.getAbsolutePath() : file.getAbsolutePath() + ".tif";
@@ -5127,7 +4789,7 @@ public class Bvv extends AbstractBigViewer {
                             setDefaultDir(file);
                         } catch (final Exception ex) {
                             updateStatus("", 0, 0); // clear progress bar on failure
-                            guiUtils.error("Export failed: " + ex.getMessage());
+                            getGuiUtils().error("Export failed: " + ex.getMessage());
                             SNTUtils.error("BVV transform export failed", ex);
                         }
                     }, "BVV-TransformExport").start();
@@ -5229,7 +4891,7 @@ public class Bvv extends AbstractBigViewer {
             final Map<String, BvvMultiSource> choiceMap = multiSourceToChoiceMap(multiSources);
             if (choiceMap.size() == 1) return choiceMap.values().iterator().next();
             final String[] choices = choiceMap.keySet().toArray(new String[0]);
-            final String chosen = guiUtils.getChoice(prompt, "Select Source Group", choices, choices[0]);
+            final String chosen = getGuiUtils().getChoice(prompt, "Select Source Group", choices, choices[0]);
             if (chosen == null) return null;
             return choiceMap.get(chosen);
         }

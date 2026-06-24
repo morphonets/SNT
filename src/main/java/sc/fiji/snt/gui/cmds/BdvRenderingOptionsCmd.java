@@ -23,93 +23,27 @@
 package sc.fiji.snt.gui.cmds;
 
 import org.scijava.command.Command;
-import org.scijava.command.DynamicCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.util.ColorRGB;
-import org.scijava.widget.ChoiceWidget;
-import org.scijava.widget.NumberWidget;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
-import sc.fiji.snt.viewer.Bvv;
 
 /**
- * Command providing a GUI for configuring {@link Bvv.PathRenderingOptions} in
+ * Command providing a GUI for configuring {@link AbstractBigViewer.PathRenderingOptions} in
  * a {@link Bdv} viewer.
  *
  * @author Tiago Ferreira
  * @see BvvRenderingOptionsCmd
+ * @see BigViewerRenderingOptionsCmd
  */
-@Plugin(type = Command.class, label = "Path Rendering Options", initializer = "init")
-public class BdvRenderingOptionsCmd extends DynamicCommand {
-
-    private static final String STYLE_LINE  = "Simple centerlines";
-    private static final String STYLE_RADII = "Frusta (uses path radii)";
+@Plugin(type = Command.class, label = "Annotations: Rendering Options", initializer = "init")
+public class BdvRenderingOptionsCmd extends BigViewerRenderingOptionsCmd {
 
     @Parameter
     private Bdv bdv;
 
-    @Parameter(label = "Rendering style", choices = {STYLE_LINE, STYLE_RADII},
-            style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
-            description = "<html>Centerline rendering is recommended for large datasets.<br>"
-                    + "Frusta (tapered tubes) use per-node radii for a more accurate 3D appearance")
-    private String renderingStyle;
-
-    @Parameter(label = "Use path radii",
-            description = "Sets whether to use path radius for thickness calculation. "
-                    + "Disable for paths with uniform thickness.")
-    private boolean usePathRadius;
-
-    @Parameter(label = "Thickness multiplier", min = "0.1", max = "10.0", stepSize = "0.1",
-            style = "slider,format:0.00", description = "Scale factor applied to all path radii. "
-                    + "1.0x = natural size; increase if paths appear too thin.")
-    private double thicknessMultiplier;
-
-    @Parameter(label = "Min. thickness", min = "0.1", max = "20.0", stepSize = "0.1",
-            style = "slider,format:0.0",
-            description = "Minimum rendered thickness in physical units. "
-                    + "Controls line width in centerline mode and the floor radius in tube mode.")
-    private double minThickness;
-
-    @Parameter(label = "Max. thickness", min = "1", max = "100.0", stepSize = "0.5",
-            style = "slider,format:0.0",
-            description = "Maximum rendered thickness in physical units. "
-                    + "Controls line width in centerline mode and the ceiling radius in tube mode.")
-    private double maxThickness;
-
-    @Parameter(label = "Transparency (%)", min = "0", max = "100", stepSize = "1",
-            style = NumberWidget.SLIDER_STYLE,
-            description = "Opacity of all path overlays. 0% = fully opaque; 100% = fully transparent.")
-    private double transparency;
-
-    @Parameter(required = false, label = "Default path color")
-    private ColorRGB defaultColor;
-
-    protected void init() {
-        final Bvv.PathRenderingOptions opts = bdv.getRenderingOptions();
-        renderingStyle       = opts.isDisplayRadii() ? STYLE_RADII : STYLE_LINE;
-        thicknessMultiplier  = opts.getThicknessMultiplier();
-        minThickness         = opts.getMinThickness();
-        maxThickness         = opts.getMaxThickness();
-        usePathRadius        = opts.isUsePathRadius();
-        // invert and scale: 0% = opaque, 100% = transparent
-        transparency         = (1.0 - opts.getTransparency()) * 100;
-        defaultColor         = new ColorRGB(opts.fallbackColor.getRed(),
-                opts.fallbackColor.getGreen(), opts.fallbackColor.getBlue());
-    }
-
     @Override
-    public void run() {
-        if (bdv == null) return;
-        final Bvv.PathRenderingOptions opts = bdv.getRenderingOptions();
-        opts.setThicknessMultiplier((float) thicknessMultiplier);
-        opts.setMinThickness((float) minThickness);
-        opts.setMaxThickness((float) maxThickness);
-        opts.setUsePathRadius(usePathRadius);
-        opts.fallbackColor = new java.awt.Color(
-                defaultColor.getRed(), defaultColor.getGreen(), defaultColor.getBlue());
-        opts.setTransparency((float) (100 - transparency) / 100);
-        // setDisplayRadii invalidates the overlay cache before syncing
-        bdv.setDisplayRadii(STYLE_RADII.equals(renderingStyle));
-        bdv.syncOverlays();
+    protected AbstractBigViewer getViewer() {
+        return bdv;
     }
 }

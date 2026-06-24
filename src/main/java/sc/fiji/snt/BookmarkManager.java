@@ -1236,12 +1236,26 @@ public class BookmarkManager {
      * @param locations the list of SNTPoint locations for the bookmarks
      * @param channel   the channel position for the bookmarks
      * @param frame     the time position for the bookmarks
+     * @param color     the color (category) for the bookmarks
      */
-    public void add(final String label, final List<SNTPoint> locations, final int channel, final int frame) {
+    public void add(final String label, final List<SNTPoint> locations, final int channel, final int frame, final String color) {
+        final Color c = (color == null) ? null : SNTColor.fromString(color);
         locations.forEach(loc -> model.getDataList().add(new Bookmark(model.getUniqueLabel(label), //
-                (int) loc.getX(), (int) loc.getY(), (int) loc.getZ(), channel, frame)));
+                (int) loc.getX(), (int) loc.getY(), (int) loc.getZ(), channel, frame, c)));
         resetOrResizeColumns(false, true);
         model.fireTableDataChanged();
+    }
+
+    /**
+     * Adds multiple bookmarks with the specified label and locations.
+     *
+     * @param label     the label for the bookmarks
+     * @param locations the list of SNTPoint locations for the bookmarks
+     * @param channel   the channel position for the bookmarks
+     * @param frame     the time position for the bookmarks
+     */
+    public void add(final String label, final List<SNTPoint> locations, final int channel, final int frame) {
+        add(label, locations, channel, frame, null);
     }
 
     /**
