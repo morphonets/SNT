@@ -480,22 +480,6 @@ public class Bdv extends AbstractBigViewer {
         return renderingOptions.isDisplayRadii();
     }
 
-    /**
-     * Replaces the rendered trees with the current contents of the Path Manager.
-     * Only available in SNT-tethered instances.
-     *
-     * @return true if paths were synced; false if the path manager is empty
-     * @throws IllegalArgumentException if this is a standalone viewer
-     */
-    public boolean syncPathManagerList() {
-        if (snt == null)
-            throw new IllegalArgumentException("Only available in SNT-tethered instances");
-        if (snt.getPathAndFillManager().size() == 0) return false;
-        final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
-        trees.stream().map(Tree::getLabel).toList().forEach(renderedTrees.keySet()::remove);
-        addCollection(trees, true);
-        return true;
-    }
 
     /**
      * Initializes path and annotation overlays using the shared BVV renderer classes.
@@ -691,11 +675,11 @@ public class Bdv extends AbstractBigViewer {
         menu.add(new JMenuItem(actions.importAction()));
         if (snt != null) {
             menu.addSeparator();
-            menu.add(new JMenuItem(actions.loadBookmarksAction()));
-            menu.add(new JMenuItem(actions.syncPathManagerAction()));
+            menu.add(new JMenuItem(loadBookmarksAction()));
+            menu.add(new JMenuItem(syncPathManagerAction()));
         }
         menu.addSeparator();
-        menu.add(new JMenuItem(actions.clearAllPathsAction()));
+        menu.add(new JMenuItem(clearAllPathsAction()));
         return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
     }
 
@@ -754,7 +738,7 @@ public class Bdv extends AbstractBigViewer {
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final boolean hasContent =
                             (pathOverlay != null && !getRenderedTrees().isEmpty())
-                            || (annotationOverlay != null && annotationOverlay.getCount() > 0);
+                                    || (annotationOverlay != null && annotationOverlay.getCount() > 0);
                     if (!hasContent) {
                         showViewerMessage("No annotations exist.");
                         return;
@@ -854,53 +838,6 @@ public class Bdv extends AbstractBigViewer {
                     if (files == null || files.length == 0) return;
                     SNTPrefs.setLastKnownDir(files[0]);
                     add(files);
-                }
-            };
-        }
-
-        Action loadBookmarksAction() {
-            return new AbstractAction("Annotate Bookmark Manager Locations", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    try {
-                        final java.util.List<SNTPoint> pos = snt.getUI().getBookmarkManager().getPositions(false);
-                        if (pos.isEmpty()) {
-                            guiUtils.error("Bookmark Manager is empty.");
-                        } else {
-                            Color c = guiUtils.getColor("Fallback Color for Untagged Bookmarks", Color.RED, (String[]) null);
-                            if (c == null) c = Color.MAGENTA;
-                            annotations().setAnnotations(pos, 3.5f * renderingOptions.getMinThickness(), c);
-                            showViewerMessage(String.format("%d Bookmarks annotated", pos.size()));
-                        }
-                    } catch (final NullPointerException ex) {
-                        showViewerMessage("Bookmark Manager unavailable");
-                    }
-                }
-            };
-        }
-
-        Action syncPathManagerAction() {
-            return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (syncPathManagerList()) {
-                        showViewerMessage("Path Manager synced");
-                    } else {
-                        showViewerMessage("No paths or SNT unavailable");
-                    }
-                }
-            };
-        }
-
-        Action clearAllPathsAction() {
-            return new AbstractAction("Remove All Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    if (guiUtils.getConfirmation("Remove all reconstructions? (undoable action)",
-                            "Remove All Annotations?")) {
-                        clearAllTrees();
-                        showViewerMessage("Annotations cleared");
-                    }
                 }
             };
         }

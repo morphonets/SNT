@@ -104,6 +104,23 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Replaces the rendered trees with the current contents of the Path Manager.
+     * Only available in SNT-tethered instances.
+     *
+     * @return true if paths were synced; false if the path manager is empty
+     * @throws IllegalArgumentException if this is a standalone viewer
+     */
+    public boolean syncPathManagerList() {
+        if (snt == null)
+            throw new IllegalArgumentException("Only available in SNT-tethered instances");
+        if (snt.getPathAndFillManager().size() == 0) return false;
+        final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
+        trees.stream().map(Tree::getLabel).toList().forEach(renderedTrees.keySet()::remove);
+        addCollection(trees, true);
+        return true;
+    }
+
+    /**
      * Creates a {@link JToolBar} whose minimum width is zero, allowing
      * horizontal glue components to absorb all available shrinkage before
      * any buttons are clipped at the panel edge.
@@ -512,6 +529,52 @@ public abstract class AbstractBigViewer {
                 target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
                 target.set(-scale * (minZ + physZ / 2.0), 2, 3);
                 setViewerTransform(target, 300);
+            }
+        };
+    }
+
+    Action loadBookmarksAction() {
+        return new AbstractAction("Load Markers From Bookmarks", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
+            @Override
+            public void actionPerformed(final java.awt.event.ActionEvent e) {
+                try {
+                    final java.util.List<SNTPoint> pos = snt.getUI().getBookmarkManager().getPositions(false);
+                    if (pos.isEmpty()) {
+                        new GuiUtils(getViewerFrame()).error("The Bookmarks table is empty.");
+                    } else {
+                        getMarkerManager().add("BM", pos, 1, 1);
+                        getMarkerManager().showPanel();
+                        showViewerMessage(String.format("Imported %d bookmarks", pos.size()));
+                    }
+                } catch (final NullPointerException ex) {
+                    showViewerMessage("Bookmark Manager unavailable");
+                }
+            }
+        };
+    }
+
+    Action syncPathManagerAction() {
+        return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
+            @Override
+            public void actionPerformed(final java.awt.event.ActionEvent e) {
+                if (syncPathManagerList()) {
+                    showViewerMessage("Path Manager synced");
+                } else {
+                    showViewerMessage("No paths or SNT unavailable");
+                }
+            }
+        };
+    }
+
+    Action clearAllPathsAction() {
+        return new AbstractAction("Remove All Annotations...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH)) {
+            @Override
+            public void actionPerformed(final java.awt.event.ActionEvent e) {
+                if (new GuiUtils(getViewerFrame()).getConfirmation("Remove all reconstructions? (undoable action)",
+                        "Remove All Annotations?")) {
+                    clearAllTrees();
+                    showViewerMessage("Annotations cleared");
+                }
             }
         };
     }

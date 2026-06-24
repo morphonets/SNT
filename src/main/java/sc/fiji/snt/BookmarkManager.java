@@ -29,6 +29,7 @@ import ij.gui.Roi;
 import ij.plugin.frame.RoiManager;
 import ij.process.FloatPolygon;
 import org.scijava.util.ColorRGB;
+import sc.fiji.snt.analysis.NodeStatistics;
 import sc.fiji.snt.analysis.RoiConverter;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.gui.GuiUtils;
@@ -401,7 +402,6 @@ public class BookmarkManager {
         });
         tagMenu.addSeparator();
         tagMenu.add(mi);
-        pMenu.addSeparator();
         if (viewer != null) {
             mi = new JMenuItem("Size...", IconFactory.menuIcon(IconFactory.GLYPH.CIRCLE));
             mi.addActionListener(e -> {
@@ -419,8 +419,8 @@ public class BookmarkManager {
                 }
             });
             pMenu.add(mi);
-            pMenu.addSeparator();
         }
+        pMenu.addSeparator();
         if (sntui != null) {
             mi = new JMenuItem("Colocalize...", IconFactory.menuIcon(IconFactory.GLYPH.LINK));
             mi.setToolTipText("Matches bookmarks across channels within a distance threshold, replacing them with centroids");
@@ -432,7 +432,9 @@ public class BookmarkManager {
         mi.setToolTipText("Merges nearby bookmarks within each channel, replacing them with centroids");
         mi.addActionListener(e -> mergeBookmarks());
         pMenu.add(mi);
-        pMenu.add(sortByDistanceMenu());
+        mi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
+        mi.addActionListener(e -> showNNDistribution());
+        pMenu.add(mi);
         pMenu.addSeparator();
 
         mi = new JMenuItem("Delete...", IconFactory.menuIcon(IconFactory.GLYPH.TRASH));
@@ -458,6 +460,7 @@ public class BookmarkManager {
         pMenu.add(mi);
 
         pMenu.addSeparator();
+        pMenu.add(sortByDistanceMenu());
         pMenu.add(GuiUtils.JTables.resetAndResizeColumnsMenuItem(
                 table, () -> recordComment("Bookmark Manager: resizeColumns()"),
                 columnWidthFractions()));
@@ -492,7 +495,7 @@ public class BookmarkManager {
             return;
         }
         final Double threshold = guiUtils.getDouble(
-                "<HTML>Max. distance between colocalized bookmarks<br>(in pixel units):",
+                "<HTML>Max. distance between colocalized bookmarks:",
                 "Colocalize Bookmarks", 5.0);
         if (threshold == null || threshold <= 0) return;
         // Group by channel; match across channels
@@ -517,26 +520,38 @@ public class BookmarkManager {
             return;
         }
         final Double threshold = guiUtils.getDouble(
-                "<HTML>Max. distance between bookmarks to merge<br>(in pixel units):",
+                "<HTML>Max. distance between bookmarks to merge:",
                 "Merge Bookmarks", 5.0);
         if (threshold == null || threshold <= 0) return;
-        // Group by channel; merge within each channel independently
+        final double thresholdSq = threshold * threshold;
         final Map<Integer, List<Bookmark>> byChannel = new LinkedHashMap<>();
-        for (final Bookmark b : candidates) {
+        for (final Bookmark b : candidates)
             byChannel.computeIfAbsent(b.c, k -> new ArrayList<>()).add(b);
-        }
         final Set<Bookmark> allConsumed = new HashSet<>();
         final List<Bookmark> allMerged = new ArrayList<>();
         for (final Map.Entry<Integer, List<Bookmark>> entry : byChannel.entrySet()) {
             final List<Bookmark> chBookmarks = entry.getValue();
             if (chBookmarks.size() < 2) continue;
-            // Each bookmark is a potential seed; remaining in same channel are targets
-            final List<Bookmark> seeds = new ArrayList<>(chBookmarks);
-            final List<List<Bookmark>> targets = List.of(new ArrayList<>(chBookmarks));
-            final MergeResult chResult = greedyMerge(seeds, targets, threshold, 2,
-                    "Merged C" + entry.getKey());
-            allConsumed.addAll(chResult.consumed);
-            allMerged.addAll(chResult.merged);
+            final Set<Bookmark> consumed = new HashSet<>();
+            for (final Bookmark seed : chBookmarks) {
+                if (consumed.contains(seed)) continue;
+                final List<Bookmark> group = new ArrayList<>();
+                group.add(seed);
+                for (final Bookmark other : chBookmarks) {
+                    if (other == seed || consumed.contains(other) || other.t != seed.t) continue;
+                    if (seed.distanceSquaredTo(other) <= thresholdSq)
+                        group.add(other);
+                }
+                if (group.size() >= 2) {
+                    consumed.addAll(group);
+                    final double cx = group.stream().mapToDouble(b -> b.x).average().orElse(seed.x);
+                    final double cy = group.stream().mapToDouble(b -> b.y).average().orElse(seed.y);
+                    final double cz = group.stream().mapToDouble(b -> b.z).average().orElse(seed.z);
+                    final String label = model.getUniqueLabel("Merged C" + entry.getKey() + " ");
+                    allMerged.add(new Bookmark(label, cx, cy, cz, seed.c, seed.t, seed.getColor()));
+                    allConsumed.addAll(consumed);
+                }
+            }
         }
         applyMergeResult(new MergeResult(allConsumed, allMerged),
                 "Merge Bookmarks", "merged", "merge(" + threshold + ")");
@@ -549,6 +564,17 @@ public class BookmarkManager {
             candidates.add(model.getDataList().get(modelRow));
         }
         return candidates;
+    }
+
+    private void showNNDistribution() {
+        if (noBookmarksError()) return;
+        final List<Bookmark> bookmarks = getSelectedBookmarks();
+        if (bookmarks.size() < 2) {
+            guiUtils.error("Not enough entries selected.");
+        } else {
+            final NodeStatistics<Bookmark> nodeStatistics = new NodeStatistics<>(bookmarks);
+            nodeStatistics.getHistogram(NodeStatistics.NEAREST_NEIGHBOR_DISTANCE).show("NNDistances");
+        }
     }
 
     private JMenu sortByDistanceMenu() {
@@ -593,7 +619,7 @@ public class BookmarkManager {
      *
      * @param seeds       the seed bookmarks
      * @param targetLists lists of bookmarks to match against (may include seeds)
-     * @param threshold   max distance (pixel units)
+     * @param threshold   max distance
      * @param minGroupSize minimum group size to form a merge (2 for both operations)
      * @param labelPrefix prefix for the merged bookmark label
      * @return the merge result containing consumed and merged bookmarks
@@ -642,9 +668,10 @@ public class BookmarkManager {
             guiUtils.error("No bookmarks could be " + verb + " within the specified distance.");
             return;
         }
+        final String suffix = (result.merged.size()==1) ? " entry" : " entries";
         if (!guiUtils.getConfirmation(
                 result.consumed.size() + " bookmarks will be replaced by "
-                        + result.merged.size() + " " + verb + " entries. Proceed?",
+                        + result.merged.size() + " " + verb +  suffix + ". Proceed?",
                 dialogTitle)) {
             return;
         }
