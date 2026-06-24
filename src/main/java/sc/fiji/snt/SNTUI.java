@@ -3969,16 +3969,18 @@ public class SNTUI extends JDialog {
         final ButtonGroup dataStructureButtonGroup = new ButtonGroup();
 
         final Map<String, SNT.SearchImageType> searchMap = new LinkedHashMap<>();
-        searchMap.put("Map (Lightweight)", SNT.SearchImageType.MAP);
-        searchMap.put("Array (Fast)", SNT.SearchImageType.ARRAY);
-        searchMap.forEach((lbl, type) -> {
-            final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(lbl);
+        searchMap.put("Map (Lightweight)|Slower but using less RAM", SNT.SearchImageType.MAP);
+        searchMap.put("Array (Fast)|Faster but using more RAM", SNT.SearchImageType.ARRAY);
+        searchMap.forEach((label, type) -> {
+            final String[] labels = label.split("\\|");
+            final JRadioButtonMenuItem rbmi = new JRadioButtonMenuItem(labels[0]);
+            rbmi.setToolTipText(labels[1]);
             dataStructureButtonGroup.add(rbmi);
             optionsMenu.add(rbmi);
             rbmi.setSelected(plugin.searchImageType == type);
             rbmi.addActionListener(e -> {
                 plugin.searchImageType = type;
-                showStatus("Active data structure: " + lbl, true);
+                showStatus("Active data structure: " + labels[0], true);
                 updateSettingsString();
             });
         });
@@ -4022,8 +4024,11 @@ public class SNTUI extends JDialog {
         optionsMenu.addSeparator();
         optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
         autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
+        autoRbmi.setToolTipText("Default. Re-calculates local statistics as you trace new image sections");
         final JRadioButtonMenuItem onceRbmi = new JRadioButtonMenuItem("Compute Now For Whole Image ", false);
+        onceRbmi.setToolTipText("Saves bulk statistical data to memory to be re-used across the entire image");
         final JRadioButtonMenuItem manRbmi = new JRadioButtonMenuItem("Specify Manually...", !plugin.getUseSubVolumeStats());
+        manRbmi.setToolTipText("Advanced. Allows for fine-tuning of the cost function used by A* searches");
         final ButtonGroup minMaxButtonGroup = new ButtonGroup();
         minMaxButtonGroup.add(autoRbmi);
         minMaxButtonGroup.add(onceRbmi);
@@ -4067,8 +4072,8 @@ public class SNTUI extends JDialog {
         final ButtonGroup tracingModeButtonGroup = new ButtonGroup();
         standardTracingRbmi = new JRadioButtonMenuItem("Standard", !plugin.rubberBandTracing);
         final JRadioButtonMenuItem rubberBandTracingRbmi = new JRadioButtonMenuItem("Live Preview", plugin.rubberBandTracing);
-        GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse.<br>"
-                + "Click to confirm each segment. Only recommended for 2D images.");
+        GuiUtils.addTooltip(rubberBandTracingRbmi, "<html>Continuously previews the path to the cursor position as you move the mouse."
+                + "(ala NeuronJ).<br>Click to confirm each segment. <b>Only recommended for 2D images.");
         commandFinder.register(rubberBandTracingRbmi, "Main tab", "Interactive Tracing", "Algorithm Settings");
         tracingModeButtonGroup.add(standardTracingRbmi);
         tracingModeButtonGroup.add(rubberBandTracingRbmi);

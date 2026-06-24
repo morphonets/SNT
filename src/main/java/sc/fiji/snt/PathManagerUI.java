@@ -331,7 +331,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         fitMenu.add(jmi);
 
         jmi = new JMenuItem(MultiPathActionListener.MULTI_SPECTRAL_REFINE_CMD,
-                IconFactory.menuIcon('\uf53f', true));
+                IconFactory.menuIcon('\uf75b', true));
         jmi.setToolTipText("Refines paths in multispectral (Brainbow) images");
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
