@@ -126,19 +126,24 @@ public class FillerThreadArtist implements SearchArtist {
         }
     }
 
-    public DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z,
-                                                   final double threshold)
-    {
-        final SearchImage<DefaultSearchNode> startSlice = search.getNodesAsImageFromStart().getSlice(z);
-        if (startSlice == null)
+    public DefaultSearchNode anyNodeUnderThreshold(final int x, final int y, final int z, final double threshold) {
+        final SearchImage<DefaultSearchNode> startSlice;
+        try {
+            startSlice = search.getNodesAsImageFromStart().getSlice(z);
+        } catch (final ArrayIndexOutOfBoundsException e) {
+            // Some race condition!? Int2ObjectMaps.synchronize(new Int2ObjectOpenHashMap<>());
+            // is just to expensive, and not worth implementing it here since this seems extremely rare
+            // See SearchThreadArtist#anyNodeUnderThreshold()
             return null;
+        }
+        if (startSlice == null) return null;
         try {
             final DefaultSearchNode n = startSlice.getValue(x, y);
             if ( n == null || (threshold >= 0 && n.g > threshold) ) {
                 return null;
             }
             return n;
-        } catch (ArrayIndexOutOfBoundsException e) {
+        } catch (final ArrayIndexOutOfBoundsException e) {
             // ignored
         }
         return null;
