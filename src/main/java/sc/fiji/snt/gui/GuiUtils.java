@@ -23,6 +23,7 @@
 package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.*;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.icons.FlatClearIcon;
 import com.formdev.flatlaf.util.UIScale;
 import com.jidesoft.plaf.LookAndFeelFactory;
@@ -1658,8 +1659,8 @@ public class GuiUtils {
 		return shortSmallMsg(msg, true);
 	}
 
-	public static JTextArea longSmallMsg(final String msg, final Component parent) {
-		final JTextArea ta = new JTextArea();
+	public static JTextArea longSmallMsg(final String msg, final String svgIconPath, final Component parent) {
+		final JTextArea ta = (svgIconPath== null) ? new JTextArea() : new SvgBackgroundJTextArea(svgIconPath);
 		ta.setBackground(parent.getBackground());
 		ta.setEditable(false);
 		ta.setMargin(null);
@@ -1671,6 +1672,60 @@ public class GuiUtils {
 		ta.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
 		ta.setText(msg);
 		return ta;
+	}
+
+	public static JTextArea longSmallMsg(final String msg, final Component parent) {
+		return longSmallMsg(msg, null, parent);
+	}
+
+	private static class SvgBackgroundJTextArea extends JTextArea {
+		private final FlatSVGIcon svgIcon;
+		private FlatSVGIcon derivedIcon = null;
+		private int derivedIconWidth = 0;
+
+		SvgBackgroundJTextArea(final String svgFileName) {
+			this.svgIcon = new FlatSVGIcon("gui/" + svgFileName);
+			// Non-opaque so super.paintComponent does not re-fill the background,
+			// allowing the SVG we paint first to remain visible under the text.
+			setOpaque(false);
+		}
+
+		@Override
+		public void addNotify() {
+			// Called once when the component joins the hierarchy and font/LAF are set.
+			// Compute the derived icon here (not in paintComponent) to avoid feedback
+			// loops between icon size, insets, wrapping, and component height
+			super.addNotify();
+			// Size the icon to 3 text rows: getRowHeight() is font-based and should be stable
+			final int iconHeight = getRowHeight() * 3;
+			final float scale = (float) iconHeight / svgIcon.getIconHeight();
+			derivedIconWidth = Math.round(svgIcon.getIconWidth() * scale);
+			derivedIcon = svgIcon.derive(derivedIconWidth, iconHeight);
+		}
+
+		@Override
+		public Insets getInsets() {
+			// Reserve left space equal to icon width + one 'M' gap for readability
+			final Insets base = super.getInsets();
+			final int gap = getFontMetrics(getFont()).stringWidth("M");
+			return new Insets(base.top, base.left + derivedIconWidth + gap, base.bottom, base.right);
+		}
+
+		@Override
+		public void paintComponent(final Graphics g) {
+			final Graphics2D g2 = (Graphics2D) g.create();
+			try {
+				// Fill background manually (super won't, since we're non-opaque)
+				g2.setColor(getBackground());
+				g2.fillRect(0, 0, getWidth(), getHeight());
+				// Paint the pre-computed icon, then let super draw text on top
+				if (derivedIcon != null)
+					derivedIcon.paintIcon(this, g2, 0, 0);
+				super.paintComponent(g2);
+			} finally {
+				g2.dispose();
+			}
+		}
 	}
 
 	private static class SpinningIconLabel extends JLabel {

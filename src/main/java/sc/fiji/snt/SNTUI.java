@@ -22,7 +22,7 @@
 
 package sc.fiji.snt;
 
-import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.formdev.flatlaf.FlatClientProperties;
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
@@ -367,42 +367,42 @@ public class SNTUI extends JDialog {
         c3.gridwidth = GridBagConstraints.REMAINDER;
 
         final ViewerPanelBuilder viewerPanelBuilder = new ViewerPanelBuilder();
-        InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", true, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "Reconstruction Viewer:", false, c3);
         c3.gridy++;
-        final String msg = "A dedicated OpenGL visualization tool specialized in Neuroanatomy, " +
+        final String msg = "A dedicated 3D visualization tool specialized in Neuroanatomy, " +
                 "supporting reconstructions, meshes, morphometric annotations, and multi-species atlases.";
-        tab3.add(GuiUtils.longSmallMsg(msg, tab3), c3);
+        tab3.add(GuiUtils.longSmallMsg(msg, "morphonets-logo-icon.svg", tab3), c3);
         c3.gridy++;
         tab3.add(reconstructionViewerPanel(viewerPanelBuilder), c3);
-        c3.gridy++;
-        InternalUtils.addSeparatorWithURL(tab3, "sciview:", true, c3);
-        ++c3.gridy;
-        final String msg3 = "Modern 3D visualization framework supporting large image volumes, reconstructions, " +
-                "meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended.";
-        tab3.add(GuiUtils.longSmallMsg(msg3, tab3), c3);
-        c3.gridy++;
-        tab3.add(sciViewerPanel(viewerPanelBuilder), c3);
-
 
         c3.gridy++;
         InternalUtils.addSeparatorWithURL(tab3, "Big Data Viewer:", true, c3);
         ++c3.gridy;
         final String msg5 = "Big Data Viewer (BDV) is Fiji's interactive re-slicing browser for " +
-                "images too large to fit into memory.";
-        tab3.add(GuiUtils.longSmallMsg(msg5, tab3), c3);
+                "images too large to fit into memory. Supports big data formats like N5, Zarr, IMS, etc.";
+        tab3.add(GuiUtils.longSmallMsg(msg5, "bdv-logo-dark.svg", tab3), c3);
         c3.gridy++;
         tab3.add(bdvPanel(viewerPanelBuilder), c3);
         c3.gridy++;
 
-        InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", true, c3);
+        InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", false, c3);
         ++c3.gridy;
         final String msg4 = "Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
                 "capable of GPU volume rendering. Discrete graphics card recommended.";
-        tab3.add(GuiUtils.longSmallMsg(msg4, tab3), c3);
+        tab3.add(GuiUtils.longSmallMsg(msg4, "bdv-logo-light.svg", tab3), c3);
         c3.gridy++;
         tab3.add(bvvPanel(viewerPanelBuilder), c3);
-        c3.gridy++;
 
+        c3.gridy++;
+        InternalUtils.addSeparatorWithURL(tab3, "sciview:", false, c3);
+        ++c3.gridy;
+        final String msg3 = "3D visualization framework supporting large image volumes, reconstructions, " +
+                "meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended.";
+        tab3.add(GuiUtils.longSmallMsg(msg3, "sciview-logo-icon.svg", tab3), c3);
+        c3.gridy++;
+        tab3.add(sciViewerPanel(viewerPanelBuilder), c3);
+
+        c3.gridy++;
         InternalUtils.addSeparatorWithURL(tab3, "Legacy 3D Viewer:", true, c3);
         ++c3.gridy;
         final String msg2 =
@@ -410,13 +410,12 @@ public class SNTUI extends JDialog {
                         "stalled services that may not function reliably during complex tasks.";
         tab3.add(GuiUtils.longSmallMsg(msg2, tab3), c3);
         c3.gridy++;
+        c3.insets.bottom = 0;
         try {
             tab3.add(legacy3DViewerPanel(), c3);
         } catch (final NoClassDefFoundError ignored) {
             tab3.add(GuiUtils.longSmallMsg("Error: Legacy 3D Viewer could not be initialized!", tab3), c3);
         }
-        c3.gridy++;
-        tab3.add(GuiUtils.longSmallMsg("", tab3), c3); // add bottom spacer
 
         // On macOS and Windows 11 the tabbed pane becomes too wide after adding
         // new tabs, so we'll discard it from preferred width calculation
@@ -2390,6 +2389,7 @@ public class SNTUI extends JDialog {
         c.gridx = 0;
         c.gridwidth = 4;
         final JCheckBox jcbx = new JCheckBox("Quiet mode (log errors to Console)", ij.IJ.redirectingErrorMessages());
+        jcbx.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
         jcbx.addActionListener(e -> ij.IJ.redirectErrorMessages(jcbx.isSelected()));
         jcbx.setToolTipText("""
                 Interactions with the Viewer's canvas may trigger warnings
@@ -2435,7 +2435,6 @@ public class SNTUI extends JDialog {
 
     private JPanel reconstructionViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         openRecViewer = new JButton("Open Rec. Viewer");
-        InternalUtils.assignSVGIcon(openRecViewer, "morphonets-logo-icon.svg");
         registerInCommandFinder(openRecViewer, "Open Reconstruction Viewer (RV)", "3D Tab");
         openRecViewer.addActionListener(e -> {
             if (noPathsError()) return; // otherwise list in RV controls won't update once paths are added
@@ -2491,7 +2490,6 @@ public class SNTUI extends JDialog {
 
     private JPanel sciViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         openSciView = new JButton("Open sciview");
-        InternalUtils.assignSVGIcon(openSciView, "sciview-logo-icon.svg");
         registerInCommandFinder(openSciView, null, "3D Tab");
         openSciView.addActionListener(e -> {
             if (noPathsError()) return; // for consistency with rec. viewer
@@ -2564,7 +2562,6 @@ public class SNTUI extends JDialog {
 
     private JPanel bvvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         final JButton openBVV = new JButton("Open BVV");
-        InternalUtils.assignSVGIcon(openBVV, "bdv-logo-light.svg");
         registerInCommandFinder(openBVV, "Open Big Volume Viewer (BVV)", "3D Tab");
         openBVV.addActionListener(e -> {
             if (!plugin.accessToValidImageData()) {
@@ -2596,7 +2593,6 @@ public class SNTUI extends JDialog {
 
     private JPanel bdvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         final JButton openBDV = new JButton("Open BDV");
-        InternalUtils.assignSVGIcon(openBDV, "bdv-logo-dark.svg");
         registerInCommandFinder(openBDV, "Open Big Data Viewer (BDV)", "3D Tab");
         openBDV.addActionListener(e -> {
             if (!plugin.accessToValidImageData()) {
@@ -5581,11 +5577,6 @@ public class SNTUI extends JDialog {
             if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
                 return ImportAction.IMAGE;
             return -1;
-        }
-
-        static void assignSVGIcon(final AbstractButton button, final String svgFile) {
-            final int size = button.getFontMetrics(button.getFont()).getHeight();
-            button.setIcon(new FlatSVGIcon("gui/" + svgFile, size , size));
         }
 
         static void addSeparatorWithURL(final JComponent component, final String label, final boolean vgap,
