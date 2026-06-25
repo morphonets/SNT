@@ -1491,8 +1491,9 @@ public class ImgUtils {
         final String path = (filePath.endsWith(".tif") || filePath.endsWith(".tiff"))
                 ? filePath : filePath + ".tif";
         final Img<T> output = new ArrayImgFactory<>(outType).create(img);
-        LoopBuilder.setImages(img, output).multiThreaded()
-                .forEachPixel((in, out) -> out.setReal(in.getRealDouble()));
+        // Single-threaded: concurrent chunk reads from lazy/network-backed sources
+        // (HDF5, N5, Zarr on network mounts) saturate the I/O client and cause hangs
+        LoopBuilder.setImages(img, output).forEachPixel((in, out) -> out.setReal(in.getRealDouble()));
         final Context ctx = SNTUtils.getContext();
         final Dataset dataset = ctx.service(DatasetService.class).create(output);
         ctx.service(DatasetIOService.class).save(dataset, path);
