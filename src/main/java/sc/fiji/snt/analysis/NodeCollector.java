@@ -228,6 +228,19 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
     }
 
     /**
+     * Returns the crop centered on a single point, respecting the current
+     * {@link #setMaterialize(boolean)}, {@link #setProjection(Projection)},
+     * {@link #setChannel(int)}, and {@link #setWindow(int, int)} settings.
+     * <p>
+     * Prefer this over {@link #getCrops()} when processing large datasets one
+     * point at a time (e.g. to keep peak memory bounded to a single crop)
+     * </p>
+     */
+    public ImgPlus<T> getCrop(final SNTPoint point) {
+        return cropAround(point);
+    }
+
+    /**
      * Returns the per-point crops as a list of {@link ImgPlus}es.
      * <p>
      * If {@link #setMaterialize(boolean) materialize} is false (default), the returned ImgPluses are zero-padded lazy
@@ -362,9 +375,20 @@ public class NodeCollector<T extends RealType<T> & NativeType<T>> {
             max[zIdx] = bMax[2];
         }
 
-        // Zero-padded view: extendZero gives the zero value of T outside the
-        // image, Views.interval then carves out exactly the requested window
-        final RandomAccessibleInterval<T> view = Views.interval(Views.extendZero(spatial), new FinalInterval(min, max));
+        // Check whether the requested window is fully within the source image bounds.
+        // If so, skip Views.extendZero: a plain Views.interval preserves the source's
+        // cell-aware flat iterator (critical for CellImg / HDF5 sources. w/ extendZero
+        // it seems per-pixel RandomAccess is used, which is extremely slow
+        boolean inBounds = true;
+        for (int d = 0; d < nDims; d++) {
+            if (min[d] < spatial.min(d) || max[d] > spatial.max(d)) {
+                inBounds = false;
+                break;
+            }
+        }
+        final RandomAccessibleInterval<T> view = inBounds
+                ? Views.interval(spatial, new FinalInterval(min, max))
+                : Views.interval(Views.extendZero(spatial), new FinalInterval(min, max));
 
         final RandomAccessibleInterval<T> rai;
         if (materialize) {
