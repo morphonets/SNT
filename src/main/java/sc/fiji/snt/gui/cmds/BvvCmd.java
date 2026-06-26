@@ -141,8 +141,8 @@ public class BvvCmd extends ContextCommand {
                 bvv.show((ImgPlus) img);
             }
         }
-        if (recFiles != null) loadReconstructions(bvv);
-        if (markerFile != null) loadMarkers(bvv);
+        loadReconstructions(bvv);
+        loadMarkers(bvv);
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */
@@ -162,6 +162,7 @@ public class BvvCmd extends ContextCommand {
     }
 
     private void loadMarkers(final AbstractBigViewer viewer) {
+        if (markerFile == null) return;
         if (!SNTUtils.fileAvailable(markerFile)) {
             error(String.format("%s does not exist or is not available.", markerFile.getName()));
             return;
@@ -172,6 +173,7 @@ public class BvvCmd extends ContextCommand {
 
     /** Loads reconstruction files into the viewer, if any were specified. */
     private void loadReconstructions(final AbstractBigViewer viewer) {
+        if (recFiles == null) return;
         if (!SNTUtils.fileAvailable(recFiles)) {
             error(String.format("%s does not exist or is not available.", recFiles.getName()));
             return;

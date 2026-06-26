@@ -4597,8 +4597,7 @@ public class Bvv extends AbstractBigViewer {
                     // ray and needs no range check. Out-of-range XY indicates the view was
                     // obliquely rotated, making coordinate recovery unreliable.
                     if (dims != null && cal != null) {
-                        final bdv.viewer.SourceAndConverter<?> currentSac =
-                                bvv.getViewer().state().getCurrentSource();
+                        final bdv.viewer.SourceAndConverter<?> currentSac = bvv.getViewer().state().getCurrentSource();
                         if (currentSac != null) {
                             final AffineTransform3D t = new AffineTransform3D();
                             currentSac.getSpimSource().getSourceTransform(0, 0, t);

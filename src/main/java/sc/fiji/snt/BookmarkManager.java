@@ -370,14 +370,14 @@ public class BookmarkManager {
                 table.editCellAt(rows[0], modelCol);
             } else {
                 final String seed = guiUtils.getString(
-                        "Common label to be applied to " + rows.length + " bookmarks:", // msg
+                        "Common label to be applied to " + rows.length + " entries:", // msg
                         "Bulk Renaming", // title
-                        "Bookmark"); // default value
+                        (sntui != null) ? "Bookmark" : "Marker"); // default value
                 if (seed == null) return; // user pressed cancel
                 int idx = 1;
                 for (final int viewRow : rows) {
                     final int modelRow = table.convertRowIndexToModel(viewRow);
-                    model.setValueAt(String.format("%s %02d", seed, idx++), modelRow, 1);
+                    model.setValueAt(String.format("%s%03d", seed, idx++), modelRow, 1);
                 }
             }
         });
@@ -403,7 +403,7 @@ public class BookmarkManager {
             for (final int modelRow : modelRows) {
                 model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
             }
-            if (highlightToggle.isSelected()) showHighlights();
+            if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
         });
         tagMenu.addSeparator();
         tagMenu.add(mi);
@@ -434,7 +434,7 @@ public class BookmarkManager {
         }
 
         mi = new JMenuItem("Merge...", IconFactory.menuIcon(IconFactory.GLYPH.ARROWS_TO_CIRCLE));
-        mi.setToolTipText("Merges nearby bookmarks within each channel, replacing them with centroids");
+        mi.setToolTipText("Merges nearby entries, replacing them with centroids");
         mi.addActionListener(e -> mergeBookmarks());
         pMenu.add(mi);
         mi = new JMenuItem("Nearest Neighbor Distribution...", IconFactory.menuIcon(IconFactory.GLYPH.CHART));
@@ -520,13 +520,14 @@ public class BookmarkManager {
     private void mergeBookmarks() {
         if (noBookmarksError()) return;
         final List<Bookmark> candidates = getSelectedBookmarks();
+        final String obj = (viewer == null) ? "bookmarks" : "markers";
         if (candidates.size() < 2) {
-            guiUtils.error("At least 2 bookmarks are required for merging.");
+            guiUtils.error("At least 2 "+ obj + " are required for merging.");
             return;
         }
         final Double threshold = guiUtils.getDouble(
-                "<HTML>Max. distance between bookmarks to merge:",
-                "Merge Bookmarks", 5.0);
+                "<HTML>Max. distance between "+ obj + " to be merged:",
+                "Merge Locations", 5.0);
         if (threshold == null || threshold <= 0) return;
         final double thresholdSq = threshold * threshold;
         final Map<Integer, List<Bookmark>> byChannel = new LinkedHashMap<>();
@@ -538,6 +539,7 @@ public class BookmarkManager {
             final List<Bookmark> chBookmarks = entry.getValue();
             if (chBookmarks.size() < 2) continue;
             final Set<Bookmark> consumed = new HashSet<>();
+            final String chPrefix = (sntui != null) ? "Merged Ch" + entry.getKey() + " " : "Merged ";
             for (final Bookmark seed : chBookmarks) {
                 if (consumed.contains(seed)) continue;
                 final List<Bookmark> group = new ArrayList<>();
@@ -552,8 +554,11 @@ public class BookmarkManager {
                     final double cx = group.stream().mapToDouble(b -> b.x).average().orElse(seed.x);
                     final double cy = group.stream().mapToDouble(b -> b.y).average().orElse(seed.y);
                     final double cz = group.stream().mapToDouble(b -> b.z).average().orElse(seed.z);
-                    final String label = model.getUniqueLabel("Merged C" + entry.getKey() + " ");
-                    allMerged.add(new Bookmark(label, cx, cy, cz, seed.c, seed.t, seed.getColor()));
+                    final String label = model.getUniqueLabel(chPrefix);
+                    final Bookmark merged = new Bookmark(label, cx, cy, cz, seed.c, seed.t, seed.getColor());
+                    if (viewer != null)
+                        merged.size = (float) group.stream().mapToDouble(b -> b.size).average().orElse(seed.size);
+                    allMerged.add(merged);
                     allConsumed.addAll(consumed);
                 }
             }
@@ -1026,12 +1031,14 @@ public class BookmarkManager {
                     sntui.guiUtils.error("No image is currently open.");
                     return;
                 }
-                final String pos = guiUtils.getString("Coordinates (comma/space separated):",
-                        "GoTo...", GuiUtils.getClipboardText());
+                final String pos = guiUtils.getString("Location XYZ coordinates (comma/space separated): ",
+                        "Go To Location...", GuiUtils.getClipboardText());
                 if (pos == null) return;
                 try {
                     final PointInImage pim = SNTPoint.fromString(pos);
-                    final Bookmark b = new Bookmark("", pim.x, pim.y, pim.z, 1, 1);
+                    // encode position in bookmark label so it is displayed in viewer (see flyTo)
+                    final Bookmark b = new Bookmark(String.format("%.2f, %.2f, %.2f", pim.x, pim.y, pim.z),
+                            pim.x, pim.y, pim.z, 1, 1);
                     if (viewer != null) {
                         flyTo(b);
                     } else {
@@ -1042,7 +1049,7 @@ public class BookmarkManager {
                             final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
                             if (xzImp != null) goTo(b, xzImp, SNT.XZ_PLANE);
                         }
-                        sntui.showStatus(String.format("Zoomed to %.2f, %.2f, %.2f", pim.x, pim.y, pim.z), true);
+                        sntui.showStatus(String.format("Zoomed to %s", b.label), true);
 
                     }
                 } catch (final Throwable ex) {
@@ -1169,17 +1176,17 @@ public class BookmarkManager {
 
     /**
      * BVV mode: adds a marker at the specified world coordinates.
-     * The marker is auto-labelled and immediately rendered in the BVV overlay.
+     * The marker is auto-labeled and immediately rendered in the BVV overlay.
      *
      * @param x world x-coordinate
      * @param y world y-coordinate
      * @param z world z-coordinate
      */
     public void add(final double x, final double y, final double z) {
-        // Inherit color, size, and label stem from the previous entry for continuity
         final List<Bookmark> data = model.getDataList();
-        final Color inheritedColor = data.isEmpty() ? null : data.getLast().getColor();
-        final float inheritedSize  = data.isEmpty() ? 0f   : data.getLast().size;
+        // Use default color/size. Inherit label from the previous entry for continuity
+        final Color color = (viewer != null) ? viewer.getDefaultMarkerColor() : data.getLast().getColor();
+        final float size  = (viewer != null) ? viewer.getDefaultMarkerSize() : data.getLast().size;
         // Strip trailing (N) or bare number suffixes to recover the base label,
         // e.g. "Terminal (3)" > "Terminal", "Marker (2) (2)" > "Marker"
         final String inheritedLabel;
@@ -1190,8 +1197,8 @@ public class BookmarkManager {
             inheritedLabel = prev.replaceAll("(\\s*\\(\\d+\\))+$", "").replaceAll("\\s*\\d+$", "").strip();
         }
         final String label = model.getUniqueLabel(inheritedLabel.isBlank() ? "Marker" : inheritedLabel);
-        final Bookmark b = new Bookmark(label, x, y, z, 1, 1, inheritedColor);
-        b.size = inheritedSize;
+        final Bookmark b = new Bookmark(label, x, y, z, 1, 1, color);
+        b.size = size;
         model.getDataList().add(b);
         model.fireTableDataChanged();
     }
@@ -1790,8 +1797,9 @@ class BookmarkModel extends AbstractTableModel {
     }
 
     String getUniqueLabel(final String candidate) {
+        final String prefix = (bvvMode) ? "Marker" : "Bookmark";
         final String base = (candidate == null || candidate.isBlank())
-                ? (bvvMode ? "Marker" : String.format("Bookmark %02d", 1 + getDataList().size()))
+                ? String.format("%s%03d", prefix, 1 + getDataList().size())
                 : candidate;
         if (getDataList().stream().noneMatch(b -> base.equalsIgnoreCase(b.label)))
             return base;
@@ -1829,7 +1837,7 @@ class BookmarkModel extends AbstractTableModel {
                     } catch (final IllegalArgumentException ignored) {}
                 }
             }
-            final String label = (tagIdx != -1) ? ((String) table.get(lIdx, i)) : "Loc";
+            final String label = (lIdx != -1) ? ((String) table.get(lIdx, i)) : String.format("Marker%03d", i+1);
             final Bookmark b = new Bookmark(label,
                     (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i),
                     (cIdx == -1) ? 1 : (int) ((double) table.get(cIdx, i)),
