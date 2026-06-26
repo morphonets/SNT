@@ -25,6 +25,7 @@ package sc.fiji.snt.gui;
 import com.formdev.flatlaf.extras.components.FlatTextField;
 import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
+import com.formdev.flatlaf.ui.FlatRoundBorder;
 
 import javax.swing.*;
 import java.awt.*;
@@ -140,11 +141,14 @@ public class SearchField extends FlatTextField {
     }
 
     public void enlarge(final float enlargeFactor) {
-        setFont(getFont().deriveFont(getFont().getSize() * enlargeFactor));
-        List.of(optionsButton, caseButton, regexButton).forEach(c -> c.setFont(c.getFont().deriveFont(c.getFont().getSize() * enlargeFactor)));
-        final int PADDING = (int) (getFontMetrics(getFont()).getHeight() / 2f);
-        //setMargin(new Insets(PADDING, PADDING, PADDING, PADDING));
-        setBorder(BorderFactory.createEmptyBorder(PADDING, PADDING, PADDING, PADDING));
+        // Normalize the factor by osScale so the visual enlargement is consistent across platforms. On macOS/Windows,
+        // osScale==1 and the factor is used as-is. On Linux HiDPI (GDK_SCALE), font measurements seem to be already in
+        // device pixels; without normalization the enlargement compounds the GDK scaling
+        final float factor = 1f + (enlargeFactor - 1f) / GuiUtils.osScale(this);
+        setFont(getFont().deriveFont(getFont().getSize() * factor));
+        List.of(optionsButton, caseButton, regexButton).forEach(c -> c.setFont(c.getFont().deriveFont(c.getFont().getSize() * factor)));
+        final int PADDING = getFontMetrics(getFont()).getDescent();
+        setBorder(BorderFactory.createCompoundBorder(new FlatRoundBorder(), BorderFactory.createEmptyBorder(PADDING, PADDING, PADDING, PADDING)));
     }
 
     public static Color iconColor() {

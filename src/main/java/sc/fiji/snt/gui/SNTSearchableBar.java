@@ -29,7 +29,7 @@ import com.jidesoft.swing.SearchableBarIconsFactory;
 import com.jidesoft.swing.WholeWordsSupport;
 import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
-import org.scijava.util.PlatformUtils;
+
 import sc.fiji.snt.SNTUtils;
 
 import javax.swing.*;
@@ -180,51 +180,30 @@ public class SNTSearchableBar extends SearchableBar {
 	protected void installComponents() {
 
 		final JToolBar tb = new JToolBar();
-		//tb.setFloatable(true);
-		final GridBagConstraints gbc = new GridBagConstraints();
-		gbc.gridx = 0;
-		gbc.gridy = 0;
-		gbc.anchor = GridBagConstraints.WEST;
-
 		// close button (if any)
 		if ((getVisibleButtons() & SHOW_CLOSE) != 0) {
-			tb.add(_closeButton, gbc);
-			gbc.gridx++;
+			tb.add(_closeButton);
 		}
 		// search field
-		gbc.weightx = 1.0;
-		gbc.fill = GridBagConstraints.HORIZONTAL;
-		tb.add(_textField, gbc);
-		gbc.gridx++;
-		gbc.weightx = 0;
-		gbc.fill = GridBagConstraints.NONE;
+		tb.add(_textField);
 
 		// buttons
 		if ((getVisibleButtons() & SHOW_NAVIGATION) != 0) {
-			tb.add(_findNextButton, gbc);
-			gbc.gridx++;
-			tb.add(_findPrevButton, gbc);
-			gbc.gridx++;
+			tb.add(_findNextButton);
+			tb.add(_findPrevButton);
 		}
 		if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
-			tb.add(_highlightsButton, gbc);
-			gbc.gridx++;
+			tb.add(_highlightsButton);
 		}
 		if ((getVisibleButtons() & SHOW_REPEATS) != 0) {
-			tb.add(_repeatCheckBox, gbc);
-			gbc.gridx++;
+			tb.add(_repeatCheckBox);
 		}
 		if (_extraButtons != null) {
-			tb.add(new JToolBar.Separator(), gbc);
-			gbc.gridx++;
-			_extraButtons.forEach(b -> {
-				tb.add(b, gbc);
-				gbc.gridx++;
-			});
+			tb.addSeparator();
+			_extraButtons.forEach(tb::add);
 		}
 
 		setLayout(new BorderLayout());
-		setBorder(null);
 		add(tb, BorderLayout.NORTH);
 		// status label
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
@@ -275,7 +254,7 @@ public class SNTSearchableBar extends SearchableBar {
 				blinkingTimer.start();
 			}
 		});
-		sf.enlarge(PlatformUtils.isMac() ? 1.05f : 1.1f);
+		sf.enlarge(1.1f); // enlarge() normalises by osScale internally
 		// assign search functionalities of original text field
 		sf.setAction(_textField.getAction());
 		sf.setDocument(_textField.getDocument());
@@ -307,7 +286,6 @@ public class SNTSearchableBar extends SearchableBar {
 			updateHistoryMenu();
 			optionsMenu.show(sf.optionsButton(), 0, sf.optionsButton().getHeight());
 		});
-		sf.setBorder(new FlatRoundBorder());
 		return sf;
 	}
 
@@ -413,12 +391,6 @@ public class SNTSearchableBar extends SearchableBar {
 
 	public void setStatus(final String text) {
 		super._statusLabel.setText(text);
-	}
-
-	public void setBorderless() {
-		GuiUtils.Buttons.makeBorderless(_closeButton, _findPrevButton, _findNextButton, _highlightsButton);
-		if (_extraButtons != null)
-			GuiUtils.Buttons.makeBorderless(_extraButtons.toArray(new AbstractButton[0]));
 	}
 
 	@Override

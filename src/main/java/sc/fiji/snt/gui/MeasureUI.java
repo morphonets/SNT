@@ -237,7 +237,6 @@ public class MeasureUI extends JFrame {
 			searchableBar.setVisibleButtons(SNTSearchableBar.SHOW_HIGHLIGHTS | SNTSearchableBar.SHOW_NAVIGATION);
 			searchableBar.setVisible(true);
 			searchableBar.setHighlightAll(true);
-			searchableBar.setBorderless();
 			searchableBar.setGuiUtils(guiUtils);
 
 			// progress bar
