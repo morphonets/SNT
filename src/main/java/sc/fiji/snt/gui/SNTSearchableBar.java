@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.ui.FlatRoundBorder;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.SearchableBarIconsFactory;
@@ -306,6 +307,7 @@ public class SNTSearchableBar extends SearchableBar {
 			updateHistoryMenu();
 			optionsMenu.show(sf.optionsButton(), 0, sf.optionsButton().getHeight());
 		});
+		sf.setBorder(new FlatRoundBorder());
 		return sf;
 	}
 

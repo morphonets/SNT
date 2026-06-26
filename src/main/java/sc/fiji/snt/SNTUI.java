@@ -396,8 +396,8 @@ public class SNTUI extends JDialog {
         c3.gridy++;
         InternalUtils.addSeparatorWithURL(tab3, "sciview:", false, c3);
         ++c3.gridy;
-        final String msg3 = "3D visualization framework supporting large image volumes, reconstructions, " +
-                "meshes, virtual reality, and Cx3D simulations. Discrete graphics card recommended.";
+        final String msg3 = "3D visualization framework supporting image volumes, meshes, virtual " +
+                "reality, and Cx3D neurodevelopmental simulations. Discrete graphics card recommended.";
         tab3.add(GuiUtils.longSmallMsg(msg3, "sciview-logo-icon.svg", tab3), c3);
         c3.gridy++;
         tab3.add(sciViewerPanel(viewerPanelBuilder), c3);

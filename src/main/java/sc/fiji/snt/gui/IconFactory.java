@@ -24,7 +24,6 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.icons.FlatAbstractIcon;
-import org.scijava.util.PlatformUtils;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -440,8 +439,10 @@ public class IconFactory {
     }
 
     public static Icon accentIcon(final Color color, final boolean squarify) {
-        final int size = (int) (FADerivedIcon.defSize() * (PlatformUtils.isLinux() ? .6f : .9f));
-        return new AccentIcon(color, (squarify) ? size : size *2, size);
+        // defSize() is based on uiFontSize(), which on Linux HiDPI (GDK_SCALE) is inflated
+        // by the OS scale factor. Divide by osScale() to get FlatLaF logical units
+        final int size = (int) (FADerivedIcon.defSize() / GuiUtils.osScale());
+        return new AccentIcon(color, (squarify) ? size : size * 2, size);
     }
 
     /* Creation of colorful JTree node icons */

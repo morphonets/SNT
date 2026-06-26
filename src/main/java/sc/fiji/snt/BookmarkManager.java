@@ -1815,7 +1815,7 @@ class BookmarkModel extends AbstractTableModel {
         final int cIdx = bvvMode ? -1 : table.findColumnIndex(HEADER[5]);
         final int tIdx = bvvMode ? -1 : table.findColumnIndex(HEADER[6]);
 
-        if (lIdx == -1 || xIdx == -1 || yIdx == -1 || zIdx == -1)
+        if (xIdx == -1 || yIdx == -1 || zIdx == -1)
             throw new IOException("Unexpected column header(s) in CSV file.");
         final List<Bookmark> dataList = new ArrayList<>();
         for (int i = 0; i < table.getRowCount(); i++) {
@@ -1829,7 +1829,8 @@ class BookmarkModel extends AbstractTableModel {
                     } catch (final IllegalArgumentException ignored) {}
                 }
             }
-            final Bookmark b = new Bookmark((String) table.get(lIdx, i),
+            final String label = (tagIdx != -1) ? ((String) table.get(lIdx, i)) : "Loc";
+            final Bookmark b = new Bookmark(label,
                     (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i),
                     (cIdx == -1) ? 1 : (int) ((double) table.get(cIdx, i)),
                     (tIdx == -1) ? 1 : (int) ((double) table.get(tIdx, i)),

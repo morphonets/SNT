@@ -1682,6 +1682,7 @@ public class GuiUtils {
 		private final FlatSVGIcon svgIcon;
 		private FlatSVGIcon derivedIcon = null;
 		private int derivedIconWidth = 0;
+		private float osScale = 1f;
 
 		SvgBackgroundJTextArea(final String svgFileName) {
 			this.svgIcon = new FlatSVGIcon("gui/" + svgFileName);
@@ -1696,8 +1697,14 @@ public class GuiUtils {
 			// Compute the derived icon here (not in paintComponent) to avoid feedback
 			// loops between icon size, insets, wrapping, and component height
 			super.addNotify();
-			// Size the icon to 3 text rows: getRowHeight() is font-based and should be stable
-			final int iconHeight = getRowHeight() * 3;
+			// osScale = FlatLaF uiScale / AWT device scale
+			// It seems that on  macOS and Windows, Java handles HiDPI natively: AWT deviceScale == uiScale,
+			// so osScale == 1 and all sizes are already in FlatLaF logical units. On Linux with GDK_SCALE, the OS
+			// scales everything _before_(!?) Java sees it: AWT deviceScale stays at 1 while uiScale absorbs
+			// the  GDK factor, so sizes become in device pixels and must be divided by osScale to get FlatLaF logical
+			// units. FlatSVGIcon.derive() and getInsets() both expect  FlatLaF logical units on the icon side
+			osScale = osScale(this);
+			final int iconHeight = (int) (getRowHeight() * 3 / osScale);
 			final float scale = (float) iconHeight / svgIcon.getIconHeight();
 			derivedIconWidth = Math.round(svgIcon.getIconWidth() * scale);
 			derivedIcon = svgIcon.derive(derivedIconWidth, iconHeight);
@@ -1705,10 +1712,11 @@ public class GuiUtils {
 
 		@Override
 		public Insets getInsets() {
-			// Reserve left space equal to icon width + one 'M' gap for readability
+			// derivedIconWidth is in FlatLaF logical units; multiply by osScale to convert to Swing layout coordinates.
+			// charWidth is also in FlatLaF logical units (it seems GDK_SCALE is already applied on Linux)
 			final Insets base = super.getInsets();
-			final int gap = getFontMetrics(getFont()).stringWidth("M");
-			return new Insets(base.top, base.left + derivedIconWidth + gap, base.bottom, base.right);
+			final int gap = (int) (getFontMetrics(getFont()).charWidth('m') * osScale);
+			return new Insets(base.top, base.left + (int)(derivedIconWidth * osScale) + gap, base.bottom, base.right);
 		}
 
 		@Override
@@ -1910,6 +1918,47 @@ public class GuiUtils {
 			// headless or no screen
 		}
 		return Math.max(1.0, ij.Prefs.getGuiScale());
+	}
+
+	/**
+	 * Returns the OS-level scale factor that is NOT already accounted for by Java's HiDPI awareness.
+	 * <p>
+	 * On macOS and Windows, Java intercepts HiDPI natively: so this returns 1.0. On Linux with GDK_SCALE, the OS seems
+	 * to scale everything before Java sees it: AWT/Swing stay at 1.0 scaling while {@link #uiScale()} absorbs the GDK
+	 * factor, so font sizes, etc.  are in device pixels and must be divided by the returned value to reach FlatLaF
+	 * logical units.
+	 * </p>
+	 * Uses the default screen device; prefer {@link #osScale(Component)} when a
+	 * component is available so multi-monitor setups are handled correctly.
+	 */
+	public static float osScale() {
+		try {
+			final double deviceScale = GraphicsEnvironment.getLocalGraphicsEnvironment()
+					.getDefaultScreenDevice()
+					.getDefaultConfiguration()
+					.getDefaultTransform()
+					.getScaleX();
+			return (float) (uiScale() / Math.max(1.0, deviceScale));
+		} catch (final Exception ignored) {
+			return 1f;
+		}
+	}
+
+	/**
+	 * Component-aware variant of {@link #osScale()}: uses the component's own
+	 * {@link java.awt.GraphicsConfiguration} so the correct scale is returned on
+	 * multi-monitor setups where screens may have different DPI.
+	 */
+	public static float osScale(final Component c) {
+		if (c == null) return osScale();
+		try {
+			final java.awt.GraphicsConfiguration gc = c.getGraphicsConfiguration();
+			if (gc == null) return osScale();
+			final double deviceScale = gc.getDefaultTransform().getScaleX();
+			return (float) (uiScale() / Math.max(1.0, deviceScale));
+		} catch (final Exception ignored) {
+			return 1f;
+		}
 	}
 
 	public static void initSplashScreen() {
