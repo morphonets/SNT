@@ -43,6 +43,7 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -301,24 +302,8 @@ public class BookmarkManager {
                     final int row = table.getSelectedRow();
                     if (row == -1) {
                         guiUtils.error("No bookmark selected.");
-                        return;
-                    }
-                    if (viewer != null) {
-                        // viewer mode: animate camera to marker world position
-                        flyTo(row);
                     } else {
-                        final ImagePlus imp = sntui.plugin.getImagePlus();
-                        if (imp == null) {
-                            sntui.guiUtils.error("No image is currently open.");
-                        } else {
-                            goTo(row, imp);
-                            if (!sntui.plugin.getSinglePane()) {
-                                final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
-                                if (zyImp != null) goTo(row, zyImp, SNT.ZY_PLANE);
-                                final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
-                                if (xzImp != null) goTo(row, xzImp, SNT.XZ_PLANE);
-                            }
-                        }
+                        goToRow(row);
                     }
                 }
             }
@@ -327,6 +312,26 @@ public class BookmarkManager {
             SNTUI.InternalUtils.addHoldToToggleKeyListener(table, sntui.plugin);
         }
         return table;
+    }
+
+    private void goToRow(final int tableRow) {
+        if (viewer != null) {
+            // viewer mode: animate camera to marker world position
+            flyTo(tableRow);
+        } else {
+            final ImagePlus imp = sntui.plugin.getImagePlus();
+            if (imp == null) {
+                sntui.guiUtils.error("No image is currently open.");
+            } else {
+                goTo(tableRow, imp);
+                if (!sntui.plugin.getSinglePane()) {
+                    final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
+                    if (zyImp != null) goTo(tableRow, zyImp, SNT.ZY_PLANE);
+                    final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
+                    if (xzImp != null) goTo(tableRow, xzImp, SNT.XZ_PLANE);
+                }
+            }
+        }
     }
 
     private void resetOrResizeColumns(final boolean reset, final boolean resize) {
@@ -957,6 +962,8 @@ public class BookmarkManager {
         tb.setFloatable(false);
         tb.add(impButton);
         tb.add(expButton);
+        tb.addSeparator();
+        tb.add(GuiUtils.Buttons.toolbarButton(goToAction(), "Zoom into a specific coordinate"));
         if (viewer != null) {
             tb.add(Box.createHorizontalGlue());
             // Navigation: Prev / Next / Reset
@@ -1011,6 +1018,40 @@ public class BookmarkManager {
         return tb;
     }
 
+    Action goToAction() {
+        return new AbstractAction("GoTo", IconFactory.menuIcon('\ue4be', true)) {
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                if (viewer == null && sntui.plugin.getImagePlus() == null) {
+                    sntui.guiUtils.error("No image is currently open.");
+                    return;
+                }
+                final String pos = guiUtils.getString("Coordinates (comma/space separated):",
+                        "GoTo...", GuiUtils.getClipboardText());
+                if (pos == null) return;
+                try {
+                    final PointInImage pim = SNTPoint.fromString(pos);
+                    final Bookmark b = new Bookmark("", pim.x, pim.y, pim.z, 1, 1);
+                    if (viewer != null) {
+                        flyTo(b);
+                    } else {
+                        goTo(b, sntui.plugin.getImagePlus(), SNT.XY_PLANE);
+                        if (!sntui.plugin.getSinglePane()) {
+                            final ImagePlus zyImp = sntui.plugin.getImagePlus(SNT.ZY_PLANE);
+                            if (zyImp != null) goTo(b, zyImp, SNT.ZY_PLANE);
+                            final ImagePlus xzImp = sntui.plugin.getImagePlus(SNT.XZ_PLANE);
+                            if (xzImp != null) goTo(b, xzImp, SNT.XZ_PLANE);
+                        }
+                        sntui.showStatus(String.format("Zoomed to %.2f, %.2f, %.2f", pim.x, pim.y, pim.z), true);
+
+                    }
+                } catch (final Throwable ex) {
+                    guiUtils.error("Could not extract a valid location from \"" + pos + "\".");
+                }
+            }
+        };
+    }
+
     private void bigViewerMarkerHelp(final AbstractBigViewer viewer) {
         final String viewerType = (viewer instanceof Bvv) ? "BVV" : "BDV";
         final String markerType = (viewer instanceof Bvv) ? "spheres" : "circles";
@@ -1047,8 +1088,11 @@ public class BookmarkManager {
     }
 
     private void goTo(final int row, final ImagePlus imp, final int plane) {
+        goTo(model.getDataList().get(table.convertRowIndexToModel(row)), imp, plane);
+    }
+
+    private void goTo(final Bookmark b, final ImagePlus imp, final int plane) {
         assert imp != null;
-        final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
 
         // Transform coordinates based on plane
         final double viewX, viewY;
@@ -1087,8 +1131,11 @@ public class BookmarkManager {
 
     /** Viewer mode: animates the camera to the world position of the selected marker row. */
     private void flyTo(final int row) {
+        flyTo(model.getDataList().get(table.convertRowIndexToModel(row)));
+    }
+
+    private void flyTo(final Bookmark b) {
         if (viewer == null) return;
-        final Bookmark b = model.getDataList().get(table.convertRowIndexToModel(row));
         final net.imglib2.realtransform.AffineTransform3D current = viewer.getViewerTransform();
         // The viewer transform maps world -> screen. To centre the bookmark on
         // screen we keep the current rotation/scale but adjust the translation

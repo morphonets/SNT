@@ -66,7 +66,7 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
@@ -2209,6 +2209,18 @@ public class GuiUtils {
 			}
 		}
 		return disabledColor;
+	}
+
+	public static String getClipboardText() {
+		try {
+			final Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+			final Transferable transferable = clipboard.getContents(null);
+			if (transferable != null && transferable.isDataFlavorSupported(DataFlavor.stringFlavor))
+				return (String) transferable.getTransferData(DataFlavor.stringFlavor);
+		} catch (final IOException | UnsupportedFlavorException e) {
+			return null;
+		}
+		return null;
 	}
 
 	public static JSpinner integerSpinner(final int value, final int min,

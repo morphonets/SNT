@@ -26,6 +26,8 @@ package sc.fiji.snt.util;
 import sc.fiji.snt.annotation.BrainAnnotation;
 
 import java.util.Collection;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Classes extend this interface implement a point in a 3D space, always using
@@ -99,4 +101,18 @@ public interface SNTPoint {
     public static PointInImage of(final Number[] coords) {
         return new PointInImage(coords[0].doubleValue(), coords[1].doubleValue(), coords[2].doubleValue() );
     }
+
+	static PointInImage fromString(final String string) {
+		if (string==null || string.isBlank()) return null;
+		// Match positive/negative decimals or integers
+		final Pattern pattern = Pattern.compile("-?\\d+(\\.\\d+)?");
+		final Matcher matcher = pattern.matcher(string);
+		final double[] coordinates = new double[]{ 0, 0, 0 };
+		int index = 0;
+		while (matcher.find() && index < 3) {
+			coordinates[index] = Double.parseDouble(matcher.group());
+			index++;
+		}
+		return (index<2) ? null : of(coordinates[0], coordinates[1], coordinates[2]);
+	}
 }
