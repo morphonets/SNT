@@ -35,15 +35,9 @@ import java.util.*;
 class EditorPopupMenu extends JPopupMenu
 {
 
-	/**
-	 * 
-	 */
 	private static final long serialVersionUID = -3132749140550242191L;
 
-	@SuppressWarnings("serial")
-	EditorPopupMenu(GraphEditor editor)
-	{
-
+	EditorPopupMenu(GraphEditor editor) {
 		mxCell[] selectedCells = Arrays.stream(editor.getGraphComponent().getGraph().getSelectionCells())
 				.map(obj -> (mxCell) obj)
 				.toArray(mxCell[]::new);

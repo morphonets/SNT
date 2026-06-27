@@ -188,7 +188,7 @@ public class GraphAdapterMapperCmd extends DynamicCommand {
         if (lutChoice == null || !choices.contains(lutChoice)) {
             lutChoice = choices.getFirst();
         }
-        final MutableModuleItem<String> input = getInfo().getMutableInput(lutChoice, String.class);
+        final MutableModuleItem<String> input = getInfo().getMutableInput("lutChoice", String.class);
         input.setChoices(choices);
         input.setValue(this, lutChoice);
         lutChoiceChanged();

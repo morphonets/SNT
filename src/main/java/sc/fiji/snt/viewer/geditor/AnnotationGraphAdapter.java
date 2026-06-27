@@ -122,7 +122,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
         final Object obj = ((mxCell)cell).getValue();
         if (obj == null) return ""; // required for Analyze>Complementary
         if (obj instanceof BrainAnnotation) {
-            return ""+ ((BrainAnnotation)obj).acronym();
+            return ((BrainAnnotation) obj).acronym();
         }
         return obj.toString();
     }
@@ -130,8 +130,7 @@ public class AnnotationGraphAdapter extends SNTGraphAdapter<BrainAnnotation, Ann
     @Override
     public String getToolTipForCell(Object cell) {
         mxCell mxc = (mxCell) cell;
-        if (mxc.isVertex() && mxc.getValue() instanceof BrainAnnotation) {
-            BrainAnnotation vertex = (BrainAnnotation) mxc.getValue();
+        if (mxc.isVertex() && mxc.getValue() instanceof BrainAnnotation vertex) {
             StringBuilder tip = new StringBuilder("<html>");
             tip.append("<b>Region:</b> ").append(vertex.name());
             tip.append("<br><b>Incoming edges:</b> ");

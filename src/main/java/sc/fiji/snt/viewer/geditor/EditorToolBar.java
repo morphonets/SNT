@@ -22,16 +22,17 @@
 package sc.fiji.snt.viewer.geditor;
 
 import java.awt.GraphicsEnvironment;
+import java.awt.event.ItemEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import javax.swing.*;
 
 import com.mxgraph.model.mxGeometry;
 import com.mxgraph.model.mxICell;
 import com.mxgraph.swing.mxGraphComponent;
-import com.mxgraph.swing.util.mxGraphActions;
 import com.mxgraph.util.*;
 import com.mxgraph.util.mxEventSource.mxIEventListener;
 import com.mxgraph.view.mxGraph;
@@ -86,7 +87,7 @@ class EditorToolBar extends JToolBar
 			// Zoomcombo is changed when the scale is changed in the diagram
 			// but the change is ignored here
 			if (!ignoreZoomChange) {
-				String zoom = zoomCombo.getSelectedItem().toString();
+				String zoom = Objects.requireNonNull(zoomCombo.getSelectedItem()).toString();
 
 				if (zoom.equals(mxResources.get("page"))) {
 					getGraphComponent().setPageVisible(true);
@@ -99,7 +100,7 @@ class EditorToolBar extends JToolBar
 				} else {
 					try {
 						zoom = zoom.replace("%", "");
-						final double scale = Math.min(16, Math.max(0.01, Double.parseDouble(zoom) / 100));
+						final double scale = Math.clamp(Double.parseDouble(zoom) / 100, 0.01, 16);
 						getGraphComponent().zoomTo(scale, getGraphComponent().isCenterZoom());
 					} catch (final Exception ex) {
 						new GuiUtils(editor).error("Invalid zoom factor.");
@@ -127,80 +128,33 @@ class EditorToolBar extends JToolBar
 		add(Box.createHorizontalGlue());
 
 		// Style controls
-		add(editor.bind("Delete", mxGraphActions.getDeleteAction(),
-				IconFactory.buttonIcon(GLYPH.TRASH, 1f))).setToolTipText("Delete Selected cell(s)");
-		add(editor.bind("Font", new EditorActions.ColorAction("Font",
-				mxConstants.STYLE_FONTCOLOR),
-				IconFactory.buttonIcon(GLYPH.FONT, 1f))).setToolTipText("Font Color");
 		add(editor.bind("Stroke", new EditorActions.ColorAction("Stroke",
 				mxConstants.STYLE_STROKECOLOR),
 				IconFactory.buttonIcon(GLYPH.PEN, 1f))).setToolTipText("Stroke Color");
 		add(editor.bind("Fill", new EditorActions.ColorAction("Fill",
 				mxConstants.STYLE_FILLCOLOR),
 				IconFactory.buttonIcon(GLYPH.FILL, 1f))).setToolTipText("Fill Color");
-		addSeparator();
 
 		// Vertices size controls
 		final JButton minusShapeSizeButton = new JButton(IconFactory.buttonIcon(GLYPH.MINUS, 1f));
 		minusShapeSizeButton.setToolTipText("Decrease size of selected vertices");
-		minusShapeSizeButton.addActionListener(e -> {
-			final mxGraph graph = getGraphComponent().getGraph();
-			graph.setCellsResizable(true);
-			final Object[] cells = graph.getSelectionCells();
-			if (noCellsError(cells)) {
-				return;
-			}
-			graph.getModel().beginUpdate();
-			for (final Object cell : cells) {
-				final mxICell mxc = (mxICell) cell;
-				if (graph.getModel().isVertex(mxc)) {
-					final mxGeometry geom = mxc.getGeometry();
-					final double srcWidth = geom.getWidth();
-					final double srcHeight = geom.getHeight();
-					final double maxWidth = srcWidth * 0.833333333;
-					final double maxHeight = srcHeight * 0.833333333;
-					final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-					graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
-				}
-			}
-			graph.getModel().endUpdate();
-		});
+		minusShapeSizeButton.addActionListener(e -> resizeVertices(.8f));
 		add(minusShapeSizeButton);
 		final JButton plusShapeSizeButton = new JButton(IconFactory.buttonIcon(GLYPH.PLUS, 1f));
 		plusShapeSizeButton.setToolTipText("Increase size of selected vertices");
-		plusShapeSizeButton.addActionListener(e -> {
-			final mxGraph graph = getGraphComponent().getGraph();
-			graph.setCellsResizable(true);
-			final Object[] cells = graph.getSelectionCells();
-			if (noCellsError(cells)) {
-				return;
-			}
-			graph.getModel().beginUpdate();
-			for (final Object cell : cells) {
-				final mxICell mxc = (mxICell) cell;
-				if (graph.getModel().isVertex(mxc)) {
-					final mxGeometry geom = mxc.getGeometry();
-					final double srcWidth = geom.getWidth();
-					final double srcHeight = geom.getHeight();
-					final double maxWidth = srcWidth * 1.20;
-					final double maxHeight = srcHeight * 1.20;
-					final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
-					graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
-				}
-			}
-			graph.getModel().endUpdate();
-		});
+		plusShapeSizeButton.addActionListener(e -> resizeVertices(1.20f));
 		add(plusShapeSizeButton);
 		addSeparator();
 		add(Box.createHorizontalGlue());
 
+		add(editor.bind("Font Color", new EditorActions.ColorAction("Font Color",
+						mxConstants.STYLE_FONTCOLOR),
+				IconFactory.buttonIcon(GLYPH.COLOR, 1f))).setToolTipText("Font Color");
 		// Gets the list of available fonts from the local graphics environment
 		// and adds some frequently used fonts at the beginning of the list
-		final GraphicsEnvironment env = GraphicsEnvironment
-				.getLocalGraphicsEnvironment();
+		final GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
 		final List<String> fonts = new ArrayList<>();
-		fonts.addAll(Arrays.asList("Arial", "Helvetica", "Verdana",
-				"Garamond", "Courier New"));
+		fonts.addAll(Arrays.asList("Arial", "Helvetica", "Verdana", "Garamond", "Courier New"));
 		fonts.addAll(Arrays.asList(env.getAvailableFontFamilyNames()));
 
 		final JComboBox<String> fontCombo = new JComboBox<>(fonts.toArray(new String[0]));
@@ -209,25 +163,30 @@ class EditorToolBar extends JToolBar
 		fontCombo.setToolTipText("Labels Typeface & Size");
 		add(fontCombo);
 		fontCombo.addActionListener(e -> {
-			final String font = fontCombo.getSelectedItem().toString();
+			final String font = Objects.requireNonNull(fontCombo.getSelectedItem()).toString();
 			if (font != null) {
 				final mxGraph graph = getGraphComponent().getGraph();
-				if (!noCellsError(graph.getSelectionCells()))
-					graph.setCellStyles(mxConstants.STYLE_FONTFAMILY, font);
+				final boolean noSelection = graph.isSelectionEmpty();
+				if (noSelection) graph.selectAll();
+				graph.setCellStyles(mxConstants.STYLE_FONTFAMILY, font);
+				if (noSelection) graph.setSelectionCells((Object[]) null);
 			}
 		});
 
 		final JComboBox<String> sizeCombo = new JComboBox<>(new String[] { "6pt", "8pt",
 				"9pt", "10pt", "12pt", "14pt", "16pt", "18pt", "20pt", "22pt", "24pt", "26pt",
 				"28pt", "30pt", "32pt", "34pt", "36pt", "38pt", "40pt", "42pt", "48pt", "60pt" });
-		sizeCombo.setToolTipText("Labels Typeface & Size");
+		sizeCombo.setToolTipText("Labels typeface & size");
 		sizeCombo.setEditable(false);
 		add(sizeCombo);
-		sizeCombo.addActionListener(e -> {
-			final mxGraph graph = getGraphComponent().getGraph();
-			if (!noCellsError(graph.getSelectionCells())) {
+		sizeCombo.addItemListener(e -> {
+			if (e.getStateChange() == ItemEvent.SELECTED) {
+				final mxGraph graph = getGraphComponent().getGraph();
+				final boolean noSelection = graph.isSelectionEmpty();
+				if (noSelection) graph.selectAll();
 				graph.setCellStyles(mxConstants.STYLE_FONTSIZE,
-						sizeCombo.getSelectedItem().toString().replace("pt", ""));
+						Objects.requireNonNull(sizeCombo.getSelectedItem()).toString().replace("pt", ""));
+				if (noSelection) graph.setSelectionCells((Object[]) null);
 			}
 		});
 
@@ -247,6 +206,29 @@ class EditorToolBar extends JToolBar
 				mxConstants.ALIGN_RIGHT),
 				IconFactory.buttonIcon(GLYPH.ALIGN_RIGHT, 1f))).setToolTipText("Align Right");
 
+	}
+
+	private void resizeVertices(final float scalingFactor) {
+		final mxGraph graph = getGraphComponent().getGraph();
+		graph.setCellsResizable(true);
+		final boolean noSelection = graph.isSelectionEmpty();
+		if (noSelection) graph.selectVertices();
+		final Object[] cells = graph.getSelectionCells();
+		graph.getModel().beginUpdate();
+		for (final Object cell : cells) {
+			final mxICell mxc = (mxICell) cell;
+			if (graph.getModel().isVertex(mxc)) {
+				final mxGeometry geom = mxc.getGeometry();
+				final double srcWidth = geom.getWidth();
+				final double srcHeight = geom.getHeight();
+				final double maxWidth = srcWidth * scalingFactor;
+				final double maxHeight = srcHeight * scalingFactor;
+				final double ratio = Math.min(maxWidth / srcWidth, maxHeight / srcHeight);
+				graph.resizeCell(mxc, new mxRectangle(geom.getX(), geom.getY(), srcWidth*ratio, srcHeight*ratio));
+			}
+		}
+		graph.getModel().endUpdate();
+		if (noSelection) graph.setSelectionCells((Object[]) null);
 	}
 
 	protected void refresh() {
@@ -277,12 +259,6 @@ class EditorToolBar extends JToolBar
 		getGraphComponent().getGraph().getView().addListener(mxEvent.SCALE_AND_TRANSLATE, scaleTracker);
 		// Invokes once to sync with the actual zoom value
 		scaleTracker.invoke(null, null);
-	}
-
-	private boolean noCellsError(final Object[] cells) {
-		final boolean noCells = cells == null || cells.length ==0;
-		if (noCells) editor.status("No selection exists!", true);
-		return noCells;
 	}
 
 	private mxGraphComponent getGraphComponent() {

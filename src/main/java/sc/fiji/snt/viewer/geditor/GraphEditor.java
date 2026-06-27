@@ -315,18 +315,18 @@ public class GraphEditor extends JPanel {
 	private void insertGraphCriteriaPanel() {
 
 		String metricTip = "<HTML><div WIDTH=500>The morphometric criteria used to define connectivity between brain areas";
-		String mintTresTip= "<HTML><div WIDTH=500>Connectiviy to a target area will only be considered if the chosen metric is above this value";
+		String mintTresTip= "<HTML><div WIDTH=500>Connectivity to a target area will only be considered if the chosen metric is above this value";
 		String maxDepthTip = "<HTML><div WIDTH=500> The highest ontology level to be considered when defining brain areas.";
 
 		JPanel panel = new JPanel(new GridBagLayout());
-		libraryPane.add("Graph Criteria", panel);
+		libraryPane.add("Annotation Graphs", panel);
 		GridBagConstraints c = new GridBagConstraints();
 		c.fill = GridBagConstraints.HORIZONTAL;
 		// Row 1: header
-		c.gridx = 0;
+		//c.gridx = 0;
 		c.gridy = 0;
-		c.insets.bottom = (int)(GuiUtils.uiFontSize() / 2);
-		GuiUtils.addSeparator(panel, "Annotation Graphs:", false, c);
+		//c.insets.bottom = (int)(GuiUtils.uiFontSize() / 2);
+		//GuiUtils.addSeparator(panel, "Annotation Graphs:", false, c);
 		c.insets.bottom = 0;
 		c.insets.top = 0;
 

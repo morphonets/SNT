@@ -93,17 +93,20 @@ public class GraphViewer {
         GuiUtils.setLookAndFeel();
         SNTGraphAdapter<?, ? extends DefaultWeightedEdge> adapter;
         SNTGraphComponent component;
-        if (graph instanceof DirectedWeightedGraph) {
-            adapter = new TreeGraphAdapter((DirectedWeightedGraph)this.graph);
-            component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
-        } else if (this.graph instanceof AnnotationGraph) {
-            adapter = new AnnotationGraphAdapter((AnnotationGraph) this.graph);
-            component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
-        } else if (graph instanceof SNTPseudograph) {
-            adapter = new SNTPseudographAdapter<>((SNTPseudograph<?, ? extends DefaultWeightedEdge>) this.graph);
-            component = new SNTPseudographComponent((SNTPseudographAdapter<?, ? extends DefaultWeightedEdge>) adapter, getContext());
-        } else {
-            throw new UnsupportedOperationException("Unsupported Graph Type.");
+        switch (graph) {
+            case DirectedWeightedGraph ignored -> {
+                adapter = new TreeGraphAdapter((DirectedWeightedGraph) this.graph);
+                component = new TreeGraphComponent((TreeGraphAdapter) adapter, getContext());
+            }
+            case AnnotationGraph annotationGraph -> {
+                adapter = new AnnotationGraphAdapter(annotationGraph);
+                component = new AnnotationGraphComponent((AnnotationGraphAdapter) adapter, getContext());
+            }
+            case SNTPseudograph ignored -> {
+                adapter = new SNTPseudographAdapter<>((SNTPseudograph<?, ? extends DefaultWeightedEdge>) this.graph);
+                component = new SNTPseudographComponent((SNTPseudographAdapter<?, ? extends DefaultWeightedEdge>) adapter, getContext());
+            }
+            case null, default -> throw new UnsupportedOperationException("Unsupported Graph Type.");
         }
         editor = new GraphEditor("Graph Viewer", component);
         editor.setContext(getContext());
@@ -160,7 +163,7 @@ public class GraphViewer {
         //mapper.map(graph, GraphColorMapper.EDGE_WEIGHT, "Ice");
         //graph.filterEdgesByWeight(20);
         // graph.removeOrphanedNodes();
-        GraphViewer graphViewer = new GraphViewer(trees.get(0).getGraph(true));
+        GraphViewer graphViewer = new GraphViewer(trees.getFirst().getGraph(true));
         graphViewer.setContext(ij.context());
         graphViewer.getEditor().setLegend("cool.lut", "Metric", 0d, 1000);
         graphViewer.show();

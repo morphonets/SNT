@@ -804,10 +804,9 @@ class EditorMenuBar extends JMenuBar
 		 */
 		public void actionPerformed(ActionEvent e)
 		{
-			if (e.getSource() instanceof mxGraphComponent)
+			if (e.getSource() instanceof mxGraphComponent graphComponent)
 			{
-				mxGraphComponent graphComponent = (mxGraphComponent) e.getSource();
-				mxGraph graph = graphComponent.getGraph();
+                mxGraph graph = graphComponent.getGraph();
 
 				// dialog = new FactoryConfigDialog();
 				String dialogText = "";
@@ -930,34 +929,32 @@ class EditorMenuBar extends JMenuBar
 			}
 
 			if (component instanceof AnnotationGraphComponent) {
-				AnnotationGraphAdapter adapter = (AnnotationGraphAdapter) ((AnnotationGraphComponent) component)
-						.getGraph();
+				AnnotationGraphAdapter adapter = (AnnotationGraphAdapter) (component).getGraph();
 				AnnotationGraph graph = adapter.getAnnotationGraph();
-				System.out.println(String.format("  No. vertices: %s", graph.vertexSet().size()));
-				System.out.println(String.format("  No. edges: %s", graph.edgeSet().size()));
-				System.out.println(String.format("  Annotation Graph: true [metric: %s, thresh.: %.2f, max. ont. depth: %s]", 
-						graph.getMetric(), graph.getThreshold(), graph.getMaxOntologyDepth()));
-				System.out.println(String.format("  Sum of edge weights: %.4f", graph.sumEdgeWeights()));
+				System.out.printf("  No. vertices: %s%n", graph.vertexSet().size());
+				System.out.printf("  No. edges: %s%n", graph.edgeSet().size());
+				System.out.printf("  Annotation Graph: true [metric: %s, thresh.: %.2f, max. ont. depth: %s]%n",
+						graph.getMetric(), graph.getThreshold(), graph.getMaxOntologyDepth());
+				System.out.printf("  Sum of edge weights: %.4f%n", graph.sumEdgeWeights());
 			} else {
 				System.out.println("  Annotation Graph: false");
 			}
 			if (component instanceof TreeGraphComponent) {
-				TreeGraphAdapter adapter = (TreeGraphAdapter) ((TreeGraphComponent) component).getGraph();
+				TreeGraphAdapter adapter = (TreeGraphAdapter) (component).getGraph();
 				SNTGraph<SWCPoint, SWCWeightedEdge> graph = adapter.cGraph;
-				if ( graph instanceof DirectedWeightedGraph) {
-					DirectedWeightedGraph dwGraph = (DirectedWeightedGraph) graph;
-					System.out.println(String.format("  Reconstruction Tree Graph: true [n. vertices: %s, n. branch points: %s, n. tips: %s]", 
-							dwGraph.vertexSet().size(), dwGraph.getBPs().size(), dwGraph.getTips().size()));
-					System.out.println(String.format("  Sum of edge weights: %.4f", dwGraph.sumEdgeWeights()));
+				if (graph instanceof DirectedWeightedGraph dwGraph) {
+                    System.out.printf("  Reconstruction Tree Graph: true [n. vertices: %s, n. branch points: %s, n. tips: %s]%n",
+							dwGraph.vertexSet().size(), dwGraph.getBPs().size(), dwGraph.getTips().size());
+					System.out.printf("  Sum of edge weights: %.4f%n", dwGraph.sumEdgeWeights());
 				}
 			} else {
 				System.out.println("  Reconstruction Tree Graph: false");
 			}
 			System.out.println("View:");
 			System.out.println("  " + adapter.getView().toString().replace("mxRectangle", "Bounding box:"));
-			System.out.println(String.format("  Center: x=%.2f, y=%.2f", adapter.getGraphBounds().getCenterX(),
-					adapter.getGraphBounds().getCenterY()));
-			System.out.println("");
+			System.out.printf("  Center: x=%.2f, y=%.2f%n", adapter.getGraphBounds().getCenterX(),
+					adapter.getGraphBounds().getCenterY());
+			System.out.println();
 			editor.status("Done.");
 		}
 
@@ -1097,7 +1094,7 @@ class EditorMenuBar extends JMenuBar
 					selectionCells.add(mxc);
 				}
 			}
-			System.out.println("");
+			System.out.println();
 			if (!selectionCells.isEmpty()) {
 				aGraph.getGraph().setSelectionCells(selectionCells);
 			}
@@ -1114,7 +1111,7 @@ class EditorMenuBar extends JMenuBar
 					selectionCells.add(mxc);
 				}
 			}
-			System.out.println("");
+			System.out.println();
 			if (!selectionCells.isEmpty()) {
 				aGraph.getGraph().setSelectionCells(selectionCells);
 			}
@@ -1124,11 +1121,10 @@ class EditorMenuBar extends JMenuBar
 			Object[] cutEdges = mxGraphStructure.getCutEdges(aGraph);
 			System.out.print("Retrieving cut edges: ");
 			mxIGraphModel model = aGraph.getGraph().getModel();
-			for (int i = 0; i < cutEdges.length; i++)
-			{
-				System.out.println(" CE: " + Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdges[i], true))) + "-"
-						+ Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdges[i], false))));
-			}
+            for (Object cutEdge : cutEdges) {
+                System.out.println(" CE: " + Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdge, true))) + "-"
+                        + Integer.parseInt((String) model.getValue(aGraph.getTerminal(cutEdge, false))));
+            }
 
 			System.out.println("Done. " + cutEdges.length + " CE(s) found.\n");
 		}
@@ -1137,9 +1133,9 @@ class EditorMenuBar extends JMenuBar
 			Object[] cutVertices = mxGraphStructure.getCutVertices(aGraph);
 			System.out.print("Retrieving cut vertices: ");
 			mxIGraphModel model = aGraph.getGraph().getModel();
-			for (int i = 0; i < cutVertices.length; i++) {
-				System.out.println("  CV: " + model.getValue(cutVertices[i]));
-			}
+            for (Object cutVertex : cutVertices) {
+                System.out.println("  CV: " + model.getValue(cutVertex));
+            }
 			System.out.println("Done. " + cutVertices.length + " cv(s) found.\n");
 		}
 
@@ -1153,7 +1149,7 @@ class EditorMenuBar extends JMenuBar
 				for (Object vertex : cycle) {
 					System.out.print(vertex + " -> ");
 				}
-				System.out.print(cycle.get(0));
+				System.out.print(cycle.getFirst());
 				System.out.println();
 			}
 			System.out.println("Done. " + cycleList.size() + " cyle(s) found.\n");
@@ -1307,10 +1303,9 @@ class EditorMenuBar extends JMenuBar
 					System.out.print("The path from " + costFunction.getCost(view.getState(vertices[0])) + " to "
 							+ costFunction.getCost((view.getState(vertices[vertexNum - 1]))) + " is:");
 
-					for (int i = 0; i < path.length; i++)
-					{
-						System.out.print(" " + costFunction.getCost(view.getState(path[i])));
-					}
+                    for (Object o : path) {
+                        System.out.print(" " + costFunction.getCost(view.getState(o)));
+                    }
 
 					System.out.println();
 				}

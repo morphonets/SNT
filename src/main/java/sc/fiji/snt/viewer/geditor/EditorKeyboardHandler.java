@@ -84,8 +84,7 @@ class EditorKeyboardHandler extends mxKeyboardHandler
         final ArrayList<String> lines = new ArrayList<>();
         final String common = "<span style='display:inline-block;width:100px;font-weight:bold'>";
         if (keys != null) {
-            for (int i = 0; i < keys.length; i++) {
-                final KeyStroke key = keys[i];
+            for (final KeyStroke key : keys) {
                 final String keyString = key.toString().replace("pressed", "");
                 lines.add(common + keyString + "</span>&nbsp;&nbsp;" + inputMap.get(key));
             }

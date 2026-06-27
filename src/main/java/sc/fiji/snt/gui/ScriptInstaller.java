@@ -177,7 +177,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		else { // jar file
 			try {
 				final StringBuilder stringBuffer = new StringBuilder();
-				String line = null;
+				String line;
 				while ((line = reader.readLine()) != null) {
 					stringBuffer.append(line).append("\n");
 				}
@@ -214,7 +214,7 @@ public class ScriptInstaller implements MenuKeyListener {
             case "Misc" -> IconFactory.menuIcon(GLYPH.ELLIPSIS);
             case "Render" -> IconFactory.menuIcon(GLYPH.CUBE);
             case "Skeletons and ROIs" -> IconFactory.menuIcon(GLYPH.BEZIER_CURVE);
-			case "Spines and Varicosities" -> IconFactory.menuIcon(GLYPH.MAP_PIN);
+			case "Spines and Varicosities" -> IconFactory.menuIcon('\ue29c', true);
 			case "Tracing" -> IconFactory.menuIcon(GLYPH.ROUTE);
             case "Time-lapses" -> IconFactory.menuIcon(GLYPH.VIDEO);
             default -> null;
@@ -300,13 +300,13 @@ public class ScriptInstaller implements MenuKeyListener {
 			addLocalScripts();
 			final int newCount = scripts.size();
 			if (oldCount == newCount) {
-				guiUtils.centeredMsg("" + newCount + " items loaded. No new scripts detected.", "List Reloaded");
+				guiUtils.centeredMsg(newCount + " items loaded. No new scripts detected.", "List Reloaded");
 				return;
 			}
 			sMenu.remove(listMenuPosition);
 			sMenu.add(getFullListMenu(), listMenuPosition);
 			sMenu.revalidate();
-			guiUtils.centeredMsg(""+ (newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
+			guiUtils.centeredMsg((newCount-oldCount) +" new script(s) added to \"Scripts>Full List>\".", "New Script(s) Detected");
 		});
 		final JMenuItem mi1 = new JMenuItem("From Template...", IconFactory.menuIcon(GLYPH.FILE));
 		mi1.addActionListener(e -> {
@@ -479,7 +479,7 @@ public class ScriptInstaller implements MenuKeyListener {
 				if (l.startsWith("#@"))
 					continue; // script parameter
 				javaComment |= l.startsWith("//");
-				javaKeyword |= l.contains("new ");
+				javaKeyword = l.contains("new ");
 				groovyKeyword |= (!l.endsWith(";") || javaKeyword || l.startsWith("def "));
 				pythonComment |= l.startsWith("#");
 				pythonKeyword |= l.startsWith("from ");
@@ -487,9 +487,7 @@ public class ScriptInstaller implements MenuKeyListener {
 					return ".groovy";
 				if (pythonKeyword && pythonComment)
 					return ".py";
-				if (javaKeyword && javaComment)
-					return ".bsh";
-			}
+            }
 		}
 		return "";
 	}

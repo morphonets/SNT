@@ -109,7 +109,7 @@ public class MultiViewer3D {
 	}
 
 	public <T extends sc.fiji.snt.analysis.ColorMapper> void addColorBarLegend(final T colorMapper) {
-		viewers.get(viewers.size()-1).addColorBarLegend(colorMapper);
+		viewers.getLast().addColorBarLegend(colorMapper);
 	}
 
 	public void setAnimationEnabled(final boolean enabled) {

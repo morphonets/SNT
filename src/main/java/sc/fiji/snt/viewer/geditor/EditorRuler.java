@@ -55,9 +55,7 @@ import sc.fiji.snt.gui.GuiUtils;
  * 
  * @author Gaudenz Alder info (at) jgraph (dot) com Copyright (c) 2001-2005
  */
-class EditorRuler extends JComponent implements MouseMotionListener,
-		DropTargetListener
-{
+class EditorRuler extends JComponent implements MouseMotionListener, DropTargetListener {
 	
 	private static final long serialVersionUID = -6310912355878668096L;
 	
