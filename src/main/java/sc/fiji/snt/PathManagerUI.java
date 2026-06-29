@@ -661,13 +661,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     selectSWCTypeMenuEntry(-1);
                     return;
                 }
-                if (tree.getSelectionCount() == 0 && !guiUtils.getConfirmation(
-                        "Currently no paths are selected. Change type of all paths?",
-                        "Apply to All?"))
-                {
-                    selectSWCTypeMenuEntry(-1);
-                    return;
-                }
                 setSWCType(selectedPaths, key, color);
                 refreshManager(true, assignColors, selectedPaths);
             });
@@ -1703,38 +1696,184 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private static final long serialVersionUID = 1L;
 
+        // Chip geometry (pixels)
+        private static final int CHIP_GAP = 4; // space before first chip and between chips
+        private static final int CHIP_HPAD = 4; // horizontal padding inside each chip
+        private static final int CHIP_VPAD = 1; // vertical padding inside each chip
+
+        // Matches individual [metadata] blocks in the path name
+        private static final Pattern META_CHIP_PATTERN = Pattern.compile("\\[[^\\]]+\\]");
+
+        // Colors and arc resolved once at class load (NodeRender lives for the UI lifetime)
+        private static final int CHIP_ARC;
+        private static final Color CHIP_FILL;
+        private static final Color CHIP_BORDER;
+        private static final Color CHIP_TEXT;
+
+        static {
+            final int arc = UIManager.getInt("Component.arc");
+            CHIP_ARC = (arc > 0) ? Math.min(arc, 8) : 4;
+            final Color fg = UIManager.getColor("Tree.textForeground"); // Tree.foreground is unused. See formdev.com/flatlaf/components/tree/
+            final Color base = (fg != null) ? fg : Color.GRAY;
+            final int r = base.getRed(), gn = base.getGreen(), b = base.getBlue();
+            CHIP_BORDER = new Color(r, gn, b, 50);
+            CHIP_TEXT = base;
+            CHIP_FILL = new Color(r, gn, b, 10);
+        }
+
+        // Per-cell state populated in getTreeCellRendererComponent
+        private String[] customChips; // from {tag, tag} -- one chip per comma-separated entry
+        private String[] metaChips; // from [Ch:1], [Z:3], etc. -- one chip per [] block
+        private Font chipFont; // cached smaller font for chips
+
         public NodeRender() {
             super();
-            setClosedIcon(IconFactory.nodeIcon( null, false, false));
-            setOpenIcon(IconFactory.nodeIcon( null, false, true));
-            setLeafIcon(IconFactory.nodeIcon( null, true, false));
+            setClosedIcon(IconFactory.nodeIcon(null, false, false));
+            setOpenIcon(IconFactory.nodeIcon(null, false, true));
+            setLeafIcon(IconFactory.nodeIcon(null, true, false));
         }
 
         @Override
         public Component getTreeCellRendererComponent(final JTree tree,
                                                       final Object value, final boolean selected, final boolean expanded,
-                                                      final boolean isLeaf, final int row, final boolean focused)
-        {
+                                                      final boolean isLeaf, final int row, final boolean focused) {
             final Component c = super.getTreeCellRendererComponent(tree, value,
                     selected, expanded, isLeaf, row, focused);
 
             final TreePath tp = tree.getPathForRow(row);
-            if (tp == null) {
-                return c;
-            }
-            final DefaultMutableTreeNode node = (DefaultMutableTreeNode) (tp
-                    .getLastPathComponent());
+            if (tp == null) return c;
+            final DefaultMutableTreeNode node = (DefaultMutableTreeNode) tp.getLastPathComponent();
             if (node == null || node.isRoot()) return c;
             final Path p = (Path) node.getUserObject();
-            if (p.getColor() == null && !p.hasNodeColors()) {
+
+            // Color icon (unchanged logic)
+            if (p.hasNodeColors())
+                setIcon(IconFactory.nodeIconMulticolor(isLeaf, expanded));
+            else if (p.getColor() != null)
+                setIcon(IconFactory.nodeIcon(p.getColor(), isLeaf, expanded));
+
+            // Fast exit for the common case: no tags at all
+            // Use getName() for {} extraction and getText() for [] detection so
+            // all bracket-delimited content is caught without calling getSWCType()
+            final String name = p.getName();
+            final String displayed = getText(); // set by the super call above
+            final int curly = name.indexOf('{');
+            final int bracket = displayed.indexOf('[');
+            if (curly < 0 && bracket < 0) {
+                customChips = null;
+                metaChips = null;
                 return c;
             }
-            if (p.hasNodeColors()) {
-                setIcon(IconFactory.nodeIconMulticolor(isLeaf, expanded));
+
+            // Custom tags: content inside {} split by comma. Reuse curly index;
+            if (curly >= 0) {
+                final int closingCurly = name.lastIndexOf('}');
+                if (closingCurly > curly) {
+                    final String[] parts = TAG_SPLIT_PATTERN.split(name.substring(curly + 1, closingCurly));
+                    // filter empties without stream allocation
+                    int count = 0;
+                    for (final String s : parts) if (!s.isEmpty()) count++;
+                    if (count > 0) {
+                        customChips = new String[count];
+                        int i = 0;
+                        for (final String s : parts) if (!s.isEmpty()) customChips[i++] = s;
+                    } else {
+                        customChips = null;
+                    }
+                } else {
+                    customChips = null;
+                }
             } else {
-                setIcon(IconFactory.nodeIcon( p.getColor(), isLeaf, expanded));
+                customChips = null;
             }
+
+            // Metadata tags: scan displayed (= toString()) so [axon], [Single Point],
+            // and [] blocks appended after {} are all captured
+            if (bracket >= 0) {
+                final var m = META_CHIP_PATTERN.matcher(displayed);
+                final List<String> metaList = new ArrayList<>();
+                while (m.find()) {
+                    final String match = m.group();
+                    metaList.add(match.substring(1, match.length() - 1));
+                }
+                metaChips = metaList.isEmpty() ? null : metaList.toArray(new String[0]);
+            } else {
+                metaChips = null;
+            }
+
+            // Clean display text. Base is derived from getName() so toString()
+            if (customChips != null || metaChips != null) {
+                final String base = (curly >= 0) ? name.substring(0, curly).trim() : name;
+                // strip any [] embedded in name that appear before '{'
+                setText(bracket >= 0 ? META_CHIP_PATTERN.matcher(base).replaceAll("").trim() : base);
+                if (chipFont == null) // lazily derive chip font once
+                    chipFont = getFont().deriveFont(Font.PLAIN, getFont().getSize2D() * .85f);
+            }
+
             return c;
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            final Dimension d = super.getPreferredSize();
+            if (customChips == null && metaChips == null) return d;
+            return new Dimension(d.width + totalChipsWidth(), d.height);
+        }
+
+        private int totalChipsWidth() {
+            if (chipFont == null) return 0;
+            final FontMetrics fm = getFontMetrics(chipFont);
+            int w = CHIP_GAP;
+            if (customChips != null)
+                for (final String t : customChips) w += fm.stringWidth(t) + CHIP_HPAD * 2 + CHIP_GAP;
+            if (metaChips != null)
+                for (final String t : metaChips) w += fm.stringWidth(t) + CHIP_HPAD * 2 + CHIP_GAP;
+            return w;
+        }
+
+        @Override
+        protected void paintComponent(final Graphics g) {
+            super.paintComponent(g);
+            if (customChips == null && metaChips == null) return;
+
+            final Graphics2D g2 = (Graphics2D) g.create();
+            GuiUtils.setRenderingHints(g2);
+
+            // Position chips immediately after the label text
+            int x = getInsets().left;
+            final Icon icon = getIcon();
+            if (icon != null) x += icon.getIconWidth() + getIconTextGap();
+            final String text = getText();
+            if (text != null && !text.isEmpty())
+                x += getFontMetrics(getFont()).stringWidth(text);
+            x += CHIP_GAP;
+            g2.setFont(chipFont);
+            final FontMetrics fm = g2.getFontMetrics();
+            final int chipH = fm.getAscent() + fm.getDescent() + CHIP_VPAD * 2;
+            final int chipY = (getHeight() - chipH) / 2;
+            // Currently, we are not distinguishing custom tags from metadata tags, but in the future
+            // we could distinguish them here
+            if (customChips != null)
+                for (final String tag : customChips)
+                    x = paintChip(g2, tag, x, chipY, chipH, fm, CHIP_FILL);
+            if (metaChips != null)
+                for (final String tag : metaChips)
+                    x = paintChip(g2, tag, x, chipY, chipH, fm, CHIP_FILL);
+
+            g2.dispose();
+        }
+
+        // Paints one chip and returns the x position for the next chip.
+        private int paintChip(final Graphics2D g2, final String tag, final int x, final int y,
+                              final int h, final FontMetrics fm, final Color fill) {
+            final int w = fm.stringWidth(tag) + CHIP_HPAD * 2;
+            g2.setColor(fill);
+            g2.fillRoundRect(x, y, w, h, CHIP_ARC, CHIP_ARC);
+            g2.setColor(NodeRender.CHIP_BORDER);
+            g2.drawRoundRect(x, y, w, h, CHIP_ARC, CHIP_ARC);
+            g2.setColor(CHIP_TEXT);
+            g2.drawString(tag, x + CHIP_HPAD, y + fm.getAscent() + CHIP_VPAD);
+            return x + w + CHIP_GAP;
         }
     }
 
@@ -5164,6 +5303,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         return false;
     }
 
+    /**
+     * return true if the path name contains any tag delimiters ({ or [).
+     */
+    public static boolean hasTags(final Path p) {
+        final String name = p.getName();
+        return name.indexOf('{') >= 0 || name.indexOf('[') >= 0;
+    }
+
     public static String extractTagsFromPath(final Path p) {
         final String name = p.getName();
         final int openingDlm = name.indexOf("{");
@@ -5433,7 +5580,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             menu.add(zMenu);
             final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MAGNIFIED_LOCATION, 1f, menu);
             button.setActionCommand("Zoom To Nodes");
-            button.putClientProperty("cmdFinder", "Zoom To Nodes");
+            //Too much noise in command Finder: exclude menu
+            button.putClientProperty("cmdFinder-ignore", "Zoom To Nodes");
             button.setToolTipText("Zoom to notable node(s) of selected path(s)");
             return button;
         }
@@ -5491,9 +5639,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private JButton zoomToPathsButton() {
             final JButton button = new JButton(IconFactory.buttonIcon(IconFactory.GLYPH.SEARCH_PLUS, 1f));
             button.setActionCommand("Zoom To Selected Paths");
-            button.addActionListener( e -> {
-                zoomToBoundingBox(getSelectedPathsUsingToolbarOptions(true));
-            });
+            button.addActionListener( e -> zoomToBoundingBox(getSelectedPathsUsingToolbarOptions(true)));
             button.setToolTipText("Zoom to selected path(s)");
             return button;
         }

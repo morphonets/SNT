@@ -24,6 +24,7 @@ package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.icons.FlatAbstractIcon;
+import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
@@ -449,6 +450,7 @@ public class IconFactory {
     private static class NodeIcon implements Icon {
 
         private static final int SIZE = preferredIconSize();
+        private static final int ARC_SIZE = preferredArcSize(SIZE);
         private static final Color FOREGROUND_COLOR = UIManager.getColor("Tree.foreground");
         private final static Color[] Q_COLORS = new Color[]{
                 new Color(0xFE646F), new Color(0x60B7FF), //
@@ -469,10 +471,8 @@ public class IconFactory {
                 this.typeColor = Color.BLACK;
             } else if (fillColor == null) {
                 this.typeColor = FOREGROUND_COLOR;
-            } else if (closerToBlack(fillColor)) {
-                this.typeColor = Color.WHITE;
             } else {
-                this.typeColor = Color.BLACK;
+                this.typeColor = SNTColor.contrastColor(fillColor);
             }
         }
 
@@ -482,9 +482,11 @@ public class IconFactory {
             return (size % 2 == 0) ? size - 1 : size;
         }
 
-        boolean closerToBlack(final Color c) {
-            final double y = 0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue();
-            return y < 100; // https://stackoverflow.com/a/9780689
+        // Arc radius from FlatLaf, scaling from iconSize if FlatLaf not available
+        static int preferredArcSize(final int iconSize) {
+            final int lafArc = UIManager.getInt("Component.arc");
+            if (lafArc > 0) return Math.min(lafArc, iconSize / 2);
+            return Math.max(2, iconSize / 4);
         }
 
         @Override
@@ -492,6 +494,9 @@ public class IconFactory {
             final Graphics2D g2 = (Graphics2D) g;
             GuiUtils.setRenderingHints(g2);
             if (multiColor) { // Path has multiple node colors
+                // Clip to the rounded outline so quadrant fills don't bleed into corners.
+                final Shape clip = g2.getClip();
+                g2.clip(new java.awt.geom.RoundRectangle2D.Float(x, y, SIZE - 1, SIZE - 1, ARC_SIZE, ARC_SIZE));
                 final int qSize = SIZE / 2;
                 g2.setColor(Q_COLORS[0]);
                 g2.fillRect(x, y, qSize, qSize); // top-left
@@ -503,13 +508,14 @@ public class IconFactory {
                 g2.fillRect(x + qSize, y + qSize, qSize, qSize); // bottom-right
                 g2.setColor(Q_COLORS[4]);
                 g2.fillRect(x + (SIZE - qSize) / 2, y + (SIZE - qSize) / 2, qSize, qSize); // center
+                g2.setClip(clip); // restore clip before drawing contour
             } else if (fillColor != null) { // monochrome path
                 g2.setColor(fillColor);
-                g2.fillRect(x, y, SIZE - 1, SIZE - 1);
+                g2.fillRoundRect(x, y, SIZE - 1, SIZE - 1, ARC_SIZE, ARC_SIZE);
             }
             // draw contour
             g2.setColor(FOREGROUND_COLOR);
-            g2.drawRect(x, y, SIZE - 1, SIZE - 1);
+            g2.drawRoundRect(x, y, SIZE - 1, SIZE - 1,ARC_SIZE,ARC_SIZE);
             if (isLeaf) return;
             // draw 'minus' or 'plus'
             g2.setStroke(new BasicStroke(1.5f));

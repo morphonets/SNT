@@ -50,8 +50,7 @@ public class ColorChooserButton extends JButton {
 	{
 		super(label);
 		if (scaleFactor != 1d) {
-			setFont(getFont().deriveFont((float) (getFont().getSize() *
-				scaleFactor)));
+			setFont(getFont().deriveFont((float) (getFont().getSize() * scaleFactor)));
 			final Insets margin = getMargin();
 			if (margin != null) {
 				setMargin(new Insets((int) (margin.top * scaleFactor),

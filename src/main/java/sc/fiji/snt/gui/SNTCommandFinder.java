@@ -1353,6 +1353,7 @@ public class SNTCommandFinder {
         }
 
         void registerMain(final AbstractButton button, final List<String> path) {
+            if (button.getClientProperty("cmdFinder-ignore") != null) return;
             if (button instanceof GuiUtils.Buttons.OptionsButton optionButton) {
                 final String buttonPath = (String) (button.getClientProperty("cmdFinder"));
                 final List<String> modPath = new ArrayList<>(path);

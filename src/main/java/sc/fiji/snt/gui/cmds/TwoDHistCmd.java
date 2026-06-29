@@ -78,8 +78,6 @@ public class TwoDHistCmd extends CommonDynamicCmd {
     @Parameter(required = false, visibility = ItemVisibility.INVISIBLE)
     private boolean onlyConnectivitySafeMetrics = true;
 
-    private boolean imgDataAvailable;
-
     protected void init() {
         super.init(false);
         final List<String> choices = (onlyConnectivitySafeMetrics)
@@ -111,10 +109,12 @@ public class TwoDHistCmd extends CommonDynamicCmd {
         final DescriptiveStatistics stats2 = TreeStatistics.fromCollection(trees, measurementChoice2)
                 .getDescriptiveStats(measurementChoice2);
         try {
-            SNTChart.showHistogram3D(stats1, stats2, getColorTable(), measurementChoice1, measurementChoice2, "Freq.");
+            final javax.swing.JFrame hist = SNTChart.showHistogram3D(stats1, stats2, getColorTable(),
+                    measurementChoice1, measurementChoice2, "Freq.");
             if (ui.getRecorder(false) != null)
                 ui.getRecorder(false).recordComment(String.format("Prompt options: \"%s\", \"%s\", \"%s\"",
                         measurementChoice1, measurementChoice2, colorMapChoice));
+            javax.swing.SwingUtilities.invokeLater(() -> hist.setTitle(String.format("2D Hist %s-%s", measurementChoice1, measurementChoice2)));
         } catch (final IllegalArgumentException | NullPointerException | InterruptedException |
                        InvocationTargetException ex) {
             error("It was not possible to retrieve valid histogram data. See Console for details");

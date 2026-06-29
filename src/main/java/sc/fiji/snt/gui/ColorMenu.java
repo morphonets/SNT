@@ -26,9 +26,8 @@ import sc.fiji.snt.Path;
 import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
-import javax.swing.border.Border;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.MatteBorder;
+import javax.swing.event.PopupMenuEvent;
+import javax.swing.event.PopupMenuListener;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
@@ -50,22 +49,19 @@ public class ColorMenu extends JMenu {
 	private static final long serialVersionUID = 1L;
 	private final Map<SNTColor, ColorPane> _colorPanes;
 	private ColorPane _selectedColorPane;
-	private final Border _activeBorder;
-	private final Border _selectedBorder;
-	private final Border _unselectedBorder;
+	private final Color selectedColor;
+	private final Color focusedColor;
+	private final BasicStroke selectedStroke;
+	private final BasicStroke focusedStroke;
+	private final BasicStroke baseStroke;
 
 	public ColorMenu(final String name) {
 		super(name);
-
-		_unselectedBorder = new CompoundBorder(new MatteBorder(2, 2, 2, 2,
-			getBackground()), new MatteBorder(1, 1, 1, 1, getForeground()));
-
-		_selectedBorder = new CompoundBorder(new MatteBorder(1, 1, 1, 1,
-			getForeground().brighter()), new MatteBorder(2, 2, 2, 2,
-				getForeground()));
-
-		_activeBorder = new CompoundBorder(new MatteBorder(2, 2, 2, 2,
-			getBackground().darker()), new MatteBorder(1, 1, 1, 1, getBackground()));
+		selectedColor = GuiUtils.getSelectionColor();
+		focusedColor = UIManager.getColor("Component.focusColor");
+		selectedStroke = new BasicStroke(2f);
+		focusedStroke = new BasicStroke(1.5f);
+		baseStroke = new BasicStroke(.75f);
 
 		final Color[] hues = new Color[] { Color.RED, Color.GREEN, Color.BLUE,
 			Color.MAGENTA, Color.CYAN, Color.YELLOW, Color.ORANGE }; // 7 elements
@@ -130,6 +126,23 @@ public class ColorMenu extends JMenu {
 			_colorPanes.put(new SNTColor(color), colorPane);
 		}
 		add(kellyPanel);
+
+		// mouseExited does not fire when the popup is dismissed by Escape or an
+		// outside click, leaving isHovered=true on the last-hovered pane. Reset all
+		// hover states whenever the popup hides.
+		getPopupMenu().addPopupMenuListener(new PopupMenuListener() {
+			@Override public void popupMenuWillBecomeVisible(final PopupMenuEvent e) {}
+			@Override public void popupMenuCanceled(final PopupMenuEvent e) {}
+			@Override
+			public void popupMenuWillBecomeInvisible(final PopupMenuEvent e) {
+				_colorPanes.values().forEach(cp -> {
+					if (cp.isHovered) {
+						cp.isHovered = false;
+						cp.repaint();
+					}
+				});
+			}
+		});
 	}
 
 	private void addSeparator(final String header) {
@@ -191,14 +204,18 @@ public class ColorMenu extends JMenu {
 		@Serial
 		private static final long serialVersionUID = 1L;
 		private SNTColor swcColor;
+		private Color fillColor; // cached fill; null means "no color" swatch
 		private boolean isSelected;
+		private boolean isHovered;
 		private final boolean isCustomizable;
+		private final int baseArc;
 
 		public ColorPane(final SNTColor sColor, final boolean customizable) {
 			swcColor = sColor;
 			isCustomizable = customizable;
+			baseArc = UIManager.getInt("Component.arc");
+			setOpaque(false); // parent paints through corners outside the rounded rect
 			setPanelSWCColor(swcColor);
-			setBorder(_unselectedBorder);
 			addMouseListener(this);
 			final int size = GuiUtils.MenuItems.defaultHeight();
 			setPreferredSize(new Dimension(size, size));
@@ -207,11 +224,12 @@ public class ColorMenu extends JMenu {
 		private void setPanelSWCColor(final SNTColor sColor) {
 			swcColor = sColor;
 			if (sColor.color() == null) {
-				setBackground(getBackground().brighter());
+				// Use panel background for the "no color" swatch fill
+				fillColor = null;
 				setToolTipText("None (No Color)");
 			}
 			else {
-				setBackground(swcColor.color());
+				fillColor = swcColor.color();
 				final String msg = (!swcColor.isTypeDefined()) ? ij.plugin.Colors.colorToString2(swcColor.color())
 						: Path.getSWCtypeName(swcColor.type(), true);
 				setToolTipText(msg);
@@ -221,24 +239,45 @@ public class ColorMenu extends JMenu {
 		public void setSelected(final boolean isSelected) {
 			this.isSelected = isSelected;
 			if (this.isSelected) {
-				setBorder(_selectedBorder);
 				_selectedColorPane = this;
 			}
-			else {
-				setBorder(_unselectedBorder);
-			}
+			repaint();
 		}
 
 		@Override
-		public void paint(final Graphics g) {
-			super.paint(g);
-			if (swcColor.color() == null) {
-				final Graphics2D g2 = (Graphics2D) g;
-				GuiUtils.setRenderingHints(g2);
-				g2.setColor(Color.RED); // SNTColor.contrastColor(getBackground()));
-				g2.setStroke(new BasicStroke(2));
-				g2.drawLine(3, 3, getWidth() - 4, getHeight() - 4);
+		protected void paintComponent(final Graphics g) {
+			final Graphics2D g2 = (Graphics2D) g;
+			GuiUtils.setRenderingHints(g2);
+			final int arc = Math.min(baseArc, getWidth() / 2);
+			final int pad = 1;
+
+			// fill: use panel background as placeholder for the "no color" swatch
+			g2.setColor(fillColor == null ? getBackground() : fillColor);
+			g2.fillRoundRect(pad, pad, getWidth() - pad * 2 - 1, getHeight() - pad * 2 - 1, arc, arc);
+
+			// null-color diagonal
+			if (fillColor == null) {
+				g2.setColor(Color.RED);
+				g2.setStroke(new BasicStroke(2f));
+				g2.drawLine(pad + 2, pad + 2, getWidth() - pad - 3, getHeight() - pad - 3);
 			}
+
+			// outline: hover -> focus color, selected -> accent color, default -> foreground
+			final Color outline;
+			BasicStroke stroke;
+			if (isSelected) {
+				outline = selectedColor;
+				stroke = selectedStroke;
+			} else if (isHovered) {
+				outline = focusedColor;
+				stroke = focusedStroke;
+			} else {
+				outline = getForeground();
+				stroke = baseStroke;
+			}
+			g2.setColor(outline != null ? outline : getForeground());
+			g2.setStroke(stroke);
+			g2.drawRoundRect(pad, pad, getWidth() - pad * 2 - 1, getHeight() - pad * 2 - 1, arc, arc);
 		}
 
 		@Override
@@ -246,12 +285,14 @@ public class ColorMenu extends JMenu {
 
 		@Override
 		public void mouseEntered(final MouseEvent ev) {
-			setBorder(_activeBorder);
+			isHovered = true;
+			repaint();
 		}
 
 		@Override
 		public void mouseExited(final MouseEvent ev) {
-			setBorder(isSelected ? _selectedBorder : _unselectedBorder);
+			isHovered = false;
+			repaint();
 		}
 
 		@Override
@@ -263,9 +304,7 @@ public class ColorMenu extends JMenu {
 			selectNone();
 			setSelected(true);
 
-			if (isCustomizable && (SwingUtilities.isRightMouseButton(ev) || ev
-				.isPopupTrigger()))
-			{
+			if (isCustomizable && (SwingUtilities.isRightMouseButton(ev) || ev.isPopupTrigger())) {
 
 				// Remember menu path so that it can be restored after prompt
 				final MenuElement[] path = MenuSelectionManager.defaultManager()
@@ -281,7 +320,8 @@ public class ColorMenu extends JMenu {
 				if (c != null && !c.equals(swcColor.color())) {
 					// New color choice: refresh panel
 					swcColor.setAWTColor(c);
-					setBackground(c);
+					fillColor = c;
+					repaint();
 				}
 				// Restore menu
 				MenuSelectionManager.defaultManager().setSelectedPath(path);

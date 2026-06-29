@@ -303,8 +303,8 @@ public class SNTColor {
 	 * @return Either white or black, as per hue of input color.
 	 */
 	public static Color contrastColor(final Color c) {
-		final int intensity = (c.getRed() + c.getGreen() + c.getBlue()) / 3;
-		return intensity < 128 ? Color.WHITE : Color.BLACK;
+		final double y = 0.2126 * c.getRed() + 0.7152 * c.getGreen() + 0.0722 * c.getBlue();
+		return (y < 100) ? Color.WHITE : Color.BLACK;  // https://stackoverflow.com/a/9780689
 	}
 
 	/**

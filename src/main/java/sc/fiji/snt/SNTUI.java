@@ -3835,6 +3835,7 @@ public class SNTUI extends JDialog {
         });
         registerInCommandFinder(colorChooser2, "Default color for deselected paths", "Main Tab");
         final JCheckBox jcheckbox = new JCheckBox("Override color tags with default colors", !plugin.displayCustomPathColors);
+        //jcheckbox.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
         GuiUtils.addTooltip(jcheckbox,
                 "Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
                         "NB: This option does not affect color-coded paths, or paths with multi-color nodes");

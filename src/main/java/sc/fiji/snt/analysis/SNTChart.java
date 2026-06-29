@@ -2368,20 +2368,16 @@ public class SNTChart extends ChartPanel {
 	                                                                      final String... axisLabels) throws InterruptedException, InvocationTargetException {
 		final Color[] palette = alphaColorsFromColorTable(colorTable);
 		smile.plot.swing.Figure figure;
-		String ttl = title;
 		if (smile.plot.swing.Histogram3D.class.equals(smilePlotClass)) {
             figure = new smile.plot.swing.Histogram3D(data, nBins1, nBins2, prob, palette).figure();
-			ttl = "Two-Dimensional Histogram";
-			if (ttl == null) ttl = "Two-Dimensional Histogram";
 		} else if (smile.plot.swing.Heatmap.class.equals(smilePlotClass)) {
             figure = smile.plot.swing.Heatmap.of(data, palette).figure();
-			if (ttl == null) ttl = "Heatmap";
 		} else {
 			throw new IllegalArgumentException("Unsupported plot type: " + smilePlotClass);
 		}
 		if (axisLabels != null && axisLabels.length > 0)
             figure.setAxisLabels(Arrays.copyOf(axisLabels, figure.getAxisLabels().length));
-        figure.setTitle(ttl);
+        if (title != null) figure.setTitle(title);
         return figure.show();
 	}
 
