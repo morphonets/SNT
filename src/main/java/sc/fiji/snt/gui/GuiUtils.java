@@ -3277,6 +3277,39 @@ public class GuiUtils {
 			}
 		}
 
+		public static MenuElement[] getMenuPath(final JMenuItem item) {
+			final ArrayDeque<MenuElement> path = new ArrayDeque<>();
+			path.addFirst(item);
+			Container c = item.getParent();
+			while (c != null) {
+				if (c instanceof JPopupMenu popup) {
+					path.addFirst(popup);
+					final Component invoker = popup.getInvoker();
+					if (invoker instanceof JMenu menu) {
+						path.addFirst(menu);
+						c = menu.getParent(); // up toward JMenuBar or another JPopupMenu
+					} else if (invoker instanceof JMenuBar jmb) {
+						path.addFirst(jmb);
+						break;
+					} else {
+						// standalone popup (e.g. attached to a JButton, invoker null or
+						// not a JMenu/JMenuBar): there is no menu chain to open. Remove the
+						// popup we just added -- a single-element path skips setSelectedPath
+						// and avoids a NullPointerException in FlatLaf's LinuxPopupMenuCanceler
+						// which dereferences popup.getInvoker() unconditionally.
+						path.removeFirst();
+						break;
+					}
+				} else if (c instanceof JMenuBar jmb) {
+					path.addFirst(jmb);
+					break;
+				} else {
+					c = c.getParent();
+				}
+			}
+			return path.toArray(new MenuElement[0]);
+		}
+
 		public static JMenuItem distribution(final Supplier<SNTTable> tableSupplier) {
 			final JMenuItem jmi = new JMenuItem("Frequency Distribution(s)...", IconFactory.menuIcon(GLYPH.CHART));
 			jmi.addActionListener(e -> {
@@ -4598,6 +4631,9 @@ public class GuiUtils {
 				super(IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.defaultColor()));
 				this.popupMenu = popupMenu;
 				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, GuiUtils.getDisabledComponentColor()));
+				// Store a back-reference so callers can locate this button from the popup alone
+				// (getInvoker() is only set at show() time, i.e. after the first click)
+				popupMenu.putClientProperty("owner", this);
 				addActionListener(e -> popupMenu.show(this, this.getWidth() / 2, this.getHeight() / 2));
 			}
 		}

@@ -22,7 +22,7 @@
 
 package sc.fiji.snt;
 
-import fiji.util.Levenshtein;
+import org.apache.commons.text.similarity.LevenshteinDistance;
 import io.scif.services.DatasetIOService;
 import net.imagej.ImageJ;
 import net.imagej.display.ImageDisplayService;
@@ -359,11 +359,11 @@ public class SNTUtils {
 			int cost = Integer.MAX_VALUE;
 			final String seed = stripExtension(file.getName().toLowerCase());
 			String closest = null;
-			final Levenshtein levenshtein = new Levenshtein(5, 10, 1, 5, 5, 0);
+			final LevenshteinDistance levenshtein = LevenshteinDistance.getDefaultInstance();
 			for (final String item : list) {
 				final String filename = stripExtension(Paths.get(item).getFileName()
 					.toString()).toLowerCase();
-				final int currentCost = levenshtein.cost(seed, filename);
+				final int currentCost = levenshtein.apply(seed, filename);
 				SNTUtils.log("Levenshtein cost for '" + item + "': " + currentCost);
 				if (currentCost <= cost) {
 					cost = currentCost;

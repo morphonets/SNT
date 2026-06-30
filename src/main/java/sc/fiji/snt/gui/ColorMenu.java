@@ -307,8 +307,7 @@ public class ColorMenu extends JMenu {
 			if (isCustomizable && (SwingUtilities.isRightMouseButton(ev) || ev.isPopupTrigger())) {
 
 				// Remember menu path so that it can be restored after prompt
-				final MenuElement[] path = MenuSelectionManager.defaultManager()
-					.getSelectedPath();
+				final MenuElement[] path = MenuSelectionManager.defaultManager().getSelectedPath();
 
 				// Prompt user for new color
 				final GuiUtils gUtils = new GuiUtils(getTopLevelAncestor());

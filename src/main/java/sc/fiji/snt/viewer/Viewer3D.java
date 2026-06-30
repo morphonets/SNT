@@ -4795,10 +4795,11 @@ public class Viewer3D {
         }
 
         private JButton menuButton(final GLYPH glyph, final JPopupMenu menu, final String tooltipMsg) {
-            cmdFinder.register(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
             final JButton button = new JButton(IconFactory.buttonIcon(glyph, 1.8f));
             button.setToolTipText(tooltipMsg);
             button.addActionListener(e -> menu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+            menu.putClientProperty("owner", this); //see SNTCommandFinder#revealMenuItem()
+            cmdFinder.register(menu, new ArrayList<>(Collections.singletonList(tooltipMsg)));
             return button;
         }
 

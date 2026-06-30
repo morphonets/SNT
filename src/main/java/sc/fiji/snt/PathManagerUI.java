@@ -455,6 +455,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         // Search Bar TreeSearchable
         searchableBar = new PathManagerUISearchableBar(this);
         final JPopupMenu popup = new JPopupMenu();
+        popup.putClientProperty("owner", this); // see SNTCommandFinder#revealMenuItem()
         popup.add(getDeleteMenuItem(multiPathListener));
         popup.add(getDuplicateMenuItem(singlePathListener));
         popup.add(getRenameMenuItem(singlePathListener));

@@ -79,6 +79,7 @@ public class IconFactory {
         CHILD('\uf1ae', true), //
         CHILDREN('\ue4e1', true), //
         CIRCLE('\uf192', false), //
+        CIRCLE_XMARK('\uf057', false), //
         CLOCK_ROTATE_LEFT('\uf1da', true), //
         CLIPBOARD('\uf328', false), //
         CLOUD('\uf381', true), //

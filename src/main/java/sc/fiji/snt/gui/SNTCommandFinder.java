@@ -23,11 +23,12 @@
 package sc.fiji.snt.gui;
 
 import com.formdev.flatlaf.FlatClientProperties;
-import com.formdev.flatlaf.ui.FlatPopupFactory;
-import com.formdev.flatlaf.util.SystemInfo;
 import org.apache.commons.text.WordUtils;
+import org.apache.commons.text.similarity.LevenshteinDistance;
 import org.scijava.util.PlatformUtils;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.TracerCanvas;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.Timer;
@@ -38,7 +39,6 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.*;
 import java.awt.event.*;
-import java.lang.reflect.Method;
 import java.util.List;
 import java.util.*;
 
@@ -49,7 +49,7 @@ import java.util.*;
 public class SNTCommandFinder {
 
     private static final String NAME = "Command Palette";
-
+    private static final LevenshteinDistance UNIT_LEVENSHTEIN = LevenshteinDistance.getDefaultInstance();
     // Settings. Ought to become adjustable some day
     private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
             java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx() | KeyEvent.SHIFT_DOWN_MASK);
@@ -73,6 +73,11 @@ public class SNTCommandFinder {
     private SearchField searchField;
     private CmdTable table;
     private boolean scriptCall;
+    private Point lastLocation; // last on-screen position, restored on re-open
+    // Bumped whenever caseSensitive or ignoreWhiteSpace changes; CmdAction caches pre-normalized haystacks
+    // keyed to this generation, so they are rebuilt only once per settings change rather than every keystroke
+    private int normGeneration = 0;
+    private boolean reveal;
 
     /**
      * Constructs a new SNTCommandFinder for the specified SNTUI instance.
@@ -160,18 +165,17 @@ public class SNTCommandFinder {
     }
 
     private void hideWindow() {
-        if (frame != null) frame.setVisible(false);
+        if (frame != null) {
+            lastLocation = frame.getLocation(); // remember for next open
+            frame.setVisible(false);
+        }
     }
 
     private void assemblePalette() {
         frame = new Palette();
         frame.setLayout(new BorderLayout());
         initSearchField();
-        final Object menuBarEmbedded = frame.getRootPane().getClientProperty("JRootPane.menuBarEmbedded");
-        if (menuBarEmbedded instanceof Boolean && (boolean) menuBarEmbedded)
-            frame.setJMenuBar(new ToolBarOrMenuBar().getMenuBar());
-        else
-            frame.add(new ToolBarOrMenuBar().getToolBar(), BorderLayout.NORTH);
+        frame.add(new TitleBar().getToolBar(), BorderLayout.NORTH);
         frame.add(searchField, BorderLayout.CENTER);
         searchField.getDocument().addDocumentListener(new PromptDocumentListener());
         final InternalKeyListener keyListener = new InternalKeyListener();
@@ -190,14 +194,7 @@ public class SNTCommandFinder {
         frame.getContentPane().setBackground(searchField.getBackground());
         frame.add(table.getScrollPane(), BorderLayout.SOUTH);
         frame.pack();
-        if (!SystemInfo.isMacOS) {
-            enableDrag(frame.getRootPane());
-        }
-        if (sntui != null) {
-            GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
-        } else {
-            GuiUtils.centerWindow(frame, viewer3D.getFrame());
-        }
+        enableDrag(frame.getRootPane()); // always undecorated, so always need drag support
     }
 
     private static void enableDrag(final JComponent component) {
@@ -226,20 +223,23 @@ public class SNTCommandFinder {
     }
 
     private void initSearchField() {
-        searchField = new SearchField("Search for commands and actions (e.g., Sholl)",
+        searchField = new SearchField("Search for actions and commands (e.g., Sholl)",
                 SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON);
-        searchField.enlarge(1.2f);
+        searchField.enlarge(1.25f);
+        final int PADDING = (int) (searchField.getFont().getSize() * .7);
+        final Color c = SNTColor.alphaColor(ToolbarButtons.COLOR, 50);
         searchField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, GuiUtils.getDisabledComponentColor()),
-                searchField.getBorder()));
+                BorderFactory.createMatteBorder(1, 0, 1, 0, c),
+                BorderFactory.createEmptyBorder(PADDING, PADDING, PADDING, PADDING)));
         // options button
-        final JMenuItem rebuildIndex = new JMenuItem("Rebuild Index...");
+        final JMenuItem rebuildIndex = new JMenuItem("Rebuild Index...", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         rebuildIndex.addActionListener(e1 -> rebuildIndex());
         searchField.getOptionsMenu().add(rebuildIndex);
         // case button
         searchField.caseButton().setSelected(caseSensitive);
         searchField.caseButton().addItemListener(e -> {
             caseSensitive = searchField.caseButton().isSelected();
+            normGeneration++; // invalidate cached haystacks
             searchField.setText(searchField.getText());
         });
         // use regex button for whitespace options
@@ -247,19 +247,33 @@ public class SNTCommandFinder {
         searchField.regexButton().setSelected(!ignoreWhiteSpace);
         searchField.regexButton().setToolTipText("Match Whitespace");
         searchField.regexButton().addItemListener(e -> {
-            ignoreWhiteSpace = ! searchField.regexButton().isSelected();
+            ignoreWhiteSpace = !searchField.regexButton().isSelected();
+            normGeneration++; // invalidate cached haystacks
             searchField.setText(searchField.getText());
         });
     }
 
     void rebuildIndex() {
         resetScrapper();
-        final String placeholder = searchField.getClientProperty(FlatClientProperties.PLACEHOLDER_TEXT).toString();
-        searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, String.format("Index Rebuilt: %d commands/actions available...",
-                cmdScrapper.getCmdMap().size()));
-        final Timer timer = new Timer(3000, e -> searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, placeholder));
+        displayTempMsg(String.format("Index Rebuilt: %d commands/actions available...", cmdScrapper.getCmdMap().size()), false);
+    }
+
+    private void displayTempMsg(final String msg, final boolean warning) {
+        final String existingPlaceholder = searchField.getClientProperty(FlatClientProperties.PLACEHOLDER_TEXT).toString();
+        final String existingText = searchField.getText();
+        searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, msg);
+        searchField.setText(null);
+        if (warning) searchField.setBackground(GuiUtils.warningColor());
+        final Timer timer = new Timer((warning) ? 3000 : 6000, e -> {
+            searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, existingPlaceholder);
+            searchField.setText(existingText);
+            if (warning) searchField.setBackground(table.getBackground());
+        });
         timer.setRepeats(false);
-        timer.start();
+        SwingUtilities.invokeLater( () -> {
+            frame.setVisible(true);
+            timer.start();
+        });
     }
 
     private void populateList(final String matchingSubstring) {
@@ -275,7 +289,8 @@ public class SNTCommandFinder {
         if (noHits) list.add(noHitsCmd);
         table.getInternalModel().setData(list);
         if (searchField != null) {
-            searchField.setWarningOutlineEnabled(noHits);
+            searchField.setBackground((noHits) ? GuiUtils.warningColor() : table.getBackground());
+            //searchField.setWarningOutlineEnabled(noHits); // this won't work because we are overriding the margin
             searchField.requestFocus();
         }
     }
@@ -284,80 +299,162 @@ public class SNTCommandFinder {
         if (cmd != null) {
             if (cmd.hasButton() && (!cmd.button.isEnabled()
                     || (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
-                error();
+                displayTempMsg("Command is currently disabled.", true);
                 return;
             }
             if (!scriptCall)
                 autoHide(); // hide before running, in case command opens a dialog
-            if (cmd.hasButton()) {
-                cmd.button.doClick();
-            } else if (cmd.action != null) {
-                cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
-            }
+            if (reveal)
+                revealCmd(cmd);
+            else
+                executeCmd(cmd);
         }
     }
 
-    private void error() {
-        assert frame != null;
-        final String MSG = "<HTML>Command is currently disabled. Either execution "
-                + "requirements<br>are unmet or it cannot run in current state.";
-        if (autoHide) {
-            // frame.setVisible(false);
-            frame.guiUtils.error(MSG);
+    private void executeCmd(final CmdAction cmd) {
+        if (cmd.hasButton()) {
+            cmd.button.doClick();
+        } else if (cmd.action != null) {
+            cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
+        }
+    }
+
+    private void revealCmd(final CmdAction cmd) {
+        if (cmd == null) {
+            displayTempMsg("Command cannot be revealed.", true);
             return;
         }
-        class FloatingError extends JDialog {
-            public FloatingError() {
-                super(frame);
-                setUndecorated(true);
-                setModal(true);
-                setResizable(false);
-                final JLabel label = new JLabel(MSG);
-                label.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-                GuiUtils.applyRoundCorners(label);
-                add(label);
-                pack();
-                GuiUtils.centerWindow(this, frame);
-                setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-                setFocusable(true);
-                addKeyListener(new KeyAdapter() {
-                    @Override
-                    public void keyPressed(final KeyEvent e) {
-                        if (e.getKeyCode() == KeyEvent.VK_BACK_SPACE || e.getKeyCode() == KeyEvent.VK_ESCAPE) {
-                            dispose();
-                        }
-                    }
-                });
-                addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseClicked(final MouseEvent e) {
-                        dispose();
-                    }
+        if (cmd.button == null && cmd.action != null || cmd.button != null && cmd.button.getParent() == null) {
+            // special cases: proxy buttons or proxy actions: executing IS the reveal
+            executeCmd(cmd);
+        } else if (cmd.button instanceof JMenuItem jmi)
+            revealMenuItem(jmi);
+        else
+            revealButton(cmd);
+    }
 
-                    @Override
-                    public void mousePressed(final MouseEvent e) {
-                        dispose();
-                    }
-                });
-                addFocusListener(new FocusAdapter() {
-                    @Override
-                    public void focusLost(final FocusEvent e) {
-                        dispose();
-                    }
-                });
+    // Open the menu/popup, arm the item, leave it to the user
+    private void revealMenuItem(final JMenuItem jmi) {
+        final MenuElement[] path = GuiUtils.MenuItems.getMenuPath(jmi);
+        if (path.length > 1) {
+            // If path[0] is a JMenu (not a JMenuBar), getMenuPath stripped the root standalone
+            // popup to avoid a FlatLaf Linux NPE. We must show that popup first so the submenu
+            // chain has a visual anchor; path[0].getParent() is the stripped popup
+            if (path[0] instanceof JMenu rootMenu
+                    && rootMenu.getParent() instanceof JPopupMenu rootPopup) {
+                if (!showStandalonePopup(rootPopup, jmi)) return;
+                // popup.show() just set the invoker and internally called setSelectedPath([rootPopup]). If we pass
+                // the stripped path as-is, the manager de-arms rootPopup (removes it from selection) -> it hides ->
+                // flicker. Prepend rootPopup so it stays armed throughout the transition
+                final MenuElement[] fullPath = new MenuElement[path.length + 1];
+                fullPath[0] = rootPopup;
+                System.arraycopy(path, 0, fullPath, 1, path.length);
+                try {
+                    MenuSelectionManager.defaultManager().setSelectedPath(fullPath);
+                    jmi.setArmed(true);
+                } catch (final NullPointerException npe) {
+                    displayTempMsg("Menu item is not available!", true);
+                }
+            } else {
+                try {
+                    MenuSelectionManager.defaultManager().setSelectedPath(path);
+                    jmi.setArmed(true);
+                } catch (final NullPointerException npe) {
+                    displayTempMsg("Menu item is not available!", true);
+                }
             }
-            @Override
-            public void dispose() {
-                super.dispose();
-                frame.setAlwaysOnTop(alwaysOnTop);
-                frame.toFront();
-                searchField.requestFocus();
-            }
+        } else if (jmi.getParent() instanceof JPopupMenu popup) {
+            // Root-level item in a standalone popup (path reduced to [jmi] by getMenuPath)
+            if (showStandalonePopup(popup, jmi))
+                jmi.setArmed(true);
         }
-        frame.setAlwaysOnTop(true);
-        final FloatingError d = new FloatingError();
-        d.setVisible(true);
-        d.toFront();
+    }
+
+    // Resolves the invoker of a standalone JPopupMenu, reveals its parent tab if needed,
+    // and shows the popup. Returns false (with an error message) if the popup cannot be shown
+    private boolean showStandalonePopup(final JPopupMenu popup, final JMenuItem jmi) {
+        Component invoker = popup.getInvoker();
+        if (invoker == null) {
+            final Object owner = popup.getClientProperty("owner");
+            if (owner instanceof Component c) invoker = c;
+        }
+        if (invoker == null) {
+            displayTempMsg(String.format("%s is not available.", jmi.getText()), true);
+            return false;
+        }
+        if (invoker instanceof Container c) revealParent(c);
+        if (!invoker.isDisplayable()) {
+            displayTempMsg(
+                    (invoker instanceof TracerCanvas) ? "Image contextual menu is not available!" :
+                            String.format("%s is not available.", jmi.getText()), true);
+            return false;
+        }
+        popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2);
+        return true;
+    }
+
+    // Blink the button to indicate where it is, then stop (no auto-execute in reveal mode)
+    private void revealButton(final CmdAction cmd) {
+        final Color originalBackground = cmd.button.getBackground();
+        final boolean originalOpaque = cmd.button.isOpaque();
+        final boolean originalContentFilled = cmd.button.isContentAreaFilled();
+
+        final Timer timer = new Timer(500, null);
+        timer.addActionListener(new ActionListener() {
+            int currentTick = 0;
+            boolean isBlinkingOn = false;
+            final int MAX_TICKS = 4; // 2 on/off cycle
+
+            @Override
+            public void actionPerformed(final ActionEvent e) {
+                currentTick++;
+                if (currentTick > MAX_TICKS) {
+                    timer.stop();
+                    cmd.button.setBackground(originalBackground);
+                    cmd.button.setOpaque(originalOpaque);
+                    cmd.button.setContentAreaFilled(originalContentFilled);
+                    cmd.button.repaint();
+                    return;
+                }
+                if (currentTick == 1) revealParent(cmd.button);
+                isBlinkingOn = !isBlinkingOn;
+                if (isBlinkingOn) {
+                    cmd.button.setBackground(GuiUtils.getSelectionColor());
+                    cmd.button.setOpaque(true);
+                    cmd.button.setContentAreaFilled(true);
+                } else {
+                    cmd.button.setBackground(originalBackground);
+                    cmd.button.setOpaque(originalOpaque);
+                    cmd.button.setContentAreaFilled(originalContentFilled);
+                }
+                cmd.button.repaint();
+            }
+        });
+        timer.start();
+    }
+
+    private void revealParent(Container prev) {
+        Container p = prev.getParent();
+        label:
+        while (p != null) {
+            switch (p) {
+                case JScrollPane scp:
+                    scp.scrollRectToVisible(SwingUtilities.convertRectangle(
+                            prev.getParent(), prev.getBounds(), scp.getViewport()));
+                    break label;
+                case JTabbedPane tbp:
+                    final int idx = tbp.indexOfComponent(prev);
+                    if (idx >= 0) tbp.setSelectedIndex(idx);
+                    break;
+                case JToolBar toolBar:
+                    if (!toolBar.isVisible()) toolBar.setVisible(true);
+                    break;
+                default:
+                    break;
+            }
+            prev = p;
+            p = p.getParent();
+        }
     }
 
     private void recordCommand(final CmdAction cmdAction) {
@@ -498,6 +595,7 @@ public class SNTCommandFinder {
         // in now so it's findable without waiting for the next rebuild
         if (!cmdScrapper.scrapeFailed()) {
             cmdScrapper.cmdMap.put(CmdScrapper.compositeKey(entry.id, entry.path), entry);
+            cmdScrapper.combinedCache = null; // cmdMap changed; invalidate merge cache
         }
     }
 
@@ -518,24 +616,29 @@ public class SNTCommandFinder {
         if (frame.isVisible()) {
             autoHide();
         } else {
-            table.clearSelection();
-            centerOnActiveScreen();
+            if (searchField.getText().isBlank())
+                table.clearSelection();
+            else
+                searchField.selectAll();
+            restoreOrCenterLocation();
             frame.setVisible(true);
             searchField.requestFocus();
         }
     }
 
-    private void centerOnActiveScreen() {
-        final Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
-        if (activeWindow != null) {
-            final Rectangle bounds = activeWindow.getBounds();
-            int x = bounds.x + (bounds.width - frame.getWidth()) / 2;
-            int y = bounds.y + (bounds.height - frame.getHeight()) / 2;
-            // Clamp to visible screen area so the palette never overflows off-screen
-            final Rectangle screen = activeWindow.getGraphicsConfiguration().getBounds();
-            x = Math.clamp(x, screen.x, screen.x + screen.width - frame.getWidth());
-            y = Math.clamp(y, screen.y, screen.y + screen.height - frame.getHeight());
-            frame.setLocation(x, y);
+    private void restoreOrCenterLocation() {
+        // Restore the last user position when available and the screen is still reachable.
+        // This mimics Spotlight/Raycast behavior: the palette stays where the user put it.
+        if (lastLocation != null && isOnScreen(lastLocation)) {
+            frame.setLocation(lastLocation);
+            return;
+        }
+        // First show (or after a monitor is disconnected): center relative to the focused
+        // window. setLocationRelativeTo() accounts for system insets (Dock, taskbar) so
+        // the palette is never placed behind them.
+        final Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+        if (focused != null && focused != frame) {
+            frame.setLocationRelativeTo(focused);
         } else if (sntui != null) {
             GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
         } else if (viewer3D != null) {
@@ -543,16 +646,13 @@ public class SNTCommandFinder {
         }
     }
 
-    @SuppressWarnings("unused")
-    private void centerOnParentScreen() {
-        final Window parent = (sntui != null) ? sntui : (viewer3D != null) ? viewer3D.getFrame() : null;
-        if (parent != null) {
-            final GraphicsConfiguration gc = parent.getGraphicsConfiguration();
-            final Rectangle screenBounds = gc.getBounds();
-            final int x = screenBounds.x + (screenBounds.width - frame.getWidth()) / 2;
-            final int y = screenBounds.y + (screenBounds.height - frame.getHeight()) / 2;
-            frame.setLocation(x, y);
+/** Returns true when the given point is within any screen's usable bounds. */
+    private static boolean isOnScreen(final Point p) {
+        for (final GraphicsDevice gd : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+            if (gd.getDefaultConfiguration().getBounds().contains(p))
+                return true;
         }
+        return false;
     }
 
     public void attach(final JDialog dialog) {
@@ -650,19 +750,34 @@ public class SNTCommandFinder {
         }
     }
 
-    private static class ToolbarIcons {
+    private static class ToolbarButtons {
         static final float SIZE = UIManager.getFont("Button.font").getSize() * .9f;
-        static final Color COLOR = UIManager.getColor("SearchField.searchIconColor");
+        static final Color COLOR = SearchField.iconColor();
 
-        static Icon lockClosed() { return IconFactory.get(IconFactory.GLYPH.LOCK, SIZE, COLOR); }
-
-        static Icon lockOpen() {
-            return IconFactory.get(IconFactory.GLYPH.LOCK_OPEN, SIZE, COLOR);
+        static void addSpacer(final JToolBar toolbar) {
+            final int spacer = (int)(SIZE/2);
+            toolbar.add(Box.createHorizontalStrut(spacer));
+            toolbar.addSeparator();
+            toolbar.add(Box.createHorizontalStrut(spacer));
         }
 
-        static Icon pin() { return IconFactory.get(IconFactory.GLYPH.MAP_PIN, SIZE, COLOR); }
+        static JToggleButton initButton(final IconFactory.GLYPH glyph, final boolean initialState) {
+            final JToggleButton button = new JToggleButton();
+            button.setSelected(initialState);
+            button.setForeground(SNTColor.contrastHueColor(COLOR, button.getBackground()));
+            IconFactory.assignIcon(button, glyph, COLOR, .9f);
+            button.setFont(button.getFont().deriveFont(SIZE));
+            button.setFocusable(false);
+            return button;
+        }
 
-        static Icon record() { return IconFactory.get(IconFactory.GLYPH.DOTCIRCLE, SIZE, COLOR); }
+        static JLabel initLabel(final String text) {
+            final JLabel label = new JLabel(text);
+            label.setFont(label.getFont().deriveFont(SIZE));
+            label.setForeground(SNTColor.contrastHueColor(COLOR, label.getBackground()));
+            label.setFocusable(false);
+            return label;
+        }
     }
 
 
@@ -709,75 +824,61 @@ public class SNTCommandFinder {
             }
         }
 
-    private class ToolBarOrMenuBar {
+    private class TitleBar {
 
         JToolBar getToolBar() {
             final JToolBar toolbar = new JToolBar();
+            toolbar.setBackground(searchField.getBackground());
             toolbar.setFocusable(false);
             toolbar.setFloatable(false);
+
+            // section 1: window controls
+            toolbar.add(autoHideButton());
+            toolbar.add(alwaysOnTopButton());
+            // spacer
+            ToolbarButtons.addSpacer(toolbar);
+            // section 2: actions
+            toolbar.add(revealButton());
+            //toolbar.add(initRecordButton()); // UX pollution: disable recording command
+            // spacer
+            //ToolbarButtons.addSpacer(toolbar);
+            // section 3: startup tip
             toolbar.add(Box.createHorizontalGlue());
             toolbar.add(proHint());
-            toolbar.add(Box.createHorizontalGlue());
-            toolbar.add(pinButton());
-            toolbar.add(lockButton());
-            toolbar.addSeparator();
-            toolbar.add(initRecordButton());
+
             if (frame.isUndecorated())
                 new ComponentMover(frame, toolbar); // make frame draggable through toolbar
             return toolbar;
         }
 
-        JMenuBar getMenuBar() {
-            final JMenuBar menuBar = new JMenuBar();
-            menuBar.setFocusable(false);
-            List.of(pinButton(), lockButton(), initRecordButton()).forEach( b-> {
-                if (menuBar.getComponentCount() > 0)
-                    menuBar.add(Box.createHorizontalStrut(5));
-                GuiUtils.Buttons.makeBorderless(b);
-                menuBar.add(b);
-            });
-            menuBar.add(Box.createHorizontalGlue());
-            menuBar.add(proHint());
-            if (frame.isUndecorated())
-                new ComponentMover(frame, menuBar); // make frame draggable through menuBar
-            return menuBar;
-        }
-
-        JToggleButton lockButton() {
-            final JToggleButton button = new JToggleButton(ToolbarIcons.lockOpen(), !autoHide);
-            button.setSelectedIcon(ToolbarIcons.lockClosed());
-            button.setToolTipText("Keep " + NAME + " open at all times");
-            button.setFocusable(false);
-            button.addItemListener(e -> autoHide = !button.isSelected());
+        JToggleButton revealButton() {
+            final JToggleButton button = ToolbarButtons.initButton(IconFactory.GLYPH.ARROWS_TO_EYE, reveal);
+            button.setText("Reveal");
+            button.setToolTipText("Reveal location of command/action instead of running it");
+            button.addItemListener(e -> reveal = button.isSelected());
             return button;
         }
 
-        JToggleButton pinButton() {
-            final JToggleButton button = new JToggleButton(ToolbarIcons.pin(), alwaysOnTop);
-            button.setToolTipText("Keep " + NAME + " above all other windows");
-            button.setFocusable(false);
+        JToggleButton autoHideButton() {
+            final JToggleButton button = ToolbarButtons.initButton(IconFactory.GLYPH.CIRCLE_XMARK, autoHide);
+            button.setText("Auto-Hide");
+            button.setToolTipText("Dismiss palette after running a command/action");
+            button.addItemListener(e -> autoHide = button.isSelected());
+            return button;
+        }
+
+        JToggleButton alwaysOnTopButton() {
+            final JToggleButton button = ToolbarButtons.initButton(IconFactory.GLYPH.MAP_PIN, alwaysOnTop);
+            button.setToolTipText("Display palette above all other windows");
+            button.setText("Pin");
             button.addItemListener(e -> frame.setAlwaysOnTop(alwaysOnTop = button.isSelected()));
             return button;
         }
 
-        JLabel proHint() {
-            final JLabel label = new JLabel("HINT: Arrows to navigate, Enter to select, Esc to close");
-            label.setFont(label.getFont().deriveFont((float) (label.getFont().getSize() * .85)));
-            label.setForeground(ToolbarIcons.COLOR);
-            label.setFocusable(false);
-            final Timer timer = new Timer(5000, e -> {
-                label.setVisible(false);
-                ((Timer)e.getSource()).stop();
-            });
-            timer.setRepeats(false);
-            timer.start();
-            return label;
-        }
-
         JToggleButton initRecordButton() {
-            recButton = new JToggleButton(ToolbarIcons.record());
+            recButton = ToolbarButtons.initButton(IconFactory.GLYPH.DOTCIRCLE, false);
             recButton.setToolTipText("Record executed actions in Script Recorder");
-            recButton.setFocusable(false);
+            recButton.setText("Record");
             recButton.addItemListener(e -> {
                 if (recButton.isSelected()) {
                     initRecorder();
@@ -794,6 +895,17 @@ public class SNTCommandFinder {
                 }
             });
             return recButton;
+        }
+
+        JLabel proHint() {
+            final JLabel label = ToolbarButtons.initLabel("HINT: ↑↓ to navigate, ↵ to run, Esc to close ");
+            final Timer timer = new Timer(5000, e -> {
+                label.setVisible(false);
+                ((Timer)e.getSource()).stop();
+            });
+            timer.setRepeats(false);
+            timer.start();
+            return label;
         }
     }
 
@@ -815,7 +927,7 @@ public class SNTCommandFinder {
             if (text == null)
                 return "";
             final String caseSensitiveQuery = (caseSensitive) ? text : text.toLowerCase();
-            return (ignoreWhiteSpace) ? caseSensitiveQuery.replaceAll("\\s+", "") : caseSensitiveQuery;
+            return (ignoreWhiteSpace) ? caseSensitiveQuery.replace(" ", "") : caseSensitiveQuery;
         }
     }
 
@@ -836,8 +948,9 @@ public class SNTCommandFinder {
                  * matches, run that:
                  */
                 if (key == KeyEvent.VK_ENTER) {
-                    if (1 == items)
-                        runCmd(table.getInternalModel().getCommand(0));
+                    // run the selected row, or fall back to the first result
+                    final int sel = table.getSelectedRow();
+                    runCmd(table.getInternalModel().getCommand(Math.max(sel, 0)));
                 }
                 /*
                  * If you hit the up or down arrows in the text field, move the focus to the
@@ -892,33 +1005,10 @@ public class SNTCommandFinder {
             setModal(false);
             setResizable(false);
             setAlwaysOnTop(alwaysOnTop);
-            //setOpacity(OPACITY);
-            final boolean builtinDecorationSupported = SystemInfo.isWindows_10_orLater || SystemInfo.isMacFullWindowContentSupported;
-            if(builtinDecorationSupported) {
-                getRootPane().putClientProperty("JRootPane.useWindowDecorations", true);
-                getRootPane().putClientProperty("JRootPane.titleBarShowIcon", false);
-                getRootPane().putClientProperty("JRootPane.titleBarShowTitle", false);
-                getRootPane().putClientProperty("JRootPane.titleBarShowIconify", false);
-                getRootPane().putClientProperty("JRootPane.titleBarShowMaximize", false);
-                getRootPane().putClientProperty("JRootPane.titleBarShowClose", false);
-                getRootPane().putClientProperty("FlatLaf.fullWindowContent", true);
-                if (SystemInfo.isWindows) {
-                    getRootPane().putClientProperty("JRootPane.menuBarEmbedded", true);
-                    getRootPane().putClientProperty("Window.style", "small"); // this may only work on macOS
-                } else if (SystemInfo.isMacOS) {
-                    getRootPane().putClientProperty( "apple.awt.windowTitleVisible", false );
-                    getRootPane().putClientProperty( "apple.awt.fullWindowContent", true );
-                    getRootPane().putClientProperty( "apple.awt.transparentTitleBar", true );
-                }
-            } else {
-                // We are left with linux, or something else not supporting client properties.
-                // We'll remove all decorations provide a custom border and draggable ability
-                setUndecorated(true);
-            }
-
+            // Undecorated on all platforms: removes the title bar (and its close/min/max
+            // buttons) everywhere. addNotify() applies FlatLaf rounded corners + shadow.
+            setUndecorated(true);
             guiUtils = new GuiUtils(Palette.this);
-            // it should NOT be possible to minimize this component, but just to
-            // be safe, we'll ensure the component is never in an awkward state
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(final WindowEvent e) {
@@ -935,20 +1025,6 @@ public class SNTCommandFinder {
                     autoHide();
                 }
             });
-        }
-
-        @Override
-        public void addNotify() {
-            super.addNotify();
-            if (isUndecorated()) {
-                try {
-                    final Method method = FlatPopupFactory.class.getDeclaredMethod("setupRoundedBorder", Window.class, Component.class, Component.class);
-                    method.setAccessible(true);
-                    method.invoke(null, this, this, getRootPane());
-                } catch (final Exception ignored) {
-                    // do nothing
-                }
-            }
         }
     }
 
@@ -1007,11 +1083,14 @@ public class SNTCommandFinder {
         private static final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * .9f);
         private static final Color mainColor = IconFactory.defaultColor();
         private static final Color secColor = IconFactory.secondaryColor();
+        private static final Color selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
+
 
         @Override
         public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
                                                        final boolean hasFocus, final int row, final int column) {
             final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            setBackground((isSelected)? selectionColor: table.getBackground());
             if (column == 1) {
                 setHorizontalAlignment(JLabel.RIGHT);
                 setFont(col1Font);
@@ -1025,7 +1104,7 @@ public class SNTCommandFinder {
         }
 
         int rowHeight() {
-            return (int) (col0Font.getSize() * 1.8f);
+            return (int) (col0Font.getSize() * 1.85f);
         }
 
         int maxWidth(final int columnIndex) {
@@ -1047,8 +1126,14 @@ public class SNTCommandFinder {
         Action action;
         /** Extra searchable terms (case-insensitive); null when not provided. */
         List<String> keywords;
-        /** Pre-lowercased, whitespace-stripped cache of {@link #keywords}. */
+        /** Raw concatenation of keywords; built once, re-used across normGeneration changes. */
         private String keywordsHaystack;
+        /** Cached result of {@link #tooltip()} -- avoids repeated HTML strip on each match call. */
+        private String tooltipCache;
+        /** Pre-normalized haystacks for fast containment checks in {@link #matches}. */
+        private String normId, normPath, normTooltip, normKeywords;
+        /** normGeneration value when the norm* fields were last computed. */
+        private int normGen = -1;
 
         CmdAction(final String cmdName) {
             this.id = capitalize(cmdName);
@@ -1098,47 +1183,66 @@ public class SNTCommandFinder {
         }
 
         String tooltip() {
-            if (!hasButton()) return ""; // e.g., REBUILD_ID CmdAction
-            final String tooltip = button.getToolTipText();
-            return (tooltip == null) ? "" : tooltip.replaceAll("<[^>]*>", ""); // Strip common HTML
+            if (!hasButton()) return "";
+            if (tooltipCache == null) {
+                final String t = button.getToolTipText();
+                tooltipCache = (t == null) ? "" : t.replaceAll("<[^>]*>", ""); // strip HTML once
+            }
+            return tooltipCache;
         }
 
         boolean matches(final String query) {
-            final String q = (ignoreWhiteSpace) ? query.replaceAll("\\s+","") : query;
-            return caseAndWhitespaceSensitiveId().contains(q) || caseAndWhitespaceSensitivePathDescription().contains(q)
-                    || caseAndWhitespaceSensitiveTooltip().contains(q)
-                    || caseAndWhitespaceSensitiveKeywords().contains(q);
+            // query is already normalized (case + whitespace) by getQueryFromSearchField().
+            // Haystacks are pre-normalized lazily; rebuilt only when settings change
+            ensureNormalized();
+            return normId.contains(query) || normPath.contains(query)
+                    || normTooltip.contains(query) || normKeywords.contains(query)
+                    || fuzzyMatches(query);
         }
 
-        String caseAndWhitespaceSensitiveId() {
-            final String result = (caseSensitive) ? id : id.toLowerCase();
-            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
-        }
-
-        String caseAndWhitespaceSensitivePathDescription() {
-            final String result = (caseSensitive) ? pathDescription() : pathDescription().toLowerCase();
-            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
-        }
-
-        String caseAndWhitespaceSensitiveTooltip() {
-            final String result = (caseSensitive) ? tooltip() : tooltip().toLowerCase();
-            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
-        }
-
-        String caseAndWhitespaceSensitiveKeywords() {
-            if (keywords == null || keywords.isEmpty()) return "";
-            if (keywordsHaystack == null) {
-                // Build "kw1 kw2 kw3" so each keyword is matchable independently after the substring containment check
-                final StringBuilder sb = new StringBuilder();
-                for (final String kw : keywords) {
-                    if (kw == null || kw.isEmpty()) continue;
-                    if (!sb.isEmpty()) sb.append(' ');
-                    sb.append(kw);
-                }
-                keywordsHaystack = sb.toString();
+        // Fuzzy fallback: token-level edit-distance match against the command name.
+        // Only applied when no substring match is found. Uses Apache Commons Text
+        // LevenshteinDistance (unit costs) so threshold arithmetic is predictable.
+        // Matching is always case-insensitive to avoid inflating distances on case alone.
+        private boolean fuzzyMatches(final String query) {
+            if (query.length() < 2) return false; // skip single-char queries
+            final int threshold = Math.max(1, query.length() / 3); // 1 error per 3 chars
+            final String q = query.toLowerCase();
+            for (final String token : id.toLowerCase().split("\\W+")) {
+                if (token.length() < q.length() - threshold) continue; // too short to match
+                if (UNIT_LEVENSHTEIN.apply(q, token) <= threshold) return true;
             }
-            final String result = (caseSensitive) ? keywordsHaystack : keywordsHaystack.toLowerCase();
-            return (ignoreWhiteSpace) ? result.replaceAll("\\s+", "") : result;
+            return false;
+        }
+
+        private void ensureNormalized() {
+            if (normGen == normGeneration) return;
+            normId = normalize(id);
+            normPath = normalize(pathDescription());
+            normTooltip = normalize(tooltip());
+            if (keywords == null || keywords.isEmpty()) {
+                normKeywords = "";
+            } else {
+                if (keywordsHaystack == null) {
+                    // Build "kw1 kw2 kw3" once; normalize() handles case/whitespace below
+                    final StringBuilder sb = new StringBuilder();
+                    for (final String kw : keywords) {
+                        if (kw == null || kw.isEmpty()) continue;
+                        if (!sb.isEmpty()) sb.append(' ');
+                        sb.append(kw);
+                    }
+                    keywordsHaystack = sb.toString();
+                }
+                normKeywords = normalize(keywordsHaystack);
+            }
+            normGen = normGeneration;
+        }
+
+        // Normalizes a haystack string once per normGeneration change.
+        private String normalize(final String s) {
+            if (s == null || s.isEmpty()) return "";
+            final String r = caseSensitive ? s : s.toLowerCase();
+            return ignoreWhiteSpace ? r.replace(" ", "") : r;
         }
 
         void setKeyString(final KeyStroke key) {
@@ -1162,6 +1266,8 @@ public class SNTCommandFinder {
     private class CmdScrapper {
         private final TreeMap<String, CmdAction> cmdMap;
         private TreeMap<String, CmdAction> otherMap;
+        /** Cached merge of cmdMap + otherMap; null means stale and must be rebuilt. */
+        private TreeMap<String, CmdAction> combinedCache;
         /** Synthetic entries that survive scrape() cycles (see {@link SNTCommandFinder#registerKeywords}). */
         private final List<CmdAction> extras = new ArrayList<>();
 
@@ -1187,9 +1293,11 @@ public class SNTCommandFinder {
         TreeMap<String, CmdAction> getCmdMap() {
             if (otherMap == null || otherMap.isEmpty())
                 return cmdMap;
-            final TreeMap<String, CmdAction> combined = new TreeMap<>(cmdMap);
-            combined.putAll(otherMap);
-            return combined;
+            if (combinedCache == null) {
+                combinedCache = new TreeMap<>(cmdMap);
+                combinedCache.putAll(otherMap);
+            }
+            return combinedCache;
         }
 
         /**
@@ -1217,6 +1325,7 @@ public class SNTCommandFinder {
 
         void scrape() {
             cmdMap.clear();
+            combinedCache = null; // force merge rebuild on next getCmdMap() call
             for (final AnnotatedComponent ac : getComponents()) {
                 if (ac == null)
                     continue;
@@ -1367,6 +1476,7 @@ public class SNTCommandFinder {
             if (otherMap == null)
                 otherMap = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
             register(otherMap, button, path);
+            combinedCache = null; // new entry added; invalidate merge cache
         }
 
         /**

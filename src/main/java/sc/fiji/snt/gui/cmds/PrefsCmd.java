@@ -32,8 +32,7 @@ import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.prefs.PrefService;
 import org.scijava.ui.swing.laf.SwingLookAndFeelService;
-import org.scijava.widget.Button;
-import org.scijava.widget.FileWidget;
+import org.scijava.widget.*;
 import sc.fiji.snt.*;
 import sc.fiji.snt.gui.FileChooser;
 import sc.fiji.snt.gui.GuiUtils;
@@ -59,8 +58,11 @@ import static sc.fiji.snt.gui.cmds.CommonDynamicCmd.HEADER_HTML;
 @Plugin(type = Command.class, initializer = "init", label = "SNT Settings")
 public class PrefsCmd extends OptionsPlugin {
 
-    private static final String SOMA_DISPLAY_DEFAULT = "Default (Circular)";
+	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
+	private static final String SOMA_DISPLAY_DEFAULT = "Default (Circular)";
     private static final String SOMA_DISPLAY_TRIANGLE = "Triangular";
+	private static final String[] POINT_ROI_SIZES = {"Tiny", "Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"};
 
     @Parameter
 	private PrefService prefService;
@@ -94,18 +96,26 @@ public class PrefsCmd extends OptionsPlugin {
 			description="Whether Gzip compression should be use when saving .traces files")
 	private boolean compressTraces;
 
-	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "II. Display and Appearance")
-    private String HEADER2;
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "II. Display &amp; Annotations")
+	private String HEADER2;
+
+	@Parameter(label="Soma display", choices = {SOMA_DISPLAY_DEFAULT, SOMA_DISPLAY_TRIANGLE},
+			style = ChoiceWidget.RADIO_BUTTON_HORIZONTAL_STYLE,
+			description="How single-node soma-tagged paths should be displayed in the tracing image.")
+	private String somaDisplay;
+
+	@Parameter(label="Bookmark size", choices = {"Tiny", "Small", "Medium", "Large", "Extra Large", "XXL", "XXXL"},
+			description="Default size of bookmark markers. Affects all point-based annotations")
+	private String bookmarkSize;
+
+	@Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "III. Interface")
+    private String HEADER3;
 
 	@Parameter(label="Prefer 2D display canvases", description="When no valid image exists, adopt 2D or 3D canvases?")
 	private boolean force2DDisplayCanvas;
 
     @Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
     private boolean persistentWinLoc;
-
-    @Parameter(label="Soma display", choices = {SOMA_DISPLAY_DEFAULT, SOMA_DISPLAY_TRIANGLE},
-            description="How single-node soma-tagged paths should be displayed in the tracing image.")
-    private String somaDisplay;
 
     @Parameter(label = "Look and feel (L&F)", required = false, persist = false,
             description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.",
@@ -115,8 +125,8 @@ public class PrefsCmd extends OptionsPlugin {
     @Parameter(label="Managing Themes...", callback="lafHelp")
     private Button lafHelpButton;
 
-    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "III. Defaults")
-    private String HEADER3;
+    @Parameter(required = false, visibility = ItemVisibility.MESSAGE, label = HEADER_HTML + "IV. Defaults")
+    private String HEADER4;
 
     @Parameter(label="Reset All Settings...", callback="reset")
 	private Button resetButton;
@@ -142,6 +152,7 @@ public class PrefsCmd extends OptionsPlugin {
 		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
 		snt.getPrefs().setNextImgExtensions(nextImgExtensions);
+		ij.gui.PointRoi.setDefaultSize(Arrays.asList(POINT_ROI_SIZES).indexOf(bookmarkSize));
 		applyWorkspaceChange();
 		if (lafService == null) return;
 		final String existingLaf = SNTPrefs.getLookAndFeel();
@@ -198,6 +209,7 @@ public class PrefsCmd extends OptionsPlugin {
             somaDisplay = getSomaDisplayChoice(PathNodeCanvas.getSomaRenderMode());
 			workspaceDirectory = snt.getPrefs().getWorkspaceDir();
 			nextImgExtensions = String.join(", ", snt.getPrefs().getNextImgExtensions());
+			bookmarkSize = POINT_ROI_SIZES[ij.gui.PointRoi.getDefaultSize()];
 		} catch (final NullPointerException npe) {
 			cancel("SNT is not running.");
 		}
@@ -285,6 +297,7 @@ public class PrefsCmd extends OptionsPlugin {
 		}
 		SNTPrefs.clearAll(); // Legacy (IJ1-based) preferences
 		FileChooser.resetPreferences(); // Others
+		ij.gui.PointRoi.setDefaultSize(3); // mid-size default
 	}
 
 	private Set<Class<?>> findClasses(final String packageName) {

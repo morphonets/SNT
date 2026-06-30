@@ -455,14 +455,6 @@ public class SNTUI extends JDialog {
         dialogGbc.insets.top = InternalUtils.TEXT_MARGIN;
         add(statusBar(), dialogGbc);
         addFileDrop(this, guiUtils);
-        registerTabInCmdFInder("Main Tab", "Home Tab");
-        //registerTabInCmdFInder("Options Tab", "Options Tab");
-        registerTabInCmdFInder("Assistant Tab", "Curation Assistant");
-        registerTabInCmdFInder("Bookmarks Tab", "Bookmark Manager");
-        registerTabInCmdFInder("Seeds Tab", "Seeded Tracing Assistant");
-        //registerTabInCmdFInder("3D Tab", "3D Viewers");
-        registerTabInCmdFInder("Delineations Tab", "Delineation Analysis");
-        registerTabInCmdFInder("Notes Tab", "Notepad");
         curationManager.registerCommands(commandFinder);
         pack();
         setPreferredSize(new Dimension(preferredWidth, getPreferredSize().height));
@@ -515,12 +507,6 @@ public class SNTUI extends JDialog {
             this.fmUI = fmUI;
         }
 
-    }
-
-    private void registerTabInCmdFInder(final String tabName, final String descriptions) {
-        final JButton b = new JButton(tabName);
-        b.addActionListener( e-> selectTab(tabName));
-        commandFinder.register(b, descriptions);
     }
 
     private JTabbedPane getTabbedPane() {
@@ -4782,6 +4768,17 @@ public class SNTUI extends JDialog {
      */
     private void registerTabCommandFinderAliases() {
         if (commandFinder == null) return;
+        // Main tab
+        commandFinder.registerKeywords(
+                "Main/Home Tab",
+                List.of("Tabs"),
+                List.of("data source", "cursor snapping", "display filters", "interactive tracing", "channel", "frame"),
+                () -> selectTab("Main"));
+        // Options tab
+        commandFinder.registerKeywords(
+                "Options",
+                List.of("Tabs"),
+                List.of("settings"), () -> selectTab("Options"));
         // Curation Assistant
         final List<String> qcKeywords = new ArrayList<>(List.of("QC", "validation", "warning", "issues", "plausibility",
                 "deep scan", "live monitor"));
@@ -4798,6 +4795,11 @@ public class SNTUI extends JDialog {
                 List.of("bookmark", "marker", "tagged location", "tagged node", "colocalize", "location",
                         "click-on-point", "export csv"), //
                 () -> selectTab("Bookmarks"));
+        commandFinder.registerKeywords(
+                "3D",
+                List.of("Tabs"),
+                List.of("viewer", "big data", "bvv", "bdv", "sciview", "reconstruction", "rec viewer", "legacy"),
+                () -> selectTab("3D"));
         // Delineations tab
         commandFinder.registerKeywords(
                 "Delineations",

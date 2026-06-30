@@ -142,6 +142,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
     private void buildPopupMenu() {
         pMenu = new JPopupMenu();
+        pMenu.putClientProperty("owner", this); // see SNTCommandFinder#revealMenuItem()
         // Required because we are mixing lightweight and heavyweight components?
         pMenu.setLightWeightPopupEnabled(false);
 

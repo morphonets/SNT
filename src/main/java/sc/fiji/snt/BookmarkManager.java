@@ -885,7 +885,7 @@ public class BookmarkManager {
             final PointRoi roi = b.toRoi();
             roi.setName(HIGHLIGHT_PREFIX + idx++);
             roi.setPointType(PointRoi.DOT);
-            roi.setSize(3); // mid size: 0=tiny, 6=XXXL
+            roi.setSize(PointRoi.getDefaultSize()); // See PrefsCmd. mid size is 3: 0=tiny, 6=XXXL
             if (roi.getStrokeColor() == null)
                 roi.setStrokeColor(Color.CYAN);
             overlay.add(roi);

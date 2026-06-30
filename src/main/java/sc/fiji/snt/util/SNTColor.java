@@ -326,12 +326,22 @@ public class SNTColor {
 	 * @return The contrasting color
 	 */
 	public static Color contrastHueColor(final Color c) {
+		return contrastHueColor(c, null);
+	}
 
-		// Calculate relative luminance w/ "human perception weights". Range: from 0.0 (pure black) to 1.0 (pure white)
-		final double luminance = 0.2126 * linearize(c.getRed()) + 0.7152 * linearize(c.getGreen()) + 0.0722 * linearize(c.getBlue());
+	/**
+	 * Returns a 'contrasting' color using warm/cool contrast adjustments relatively to a second color reference.
+	 *
+	 * @param c the input color
+	 * @param reference the reference color
+	 * @return The contrasting color
+	 */
+	public static Color contrastHueColor(final Color c, final Color reference) {
 
-		// Determine if the color feels perceptually "light" or "dark"
-		final boolean isPerceptuallyLight = luminance > 0.179; // standard WCAG threshold
+		// Determine if the color feels perceptually "light" or "dark" by relative luminance w/
+		// "human perception weights". Range: from 0.0 (pure black) to 1.0 (pure white)
+		// The 0.179 cutoff is standard WCAG threshold
+		final boolean isPerceptuallyLight = isPerceptuallyLight( (reference==null) ? c : reference);
 		int r = c.getRed();
 		int g = c.getGreen();
 		int b = c.getBlue();
@@ -356,6 +366,14 @@ public class SNTColor {
 	private static double linearize(int c) {
 		double v = c / 255.0;
 		return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+	}
+
+	private static boolean isPerceptuallyLight(final Color color) {
+		if (color == null) return false;
+		final double lum = 0.2126 * linearize(color.getRed())
+				+ 0.7152 * linearize(color.getGreen())
+				+ 0.0722 * linearize(color.getBlue());
+		return lum > 0.179;
 	}
 
 	/**

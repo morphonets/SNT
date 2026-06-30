@@ -75,7 +75,7 @@ import java.util.List;
  * {@code dCam = Double.MAX_VALUE} so the perspective factor evaluates to 1.0
  * (orthographic rendering, no foreshortening).
  *
- * <h3>Usage (scripting)</h3>
+ *<p>Usage (scripting)
  * <pre>
  * bdv = new Bdv()
  * bdv.show(imp)

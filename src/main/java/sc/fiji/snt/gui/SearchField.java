@@ -30,6 +30,7 @@ import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -147,16 +148,19 @@ public class SearchField extends FlatTextField {
         // device pixels; without normalization the enlargement compounds the GDK scaling
         final float factor = 1f + (enlargeFactor - 1f) / GuiUtils.osScale(this);
         setFont(getFont().deriveFont(getFont().getSize() * factor));
-        List.of(optionsButton, caseButton, regexButton).forEach(c -> c.setFont(c.getFont().deriveFont(c.getFont().getSize() * factor)));
+        Arrays.asList(optionsButton, caseButton, wordButton, regexButton).forEach(c -> {
+                if (c != null)
+                    c.setFont(c.getFont().deriveFont(c.getFont().getSize() * factor));
+        });
         final int PADDING = getFontMetrics(getFont()).getDescent();
         setBorder(BorderFactory.createCompoundBorder(new FlatRoundBorder(), BorderFactory.createEmptyBorder(PADDING, PADDING, PADDING, PADDING)));
     }
 
     public static Color iconColor() {
-         if (iconColor == null) {
-             iconColor = UIManager.getColor("SearchField.searchIconColor");
-             if (iconColor == null) iconColor = IconFactory.defaultColor();
-         }
+        if (iconColor == null) {
+            final Color raw = UIManager.getColor("SearchField.searchIconColor");
+            iconColor = (raw != null) ? new Color(raw.getRGB()) : IconFactory.defaultColor();
+        }
         return iconColor;
     }
 
