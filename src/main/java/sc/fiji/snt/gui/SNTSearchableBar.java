@@ -64,7 +64,7 @@ public class SNTSearchableBar extends SearchableBar {
 	protected boolean subFilteringEnabled;
 
 	public SNTSearchableBar(final Searchable searchable) {
-		this(searchable, "Search");
+		this(searchable, "Type to select");
 	}
 
 	public SNTSearchableBar(final Searchable searchable, final String placeholder) {

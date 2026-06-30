@@ -26,6 +26,7 @@ import com.formdev.flatlaf.extras.components.FlatTextField;
 import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
 import com.formdev.flatlaf.ui.FlatRoundBorder;
+import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
 import java.awt.*;
@@ -154,12 +155,7 @@ public class SearchField extends FlatTextField {
     public static Color iconColor() {
          if (iconColor == null) {
              iconColor = UIManager.getColor("SearchField.searchIconColor");
-             if (iconColor == null) {
-                 iconColor = Color.DARK_GRAY;
-             } else {
-                 // somehow transparency is not being set(!?), so we'll get it here
-                 iconColor = new Color(iconColor.getRed(), iconColor.getGreen(), iconColor.getBlue(), iconColor.getAlpha());
-             }
+             if (iconColor == null) iconColor = IconFactory.defaultColor();
          }
         return iconColor;
     }

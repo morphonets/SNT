@@ -278,12 +278,9 @@ public class PathMatcherCmd extends CommonDynamicCmd {
                                 "You can now run 'Grow Analysis...' on the dataset.", paths.size(), groupCounter,
 						timePointsParsed), "Matching Completed");
 			}
-			if (ui != null) {
-				ui.getPathManager().update();
-				resetUI();
-			}
+			if (ui != null) ui.getPathManager().update();
 		}
-
+		resetUI();
 	}
 
 	/* null: consider all time-points; empty set: assume invalid input */

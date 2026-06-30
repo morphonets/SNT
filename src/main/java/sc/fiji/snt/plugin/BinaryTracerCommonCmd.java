@@ -381,17 +381,17 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                 return;
             }
 
-            // Retrieve ROI. If not found, look for it in the image overlay or on second image
-            final Roi roi = getRoi(chosenMaskImp, chosenOrigImp, (snt != null) ? snt.getImagePlus() : null);
-
             // Aggregate unexpected settings for validation
             final boolean isSame = !isFileMode() && (maskImgChoice != null && maskImgChoice.equals(originalImgChoice));
             final boolean isSegmented = isSegmented(chosenMaskImp);
             final boolean isCompatible = chosenOrigImp == null || ImpUtils.sameCalibration(chosenMaskImp, chosenOrigImp);
             final boolean isSameDim = chosenOrigImp == null || ImpUtils.sameXYZDimensions(chosenOrigImp, chosenMaskImp);
             final boolean isValidConnectDist = maxConnectDist > 0d;
-            final boolean isValidRoi = roi != null && roi.isArea();
             final boolean autoDetectSoma = ROI_AUTO_DETECT.equals(rootChoice);
+
+            // Retrieve ROI. If not found, look for it in the image overlay or on second image
+            final Roi roi = (autoDetectSoma) ? null : getRoi(chosenMaskImp, chosenOrigImp, (snt != null) ? snt.getImagePlus() : null);
+            final boolean isValidRoi = roi != null && roi.isArea();
             boolean inferRootFromRoi = !ROI_UNSET.equals(rootChoice) && !autoDetectSoma;
 
             if (isSame || !isValidOrigImg || !isSegmented || !isSameDim || !isCompatible || (!isValidRoi && inferRootFromRoi)
@@ -409,7 +409,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             SNTUtils.log("Segmented image: " + chosenMaskImp.getTitle());
             SNTUtils.log("Segmented image thresholded/binarized: " + isSegmented);
             SNTUtils.log("Original image: " + ((chosenOrigImp == null) ? null : chosenOrigImp.getTitle()));
-            SNTUtils.log("Root-defining strategy: " + rootChoice);
+            SNTUtils.log("ROI strategy: " + rootChoice);
             SNTUtils.log("ROI: " + roi);
 
             // Skeletonize all images again, just to ensure we are indeed dealing with skeletons
@@ -427,10 +427,14 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                 final SomaUtils.SomaResult somaResult = SomaUtils.detectSoma(
                         ImpUtils.toImgPlus(chosenMaskImp), -1d, -1);
                 if (somaResult != null && somaResult.hasContour()) {
-                    final Roi somaRoi = somaResult.createContourRoi();
-                    if (somaRoi != null && somaResult.zSlice() >= 0) somaRoi.setPosition(somaResult.zSlice() + 1);
-                    converter.setRootRoi(somaRoi, BinaryTracer.ROI_CENTROID);
                     SNTUtils.log("Auto-detected soma: " + somaResult);
+                    final Roi somaRoi = somaResult.createContourRoi();
+                    if (somaRoi != null && somaResult.zSlice() >= 0) {
+                        somaRoi.setPosition(somaResult.zSlice() + 1);
+                        converter.setRootRoi(somaRoi, BinaryTracer.ROI_CENTROID);
+                        chosenMaskImp.setRoi(somaRoi);
+                    }
+                    SNTUtils.log("Auto-detected soma ROI: " + somaRoi);
                 } else {
                     SNTUtils.log("Soma auto-detection did not find a soma. Using arbitrary root.");
                 }
@@ -447,7 +451,6 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                                 converter.getPruneMode() == BinaryTracer.LOWEST_INTENSITY_VOXEL))
                     SNTUtils.log("Intensity-based pruning failed (unsupported image type!?): Defaulting to fallback strategy");
                 converter.setPruneMode(BinaryTracer.PERIPHERAL_SEGMENTS);
-
                 try {
                     trees = converter.getTrees();
                 } catch (final IllegalStateException ex) {
@@ -456,6 +459,10 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
                     SNTUtils.error("", ex);
                     return;
                 }
+            } catch (final IllegalArgumentException iae) {
+                error(iae.getMessage() +".");
+                SNTUtils.error("", iae);
+                return;
             }
             if (trees == null) {
                 error("No paths could be extracted. No structures found in image!?");

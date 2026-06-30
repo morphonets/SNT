@@ -888,7 +888,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     ? "<html>Path has never been fitted:<br>Fit will be computed for the first time"
                     : "<html>Path has already been fitted:\nCached properties will be applied");
         }
-        colorMenu.selectSWCColor(new SNTColor(p.getColor(), p.getSWCType()));
+        colorMenu.selectSWCColor(new SNTColor(p.getColor()));
         selectSWCTypeMenuEntry(p.getSWCType());
     }
 
@@ -1714,11 +1714,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final int arc = UIManager.getInt("Component.arc");
             CHIP_ARC = (arc > 0) ? Math.min(arc, 8) : 4;
             final Color fg = UIManager.getColor("Tree.textForeground"); // Tree.foreground is unused. See formdev.com/flatlaf/components/tree/
-            final Color base = (fg != null) ? fg : Color.GRAY;
+            final Color base = (fg != null) ? fg : Color.DARK_GRAY;
             final int r = base.getRed(), gn = base.getGreen(), b = base.getBlue();
             CHIP_BORDER = new Color(r, gn, b, 50);
             CHIP_TEXT = base;
-            CHIP_FILL = new Color(r, gn, b, 10);
+            CHIP_FILL = new Color(r, gn, b, 8);
         }
 
         // Per-cell state populated in getTreeCellRendererComponent
@@ -2858,6 +2858,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final List<Path> selectedPaths = getSelectedPaths(true);
             if (selectedPaths.isEmpty()) {
                 guiUtils.error("There are no traced paths.");
+                setSelected(false);
                 return;
             }
             removeOrReapplyDefaultTag(selectedPaths, getActionCommand(), isSelected(), true);
@@ -3921,7 +3922,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 if (tags.isEmpty() && existingTags.isEmpty()) {
                     return;
                 } else if (tags.isEmpty()) {
-                    deleteCustomTags(selectedPaths);
+                    deleteCustomTags(selectedPaths, false);
                     return;
                 }
 
@@ -5183,7 +5184,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 return;
             }
             if (choices[1].equals(choice)) {
-                deleteCustomTags(selectedPaths); // will call refreshManager
+                deleteCustomTags(selectedPaths, true); // will call refreshManager
                 return;
             }
             if (choices[2].equals(choice)) {
@@ -5214,8 +5215,8 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             guiUtils.centeredMsg(counter + " occurrence(s) replaced.", "Operation Completed");
         }
 
-        private void deleteCustomTags(final List<Path> paths) {
-            if (!plugin.getUI().askUserConfirmation || guiUtils.getConfirmation("Remove custom tags from "
+        private void deleteCustomTags(final List<Path> paths, final boolean deleteWithoutConfirmation) {
+            if (deleteWithoutConfirmation || !plugin.getUI().askUserConfirmation || guiUtils.getConfirmation("Remove custom tags from "
                     + ((paths.size() == pathAndFillManager.size()) ? "all " : "the selected ")
                     + paths.size() + " paths?", "Confirm Tag Removal?")) {
                 paths.forEach(p -> p.setName(TAG_CUSTOM_PATTERN.matcher(p.getName()).replaceAll("")));
@@ -5726,7 +5727,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
             final String[] choices = { "Arbor ID", "Cell label", "Primary path name", "Primary path length",
                     "Primary path mean radius", "Traced channel", "Traced frame" };
-            final String choice = guiUtils.getChoice("Sorting criterion:", "Sort Root-level Paths", choices, choices[0]);
+            final String choice = guiUtils.getChoice("Sort by:", "Sort Root-level Paths", choices, choices[0]);
             if (choice == null)
                 return;
             switch (choice) {
@@ -6061,19 +6062,27 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private void showColorCustomizationDialog() {
             // Create the panel with color chooser buttons
             final JPanel panel = new JPanel(new GridBagLayout());
+            panel.setBackground(ProofReadingTagsToolBar.this.getBackground());
             final GridBagConstraints c = GuiUtils.defaultGbc();
+            // Align the component to the left edge of its cell
+            c.anchor = GridBagConstraints.WEST;
+            // Prevent the component from stretching horizontally
+            c.fill = GridBagConstraints.NONE;
             // Create color selection components for each tag
             c.insets = new Insets(0, 0, 5, 0);
             final Map<String, ColorChooserButton> colorButtons = new HashMap<>();
             tagsMap.forEach( (tagName, color) -> {
-                final ColorChooserButton colorButton = new ColorChooserButton(color, capitalized(tagName));
+                final ColorChooserButton colorButton = new ColorChooserButton(color, capitalized(tagName)
+                , 1f, ColorChooserButton.RIGHT);
+                GuiUtils.Buttons.makeBorderless(colorButton);
                 panel.add(colorButton, c);
                 colorButtons.put(tagName, colorButton);
                 c.gridy++;
             });
             // Add reset button
             c.insets.top += 10;
-            final JButton resetButton = new JButton("Reset to Defaults");
+            final JButton resetButton = new JButton("Reset to Defaults", IconFactory.buttonIcon(IconFactory.GLYPH.UNDO, .9f));
+            GuiUtils.Buttons.makeBorderless(resetButton);
             resetButton.addActionListener(e -> {
                 tagsMap.keySet().forEach( tagName -> saveTagColor(tagName, null));
                 tagsMap.clear();
@@ -6084,7 +6093,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
             // Show the option pane
             final int result = JOptionPane.showConfirmDialog(PathManagerUI.this,
-                    panel, "Proofreading Tag Colors", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                    panel, "Proofreading Tags", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
             // save the new colors if user pressed OK
             if (result == JOptionPane.OK_OPTION) {
@@ -6190,13 +6199,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 else
                     dataset.put("none", dataset.get("none")+1);
             });
-            final SNTChart chart = AnalysisUtils.ringPlot(String.format("Tags (All %d Paths)", paths.size()), dataset, colors);
+            final SNTChart chart = AnalysisUtils.ringPlot(String.format("Proofreading Tags (All %d Paths)", paths.size()), dataset, colors);
             if (ringChart != null && ringChart.isVisible()) {
                 ringChart.replace(chart);
-                ringChart.getFrame().setTitle(String.format("Tags (All %d Paths)", paths.size()));
                 ringChart.show();
             } else {
-                chart.getFrame().setLocationRelativeTo(ProofReadingTagsToolBar.this);
+                chart.getFrame().setLocationRelativeTo(PathManagerUI.this);
                 chart.show();
                 ringChart = chart;
             }

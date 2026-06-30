@@ -61,7 +61,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	 * @param pmui the PathManagerUI instance
 	 */
 	public PathManagerUISearchableBar(final PathManagerUI pmui) {
-		super(pmui.getSearchable(), "Text filtering");
+		super(pmui.getSearchable(), "Type to select");
 		this.pmui = pmui;
 		guiUtils = new GuiUtils(pmui);
 		setGuiUtils(guiUtils);
