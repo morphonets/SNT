@@ -21,8 +21,8 @@
  */
 package sc.fiji.snt.gui;
 
-import fiji.util.gui.GenericDialogPlus;
 import ij.IJ;
+import ij.gui.GenericDialog;
 import ij.plugin.BrowserLauncher;
 import ij.plugin.frame.Recorder;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
@@ -40,7 +40,7 @@ import java.awt.event.*;
  * only used by IJ1 plugins and is thus deprecated.
  */
 @Deprecated
-public class EnhancedGenericDialog extends GenericDialogPlus {
+public class EnhancedGenericDialog extends GenericDialog {
 	
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 

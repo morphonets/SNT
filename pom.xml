@@ -218,18 +218,6 @@
 			<groupId>sc.fiji</groupId>
 			<artifactId>Skeletonize3D_</artifactId>
 		</dependency>
-		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>VIB-lib</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>fiji-lib</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>pal-optimization</artifactId>
-		</dependency>
 
 		<!-- ImageJ2 dependencies -->
 		<dependency>
