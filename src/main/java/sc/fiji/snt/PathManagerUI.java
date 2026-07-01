@@ -5482,6 +5482,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             };
         }
 
+        private PointInImage getRefLocation() {
+            final String pos = guiUtils.getString("Nearest location XYZ coordinates (comma/space separated): ",
+                    "Nearest Node To Location...", GuiUtils.getClipboardText());
+            if (pos == null)  return null;
+            PointInImage result;
+            try {
+                result =  SNTPoint.fromString(pos);
+            } catch (final Throwable ignored) {
+                result = null;
+            }
+            if (result == null) guiUtils.error("Could not extract a valid location from \"" + pos + "\".");
+            return result;
+        }
+
         private JButton zoomToNodeButton() {
             final GuiUtils.VisitingZoom visitingZoom = new GuiUtils.VisitingZoom();
             final ActionListener action = e -> {
@@ -5492,6 +5506,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
                 Path.PathNode result = null;
                 final String cmd = e.getActionCommand();
+
+                // special case: user input required:
+                final PointInImage ref = ("Node Nearest To...".equals(cmd)) ? getRefLocation() : null;
+
                 // "Global extremum" items resolve to a single node across the entire selection (radius, intensity,
                 // angle). Other items remain per-path so multi-select gives a population-level overview.
                 final String filter = switch (cmd) {
@@ -5543,25 +5561,30 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                             }
                             case "Midpoint" -> result = path.getNode(path.size() / 2);
                             case "Last Node" -> result = path.getNode(path.size() - 1);
+                            case "Node Nearest To..." -> {
+                                if (ref != null) result = path.nearestNodeTo(ref, Double.MAX_VALUE);
+                            }
                             default -> {} // Do nothing
                         }
                     }
                 }
                 if (result == null) {
-                    final String msg = switch (cmd) {
-                        case "Smallest Radius Node", "Largest Radius Node" -> "radii";
-                        case "Brightest Node", "Dimmest Node" -> "intensity values (no image, or sampling failed)";
-                        case "Sharpest Angle Node" -> "computable angles (paths too short)";
-                        default                    -> "branch-points";
-                    };
-                    guiUtils.error(String.format("Selected path(s) have no %s.", msg));
+                    if (!"Node Nearest To...".equals(cmd)) {
+                        final String msg = switch (cmd) {
+                            case "Smallest Radius Node", "Largest Radius Node" -> "radii";
+                            case "Brightest Node", "Dimmest Node" -> "intensity values (no image, or sampling failed)";
+                            case "Sharpest Angle Node" -> "computable angles (paths too short)";
+                            default -> "branch-points";
+                        };
+                        guiUtils.error(String.format("Selected path(s) have no %s.", msg));
+                    }
                 } else {
                     zoomToNode(result, visitingZoom);
                 }
             };
 
             final JPopupMenu menu = new JPopupMenu();
-            List.of("-Position in Path:", "First Node", "Last Node", "Midpoint",
+            List.of("-Position in Path:", "First Node", "Last Node", "Midpoint", "Node Nearest To...",
                             "-Structure:", "First Branch Point", "Last Branch Point", "Sharpest Angle Node",
                             "-Thickness:", "Smallest Radius Node", "Largest Radius Node",
                             "-Intensity:", "Brightest Node", "Dimmest Node" )

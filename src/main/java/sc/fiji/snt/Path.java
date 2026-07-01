@@ -1555,11 +1555,11 @@ public class Path implements Comparable<Path>, Cloneable {
 	 * @return the closest node to the specified one or null if no such node was
 	 *         found.
 	 */
-	public PointInImage nearestNodeTo(final PointInImage node, final double within) {
+	public PathNode nearestNodeTo(final PointInImage node, final double within) {
 		double minimumDistanceSquared = within * within;
-		PointInImage closestNode = null;
+		PathNode closestNode = null;
 		for (int i = 0; i < size(); ++i) {
-			final PointInImage cNode = getNodeWithoutChecks(i);
+			final PathNode cNode = getNodeWithoutChecks(i);
 			final double thisDistanceSquared = cNode.distanceSquaredTo(node);
 			if (thisDistanceSquared < minimumDistanceSquared) {
 				closestNode = cNode;
