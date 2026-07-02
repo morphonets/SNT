@@ -22,7 +22,6 @@
 
 package sc.fiji.snt.gui;
 
-import com.formdev.flatlaf.ui.FlatRoundBorder;
 import com.jidesoft.swing.Searchable;
 import com.jidesoft.swing.SearchableBar;
 import com.jidesoft.swing.SearchableBarIconsFactory;
@@ -31,6 +30,7 @@ import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
 
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -62,6 +62,7 @@ public class SNTSearchableBar extends SearchableBar {
 	private Icon subFilteringStatusIcon;
 	private final List<String> builtinSearchHistory;
 	protected boolean subFilteringEnabled;
+	private final boolean compactNavigation;
 
 	public SNTSearchableBar(final Searchable searchable) {
 		this(searchable, "Type to select");
@@ -70,6 +71,7 @@ public class SNTSearchableBar extends SearchableBar {
 	public SNTSearchableBar(final Searchable searchable, final String placeholder) {
 		super(searchable, true);
 		builtinSearchHistory = new ArrayList<>(10);
+		compactNavigation = true;
 		getSearchable().setCaseSensitive(false);
 		getSearchable().setWildcardEnabled(false);
 		getSearchable().setFromStart(false);
@@ -132,6 +134,7 @@ public class SNTSearchableBar extends SearchableBar {
 		final JToggleButton button = new JToggleButton();
 		formatButton(button, IconFactory.GLYPH.FILTER);
 		button.setToolTipText("Restricts filtering to selected " + objectDescription +".\nCombines filters to restrict matches");
+		button.setActionCommand("Restrict filtering to selected " + objectDescription); // to be displayed in SNTCommandFinder
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		button.addActionListener(e -> {
@@ -163,8 +166,13 @@ public class SNTSearchableBar extends SearchableBar {
 	public void setStatusLabelPlaceholder(final String placeholder) {
 		statusLabelPlaceholder = placeholder;
 		if (_statusLabel != null) {
-			_statusLabel.setText(statusLabelPlaceholder);
-			_statusLabel.setIcon((subFilteringEnabled) ? getSubFilteringStatusIcon() : null);
+			if (subFilteringEnabled) {
+				_statusLabel.setText("Filtering on selected paths only");
+				_statusLabel.setIcon(getSubFilteringStatusIcon());
+			} else {
+				_statusLabel.setText(statusLabelPlaceholder);
+				_statusLabel.setIcon(null);
+			}
 		}
 	}
 
@@ -189,8 +197,12 @@ public class SNTSearchableBar extends SearchableBar {
 
 		// buttons
 		if ((getVisibleButtons() & SHOW_NAVIGATION) != 0) {
-			tb.add(_findNextButton);
-			tb.add(_findPrevButton);
+			if (compactNavigation) {
+				tb.add(createNavButton());
+			} else {
+				tb.add(_findNextButton);
+				tb.add(_findPrevButton);
+			}
 		}
 		if ((getVisibleButtons() & SHOW_HIGHLIGHTS) != 0) {
 			tb.add(_highlightsButton);
@@ -255,6 +267,7 @@ public class SNTSearchableBar extends SearchableBar {
 			}
 		});
 		sf.enlarge(1.1f); // enlarge() normalises by osScale internally
+		sf.setMaximumSize(new Dimension(Integer.MAX_VALUE, sf.getPreferredSize().height)); // prevent field from dictating toolbar height
 		// assign search functionalities of original text field
 		sf.setAction(_textField.getAction());
 		sf.setDocument(_textField.getDocument());
@@ -292,6 +305,7 @@ public class SNTSearchableBar extends SearchableBar {
 	private JPopupMenu createOptionsMenu() {
 		final JPopupMenu popup = new JPopupMenu();
 		historyMenu = new JMenu("Search History");
+		IconFactory.assignIcon(historyMenu, IconFactory.GLYPH.CLOCK_ROTATE_LEFT, null);
 		historyMenu.setEnabled(false); // will be enabled once history is updated
 		historyMenu.setToolTipText("Press enter on a typed term to store it in this menu");
 		popup.add(historyMenu);
@@ -341,7 +355,7 @@ public class SNTSearchableBar extends SearchableBar {
 	}
 
 	private JMenuItem getTipsAndShortcutsMenuItem() {
-		final JMenuItem mi2 = new JMenuItem("Search Tips...");
+		final JMenuItem mi2 = new JMenuItem("Search Tips...", IconFactory.menuIcon('\uf0eb', false));
 		mi2.addActionListener(e -> {
 			if (objectDescription == null) objectDescription = "items";
 			String msg = "<HTML><body><div><ul>"
@@ -409,6 +423,25 @@ public class SNTSearchableBar extends SearchableBar {
 		return button;
 	}
 
+	private JComponent createNavButton() {
+		assert _findNextButton != null && _findPrevButton != null;
+		final GuiUtils.Buttons.StackedButton button = new GuiUtils.Buttons.StackedButton(
+				IconFactory.GLYPH.CARET_UP, IconFactory.GLYPH.CARET_DOWN,
+				_findPrevButton.getActionListeners()[0],
+				_findNextButton.getActionListeners()[0]);
+		button.topButton.setToolTipText("Find previous hit (or press ↑ in search field)");
+		button.bottomButton.setToolTipText("Find next hit (or press ↓ in search field)");
+		button.setEnabled(!getSearchable().getSearchingText().isEmpty());
+		button.setMaximumSize(button.getPreferredSize()); // do not let button to be taller than default height
+		if (_highlightsButton != null && (getVisibleButtons() & SHOW_HIGHLIGHTS) != 0)
+			button.setPreferredSize(_highlightsButton.getPreferredSize());
+		getSearchable().addSearchableListener(e -> {
+			button.setEnabled(!e.getSearchable().getSearchingText().isEmpty() &&
+					e.getID() != SearchableEvent.SEARCHABLE_NOMATCH);
+		});
+		return button;
+	}
+
 	@Override
 	protected ImageIcon getImageIcon(final String name) {
 		if (_statusLabel == null)
@@ -431,13 +464,14 @@ public class SNTSearchableBar extends SearchableBar {
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 		formatButton(button, IconFactory.GLYPH.TIMES);
+		button.setActionCommand("Close Filtering Toolbar"); // to be displayed in SNTCommandFinder
 		return button;
 	}
 
 	@Override
 	protected AbstractButton createHighlightButton() {
 		final AbstractButton button = super.createHighlightButton();
-		formatButton(button, IconFactory.GLYPH.BULB);
+		formatButton(button, IconFactory.GLYPH.CHECK_DOUBLE);
 		return button;
 	}
 
@@ -448,12 +482,8 @@ public class SNTSearchableBar extends SearchableBar {
 		button.setRolloverSelectedIcon(null);
 		button.setSelectedIcon(null);
 		// customize
-		button.setIcon(IconFactory.buttonIcon(glyph, 1.2f));
-		button.setDisabledIcon(IconFactory.buttonIcon(glyph, GuiUtils.getDisabledComponentColor(), 1.2f));
-		if (button instanceof JToggleButton)
-			button.setSelectedIcon(IconFactory.buttonIcon(glyph, IconFactory.selectedColor(), 1.2f));
+		IconFactory.assignIcon(button, glyph, glyph, 1.2f);
 		GuiUtils.Buttons.makeBorderless(button);
-		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
 	}
 }

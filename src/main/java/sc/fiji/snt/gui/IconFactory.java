@@ -29,6 +29,7 @@ import sc.fiji.snt.util.SNTColor;
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
+import java.util.List;
 
 /**
  * A factory for {@link FADerivedIcon}s presets.
@@ -377,7 +378,8 @@ public class IconFactory {
         button.setDisabledIcon(buttonIcon(defaultGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
         if (button instanceof JToggleButton && selectedGlyph != null) {
             button.setSelectedIcon(buttonIcon(selectedGlyph, selectedColor(), scalingFactor));
-            button.setDisabledSelectedIcon(buttonIcon(selectedGlyph, GuiUtils.getDisabledComponentColor(), scalingFactor));
+            button.setDisabledSelectedIcon(buttonIcon(selectedGlyph,
+                    SNTColor.average(List.of(GuiUtils.getDisabledComponentColor(), selectedColor())), scalingFactor));
         }
     }
 

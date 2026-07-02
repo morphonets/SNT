@@ -72,10 +72,9 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		_extraButtons.add(createMorphoFilteringButton());
 		_extraButtons.add(createSubFilteringButton());
 		setVisibleButtons(SHOW_NAVIGATION | SHOW_STATUS | SHOW_HIGHLIGHTS);
-		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui
-			.getPathAndFillManager().size()));
-		_highlightsButton.setToolTipText("Highlight all: Auto-select paths matching filtered text");
-		//setBorderless();
+		setStatusLabelPlaceholder(String.format("%d Path(s) listed", pmui.getPathAndFillManager().size()));
+		_highlightsButton.setToolTipText("Select all paths matching the current search");
+		_highlightsButton.setActionCommand("Select all paths matching the current search"); // to be displayed in SNTCommandFinder
 	}
 
 	@Override
@@ -423,9 +422,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 	}
 
 	private JButton createMorphoFilteringButton() {
-		final JButton button = new JButton();
-		formatButton(button, IconFactory.GLYPH.RULER);
-		button.setToolTipText("Filter by morphometry or image properties");
 		final JPopupMenu popup = new JPopupMenu();
 		GuiUtils.addSeparator(popup, "Morphometric Traits:");
 		for (final Component component : getMorphoFilterMenu().getMenuComponents()) {
@@ -435,8 +431,8 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		for (final Component component : getImageFilterMenu().getMenuComponents()) {
 			popup.add(component);
 		}
-		button.addActionListener(e -> popup.show(button, button.getWidth() / 2,
-		button.getHeight() / 2));
+		final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.RULER, 1.2f, popup, false);
+		button.setToolTipText("Filter by morphometry or image properties");
 		return button;
 	}
 
@@ -444,18 +440,18 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final JButton button = new JButton();
 		formatButton(button, IconFactory.GLYPH.TAG);
 		button.setToolTipText("Filter by custom tags");
+		button.setActionCommand("Filter by custom tags"); // to be displayed in SNTCommandFinder
 		button.addActionListener(e -> doTagFiltering());
 		return button;
 	}
 
 	private JButton createColorFilteringButton() {
-		final JButton button = new JButton();
-		formatButton(button, IconFactory.GLYPH.COLOR);
 		final ColorMenu colorFilterMenu = getColorFilterMenu();
-		button.setToolTipText(colorFilterMenu.getText());
 		final JPopupMenu popupMenu = colorFilterMenu.getPopupMenu();
 		popupMenu.setInvoker(colorFilterMenu);
-		button.addActionListener( e -> popupMenu.show(button, button.getWidth() / 2, button.getHeight() / 2));
+		final JButton button = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.COLOR, 1.2f, popupMenu, false);
+		button.setToolTipText(colorFilterMenu.getText());
+		button.putClientProperty("cmdFinder-ignore", "true"); // cmdFinder cannot do much with it
 		return button;
 	}
 
@@ -463,6 +459,7 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		final JButton button = new JButton();
 		formatButton(button, IconFactory.GLYPH.ID);
 		button.setToolTipText("Filter by SWC-type(s)");
+		button.setActionCommand("Filter by SWC-type(s)"); // to be displayed in SNTCommandFinder
 		button.addActionListener(e -> {
 			final Collection<Path> paths = getPaths();
 			if (paths.isEmpty()) {

@@ -297,17 +297,12 @@ public class SNTCommandFinder {
 
     private void runCmd(final CmdAction cmd) {
         if (cmd != null) {
-            if (cmd.hasButton() && (!cmd.button.isEnabled()
-                    || (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
-                displayTempMsg("Command is currently disabled.", true);
-                return;
-            }
-            if (!scriptCall)
-                autoHide(); // hide before running, in case command opens a dialog
-            if (reveal)
+            if (reveal) {
                 revealCmd(cmd);
-            else
+            } else {
+                if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
                 executeCmd(cmd);
+            }
         }
     }
 
@@ -551,7 +546,6 @@ public class SNTCommandFinder {
     private void resetScrapper() {
         cmdScrapper.scrape();
         table.clearSelection();
-        searchField.setText("");
         searchField.requestFocus();
     }
 
@@ -926,8 +920,9 @@ public class SNTCommandFinder {
             final String text = searchField.getText();
             if (text == null)
                 return "";
-            final String caseSensitiveQuery = (caseSensitive) ? text : text.toLowerCase();
-            return (ignoreWhiteSpace) ? caseSensitiveQuery.replace(" ", "") : caseSensitiveQuery;
+            // Return case-adjusted but space-preserved: matches() does its own
+            // normalization so that fuzzyMatches() always sees the original tokens
+            return (caseSensitive) ? text : text.toLowerCase();
         }
     }
 
@@ -1191,28 +1186,41 @@ public class SNTCommandFinder {
             return tooltipCache;
         }
 
-        boolean matches(final String query) {
-            // query is already normalized (case + whitespace) by getQueryFromSearchField().
-            // Haystacks are pre-normalized lazily; rebuilt only when settings change
+        boolean matches(final String rawQuery) {
+            // rawQuery is case-adjusted but space-preserved (getQueryFromSearchField no longer strips)
+            // Normalize here for haystack containment checks; pass raw to fuzzyMatches so its
+            // token splitter sees word boundaries regardless of the ignoreWhiteSpace setting
             ensureNormalized();
+            final String query = normalize(rawQuery);
             return normId.contains(query) || normPath.contains(query)
                     || normTooltip.contains(query) || normKeywords.contains(query)
-                    || fuzzyMatches(query);
+                    || fuzzyMatches(rawQuery);
         }
 
-        // Fuzzy fallback: token-level edit-distance match against the command name.
-        // Only applied when no substring match is found. Uses Apache Commons Text
-        // LevenshteinDistance (unit costs) so threshold arithmetic is predictable.
-        // Matching is always case-insensitive to avoid inflating distances on case alone.
+        // Fuzzy fallback: each query token must fuzzy-match at least one id token.
+        // Tokenizing both sides means threshold is computed per-word (short token = tight
+        // threshold; long token = slightly more slack), which should handle multi-word
+        // queries with a typo in a single word. Matching is always case-insensitive.
+        // Tokens shorter than 2 chars are skipped to avoid false positives on articles
+        // and prepositions ("a", "of", etc.).
         private boolean fuzzyMatches(final String query) {
-            if (query.length() < 2) return false; // skip single-char queries
-            final int threshold = Math.max(1, query.length() / 3); // 1 error per 3 chars
-            final String q = query.toLowerCase();
-            for (final String token : id.toLowerCase().split("\\W+")) {
-                if (token.length() < q.length() - threshold) continue; // too short to match
-                if (UNIT_LEVENSHTEIN.apply(q, token) <= threshold) return true;
+            if (query.length() < 2) return false;
+            final String[] queryTokens = query.toLowerCase().split("\\s+");
+            final String[] idTokens = id.toLowerCase().split("\\W+");
+            for (final String qt : queryTokens) {
+                if (qt.length() < 2) continue; // skip very short tokens
+                final int threshold = Math.max(1, qt.length() / 3); // 1 error per 3 chars
+                boolean matched = false;
+                for (final String it : idTokens) {
+                    if (it.length() < qt.length() - threshold) continue; // too short to match
+                    if (it.contains(qt) || UNIT_LEVENSHTEIN.apply(qt, it) <= threshold) {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) return false; // all query tokens must match
             }
-            return false;
+            return true;
         }
 
         private void ensureNormalized() {
@@ -1286,6 +1294,7 @@ public class SNTCommandFinder {
                 components.add(new AnnotatedComponent(sntui.getPathManager().getJMenuBar()));
                 components.add(new AnnotatedComponent(sntui.getPathManager().getNavigationToolBar(), "PM Nav. Bar"));
                 components.add(new AnnotatedComponent(sntui.getPathManager().getProofReadingToolBar(), "PM Proofread Bar"));
+                components.add(new AnnotatedComponent(sntui.getPathManager().getFilteringToolBar(), "PM Filtering Bar"));
             }
             return components; // recViewer commands are all registered in otherMap
         }
@@ -1327,37 +1336,40 @@ public class SNTCommandFinder {
             cmdMap.clear();
             combinedCache = null; // force merge rebuild on next getCmdMap() call
             for (final AnnotatedComponent ac : getComponents()) {
-                if (ac == null)
-                    continue;
-                if (ac.component instanceof JMenuBar menuBar) {
-                    final int topLevelMenus = menuBar.getMenuCount();
-                    for (int i = 0; i < topLevelMenus; ++i) {
-                        final JMenu topLevelMenu = menuBar.getMenu(i);
-                        if (topLevelMenu != null && topLevelMenu.getText() != null) {
-                            parseMenu(topLevelMenu, List.of(topLevelMenu.getText()));
-                        }
-                    }
-                }
-                else if (ac.component instanceof JPopupMenu popup) {
-                    getMenuItems(popup).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation)));
-                }
-                else if (ac.component instanceof JToolBar toolBar) {
-                    for (final Component c : toolBar.getComponents()) {
-                        if (c instanceof AbstractButton b)
-                            try {
-                                registerMain(b, List.of(ac.annotation));
-                            } catch (final Exception ignored) {
-                                // do nothing
-                            }
-                    }
-                    if (toolBar.getComponentPopupMenu() != null)
-                        getMenuItems(toolBar.getComponentPopupMenu()).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation, "Menu")));
-
-                }
+                if (ac != null) scrapeComponent(ac);
             }
             // Re-merge synthetic entries that aren't backed by any scraped UI component
             for (final CmdAction extra : extras) {
                 cmdMap.put(compositeKey(extra.id, extra.path), extra);
+            }
+        }
+
+        private void scrapeComponent(final AnnotatedComponent ac) {
+            if (ac.component instanceof JMenuBar menuBar) {
+                final int topLevelMenus = menuBar.getMenuCount();
+                for (int i = 0; i < topLevelMenus; ++i) {
+                    final JMenu topLevelMenu = menuBar.getMenu(i);
+                    if (topLevelMenu != null && topLevelMenu.getText() != null) {
+                        parseMenu(topLevelMenu, List.of(topLevelMenu.getText()));
+                    }
+                }
+            } else if (ac.component instanceof JPopupMenu popup) {
+                getMenuItems(popup).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation)));
+            } else if (ac.component instanceof JToolBar toolBar) {
+                for (final Component c : toolBar.getComponents()) {
+                    if (c instanceof AbstractButton b) {
+                        try {
+                            registerMain(b, List.of(ac.annotation));
+                        } catch (final Exception ignored) {
+                            // do nothing
+                        }
+                    } else if (c instanceof Container container) {
+                        // special cases of toolbar inside toolbar, e.g., PathManagerUISearchableBar
+                        scrapeComponent(new AnnotatedComponent(container, ac.annotation));
+                    }
+                }
+                if (toolBar.getComponentPopupMenu() != null)
+                    getMenuItems(toolBar.getComponentPopupMenu()).forEach(mi -> registerMenuItem(mi, List.of(ac.annotation, "Menu")));
             }
         }
 

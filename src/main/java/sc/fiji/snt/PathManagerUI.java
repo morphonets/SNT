@@ -1047,6 +1047,16 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             if (navToolbar != null) navToolbar.selectedPathsChangedElsewhere(selectedPaths);
             tree.clearSelection();
             tree.setSelectedPaths(selectedPaths);
+            if (pathAndFillManager.enableUIupdates) {
+                final TreePath first = tree.getSelectionPath();
+                if (first != null) {
+                    final Rectangle rowBounds = tree.getPathBounds(first);
+                    if (rowBounds != null && !tree.getVisibleRect().contains(rowBounds)) {
+                        rowBounds.height = tree.getVisibleRect().height;
+                        tree.scrollRectToVisible(rowBounds);
+                    }
+                }
+            }
         });
     }
 
@@ -1208,6 +1218,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     public JToolBar getProofReadingToolBar() {
         return proofReadingToolBar;
+    }
+
+    public JToolBar getFilteringToolBar() {
+        return searchableBar;
     }
 
     /**
@@ -5420,7 +5434,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private final JToggleButton hideOthersButton;
         private final JToggleButton showAllArborsButton;
         private final JButton sortArborsButton;
-        private final JButton nextArborButton;
+        private JButton nextArborButton;
         private String arborChoice = null; // currently chosen tree label
         private boolean navSyncGuard = false;   // prevents feedback loops between combobox and jtree
 
@@ -5437,7 +5451,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             this.embeddingParent = scrollPaneOfJTree.getColumnHeader();
             arborChoiceCombo = new JComboBox<>();
             sortArborsButton = sortButton();
-            nextArborButton = nextArborButton();
+            //nextArborButton = nextArborButton();
             showAllArborsButton = GuiUtils.Buttons.toolbarToggleButton(showAllAction(), "Show all structures",
                     IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE);
             showAllArborsButton.setSelected(true);
@@ -5462,14 +5476,14 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             add(sortArborsButton);
             addSeparator();
             add(arborChoiceCombo);
-            add(nextArborButton);
+            //add(nextArborButton);
 
             // add show all/selected as a group
-            add(hideOthersButton);
-            add(showAllArborsButton);
             final ButtonGroup group = new ButtonGroup();
             group.add(showAllArborsButton);
             group.add(hideOthersButton);
+            add(hideOthersButton);
+            add(showAllArborsButton);
             addSeparator();
 
             // zoom/go to
@@ -5957,7 +5971,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 sortArborsButton.setEnabled(!single);
                 showAllArborsButton.setEnabled(!single);
                 arborChoiceCombo.setEnabled(!single);
-                nextArborButton.setEnabled(!single);
+                if (nextArborButton!= null) nextArborButton.setEnabled(!single);
                 hideOthersButton.setEnabled(!single);
                 if (arborChoice != null && labels.contains(arborChoice)) {
                     arborChoiceCombo.setSelectedItem(arborChoice);

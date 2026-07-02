@@ -7225,6 +7225,7 @@ public class Viewer3D {
         private javax.swing.JTextField editTextField;
         private final CustomListRenderer renderer;
         private final UpdatableListModel<Object> model;
+        private boolean allowDirectEditByDoubleCLick;
 
         @SuppressWarnings("unchecked")
         public CheckboxListEditable(final UpdatableListModel<Object> model) {
@@ -7234,9 +7235,10 @@ public class Viewer3D {
             renderer = new CustomListRenderer(this, (DefaultListCellRenderer) getActualCellRenderer());
             setCellRenderer(renderer);
             setVisibleRowCount(20);
+            allowDirectEditByDoubleCLick = false;
             addMouseListener(new java.awt.event.MouseAdapter() {
                 public void mouseClicked(final MouseEvent e) {
-                    if (e.getClickCount() == 2 && !((HandlerPlus) _handler).clicksInCheckBox(e) && model.getSize() > 1) {
+                    if (allowDirectEditByDoubleCLick && e.getClickCount() == 2 && !((HandlerPlus) _handler).clicksInCheckBox(e) && model.getSize() > 1) {
 
                         if (editPopup == null)
                             createEditPopup();

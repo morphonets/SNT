@@ -4629,14 +4629,22 @@ public class GuiUtils {
 		}
 
 		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu) {
-			return new OptionsButton(glyph, scalingFactor, menu);
+			return OptionsButton(glyph, scalingFactor, menu, true);
+		}
+
+		public static OptionsButton OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu menu,
+												  final boolean dropdownIndicator) {
+			return new OptionsButton(glyph, scalingFactor, menu, dropdownIndicator);
 		}
 
 		 public static class OptionsButton extends JButton {
 			public final JPopupMenu popupMenu;
 
-			private OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu popupMenu) {
-				super(IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.defaultColor()));
+			private OptionsButton(final IconFactory.GLYPH glyph, final float scalingFactor, final JPopupMenu popupMenu,
+								  final boolean dropdownIndicator) {
+				super( (dropdownIndicator)
+						? IconFactory.dropdownMenuIcon(glyph, scalingFactor, IconFactory.defaultColor())
+						: IconFactory.buttonIcon(glyph, scalingFactor));
 				this.popupMenu = popupMenu;
 				setDisabledIcon(IconFactory.dropdownMenuIcon(glyph, scalingFactor, GuiUtils.getDisabledComponentColor()));
 				// Store a back-reference so callers can locate this button from the popup alone
@@ -4812,7 +4820,51 @@ public class GuiUtils {
 			}
 			return null;
 		}
+
+		public static class StackedButton extends JPanel {
+
+			public final JButton topButton;
+			public final JButton bottomButton;
+
+			public StackedButton(final GLYPH top, final GLYPH bottom,
+			                     final ActionListener topActionListener,
+			                     final ActionListener bottomActionListener) {
+				super(new GridLayout(2, 1, 0, 0));
+				setOpaque(false);
+				setBorder(new JButton().getBorder());
+				setFocusable(false);
+				topButton = makeHalfButton(top, topActionListener);
+				bottomButton = makeHalfButton(bottom, bottomActionListener);
+				add(topButton);
+				add(bottomButton);
+			}
+
+			private static JButton makeHalfButton(final GLYPH glyph, final ActionListener listener) {
+				final JButton btn = new JButton();
+				IconFactory.assignIcon(btn, glyph, IconFactory.defaultColor(), getDisabledComponentColor(), 1f);
+				if (listener != null) btn.addActionListener(listener);
+				btn.setMargin(new Insets(0, 0, 0, 0));
+				makeBorderless(btn);
+				btn.setFocusable(false);
+				return btn;
+			}
+
+			@Override
+			public void setToolTipText(final String text) {
+				if (topButton != null) topButton.setToolTipText(text);
+				if (bottomButton != null) bottomButton.setToolTipText(text);
+			}
+
+			@Override
+			public void setEnabled(final boolean enabled) {
+				super.setEnabled(enabled);
+				if (topButton != null) topButton.setEnabled(enabled);
+				if (bottomButton != null) bottomButton.setEnabled(enabled);
+			}
+		}
+
 	}
+
 
 	public static class SplitPanes {
 
