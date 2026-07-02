@@ -38,7 +38,6 @@ import java.io.Serial;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -66,7 +65,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 		guiUtils = new GuiUtils(pmui);
 		setGuiUtils(guiUtils);
 		setSearchableObjectDescription("Paths");
-		appendToOptionsMenu(List.of(createFindAndReplaceMenuItem()));
 		_extraButtons = new ArrayList<>();
 		_extraButtons.add(createSWCTypeFilteringButton());
 		_extraButtons.add(createColorFilteringButton());
@@ -93,53 +91,6 @@ public class PathManagerUISearchableBar extends SNTSearchableBar {
 
 	private void logSelectionCount(final int count) {
 		_statusLabel.setText(count + " Match(es)");
-	}
-
-	private JMenuItem createFindAndReplaceMenuItem() {
-		final JMenuItem mi = new JMenuItem("Find and Replace...");
-		mi.addActionListener(e -> {
-			final String[] labels = { "<HTML>Find", "<HTML>Replace&nbsp;" };
-			if (getSearchable().isCaseSensitive())
-				labels[0] += " <i>[Cc]</i> ";
-			if (getSearchable().isWildcardEnabled())
-				labels[0] += " <i>[.*]</i> ";
-			labels[0] += "&nbsp;";
-			final String[] defaults = { getSearchingText(), "" };
-			final String[] findReplace = guiUtils.getStrings("Replace by Pattern...", labels, defaults);
-			if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty())
-				return; // user pressed cancel or chose no inputs
-			setSearchingText(findReplace[0]);
-			final boolean clickOnHighlightAllNeeded = !isHighlightAll();
-			if (clickOnHighlightAllNeeded)
-				_highlightsButton.doClick();
-			final Collection<Path> selectedPath = pmui.getSelectedPaths(false);
-			if (selectedPath.isEmpty()) {
-				guiUtils.error("No Paths matching '" + findReplace[0] + "'.", "No Paths Selected");
-				return;
-			}
-			if (findReplace[1] == null || findReplace[1].isEmpty())
-				return; // nothing to replace
-			if (getSearchable().isWildcardEnabled()) {
-				findReplace[0] = findReplace[0].replaceAll("\\?", ".?");
-				findReplace[0] = findReplace[0].replaceAll("\\*", ".*");
-			}
-			if (!getSearchable().isCaseSensitive()) {
-				findReplace[0] = "(?i)" + findReplace[0];
-			}
-			try {
-				final Pattern pattern = Pattern.compile(findReplace[0]);
-				for (final Path p : selectedPath) {
-					p.setName(pattern.matcher(p.getName()).replaceAll(findReplace[1]));
-				}
-				pmui.update();
-			} catch (final IllegalArgumentException ex) { // PatternSyntaxException etc.
-				guiUtils.error("Replacement pattern not valid: " + ex.getMessage());
-			} finally {
-				if (clickOnHighlightAllNeeded)
-					_highlightsButton.doClick(); // restore status
-			}
-		});
-		return mi;
 	}
 
 	private JMenu getImageFilterMenu() {

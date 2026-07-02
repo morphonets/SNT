@@ -821,7 +821,8 @@ public class GuiUtils {
 		return (String) getObj(promptMsg, promptTitle, defaultValue);
 	}
 
-	public String[] getStrings(final String promptTitle, final String[] labels, final String[] defaultValues) {
+	public String[] getStrings(final String promptTitle, final String[] labels, final String[] defaultValues,
+		final String optionalMsg) {
 		final JTextField[] fields = new JTextField[labels.length];
 		final JPanel panel = new JPanel(new GridBagLayout());
 		final GridBagConstraints c = new GridBagConstraints();
@@ -838,6 +839,13 @@ public class GuiUtils {
 			addClearButton(fields[i]);
 			fields[i].setText(defaultValues[i]);
 			panel.add(fields[i], c);
+		}
+		if (optionalMsg != null) {
+			c.gridx = 0;
+			c.gridy++;
+			c.gridwidth = 2;
+			c.insets.top += 10;
+			panel.add(new JLabel(optionalMsg), c);
 		}
 		final int result = JOptionPane.showConfirmDialog(parent, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
 				JOptionPane.PLAIN_MESSAGE);

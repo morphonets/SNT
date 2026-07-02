@@ -64,6 +64,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -155,9 +156,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         navToolbar = new NavigationToolBar(tree, scrollPane);
         add(scrollPane, BorderLayout.CENTER);
 
+        // Search Bar TreeSearchable
+        searchableBar = new PathManagerUISearchableBar(this);
+
         // Create all the menu items:
-        final SinglePathActionListener singlePathListener = new SinglePathActionListener();
         final MultiPathActionListener multiPathListener = new MultiPathActionListener();
+        final SinglePathActionListener singlePathListener = new SinglePathActionListener(multiPathListener);
 
         GuiUtils.removeIcon(this);
         menuBar = new JMenuBar();
@@ -168,9 +172,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         editMenu.add(getDeleteMenuItem(multiPathListener));
         editMenu.add(getDuplicateMenuItem(singlePathListener));
         editMenu.add(getRenameMenuItem(singlePathListener));
+        JMenuItem jmi = new JMenuItem(MultiPathActionListener.RENAME_BY_PATTERN_CMD, IconFactory.menuIcon('\ue521', true));
+        editMenu.add(jmi);
+        jmi.setToolTipText("Renames multiple paths using Find/Replace matching");
+        jmi.addActionListener(multiPathListener);
         editMenu.addSeparator();
 
-        JMenuItem jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.LINK));
+        jmi = new JMenuItem(MultiPathActionListener.AUTO_CONNECT_CMD, IconFactory.menuIcon(IconFactory.GLYPH.LINK));
         jmi.setToolTipText("<HTML>Connects 2 paths (parent-child) at an inferred fork point.<br>" +
                 "Suggests parent based on path properties.");
         jmi.addActionListener(multiPathListener);
@@ -452,8 +460,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi.addActionListener(multiPathListener);
         advanced.add(jmi);
 
-        // Search Bar TreeSearchable
-        searchableBar = new PathManagerUISearchableBar(this);
+
         final JPopupMenu popup = new JPopupMenu();
         popup.putClientProperty("owner", this); // see SNTCommandFinder#revealMenuItem()
         popup.add(getDeleteMenuItem(multiPathListener));
@@ -2573,17 +2580,28 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String EXPLORE_FIT_CMD = "Explore/Preview Fit";
         private static final String STRAIGHTEN = "Straighten...";
         private static final String NODE_PROFILER = "Node Profiler...";
+        private final MultiPathActionListener multiPathActionListener;
+
+        SinglePathActionListener(final MultiPathActionListener fallbackMultiPathActionListener) {
+            this.multiPathActionListener = fallbackMultiPathActionListener;
+        }
 
         @Override
         public void actionPerformed(final ActionEvent e) {
 
             // Process nothing without a single path selection
-            final Collection<Path> selectedPaths = getSelectedPaths(false);
-            if (selectedPaths.size() != 1) {
+            final List<Path> selectedPaths = getSelectedPaths(false);
+            if (RENAME_CMD.equals(e.getActionCommand()) && selectedPaths.size() > 1) {
+                if (guiUtils.getConfirmation("This command accepts only one path. Run "
+                        + MultiPathActionListener.RENAME_BY_PATTERN_CMD + " instead?", "Single Path Command"))
+                    multiPathActionListener.commands.get(MultiPathActionListener.RENAME_BY_PATTERN_CMD)
+                            .execute(selectedPaths, MultiPathActionListener.RENAME_BY_PATTERN_CMD);
+                return;
+            } else if (selectedPaths.size() != 1) {
                 guiUtils.error("This command accepts only a single path. Please re-run after having only one path selected.");
                 return;
             }
-            final Path p = selectedPaths.iterator().next();
+            final Path p = selectedPaths.getFirst();
             switch (e.getActionCommand()) {
                 case RENAME_CMD -> {
                     final String s = guiUtils.getString(
@@ -2904,6 +2922,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String DOWNSAMPLE_CMD = "Downsample...";
         private static final String Z_CORRECTION_CMD = "Correct Z-Shrinkage...";
         private static final String CUSTOM_TAG_CMD = "Other...";
+        private static final String RENAME_BY_PATTERN_CMD = "Rename by Pattern...";
         private static final String REPLACE_TAG_CMD = "Replace...";
         private static final String LENGTH_TAG_CMD = "Length";
         private static final String MEAN_RADIUS_TAG_CMD = "Mean Radius";
@@ -3013,6 +3032,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(DETECT_LABEL_PROXIMITY_CMD, new DetectLabelProximityCommand());
 
             // Modification commands
+            commands.put(RENAME_BY_PATTERN_CMD, new RenameByPatternCommand());
             commands.put(REVERSE_CMD, new ReverseCommand());
             commands.put(CONCATENATE_CMD, new ConcatenateCommand());
             commands.put(COMBINE_CMD, new CombineCommand());
@@ -3932,6 +3952,58 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 applyCustomTags(selectedPaths, GuiUtils.toString(tags));
                 refreshManager(false, false, selectedPaths);
                 plugin.setUnsavedChanges(true);
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class RenameByPatternCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                final String[] labels = {"<HTML>Find", "<HTML>Replace&nbsp;"};
+                if (getSearchable().isCaseSensitive()) labels[0] += " <i>[Cc]</i> ";
+                if (getSearchable().isWildcardEnabled()) labels[0] += " <i>[.*]</i> ";
+                labels[0] += "&nbsp;";
+                final String[] defaults = {PathManagerUI.this.getSearchable().getSearchingText(), ""};
+                final String[] findReplace = guiUtils.getStrings(
+                        String.format("Renaming %d Path(s) by Pattern", selectedPaths.size()),
+                        labels, defaults,
+                        "<HTML>Use <i>[Cc]</i> and <i>[.*]</i> in the search bar to refine matching");
+                if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty())
+                    return; // user pressed cancel or chose no inputs
+
+                if (findReplace[1] == null || findReplace[1].isEmpty())
+                    return; // nothing to replace
+                if (getSearchable().isWildcardEnabled()) {
+                    findReplace[0] = findReplace[0].replaceAll("\\?", ".?");
+                    findReplace[0] = findReplace[0].replaceAll("\\*", ".*");
+                }
+                if (!getSearchable().isCaseSensitive()) {
+                    findReplace[0] = "(?i)" + findReplace[0];
+                }
+                int replacements = 0;
+                try {
+                    final Pattern pattern = Pattern.compile(findReplace[0]);
+                    for (final Path p : selectedPaths) {
+                        final Matcher matcher = pattern.matcher(p.getName());
+                        if (matcher.find()) {
+                            replacements++;
+                            p.setName(matcher.replaceAll(findReplace[1]));
+                        }
+                    }
+                    if (replacements > 0) {
+                        refreshManager(false, false, selectedPaths);
+                        plugin.setUnsavedChanges(true);
+                        guiUtils.floatingMsg(String.format("%d/%d path(s) renamed.", replacements, selectedPaths.size()), true);
+                    } else {
+                        guiUtils.error(String.format("None of the %d paths matched the specified pattern.", selectedPaths.size()));
+                    }
+                } catch (final IllegalArgumentException ex) {
+                    guiUtils.error("Replacement pattern invalid: " + ex.getMessage());
+                }
             }
 
             @Override
@@ -5198,7 +5270,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private void replaceTags(final List<Path> selectedPaths) {
             final String[] labels = { "Find (case-sensitive) ", "Replace with " };
             final String[] defaults = { GuiUtils.toString(extractTagsFromPaths(selectedPaths)), "" };
-            final String[] findReplace = guiUtils.getStrings("Replace Tag(s)...", labels, defaults);
+            final String[] findReplace = guiUtils.getStrings("Replace Tag(s)...", labels, defaults, null);
             if (findReplace == null || findReplace[0] == null || findReplace[0].isEmpty() || findReplace[1] == null)
                 return; // nothing to replace
             findReplace[1] = findReplace[1].replace("[", "(").replace("]", ")")

@@ -4239,7 +4239,7 @@ public class Viewer3D {
             values.add(prefs.getGuiPref("aColor", "red")); // color
             values.add(prefs.getGuiPref("aTransparency", "50")); // transparency
             final String[] result = guiUtils().getStrings(title, labels.toArray(new String[0]),
-                    values.toArray(new String[0]));
+                    values.toArray(new String[0]), null);
             if (result == null)
                 return false;
             try {
@@ -4908,7 +4908,7 @@ public class Viewer3D {
                 final String[] defaults = { view.getAxisLayout().getXAxisLabel(), view.getAxisLayout().getYAxisLabel(),
                         view.getAxisLayout().getZAxisLabel() };
                 final String[] labels = mgrGuiUtils.getStrings("Axes Labels...",
-                        new String[] { "X axis ", "Y axis ", "Z axis " }, defaults);
+                        new String[] { "X axis ", "Y axis ", "Z axis " }, defaults, null);
                 if (labels != null)
                     setAxesLabels(labels);
             });

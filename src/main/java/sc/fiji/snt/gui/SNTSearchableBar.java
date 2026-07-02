@@ -296,23 +296,23 @@ public class SNTSearchableBar extends SearchableBar {
 		historyMenu.setToolTipText("Press enter on a typed term to store it in this menu");
 		popup.add(historyMenu);
 		popup.addSeparator();
+		final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Live Search", getSearchable().getSearchingDelay()!=-1);
+		jcbmi4.addItemListener(e -> getSearchable().setSearchingDelay((jcbmi4.isSelected())?DELAY_MS:-1));
+		jcbmi4.setToolTipText("Search while typing without having to press Enter. May slow down searches");
+		popup.add(jcbmi4);
 		if ((getVisibleButtons() & SHOW_STATUS) != 0) {
-			final JMenuItem jcbmi = new JCheckBoxMenuItem("Display No. of Matches", getSearchable().isCountMatch());
-			jcbmi.setToolTipText("May adversely affect performance if selected");
+			final JMenuItem jcbmi = new JCheckBoxMenuItem("Show Match Count", getSearchable().isCountMatch());
+			jcbmi.setToolTipText("Display no. of matches. May slow down searches");
 			jcbmi.addItemListener(e -> {
 				setShowMatchCount(jcbmi.isSelected());
 				updateSearch();
 			});
 			popup.add(jcbmi);
 		}
-		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Loop After First/Last Hit", getSearchable().isRepeats());
+		final JMenuItem jcbmi3 = new JCheckBoxMenuItem("Wrap Around", getSearchable().isRepeats());
 		jcbmi3.addItemListener(e -> getSearchable().setRepeats(jcbmi3.isSelected()));
 		jcbmi3.setToolTipText("Return to first hit after last is selected?");
 		popup.add(jcbmi3);
-		final JMenuItem jcbmi4 = new JCheckBoxMenuItem("Non-interactive Search", getSearchable().getSearchingDelay()==-1);
-		jcbmi4.addItemListener(e -> getSearchable().setSearchingDelay((jcbmi4.isSelected())?-1:DELAY_MS));
-		jcbmi4.setToolTipText("Search only after Enter is pressed");
-		popup.add(jcbmi4);
 		popup.addSeparator();
 		popup.add(getTipsAndShortcutsMenuItem());
 		return popup;
@@ -352,10 +352,10 @@ public class SNTSearchableBar extends SearchableBar {
 						+ objectDescription + " filtered by the search term</li>";
 			}
 			msg += "<li>To improve search performance:</li><ul>" +
-					"<li>Disable <i>Display No. of Matches</i></li>" +
-					"<li>Enable <i>Non-interactive Search</i> (search starts only after pressing Enter)</li></ul>" +
+					"<li>Disable <i>Live Search</i>  (search starts only after pressing Enter)</li>" +
+					"<li>Disable <i>Show Match Count</i></li></ul>" +
 					"</ul></div></html>";
-			getGuiUtils().centeredMsg(msg, "Text-based Filtering");
+			getGuiUtils().centeredMsg(msg, "Text-Based Selections");
 		});
 		return mi2;
 	}
