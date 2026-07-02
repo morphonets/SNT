@@ -5434,7 +5434,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private final JToggleButton hideOthersButton;
         private final JToggleButton showAllArborsButton;
         private final JButton sortArborsButton;
-        private JButton nextArborButton;
         private String arborChoice = null; // currently chosen tree label
         private boolean navSyncGuard = false;   // prevents feedback loops between combobox and jtree
 
@@ -5451,7 +5450,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             this.embeddingParent = scrollPaneOfJTree.getColumnHeader();
             arborChoiceCombo = new JComboBox<>();
             sortArborsButton = sortButton();
-            //nextArborButton = nextArborButton();
             showAllArborsButton = GuiUtils.Buttons.toolbarToggleButton(showAllAction(), "Show all structures",
                     IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE);
             showAllArborsButton.setSelected(true);
@@ -5515,23 +5513,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
             //... otherwise retrieve paths as usual
             return getSelectedPaths(ifNoneSelectedGetAll);
-        }
-
-        private JButton nextArborButton() {
-            final JButton b = new JButton(); //
-            IconFactory.assignIcon(b, IconFactory.GLYPH.NEXT, IconFactory.GLYPH.NEXT, 1f);
-            b.setToolTipText("Next structure");
-            b.addActionListener(e -> {
-                final int n = arborChoiceCombo.getItemCount();
-                if ( n== 0) return;
-                int i = arborChoiceCombo.getSelectedIndex();
-                if (i == n - 1 || i == -1) {
-                    arborChoiceCombo.setSelectedIndex(0);
-                } else {
-                    arborChoiceCombo.setSelectedIndex(i+1);
-                }
-            });
-            return b;
         }
 
         private JButton sortButton() {
@@ -5971,7 +5952,6 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 sortArborsButton.setEnabled(!single);
                 showAllArborsButton.setEnabled(!single);
                 arborChoiceCombo.setEnabled(!single);
-                if (nextArborButton!= null) nextArborButton.setEnabled(!single);
                 hideOthersButton.setEnabled(!single);
                 if (arborChoice != null && labels.contains(arborChoice)) {
                     arborChoiceCombo.setSelectedItem(arborChoice);

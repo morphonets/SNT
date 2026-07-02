@@ -316,16 +316,23 @@ public class SNTCommandFinder {
 
     private void revealCmd(final CmdAction cmd) {
         if (cmd == null) {
-            displayTempMsg("Command cannot be revealed.", true);
+            displayTempMsg("Command/Action cannot be revealed.", true);
             return;
         }
-        if (cmd.button == null && cmd.action != null || cmd.button != null && cmd.button.getParent() == null) {
-            // special cases: proxy buttons or proxy actions: executing IS the reveal
+        if (cmd.revealAction != null) {
+            // special case 1: ad-hoc reveal action
+            cmd.revealAction.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
+        } else if (cmd.button == null && cmd.action != null || cmd.button != null && cmd.button.getParent() == null) {
+            // special case 2: proxy buttons or proxy actions: executing IS the reveal
             executeCmd(cmd);
-        } else if (cmd.button instanceof JMenuItem jmi)
+        } else if (cmd.button instanceof JMenuItem jmi) {
             revealMenuItem(jmi);
-        else
+        } else try {
             revealButton(cmd);
+        } catch (final Throwable t) {
+            displayTempMsg("Button can not be displayed in current state", true);
+        }
+
     }
 
     // Open the menu/popup, arm the item, leave it to the user
@@ -390,9 +397,13 @@ public class SNTCommandFinder {
 
     // Blink the button to indicate where it is, then stop (no auto-execute in reveal mode)
     private void revealButton(final CmdAction cmd) {
+
         final Color originalBackground = cmd.button.getBackground();
         final boolean originalOpaque = cmd.button.isOpaque();
         final boolean originalContentFilled = cmd.button.isContentAreaFilled();
+        final boolean enabled = cmd.button.isEnabled();
+        final Container parent = cmd.button.getParent();
+        final Color parentBackground = (parent==null) ? null : parent.getBackground();
 
         final Timer timer = new Timer(500, null);
         timer.addActionListener(new ActionListener() {
@@ -408,10 +419,19 @@ public class SNTCommandFinder {
                     cmd.button.setBackground(originalBackground);
                     cmd.button.setOpaque(originalOpaque);
                     cmd.button.setContentAreaFilled(originalContentFilled);
+                    cmd.button.setEnabled(enabled);
                     cmd.button.repaint();
+                    if (parent != null) {
+                        parent.setBackground(parentBackground);
+                        parent.repaint();
+                    }
                     return;
                 }
-                if (currentTick == 1) revealParent(cmd.button);
+                if (currentTick == 1) {
+                    cmd.button.setEnabled(true);
+                    revealParent(cmd.button);
+                    if (parent != null) parent.setBackground(GuiUtils.warningColor());
+                }
                 isBlinkingOn = !isBlinkingOn;
                 if (isBlinkingOn) {
                     cmd.button.setBackground(GuiUtils.getSelectionColor());
@@ -566,15 +586,17 @@ public class SNTCommandFinder {
      * {@code keywords}, {@code label}, and {@code path}.
      * </p>
      *
-     * @param label    primary entry name (matched against id; also displayed in the palette)
-     * @param path     parent-path description shown in the palette, e.g. {@code List.of("PM Tabs")}
-     * @param keywords additional searchable terms; any match brings up the entry
-     *                 (e.g., synonyms, related concepts, or names of nested features)
-     * @param action   what to run when the entry is invoked
+     * @param label         primary entry name (matched against id; also displayed in the palette)
+     * @param path          parent-path description shown in the palette, e.g. {@code List.of("PM Tabs")}
+     * @param keywords      additional searchable terms; any match brings up the entry
+     *                      (e.g., synonyms, related concepts, or names of nested features)
+     * @param executeAction what to run when the entry is invoked
+     * @param revealAction  what to run when the entry is invoked in 'reveal' mode. Optional: null allowed.
      */
     public void registerKeywords(final String label, final List<String> path,
-                                 final List<String> keywords, final Runnable action) {
-        if (label == null || action == null)
+                                 final List<String> keywords, final Runnable executeAction,
+                                 final Runnable revealAction) {
+        if (label == null || executeAction == null)
             throw new IllegalArgumentException("label and action cannot be null");
         final CmdAction entry = new CmdAction(label);
         entry.path = (path == null) ? new ArrayList<>() : new ArrayList<>(path);
@@ -582,7 +604,12 @@ public class SNTCommandFinder {
         entry.action = new AbstractAction(label) {
             private static final long serialVersionUID = 1L;
             @Override
-            public void actionPerformed(final ActionEvent e) { action.run(); }
+            public void actionPerformed(final ActionEvent e) { executeAction.run(); }
+        };
+        entry.revealAction = new AbstractAction(label) {
+            private static final long serialVersionUID = 1L;
+            @Override
+            public void actionPerformed(final ActionEvent e) { revealAction.run(); }
         };
         cmdScrapper.extras.add(entry);
         // If the scrapper has already populated the index, splice the entry
@@ -1119,6 +1146,7 @@ public class SNTCommandFinder {
         String hotkey;
         AbstractButton button;
         Action action;
+        Action revealAction;
         /** Extra searchable terms (case-insensitive); null when not provided. */
         List<String> keywords;
         /** Raw concatenation of keywords; built once, re-used across normGeneration changes. */

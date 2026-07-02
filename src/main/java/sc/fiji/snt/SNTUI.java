@@ -514,13 +514,6 @@ public class SNTUI extends JDialog {
         tabbedPane.addChangeListener(e -> {
             final JTabbedPane source = (JTabbedPane) e.getSource();
             final int selectedTab = source.getSelectedIndex();
-            // Do not allow secondary tabs to be selected while operations are pending
-            if (selectedTab > 0 && userInteractionConstrained()) {
-                tabbedPane.setSelectedIndex(0);
-                guiUtils.blinkingError(statusText,
-                        "Please complete current task before selecting the "+ source.getTitleAt(selectedTab) +" tab.");
-                return;
-            }
             if (recorder != null) {
                 recorder.recordCmd("snt.getUI().selectTab(\"" + source.getTitleAt(selectedTab) +"\")");
             }
@@ -546,16 +539,6 @@ public class SNTUI extends JDialog {
      */
     public SNTPrefs getPrefs() {
         return plugin.getPrefs();
-    }
-
-    private boolean userInteractionConstrained() {
-        if (plugin.getPrefs().getTemp("demo-running", false))
-            return false;
-        return switch (getState()) {
-            case PARTIAL_PATH, SEARCHING, QUERY_KEEP, RUNNING_CMD, CALCULATING_HESSIAN_I, CALCULATING_HESSIAN_II,
-                 WAITING_FOR_SIGMA_POINT_I, WAITING_FOR_SIGMA_CHOICE, LOADING -> true;
-            default -> false;
-        };
     }
 
     /**
@@ -623,24 +606,22 @@ public class SNTUI extends JDialog {
      */
     public void selectTab(final String tabTitle) {
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
-        SwingUtilities.invokeLater(() -> {
-            if (tp != null) {
-                final int idx = tp.indexOfTab(tabTitle.trim().split(" ")[0]);
-                if (idx >= 0) {
-                    tp.setSelectedIndex(idx);
-                } else {
-                    // Try case-insensitive match
-                    final String key = tabTitle.trim().split(" ")[0].toLowerCase();
-                    for (int i = 0; i < tp.getTabCount(); i++) {
-                        if (tp.getTitleAt(i).toLowerCase().startsWith(key)) {
-                            tp.setSelectedIndex(i);
-                            return;
-                        }
-                    }
-                    throw new IllegalArgumentException("Unrecognized tab: " + tabTitle);
-                }
-            }
-        });
+        final int idx = InternalUtils.getTabIndex(tp, tabTitle);
+        if (idx != -1)
+            SwingUtilities.invokeLater(() -> tp.setSelectedIndex(idx));
+        else
+            throw new IllegalArgumentException("Unrecognized tab: " + tabTitle);
+    }
+
+    private void selectAndHighlightTab(final String tabTitle) {
+        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+        final int idx = InternalUtils.getTabIndex(tp, tabTitle);
+        if (idx > -1) {
+            SwingUtilities.invokeLater(() -> {
+                tp.setSelectedIndex(idx);
+                InternalUtils.blinkTab(tp, idx);
+            });
+        }
     }
 
     private JTabbedPane getJTabbedPaneAddedToContentPane() {
@@ -1462,7 +1443,7 @@ public class SNTUI extends JDialog {
     private JPanel viewsPanel() {
         final JPanel viewsPanel = new JPanel(new GridBagLayout());
         final GridBagConstraints gdb = GuiUtils.defaultGbc();
-        gdb.gridwidth = 1;
+        gdb.gridwidth = 3;
 
         final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
                 !plugin.isZoomAllPanesDisabled());
@@ -1587,12 +1568,17 @@ public class SNTUI extends JDialog {
         invertLutButton.setPreferredSize(new Dimension(
                 invertLutButton.getPreferredSize().width,
                 rebuildCanvasButton.getPreferredSize().height));
-        final JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, InternalUtils.MARGIN));
-        buttonPanel.add(invertLutButton);
-        buttonPanel.add(rebuildCanvasButton);
-        buttonPanel.add(refreshPanesButton);
+        // Disable fill/weightx (set by defaultGbc) so buttons render at their preferred size
         gdb.fill = GridBagConstraints.NONE;
-        viewsPanel.add(buttonPanel, gdb);
+        gdb.weightx = 0;
+        gdb.insets = new Insets(InternalUtils.MARGIN, 0, InternalUtils.MARGIN, 0);
+        gdb.gridwidth = 1;
+        gdb.gridx = 0;
+        viewsPanel.add(invertLutButton, gdb);
+        gdb.gridx = 1;
+        viewsPanel.add(rebuildCanvasButton, gdb);
+        gdb.gridx = 2;
+        viewsPanel.add(refreshPanesButton, gdb);
         return viewsPanel;
     }
 
@@ -1772,6 +1758,7 @@ public class SNTUI extends JDialog {
             showStatus("Interactive diameter reset", true);
         });
         final JPanel p = new JPanel();
+        p.setOpaque(false);
         p.setLayout(new GridBagLayout());
         final GridBagConstraints c = GuiUtils.defaultGbc();
         c.fill = GridBagConstraints.HORIZONTAL;
@@ -1820,8 +1807,7 @@ public class SNTUI extends JDialog {
                 recorder.recordCmd("snt.getUI().setRenderingScale(-1)");
             showStatus("Node scale reset", true);
         });
-        final JPanel p = new JPanel();
-        p.setLayout(new GridBagLayout());
+        final JPanel p = InternalUtils.getGlassPanel();
         final GridBagConstraints c = GuiUtils.defaultGbc();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridx = 0;
@@ -1849,8 +1835,7 @@ public class SNTUI extends JDialog {
             showStatus("Default transparency reset", true);
         });
 
-        final JPanel p = new JPanel();
-        p.setLayout(new GridBagLayout());
+        final JPanel p = InternalUtils.getGlassPanel();
         final GridBagConstraints c = GuiUtils.defaultGbc();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridx = 0;
@@ -1879,8 +1864,7 @@ public class SNTUI extends JDialog {
             showStatus("Default transparency reset", true);
         });
 
-        final JPanel p = new JPanel();
-        p.setLayout(new GridBagLayout());
+        final JPanel p = InternalUtils.getGlassPanel();
         final GridBagConstraints c = GuiUtils.defaultGbc();
         c.fill = GridBagConstraints.HORIZONTAL;
         c.gridx = 0;
@@ -1952,8 +1936,7 @@ public class SNTUI extends JDialog {
             setColor(key, color);
             cChooser.setSelectedColor(color, true);
         });
-        final JPanel p = new JPanel();
-        p.setLayout(new GridBagLayout());
+        final JPanel p = InternalUtils.getGlassPanel();
         final GridBagConstraints gbcLabel = new GridBagConstraints();
         p.add(GuiUtils.leftAlignedLabel("Colors: ", true), gbcLabel);
         final GridBagConstraints gbcComboBox = new GridBagConstraints();
@@ -4773,12 +4756,15 @@ public class SNTUI extends JDialog {
                 "Main/Home Tab",
                 List.of("Tabs"),
                 List.of("data source", "cursor snapping", "display filters", "interactive tracing", "channel", "frame"),
-                () -> selectTab("Main"));
+                () -> selectTab("Main"),
+                () -> selectAndHighlightTab("Main"));
         // Options tab
         commandFinder.registerKeywords(
                 "Options",
                 List.of("Tabs"),
-                List.of("settings"), () -> selectTab("Options"));
+                List.of("settings"),
+                () -> selectTab("Options"),
+                () -> selectAndHighlightTab("Options"));
         // Curation Assistant
         final List<String> qcKeywords = new ArrayList<>(List.of("QC", "validation", "warning", "issues", "plausibility",
                 "deep scan", "live monitor"));
@@ -4787,37 +4773,44 @@ public class SNTUI extends JDialog {
         commandFinder.registerKeywords(
                 "Curation Assistant",
                 List.of("Tabs"),
-                qcKeywords, () -> selectTab("Assistant"));
+                qcKeywords,
+                () -> selectTab("Assistant"),
+                () -> selectAndHighlightTab("Assistant"));
         // Bookmarks tab
         commandFinder.registerKeywords(
                 "Bookmarks",
                 List.of("Tabs"),
                 List.of("bookmark", "marker", "tagged location", "tagged node", "colocalize", "location",
                         "click-on-point", "export csv"), //
-                () -> selectTab("Bookmarks"));
+                () -> selectTab("Bookmarks"),
+                () -> selectAndHighlightTab("Bookmarks"));
         commandFinder.registerKeywords(
                 "3D",
                 List.of("Tabs"),
                 List.of("viewer", "big data", "bvv", "bdv", "sciview", "reconstruction", "rec viewer", "legacy"),
-                () -> selectTab("3D"));
+                () -> selectTab("3D"),
+                () -> selectAndHighlightTab("3D"));
         // Delineations tab
         commandFinder.registerKeywords(
                 "Delineations",
                 List.of("Tabs"),
                 List.of("delineation", "region", "atlas annotation", "assignment", "labels/mask image", "roi"),
-                () -> selectTab("Delineations"));
+                () -> selectTab("Delineations"),
+                () -> selectAndHighlightTab("Delineations"));
         // Seeds tab
         commandFinder.registerKeywords(
-                "Seeds",
+                "Seeded Tracing",
                 List.of("Tabs"),
                 List.of("seed", "soma", "import csv", "labels/mask image", "autotrace", "candidate points", "prediction", "waypoint"),
-                () -> selectTab("Seeds"));
+                () -> selectTab("Seeds"),
+                () -> selectAndHighlightTab("Seeds"));
         // Notes tab
         commandFinder.registerKeywords(
-                "Notes",
+                "Notepad",
                 List.of("Tabs"),
-                List.of("note", "comment", "record"),
-                () -> selectTab("Notes"));
+                List.of("notes", "comment", "record"),
+                () -> selectTab("Notes"),
+                () -> selectAndHighlightTab("Notes"));
     }
 
     /** Returns the Curation Manager (Curation Assistant). */
@@ -5605,6 +5598,47 @@ public class SNTUI extends JDialog {
             tab.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN / 2, MARGIN / 2, MARGIN));
             tab.setLayout(new GridBagLayout());
             return tab;
+        }
+
+        static JPanel getGlassPanel() {
+            final JPanel p = new JPanel();
+            p.setLayout(new GridBagLayout());
+            p.setOpaque(false);
+            return p;
+        }
+
+        static int getTabIndex(final JTabbedPane tabbedPane, final String tabTitle) {
+            if (tabbedPane == null) return -1;
+            int idx = tabbedPane.indexOfTab(tabTitle.trim().split(" ")[0]);
+            if (idx > -1) return idx;
+            // Try case-insensitive match
+            final String key = tabTitle.trim().split(" ")[0].toLowerCase();
+            for (int i = 0; i < tabbedPane.getTabCount(); i++) {
+                if (tabbedPane.getTitleAt(i).toLowerCase().startsWith(key)) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private static void blinkTab(final JTabbedPane tabbedPane, final int tabIndex) {
+            if (tabIndex == -1) return;
+            final Color originalColor = tabbedPane.getBackgroundAt(tabIndex);
+            final Timer blinkTimer = new Timer(500, null);
+            blinkTimer.addActionListener(new ActionListener() {
+                int currentTick = 0;
+                @Override
+                public void actionPerformed(final ActionEvent e) {
+                    if (++currentTick > 4) {
+                        blinkTimer.stop();
+                        tabbedPane.setBackgroundAt(tabIndex, originalColor);
+                        return;
+                    }
+                    tabbedPane.setBackgroundAt(tabIndex,
+                            (currentTick % 2 == 1) ? GuiUtils.warningColor() : originalColor);
+                }
+            });
+            blinkTimer.start();
         }
 
         static void ijmLogMessage() {
