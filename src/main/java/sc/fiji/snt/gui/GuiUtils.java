@@ -164,7 +164,7 @@ public class GuiUtils {
 			if (SNTPrefs.firstRunAfterUpdate()) {
 				final String s = """
 						<HTML>
-						&nbsp;<b>SNT was updated: Click this notification to find out what is new!</b>
+						&nbsp;<b>SNT was updated: Click here to find out what is new!</b>
 						<br>&nbsp;Tip: You may want to run <i>File › Reset and Restart...</i> to clear outdated settings.
 						""";
 				showNotification(leftAlignedLabel(s, MenuItems.releaseNotesURL(), true), true, -1);
@@ -1422,7 +1422,14 @@ public class GuiUtils {
 		ep.setCaretPosition(0);
 		ep.addHyperlinkListener(e -> {
 			if (HyperlinkEvent.EventType.ACTIVATED.equals(e.getEventType()))
-				openURL(e.getURL().toString());
+				if (e.getURL() != null && "file".equalsIgnoreCase(e.getURL().getProtocol())) {
+					try {
+						FileChooser.reveal(Path.of(e.getURL().toURI()).toFile());
+					} catch (final IOException | IllegalArgumentException | URISyntaxException ex) {
+						error("Could not open " + ex.getMessage() + ".");
+					}
+				} else if (e.getURL() != null)
+					openURL(e.getURL().toString());
 		});
 		return ep;
 	}
@@ -1510,6 +1517,56 @@ public class GuiUtils {
 		}
 		// Fallback to default screen
 		return GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice().getDefaultConfiguration();
+	}
+
+
+	/**
+	 * Positions a target window relative to a reference window while preventing it from
+	 * being hidden behind system docks, taskbars, or menu bars across macOS, Windows, and Linux.
+	 *
+	 * <p><b>Precondition:</b> The target window must have its size initialized
+	 *
+	 * @param target    the window to be positioned (e.g., JFrame, JDialog); cannot be null
+	 * @param reference the reference window to position relative to; if null or not visible,
+	 *                  the target window centers on the primary screen launcher bounds
+	 */
+	public static void setLocationRelativeTo(final Window target, final Window reference) {
+		if (target == null) {
+			throw new IllegalArgumentException("Target window cannot be null.");
+		}
+
+		// 1. Initial baseline positioning relative to the component
+		target.setLocationRelativeTo(reference);
+
+		// 2. Resolve the correct monitor/graphics configuration context
+		// If reference is null, fallback to the target's current config or default screen
+		GraphicsConfiguration config = (reference != null && reference.isShowing())
+				? reference.getGraphicsConfiguration()
+				: target.getGraphicsConfiguration();
+
+		if (config == null) {
+			config = target.getGraphicsConfiguration();
+		}
+
+		// 3. Extract screen boundaries in pixels
+		Rectangle screenBounds = config.getBounds();
+
+		// 4. Extract native OS exclusions (OSX Dock, Windows Taskbar, GNOME Panel)
+		// This automatically returns high-DPI scaled pixels in Java 9+
+		Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(config);
+
+		// 5. Compute the absolute bounding box of safe printable space
+		int minX = screenBounds.x + screenInsets.left;
+		int minY = screenBounds.y + screenInsets.top;
+		int maxX = screenBounds.x + screenBounds.width - screenInsets.right - target.getWidth();
+		int maxY = screenBounds.y + screenBounds.height - screenInsets.bottom - target.getHeight();
+
+		// 6. Clamp the coordinates to stay completely within the safe zone
+		int finalX = Math.clamp(target.getX(), minX, maxX);
+		int finalY = Math.clamp(target.getY(), minY, maxY);
+
+		// 7. Apply safely-clamped bounds back to the target frame
+		target.setLocation(finalX, finalY);
 	}
 
 	public static void displayBanner(final String msg, final Color background, final Component parent) {
@@ -4773,6 +4830,10 @@ public class GuiUtils {
 			button.setMargin(new Insets((int) (insets.top * SCALE), (int) (insets.left *
 					SCALE), (int) (insets.bottom * SCALE), (int) (insets.right * SCALE)));
 			return button;
+		}
+
+		public static void makeRoundRect(final AbstractButton button) {
+			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_ROUND_RECT);
 		}
 
 		public static JButton toolbarButton(final String badgeName) {

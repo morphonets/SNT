@@ -128,9 +128,7 @@ class FADerivedIcon implements Icon {
     static Font getFont(final boolean solid, final float size) {
         // Cache derived fonts to avoid repeated Font.deriveFont() calls
         final java.util.Map<Float, Font> cache = solid ? fontSolidCache : fontRegularCache;
-        return cache.computeIfAbsent(size, s ->
-                (solid ? fontSolid : fontRegular).deriveFont(s)
-        );
+        return cache.computeIfAbsent(size, (solid ? fontSolid : fontRegular)::deriveFont);
     }
 
     static int defSize() {

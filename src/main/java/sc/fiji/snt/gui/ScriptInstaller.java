@@ -72,6 +72,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	private static TextEditor editor;
 
 	private boolean openInsteadOfRun;
+	private Icon cmdFinderIcon;
 
 	public ScriptInstaller(final Context context, final Component parent){
 		context.inject(this);
@@ -223,6 +224,7 @@ public class ScriptInstaller implements MenuKeyListener {
 	private JMenuItem menuItem(final ScriptInfo si, final boolean trimExtension) {
 		final JMenuItem mItem = new JMenuItem(getScriptLabel(si, trimExtension));
 		mItem.setToolTipText("Click to run script. Click holding Shift to open it");
+		mItem.putClientProperty("cmdFinder-icon", getCmdFinderIcon());
 		mItem.addMenuKeyListener(this);
 		mItem.addChangeListener(e -> updateMenuItemIcon(mItem));
 		mItem.addActionListener(e -> {
@@ -234,6 +236,11 @@ public class ScriptInstaller implements MenuKeyListener {
 			openInsteadOfRun = false;
 		});
 		return mItem;
+	}
+
+	private Icon getCmdFinderIcon() {
+		if (cmdFinderIcon == null) cmdFinderIcon = IconFactory.menuIcon('\uf70e', true, IconFactory.secondaryColor());
+		return cmdFinderIcon;
 	}
 
 	private void updateMenuItemIcon(final JMenuItem item) {
@@ -341,6 +348,7 @@ public class ScriptInstaller implements MenuKeyListener {
 		nMenu.add(mi2);
 
 		final JMenuItem mi3 = new JMenuItem("REPL", IconFactory.menuIcon(GLYPH.CODE));
+		mi3.setToolTipText("Launch terminal to run and evaluate code in real time");
 		mi3.addActionListener(e -> {
 			final SNTREPL repl = new SNTREPL(SNTUtils.getContext());
 			repl.setLocationRelativeTo(ui);
@@ -434,12 +442,16 @@ public class ScriptInstaller implements MenuKeyListener {
 	private JMenuItem about() {
 		final JMenuItem mItem = new JMenuItem("About SNT Scripts...");
 		mItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.QUESTION));
+		final String scriptsDir = getScriptsDirPath();
 		mItem.addActionListener(e -> guiUtils.showHTMLDialog(
             "<HTML><div WIDTH=500>This menu lists scripting routines that " //
             + "<a href='https://imagej.net/plugins/snt/scripting'>enhance SNT functionality</a>. " //
             + "The list is automatically populated at startup.<br><br>" //
-            + "To have your own scripts listed here, save them in the <tt>scripts</tt> " //
-            + "directory while including <i>SNT</i> in the filename (e.g., <tt>" //
+            + "To have your own scripts listed here, save them in the " //
+			+ ((scriptsDir == null)
+					? "<tt>scripts</tt> directory "
+					: "<a href='" + java.nio.file.Paths.get(scriptsDir).toUri() + "'>scripts directory</a> ")
+            + "while including <i>SNT</i> in the filename (e.g., <tt>" //
             + getScriptsDirPath() + File.separator + "My_SNT_script.py</tt>) <br><br>" //
             + "To edit a listed script hold \"Shift\" while clicking on its menu entry.<br><br>" //
             + "Many other programming examples are available through the Script Editor's " //

@@ -198,23 +198,24 @@ public class SeedManager extends JPanel {
     }
 
     private JToolBar buildDisplayRow() {
-        final JToolBar p = new JToolBar();
-        p.setFloatable(false);
+
         final JToggleButton visibilityToggle = GuiUtils.Buttons.toolbarToggleButton(
                 toggleVisibilityAction,
                 "Show/hide seeds",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
+        visibilityToggle.setSelected(overlay.isVisible() && !overlay.isEmpty());
+
+        colorModeCombo = buildColorModeCombo();
+        lutRamp = new LutRamp(overlay::getColorTable, overlay::getLowConfidence, overlay::getHighConfidence);
+        final JToolBar p = new JToolBar();
+        p.setFloatable(false);
         p.add(visibilityToggle);
         p.add(Box.createHorizontalGlue());
-        lutRamp = new LutRamp(overlay::getColorTable, overlay::getLowConfidence, overlay::getHighConfidence);
-        final int h = visibilityToggle.getPreferredSize().height;
-        lutRamp.setPreferredSize(new Dimension(lutRamp.getPreferredSize().width, h));
-        lutRamp.setMaximumSize(new Dimension(lutRamp.getMaximumSize().width, h));
         p.add(lutRamp);
+        p.add(colorModeCombo);
+        p.add(Box.createHorizontalGlue());
         p.add(GuiUtils.Buttons.ColorTableButton(1f, overlay::setColorTable, DEFAULT_COLOR_TABLE_NAME,
                 getTransparencyMenuItem()));
-        colorModeCombo = buildColorModeCombo();
-        p.add(colorModeCombo);
         return p;
     }
 
@@ -1499,16 +1500,27 @@ public class SeedManager extends JPanel {
                 final ColorTable table = tableSupplier.get();
                 if (table == null || w <= 0 || h <= 0) return;
 
-                // Clip the gradient + dim overlays to the same rounded shape FlatRoundBorder draws, so we don't paint
-                // past the corner arcs. FlatLaf publishes the corner radius via the "Component.arc", fall back to a
-                // something similar if the LaF isn't FlatLaf
+                // Clip the gradient + dim overlays to the interior of FlatRoundBorder.
+                // Insetting by the border insets confines painting to the content area, and reducing the arc by the
+                // same amount keeps the inner corner correct (shrinking a rounded rect inward by d reduces the corner
+                // arc by d)
                 int arc = UIManager.getInt("Component.arc");
                 if (arc <= 0) arc = 6;
+                final java.awt.Insets bi = getInsets();
+                final float innerArc = Math.max(0, arc - bi.left);
                 GuiUtils.setRenderingHints(g);
-                g.clip(new java.awt.geom.RoundRectangle2D.Float(0, 0, w, h, arc, arc));
+                g.clip(new java.awt.geom.RoundRectangle2D.Float(
+                        bi.left, bi.top,
+                        w - bi.left - bi.right,
+                        h - bi.top - bi.bottom,
+                        innerArc, innerArc));
+                final int cx = bi.left;
+                final int cy = bi.top;
+                final int cw = w - bi.left - bi.right;
+                final int ch = h - bi.top - bi.bottom;
                 final int len = table.getLength();
-                for (int x = 0; x < w; x++) {
-                    final double t = (double) x / Math.max(1, w - 1);
+                for (int x = 0; x < cw; x++) {
+                    final double t = (double) x / Math.max(1, cw - 1);
                     int idx = (int) Math.round(t * (len - 1));
                     if (idx < 0) idx = 0;
                     else if (idx >= len) idx = len - 1;
@@ -1516,16 +1528,16 @@ public class SeedManager extends JPanel {
                     final int gr = table.get(ColorTable.GREEN, idx);
                     final int b = table.get(ColorTable.BLUE, idx);
                     g.setColor(new Color(r, gr, b));
-                    g.fillRect(x, 0, 1, h);
+                    g.fillRect(cx + x, cy, 1, ch);
                 }
                 // Dim the regions outside [low, high]
                 final double low = lowSupplier.getAsDouble();
                 final double high = highSupplier.getAsDouble();
                 g.setColor(new Color(0, 0, 0, 120));
-                final int lowX = (int) Math.round(low * w);
-                final int highX = (int) Math.round(high * w);
-                if (lowX > 0) g.fillRect(0, 0, lowX, h);
-                if (highX < w) g.fillRect(highX, 0, w - highX, h);
+                final int lowX = (int) Math.round(low * cw);
+                final int highX = (int) Math.round(high * cw);
+                if (lowX > 0) g.fillRect(cx, cy, lowX, ch);
+                if (highX < cw) g.fillRect(cx + highX, cy, cw - highX, ch);
             } finally {
                 g.dispose();
             }

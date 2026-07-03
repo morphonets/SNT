@@ -147,6 +147,7 @@ public class ColorMenu extends JMenu {
 
 	private void addSeparator(final String header) {
 		final JMenuItem sep = new JMenuItem(header);
+		sep.putClientProperty("cmdFinder-ignore", true);
 		sep.setEnabled(false);
 		sep.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, GuiUtils.getDisabledComponentColor()));
 		sep.setDisabledIcon(IconFactory.menuIcon(IconFactory.GLYPH.COLOR, GuiUtils.getDisabledComponentColor()));

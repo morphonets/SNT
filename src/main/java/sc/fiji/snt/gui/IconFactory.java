@@ -445,6 +445,10 @@ public class IconFactory {
         return new AccentIcon(color, (squarify) ? size : size * 2, size);
     }
 
+    public static int defaultSize() {
+        return FADerivedIcon.defSize();
+    }
+
     /* Creation of colorful JTree node icons */
     private static class NodeIcon implements Icon {
 

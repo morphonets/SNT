@@ -49,6 +49,10 @@ import java.util.*;
 public class SNTCommandFinder {
 
     private static final String NAME = "Command Palette";
+
+    // Customization/theme
+    private static final Color BACKGROUND = getBackgroundColor();
+    private Color searchFieldBackground;
     private static final LevenshteinDistance UNIT_LEVENSHTEIN = LevenshteinDistance.getDefaultInstance();
     // Settings. Ought to become adjustable some day
     private static final KeyStroke ACCELERATOR = KeyStroke.getKeyStroke(KeyEvent.VK_P,
@@ -78,6 +82,8 @@ public class SNTCommandFinder {
     // keyed to this generation, so they are rebuilt only once per settings change rather than every keystroke
     private int normGeneration = 0;
     private boolean reveal;
+    private Timer revealTimer;
+    private Timer msgTimer;
 
     /**
      * Constructs a new SNTCommandFinder for the specified SNTUI instance.
@@ -90,8 +96,8 @@ public class SNTCommandFinder {
         noHitsCmd = new SearchWebCmd();
         cmdScrapper = new CmdScrapper();
         maxPath = 2;
-        keyWordsToIgnoreInMenuPaths = Arrays.asList("Full List", "Batch Scripts"); // alias menus listing cmds elsewhere
-        widestCmd = "Path Visibility Filter: 3. Only Active Channel/Frame  ";
+        keyWordsToIgnoreInMenuPaths = List.of("Full List"); // alias menus listing cmds elsewhere
+        widestCmd = "Auto-load Channel/frame When Starting New Paths  ";
     }
 
     /**
@@ -191,7 +197,7 @@ public class SNTCommandFinder {
             }
         });
         populateList("");
-        frame.getContentPane().setBackground(searchField.getBackground());
+        frame.getContentPane().setBackground(BACKGROUND);
         frame.add(table.getScrollPane(), BorderLayout.SOUTH);
         frame.pack();
         enableDrag(frame.getRootPane()); // always undecorated, so always need drag support
@@ -224,13 +230,15 @@ public class SNTCommandFinder {
 
     private void initSearchField() {
         searchField = new SearchField("Search for actions and commands (e.g., Sholl)",
-                SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON);
-        searchField.enlarge(1.25f);
-        final int PADDING = (int) (searchField.getFont().getSize() * .7);
-        final Color c = SNTColor.alphaColor(ToolbarButtons.COLOR, 50);
+                  SearchField.OPTIONS_MENU + SearchField.CASE_BUTTON + SearchField.REGEX_BUTTON);
+        searchFieldBackground = searchField.getBackground();
+        searchField.enlarge(1.3f);
+        final int PADDING = (int) (searchField.getFont().getSize() * .8);
+        final Color c = SNTColor.alphaColor(ToolbarButtons.COLOR, 40);
         searchField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(1, 0, 1, 0, c),
                 BorderFactory.createEmptyBorder(PADDING, PADDING, PADDING, PADDING)));
+        //searchField.setBorder(new FlatLineBorder(new Insets(PADDING, PADDING, PADDING, PADDING), c, 1, 0));
         // options button
         final JMenuItem rebuildIndex = new JMenuItem("Rebuild Index...", IconFactory.menuIcon(IconFactory.GLYPH.UNDO));
         rebuildIndex.addActionListener(e1 -> rebuildIndex());
@@ -259,40 +267,80 @@ public class SNTCommandFinder {
     }
 
     private void displayTempMsg(final String msg, final boolean warning) {
+        if (msgTimer != null) msgTimer.stop(); // restore whatever a still-pending message left behind, first
         final String existingPlaceholder = searchField.getClientProperty(FlatClientProperties.PLACEHOLDER_TEXT).toString();
         final String existingText = searchField.getText();
         searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, msg);
         searchField.setText(null);
         if (warning) searchField.setBackground(GuiUtils.warningColor());
-        final Timer timer = new Timer((warning) ? 3000 : 6000, e -> {
-            searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, existingPlaceholder);
-            searchField.setText(existingText);
-            if (warning) searchField.setBackground(table.getBackground());
-        });
-        timer.setRepeats(false);
-        SwingUtilities.invokeLater( () -> {
-            frame.setVisible(true);
-            timer.start();
+        msgTimer = new Timer((warning) ? 3000 : 6000, null) {
+            @Override
+            public void stop() {
+                super.stop();
+                searchField.putClientProperty(FlatClientProperties.PLACEHOLDER_TEXT, existingPlaceholder);
+                searchField.setText(existingText);
+                if (warning) searchField.setBackground(searchFieldBackground);
+            }
+        };
+        msgTimer.addActionListener(e -> msgTimer.stop()); // route natural timeout through the same restore path
+        SwingUtilities.invokeLater(() -> {
+            if (frame != null) frame.setVisible(true); // guard: dispose() can null this out mid-flight
+            msgTimer.start();
         });
     }
 
     private void populateList(final String matchingSubstring) {
-        final List<CmdAction> list = new ArrayList<>();
         if (cmdScrapper.scrapeFailed())
             cmdScrapper.scrape();
-        cmdScrapper.getCmdMap().forEach((key, cmd) -> {
-            if (cmd.matches(matchingSubstring)) {
-                list.add(cmd);
-            }
-        });
+        final List<CmdAction> list = new ArrayList<>(getSortedMapByQuery(matchingSubstring).values());
         final boolean noHits = list.isEmpty();
         if (noHits) list.add(noHitsCmd);
         table.getInternalModel().setData(list);
         if (searchField != null) {
-            searchField.setBackground((noHits) ? GuiUtils.warningColor() : table.getBackground());
-            //searchField.setWarningOutlineEnabled(noHits); // this won't work because we are overriding the margin
+            setWarningModeEnabled(noHits);
             searchField.requestFocus();
         }
+    }
+
+    private Map<String, CmdAction> getSortedMapByQuery(final String matchingSubstring) {
+        final List<Map.Entry<String, CmdAction>> hits = cmdScrapper.getCmdMap().entrySet().stream()
+                .filter(entry -> entry.getValue().matches(matchingSubstring))
+                .toList();
+
+        final Map<String, Integer> scoreByKey = new HashMap<>();
+        for (final Map.Entry<String, CmdAction> e : hits) {
+            scoreByKey.put(e.getKey(), getMatchScore(e.getValue(), matchingSubstring));
+        }
+
+        final Comparator<String> advancedComparator = (s1, s2) -> {
+            final int score1 = scoreByKey.get(s1);
+            final int score2 = scoreByKey.get(s2);
+            if (score1 != score2) return Integer.compare(score1, score2);
+            final int alphaCompare = String.CASE_INSENSITIVE_ORDER.compare(s1, s2);
+            return (alphaCompare != 0) ? alphaCompare : s1.compareTo(s2);
+        };
+
+        final Map<String, CmdAction> sortedMap = new TreeMap<>(advancedComparator);
+        hits.forEach(e -> sortedMap.put(e.getKey(), e.getValue()));
+        return sortedMap;
+    }
+
+    private int getMatchScore(final CmdAction cmd, final String rawQuery) {
+        cmd.ensureNormalized();
+        final String seed = cmd.normalize(rawQuery);
+        if (seed.isEmpty()) return 1; // no query: nothing to rank, alphabetical fallback takes over
+        if (cmd.normId.startsWith(seed)) return 1; // id starts with query: top tier
+        if (cmd.normId.contains(seed))   return 2; // id contains query somewhere: tier 2
+        if (cmd.normTooltip.contains(seed)
+                || cmd.normKeywords.contains(seed)
+                || cmd.normPath.contains(seed)) return 3; // matched, but only via metadata: tier 3
+        return 4; // fuzzy-only hit: last tier
+    }
+
+    private void setWarningModeEnabled(final boolean enable) {
+        //searchField.setWarningOutlineEnabled(noHits); // this won't work because we are overriding the margin
+        searchField.setBackground( (enable) ? GuiUtils.warningColor() : searchFieldBackground);
+        searchField.setForeground(SNTColor.contrastColor(searchField.getBackground()));
     }
 
     private void runCmd(final CmdAction cmd) {
@@ -300,7 +348,6 @@ public class SNTCommandFinder {
             if (reveal) {
                 revealCmd(cmd);
             } else {
-                if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
                 executeCmd(cmd);
             }
         }
@@ -308,9 +355,21 @@ public class SNTCommandFinder {
 
     private void executeCmd(final CmdAction cmd) {
         if (cmd.hasButton()) {
-            cmd.button.doClick();
-        } else if (cmd.action != null) {
-            cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
+            if (cmd.hasButton() && (!cmd.button.isEnabled()
+                    || (cmd.button instanceof JMenuItem && !cmd.button.getParent().isEnabled()))) {
+                final boolean autoHideState = autoHide;
+                autoHide = false;
+                setVisible(true);
+                displayTempMsg("Command is currently disabled. Cannot be executed.", true);
+                autoHide = autoHideState;
+                return;
+            }
+            if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
+            if (cmd.hasButton()) {
+                cmd.button.doClick();
+            } else if (cmd.action != null) {
+                cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
+            }
         }
     }
 
@@ -373,8 +432,37 @@ public class SNTCommandFinder {
     }
 
     // Resolves the invoker of a standalone JPopupMenu, reveals its parent tab if needed,
-    // and shows the popup. Returns false (with an error message) if the popup cannot be shown
+    // and shows the popup. Returns false (with an error message) if the popup cannot be shown.
     private boolean showStandalonePopup(final JPopupMenu popup, final JMenuItem jmi) {
+        // TracerCanvas menus must be checked first: their invoker is null until the user
+        // right-clicks the canvas (invoker is set at show-time). The "tracerCanvasMenu"
+        // client property is set during scraping to identify them without relying on invoker.
+        if (sntui != null && Boolean.TRUE.equals(popup.getClientProperty("tracerCanvasMenu"))) {
+            final TracerCanvas canvas = sntui.getTracingCanvas();
+            if (canvas == null || !canvas.isDisplayable()) {
+                displayTempMsg("Image contextual menu is not available!", true);
+                return false;
+            }
+            if (canvas.getImage() != null && canvas.getImage().getWindow() != null) {
+                canvas.getImage().getWindow().setVisible(true);
+                canvas.getImage().getWindow().toFront();
+            }
+            final JPopupMenu livePopup = sntui.getTracingCanvasPopupMenu();
+            // show() must come first: it calls setSelectedPath([livePopup]) internally,
+            // which would de-arm anything set before it
+            livePopup.show(canvas, canvas.getWidth() / 2, canvas.getHeight() / 2);
+            // jmi may belong to a stale popup instance; find the matching live item by
+            // text and arm it via setSelectedPath so it appears highlighted
+            final String target = jmi.getText();
+            for (final MenuElement me : livePopup.getSubElements()) {
+                if (me instanceof JMenuItem liveJmi && target.equals(liveJmi.getText())) {
+                    MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[]{livePopup, liveJmi});
+                    liveJmi.setArmed(true);
+                    break;
+                }
+            }
+            return true;
+        }
         Component invoker = popup.getInvoker();
         if (invoker == null) {
             final Object owner = popup.getClientProperty("owner");
@@ -386,9 +474,7 @@ public class SNTCommandFinder {
         }
         if (invoker instanceof Container c) revealParent(c);
         if (!invoker.isDisplayable()) {
-            displayTempMsg(
-                    (invoker instanceof TracerCanvas) ? "Image contextual menu is not available!" :
-                            String.format("%s is not available.", jmi.getText()), true);
+            displayTempMsg(String.format("%s is not available.", jmi.getText()), true);
             return false;
         }
         popup.show(invoker, invoker.getWidth() / 2, invoker.getHeight() / 2);
@@ -398,6 +484,8 @@ public class SNTCommandFinder {
     // Blink the button to indicate where it is, then stop (no auto-execute in reveal mode)
     private void revealButton(final CmdAction cmd) {
 
+        if (revealTimer != null) revealTimer.stop();  //restore whatever the previous reveal did
+
         final Color originalBackground = cmd.button.getBackground();
         final boolean originalOpaque = cmd.button.isOpaque();
         final boolean originalContentFilled = cmd.button.isContentAreaFilled();
@@ -405,8 +493,22 @@ public class SNTCommandFinder {
         final Container parent = cmd.button.getParent();
         final Color parentBackground = (parent==null) ? null : parent.getBackground();
 
-        final Timer timer = new Timer(500, null);
-        timer.addActionListener(new ActionListener() {
+        revealTimer = new Timer(500, null) {
+            @Override
+            public void stop() {
+                super.stop();
+                cmd.button.setBackground(originalBackground);
+                cmd.button.setOpaque(originalOpaque);
+                cmd.button.setContentAreaFilled(originalContentFilled);
+                cmd.button.setEnabled(enabled);
+                cmd.button.repaint();
+                if (parent != null) {
+                    parent.setBackground(parentBackground);
+                    parent.repaint();
+                }
+            }
+        };
+        revealTimer.addActionListener(new ActionListener() {
             int currentTick = 0;
             boolean isBlinkingOn = false;
             final int MAX_TICKS = 4; // 2 on/off cycle
@@ -415,16 +517,7 @@ public class SNTCommandFinder {
             public void actionPerformed(final ActionEvent e) {
                 currentTick++;
                 if (currentTick > MAX_TICKS) {
-                    timer.stop();
-                    cmd.button.setBackground(originalBackground);
-                    cmd.button.setOpaque(originalOpaque);
-                    cmd.button.setContentAreaFilled(originalContentFilled);
-                    cmd.button.setEnabled(enabled);
-                    cmd.button.repaint();
-                    if (parent != null) {
-                        parent.setBackground(parentBackground);
-                        parent.repaint();
-                    }
+                    revealTimer.stop();
                     return;
                 }
                 if (currentTick == 1) {
@@ -445,7 +538,7 @@ public class SNTCommandFinder {
                 cmd.button.repaint();
             }
         });
-        timer.start();
+        revealTimer.start();
     }
 
     private void revealParent(Container prev) {
@@ -594,23 +687,14 @@ public class SNTCommandFinder {
      * @param revealAction  what to run when the entry is invoked in 'reveal' mode. Optional: null allowed.
      */
     public void registerKeywords(final String label, final List<String> path,
-                                 final List<String> keywords, final Runnable executeAction,
-                                 final Runnable revealAction) {
+                                 final List<String> keywords,
+                                 final AbstractAction executeAction,
+                                 final AbstractAction revealAction) {
         if (label == null || executeAction == null)
             throw new IllegalArgumentException("label and action cannot be null");
-        final CmdAction entry = new CmdAction(label);
+        final CmdAction entry = new CmdAction(label, executeAction, revealAction);
         entry.path = (path == null) ? new ArrayList<>() : new ArrayList<>(path);
         entry.setKeywords(keywords);
-        entry.action = new AbstractAction(label) {
-            private static final long serialVersionUID = 1L;
-            @Override
-            public void actionPerformed(final ActionEvent e) { executeAction.run(); }
-        };
-        entry.revealAction = new AbstractAction(label) {
-            private static final long serialVersionUID = 1L;
-            @Override
-            public void actionPerformed(final ActionEvent e) { revealAction.run(); }
-        };
         cmdScrapper.extras.add(entry);
         // If the scrapper has already populated the index, splice the entry
         // in now so it's findable without waiting for the next rebuild
@@ -648,22 +732,21 @@ public class SNTCommandFinder {
     }
 
     private void restoreOrCenterLocation() {
-        // Restore the last user position when available and the screen is still reachable.
-        // This mimics Spotlight/Raycast behavior: the palette stays where the user put it.
+        // Restore the last user position when available and the screen is still reachable
         if (lastLocation != null && isOnScreen(lastLocation)) {
             frame.setLocation(lastLocation);
             return;
         }
         // First show (or after a monitor is disconnected): center relative to the focused
         // window. setLocationRelativeTo() accounts for system insets (Dock, taskbar) so
-        // the palette is never placed behind them.
+        // the palette is never placed behind them
         final Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
         if (focused != null && focused != frame) {
-            frame.setLocationRelativeTo(focused);
+            GuiUtils.setLocationRelativeTo(frame, focused);
         } else if (sntui != null) {
             GuiUtils.centerWindow(frame, sntui, sntui.getPathManager());
         } else if (viewer3D != null) {
-            GuiUtils.centerWindow(frame, viewer3D.getFrame());
+            GuiUtils.setLocationRelativeTo(frame, viewer3D.getFrame());
         }
     }
 
@@ -771,8 +854,17 @@ public class SNTCommandFinder {
         }
     }
 
+    private static Color getBackgroundColor() {
+        Color c = UIManager.getColor("Popup.background");
+        // Fallback1: standard FlatLaf container background
+        if (c == null) c = UIManager.getColor("Panel.background");
+        // Fallback2: average of OS system color
+        if (c == null) c = SNTColor.mix(SystemColor.window, SearchField.backgroundColor(), .5);
+        return c;
+    }
+
     private static class ToolbarButtons {
-        static final float SIZE = UIManager.getFont("Button.font").getSize() * .9f;
+        static final float SIZE = IconFactory.defaultSize() * .9f;
         static final Color COLOR = SearchField.iconColor();
 
         static void addSpacer(final JToolBar toolbar) {
@@ -804,7 +896,7 @@ public class SNTCommandFinder {
 
     private static class CmdTableModel extends AbstractTableModel {
         private static final long serialVersionUID = 1L;
-        private static final int COLUMNS = 2;
+        private static final int COLUMNS = 3; // icon, cmd id, cmd path
         List<CmdAction> list = new ArrayList<>();
 
         void setData(final List<CmdAction> list) {
@@ -828,7 +920,7 @@ public class SNTCommandFinder {
             if (row >= list.size() || column >= COLUMNS)
                 return null;
             final CmdAction ca = list.get(row);
-            return column == 0 ? ca.id : ca.description();
+            return (column == 2) ? ca.description() : ca; // icon (0) + id (1) columns need the full CmdAction
         }
 
         @Override
@@ -849,7 +941,7 @@ public class SNTCommandFinder {
 
         JToolBar getToolBar() {
             final JToolBar toolbar = new JToolBar();
-            toolbar.setBackground(searchField.getBackground());
+            toolbar.setBackground(BACKGROUND);
             toolbar.setFocusable(false);
             toolbar.setFloatable(false);
 
@@ -865,7 +957,7 @@ public class SNTCommandFinder {
             //ToolbarButtons.addSpacer(toolbar);
             // section 3: startup tip
             toolbar.add(Box.createHorizontalGlue());
-            toolbar.add(proHint());
+            toolbar.add(proHint(toolbar));
 
             if (frame.isUndecorated())
                 new ComponentMover(frame, toolbar); // make frame draggable through toolbar
@@ -875,15 +967,18 @@ public class SNTCommandFinder {
         JToggleButton revealButton() {
             final JToggleButton button = ToolbarButtons.initButton(IconFactory.GLYPH.ARROWS_TO_EYE, reveal);
             button.setText("Reveal");
-            button.setToolTipText("Reveal location of command/action instead of running it");
-            button.addItemListener(e -> reveal = button.isSelected());
+            button.setToolTipText("Reveal location of command instead of running it");
+            button.addItemListener(e -> {
+                reveal = button.isSelected();
+                if (!reveal && revealTimer != null) revealTimer.stop();
+            });
             return button;
         }
 
         JToggleButton autoHideButton() {
             final JToggleButton button = ToolbarButtons.initButton(IconFactory.GLYPH.CIRCLE_XMARK, autoHide);
             button.setText("Auto-Hide");
-            button.setToolTipText("Dismiss palette after running a command/action");
+            button.setToolTipText("Dismiss palette after running a command");
             button.addItemListener(e -> autoHide = button.isSelected());
             return button;
         }
@@ -918,8 +1013,9 @@ public class SNTCommandFinder {
             return recButton;
         }
 
-        JLabel proHint() {
+        JLabel proHint(final JToolBar parent) {
             final JLabel label = ToolbarButtons.initLabel("HINT: ↑↓ to navigate, ↵ to run, Esc to close ");
+            label.setBackground(parent.getBackground());
             final Timer timer = new Timer(5000, e -> {
                 label.setVisible(false);
                 ((Timer)e.getSource()).stop();
@@ -1065,16 +1161,18 @@ public class SNTCommandFinder {
             final CmdTableRenderer renderer = new CmdTableRenderer();
             final int col0Width = renderer.maxWidth(0);
             final int col1Width = renderer.maxWidth(1);
+            final int col2Width = renderer.maxWidth(2);
             setDefaultRenderer(Object.class, renderer);
             getColumnModel().getColumn(0).setMaxWidth(col0Width);
             getColumnModel().getColumn(1).setMaxWidth(col1Width);
+            getColumnModel().getColumn(2).setMaxWidth(col2Width);
             setRowHeight(renderer.rowHeight());
             int height = TABLE_ROWS * getRowHeight();
             if (getRowMargin() > 0)
                 height *= getRowMargin();
-            setPreferredScrollableViewportSize(new Dimension(col0Width + col1Width, height));
+            setPreferredScrollableViewportSize(new Dimension(col0Width + col1Width + col2Width, height));
             setFillsViewportHeight(true);
-            setBackground(searchField.getBackground());
+            setBackground(BACKGROUND);
         }
 
         private JScrollPane getScrollPane() {
@@ -1083,7 +1181,7 @@ public class SNTCommandFinder {
 
                 @Override
                 public void updateUI() {
-                    GuiUtils.recolorTracks(this, searchField.getBackground(), false);
+                    GuiUtils.recolorTracks(this, BACKGROUND, false);
                     super.updateUI();
                 }
             };
@@ -1101,39 +1199,48 @@ public class SNTCommandFinder {
     private class CmdTableRenderer extends DefaultTableCellRenderer {
 
         private static final long serialVersionUID = 1L;
-        private static final Font col0Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
-        private static final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * .9f);
-        private static final Color mainColor = IconFactory.defaultColor();
-        private static final Color secColor = IconFactory.secondaryColor();
+        private static final Font col1Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1.1f);
+        private static final Font col2Font = REF_FONT.deriveFont(REF_FONT.getSize() * 1f);
+        private static final Color mainColor = IconFactory.secondaryColor();
         private static final Color selectionColor = SNTColor.alphaColor(GuiUtils.getSelectionColor(), 50);
-
 
         @Override
         public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected,
                                                        final boolean hasFocus, final int row, final int column) {
             final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-            setBackground((isSelected)? selectionColor: table.getBackground());
-            if (column == 1) {
+            setBackground((isSelected) ? selectionColor : table.getBackground());
+            setForeground(mainColor);
+            if (column == 2) { // cmd path
                 setHorizontalAlignment(JLabel.RIGHT);
-                setFont(col1Font);
-                setForeground(secColor);
+                setFont(col2Font);
+                setIcon(null);
             } else {
-                setHorizontalAlignment(JLabel.LEFT);
-                setFont(col0Font);
-                setForeground(mainColor);
+                final CmdAction cmdAction = (CmdAction) value; // supplied by CmdTableModel#getValueAt for columns 0/1
+                if (column == 0) { // icon
+                    setHorizontalAlignment(JLabel.CENTER);
+                    setIcon((cmdAction == null) ? null : cmdAction.icon);
+                    setText(null);
+                } else { // cmd id
+                    setHorizontalAlignment(JLabel.LEFT);
+                    setFont(col1Font);
+                    setIcon(null);
+                    setText(cmdAction == null ? "" : cmdAction.id); // value is CmdAction, not the id String
+                }
             }
             return c;
         }
 
         int rowHeight() {
-            return (int) (col0Font.getSize() * 1.85f);
+            return (int) (col1Font.getSize() * 1.85f);
         }
 
         int maxWidth(final int columnIndex) {
-            if (columnIndex == 1)
-                return SwingUtilities.computeStringWidth(getFontMetrics(col1Font),
-                        "A really long menu>With long submenus>");
-            return SwingUtilities.computeStringWidth(getFontMetrics(col0Font), widestCmd);
+            return switch (columnIndex) {
+                case 0 -> (int) (GuiUtils.uiFontSize() * 2);
+                case 1 -> SwingUtilities.computeStringWidth(getFontMetrics(col1Font), widestCmd);
+                default ->
+                        SwingUtilities.computeStringWidth(getFontMetrics(col2Font), "A really long menu>With long submenus>");
+            };
         }
 
     }
@@ -1147,6 +1254,8 @@ public class SNTCommandFinder {
         AbstractButton button;
         Action action;
         Action revealAction;
+        Icon icon;
+
         /** Extra searchable terms (case-insensitive); null when not provided. */
         List<String> keywords;
         /** Raw concatenation of keywords; built once, re-used across normGeneration changes. */
@@ -1162,6 +1271,16 @@ public class SNTCommandFinder {
             this.id = capitalize(cmdName);
             this.path = new ArrayList<>();
             this.hotkey = "";
+            icon = null;
+        }
+
+        CmdAction(final String cmdName, final Action runAction, final Action revealAction) {
+            this.id = capitalize(cmdName);
+            this.path = new ArrayList<>();
+            this.hotkey = "";
+            this.action = runAction;
+            this.revealAction = revealAction;
+            icon = initIcon();
         }
 
         CmdAction(final String cmdName, final AbstractButton button) {
@@ -1169,6 +1288,10 @@ public class SNTCommandFinder {
             this.button = button;
             if (button.getAction() instanceof AbstractAction)
                 action = button.getAction();
+            final Object keywordProps = button.getClientProperty("cmdFinder-keywords");
+            if (keywordProps != null)
+                setKeywords(Arrays.asList(((String)keywordProps).split(",")));
+            icon = initIcon();
         }
 
         /** Sets the additional searchable keywords for this command. */
@@ -1220,9 +1343,9 @@ public class SNTCommandFinder {
             // token splitter sees word boundaries regardless of the ignoreWhiteSpace setting
             ensureNormalized();
             final String query = normalize(rawQuery);
-            return normId.contains(query) || normPath.contains(query)
+            return normId.contains(query)
                     || normTooltip.contains(query) || normKeywords.contains(query)
-                    || fuzzyMatches(rawQuery);
+                    || normPath.contains(query) || fuzzyMatches(rawQuery);
         }
 
         // Fuzzy fallback: each query token must fuzzy-match at least one id token.
@@ -1297,6 +1420,19 @@ public class SNTCommandFinder {
             return WordUtils.capitalize(string);
         }
 
+        private Icon initIcon() {
+            if (button != null) {
+                icon = button.getIcon();
+                if (icon == null && button.getClientProperty("cmdFinder-icon") instanceof Icon iconProp)
+                    icon = iconProp;
+            }
+            if (icon == null && action != null && action.getValue(Action.SMALL_ICON) instanceof Icon iconAction)
+                icon = iconAction;
+            if (icon == null && revealAction != null && revealAction.getValue(Action.SMALL_ICON) instanceof Icon iconAction)
+                icon = iconAction;
+            return icon;
+        }
+
     }
 
     private class CmdScrapper {
@@ -1314,8 +1450,12 @@ public class SNTCommandFinder {
         List<AnnotatedComponent> getComponents() {
             final List<AnnotatedComponent> components = new ArrayList<>();
             if (sntui != null) {
-                components.add(new AnnotatedComponent(
-                        sntui.getTracingCanvasPopupMenu(), "Image Contextual Menu"));
+                final JPopupMenu canvasPopup = sntui.getTracingCanvasPopupMenu();
+                // Tag the popup so showStandalonePopup can identify it as the TracerCanvas
+                // context menu even when getInvoker() is null (invoker is only set at
+                // popup.show() time, i.e. after the user's first right-click on the canvas).
+                canvasPopup.putClientProperty("tracerCanvasMenu", Boolean.TRUE);
+                components.add(new AnnotatedComponent(canvasPopup, "Image Contextual Menu"));
                 components.add(new AnnotatedComponent(sntui.getJMenuBar()));
                 components.add(new AnnotatedComponent(
                         sntui.getPathManager().getJTree().getComponentPopupMenu(), "PM Contextual Menu")); // before PM's menu bar

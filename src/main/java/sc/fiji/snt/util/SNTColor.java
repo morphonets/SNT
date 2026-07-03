@@ -245,7 +245,30 @@ public class SNTColor {
 		);
 	}
 
-	private static Color average(final Color... colors) {
+	/**
+	 * Linearly mixes two colors together based on a specified weight, using a gamma-corrected linear blend by
+	 * squaring the individual color channels before mixing
+	 *
+	 * @param c1     the starting color (used completely when {@code weight} is 0.0)
+	 * @param c2     the target color (used completely when {@code weight} is 1.0)
+	 * @param weight the blend factor between 0.0 and 1.0; represents the proportion of {@code c2}
+	 *               to include in the final mixture
+	 * @return a new {@link Color} object representing the combined result
+	 * @throws NullPointerException if {@code c1} or {@code c2} is null
+	 */
+	public static Color mix(Color c1, Color c2, double weight) {
+		weight = Math.clamp(weight, 0.0, 1.0); // Clamp the weight between 0.0 and 1.0
+		double w1 = 1.0 - weight;
+		double w2 = weight;
+		// Linear gamma mixing (square the components)
+		double r = Math.sqrt((c1.getRed() * c1.getRed() * w1) + (c2.getRed() * c2.getRed() * w2));
+		double g = Math.sqrt((c1.getGreen() * c1.getGreen() * w1) + (c2.getGreen() * c2.getGreen() * w2));
+		double b = Math.sqrt((c1.getBlue() * c1.getBlue() * w1) + (c2.getBlue() * c2.getBlue() * w2));
+		double a = (c1.getAlpha() * w1) + (c2.getAlpha() * w2);
+		return new Color((int) Math.round(r), (int) Math.round(g), (int) Math.round(b), (int) Math.round(a));
+	}
+
+		private static Color average(final Color... colors) {
 		return average(Arrays.asList(colors));
 	}
 

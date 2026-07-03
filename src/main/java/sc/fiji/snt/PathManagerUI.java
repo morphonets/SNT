@@ -6164,7 +6164,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             tagsMap.forEach( (tagName, color) -> {
                 final ColorChooserButton colorButton = new ColorChooserButton(color, capitalized(tagName)
                 , 1f, ColorChooserButton.RIGHT);
-                GuiUtils.Buttons.makeBorderless(colorButton);
+                GuiUtils.Buttons.makeRoundRect(colorButton);
                 panel.add(colorButton, c);
                 colorButtons.put(tagName, colorButton);
                 c.gridy++;
@@ -6243,6 +6243,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             final JButton tagButton = GuiUtils.Buttons.toolbarButton(capitalized(tagName));
             tagButton.setBackground(tagColor);
             tagButton.setForeground(SNTColor.contrastColor(tagColor));
+            tagButton.putClientProperty("cmdFinder-icon", IconFactory.nodeIcon(tagColor));
             tagButton.addActionListener(e -> {
                 final Collection<Path> selectedPaths = getSelectedPaths(true);
                 if (selectedPaths.isEmpty()) {

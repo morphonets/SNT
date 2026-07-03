@@ -2716,7 +2716,7 @@ public class Path implements Comparable<Path>, Cloneable {
             case SWC_CUSTOM2 -> typeName = SWC_CUSTOM2_LABEL;
             default -> typeName = SWC_UNDEFINED_LABEL;
         }
-		return (capitalized) ? org.apache.commons.text.WordUtils.capitalize(typeName) : typeName;
+		return (capitalized) ? org.apache.commons.text.WordUtils.capitalizeFully(typeName, '(', ' ') : typeName;
 	}
 
 	/**

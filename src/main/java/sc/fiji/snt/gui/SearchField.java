@@ -22,6 +22,7 @@
 
 package sc.fiji.snt.gui;
 
+import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.extras.components.FlatTextField;
 import com.formdev.flatlaf.icons.FlatSearchIcon;
 import com.formdev.flatlaf.icons.FlatSearchWithHistoryIcon;
@@ -162,6 +163,17 @@ public class SearchField extends FlatTextField {
             iconColor = (raw != null) ? new Color(raw.getRGB()) : IconFactory.defaultColor();
         }
         return iconColor;
+    }
+
+    public static Color backgroundColor() {
+        Color searchBg = UIManager.getColor("SearchField.background");
+        if (searchBg == null) {
+            searchBg = UIManager.getColor("TextField.background");
+        }
+        if (searchBg == null) {
+            searchBg = FlatLaf.isLafDark() ? new Color(0x3c3f41) : Color.WHITE;
+        }
+        return searchBg;
     }
 
 }

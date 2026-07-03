@@ -23,6 +23,7 @@
 package sc.fiji.snt;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import ij.ImageListener;
 import ij.ImagePlus;
 import ij.gui.ImageCanvas;
@@ -429,8 +430,6 @@ public class SNTUI extends JDialog {
         tabbedPane.addTab("Seeds", seedManager);
         tabbedPane.addTab("Notes", notesui.getPanel());
 
-        registerTabCommandFinderAliases();
-
         // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Seeds, Notes
         tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
         tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
@@ -440,6 +439,7 @@ public class SNTUI extends JDialog {
         tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
         tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.SEEDLING));
         tabbedPane.setIconAt(7, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
+        registerTabCommandFinderAliases(tabbedPane); // must be called after icons have been set
 
         setJMenuBar(createMenuBar(tabbedPane));
         setLayout(new GridBagLayout());
@@ -2372,31 +2372,27 @@ public class SNTUI extends JDialog {
 
     /** Inner class to manage 3D viewer panels with consistent styling */
     private class ViewerPanelBuilder {
-        private static final int PREFERRED_BUTTON_WIDTH = 140;
         private static final String SYNC_BUTTON_TEXT = "Sync Changes";
         private static final String SYNC_TOOLTIP = "Refreshes Viewer contents to reflect Path Manager changes";
 
         private JPanel createViewerPanel(JButton openButton, JButton syncButton) {
-            setStandardButtonSize(openButton);
-            setStandardButtonSize(syncButton);
+            registerInCommandFinder(openButton, null, "3D Tab");
+            GuiUtils.Buttons.makeRoundRect(openButton);
+            GuiUtils.Buttons.makeRoundRect(syncButton);
             final JPanel panel = new JPanel(new GridBagLayout());
             final GridBagConstraints gbc = new GridBagConstraints();
             gbc.fill = GridBagConstraints.HORIZONTAL;
-            gbc.weightx = 0.5;
+            gbc.weightx = 0.85;
             panel.add(openButton, gbc);
+            gbc.weightx = 0.15;
             panel.add(syncButton, gbc);
             return panel;
         }
 
-        private void setStandardButtonSize(final JButton button) {
-            final Dimension preferredSize = new Dimension(PREFERRED_BUTTON_WIDTH, button.getPreferredSize().height);
-            button.setPreferredSize(preferredSize);
-            button.setMinimumSize(preferredSize);
-        }
-
         private JButton createSyncButton(String commandName) {
             final JButton syncButton = new JButton(SYNC_BUTTON_TEXT);
-            registerInCommandFinder(syncButton, commandName, "3D Tab");
+            // not worth registering this in cmdFinder
+            // registerInCommandFinder(syncButton, commandName, "3D Tab");
             syncButton.setToolTipText(SYNC_TOOLTIP);
             return syncButton;
         }
@@ -2404,7 +2400,9 @@ public class SNTUI extends JDialog {
 
     private JPanel reconstructionViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         openRecViewer = new JButton("Open Rec. Viewer");
-        registerInCommandFinder(openRecViewer, "Open Reconstruction Viewer (RV)", "3D Tab");
+        openRecViewer.putClientProperty("cmdFinder-keywords", "RV,Reconstruction Viewer,annotations,meshes,render,atlases,CCF,VFB,drosophila,zebrafish,mouse,GPU");
+        openRecViewer.putClientProperty("cmdFinder-icon",
+                new FlatSVGIcon("gui/morphonets-logo-icon.svg", IconFactory.defaultSize(), IconFactory.defaultSize()));
         openRecViewer.addActionListener(e -> {
             if (noPathsError()) return; // otherwise list in RV controls won't update once paths are added
             class RecWorker extends SwingWorker<Boolean, Object> {
@@ -2459,7 +2457,9 @@ public class SNTUI extends JDialog {
 
     private JPanel sciViewerPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         openSciView = new JButton("Open sciview");
-        registerInCommandFinder(openSciView, null, "3D Tab");
+        openSciView.putClientProperty("cmdFinder-keywords", "Cx3D,simulation,GPU,virtual reality,VR,meshes");
+        openSciView.putClientProperty("cmdFinder-icon",
+                new FlatSVGIcon("gui/sciview-logo-icon.svg", IconFactory.defaultSize(), IconFactory.defaultSize()));
         openSciView.addActionListener(e -> {
             if (noPathsError()) return; // for consistency with rec. viewer
             if (!EnableSciViewUpdateSiteCmd.isSciViewAvailable()) {
@@ -2531,7 +2531,9 @@ public class SNTUI extends JDialog {
 
     private JPanel bvvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         final JButton openBVV = new JButton("Open BVV");
-        registerInCommandFinder(openBVV, "Open Big Volume Viewer (BVV)", "3D Tab");
+        openBVV.putClientProperty("cmdFinder-keywords", "Big Volume Viewer,annotations,big data,render,GPU,Zarr");
+        openBVV.putClientProperty("cmdFinder-icon",
+                new FlatSVGIcon("gui/bdv-logo-light.svg", IconFactory.defaultSize(), IconFactory.defaultSize()));
         openBVV.addActionListener(e -> {
             if (!plugin.accessToValidImageData()) {
                 noValidImageDataError();
@@ -2562,9 +2564,11 @@ public class SNTUI extends JDialog {
 
     private JPanel bdvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
         final JButton openBDV = new JButton("Open BDV");
-        registerInCommandFinder(openBDV, "Open Big Data Viewer (BDV)", "3D Tab");
+        openBDV.putClientProperty("cmdFinder-keywords", "annotations,big data viewer,reslicing,Zarr");
+        openBDV.putClientProperty("cmdFinder-icon",
+                new FlatSVGIcon("gui/bdv-logo-dark.svg", IconFactory.defaultSize(), IconFactory.defaultSize()));
         openBDV.addActionListener(e -> {
-            if (!plugin.accessToValidImageData()) {
+            if (!plugin.accessToValidImageData() || plugin.getImagePlus() == null) {
                 noValidImageDataError();
             } else {
                 try {
@@ -3384,6 +3388,8 @@ public class SNTUI extends JDialog {
         utilitiesMenu.add(getRecPlotterMenuItem());
         utilitiesMenu.addSeparator();
         final JMenuItem ontologyItem = new JMenuItem("Ontology Browser...", IconFactory.menuIcon(GLYPH.ATLAS));
+        ontologyItem.setToolTipText("Structural ontology of brain regions (mouse/fly)");
+        ontologyItem.putClientProperty("cmdFinder-keywords", "drosophila,FBbt,CCF,mouse");
         ontologyItem.addActionListener(e -> showOntologyBrowser());
         utilitiesMenu.add(ontologyItem);
         return utilitiesMenu;
@@ -3435,6 +3441,7 @@ public class SNTUI extends JDialog {
         final JMenu viewMenu = new JMenu("View");
         final JMenuItem arrangeDialogsMenuItem = new JMenuItem("Arrange Dialogs",
                 IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS2));
+        arrangeDialogsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
         arrangeDialogsMenuItem.addActionListener(e -> {
             final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
             final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
@@ -3465,6 +3472,7 @@ public class SNTUI extends JDialog {
         });
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
+        arrangeWindowsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
         arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
         arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
         viewMenu.add(arrangeWindowsMenuItem);
@@ -3642,7 +3650,8 @@ public class SNTUI extends JDialog {
 
     private JMenu showFolderMenu(final ScriptInstaller installer) {
         final JMenu menu = new JMenu("Reveal Directory");
-        menu.setIcon(IconFactory.menuIcon(GLYPH.OPEN_FOLDER));
+        final Icon icon = IconFactory.menuIcon(GLYPH.OPEN_FOLDER);
+        menu.setIcon(icon);
         final String[] labels = {"Current Workspace", "Change Workspace...", "-", //
                 "Backup(s)", "Sessions", "-", //
                 "Current TRACES File", "Image Being Traced", "Last Accessed Folder", "Secondary Layer Image", "-", //
@@ -3652,6 +3661,7 @@ public class SNTUI extends JDialog {
                 menu.addSeparator();
             } else {
                 final JMenuItem jmi = new JMenuItem(label);
+                jmi.putClientProperty("cmdFinder-icon", icon);
                 menu.add(jmi);
                 if ("Change Workspace...".equals(label)) {
                     jmi.setIcon(IconFactory.menuIcon('\ue066', true, GuiUtils.getDisabledComponentColor()));
@@ -3872,7 +3882,7 @@ public class SNTUI extends JDialog {
     @SuppressWarnings("unchecked")
     private JPanel aStarPanel() {
         aStarCheckBox = new JCheckBox("Enable ", plugin.isAstarEnabled());
-        registerInCommandFinder(aStarCheckBox, "Toggle Auto-tracing", "Main Tab");
+        registerInCommandFinder(aStarCheckBox, "Toggle Interactive Tracing", "Main Tab");
         aStarCheckBox.addActionListener(e -> {
             boolean enable = aStarCheckBox.isSelected();
             if (!enable && askUserConfirmation
@@ -4749,22 +4759,47 @@ public class SNTUI extends JDialog {
      * Each registration adds a palette entry whose primary label is the tab name, with extra keywords that route
      * searches to it.
      */
-    private void registerTabCommandFinderAliases() {
+    private void registerTabCommandFinderAliases(final JTabbedPane tabbedPane) {
         if (commandFinder == null) return;
+        class TabExecuteAction extends AbstractAction {
+
+            TabExecuteAction(final String tabLabel) {
+                super(tabLabel);
+            }
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                selectTab((String) getValue(Action.NAME));
+            }
+        }
+
+        class TabRevealAction extends TabExecuteAction {
+
+            TabRevealAction(final String tabLabel) {
+                super(tabLabel);
+                final int idx = InternalUtils.getTabIndex(tabbedPane, tabLabel);
+                putValue(Action.SMALL_ICON, tabbedPane.getIconAt(idx));
+            }
+
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                selectAndHighlightTab((String) getValue(Action.NAME));
+            }
+        }
+
         // Main tab
         commandFinder.registerKeywords(
                 "Main/Home Tab",
                 List.of("Tabs"),
                 List.of("data source", "cursor snapping", "display filters", "interactive tracing", "channel", "frame"),
-                () -> selectTab("Main"),
-                () -> selectAndHighlightTab("Main"));
+                new TabExecuteAction("Main"),
+                new TabRevealAction("Main"));
         // Options tab
         commandFinder.registerKeywords(
                 "Options",
                 List.of("Tabs"),
                 List.of("settings"),
-                () -> selectTab("Options"),
-                () -> selectAndHighlightTab("Options"));
+                new TabExecuteAction("Options"),
+                new TabRevealAction("Options"));
         // Curation Assistant
         final List<String> qcKeywords = new ArrayList<>(List.of("QC", "validation", "warning", "issues", "plausibility",
                 "deep scan", "live monitor"));
@@ -4774,43 +4809,43 @@ public class SNTUI extends JDialog {
                 "Curation Assistant",
                 List.of("Tabs"),
                 qcKeywords,
-                () -> selectTab("Assistant"),
-                () -> selectAndHighlightTab("Assistant"));
+                new TabExecuteAction("Assistant"),
+                new TabRevealAction("Assistant"));
         // Bookmarks tab
         commandFinder.registerKeywords(
                 "Bookmarks",
                 List.of("Tabs"),
                 List.of("bookmark", "marker", "tagged location", "tagged node", "colocalize", "location",
                         "click-on-point", "export csv"), //
-                () -> selectTab("Bookmarks"),
-                () -> selectAndHighlightTab("Bookmarks"));
+                new TabExecuteAction("Bookmarks"),
+                new TabRevealAction("Bookmarks"));
         commandFinder.registerKeywords(
                 "3D",
                 List.of("Tabs"),
                 List.of("viewer", "big data", "bvv", "bdv", "sciview", "reconstruction", "rec viewer", "legacy"),
-                () -> selectTab("3D"),
-                () -> selectAndHighlightTab("3D"));
+                new TabExecuteAction("3D"),
+                new TabRevealAction("3D"));
         // Delineations tab
         commandFinder.registerKeywords(
                 "Delineations",
                 List.of("Tabs"),
                 List.of("delineation", "region", "atlas annotation", "assignment", "labels/mask image", "roi"),
-                () -> selectTab("Delineations"),
-                () -> selectAndHighlightTab("Delineations"));
+                new TabExecuteAction("Delineations"),
+                new TabRevealAction("Delineations"));
         // Seeds tab
         commandFinder.registerKeywords(
                 "Seeded Tracing",
                 List.of("Tabs"),
                 List.of("seed", "soma", "import csv", "labels/mask image", "autotrace", "candidate points", "prediction", "waypoint"),
-                () -> selectTab("Seeds"),
-                () -> selectAndHighlightTab("Seeds"));
+                new TabExecuteAction("Seeds"),
+                new TabRevealAction("Seeds"));
         // Notes tab
         commandFinder.registerKeywords(
                 "Notepad",
                 List.of("Tabs"),
                 List.of("notes", "comment", "record"),
-                () -> selectTab("Notes"),
-                () -> selectAndHighlightTab("Notes"));
+                new TabExecuteAction("Notes"),
+                new TabRevealAction("Notes"));
     }
 
     /** Returns the Curation Manager (Curation Assistant). */
@@ -4863,6 +4898,10 @@ public class SNTUI extends JDialog {
 
     public JPopupMenu getTracingCanvasPopupMenu() {
         return plugin.getTracingCanvas().getComponentPopupMenu();
+    }
+
+    public TracerCanvas getTracingCanvas() {
+        return plugin.getTracingCanvas();
     }
 
     protected void setReconstructionViewer(final Viewer3D recViewer) {
