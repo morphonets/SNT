@@ -317,6 +317,47 @@ public class Bdv extends AbstractBigViewer {
         return show(spimData);
     }
 
+    /**
+     * Opens sources loaded from an N5 or OME-Zarr container (see
+     * {@link SpimDataUtils#resolvePathToSource(String)}). Unlike
+     * {@link #show(AbstractSpimData)}, there is no BDV-XML descriptor or
+     * {@link AbstractSpimData} involved: sources are built directly from the
+     * container's own N5/OME-NGFF metadata via {@code n5-viewer_fiji}.
+     *
+     * @param n5Sources the sources to display
+     * @return list of BdvStackSources, one per setup
+     */
+    public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources) {
+        final BdvOptions opts = (bdvHandle == null)
+                ? BdvOptions.options()
+                : BdvOptions.options().addTo(bdvHandle);
+        final List<BdvStackSource<?>> sources = new ArrayList<>();
+        for (final SourceAndConverter<?> soc : n5Sources.sources)
+            sources.add(BdvFunctions.show(soc, n5Sources.numTimepoints, opts));
+        if (sources.isEmpty()) return sources;
+
+        if (dims == null || cal == null) {
+            try {
+                final var src = sources.getFirst().getSources().getFirst().getSpimSource();
+                final var itvl = src.getSource(0, 0);
+                dims = new long[]{itvl.dimension(0), itvl.dimension(1), itvl.dimension(2)};
+                final var vd = src.getVoxelDimensions();
+                if (vd != null) {
+                    cal = new double[]{vd.dimension(0), vd.dimension(1), vd.dimension(2)};
+                    calUnit = (vd.unit() != null && !vd.unit().isBlank())
+                            ? BoundingBox.sanitizedUnit(vd.unit()) : "pixel";
+                }
+            } catch (final Exception ignored) {} // never break rendering for a metadata hiccup
+        }
+
+        if (bdvHandle == null) {
+            bdvHandle = sources.getFirst().getBdvHandle();
+            viewerPanel = bdvHandle.getViewerPanel();
+            initializeOverlays();
+        }
+        return sources;
+    }
+
     @Override
     public ViewerFrame getViewerFrame() {
         if (bdvHandle == null) return null;

@@ -28,11 +28,18 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
+import bdv.cache.SharedQueue;
 import bdv.img.imaris.Imaris;
 import bdv.spimdata.SpimDataMinimal;
 import bdv.spimdata.XmlIoSpimDataMinimal;
+import bdv.tools.brightness.ConverterSetup;
+import bdv.util.BdvOptions;
+import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.SpimDataException;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.sequence.FinalVoxelDimensions;
@@ -42,6 +49,14 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.view.Views;
+import org.janelia.saalfeldlab.n5.N5Reader;
+import org.janelia.saalfeldlab.n5.bdv.N5Viewer;
+import org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator;
+import org.janelia.saalfeldlab.n5.ij.N5Importer;
+import org.janelia.saalfeldlab.n5.ui.DataSelection;
+import org.janelia.saalfeldlab.n5.universe.N5DatasetDiscoverer;
+import org.janelia.saalfeldlab.n5.universe.N5TreeNode;
+import org.janelia.saalfeldlab.n5.universe.metadata.N5Metadata;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.util.ImgUtils;
 
@@ -60,11 +75,12 @@ public class SpimDataUtils {
     // -- Path resolution --
 
     /**
-     * Resolves a file path to either an {@link AbstractSpimData} (for
-     * {@code .ims} and {@code .xml} files) or an {@link ImgPlus} (fallback).
+     * Resolves a file path to an {@link AbstractSpimData} (for {@code .ims} and
+     * {@code .xml} files), an {@link N5Sources} (for {@code .n5}/{@code .zarr}
+     * containers), or an {@link ImgPlus} (fallback).
      *
      * @param filePathOrUrl path or URL to the image file
-     * @return an {@link AbstractSpimData} or {@link ImgPlus}
+     * @return an {@link AbstractSpimData}, {@link N5Sources}, or {@link ImgPlus}
      * @throws IllegalArgumentException if the file cannot be opened
      */
     public static Object resolvePathToSource(final String filePathOrUrl) {
@@ -106,6 +122,15 @@ public class SpimDataUtils {
             } catch (final SpimDataException e) {
                 throw new IllegalArgumentException("Could not open XML file: " + e.getMessage(), e);
             }
+        }
+
+        if (file.isDirectory() && (lower.endsWith(".zarr") || lower.endsWith(".n5"))) {
+            return resolveN5ToSources(file);
+        }
+
+        if (file.getParent() != null && (lower.endsWith(".json") && file.getParent().endsWith(".n5")
+                        || lower.startsWith(".z") && file.getParent().endsWith(".zarr"))) {
+            return resolveN5ToSources(file.getParentFile());
         }
 
         // Fallback: open as ImgPlus (includes size check before reaching BVV)
@@ -213,6 +238,91 @@ public class SpimDataUtils {
         public VoxelDimensions getVoxelDimensions() {
             return voxelDimensions;
         }
+    }
+
+    /**
+     * Holds the sources produced by opening an N5 or OME-Zarr container via
+     * {@code n5-ij}/{@code n5-universe}/{@code n5-viewer_fiji} (see
+     * {@link #resolvePathToSource(String)}). Unlike {@link AbstractSpimData},
+     * there is no BDV-XML descriptor involved: sources are built directly from
+     * the container's own N5/OME-NGFF metadata via
+     * {@link N5Viewer#buildN5Sources}.
+     */
+    public static class N5Sources {
+
+        /** One {@link SourceAndConverter} per channel/setup, in discovery order. */
+        public final List<SourceAndConverter<?>> sources;
+
+        /** Number of timepoints shared by all sources. */
+        public final int numTimepoints;
+
+        /** Display name derived from the container's directory name. */
+        public final String name;
+
+        public N5Sources(final List<SourceAndConverter<?>> sources, final int numTimepoints, final String name) {
+            this.sources = sources;
+            this.numTimepoints = numTimepoints;
+            this.name = name;
+        }
+    }
+
+    /**
+     * Opens an N5 or OME-Zarr container directly via {@code n5-ij}/{@code n5-universe}/{@code n5-viewer_fiji}.
+     *
+     * @param dir the {@code .n5} or {@code .zarr} directory
+     * @return the resolved sources
+     * @throws IllegalArgumentException if the container cannot be opened or no
+     *                                  recognized metadata is found
+     */
+    private static N5Sources resolveN5ToSources(final File dir) {
+        try {
+            final N5Reader n5 = new N5Importer.N5ViewerReaderFun().apply(dir.getAbsolutePath());
+            if (n5 == null)
+                throw new IllegalArgumentException("Could not open N5/Zarr container: " + dir.getAbsolutePath());
+
+            final N5TreeNode root = N5DatasetDiscoverer.discover(n5,
+                    Arrays.asList(N5ViewerCreator.n5vParsers),
+                    Arrays.asList(N5ViewerCreator.n5vGroupParsers));
+            final List<N5Metadata> found = new ArrayList<>();
+            collectMetadata(root, found);
+            if (found.isEmpty())
+                throw new IllegalArgumentException(
+                        "No recognized N5/OME-NGFF metadata found at '" + dir.getAbsolutePath() + "'.");
+
+            final List<N5Metadata> selected = N5Viewer.unwrapMultichannelSelections(new DataSelection(n5, found));
+            SNTUtils.log("BVV: opening N5/Zarr container via n5-viewer_fiji: " + dir.getAbsolutePath()
+                    + " (" + found.size() + " dataset(s) found)");
+            return buildN5Sources(n5, selected, dir.getName());
+        } catch (final IOException | RuntimeException e) {
+            throw new IllegalArgumentException("Could not open N5/Zarr container: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Recursively collects the metadata of every node in the tree that has any, without descending into a matched
+     * node's own children (e.g. resolution-level subfolders inside a multiscale group, which are not separate datasets)
+     */
+    private static void collectMetadata(final N5TreeNode node, final List<N5Metadata> found) {
+        final N5Metadata m = node.getMetadata();
+        if (m != null) {
+            found.add(m);
+            return;
+        }
+        for (final N5TreeNode child : node.childrenList())
+            collectMetadata(child, found);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static N5Sources buildN5Sources(
+            final N5Reader n5, final List<N5Metadata> selected, final String name) throws IOException {
+        final SharedQueue sharedQueue = new SharedQueue(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
+        final List<ConverterSetup> converterSetups = new ArrayList<>();
+        final List<SourceAndConverter<?>> sourcesAndConverters = new ArrayList<>();
+        final int numTimepoints = N5Viewer.buildN5Sources(
+                n5, selected, sharedQueue, converterSetups, (List) sourcesAndConverters, BdvOptions.options());
+        if (sourcesAndConverters.isEmpty())
+            throw new IllegalArgumentException("No displayable sources found for '" + name + "'.");
+        return new N5Sources(new ArrayList<>(sourcesAndConverters), numTimepoints, name);
     }
 
     /**
