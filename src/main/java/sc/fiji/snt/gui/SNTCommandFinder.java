@@ -367,9 +367,9 @@ public class SNTCommandFinder {
             if (!scriptCall) autoHide(); // hide before running, in case command opens a dialog
             if (cmd.hasButton()) {
                 cmd.button.doClick();
-            } else if (cmd.action != null) {
-                cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
             }
+        } else if (cmd.action != null) {
+            cmd.action.actionPerformed(new ActionEvent(this, ActionEvent.ACTION_PERFORMED, cmd.id));
         }
     }
 
