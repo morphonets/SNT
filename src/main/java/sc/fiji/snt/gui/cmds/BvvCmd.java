@@ -136,6 +136,8 @@ public class BvvCmd extends ContextCommand {
         for (final Object source : sources) {
             if (source instanceof AbstractSpimData<?> spim) {
                 bvv.show(spim);
+            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+                bvv.show(n5);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) img);
@@ -152,6 +154,8 @@ public class BvvCmd extends ContextCommand {
             final Object source = SpimDataUtils.resolvePathToSource(path);
             if (source instanceof AbstractSpimData<?> spim) {
                 bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
+            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+                bdv.show(n5);
             } else if (source instanceof ImgPlus<?> img) {
                 //noinspection unchecked,rawtypes
                 bdv.show((ImgPlus) img);

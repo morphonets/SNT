@@ -687,7 +687,11 @@ public class Bvv extends AbstractBigViewer {
      *       {@code Plugins > BigDataViewer > Create XML for Imaris file}.</li>
      *   <li><b>.xml</b> BDV XML/HDF5: loaded directly via
      *       {@link XmlIoSpimDataMinimal} and displayed using BVV's cache
-     *       manager. This covers BDV HDF5, BDV N5, and OME-Zarr datasets.</li>
+     *       manager. This covers BDV HDF5 and BDV N5 datasets.</li>
+     *   <li><b>.n5 / .zarr</b> directories: opened directly via {@code
+     *       n5-viewer_fiji} (no XML sidecar) and displayed using BVV's cache
+     *       manager. This covers plain N5 multiscale groups and OME-NGFF
+     *       (OME-Zarr) containers.</li>
      *   <li><b>anything else</b> delegated to {@link ImgUtils#open(String)}
      *       and displayed via the standard {@link ImgPlus} path. Very large
      *       flat volumes will fail with a descriptive error rather than a GL
@@ -710,6 +714,8 @@ public class Bvv extends AbstractBigViewer {
             if (source instanceof AbstractSpimData<?> sd) {
                 bvv.spimDataFilePaths.put(sd, path);
                 bvv.show(sd);
+            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+                bvv.show(n5);
             } else {
                 //noinspection unchecked,rawtypes
                 bvv.show((ImgPlus) source);
@@ -820,6 +826,87 @@ public class Bvv extends AbstractBigViewer {
             SwingUtilities.invokeLater(() -> {
                 final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
                 cp.addCard(mixerTitle, unmixingCard.build(multi, spimData), false);
+                if (sceneControlsCard != null) {
+                    cp.removeCard("Scene Controls");
+                    cp.addCard("Scene Controls", sceneControlsCard, true);
+                }
+                if (sntAnnotationsCard != null) {
+                    cp.removeCard("SNT Annotations");
+                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                }
+            });
+        }
+
+        return Collections.singletonList(multi);
+    }
+
+    /**
+     * Displays sources loaded from an N5 or OME-Zarr container (see {@link SpimDataUtils#resolvePathToSource(String)}),
+     * using BVV's pyramid-aware GPU cache manager. Unlike {@link #show(AbstractSpimData)}, there is no BDV-XML
+     * descriptor or {@link AbstractSpimData} involved: sources are built directly using  {@code n5-viewer_fiji}.
+     *
+     * @param n5Sources the sources to display
+     * @return list containing a single {@link BvvMultiSource} grouping all setups
+     */
+    public List<BvvMultiSource> show(final SpimDataUtils.N5Sources n5Sources) {
+        final BvvOptions opts = bvvHandle != null
+                ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
+        final List<BvvStackSource<?>> sources = new ArrayList<>();
+        for (final SourceAndConverter<?> soc : n5Sources.sources)
+            sources.add(BvvFunctions.show(soc, n5Sources.numTimepoints, opts));
+        if (sources.isEmpty()) return Collections.emptyList();
+
+        // Populate dims/cal from the first source's own metadata; there is no
+        // ViewSetup to read from here (unlike the AbstractSpimData path)
+        if (dims == null || cal == null) {
+            try {
+                final var src = sources.getFirst().getSources().getFirst().getSpimSource();
+                final var itvl = src.getSource(0, 0);
+                dims = new long[]{itvl.dimension(0), itvl.dimension(1), itvl.dimension(2)};
+                final var vd = src.getVoxelDimensions();
+                if (vd != null) {
+                    cal = new double[]{vd.dimension(0), vd.dimension(1), vd.dimension(2)};
+                    calUnit = (vd.unit() != null && !vd.unit().isBlank())
+                            ? BoundingBox.sanitizedUnit(vd.unit()) : "pixel";
+                }
+            } catch (final Exception ignored) {} // defensive: never break rendering for a metadata hiccup
+        }
+
+        // Derive a display name, stripping any per-channel suffix
+        String datasetName = n5Sources.name;
+        try {
+            final String firstName = sources.getFirst().getSources().getFirst().getSpimSource().getName();
+            if (firstName != null && !firstName.isBlank())
+                datasetName = firstName.replaceAll("_ch\\d+$", "");
+        } catch (final Exception ignored) {}
+        if (datasetName == null || datasetName.isBlank())
+            datasetName = "Dataset " + (multiSources.size() + 1);
+
+        // Attach control panel on first source of the first dataset
+        if (bvvHandle == null) {
+            bvvHandle = sources.getFirst().getBvvHandle();
+            attachControlPanel(sources.getFirst());
+        }
+
+        // Group all setups into one BvvMultiSource, mirroring show(AbstractSpimData)
+        final BvvStackSource<?> leaderSource = sources.getFirst();
+        final List<BvvStackSource<?>> followerSources = sources.subList(1, sources.size());
+
+        final int groupIdx = multiSources.size();
+        final int startIdx = bvvHandle.getViewerPanel().state().getSources().size() - sources.size();
+        assignToNamedGroup(datasetName, groupIdx, startIdx, sources.size(),
+                bvvHandle.getViewerPanel());
+
+        final BvvMultiSource multi = new BvvMultiSource(leaderSource,
+                new ArrayList<>(followerSources));
+        multiSources.add(multi);
+
+        // Add channel unmixing card for 2+ channel sources
+        if (multi.size() >= 2 && currentBvv != null) {
+            final String mixerTitle = unmixingCard.uniqueTitle(datasetName);
+            SwingUtilities.invokeLater(() -> {
+                final bdv.ui.CardPanel cp = currentBvv.getViewerFrame().getCardPanel();
+                cp.addCard(mixerTitle, unmixingCard.build(multi), false);
                 if (sceneControlsCard != null) {
                     cp.removeCard("Scene Controls");
                     cp.addCard("Scene Controls", sceneControlsCard, true);

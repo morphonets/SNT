@@ -273,6 +273,20 @@
 			<artifactId>imglib2</artifactId>
 		</dependency>
 
+		<!-- N5 / OME-Zarr dependencies (see sc.fiji.snt.io.SpimDataUtils#resolveN5ToSources) -->
+		<dependency>
+			<groupId>org.janelia.saalfeldlab</groupId>
+			<artifactId>n5-ij</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.janelia.saalfeldlab</groupId>
+			<artifactId>n5-universe</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.janelia.saalfeldlab</groupId>
+			<artifactId>n5-viewer_fiji</artifactId>
+		</dependency>
+
 		<!-- SciJava dependencies -->
 		<dependency>
 			<groupId>org.scijava</groupId>
