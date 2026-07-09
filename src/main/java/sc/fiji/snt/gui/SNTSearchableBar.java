@@ -30,11 +30,8 @@ import com.jidesoft.swing.event.SearchableEvent;
 import com.jidesoft.swing.event.SearchableListener;
 
 import sc.fiji.snt.SNTUtils;
-import sc.fiji.snt.util.SNTColor;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.io.Serial;
@@ -133,33 +130,11 @@ public class SNTSearchableBar extends SearchableBar {
 	JToggleButton createSubFilteringButton() {
 		final JToggleButton button = new JToggleButton();
 		formatButton(button, IconFactory.GLYPH.FILTER);
-		button.setToolTipText("Restricts filtering to selected " + objectDescription +".\nCombines filters to restrict matches");
-		button.setActionCommand("Restrict filtering to selected " + objectDescription); // to be displayed in SNTCommandFinder
+		button.setToolTipText("Combine selection filters to restrict matches: Restricts filtering to selected " + objectDescription);
+		button.setActionCommand("Combine selection filters to restrict matches"); // to be displayed in SNTCommandFinder
 		button.setRequestFocusEnabled(false);
 		button.setFocusable(false);
-		button.addActionListener(e -> {
-			setSubFilteringEnabled(button.isSelected());
-			setStatusLabelPlaceholder(statusLabelPlaceholder); // update label
-		});
-		getSearchField().getDocument().addDocumentListener(new DocumentListener() {
-			@Override
-			public void changedUpdate(final DocumentEvent e) {
-				disable();
-			}
-			@Override
-			public void removeUpdate(final DocumentEvent e) {
-				disable();
-			}
-			@Override
-			public void insertUpdate(final DocumentEvent e) {
-				disable();
-			}
-			void disable() { // text searches disable subFiltering
-				setSubFilteringEnabled(false);
-				button.setSelected(false);
-				button.setEnabled(getSearchingText().isBlank());
-			}
-		});
+		button.addActionListener(e -> setSubFilteringEnabled(button.isSelected()));
 		return button;
 	}
 
@@ -167,7 +142,7 @@ public class SNTSearchableBar extends SearchableBar {
 		statusLabelPlaceholder = placeholder;
 		if (_statusLabel != null) {
 			if (subFilteringEnabled) {
-				_statusLabel.setText("Filtering on selected paths only");
+				_statusLabel.setText("Combining selection filters");
 				_statusLabel.setIcon(getSubFilteringStatusIcon());
 			} else {
 				_statusLabel.setText(statusLabelPlaceholder);
@@ -391,6 +366,8 @@ public class SNTSearchableBar extends SearchableBar {
 
 	public void setSubFilteringEnabled(final boolean enable) {
 		this.subFilteringEnabled = enable;
+		if (_textField != null) _textField.setEnabled(!subFilteringEnabled); // subfiltering disables text searches
+		setStatusLabelPlaceholder(statusLabelPlaceholder); // update label
 	}
 
 	/**
