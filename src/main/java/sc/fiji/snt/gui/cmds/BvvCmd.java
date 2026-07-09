@@ -28,10 +28,16 @@ import com.jogamp.opengl.GLOffscreenAutoDrawable;
 import com.jogamp.opengl.GLProfile;
 import net.imagej.ImgPlus;
 import mpicbg.spim.data.generic.AbstractSpimData;
+import org.janelia.saalfeldlab.n5.bdv.N5ViewerTreeCellRenderer;
+import org.janelia.saalfeldlab.n5.ij.N5Importer;
+import org.janelia.saalfeldlab.n5.ui.DatasetSelectorDialog;
+import org.jspecify.annotations.NonNull;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.FileWidget;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
@@ -41,11 +47,17 @@ import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 
+import javax.swing.*;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Stream;
+
+import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vGroupParsers;
+import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vParsers;
 
 /**
  * Convenience command for starting a standalone Bdv/Bvv instance.
@@ -68,10 +80,12 @@ public class BvvCmd extends ContextCommand {
     private static final String CONVERT = "Show me how to convert to multi-resolution pyramid image";
 
 
-    @Parameter(label = "Main volume", description = "Primary image volume.\n"+ TOOLTIP)
+    @Parameter(label = "Main volume", style = FileWidget.FILE_AND_DIRECTORY_STYLE,
+            description = "Primary image volume.\n"+ TOOLTIP)
     File img1File;
 
-    @Parameter(required = false, label = "Secondary volume (optional)", description = "Optional image volume.\n"+ TOOLTIP)
+    @Parameter(required = false, style = FileWidget.FILE_AND_DIRECTORY_STYLE,
+            label = "Secondary volume (optional)", description = "Optional image volume.\n"+ TOOLTIP)
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction files (optional)",
@@ -116,13 +130,77 @@ public class BvvCmd extends ContextCommand {
         }
     }
 
+    /** True if path is an existing .n5 or .zarr directory. */
+    private static boolean isN5OrZarrDir(final String path) {
+        final File f = new File(path);
+        final String lower = f.getName().toLowerCase();
+        return f.isDirectory() && (lower.endsWith(".n5") || lower.endsWith(".zarr"));
+    }
+
+    /**
+     * Fallback UI for when {@link SpimDataUtils#resolvePathToSource(String)}
+     * cannot auto-discover a dataset in an N5/Zarr container on its own (e.g.
+     * an ambiguous or unusually structured container). Lets the user pick a
+     * dataset interactively.
+     * <p>
+     * Non-blocking: {@code DatasetSelectorDialog} shows a plain (non-modal)
+     * {@code JFrame}, so this method returns immediately, before the user has
+     * interacted with it. The resolved source is only added to {@code viewer}
+     * later, from the dialog's OK callback, once the user makes a selection.
+     *
+     * @param n5ZarrDir the {@code .n5} or {@code .zarr} directory
+     * @param viewer    the already-created {@link Bvv} or {@link Bdv} to add
+     *                  the user's eventual selection to
+     */
+    private void datasetDialog(final String n5ZarrDir, final AbstractBigViewer viewer) {
+        final ExecutorService exec = Executors.newFixedThreadPool(SNTPrefs.getThreads());
+        final DatasetSelectorDialog datasetDialog = getDatasetSelectorDialog(n5ZarrDir, exec);
+        SwingUtilities.invokeLater(() -> {
+            datasetDialog.run(selection -> {
+                try {
+                    final SpimDataUtils.N5Sources n5Sources =
+                            SpimDataUtils.resolveN5Selection(selection, new File(n5ZarrDir).getName());
+                    if (viewer instanceof Bvv bvv) bvv.show(n5Sources);
+                    else if (viewer instanceof Bdv bdv) bdv.show(n5Sources);
+                } catch (final Exception e) {
+                    GuiUtils.errorPrompt("Could not open '" + n5ZarrDir + "': " + e.getMessage());
+                } finally {
+                    exec.shutdown();
+                }
+            });
+            datasetDialog.openContainer(n5ZarrDir); // run() calls buildDialog() synchronously before returning
+        });
+    }
+
+    private static DatasetSelectorDialog getDatasetSelectorDialog(final String n5ZarrDir, final ExecutorService exec) {
+        final DatasetSelectorDialog datasetDialog = new DatasetSelectorDialog(
+                new N5Importer.N5ViewerReaderFun(), new N5Importer.N5BasePathFun(), n5ZarrDir,
+                n5vGroupParsers, n5vParsers);
+        datasetDialog.setLoaderExecutor(exec);
+        datasetDialog.setTreeRenderer(new N5ViewerTreeCellRenderer(false));
+        datasetDialog.setContainerPathUpdateCallback(path -> {}); // required; NPEs otherwise
+        return datasetDialog;
+    }
+
     /** Resolves sources, enforces GPU texture limits, then opens BVV. */
     private void runBvv(final String[] filePaths) {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         final List<Object> sources = new ArrayList<>();
+        final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (final String path : filePaths) {
-            final Object source = SpimDataUtils.resolvePathToSource(path);
+            final Object source;
+            try {
+                source = SpimDataUtils.resolvePathToSource(path);
+            } catch (final IllegalArgumentException e) {
+                if (isN5OrZarrDir(path)) {
+                    SNTUtils.log("BVV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
+                            + "); will prompt for dataset selection");
+                    deferredPaths.add(path);
+                    continue;
+                }
+                throw e;
+            }
             if (source instanceof ImgPlus<?> img && ImgUtils.exceedsDimension(img, maxTexSize)) {
                 SNTUtils.setIsLoading(false);
                 final Object handled = handleOversizedImage(img, maxTexSize, path);
@@ -143,6 +221,8 @@ public class BvvCmd extends ContextCommand {
                 bvv.show((ImgPlus) img);
             }
         }
+        for (final String path : deferredPaths)
+            datasetDialog(path, bvv);
         loadReconstructions(bvv);
         loadMarkers(bvv);
     }
@@ -150,8 +230,20 @@ public class BvvCmd extends ContextCommand {
     /** Resolves sources (no texture-size constraint) then opens BDV. */
     private void runBdv(final String[] filePaths) {
         final Bdv bdv = new Bdv();
+        final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (final String path : filePaths) {
-            final Object source = SpimDataUtils.resolvePathToSource(path);
+            final Object source;
+            try {
+                source = SpimDataUtils.resolvePathToSource(path);
+            } catch (final IllegalArgumentException e) {
+                if (isN5OrZarrDir(path)) {
+                    SNTUtils.log("BDV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
+                            + "); will prompt for dataset selection");
+                    deferredPaths.add(path);
+                    continue;
+                }
+                throw e;
+            }
             if (source instanceof AbstractSpimData<?> spim) {
                 bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
@@ -161,6 +253,8 @@ public class BvvCmd extends ContextCommand {
                 bdv.show((ImgPlus) img);
             }
         }
+        for (final String path : deferredPaths)
+            datasetDialog(path, bdv);
         loadReconstructions(bdv);
         loadMarkers(bdv);
     }

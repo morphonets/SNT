@@ -299,6 +299,28 @@ public class SpimDataUtils {
     }
 
     /**
+     * Builds {@link N5Sources} from a user-made {@link DataSelection} (e.g.
+     * from an interactive {@code DatasetSelectorDialog}), reusing the same
+     * source-building logic as the automatic discovery in
+     * {@link #resolvePathToSource(String)}. Intended as a fallback UI for
+     * containers whose structure {@link #resolvePathToSource(String)} could
+     * not resolve on its own.
+     *
+     * @param selection the user's dataset selection
+     * @param name      display name for the resulting {@link N5Sources}
+     * @return the resolved sources
+     * @throws IllegalArgumentException if no displayable sources are found
+     */
+    public static N5Sources resolveN5Selection(final DataSelection selection, final String name) {
+        try {
+            final List<N5Metadata> selected = N5Viewer.unwrapMultichannelSelections(selection);
+            return buildN5Sources(selection.n5, selected, name);
+        } catch (final IOException e) {
+            throw new IllegalArgumentException("Could not open N5/Zarr selection: " + e.getMessage(), e);
+        }
+    }
+
+    /**
      * Recursively collects the metadata of every node in the tree that has any, without descending into a matched
      * node's own children (e.g. resolution-level subfolders inside a multiscale group, which are not separate datasets)
      */
