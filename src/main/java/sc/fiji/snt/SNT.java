@@ -101,6 +101,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BiFunction;
 
 
 /**
@@ -415,9 +416,15 @@ public class SNT extends MultiDThreePanes implements
 		// Log what was extracted for debugging
 		if (sliceResult.channelIndex() >= 0) {
 			SNTUtils.log("Using channel " + sliceResult.channelIndex());
+			this.channel = sliceResult.channelIndex() + 1; // 1-based index
+		} else {
+			this.channel = 1;
 		}
 		if (sliceResult.timeIndex() >= 0) {
 			SNTUtils.log("Using timepoint " + sliceResult.timeIndex());
+			this.frame = sliceResult.timeIndex() + 1; // 1-based index
+		} else {
+			this.frame = 1;
 		}
 		SNTUtils.getContext().inject(this);
 		SNTUtils.setPlugin(this);
@@ -425,6 +432,7 @@ public class SNT extends MultiDThreePanes implements
 		prefs = new SNTPrefs(this);
 		setFieldsFromImgPlus(processedImage);
 		prefs.loadPluginPrefs();
+		single_pane = true; // avoid NPE on side panes logic
 	}
 
 	/**
@@ -2032,6 +2040,7 @@ public class SNT extends MultiDThreePanes implements
 																final int y_end,
 																final int z_end)
 	{
+
 		final boolean useSecondary = isTracingOnSecondaryImageActive();
 
 		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData() : getLoadedData();
@@ -2349,6 +2358,29 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * Manually traces a straight path from a point A to a point B, bypassing A* (or
+	 * any other configured {@link SearchInterface}) entirely: the two points are
+	 * simply connected via {@link ManualTracerThread}. Unlike {@link #autoTrace(SNTPoint,
+	 * SNTPoint, PointInImage, boolean)}, this method does not depend on, or alter,
+	 * {@link #isAstarEnabled()}. Runs headless (no SNTUI state changes) and, since it does
+	 * not search the image, is cheap enough to be safely called off the EDT.
+	 * <p>
+	 * The returned path is <i>not</i> added to the Path Manager: callers are responsible
+	 * for that (see {@link PathAndFillManager#addPath(Path, boolean, boolean)}).
+	 *
+	 * @param start the {@link SNTPoint} start of the path
+	 * @param end the {@link SNTPoint} end of the path
+	 * @param forkPoint the {@link PointInImage} fork point of the parent {@link Path}
+	 *          from which the path should branch off, or null if the path should not
+	 *          have any parent.
+	 * @return the path a reference to the computed path.
+	 */
+	@SuppressWarnings("unused") // used for snt scripts
+	public Path manualTrace(final SNTPoint start, final SNTPoint end, final PointInImage forkPoint) {
+		return manualTraceHeadless(List.of(start, end), forkPoint);
+	}
+
+	/**
 	 * Automatically traces a path from a list of points and adds it to the active
 	 * {@link PathAndFillManager} instance. Note that this method still requires
 	 * SNT's UI. For headless auto-tracing have a look at {@link TracerThread}.
@@ -2448,6 +2480,45 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		return runHeadlessTrace(pointList, forkPoint, (start, end) -> createSearch(
+				start.getX(), start.getY(), start.getZ(),
+				end.getX(), end.getY(), end.getZ()));
+	}
+
+	/**
+	 * Manual-tracing counterpart of {@link #autoTraceHeadless(List, PointInImage)}: connects
+	 * each consecutive pair of points with a straight segment via {@link ManualTracerThread}
+	 * instead of searching for a path with {@link #createSearch(double, double, double, double,
+	 * double, double)}. See {@link #manualTrace(SNTPoint, SNTPoint, PointInImage)}.
+	 */
+	private Path manualTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		return runHeadlessTrace(pointList, forkPoint, (start, end) -> new ManualTracerThread(this,
+				start.getX() / x_spacing, start.getY() / y_spacing, start.getZ() / z_spacing,
+				end.getX() / x_spacing, end.getY() / y_spacing, end.getZ() / z_spacing));
+	}
+
+	/**
+	 * Shared skeleton for headless, point-to-point tracing. For each consecutive pair of
+	 * points in {@code pointList}, builds a {@link SearchInterface} via {@code searchFactory},
+	 * submits it to {@link #tracerThreadPool}, blocks until it completes, and stitches the
+	 * per-segment {@link Path} results into a single path. Used by both {@link
+	 * #autoTraceHeadless(List, PointInImage)} (A* search, or whichever {@link SearchInterface}
+	 * is currently configured) and {@link #manualTraceHeadless(List, PointInImage)} (straight
+	 * segments, ignoring {@link #isAstarEnabled()} entirely).
+	 * <p>
+	 * This blocks the calling thread on {@link Future#get()} for each segment: callers running
+	 * on the EDT should only do so if {@code searchFactory} is guaranteed to be cheap (as
+	 * {@link ManualTracerThread} is). A real search (A*, Tubular Geodesics, etc.) can be slow,
+	 * especially against lazily-loaded data, and should be dispatched from a background thread.
+	 *
+	 * @param pointList the nodes to connect, start to end
+	 * @param forkPoint optional fork point of the parent Path, or null
+	 * @param searchFactory builds the per-segment search for a given start/end pair
+	 * @return the stitched path, or null if any segment failed to produce a result
+	 */
+	private <S extends Runnable & SearchInterface> Path runHeadlessTrace(final List<SNTPoint> pointList,
+			final PointInImage forkPoint, final BiFunction<SNTPoint, SNTPoint, S> searchFactory)
+	{
 		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 
@@ -2455,30 +2526,24 @@ public class SNT extends MultiDThreePanes implements
 			tracerThreadPool = Executors.newSingleThreadExecutor();
 		}
 
-		Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
+		final Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
 
 		// Now keep appending nodes to temporary path
 		for (int i = 0; i < pointList.size() - 1; i++) {
 			// Append node and wait for search to be finished
 			final SNTPoint start = pointList.get(i);
 			final SNTPoint end = pointList.get(i + 1);
-			AbstractSearch pathSearch = createSearch(
-					start.getX(),
-					start.getY(),
-					start.getZ(),
-					end.getX(),
-					end.getY(),
-					end.getZ());
-			Future<?> result = tracerThreadPool.submit(pathSearch);
 			Path pathResult = null;
 			try {
+				final S search = searchFactory.apply(start, end);
+				final Future<?> result = tracerThreadPool.submit(search);
 				result.get();
-				pathResult = pathSearch.getResult();
-			} catch (InterruptedException | ExecutionException e) {
-				SNTUtils.error("Error during auto-trace", e);
+				pathResult = search.getResult();
+			} catch (InterruptedException | ExecutionException | IllegalArgumentException e) {
+				SNTUtils.error("Error during trace", e);
 			}
 			if (pathResult == null) {
-				SNTUtils.log("Auto-trace result was null.");
+				SNTUtils.log("Trace result was null.");
 				return null;
 			}
 			fullPath.add(pathResult);
@@ -3935,6 +4000,10 @@ public class SNT extends MultiDThreePanes implements
 
 	public void enableAutoSelectionOfFinishedPath(final boolean enable) {
 		activateFinishedPath = enable;
+	}
+
+	public boolean isAutoSelectionOfFinishedPathEnabled() {
+		return activateFinishedPath;
 	}
 
 	public boolean isTracingOnSecondaryImageActive() {

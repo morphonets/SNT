@@ -342,7 +342,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
     public JPanel getPanel() {
         if (panel != null) return panel;
 
-        panel = SNTUI.InternalUtils.getTab();
+        panel = SNTUI.InternalUtils.initTab();
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
 
         // Header & description

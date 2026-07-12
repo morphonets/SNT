@@ -178,7 +178,7 @@ public class BookmarkManager {
     protected JPanel getPanel() {
         if (panel != null) return panel;
         panel = (sntui != null)
-                ? SNTUI.InternalUtils.getTab() : new JPanel(new GridBagLayout());
+                ? SNTUI.InternalUtils.initTab() : new JPanel(new GridBagLayout());
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
         if (sntui != null) {

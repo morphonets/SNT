@@ -31,12 +31,13 @@ import mpicbg.spim.data.generic.AbstractSpimData;
 import org.janelia.saalfeldlab.n5.bdv.N5ViewerTreeCellRenderer;
 import org.janelia.saalfeldlab.n5.ij.N5Importer;
 import org.janelia.saalfeldlab.n5.ui.DatasetSelectorDialog;
-import org.jspecify.annotations.NonNull;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.FileWidget;
+import sc.fiji.snt.PathAndFillManager;
+import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.gui.GuiUtils;
@@ -48,6 +49,8 @@ import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 
 import javax.swing.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -96,7 +99,8 @@ public class BvvCmd extends ContextCommand {
             description = "A CSV file containing bookmarked locations")
     File markerFile;
 
-    @Parameter(label = "Viewer type", choices = {"2D: Big Data Viewer (BDV)", "3D: Big Volume Viewer (BVV)"},
+    @Parameter(label = "Viewer type", choices = {"2D: Big Data Viewer (BDV)", "3D: Big Volume Viewer (BVV)",
+            "3D: Big Volume Viewer (BVV) with tracing capabilities"},
             description = "The type of viewer")
     String viewerChoice;
 
@@ -117,9 +121,18 @@ public class BvvCmd extends ContextCommand {
         }
         final boolean threeD = viewerChoice == null || viewerChoice.toLowerCase().contains("bvv")
                 || viewerChoice.toLowerCase().contains("vol") || viewerChoice.toLowerCase().contains("3d");
-        SNTUtils.setIsLoading(true);
+        final boolean tracer = viewerChoice != null && viewerChoice.toLowerCase().contains("tracing");
+
+        if (tracer && SNTUtils.getInstance() != null) {
+            error("SNT seems to be already running. Please close current instance and re-run.");
+            return;
+        }
+
         try {
-            if (threeD)
+            SNTUtils.setIsLoading(true);
+            if (tracer)
+                runBvvWithTracing(filePaths);
+            else if (threeD)
                 runBvv(filePaths);
             else
                 runBdv(filePaths);
@@ -186,6 +199,56 @@ public class BvvCmd extends ContextCommand {
     private void runBvv(final String[] filePaths) {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
+        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
+        if (resolved == null) return; // user chose Abort (oversized image)
+        final Bvv bvv = new Bvv();
+        addSourcesToBvv(bvv, resolved);
+        loadReconstructions(bvv);
+        loadMarkers(bvv);
+    }
+
+    /**
+     * Same as {@link #runBvv(String[])}, but tethers BVV to a full SNT instance (own SNTUI window,
+     * Path Manager, etc.) so that {@code Bvv}'s tracing toggle (manual and/or A*) is functional.
+     * <p>
+     * SNT's own image state (used by A* search, via {@code getLoadedData()}) is populated from the
+     * <i>primary</i> volume ({@link #img1File}) only when that file is safe/fast to also open
+     * conventionally, i.e., not a lazily-loaded N5/Zarr container. In that case (or if opening the
+     * primary volume conventionally fails for any other reason), SNT starts without image data:
+     * manual tracing still works (segment tracing only needs spacing, which defaults to 1 regardless
+     * of a loaded image), but A* has nothing real to search until an image is loaded via the SNTUI.
+     */
+    private void runBvvWithTracing(final String[] filePaths) {
+        final int maxTexSize = queryMaxTexture3DSize();
+        SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
+        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
+        if (resolved == null) return; // user chose Abort (oversized image)
+        final SNT snt = startTracingSNT(img1File);
+        final Bvv bvv = new Bvv(snt);
+        addSourcesToBvv(bvv, resolved);
+        loadReconstructions(bvv);
+        loadMarkers(bvv);
+        bvv.getViewerFrame().addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(final WindowEvent e) {
+                if (snt.getUI() != null) snt.getUI().setBvv(null);
+            }
+        });
+    }
+
+    /** Holds the outcome of {@link #resolveBvvSources(String[], int)}. */
+    private record ResolvedSources(List<Object> sources, List<String> deferredPaths) {}
+
+    /**
+     * Resolves each path to a BVV-displayable source (an {@link ImgPlus}, {@link AbstractSpimData},
+     * or {@link SpimDataUtils.N5Sources}), enforcing the GPU's 3D texture size limit along the way.
+     * N5/Zarr directories that can't be auto-discovered headlessly are collected into {@code
+     * deferredPaths} instead, to be resolved later via the interactive {@link #datasetDialog}.
+     *
+     * @return the resolved sources, or {@code null} if the user chose to Abort when prompted about
+     *         an oversized image (see {@link #handleOversizedImage})
+     */
+    private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize) {
         final List<Object> sources = new ArrayList<>();
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (final String path : filePaths) {
@@ -202,16 +265,19 @@ public class BvvCmd extends ContextCommand {
                 throw e;
             }
             if (source instanceof ImgPlus<?> img && ImgUtils.exceedsDimension(img, maxTexSize)) {
-                SNTUtils.setIsLoading(false);
                 final Object handled = handleOversizedImage(img, maxTexSize, path);
-                if (handled == null) return; // user chose Abort
+                if (handled == null) return null; // user chose Abort
                 sources.add(handled);
             } else {
                 sources.add(source);
             }
         }
-        final Bvv bvv = new Bvv();
-        for (final Object source : sources) {
+        return new ResolvedSources(sources, deferredPaths);
+    }
+
+    /** Adds each resolved source to {@code bvv}, and opens the interactive dialog for deferred N5/Zarr paths. */
+    private void addSourcesToBvv(final Bvv bvv, final ResolvedSources resolved) {
+        for (final Object source : resolved.sources()) {
             if (source instanceof AbstractSpimData<?> spim) {
                 bvv.show(spim);
             } else if (source instanceof SpimDataUtils.N5Sources n5) {
@@ -221,10 +287,72 @@ public class BvvCmd extends ContextCommand {
                 bvv.show((ImgPlus) img);
             }
         }
-        for (final String path : deferredPaths)
+        for (final String path : resolved.deferredPaths())
             datasetDialog(path, bvv);
-        loadReconstructions(bvv);
-        loadMarkers(bvv);
+    }
+
+    /**
+     * Starts a full SNT instance (SNTUI window included) without displaying an ImagePlus window
+     * BVV is the only display; SNT exists here for its Path Manager (and, when possible, A* search).
+     * <p>
+     * When {@code primaryVolume} resolves headlessly to a plain {@link ImgPlus} (the common case:
+     * TIFF, and often N5/Zarr too), it is wired directly into SNT via the {@code SNT(ImgPlus)}
+     * "Tracing Mode" constructor: this sets SNT's own {@code ctSlice3d} (what A* search reads via
+     * {@code getLoadedData()}) straight from the same object BVV renders, without ever assembling or
+     * showing the classic 2D tracing canvas ({@code setFieldsFromImgPlus} sets {@code xy = null}).
+     * {@link SNT#accessToValidImageData()} treats {@code ctSlice3d != null} as sufficient on its own
+     * <p>
+     * Since {@code ctSlice3d} only needs to be a {@code RandomAccessibleInterval}, this also works
+     * transparently when the resolved {@code ImgPlus} is lazily backed (e.g. N5/Zarr): A* search's
+     * random-access reads trigger on-demand chunk loading the same way BVV's own rendering does
+     * <p>
+     * Deliberately uses the <i>original</i>, full-resolution {@code ImgPlus} here, not whatever
+     * (possibly downsampled) version {@link #resolveBvvSources} produced for BVV: SNT's A* search is
+     * plain CPU-side iteration with no GPU texture-size constraint, so there's no reason to degrade it
+     * to match BVV's rendering limits.
+     * <p>
+     * Falls back to a blank SNT when the primary volume resolves to an
+     * {@link AbstractSpimData}/{@link SpimDataUtils.N5Sources} (BDV .xml multi-view
+     * containers, or N5/Zarr layouts ambiguous enough to need the interactive dataset dialog). There
+     * is no ImgPlus to hand to SNT in that case. Manual tracing still works either way (segment
+     * tracing only needs spacing, which defaults to 1); only A* needs real data
+     */
+    private SNT startTracingSNT(final File primaryVolume) {
+        GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
+        if (getContext() == null && ij.IJ.getInstance() == null) {
+            new net.imagej.ImageJ().ui().showUI();
+        }
+        ImgPlus<?> primaryImgPlus = null;
+        if (primaryVolume != null) {
+            try {
+                final Object source = SpimDataUtils.resolvePathToSource(primaryVolume.getAbsolutePath());
+                if (source instanceof ImgPlus<?> img) {
+                    primaryImgPlus = img;
+                } else {
+                    SNTUtils.log("BVV: primary volume resolves to " + source.getClass().getSimpleName()
+                            + " (not a plain ImgPlus); SNT will start without image data (manual tracing only)");
+                }
+            } catch (final Exception e) {
+                SNTUtils.log("BVV: could not resolve '" + primaryVolume.getName() + "' for SNT (" + e.getMessage()
+                        + "); tracing will fall back to manual-only (no image data for A*)");
+            }
+        }
+
+        final SNT snt;
+        if (primaryImgPlus != null) {
+            //noinspection unchecked,rawtypes
+            snt = new SNT((ImgPlus) primaryImgPlus); // "Tracing Mode": no window; ctSlice3d set directly
+        } else {
+            final PathAndFillManager pathAndFillManager = new PathAndFillManager();
+            snt = new SNT(getContext(), pathAndFillManager);
+            snt.initialize(null);
+        }
+        try {
+            snt.startUI(); // self-dispatches to the EDT as needed; do not wrap in invokeAndWait here
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        return snt;
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */

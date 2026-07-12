@@ -288,11 +288,11 @@ public class SNTUI extends JDialog {
         GuiUtils.removeIcon(this);
 
         assert SwingUtilities.isEventDispatchThread();
-        final JTabbedPane tabbedPane = getTabbedPane();
+        final JTabbedPane tabbedPane = initTabbedPane();
         final GridBagConstraints c1 = GuiUtils.defaultGbc();
 
         // Main tab
-        final JPanel tab1 = InternalUtils.getTab();
+        final JPanel tab1 = InternalUtils.initTab();
         c1.insets.top = InternalUtils.MARGIN * 2;
         c1.anchor = GridBagConstraints.NORTHEAST;
         InternalUtils.addSeparatorWithURL(tab1, "Data Source:", false, c1);
@@ -335,7 +335,7 @@ public class SNTUI extends JDialog {
 
 
         // Options Tab
-        final JPanel tab2 = InternalUtils.getTab();
+        final JPanel tab2 = InternalUtils.initTab();
         tab2.setLayout(new GridBagLayout());
         final GridBagConstraints c2 = GuiUtils.defaultGbc();
         c2.anchor = GridBagConstraints.NORTHEAST;
@@ -360,7 +360,7 @@ public class SNTUI extends JDialog {
 
 
         // 3D tab
-        final JPanel tab3 = InternalUtils.getTab();
+        final JPanel tab3 = InternalUtils.initTab();
         tab3.setLayout(new GridBagLayout());
         final GridBagConstraints c3 = GuiUtils.defaultGbc();
         c3.insets.bottom = InternalUtils.MARGIN;
@@ -388,8 +388,8 @@ public class SNTUI extends JDialog {
 
         InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", false, c3);
         ++c3.gridy;
-        final String msg4 = "Big Volume Viewer (BVV) is the 3D counterpart of Big Data Viewer " +
-                "capable of GPU volume rendering. Discrete graphics card recommended.";
+        final String msg4 = "Big Volume Viewer (BVV) is a functional tracing canvas and the 3D counterpart " +
+                "of Big Data Viewer capable of GPU volume rendering. Discrete graphics card recommended.";
         tab3.add(GuiUtils.longSmallMsg(msg4, "bdv-logo-light.svg", tab3), c3);
         c3.gridy++;
         tab3.add(bvvPanel(viewerPanelBuilder), c3);
@@ -431,14 +431,14 @@ public class SNTUI extends JDialog {
         tabbedPane.addTab("Notes", notesui.getPanel());
 
         // set icons: Main, Options, Assistant, Bookmarks, 3D, Delineations, Seeds, Notes
-        tabbedPane.setIconAt(0, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.HOME));
-        tabbedPane.setIconAt(1, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.TOOL));
-        tabbedPane.setIconAt(2, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.USER_DOCTOR));
-        tabbedPane.setIconAt(3, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.BOOKMARK));
-        tabbedPane.setIconAt(4, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CUBE));
-        tabbedPane.setIconAt(5, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.LINES_LEANING));
-        tabbedPane.setIconAt(6, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.SEEDLING));
-        tabbedPane.setIconAt(7, IconFactory.tabbedPaneIcon(tabbedPane, GLYPH.CLIPBOARD));
+        IconFactory.assignTabIcon(tabbedPane, 0, GLYPH.HOME);
+        IconFactory.assignTabIcon(tabbedPane, 1, GLYPH.TOOL);
+        IconFactory.assignTabIcon(tabbedPane, 2, GLYPH.USER_DOCTOR);
+        IconFactory.assignTabIcon(tabbedPane, 3, GLYPH.BOOKMARK);
+        IconFactory.assignTabIcon(tabbedPane, 4, GLYPH.CUBE);
+        IconFactory.assignTabIcon(tabbedPane, 5, GLYPH.LINES_LEANING);
+        IconFactory.assignTabIcon(tabbedPane, 6, GLYPH.SEEDLING);
+        IconFactory.assignTabIcon(tabbedPane, 7, GLYPH.CLIPBOARD);
         registerTabCommandFinderAliases(tabbedPane); // must be called after icons have been set
 
         setJMenuBar(createMenuBar(tabbedPane));
@@ -509,7 +509,7 @@ public class SNTUI extends JDialog {
 
     }
 
-    private JTabbedPane getTabbedPane() {
+    private JTabbedPane initTabbedPane() {
         final JTabbedPane tabbedPane = GuiUtils.getTabbedPane();
         tabbedPane.addChangeListener(e -> {
             final JTabbedPane source = (JTabbedPane) e.getSource();
@@ -1001,6 +1001,16 @@ public class SNTUI extends JDialog {
         final ImagePlus imp = plugin.getImagePlus();
         final String label = (imp == null || !plugin.isDisplayCanvas(imp)) ? "Create Canvas" : "Resize Canvas";
         rebuildCanvasButton.setText(label);
+    }
+
+    public void setBvv(final Bvv bvv) {
+        this.bvvSNT = bvv;
+        // Disable components not yet tested
+        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+        List.of("Bookmarks", "3D").forEach(tabTitle -> {
+            final int idx = InternalUtils.getTabIndex(tp, tabTitle);
+            if (idx != -1) tp.setEnabledAt(idx, bvvSNT == null);
+        });
     }
 
     // State interface for UI state management
@@ -2540,6 +2550,10 @@ public class SNTUI extends JDialog {
             } else if (plugin.is2D()) {
                 error("BVV requires a 3D image: ray-casting cannot render flat (2D) images with no depth.");
             } else {
+                if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
+                    bvvSNT.getViewerFrame().toFront();
+                    return;
+                }
                 try {
                     initializeBvvFromPrompt();
                 } catch (final Throwable exc) {
@@ -5632,7 +5646,7 @@ public class SNTUI extends JDialog {
             return (text.startsWith("<HTML>")) ? label : "<HTML>" + label;
         }
 
-        static JPanel getTab() {
+        static JPanel initTab() {
             final JPanel tab = new JPanel();
             tab.setBorder(BorderFactory.createEmptyBorder(MARGIN, MARGIN / 2, MARGIN / 2, MARGIN));
             tab.setLayout(new GridBagLayout());

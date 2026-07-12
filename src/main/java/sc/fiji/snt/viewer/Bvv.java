@@ -68,7 +68,7 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.*;
-import java.awt.event.ActionEvent;
+import java.awt.event.*;
 import java.awt.geom.Path2D;
 import java.io.File;
 import java.io.IOException;
@@ -106,11 +106,19 @@ public class Bvv extends AbstractBigViewer {
     private SceneOverlay sceneOverlay;
     private BigVolumeViewer currentBvv;
     private BvvHandle bvvHandle;
+    private Tracer tracer;
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
     private final long CENTER_ANIMATION_DURATION_MS = 250;
+    // Screen-space pick radius for snapping a click to an existing node (fork-point detection in Tracer). It gets
+    // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant across zoom levels
+    private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 50;
+
+    private MouseEvent lastPositionEvent;
+    private double[] lastPosition;
+
     /**
      * Constructor for standalone BVV instance.
      */
@@ -125,6 +133,7 @@ public class Bvv extends AbstractBigViewer {
      */
     public Bvv(final SNT snt) {
         super(snt); // sets this.snt and AbstractBigViewer.lastInstance
+        if (snt.getUI() != null) snt.getUI().setBvv(this);
         options = bvv.vistools.Bvv.options();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
@@ -132,6 +141,87 @@ public class Bvv extends AbstractBigViewer {
         options.maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB);
         options.ditherWidth(1); // dither window. 1 = full resolution; 8 = coarsest resolution
         options.numDitherSamples(8); // no. of nearest neighbors to interpolate from when dithering
+    }
+
+    private double[] getClickedPosition(final MouseEvent e) {
+        if (e == lastPositionEvent) return lastPosition; // same physical click, already computed
+        lastPositionEvent = e;
+        lastPosition = getClickedPosition();
+        return lastPosition;
+    }
+
+    /**
+     * Converts a screen-space pixel radius into a world-space distance, using the scale of the
+     * current viewer transform. Used to make on-screen "pick" tolerances (e.g. snapping to an
+     * existing node to fork from) scale-invariant with respect to zoom.
+     * <p>
+     * Same technique as BvvUtils#colMagnitudes(AffineTransform3D): sum-of-squares of a
+     * transform's linear part, applied to the viewer transform rather than a source transform.
+     * BVV/BDV viewer transforms are similarity transforms (rotation + uniform scale), so the three
+     * columns should agree closely; averaging them is a simplification, not an exact per-axis fix.
+     * <p>
+     * NB> this ignores perspective foreshortening (scale technically also depends on depth along
+     * the camera axis in BVV). Good enough here because clicks are first centered onto the focal
+     * plane ({@code registerCenterOnDoubleClickListener}), where foreshortening is minimal
+     *
+     * @param screenPx the desired pick radius, in screen pixels
+     * @return the equivalent world-space distance at the current zoom level, or {@code screenPx}
+     *          unscaled if the viewer transform isn't available (should not normally happen)
+     */
+    private double pickRadiusWorld(final double screenPx) {
+        final VolumeViewerPanel vp = getViewerPanel();
+        if (vp == null) return screenPx;
+        final AffineTransform3D t = new AffineTransform3D();
+        vp.state().getViewerTransform(t);
+        double sumSq = 0;
+        for (int r = 0; r < 3; r++)
+            for (int c = 0; c < 3; c++) { final double v = t.get(r, c); sumSq += v * v; }
+        final double screenPxPerWorldUnit = Math.sqrt(sumSq / 3.0);
+        return (screenPxPerWorldUnit > 0) ? screenPx / screenPxPerWorldUnit : screenPx;
+    }
+
+    private double[] getClickedPosition() {
+        // Use ray-maxima for accurate Z; fall back to focal-plane if ray misses.
+        final double[] peak = findClickRayMaxima();
+        if (peak != null) {
+            return peak;
+        }
+        // This fallback track should never happen!?
+        final RealPoint pos = new RealPoint(3);
+        getViewer().getViewer().getGlobalMouseCoordinates(pos);
+        final double x = pos.getDoublePosition(0);
+        final double y = pos.getDoublePosition(1);
+        // Validate X and Y against the source's world-space bounding box.
+        // Only XY are checked: Z is derived from the intensity peak along the
+        // ray and needs no range check. Out-of-range XY indicates the view was
+        // obliquely rotated, making coordinate recovery unreliable.
+        if (dims != null && cal != null) {
+            final bdv.viewer.SourceAndConverter<?> currentSac = getViewer().getViewer().state().getCurrentSource();
+            if (currentSac != null) {
+                final AffineTransform3D t = new AffineTransform3D();
+                currentSac.getSpimSource().getSourceTransform(0, 0, t);
+                double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                final double[] corner = new double[3];
+                final double[] world = new double[3];
+                for (int i = 0; i < 8; i++) {
+                    corner[0] = (i & 1) == 0 ? 0 : dims[0] - 1;
+                    corner[1] = (i & 2) == 0 ? 0 : dims[1] - 1;
+                    corner[2] = (i & 4) == 0 ? 0 : dims[2] - 1;
+                    t.apply(corner, world);
+                    minX = Math.min(minX, world[0]);
+                    maxX = Math.max(maxX, world[0]);
+                    minY = Math.min(minY, world[1]);
+                    maxY = Math.max(maxY, world[1]);
+                }
+                if (x < minX || x > maxX || y < minY || y > maxY) {
+                    getViewer().getViewer().showMessage(
+                            "Outside image bounds: Align view to a principal axis and retry");
+                    return null;
+                }
+            }
+        }
+       return pos.positionAsDoubleArray();
     }
 
     /**
@@ -269,6 +359,8 @@ public class Bvv extends AbstractBigViewer {
                     attachControlPanel(chSource);
                     if (annotationOverlay != null)
                         annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
+                    if (tracer != null && tracer.tracingOverlay != null)
+                        tracer.tracingOverlay.setCamParams(cam[0], cam[1], cam[2]);
                 }
             } else {
                 followerSources.add(chSource);
@@ -1055,6 +1147,8 @@ public class Bvv extends AbstractBigViewer {
         // Sync annotation overlay (created inside attachControlPanel) with image-derived params
         if (annotationOverlay != null)
             annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
+        if (tracer != null && tracer.tracingOverlay != null)
+            tracer.tracingOverlay.setCamParams(cam[0], cam[1], cam[2]);
         // Wrap single-channel source as BvvMultiSource so show(List) can track it uniformly
         final int groupIdx = multiSources.size();
         final int srcIdx = bvvHandle.getViewerPanel().state().getSources().size() - 1;
@@ -1119,6 +1213,8 @@ public class Bvv extends AbstractBigViewer {
                     attachControlPanel(chSource);
                     if (annotationOverlay != null)
                         annotationOverlay.setCamParams(cam[0], cam[1], cam[2]);
+                    if (tracer != null && tracer.tracingOverlay != null)
+                        tracer.tracingOverlay.setCamParams(cam[0], cam[1], cam[2]);
                 }
             } else {
                 followerSources.add(chSource);
@@ -1216,6 +1312,7 @@ public class Bvv extends AbstractBigViewer {
             initializePathOverlay(currentBvv);
             initializeAnnotationOverlay(currentBvv);
             registerCenterOnDoubleClickListener(currentBvv);
+            tracer = new Tracer();
             sceneOverlay = new SceneOverlay();
             currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();
@@ -1418,17 +1515,22 @@ public class Bvv extends AbstractBigViewer {
                 new java.awt.event.MouseAdapter() {
                     @Override
                     public void mouseClicked(final java.awt.event.MouseEvent e) {
-                        // Only react to plain left double-clicks; ignore modifiers and
-                        // right/middle buttons so BVV's own drag/rotate interactions are unaffected.
-                        if (e.getButton() != java.awt.event.MouseEvent.BUTTON1
-                                || e.getClickCount() != 2 || e.getModifiersEx() != 0) {
+                        // Tracing enabled: react to single left-clicks
+                        // Tracing disabled: Only react to plain left double-clicks;
+                        // Always ignore modifiers and right/middle buttons so BVV's own drag/rotate interactions are unaffected
+                        if (e.getButton() != java.awt.event.MouseEvent.BUTTON1) {
+                            return;
+                        }
+                        final boolean reactTracingEnabled = tracingEnabled && e.getClickCount() == 1;
+                        final boolean reactTracingDisabled = !tracingEnabled && e.getClickCount() == 2 && e.getModifiersEx() == 0;
+                        if (!reactTracingEnabled && !reactTracingDisabled) {
                             return;
                         }
                         final VolumeViewerPanel vp = getViewerPanel();
                         if (vp == null) return;
 
                         // Find the world point to center on.
-                        double[] target = findClickRayMaxima();
+                        double[] target = getClickedPosition(e);
                         if (target == null) {
                             // Ray missed the volume: fall back to focal-plane intersection.
                             final RealPoint pos = new RealPoint(3);
@@ -1504,6 +1606,32 @@ public class Bvv extends AbstractBigViewer {
 
     private JComponent sntToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
+
+        // group 1: tracing controls (auto/manual)
+        final ButtonGroup bg = new ButtonGroup() {
+
+            @Override
+            public void setSelected(final ButtonModel model, final boolean selected) {
+                if (selected) { // https://stackoverflow.com/a/22227537
+                    super.setSelected(model, true);
+                } else {
+                    clearSelection();
+                }
+            }
+        };
+        final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
+                "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
+        final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
+                "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
+        bg.add(b1);
+        bg.add(b2);
+        toolbar.add(b1);
+        toolbar.add(b2);
+        toolbar.addSeparator();
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
+
+        // group 2: annotations
         toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(),
                 "Show/hide annotations",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH));
@@ -2422,6 +2550,8 @@ public class Bvv extends AbstractBigViewer {
                     overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             if (bvvInstance.annotationOverlay != null)
                 bvvInstance.annotationOverlay.setCamParams(overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
+            if (bvvInstance.tracer != null && bvvInstance.tracer.tracingOverlay != null)
+                bvvInstance.tracer.tracingOverlay.setCamParams(overlayRenderer.dCam, overlayRenderer.nearClip, overlayRenderer.farClip);
             bvvInstance.syncOverlays();
         }
 
@@ -2921,6 +3051,239 @@ public class Bvv extends AbstractBigViewer {
         menu.add(sep);
     }
 
+    private class Tracer extends MouseAdapter {
+
+        private AnnotationOverlay tracingOverlay;
+        private Path tempPath;
+        private Path.PathNode previousNode;
+        private PointInImage previousForkPoint;
+        private final boolean requireShiftToFork;
+
+        // Guards against a click being processed while a segment is still being traced in the background
+        // This keeps tempPath mutations single-threaded
+        private volatile boolean computing;
+        // Set when a finish (clickCount >= 2) arrives while computing is true: honored by done() once
+        // the in-flight segment lands, instead of silently dropping the finish request.
+        private volatile boolean pendingFinish;
+        private boolean manualTrace; // true: purely manual trace; false: A* search
+
+        public Tracer() {
+            if (snt == null || snt.getPathAndFillManager() == null) {
+                throw new IllegalArgumentException("Tracer can only be initialized with a valid SNT instance");
+            }
+            requireShiftToFork = snt.getPrefs().getPref(SNTPrefs.REQUIRE_SHIFT_FOR_FORK);
+            currentBvv.getViewer().getDisplay().getComponent().addMouseListener(this);
+        }
+
+        @Override
+        public void mouseClicked(final MouseEvent e) {
+            if (!tracingEnabled) return;
+
+            // AWT's click count keeps incrementing for any click that lands within the platform's multi-click
+            // time/distance window of the previous one. Treating >=2 as "finish" ensures fast multiple clicking
+            // does not silently fall through as ordinary tracing input
+            if (e.getClickCount() >= 2) { // Path Finished
+                if (computing) {
+                    // A segment triggered by this same click sequence is still being traced in the background (every
+                    // finish is preceded by a clickCount==1 event that itself extends the path). Defer instead of
+                    // dropping: done() will finish once that segment lands, so the commit always sees a fully
+                    // up-to-date tempPath
+                    pendingFinish = true;
+                    return;
+                }
+                finishPath();
+                return;
+            }
+            if (computing) return; // a segment is still being traced; ignore further clicks until it lands
+
+            if (previousNode == null) {
+                // this is the first click: we are starting a new Path.
+                final double[] cc1 = getClickedPosition(e);
+                if (cc1 == null) return; // msg already displayed
+                previousNode = new Path.PathNode(cc1);
+
+                // Is this new starting node supposed to be a fork point on an existing path?
+                final boolean joiner_modifier_down = (requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
+                highlightClickedLocation(previousNode, joiner_modifier_down);
+
+                if (!joiner_modifier_down) {
+                    previousForkPoint = null;
+                } else {
+                    // find the nearest node to this cursor position see InteractiveTracingCanvas#mouseMoved
+                    // Pick radius is defined in screen pixels (see pickRadiusWorld()) rather than a fixed
+                    // world-space distance, so "close enough to fork" stays consistent across zoom levels
+                    // TODO: This is a deviation from tracing on ImagePlus: There we look for a nearest point in selected paths only
+                    final double pickRadius = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
+                    showViewerMessage("Forking path...");
+                    final NearPoint nearPoint = snt.getPathAndFillManager().nearestPointOnAnyPath(cc1[0], cc1[1], cc1[2], pickRadius);
+                    previousForkPoint = (nearPoint == null) ? null : nearPoint.getNode();
+                    if (previousForkPoint == null) {
+                        showViewerMessage(String.format("No fork point within %.2f%s of cursor", pickRadius, calUnit));
+                    }
+                }
+                return;
+            }
+
+            // this is the second (or Nth) click: highlight it and trace the segment from the
+            // previous click to here, forking off an existing path if the join modifier is down
+            final double[] cc2 = getClickedPosition(e);
+            if (cc2 == null) return; // msg already displayed
+            final Path.PathNode currentNode = new Path.PathNode(cc2);
+            highlightClickedLocation(currentNode, false);
+            traceSegmentAsync(previousNode, currentNode, previousForkPoint);
+            previousNode = currentNode;
+            previousForkPoint = null; // reset fork point
+        }
+
+        /**
+         * Commits {@code tempPath} to the Path Manager and resets tracing state. Called directly
+         * from {@code mouseClicked} when no segment is in flight, or deferred from {@code done()}
+         * (via {@code pendingFinish}) when a finish click arrived while one was still being traced.
+         */
+        private void finishPath() {
+            // Nothing pending: ignore a stray finish click
+            final boolean inProgress = previousNode != null || (tempPath != null && tempPath.size() > 0);
+            if (!inProgress) return;
+
+            // edge case: single click followed directly by finish, with no segment ever traced: tempPath
+            // was never initialized, so build a fresh one-node path here
+            if (tempPath == null) {
+                tempPath = new Path(cal[0], cal[1], cal[2], calUnit);
+            }
+            // A single node is treated as a single-point soma
+            if (tempPath.size() == 0 && previousNode != null) tempPath.addNode(previousNode);
+            if (tempPath.size() == 1) tempPath.setSWCType(Path.SWC_SOMA);
+
+            // Add path to path manager and reset
+            snt.getPathAndFillManager().addPath(tempPath);
+            if (snt.isAutoSelectionOfFinishedPathEnabled()) snt.selectPath(tempPath, false);
+            if (tracingOverlay != null) tracingOverlay.clear();
+            syncPathManagerList();
+            tempPath = null;
+            previousNode = null;
+        }
+
+        /**
+         * Runs {@link SNT#manualTrace(SNTPoint, SNTPoint, PointInImage)} off the EDT and applies
+         * the result (stitching into {@code tempPath} and refreshing the preview overlay) back on
+         * the EDT once done. Keeps the click handler itself non-blocking.
+         */
+        private void traceSegmentAsync(final Path.PathNode start, final Path.PathNode end,
+                                       final PointInImage forkPoint) {
+            computing = true;
+            new SwingWorker<Path, Void>() {
+                @Override
+                protected Path doInBackground() {
+                    // NB: must use the headless (4-arg) autoTrace overload here, NOT autoTrace(start,end,forkPoint).
+                    // The 3-arg overload is the *interactive* entry point (meant for SNTUI/2D-canvas tracing)
+                    return (manualTrace)
+                            ? snt.manualTrace(start, end, forkPoint)
+                            : snt.autoTrace(start, end, forkPoint, true);
+                }
+
+                @Override
+                protected void done() {
+                    computing = false;
+                    try {
+                        final Path result = get();
+                        if (result == null) {
+                            showViewerMessage("Segment could not be traced (out of bounds?)");
+                        } else if (tempPath == null) {
+                            tempPath = result;
+                        } else {
+                            tempPath.add(result);
+                        }
+                        if (result != null) drawSegment(tempPath);
+                    } catch (final Exception ex) {
+                        showViewerMessage(ex.getMessage());
+                        SNTUtils.error("Error tracing segment", ex); // only displayed in debug mode
+                    } finally {
+                        // Honor a finish request that arrived while this segment was still in flight,
+                        // regardless of whether it succeeded: the user's finish click should never be
+                        // silently lost, and tempPath (even if this segment failed) still reflects
+                        // whatever was successfully traced so far.
+                        if (pendingFinish) {
+                            pendingFinish = false;
+                            finishPath();
+                        }
+                    }
+                }
+            }.execute();
+        }
+
+        private void initializeTracingOverlay(final BigVolumeViewer bvv) {
+            if (tracingOverlay != null) tracingOverlay.dispose();
+            tracingOverlay = new AnnotationOverlay(adapt(bvv.getViewer()), Bvv.this, renderingOptions);
+        }
+
+        private void highlightClickedLocation(final Path.PathNode node, final boolean highlightAsForkPoint) {
+            if (tracingOverlay == null) initializeTracingOverlay(Bvv.this.getViewer());
+            tracingOverlay.addAnnotation(node,
+                    (highlightAsForkPoint) ? getDefaultMarkerSize() * 2 : getDefaultMarkerSize(),
+                    (highlightAsForkPoint) ? SNTColor.contrastHueColor(getDefaultMarkerColor(), Color.BLACK) : getDefaultMarkerColor());
+        }
+
+        private void drawSegment(final Path segment) {
+            if (pathOverlay == null) initializePathOverlay(Bvv.this.getViewer());
+            final Tree tree = new Tree();
+            tree.add(segment);
+            //color will be set to getDefaultMarkerColor()
+            pathOverlay.updatePaths(tree);
+        }
+
+        void exit() {
+            previousNode = null;
+            tempPath = null;
+            computing = false;
+            pendingFinish = false;
+            if (tracingOverlay != null) tracingOverlay.dispose();
+            tracingOverlay = null;
+            if (pathOverlay != null) pathOverlay.updatePaths(); // get rid of temp path
+        }
+
+        private AbstractAction getToggleAction(final boolean manualTraceFlag) {
+            return new AbstractAction("Start/Stop tracing") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+
+                    final AbstractButton button = (e.getSource() instanceof AbstractButton) ? (AbstractButton) e.getSource() : null;
+                    tracingEnabled = (button == null) ? tracingEnabled : button.isSelected();
+                    Tracer.this.manualTrace = manualTraceFlag;
+
+                    final boolean sntAware = snt != null && snt.getPathAndFillManager() != null;
+                    final boolean tracingPossible = manualTraceFlag || (sntAware && snt.accessToValidImageData());
+                    final String tracingDescription = (manualTraceFlag) ? "Manual tracing" : "Semi-automated tracing";
+
+                    if (!tracingPossible && tracingEnabled) {
+                        new GuiUtils(getViewerFrame()).error(tracingDescription + " is not available.");
+                        tracingEnabled = false;
+                        Tracer.this.manualTrace = true;
+                        if (button != null) {
+                            button.setSelected(false);
+                            button.setEnabled(false);
+                        }
+                    } else if (tracingEnabled) {
+                        showViewerMessage(tracingDescription + " enabled");
+                    } else {
+                        final boolean exited = exitedWithConfirmationPrompt();
+                        if (!exited && button != null) button.setSelected(true);
+                    }
+                }
+            };
+        }
+
+        private boolean exitedWithConfirmationPrompt() {
+            final boolean skipPrompt = tempPath == null || tempPath.size() == 0;
+            if (skipPrompt || new GuiUtils(getViewerFrame()).getConfirmation("Discard current unfinished path?", "Discard Unfinished Path?")) {
+                exit();
+                showViewerMessage("Tracing disabled");
+                return true;
+            }
+            return false;
+        }
+
+    }
+
     /**
      * Java2D overlay that draws coordinate axes and a wire bounding box
      * using the same perspective projection as {@link AnnotationOverlay}.
@@ -3176,6 +3539,13 @@ public class Bvv extends AbstractBigViewer {
 
         void updatePaths() {
             final Collection<Tree> trees = sntViewer.getRenderedTrees();
+            overlayRenderer.updatePaths(trees);
+            viewerPanel.requestRepaint();
+        }
+
+        void updatePaths(final Tree transientTree) {
+            final Collection<Tree> trees = new ArrayList<>(sntViewer.getRenderedTrees());
+            if (transientTree != null) trees.add(transientTree);
             overlayRenderer.updatePaths(trees);
             viewerPanel.requestRepaint();
         }
@@ -4565,6 +4935,8 @@ public class Bvv extends AbstractBigViewer {
         }
         if (annotationOverlay != null)
             annotationOverlay.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
+        if (tracer != null && tracer.tracingOverlay != null)
+            tracer.tracingOverlay.setCamParams(kf.dCam, kf.nearClip, kf.farClip);
         syncOverlays();
         // Groups
         final bdv.viewer.SynchronizedViewerState state = vp.state();
@@ -4591,10 +4963,8 @@ public class Bvv extends AbstractBigViewer {
     /** Actions for BVV GUI components. */
     private class BvvActions extends Actions {
         private final BigVolumeViewer bvv;
-        private final Bvv sntBvv;
 
         BvvActions(final Bvv sntBvv, final BigVolumeViewer bvv) {
-            this.sntBvv = sntBvv;
             this.bvv = bvv;
         }
 
@@ -4667,50 +5037,12 @@ public class Bvv extends AbstractBigViewer {
             return new AbstractAction("Add Marker") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    // Use ray-maxima for accurate Z; fall back to focal-plane if ray misses.
-                    final double[] peak = sntBvv.findClickRayMaxima();
-                    final double x, y, z;
-                    if (peak != null) {
-                        x = peak[0]; y = peak[1]; z = peak[2];
-                    } else {
-                        final RealPoint pos = new RealPoint(3);
-                        bvv.getViewer().getGlobalMouseCoordinates(pos);
-                        x = pos.getDoublePosition(0);
-                        y = pos.getDoublePosition(1);
-                        z = pos.getDoublePosition(2);
+                    final double[] pos = getClickedPosition();
+                    if (pos != null) { // warning message if null
+                        getMarkerManager().add(pos[0], pos[1], pos[2]);
+                        bvv.getViewer().showMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)",
+                                pos[0], pos[1], pos[2]));
                     }
-                    // Validate X and Y against the source's world-space bounding box.
-                    // Only XY are checked: Z is derived from the intensity peak along the
-                    // ray and needs no range check. Out-of-range XY indicates the view was
-                    // obliquely rotated, making coordinate recovery unreliable.
-                    if (dims != null && cal != null) {
-                        final bdv.viewer.SourceAndConverter<?> currentSac = bvv.getViewer().state().getCurrentSource();
-                        if (currentSac != null) {
-                            final AffineTransform3D t = new AffineTransform3D();
-                            currentSac.getSpimSource().getSourceTransform(0, 0, t);
-                            double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-                            double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-                            final double[] corner = new double[3];
-                            final double[] world = new double[3];
-                            for (int i = 0; i < 8; i++) {
-                                corner[0] = (i & 1) == 0 ? 0 : dims[0] - 1;
-                                corner[1] = (i & 2) == 0 ? 0 : dims[1] - 1;
-                                corner[2] = (i & 4) == 0 ? 0 : dims[2] - 1;
-                                t.apply(corner, world);
-                                minX = Math.min(minX, world[0]);
-                                maxX = Math.max(maxX, world[0]);
-                                minY = Math.min(minY, world[1]);
-                                maxY = Math.max(maxY, world[1]);
-                            }
-                            if (x < minX || x > maxX || y < minY || y > maxY) {
-                                bvv.getViewer().showMessage(
-                                        "Outside image bounds: Align view to a principal axis before placing a marker.");
-                                return;
-                            }
-                        }
-                    }
-                    getMarkerManager().add(x, y, z);
-                    bvv.getViewer().showMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
                 }
             };
         }

@@ -106,7 +106,7 @@ public class DelineationsManager {
     }
 
     protected JPanel getPanel() {
-        final JPanel container = SNTUI.InternalUtils.getTab();
+        final JPanel container = SNTUI.InternalUtils.initTab();
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Delineations:",

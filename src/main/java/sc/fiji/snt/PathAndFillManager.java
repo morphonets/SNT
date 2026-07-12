@@ -3232,8 +3232,7 @@ public class PathAndFillManager extends DefaultHandler implements
 
             if (0 == p.size()) continue;
 
-            final int i = p.indexNearestTo(x * x_spacing, y * y_spacing, z *
-                    z_spacing);
+            final int i = p.indexNearestTo(x * x_spacing, y * y_spacing, z * z_spacing);
 
             final PointInImage nearestOnPath = p.getNodeWithoutChecks(i);
 
@@ -3358,8 +3357,8 @@ public class PathAndFillManager extends DefaultHandler implements
     public NearPoint nearestPointOnAnyPath(final double x, final double y,
                                            final double z, final double distanceLimit)
     {
-        return nearestPointOnAnyPath(allPaths, new PointInImage(x, y, z), Math.sqrt(
-                distanceLimit), false);
+        return nearestPointOnAnyPath(allPaths, new PointInImage(x, y, z), distanceLimit *
+                distanceLimit, false);
     }
 
     protected List<Path> getUnSelectedPathsRenderedInViewPort(

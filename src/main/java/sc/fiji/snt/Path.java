@@ -155,6 +155,10 @@ public class Path implements Comparable<Path>, Cloneable {
 		private Color nodeColor;
 		private double[] tangent; // [x, y, z]
 
+		public PathNode(final double[] xyz) {
+			super(xyz[0], xyz[1], xyz[2]);
+		}
+
 		public PathNode(final double x, final double y, final double z) {
 			super(x, y, z);
 		}

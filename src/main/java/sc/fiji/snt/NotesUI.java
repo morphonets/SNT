@@ -64,7 +64,7 @@ public class NotesUI {
      * Returns the assembled <i>Notepad</i> panel.
      */
     protected JPanel getPanel() {
-        final JPanel container = SNTUI.InternalUtils.getTab();
+        final JPanel container = SNTUI.InternalUtils.initTab();
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
         SNTUI.InternalUtils.addSeparatorWithURL(container, "Notepad:", true, gbc);

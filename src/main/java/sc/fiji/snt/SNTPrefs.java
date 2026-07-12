@@ -63,7 +63,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	/** Boolean identifiers */
 	private static final int DRAW_DIAMETERS = 1;
 	private static final int SNAP_CURSOR = 2;
-	private static final int REQUIRE_SHIFT_FOR_FORK = 4;
+	public static final int REQUIRE_SHIFT_FOR_FORK = 4;
 	private static final int AUTO_CANVAS_ACTIVATION = 8;
 	private static final int AUTO_SELECTION_FINISHED_PATH = 16;
 	private static final int USE_THREE_PANE = 32;
@@ -312,7 +312,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		snt.use3DViewer = getPref(USE_3D_VIEWER);
 	}
 
-	private boolean getPref(final int key) {
+	public boolean getPref(final int key) {
 		return (currentBooleans & key) != 0;
 	}
 

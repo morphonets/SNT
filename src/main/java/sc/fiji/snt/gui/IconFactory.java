@@ -297,8 +297,11 @@ public class IconFactory {
         return new FADerivedIcon(entry.id, list.getFont().getSize() * 0.9f, list.getForeground(), entry.solid);
     }
 
-    public static Icon tabbedPaneIcon(final JTabbedPane tabbedPane, final GLYPH entry) {
-        return new FADerivedIcon(entry.id, tabbedPane.getFont().getSize(), tabbedPane.getForeground(), entry.solid);
+    public static void assignTabIcon(final JTabbedPane tabbedPane, final int tabIndex, final GLYPH entry) {
+        tabbedPane.setIconAt(tabIndex,
+                new FADerivedIcon(entry.id, tabbedPane.getFont().getSize(), tabbedPane.getForeground(), entry.solid));
+        tabbedPane.setDisabledIconAt(tabIndex,
+                new FADerivedIcon(entry.id, tabbedPane.getFont().getSize(), GuiUtils.getDisabledComponentColor(), entry.solid));
     }
 
     public static TitledBorder bottomBorder(final char symbol, final boolean solid) {

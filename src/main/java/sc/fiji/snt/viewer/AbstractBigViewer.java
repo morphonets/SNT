@@ -64,13 +64,13 @@ public abstract class AbstractBigViewer {
 
     static { net.imagej.patcher.LegacyInjector.preinit(); }
 
-    // ---- Shared state -------------------------------------------------------
-
     /** Most recently instantiated viewer; scripting convenience. */
     protected static volatile AbstractBigViewer lastInstance;
 
     /** The SNT instance this viewer is tethered to (null in standalone mode). */
     protected final SNT snt;
+
+    protected boolean tracingEnabled;
 
     /**
      * Trees currently rendered in this viewer, keyed by unique display label.
@@ -96,7 +96,6 @@ public abstract class AbstractBigViewer {
     /** Lazily initialized bookmark/marker manager panel. */
     protected sc.fiji.snt.BookmarkManager markerManager;
 
-    // ---- Construction -------------------------------------------------------
 
     protected AbstractBigViewer() {
         this(null);
