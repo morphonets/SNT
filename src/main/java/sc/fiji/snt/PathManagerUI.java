@@ -3606,6 +3606,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class TimeProfilerCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
+                if (noValidImageDataError()) return;
                 final HashMap<String, Object> inputs = new HashMap<>();
                 inputs.put("tree", new Tree(selectedPaths));
                 inputs.put("imp", plugin.getImagePlus());
@@ -5371,8 +5372,11 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
     private boolean noValidImageDataError() {
         final boolean invalidImage = !plugin.getUI().accessToValidImagePlus();
-        if (invalidImage)
-            guiUtils.error("This option requires valid image data to be loaded.");
+        if (invalidImage) {
+            guiUtils.error((getSNT().getUI() != null && getSNT().getUI().getState() == SNTUI.BVV_TRACING)
+                    ? "This option requires the entire image to be loaded into memory (RAM)."
+                    : "This option requires valid image data to be loaded.");
+        }
         return invalidImage;
     }
 

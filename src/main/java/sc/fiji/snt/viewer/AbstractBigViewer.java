@@ -67,10 +67,13 @@ public abstract class AbstractBigViewer {
     /** Most recently instantiated viewer; scripting convenience. */
     protected static volatile AbstractBigViewer lastInstance;
 
-    /** The SNT instance this viewer is tethered to (null in standalone mode). */
+    /** The SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     protected final SNT snt;
 
     protected boolean tracingEnabled;
+
+    /** @return SNT instance this viewer is tethered to, or null if no SNT instance is available. */
+    public SNT getSNT() { return snt; }
 
     /**
      * Trees currently rendered in this viewer, keyed by unique display label.
@@ -582,26 +585,6 @@ public abstract class AbstractBigViewer {
             };
         }
 
-        Action loadBookmarksAction() {
-            return new AbstractAction("Load Markers From Bookmarks", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    try {
-                        final java.util.List<SNTPoint> pos = snt.getUI().getBookmarkManager().getPositions(false);
-                        if (pos.isEmpty()) {
-                            getGuiUtils().error("The Bookmarks table is empty.");
-                        } else {
-                            getMarkerManager().add("BM", pos, 1, 1, SNTColor.colorToString(getRenderingOptions().fallbackColor));
-                            getMarkerManager().showPanel();
-                            showViewerMessage(String.format("Imported %d bookmarks", pos.size()));
-                        }
-                    } catch (final NullPointerException ex) {
-                        showViewerMessage("Bookmark Manager unavailable");
-                    }
-                }
-            };
-        }
-
         Action syncPathManagerAction() {
             return new AbstractAction("Sync Path Manager Changes", IconFactory.menuIcon(IconFactory.GLYPH.SYNC)) {
                 @Override
@@ -682,20 +665,24 @@ public abstract class AbstractBigViewer {
             };
         }
 
-        Action toggleVisibilityAction() {
+        Action toggleVisibilityAction(final JComponent... componentsToDisableWhenHidden) {
             return new AbstractAction("Show/hide All Annotations") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
                     final boolean hasContent = !getRenderedTrees().isEmpty()
                             || (annotations() != null && annotations().getCount() > 0);
+                    final AbstractButton btn = (e.getSource() instanceof AbstractButton) ? (AbstractButton)e.getSource() : null;
                     if (!hasContent) {
-                        showViewerMessage("No annotations exist.");
+                        if (btn != null) btn.setSelected(false);
+                        showViewerMessage("No annotations exist");
                         return;
                     }
-                    final boolean hide = (e.getSource() instanceof AbstractButton btn)
-                            ? btn.isSelected() : isPathRenderingEnabled();
+                    final boolean hide = (btn != null) ? btn.isSelected() : isPathRenderingEnabled();
                     setPathRenderingEnabled(!hide);
                     if (annotations() != null) annotations().setVisible(!hide);
+                    if (componentsToDisableWhenHidden != null) {
+                        for (final JComponent component : componentsToDisableWhenHidden) component.setEnabled(!hide);
+                    }
                     showViewerMessage(hide ? "Annotations hidden" : "Annotations visible");
                 }
             };

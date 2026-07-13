@@ -163,8 +163,8 @@ public class SNTUI extends JDialog {
     private JButton svSyncPathManager;
 
     /* AbstractBigViewers */
-    private Bvv bvvSNT;
-    private Bdv bdvSNT;
+    protected Bvv bvvSNT;
+    protected Bdv bdvSNT;
 
     private final GuiListener listener;
 
@@ -205,7 +205,9 @@ public class SNTUI extends JDialog {
      * being used)
      */
     public static final int TRACING_PAUSED = 17;
+    protected static final int BVV_TRACING = 18;
 
+    private final boolean bigDataMode;
 
     // TODO: Internal preferences: should be migrated to SNTPrefs
     protected boolean confirmTemporarySegments = false; // the new default in v5
@@ -216,23 +218,34 @@ public class SNTUI extends JDialog {
     private ScriptRecorder recorder;
 
     /**
-     * Instantiates SNT's main UI and associated {@link PathManagerUI} and
-     * {@link FillManagerUI} instances.
+     * Instantiates SNT's main UI and associated {@link PathManagerUI} and {@link FillManagerUI} instances.
      *
-     * @param plugin the {@link SNT} instance associated with this
-     *               UI
+     * @param plugin the {@link SNT} instance associated with this UI. It is assumed that this instance will be
+     *               handling a standard (in-core) image
      */
     public SNTUI(final SNT plugin) {
-        this(plugin, null, null);
+        this(plugin, false);
     }
 
-    private SNTUI(final SNT plugin, final PathManagerUI pmUI, final FillManagerUI fmUI) {
+    /**
+     * Instantiates SNT's main UI and associated {@link PathManagerUI} and {@link FillManagerUI} instances.
+     *
+     * @param plugin the {@link SNT} instance associated with this UI
+     * @param bigDataMode whether the GUI should be set for 'big data', e.g., when datasource is not a standard image
+     *                    but an OME-Zarr/N5 (see {@link BvvCmd})
+     */
+    public SNTUI(final SNT plugin, final boolean bigDataMode) {
+        this(plugin, null, null, bigDataMode);
+    }
 
+    private SNTUI(final SNT plugin, final PathManagerUI pmUI, final FillManagerUI fmUI, final boolean bigDataMode) {
         super(ij.IJ.getInstance(), "SNT v" + SNTUtils.VERSION, false);
         // if embedded, menu bar becomes truncated on M. Windows 10/11
         getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
         guiUtils = new GuiUtils(this);
         this.plugin = plugin;
+        this.bigDataMode = bigDataMode;
+
         new ClarifyingKeyListener(plugin).addKeyAndContainerListenerRecursively(this);
         listener = new GuiListener();
         pathAndFillManager = plugin.getPathAndFillManager();
@@ -332,8 +345,6 @@ public class SNTUI extends JDialog {
         tab1.add(hideWindowsPanel(), c1);
         tabbedPane.addTab("Main", tab1);
 
-
-
         // Options Tab
         final JPanel tab2 = InternalUtils.initTab();
         tab2.setLayout(new GridBagLayout());
@@ -357,7 +368,6 @@ public class SNTUI extends JDialog {
         c2.weighty = 1;
         tab2.add(miscPanel(), c2);
         tabbedPane.addTab("Options", tab2);
-
 
         // 3D tab
         final JPanel tab3 = InternalUtils.initTab();
@@ -507,6 +517,10 @@ public class SNTUI extends JDialog {
             this.fmUI = fmUI;
         }
 
+    }
+
+    private boolean isBigDataInstance() {
+        return bigDataMode;
     }
 
     private JTabbedPane initTabbedPane() {
@@ -1005,12 +1019,6 @@ public class SNTUI extends JDialog {
 
     public void setBvv(final Bvv bvv) {
         this.bvvSNT = bvv;
-        // Disable components not yet tested
-        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
-        List.of("Bookmarks", "3D").forEach(tabTitle -> {
-            final int idx = InternalUtils.getTabIndex(tp, tabTitle);
-            if (idx != -1) tp.setEnabledAt(idx, bvvSNT == null);
-        });
     }
 
     // State interface for UI state management
@@ -1025,7 +1033,7 @@ public class SNTUI extends JDialog {
 
     // Initialize UI states
     private void initializeStates() {
-        states.put(WAITING_TO_START_PATH, new WaitingToStartPathState());
+        states.put(READY, new ReadyState());
         states.put(TRACING_PAUSED, new TracingPausedState());
         states.put(PARTIAL_PATH, new PartialPathState());
         states.put(SEARCHING, new SearchingState());
@@ -1042,6 +1050,7 @@ public class SNTUI extends JDialog {
         states.put(SAVING,  simpleState(SAVING,  "Saving...",  null, true, null));
         states.put(EDITING, new EditingState());
         states.put(SNT_PAUSED, new SntPausedState());
+        states.put(BVV_TRACING, new BvvState());
     }
 
     /**
@@ -1054,15 +1063,19 @@ public class SNTUI extends JDialog {
     public void changeState(final int newState) {
         if (newState == currentState || plugin == null) return; // plugin may be null when exiting
 
+        // Special case: If we are using a BVV as main tracing canvas without accessing any in RAM image, then the
+        // default READY state is BVV_TRACING state .
+        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED) && isBigDataInstance())
+                        ? BVV_TRACING : newState;
+
         // Call exit() on current state
         UIState oldState = states.get(currentState);
         if (oldState != null) oldState.exit();
-
-        currentState = newState;
+        currentState = deFactoState;
 
         SwingUtilities.invokeLater(() -> {
-            if (currentState != newState) return; // Verify state hasn't changed since we queued this
-            UIState state = states.get(newState);
+            if (currentState != deFactoState) return; // Verify state hasn't changed since we queued this
+            UIState state = states.get(currentState);
             if (plugin == null) {
                 SNTUtils.log("SNT resources disposed");
             } else if (state != null) {
@@ -1076,7 +1089,7 @@ public class SNTUI extends JDialog {
     }
 
     // State implementations
-    private class WaitingToStartPathState implements UIState {
+    private class ReadyState implements UIState {
         @Override
         public void enter() {
             keepSegment.setEnabled(false);
@@ -1153,6 +1166,44 @@ public class SNTUI extends JDialog {
             return SEARCHING;
         }
     }
+
+    private class BvvState implements UIState {
+
+        private void setEnabledImagePlusCanvasControls(final boolean enable) {
+            keepSegment.setEnabled(enable);
+            junkSegment.setEnabled(enable);
+            completePath.setEnabled(enable);
+            showPathsSelected.setEnabled(enable);
+            partsNearbyCSpinner.setEnabled(enable);
+            useSnapWindow.setEnabled(enable);
+            onlyActiveCTposition.setEnabled(enable);
+            snapWindowXYsizeSpinner.setEnabled(enable);
+            snapWindowZsizeSpinner.setEnabled(enable);
+            assignDiameterSpinner.setEnabled(enable);
+            confirmTemporarySegmentsCheckbox.setEnabled(enable);
+            standardTracingRbmi.setEnabled(enable);
+        }
+
+        @Override
+        public void enter() {
+            updateStatusText("Experimental big-data tracing mode");
+            showStatus("In-core image not available...", false);
+            setEnableAutoTracingComponents(false, false); // currently controlled in Bvv panel
+            disableImageDependentComponents(); // Bvv is not currently aware of these
+            setEnabledImagePlusCanvasControls(false);
+        }
+
+        @Override
+        public void exit() {
+            setEnabledImagePlusCanvasControls(true);
+        }
+
+        @Override
+        public int getStateId() {
+            return BVV_TRACING;
+        }
+    }
+
 
     private class QueryKeepState implements UIState {
         @Override
@@ -1457,6 +1508,7 @@ public class SNTUI extends JDialog {
 
         final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
                 !plugin.isZoomAllPanesDisabled());
+        zoomAllPanesCheckBox.setEnabled(!isBigDataInstance());
         registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views",
                 "Options Tab");
         zoomAllPanesCheckBox
@@ -1466,6 +1518,7 @@ public class SNTUI extends JDialog {
 
         final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at "),
                 GuiUtils.integerSpinner(20, 10, 80, 1, true));
+        mipCS.setEnabled(!isBigDataInstance());
         registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
         mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
         mipCS.appendLabel(" % opacity");
@@ -1746,6 +1799,7 @@ public class SNTUI extends JDialog {
         intPanel.add(transparencyOutOfBoundsPanel(), gdb);
         ++gdb.gridy;
         intPanel.add(nodePanel(), gdb);
+        GuiUtils.enableComponents(intPanel, !isBigDataInstance());
         return intPanel;
     }
 
@@ -1936,6 +1990,7 @@ public class SNTUI extends JDialog {
         colorChoice.addActionListener(e -> cChooser.setSelectedColor(hm.get(String.valueOf(colorChoice.getSelectedItem())), false));
         cChooser.addColorChangedListener(newColor -> {
             final String key = String.valueOf(colorChoice.getSelectedItem());
+
             setColor(key, newColor);
             hm.put(key, newColor);
         });
@@ -1960,6 +2015,7 @@ public class SNTUI extends JDialog {
         final GridBagConstraints gbcButton2 = new GridBagConstraints();
         gbcButton2.gridx = 3;
         p.add(reset, gbcButton2);
+        GuiUtils.enableComponents(p, !isBigDataInstance());
         return p;
     }
 
@@ -4163,6 +4219,7 @@ public class SNTUI extends JDialog {
 
         // Quick Toggles dropdown
         final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f, quickTogglesMenu() );
+        quickToggles.setEnabled(!isBigDataInstance());
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4254,7 +4311,7 @@ public class SNTUI extends JDialog {
                 plugin.tracingHalted,
                 e -> {
                     if (!accessToTracingCanvas()) {
-                        error("No tracing image available.");
+                       noValidImageDataError();
                     } else {
                         plugin.pauseTracing(((JCheckBoxMenuItem) e.getSource()).isSelected(), true);
                     }
@@ -4370,7 +4427,9 @@ public class SNTUI extends JDialog {
             }
 
             final String defaultText;
-            if (!accessToValidImagePlus()) {
+            if (isBigDataInstance()) {
+                defaultText = "In-core image not available...";
+            } else if (!accessToValidImagePlus()) {
                 defaultText = "Image data unavailable...";
             } else {
                 defaultText = "Tracing "
@@ -4461,9 +4520,19 @@ public class SNTUI extends JDialog {
         return plugin.getPrefs().getWorkspaceDir();
     }
 
+    private void adjustGuiForBigDataMode() {
+        // Disable components not yet tested in big-data mode
+        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+        List.of("Bookmarks", "3D").forEach(tabTitle -> {
+            final int idx = InternalUtils.getTabIndex(tp, tabTitle);
+            if (idx != -1) tp.setEnabledAt(idx, !isBigDataInstance());
+        });
+    }
+
     protected void displayOnStarting() {
         if (plugin.getPrefs().isSomaDisplayTriangle())
             PathNodeCanvas.setSomaRenderMode(PathNodeCanvas.SOMA_RENDER_TRIANGLE);
+        adjustGuiForBigDataMode();
         SwingUtilities.invokeLater(() -> {
             if (plugin.getPrefs().isSaveWinLocations())
                 arrangeDialogs();
@@ -5035,7 +5104,7 @@ public class SNTUI extends JDialog {
                 return; // do nothing: Currently we have no control over the sigma
             }
             // palette window
-            case (WAITING_TO_START_PATH) -> {
+            case WAITING_TO_START_PATH, BVV_TRACING -> {
                 // If user is aborting something in this state, something
                 // went awry!?. Try to abort all possible lingering tasks
                 pmUI.cancelFit(true);
@@ -5157,11 +5226,6 @@ public class SNTUI extends JDialog {
         onlyActiveCTposition.setSelected(!onlyActiveCTposition.isSelected());
     }
 
-    private void noValidImageDataErrorExtended() {
-        guiUtils.error("This option requires valid image data to be loaded. " +
-                "The image should have bright foreground structures on a dark background.");
-    }
-
     protected boolean accessToValidImagePlus() {
         final ImagePlus imp = plugin.getImagePlus();
         return imp != null && imp.getProcessor() != null
@@ -5179,7 +5243,16 @@ public class SNTUI extends JDialog {
     }
 
     protected void noValidImageDataError() {
-        guiUtils.error("This option requires valid image data to be loaded.");
+        guiUtils.error((getState() == BVV_TRACING)
+                ? "This option requires the entire image to be loaded into memory (RAM)."
+                : "This option requires valid image data to be loaded.");
+    }
+
+    private void noValidImageDataErrorExtended() {
+        guiUtils.error((getState() == BVV_TRACING)
+                ? "This option requires the entire image to be loaded into memory (RAM)."
+                : "This option requires valid image data to be loaded. " +
+                  "The image should have bright foreground structures on a dark background.");
     }
 
     private boolean okToReplaceSecLayer() {
@@ -6086,7 +6159,7 @@ public class SNTUI extends JDialog {
         }
 
         private void run() {
-            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED) {
+            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && getState() != BVV_TRACING) {
                 guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
                 return;
             }

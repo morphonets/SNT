@@ -4637,6 +4637,21 @@ public class GuiUtils {
 		private static final String[] DEFAULT_LUTS =
 				{"Distinct", "Fire", "Ice", "Plasma", "Red-Green", "Spectrum", "Viridis"};
 
+
+		public static ButtonGroup noneSelectedButtonGroup() {
+            return new ButtonGroup() {
+
+                @Override
+                public void setSelected(final ButtonModel model, final boolean selected) {
+                    if (selected) { // https://stackoverflow.com/a/22227537
+                        super.setSelected(model, true);
+                    } else {
+                        clearSelection();
+                    }
+                }
+            };
+		}
+
 		/**
 		 * Convenience variant of {@link #ColorTableButton(float, Consumer, String[], String, JMenuItem...)}
 		 * using the {@link #DEFAULT_LUTS} choices.
@@ -4846,7 +4861,15 @@ public class GuiUtils {
 		public static JButton toolbarButton(final Action action, final String tooltipText) {
 			final JButton button = new JButton(action);
 			button.setText(null);
-			button.setToolTipText(tooltipText);
+			final KeyStroke stroke = (KeyStroke) action.getValue(Action.ACCELERATOR_KEY);
+			if (stroke == null) {
+				button.setToolTipText(tooltipText);
+			} else {
+				final String modifiers = InputEvent.getModifiersExText(stroke.getModifiers());
+				String key = KeyEvent.getKeyText(stroke.getKeyCode());
+				if (!modifiers.isEmpty()) key = modifiers + "+" + key;
+				button.setToolTipText("<HTML>"+ tooltipText + "<br>Or press " + key);
+			}
 			button.putClientProperty(FlatClientProperties.BUTTON_TYPE, FlatClientProperties.BUTTON_TYPE_TOOLBAR_BUTTON);
 			return button;
 		}

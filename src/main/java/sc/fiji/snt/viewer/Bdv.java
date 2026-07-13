@@ -724,12 +724,10 @@ public class Bdv extends AbstractBigViewer {
 
     private JButton optionsButton(final BdvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        menu.add(new JMenuItem(actions.importAction()));
-        if (snt != null) {
-            menu.addSeparator();
-            menu.add(new JMenuItem(actions.loadBookmarksAction()));
+        if (snt != null)
             menu.add(new JMenuItem(actions.syncPathManagerAction()));
-        }
+        menu.addSeparator();
+        menu.add(new JMenuItem(actions.importAction()));
         menu.addSeparator();
         menu.add(new JMenuItem(actions.clearAllPathsAction()));
         return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);

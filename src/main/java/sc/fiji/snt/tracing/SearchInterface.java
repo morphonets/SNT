@@ -24,6 +24,7 @@ package sc.fiji.snt.tracing;
 
 
 import sc.fiji.snt.Path;
+import sc.fiji.snt.SearchProgressCallback;
 
 /**
  * Tracer classes implementing searches between two points should implement this
@@ -32,5 +33,13 @@ import sc.fiji.snt.Path;
 public interface SearchInterface {
 
 	Path getResult();
+
+	/**
+	 * Registers a callback to receive progress updates ({@code pointsInSearch}, {@code finished},
+	 * {@code threadStatus}) while this search runs.
+	 *
+	 * @param callback the callback to register
+	 */
+	void addProgressListener(SearchProgressCallback callback);
 
 }

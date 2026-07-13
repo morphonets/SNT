@@ -367,9 +367,12 @@ public class IconFactory {
                                   final Color disabledColor, final float scalingFactor) {
         final Color defColor = (defaultColor == null) ? defaultColor() : defaultColor;
         button.setIcon(buttonIcon(glyph, defColor, scalingFactor));
-        if (disabledColor != null)
-            button.setDisabledIcon(buttonIcon(glyph, disabledColor, scalingFactor));
-        if (button instanceof JToggleButton) button.setSelectedIcon(IconFactory.buttonIcon(glyph, selectedColor(), scalingFactor));
+        button.setDisabledIcon(buttonIcon(glyph, (disabledColor == null) ? GuiUtils.getDisabledComponentColor() : disabledColor, scalingFactor));
+        if (button instanceof JToggleButton) {
+            button.setSelectedIcon(IconFactory.buttonIcon(glyph, selectedColor(), scalingFactor));
+            final Color c = SNTColor.mix((disabledColor == null) ? GuiUtils.getDisabledComponentColor() : disabledColor, selectedColor(), .5f);
+            button.setDisabledSelectedIcon(buttonIcon(glyph, c, scalingFactor));
+        }
     }
 
     public static void assignIcon(final AbstractButton button, final GLYPH defaultGlyph, final GLYPH selectedGlyph, final float scalingFactor) {

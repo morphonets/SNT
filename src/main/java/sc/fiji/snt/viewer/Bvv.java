@@ -61,6 +61,7 @@ import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.gui.cmds.BvvRenderingOptionsCmd;
 import sc.fiji.snt.io.SpimDataUtils;
+import sc.fiji.snt.tracing.SearchInterface;
 import sc.fiji.snt.util.*;
 
 import javax.swing.*;
@@ -74,6 +75,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Future;
 
 /**
  * Support for Big Volume Viewer.
@@ -100,6 +102,9 @@ public class Bvv extends AbstractBigViewer {
 
     private final BvvOptions options;
     private JProgressBar progressBar; // Docked at CardPanel bottom via addToCardPanelBottom().
+    // 2nd row of #sntToolbar(): tracks the A* search started by Tracer#traceSegmentAsync, if any
+    private JProgressBar tracingStatusBar;
+    private JButton tracingCancelButton;
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
@@ -394,8 +399,8 @@ public class Bvv extends AbstractBigViewer {
                     cp.addCard("Scene Controls", sceneControlsCard, true);
                 }
                 if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Annotations");
-                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                    cp.removeCard("SNT Controls");
+                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
                 }
             });
         }
@@ -923,8 +928,8 @@ public class Bvv extends AbstractBigViewer {
                     cp.addCard("Scene Controls", sceneControlsCard, true);
                 }
                 if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Annotations");
-                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                    cp.removeCard("SNT Controls");
+                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
                 }
             });
         }
@@ -1004,8 +1009,8 @@ public class Bvv extends AbstractBigViewer {
                     cp.addCard("Scene Controls", sceneControlsCard, true);
                 }
                 if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Annotations");
-                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                    cp.removeCard("SNT Controls");
+                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
                 }
             });
         }
@@ -1247,8 +1252,8 @@ public class Bvv extends AbstractBigViewer {
                     cp.addCard("Scene Controls", sceneControlsCard, true);
                 }
                 if (sntAnnotationsCard != null) {
-                    cp.removeCard("SNT Annotations");
-                    cp.addCard("SNT Annotations", sntAnnotationsCard, true);
+                    cp.removeCard("SNT Controls");
+                    cp.addCard("SNT Controls", sntAnnotationsCard, true);
                 }
             });
         }
@@ -1326,7 +1331,7 @@ public class Bvv extends AbstractBigViewer {
             bvvFrame.getCardPanel().addCard("Scene Controls", sceneControlsCard, true);
             // SNT toolbar
             sntAnnotationsCard = sntToolbar(actions);
-            bvvFrame.getCardPanel().addCard("SNT Annotations", sntAnnotationsCard, true);
+            bvvFrame.getCardPanel().addCard("SNT Controls", sntAnnotationsCard, true);
             // Progress bar: docked at the bottom of the card panel, below all
             // cards, without a card header.  This avoids the viewport flicker
             // caused by adding the bar to the frame's BorderLayout.SOUTH.
@@ -1352,6 +1357,13 @@ public class Bvv extends AbstractBigViewer {
                     "snt-hide-annotations-release");
             sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
             sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
+            // Finish/discard the in-progress tracing path without a canvas click: a double-click to finish is itself a
+            // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so
+            // it lands a spurious node right next to the previous. Enter/Esc avoids this since neither is a MouseEvent
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "snt-finish-path");
+            sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
+            sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, 0), "snt-capture-keyframe");
             sntAMap.put("snt-capture-keyframe", new AbstractAction() {
                 @Override
@@ -1608,50 +1620,43 @@ public class Bvv extends AbstractBigViewer {
         final JToolBar toolbar = createToolbar();
 
         // group 1: tracing controls (auto/manual)
-        final ButtonGroup bg = new ButtonGroup() {
-
-            @Override
-            public void setSelected(final ButtonModel model, final boolean selected) {
-                if (selected) { // https://stackoverflow.com/a/22227537
-                    super.setSelected(model, true);
-                } else {
-                    clearSelection();
-                }
-            }
-        };
+        final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
         final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
                 "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
         final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
                 "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
-        bg.add(b1);
-        bg.add(b2);
+        bg1.add(b1);
+        bg1.add(b2);
         toolbar.add(b1);
         toolbar.add(b2);
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
-        // group 2: annotations
-        toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(),
-                "Show/hide annotations",
-                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH));
-        toolbar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
+        // group 2: annotations/paths
+        final JToggleButton toggleAroundCursor = GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
                 "Restrict display of annotations around cursor",
-                IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE));
+                IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE);
+        final JButton offsetActivate = GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
+                "Translate annotations from original signal");
+        offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.getDisabledComponentColor(), 1f));
+        final JButton offsetReset = GuiUtils.Buttons.undo(actions.resetCanvasOffsetAction());
+        final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(
+                        toggleAroundCursor, offsetActivate, offsetReset),
+                "<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.",
+                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
+
+        toolbar.add(toggleVisibility);
+        toolbar.addSeparator();
+        toolbar.add(toggleAroundCursor);
+        toolbar.addSeparator();
+        toolbar.add(offsetActivate);
+        toolbar.add(offsetReset);
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
-                "Change annotations offset"));
-        toolbar.add(GuiUtils.Buttons.undo(actions.resetCanvasOffsetAction()));
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
-        toolbar.addSeparator();
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
-                "Set rendering options of annotations"));
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
-        toolbar.addSeparator();
+
+        // group 3: markers
         final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
                 actions.showMarkerManagerAction(),
                 "<html>Show/hide the Markers table.<br>"
@@ -1671,20 +1676,62 @@ public class Bvv extends AbstractBigViewer {
         });
         toolbar.add(markerButton);
         toolbar.addSeparator();
-        final JButton optionsButton = optionsButton(actions);
-        toolbar.add(optionsButton);
+        toolbar.add(Box.createHorizontalGlue());
+        toolbar.addSeparator();
 
-        return toolbar;
+        // group 4: options and settings
+        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
+                "Set rendering options of annotations"));
+        toolbar.add(optionsButton(actions));
+
+        final JPanel panel = new JPanel(new BorderLayout());
+        panel.add(toolbar, BorderLayout.NORTH);
+        panel.add(tracingStatusRow(), BorderLayout.SOUTH);
+        return panel;
+    }
+
+    /**
+     * Builds the fixed second row shown below the main SNT toolbar: an indeterminate progress bar (empty when no search
+     * is running) plus a Cancel button (enabled only while a search is ongoing). Kept as a constant row. Driven
+     * by {@link #setTracingStatus(boolean, String)}, called from {@code Tracer#traceSegmentAsync}.
+     */
+    private JComponent tracingStatusRow() {
+        tracingStatusBar = new JProgressBar();
+        tracingStatusBar.setStringPainted(true);
+        tracingStatusBar.setString("");
+        tracingCancelButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CIRCLE_XMARK, IconFactory.defaultColor(), 1f);
+        tracingCancelButton.setToolTipText("<HTML>Interactive tracing:<br>Cancel the current search");
+        tracingCancelButton.setEnabled(false);
+        tracingCancelButton.addActionListener(e -> tracer.cancelCurrentSearch());
+        final JToolBar row = new JToolBar();
+        row.add(tracingStatusBar);
+        row.add(tracingCancelButton);
+        return row;
+    }
+
+    /**
+     * Updates the tracing status row (see {@link #tracingStatusRow()}). Safe to call from any thread: dispatches to
+     * the EDT internally
+     *
+     * @param active  {@code true} while a search is ongoing (animates the bar, enables Cancel);
+     *                {@code false} to reset to idle
+     * @param message short status text shown inside the bar (ignored/cleared when {@code !active})
+     */
+    private void setTracingStatus(final boolean active, final String message) {
+        if (tracingStatusBar == null) return; // toolbar not built yet
+        SwingUtilities.invokeLater(() -> {
+            tracingStatusBar.setIndeterminate(active);
+            tracingStatusBar.setString(active && message != null ? message : "");
+            if (tracingCancelButton != null) tracingCancelButton.setEnabled(active);
+        });
     }
 
     private JButton optionsButton(final BvvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        menu.add(new JMenuItem(actions.importAction()));
-        if (snt != null) {
-            menu.addSeparator();
-            menu.add(new JMenuItem(actions.loadBookmarksAction()));
+        if (snt != null)
             menu.add(new JMenuItem(actions.syncPathManagerAction()));
-        }
+        menu.addSeparator();
+        menu.add(new JMenuItem(actions.importAction()));
         menu.addSeparator();
         menu.add(new JMenuItem(actions.clearAllPathsAction()));
         return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
@@ -2279,7 +2326,6 @@ public class Bvv extends AbstractBigViewer {
         return mm;
     }
 
-    // ── Package-private accessors for ChannelUnmixingCard ──
 
     double[] getCal() { return cal; }
 
@@ -3066,6 +3112,9 @@ public class Bvv extends AbstractBigViewer {
         // the in-flight segment lands, instead of silently dropping the finish request.
         private volatile boolean pendingFinish;
         private boolean manualTrace; // true: purely manual trace; false: A* search
+        // The Future for the A* search currently active (if any), so the Cancel button in the tracing status row
+        // (see Bvv#tracingStatusRow()) can stop it. Null when idle, or during manual tracing
+        private volatile Future<?> currentSearchFuture;
 
         public Tracer() {
             if (snt == null || snt.getPathAndFillManager() == null) {
@@ -3164,30 +3213,111 @@ public class Bvv extends AbstractBigViewer {
         }
 
         /**
-         * Runs {@link SNT#manualTrace(SNTPoint, SNTPoint, PointInImage)} off the EDT and applies
-         * the result (stitching into {@code tempPath} and refreshing the preview overlay) back on
-         * the EDT once done. Keeps the click handler itself non-blocking.
+         * Builds the Enter-key action: finishes the in-progress path, same as a double click, but
+         * without the spurious node a double click's own first (clickCount==1) click would leave
+         * behind. Deferred via {@code pendingFinish} if a segment is still being traced, exactly
+         * like the click-based finish path.
+         */
+        private AbstractAction getFinishPathAction() {
+            return new AbstractAction("Finish Path") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!tracingEnabled) return;
+                    if (computing) {
+                        pendingFinish = true;
+                        return;
+                    }
+                    finishPath();
+                }
+            };
+        }
+
+        /**
+         * Builds the Escape-key action: discards the in-progress path (see {@link
+         * #discardCurrentPath()}) without exiting tracing mode, so the user can immediately start a
+         * new path.
+         */
+        private AbstractAction getDiscardPathAction() {
+            return new AbstractAction("Discard Path") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    discardCurrentPath();
+                }
+            };
+        }
+
+        /**
+         * Discards the current in-progress path: cancels any in-flight segment search, clears
+         * {@code tempPath}/{@code previousNode} and the preview overlay, and resets the tracing
+         * status row. Unlike {@link #exit()}, {@code tracingEnabled} is left untouched, so the user
+         * stays in tracing mode and can start a new path right away. No-op if tracing is disabled
+         * or there is nothing pending.
+         */
+        void discardCurrentPath() {
+            if (!tracingEnabled) return;
+            final boolean hadSomethingToDiscard = previousNode != null || (tempPath != null && tempPath.size() > 0);
+            cancelCurrentSearch(); // no-op if idle; stops an in-flight A* search rather than orphaning it
+            previousNode = null;
+            tempPath = null;
+            pendingFinish = false;
+            computing = false;
+            setTracingStatus(false, null);
+            if (tracingOverlay != null) tracingOverlay.clear();
+            if (pathOverlay != null) pathOverlay.updatePaths(); // get rid of the stale preview segment
+            if (hadSomethingToDiscard) showViewerMessage("Path discarded");
+        }
+
+        /**
+         * Runs {@link SNT#manualTrace(SNTPoint, SNTPoint, PointInImage)} (or, for A*, {@link
+         * SNT#autoTrace(SNTPoint, SNTPoint, PointInImage, SearchProgressCallback, java.util.function.Consumer)})
+         * off the EDT and applies the result (stitching into {@code tempPath} and refreshing the
+         * preview overlay) back on the EDT once done. Keeps the click handler itself non-blocking.
+         * <p>
+         * For A* search, also drives the tracing status row (see {@link Bvv#tracingStatusRow()}):
+         * a progress callback updates it roughly once a second and the {@link Future} handle captured on submission
+         * lets {@link #cancelCurrentSearch()} stop a runaway search.
          */
         private void traceSegmentAsync(final Path.PathNode start, final Path.PathNode end,
                                        final PointInImage forkPoint) {
             computing = true;
+            setTracingStatus(!manualTrace, "Tracing...");
+            final SearchProgressCallback progress = new SearchProgressCallback() {
+                @Override
+                public void pointsInSearch(final SearchInterface source, final long inOpen, final long inClosed) {
+                    setTracingStatus(true, String.format("Tracing... %,d nodes explored", inClosed));
+                }
+
+                @Override
+                public void finished(final SearchInterface source, final boolean success) {
+                    // no-op: done() below already handles completion/result application
+                }
+
+                @Override
+                public void threadStatus(final SearchInterface source, final int currentStatus) {
+                    // no-op
+                }
+            };
             new SwingWorker<Path, Void>() {
                 @Override
                 protected Path doInBackground() {
-                    // NB: must use the headless (4-arg) autoTrace overload here, NOT autoTrace(start,end,forkPoint).
+                    // NB: must use the headless autoTrace overload here, NOT autoTrace(start,end,forkPoint).
                     // The 3-arg overload is the *interactive* entry point (meant for SNTUI/2D-canvas tracing)
                     return (manualTrace)
                             ? snt.manualTrace(start, end, forkPoint)
-                            : snt.autoTrace(start, end, forkPoint, true);
+                            : snt.autoTrace(start, end, forkPoint, progress, f -> currentSearchFuture = f);
                 }
 
                 @Override
                 protected void done() {
                     computing = false;
+                    final boolean cancelled = currentSearchFuture != null && currentSearchFuture.isCancelled();
+                    currentSearchFuture = null;
+                    setTracingStatus(false, null);
                     try {
                         final Path result = get();
                         if (result == null) {
-                            showViewerMessage("Segment could not be traced (out of bounds?)");
+                            showViewerMessage(cancelled
+                                    ? "Search cancelled" : "Segment could not be traced (out of bounds?)");
                         } else if (tempPath == null) {
                             tempPath = result;
                         } else {
@@ -3211,6 +3341,16 @@ public class Bvv extends AbstractBigViewer {
             }.execute();
         }
 
+        /**
+         * Cancels the A* search currently in flight (if any), via {@link Future#cancel(boolean)}.
+         * {@code BiSearch}'s loop already checks for thread interruption, so this actually stops the
+         * search. Has no effect during manual tracing (nothing to cancel) or when idle.
+         */
+        void cancelCurrentSearch() {
+            final Future<?> f = currentSearchFuture;
+            if (f != null) f.cancel(true);
+        }
+
         private void initializeTracingOverlay(final BigVolumeViewer bvv) {
             if (tracingOverlay != null) tracingOverlay.dispose();
             tracingOverlay = new AnnotationOverlay(adapt(bvv.getViewer()), Bvv.this, renderingOptions);
@@ -3232,10 +3372,12 @@ public class Bvv extends AbstractBigViewer {
         }
 
         void exit() {
+            cancelCurrentSearch(); // stops active A* search if any
             previousNode = null;
             tempPath = null;
             computing = false;
             pendingFinish = false;
+            setTracingStatus(false, null);
             if (tracingOverlay != null) tracingOverlay.dispose();
             tracingOverlay = null;
             if (pathOverlay != null) pathOverlay.updatePaths(); // get rid of temp path
@@ -3249,6 +3391,11 @@ public class Bvv extends AbstractBigViewer {
                     final AbstractButton button = (e.getSource() instanceof AbstractButton) ? (AbstractButton) e.getSource() : null;
                     tracingEnabled = (button == null) ? tracingEnabled : button.isSelected();
                     Tracer.this.manualTrace = manualTraceFlag;
+
+                    if (tracingStatusBar != null && tracingCancelButton != null) {
+                        tracingStatusBar.setEnabled(!manualTraceFlag);
+                        tracingCancelButton.setEnabled((!manualTraceFlag));
+                    }
 
                     final boolean sntAware = snt != null && snt.getPathAndFillManager() != null;
                     final boolean tracingPossible = manualTraceFlag || (sntAware && snt.accessToValidImageData());

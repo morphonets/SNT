@@ -102,6 +102,7 @@ import java.util.List;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 
 /**
@@ -962,21 +963,25 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	public void startUI() {
+		startUI(false);
+	}
+
+	public void startUI(final boolean bigDataMode) {
 		if (SwingUtilities.isEventDispatchThread()) {
-			startUIOnEDT();
+			startUIOnEDT(bigDataMode);
 		} else {
 			try {
-				SwingUtilities.invokeAndWait(this::startUIOnEDT);
+				SwingUtilities.invokeAndWait(() -> startUIOnEDT(bigDataMode));
 			} catch (final Throwable e) {
 				throw new RuntimeException("Failed to start UI", e);
 			}
 		}
 	}
 
-	private void startUIOnEDT() {
+	private void startUIOnEDT(final boolean bigDataMode) {
 		GuiUtils.setLookAndFeel();
 		final SNT thisPlugin = this;
-		ui = new SNTUI(thisPlugin);
+		ui = new SNTUI(thisPlugin, bigDataMode);
 		guiUtils = new GuiUtils(ui);
 		ui.displayOnStarting();
 	}
@@ -2381,6 +2386,32 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
+	 * Headless auto-trace variant that additionally reports progress and exposes the underlying
+	 * {@link Future} for cancellation. Always runs headless (regardless of {@link
+	 * GraphicsEnvironment#isHeadless()}); intended for callers (e.g., BVV's tracing toggle) that
+	 * need live feedback and/or the ability to cancel a slow search, e.g., over a lazily-loaded,
+	 * network-backed image where a single segment can take a long time to converge (or never
+	 * converge, if the goal is unreachable).
+	 *
+	 * @param start the start point
+	 * @param end the end point
+	 * @param forkPoint the fork point of the parent {@link Path} from which the path should
+	 *          branch off, or null if the path should not have any parent
+	 * @param progressCallback receives periodic {@code pointsInSearch}/{@code finished}/{@code
+	 *          threadStatus} updates (roughly once a second; see {@code reportEveryMilliseconds}),
+	 *          or null to skip progress reporting
+	 * @param onSubmit called with the search's {@link Future} immediately after it is submitted to
+	 *          the tracer thread pool, so the caller can cancel it later (e.g. {@code
+	 *          future.cancel(true)}); the search loop already checks for interruption, so this
+	 *          actually stops the search rather than merely abandoning it. May be null.
+	 * @return the path, or null if the search failed or was cancelled
+	 */
+	public Path autoTrace(final SNTPoint start, final SNTPoint end, final PointInImage forkPoint,
+			final SearchProgressCallback progressCallback, final Consumer<Future<?>> onSubmit) {
+		return autoTraceHeadless(List.of(start, end), forkPoint, progressCallback, onSubmit);
+	}
+
+	/**
 	 * Automatically traces a path from a list of points and adds it to the active
 	 * {@link PathAndFillManager} instance. Note that this method still requires
 	 * SNT's UI. For headless auto-tracing have a look at {@link TracerThread}.
@@ -2480,9 +2511,14 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		return autoTraceHeadless(pointList, forkPoint, null, null);
+	}
+
+	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint,
+			final SearchProgressCallback progressCallback, final Consumer<Future<?>> onSubmit) {
 		return runHeadlessTrace(pointList, forkPoint, (start, end) -> createSearch(
 				start.getX(), start.getY(), start.getZ(),
-				end.getX(), end.getY(), end.getZ()));
+				end.getX(), end.getY(), end.getZ()), progressCallback, onSubmit);
 	}
 
 	/**
@@ -2494,7 +2530,7 @@ public class SNT extends MultiDThreePanes implements
 	private Path manualTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
 		return runHeadlessTrace(pointList, forkPoint, (start, end) -> new ManualTracerThread(this,
 				start.getX() / x_spacing, start.getY() / y_spacing, start.getZ() / z_spacing,
-				end.getX() / x_spacing, end.getY() / y_spacing, end.getZ() / z_spacing));
+				end.getX() / x_spacing, end.getY() / y_spacing, end.getZ() / z_spacing), null, null);
 	}
 
 	/**
@@ -2514,10 +2550,15 @@ public class SNT extends MultiDThreePanes implements
 	 * @param pointList the nodes to connect, start to end
 	 * @param forkPoint optional fork point of the parent Path, or null
 	 * @param searchFactory builds the per-segment search for a given start/end pair
+	 * @param progressCallback registered on each per-segment search via {@link
+	 *          SearchInterface#addProgressListener}, or null to skip progress reporting
+	 * @param onSubmit called with each per-segment search's {@link Future} immediately after
+	 *          submission (so a caller can cancel it later), or null
 	 * @return the stitched path, or null if any segment failed to produce a result
 	 */
 	private <S extends Runnable & SearchInterface> Path runHeadlessTrace(final List<SNTPoint> pointList,
-			final PointInImage forkPoint, final BiFunction<SNTPoint, SNTPoint, S> searchFactory)
+			final PointInImage forkPoint, final BiFunction<SNTPoint, SNTPoint, S> searchFactory,
+			final SearchProgressCallback progressCallback, final Consumer<Future<?>> onSubmit)
 	{
 		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
@@ -2536,10 +2577,13 @@ public class SNT extends MultiDThreePanes implements
 			Path pathResult = null;
 			try {
 				final S search = searchFactory.apply(start, end);
+				if (progressCallback != null) search.addProgressListener(progressCallback);
 				final Future<?> result = tracerThreadPool.submit(search);
+				if (onSubmit != null) onSubmit.accept(result);
 				result.get();
 				pathResult = search.getResult();
-			} catch (InterruptedException | ExecutionException | IllegalArgumentException e) {
+			} catch (InterruptedException | ExecutionException | IllegalArgumentException
+					| CancellationException e) {
 				SNTUtils.error("Error during trace", e);
 			}
 			if (pathResult == null) {
@@ -3492,6 +3536,9 @@ public class SNT extends MultiDThreePanes implements
 
 	protected void updateTracingViewers(final boolean includeLegacy3Dviewer) {
 		repaintAllPanes();
+		if (getUI() != null && getUI().bvvSNT != null) {
+			new Thread(() -> getUI().bvvSNT.syncPathManagerList()).start();
+		}
 		if (includeLegacy3Dviewer) update3DViewerContents();
 	}
 
@@ -3502,6 +3549,9 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (getUI().sciViewSNT != null) {
 			new Thread(() -> getUI().sciViewSNT.syncPathManagerList()).start();
+		}
+		if (getUI().bdvSNT != null) {
+			new Thread(() -> getUI().bdvSNT.syncPathManagerList()).start();
 		}
 	}
 
@@ -4202,6 +4252,58 @@ public class SNT extends MultiDThreePanes implements
 
 	public int getDepth() {
 		return depth;
+	}
+
+	/**
+	 * Sets image dimensions and calibration without providing actual pixel data. Useful when the
+	 * source image is not directly accessible as random-access data (e.g., a BigDataViewer
+	 * {@code AbstractSpimData}/IMS source, or an ambiguous N5/Zarr layout) but its metadata (size,
+	 * voxel spacing) is still known. This allows features that only need bounds/scale (e.g., manual
+	 * tracing, bounds/distance checks) to work correctly with the image's real dimensions, even
+	 * though {@link #accessToValidImageData()} keeps reporting no data is available (this does NOT
+	 * set {@code ctSlice3d}, so A* search remains unavailable).
+	 *
+	 * @param width    width in pixels (ignored if &le;0)
+	 * @param height   height in pixels (ignored if &le;0)
+	 * @param depth    depth (number of slices) in pixels (ignored if &le;0)
+	 * @param xSpacing pixel width (ignored if &le;0)
+	 * @param ySpacing pixel height (ignored if &le;0)
+	 * @param zSpacing pixel depth (ignored if &le;0)
+	 * @param units    spatial calibration units (ignored if null/blank)
+	 */
+	public void setImageMetadata(final int width, final int height, final int depth, final double xSpacing,
+			final double ySpacing, final double zSpacing, final String units) {
+		if (width > 0) this.width = width;
+		if (height > 0) this.height = height;
+		if (depth > 0) {
+			this.depth = depth;
+			this.singleSlice = depth == 1;
+		}
+		if (xSpacing > 0) this.x_spacing = xSpacing;
+		if (ySpacing > 0) this.y_spacing = ySpacing;
+		if (zSpacing > 0) this.z_spacing = zSpacing;
+		if (units != null && !units.isBlank()) this.spacing_units = SNTUtils.getSanitizedUnit(units);
+	}
+
+	/**
+	 * Directly sets the image data backing A* search, without requiring an {@link ImgPlus} wrapper.
+	 * Useful when pixel data comes from a source whose {@link RandomAccessibleInterval} is already
+	 * resolved elsewhere (e.g., a BigDataViewer/SpimData {@code ImgLoader}, or a BDV/BVV
+	 * {@code Source}), and building/discarding a full {@code ImgPlus} just to satisfy
+	 * {@link #SNT(ImgPlus)} would be wasteful, or would not preserve lazy/chunked access the way the
+	 * original object does.
+	 * <p>
+	 * Callers remain responsible for also calling {@link #setImageMetadata} (or equivalent) with matching
+	 * dimensions/calibration; this method does not attempt to infer them from {@code data}.
+	 * <p>
+	 * {@code data}'s pixel type must be a {@link RealType}; other types (e.g. {@code ARGBType}) will
+	 * throw a {@code ClassCastException} later, e.g., the first time A* search accesses a pixel.
+	 *
+	 * @param data the (possibly lazily-backed) image data, in the same pixel/voxel grid implied by
+	 *             the dimensions/calibration set via {@link #setImageMetadata}
+	 */
+	public void setImageData(final RandomAccessibleInterval<?> data) {
+		this.ctSlice3d = data;
 	}
 
 	public double getPixelWidth() {

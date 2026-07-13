@@ -705,9 +705,29 @@ public class BookmarkManager {
         sntui.getRecorder(false).recordComment(comment);
     }
 
+    Action loadBookmarksAction(final AbstractBigViewer viewer) {
+        return new AbstractAction("From Bookmarks", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
+            @Override
+            public void actionPerformed(final java.awt.event.ActionEvent e) {
+                try {
+                    final java.util.List<SNTPoint> pos = viewer.getSNT().getUI().getBookmarkManager().getPositions(false);
+                    if (pos.isEmpty()) {
+                        new GuiUtils(viewer.getMarkerManager().getViewerDialogPanel()).error("The Bookmarks table is empty.");
+                    } else {
+                        viewer.getMarkerManager().add("BM", pos, 1, 1, SNTColor.colorToString(viewer.getRenderingOptions().fallbackColor));
+                        viewer.showViewerMessage(String.format("Imported %d bookmarks", pos.size()));
+                    }
+                } catch (final NullPointerException ex) {
+                    viewer.showViewerMessage("Bookmark Manager unavailable");
+                }
+            }
+        };
+    }
+
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
         GuiUtils.addSeparator(menu, "Import:");
+        if (viewer != null) menu.add(new JMenuItem(loadBookmarksAction(viewer)));
         JMenuItem jmi  = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> {

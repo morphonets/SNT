@@ -151,28 +151,26 @@ public class BvvCmd extends ContextCommand {
     }
 
     /**
-     * Fallback UI for when {@link SpimDataUtils#resolvePathToSource(String)}
-     * cannot auto-discover a dataset in an N5/Zarr container on its own (e.g.
-     * an ambiguous or unusually structured container). Lets the user pick a
+     * Fallback UI for when {@link SpimDataUtils#resolvePathToSource(String)} cannot auto-discover a dataset in an
+     * N5/Zarr container on its own (e.g. an ambiguous or unusually structured container). Lets the user pick a
      * dataset interactively.
-     * <p>
-     * Non-blocking: {@code DatasetSelectorDialog} shows a plain (non-modal)
-     * {@code JFrame}, so this method returns immediately, before the user has
-     * interacted with it. The resolved source is only added to {@code viewer}
-     * later, from the dialog's OK callback, once the user makes a selection.
      *
      * @param n5ZarrDir the {@code .n5} or {@code .zarr} directory
-     * @param viewer    the already-created {@link Bvv} or {@link Bdv} to add
-     *                  the user's eventual selection to
+     * @param viewer    the already-created {@link Bvv} or {@link Bdv} to add the user's eventual selection to
      */
     private void datasetDialog(final String n5ZarrDir, final AbstractBigViewer viewer) {
+        // n5-ij's DatasetSelectorDialog feeds this path straight into java.net.URI's single-string constructor (see
+        // ImprovedFormattedTextField) to populate its "container path" text field. A raw Windows path (e.g.,
+        // "E:\foo\bar") crashes that parser: "E:" is read as a URI scheme,  and the backslash right after it is illegal.
+        // Forward slashes don't have this problem, so normalizing here should be safe.
+        final String normalizedPath = n5ZarrDir.replace('\\', '/');
         final ExecutorService exec = Executors.newFixedThreadPool(SNTPrefs.getThreads());
-        final DatasetSelectorDialog datasetDialog = getDatasetSelectorDialog(n5ZarrDir, exec);
+        final DatasetSelectorDialog datasetDialog = getDatasetSelectorDialog(normalizedPath, exec);
         SwingUtilities.invokeLater(() -> {
             datasetDialog.run(selection -> {
                 try {
                     final SpimDataUtils.N5Sources n5Sources =
-                            SpimDataUtils.resolveN5Selection(selection, new File(n5ZarrDir).getName());
+                            SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
                     if (viewer instanceof Bvv bvv) bvv.show(n5Sources);
                     else if (viewer instanceof Bdv bdv) bdv.show(n5Sources);
                 } catch (final Exception e) {
@@ -181,7 +179,7 @@ public class BvvCmd extends ContextCommand {
                     exec.shutdown();
                 }
             });
-            datasetDialog.openContainer(n5ZarrDir); // run() calls buildDialog() synchronously before returning
+            datasetDialog.openContainer(normalizedPath); // run() calls buildDialog() synchronously before returning
         });
     }
 
@@ -229,6 +227,7 @@ public class BvvCmd extends ContextCommand {
         loadReconstructions(bvv);
         loadMarkers(bvv);
         bvv.getViewerFrame().addWindowListener(new WindowAdapter() {
+
             @Override
             public void windowClosed(final WindowEvent e) {
                 if (snt.getUI() != null) snt.getUI().setBvv(null);
@@ -311,11 +310,15 @@ public class BvvCmd extends ContextCommand {
      * plain CPU-side iteration with no GPU texture-size constraint, so there's no reason to degrade it
      * to match BVV's rendering limits.
      * <p>
-     * Falls back to a blank SNT when the primary volume resolves to an
-     * {@link AbstractSpimData}/{@link SpimDataUtils.N5Sources} (BDV .xml multi-view
-     * containers, or N5/Zarr layouts ambiguous enough to need the interactive dataset dialog). There
-     * is no ImgPlus to hand to SNT in that case. Manual tracing still works either way (segment
-     * tracing only needs spacing, which defaults to 1); only A* needs real data
+     * When the primary volume instead resolves to an {@link AbstractSpimData} (e.g. IMS, BDV .xml
+     * multi-view containers) or {@link SpimDataUtils.N5Sources} (ambiguous N5/Zarr layouts still
+     * pending the interactive dataset dialog), there is no {@code ImgPlus} to hand to the
+     * {@code SNT(ImgPlus)} constructor. SNT instead starts blank ("Analysis Mode") and {@link
+     * #applyFallbackCalibration} attempts to wire dimensions/calibration and the underlying pixel
+     * data (via {@link SNT#setImageMetadata}/{@link SNT#setImageData}) directly from the
+     * source's own {@code ImgLoader}/{@code Source}, timepoint 0. When that succeeds, both manual
+     * tracing and A* search work as usual; if it fails for any reason (unexpected loader
+     * implementation, etc.), tracing falls back to manual-only.
      */
     private SNT startTracingSNT(final File primaryVolume) {
         GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
@@ -323,6 +326,7 @@ public class BvvCmd extends ContextCommand {
             new net.imagej.ImageJ().ui().showUI();
         }
         ImgPlus<?> primaryImgPlus = null;
+        Object primaryFallbackSource = null; // AbstractSpimData or SpimDataUtils.N5Sources, for calibration only
         if (primaryVolume != null) {
             try {
                 final Object source = SpimDataUtils.resolvePathToSource(primaryVolume.getAbsolutePath());
@@ -330,7 +334,8 @@ public class BvvCmd extends ContextCommand {
                     primaryImgPlus = img;
                 } else {
                     SNTUtils.log("BVV: primary volume resolves to " + source.getClass().getSimpleName()
-                            + " (not a plain ImgPlus); SNT will start without image data (manual tracing only)");
+                            + " (not a plain ImgPlus); will attempt to wire dimensions/pixel data from it directly");
+                    primaryFallbackSource = source;
                 }
             } catch (final Exception e) {
                 SNTUtils.log("BVV: could not resolve '" + primaryVolume.getName() + "' for SNT (" + e.getMessage()
@@ -346,13 +351,64 @@ public class BvvCmd extends ContextCommand {
             final PathAndFillManager pathAndFillManager = new PathAndFillManager();
             snt = new SNT(getContext(), pathAndFillManager);
             snt.initialize(null);
+            if (primaryFallbackSource != null) applyFallbackCalibration(snt, primaryFallbackSource);
         }
         try {
-            snt.startUI(); // self-dispatches to the EDT as needed; do not wrap in invokeAndWait here
+            snt.startUI(true); // self-dispatches to the EDT as needed; do not wrap in invokeAndWait here
         } catch (Exception ex) {
             ex.printStackTrace();
         }
         return snt;
+    }
+
+    /**
+     * Extracts image dimensions/calibration and, when possible, the actual pixel data from a
+     * resolved {@link AbstractSpimData} or {@link SpimDataUtils.N5Sources} and applies them to
+     * {@code snt} via {@link SNT#setImageMetadata}/{@link SNT#setImageData}. Without at least the
+     * metadata call, {@code snt} keeps its all-zero default dimensions, which breaks bounds checks.
+     * <p>
+     * Dimensions/calibration mirror the equivalent logic in {@link Bvv#show(AbstractSpimData)}/
+     * {@link Bvv#show(SpimDataUtils.N5Sources)}, which populates BVV's own bounds for the same
+     * reason. Pixel-data extraction is best-effort and wrapped separately: if it fails (e.g. an
+     * unexpected {@code ImgLoader} implementation), tracing falls back to manual-only.
+     * <p>
+     * Caveat: this reads timepoint 0 (single-timepoint use case) directly from the loader/{@code
+     * Source}, in the volume's own pixel grid. Any registration transform beyond plain
+     * size/calibration (e.g. a non-identity {@code ViewRegistration}, or BVV's own manual-transform
+     * mode) is <em>not</em> applied, so traced world coordinates could diverge from what's rendered
+     * if such a transform is present.
+     */
+    private static void applyFallbackCalibration(final SNT snt, final Object source) {
+        try {
+            if (source instanceof AbstractSpimData<?> spimData) {
+                final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
+                if (setups.isEmpty()) return;
+                final var setup = setups.getFirst();
+                if (setup.hasSize() && setup.hasVoxelSize()) {
+                    final var sz = setup.getSize();
+                    final var vs = setup.getVoxelSize();
+                    snt.setImageMetadata((int) sz.dimension(0), (int) sz.dimension(1), (int) sz.dimension(2),
+                            vs.dimension(0), vs.dimension(1), vs.dimension(2), vs.unit());
+                }
+                try {
+                    final var setupLoader = spimData.getSequenceDescription().getImgLoader().getSetupImgLoader(setup.getId());
+                    snt.setImageData(setupLoader.getImage(0)); // timepoint 0
+                } catch (final Exception e) {
+                    SNTUtils.log("BVV: could not access pixel data from SpimData ImgLoader for A* search ("
+                            + e.getMessage() + "); manual tracing only");
+                }
+            } else if (source instanceof SpimDataUtils.N5Sources n5Sources && !n5Sources.sources.isEmpty()) {
+                final var spimSource = n5Sources.sources.getFirst().getSpimSource();
+                final var itvl = spimSource.getSource(0, 0); // timepoint 0, full-resolution level 0
+                final var vd = spimSource.getVoxelDimensions();
+                snt.setImageMetadata((int) itvl.dimension(0), (int) itvl.dimension(1), (int) itvl.dimension(2),
+                        (vd == null) ? 0 : vd.dimension(0), (vd == null) ? 0 : vd.dimension(1),
+                        (vd == null) ? 0 : vd.dimension(2), (vd == null) ? null : vd.unit());
+                snt.setImageData(itvl); // same lazily-loaded interval backing BVV's own rendering
+            }
+        } catch (final Exception e) {
+            SNTUtils.log("BVV: could not extract calibration for SNT (" + e.getMessage() + ")");
+        }
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */

@@ -49,7 +49,11 @@ public class ManualTracerThread extends Thread implements SearchInterface {
 		final double start_x, final double start_y, final double start_z,
 		final double goal_x, final double goal_y, final double goal_z)
 	{
-		if (goal_x > plugin.getWidth()|| goal_y > plugin.getHeight() || goal_z > plugin.getDepth())
+		// NB: width/height/depth are 0 when the plugin has no known image dimensions (e.g., SNT started against a
+		// BigDataViewer/SpimData source without pixel-level metadata). That is "unknown bounds", not a 0-size volume,
+		// so the check is skipped in that case rather than rejecting every goal
+		final boolean boundsKnown = plugin.getWidth() > 0 && plugin.getHeight() > 0 && plugin.getDepth() > 0;
+		if (boundsKnown && (goal_x > plugin.getWidth() || goal_y > plugin.getHeight() || goal_z > plugin.getDepth()))
 			throw new IllegalArgumentException("Out-of bounds goal");
 		this.start_x = start_x * plugin.getPixelWidth();
 		this.start_y = start_y * plugin.getPixelHeight();
