@@ -138,7 +138,7 @@ public class Bvv extends AbstractBigViewer {
      */
     public Bvv(final SNT snt) {
         super(snt); // sets this.snt and AbstractBigViewer.lastInstance
-        if (snt.getUI() != null) snt.getUI().setBvv(this);
+        if (snt != null && snt.getUI() != null) snt.getUI().setBvv(this);
         options = bvv.vistools.Bvv.options();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
@@ -1317,7 +1317,7 @@ public class Bvv extends AbstractBigViewer {
             initializePathOverlay(currentBvv);
             initializeAnnotationOverlay(currentBvv);
             registerCenterOnDoubleClickListener(currentBvv);
-            tracer = new Tracer();
+            if (snt != null) tracer = new Tracer(snt);
             sceneOverlay = new SceneOverlay();
             currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();
@@ -1357,13 +1357,15 @@ public class Bvv extends AbstractBigViewer {
                     "snt-hide-annotations-release");
             sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
             sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
-            // Finish/discard the in-progress tracing path without a canvas click: a double-click to finish is itself a
-            // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so
-            // it lands a spurious node right next to the previous. Enter/Esc avoids this since neither is a MouseEvent
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "snt-finish-path");
-            sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
-            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
-            sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
+            if (tracer != null) {
+                // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is itself a
+                // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so
+                // it lands a spurious node right next to the previous. Enter/Esc avoids this since neither is a MouseEvent
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ENTER, 0), "snt-finish-path");
+                sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
+                sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
+            }
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, 0), "snt-capture-keyframe");
             sntAMap.put("snt-capture-keyframe", new AbstractAction() {
                 @Override
@@ -1620,18 +1622,20 @@ public class Bvv extends AbstractBigViewer {
         final JToolBar toolbar = createToolbar();
 
         // group 1: tracing controls (auto/manual)
-        final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
-        final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
-                "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
+        if (tracer != null) {
+            final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
+            final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
+                    "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
         final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
                 "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
         bg1.add(b1);
         bg1.add(b2);
         toolbar.add(b1);
         toolbar.add(b2);
-        toolbar.addSeparator();
-        toolbar.add(Box.createHorizontalGlue());
-        toolbar.addSeparator();
+            toolbar.addSeparator();
+            toolbar.add(Box.createHorizontalGlue());
+            toolbar.addSeparator();
+        }
 
         // group 2: annotations/paths
         final JToggleButton toggleAroundCursor = GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
@@ -1684,10 +1688,14 @@ public class Bvv extends AbstractBigViewer {
                 "Set rendering options of annotations"));
         toolbar.add(optionsButton(actions));
 
-        final JPanel panel = new JPanel(new BorderLayout());
-        panel.add(toolbar, BorderLayout.NORTH);
-        panel.add(tracingStatusRow(), BorderLayout.SOUTH);
-        return panel;
+        if (tracer != null) {
+            final JPanel panel = new JPanel(new BorderLayout());
+            panel.add(toolbar, BorderLayout.NORTH);
+            panel.add(tracingStatusRow(), BorderLayout.SOUTH);
+            return panel;
+        } else {
+            return toolbar;
+        }
     }
 
     /**
@@ -3116,7 +3124,7 @@ public class Bvv extends AbstractBigViewer {
         // (see Bvv#tracingStatusRow()) can stop it. Null when idle, or during manual tracing
         private volatile Future<?> currentSearchFuture;
 
-        public Tracer() {
+        public Tracer(final SNT snt) {
             if (snt == null || snt.getPathAndFillManager() == null) {
                 throw new IllegalArgumentException("Tracer can only be initialized with a valid SNT instance");
             }
