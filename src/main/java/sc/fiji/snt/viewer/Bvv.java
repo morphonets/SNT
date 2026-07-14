@@ -946,11 +946,22 @@ public class Bvv extends AbstractBigViewer {
      * @return list containing a single {@link BvvMultiSource} grouping all setups
      */
     public List<BvvMultiSource> show(final SpimDataUtils.N5Sources n5Sources) {
-        final BvvOptions opts = bvvHandle != null
-                ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
+        // Whether this Bvv instance had no window at all before this call, distinct from bvvHandle's state
+        // *during* the loop below, which changes as soon as the first channel is shown. Needed so "attach
+        // control panel" further down still fires exactly once/
+        final boolean firstEverSource = bvvHandle == null;
         final List<BvvStackSource<?>> sources = new ArrayList<>();
-        for (final SourceAndConverter<?> soc : n5Sources.sources)
-            sources.add(BvvFunctions.show(soc, n5Sources.numTimepoints, opts));
+        for (final SourceAndConverter<?> soc : n5Sources.sources) {
+            // NB: Each channel is a separate BvvFunctions.show(...) call, and options *without* addTo(...) always
+            // opens a brand new top-level window. Deciding "attach to existing handle" once, before any
+            // channel exists, meant bvvHandle was still null for the whole loop on a fresh Bvv, so
+            // every channel got its own window instead of being appended to the first one
+            final BvvOptions opts = bvvHandle != null
+                    ? bvv.vistools.Bvv.options().addTo(bvvHandle) : options;
+            final BvvStackSource<?> source = BvvFunctions.show(soc, n5Sources.numTimepoints, opts);
+            sources.add(source);
+            if (bvvHandle == null) bvvHandle = source.getBvvHandle(); // subsequent channels attach to this window
+        }
         if (sources.isEmpty()) return Collections.emptyList();
 
         // Populate dims/cal from the first source's own metadata; there is no
@@ -979,9 +990,10 @@ public class Bvv extends AbstractBigViewer {
         if (datasetName == null || datasetName.isBlank())
             datasetName = "Dataset " + (multiSources.size() + 1);
 
-        // Attach control panel on first source of the first dataset
-        if (bvvHandle == null) {
-            bvvHandle = sources.getFirst().getBvvHandle();
+        // Attach control panel on first source of the first dataset. bvvHandle is already set by
+        // the loop above, so this checks firstEverSource instead to still fire exactly once, the
+        // very first time any source is shown
+        if (firstEverSource) {
             attachControlPanel(sources.getFirst());
         }
 
@@ -1626,12 +1638,12 @@ public class Bvv extends AbstractBigViewer {
             final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
             final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
                     "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
-        final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
-                "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
-        bg1.add(b1);
-        bg1.add(b2);
-        toolbar.add(b1);
-        toolbar.add(b2);
+            final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
+                    "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
+            bg1.add(b1);
+            bg1.add(b2);
+            toolbar.add(b1);
+            toolbar.add(b2);
             toolbar.addSeparator();
             toolbar.add(Box.createHorizontalGlue());
             toolbar.addSeparator();
