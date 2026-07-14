@@ -2596,6 +2596,7 @@ public class SNT extends MultiDThreePanes implements
 		if (forkPoint != null) {
 			fullPath.setBranchFrom(forkPoint.getPath(), forkPoint);
 		}
+		fullPath.setCTposition(channel, frame);
 		return fullPath;
 	}
 
@@ -4304,6 +4305,24 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public void setImageData(final RandomAccessibleInterval<?> data) {
 		this.ctSlice3d = data;
+	}
+
+	/**
+	 * Sets the channel/frame (1-based, IJ hyperstack convention) to be associated with subsequently
+	 * traced paths (via {@link Path#setCTposition(int, int)}), and, for {@link #manualTrace}, with
+	 * the pixel data A* search reads (see {@link #setImageData}).
+	 * <p>
+	 * Useful alongside {@link #setImageData}/{@link #setImageMetadata} when pixel data comes from a
+	 * source with no single, already-loaded multichannel/multi-timepoint array to index into (e.g.
+	 * each channel of a BigDataViewer/SpimData or N5/Zarr source is its own separate object): callers
+	 * are responsible for keeping the three in sync when the active channel/timepoint changes.
+	 *
+	 * @param channel the channel (1-based index; coerced to 1 if &le;0)
+	 * @param frame   the frame/timepoint (1-based index; coerced to 1 if &le;0)
+	 */
+	public void setChannelAndFrame(final int channel, final int frame) {
+		this.channel = Math.max(1, channel);
+		this.frame = Math.max(1, frame);
 	}
 
 	public double getPixelWidth() {

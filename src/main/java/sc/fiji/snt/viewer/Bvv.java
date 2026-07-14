@@ -3154,7 +3154,10 @@ public class Bvv extends AbstractBigViewer {
             if (computing) return; // a segment is still being traced; ignore further clicks until it lands
 
             if (previousNode == null) {
-                // this is the first click: we are starting a new Path.
+                // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
+                // the pixel data) for the whole path now, rather than re-checking on every segment, so a single
+                // path can't silently span two channels if the user switches BVV's active source mid-trace
+                syncChannelFromActiveSource();
                 final double[] cc1 = getClickedPosition(e);
                 if (cc1 == null) return; // msg already displayed
                 previousNode = new Path.PathNode(cc1);
@@ -3190,6 +3193,37 @@ public class Bvv extends AbstractBigViewer {
             traceSegmentAsync(previousNode, currentNode, previousForkPoint);
             previousNode = currentNode;
             previousForkPoint = null; // reset fork point
+        }
+
+        /**
+         * Re-derives the pixel data, calibration, and channel/frame that A* search and path metadata should use, from
+         * whichever source is currently "active" in BVV's own Sources panel
+         * ({@link bdv.viewer.ViewerState#getCurrentSource()}) and BVV's current timepoint.
+         * <p>
+         * If the current source can't be resolved for any reason (should not normally happen), this leaves whatever
+         * image data/channel/frame SNT already had.
+         */
+        private void syncChannelFromActiveSource() {
+            if (snt == null) return;
+            final VolumeViewerPanel vp = getViewerPanel();
+            if (vp == null) return;
+            try {
+                final SourceAndConverter<?> current = vp.state().getCurrentSource();
+                if (current == null) return;
+                final int timepoint = vp.state().getCurrentTimepoint();
+                final var spimSource = current.getSpimSource();
+                final var rai = spimSource.getSource(timepoint, 0); // level 0: full resolution
+                final var vd = spimSource.getVoxelDimensions();
+                snt.setImageMetadata((int) rai.dimension(0), (int) rai.dimension(1),
+                        rai.numDimensions() > 2 ? (int) rai.dimension(2) : 1,
+                        (vd == null) ? 0 : vd.dimension(0), (vd == null) ? 0 : vd.dimension(1),
+                        (vd == null) ? 0 : vd.dimension(2), (vd == null) ? null : vd.unit());
+                snt.setImageData(rai);
+                final int channelIdx = vp.state().getSources().indexOf(current); // 0-based, or -1 if not found
+                snt.setChannelAndFrame(channelIdx + 1, timepoint + 1); // setChannelAndFrame coerces <=0 to 1
+            } catch (final Exception e) {
+                SNTUtils.log("BVV: could not sync tracing channel from active source (" + e.getMessage() + ")");
+            }
         }
 
         /**
