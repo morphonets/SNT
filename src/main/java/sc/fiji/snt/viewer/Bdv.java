@@ -328,12 +328,21 @@ public class Bdv extends AbstractBigViewer {
      * @return list of BdvStackSources, one per setup
      */
     public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources) {
-        final BdvOptions opts = (bdvHandle == null)
-                ? baseOpts()
-                : BdvOptions.options().addTo(bdvHandle);
+        final boolean firstEverSource = bdvHandle == null;
         final List<BdvStackSource<?>> sources = new ArrayList<>();
-        for (final SourceAndConverter<?> soc : n5Sources.sources)
-            sources.add(BdvFunctions.show(soc, n5Sources.numTimepoints, opts));
+        for (final SourceAndConverter<?> soc : n5Sources.sources) {
+            // See Bvv's identical fix for multiple channels being displayed across instances
+            // NB: Each channel is a separate BdvFunctions.show(...) call, and options *without* addTo(...)
+            // always opens a brand new top-level window. Deciding "attach to existing handle" once, before
+            // any channel exists, meant bdvHandle was still null for the whole loop on a fresh Bdv, so
+            // every channel got its own window instead of being appended to the first one
+            final BdvOptions opts = (bdvHandle == null)
+                    ? baseOpts()
+                    : BdvOptions.options().addTo(bdvHandle);
+            final BdvStackSource<?> source = BdvFunctions.show(soc, n5Sources.numTimepoints, opts);
+            sources.add(source);
+            if (bdvHandle == null) bdvHandle = source.getBdvHandle(); // subsequent channels attach to this window
+        }
         if (sources.isEmpty()) return sources;
 
         if (dims == null || cal == null) {
@@ -350,8 +359,9 @@ public class Bdv extends AbstractBigViewer {
             } catch (final Exception ignored) {} // never break rendering for a metadata hiccup
         }
 
-        if (bdvHandle == null) {
-            bdvHandle = sources.getFirst().getBdvHandle();
+        // bdvHandle is already set by the loop above, so this checks firstEverSource instead
+        // to still fire exactly once, the very first time any source is shown.
+        if (firstEverSource) {
             viewerPanel = bdvHandle.getViewerPanel();
             initializeOverlays();
         }
