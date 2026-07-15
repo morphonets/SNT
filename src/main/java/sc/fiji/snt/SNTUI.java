@@ -1186,7 +1186,7 @@ public class SNTUI extends JDialog {
 
         @Override
         public void enter() {
-            updateStatusText("Experimental big-data tracing mode");
+            updateStatusText("Big-Data Tracing Mode (Experimental)");
             showStatus("In-core image not available...", false);
             setEnableAutoTracingComponents(false, false); // currently controlled in Bvv panel
             disableImageDependentComponents(); // Bvv is not currently aware of these
@@ -5177,6 +5177,7 @@ public class SNTUI extends JDialog {
             case EDITING -> "EDITING_MODE";
             case SNT_PAUSED -> "PAUSED";
             case TRACING_PAUSED -> "ANALYSIS_MODE";
+            case BVV_TRACING -> "BVV_TRACING";
             default -> "UNKNOWN";
         };
     }

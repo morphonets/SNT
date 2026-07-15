@@ -142,6 +142,7 @@ public class Bvv extends AbstractBigViewer {
         options = bvv.vistools.Bvv.options();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
+        options.frameTitle((snt != null) ? "SNT Big Data Tracer" : "SNT BVV");
         options.cacheBlockSize(32); // GPU cache tile size
         options.maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB);
         options.ditherWidth(1); // dither window. 1 = full resolution; 8 = coarsest resolution
@@ -1096,7 +1097,7 @@ public class Bvv extends AbstractBigViewer {
                 nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep));
         return bvv.vistools.Bvv.options()
                 .preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE)
-                .frameTitle("SNT BVV")
+                .frameTitle((snt != null) ? "SNT Big Data Tracer" : "SNT BVV")
                 .maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB)
                 .ditherWidth(1)
                 .cacheBlockSize(blockSize)
@@ -3184,9 +3185,9 @@ public class Bvv extends AbstractBigViewer {
                     // find the nearest node to this cursor position see InteractiveTracingCanvas#mouseMoved
                     // Pick radius is defined in screen pixels (see pickRadiusWorld()) rather than a fixed
                     // world-space distance, so "close enough to fork" stays consistent across zoom levels
-                    // TODO: This is a deviation from tracing on ImagePlus: There we look for a nearest point in selected paths only
+                    // This is a (minor!?) deviation from tracing on ImagePlus: There we look for a nearest point in selected paths only
                     final double pickRadius = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
-                    showViewerMessage("Forking path...");
+                    showViewerMessage("Forking...");
                     final NearPoint nearPoint = snt.getPathAndFillManager().nearestPointOnAnyPath(cc1[0], cc1[1], cc1[2], pickRadius);
                     previousForkPoint = (nearPoint == null) ? null : nearPoint.getNode();
                     if (previousForkPoint == null) {
@@ -3264,6 +3265,7 @@ public class Bvv extends AbstractBigViewer {
             syncPathManagerList();
             tempPath = null;
             previousNode = null;
+            showViewerMessage("Path finished");
         }
 
         /**

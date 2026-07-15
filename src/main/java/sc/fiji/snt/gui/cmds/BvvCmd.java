@@ -67,7 +67,7 @@ import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vParsers;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "BDV/BVV")
+@Plugin(type = Command.class, label = "Big Data")
 public class BvvCmd extends ContextCommand {
 
     private static final String TOOLTIP =

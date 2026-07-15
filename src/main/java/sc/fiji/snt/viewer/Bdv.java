@@ -271,7 +271,7 @@ public class Bdv extends AbstractBigViewer {
      */
     public List<BdvStackSource<?>> show(final AbstractSpimData<?> spimData) {
         final BdvOptions opts = (bdvHandle == null)
-                ? BdvOptions.options()
+                ? baseOpts()
                 : BdvOptions.options().addTo(bdvHandle);
         final List<BdvStackSource<?>> sources = BdvFunctions.show(spimData, opts);
         if (sources.isEmpty()) return sources;
@@ -329,7 +329,7 @@ public class Bdv extends AbstractBigViewer {
      */
     public List<BdvStackSource<?>> show(final SpimDataUtils.N5Sources n5Sources) {
         final BdvOptions opts = (bdvHandle == null)
-                ? BdvOptions.options()
+                ? baseOpts()
                 : BdvOptions.options().addTo(bdvHandle);
         final List<BdvStackSource<?>> sources = new ArrayList<>();
         for (final SourceAndConverter<?> soc : n5Sources.sources)
@@ -569,7 +569,8 @@ public class Bdv extends AbstractBigViewer {
 
     /** Returns the base BdvOptions: either a fresh instance or addTo existing handle. */
     private BdvOptions baseOpts() {
-        return bdvHandle == null ? BdvOptions.options() : BdvOptions.options().addTo(bdvHandle);
+        final BdvOptions opts = (bdvHandle == null) ? BdvOptions.options() : BdvOptions.options().addTo(bdvHandle);
+        return opts.frameTitle("SNT BDV");
     }
 
     /**

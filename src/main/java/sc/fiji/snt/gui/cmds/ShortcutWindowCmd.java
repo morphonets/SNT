@@ -80,7 +80,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	private JPanel getPanel() {
 		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
-		shortcuts.add(new Shortcut("SNT...", SNTLoaderCmd.class,
+		shortcuts.add(new Shortcut("Startup...", SNTLoaderCmd.class,
 				"Initialize the complete SNT frontend. For tracing start here."));
 		shortcuts.add(null);
 		shortcuts.add(new Shortcut("Big Data...", BvvCmd.class,
@@ -271,7 +271,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 
 	private JFrame getFrame() {
 		if (frame == null) {
-			frame = new JFrame("Neuroanatomy Commands");
+			frame = new JFrame("SNT Commands");
 			frame.getRootPane().putClientProperty("Window.style", "small");
 		}
 		return frame;
