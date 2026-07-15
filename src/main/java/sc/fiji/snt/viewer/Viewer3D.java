@@ -451,6 +451,8 @@ public class Viewer3D {
     protected Viewer3D(final SNT snt) {
         this(snt.getContext());
         sntInstance = true;
+        setDefaultColor(new ColorRGB(SNTPrefs.deselectedPathColor().getRed(),
+                SNTPrefs.deselectedPathColor().getGreen(), SNTPrefs.deselectedPathColor().getBlue()));
     }
 
     private void init(final Context context) {

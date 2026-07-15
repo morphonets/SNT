@@ -138,7 +138,13 @@ public class Bvv extends AbstractBigViewer {
      */
     public Bvv(final SNT snt) {
         super(snt); // sets this.snt and AbstractBigViewer.lastInstance
-        if (snt != null && snt.getUI() != null) snt.getUI().setBvv(this);
+        if (snt != null) {
+            if (snt.getUI() != null) snt.getUI().setBvv(this);
+            if (renderingOptions != null) {
+                renderingOptions.selectedColor = SNTPrefs.selectedPathColor();
+                renderingOptions.displayCustomPathColors = snt.getPrefs().getDisplayCustomPathColors();
+            }
+        }
         options = bvv.vistools.Bvv.options();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
@@ -4360,8 +4366,13 @@ public class Bvv extends AbstractBigViewer {
                 if (n < 1) continue;
 
                 final PathScreenData pathData = new PathScreenData(n);
-                final Color defaultColor = path.getColor() != null ? path.getColor() : renderingOptions.fallbackColor;
+                final boolean customColor = renderingOptions.displayCustomPathColors && path.hasCustomColor();
+                final boolean selected = path.isSelected();
+                Color color = renderingOptions.fallbackColor;
+                if (selected && !customColor) color = renderingOptions.selectedColor;
+                else if (customColor) color = path.getColor(); // never null when hasCustomColor() true
                 final boolean hasNodeColors = path.hasNodeColors();
+
                 // Hoist offset outside inner loop: same value for all nodes (#1)
                 final sc.fiji.snt.util.PointInCanvas offset = path.getCanvasOffset();
                 final double offX = offset != null ? offset.x : 0;
@@ -4389,12 +4400,14 @@ public class Bvv extends AbstractBigViewer {
 
                     final double r = renderingOptions.isUsePathRadius() && node.getRadius() > 0
                             ? node.getRadius() : minR;
+                    // Selected paths render ~50% thicker, so selection stays legible even when
+                    // color alone is a weak cue (thin paths, colorblind-unfriendly palettes, etc.)
+                    final double selectedBoost = selected ? 1.5 : 1.0;
                     pathData.screenRadius[i] = Math.max(0.5,
-                            Math.min(r * renderingOptions.getThicknessMultiplier(), maxR) * avgScale * pf);
+                            Math.min(r * renderingOptions.getThicknessMultiplier() * selectedBoost, maxR) * avgScale * pf);
 
                     final Color nodeColor = hasNodeColors ? node.getColor() : null;
-                    pathData.colors[i] = nodeColor != null ? nodeColor : defaultColor;
-
+                    pathData.colors[i] = (nodeColor != null) ? nodeColor : color;
                     pathData.visible[i] = isOnScreen(pathData.screenX[i], pathData.screenY[i]);
                 }
 

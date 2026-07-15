@@ -99,8 +99,8 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 				sa.drawProgressOnSlice(plane, current_z, this, g);
 		}
 
-		final Color selectedColor = plugin.selectedColor;
-		final Color deselectedColor = plugin.deselectedColor;
+		final Color selectedColor = SNTPrefs.selectedPathColor();
+		final Color deselectedColor = SNTPrefs.deselectedPathColor();
 
 		final boolean drawDiametersXY = plugin.getDrawDiameters();
 
@@ -130,7 +130,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 					continue;
 				}
 
-				final boolean customColor = plugin.displayCustomPathColors && drawPath.hasCustomColor();
+				final boolean customColor = plugin.getPrefs().getDisplayCustomPathColors() && drawPath.hasCustomColor();
 				Color color = deselectedColor;
 				if (isSelected && !customColor) color = selectedColor;
 				else if (customColor) color = drawPath.getColor();

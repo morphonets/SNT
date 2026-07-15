@@ -40,7 +40,6 @@ import org.scijava.command.Command;
 import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.ui.UIService;
-import org.scijava.util.ColorRGB;
 import org.scijava.util.Types;
 import sc.fiji.snt.analysis.SNTTable;
 import sc.fiji.snt.analysis.TreeStatistics;
@@ -3861,46 +3860,46 @@ public class SNTUI extends JDialog {
     }
 
     private JPanel colorOptionsPanel() {
-        final ColorChooserButton colorChooser1 = new ColorChooserButton(plugin.selectedColor, "Selected: ");
+        final ColorChooserButton colorChooser1 = new ColorChooserButton(SNTPrefs.selectedPathColor(), "Selected: ");
         colorChooser1.setName("Color for Selected Paths");
         colorChooser1.addColorChangedListener(newColor -> {
-            if (plugin.deselectedColor.equals(newColor)) {
+            if (SNTPrefs.deselectedPathColor().equals(newColor)) {
                 guiUtils.error("Selected and deselected colors cannot be the same.");
-                colorChooser1.setSelectedColor(plugin.selectedColor, true);
+                colorChooser1.setSelectedColor(SNTPrefs.selectedPathColor(), true);
             } else {
                 plugin.setSelectedColor(newColor);
             }
         });
         registerInCommandFinder(colorChooser1, "Default color for selected paths", "Main Tab");
-        final ColorChooserButton colorChooser2 = new ColorChooserButton(plugin.deselectedColor, "Deselected: ");
+        final ColorChooserButton colorChooser2 = new ColorChooserButton(SNTPrefs.deselectedPathColor(), "Deselected: ");
         colorChooser2.setName("Color for Deselected Paths");
         colorChooser2.addColorChangedListener(newColor -> {
-            if (plugin.selectedColor.equals(newColor)) {
+            if (SNTPrefs.selectedPathColor().equals(newColor)) {
                 guiUtils.error("Selected and deselected colors cannot be the same.");
-                colorChooser2.setSelectedColor(plugin.deselectedColor, true);
+                colorChooser2.setSelectedColor(SNTPrefs.deselectedPathColor(), true);
             } else {
                 plugin.setDeselectedColor(newColor);
             }
         });
         registerInCommandFinder(colorChooser2, "Default color for deselected paths", "Main Tab");
-        final JCheckBox jcheckbox = new JCheckBox("Override color tags with default colors", !plugin.displayCustomPathColors);
+        final JCheckBox jcheckbox = new JCheckBox("Override color tags with default colors", !plugin.getPrefs().getDisplayCustomPathColors());
         //jcheckbox.putClientProperty(FlatClientProperties.STYLE_CLASS, "small");
         GuiUtils.addTooltip(jcheckbox,
                 "Whether default colors above should be used even when color tags have been applied in the Path Manager.<br><br>" +
                         "NB: This option does not affect color-coded paths, or paths with multi-color nodes");
         registerInCommandFinder(jcheckbox, "Toggle Enforce Default Colors", "Main Tab");
         jcheckbox.addActionListener(e -> {
-            plugin.displayCustomPathColors = !jcheckbox.isSelected();
+            plugin.getPrefs().setDisplayCustomPathColors(!jcheckbox.isSelected());
             plugin.updateTracingViewers(true);
         });
         final JButton resetButton1 = resetButton("default path colors");
         resetButton1.addActionListener( e-> {
-            colorChooser1.setSelectedColor(SNT.DEFAULT_SELECTED_COLOR, true);
+            colorChooser1.setSelectedColor(SNTPrefs.DEFAULT_SELECTED_COLOR, true);
             showStatus("Default path colors reset", true);
         });
         final JButton resetButton2 = resetButton("default path colors");
         resetButton2.addActionListener( e-> {
-            colorChooser2.setSelectedColor(SNT.DEFAULT_DESELECTED_COLOR, true);
+            colorChooser2.setSelectedColor(SNTPrefs.DEFAULT_DESELECTED_COLOR, true);
             showStatus("Default path colors reset", true);
         });
         final JToolBar toolbar = new JToolBar();
@@ -5861,8 +5860,6 @@ public class SNTUI extends JDialog {
     private class SNTViewer3D extends Viewer3D {
         SNTViewer3D() {
             super(SNTUI.this.plugin);
-            super.setDefaultColor(new ColorRGB(plugin.deselectedColor.getRed(),
-                    plugin.deselectedColor.getGreen(), plugin.deselectedColor.getBlue()));
         }
 
         @Override

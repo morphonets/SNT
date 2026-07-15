@@ -30,6 +30,8 @@ import java.util.List;
 
 import javax.swing.*;
 
+import ij3d.Utils;
+import org.jogamp.vecmath.Color3f;
 import org.scijava.prefs.PrefService;
 import org.scijava.util.VersionUtils;
 
@@ -48,6 +50,15 @@ import ij3d.ContentConstants;
 public class SNTPrefs { // TODO: Adopt PrefService
 
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
+
+	/* Colors */
+	public static final Color DEFAULT_SELECTED_COLOR = Color.GREEN;
+	public static final Color DEFAULT_DESELECTED_COLOR = Color.MAGENTA;
+	protected static final Color3f DEFAULT_SELECTED_COLOR3F = Utils.toColor3f(Color.GREEN);
+	protected static final Color3f DEFAULT_DESELECTED_COLOR3F = Utils.toColor3f(Color.MAGENTA);
+	private static Color selectedColor = DEFAULT_SELECTED_COLOR;
+	private static Color deselectedColor = DEFAULT_DESELECTED_COLOR;
+	private boolean displayCustomPathColors = true;
 
 	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
@@ -282,7 +293,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		snt.requireShiftToFork = getPref(REQUIRE_SHIFT_FOR_FORK);
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.setDrawDiameters(getPref(DRAW_DIAMETERS));
-		snt.displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
+		displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
 		snt.setShowOnlyActiveCTposPaths(getPref(JUST_ACTIVE_CT), false);
 		if (!SNTUtils.isDebugMode()) SNTUtils.setDebugMode(getPref(DEBUG));
 		snt.cursorSnapWindowXY = withinBoundaries(
@@ -335,7 +346,7 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(SNAP_XY, snt.cursorSnapWindowXY);
 		Prefs.set(SNAP_Z, snt.cursorSnapWindowZ);
 		setPref(DRAW_DIAMETERS, snt.getDrawDiameters());
-		setPref(ENFORCE_DEFAULT_PATH_COLORS, !snt.displayCustomPathColors);
+		setPref(ENFORCE_DEFAULT_PATH_COLORS, !displayCustomPathColors);
 		setPref(JUST_ACTIVE_CT, snt.showOnlyActiveCTposPaths);
 		setPref(AUTO_LOAD_CT, snt.autoCT);
 		setPref(DEBUG, SNTUtils.isDebugMode());
@@ -515,6 +526,8 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		Prefs.set(VERSION_CHECK, SNTUtils.VERSION);
 		Prefs.savePreferences();
 		SNTUtils.getContext().getService(PrefService.class).clear(SNTPrefs.class);
+		selectedColor = DEFAULT_SELECTED_COLOR;
+		deselectedColor = DEFAULT_DESELECTED_COLOR;
 	}
 
 	public static String getDefaultLookAndFeel() {
@@ -698,4 +711,33 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		}
 		setNextImgExtensions(Arrays.asList(csvString.split("[,\\s]+")));
 	}
+
+	public boolean getDisplayCustomPathColors() {
+		return displayCustomPathColors;
+	}
+
+	public void setDisplayCustomPathColors(final boolean displayCustomPathColors) {
+		this.displayCustomPathColors = displayCustomPathColors;
+		if (snt.getUI() != null && snt.getUI().bvvSNT != null) {
+			snt.getUI().bvvSNT.getRenderingOptions().displayCustomPathColors = displayCustomPathColors;
+			snt.getUI().bvvSNT.syncPathManagerList();
+		}
+	}
+
+	public static Color selectedPathColor() {
+		return selectedColor;
+    }
+
+	public static Color deselectedPathColor() {
+		return deselectedColor;
+	}
+
+	public static void setSelectedPathColor(final Color color) {
+		selectedColor = (color == null) ? DEFAULT_SELECTED_COLOR : color;
+	}
+
+	public static void setDeselectedPathColor(final Color color) {
+		deselectedColor = (color == null) ? DEFAULT_DESELECTED_COLOR : color;
+	}
+
 }

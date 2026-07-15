@@ -934,7 +934,10 @@ public abstract class AbstractBigViewer {
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
         SNTPoint canvasOffset;
-        public Color fallbackColor = Color.MAGENTA;
+        public Color fallbackColor = SNTPrefs.deselectedPathColor();
+        public Color selectedColor = SNTPrefs.selectedPathColor();
+        public boolean displayCustomPathColors;
+
         float clippingDistance;
 
         /**

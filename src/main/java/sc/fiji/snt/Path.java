@@ -2146,10 +2146,10 @@ public class Path implements Comparable<Path>, Cloneable {
 	protected void drawPathAsPoints(final Graphics2D g2,
 		final TracerCanvas canvas, final SNT snt)
 	{
-		final boolean customColor = (hasCustomColor && snt.displayCustomPathColors);
-		Color color = snt.deselectedColor;
+		final boolean customColor = (hasCustomColor && snt.getPrefs().getDisplayCustomPathColors());
+		Color color = SNTPrefs.deselectedPathColor();
 		if (isSelected() && !customColor)
-			color = snt.selectedColor;
+			color = SNTPrefs.selectedPathColor();
 		else if (customColor)
 			color = getColor();
 		final int sliceZeroIndexed = canvas.getImage().getZ() - 1;
@@ -2515,7 +2515,7 @@ public class Path implements Comparable<Path>, Cloneable {
             case Path.SWC_UNSPECIFIED -> Color.ORANGE;
             case Path.SWC_GLIA_PROCESS -> Color.PINK;
             case Path.SWC_CUSTOM2 -> Color.YELLOW.darker();
-            default -> SNT.DEFAULT_DESELECTED_COLOR;
+            default -> SNTPrefs.DEFAULT_DESELECTED_COLOR;
         };
 	}
 
@@ -3663,7 +3663,7 @@ public class Path implements Comparable<Path>, Cloneable {
 	 */
 	@Deprecated
 	synchronized public void addTo3DViewer(final Image3DUniverse univ, final Color c, final ImagePlus colorImage) {
-		addTo3DViewer(univ, Utils.toColor3f((c == null) ? SNT.DEFAULT_DESELECTED_COLOR : c), colorImage);
+		addTo3DViewer(univ, Utils.toColor3f((c == null) ? SNTPrefs.DEFAULT_DESELECTED_COLOR : c), colorImage);
 	}
 
 	/**

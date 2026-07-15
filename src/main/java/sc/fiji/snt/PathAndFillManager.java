@@ -1969,8 +1969,7 @@ public class PathAndFillManager extends DefaultHandler implements
                 Path pathToAdd;
                 if (p.getUseFitted()) pathToAdd = p.getFitted();
                 else pathToAdd = p;
-                pathToAdd.addTo3DViewer(plugin.univ, plugin.deselectedColor,
-                        plugin.colorImage);
+                pathToAdd.addTo3DViewer(plugin.univ, SNTPrefs.deselectedPathColor(), plugin.colorImage);
             }
         }
     }
@@ -3604,7 +3603,7 @@ public class PathAndFillManager extends DefaultHandler implements
             if (p.fittedVersionOf != null) return; // here interpreted as 'continue'
 
             final boolean selected = p.isSelected();
-            final boolean customColor = plugin.displayCustomPathColors && p.hasCustomColor();
+            final boolean customColor = plugin.getPrefs().getDisplayCustomPathColors() && p.hasCustomColor();
             Color3f color3f;
             if (customColor) color3f = Utils.toColor3f(p.getColor());
             else if (selected) color3f = plugin.selectedColor3f;
