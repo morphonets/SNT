@@ -2056,6 +2056,7 @@ public class SNTUI extends JDialog {
         // auto-grab focus of image window
         final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
                 plugin.autoCanvasActivation);
+        canvasCheckBox.setEnabled(!isBigDataInstance());
         registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
                 "Options Tab");
         GuiUtils.addTooltip(canvasCheckBox, """

@@ -91,7 +91,7 @@ public class BvvCmd extends ContextCommand {
             label = "Secondary volume (optional)", description = "Optional image volume.\n"+ TOOLTIP)
     File img2File;
 
-    @Parameter(required = false, label = "Reconstruction files (optional)",
+    @Parameter(required = false, label = "Reconstruction file(s) (optional)",
             description = "Either a single file (TRACES, SWC, JSON), or a folder containing multiple reconstruction files")
     File recFiles;
 
@@ -99,9 +99,10 @@ public class BvvCmd extends ContextCommand {
             description = "A CSV file containing bookmarked locations")
     File markerFile;
 
-    @Parameter(label = "Viewer type", choices = {"2D: Big Data Viewer (BDV)", "3D: Big Volume Viewer (BVV)",
-            "3D: Big Volume Viewer (BVV) with tracing capabilities"},
-            description = "The type of viewer")
+    @Parameter(label = "Viewer type", description = "The type of viewer", choices = {
+            "Big Data Viewer (BDV): Interactive reslicing",
+            "Big Volume Viewer (BVV): 3D rendering",
+            "Big Volume Viewer (BVV): 3D rendering w/ tracing capabilities"})
     String viewerChoice;
 
     @Override
@@ -120,7 +121,7 @@ public class BvvCmd extends ContextCommand {
             return;
         }
         final boolean threeD = viewerChoice == null || viewerChoice.toLowerCase().contains("bvv")
-                || viewerChoice.toLowerCase().contains("vol") || viewerChoice.toLowerCase().contains("3d");
+                || viewerChoice.toLowerCase().contains("vol");
         final boolean tracer = viewerChoice != null && viewerChoice.toLowerCase().contains("tracing");
 
         if (tracer && SNTUtils.getInstance() != null) {

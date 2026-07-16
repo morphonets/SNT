@@ -3512,13 +3512,20 @@ public class Bvv extends AbstractBigViewer {
         }
 
         private boolean exitedWithConfirmationPrompt() {
-            final boolean skipPrompt = tempPath == null || tempPath.size() == 0;
-            if (skipPrompt || new GuiUtils(getViewerFrame()).getConfirmation("Discard current unfinished path?", "Discard Unfinished Path?")) {
-                exit();
-                showViewerMessage("Tracing disabled");
-                return true;
+            final boolean promptUser = tempPath != null && tempPath.size() > 0;
+            if (promptUser) {
+                final int ans = new GuiUtils(getViewerFrame())
+                        .yesNoDialog("An unfinished path exists. Would you like to finish it?", "Unfinished Path",
+                        "Yes. Finish Path", "No. Discard Path");
+                if (ans == JOptionPane.YES_OPTION) {
+                    finishPath();
+                } else if (ans == JOptionPane.NO_OPTION) {
+                    discardCurrentPath();
+                }
             }
-            return false;
+            exit();
+            showViewerMessage("Tracing disabled");
+            return true;
         }
 
     }
