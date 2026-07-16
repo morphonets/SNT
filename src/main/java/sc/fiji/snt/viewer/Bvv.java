@@ -1353,7 +1353,13 @@ public class Bvv extends AbstractBigViewer {
             initializePathOverlay(currentBvv);
             initializeAnnotationOverlay(currentBvv);
             registerCenterOnDoubleClickListener(currentBvv);
-            if (snt != null) tracer = new Tracer(snt);
+            if (snt != null) {
+                tracer = new Tracer(snt);
+                // We'll re-assign the viewer to the GUI here because only at this point the viewer frame is
+                // available and this allows snt.getUI().setBvv() to inject the window listener that monitors
+                // window closing. Innocous if viewer has been already assigned
+                if (snt.getUI() != null) snt.getUI().setBvv(this);
+            }
             sceneOverlay = new SceneOverlay();
             currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();

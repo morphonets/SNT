@@ -4111,11 +4111,16 @@ public class SNT extends MultiDThreePanes implements
 		// Dispose xz/zy images unless the user stored some annotations (ROIs)
 		// on the image overlay or modified them somehow.
 		removeMIPOverlayAllPanes();
+		final boolean bvvMode = getUI() != null && getUI().getState() == SNTUI.BVV_TRACING;
 		if (!single_pane) {
 			final ImagePlus[] impPanes = { xz, zy };
 			for (final ImagePlus imp : impPanes) {
 				if (imp == null)
 					continue;
+				if (bvvMode) {
+					imp.close();
+					continue;
+				}
 				final Overlay overlay = imp.getOverlay();
 				if (!imp.changes && (overlay == null || imp.getOverlay().size() == 0)
 						&& !(imp.getRoi() != null && (imp.getRoi() instanceof PointRoi)))
@@ -4124,14 +4129,18 @@ public class SNT extends MultiDThreePanes implements
 					rebuildWindow(imp);
 			}
 		}
-		// Restore main view
-		final Overlay overlay = (xy == null) ? null : xy.getOverlay();
-		final Roi roi = (xy == null) ? null : xy.getRoi();
-		if (xy != null && overlay == null && roi == null && !accessToValidImageData()) {
-			xy.changes = false;
+		if (bvvMode && xy != null) {
 			xy.close();
-		} else if (xy != null && xy.getImage() != null) {
-			rebuildWindow(xy);
+		} else {
+			// Restore main view
+			final Overlay overlay = (xy == null) ? null : xy.getOverlay();
+			final Roi roi = (xy == null) ? null : xy.getRoi();
+			if (xy != null && overlay == null && roi == null && !accessToValidImageData()) {
+				xy.changes = false;
+				xy.close();
+			} else if (xy != null && xy.getImage() != null) {
+				rebuildWindow(xy);
+			}
 		}
 		// Clear all image data references to prevent stale state detection
 		xy = null;

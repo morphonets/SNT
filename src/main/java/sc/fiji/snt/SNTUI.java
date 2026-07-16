@@ -958,6 +958,14 @@ public class SNTUI extends JDialog {
         pathAndFillManager = null;
         guiUtils = null;
         recViewerFrame = null;
+        if (bvvSNT != null && bvvSNT.getViewerFrame() != null)
+            bvvSNT.getViewerFrame().dispose();
+        if (bdvSNT != null && bdvSNT.getViewerFrame() != null)
+            bdvSNT.getViewerFrame().dispose();
+        if (sciViewSNT != null && sciViewSNT.getSciView() != null && sciViewSNT.getSciView().mainWindow != null)
+            sciViewSNT.getSciView().mainWindow.close();
+        bvvSNT = null;
+        bdvSNT = null;
         sciViewSNT = null;
         GuiUtils.closeAllPlots();
         GuiUtils.closeAllTables();
@@ -1018,6 +1026,16 @@ public class SNTUI extends JDialog {
 
     public void setBvv(final Bvv bvv) {
         this.bvvSNT = bvv;
+        if (bvv != null && bvv.getViewerFrame() != null) {
+            bvv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+            bvv.getViewerFrame().addWindowListener(new WindowAdapter() {
+
+                @Override
+                public void windowClosing(final WindowEvent e) {
+                    if (getState() == SNTUI.BVV_TRACING) exitRequested();
+                }
+            });
+        }
     }
 
     // State interface for UI state management
