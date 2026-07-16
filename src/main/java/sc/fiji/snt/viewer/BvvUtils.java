@@ -220,29 +220,6 @@ final class BvvUtils {
     }
 
     /**
-     * Walks the world-space ray from nearW to farW and returns the world-space
-     * position of the intensity maximum near the focal plane. Sub-voxel accuracy
-     * is achieved via a 3-point parabola fit.
-     *
-     * <p>The search is restricted to a window of +/-{@code FOCAL_WINDOW} around
-     * {@code focalT} (the parametric t in [0,1] where the focal plane intersects
-     * the ray). This prevents returning a brighter-but-invisible structure behind
-     * the one the user is visually clicking on. The window is clamped to [0,1].
-     *
-     * <p>The coarsest mip level that still produces at least {@code MIN_STEPS}
-     * samples is used, so that all voxels are guaranteed to be in the cache rather
-     * than returning fill-zeros for unloaded fine-resolution tiles.
-     *
-     * @param nearW     ray origin in world space (near clip)
-     * @param farW      ray end in world space (far clip)
-     * @param src       the volume source to sample
-     * @param timePoint current time point index
-     * @param focalT    parametric position of the focal plane along the ray,
-     *                  in [0,1]; typically nearClip / (nearClip + farClip)
-     * @return world-space position of the intensity maximum, or null if the ray
-     *         misses the volume entirely (all samples in the window are zero)
-     */
-    /**
      * Returns the mip level BVV would choose for the focal plane, replicating
      * BVV's own MipmapSizes.bestLevel logic exactly.
      *
@@ -363,6 +340,29 @@ final class BvvUtils {
         return mag;
     }
 
+    /**
+     * Walks the world-space ray from nearW to farW and returns the world-space
+     * position of the intensity maximum near the focal plane. Sub-voxel accuracy
+     * is achieved via a 3-point parabola fit.
+     *
+     * <p>The search is restricted to a window of +/-{@code FOCAL_WINDOW} around
+     * {@code focalT} (the parametric t in [0,1] where the focal plane intersects
+     * the ray). This prevents returning a brighter-but-invisible structure behind
+     * the one the user is visually clicking on. The window is clamped to [0,1].
+     *
+     * <p>The coarsest mip level that still produces at least {@code MIN_STEPS}
+     * samples is used, so that all voxels are guaranteed to be in the cache rather
+     * than returning fill-zeros for unloaded fine-resolution tiles.
+     *
+     * @param nearW     ray origin in world space (near clip)
+     * @param farW      ray end in world space (far clip)
+     * @param src       the volume source to sample
+     * @param timePoint current time point index
+     * @param focalT    parametric position of the focal plane along the ray,
+     *                  in [0,1]; typically nearClip / (nearClip + farClip)
+     * @return world-space position of the intensity maximum, or null if the ray
+     *         misses the volume entirely (all samples in the window are zero)
+     */
     static double[] rayMaxima(final double[] nearW, final double[] farW,
                               final Source<?> src, final int timePoint,
                               final double focalT,
@@ -426,6 +426,9 @@ final class BvvUtils {
         final double[] worldPt = new double[3];
         final double[] voxPt = new double[3];
 
+        // Buffered so a tied-maximum run (see below) can be detected after the fact,
+        // without re-sampling the ray a second time
+        final double[] vals = new double[i1 - i0];
         double maxVal = 0;
         int maxIdx = -1;
 
@@ -437,6 +440,7 @@ final class BvvUtils {
             srcT.applyInverse(voxPt, worldPt);
             ra.setPosition(voxPt);
             final double val = ra.get().getRealDouble();
+            vals[i - i0] = val;
             if (val > maxVal) {
                 maxVal = val;
                 maxIdx = i;
@@ -445,11 +449,24 @@ final class BvvUtils {
 
         if (maxIdx < 0 || maxVal == 0) return null;
 
-        // 3-point parabola refinement for sub-voxel accuracy (if not at endpoints).
+        // A saturated or otherwise flat-topped structure produces a contiguous run of samples tied at
+        // maxVal, not a single sample. The scan above keeps whichever one it meets *first*, which is the
+        // leading edge of that run in ray-order. Since successive clicks sample the ray at a slightly
+        // different phase against the voxel grid, the leading edge shifts unpredictably from click to
+        // click, making an otherwise straight/saturated structure zig-zag
+        final double plateauEps = maxVal * 1e-6; // tolerate float/interpolation noise, not real dips
+        int runStart = maxIdx, runEnd = maxIdx;
+        while (runStart > i0 && vals[runStart - 1 - i0] >= maxVal - plateauEps) runStart--;
+        while (runEnd < i1 - 1 && vals[runEnd + 1 - i0] >= maxVal - plateauEps) runEnd++;
+        final int anchorIdx = (runStart + runEnd) / 2;
+
+        // 3-point parabola refinement for sub-voxel accuracy (if not at endpoints). Harmless on a
+        // genuine plateau: the immediate neighbors of its midpoint are themselves part of the flat
+        // run, so denom ~ 0 and tPeak remains unrefined, same as at the endpoints
         double refinedT;
-        if (maxIdx > 0 && maxIdx < nSteps - 1) {
-            final double tPrev = ((maxIdx - 1) * step) / len;
-            final double tNext = ((maxIdx + 1) * step) / len;
+        if (anchorIdx > 0 && anchorIdx < nSteps - 1) {
+            final double tPrev = ((anchorIdx - 1) * step) / len;
+            final double tNext = ((anchorIdx + 1) * step) / len;
             final double[] wPrev = {
                     nearW[0] + tPrev * dx, nearW[1] + tPrev * dy, nearW[2] + tPrev * dz};
             final double[] wNext = {
@@ -462,17 +479,17 @@ final class BvvUtils {
             final double vNext = ra.get().getRealDouble();
             // Parabola vertex: offset = (vPrev - vNext) / (2*(vPrev - 2*vPeak + vNext))
             final double denom = vPrev - 2 * maxVal + vNext;
-            final double tPeak = (maxIdx * step) / len;
+            final double tPeak = (anchorIdx * step) / len;
             if (denom < 0) {
                 final double offset = (vPrev - vNext) / (2 * denom);
                 // offset is in units of one step; convert to [0,1] ray fraction.
                 refinedT = tPeak + offset * (step / len);
-                refinedT = Math.max(0, Math.min(1, refinedT));
+                refinedT = Math.clamp(refinedT, 0, 1);
             } else {
                 refinedT = tPeak;
             }
         } else {
-            refinedT = (maxIdx * step) / len;
+            refinedT = (anchorIdx * step) / len;
         }
 
         return new double[]{
