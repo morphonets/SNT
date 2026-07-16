@@ -121,6 +121,23 @@ public class Bvv extends AbstractBigViewer {
     // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant across zoom levels
     private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 50;
 
+    /* Tracing-click recenter gating (see registerCenterOnDoubleClickListener) */
+    // Set to false to recenter scene on every tracing click. The gating below is for data still streaming
+    // from disk/network, where recentering on every click may race against tile loading and producing
+    // zig-zagged paths (most visible away from the focal plane, where perspective error is largest)
+    private boolean gatedTracingRecenter = true;
+    // Fraction of nearClip below which a clicked point is considered "close enough" to the focal plane
+    // that recentering would add nothing but disruption (an animated transform change plus a settle wait)
+    // Expressed as a fraction of nearClip (see BvvUtils#computeCamParams)
+    private static final double RECENTER_SKIP_FRACTION_OF_NEAR_CLIP = 0.3;
+    // Extra buffer (beyond the recenter animation's own duration) given to BVV's tile streaming to catch
+    // up with the new focal region before ray-max sampling is trusted again
+    private static final long RECENTER_SETTLE_BUFFER_MS = 150;
+    // Wall-clock time (System.currentTimeMillis()) until which trace clicks are deferred because a recenter
+    // animation is either still running or has just finished (tiles for the new region may still be
+    // streaming in). 0 (or already elapsed) means the scene is considered settled
+    private volatile long tracingSettleUntilMs = 0;
+
     private MouseEvent lastPositionEvent;
     private double[] lastPosition;
 
@@ -1542,6 +1559,11 @@ public class Bvv extends AbstractBigViewer {
      * world point maps to the screen center at viewerZ = 0 (the focal plane).
      * This forces BVV to load tiles at the clicked location, making subsequent
      * findClickRayMaxima() calls accurate.
+     * <p>
+     * While tracing, this fires on every single click (not just double-clicks), so on
+     * data still streaming from disk/network the animated recenter may race against tile
+     * loading: the very next click can land mid-animation, against tiles that are still
+     * catching up to the *previous* recenter. See {@link #gatedTracingRecenter}
      */
     private void registerCenterOnDoubleClickListener(final BigVolumeViewer bvv) {
         bvv.getViewer().getDisplay().getComponent().addMouseListener(
@@ -1580,6 +1602,19 @@ public class Bvv extends AbstractBigViewer {
                         vp.state().getViewerTransform(current);
                         final double[] viewerPt = new double[3];
                         current.apply(target, viewerPt);
+
+                        if (reactTracingEnabled && gatedTracingRecenter) {
+                            // Skip the recenter entirely when the click already lands close enough to the
+                            // focal plane that foreshortening error is negligible. This is the common case
+                            // once a path settles near the focal plane, and skipping it avoids disrupting
+                            // fluid tracing on every single click
+                            final double nearClip = (pathOverlay != null) ? pathOverlay.overlayRenderer.nearClip
+                                    : BvvUtils.DEFAULT_NEAR_CLIP;
+                            if (Math.abs(viewerPt[2]) < RECENTER_SKIP_FRACTION_OF_NEAR_CLIP * nearClip) {
+                                return;
+                            }
+                        }
+
                         final double cx = vp.getDisplay().getWidth() / 2.0;
                         final double cy = vp.getDisplay().getHeight() / 2.0;
                         final AffineTransform3D dest = current.copy();
@@ -1588,6 +1623,23 @@ public class Bvv extends AbstractBigViewer {
                         dest.set(current.get(2, 3) + (0  - viewerPt[2]), 2, 3);
                         // Calling setTransformAnimator replaces any running animation immediately (interruptible)
                         vp.setTransformAnimator(new SimilarityTransformAnimator(current, dest, 0, 0, CENTER_ANIMATION_DURATION_MS));
+
+                        if (reactTracingEnabled && gatedTracingRecenter) {
+                            // Defer trace-click acceptance until the animation finishes and tiles for the
+                            // new focal region have had a chance to stream in (see Tracer#mouseClicked)
+                            final long settleDelayMs = CENTER_ANIMATION_DURATION_MS + RECENTER_SETTLE_BUFFER_MS;
+                            tracingSettleUntilMs = System.currentTimeMillis() + settleDelayMs;
+                            setTracingStatus(true, "Stabilizing...");
+                            // Clears the status once the *latest* settle window has elapsed. If another
+                            // recenter fires before this runs, tracingSettleUntilMs will have been pushed
+                            // further out and this no-ops, leaving it to the newer timer to clear instead
+                            final long expectedSettle = tracingSettleUntilMs;
+                            final javax.swing.Timer settleTimer = new javax.swing.Timer((int) settleDelayMs, ev -> {
+                                if (tracingSettleUntilMs == expectedSettle) setTracingStatus(false, null);
+                            });
+                            settleTimer.setRepeats(false);
+                            settleTimer.start();
+                        }
                     }
                 });
     }
@@ -3201,6 +3253,16 @@ public class Bvv extends AbstractBigViewer {
                 return;
             }
             if (computing) return; // a segment is still being traced; ignore further clicks until it lands
+
+            if (gatedTracingRecenter && System.currentTimeMillis() < tracingSettleUntilMs) {
+                // A recenter animation triggered by a previous click is still running, or has just
+                // finished but tiles for the new focal region may still be streaming in (see
+                // registerCenterOnDoubleClickListener). Sampling now risks the exact zig-zag this gate
+                // exists to prevent, so the click is dropped rather than silently placing a bad node;
+                // the status row (set by the recenter listener) already reads "Stabilizing..."
+                showViewerMessage("Scene still stabilizing, please click again");
+                return;
+            }
 
             if (previousNode == null) {
                 // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
