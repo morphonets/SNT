@@ -81,6 +81,16 @@ public abstract class AbstractBigViewer {
      */
     protected final Map<String, Tree> renderedTrees = new LinkedHashMap<>();
 
+    /**
+     * Labels of the trees rendered by the last {@link #syncPathManagerList()} call. Needed because
+     * that method's own diff (remove labels that are still current, then re-add) never catches a
+     * tree that has been entirely deleted from the Path Manager (all its paths removed): such a tree
+     * simply stops appearing in {@link sc.fiji.snt.PathAndFillManager#getTrees()} altogether, so it
+     * would otherwise never be pruned from {@link #renderedTrees} and would linger in the scene
+     * forever. Comparing against this set is what lets a fully-deleted tree be detected and removed
+     */
+    protected final Set<String> syncedPathManagerLabels = new HashSet<>();
+
     /** Maps SpimData sources back to the file that produced them. */
     protected final Map<AbstractSpimData<?>, String> spimDataFilePaths = new IdentityHashMap<>();
 
@@ -119,9 +129,24 @@ public abstract class AbstractBigViewer {
     public boolean syncPathManagerList() {
         if (snt == null)
             throw new IllegalArgumentException("Only available in SNT-tethered instances");
-        if (snt.getPathAndFillManager().size() == 0) return false;
         final java.util.Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
-        trees.stream().map(Tree::getLabel).toList().forEach(renderedTrees.keySet()::remove);
+        final java.util.Set<String> currentLabels = trees.stream().map(Tree::getLabel)
+                .collect(java.util.stream.Collectors.toSet());
+        // A tree that has been entirely deleted from the Path Manager no longer appears in getTrees() at all,
+        // so it would never be matched by the  "refresh existing labels" step. Prune it here by diffing against
+        // what was last rendered
+        final java.util.Set<String> stale = new java.util.HashSet<>(syncedPathManagerLabels);
+        stale.removeAll(currentLabels);
+        stale.forEach(renderedTrees.keySet()::remove);
+        // Force a refresh of the trees that do still exist, so edits (nodes, color, selection) are picked up
+        // rather than just additions/removals
+        currentLabels.forEach(renderedTrees.keySet()::remove);
+        syncedPathManagerLabels.clear();
+        syncedPathManagerLabels.addAll(currentLabels);
+        if (trees.isEmpty()) {
+            syncOverlays();
+            return false;
+        }
         addCollection(trees, true);
         return true;
     }

@@ -2484,16 +2484,46 @@ public class Bvv extends AbstractBigViewer {
      * @return true if synchronization was successful
      * @throws IllegalArgumentException if this is a standalone viewer not tethered to a SNT instance
      */
+    @Override
     public boolean syncPathManagerList() {
         if (snt == null)
             throw new IllegalArgumentException("This function is only available in snt-aware Bvv instances");
-        if (snt.getPathAndFillManager().size() == 0)
-            return false;
         final Collection<Tree> trees = snt.getPathAndFillManager().getTrees();
-        final List<String> existingTreeLabels = trees.stream().map(Tree::getLabel).toList();
-        existingTreeLabels.forEach(renderedTrees.keySet()::remove);
+        final Set<String> currentLabels = trees.stream().map(Tree::getLabel)
+                .collect(java.util.stream.Collectors.toSet());
+        // A tree that has been entirely deleted from the Path Manager (every one of its paths
+        // removed) no longer appears in getTrees() at all, so it would never be matched by the
+        // "refresh existing labels" step below. Prune it here by diffing against what we rendered
+        // last time instead, otherwise it lingers in the BVV scene forever.
+        final Set<String> stale = new HashSet<>(syncedPathManagerLabels);
+        stale.removeAll(currentLabels);
+        stale.forEach(renderedTrees.keySet()::remove);
+        // Force a refresh of the trees that do still exist, so edits (nodes, color, selection) are
+        // picked up rather than just additions/removals.
+        currentLabels.forEach(renderedTrees.keySet()::remove);
+        syncedPathManagerLabels.clear();
+        syncedPathManagerLabels.addAll(currentLabels);
+        if (trees.isEmpty()) {
+            syncOverlays(); // still need to push the removal above to the screen
+            return false;
+        }
         addCollection(trees, true);
         return true;
+    }
+
+    /**
+     * Lightweight alternative to {@link #syncPathManagerList()} for pure selection changes. Patches
+     * color/thickness in place for already-rendered trees instead of rebuilding the Path Manager's
+     * tree grouping and recomputing screen-space geometry for the whole scene. Does nothing if paths
+     * haven't been rendered yet (e.g., before the first sync); The next {@link #syncPathManagerList()}
+     * call renders and colors them correctly regardless.
+     *
+     * @throws IllegalArgumentException if this viewer is not tethered to a SNT instance
+     */
+    public void updateSelection() {
+        if (snt == null)
+            throw new IllegalArgumentException("This function is only available in snt-aware Bvv instances");
+        if (pathOverlay != null) pathOverlay.recolor();
     }
 
     /**
@@ -3759,6 +3789,18 @@ public class Bvv extends AbstractBigViewer {
             viewerPanel.requestRepaint();
         }
 
+        /**
+         * Lightweight alternative to {@link #updatePaths()} for pure selection changes: patches
+         * color/thickness in place for already-rendered trees. See {@link OverlayRenderer#recolor(Tree)}.
+         */
+        void recolor() {
+            boolean changed = false;
+            for (final Tree tree : sntViewer.getRenderedTrees()) {
+                if (overlayRenderer.recolor(tree)) changed = true;
+            }
+            if (changed) viewerPanel.requestRepaint();
+        }
+
         void dispose() {
             if (viewerPanel != null && overlayRenderer != null) {
                 viewerPanel.removeOverlay(overlayRenderer);
@@ -4168,8 +4210,9 @@ public class Bvv extends AbstractBigViewer {
         final PathRenderingOptions renderingOptions;
         final AffineTransform3D viewerTransform = new AffineTransform3D();
         private final AffineTransform3D cachedTransform = new AffineTransform3D();
-        // Cached screen data per tree
-        private final Map<Tree, TreeScreenData> screenDataCache = new WeakHashMap<>();
+        // Cached screen data per tree, keyed by tree label rather than Tree object identity:
+        // PathAndFillManager#getTrees() builds brand-new Tree instances on every call
+        private final Map<String, TreeScreenData> screenDataCache = new HashMap<>();
         // Reusable coordinate arrays (avoid allocation in render loop)
         private final double[] worldCoords = new double[3];
         private final double[] viewerCoords = new double[3];
@@ -4203,12 +4246,91 @@ public class Bvv extends AbstractBigViewer {
 
         void updatePaths(final Collection<Tree> trees) {
             this.trees = new ArrayList<>(trees);
-            invalidateCache();
+            // Only drop cache entries for trees that are new or structurally changed (path/node
+            // count differs from last time); an untouched tree keeps its cached screen data across
+            // this sync, instead of every tree in the scene being recomputed on every single edit
+            final Set<String> currentLabels = new HashSet<>();
+            for (final Tree tree : trees) {
+                final String label = tree.getLabel();
+                currentLabels.add(label);
+                final long fp = structuralFingerprint(tree);
+                final TreeScreenData cached = screenDataCache.get(label);
+                if (cached == null || cached.structuralFingerprint != fp) {
+                    screenDataCache.remove(label); // stale or missing: recomputed lazily on next draw
+                }
+            }
+            // Trees deleted entirely (all their paths removed) must not linger in the cache
+            screenDataCache.keySet().retainAll(currentLabels);
+        }
+
+        /**
+         * Cheap structural signature (path count, per-path node count, and path identity) used to
+         * detect whether a tree's data has actually changed since it was last cached. Deliberately
+         * excludes color/selection state, which pure selection changes patch in place via
+         * {@link #recolor(Tree)} without ever needing a full geometry recompute.
+         */
+        private static long structuralFingerprint(final Tree tree) {
+            long fp = 1125899906842597L;
+            for (final Path path : tree.list()) {
+                fp = fp * 31 + path.size();
+                fp = fp * 31 + System.identityHashCode(path);
+            }
+            return fp;
         }
 
         void invalidateCache() {
             cacheValid = false;
             screenDataCache.clear();
+        }
+
+        /**
+         * Patches color and thickness in place for every path in {@code tree}'s cached screen data,
+         * reusing already-projected positions (screenX/Y, worldZ, viewerZ) instead of re-running the
+         * viewer-transform projection. Used for pure selection changes (see {@code Bvv#updateSelection}),
+         * by far the most frequent trigger, which otherwise don't need any geometry recomputed at all.
+         *
+         * @return true if a cached entry was found and patched; false if this tree isn't cached yet
+         *         (nothing to do -- the next full sync computes it from scratch anyway)
+         */
+        boolean recolor(final Tree tree) {
+            final TreeScreenData data = screenDataCache.get(tree.getLabel());
+            if (data == null) return false;
+            final double avgScale = getAverageScale();
+            final double maxR = renderingOptions.getMaxThickness() / 2.0;
+            final double minR = renderingOptions.getMinThickness() / 2.0;
+            for (final Path path : tree.list()) {
+                final PathScreenData pathData = data.byPath.get(path);
+                if (pathData == null) continue; // added/removed since cached; next full sync will pick it up
+                final boolean customColor = renderingOptions.displayCustomPathColors && path.hasCustomColor();
+                final boolean selected = path.isSelected();
+                Color color = renderingOptions.fallbackColor;
+                if (selected && !customColor) color = renderingOptions.selectedColor;
+                else if (customColor) color = path.getColor(); // never null when hasCustomColor() true
+                final boolean hasNodeColors = path.hasNodeColors();
+                final double selectedBoost = selected ? 1.5 : 1.0;
+                for (int i = 0; i < pathData.size; i++) {
+                    // Reuse the already-cached depth (viewerZ) to rederive the perspective factor,
+                    // instead of re-applying the viewer transform to the node's world coordinates
+                    final double pf = dCam / (dCam + pathData.viewerZ[i]);
+                    final Path.PathNode node = path.getNode(i);
+                    final double r = renderingOptions.isUsePathRadius() && node.getRadius() > 0
+                            ? node.getRadius() : minR;
+                    pathData.screenRadius[i] = Math.max(0.5,
+                            Math.min(r * renderingOptions.getThicknessMultiplier() * selectedBoost, maxR) * avgScale * pf);
+                    final Color nodeColor = hasNodeColors ? node.getColor() : null;
+                    pathData.colors[i] = (nodeColor != null) ? nodeColor : color;
+                }
+                for (int i = 0; i < pathData.size - 1; i++) {
+                    final SegmentData seg = pathData.segments[i];
+                    if (seg == null) continue;
+                    seg.r1 = pathData.screenRadius[i];
+                    seg.r2 = pathData.screenRadius[i + 1];
+                    seg.color1 = pathData.colors[i];
+                    seg.color2 = pathData.colors[i + 1];
+                }
+            }
+            data.buildBatches(); // colors changed: segments need regrouping by color
+            return true;
         }
 
         @Override
@@ -4239,13 +4361,13 @@ public class Bvv extends AbstractBigViewer {
             for (final Tree tree : trees) {
                 if (cacheValid) {
                     // Cache-hit frame: use stored visibility w/o bbox reprojection
-                    final TreeScreenData cached = screenDataCache.get(tree);
+                    final TreeScreenData cached = screenDataCache.get(tree.getLabel());
                     if (cached != null && !cached.visible) continue;
                 } else {
                     // Cache-miss frame: recompute visibility and store it
                     if (!isTreePotentiallyVisible(tree)) {
                         // Store invisible result so next cache-hit skips it too
-                        final TreeScreenData existing = screenDataCache.get(tree);
+                        final TreeScreenData existing = screenDataCache.get(tree.getLabel());
                         if (existing != null) existing.visible = false;
                         continue;
                     }
@@ -4337,12 +4459,12 @@ public class Bvv extends AbstractBigViewer {
         }
 
         private void drawTreeOptimized(final Graphics2D g2d, final Tree tree, final double[] clipPos) {
-            // Get or compute screen data (cache miss = transform changed or new trees)
-            TreeScreenData screenData = screenDataCache.get(tree);
+            // Get or compute screen data (cache miss = transform changed, new tree, or structural edit)
+            TreeScreenData screenData = screenDataCache.get(tree.getLabel());
             if (screenData == null || !cacheValid) {
                 screenData = computeScreenData(tree);
                 screenData.visible = true; // visible confirmed by isTreePotentiallyVisible above
-                screenDataCache.put(tree, screenData);
+                screenDataCache.put(tree.getLabel(), screenData);
             }
 
             // Use pre-built batches w/o HashMap/ArrayList/SegmentData allocation per frame.
@@ -4357,6 +4479,7 @@ public class Bvv extends AbstractBigViewer {
 
         private TreeScreenData computeScreenData(final Tree tree) {
             final TreeScreenData data = new TreeScreenData();
+            data.structuralFingerprint = structuralFingerprint(tree);
 
             // Extract scale from transform once
             final double avgScale = getAverageScale();
@@ -4428,6 +4551,7 @@ public class Bvv extends AbstractBigViewer {
                 }
 
                 data.paths.add(pathData);
+                data.byPath.put(path, pathData);
             }
 
             data.buildBatches();
@@ -4650,11 +4774,16 @@ public class Bvv extends AbstractBigViewer {
          */
         private static class TreeScreenData {
             final List<PathScreenData> paths = new ArrayList<>();
+            /** Looks up a path's cached screen data by identity; used by {@link OverlayRenderer#recolor}
+             *  to patch color/thickness for a selection change without recomputing geometry. */
+            final Map<Path, PathScreenData> byPath = new IdentityHashMap<>();
             /** Pre-batched segments keyed by color. Populated by buildBatches(). */
             final Map<Color, List<SegmentData>> batches = new LinkedHashMap<>();
             boolean batchesBuilt = false;
             /** Cached screen-space visibility: avoids re-projecting 8 bbox corners on cache-hit frames. */
             boolean visible = true;
+            /** Structural signature this entry was computed from; see {@code structuralFingerprint()}. */
+            long structuralFingerprint;
 
             void buildBatches() {
                 batches.clear();

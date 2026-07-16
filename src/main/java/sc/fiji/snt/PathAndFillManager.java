@@ -418,7 +418,9 @@ public class PathAndFillManager extends DefaultHandler implements
                 pafl.setSelectedPaths(selectedPathsSet, this);
         }
         if (plugin != null) {
-            plugin.updateTracingViewers(true);
+            // Selection changes don't add/remove/edit any path, so viewers that support a cheaper
+            // path (currently BVV, see Bvv#updateSelection()) can skip a full geometry rebuild
+            plugin.updateTracingViewers(true, true);
         }
     }
 

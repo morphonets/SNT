@@ -3527,9 +3527,24 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected void updateTracingViewers(final boolean includeLegacy3Dviewer) {
+		updateTracingViewers(includeLegacy3Dviewer, false);
+	}
+
+	/**
+	 * @param includeLegacy3Dviewer whether to also refresh the legacy 3D viewer
+	 * @param selectionOnly if true, this update is known to be a pure Path Manager selection change
+	 *                      (no paths added/removed/edited): BVV is refreshed via the cheaper
+	 *                      {@code Bvv#updateSelection()} (patches color/thickness in place) instead
+	 *                      of a full {@code Bvv#syncPathManagerList()} rebuild.
+	 */
+	protected void updateTracingViewers(final boolean includeLegacy3Dviewer, final boolean selectionOnly) {
 		repaintAllPanes();
 		if (getUI() != null && getUI().bvvSNT != null) {
-			new Thread(() -> getUI().bvvSNT.syncPathManagerList()).start();
+			if (selectionOnly) {
+				new Thread(() -> getUI().bvvSNT.updateSelection()).start();
+			} else {
+				new Thread(() -> getUI().bvvSNT.syncPathManagerList()).start();
+			}
 		}
 		if (includeLegacy3Dviewer) update3DViewerContents();
 	}
@@ -3541,9 +3556,6 @@ public class SNT extends MultiDThreePanes implements
 		}
 		if (getUI().sciViewSNT != null) {
 			new Thread(() -> getUI().sciViewSNT.syncPathManagerList()).start();
-		}
-		if (getUI().bdvSNT != null) {
-			new Thread(() -> getUI().bdvSNT.syncPathManagerList()).start();
 		}
 	}
 
