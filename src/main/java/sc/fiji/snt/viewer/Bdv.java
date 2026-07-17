@@ -701,7 +701,6 @@ public class Bdv extends AbstractBigViewer {
         bar.addSeparator();
         bar.add(GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
                 "Change annotations offset"));
-        bar.add(GuiUtils.Buttons.undo(actions.resetCanvasOffsetAction()));
         bar.addSeparator();
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();

@@ -745,29 +745,21 @@ public abstract class AbstractBigViewer {
         }
 
         Action setCanvasOffsetAction() {
-            return new AbstractAction("Annotations Offset...", IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, 1f)) {
+            return new AbstractAction("Annotations Offset...") {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    final SNTPoint offset = getGuiUtils().getCoordinates(
-                            "Offsets:", "Annotations Offset (Calibrated Distances)",
-                            renderingOptions.canvasOffset, 2);
-                    if (offset == null) return;
-                    if (offset.getX() == 0 && offset.getY() == 0 && offset.getZ() == 0) {
-                        resetCanvasOffsetAction().actionPerformed(e);
-                    } else {
-                        setCanvasOffset(offset.getX(), offset.getY(), offset.getZ());
-                        showViewerMessage("Offset applied");
-                    }
-                }
-            };
-        }
+                    if (!(e.getSource() instanceof AbstractButton toggleButton)) return;
 
-        Action resetCanvasOffsetAction() {
-            return new AbstractAction() {
-                @Override
-                public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    setCanvasOffset(0, 0, 0);
-                    showViewerMessage("Offset removed");
+                    final SNTPoint offset = getGuiUtils().getCoordinates(
+                            "Offsets (" + calUnit + "): ", "Annotations Offset (Calibrated Distances)",
+                            renderingOptions.canvasOffset, 2, SNTPoint.of(0, 0, 0));
+                    if (offset == null) {
+                        toggleButton.setSelected(false);
+                        return;
+                    }
+                    setCanvasOffset(offset.getX(), offset.getY(), offset.getZ());
+                    showViewerMessage((renderingOptions.canvasOffset==null) ? "Offset removed" : "Offset applied");
+                    toggleButton.setSelected(renderingOptions.canvasOffset != null);
                 }
             };
         }

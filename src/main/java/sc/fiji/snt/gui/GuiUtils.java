@@ -1062,7 +1062,7 @@ public class GuiUtils {
 			throw new IllegalArgumentException("length of defaultValues/labels is not 2");
 		}
 		final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
-				SNTPoint.of(defaultValues[0], defaultValues[1], -1), labels, decimalPlaces);
+				SNTPoint.of(defaultValues[0], defaultValues[1], -1), labels, decimalPlaces, null);
 		return (result == null) ? null : new Number[]{result.getX(), result.getY()};
 	}
 
@@ -1072,18 +1072,18 @@ public class GuiUtils {
 			throw new IllegalArgumentException("length of defaultValues/labels is not 3");
 		}
 		final SNTPoint result = getCoordinatesInternal(promptMsg, promptTitle,
-				SNTPoint.of(defaultValues), labels, decimalPlaces);
+				SNTPoint.of(defaultValues), labels, decimalPlaces, null);
 		return (result == null) ? null : new Number[]{result.getX(), result.getY(), result.getZ()};
 	}
 
 	public SNTPoint getCoordinates(final String promptMsg, final String promptTitle,
-								   final SNTPoint defaultValue, final int decimalPlaces) {
+								   final SNTPoint defaultValue, final int decimalPlaces, final SNTPoint resetValue) {
 		return getCoordinatesInternal(promptMsg, promptTitle,
-				defaultValue, new String[]{"X", "Y", "Z"}, decimalPlaces);
+				defaultValue, new String[]{"X", "Y", "Z"}, decimalPlaces, resetValue);
 	}
 
 	public SNTPoint getCoordinatesInternal(final String promptMsg, final String promptTitle, final SNTPoint defaultValue,
-										   String[] labels, final int decimalPlaces) {
+										   String[] labels, final int decimalPlaces, final SNTPoint resetValue) {
 		if (labels.length < 2 || labels.length > 3) {
 			throw new IllegalArgumentException("Only 2 or 3 values can be retrieved");
 		}
@@ -1100,12 +1100,33 @@ public class GuiUtils {
 					GuiUtils.doubleSpinner(values[i], -10000, 10000, 10, decimalPlaces);
 			panel.add(spinners[i]);
 		}
-		final int result = JOptionPane.showConfirmDialog(null, panel, promptTitle, JOptionPane.OK_CANCEL_OPTION,
-				JOptionPane.PLAIN_MESSAGE);
-		if (result == JOptionPane.OK_OPTION) {
+
+		// Define your custom button arrays
+		Object[] options3 = { "OK", "Reset", "Cancel" };
+		Object[] options2 = { "OK", "Cancel" };
+
+		// Select the correct options array and default button based on your condition
+		final Object[] selectedOptions = (resetValue != null) ? options3 : options2;
+		final Object defaultOption = selectedOptions[0]; // Focuses the first button by default
+
+		final int result = JOptionPane.showOptionDialog(
+				parent,
+				panel,
+				promptTitle,
+				(resetValue != null) ? JOptionPane.YES_NO_CANCEL_OPTION : JOptionPane.OK_CANCEL_OPTION,
+				JOptionPane.PLAIN_MESSAGE,
+				null, // No custom icon
+				selectedOptions, // button labels
+				defaultOption // initial button focus
+		);
+
+		if ((resetValue != null && result == JOptionPane.YES_OPTION) || result == JOptionPane.OK_OPTION ) {
 			return (twoD) ?
 					SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), -1)
 					: SNTPoint.of((Number) spinners[0].getValue(), (Number) spinners[1].getValue(), (Number) spinners[2].getValue());
+		}
+		if (resetValue != null && result == JOptionPane.NO_OPTION) {
+			return resetValue;
 		}
 		return null;
 	}

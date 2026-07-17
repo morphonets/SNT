@@ -595,7 +595,7 @@ public class BookmarkManager {
             if (noBookmarksError()) return;
             final SNTPoint input = SNTPoint.average(getSelectedBookmarks());
             final SNTPoint ref = guiUtils.getCoordinates("", "Reference Point (Calibrated Distances)",
-                    input, 2);
+                    input, 2, null);
             if (ref != null) sortByPosition(new Bookmark("reference", ref.getX(), ref.getY(), ref.getZ(), 1, 1));
         });
         menu.add(item);

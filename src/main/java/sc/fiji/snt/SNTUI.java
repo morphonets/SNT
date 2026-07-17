@@ -958,8 +958,11 @@ public class SNTUI extends JDialog {
         pathAndFillManager = null;
         guiUtils = null;
         recViewerFrame = null;
-        if (bvvSNT != null && bvvSNT.getViewerFrame() != null)
+        if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
+            // VolumeViewerFrame's own render/tile-streaming thread isn't stopped by dispose() alone
+            bvvSNT.getViewerFrame().getViewerPanel().stop();
             bvvSNT.getViewerFrame().dispose();
+        }
         if (bdvSNT != null && bdvSNT.getViewerFrame() != null)
             bdvSNT.getViewerFrame().dispose();
         if (sciViewSNT != null && sciViewSNT.getSciView() != null && sciViewSNT.getSciView().mainWindow != null)
@@ -1028,11 +1031,23 @@ public class SNTUI extends JDialog {
         this.bvvSNT = bvv;
         if (bvv != null && bvv.getViewerFrame() != null) {
             bvv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+            // VolumeViewerFrame's own constructor already registers a WindowListener that unconditionally
+            // calls viewer.stop() (halting the render/tile-streaming thread) the instant windowClosing
+            // fires, regardless of what any listener added afterward. We we'll remove it and re-instate
+            for (final WindowListener wl : bvv.getViewerFrame().getWindowListeners()) {
+                bvv.getViewerFrame().removeWindowListener(wl);
+            }
             bvv.getViewerFrame().addWindowListener(new WindowAdapter() {
 
                 @Override
                 public void windowClosing(final WindowEvent e) {
-                    if (getState() == SNTUI.BVV_TRACING) exitRequested();
+                    if (getState() == SNTUI.BVV_TRACING) {
+                        exitRequested();
+                    } else if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
+                        bvvSNT.getViewerFrame().getViewerPanel().stop();
+                        bvvSNT.getViewerFrame().dispose();
+                        bvvSNT = null;
+                    }
                 }
             });
         }
@@ -2720,15 +2735,7 @@ public class SNTUI extends JDialog {
             }
             // Only promote to field once show() succeeded
             bvvSNT = newBvv;
-            if (bvvSNT.getViewerFrame() != null) {
-                bvvSNT.getViewerFrame().addWindowListener(new WindowAdapter() {
-                    @Override
-                    public void windowClosing(WindowEvent e) {
-                        super.windowClosing(e);
-                        bvvSNT = null;
-                    }
-                });
-            }
+            // NB: WindowListener added in Bvv#attachControlPanel()
         } catch (final Throwable exc) {
             error(exc);
         } finally {

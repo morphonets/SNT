@@ -236,34 +236,34 @@ public class Bvv extends AbstractBigViewer {
             final RealPoint pos = new RealPoint(3);
             getViewer().getViewer().getGlobalMouseCoordinates(pos);
             final double x = pos.getDoublePosition(0);
-        final double y = pos.getDoublePosition(1);
-        // Validate X and Y against the source's world-space bounding box.
-        // Only XY are checked: Z is derived from the intensity peak along the
-        // ray and needs no range check. Out-of-range XY indicates the view was
-        // obliquely rotated, making coordinate recovery unreliable.
-        if (dims != null && cal != null) {
-            final bdv.viewer.SourceAndConverter<?> currentSac = getViewer().getViewer().state().getCurrentSource();
-            if (currentSac != null) {
-                final AffineTransform3D t = new AffineTransform3D();
-                currentSac.getSpimSource().getSourceTransform(0, 0, t);
-                double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
-                double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
-                final double[] corner = new double[3];
-                final double[] world = new double[3];
-                for (int i = 0; i < 8; i++) {
-                    corner[0] = (i & 1) == 0 ? 0 : dims[0] - 1;
-                    corner[1] = (i & 2) == 0 ? 0 : dims[1] - 1;
-                    corner[2] = (i & 4) == 0 ? 0 : dims[2] - 1;
-                    t.apply(corner, world);
-                    minX = Math.min(minX, world[0]);
-                    maxX = Math.max(maxX, world[0]);
-                    minY = Math.min(minY, world[1]);
-                    maxY = Math.max(maxY, world[1]);
-                }
-                if (x < minX || x > maxX || y < minY || y > maxY) {
-                    getViewer().getViewer().showMessage(
-                            "Outside image bounds: Align view to a principal axis and retry");
-                    return null;
+            final double y = pos.getDoublePosition(1);
+            // Validate X and Y against the source's world-space bounding box.
+            // Only XY are checked: Z is derived from the intensity peak along the
+            // ray and needs no range check. Out-of-range XY indicates the view was
+            // obliquely rotated, making coordinate recovery unreliable.
+            if (dims != null && cal != null) {
+                final bdv.viewer.SourceAndConverter<?> currentSac = getViewer().getViewer().state().getCurrentSource();
+                if (currentSac != null) {
+                    final AffineTransform3D t = new AffineTransform3D();
+                    currentSac.getSpimSource().getSourceTransform(0, 0, t);
+                    double minX = Double.MAX_VALUE, maxX = -Double.MAX_VALUE;
+                    double minY = Double.MAX_VALUE, maxY = -Double.MAX_VALUE;
+                    final double[] corner = new double[3];
+                    final double[] world = new double[3];
+                    for (int i = 0; i < 8; i++) {
+                        corner[0] = (i & 1) == 0 ? 0 : dims[0] - 1;
+                        corner[1] = (i & 2) == 0 ? 0 : dims[1] - 1;
+                        corner[2] = (i & 4) == 0 ? 0 : dims[2] - 1;
+                        t.apply(corner, world);
+                        minX = Math.min(minX, world[0]);
+                        maxX = Math.max(maxX, world[0]);
+                        minY = Math.min(minY, world[1]);
+                        maxY = Math.max(maxY, world[1]);
+                    }
+                    if (x < minX || x > maxX || y < minY || y > maxY) {
+                        getViewer().getViewer().showMessage(
+                                "Outside image bounds: Align view to a principal axis and retry");
+                        return null;
                     }
                 }
             }
@@ -1788,12 +1788,12 @@ public class Bvv extends AbstractBigViewer {
         final JToggleButton toggleAroundCursor = GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
                 "Restrict display of annotations around cursor",
                 IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE);
-        final JButton offsetActivate = GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
-                "Translate annotations from original signal");
+        final JToggleButton offsetActivate = GuiUtils.Buttons.toolbarToggleButton(actions.setCanvasOffsetAction(),
+                "Translate annotations from original signal",
+                IconFactory.GLYPH.MOVE, IconFactory.GLYPH.MOVE);
         offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.getDisabledComponentColor(), 1f));
-        final JButton offsetReset = GuiUtils.Buttons.undo(actions.resetCanvasOffsetAction());
         final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(
-                        toggleAroundCursor, offsetActivate, offsetReset),
+                        toggleAroundCursor, offsetActivate),
                 "<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
 
@@ -1802,7 +1802,6 @@ public class Bvv extends AbstractBigViewer {
         toolbar.add(toggleAroundCursor);
         toolbar.addSeparator();
         toolbar.add(offsetActivate);
-        toolbar.add(offsetReset);
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
@@ -2582,6 +2581,10 @@ public class Bvv extends AbstractBigViewer {
         for (final Tree tree : renderedTrees.values()) {
             tree.applyCanvasOffset(offsetX, offsetY, offsetZ);
         }
+        // Offset mutates node positions in place without changing path/node count or identity, so it
+        // is invisible to the screen-data cache's fingerprint (see OverlayRenderer#updatePaths);
+        // force a full recompute like in setDisplayRadii()
+        if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
         syncOverlays();
         renderingOptions.canvasOffset = (offsetX == 0 && offsetY == 0d && offsetZ == 0d) ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
     }
