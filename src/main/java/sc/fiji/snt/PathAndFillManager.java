@@ -3362,6 +3362,25 @@ public class PathAndFillManager extends DefaultHandler implements
                 distanceLimit, false);
     }
 
+    /**
+     * As {@link #nearestPointOnAnyPath(double, double, double, double)}, but restricted to a
+     * caller-supplied subset of paths (e.g. a single already-identified path) rather than scanning
+     * every path currently loaded.
+     *
+     * @param paths         the paths to search; all other loaded paths are ignored
+     * @param x             calibrated X coordinate of the query point
+     * @param y             calibrated Y coordinate of the query point
+     * @param z             calibrated Z coordinate of the query point
+     * @param distanceLimit the maximum (calibrated) distance from the query point to accept
+     * @return the nearest qualifying point, or {@code null} if none is within {@code distanceLimit}
+     */
+    public NearPoint nearestPointOnAnyPath(final Collection<Path> paths, final double x, final double y,
+                                            final double z, final double distanceLimit)
+    {
+        return nearestPointOnAnyPath(paths, new PointInImage(x, y, z), distanceLimit *
+                distanceLimit, false);
+    }
+
     protected List<Path> getUnSelectedPathsRenderedInViewPort(
             final TracerCanvas canvas)
     {

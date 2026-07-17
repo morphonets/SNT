@@ -235,13 +235,10 @@ public class SNT extends MultiDThreePanes implements
 	/* UI and tracing preferences */
 	protected volatile int cursorSnapWindowXY;
 	protected volatile int cursorSnapWindowZ;
-	protected volatile boolean autoCanvasActivation;
 	protected volatile boolean panMode;
 	protected volatile boolean snapCursor;
 	protected volatile boolean showOnlySelectedPaths;
 	protected volatile boolean showOnlyActiveCTposPaths;
-	protected volatile boolean activateFinishedPath;
-	protected volatile boolean requireShiftToFork;
 	protected volatile boolean autoCT;
 	private boolean drawDiameters;
 	protected double manualRadius;
@@ -2657,7 +2654,7 @@ public class SNT extends MultiDThreePanes implements
 			}
 		}
 		lastStartPointSet = false;
-		if (activateFinishedPath) selectPath(currentPath, false);
+		if (getPrefs().getAutoSelectionOfFinishedPath()) selectPath(currentPath, false);
 		setPathUnfinished(false);
 		confirmedSegmentSizes.clear();
 		setCurrentPath(null);
@@ -4052,18 +4049,6 @@ public class SNT extends MultiDThreePanes implements
 			ui.snapWindowXYsizeSpinner.setEnabled(snapCursor);
 			ui.snapWindowZsizeSpinner.setEnabled(snapCursor && !is2D());
 		}
-	}
-
-	public void enableAutoActivation(final boolean enable) {
-		autoCanvasActivation = enable;
-	}
-
-	public void enableAutoSelectionOfFinishedPath(final boolean enable) {
-		activateFinishedPath = enable;
-	}
-
-	public boolean isAutoSelectionOfFinishedPathEnabled() {
-		return activateFinishedPath;
 	}
 
 	public boolean isTracingOnSecondaryImageActive() {

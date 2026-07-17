@@ -1792,20 +1792,20 @@ public class SNTUI extends JDialog {
         ++gdb.gridy;
 
         final JCheckBox activateFinishedPathCheckbox = new JCheckBox("Finishing a path selects it",
-                plugin.activateFinishedPath);
+                plugin.getPrefs().getAutoSelectionOfFinishedPath());
         registerInCommandFinder(activateFinishedPathCheckbox, "Toggle Finishing a Path Selects It",
                 "Options Tab");
         GuiUtils.addTooltip(activateFinishedPathCheckbox, "Whether the path being traced should automatically be selected once finished.");
-        activateFinishedPathCheckbox.addItemListener(e -> plugin.enableAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
+        activateFinishedPathCheckbox.addItemListener(e -> plugin.getPrefs().setAutoSelectionOfFinishedPath(e.getStateChange() == ItemEvent.SELECTED));
         tPanel.add(activateFinishedPathCheckbox, gdb);
         ++gdb.gridy;
 
-        final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.requireShiftToFork);
+        final JCheckBox requireShiftToForkCheckbox = new JCheckBox("Require 'Shift' to branch off a path", plugin.getPrefs().getRequireShiftToFork());
         registerInCommandFinder(requireShiftToForkCheckbox, "Toggle Require 'Shift' to Branch Off a Path",
                 "Options Tab");
         GuiUtils.addTooltip(requireShiftToForkCheckbox, "When branching off a path: Use Shift+Alt+click or Alt+click at the forking node? "
-                + "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circumvent OS conflics.");
-        requireShiftToForkCheckbox.addItemListener(e ->plugin.requireShiftToFork = e.getStateChange() == ItemEvent.SELECTED);
+                + "NB: Alt+click is a common trigger for window dragging on Linux. Use Super+Alt+click to circumvent OS conflicts.");
+        requireShiftToForkCheckbox.addItemListener(e -> plugin.getPrefs().setRequireShiftToFork(e.getStateChange() == ItemEvent.SELECTED));
         tPanel.add(requireShiftToForkCheckbox, gdb);
         return tPanel;
 
@@ -2088,7 +2088,7 @@ public class SNTUI extends JDialog {
     private JPanel miscPanel() {
         // auto-grab focus of image window
         final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
-                plugin.autoCanvasActivation);
+                plugin.getPrefs().isCanvasAutoActivationEnabled());
         canvasCheckBox.setEnabled(!isBigDataInstance());
         registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
                 "Options Tab");
@@ -2097,7 +2097,7 @@ public class SNTUI extends JDialog {
                 This may be needed to ensure single key shortcuts work as expected when tracing,
                 but may hijack cursor too eagerly from other windows.
                 """);
-        canvasCheckBox.addItemListener(e -> plugin.enableAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
+        canvasCheckBox.addItemListener(e -> plugin.getPrefs().setCanvasAutoActivation(e.getStateChange() == ItemEvent.SELECTED));
         // nag level
         final JCheckBox askUserConfirmationCheckBox = new JCheckBox("Skip confirmation dialogs", !askUserConfirmation);
         registerInCommandFinder(askUserConfirmationCheckBox, "Toggle Skip Confirmation Dialogs",

@@ -60,6 +60,11 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	private static Color deselectedColor = DEFAULT_DESELECTED_COLOR;
 	private boolean displayCustomPathColors = true;
 
+	/* Tracing */
+	private boolean requireShiftToFork;
+	private boolean activateFinishedPath;
+	private boolean autoCanvasActivation;
+
 	public static final String NO_IMAGE_ASSOCIATED_DATA = "noImgData";
 	public static final String RESIZE_REQUIRED = "resizeNeeded";
 	public static final String RESTORE_LOADED_IMGS = "restoreLoadedImgs";
@@ -288,9 +293,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 
 	protected void loadPluginPrefs() {
 		getBooleans();
-		snt.autoCanvasActivation = getPref(AUTO_CANVAS_ACTIVATION);
-		snt.activateFinishedPath = getPref(AUTO_SELECTION_FINISHED_PATH);
-		snt.requireShiftToFork = getPref(REQUIRE_SHIFT_FOR_FORK);
+		autoCanvasActivation = getPref(AUTO_CANVAS_ACTIVATION);
+		activateFinishedPath = getPref(AUTO_SELECTION_FINISHED_PATH);
+		requireShiftToFork = getPref(REQUIRE_SHIFT_FOR_FORK);
 		snt.snapCursor = !snt.tracingHalted && getPref(SNAP_CURSOR);
 		snt.setDrawDiameters(getPref(DRAW_DIAMETERS));
 		displayCustomPathColors = !getPref(ENFORCE_DEFAULT_PATH_COLORS);
@@ -338,9 +343,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	protected void savePluginPrefs(final boolean restoreIJ1prefs) {
 		setSaveCompressedTraces(isSaveCompressedTraces());
 		set2DDisplayCanvas(is2DDisplayCanvas());
-		setPref(AUTO_CANVAS_ACTIVATION, snt.autoCanvasActivation);
-		setPref(AUTO_SELECTION_FINISHED_PATH, snt.activateFinishedPath);
-		setPref(REQUIRE_SHIFT_FOR_FORK, snt.requireShiftToFork);
+		setPref(AUTO_CANVAS_ACTIVATION, autoCanvasActivation);
+		setPref(AUTO_SELECTION_FINISHED_PATH, activateFinishedPath);
+		setPref(REQUIRE_SHIFT_FOR_FORK, requireShiftToFork);
 
 		if (!snt.tracingHalted) setPref(SNAP_CURSOR, snt.snapCursor);
 		Prefs.set(SNAP_XY, snt.cursorSnapWindowXY);
@@ -722,6 +727,36 @@ public class SNTPrefs { // TODO: Adopt PrefService
 			snt.getUI().bvvSNT.getRenderingOptions().displayCustomPathColors = displayCustomPathColors;
 			snt.getUI().bvvSNT.syncPathManagerList();
 		}
+	}
+
+	public boolean getRequireShiftToFork() {
+		return requireShiftToFork;
+	}
+
+	public void setRequireShiftToFork(final boolean requireShiftToFork) {
+		this.requireShiftToFork = requireShiftToFork;
+		if (snt.getUI() != null && snt.getUI().bvvSNT != null) {
+			snt.getUI().bvvSNT.getRenderingOptions().requireShiftToFork = requireShiftToFork;
+		}
+	}
+
+	public boolean getAutoSelectionOfFinishedPath() {
+		return activateFinishedPath;
+	}
+
+	public void setAutoSelectionOfFinishedPath(final boolean activateFinishedPath) {
+		this.activateFinishedPath = activateFinishedPath;
+		if (snt.getUI() != null && snt.getUI().bvvSNT != null) {
+			snt.getUI().bvvSNT.getRenderingOptions().activateFinishedPath = activateFinishedPath;
+		}
+	}
+
+	public void setCanvasAutoActivation(final boolean enable) {
+		autoCanvasActivation = enable;
+	}
+
+	public boolean isCanvasAutoActivationEnabled() {
+		return autoCanvasActivation;
 	}
 
 	public static Color selectedPathColor() {

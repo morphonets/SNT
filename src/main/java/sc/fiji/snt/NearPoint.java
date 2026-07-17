@@ -50,6 +50,10 @@ public class NearPoint implements Comparable<NearPoint> {
 	private final PointInImage pathPoint;
 	protected PointInImage near;
 	protected IntersectionOnLine closestIntersection;
+	/** Index of the node preceding {@link #getClosestIntersectionPoint()} on the path's line
+	 *  segments (i.e., where a new node would need to be inserted to materialize that point), or -1
+	 *  if the intersection already coincides with an existing node. See {@link #getInsertionIndex()} */
+	private int segmentStartIndex = -1;
 
 	private final boolean unScaledPositions;
 	private final boolean ignoreZ;
@@ -93,6 +97,38 @@ public class NearPoint implements Comparable<NearPoint> {
 
 	public Path getPath() {
 		return path;
+	}
+
+	/**
+	 * Returns the point on the path's line segments closest to the queried position which, may fall
+	 * strictly between two nodes. Useful when path nodes are sparser than the pick radius used to
+	 * find this NearPoint in the first place (e.g. manually-placed tracing waypoints), where the
+	 * closest existing node can be much farther from the query point than the path itself is.
+	 * See {@link #getInsertionIndex()} to materialize this position as a real node via
+	 * {@link Path#insertNode(int, PointInImage)} before using it structurally (e.g. as a fork/branch point)
+	 *
+	 * @return the interpolated closest point, tagged with {@link PointInImage#getPath()} set to this
+	 *         NearPoint's path; or {@code null} if no valid intersection exists
+	 */
+	public PointInImage getClosestIntersectionPoint() {
+		if (cachedDistanceToPathNearPoint == null) distanceToPathNearPoint(); // lazily compute if needed
+		if (closestIntersection == null) return null;
+		final PointInImage p = new PointInImage(closestIntersection.x, closestIntersection.y, closestIntersection.z);
+		p.setPath(path);
+		return p;
+	}
+
+	/**
+	 * Returns the index at which a new node would need to be {@link Path#insertNode(int, PointInImage)
+	 * inserted} to materialize {@link #getClosestIntersectionPoint()} as a real node on the path, or
+	 * -1 if that point already coincides with an existing node (i.e. {@link #getNode()} can be used
+	 * directly, no insertion needed). Only meaningful after {@link #distanceToPathNearPoint()} has
+	 * run (directly, or indirectly via {@link #getClosestIntersectionPoint()})
+	 *
+	 * @return the insertion index, or -1 if no insertion is needed
+	 */
+	public int getInsertionIndex() {
+		return (segmentStartIndex < 0) ? -1 : segmentStartIndex + 1;
 	}
 
 	@Override
@@ -151,11 +187,17 @@ public class NearPoint implements Comparable<NearPoint> {
 			}
 			if (intersection == null) {
 				closestIntersection = null;
+				segmentStartIndex = -1;
 				cachedDistanceToPathNearPoint = (double) -1;
 				return -1;
 			}
 			else {
 				closestIntersection = intersection;
+				// Only the indexInPath == pathSize - 1 side tests a well-formed (non-degenerate)
+				// segment [pathSize - 2, pathSize - 1]; indexInPath == 0 has no preceding node to
+				// form a real segment with (start == end == pathPoint above), so getInsertionIndex()
+				// reports "no insertion" (-1) there and callers fall back to getNode() instead
+				segmentStartIndex = (indexInPath == 0 || path.size() == 1) ? -1 : pathSize - 2;
 				cachedDistanceToPathNearPoint = intersection.distance;
 				return intersection.distance;
 			}
@@ -174,19 +216,23 @@ public class NearPoint implements Comparable<NearPoint> {
 			if (intersectionA == null && intersectionB != null) {
 				smallestDistance = intersectionB.distance;
 				closestIntersection = intersectionB;
+				segmentStartIndex = indexInPath; // segment [indexInPath, indexInPath + 1]
 			}
 			else if (intersectionA != null && intersectionB == null) {
 				smallestDistance = intersectionA.distance;
 				closestIntersection = intersectionA;
+				segmentStartIndex = indexInPath - 1; // segment [indexInPath - 1, indexInPath]
 			}
 			else if (intersectionA != null && intersectionB != null) {
 				if (intersectionA.distance < intersectionB.distance) {
 					smallestDistance = intersectionA.distance;
 					closestIntersection = intersectionA;
+					segmentStartIndex = indexInPath - 1;
 				}
 				else {
 					smallestDistance = intersectionB.distance;
 					closestIntersection = intersectionB;
+					segmentStartIndex = indexInPath;
 				}
 			}
 			if (smallestDistance >= 0) {
@@ -204,18 +250,21 @@ public class NearPoint implements Comparable<NearPoint> {
 				pathPoint.x, pathPoint.y, pathPoint.z, pathPoint.x - next.x,
 				pathPoint.y - next.y, pathPoint.z - next.z, near.x, near.y, near.z);
 			if (afterPlaneAtEndOfPrevious && beforePlaneAtStartOfNext) {
-				// Then just return the distance to the point:
+				// Then just return the distance to the point: this near point *is* pathPoint itself,
+				// so no insertion is needed (getInsertionIndex() reports -1)
 				closestIntersection = new IntersectionOnLine();
 				closestIntersection.distance = distanceToPathPoint();
 				closestIntersection.x = pathPoint.x;
 				closestIntersection.y = pathPoint.y;
 				closestIntersection.z = pathPoint.z;
 				closestIntersection.fromPerpendicular = false;
+				segmentStartIndex = -1;
 				cachedDistanceToPathNearPoint = closestIntersection.distance;
 				return closestIntersection.distance;
 			}
 			else {
 				closestIntersection = null;
+				segmentStartIndex = -1;
 				cachedDistanceToPathNearPoint = (double) -1;
 				return -1;
 			}

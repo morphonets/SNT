@@ -118,9 +118,13 @@ public class Bvv extends AbstractBigViewer {
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
     private final long CENTER_ANIMATION_DURATION_MS = 250;
-    // Screen-space pick radius for snapping a click to an existing node (fork-point detection in Tracer). It gets
+    // Screen-space pick radius for snapping a click to a fork point (see Tracer#handleClick). It gets
     // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant across zoom levels
-    private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 50;
+    // Safe to keep generous: the search that consumes this is a single path (findNearestRenderedPath()), so a large
+    // radius can only ever match somewhere along that one path. Manually-placed tracing waypoints  can be much
+    // sparser than densely auto-traced ones: A click needs to land within this radius of *some* node for a fork point
+    // to be found at all in the first place (see NearPoint#getInsertionIndex())
+    private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 150;
 
     // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
     // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a stationary
@@ -188,6 +192,35 @@ public class Bvv extends AbstractBigViewer {
         lastPositionEvent = e;
         lastPosition = getClickedPosition();
         return lastPosition;
+    }
+
+    /**
+     * Finds the rendered Path nearest a 3D world position, restricted to what's currently rendered
+     * in this viewer's scene ({@link #renderedTrees}) rather than every path in the whole project.
+     * Used to auto-select the path a fork click is most likely aimed at, before running the precise
+     * fork-point search scoped to just that one path.
+     *
+     * @param worldPos calibrated (x,y,z) position to search from
+     * @return the nearest rendered path, or {@code null} if nothing is currently rendered
+     * @see  {@code Tracer#handleClick}. Mirrors {@code InteractiveTracerCanvas#selectNearestPathToMousePointer},
+     */
+    private Path findNearestRenderedPath(final double[] worldPos) {
+        Path nearest = null;
+        final PointInImage wPos = SNTPoint.of(worldPos[0], worldPos[1], worldPos[2]);
+        double nearestDistSq = Double.MAX_VALUE;
+        for (final Tree tree : renderedTrees.values()) {
+            for (final Path path : tree.list()) {
+                for (int i = 0; i < path.size(); i++) {
+                    final Path.PathNode node = path.getNode(i);
+                    final double distSq = node.distanceSquaredTo(wPos);
+                    if (distSq < nearestDistSq) {
+                        nearestDistSq = distSq;
+                        nearest = path;
+                    }
+                }
+            }
+        }
+        return nearest;
     }
 
     /**
@@ -3306,7 +3339,6 @@ public class Bvv extends AbstractBigViewer {
         private Path tempPath;
         private Path.PathNode previousNode;
         private PointInImage previousForkPoint;
-        private final boolean requireShiftToFork;
 
         // Guards against a click being processed while a segment is still being traced in the background
         // This keeps tempPath mutations single-threaded
@@ -3327,7 +3359,6 @@ public class Bvv extends AbstractBigViewer {
             if (snt == null || snt.getPathAndFillManager() == null) {
                 throw new IllegalArgumentException("Tracer can only be initialized with a valid SNT instance");
             }
-            requireShiftToFork = snt.getPrefs().getPref(SNTPrefs.REQUIRE_SHIFT_FOR_FORK);
             currentBvv.getViewer().getDisplay().getComponent().addMouseListener(this);
         }
 
@@ -3387,26 +3418,56 @@ public class Bvv extends AbstractBigViewer {
                 syncChannelFromActiveSource();
                 final double[] cc1 = getClickedPosition(e);
                 if (cc1 == null) return; // msg already displayed
-                previousNode = new Path.PathNode(cc1);
 
                 // Is this new starting node supposed to be a fork point on an existing path?
-                final boolean joiner_modifier_down = (requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
-                highlightClickedLocation(previousNode, joiner_modifier_down);
+                final boolean joiner_modifier_down = (renderingOptions.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
 
                 if (!joiner_modifier_down) {
+                    previousNode = new Path.PathNode(cc1);
                     previousForkPoint = null;
+                    highlightClickedLocation(previousNode, false);
+                    return;
+                }
+
+                // Fork requested: resolve it *before* committing to starting a path at all. The fork
+                // modifier is an explicit request to attach to an existing branch, so if that request
+                // can't be honored, the click should be a clean no-op
+                showViewerMessage("Forking...");
+                // Auto-select the rendered path nearest the click, then restrict the fork-point search
+                // to just that one path, instead of scanning every path in the project
+                final Path nearestPath = findNearestRenderedPath(cc1);
+                // Pick radius is defined in screen pixels (see pickRadiusWorld()) rather than a fixed
+                // world-space distance, so "close enough to fork" stays consistent across zoom levels
+                final double pickRadius = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
+                final NearPoint nearPoint = (nearestPath == null) ? null : snt.getPathAndFillManager()
+                        .nearestPointOnAnyPath(Collections.singletonList(nearestPath), cc1[0], cc1[1], cc1[2], pickRadius);
+                if (nearPoint == null) {
+                    final String detail = (nearestPath == null) ? "No paths are currently rendered to fork from."
+                            : String.format("No point within %.2f%s of the cursor was found on the nearest path ('%s').",
+                                    pickRadius, calUnit, nearestPath.getName());
+                    final String mod = (renderingOptions.requireShiftToFork) ? "Alt+Shift" : "Alt";
+                    new GuiUtils(getViewerFrame()).error("<html>" + detail
+                            + "<br>Move closer to the target path, or click without " + mod + " to start an unconnected path.</html>",
+                            "No Fork Point Found");
+                    return;
+                }
+
+                // Fork point found: only now commit to starting the path
+                snt.selectPath(nearestPath, false);
+                previousNode = new Path.PathNode(cc1);
+                highlightClickedLocation(previousNode, true);
+                // Prefer the interpolated point on the path's line segments over the nearest raw node:
+                // manually-placed waypoints can be sparser than pickRadius, so the closest actual node
+                // may sit well past it even when the click lands right on the path itself. Materialize
+                // that position as a real node so the branch point is geometrically accurate and the
+                // parent path visibly gains a node at the fork location
+                final int insertionIndex = nearPoint.getInsertionIndex();
+                if (insertionIndex < 0) {
+                    previousForkPoint = nearPoint.getNode(); // already an existing node
                 } else {
-                    // find the nearest node to this cursor position see InteractiveTracingCanvas#mouseMoved
-                    // Pick radius is defined in screen pixels (see pickRadiusWorld()) rather than a fixed
-                    // world-space distance, so "close enough to fork" stays consistent across zoom levels
-                    // This is a (minor!?) deviation from tracing on ImagePlus: There we look for a nearest point in selected paths only
-                    final double pickRadius = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
-                    showViewerMessage("Forking...");
-                    final NearPoint nearPoint = snt.getPathAndFillManager().nearestPointOnAnyPath(cc1[0], cc1[1], cc1[2], pickRadius);
-                    previousForkPoint = (nearPoint == null) ? null : nearPoint.getNode();
-                    if (previousForkPoint == null) {
-                        showViewerMessage(String.format("No fork point within %.2f%s of cursor", pickRadius, calUnit));
-                    }
+                    nearestPath.insertNode(insertionIndex, nearPoint.getClosestIntersectionPoint());
+                    previousForkPoint = nearestPath.getNode(insertionIndex);
+                    syncOverlays(); // so the new node is reflected next repaint, not just on the next full sync
                 }
                 return;
             }
@@ -3476,7 +3537,7 @@ public class Bvv extends AbstractBigViewer {
 
             // Add path to path manager and reset
             snt.getPathAndFillManager().addPath(tempPath);
-            if (snt.isAutoSelectionOfFinishedPathEnabled()) snt.selectPath(tempPath, false);
+            if (renderingOptions.activateFinishedPath) snt.selectPath(tempPath, false);
             if (tracingOverlay != null) tracingOverlay.clear();
             syncPathManagerList();
             tempPath = null;
@@ -4515,6 +4576,15 @@ public class Bvv extends AbstractBigViewer {
                     seg.color1 = pathData.colors[i];
                     seg.color2 = pathData.colors[i + 1];
                 }
+                if (pathData.branchConnector != null) {
+                    // r1/color1 mirror r2/color2: computeScreenData() reuses the child's own first-node
+                    // radius/color for both ends (the parent's exact radius at the branch node isn't
+                    // readily available in this per-child loop)
+                    pathData.branchConnector.r1 = pathData.screenRadius[0];
+                    pathData.branchConnector.r2 = pathData.screenRadius[0];
+                    pathData.branchConnector.color1 = pathData.colors[0];
+                    pathData.branchConnector.color2 = pathData.colors[0];
+                }
             }
             data.buildBatches(); // colors changed: segments need regrouping by color
             return true;
@@ -4735,6 +4805,36 @@ public class Bvv extends AbstractBigViewer {
                     seg.viewerZ1 = pathData.viewerZ[i]; seg.viewerZ2 = pathData.viewerZ[i + 1];
                     seg.color1 = pathData.colors[i];   seg.color2 = pathData.colors[i + 1];
                     pathData.segments[i] = seg;
+                }
+
+                // Connector from this path's first node to its parent's branch point (if any). A
+                // forked child's own node list never includes the parent's branch node, so without
+                // this virtual segment the fork looks disconnected in the overlay. See 
+                // Path#drawPathAsPoints()'s treatment of the branch point as a "virtual previous
+                // node" for the 2D canvas (InteractiveTracerCanvas).
+                final PointInImage branchPoint = path.getBranchPoint();
+                if (branchPoint != null) {
+                    worldCoords[0] = branchPoint.x;
+                    worldCoords[1] = branchPoint.y;
+                    worldCoords[2] = branchPoint.z;
+                    viewerTransform.apply(worldCoords, viewerCoords);
+                    final double bpf = dCam / (dCam + viewerCoords[2]);
+                    final double bx = centerX + (viewerCoords[0] - centerX) * bpf;
+                    final double by = centerY + (viewerCoords[1] - centerY) * bpf;
+                    if (isOnScreen(bx, by) || pathData.visible[0]) {
+                        final double dx = pathData.screenX[0] - bx;
+                        final double dy = pathData.screenY[0] - by;
+                        if (dx * dx + dy * dy >= 0.25) { // skip sub-pixel, same threshold as intra-path segments
+                            final SegmentData seg = new SegmentData();
+                            seg.x1 = bx; seg.y1 = by;
+                            seg.x2 = pathData.screenX[0]; seg.y2 = pathData.screenY[0];
+                            seg.r1 = pathData.screenRadius[0]; seg.r2 = pathData.screenRadius[0];
+                            seg.worldZ1 = worldCoords[2]; seg.worldZ2 = pathData.worldZ[0];
+                            seg.viewerZ1 = viewerCoords[2]; seg.viewerZ2 = pathData.viewerZ[0];
+                            seg.color1 = pathData.colors[0]; seg.color2 = pathData.colors[0];
+                            pathData.branchConnector = seg;
+                        }
+                    }
                 }
 
                 data.paths.add(pathData);
@@ -4980,6 +5080,9 @@ public class Bvv extends AbstractBigViewer {
                         if (seg == null) continue; // sub-pixel or off-screen, pre-filtered
                         batches.computeIfAbsent(seg.color1, k -> new ArrayList<>()).add(seg);
                     }
+                    if (p.branchConnector != null) {
+                        batches.computeIfAbsent(p.branchConnector.color1, k -> new ArrayList<>()).add(p.branchConnector);
+                    }
                 }
                 batchesBuilt = true;
             }
@@ -4996,6 +5099,11 @@ public class Bvv extends AbstractBigViewer {
             final boolean[] visible;
             /** Pre-built segment objects, null for sub-pixel/off-screen segments. */
             final SegmentData[] segments;
+            /** Virtual connector from this path's first node to its parent's branch point (see
+             *  {@link Path#getBranchPoint()}), or null if this is a primary path (no parent) or the
+             *  connector was sub-pixel/off-screen. Not part of {@link #segments} since it isn't
+             *  between two of this path's own nodes. */
+            SegmentData branchConnector;
 
             PathScreenData(int size) {
                 this.size = size;

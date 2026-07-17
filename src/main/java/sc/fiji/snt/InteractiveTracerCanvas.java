@@ -136,7 +136,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private void updateForkPointMenuItem(final JMenuItem forkNearestMenuItem) {
         // NB: mouse button gestures cannot be set as Swing accelerators (KeyStroke only supports keyboard keys),
         // so the shortcut is documented in the label only
-        final String accelerator = (tracerPlugin.requireShiftToFork) ? " (or Alt+Shift+Click)" : " (or Alt+Click)";
+        final String accelerator = (tracerPlugin.getPrefs().getRequireShiftToFork()) ? " (or Alt+Shift+Click)" : " (or Alt+Click)";
         forkNearestMenuItem.setText(AListener.FORK_NEAREST + accelerator);
     }
 
@@ -691,14 +691,14 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 "</ul>";
         final JMenuItem helpItem = new JMenuItem(AListener.NODE_CONNECT_HELP);
         helpItem.addActionListener(e -> {
-            final boolean canvasActivationState = tracerPlugin.autoCanvasActivation;
-            tracerPlugin.enableAutoActivation(false); // this will not update the checkbox state in SNTUI, but
+            final boolean canvasActivationState = tracerPlugin.getPrefs().isCanvasAutoActivationEnabled();
+            tracerPlugin.getPrefs().setCanvasAutoActivation(false); // this will not update the checkbox state in SNTUI, but
             // ensures the help dialog will maintain its frontmost state
             getGuiUtils().showHTMLDialog(msg, AListener.NODE_CONNECT_HELP, false)
                     .addWindowListener(new WindowAdapter() {
                         @Override
                         public void windowClosing(final WindowEvent e) {
-                            tracerPlugin.enableAutoActivation(canvasActivationState);
+                            tracerPlugin.getPrefs().setCanvasAutoActivation(canvasActivationState);
                         }
                     });
         });
@@ -954,7 +954,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         boolean shift_key_down = e.isShiftDown();
         final boolean joiner_modifier_down = !editMode && (
-                (tracerPlugin.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown()
+                (tracerPlugin.getPrefs().getRequireShiftToFork()) ? e.isShiftDown() && e.isAltDown() : e.isAltDown()
         );
 
         if (!editMode && tracerPlugin.snapCursor &&
@@ -991,7 +991,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             super.mouseEntered(e);
             return;
         }
-        if (tracerPlugin.autoCanvasActivation) imp.getWindow().toFront();
+        if (tracerPlugin.getPrefs().isCanvasAutoActivationEnabled()) imp.getWindow().toFront();
     }
 
     /* See ImageCanvas#handlePopupMenu(me); */

@@ -147,7 +147,7 @@ class QueueJumpingKeyListener implements KeyListener {
 
 		// Create context for key commands
 		final boolean doublePress = isDoublePress(e);
-		final KeyContext context = new KeyContext(e, doublePress, tracerPlugin.requireShiftToFork);
+		final KeyContext context = new KeyContext(e, doublePress, tracerPlugin.getPrefs().getRequireShiftToFork());
 
 		// Process key commands in order of priority
 		for (KeyCommand command : keyCommands) {

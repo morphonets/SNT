@@ -969,6 +969,8 @@ public abstract class AbstractBigViewer {
         public Color fallbackColor = SNTPrefs.deselectedPathColor();
         public Color selectedColor = SNTPrefs.selectedPathColor();
         public boolean displayCustomPathColors;
+        public boolean requireShiftToFork;
+        public boolean activateFinishedPath;
         /** See {@link RecenterStrategy}. Only consulted by {@link Bvv}. */
         public RecenterStrategy strategy = RecenterStrategy.ADAPTIVE;
 
