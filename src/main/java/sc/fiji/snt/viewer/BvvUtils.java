@@ -341,32 +341,57 @@ final class BvvUtils {
     }
 
     /**
+     * Physical search radius (in voxels of the sampled level) around the focal point within which
+     * {@link #rayMaxima} looks for the intensity maximum. Deliberately a fixed physical quantity
+     * rather than a fraction of the ray's total length: the ray's endpoints come from the near/far
+     * clip planes, which are fixed *viewer-space* (screen-pixel) distances that get inverse-transformed
+     * through the *current* (zoom-dependent) viewer transform. A fraction of the ray's length
+     * would correspond to a physical search window that balloons at low zoom (small transform scale)
+     * and shrinks at high zoom. A fixed physical radius keeps the search tightly and consistently localized
+     * around the clicked point regardless of zoom and is independent of the near/far clip values themselves,
+     * which users can adjust via the slab-clip sliders.
+     */
+    static final double RAY_SEARCH_RADIUS_VOXELS = 15;
+    /**
+     * Wider fallback radius (voxels), tried by {@code Bvv#findClickRayMaxima()} only when the tight
+     * {@link #RAY_SEARCH_RADIUS_VOXELS} window finds no peak at all (e.g. click landed slightly off
+     * a thin/dim structure). Wide enough to forgive modest click imprecision, still tight enough to
+     * stay tethered to the clicked point.
+     */
+    static final double RAY_SEARCH_RADIUS_VOXELS_WIDE = 60;
+
+    /**
      * Walks the world-space ray from nearW to farW and returns the world-space
      * position of the intensity maximum near the focal plane. Sub-voxel accuracy
      * is achieved via a 3-point parabola fit.
      *
-     * <p>The search is restricted to a window of +/-{@code FOCAL_WINDOW} around
-     * {@code focalT} (the parametric t in [0,1] where the focal plane intersects
-     * the ray). This prevents returning a brighter-but-invisible structure behind
-     * the one the user is visually clicking on. The window is clamped to [0,1].
+     * <p>The search is restricted to a fixed physical radius ({@code searchRadiusVoxels}, see
+     * {@link #RAY_SEARCH_RADIUS_VOXELS}/{@link #RAY_SEARCH_RADIUS_VOXELS_WIDE}) around {@code focalT}
+     * (the parametric t in [0,1] where the focal plane intersects the ray). This prevents returning a
+     * brighter-but-invisible structure behind the one the user is visually clicking on, without the
+     * window's physical size depending on the current zoom level or on the near/far clip (slab)
+     * settings. The window is clamped to the ray's own extent.
      *
      * <p>The coarsest mip level that still produces at least {@code MIN_STEPS}
      * samples is used, so that all voxels are guaranteed to be in the cache rather
      * than returning fill-zeros for unloaded fine-resolution tiles.
      *
-     * @param nearW     ray origin in world space (near clip)
-     * @param farW      ray end in world space (far clip)
-     * @param src       the volume source to sample
-     * @param timePoint current time point index
-     * @param focalT    parametric position of the focal plane along the ray,
-     *                  in [0,1]; typically nearClip / (nearClip + farClip)
+     * @param nearW            ray origin in world space (near clip)
+     * @param farW             ray end in world space (far clip)
+     * @param src              the volume source to sample
+     * @param timePoint        current time point index
+     * @param focalT           parametric position of the focal plane along the ray,
+     *                         in [0,1]; typically nearClip / (nearClip + farClip)
+     * @param searchRadiusVoxels physical search radius, in voxels of the sampled level, around the
+     *                           focal point (see {@link #RAY_SEARCH_RADIUS_VOXELS})
      * @return world-space position of the intensity maximum, or null if the ray
      *         misses the volume entirely (all samples in the window are zero)
      */
     static double[] rayMaxima(final double[] nearW, final double[] farW,
                               final Source<?> src, final int timePoint,
                               final double focalT,
-                              final int level) {
+                              final int level,
+                              final double searchRadiusVoxels) {
         if (nearW == null || farW == null || src == null) return null;
 
         final double dx = farW[0] - nearW[0];
@@ -391,10 +416,13 @@ final class BvvUtils {
         final double step = Math.max(minVoxel * 0.5, len / 2000.0);
         final int nSteps = (int) Math.ceil(len / step);
 
-        // Search window: +/- FOCAL_WINDOW of the ray around focalT.
-        final double FOCAL_WINDOW = 0.35;
-        final int i0 = Math.max(0,       (int) ((focalT - FOCAL_WINDOW) * nSteps));
-        final int i1 = Math.min(nSteps,  (int) Math.ceil((focalT + FOCAL_WINDOW) * nSteps));
+        // Search window: fixed physical radius around the focal index, converted to a step count
+        // at the current level/zoom rather than a fraction of the (zoom-dependent) ray length
+        final int focalIdx = Math.max(0, Math.min(nSteps, (int) Math.round(focalT * nSteps)));
+        final double searchRadiusWorld = searchRadiusVoxels * minVoxel;
+        final int windowSteps = Math.max(1, (int) Math.ceil(searchRadiusWorld / step));
+        final int i0 = Math.max(0,      focalIdx - windowSteps);
+        final int i1 = Math.min(nSteps, focalIdx + windowSteps);
 
         final RandomAccessibleInterval<?> rai = src.getSource(timePoint, level);
         if (rai == null) return null;

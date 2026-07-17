@@ -949,6 +949,21 @@ public abstract class AbstractBigViewer {
     }
 
     /**
+     * Auto-recenter strategy for BVV's per-click "center the view on the clicked point" behavior
+     * (see {@code Bvv#registerCenterOnDoubleClickListener}). Not used by {@link Bdv}.
+     */
+    public enum RecenterStrategy {
+        /** Never auto-recenter the view on a tracing click. */
+        NEVER,
+        /** Skip the recenter when the click already lands close to the focal plane; gate subsequent
+         *  tracing clicks behind a brief settle window after a recenter does fire, so tile streaming
+         *  has a chance to catch up. Recommended default for data streamed from disk/network. */
+        ADAPTIVE,
+        /** Recenter on every tracing click, regardless of distance from the focal plane. */
+        ALWAYS,
+    }
+
+    /**
      * Configuration options for path rendering.
      * Controls thickness, transparency, and other visual properties.
      */
@@ -962,6 +977,8 @@ public abstract class AbstractBigViewer {
         public Color fallbackColor = SNTPrefs.deselectedPathColor();
         public Color selectedColor = SNTPrefs.selectedPathColor();
         public boolean displayCustomPathColors;
+        /** See {@link RecenterStrategy}. Only consulted by {@link Bvv}. */
+        public RecenterStrategy strategy = RecenterStrategy.ADAPTIVE;
 
         float clippingDistance;
 

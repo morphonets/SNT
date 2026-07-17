@@ -50,6 +50,7 @@ import net.imglib2.realtransform.RealViews;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
+import org.apache.commons.lang.WordUtils;
 import org.jdom2.JDOMException;
 import org.scijava.command.CommandService;
 import org.scijava.util.ColorRGB;
@@ -98,7 +99,7 @@ public class Bvv extends AbstractBigViewer {
     private static final java.util.concurrent.atomic.AtomicInteger keyframeCounter =
             new java.util.concurrent.atomic.AtomicInteger(1);
 
-    // snt, cal, dims, calUnit, renderedTrees, spimDataFilePaths, markerManager -- inherited from AbstractBigViewer
+    // snt, cal, dims, calUnit, renderedTrees, spimDataFilePaths, markerManager: inherited from AbstractBigViewer
 
     private final BvvOptions options;
     private JProgressBar progressBar; // Docked at CardPanel bottom via addToCardPanelBottom().
@@ -121,15 +122,25 @@ public class Bvv extends AbstractBigViewer {
     // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant across zoom levels
     private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 50;
 
-    /* Tracing-click recenter gating (see registerCenterOnDoubleClickListener) */
-    // Set to false to recenter scene on every tracing click. The gating below is for data still streaming
-    // from disk/network, where recentering on every click may race against tile loading and producing
-    // zig-zagged paths (most visible away from the focal plane, where perspective error is largest)
-    private boolean gatedTracingRecenter = true;
-    // Fraction of nearClip below which a clicked point is considered "close enough" to the focal plane
-    // that recentering would add nothing but disruption (an animated transform change plus a settle wait)
-    // Expressed as a fraction of nearClip (see BvvUtils#computeCamParams)
-    private static final double RECENTER_SKIP_FRACTION_OF_NEAR_CLIP = 0.3;
+    // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
+    // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a stationary
+    // click, which silently suppresses mouseClicked entirely: no event is delivered at all, not even to a listener
+    // sitting at the very top of mousePressed/mouseReleased. Tracer and registerCenterOnDoubleClickListener's own
+    // listener both detect clicks themselves from press+release within this tolerance instead of relying on that
+    // zero-movement guarantee
+    private static final int CLICK_MOVE_TOLERANCE_PX = 4;
+
+    // Tracing-click recenter gating (see registerCenterOnDoubleClickListener). Strategy is stored on
+    // renderingOptions.strategy (see AbstractBigViewer.RecenterStrategy) rather than a field here, so
+    // it can be exposed/toggled from the toolbar (see sntToolbar())
+    // Physical (world-space) radius, in Z-voxels, within which a clicked point is considered "close
+    // enough" to the focal plane that recentering would add nothing but disruption. Expressed in
+    // physical units rather than as a fraction of nearClip: nearClip is a *fixed* viewer-space
+    // (screen-pixel) quantity, while the viewer-space Z of a given physical point scales with the
+    // live zoom level (BVV/BDV transforms are uniform similarities, so Z scales with zoom just like
+    // X/Y). Comparing against a fraction of nearClip directly meant the same physical distance read
+    // as "close" at low zoom (small transform scale) and "far" at high zoom
+    private static final double RECENTER_SKIP_RADIUS_VOXELS = 15;
     // Extra buffer (beyond the recenter animation's own duration) given to BVV's tile streaming to catch
     // up with the new focal region before ray-max sampling is trusted again
     private static final long RECENTER_SETTLE_BUFFER_MS = 150;
@@ -215,10 +226,16 @@ public class Bvv extends AbstractBigViewer {
         if (peak != null) {
             return peak;
         }
-        // This fallback track should never happen!?
-        final RealPoint pos = new RealPoint(3);
-        getViewer().getViewer().getGlobalMouseCoordinates(pos);
-        final double x = pos.getDoublePosition(0);
+        // Ray-max found nothing usable (e.g. no signal within the search radius, or the mouse
+        // position was transiently unavailable see findClickRay()'s use of Component#getMousePosition(),
+        // which can intermittently return null!?. The fallback below reaches into BVV/BDV's own mouse-coordinate
+        // and source-transform machinery, which can throw under those same transient conditions; wrapped
+        // in try/catch so that failure surfaces as a message/log line instead of silently aborting
+        // mouseClicked() with no trace of what happened.
+        try {
+            final RealPoint pos = new RealPoint(3);
+            getViewer().getViewer().getGlobalMouseCoordinates(pos);
+            final double x = pos.getDoublePosition(0);
         final double y = pos.getDoublePosition(1);
         // Validate X and Y against the source's world-space bounding box.
         // Only XY are checked: Z is derived from the intensity peak along the
@@ -247,10 +264,18 @@ public class Bvv extends AbstractBigViewer {
                     getViewer().getViewer().showMessage(
                             "Outside image bounds: Align view to a principal axis and retry");
                     return null;
+                    }
                 }
             }
+            // Not a message (would fire too often to be useful as a pop-up): logged so the fallback
+            // path is diagnosable without being intrusive during otherwise-normal tracing
+            SNTUtils.log("BVV: ray-max found no peak near the clicked point; using focal-plane position");
+            return pos.positionAsDoubleArray();
+        } catch (final Exception ex) {
+            getViewer().getViewer().showMessage("Could not resolve a position for this click; please click again");
+            SNTUtils.log("BVV: getClickedPosition() fallback failed (" + ex.getMessage() + ")");
+            return null;
         }
-       return pos.positionAsDoubleArray();
     }
 
     /**
@@ -1569,13 +1594,33 @@ public class Bvv extends AbstractBigViewer {
      * While tracing, this fires on every single click (not just double-clicks), so on
      * data still streaming from disk/network the animated recenter may race against tile
      * loading: the very next click can land mid-animation, against tiles that are still
-     * catching up to the *previous* recenter. See {@link #gatedTracingRecenter}
+     * catching up to the *previous* recenter. See {@link AbstractBigViewer.RecenterStrategy}
+     * ({@code renderingOptions.strategy}).
      */
     private void registerCenterOnDoubleClickListener(final BigVolumeViewer bvv) {
         bvv.getViewer().getDisplay().getComponent().addMouseListener(
                 new java.awt.event.MouseAdapter() {
+                    // AWT only synthesizes mouseClicked with zero pixel movement between press and
+                    // release; trackpad jitter (macOS especially) routinely suppresses it entirely.
+                    // Detect clicks from press+release with a small tolerance instead (see Tracer's
+                    // identical fix, which shares the same CLICK_MOVE_TOLERANCE_PX rationale).
+                    private Point pressPoint;
+
                     @Override
-                    public void mouseClicked(final java.awt.event.MouseEvent e) {
+                    public void mousePressed(final java.awt.event.MouseEvent e) {
+                        pressPoint = e.getPoint();
+                    }
+
+                    @Override
+                    public void mouseReleased(final java.awt.event.MouseEvent e) {
+                        final Point start = pressPoint;
+                        pressPoint = null;
+                        if (start == null) return;
+                        if (start.distance(e.getPoint()) > CLICK_MOVE_TOLERANCE_PX) return; // a real drag
+                        handleClick(e);
+                    }
+
+                    private void handleClick(final java.awt.event.MouseEvent e) {
                         // Tracing enabled: react to single left-clicks
                         // Tracing disabled: Only react to plain left double-clicks;
                         // Always ignore modifiers and right/middle buttons so BVV's own drag/rotate interactions are unaffected
@@ -1587,6 +1632,10 @@ public class Bvv extends AbstractBigViewer {
                         if (!reactTracingEnabled && !reactTracingDisabled) {
                             return;
                         }
+                        if (reactTracingEnabled && renderingOptions.strategy == RecenterStrategy.NEVER) {
+                            return;
+                        }
+
                         final VolumeViewerPanel vp = getViewerPanel();
                         if (vp == null) return;
 
@@ -1609,14 +1658,15 @@ public class Bvv extends AbstractBigViewer {
                         final double[] viewerPt = new double[3];
                         current.apply(target, viewerPt);
 
-                        if (reactTracingEnabled && gatedTracingRecenter) {
+                        if (reactTracingEnabled && renderingOptions.strategy == RecenterStrategy.ADAPTIVE) {
                             // Skip the recenter entirely when the click already lands close enough to the
                             // focal plane that foreshortening error is negligible. This is the common case
                             // once a path settles near the focal plane, and skipping it avoids disrupting
-                            // fluid tracing on every single click
-                            final double nearClip = (pathOverlay != null) ? pathOverlay.overlayRenderer.nearClip
-                                    : BvvUtils.DEFAULT_NEAR_CLIP;
-                            if (Math.abs(viewerPt[2]) < RECENTER_SKIP_FRACTION_OF_NEAR_CLIP * nearClip) {
+                            // fluid tracing on every single click. Converted to a physical (world-space)
+                            // distance via pickRadiusWorld() before comparing
+                            final double worldZOffset = pickRadiusWorld(Math.abs(viewerPt[2]));
+                            final double zSpacing = (cal != null && cal.length > 2 && cal[2] > 0) ? cal[2] : 1.0;
+                            if (worldZOffset < RECENTER_SKIP_RADIUS_VOXELS * zSpacing) {
                                 return;
                             }
                         }
@@ -1630,9 +1680,9 @@ public class Bvv extends AbstractBigViewer {
                         // Calling setTransformAnimator replaces any running animation immediately (interruptible)
                         vp.setTransformAnimator(new SimilarityTransformAnimator(current, dest, 0, 0, CENTER_ANIMATION_DURATION_MS));
 
-                        if (reactTracingEnabled && gatedTracingRecenter) {
+                        if (reactTracingEnabled && renderingOptions.strategy == RecenterStrategy.ADAPTIVE) {
                             // Defer trace-click acceptance until the animation finishes and tiles for the
-                            // new focal region have had a chance to stream in (see Tracer#mouseClicked)
+                            // new focal region have had a chance to stream in (see Tracer#handleClick)
                             final long settleDelayMs = CENTER_ANIMATION_DURATION_MS + RECENTER_SETTLE_BUFFER_MS;
                             tracingSettleUntilMs = System.currentTimeMillis() + settleDelayMs;
                             setTracingStatus(true, "Stabilizing...");
@@ -1709,6 +1759,26 @@ public class Bvv extends AbstractBigViewer {
             bg1.add(b2);
             toolbar.add(b1);
             toolbar.add(b2);
+
+            // "Center scene strategy on click" options button (see AbstractBigViewer.RecenterStrategy)
+            final JPopupMenu popupMenu = new JPopupMenu();
+            GuiUtils.addSeparator(popupMenu, "Center on Click:");
+            final ButtonGroup buttonGroup = new ButtonGroup();
+            for (final RecenterStrategy strategy : RecenterStrategy.values()) {
+                final JCheckBoxMenuItem mi = new JCheckBoxMenuItem(WordUtils.capitalize(strategy.toString().toLowerCase()),
+                        strategy == renderingOptions.strategy);
+                buttonGroup.add(mi);
+                mi.addItemListener(e -> renderingOptions.strategy = strategy);
+                popupMenu.add(mi);
+            }
+            toolbar.addSeparator();
+            final GuiUtils.Buttons.OptionsButton optionsButton =
+                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.CROSSHAIR, 1f, popupMenu);
+            optionsButton.setToolTipText("<html>Choose when to recenter the view on a tracing click:"
+                    + "<br>&nbsp;&nbsp;<b>Never</b>: Keep the current view as-is"
+                    + "<br>&nbsp;&nbsp;<b>Always</b>: Recenter on every click (best for in-core data)"
+                    + "<br>&nbsp;&nbsp;<b>Adaptive</b>: Recenter only when needed, pausing tracing briefly to let tiles stream in</html>");
+            toolbar.add(optionsButton);
             toolbar.addSeparator();
             toolbar.add(Box.createHorizontalGlue());
             toolbar.addSeparator();
@@ -2359,10 +2429,8 @@ public class Bvv extends AbstractBigViewer {
         // focalT: parametric t where viewerZ = 0 (the focal plane).
         // viewerZ is linear along the ray: -nearClip at t=0, +farClip at t=1.
         final double focalT = near / (near + far);
-        // Use the current source if the user has explicitly selected it and it is
-        // visible (e.g. clicked channel 2 in the sources panel to adjust its LUT).
-        // Otherwise sample all visible sources -- handles freshly opened multi-channel
-        // images where no source has been singled out yet.
+        // Use the current source if the user has explicitly selected it and it is visible (e.g. clicked channel
+        // 2 in the sources panel to adjust its LUT). Otherwise,  sample all visible sources
         final java.util.Set<bdv.viewer.SourceAndConverter<?>> visible =
                 vp.state().getVisibleAndPresentSources();
         final bdv.viewer.SourceAndConverter<?> current = vp.state().getCurrentSource();
@@ -2370,16 +2438,33 @@ public class Bvv extends AbstractBigViewer {
                 (current != null && visible.contains(current))
                 ? java.util.Collections.singleton(current)
                 : visible;
+        // Tight radius first (keeps the result tethered to the clicked point, see
+        // BvvUtils#RAY_SEARCH_RADIUS_VOXELS); only widen if that finds nothing at all, so a click
+        // that's merely a few voxels off a thin/dim structure doesn't silently come back empty
+        double[] peak = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS);
+        if (peak == null) {
+            peak = searchPeakAcrossSources(toSample, tp, focalT, ray, vp, near, far, BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+            if (peak != null)
+                SNTUtils.log("BVV: ray-max found nothing within " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS
+                        + " voxels of the clicked point; widened to " + BvvUtils.RAY_SEARCH_RADIUS_VOXELS_WIDE);
+        }
+        return peak;
+    }
+
+    /** Searches all of {@code toSample} for the highest-value ray-max peak within {@code searchRadiusVoxels} */
+    private double[] searchPeakAcrossSources(final java.util.Collection<bdv.viewer.SourceAndConverter<?>> toSample,
+                                             final int tp, final double focalT, final double[][] ray,
+                                             final VolumeViewerPanel vp, final double near, final double far,
+                                             final double searchRadiusVoxels) {
         double[] bestPeak = null;
         double   bestVal  = Double.NEGATIVE_INFINITY;
         for (final bdv.viewer.SourceAndConverter<?> sac : toSample) {
             final bdv.viewer.Source<?> src = sac.getSpimSource();
-            final int level = BvvUtils.bestMipLevel(vp, src, tp,
-                    pathOverlay.overlayRenderer.dCam, near, far);
-            final double[] peak = BvvUtils.rayMaxima(ray[0], ray[1], src, tp, focalT, level);
-            if (peak == null) continue;
-            final double val = BvvUtils.peakValue(peak, src, tp, level);
-            if (val > bestVal) { bestVal = val; bestPeak = peak; }
+            final int level = BvvUtils.bestMipLevel(vp, src, tp, pathOverlay.overlayRenderer.dCam, near, far);
+            final double[] p = BvvUtils.rayMaxima(ray[0], ray[1], src, tp, focalT, level, searchRadiusVoxels);
+            if (p == null) continue;
+            final double val = BvvUtils.peakValue(p, src, tp, level);
+            if (val > bestVal) { bestVal = val; bestPeak = p; }
         }
         return bestPeak;
     }
@@ -3040,7 +3125,7 @@ public class Bvv extends AbstractBigViewer {
                         if (slabAnnotationsToggle != null) slabAnnotationsToggle.setEnabled(true);
                     } else {
                         setSliderValues(dCamSlider.getValue(), savedClip[0], savedClip[1]);
-                        // Do not re-center Z on deactivation -- leave the view where it is.
+                        // Do not re-center Z on deactivation, leave the view where it is
                         renderingOptions.clearSlabZBounds();
                         if (sceneOverlay != null) sceneOverlay.showSlabPlanes = false;
                         // Deactivate and disable Slab Paths + Slab Annotations when slab is turned off
@@ -3231,6 +3316,10 @@ public class Bvv extends AbstractBigViewer {
         // (see Bvv#tracingStatusRow()) can stop it. Null when idle, or during manual tracing
         private volatile Future<?> currentSearchFuture;
 
+        // Where the button went down, used by mouseReleased to decide whether this was a "click"
+        // (see Bvv#CLICK_MOVE_TOLERANCE_PX) rather than a drag (e.g. BVV's own rotate/pan).
+        private Point pressPoint;
+
         public Tracer(final SNT snt) {
             if (snt == null || snt.getPathAndFillManager() == null) {
                 throw new IllegalArgumentException("Tracer can only be initialized with a valid SNT instance");
@@ -3240,8 +3329,24 @@ public class Bvv extends AbstractBigViewer {
         }
 
         @Override
-        public void mouseClicked(final MouseEvent e) {
-            if (!tracingEnabled) return;
+        public void mousePressed(final MouseEvent e) {
+            pressPoint = e.getPoint();
+        }
+
+        @Override
+        public void mouseReleased(final MouseEvent e) {
+            final Point start = pressPoint;
+            pressPoint = null;
+            if (start == null) return; // press wasn't seen by this listener; nothing to compare against
+            if (start.distance(e.getPoint()) > CLICK_MOVE_TOLERANCE_PX) return; // a real drag, not a click
+            handleClick(e);
+        }
+
+        /** Click-handling logic, formerly {@code mouseClicked(MouseEvent)}; see {@link #mouseReleased} */
+        private void handleClick(final MouseEvent e) {
+            if (!tracingEnabled) {
+                return;
+            }
 
             // AWT's click count keeps incrementing for any click that lands within the platform's multi-click
             // time/distance window of the previous one. Treating >=2 as "finish" ensures fast multiple clicking
@@ -3258,9 +3363,11 @@ public class Bvv extends AbstractBigViewer {
                 finishPath();
                 return;
             }
-            if (computing) return; // a segment is still being traced; ignore further clicks until it lands
+            if (computing) {
+                return; // a segment is still being traced; ignore further clicks until it lands
+            }
 
-            if (gatedTracingRecenter && System.currentTimeMillis() < tracingSettleUntilMs) {
+            if (renderingOptions.strategy == RecenterStrategy.ADAPTIVE && System.currentTimeMillis() < tracingSettleUntilMs) {
                 // A recenter animation triggered by a previous click is still running, or has just
                 // finished but tiles for the new focal region may still be streaming in (see
                 // registerCenterOnDoubleClickListener). Sampling now risks the exact zig-zag this gate
@@ -3304,7 +3411,9 @@ public class Bvv extends AbstractBigViewer {
             // this is the second (or Nth) click: highlight it and trace the segment from the
             // previous click to here, forking off an existing path if the join modifier is down
             final double[] cc2 = getClickedPosition(e);
-            if (cc2 == null) return; // msg already displayed
+            if (cc2 == null) {
+                return; // msg already displayed
+            }
             final Path.PathNode currentNode = new Path.PathNode(cc2);
             highlightClickedLocation(currentNode, false);
             traceSegmentAsync(previousNode, currentNode, previousForkPoint);
@@ -4365,7 +4474,7 @@ public class Bvv extends AbstractBigViewer {
          * by far the most frequent trigger, which otherwise don't need any geometry recomputed at all.
          *
          * @return true if a cached entry was found and patched; false if this tree isn't cached yet
-         *         (nothing to do -- the next full sync computes it from scratch anyway)
+         *         (nothing to do: the next full sync computes it from scratch anyway)
          */
         boolean recolor(final Tree tree) {
             final TreeScreenData data = screenDataCache.get(tree.getLabel());
