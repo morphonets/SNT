@@ -26,8 +26,10 @@ import org.scijava.command.DynamicCommand;
 import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.util.ColorRGB;
+import org.scijava.widget.Button;
 import org.scijava.widget.ChoiceWidget;
 import org.scijava.widget.NumberWidget;
+import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 
 /**
@@ -44,41 +46,44 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
     protected static final String STYLE_RADII = "Frusta (uses path radii)";
 
     @Parameter(label = "Path rendering style", choices = {STYLE_LINE, STYLE_RADII},
-            style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
+            style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE, persist = false,
             description = "<html>Centerline rendering is recommended for large datasets.<br>"
                     + "Frusta (tapered tubes) use per-node radii for a more accurate 3D appearance")
     private String renderingStyle;
 
-    @Parameter(label = "Use path radii",
-            description = "Sets whether to use path radius for thickness calculation. "
+    @Parameter(label = "Use path radii", persist = false,
+            description = "Sets whether to use path radius for thickness calculation.\n"
                     + "Disable for paths with uniform thickness.")
     private boolean usePathRadius;
 
     @Parameter(label = "Thickness multiplier", min = "0.1", max = "10.0", stepSize = "0.1",
-            style = "slider,format:0.00",
-            description = "Scale factor applied to all path radii. "
+            style = "slider,format:0.00", persist = false,
+            description = "Scale factor applied to all path radii.\n"
                     + "1.0x = natural size; increase if paths appear too thin.")
     private double thicknessMultiplier;
 
     @Parameter(label = "Min. thickness", min = "0.1", max = "20.0", stepSize = "0.1",
-            style = "slider,format:0.0",
-            description = "Minimum rendered thickness in physical units. "
+            style = "slider,format:0.0", persist = false,
+            description = "Minimum rendered thickness in physical units.\n"
                     + "Controls line width in centerline mode and the floor radius in tube mode.")
     private double minThickness;
 
     @Parameter(label = "Max. thickness", min = "1", max = "100.0", stepSize = "0.5",
-            style = "slider,format:0.0",
-            description = "Maximum rendered thickness in physical units. "
+            style = "slider,format:0.0", persist = false,
+            description = "Maximum rendered thickness in physical units.\n"
                     + "Controls line width in centerline mode and the ceiling radius in tube mode.")
     private double maxThickness;
 
     @Parameter(label = "Transparency (%)", min = "0", max = "100", stepSize = "1",
-            style = NumberWidget.SLIDER_STYLE,
-            description = "Opacity of all path overlays. 0% = fully opaque; 100% = fully transparent.")
+            style = NumberWidget.SLIDER_STYLE, persist = false,
+            description = "Opacity of all path overlays.\n0% = fully opaque; 100% = fully transparent.")
     private double transparency;
 
     @Parameter(required = false, label = "Default color", persist = false)
     private ColorRGB defaultColor;
+
+    @Parameter(required = false, label = "Reset to Defaults", persist = false, callback = "reset")
+    private Button reset;
 
     /**
      * Returns the viewer instance to configure. Implementations return their
@@ -95,9 +100,22 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
         usePathRadius = opts.isUsePathRadius();
         transparency = (1.0 - opts.getTransparency()) * 100; // invert and scale: 0% = opaque, 100% = transparent
         defaultColor = new ColorRGB(opts.fallbackColor.getRed(), opts.fallbackColor.getGreen(), opts.fallbackColor.getBlue());
-        // update widget
-        final MutableModuleItem<ColorRGB> mi = getInfo().getMutableInput("defaultColor", ColorRGB.class);
-        mi.setValue(this, defaultColor);
+        updateColorWidget(defaultColor);
+    }
+
+    private void reset() {
+        renderingStyle = STYLE_RADII;
+        thicknessMultiplier = 1.0f;
+        minThickness = 1.0f;
+        maxThickness = 100.0f;
+        usePathRadius = true;
+        transparency = 0; // inverted: 0% = opaque
+        defaultColor = new ColorRGB(
+                SNTPrefs.DEFAULT_DESELECTED_COLOR.getRed(),
+                SNTPrefs.DEFAULT_DESELECTED_COLOR.getGreen(),
+                SNTPrefs.DEFAULT_DESELECTED_COLOR.getBlue());
+        updateColorWidget(defaultColor);
+        updateOverlay(getViewer());
     }
 
     @Override
@@ -111,7 +129,19 @@ public abstract class BigViewerRenderingOptionsCmd extends DynamicCommand {
         opts.setUsePathRadius(usePathRadius);
         opts.fallbackColor = new java.awt.Color(defaultColor.getRed(), defaultColor.getGreen(), defaultColor.getBlue());
         opts.setTransparency((float) (100 - transparency) / 100);
-        viewer.setDisplayRadii(STYLE_RADII.equals(renderingStyle)); // invalidates the overlay cache before syncing
-        viewer.syncOverlays();
+        updateOverlay(viewer);
     }
+
+    private void updateColorWidget(final ColorRGB newColor) {
+        final MutableModuleItem<ColorRGB> mi = getInfo().getMutableInput("defaultColor", ColorRGB.class);
+        mi.setValue(this, newColor);
+    }
+
+    private void updateOverlay(final AbstractBigViewer viewer) {
+        if (viewer != null) {
+            viewer.setDisplayRadii(STYLE_RADII.equals(renderingStyle)); // invalidates the overlay cache before syncing
+            viewer.syncOverlays();
+        }
+    }
+
 }

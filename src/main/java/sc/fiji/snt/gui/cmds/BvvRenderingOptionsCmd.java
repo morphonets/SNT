@@ -29,8 +29,7 @@ import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bvv;
 
 /**
- * Command providing a GUI for configuring {@link AbstractBigViewer.PathRenderingOptions} in
- * a {@link Bvv} viewer.
+ * Command providing a GUI for configuring {@link AbstractBigViewer.PathRenderingOptions} in a {@link Bvv} viewer.
  *
  * @author Tiago Ferreira
  * @see BdvRenderingOptionsCmd

@@ -202,7 +202,7 @@ public class Bvv extends AbstractBigViewer {
      *
      * @param worldPos calibrated (x,y,z) position to search from
      * @return the nearest rendered path, or {@code null} if nothing is currently rendered
-     * @see  {@code Tracer#handleClick}. Mirrors {@code InteractiveTracerCanvas#selectNearestPathToMousePointer},
+     * @see Tracer#handleClick(MouseEvent) Mirrors {@code InteractiveTracerCanvas#selectNearestPathToMousePointer},
      */
     private Path findNearestRenderedPath(final double[] worldPos) {
         Path nearest = null;
@@ -1836,6 +1836,11 @@ public class Bvv extends AbstractBigViewer {
         toolbar.addSeparator();
         toolbar.add(offsetActivate);
         toolbar.addSeparator();
+        if (tracer != null) {
+            toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
+                    "Sync Path Manager changes"));
+            toolbar.addSeparator();
+        }
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
@@ -1867,8 +1872,6 @@ public class Bvv extends AbstractBigViewer {
                 "Set rendering options of annotations"));
 
         if (tracer != null) {
-            toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
-                    "Sync Path Manager changes"));
             final JPanel panel = new JPanel(new BorderLayout());
             panel.add(toolbar, BorderLayout.NORTH);
             panel.add(tracingStatusRow(), BorderLayout.SOUTH);
@@ -2505,7 +2508,10 @@ public class Bvv extends AbstractBigViewer {
 
     @Override
     public float getDefaultMarkerSize() {
-        return renderingOptions.getMinThickness();
+        // Clamped to getMaxThickness() as a safety net against extreme multiplier values
+        // see OverlayRenderer#recolor/computeScreenData)
+        return Math.min(renderingOptions.getMinThickness() * renderingOptions.getThicknessMultiplier(),
+                renderingOptions.getMaxThickness());
     }
 
     @Override
@@ -3844,9 +3850,7 @@ public class Bvv extends AbstractBigViewer {
             final double cy = canvasH / 2.0;
 
             final java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
-            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
-                    java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setStroke(new java.awt.BasicStroke(1.5f));
+            g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
 
             // World → screen projection (same formula as AnnotationOverlay)
             final java.util.function.Function<double[], double[]> project = world -> {
@@ -3865,12 +3869,14 @@ public class Bvv extends AbstractBigViewer {
             final double x0 = b[0], y0 = b[1], z0 = b[2], x1 = b[3], y1 = b[4], z1 = b[5];
 
             if (showAxes) {
+                g2.setStroke(new java.awt.BasicStroke(3f));
                 final float axisLen = 0.20f * (float) Math.min(x1 - x0, Math.min(y1 - y0, z1 - z0));
                 drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0 + axisLen, y0, z0}, new java.awt.Color(220, 60, 60));
                 drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0, y0 + axisLen, z0}, new java.awt.Color(60, 200, 60));
                 drawLine3D(g2, project, new double[]{x0, y0, z0}, new double[]{x0, y0, z0 + axisLen}, new java.awt.Color(80, 120, 255));
             }
 
+            g2.setStroke(new java.awt.BasicStroke(1.5f));
             if (showBox) {
                 g2.setColor(new java.awt.Color(255, 255, 255, 180));
                 // 12 edges of the bounding box
@@ -3942,7 +3948,7 @@ public class Bvv extends AbstractBigViewer {
 
                     final java.awt.Color slabColor = new java.awt.Color(40, 90, 160);
                     final java.awt.Stroke savedStroke = g2.getStroke();
-                    g2.setStroke(new java.awt.BasicStroke(1.2f, java.awt.BasicStroke.CAP_BUTT,
+                    g2.setStroke(new java.awt.BasicStroke(1.5f, java.awt.BasicStroke.CAP_BUTT,
                             java.awt.BasicStroke.JOIN_MITER, 4f, new float[]{6f, 4f}, 0f));
                     g2.setColor(slabColor);
                     final int[][] edges = {
@@ -5859,7 +5865,7 @@ public class Bvv extends AbstractBigViewer {
                     // Choose the moving source (the one carrying the manual transform)
                     final Map<String, BvvMultiSource> choiceMap = multiSourceToChoiceMap(multiSources);
                     if (choiceMap.size()==1) {
-                        getGuiUtils().error("Only one source available.");
+                        getGuiUtils().error("There is only one source available.");
                         return;
                     }
                     final String[] choiceKeys = choiceMap.keySet().toArray(new String[0]);
