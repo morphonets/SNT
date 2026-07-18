@@ -34,6 +34,7 @@ import ij.process.ShortProcessor;
 import ij3d.*;
 import io.scif.services.DatasetIOService;
 import net.imagej.Dataset;
+import net.imagej.DatasetService;
 import net.imagej.ImgPlus;
 import net.imagej.axis.Axes;
 import net.imagej.axis.AxisType;
@@ -127,6 +128,8 @@ public class SNT extends MultiDThreePanes implements
 	private ConvertService convertService;
 	@Parameter
 	private OpService opService;
+	@Parameter
+	private DatasetService datasetService;
 
 	public enum SearchType {
 		ASTAR, NBASTAR;
@@ -1034,13 +1037,22 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	/**
-	 * Gets the Image being traced as Dataset. If the loaded image has been closed,
-	 * cached pixel data is returned as per {@link #getLoadedDataAsImp()}. Null is returned
-	 * if no image exists.
+	 * Gets the Image being traced as Dataset. If the loaded image has been closed,  cached pixel data is returned as
+	 * per {@link #getLoadedDataAsImp()}. If no resident {@link ImagePlus} exists at all (e.g., data streamed from
+	 * disk/network, backed only by {@link #ctSlice3d}), a Dataset is instead built directly from {@link
+	 * #getLoadedDataAsImg(boolean)}, so Dataset-only commands. Null is returned if no image data exists at all.
+	 * <p>
+	 * NB: in the streamed-data fallback, the returned Dataset only ever contains a single channel/
+	 * frame (whichever is currently active): {@link #ctSlice3d} is a single C/T slice by construction. Commands that
+	 * need every channel or frame simultaneously will still require a resident {@link ImagePlus}.
 	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	public Dataset getDataset() {
 		final ImagePlus imp = getImagePlus();
-		return (imp == null) ? null : convertService.convert(imp, Dataset.class);
+		if (imp != null) return convertService.convert(imp, Dataset.class);
+		if (datasetService == null) return null;
+		final ImgPlus<?> imgPlus = getLoadedDataAsImg(false);
+		return (imgPlus == null) ? null : datasetService.create((ImgPlus) imgPlus);
 	}
 
 	/**
@@ -2038,13 +2050,16 @@ public class SNT extends MultiDThreePanes implements
 
 		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData() : getLoadedData();
 
-		final ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
+		ImageStatistics imgStats = useSecondary ? statsSecondary : stats;
 		if (isUseSubVolumeStats)
 		{
 			SNTUtils.log("Computing local statistics...");
-			computeImgStats(
+			// NB: compute into a fresh, local instance rather than mutating the shared stats/ statsSecondary fields
+			// in place. createSearch() can now be invoked concurrently from multiple threads (AStarRefiner/autoTraceSync),
+			// and those fields are shared SNT-instance state: mutating them here would race across threads!
+			imgStats = computeImgStats(
 					ImgUtils.subInterval(img, new Point(x_start, y_start, z_start), new Point(x_end, y_end, z_end), 10),
-					imgStats, costType);
+					new ImageStatistics(), costType);
 		}
 
 		Cost costFunction;
@@ -2500,6 +2515,43 @@ public class SNT extends MultiDThreePanes implements
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint) {
 		return autoTraceHeadless(pointList, forkPoint, null, null);
+	}
+
+	/**
+	 * Synchronous, thread-agnostic counterpart to {@link #autoTrace(List, PointInImage, boolean)}:
+	 * traces each consecutive pair of waypoints using the currently configured A* search parameters
+	 * (cost function, hessian, image data) entirely on the calling thread, without submitting to
+	 * {@link #tracerThreadPool}.
+	 * <p>
+	 * Intended for background/batch callers that already run on their own dedicated worker threads
+	 * (e.g. {@code AStarRefiner}) and want genuine  cross-path parallelism
+	 *
+	 * @param pointList the waypoints to connect, start to end
+	 * @param forkPoint optional fork point of the parent Path, or null
+	 * @return the stitched path, or null if any segment failed to produce a result
+	 */
+	public Path autoTraceSync(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		if (pointList == null || pointList.isEmpty())
+			throw new IllegalArgumentException("pointList cannot be null or empty");
+		final Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
+		for (int i = 0; i < pointList.size() - 1; i++) {
+			final SNTPoint start = pointList.get(i);
+			final SNTPoint end = pointList.get(i + 1);
+			final AbstractSearch search = createSearch(start.getX(), start.getY(), start.getZ(),
+					end.getX(), end.getY(), end.getZ());
+			search.run(); // synchronous: runs on the calling (already-background) thread
+			final Path pathResult = search.getResult();
+			if (pathResult == null) {
+				SNTUtils.log("Trace result was null.");
+				return null;
+			}
+			fullPath.add(pathResult);
+		}
+		if (forkPoint != null) {
+			fullPath.setBranchFrom(forkPoint.getPath(), forkPoint);
+		}
+		fullPath.setCTposition(channel, frame);
+		return fullPath;
 	}
 
 	private Path autoTraceHeadless(final List<SNTPoint> pointList, final PointInImage forkPoint,
@@ -4350,6 +4402,37 @@ public class SNT extends MultiDThreePanes implements
 
 	public int getFrame() {
 		return frame;
+	}
+
+	/**
+	 * Channel/frame ({@code {channel, frame}}, 1-based) that a background batch re-trace (e.g.
+	 * {@code PathManagerUI}'s "Re-trace with A*...", see {@code AStarRefiner}) is currently running
+	 * against, or {@code null} if no such batch is active.
+	 * <p>
+	 * Batch workers read this instance's shared image-data fields ({@link #ctSlice3d}, {@link
+	 * #channel}/{@link #frame}, {@link #stats}) concurrently via {@link #createSearch}. Interactive
+	 * callers that would otherwise mutate those fields mid-batch (e.g. BVV starting a new trace on a
+	 * different active source) should check this first and refuse to do so while it is non-null and
+	 * differs from the channel/frame they'd switch to.
+	 */
+	private volatile int[] batchRetraceChannelFrame;
+
+	/**
+	 * Sets or clears the channel/frame lock described in {@link #getBatchRetraceChannelFrame()}.
+	 *
+	 * @param channel 1-based channel, or null to clear the lock
+	 * @param frame   1-based frame, or null to clear the lock
+	 */
+	public void setBatchRetraceChannelFrame(final Integer channel, final Integer frame) {
+		this.batchRetraceChannelFrame = (channel == null || frame == null) ? null : new int[]{channel, frame};
+	}
+
+	/**
+	 * @return {@code {channel, frame}} (1-based) the active batch re-trace is running against, or
+	 *         {@code null} if none is active. See {@link #setBatchRetraceChannelFrame}.
+	 */
+	public int[] getBatchRetraceChannelFrame() {
+		return batchRetraceChannelFrame;
 	}
 
 	/**

@@ -1865,14 +1865,16 @@ public class Bvv extends AbstractBigViewer {
         // group 4: options and settings
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
                 "Set rendering options of annotations"));
-        toolbar.add(optionsButton(actions));
 
         if (tracer != null) {
+            toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
+                    "Sync Path Manager changes"));
             final JPanel panel = new JPanel(new BorderLayout());
             panel.add(toolbar, BorderLayout.NORTH);
             panel.add(tracingStatusRow(), BorderLayout.SOUTH);
             return panel;
         } else {
+            toolbar.add(optionsButton(actions));
             return toolbar;
         }
     }
@@ -3412,6 +3414,21 @@ public class Bvv extends AbstractBigViewer {
             }
 
             if (previousNode == null) {
+                // If a background A* batch re-trace is running (PathManagerUI's "Re-trace with A*..."),
+                // its workers are reading this SNT instance's shared image-data fields concurrently.
+                // Refuse to start a new path on a *different* channel/frame than the batch is using.
+                // That would trigger the resync below and race with it
+                final int[] batchLock = snt.getBatchRetraceChannelFrame();
+                if (batchLock != null) {
+                    final int[] candidate = peekActiveChannelFrame();
+                    if (candidate == null || candidate[0] != batchLock[0] || candidate[1] != batchLock[1]) {
+                        new GuiUtils(getViewerFrame()).error("An A* batch re-trace is running on channel "
+                                + batchLock[0] + " / frame " + batchLock[1] + ". Starting a new path on a "
+                                + "different channel/frame is disabled until it finishes.");
+                        return;
+                    }
+                }
+
                 // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
                 // the pixel data) for the whole path now, rather than re-checking on every segment, so a single
                 // path can't silently span two channels if the user switches BVV's active source mid-trace
@@ -3513,6 +3530,27 @@ public class Bvv extends AbstractBigViewer {
                 snt.setChannelAndFrame(channelIdx + 1, timepoint + 1); // setChannelAndFrame coerces <=0 to 1
             } catch (final Exception e) {
                 SNTUtils.log("BVV: could not sync tracing channel from active source (" + e.getMessage() + ")");
+            }
+        }
+
+        /**
+         * Resolves what {@link #syncChannelFromActiveSource()} would set channel/frame to, without
+         * mutating anything (no {@code snt.set...} calls). Used to check whether starting a new path
+         * now would change the channel/frame away from one a background batch re-trace is locked to.
+         *
+         * @return {@code {channel, frame}} (1-based), or null if the active source can't be resolved
+         */
+        private int[] peekActiveChannelFrame() {
+            final VolumeViewerPanel vp = getViewerPanel();
+            if (vp == null) return null;
+            try {
+                final SourceAndConverter<?> current = vp.state().getCurrentSource();
+                if (current == null) return null;
+                final int timepoint = vp.state().getCurrentTimepoint();
+                final int channelIdx = vp.state().getSources().indexOf(current); // 0-based, or -1 if not found
+                return new int[]{Math.max(1, channelIdx + 1), Math.max(1, timepoint + 1)};
+            } catch (final Exception e) {
+                return null;
             }
         }
 
@@ -5820,6 +5858,10 @@ public class Bvv extends AbstractBigViewer {
                     }
                     // Choose the moving source (the one carrying the manual transform)
                     final Map<String, BvvMultiSource> choiceMap = multiSourceToChoiceMap(multiSources);
+                    if (choiceMap.size()==1) {
+                        getGuiUtils().error("Only one source available.");
+                        return;
+                    }
                     final String[] choiceKeys = choiceMap.keySet().toArray(new String[0]);
                     final String[] choices = getGuiUtils().getTwoChoices(
                             "Export Registered Image", // title

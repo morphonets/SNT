@@ -124,6 +124,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private final JMenuItem fitVolumeMenuItem;
     private FitHelper fittingHelper;
     private MultiSpectralRefineHelper multiSpectralRefineHelper;
+    private AStarRefineHelper aStarRefineHelper;
     private final PathManagerUISearchableBar searchableBar;
 
     /**
@@ -325,7 +326,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem("Parameters...", IconFactory.menuIcon(IconFactory.GLYPH.SLIDERS));
         jmi.setToolTipText("Options for fitting operations");
         jmi.addActionListener(e -> {
-            if (noValidImageDataError()) return;
+            if (!plugin.accessToValidImageData()) {
+                guiUtils.error("No valid image data is accessible for fitting.");
+                return;
+            }
             if (fittingHelper == null) fittingHelper = new FitHelper();
             fittingHelper.showPrompt();
         });
@@ -341,6 +345,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         jmi = new JMenuItem(MultiPathActionListener.MULTI_SPECTRAL_REFINE_CMD,
                 IconFactory.menuIcon('\uf75b', true));
         jmi.setToolTipText("Refines paths in multispectral (Brainbow) images");
+        jmi.addActionListener(multiPathListener);
+        fitMenu.add(jmi);
+
+        jmi = new JMenuItem(MultiPathActionListener.A_STAR_REFINE_CMD, IconFactory.menuIcon(IconFactory.GLYPH.ROUTE));
+        jmi.setToolTipText("<HTML>Re-traces selected path(s) with A*, using their existing nodes as waypoints."
+                + "<br>Intended for paths traced manually (e.g. against data streamed from disk/network),"
+                + "<br>to be refined once A* search is practical (data cached, or e.g., overnight run).");
         jmi.addActionListener(multiPathListener);
         fitMenu.add(jmi);
         fitMenu.addSeparator();
@@ -999,6 +1010,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         // plugin.dispose() called by SNTUI
         fittingHelper = null;
         multiSpectralRefineHelper = null;
+        aStarRefineHelper = null;
         measureUI = null;
         swcTypeButtonGroup = null;
         super.dispose();
@@ -1518,6 +1530,87 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
 
         public void refineUsingPromptAsNeeded() {
+            workers = refiners;
+            executeUsingPromptAsNeeded();
+        }
+    }
+
+    /**
+     * Post-hoc A* re-tracing of selected path(s): treats each path's existing nodes as waypoints
+     * and re-derives the geometry between them with a fresh A* search, using whichever search
+     * parameters are currently configured. Intended for paths traced manually (e.g. against data
+     * streamed from disk/network, where running A* live is impractical).
+     *
+     * @see AStarRefiner
+     */
+    private class AStarRefineHelper extends AbstractRefineHelper<AStarRefiner> {
+
+        // Alias for external callers that use the original field name
+        List<AStarRefiner> refiners;
+
+        @Override
+        Class<? extends Command> commandClass() {
+            // No parameter dialog: re-tracing simply reuses whichever A* search settings (cost
+            // function, hessian, etc.) are already configured on the live SNT instance
+            return null;
+        }
+
+        @Override
+        String statusMessage(final int nPaths, final int nThreads) {
+            return (nThreads == 1) ? "Re-tracing 1 path with A*..."
+                    : "Re-tracing " + nPaths + " paths with A* (" + nThreads + " threads)...";
+        }
+
+        @Override
+        void propagateSettings(final List<AStarRefiner> workers) {
+            // no shared settings to propagate: each worker reuses the live SNT instance's
+            // current, already-configured A* search parameters directly (see AStarRefiner)
+
+            // Lock the channel/frame this batch is reading pixel data from. While set, BVV refuses
+            // to start interactive tracing on a *different* channel/frame (same-channel tracing is
+            // left unaffected see Bvv.Tracer#handleClick()), since workers below read this SNT
+            // instance's shared image-data fields concurrently and switching them mid-batch would
+            // race. Cleared in cleanup()
+            plugin.setBatchRetraceChannelFrame(plugin.getChannel(), plugin.getFrame());
+        }
+
+        @Override
+        void cleanup() {
+            plugin.setBatchRetraceChannelFrame(null, null);
+        }
+
+        @Override
+        void applyResults(final List<AStarRefiner> workers) {
+            int count = 0;
+            for (final AStarRefiner r : workers) {
+                if (r.succeeded()) {
+                    r.apply();
+                    count++;
+                }
+            }
+            SNTUtils.log("A* re-trace: " + count + "/" + workers.size() + " path(s) re-traced");
+            if (count < workers.size()) {
+                guiUtils.centeredMsg((workers.size() - count) + "/" + workers.size()
+                        + " path(s) could not be re-traced. See Console for details.", "Some Paths Not Re-traced");
+            }
+        }
+
+        @Override
+        Boolean displayPromptRequired() {
+            return false; // no parameters to configure; go straight to execute()
+        }
+
+        @Override
+        void postExecute() {
+            plugin.setUnsavedChanges(true);
+            refiners = null;
+        }
+
+        protected synchronized void cancelRetrace(final boolean updateUIState) {
+            cancel(updateUIState);
+        }
+
+        public void retraceUsingPromptAsNeeded() {
             workers = refiners;
             executeUsingPromptAsNeeded();
         }
@@ -2641,8 +2734,10 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     (plugin.getUI().new DynamicCmdRunner(DuplicateCmd.class, inputs)).run();
                 }
                 case EXPLORE_FIT_CMD -> {
-                    if (noValidImageDataError())
+                    if (!plugin.accessToValidImageData()) {
+                        guiUtils.error("No valid image data is accessible for fitting.");
                         return;
+                    }
                     if (!plugin.uiReadyForModeChange() && plugin.getEditingPath() != null
                             && !p.equals(plugin.getEditingPath())) {
                         guiUtils.error("Please finish current operation before exploring fit.");
@@ -2654,8 +2749,22 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
                 case STRAIGHTEN -> straightenPath(p);
                 case NODE_PROFILER -> {
-                    if (noValidImageDataError())
+                    // NB: not noValidImageDataError(): NodeProfiler, like PathProfiler, only ever reads pixel data
+                    // via the supplied Dataset, which plugin.getDataset() now also builds from streamed data
+                    // (e.g. BVV's ctSlice3d) when no ImagePlus is resident
+                    if (!plugin.accessToValidImageData()) {
+                        guiUtils.error("No valid image data is accessible for profiling.");
                         return;
+                    }
+                    // Streamed data (e.g. BVV): getDataset() falls back to wrapping just the currently active
+                    // CT's slice (ctSlice3d); a path off that channel/ frame can't be profiled from it
+                    if (plugin.getImagePlus() == null
+                            && (p.getChannel() != plugin.getChannel() || p.getFrame() != plugin.getFrame())) {
+                        guiUtils.error("This path is not associated with the active channel ("
+                                + plugin.getChannel() + ")/frame (" + plugin.getFrame() + "), which is all "
+                                + "that streamed data can currently profile against.");
+                        return;
+                    }
                     final HashMap<String, Object> input = new HashMap<>();
                     input.put("path", p);
                     input.put("dataset", plugin.getDataset());
@@ -2958,6 +3067,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private static final String DISCONNECT_CMD = "Disconnect...";
         private static final String INTERPOLATE_MISSING_RADII = "Correct Radii...";
         private static final String MULTI_SPECTRAL_REFINE_CMD = "Multispectral Refinement...";
+        private static final String A_STAR_REFINE_CMD = "Re-trace with A*...";
 
         private static final String CONVERT_TO_ROI_CMD = "Convert to ROIs...";
         private static final String SEND_TO_LABKIT_CMD = "Load Labkit With Selected Path(s)...";
@@ -3078,6 +3188,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             commands.put(INTERPOLATE_MISSING_RADII, new InterpolateMissingRadiiCommand());
             commands.put(RESET_FITS, new ResetFitsCommand());
             commands.put(MULTI_SPECTRAL_REFINE_CMD, new MultiSpectralRefineCommand());
+            commands.put(A_STAR_REFINE_CMD, new AStarRefineCommand());
 
             // Utility commands
             commands.put(DELETE_CMD, new DeleteCommand());
@@ -3197,7 +3308,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         private class PlotProfileCommand implements PathCommand {
             @Override
             public void execute(List<Path> selectedPaths, String cmd) {
-                if (noValidImageDataError()) return;
+                // NB: not noValidImageDataError() (requires a RAM-resident ImagePlus): PathProfiler only ever
+                // reads pixel data via the supplied Dataset: plugin.getDataset()  builds one from streamed
+                // data (e.g. BVV's ctSlice3d) when no ImagePlus is resident, so gate on that instead
+                if (!plugin.accessToValidImageData()) {
+                    guiUtils.error("No valid image data is accessible for profiling.");
+                    return;
+                }
+                if (plugin.getImagePlus() == null) {
+                    // Streamed data (e.g. BVV): getDataset() falls back to wrapping just the currently active CT's
+                    // slice (ctSlice3d), unlike a resident. ImagePlus's full multichannel/multi-frame Dataset.
+                    // Paths off that channel/frame can't be profiled from it
+                    selectedPaths = resolveActiveCTPathSelection(selectedPaths);
+                    if (selectedPaths == null) return;
+                }
                 warnOnTimeLapse(selectedPaths);
                 final HashMap<String, Object> input = new HashMap<>();
                 input.put("tree", new Tree(selectedPaths));
@@ -5084,6 +5208,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     return;
                 }
 
+                selectedPaths = resolveActiveCTPathSelection(selectedPaths);
+                if (selectedPaths == null) return;
+
                 final boolean imageNotAvailable = !plugin.accessToValidImageData();
                 final ArrayList<PathFitter> pathsToFit = new ArrayList<>();
                 int skippedFits = 0;
@@ -5131,6 +5258,48 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 else {
                     refreshManager(true, false, selectedPaths);
                 }
+            }
+
+            @Override
+            public boolean canExecute(List<Path> selectedPaths) {
+                return !selectedPaths.isEmpty();
+            }
+        }
+
+        private class AStarRefineCommand implements PathCommand {
+            @Override
+            public void execute(List<Path> selectedPaths, String cmd) {
+                // NB: intentionally NOT noValidImageDataError(), which requires the image
+                // to be fully loaded into RAM (accessToValidImagePlus()):
+                if (!plugin.accessToValidImageData()) {
+                    guiUtils.error("No valid image data is accessible for tracing.");
+                    return;
+                }
+                selectedPaths = resolveActiveCTPathSelection(selectedPaths);
+                if (selectedPaths == null) return;
+                final ArrayList<AStarRefiner> refiners = new ArrayList<>();
+                for (final Path p : selectedPaths) {
+                    if (p.size() >= 2)
+                        refiners.add(new AStarRefiner(plugin, p));
+                }
+                if (refiners.isEmpty()) {
+                    guiUtils.error("No valid paths to re-trace (paths must have at least 2 nodes).");
+                    return;
+                }
+                if (!guiUtils.getConfirmation(
+                        "Re-trace " + refiners.size() + " path(s) using the current auto-tracing settings?<ul>"
+                                + "<li>Data structure: " + plugin.getSearchImageType() + "</li>"
+                                + "<li>Cost function: " + plugin.getCostType() + "</li>"
+                                + "<li>Secondary (filtered) image: "
+                                + (plugin.isTracingOnSecondaryImageActive() ? "In use (" + plugin.getFilterType() + ")" : "Not in use") + "</li>"
+                                + "</ul>Existing waypoints are kept; geometry between them is re-derived using a full A* search.",
+                        "Confirm A* Re-trace")) {
+                    return;
+                }
+                if (aStarRefineHelper == null)
+                    aStarRefineHelper = new AStarRefineHelper();
+                aStarRefineHelper.refiners = refiners;
+                aStarRefineHelper.retraceUsingPromptAsNeeded();
             }
 
             @Override
@@ -5379,7 +5548,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         }
         return invalidImage;
     }
-
+    
     private boolean mixedCTPathSelectionError(final List<Path> selectedPaths) {
         final int channel = selectedPaths.getFirst().getChannel();
         final int frame = selectedPaths.getFirst().getFrame();
@@ -5393,6 +5562,44 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
             }
         }
         return false;
+    }
+
+    /**
+     * For commands that sample pixel data (fitting, A* re-tracing, etc.): those always read against whichever
+     * channel/frame is currently "active" on the live {@link SNT} instance (see {@link SNT#getChannel()}/
+     * {@link SNT#getFrame()}). A path stamped with a *different* channel/frame than the active one would silently be
+     * processed against the wrong image data.
+     * <p>
+     * Unlike {@link #mixedCTPathSelectionError(List)} (which just blocks any selection spanning multiple C/T positions,
+     * for operations like Concatenate/Combine/Merge that must act on every selected path together), this is for
+     * operations where each path is processed independently
+     * user to decide.
+     *
+     * @param selectedPaths the paths to check
+     * @return {@code selectedPaths} unchanged if all already match the active channel/frame (no dialog is shown); a
+     * filtered sublist containing only the matching paths if the selection was mixed and the user chose to proceed with
+     * those; or {@code null} if the user canceled, or if none of the selected paths match the active
+     * channel/frame. {@code null} means "abort, do nothing further"
+     */
+    private List<Path> resolveActiveCTPathSelection(final List<Path> selectedPaths) {
+        final int activeChannel = plugin.getChannel();
+        final int activeFrame = plugin.getFrame();
+        final List<Path> matching = new ArrayList<>();
+        for (final Path p : selectedPaths) {
+            if (p.getChannel() == activeChannel && p.getFrame() == activeFrame) matching.add(p);
+        }
+        if (matching.size() == selectedPaths.size()) return selectedPaths; // common case: nothing mixed
+        if (matching.isEmpty()) {
+            guiUtils.error("None of the " + selectedPaths.size() + " selected paths are associated with the "
+                            + "active channel (" + activeChannel + ")/frame (" + activeFrame + ").",
+                    "Selection Spans Different CT Positions");
+            return null;
+        }
+        final boolean processOnlyActiveCTPaths = guiUtils.getConfirmation(String.format(
+                        "Some of %d selected paths are not associated with the active channel (%d)/frame (%d), and cannot "
+                                + "be processed. What would you like to do?", selectedPaths.size(), activeChannel, activeFrame),
+                "Selection Spans Different CT Positions", "Process Only Active CT Paths", "Cancel");
+        return processOnlyActiveCTPaths ? matching : null;
     }
 
     /**

@@ -897,8 +897,12 @@ public class SNTUI extends JDialog {
         final StringBuilder sb = new StringBuilder();
         sb.append("Data source: ");
         sb.append("\n");
-        sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
-        sb.append( (plugin.autoCT) ? " (auto-loaded)" : " (manually-loaded)");
+        if (getState()==BVV_TRACING) {
+            sb.append("    Out-of-core image");
+        } else {
+            sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
+            sb.append( (plugin.autoCT) ? " (auto-loaded)" : " (manually-loaded)");
+        }
         sb.append("\n");
         sb.append("Interactive tracing: ").append((plugin.isAstarEnabled()) ? searchAlgoChoice.getSelectedItem() : "Disabled");
         sb.append("\n");
@@ -1220,13 +1224,17 @@ public class SNTUI extends JDialog {
         public void enter() {
             updateStatusText("Big-Data Tracing Mode (Experimental)");
             showStatus("In-core image not available...", false);
-            setEnableAutoTracingComponents(false, false); // currently controlled in Bvv panel
-            disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnabledImagePlusCanvasControls(false);
+            disableImageDependentComponents(); // Bvv is not currently aware of these
+            setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
+            aStarCheckBox.setEnabled(false);
+            searchAlgoChoice.setEnabled(false);
         }
 
         @Override
         public void exit() {
+            aStarCheckBox.setEnabled(true);
+            searchAlgoChoice.setEnabled(true);
             setEnabledImagePlusCanvasControls(true);
         }
 
@@ -4161,7 +4169,12 @@ public class SNTUI extends JDialog {
             updateSettingsString();
             showStatus("Tracing mode: Standard", true);
         });
+        rubberBandTracingRbmi.setEnabled(getState()!=BVV_TRACING);
         rubberBandTracingRbmi.addActionListener(e -> {
+            if (getState()==BVV_TRACING) {
+                error("Live Preview (Rubber Band) tracing is not available for out-of-core tracing");
+                return;
+            }
             if (!plugin.is2D() && !guiUtils.getConfirmation("Live Preview (Rubber Band) tracing is optimized for 2D images. "
                     + "It may be too slow with 3D images. Enable it nevertheless?", "3D Image Detected")) {
                 // Revert ButtonGroup selection: the radio was already selected by Swing before the listener ran
