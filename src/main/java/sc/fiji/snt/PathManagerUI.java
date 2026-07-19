@@ -1272,7 +1272,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         /**
          * Whether the user should be prompted to adjust parameters. Returns
-         * {@code null} if the user cancelled, {@code true} to show the
+         * {@code null} if the user canceled, {@code true} to show the
          * parameter dialog, {@code false} to proceed directly.
          */
         abstract Boolean displayPromptRequired();
@@ -1331,7 +1331,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
         void executeUsingPromptAsNeeded() {
             if (workers == null || workers.isEmpty()) return;
             final Boolean prompt = displayPromptRequired();
-            if (prompt == null) return; // user cancelled
+            if (prompt == null) return; // user canceled
             if (prompt) {
                 showPromptAndThen(true);
             } else {
@@ -5277,10 +5277,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 }
                 selectedPaths = resolveActiveCTPathSelection(selectedPaths);
                 if (selectedPaths == null) return;
+                // Snapshot now, so every path in this batch shares identical settings, immune to
+                // changes made mid-run via the A* controls:
+                final SNT.SearchSettingsSnapshot settings = plugin.snapshotSearchSettings();
                 final ArrayList<AStarRefiner> refiners = new ArrayList<>();
                 for (final Path p : selectedPaths) {
                     if (p.size() >= 2)
-                        refiners.add(new AStarRefiner(plugin, p));
+                        refiners.add(new AStarRefiner(plugin, p, settings));
                 }
                 if (refiners.isEmpty()) {
                     guiUtils.error("No valid paths to re-trace (paths must have at least 2 nodes).");
@@ -5292,12 +5295,12 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                                 + "<li>Cost function: " + plugin.getCostType() + "</li>"
                                 + "<li>Secondary (filtered) image: "
                                 + (plugin.isTracingOnSecondaryImageActive() ? "In use (" + plugin.getFilterType() + ")" : "Not in use") + "</li>"
-                                + "</ul>Existing waypoints are kept; geometry between them is re-derived using a full A* search.",
+                                + "</ul>Existing waypoints are kept; geometry between them is re-derived using a full A* search. "
+                                + "These settings are locked in for the whole batch and won't be affected by later changes.",
                         "Confirm A* Re-trace")) {
                     return;
                 }
-                if (aStarRefineHelper == null)
-                    aStarRefineHelper = new AStarRefineHelper();
+                aStarRefineHelper = new AStarRefineHelper();
                 aStarRefineHelper.refiners = refiners;
                 aStarRefineHelper.retraceUsingPromptAsNeeded();
             }

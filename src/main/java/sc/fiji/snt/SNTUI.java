@@ -1203,32 +1203,52 @@ public class SNTUI extends JDialog {
         }
     }
 
-    private class BvvState implements UIState {
+    /**
+     * Enables/disables the controls that are specific to the classic ImagePlus-canvas tracing
+     * workflow (not applicable while Bvv is the active tracing surface). Promoted out of {@link
+     * BvvState} so other transient states entered during a Bvv session (e.g. {@link
+     * FittingPathsState}) can restore the same restriction. See {@link #applyBvvControlRestrictions()}.
+     */
+    private void setEnabledImagePlusCanvasControls(final boolean enable) {
+        keepSegment.setEnabled(enable);
+        junkSegment.setEnabled(enable);
+        completePath.setEnabled(enable);
+        showPathsSelected.setEnabled(enable);
+        partsNearbyCSpinner.setEnabled(enable);
+        useSnapWindow.setEnabled(enable);
+        onlyActiveCTposition.setEnabled(enable);
+        snapWindowXYsizeSpinner.setEnabled(enable);
+        snapWindowZsizeSpinner.setEnabled(enable);
+        assignDiameterSpinner.setEnabled(enable);
+        confirmTemporarySegmentsCheckbox.setEnabled(enable);
+        standardTracingRbmi.setEnabled(enable);
+    }
 
-        private void setEnabledImagePlusCanvasControls(final boolean enable) {
-            keepSegment.setEnabled(enable);
-            junkSegment.setEnabled(enable);
-            completePath.setEnabled(enable);
-            showPathsSelected.setEnabled(enable);
-            partsNearbyCSpinner.setEnabled(enable);
-            useSnapWindow.setEnabled(enable);
-            onlyActiveCTposition.setEnabled(enable);
-            snapWindowXYsizeSpinner.setEnabled(enable);
-            snapWindowZsizeSpinner.setEnabled(enable);
-            assignDiameterSpinner.setEnabled(enable);
-            confirmTemporarySegmentsCheckbox.setEnabled(enable);
-            standardTracingRbmi.setEnabled(enable);
-        }
+    /**
+     * Disables the ImagePlus-canvas-only controls plus A* related controls Bvv doesn't support.
+     * <p>
+     * {@link BvvState#enter()} applies this whenever Bvv becomes the active tracing surface. It
+     * must also be re-applied by any transient "busy" state that can be entered <em>while</em> a
+     * Bvv session is active (e.g. {@link FittingPathsState}, used by background batch re-trace/fit
+     * helpers): {@link UIState#exit()} on the way out of {@code BVV_TRACING} unconditionally
+     * re-enables these controls, and unless the new state re-disables them, they sit re-enabled
+     * (and, worse, live-editable) for however long that state lasts.
+     */
+    private void applyBvvControlRestrictions() {
+        setEnabledImagePlusCanvasControls(false);
+        aStarCheckBox.setEnabled(false);
+        searchAlgoChoice.setEnabled(false);
+    }
+
+    private class BvvState implements UIState {
 
         @Override
         public void enter() {
             updateStatusText("Big-Data Tracing Mode (Experimental)");
             showStatus("In-core image not available...", false);
-            setEnabledImagePlusCanvasControls(false);
             disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
-            aStarCheckBox.setEnabled(false);
-            searchAlgoChoice.setEnabled(false);
+            applyBvvControlRestrictions();
         }
 
         @Override
@@ -1284,6 +1304,7 @@ public class SNTUI extends JDialog {
         @Override
         public void enter() {
             updateStatusText("Fitting volumes around selected paths...");
+            if (isBigDataInstance()) applyBvvControlRestrictions();
         }
 
         @Override

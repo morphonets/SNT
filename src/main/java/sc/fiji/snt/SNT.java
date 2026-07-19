@@ -2026,13 +2026,25 @@ public class SNT extends MultiDThreePanes implements
 										final double world_y_end,
 										final double world_z_end)
 	{
+		return createSearch(world_x_start, world_y_start, world_z_start, world_x_end, world_y_end, world_z_end, null);
+	}
+
+	private AbstractSearch createSearch(final double world_x_start,
+										final double world_y_start,
+										final double world_z_start,
+										final double world_x_end,
+										final double world_y_end,
+										final double world_z_end,
+										final SearchSettingsSnapshot settings)
+	{
 		return createSearch(
 				(int) Math.round(world_x_start / x_spacing),
 				(int) Math.round(world_y_start / y_spacing),
 				(int) Math.round(world_z_start / z_spacing),
 				(int) Math.round(world_x_end / x_spacing),
 				(int) Math.round(world_y_end / y_spacing),
-				(int) Math.round(world_z_end / z_spacing));
+				(int) Math.round(world_z_end / z_spacing),
+				settings);
 	}
 
 	/* This method uses the plugin's current search parameters to construct an isolated A* search instance using
@@ -2045,8 +2057,60 @@ public class SNT extends MultiDThreePanes implements
 																final int y_end,
 																final int z_end)
 	{
+		return createSearch(x_start, y_start, z_start, x_end, y_end, z_end, null);
+	}
 
-		final boolean useSecondary = isTracingOnSecondaryImageActive();
+	/**
+	 * Immutable snapshot of the search settings that {@link #createSearch} would otherwise read
+	 * live from the enclosing {@link SNT} instance ({@link #costType}, {@link #searchImageType},
+	 * whether tracing on the secondary/filtered image is active).
+	 * <p>
+	 * Interactive, click-driven tracing is meant to always use whatever is currently configured, so
+	 * it never needs this: {@link #createSearch} falls back to the live fields when no snapshot is
+	 * given. Batch callers that run over a long, possibly unattended period (e.g. {@code
+	 * AStarRefiner}, invoked from {@code PathManagerUI}'s "Re-trace with A*...") should instead take
+	 * one snapshot when the batch is queued and reuse it for every path/segment, so a setting
+	 * changed mid-run can't silently produce a batch with inconsistent per-path settings.
+	 *
+	 * @see #snapshotSearchSettings()
+	 * @see #autoTraceSync(List, PointInImage, SearchSettingsSnapshot)
+	 */
+	public static final class SearchSettingsSnapshot {
+		final CostType costType;
+		final SearchImageType searchImageType;
+		final boolean useSecondary;
+
+		private SearchSettingsSnapshot(final CostType costType, final SearchImageType searchImageType,
+										final boolean useSecondary) {
+			this.costType = costType;
+			this.searchImageType = searchImageType;
+			this.useSecondary = useSecondary;
+		}
+	}
+
+	/**
+	 * Captures the search settings currently configured on this instance, for use by long-running
+	 * batch callers that need to stay internally consistent even if these settings are changed
+	 * (via the UI) partway through the run. See {@link SearchSettingsSnapshot}.
+	 *
+	 * @return an immutable snapshot of the current cost function, data structure, and secondary
+	 *         (filtered) image state
+	 */
+	public SearchSettingsSnapshot snapshotSearchSettings() {
+		return new SearchSettingsSnapshot(costType, searchImageType, isTracingOnSecondaryImageActive());
+	}
+
+	private <T extends RealType<T>> AbstractSearch createSearch(final int x_start,
+																final int y_start,
+																final int z_start,
+																final int x_end,
+																final int y_end,
+																final int z_end,
+																final SearchSettingsSnapshot settings)
+	{
+		final boolean useSecondary = (settings != null) ? settings.useSecondary : isTracingOnSecondaryImageActive();
+		final CostType effCostType = (settings != null) ? settings.costType : costType;
+		final SearchImageType effSearchImageType = (settings != null) ? settings.searchImageType : searchImageType;
 
 		final RandomAccessibleInterval<T> img = useSecondary ? getSecondaryData() : getLoadedData();
 
@@ -2059,11 +2123,11 @@ public class SNT extends MultiDThreePanes implements
 			// and those fields are shared SNT-instance state: mutating them here would race across threads!
 			imgStats = computeImgStats(
 					ImgUtils.subInterval(img, new Point(x_start, y_start, z_start), new Point(x_end, y_end, z_end), 10),
-					new ImageStatistics(), costType);
+					new ImageStatistics(), effCostType);
 		}
 
 		Cost costFunction;
-		switch (costType)
+		switch (effCostType)
 		{
 			case RECIPROCAL:
 				costFunction = new Reciprocal(imgStats.min, imgStats.max);
@@ -2080,7 +2144,7 @@ public class SNT extends MultiDThreePanes implements
 				costFunction = new DifferenceSq(imgStats.min, imgStats.max);
 				break;
 			default:
-				throw new IllegalArgumentException("BUG: Unknown cost function " + costType);
+				throw new IllegalArgumentException("BUG: Unknown cost function " + effCostType);
 		}
 
 		Heuristic heuristic = switch (heuristicType) {
@@ -2089,27 +2153,66 @@ public class SNT extends MultiDThreePanes implements
 			default -> throw new IllegalArgumentException("BUG: Unknown heuristic " + heuristicType);
 		};
 
+		if (settings == null) {
+			// Interactive tracing
+			return switch (searchType) {
+				case ASTAR -> new TracerThread(
+						this,
+						img,
+						x_start,
+						y_start,
+						z_start,
+						x_end,
+						y_end,
+						z_end,
+						costFunction,
+						heuristic);
+				case NBASTAR -> new BiSearch(
+						this,
+						img,
+						x_start,
+						y_start,
+						z_start,
+						x_end,
+						y_end,
+						z_end,
+						costFunction,
+						heuristic);
+				default -> throw new IllegalArgumentException("BUG: Unknown search class");
+			};
+		}
+
+		// Batch caller with a frozen snapshot: use the explicit-parameter constructors so
+		// effSearchImageType is honored instead of whatever searchImageType currently is live.
+		// timeoutSeconds=0, reportEveryMilliseconds=1000 match the defaults the SNT-aware
+		// constructors above use internally (see AbstractSearch(SNT, RandomAccessibleInterval)).
 		return switch (searchType) {
 			case ASTAR -> new TracerThread(
-					this,
 					img,
+					getCalibration(),
 					x_start,
 					y_start,
 					z_start,
 					x_end,
 					y_end,
 					z_end,
+					0,
+					1000,
+					effSearchImageType,
 					costFunction,
 					heuristic);
 			case NBASTAR -> new BiSearch(
-					this,
 					img,
+					getCalibration(),
 					x_start,
 					y_start,
 					z_start,
 					x_end,
 					y_end,
 					z_end,
+					0,
+					1000,
+					effSearchImageType,
 					costFunction,
 					heuristic);
 			default -> throw new IllegalArgumentException("BUG: Unknown search class");
@@ -2531,6 +2634,24 @@ public class SNT extends MultiDThreePanes implements
 	 * @return the stitched path, or null if any segment failed to produce a result
 	 */
 	public Path autoTraceSync(final List<SNTPoint> pointList, final PointInImage forkPoint) {
+		return autoTraceSync(pointList, forkPoint, null);
+	}
+
+	/**
+	 * Variant of {@link #autoTraceSync(List, PointInImage)} that uses a frozen
+	 * {@link SearchSettingsSnapshot} instead of the live cost function/data structure/secondary-image
+	 * settings, so every segment of every path in a long-running batch (e.g. {@code AStarRefiner})
+	 * is traced with identical settings, immune to changes made mid-run via the (deliberately still
+	 * enabled) A* controls.
+	 *
+	 * @param pointList the waypoints to connect, start to end
+	 * @param forkPoint optional fork point of the parent Path, or null
+	 * @param settings  a snapshot from {@link #snapshotSearchSettings()}, or null to read the live
+	 *                  settings (equivalent to {@link #autoTraceSync(List, PointInImage)})
+	 * @return the stitched path, or null if any segment failed to produce a result
+	 */
+	public Path autoTraceSync(final List<SNTPoint> pointList, final PointInImage forkPoint,
+							   final SearchSettingsSnapshot settings) {
 		if (pointList == null || pointList.isEmpty())
 			throw new IllegalArgumentException("pointList cannot be null or empty");
 		final Path fullPath = new Path(x_spacing, y_spacing, z_spacing, spacing_units);
@@ -2538,7 +2659,7 @@ public class SNT extends MultiDThreePanes implements
 			final SNTPoint start = pointList.get(i);
 			final SNTPoint end = pointList.get(i + 1);
 			final AbstractSearch search = createSearch(start.getX(), start.getY(), start.getZ(),
-					end.getX(), end.getY(), end.getZ());
+					end.getX(), end.getY(), end.getZ(), settings);
 			search.run(); // synchronous: runs on the calling (already-background) thread
 			final Path pathResult = search.getResult();
 			if (pathResult == null) {
