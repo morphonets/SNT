@@ -5545,7 +5545,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     private boolean noValidImageDataError() {
         final boolean invalidImage = !plugin.getUI().accessToValidImagePlus();
         if (invalidImage) {
-            guiUtils.error((getSNT().getUI() != null && getSNT().getUI().getState() == SNTUI.BVV_TRACING)
+            guiUtils.error((getSNT().getUI() != null && getSNT().getUI().getState() == SNTUI.STREAMING)
                     ? "This option requires the entire image to be loaded into memory (RAM)."
                     : "This option requires valid image data to be loaded.");
         }

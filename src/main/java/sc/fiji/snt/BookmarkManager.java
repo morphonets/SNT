@@ -321,7 +321,7 @@ public class BookmarkManager {
         } else {
             final ImagePlus imp = sntui.plugin.getImagePlus();
             if (imp == null) {
-                sntui.guiUtils.error("No image is currently open.");
+                noImageOpenError();
             } else {
                 goTo(tableRow, imp);
                 if (!sntui.plugin.getSinglePane()) {
@@ -332,6 +332,13 @@ public class BookmarkManager {
                 }
             }
         }
+    }
+
+    private void noImageOpenError() {
+        assert sntui != null;
+        sntui.guiUtils.error((sntui.isStreamMode())
+                ? "No image is currently open. This table can be better accessed from BDV/BVV's <i>Markers</i> pane."
+                : "No image is currently open.");
     }
 
     private void resetOrResizeColumns(final boolean reset, final boolean resize) {
@@ -887,7 +894,7 @@ public class BookmarkManager {
         }
         final ImagePlus imp = sntui.plugin.getImagePlus();
         if (imp == null) {
-            sntui.guiUtils.error("No image is currently open.");
+            noImageOpenError();
             syncHighlightToggle(false);
             return;
         }
@@ -1048,7 +1055,7 @@ public class BookmarkManager {
             @Override
             public void actionPerformed(final ActionEvent e) {
                 if (viewer == null && sntui.plugin.getImagePlus() == null) {
-                    sntui.guiUtils.error("No image is currently open.");
+                    noImageOpenError();
                     return;
                 }
                 final String pos = guiUtils.getString("Location XYZ coordinates (comma/space separated): ",

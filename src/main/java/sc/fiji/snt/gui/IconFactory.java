@@ -148,6 +148,7 @@ public class IconFactory {
         LINK('\uf0c1', true), //
         LIST('\uf03a', true), //
         LIST_ALT('\uf022', true), //
+        LOCATION_CROSSHAIR('\uf601', true), //
         LOCK('\uf023', true), //
         LOCK_OPEN('\uf3c1', true), //
         MAGNIFIED_LOCATION('\uf689', true), //

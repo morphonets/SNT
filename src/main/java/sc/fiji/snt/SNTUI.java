@@ -120,6 +120,7 @@ public class SNTUI extends JDialog {
     private JComboBox<String> searchAlgoChoice;
     private JPanel aStarPanel;
     private JCheckBox aStarCheckBox;
+    private JLabel algorithmChoiceLabel; // searchAlgoChoice trailing label; see applyBvvControlRestrictions()/StreamState
     private SigmaPalette sigmaPalette;
     private JTextArea settingsArea;
     private JRadioButtonMenuItem autoRbmi;
@@ -204,7 +205,11 @@ public class SNTUI extends JDialog {
      * being used)
      */
     public static final int TRACING_PAUSED = 17;
-    protected static final int BVV_TRACING = 18;
+    /**
+     * Flag specifying SNT is running as 'SNT STREAM', i.e., without access to a full in-core
+     * materialized image.
+     */
+    public static final int STREAMING = 18;
 
     private final boolean bigDataMode;
 
@@ -495,7 +500,7 @@ public class SNTUI extends JDialog {
             this.pmUI = pmUI;
         }
         if (fmUI == null) {
-            this.fmUI = new FillManagerUI(plugin);
+            this.fmUI = new FillManagerUI(plugin, this);
             this.fmUI.setLocationRelativeTo(this);
             if (showOrHidePathList != null) {
                 this.fmUI.addWindowStateListener(evt -> {
@@ -518,7 +523,11 @@ public class SNTUI extends JDialog {
 
     }
 
-    private boolean isBigDataInstance() {
+    /**
+     * @return true if SNT is running in stream mode ("SNT Stream"), i.e., without access to a full in-core
+     * materialized image.
+     */
+    public boolean isStreamMode() {
         return bigDataMode;
     }
 
@@ -897,8 +906,8 @@ public class SNTUI extends JDialog {
         final StringBuilder sb = new StringBuilder();
         sb.append("Data source: ");
         sb.append("\n");
-        if (getState()==BVV_TRACING) {
-            sb.append("    Out-of-core image");
+        if (isStreamMode()) {
+            sb.append("    Streamed image");
         } else {
             sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
             sb.append( (plugin.autoCT) ? " (auto-loaded)" : " (manually-loaded)");
@@ -1031,9 +1040,27 @@ public class SNTUI extends JDialog {
         rebuildCanvasButton.setText(label);
     }
 
+    /**
+     * Registers (or clears, if {@code bvv} is null) the {@link Bvv} instance tethered to this UI.
+     *
+     * @param bvv the {@link Bvv} instance to tether, or null to detach
+     */
     public void setBvv(final Bvv bvv) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            setBvvOnEDT(bvv);
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(() -> setBvvOnEDT(bvv));
+            } catch (final Throwable e) {
+                throw new RuntimeException("Failed to set Bvv", e);
+            }
+        }
+    }
+
+    private void setBvvOnEDT(final Bvv bvv) {
         this.bvvSNT = bvv;
         if (bvv != null && bvv.getViewerFrame() != null) {
+            if (isStreamMode()) bvv.getViewerFrame().setTitle("SNT Stream (BVV)");
             bvv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
             // VolumeViewerFrame's own constructor already registers a WindowListener that unconditionally
             // calls viewer.stop() (halting the render/tile-streaming thread) the instant windowClosing
@@ -1045,7 +1072,7 @@ public class SNTUI extends JDialog {
 
                 @Override
                 public void windowClosing(final WindowEvent e) {
-                    if (getState() == SNTUI.BVV_TRACING) {
+                    if (isStreamMode()) {
                         exitRequested();
                     } else if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
                         bvvSNT.getViewerFrame().getViewerPanel().stop();
@@ -1086,7 +1113,7 @@ public class SNTUI extends JDialog {
         states.put(SAVING,  simpleState(SAVING,  "Saving...",  null, true, null));
         states.put(EDITING, new EditingState());
         states.put(SNT_PAUSED, new SntPausedState());
-        states.put(BVV_TRACING, new BvvState());
+        states.put(STREAMING, new StreamState());
     }
 
     /**
@@ -1101,8 +1128,8 @@ public class SNTUI extends JDialog {
 
         // Special case: If we are using a BVV as main tracing canvas without accessing any in RAM image, then the
         // default READY state is BVV_TRACING state .
-        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED) && isBigDataInstance())
-                        ? BVV_TRACING : newState;
+        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED) && isStreamMode())
+                        ? STREAMING : newState;
 
         // Call exit() on current state
         UIState oldState = states.get(currentState);
@@ -1206,7 +1233,7 @@ public class SNTUI extends JDialog {
     /**
      * Enables/disables the controls that are specific to the classic ImagePlus-canvas tracing
      * workflow (not applicable while Bvv is the active tracing surface). Promoted out of {@link
-     * BvvState} so other transient states entered during a Bvv session (e.g. {@link
+     * StreamState} so other transient states entered during a Bvv session (e.g. {@link
      * FittingPathsState}) can restore the same restriction. See {@link #applyBvvControlRestrictions()}.
      */
     private void setEnabledImagePlusCanvasControls(final boolean enable) {
@@ -1227,7 +1254,7 @@ public class SNTUI extends JDialog {
     /**
      * Disables the ImagePlus-canvas-only controls plus A* related controls Bvv doesn't support.
      * <p>
-     * {@link BvvState#enter()} applies this whenever Bvv becomes the active tracing surface. It
+     * {@link StreamState#enter()} applies this whenever Bvv becomes the active tracing surface. It
      * must also be re-applied by any transient "busy" state that can be entered <em>while</em> a
      * Bvv session is active (e.g. {@link FittingPathsState}, used by background batch re-trace/fit
      * helpers): {@link UIState#exit()} on the way out of {@code BVV_TRACING} unconditionally
@@ -1238,13 +1265,14 @@ public class SNTUI extends JDialog {
         setEnabledImagePlusCanvasControls(false);
         aStarCheckBox.setEnabled(false);
         searchAlgoChoice.setEnabled(false);
+        algorithmChoiceLabel.setEnabled(false);
     }
 
-    private class BvvState implements UIState {
+    private class StreamState implements UIState {
 
         @Override
         public void enter() {
-            updateStatusText("Big-Data Tracing Mode (Experimental)");
+            updateStatusText("Stream Mode (Experimental)");
             showStatus("In-core image not available...", false);
             disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
@@ -1255,12 +1283,13 @@ public class SNTUI extends JDialog {
         public void exit() {
             aStarCheckBox.setEnabled(true);
             searchAlgoChoice.setEnabled(true);
+            algorithmChoiceLabel.setEnabled(true);
             setEnabledImagePlusCanvasControls(true);
         }
 
         @Override
         public int getStateId() {
-            return BVV_TRACING;
+            return STREAMING;
         }
     }
 
@@ -1304,7 +1333,7 @@ public class SNTUI extends JDialog {
         @Override
         public void enter() {
             updateStatusText("Fitting volumes around selected paths...");
-            if (isBigDataInstance()) applyBvvControlRestrictions();
+            if (isStreamMode()) applyBvvControlRestrictions();
         }
 
         @Override
@@ -1569,7 +1598,7 @@ public class SNTUI extends JDialog {
 
         final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
                 !plugin.isZoomAllPanesDisabled());
-        zoomAllPanesCheckBox.setEnabled(!isBigDataInstance());
+        zoomAllPanesCheckBox.setEnabled(!isStreamMode());
         registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views",
                 "Options Tab");
         zoomAllPanesCheckBox
@@ -1579,7 +1608,7 @@ public class SNTUI extends JDialog {
 
         final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at "),
                 GuiUtils.integerSpinner(20, 10, 80, 1, true));
-        mipCS.setEnabled(!isBigDataInstance());
+        mipCS.setEnabled(!isStreamMode());
         registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
         mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
         mipCS.appendLabel(" % opacity");
@@ -1601,6 +1630,7 @@ public class SNTUI extends JDialog {
 
         final String bLabel = (plugin.getSinglePane()) ? "Display" : "Rebuild";
         final JButton refreshPanesButton = new JButton(bLabel + " ZY/XZ Views");
+        refreshPanesButton.setEnabled(!isStreamMode());
         registerInCommandFinder(refreshPanesButton, "Display/Rebuild ZY/XZ Views", "Options Tab");
         refreshPanesButton.addActionListener(e -> {
             final boolean noImageData = !plugin.accessToValidImageData();
@@ -1676,9 +1706,9 @@ public class SNTUI extends JDialog {
         registerInCommandFinder(invertLutButton, "Invert LUT / Change Canvas Background", "Options Tab", "Views");
         invertLutButton.addActionListener(e -> {
             final ImagePlus imp = plugin.getImagePlus();
-            if (imp == null)
-                guiUtils.error("No image available.", "No Image Exists");
-            else if (plugin.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
+            if (imp == null) {
+                guiUtils.error((isStreamMode()) ? "No canvas exists." : "No image available.", "No Image Exists");
+            } else if (plugin.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
                 switch(imp.getProcessor().get(0, 0)) {
                     case 0 -> imp.getProcessor().set(128);
                     case 128 -> imp.getProcessor().set(255);
@@ -1860,7 +1890,7 @@ public class SNTUI extends JDialog {
         intPanel.add(transparencyOutOfBoundsPanel(), gdb);
         ++gdb.gridy;
         intPanel.add(nodePanel(), gdb);
-        GuiUtils.enableComponents(intPanel, !isBigDataInstance());
+        GuiUtils.enableComponents(intPanel, !isStreamMode());
         return intPanel;
     }
 
@@ -2076,7 +2106,7 @@ public class SNTUI extends JDialog {
         final GridBagConstraints gbcButton2 = new GridBagConstraints();
         gbcButton2.gridx = 3;
         p.add(reset, gbcButton2);
-        GuiUtils.enableComponents(p, !isBigDataInstance());
+        GuiUtils.enableComponents(p, !isStreamMode());
         return p;
     }
 
@@ -2118,7 +2148,7 @@ public class SNTUI extends JDialog {
         // auto-grab focus of image window
         final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
                 plugin.getPrefs().isCanvasAutoActivationEnabled());
-        canvasCheckBox.setEnabled(!isBigDataInstance());
+        canvasCheckBox.setEnabled(!isStreamMode());
         registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
                 "Options Tab");
         GuiUtils.addTooltip(canvasCheckBox, """
@@ -4060,7 +4090,8 @@ public class SNTUI extends JDialog {
         final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         checkboxPanel.add(aStarCheckBox);
         checkboxPanel.add(searchAlgoChoice);
-        checkboxPanel.add(GuiUtils.leftAlignedLabel(" algorithm", true));
+        algorithmChoiceLabel = GuiUtils.leftAlignedLabel(" algorithm", !isStreamMode());
+        checkboxPanel.add(algorithmChoiceLabel);
 
         final JPopupMenu optionsMenu = new JPopupMenu();
         final JButton optionsButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.MATH, 1f, optionsMenu);
@@ -4125,7 +4156,7 @@ public class SNTUI extends JDialog {
         optionsMenu.add(GuiUtils.leftAlignedLabel("Image Statistics:", false));
         autoRbmi = new JRadioButtonMenuItem("Compute Real-Time", plugin.getUseSubVolumeStats());
         autoRbmi.setToolTipText("Default. Re-calculates local statistics as you trace new image sections");
-        final JRadioButtonMenuItem onceRbmi = new JRadioButtonMenuItem("Compute Now For Whole Image ", false);
+        final JRadioButtonMenuItem onceRbmi = new JRadioButtonMenuItem("Compute Now For Whole Image", false);
         onceRbmi.setToolTipText("Saves bulk statistical data to memory to be re-used across the entire image");
         final JRadioButtonMenuItem manRbmi = new JRadioButtonMenuItem("Specify Manually...", !plugin.getUseSubVolumeStats());
         manRbmi.setToolTipText("Advanced. Allows for fine-tuning of the cost function used by A* searches");
@@ -4136,24 +4167,52 @@ public class SNTUI extends JDialog {
         optionsMenu.add(autoRbmi);
         optionsMenu.add(onceRbmi);
         optionsMenu.add(manRbmi);
-        autoRbmi.addActionListener(e -> {
-            plugin.setUseSubVolumeStats(autoRbmi.isSelected());
-            onceRbmi.setEnabled(true);
-            onceRbmi.setText("Compute Now for Whole Image");
-
-        });
+        autoRbmi.addActionListener(e -> plugin.setUseSubVolumeStats(autoRbmi.isSelected()));
         onceRbmi.addActionListener(e -> {
             if (!plugin.accessToValidImageData()) {
                 noValidImageDataError();
-            } else {
-                SNTUtils.log("Computing statistics for whole image...");
-                showStatus("Computing statistics...", false);
-                plugin.computeImgStats(plugin.getLoadedIterable(), plugin.getStats());
-                showStatus(null, false);
-                plugin.setUseSubVolumeStats(false);
-                onceRbmi.setText("Compute for Whole Image");
-                onceRbmi.setEnabled(false);
+                return;
             }
+            // Streamed sources (N5/Zarr/IMS) have no size ceiling the way an in-RAM image does: this iterates
+            // every voxel once, which can take a long time (and hit disk/network hard) depending on dataset
+            // size. Warn instead of hard-disabling: it can work fine for smaller streamed datasets
+            if (isStreamMode() && !guiUtils.getConfirmation(
+                    "This scans the entire streamed image once to compute statistics. Depending on "
+                            + "dataset size and network/disk speed, this can take a long time. Continue?",
+                    "Compute Statistics for Whole Image?")) {
+                // Revert to whichever mode is actually still in effect
+                if (plugin.getUseSubVolumeStats()) autoRbmi.setSelected(true);
+                else manRbmi.setSelected(true);
+                return;
+            }
+            SNTUtils.log("Computing statistics for whole image...");
+            onceRbmi.setEnabled(false); // guard against re-entrant clicks while computing
+            showStatus("Computing statistics...", false);
+            new SwingWorker<Void, Void>() {
+                @Override
+                protected Void doInBackground() {
+                    plugin.computeImgStats(plugin.getLoadedIterable(), plugin.getStats());
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    showStatus(null, false);
+                    try {
+                        get();
+                        plugin.setUseSubVolumeStats(false);
+                        onceRbmi.setText("Compute for Whole Image");
+                        // stays disabled: statistics for the whole image have now been computed once
+                    } catch (final Exception ex) {
+                        SNTUtils.error("Failed to compute image statistics", ex);
+                        guiUtils.error("Could not compute statistics: " + ex.getMessage());
+                        onceRbmi.setSelected(false);
+                        onceRbmi.setEnabled(true);
+                        if (plugin.getUseSubVolumeStats()) autoRbmi.setSelected(true);
+                        else manRbmi.setSelected(true);
+                    }
+                }
+            }.execute();
         });
         manRbmi.addActionListener(e -> {
             final boolean successfullySet = setMinMaxFromUser();
@@ -4190,9 +4249,9 @@ public class SNTUI extends JDialog {
             updateSettingsString();
             showStatus("Tracing mode: Standard", true);
         });
-        rubberBandTracingRbmi.setEnabled(getState()!=BVV_TRACING);
+        rubberBandTracingRbmi.setEnabled(!isStreamMode());
         rubberBandTracingRbmi.addActionListener(e -> {
-            if (getState()==BVV_TRACING) {
+            if (isStreamMode()) {
                 error("Live Preview (Rubber Band) tracing is not available for out-of-core tracing");
                 return;
             }
@@ -4278,7 +4337,7 @@ public class SNTUI extends JDialog {
 
         // Quick Toggles dropdown
         final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f, quickTogglesMenu() );
-        quickToggles.setEnabled(!isBigDataInstance());
+        quickToggles.setEnabled(!isStreamMode());
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4486,7 +4545,7 @@ public class SNTUI extends JDialog {
             }
 
             final String defaultText;
-            if (isBigDataInstance()) {
+            if (isStreamMode()) {
                 defaultText = "In-core image not available...";
             } else if (!accessToValidImagePlus()) {
                 defaultText = "Image data unavailable...";
@@ -4584,7 +4643,7 @@ public class SNTUI extends JDialog {
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
         List.of("Bookmarks", "3D").forEach(tabTitle -> {
             final int idx = InternalUtils.getTabIndex(tp, tabTitle);
-            if (idx != -1) tp.setEnabledAt(idx, !isBigDataInstance());
+            if (idx != -1) tp.setEnabledAt(idx, !isStreamMode());
         });
     }
 
@@ -4957,13 +5016,13 @@ public class SNTUI extends JDialog {
         commandFinder.registerKeywords(
                 "Bookmarks",
                 List.of("Tabs"),
-                List.of("bookmark", "marker", "tagged location", "tagged node", "colocalize", "location",
-                        "click-on-point", "export csv"), //
-                new TabExecuteAction("Bookmarks"),
-                new TabRevealAction("Bookmarks"));
-        commandFinder.registerKeywords(
-                "3D",
-                List.of("Tabs"),
+                    List.of("bookmark", "marker", "tagged location", "tagged node", "colocalize", "location",
+                            "click-on-point", "export csv"), //
+                    new TabExecuteAction("Bookmarks"),
+                    new TabRevealAction("Bookmarks"));
+            commandFinder.registerKeywords(
+                    "3D",
+                    List.of("Tabs"),
                 List.of("viewer", "big data", "bvv", "bdv", "sciview", "reconstruction", "rec viewer", "legacy"),
                 new TabExecuteAction("3D"),
                 new TabRevealAction("3D"));
@@ -5163,7 +5222,7 @@ public class SNTUI extends JDialog {
                 return; // do nothing: Currently we have no control over the sigma
             }
             // palette window
-            case WAITING_TO_START_PATH, BVV_TRACING -> {
+            case WAITING_TO_START_PATH, STREAMING -> {
                 // If user is aborting something in this state, something
                 // went awry!?. Try to abort all possible lingering tasks
                 pmUI.cancelFit(true);
@@ -5236,7 +5295,7 @@ public class SNTUI extends JDialog {
             case EDITING -> "EDITING_MODE";
             case SNT_PAUSED -> "PAUSED";
             case TRACING_PAUSED -> "ANALYSIS_MODE";
-            case BVV_TRACING -> "BVV_TRACING";
+            case STREAMING -> "BVV_TRACING";
             default -> "UNKNOWN";
         };
     }
@@ -5303,13 +5362,13 @@ public class SNTUI extends JDialog {
     }
 
     protected void noValidImageDataError() {
-        guiUtils.error((getState() == BVV_TRACING)
+        guiUtils.error((isStreamMode())
                 ? "This option requires the entire image to be loaded into memory (RAM)."
                 : "This option requires valid image data to be loaded.");
     }
 
     private void noValidImageDataErrorExtended() {
-        guiUtils.error((getState() == BVV_TRACING)
+        guiUtils.error((isStreamMode())
                 ? "This option requires the entire image to be loaded into memory (RAM)."
                 : "This option requires valid image data to be loaded. " +
                   "The image should have bright foreground structures on a dark background.");
@@ -6217,7 +6276,7 @@ public class SNTUI extends JDialog {
         }
 
         private void run() {
-            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && getState() != BVV_TRACING) {
+            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && isStreamMode()) {
                 guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
                 return;
             }

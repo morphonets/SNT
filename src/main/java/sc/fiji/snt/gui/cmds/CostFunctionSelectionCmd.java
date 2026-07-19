@@ -28,10 +28,7 @@ import ij.gui.Roi;
 import ij.process.FloatPolygon;
 import org.scijava.command.Command;
 import org.scijava.plugin.Plugin;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.PathAndFillManager;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.CostPalette;
 import sc.fiji.snt.util.PointInImage;
 
@@ -59,6 +56,10 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
         // The command relies entirely on side state (image / selection / path  manager); no @Parameter inputs.
         // There is no harvester dialog because the input map is empty
         if (isCanceled()) return;
+        if (snt != null && snt.getUI() != null && snt.getUI().isStreamMode()) {
+            error("This option requires the entire image to be loaded into memory (RAM).");
+            return;
+        }
         if (snt == null || !snt.accessToValidImageData() || snt.getImagePlus() == null) {
             error("This option requires valid image data to be loaded.");
             return;

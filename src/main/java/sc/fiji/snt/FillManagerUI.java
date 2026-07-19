@@ -96,17 +96,27 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
 
     /**
-     * Instantiates a new Fill Manager Dialog
+     * Instantiates a new Fill Manager Dialog, with no owning {@link SNTUI} (e.g. scripts/tests
+     * driving a headless-ish {@link SNT} instance that never called {@code startUI()}).
      *
-     * @param plugin the {@link SNT} instance to be associated
-     *               with this FillManager. It is assumed that its {@link SNTUI} is
-     *               available.
+     * @param plugin the {@link SNT} instance to be associated with this FillManager.
      */
     public FillManagerUI(final SNT plugin) {
-        super(plugin.getUI(), "Fill Manager");
+        this(plugin, null);
+    }
+
+    /**
+     * Instantiates a new Fill Manager Dialog owned by {@code ui}.
+     *
+     * @param plugin the {@link SNT} instance to be associated with this FillManager
+     * @param ui     the owning {@link SNTUI}, or null if none (see {@link #FillManagerUI(SNT)})
+     */
+    public FillManagerUI(final SNT plugin, final SNTUI ui) {
+        super(ui, "Fill Manager");
         getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
 
         this.plugin = plugin;
+        final boolean streamMode = ui != null && ui.isStreamMode();
         pathAndFillManager = plugin.getPathAndFillManager();
         pathAndFillManager.addPathAndFillListener(this);
         listModel = new DefaultListModel<>();
@@ -156,6 +166,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
         // Row 1: Cursor threshold choice
         cursorThresholdChoice = new JRadioButton("Set by clicking on traced structure (preferred)");
+        cursorThresholdChoice.setEnabled(!streamMode);
         distancePanel.add(cursorThresholdChoice, gdb);
         gdb.gridy++;
 
@@ -230,7 +241,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         transparentCheckbox = new JCheckBox("Transparent overlay");
         transparentCheckbox.setToolTipText("Enabling this option allows you to better\ninspect fills, but may slow down filling");
         transparentCheckbox.addActionListener(e -> plugin.setFillTransparent(transparentCheckbox.isSelected()));
-
+        transparentCheckbox.setEnabled(!streamMode);
         final int prevLeftMargin = c.insets.left;
         c.insets.left = MARGIN;
         add(splitFillsCheckbox, c);
@@ -286,15 +297,13 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         pack();
         adjustListPlaceholder();
         changeState(State.READY);
-        setLocationRelativeTo(plugin.getUI());
+        setLocationRelativeTo(ui);
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(final WindowEvent ignored) {
                 setVisible(false);
             }
         });
-
-
     }
 
     private int[] getSelectedIndices(final String msg) {
@@ -836,8 +845,19 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
 
         // Add image export actions
         for (ExportAction action : exportActions) {
-            JMenuItem jmi = new JMenuItem(action.getMenuText());
-            jmi.addActionListener(e -> action.execute());
+            final JMenuItem jmi = new JMenuItem(action.getMenuText());
+            jmi.addActionListener(e -> {
+                try {
+                    action.execute();
+                } catch (final UnsupportedOperationException ex) {
+                    final String msg = (plugin.getUI() != null && plugin.getUI().isStreamMode())
+                            ? "An error occurred: This operation likely requires the entire image to be loaded into memory (RAM)."
+                            : "An error occurred.";
+                    gUtils.error(msg + " See Console for details.");
+                    if (plugin.getUI() != null) plugin.getUI().setEnableDebugMode(true);
+                    SNTUtils.error(action.getMenuText(), ex);
+                }
+            });
             exportFillsMenu.add(jmi);
         }
 

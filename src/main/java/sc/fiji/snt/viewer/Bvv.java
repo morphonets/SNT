@@ -181,7 +181,6 @@ public class Bvv extends AbstractBigViewer {
         options = bvv.vistools.Bvv.options();
         options.preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE);
         options.frameTitle("SNT BVV");
-        options.frameTitle((snt != null) ? "SNT Big Data Tracer" : "SNT BVV");
         options.cacheBlockSize(32); // GPU cache tile size
         options.maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB);
         options.ditherWidth(1); // dither window. 1 = full resolution; 8 = coarsest resolution
@@ -1179,7 +1178,7 @@ public class Bvv extends AbstractBigViewer {
                 nSlices, nChannels, blockSize, renderW, renderH, maxMillis, maxStep));
         return bvv.vistools.Bvv.options()
                 .preferredSize(BvvUtils.DEFAULT_WINDOW_SIZE, BvvUtils.DEFAULT_WINDOW_SIZE)
-                .frameTitle((snt != null) ? "SNT Big Data Tracer" : "SNT BVV")
+                .frameTitle("SNT BVV")
                 .maxCacheSizeInMB(BvvUtils.DEFAULT_CACHE_SIZE_MB)
                 .ditherWidth(1)
                 .cacheBlockSize(blockSize)
@@ -1809,7 +1808,7 @@ public class Bvv extends AbstractBigViewer {
             }
             toolbar.addSeparator();
             final GuiUtils.Buttons.OptionsButton optionsButton =
-                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.CROSSHAIR, SCALING_FACTOR, popupMenu);
+                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LOCATION_CROSSHAIR, SCALING_FACTOR, popupMenu);
             optionsButton.setToolTipText("<html>Choose when to recenter the view on a tracing click:"
                     + "<br>&nbsp;&nbsp;<b>Never</b>: Keep the current view as-is"
                     + "<br>&nbsp;&nbsp;<b>Always</b>: Recenter on every click (best for in-core data)"
@@ -1846,6 +1845,8 @@ public class Bvv extends AbstractBigViewer {
         final JToggleButton markerButton = scaledToggleButton(actions.showMarkerManagerAction(),
                 IconFactory.GLYPH.MARKER, "<html>Show/hide the Markers table.<br>"
                         + "Press M in the viewer to place a marker at the cursor position.");
+        // rescale assigned icon to SCALING_FACTOR
+        IconFactory.assignIcon(toggleVisibility, IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER, SCALING_FACTOR);
         // Keep button state in sync with frame visibility
         getMarkerManager().getViewerDialogPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
@@ -1865,11 +1866,16 @@ public class Bvv extends AbstractBigViewer {
 
         // group 4: options and settings: these buttons are made more discrete and not scaled
         if (tracer != null) {
-            toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
-                    "Sync Path Manager changes"));
+            final JButton sync = GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
+                    "Sync Path Manager changes");
+            // for whatever reason the sync button seems too large: we'll reduce its size a tad bit
+            IconFactory.assignIcon(sync, IconFactory.GLYPH.SYNC, IconFactory.GLYPH.SYNC, SCALING_FACTOR  * .9f);
+            toolbar.add(sync);
         }
-        toolbar.add(GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
-                "Set rendering options of annotations"));
+        final JButton options = GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
+                "Set rendering options of annotations");
+        toolbar.add(options);
+        IconFactory.assignIcon(options, IconFactory.GLYPH.SLIDERS, IconFactory.GLYPH.SLIDERS, SCALING_FACTOR); // rescale icons to SCALING_FACTOR
 
         if (tracer != null) {
             final JPanel panel = new JPanel(new BorderLayout());
@@ -2977,13 +2983,15 @@ public class Bvv extends AbstractBigViewer {
 
             final JPanel main = new JPanel(new GridBagLayout());
             final GridBagConstraints c = new GridBagConstraints();
-
+            c.gridx = 0;
+            c.gridwidth = 1;
+            GuiUtils.addSeparator(main, "Camera:", false, c);
             // Camera rows
-            final int[] row = {0};
+            final int[] row = {1};
             for (final Object[] r : new Object[][]{
-                    {"Camera Depth (%)", dCamSlider, dCamReset},
-                    {"Near Clipping (%)", nearSlider, nearReset},
-                    {"Far Clipping (%)", farSlider, farReset}}) {
+                    {"Depth (%)", dCamSlider, dCamReset},
+                    {"Near clipping (%)", nearSlider, nearReset},
+                    {"Far clipping (%)", farSlider, farReset}}) {
                 c.gridy = row[0]++;
                 c.gridx = 0;
                 c.gridwidth = 1;
@@ -3089,6 +3097,12 @@ public class Bvv extends AbstractBigViewer {
                 slabToggle.setToolTipText("<html>Enable slab mode.<br>"
                         + "Restricts the visible scene to a thin slab at the selected position.<br>"
                         + "Disables manual near/far clipping while active.");
+
+                c.gridy = row[0]++;
+                c.gridx = 0; // reset: left over from the Camera loop's last column
+                c.gridwidth = 1;
+                GuiUtils.addSeparator(main, "Slab:", true, c);
+                c.gridy++;
 
                 // Row4: Col1=toggle  Col2=empty  Col3=[Thickness|spinner](fill)  Col5-6=unit
                 c.gridy = row[0]++;
@@ -3236,7 +3250,8 @@ public class Bvv extends AbstractBigViewer {
             c.fill = GridBagConstraints.HORIZONTAL;
             c.weightx = 1.0;
             c.anchor = GridBagConstraints.CENTER;
-            c.insets = new Insets(4, 0, 0, 0);
+            final int spacer = iconBar.getPreferredSize().height / 2;
+            c.insets = new Insets(spacer, 0, spacer / 4, 0);
             main.add(iconBar, c);
 
             return main;

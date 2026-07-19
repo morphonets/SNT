@@ -4269,7 +4269,7 @@ public class SNT extends MultiDThreePanes implements
 		// Dispose xz/zy images unless the user stored some annotations (ROIs)
 		// on the image overlay or modified them somehow.
 		removeMIPOverlayAllPanes();
-		final boolean bvvMode = getUI() != null && getUI().getState() == SNTUI.BVV_TRACING;
+		final boolean bvvMode = getUI() != null && getUI().isStreamMode();
 		if (!single_pane) {
 			final ImagePlus[] impPanes = { xz, zy };
 			for (final ImagePlus imp : impPanes) {
