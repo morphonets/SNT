@@ -106,6 +106,7 @@ public class Bvv extends AbstractBigViewer {
     // 2nd row of #sntToolbar(): tracks the A* search started by Tracer#traceSegmentAsync, if any
     private JProgressBar tracingStatusBar;
     private JButton tracingCancelButton;
+    private JButton tracingUndoButton;
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
@@ -1465,6 +1466,8 @@ public class Bvv extends AbstractBigViewer {
                 sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
                 sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
                 sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
+                sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_Z, 0), "snt-undo-segment"); //See Tracer#undoLastSegment
+                sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
             }
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_K, 0), "snt-capture-keyframe");
             sntAMap.put("snt-capture-keyframe", new AbstractAction() {
@@ -1780,14 +1783,14 @@ public class Bvv extends AbstractBigViewer {
 
     private JComponent sntToolbar(final BvvActions actions) {
         final JToolBar toolbar = createToolbar();
-
+        final float SCALING_FACTOR = 1.1f;
         // group 1: tracing controls (auto/manual)
         if (tracer != null) {
             final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
-            final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
-                    "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
-            final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
-                    "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
+            final JToggleButton b1 = scaledToggleButton(tracer.getToggleAction(true),
+                    IconFactory.GLYPH.PEN, "Start/stop manual tracing");
+            final JToggleButton b2 = scaledToggleButton(tracer.getToggleAction(false),
+                    IconFactory.GLYPH.ROUTE, "Start/stop interactive tracing");
             bg1.add(b1);
             bg1.add(b2);
             toolbar.add(b1);
@@ -1806,7 +1809,7 @@ public class Bvv extends AbstractBigViewer {
             }
             toolbar.addSeparator();
             final GuiUtils.Buttons.OptionsButton optionsButton =
-                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.CROSSHAIR, 1f, popupMenu);
+                    GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.CROSSHAIR, SCALING_FACTOR, popupMenu);
             optionsButton.setToolTipText("<html>Choose when to recenter the view on a tracing click:"
                     + "<br>&nbsp;&nbsp;<b>Never</b>: Keep the current view as-is"
                     + "<br>&nbsp;&nbsp;<b>Always</b>: Recenter on every click (best for in-core data)"
@@ -1818,17 +1821,17 @@ public class Bvv extends AbstractBigViewer {
         }
 
         // group 2: annotations/paths
-        final JToggleButton toggleAroundCursor = GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
-                "Restrict display of annotations around cursor",
-                IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE);
-        final JToggleButton offsetActivate = GuiUtils.Buttons.toolbarToggleButton(actions.setCanvasOffsetAction(),
-                "Translate annotations from original signal",
-                IconFactory.GLYPH.MOVE, IconFactory.GLYPH.MOVE);
+        final JToggleButton toggleAroundCursor = scaledToggleButton(actions.togglePersistentAnnotationsAction(),
+                IconFactory.GLYPH.COMPUTER_MOUSE, "Restrict display of annotations around cursor");
+        final JToggleButton offsetActivate = scaledToggleButton(actions.setCanvasOffsetAction(),
+                IconFactory.GLYPH.MOVE, "Translate annotations from original signal");
         offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.getDisabledComponentColor(), 1f));
         final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(
                         toggleAroundCursor, offsetActivate),
                 "<html>Show/hide annotations.<br>Hold H to temporarily hide annotations.",
                 IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
+        // rescale assigned icons to SCALING_FACTOR
+        IconFactory.assignIcon(toggleVisibility, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, SCALING_FACTOR);
 
         toolbar.add(toggleVisibility);
         toolbar.addSeparator();
@@ -1836,20 +1839,13 @@ public class Bvv extends AbstractBigViewer {
         toolbar.addSeparator();
         toolbar.add(offsetActivate);
         toolbar.addSeparator();
-        if (tracer != null) {
-            toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
-                    "Sync Path Manager changes"));
-            toolbar.addSeparator();
-        }
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
-        // group 3: markers
-        final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
-                actions.showMarkerManagerAction(),
-                "<html>Show/hide the Markers table.<br>"
-                        + "Press M in the viewer to place a marker at the cursor position.",
-                IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
+        // group 3: non-tracing actions
+        final JToggleButton markerButton = scaledToggleButton(actions.showMarkerManagerAction(),
+                IconFactory.GLYPH.MARKER, "<html>Show/hide the Markers table.<br>"
+                        + "Press M in the viewer to place a marker at the cursor position.");
         // Keep button state in sync with frame visibility
         getMarkerManager().getViewerDialogPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
@@ -1867,7 +1863,11 @@ public class Bvv extends AbstractBigViewer {
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
 
-        // group 4: options and settings
+        // group 4: options and settings: these buttons are made more discrete and not scaled
+        if (tracer != null) {
+            toolbar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
+                    "Sync Path Manager changes"));
+        }
         toolbar.add(GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
                 "Set rendering options of annotations"));
 
@@ -1882,12 +1882,22 @@ public class Bvv extends AbstractBigViewer {
         }
     }
 
+    private JToggleButton scaledToggleButton(final Action action, final IconFactory.GLYPH glyph, final String tooltipText) {
+        final JToggleButton button = new JToggleButton(action);
+        button.setText(null);
+        IconFactory.assignIcon(button, glyph, (Color) null, (float) 1.1);
+        button.setToolTipText(tooltipText);
+        return button;
+    }
+
     /**
-     * Builds the fixed second row shown below the main SNT toolbar: an indeterminate progress bar (empty when no search
-     * is running) plus a Cancel button (enabled only while a search is ongoing). Kept as a constant row. Driven
-     * by {@link #setTracingStatus(boolean, String)}, called from {@code Tracer#traceSegmentAsync}.
+     * Builds the second row below the main SNT toolbar: an Undo button (see {@code Tracer#undoLastSegment()}), an
+     * indeterminate progress bar (empty when  no search is running), and a Cancel button (enabled only while a
+     * search is ongoing). Driven by {@link #setTracingStatus(boolean, String)}, called from
+     * {@code Tracer#traceSegmentAsync}.
      */
     private JComponent tracingStatusRow() {
+        assert tracer != null;
         tracingStatusBar = new JProgressBar();
         tracingStatusBar.setStringPainted(true);
         tracingStatusBar.setString("");
@@ -1895,7 +1905,14 @@ public class Bvv extends AbstractBigViewer {
         tracingCancelButton.setToolTipText("<HTML>Interactive tracing:<br>Cancel the current search");
         tracingCancelButton.setEnabled(false);
         tracingCancelButton.addActionListener(e -> tracer.cancelCurrentSearch());
+        tracingUndoButton = new JButton(tracer.getUndoSegmentAction());
+        tracingUndoButton.setText(null);
+        IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
+        tracingUndoButton.setToolTipText("<HTML>Tracing:Undo last segment (or press Z)");
+        tracer.updateUndoButtonState();
         final JToolBar row = new JToolBar();
+        row.add(tracingUndoButton);
+        row.addSeparator();
         row.add(tracingStatusBar);
         row.add(tracingCancelButton);
         return row;
@@ -3348,6 +3365,13 @@ public class Bvv extends AbstractBigViewer {
         private Path.PathNode previousNode;
         private PointInImage previousForkPoint;
 
+        // Undo mechanism, ported from SNT#confirmedSegmentSizes/SNT#undoLastSegment: each traced
+        // segment auto-confirms into tempPath (there is no separate temporary/confirm step here, as
+        // in the classic 2D canvas), so the "confirmed" node count of each segment is pushed here as
+        // it lands, and popped by undoLastSegment() to walk the path back one click at a time. Single-
+        // step undo only; no redo.
+        private final Deque<Integer> confirmedSegmentSizes = new ArrayDeque<>();
+
         // Guards against a click being processed while a segment is still being traced in the background
         // This keeps tempPath mutations single-threaded
         private volatile boolean computing;
@@ -3434,6 +3458,9 @@ public class Bvv extends AbstractBigViewer {
                         return;
                     }
                 }
+
+                confirmedSegmentSizes.clear(); // just in case of abnormal prior state
+                updateUndoButtonState();
 
                 // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
                 // the pixel data) for the whole path now, rather than re-checking on every segment, so a single
@@ -3586,6 +3613,8 @@ public class Bvv extends AbstractBigViewer {
             syncPathManagerList();
             tempPath = null;
             previousNode = null;
+            confirmedSegmentSizes.clear();
+            updateUndoButtonState();
             showViewerMessage("Path finished");
         }
 
@@ -3638,6 +3667,8 @@ public class Bvv extends AbstractBigViewer {
             tempPath = null;
             pendingFinish = false;
             computing = false;
+            confirmedSegmentSizes.clear();
+            updateUndoButtonState();
             setTracingStatus(false, null);
             if (tracingOverlay != null) tracingOverlay.clear();
             if (pathOverlay != null) pathOverlay.updatePaths(); // get rid of the stale preview segment
@@ -3697,8 +3728,11 @@ public class Bvv extends AbstractBigViewer {
                                     ? "Search cancelled" : "Segment could not be traced (out of bounds?)");
                         } else if (tempPath == null) {
                             tempPath = result;
+                            pushConfirmedSegmentSize(result.size());
                         } else {
+                            final int sizeBefore = tempPath.size();
                             tempPath.add(result);
+                            pushConfirmedSegmentSize(tempPath.size() - sizeBefore);
                         }
                         if (result != null) drawSegment(tempPath);
                     } catch (final Exception ex) {
@@ -3728,6 +3762,77 @@ public class Bvv extends AbstractBigViewer {
             if (f != null) f.cancel(true);
         }
 
+        /**
+         * Records the node count of a segment that was just auto-confirmed into {@code tempPath}, for
+         * {@link #undoLastSegment()} to later pop. Mirrors {@code SNT#confirmedSegmentSizes}/{@code
+         * SNT#confirmTemporary}, capped the same way at {@link SNTPrefs#MAX_UNDO_STEPS}.
+         *
+         * @param nodesAdded number of nodes the segment actually contributed to {@code tempPath}
+         */
+        private void pushConfirmedSegmentSize(final int nodesAdded) {
+            confirmedSegmentSizes.push(nodesAdded);
+            if (confirmedSegmentSizes.size() > SNTPrefs.MAX_UNDO_STEPS)
+                confirmedSegmentSizes.removeLast(); // drop oldest
+            updateUndoButtonState();
+        }
+
+        /**
+         * Keeps {@link Bvv#tracingUndoButton} in sync with whether there is anything to undo.
+         * Safe to call even before the toolbar is built ({@code tracingUndoButton} null then).
+         */
+        private void updateUndoButtonState() {
+            if (tracingUndoButton != null) tracingUndoButton.setEnabled(!confirmedSegmentSizes.isEmpty());
+        }
+
+        /**
+         * Undoes the most recently confirmed segment, one click at a time (single-step; no redo).
+         * Ported from {@code SNT#undoLastSegment()}: pops the last segment's node count off {@link
+         * #confirmedSegmentSizes} and removes that many trailing nodes from {@code tempPath}. If that
+         * empties {@code tempPath} entirely (undone back to the very first point), this falls back to
+         * {@link #discardCurrentPath()}, exactly as the classic 2D canvas cancels the whole path in
+         * that case. No-op if tracing is disabled, nothing has been confirmed yet, or a segment is
+         * currently being traced (undoing mid-search would race with {@code done()}).
+         */
+        void undoLastSegment() {
+            if (!tracingEnabled) return;
+            if (confirmedSegmentSizes.isEmpty()) {
+                showViewerMessage("No segment to undo");
+                return;
+            }
+            if (computing) {
+                showViewerMessage("A segment is still being traced; please wait before undoing");
+                return;
+            }
+            final int nodesToRemove = confirmedSegmentSizes.pop();
+            for (int i = 0; i < nodesToRemove; i++)
+                tempPath.removeNode(tempPath.size() - 1);
+
+            if (tempPath.size() == 0) {
+                // Undone back to the very first point: equivalent to discarding the path outright
+                discardCurrentPath();
+                return;
+            }
+            previousNode = new Path.PathNode(tempPath.lastNode());
+            previousForkPoint = null;
+            updateUndoButtonState();
+            drawSegment(tempPath);
+            showViewerMessage("Segment undone");
+        }
+
+        /**
+         * Builds the undo action shared by {@link Bvv#tracingUndoButton} and the Cmd/Ctrl+Z hotkey.
+         *
+         * @see #undoLastSegment()
+         */
+        private AbstractAction getUndoSegmentAction() {
+            return new AbstractAction("Undo Last Segment") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    undoLastSegment();
+                }
+            };
+        }
+
         private void initializeTracingOverlay(final BigVolumeViewer bvv) {
             if (tracingOverlay != null) tracingOverlay.dispose();
             tracingOverlay = new AnnotationOverlay(adapt(bvv.getViewer()), Bvv.this, renderingOptions);
@@ -3754,6 +3859,8 @@ public class Bvv extends AbstractBigViewer {
             tempPath = null;
             computing = false;
             pendingFinish = false;
+            confirmedSegmentSizes.clear();
+            updateUndoButtonState();
             setTracingStatus(false, null);
             if (tracingOverlay != null) tracingOverlay.dispose();
             tracingOverlay = null;
