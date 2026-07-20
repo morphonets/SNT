@@ -401,17 +401,8 @@ public class BookmarkManager {
         tagMenu.setText("Tag");
         tagMenu.setIcon(IconFactory.menuIcon((IconFactory.GLYPH.TAG)));
         pMenu.add(tagMenu);
-        mi = new JMenuItem("Distinct Tags", IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
-        mi.addActionListener(e -> {
-            if (noBookmarksError()) return;
-            final int[] modelRows = getSelectedModelRowsAllIfNone();
-            final Color[] distinctColors = ColorMaps.glasbeyColorsAWT(modelRows.length);
-            int colorIdx = 0;
-            for (final int modelRow : modelRows) {
-                model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
-            }
-            if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
-        });
+        mi = new JMenuItem("Distinct Tags...", IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
+        mi.addActionListener(e -> applyUniqueTags());
         tagMenu.addSeparator();
         tagMenu.add(mi);
         if (viewer != null) {
@@ -481,6 +472,40 @@ public class BookmarkManager {
         // table-management actions (the Searchable items will be the last
         // entries in the menu).
         return pMenu;
+    }
+
+    private void applyUniqueTags() {
+        if (noBookmarksError()) return;
+        final String[] options = new String[]{"Assign a unique color to each entry", "Assign a unique color to each unique label"};
+        final String choice = guiUtils.getChoice("How to apply distinct color tags?", "Assign Unique Tags", options, options[0]);
+        if (choice == null) return; // prompt canceled
+
+        final int[] modelRows = getSelectedModelRowsAllIfNone();
+        int colorIdx = 0;
+
+        if (options[0].equals(choice)) {
+            final Color[] distinctColors = ColorMaps.glasbeyColorsAWT(modelRows.length);
+            for (final int modelRow : modelRows) {
+                model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
+            }
+        } else {
+            // collect unique labels
+            final Map<String, List<Bookmark>> uniqueLabelsMap = new TreeMap<>();
+            for (final int modelRow : modelRows) {
+                String uniqueLabel = model.getDataList().get(modelRow).label;
+                if (uniqueLabel == null) continue;
+                uniqueLabel = uniqueLabel.toLowerCase();
+                uniqueLabelsMap.putIfAbsent(uniqueLabel, new ArrayList<>());
+                uniqueLabelsMap.get(uniqueLabel).add(model.getDataList().get(modelRow));
+            }
+            final Color[] distinctColors = ColorMaps.glasbeyColorsAWT(uniqueLabelsMap.size());
+            for (List<Bookmark> bookmarkList : uniqueLabelsMap.values()) {
+                for (Bookmark bookmark : bookmarkList) bookmark.setColor(distinctColors[colorIdx]);
+                colorIdx++;
+            }
+            model.fireTableRowsUpdated(modelRows[0], modelRows[modelRows.length - 1]);
+        }
+        if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
     }
 
     private int[] getSelectedModelRowsAllIfNone() {

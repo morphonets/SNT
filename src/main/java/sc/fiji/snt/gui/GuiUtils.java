@@ -3893,17 +3893,17 @@ public class GuiUtils {
 				item.addActionListener(e -> onColorChosen.accept(color));
 				popup.add(item);
 			});
-			final JMenuItem customItem = new JMenuItem("Other...",
-					IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
+			final JMenuItem customItem = new JMenuItem("Other...", IconFactory.menuIcon(IconFactory.GLYPH.EYE_DROPPER));
 			customItem.addActionListener(e -> {
 				final Color[] result = {null};
 				final JColorChooser chooser = GuiUtils.colorChooser(Color.GRAY);
 				final JDialog d = JColorChooser.createDialog(
-						SwingUtilities.getWindowAncestor(parent), "Choose Tag Color",
+						(parent == null) ? null : SwingUtilities.getWindowAncestor(parent), "Choose Tag Color",
 						true, chooser,
 						ev -> result[0] = chooser.getColor(), // OK: color assigned
 						null);                                  // Cancel: result stays null
 				d.setVisible(true);
+				d.toFront();
 				if (result[0] != null)  // only fire if user actually confirmed
 					onColorChosen.accept(result[0]);
 			});
