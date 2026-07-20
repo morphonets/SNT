@@ -55,6 +55,7 @@ import sc.fiji.snt.util.SNTPoint;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.util.*;
 import java.util.List;
 
@@ -111,7 +112,14 @@ public class Bdv extends AbstractBigViewer {
     // Guard so addTransformListener is called only once across reinits
     private boolean sliceClipListenerRegistered = false;
 
-    // -- Construction --
+    // Tracing state machine; null if this viewer isn't tethered to an SNT instance
+    private Tracer tracer;
+    // SNT Controls card's 2nd row: tracks the A* search started by Tracer#traceSegmentAsync, if any
+    private JProgressBar tracingStatusBar;
+    private JButton tracingCancelButton;
+    private JButton tracingUndoButton;
+
+
 
     /** Creates a standalone BDV viewer (not tethered to an SNT instance). */
     public Bdv() {
@@ -121,6 +129,7 @@ public class Bdv extends AbstractBigViewer {
     /** Creates a BDV viewer tethered to an SNT instance. */
     public Bdv(final SNT snt) {
         super(snt);
+        if (snt != null && snt.getUI() != null) snt.getUI().setBdv(this);
     }
 
     /**
@@ -574,6 +583,14 @@ public class Bdv extends AbstractBigViewer {
             viewerPanel.transformListeners().add(this::updateSliceClip);
         }
 
+        // Only ever constructed once per viewer instance: initializeOverlays() only runs the first
+        // time a source is shown in a fresh window (guarded by bdvHandle == null at each call site),
+        // so this can't leave a stale Tracer's mouse listener attached alongside a new one
+        if (snt != null && tracer == null) {
+            tracer = new Tracer(snt);
+            if (snt.getUI() != null) snt.getUI().setBdv(this); // setBdv again, now that its window is available
+        }
+
         initializeCardPanel();
     }
 
@@ -652,11 +669,11 @@ public class Bdv extends AbstractBigViewer {
         final bdv.ui.CardPanel cp = bdvHandle.getCardPanel();
         if (cp != null) {
             cp.addCard("Scene Controls", buildSceneControlToolbar(), true);
-            cp.addCard("SNT Annotations", sntAnnotationsCard(actions), true);
+            cp.addCard("SNT Controls", sntAnnotationsCard(actions), true);
             SwingUtilities.invokeLater(() -> {
                 cp.setCardExpanded("Groups", false);
                 cp.setCardExpanded("Scene Controls", true);
-                cp.setCardExpanded("SNT Annotations", true);
+                cp.setCardExpanded("SNT Controls", true);
             });
             resizeCardPanelsAsNeeded(cp.getComponent());
         }
@@ -682,6 +699,16 @@ public class Bdv extends AbstractBigViewer {
             sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true),  "snt-hide-annotations-release");
             sntAMap.put("snt-hide-annotations-press",   actions.hideAnnotationsPressAction());
             sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
+            if (tracer != null) {
+                // Finish/discard the in-progress tracing path without a canvas click (see Bvv's identical
+                // wiring for why Enter/Esc are used instead of a double click to finish)
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "snt-finish-path");
+                sntAMap.put("snt-finish-path", tracer.getFinishPathAction());
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "snt-discard-path");
+                sntAMap.put("snt-discard-path", tracer.getDiscardPathAction());
+                sntIMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_Z, 0), "snt-undo-segment"); // see Tracer#undoLastSegment
+                sntAMap.put("snt-undo-segment", tracer.getUndoSegmentAction());
+            }
             vf.getKeybindings().addInputMap("snt", sntIMap);
             vf.getKeybindings().addActionMap("snt", sntAMap);
         }
@@ -690,17 +717,39 @@ public class Bdv extends AbstractBigViewer {
     private JComponent sntAnnotationsCard(final BdvActions actions) {
         final JToolBar bar = new JToolBar();
         bar.setFloatable(false);
-        bar.add(GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(),
-                "Show/hide annotations",
-                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH));
-        bar.add(GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
+
+        // group 1: tracing controls (auto/manual). Unlike Bvv, there is no "Center on Click" strategy
+        // to expose here: (see Tracer#resolveClickWorldPosition), so there is nothing to recenter
+        if (tracer != null) {
+            final ButtonGroup bg1 = GuiUtils.Buttons.noneSelectedButtonGroup();
+            final JToggleButton b1 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(true),
+                    "Start/stop manual tracing", IconFactory.GLYPH.PEN, IconFactory.GLYPH.PEN);
+            final JToggleButton b2 = GuiUtils.Buttons.toolbarToggleButton(tracer.getToggleAction(false),
+                    "Start/stop interactive tracing", IconFactory.GLYPH.ROUTE, IconFactory.GLYPH.ROUTE);
+            bg1.add(b1);
+            bg1.add(b2);
+            bar.add(b1);
+            bar.add(b2);
+            bar.addSeparator();
+            bar.add(Box.createHorizontalGlue());
+            bar.addSeparator();
+        }
+
+        // group 2: annotations/paths
+        final JToggleButton toggleAroundCursor = GuiUtils.Buttons.toolbarToggleButton(actions.togglePersistentAnnotationsAction(),
                 "Restrict display of annotations around cursor",
-                IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE));
-        bar.addSeparator();
-        bar.add(Box.createHorizontalGlue());
-        bar.addSeparator();
-        bar.add(GuiUtils.Buttons.toolbarButton(actions.setCanvasOffsetAction(),
-                "Change annotations offset"));
+                IconFactory.GLYPH.COMPUTER_MOUSE, IconFactory.GLYPH.COMPUTER_MOUSE);
+        final JToggleButton offsetActivate = GuiUtils.Buttons.toolbarToggleButton(actions.setCanvasOffsetAction(),
+                "Change annotations offset",
+                IconFactory.GLYPH.MOVE, IconFactory.GLYPH.MOVE);
+        offsetActivate.setDisabledIcon(IconFactory.buttonIcon(IconFactory.GLYPH.MOVE, GuiUtils.getDisabledComponentColor(), 1f));
+        final JToggleButton toggleVisibility = GuiUtils.Buttons.toolbarToggleButton(actions.toggleVisibilityAction(toggleAroundCursor, offsetActivate),
+                "Show/hide annotations",
+                IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH);
+        bar.add(toggleVisibility);
+        bar.add(toggleAroundCursor);
+        bar.add(offsetActivate);
+
         bar.addSeparator();
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
@@ -729,7 +778,40 @@ public class Bdv extends AbstractBigViewer {
         bar.add(markerButton);
         bar.addSeparator();
         bar.add(optionsButton(actions));
+
+        if (tracer != null) {
+            final JPanel panel = new JPanel(new BorderLayout());
+            panel.add(bar, BorderLayout.NORTH);
+            panel.add(tracingStatusRow(), BorderLayout.SOUTH);
+            return panel;
+        }
         return bar;
+    }
+
+    /**
+     * Builds the second row below the SNT Annotations toolbar: See notes/comments on Bvv's counterpart.
+     */
+    private JComponent tracingStatusRow() {
+        assert tracer != null;
+        tracingStatusBar = new JProgressBar();
+        tracingStatusBar.setStringPainted(true);
+        tracingStatusBar.setString("");
+        tracingCancelButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CIRCLE_XMARK, IconFactory.defaultColor(), 1f);
+        tracingCancelButton.setToolTipText("<HTML>Interactive tracing:<br>Cancel the current search");
+        tracingCancelButton.setEnabled(false);
+        tracingCancelButton.addActionListener(e -> tracer.cancelCurrentSearch());
+        tracingUndoButton = new JButton(tracer.getUndoSegmentAction());
+        tracingUndoButton.setText(null);
+        IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
+        tracingUndoButton.setToolTipText("<HTML>Tracing: Undo last segment (or press Z)");
+        tracer.updateUndoButtonState();
+        final JToolBar row = new JToolBar();
+        row.setFloatable(false);
+        row.add(tracingUndoButton);
+        row.addSeparator();
+        row.add(tracingStatusBar);
+        row.add(tracingCancelButton);
+        return row;
     }
 
     private JButton optionsButton(final BdvActions actions) {
@@ -760,6 +842,126 @@ public class Bdv extends AbstractBigViewer {
             };
         }
 
+    }
+
+    /**
+     * BDV's tracing state machine: supplies its two genuinely viewer-specific bits (direct click-to-world resolution;
+     * no active channel/frame recentering) without any ray-casting. BDV's slice cursor already sits exactly on the
+     * clicked position, so {@link #getGlobalMouseCoordinates(RealPoint)} is all that's needed. Wired to BDV's own
+     * toolbar (see {@link #sntAnnotationsCard(BdvActions)}), status row (see {@link #tracingStatusRow()}), and
+     * Enter/Esc/Z keybindings (see {@link #initializeCardPanel()}), mirroring  Bvv's counterpart
+     */
+    private class Tracer extends AbstractTracer {
+
+        Tracer(final SNT snt) {
+            super(snt);
+        }
+
+        /**
+         * Direct coordinate read: BDV is an orthographic 2D slice viewer, so the cursor's world position
+         * is unambiguous at the current slice depth and no ray-casting/peak-search is needed
+         */
+        @Override
+        protected double[] resolveClickWorldPosition(final MouseEvent e) {
+            final RealPoint pos = new RealPoint(3);
+            getGlobalMouseCoordinates(pos);
+            return pos.positionAsDoubleArray();
+        }
+
+        @Override
+        protected Bvv.PathOverlay ensurePathOverlay() {
+            if (pathOverlay == null)
+                SNTUtils.log("BDV: Tracer#ensurePathOverlay() called before an image was shown; pathOverlay is not yet initialized");
+            return pathOverlay;
+        }
+
+        /**
+         * NB: BDV does not (yet) have a dedicated click-highlight overlay of its own, so this reuses
+         * the viewer's shared {@link #annotationOverlay} (also used for bookmarks/markers). Acceptable
+         * for now since click highlights are transient and infrequent; a future pass could give BDV its
+         * own dedicated overlay instance, mirroring  Bvv's counterpart
+         */
+        @Override
+        protected Bvv.AnnotationOverlay ensureTracingOverlay() {
+            if (annotationOverlay == null)
+                SNTUtils.log("BDV: Tracer#ensureTracingOverlay() called before an image was shown; annotationOverlay is not yet initialized");
+            return annotationOverlay;
+        }
+
+        @Override
+        protected void clearTracingOverlayContents() {
+            if (annotationOverlay != null) annotationOverlay.clear();
+        }
+
+        @Override
+        protected void disposeTracingOverlay() {
+            // no-op: the shared annotationOverlay is owned/disposed by Bdv itself (see #initializeOverlays()),
+            // not by this stub Tracer
+        }
+
+        /** Mirrors Bvv's counterpart, adapted to BDV's own {@link ViewerPanel}. */
+        @Override
+        protected void syncChannelFromActiveSource() {
+            if (snt == null || viewerPanel == null) return;
+            try {
+                final SourceAndConverter<?> current = viewerPanel.state().getCurrentSource();
+                if (current == null) return;
+                final int timepoint = viewerPanel.state().getCurrentTimepoint();
+                final var spimSource = current.getSpimSource();
+                final var rai = spimSource.getSource(timepoint, 0); // level 0: full resolution
+                final var vd = spimSource.getVoxelDimensions();
+                snt.setImageMetadata((int) rai.dimension(0), (int) rai.dimension(1),
+                        rai.numDimensions() > 2 ? (int) rai.dimension(2) : 1,
+                        (vd == null) ? 0 : vd.dimension(0), (vd == null) ? 0 : vd.dimension(1),
+                        (vd == null) ? 0 : vd.dimension(2), (vd == null) ? null : vd.unit());
+                snt.setImageData(rai);
+                final int channelIdx = viewerPanel.state().getSources().indexOf(current); // 0-based, or -1 if not found
+                snt.setChannelAndFrame(channelIdx + 1, timepoint + 1); // setChannelAndFrame coerces <=0 to 1
+            } catch (final Exception ex) {
+                SNTUtils.log("BDV: could not sync tracing channel from active source (" + ex.getMessage() + ")");
+            }
+        }
+
+        /** Mirrors  Bvv's counterpart adapted to BDV's own {@link ViewerPanel}. */
+        @Override
+        protected int[] peekActiveChannelFrame() {
+            if (viewerPanel == null) return null;
+            try {
+                final SourceAndConverter<?> current = viewerPanel.state().getCurrentSource();
+                if (current == null) return null;
+                final int timepoint = viewerPanel.state().getCurrentTimepoint();
+                final int channelIdx = viewerPanel.state().getSources().indexOf(current); // 0-based, or -1 if not found
+                return new int[]{Math.max(1, channelIdx + 1), Math.max(1, timepoint + 1)};
+            } catch (final Exception ex) {
+                return null;
+            }
+        }
+
+        /** Mirrors  Bvv's counterpart */
+        @Override
+        protected void setTracingStatus(final boolean busy, final String message) {
+            if (tracingStatusBar == null) return; // toolbar not built yet
+            SwingUtilities.invokeLater(() -> {
+                tracingStatusBar.setIndeterminate(busy);
+                tracingStatusBar.setString(busy && message != null ? message : "");
+                if (tracingCancelButton != null) tracingCancelButton.setEnabled(busy);
+            });
+        }
+
+        /** Disables the status row/Cancel button while manually tracing (nothing to cancel/report). */
+        @Override
+        protected void onManualTraceModeChanged(final boolean manualTraceFlag) {
+            if (tracingStatusBar != null && tracingCancelButton != null) {
+                tracingStatusBar.setEnabled(!manualTraceFlag);
+                tracingCancelButton.setEnabled(!manualTraceFlag);
+            }
+        }
+
+        /** Keeps {@link Bdv#tracingUndoButton} in sync with whether there is anything to undo. */
+        @Override
+        protected void updateUndoButtonState(final boolean hasUndo) {
+            if (tracingUndoButton != null) tracingUndoButton.setEnabled(hasUndo);
+        }
     }
 
     /**

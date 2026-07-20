@@ -49,8 +49,6 @@ import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 
 import javax.swing.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,7 +65,7 @@ import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vParsers;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Big Data")
+@Plugin(type = Command.class, label = "Big Data/SNT Stream")
 public class BvvCmd extends ContextCommand {
 
     private static final String TOOLTIP =
@@ -101,6 +99,7 @@ public class BvvCmd extends ContextCommand {
 
     @Parameter(label = "Viewer type", description = "The type of viewer", choices = {
             "Big Data Viewer (BDV): Interactive reslicing",
+            "Big Data Viewer (BDV): Interactive reslicing w/ tracing capabilities",
             "Big Volume Viewer (BVV): 3D rendering",
             "Big Volume Viewer (BVV): 3D rendering w/ tracing capabilities"})
     String viewerChoice;
@@ -131,8 +130,10 @@ public class BvvCmd extends ContextCommand {
 
         try {
             SNTUtils.setIsLoading(true);
-            if (tracer)
+            if (tracer && threeD)
                 runBvvWithTracing(filePaths);
+            else if (tracer)
+                runBdvWithTracing(filePaths);
             else if (threeD)
                 runBvv(filePaths);
             else
@@ -227,13 +228,6 @@ public class BvvCmd extends ContextCommand {
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
         loadMarkers(bvv);
-        bvv.getViewerFrame().addWindowListener(new WindowAdapter() {
-
-            @Override
-            public void windowClosed(final WindowEvent e) {
-                if (snt.getUI() != null) snt.getUI().setBvv(null);
-            }
-        });
     }
 
     /** Holds the outcome of {@link #resolveBvvSources(String[], int)}. */
@@ -292,24 +286,27 @@ public class BvvCmd extends ContextCommand {
     }
 
     /**
-     * Starts a full SNT instance (SNTUI window included) without displaying an ImagePlus window
-     * BVV is the only display; SNT exists here for its Path Manager (and, when possible, A* search).
+     * Starts a full SNT instance (SNTUI window included) without displaying an ImagePlus window;
+     * the BVV/BDV viewer being opened is the only display, and SNT exists here for its Path Manager
+     * (and, when possible, A* search). Shared by {@link #runBvvWithTracing(String[])} and
+     * {@link #runBdvWithTracing(String[])}.
      * <p>
      * When {@code primaryVolume} resolves headlessly to a plain {@link ImgPlus} (the common case:
      * TIFF, and often N5/Zarr too), it is wired directly into SNT via the {@code SNT(ImgPlus)}
      * "Tracing Mode" constructor: this sets SNT's own {@code ctSlice3d} (what A* search reads via
-     * {@code getLoadedData()}) straight from the same object BVV renders, without ever assembling or
-     * showing the classic 2D tracing canvas ({@code setFieldsFromImgPlus} sets {@code xy = null}).
-     * {@link SNT#accessToValidImageData()} treats {@code ctSlice3d != null} as sufficient on its own
+     * {@code getLoadedData()}) straight from the same object the viewer renders, without ever
+     * assembling or showing the classic 2D tracing canvas ({@code setFieldsFromImgPlus} sets
+     * {@code xy = null}). {@link SNT#accessToValidImageData()} treats {@code ctSlice3d != null} as
+     * sufficient on its own
      * <p>
      * Since {@code ctSlice3d} only needs to be a {@code RandomAccessibleInterval}, this also works
      * transparently when the resolved {@code ImgPlus} is lazily backed (e.g. N5/Zarr): A* search's
-     * random-access reads trigger on-demand chunk loading the same way BVV's own rendering does
+     * random-access reads trigger on-demand chunk loading the same way the viewer's own rendering does
      * <p>
      * Deliberately uses the <i>original</i>, full-resolution {@code ImgPlus} here, not whatever
-     * (possibly downsampled) version {@link #resolveBvvSources} produced for BVV: SNT's A* search is
-     * plain CPU-side iteration with no GPU texture-size constraint, so there's no reason to degrade it
-     * to match BVV's rendering limits.
+     * (possibly downsampled) version {@link #resolveBvvSources} produces for BVV specifically (BDV has
+     * no such downsampling step to begin with): SNT's A* search is plain CPU-side iteration with no GPU
+     * texture-size constraint, so there's no reason to degrade it to match a viewer's rendering limits.
      * <p>
      * When the primary volume instead resolves to an {@link AbstractSpimData} (e.g. IMS, BDV .xml
      * multi-view containers) or {@link SpimDataUtils.N5Sources} (ambiguous N5/Zarr layouts still
@@ -334,12 +331,12 @@ public class BvvCmd extends ContextCommand {
                 if (source instanceof ImgPlus<?> img) {
                     primaryImgPlus = img;
                 } else {
-                    SNTUtils.log("BVV: primary volume resolves to " + source.getClass().getSimpleName()
+                    SNTUtils.log("SNT: primary volume resolves to " + source.getClass().getSimpleName()
                             + " (not a plain ImgPlus); will attempt to wire dimensions/pixel data from it directly");
                     primaryFallbackSource = source;
                 }
             } catch (final Exception e) {
-                SNTUtils.log("BVV: could not resolve '" + primaryVolume.getName() + "' for SNT (" + e.getMessage()
+                SNTUtils.log("SNT: could not resolve '" + primaryVolume.getName() + "' for SNT (" + e.getMessage()
                         + "); tracing will fall back to manual-only (no image data for A*)");
             }
         }
@@ -408,13 +405,46 @@ public class BvvCmd extends ContextCommand {
                 snt.setImageData(itvl); // same lazily-loaded interval backing BVV's own rendering
             }
         } catch (final Exception e) {
-            SNTUtils.log("BVV: could not extract calibration for SNT (" + e.getMessage() + ")");
+            SNTUtils.log("SNT: could not extract calibration for tracing (" + e.getMessage() + ")");
         }
     }
 
     /** Resolves sources (no texture-size constraint) then opens BDV. */
     private void runBdv(final String[] filePaths) {
         final Bdv bdv = new Bdv();
+        final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
+        for (final String path : filePaths) {
+            final Object source;
+            try {
+                source = SpimDataUtils.resolvePathToSource(path);
+            } catch (final IllegalArgumentException e) {
+                if (isN5OrZarrDir(path)) {
+                    SNTUtils.log("BDV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
+                            + "); will prompt for dataset selection");
+                    deferredPaths.add(path);
+                    continue;
+                }
+                throw e;
+            }
+            if (source instanceof AbstractSpimData<?> spim) {
+                bdv.show(spim, path); // path-aware overload populates spimDataFilePaths
+            } else if (source instanceof SpimDataUtils.N5Sources n5) {
+                bdv.show(n5);
+            } else if (source instanceof ImgPlus<?> img) {
+                //noinspection unchecked,rawtypes
+                bdv.show((ImgPlus) img);
+            }
+        }
+        for (final String path : deferredPaths)
+            datasetDialog(path, bdv);
+        loadReconstructions(bdv);
+        loadMarkers(bdv);
+    }
+
+    /** BDV counterpart to runBvvWithTracing(final String[] filePaths); */
+    private void runBdvWithTracing(final String[] filePaths) {
+        final SNT snt = startTracingSNT(img1File);
+        final Bdv bdv = new Bdv(snt);
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
         for (final String path : filePaths) {
             final Object source;

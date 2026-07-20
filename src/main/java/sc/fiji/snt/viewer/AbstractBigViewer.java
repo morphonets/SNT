@@ -27,23 +27,25 @@ import bdv.viewer.SourceAndConverter;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imglib2.RealPoint;
 import net.imglib2.realtransform.AffineTransform3D;
-import sc.fiji.snt.SNT;
-import sc.fiji.snt.SNTPrefs;
-import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
+import sc.fiji.snt.tracing.SearchInterface;
+import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
-import sc.fiji.snt.Tree;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.Future;
 
 /**
  * Abstract base for SNT's BigDataViewer-family viewers ({@link Bvv}, {@link Bdv}, etc.).
@@ -74,6 +76,14 @@ public abstract class AbstractBigViewer {
 
     /** @return SNT instance this viewer is tethered to, or null if no SNT instance is available. */
     public SNT getSNT() { return snt; }
+
+    // AWT only synthesizes mouseClicked if the pointer does not move *at all* between press and release.
+    // Trackpads (macOS in particular) routinely introduce a pixel or two of drift during what feels like a
+    // stationary click, which silently suppresses mouseClicked entirely: no event is delivered at all, not
+    // even to a listener sitting at the very top of mousePressed/mouseReleased. AbstractTracer and Bvv's own
+    // registerCenterOnDoubleClickListener listener both detect clicks themselves from press+release within
+    // this tolerance instead of relying on that zero-movement guarantee
+    protected static final int CLICK_MOVE_TOLERANCE_PX = 4;
 
     /**
      * Trees currently rendered in this viewer, keyed by unique display label.
@@ -1161,5 +1171,677 @@ public abstract class AbstractBigViewer {
 
         public double getSlabZMin() { return slabZMin; }
         public double getSlabZMax() { return slabZMax; }
+    }
+
+    /**
+     * Viewer-agnostic tracing state machine shared by {@link Bvv} and {@link Bdv}: manual/A*-assisted
+     * path construction from mouse clicks, fork-point resolution against currently rendered paths,
+     * single-step segment undo, and the batch-retrace channel/frame lock (see
+     * {@link sc.fiji.snt.SNT#getBatchRetraceChannelFrame()}).
+     * <p>
+     * Concrete subclasses  supply only the genuinely
+     * viewer-specific bits: how a click resolves to a world position, how the path/click-highlight
+     * overlays are obtained, how the active channel/frame is derived from the viewer's own
+     * source-selection UI, and (optionally) how a status row/undo button reflect tracing state.
+     */
+    protected abstract class AbstractTracer extends MouseAdapter {
+
+        private Path tempPath;
+        private Path.PathNode previousNode;
+        private PointInImage previousForkPoint;
+
+        // Undo mechanism, ported from SNT#confirmedSegmentSizes/SNT#undoLastSegment: each traced
+        // segment auto-confirms into tempPath (there is no separate temporary/confirm step here, as
+        // in the classic 2D canvas), so the "confirmed" node count of each segment is pushed here as
+        // it lands, and popped by undoLastSegment() to walk the path back one click at a time. Single-
+        // step undo only; no redo.
+        private final Deque<Integer> confirmedSegmentSizes = new ArrayDeque<>();
+
+        // Guards against a click being processed while a segment is still being traced in the background
+        // This keeps tempPath mutations single-threaded
+        private volatile boolean computing;
+        // Set when a finish (clickCount >= 2) arrives while computing is true: honored by done() once
+        // the in-flight segment lands, instead of silently dropping the finish request.
+        private volatile boolean pendingFinish;
+        private boolean manualTrace; // true: purely manual trace; false: A* search
+        // The Future for the A* search currently active (if any), so a Cancel button (if the viewer has
+        // one; see Bvv#tracingStatusRow()) can stop it. Null when idle, or during manual tracing
+        private volatile Future<?> currentSearchFuture;
+
+        // Where the button went down, used by mouseReleased to decide whether this was a "click"
+        // (see AbstractBigViewer#CLICK_MOVE_TOLERANCE_PX) rather than a drag (e.g. BVV's own rotate/pan).
+        private Point pressPoint;
+
+        // Screen-space pick radius for snapping a click to a fork point (see #handleClick). It gets
+        // converted to a world-space distance via pickRadiusWorld() so it stays perceptually constant
+        // across zoom levels. Safe to keep generous: the search that consumes this is a single path
+        // (findNearestRenderedPath()), so a large radius can only ever match somewhere along that one
+        // path. Manually-placed tracing waypoints can be much sparser than densely auto-traced ones: a
+        // click needs to land within this radius of *some* node for a fork point to be found at all in
+        // the first place (see NearPoint#getInsertionIndex())
+        private static final double FORK_POINT_PICK_RADIUS_SCREEN_PX = 150;
+
+        // Wall-clock time (System.currentTimeMillis()) until which trace clicks are deferred because a
+        // recenter animation is either still running or has just finished (tiles for the new focal
+        // region may still be streaming in). 0 (or already elapsed) means the scene is considered
+        // settled. Only meaningful for viewers with a recenter-on-click behavior (currently just Bvv;
+        // see Bvv#registerCenterOnDoubleClickListener); left permanently at 0 otherwise
+        protected volatile long tracingSettleUntilMs = 0;
+
+        protected AbstractTracer(final SNT snt) {
+            if (snt == null || snt.getPathAndFillManager() == null) {
+                throw new IllegalArgumentException("Tracer can only be initialized with a valid SNT instance");
+            }
+            addMouseListenerToDisplay(this);
+        }
+
+        @Override
+        public void mousePressed(final MouseEvent e) {
+            pressPoint = e.getPoint();
+        }
+
+        @Override
+        public void mouseReleased(final MouseEvent e) {
+            final Point start = pressPoint;
+            pressPoint = null;
+            if (start == null) return; // press wasn't seen by this listener; nothing to compare against
+            if (start.distance(e.getPoint()) > CLICK_MOVE_TOLERANCE_PX) return; // a real drag, not a click
+            handleClick(e);
+        }
+
+        /** Click-handling logic, formerly {@code mouseClicked(MouseEvent)}; see {@link #mouseReleased} */
+        private void handleClick(final MouseEvent e) {
+            if (!tracingEnabled) {
+                return;
+            }
+
+            // AWT's click count keeps incrementing for any click that lands within the platform's multi-click
+            // time/distance window of the previous one. Treating >=2 as "finish" ensures fast multiple clicking
+            // does not silently fall through as ordinary tracing input
+            if (e.getClickCount() >= 2) { // Path Finished
+                if (computing) {
+                    // A segment triggered by this same click sequence is still being traced in the background (every
+                    // finish is preceded by a clickCount==1 event that itself extends the path). Defer instead of
+                    // dropping: done() will finish once that segment lands, so the commit always sees a fully
+                    // up-to-date tempPath
+                    pendingFinish = true;
+                    return;
+                }
+                finishPath();
+                return;
+            }
+            if (computing) {
+                return; // a segment is still being traced; ignore further clicks until it lands
+            }
+
+            if (renderingOptions.strategy == RecenterStrategy.ADAPTIVE && System.currentTimeMillis() < tracingSettleUntilMs) {
+                // A recenter animation triggered by a previous click is still running, or has just
+                // finished but tiles for the new focal region may still be streaming in (see
+                // Bvv#registerCenterOnDoubleClickListener). Sampling now risks the exact zig-zag this gate
+                // exists to prevent, so the click is dropped rather than silently placing a bad node;
+                // the status row (set by the recenter listener) already reads "Stabilizing..."
+                showViewerMessage("Scene still stabilizing, please click again");
+                return;
+            }
+
+            if (previousNode == null) {
+                // If a background A* batch re-trace is running (PathManagerUI's "Re-trace with A*..."),
+                // its workers are reading this SNT instance's shared image-data fields concurrently.
+                // Refuse to start a new path on a *different* channel/frame than the batch is using.
+                // That would trigger the resync below and race with it
+                final int[] batchLock = snt.getBatchRetraceChannelFrame();
+                if (batchLock != null) {
+                    final int[] candidate = peekActiveChannelFrame();
+                    if (candidate == null || candidate[0] != batchLock[0] || candidate[1] != batchLock[1]) {
+                        new GuiUtils(getViewerFrame()).error("An A* batch re-trace is running on channel "
+                                + batchLock[0] + " / frame " + batchLock[1] + ". Starting a new path on a "
+                                + "different channel/frame is disabled until it finishes.");
+                        return;
+                    }
+                }
+
+                confirmedSegmentSizes.clear(); // just in case of abnormal prior state
+                updateUndoButtonState();
+
+                // this is the first click: we are starting a new Path. Lock in the channel/frame (and, for A*,
+                // the pixel data) for the whole path now, rather than re-checking on every segment, so a single
+                // path can't silently span two channels if the user switches the active source mid-trace
+                syncChannelFromActiveSource();
+                final double[] cc1 = resolveClickWorldPosition(e);
+                if (cc1 == null) return; // msg already displayed
+
+                // Is this new starting node supposed to be a fork point on an existing path?
+                final boolean joiner_modifier_down = (renderingOptions.requireShiftToFork) ? e.isShiftDown() && e.isAltDown() : e.isAltDown();
+
+                if (!joiner_modifier_down) {
+                    previousNode = new Path.PathNode(cc1);
+                    previousForkPoint = null;
+                    highlightClickedLocation(previousNode, false);
+                    return;
+                }
+
+                // Fork requested: resolve it *before* committing to starting a path at all. The fork
+                // modifier is an explicit request to attach to an existing branch, so if that request
+                // can't be honored, the click should be a clean no-op
+                showViewerMessage("Forking...");
+                // Auto-select the rendered path nearest the click, then restrict the fork-point search
+                // to just that one path, instead of scanning every path in the project
+                final Path nearestPath = findNearestRenderedPath(cc1);
+                // Pick radius is defined in screen pixels (see pickRadiusWorld()) rather than a fixed
+                // world-space distance, so "close enough to fork" stays consistent across zoom levels
+                final double pickRadius = pickRadiusWorld(FORK_POINT_PICK_RADIUS_SCREEN_PX);
+                final NearPoint nearPoint = (nearestPath == null) ? null : snt.getPathAndFillManager()
+                        .nearestPointOnAnyPath(Collections.singletonList(nearestPath), cc1[0], cc1[1], cc1[2], pickRadius);
+                if (nearPoint == null) {
+                    final String detail = (nearestPath == null) ? "No paths are currently rendered to fork from."
+                            : String.format("No point within %.2f%s of the cursor was found on the nearest path ('%s').",
+                                    pickRadius, calUnit, nearestPath.getName());
+                    final String mod = (renderingOptions.requireShiftToFork) ? "Alt+Shift" : "Alt";
+                    new GuiUtils(getViewerFrame()).error("<html>" + detail
+                            + "<br>Move closer to the target path, or click without " + mod + " to start an unconnected path.</html>",
+                            "No Fork Point Found");
+                    return;
+                }
+
+                // Fork point found: only now commit to starting the path
+                snt.selectPath(nearestPath, false);
+                previousNode = new Path.PathNode(cc1);
+                highlightClickedLocation(previousNode, true);
+                // Prefer the interpolated point on the path's line segments over the nearest raw node:
+                // manually-placed waypoints can be sparser than pickRadius, so the closest actual node
+                // may sit well past it even when the click lands right on the path itself. Materialize
+                // that position as a real node so the branch point is geometrically accurate and the
+                // parent path visibly gains a node at the fork location
+                final int insertionIndex = nearPoint.getInsertionIndex();
+                if (insertionIndex < 0) {
+                    previousForkPoint = nearPoint.getNode(); // already an existing node
+                } else {
+                    nearestPath.insertNode(insertionIndex, nearPoint.getClosestIntersectionPoint());
+                    previousForkPoint = nearestPath.getNode(insertionIndex);
+                    syncOverlays(); // so the new node is reflected next repaint, not just on the next full sync
+                }
+                return;
+            }
+
+            // this is the second (or Nth) click: highlight it and trace the segment from the
+            // previous click to here, forking off an existing path if the join modifier is down
+            final double[] cc2 = resolveClickWorldPosition(e);
+            if (cc2 == null) {
+                return; // msg already displayed
+            }
+            final Path.PathNode currentNode = new Path.PathNode(cc2);
+            highlightClickedLocation(currentNode, false);
+            traceSegmentAsync(previousNode, currentNode, previousForkPoint);
+            previousNode = currentNode;
+            previousForkPoint = null; // reset fork point
+        }
+
+        /**
+         * Resolves the mouse event to a calibrated (x,y,z) world position. Viewer-specific: BVV resolves
+         * this via ray-max intensity picking with a focal-plane fallback ; BDV
+         * resolves it directly from the orthographic slice cursor position .
+         *
+         * @param e the mouse event that triggered the click
+         * @return calibrated world position, or {@code null} if it could not be resolved (a message has
+         *         already been shown to the user in that case)
+         */
+        protected abstract double[] resolveClickWorldPosition(MouseEvent e);
+
+        /**
+         * Returns the path overlay used to preview/draw the in-progress {@code tempPath}, lazily
+         * initializing it first if necessary.
+         */
+        protected abstract Bvv.PathOverlay ensurePathOverlay();
+
+        /**
+         * Returns the annotation overlay used to highlight clicked node locations, lazily initializing
+         * it first if necessary.
+         */
+        protected abstract Bvv.AnnotationOverlay ensureTracingOverlay();
+
+        /** Clears the click-highlight overlay's contents, if one has been initialized. No-op otherwise. */
+        protected abstract void clearTracingOverlayContents();
+
+        /** Disposes of the click-highlight overlay, if one has been initialized, and forgets it. */
+        protected abstract void disposeTracingOverlay();
+
+        /**
+         * Refreshes the path overlay so a stale preview segment (from a just-discarded/finished path) is
+         * no longer shown, if a path overlay has already been initialized. Deliberately does *not* force
+         * lazy initialization (unlike {@link #ensurePathOverlay()}): if nothing has been drawn yet, there
+         * is nothing to clear and no reason to instantiate the overlay machinery early.
+         */
+        protected void clearPathOverlayPreview() {
+            // no-op by default
+        }
+
+        /**
+         * Re-derives the pixel data, calibration, and channel/frame that A* search and path metadata
+         * should use, from whichever source is currently "active" in the viewer's own source-selection
+         * UI and the viewer's current timepoint. If the current source can't be resolved for any reason
+         * (should not normally happen), this should leave whatever image data/channel/frame SNT already
+         * had.
+         */
+        protected abstract void syncChannelFromActiveSource();
+
+        /**
+         * Resolves what {@link #syncChannelFromActiveSource()} would set channel/frame to, without
+         * mutating anything. Used to check whether starting a new path now would change the
+         * channel/frame away from one a background batch re-trace is locked to.
+         *
+         * @return {@code {channel, frame}} (1-based), or null if the active source can't be resolved
+         */
+        protected abstract int[] peekActiveChannelFrame();
+
+        /**
+         * Updates a tracing status row (progress bar/label + Cancel button), if the viewer has one.
+         * No-op by default; overridden by viewers that expose such UI
+         *
+         * @param busy    {@code true} while a search is ongoing; {@code false} to reset to idle
+         * @param message short status text (ignored/cleared when {@code !busy})
+         */
+        protected void setTracingStatus(final boolean busy, final String message) {
+            // no-op by default
+        }
+
+        /**
+         * Notifies the viewer that the manual-vs-A* tracing mode was just toggled, so it can enable/
+         * disable any UI that only makes sense for one mode (e.g. the status row/Cancel button, which
+         * only apply to A* search). No-op by default; overridden by viewers with such UI (see
+         */
+        protected void onManualTraceModeChanged(final boolean manualTraceFlag) {
+            // no-op by default
+        }
+
+        /**
+         * Notifies the viewer that whether there is a confirmed segment available to undo has changed,
+         * so it can enable/disable an Undo button. No-op by default; overridden by viewers with such UI
+         *
+         * @param hasUndo {@code true} if {@link #undoLastSegment()} would currently do something
+         */
+        protected void updateUndoButtonState(final boolean hasUndo) {
+            // no-op by default
+        }
+
+        /**
+         * Finds the rendered Path nearest a 3D world position, restricted to what's currently rendered
+         * in this viewer's scene ({@link #getRenderedTrees()}) rather than every path in the whole
+         * project. Used to auto-select the path a fork click is most likely aimed at, before running the
+         * precise fork-point search scoped to just that one path.
+         *
+         * @param worldPos calibrated (x,y,z) position to search from
+         * @return the nearest rendered path, or {@code null} if nothing is currently rendered
+         * @see #handleClick(MouseEvent) Mirrors {@code InteractiveTracerCanvas#selectNearestPathToMousePointer},
+         */
+        private Path findNearestRenderedPath(final double[] worldPos) {
+            Path nearest = null;
+            final PointInImage wPos = SNTPoint.of(worldPos[0], worldPos[1], worldPos[2]);
+            double nearestDistSq = Double.MAX_VALUE;
+            for (final Tree tree : getRenderedTrees()) {
+                for (final Path path : tree.list()) {
+                    for (int i = 0; i < path.size(); i++) {
+                        final Path.PathNode node = path.getNode(i);
+                        final double distSq = node.distanceSquaredTo(wPos);
+                        if (distSq < nearestDistSq) {
+                            nearestDistSq = distSq;
+                            nearest = path;
+                        }
+                    }
+                }
+            }
+            return nearest;
+        }
+
+        /**
+         * Converts a screen-space pixel radius into a world-space distance, using the scale of the
+         * current viewer transform. Used to make on-screen "pick" tolerances (e.g. snapping to an
+         * existing node to fork from) scale-invariant with respect to zoom.
+         * <p>
+         * Same technique as BvvUtils#colMagnitudes(AffineTransform3D): sum-of-squares of a
+         * transform's linear part, applied to the viewer transform rather than a source transform.
+         * BVV/BDV viewer transforms are similarity transforms (rotation + uniform scale), so the three
+         * columns should agree closely; averaging them is a simplification, not an exact per-axis fix.
+         * <p>
+         * NB> this ignores perspective foreshortening (scale technically also depends on depth along
+         * the camera axis in BVV). Good enough here because clicks are first centered onto the focal
+         * plane (see {@code Bvv#registerCenterOnDoubleClickListener}), where foreshortening is minimal
+         *
+         * @param screenPx the desired pick radius, in screen pixels
+         * @return the equivalent world-space distance at the current zoom level, or {@code screenPx}
+         *          unscaled if the viewer transform isn't available (should not normally happen)
+         */
+        protected double pickRadiusWorld(final double screenPx) {
+            final AffineTransform3D t = getViewerTransform();
+            if (t == null) return screenPx;
+            double sumSq = 0;
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++) { final double v = t.get(r, c); sumSq += v * v; }
+            final double screenPxPerWorldUnit = Math.sqrt(sumSq / 3.0);
+            return (screenPxPerWorldUnit > 0) ? screenPx / screenPxPerWorldUnit : screenPx;
+        }
+
+        /**
+         * Commits {@code tempPath} to the Path Manager and resets tracing state. Called directly
+         * from {@code mouseReleased} when no segment is in flight, or deferred from {@code done()}
+         * (via {@code pendingFinish}) when a finish click arrived while one was still being traced.
+         */
+        private void finishPath() {
+            // Nothing pending: ignore a stray finish click
+            final boolean inProgress = previousNode != null || (tempPath != null && tempPath.size() > 0);
+            if (!inProgress) return;
+
+            // edge case: single click followed directly by finish, with no segment ever traced: tempPath
+            // was never initialized, so build a fresh one-node path here
+            if (tempPath == null) {
+                tempPath = new Path(cal[0], cal[1], cal[2], calUnit);
+            }
+            // A single node is treated as a single-point soma
+            if (tempPath.size() == 0 && previousNode != null) tempPath.addNode(previousNode);
+            if (tempPath.size() == 1) tempPath.setSWCType(Path.SWC_SOMA);
+
+            // Add path to path manager and reset
+            snt.getPathAndFillManager().addPath(tempPath);
+            if (renderingOptions.activateFinishedPath) snt.selectPath(tempPath, false);
+            clearTracingOverlayContents();
+            syncPathManagerList();
+            tempPath = null;
+            previousNode = null;
+            confirmedSegmentSizes.clear();
+            updateUndoButtonState();
+            showViewerMessage("Path finished");
+        }
+
+        /**
+         * Builds the Enter-key action: finishes the in-progress path, same as a double click, but
+         * without the spurious node a double click's own first (clickCount==1) click would leave
+         * behind. Deferred via {@code pendingFinish} if a segment is still being traced, exactly
+         * like the click-based finish path.
+         */
+        protected AbstractAction getFinishPathAction() {
+            return new AbstractAction("Finish Path") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (!tracingEnabled) return;
+                    if (computing) {
+                        pendingFinish = true;
+                        return;
+                    }
+                    finishPath();
+                }
+            };
+        }
+
+        /**
+         * Builds the Escape-key action: discards the in-progress path (see {@link
+         * #discardCurrentPath()}) without exiting tracing mode, so the user can immediately start a
+         * new path.
+         */
+        protected AbstractAction getDiscardPathAction() {
+            return new AbstractAction("Discard Path") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    discardCurrentPath();
+                }
+            };
+        }
+
+        /**
+         * Discards the current in-progress path: cancels any in-flight segment search, clears
+         * {@code tempPath}/{@code previousNode} and the preview overlay, and resets the tracing
+         * status row. Unlike {@link #exit()}, {@code tracingEnabled} is left untouched, so the user
+         * stays in tracing mode and can start a new path right away. No-op if tracing is disabled
+         * or there is nothing pending.
+         */
+        protected void discardCurrentPath() {
+            if (!tracingEnabled) return;
+            final boolean hadSomethingToDiscard = previousNode != null || (tempPath != null && tempPath.size() > 0);
+            cancelCurrentSearch(); // no-op if idle; stops an in-flight A* search rather than orphaning it
+            previousNode = null;
+            tempPath = null;
+            pendingFinish = false;
+            computing = false;
+            confirmedSegmentSizes.clear();
+            updateUndoButtonState();
+            setTracingStatus(false, null);
+            clearTracingOverlayContents();
+            clearPathOverlayPreview(); // get rid of the stale preview segment
+            if (hadSomethingToDiscard) showViewerMessage("Path discarded");
+        }
+
+        /**
+         * Runs {@link SNT#manualTrace(SNTPoint, SNTPoint, PointInImage)} (or, for A*, {@link
+         * SNT#autoTrace(SNTPoint, SNTPoint, PointInImage, SearchProgressCallback, java.util.function.Consumer)})
+         * off the EDT and applies the result (stitching into {@code tempPath} and refreshing the
+         * preview overlay) back on the EDT once done. Keeps the click handler itself non-blocking.
+         * <p>
+         * For A* search, also drives a tracing status row if the viewer has one (see {@link #setTracingStatus}):
+         * a progress callback updates it roughly once a second and the {@link Future} handle captured on submission
+         * lets {@link #cancelCurrentSearch()} stop a runaway search.
+         */
+        private void traceSegmentAsync(final Path.PathNode start, final Path.PathNode end,
+                                       final PointInImage forkPoint) {
+            computing = true;
+            setTracingStatus(!manualTrace, "Tracing...");
+            final SearchProgressCallback progress = new SearchProgressCallback() {
+                @Override
+                public void pointsInSearch(final SearchInterface source, final long inOpen, final long inClosed) {
+                    setTracingStatus(true, String.format("Tracing... %,d nodes explored", inClosed));
+                }
+
+                @Override
+                public void finished(final SearchInterface source, final boolean success) {
+                    // no-op: done() below already handles completion/result application
+                }
+
+                @Override
+                public void threadStatus(final SearchInterface source, final int currentStatus) {
+                    // no-op
+                }
+            };
+            new SwingWorker<Path, Void>() {
+                @Override
+                protected Path doInBackground() {
+                    // NB: must use the headless autoTrace overload here, NOT autoTrace(start,end,forkPoint).
+                    // The 3-arg overload is the *interactive* entry point (meant for SNTUI/2D-canvas tracing)
+                    return (manualTrace)
+                            ? snt.manualTrace(start, end, forkPoint)
+                            : snt.autoTrace(start, end, forkPoint, progress, f -> currentSearchFuture = f);
+                }
+
+                @Override
+                protected void done() {
+                    computing = false;
+                    final boolean cancelled = currentSearchFuture != null && currentSearchFuture.isCancelled();
+                    currentSearchFuture = null;
+                    setTracingStatus(false, null);
+                    try {
+                        final Path result = get();
+                        if (result == null) {
+                            showViewerMessage(cancelled
+                                    ? "Search cancelled" : "Segment could not be traced (out of bounds?)");
+                        } else if (tempPath == null) {
+                            tempPath = result;
+                            pushConfirmedSegmentSize(result.size());
+                        } else {
+                            final int sizeBefore = tempPath.size();
+                            tempPath.add(result);
+                            pushConfirmedSegmentSize(tempPath.size() - sizeBefore);
+                        }
+                        if (result != null) drawSegment(tempPath);
+                    } catch (final Exception ex) {
+                        showViewerMessage(ex.getMessage());
+                        SNTUtils.error("Error tracing segment", ex); // only displayed in debug mode
+                    } finally {
+                        // Honor a finish request that arrived while this segment was still in flight,
+                        // regardless of whether it succeeded: the user's finish click should never be
+                        // silently lost, and tempPath (even if this segment failed) still reflects
+                        // whatever was successfully traced so far.
+                        if (pendingFinish) {
+                            pendingFinish = false;
+                            finishPath();
+                        }
+                    }
+                }
+            }.execute();
+        }
+
+        /**
+         * Cancels the A* search currently in flight (if any), via {@link Future#cancel(boolean)}.
+         * {@code BiSearch}'s loop already checks for thread interruption, so this actually stops the
+         * search. Has no effect during manual tracing (nothing to cancel) or when idle.
+         */
+        protected void cancelCurrentSearch() {
+            final Future<?> f = currentSearchFuture;
+            if (f != null) f.cancel(true);
+        }
+
+        /**
+         * Records the node count of a segment that was just auto-confirmed into {@code tempPath}, for
+         * {@link #undoLastSegment()} to later pop. Mirrors {@code SNT#confirmedSegmentSizes}/{@code
+         * SNT#confirmTemporary}, capped the same way at {@link SNTPrefs#MAX_UNDO_STEPS}.
+         *
+         * @param nodesAdded number of nodes the segment actually contributed to {@code tempPath}
+         */
+        private void pushConfirmedSegmentSize(final int nodesAdded) {
+            confirmedSegmentSizes.push(nodesAdded);
+            if (confirmedSegmentSizes.size() > SNTPrefs.MAX_UNDO_STEPS)
+                confirmedSegmentSizes.removeLast(); // drop oldest
+            updateUndoButtonState();
+        }
+
+        /**
+         * Recomputes whether anything is currently available to undo and notifies the viewer (see
+         * {@link #updateUndoButtonState(boolean)}). Safe to call at any time, including before any
+         * undo-related UI exists.
+         */
+        protected void updateUndoButtonState() {
+            updateUndoButtonState(!confirmedSegmentSizes.isEmpty());
+        }
+
+        /**
+         * Undoes the most recently confirmed segment, one click at a time (single-step; no redo).
+         * Ported from {@code SNT#undoLastSegment()}: pops the last segment's node count off {@link
+         * #confirmedSegmentSizes} and removes that many trailing nodes from {@code tempPath}. If that
+         * empties {@code tempPath} entirely (undone back to the very first point), this falls back to
+         * {@link #discardCurrentPath()}, exactly as the classic 2D canvas cancels the whole path in
+         * that case. No-op if tracing is disabled, nothing has been confirmed yet, or a segment is
+         * currently being traced (undoing mid-search would race with {@code done()}).
+         */
+        protected void undoLastSegment() {
+            if (!tracingEnabled) return;
+            if (confirmedSegmentSizes.isEmpty()) {
+                showViewerMessage("No segment to undo");
+                return;
+            }
+            if (computing) {
+                showViewerMessage("A segment is still being traced; please wait before undoing");
+                return;
+            }
+            final int nodesToRemove = confirmedSegmentSizes.pop();
+            for (int i = 0; i < nodesToRemove; i++)
+                tempPath.removeNode(tempPath.size() - 1);
+
+            if (tempPath.size() == 0) {
+                // Undone back to the very first point: equivalent to discarding the path outright
+                discardCurrentPath();
+                return;
+            }
+            previousNode = new Path.PathNode(tempPath.lastNode());
+            previousForkPoint = null;
+            updateUndoButtonState();
+            drawSegment(tempPath);
+            showViewerMessage("Segment undone");
+        }
+
+        /**
+         * Builds the undo action shared by an Undo button (if any) and the Cmd/Ctrl+Z hotkey.
+         *
+         * @see #undoLastSegment()
+         */
+        protected AbstractAction getUndoSegmentAction() {
+            return new AbstractAction("Undo Last Segment") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    undoLastSegment();
+                }
+            };
+        }
+
+        private void highlightClickedLocation(final Path.PathNode node, final boolean highlightAsForkPoint) {
+            ensureTracingOverlay().addAnnotation(node,
+                    (highlightAsForkPoint) ? getDefaultMarkerSize() * 2 : getDefaultMarkerSize(),
+                    (highlightAsForkPoint) ? SNTColor.contrastHueColor(getDefaultMarkerColor(), Color.BLACK) : getDefaultMarkerColor());
+        }
+
+        private void drawSegment(final Path segment) {
+            final Tree tree = new Tree();
+            tree.add(segment);
+            //color will be set to getDefaultMarkerColor()
+            ensurePathOverlay().updatePaths(tree);
+        }
+
+        protected void exit() {
+            cancelCurrentSearch(); // stops active A* search if any
+            previousNode = null;
+            tempPath = null;
+            computing = false;
+            pendingFinish = false;
+            confirmedSegmentSizes.clear();
+            updateUndoButtonState();
+            setTracingStatus(false, null);
+            disposeTracingOverlay();
+            clearPathOverlayPreview(); // get rid of temp path
+        }
+
+        protected AbstractAction getToggleAction(final boolean manualTraceFlag) {
+            return new AbstractAction("Start/Stop tracing") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+
+                    final AbstractButton button = (e.getSource() instanceof AbstractButton) ? (AbstractButton) e.getSource() : null;
+                    tracingEnabled = (button == null) ? tracingEnabled : button.isSelected();
+                    AbstractTracer.this.manualTrace = manualTraceFlag;
+
+                    onManualTraceModeChanged(manualTraceFlag);
+
+                    final boolean sntAware = snt != null && snt.getPathAndFillManager() != null;
+                    final boolean tracingPossible = manualTraceFlag || (sntAware && snt.accessToValidImageData());
+                    final String tracingDescription = (manualTraceFlag) ? "Manual tracing" : "Semi-automated tracing";
+
+                    if (!tracingPossible && tracingEnabled) {
+                        new GuiUtils(getViewerFrame()).error(tracingDescription + " is not available.");
+                        tracingEnabled = false;
+                        AbstractTracer.this.manualTrace = true;
+                        if (button != null) {
+                            button.setSelected(false);
+                            button.setEnabled(false);
+                        }
+                    } else if (tracingEnabled) {
+                        showViewerMessage(tracingDescription + " enabled");
+                    } else {
+                        final boolean exited = exitedWithConfirmationPrompt();
+                        if (!exited && button != null) button.setSelected(true);
+                    }
+                }
+            };
+        }
+
+        private boolean exitedWithConfirmationPrompt() {
+            final boolean promptUser = tempPath != null && tempPath.size() > 0;
+            if (promptUser) {
+                final int ans = new GuiUtils(getViewerFrame())
+                        .yesNoDialog("An unfinished path exists. Would you like to finish it?", "Unfinished Path",
+                        "Yes. Finish Path", "No. Discard Path");
+                if (ans == JOptionPane.YES_OPTION) {
+                    finishPath();
+                } else if (ans == JOptionPane.NO_OPTION) {
+                    discardCurrentPath();
+                }
+            }
+            exit();
+            showViewerMessage("Tracing disabled");
+            return true;
+        }
+
     }
 }

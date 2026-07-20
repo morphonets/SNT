@@ -3716,6 +3716,11 @@ public class SNT extends MultiDThreePanes implements
 				new Thread(() -> getUI().bvvSNT.syncPathManagerList()).start();
 			}
 		}
+		if (getUI() != null && getUI().bdvSNT != null) {
+			// Bdv has no updateSelection()-equivalent yet (unlike Bvv): always do a full
+			// rebuild, even for selectionOnly changes. Hopefully this is cheap enough
+			new Thread(() -> getUI().bdvSNT.syncPathManagerList()).start();
+		}
 		if (includeLegacy3Dviewer) update3DViewerContents();
 	}
 
