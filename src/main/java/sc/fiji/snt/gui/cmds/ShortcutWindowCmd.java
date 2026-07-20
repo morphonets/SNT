@@ -81,14 +81,18 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 	private JPanel getPanel() {
 		final ArrayList<Shortcut> shortcuts = new ArrayList<>();
 		shortcuts.add(new Shortcut("Startup...", SNTLoaderCmd.class,
-				"Initialize the complete SNT frontend. For tracing start here."));
+				"Initialize the complete SNT frontend.<br>" +
+						"For tracing on standard images start here."));
 		shortcuts.add(null);
 		shortcuts.add(new Shortcut("Big Data...", BvvCmd.class,
-				"Initialize SNT's Big Data/Volume Viewer with support for big data pyramidal images."));
+				"Initialize SNT with support for big data pyramidal images.<br>" +
+						"For SNT Stream tracing start here."));
 		shortcuts.add(new Shortcut("Rec. Plotter...", PlotterCmd.class,
-				"Create a 2D rendering of a reconstruction file (traces/json/swc)"));
+				"Create a 2D rendering of a reconstruction file (traces/json/swc).<br>" +
+						"For quick and basic illustrations that do not require imagery start here."));
 		shortcuts.add(new Shortcut("Rec. Viewer", ReconstructionViewerCmd.class,
-				"Initialize SNT's neuroanatomy viewer. For analysis/visualization start here."));
+				"Initialize SNT's neuroanatomy viewer.<br>" +
+						"For analyses and quantitative visualizations that do not require imagery start here."));
 		addButtons(shortcuts);
 		final ScriptInstaller si = new ScriptInstaller(getContext(), getFrame());
 		buttons.add(null);

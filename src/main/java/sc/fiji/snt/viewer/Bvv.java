@@ -1833,10 +1833,9 @@ public class Bvv extends AbstractBigViewer {
         IconFactory.assignIcon(toggleVisibility, IconFactory.GLYPH.EYE, IconFactory.GLYPH.EYE_SLASH, SCALING_FACTOR);
 
         toolbar.add(toggleVisibility);
-        toolbar.addSeparator();
         toolbar.add(toggleAroundCursor);
-        toolbar.addSeparator();
         toolbar.add(offsetActivate);
+
         toolbar.addSeparator();
         toolbar.add(Box.createHorizontalGlue());
         toolbar.addSeparator();
@@ -1846,7 +1845,7 @@ public class Bvv extends AbstractBigViewer {
                 IconFactory.GLYPH.MARKER, "<html>Show/hide the Markers table.<br>"
                         + "Press M in the viewer to place a marker at the cursor position.");
         // rescale assigned icon to SCALING_FACTOR
-        IconFactory.assignIcon(toggleVisibility, IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER, SCALING_FACTOR);
+        IconFactory.assignIcon(markerButton, IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER, SCALING_FACTOR);
         // Keep button state in sync with frame visibility
         getMarkerManager().getViewerDialogPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override

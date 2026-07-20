@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="logo" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 433.6 436">
+  <!-- Generator: Adobe Illustrator 29.7.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 8)  -->
+  <defs>
+    <style>
+      .st0 {
+        stroke: #c2df23;
+        stroke-width: 6px;
+      }
+
+      .st0, .st1 {
+        fill: none;
+      }
+
+      .st2 {
+        fill: #23a982;
+      }
+
+      .st3 {
+        fill: #24848d;
+      }
+
+      .st4 {
+        fill: #440255;
+        font-family: Helvetica, Helvetica;
+        font-size: 114px;
+        isolation: isolate;
+      }
+
+      .st5 {
+        fill: #440357;
+      }
+
+      .st1 {
+        stroke: #28ae7f;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 10px;
+      }
+
+      .st6 {
+        fill: #e9e419;
+      }
+
+      .st7 {
+        fill: #88d547;
+      }
+    </style>
+  </defs>
+  <line class="st0" x1="245.17" y1="120.49" x2="190" y2="40"/>
+  <line class="st0" x1="204.37" y1="167.45" x2="48" y2="94"/>
+  <line class="st0" x1="194.09" y1="249.78" x2="94" y2="268"/>
+  <line class="st0" x1="239.7" y1="313.25" x2="186" y2="384"/>
+  <circle class="st5" cx="190" cy="40" r="40"/>
+  <circle class="st3" cx="48" cy="94" r="48"/>
+  <circle class="st2" cx="94" cy="268" r="38"/>
+  <circle class="st7" cx="186" cy="384" r="52"/>
+  <path class="st1" d="M357.38,326.46c32.69-14.48,57.73-43.68,67.09-78.18,9.66-35.63,2.17-74.65-20.2-104.05-11.85-15.58-27.5-28.21-45.27-36.43"/>
+  <path class="st1" d="M263.3,108.31c-32.69,14.48-57.73,43.68-67.09,78.18-9.66,35.63-2.17,74.65,20.2,104.05,11.85,15.58,27.5,28.21,45.27,36.43"/>
+  <circle class="st6" cx="307.65" cy="218" r="91.8"/>
+  <text class="st4" transform="translate(212.09 258.89) scale(.53 1)"><tspan x="0" y="0">PySNT</tspan></text>
+</svg>

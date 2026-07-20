@@ -107,8 +107,10 @@ public class SNTUtils {
 	}
 
 	public static String getReadableVersion() {
-		if (VERSION.length() < 21) return "SNT " + VERSION;
-		return "SNT " + VERSION.substring(0, 21) + "...";
+		final String core = (getInstance() != null && getInstance().getUI() != null && getInstance().getUI().isStreamMode())
+				? "SNT Stream " : "SNT ";
+		if (VERSION.length() < 21) return core + VERSION;
+		return core + VERSION.substring(0, 21) + "...";
 	}
 
 	/**

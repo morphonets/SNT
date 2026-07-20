@@ -976,8 +976,11 @@ public class SNTUI extends JDialog {
             bvvSNT.getViewerFrame().getViewerPanel().stop();
             bvvSNT.getViewerFrame().dispose();
         }
-        if (bdvSNT != null && bdvSNT.getViewerFrame() != null)
+        if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
+            // BDV's own PainterThread isn't stopped by dispose() alone (see setBdvOnEDT)
+            bdvSNT.getViewerFrame().getViewerPanel().stop();
             bdvSNT.getViewerFrame().dispose();
+        }
         if (sciViewSNT != null && sciViewSNT.getSciView() != null && sciViewSNT.getSciView().mainWindow != null)
             sciViewSNT.getSciView().mainWindow.close();
         bvvSNT = null;
@@ -1078,6 +1081,47 @@ public class SNTUI extends JDialog {
                         bvvSNT.getViewerFrame().getViewerPanel().stop();
                         bvvSNT.getViewerFrame().dispose();
                         bvvSNT = null;
+                    }
+                }
+            });
+        }
+    }
+
+    /**
+     * Registers (or clears, if {@code bdv} is null) the {@link Bdv} instance tethered to this UI.
+     *
+     * @param bdv the {@link Bdv} instance to tether, or null to detach
+     */
+    public void setBdv(final Bdv bdv) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            setBdvOnEDT(bdv);
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(() -> setBdvOnEDT(bdv));
+            } catch (final Throwable e) {
+                throw new RuntimeException("Failed to set Bdv", e);
+            }
+        }
+    }
+
+    private void setBdvOnEDT(final Bdv bdv) {
+        this.bdvSNT = bdv;
+        if (bdv != null && bdv.getViewerFrame() != null) {
+            if (isStreamMode()) bdv.getViewerFrame().setTitle("SNT Stream (BDV)");
+            bdv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+            for (final WindowListener wl : bdv.getViewerFrame().getWindowListeners()) {
+                bdv.getViewerFrame().removeWindowListener(wl); // see setBdvOnEDT
+            }
+            bdv.getViewerFrame().addWindowListener(new WindowAdapter() {
+
+                @Override
+                public void windowClosing(final WindowEvent e) {
+                    if (isStreamMode()) {
+                        exitRequested();
+                    } else if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
+                        bdvSNT.getViewerFrame().getViewerPanel().stop();
+                        bdvSNT.getViewerFrame().dispose();
+                        bdvSNT = null;
                     }
                 }
             });
@@ -2733,21 +2777,22 @@ public class SNTUI extends JDialog {
             if (!plugin.accessToValidImageData() || plugin.getImagePlus() == null) {
                 noValidImageDataError();
             } else {
+                if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
+                    bdvSNT.getViewerFrame().toFront();
+                    return;
+                }
+                final Bdv newBdv = new Bdv(plugin);
                 try {
-                    bdvSNT = new Bdv(plugin);
-                    bdvSNT.show(plugin.getImagePlus());
-                    bdvSNT.syncPathManagerList();
-                    if (bdvSNT.getViewerFrame() != null) {
-                        bdvSNT.getViewerFrame().addWindowListener(new WindowAdapter() {
-                            @Override
-                            public void windowClosing(WindowEvent e) {
-                                super.windowClosing(e);
-                                bdvSNT = null;
-                            }
-                        });
-                    }
+                    newBdv.show(plugin.getImagePlus());
+                    // Only promote to field once show() succeeded, so a failed show() doesn't leave
+                    // bdvSNT pointing at a half-initialized viewer (no bdvHandle/frame yet)
+                    bdvSNT = newBdv;
+                    // NB: WindowListener added by Bdv's own setBdv-triggered wiring (see
+                    // SNTUI#setBdvOnEDT), same as Bvv#attachControlPanel()
                 } catch (final Throwable exc) {
                     error(exc);
+                } finally {
+                    if (bdvSNT != null) bdvSNT.syncPathManagerList();
                 }
             }
         });

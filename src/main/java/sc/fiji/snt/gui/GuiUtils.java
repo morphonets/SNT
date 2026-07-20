@@ -68,7 +68,6 @@ import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
-import java.awt.geom.AffineTransform;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -186,7 +185,7 @@ public class GuiUtils {
 	 */
 	public void notifyIfOldVersion(final int msDelayBeforeCheck) {
 		final Timer timer = new Timer(msDelayBeforeCheck, e -> {
-			new Thread(() -> {
+			new Thread(() -> {xf
 				try {
 					// Abort early if the updater's own checks indicate we shouldn't proceed
 					final net.imagej.updater.UpToDate.Result preCheck = net.imagej.updater.UpToDate.check();
@@ -1822,52 +1821,6 @@ public class GuiUtils {
 		}
 	}
 
-	private static class SpinningIconLabel extends JLabel {
-		double angle = 0;
-		double scale = 1.0;
-		final Timer timer;
-
-		SpinningIconLabel(final Icon icon) {
-			super(icon);
-			timer = new Timer(16, e -> {
-				angle += 0.1;
-				scale -= 0.01;
-				if (scale <= 0) {
-					angle = 0;
-					scale = 1.0;
-				}
-				repaint();
-			});
-			addMouseListener(new MouseAdapter() {
-				@Override
-				public void mouseClicked(final MouseEvent e) {
-					if (timer.isRunning()) {
-						timer.stop();
-						angle = 0;
-						scale = 1.0;
-						repaint();
-					} else {
-						timer.start();
-					}
-				}
-			});
-		}
-
-		@Override
-		protected void paintComponent(final Graphics g) {
-			final Graphics2D g2d = (Graphics2D) g;
-			final AffineTransform originalTransform = g2d.getTransform();
-			final int x = getWidth() / 2;
-			final int y = getHeight() / 2;
-			g2d.translate(x, y);
-			g2d.rotate(angle);
-			g2d.scale(scale, scale);
-			g2d.translate(-x, -y);
-			super.paintComponent(g);
-			g2d.setTransform(originalTransform);
-		}
-	}
-
 	private static String getImageJVersion() {
 		try {
 			return "ImageJ " + SNTUtils.getContext().getService(org.scijava.app.AppService.class).getApp().getVersion();
@@ -1878,7 +1831,7 @@ public class GuiUtils {
 
 	public static JDialog showAboutDialog() {
 		final JPanel main = new JPanel();
-		main.add(new SpinningIconLabel(SplashScreen.getIcon()));
+		main.add(SplashScreen.getIconAsAnimatedLabel());
 		final JPanel side = new JPanel();
 		main.add(side);
 		side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
