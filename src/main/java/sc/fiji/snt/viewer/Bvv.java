@@ -1422,7 +1422,7 @@ public class Bvv extends AbstractBigViewer {
             currentBvv.getViewer().getDisplay().overlays().add(sceneOverlay);
             pathOverlay.updatePaths();
             final VolumeViewerFrame bvvFrame = bvv.getViewerFrame();
-            final BvvActions actions = new BvvActions(this, bvv);
+            final BvvActions actions = new BvvActions(bvv);
             // Transforms toolbar: added first so it appears just below the Groups card, collapsed by default
             bvvFrame.getCardPanel().addCard("Source Transforms", sourceTransformsToolbar(actions), false);
             // Scene controls
@@ -2877,8 +2877,8 @@ public class Bvv extends AbstractBigViewer {
             updateCameraParameters();
         }
 
-        private void applyZCenter(final VolumeViewerPanel viewerPanel,
-                                  final double zCenter) {
+        private double applyZCenter(final VolumeViewerPanel viewerPanel,
+                                     final int depthAxis, final double zCenter) {
             final AffineTransform3D t = new AffineTransform3D();
             viewerPanel.state().getViewerTransform(t);
             // Read current scale from the transform column magnitude. Using a cached
@@ -2888,15 +2888,26 @@ public class Bvv extends AbstractBigViewer {
                     t.get(0, 0) * t.get(0, 0) +
                             t.get(1, 0) * t.get(1, 0) +
                             t.get(2, 0) * t.get(2, 0));
-            t.set(-currentScale * zCenter, 2, 3);
+            // Row 2 (viewer-depth)'s entry for the active depth axis can be +currentScale or
+            // -currentScale depending on the handedness BVV picked for this canonical alignment
+            // (e.g. "align ZY plane" may flip sign to keep the up-vector consistent). Read it
+            // directly instead of assuming a sign, or the slab centers on the wrong side of the
+            // volume (out of bounds) whenever that sign is negative
+            final double signedDepthScale = t.get(2, depthAxis);
+            t.set(-signedDepthScale * zCenter, 2, 3);
             viewerPanel.state().setViewerTransform(t);
             viewerPanel.requestRepaint();
+            return currentScale;
         }
 
-        private void applySlab(final VolumeViewerPanel viewerPanel,
-                               final double physZ, final double zCenter, final double thickness) {
-            applyZCenter(viewerPanel, zCenter);
-            final int tick = pctToTick(toPct(toScreen((thickness / physZ) * 100.0 / 2.0)));
+        private void applySlab(final VolumeViewerPanel viewerPanel, final int depthAxis,
+                               final double zCenter, final double thickness) {
+            final double currentScale = applyZCenter(viewerPanel, depthAxis, zCenter);
+            // Convert thickness (physical units, along whichever axis is currently depth) directly
+            // to screen-space via the SAME world-to-screen scale just used above for zCenter. This
+            // is correct for any of the three canonical planes
+            final double halfThicknessScreen = currentScale * (thickness / 2.0);
+            final int tick = pctToTick(toPct(halfThicknessScreen));
             setSliderValues(dCamSlider.getValue(), tick, tick);
         }
 
@@ -3016,14 +3027,36 @@ public class Bvv extends AbstractBigViewer {
             }
 
             // Slab rows (only when calibrated)
-            if (cal != null && dims != null && dims[2] > 0 && cal[2] > 0) {
-                final double physZ = dims[2] * cal[2];
-                final double zStep = cal[2];
-                final double defThick = Math.max(zStep * 5, physZ * 0.05);
-                final int nSlices = (int) Math.round(physZ / zStep);
+            if (cal != null && dims != null
+                    && dims[0] > 0 && dims[1] > 0 && dims[2] > 0
+                    && cal[0] > 0 && cal[1] > 0 && cal[2] > 0) {
                 final String unit = bvvInstance.getPhysicalUnit();
 
-                final JSpinner thickSpinner = GuiUtils.doubleSpinner(defThick, zStep, physZ, zStep, 1);
+                /**
+                 * Tracks which world axis (0=X, 1=Y, 2=Z) is currently aligned with viewer-depth, and
+                 * the step/extent/tick-count derived from THAT axis's own calibration. This lets the
+                 * slab controls work correctly in any of the three canonical views (XY, XZ, ZY),
+                 * rather than assuming viewer-depth is always world Z
+                 */
+                final class SlabAxis {
+                    int axis;
+                    double step;
+                    double phys;
+                    int nSlices;
+                    double defThick;
+                    SlabAxis(final int axis) { set(axis); }
+                    void set(final int axis) {
+                        this.axis = axis;
+                        this.step = cal[axis];
+                        this.phys = dims[axis] * cal[axis];
+                        this.nSlices = Math.max(1, (int) Math.round(phys / step));
+                        this.defThick = Math.max(step * 5, phys * 0.05);
+                    }
+                }
+                final SlabAxis slabAxis = new SlabAxis(2); // default view: Z is the depth axis
+
+                final JSpinner thickSpinner = GuiUtils.doubleSpinner(
+                        slabAxis.defThick, slabAxis.step, slabAxis.phys, slabAxis.step, 1);
                 thickSpinner.setToolTipText("<html>Thickness of the visible slab (" + unit + ").<br>"
                         + "Controls near/far clipping symmetrically around the current position.");
                 thickSpinner.setEnabled(false);
@@ -3031,28 +3064,28 @@ public class Bvv extends AbstractBigViewer {
                 final JButton thickSpinnerReset = GuiUtils.Buttons.undo(new AbstractAction() {
                     @Override
                     public void actionPerformed(final java.awt.event.ActionEvent e) {
-                        thickSpinner.setValue(defThick);
+                        thickSpinner.setValue(slabAxis.defThick);
                     }
                 });
                 thickSpinnerReset.setToolTipText("Reset thickness to default");
 
-                final JSlider posSlider = new JSlider(0, nSlices, nSlices / 2);
+                final JSlider posSlider = new JSlider(0, slabAxis.nSlices, slabAxis.nSlices / 2);
                 posSlider.setToolTipText("<html>Slab position. Drag to move the slab through the volume.");
                 posSlider.setEnabled(false);
 
                 final JButton posSliderReset = GuiUtils.Buttons.undo(new AbstractAction() {
                     @Override
                     public void actionPerformed(final java.awt.event.ActionEvent e) {
-                        posSlider.setValue(nSlices / 2);
+                        posSlider.setValue(slabAxis.nSlices / 2);
                     }
                 });
                 posSliderReset.setToolTipText("Reset position to mid-volume");
 
                 // Position value and unit are separate labels (col4 and col5-6)
-                final JLabel posValue = new JLabel(String.format("%.1f ", (nSlices / 2.0) * zStep));
+                final JLabel posValue = new JLabel(String.format("%.1f ", (slabAxis.nSlices / 2.0) * slabAxis.step));
                 final JLabel posUnit = new JLabel("");
                 posSlider.addChangeListener(ev ->
-                        posValue.setText(String.format("%.1f", posSlider.getValue() * zStep)));
+                        posValue.setText(String.format("%.1f", posSlider.getValue() * slabAxis.step)));
 
                 final int[] savedClip = {nearSlider.getValue(), farSlider.getValue()};
                 final boolean[] slabOn = {false};
@@ -3062,23 +3095,125 @@ public class Bvv extends AbstractBigViewer {
 
                 final VolumeViewerPanel viewerPanel = bvvInstance.currentBvv.getViewer();
 
-                // Re-sync posSlider to actual viewer Z on mouse press.  The viewer
-                // transform can drift (e.g. scroll-wheel zoom/pan) while slab is on,
-                // causing the slider to be out-of-date.  Reading the transform when the
-                // user first touches the slider keeps them in sync with a one-time snap.
+                // Detects which world axis (0=X, 1=Y, 2=Z) is currently aligned with viewer-depth (row 2 of the
+                // viewer transform), or -1 if the view is not axis-aligned to any of the three canonical planes
+                // (free/oblique rotation). Exactly one column of row 2  should account for the full scale, with
+                // the other two near 0; anything else means no single world axis cleanly maps to viewer-depth
+                final java.util.function.ToIntFunction<AffineTransform3D> detectDepthAxis = t -> {
+                    final double scale = Math.sqrt(
+                            t.get(0, 0) * t.get(0, 0) + t.get(1, 0) * t.get(1, 0) + t.get(2, 0) * t.get(2, 0));
+                    if (scale <= 0) return -1;
+                    final double tol = scale * 0.01;
+                    int axis = -1;
+                    for (int k = 0; k < 3; k++) {
+                        final double v = Math.abs(t.get(2, k));
+                        if (Math.abs(v - scale) <= tol) {
+                            if (axis != -1) return -1; // more than one axis near full scale: ambiguous
+                            axis = k;
+                        } else if (v > tol) {
+                            return -1; // significant but not full-scale: an oblique rotation
+                        }
+                    }
+                    return axis;
+                };
+
+                // Reconfigures the slider/spinner ranges for slabAxis's (possibly just-changed) axis,
+                // clamping/replacing the thickness if it no longer fits, then recenters on the current
+                // viewer position and reapplies the slab. Shared by slab activation and by the
+                // axis-change handler in slabAlignmentGuard below, so both behave identically
+                final Runnable reconfigureAndApplySlab = () -> {
+                    updatingSlab[0] = true;
+                    posSlider.setMaximum(slabAxis.nSlices);
+                    final SpinnerNumberModel thickModel = (SpinnerNumberModel) thickSpinner.getModel();
+                    thickModel.setMinimum(slabAxis.step);
+                    thickModel.setMaximum(slabAxis.phys);
+                    thickModel.setStepSize(slabAxis.step);
+                    final double curThick = ((Number) thickSpinner.getValue()).doubleValue();
+                    if (curThick > slabAxis.phys || curThick < slabAxis.step) {
+                        thickSpinner.setValue(slabAxis.defThick);
+                    }
+                    // Sync position slider to current viewer position, so the view does not jump
+                    // (e.g. when the user is zoomed in). See applyZCenter(): t[2,3] = -signedDepthScale
+                    // * worldPos, where signedDepthScale = t(2, slabAxis.axis)
+                    final AffineTransform3D cur = new AffineTransform3D();
+                    viewerPanel.state().getViewerTransform(cur);
+                    final double curSignedDepthScale = cur.get(2, slabAxis.axis);
+                    if (curSignedDepthScale != 0) {
+                        final int sliderPos = (int) Math.round(-cur.get(2, 3) / (curSignedDepthScale * slabAxis.step));
+                        posSlider.setValue(Math.max(0, Math.min(slabAxis.nSlices, sliderPos)));
+                    }
+                    updatingSlab[0] = false;
+                    final double zCenter = posSlider.getValue() * slabAxis.step;
+                    final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
+                    applySlab(viewerPanel, slabAxis.axis, zCenter, halfThick * 2.0);
+                    renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
+                };
+
+                // Slab math (posSlider/thickSpinner's range, and applyZCenter's translation) is calibrated to whichever
+                // axis slabAxis currently tracks, and reconfiguring that (recentering/resizing via the position slider
+                // and thickness spinner) only makes sense while the view is aligned to one of the three canonical
+                // planes (XY/XZ/ZY). But the ALREADY-APPLIED clip (translation + near/far) keeps making visual sense
+                // for a range of orientations around that canonical view as long as some part of the volume's bounding
+                // box still falls within the active clip window. SoslabStillVisible checks that geometrically: it
+                // projects the volume's 8 bounding-box corners through the CURRENT (possibly oblique) transform's depth
+                // row and compares against the active half-thickness (screen-space, same units as
+                // overlayRenderer.nearClip/farClip). Slab is only auto-disabled once the bounding box has rotated/panned
+                // entirely outside that window, i.e. rendering has actually broken (nothing from the volume would show)
+                final java.util.function.Predicate<AffineTransform3D> slabStillVisible = t -> {
+                    final double half = overlayRenderer.nearClip; // == farClip; both set equal by applySlab()
+                    double minDepth = Double.POSITIVE_INFINITY, maxDepth = Double.NEGATIVE_INFINITY;
+                    for (int cx = 0; cx <= 1; cx++) {
+                        final double x = cx * dims[0] * cal[0];
+                        for (int cy = 0; cy <= 1; cy++) {
+                            final double y = cy * dims[1] * cal[1];
+                            for (int cz = 0; cz <= 1; cz++) {
+                                final double z = cz * dims[2] * cal[2];
+                                final double depth = t.get(2, 0) * x + t.get(2, 1) * y + t.get(2, 2) * z + t.get(2, 3);
+                                if (depth < minDepth) minDepth = depth;
+                                if (depth > maxDepth) maxDepth = depth;
+                            }
+                        }
+                    }
+                    return maxDepth >= -half && minDepth <= half;
+                };
+                final bdv.viewer.TransformListener<AffineTransform3D> slabAlignmentGuard = t -> {
+                    if (!slabOn[0]) return;
+                    final int axis = detectDepthAxis.applyAsInt(t);
+                    if (axis >= 0 && axis != slabAxis.axis) {
+                        SwingUtilities.invokeLater(() -> {
+                            if (!slabOn[0]) return; // may have been turned off while this was queued
+                            slabAxis.set(axis);
+                            reconfigureAndApplySlab.run();
+                            overlayRenderer.invalidateCache();
+                            bvvInstance.repaint();
+                            syncOverlays();
+                        });
+                        return;
+                    }
+                    if (!slabStillVisible.test(t)) {
+                        SwingUtilities.invokeLater(() -> {
+                            if (slabOn[0] && slabToggle.isSelected()) {
+                                slabToggle.doClick();
+                                new GuiUtils(getViewerFrame()).error("Slab View disabled: current view no longer intersects the active slab.");
+                            }
+                        });
+                    }
+                };
+                viewerPanel.renderTransformListeners().add(slabAlignmentGuard);
+
+                // Re-sync posSlider to actual viewer position on mouse press. The viewer transform can drift
+                // (e.g. scroll-wheel zoom/pan) while slab is on, causing the slider to be out-of-date. Reading
+                // the transform when the user first touches the slider keeps them in sync with a one-time snap
                 posSlider.addMouseListener(new java.awt.event.MouseAdapter() {
                     @Override
                     public void mousePressed(final java.awt.event.MouseEvent e) {
                         if (!slabOn[0]) return;
                         final AffineTransform3D t = new AffineTransform3D();
                         viewerPanel.state().getViewerTransform(t);
-                        final double scale = Math.sqrt(
-                                t.get(0, 0) * t.get(0, 0) +
-                                        t.get(1, 0) * t.get(1, 0) +
-                                        t.get(2, 0) * t.get(2, 0));
-                        if (scale <= 0) return;
-                        final double zCenter = -t.get(2, 3) / scale;
-                        final int tick = Math.max(0, Math.min(nSlices, (int) Math.round(zCenter / zStep)));
+                        final double signedDepthScale = t.get(2, slabAxis.axis);
+                        if (signedDepthScale == 0) return;
+                        final double zCenter = -t.get(2, 3) / signedDepthScale;
+                        final int tick = Math.max(0, Math.min(slabAxis.nSlices, (int) Math.round(zCenter / slabAxis.step)));
                         if (tick != posSlider.getValue()) {
                             posSlider.setValue(tick);
                         }
@@ -3096,6 +3231,7 @@ public class Bvv extends AbstractBigViewer {
                 //GuiUtils.Buttons.applyToolbarProps(slabToggle);
                 slabToggle.setToolTipText("<html>Enable slab mode.<br>"
                         + "Restricts the visible scene to a thin slab at the selected position.<br>"
+                        + "Works only in one the three canonical views (XY/XZ/ZY).<br>"
                         + "Disables manual near/far clipping while active.");
 
                 c.gridy = row[0]++;
@@ -3113,8 +3249,8 @@ public class Bvv extends AbstractBigViewer {
                 c.anchor = GridBagConstraints.EAST;
                 main.add(slabToggle, c);
 
-                final JLabel thickLabel = new JLabel(String.format("   Thickness (%s):", unit), JLabel.RIGHT);
-                final JLabel posLabel = new JLabel(String.format("   Position (%s):", unit), JLabel.RIGHT);
+                final JLabel thickLabel = new JLabel(String.format("   Thickness (%s)", unit), JLabel.RIGHT);
+                final JLabel posLabel = new JLabel(String.format("   Position (%s)", unit), JLabel.RIGHT);
                 // Force both labels to the same preferred width so spinners/sliders left-align.
                 ensureSameWidth(thickLabel, posLabel);
                 thickPanel.add(thickLabel, java.awt.BorderLayout.WEST);
@@ -3173,29 +3309,37 @@ public class Bvv extends AbstractBigViewer {
                     nearSlider.setEnabled(!slabOn[0]);
                     farSlider.setEnabled(!slabOn[0]);
                     if (slabOn[0]) {
+                        // Track whichever axis the view is aligned to right now (may not be Z: the
+                        // user could already be in an XZ/ZY view when activating slab)
+                        final AffineTransform3D cur0 = new AffineTransform3D();
+                        viewerPanel.state().getViewerTransform(cur0);
+                        final int axis0 = detectDepthAxis.applyAsInt(cur0);
+                        if (axis0 < 0) {
+                            // Not axis-aligned: nothing sensible to activate against. Undo the toggle.
+                            slabOn[0] = false;
+                            slabToggle.setSelected(false);
+                            GuiUtils.enableComponents(thickPanel, false);
+                            GuiUtils.enableComponents(posPanel, false);
+                            nearSlider.setEnabled(true);
+                            farSlider.setEnabled(true);
+                            // Only the *starting* orientation needs to be canonical, to give slabAxis an initial axis
+                            // to key off of. Once active, the view can be freely rotated (slabAlignmentGuard tracks
+                            // axis changes and only disables slab if the volume genuinely rotates out of the clip window)
+                            new GuiUtils(getViewerFrame()).error("Slab View needs a canonical starting plane " +
+                                    "(XY/XZ/ZY). Align the view, then activate it; you can rotate freely afterwards.");
+                            return;
+                        }
                         savedClip[0] = nearSlider.getValue();
                         savedClip[1] = farSlider.getValue();
-                        // Sync position slider to current viewer Z before activating slab,
-                        // so the view does not jump when the user is zoomed in.
-                        // The viewer transform satisfies t[2,3] = -scale * worldZ (for the focal plane
-                        // at viewer Z=0), so worldZ = -t[2,3] / scale.
-                        final AffineTransform3D cur = new AffineTransform3D();
-                        viewerPanel.state().getViewerTransform(cur);
-                        final double curScale = Math.sqrt(
-                                cur.get(0, 0) * cur.get(0, 0) +
-                                cur.get(1, 0) * cur.get(1, 0) +
-                                cur.get(2, 0) * cur.get(2, 0));
-                        if (curScale > 0) {
-                            final int sliderPos = (int) Math.round(-cur.get(2, 3) / (curScale * zStep));
-                            updatingSlab[0] = true;
-                            posSlider.setValue(Math.max(0, Math.min(nSlices, sliderPos)));
-                            updatingSlab[0] = false;
-                        }
-                        final double zCenter = posSlider.getValue() * zStep;
-                        final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
-                        applySlab(viewerPanel, physZ, zCenter, halfThick * 2.0);
-                        renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
+                        slabAxis.set(axis0);
+                        reconfigureAndApplySlab.run();
                         slabPathsToggle.setEnabled(true);
+                        // Slab Paths' *selected* state is a persistent user preference (left alone on deactivation),
+                        // but renderingOptions.isClipPathsToSlab() is the actual  effective flag and was forced false
+                        // on deactivation since it's meaningless while there's no active slab. Re-sync it here to
+                        // whatever the toggle currently shows, or re-activating slab would silently render all paths
+                        // (front and back) despite Slab Paths still looking selected
+                        renderingOptions.setClipPathsToSlab(slabPathsToggle.isSelected());
                         if (sceneOverlay != null) sceneOverlay.showSlabPlanes = true;
                         if (slabAnnotationsToggle != null) slabAnnotationsToggle.setEnabled(true);
                     } else {
@@ -3203,8 +3347,7 @@ public class Bvv extends AbstractBigViewer {
                         // Do not re-center Z on deactivation, leave the view where it is
                         renderingOptions.clearSlabZBounds();
                         if (sceneOverlay != null) sceneOverlay.showSlabPlanes = false;
-                        // Deactivate and disable Slab Paths + Slab Annotations when slab is turned off
-                        slabPathsToggle.setSelected(false);
+                        // Disable Slab Paths + Slab Annotations when slab is turned off
                         slabPathsToggle.setEnabled(false);
                         if (slabAnnotationsToggle != null) {
                             slabAnnotationsToggle.setSelected(false);
@@ -3219,13 +3362,18 @@ public class Bvv extends AbstractBigViewer {
 
                 final javax.swing.event.ChangeListener slabListener = ev -> {
                     if (slabOn[0] && !updatingSlab[0]) {
-                        final double zCenter = posSlider.getValue() * zStep;
+                        final double zCenter = posSlider.getValue() * slabAxis.step;
                         final double halfThick = ((Number) thickSpinner.getValue()).doubleValue() / 2.0;
-                        applySlab(viewerPanel, physZ, zCenter, halfThick * 2.0);
+                        applySlab(viewerPanel, slabAxis.axis, zCenter, halfThick * 2.0);
                         renderingOptions.setSlabZBounds(zCenter - halfThick, zCenter + halfThick);
                         overlayRenderer.invalidateCache();
                         bvvInstance.repaint(); // refresh slab plane overlays
                         syncOverlays();
+                        // a pure near/far/dCam change (no viewer-transform change) isn't always enough to make
+                        // BVV re-invoke the AWT overlay paint callback (see Bvv#repaint()'s own "not overlays"
+                        // caveat); force it explicitly here so Slab Paths recomputes its visible extent on
+                        // every thickness/position tick,  not just when the Slab View toggle itself is flipped
+                        viewerPanel.getDisplay().getComponent().repaint();
                     }
                 };
                 posSlider.addChangeListener(slabListener);
@@ -5770,7 +5918,7 @@ public class Bvv extends AbstractBigViewer {
     private class BvvActions extends Actions {
         private final BigVolumeViewer bvv;
 
-        BvvActions(final Bvv sntBvv, final BigVolumeViewer bvv) {
+        BvvActions(final BigVolumeViewer bvv) {
             this.bvv = bvv;
         }
 
