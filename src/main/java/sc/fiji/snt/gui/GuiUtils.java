@@ -185,7 +185,7 @@ public class GuiUtils {
 	 */
 	public void notifyIfOldVersion(final int msDelayBeforeCheck) {
 		final Timer timer = new Timer(msDelayBeforeCheck, e -> {
-			new Thread(() -> {xf
+			new Thread(() -> {
 				try {
 					// Abort early if the updater's own checks indicate we shouldn't proceed
 					final net.imagej.updater.UpToDate.Result preCheck = net.imagej.updater.UpToDate.check();
