@@ -401,7 +401,8 @@ public class BookmarkManager {
         tagMenu.setText("Tag");
         tagMenu.setIcon(IconFactory.menuIcon((IconFactory.GLYPH.TAG)));
         pMenu.add(tagMenu);
-        mi = new JMenuItem("Distinct Tags...", IconFactory.menuIcon(IconFactory.GLYPH.SHUFFLE));
+        mi = new JMenuItem("Grouping Tags...", IconFactory.menuIcon(IconFactory.GLYPH.FILTER));
+        mi.setToolTipText("Assign distinct colors to groups or individual entries");
         mi.addActionListener(e -> applyUniqueTags());
         tagMenu.addSeparator();
         tagMenu.add(mi);
@@ -476,8 +477,13 @@ public class BookmarkManager {
 
     private void applyUniqueTags() {
         if (noBookmarksError()) return;
-        final String[] options = new String[]{"Assign a unique color to each entry", "Assign a unique color to each unique label"};
-        final String choice = guiUtils.getChoice("How to apply distinct color tags?", "Assign Unique Tags", options, options[0]);
+        final String[] options = new String[]{
+                "<HTML>Assign a distinct color to <b>each entry</b>",
+                "<HTML>Group entries sharing the <b>exact same label</b>",
+                "<HTML>Group entries by common <b>starting text</b>",
+                "<HTML>Group entries by common <b>ending text</b>"};
+        final String choice = guiUtils.getChoice("How to apply distinct color tags?",
+                "Assign Grouping Tags", options, options[0]);
         if (choice == null) return; // prompt canceled
 
         final int[] modelRows = getSelectedModelRowsAllIfNone();
@@ -488,24 +494,87 @@ public class BookmarkManager {
             for (final int modelRow : modelRows) {
                 model.setValueAt(distinctColors[colorIdx++], modelRow, 0);
             }
+            if (sntui != null) sntui.showStatus(modelRows.length + " entries recolored", true);
         } else {
-            // collect unique labels
-            final Map<String, List<Bookmark>> uniqueLabelsMap = new TreeMap<>();
+            // "Exact" handles e.g. imported CSVs where entries are already duplicated verbatim
+            final boolean exact = options[1].equals(choice);
+            final boolean leading = options[2].equals(choice); // only consulted when !exact
+            // Group bookmarks by their label: verbatim (exact) or by a stemmed leading/trailing token
+            final Map<String, List<Bookmark>> groupsMap = new TreeMap<>();
+            int skipped = 0;
             for (final int modelRow : modelRows) {
-                String uniqueLabel = model.getDataList().get(modelRow).label;
-                if (uniqueLabel == null) continue;
-                uniqueLabel = uniqueLabel.toLowerCase();
-                uniqueLabelsMap.putIfAbsent(uniqueLabel, new ArrayList<>());
-                uniqueLabelsMap.get(uniqueLabel).add(model.getDataList().get(modelRow));
+                final String label = model.getDataList().get(modelRow).label;
+                final String key = exact ? exactGroupKey(label) : extractGroupKey(label, leading);
+                if (key.isEmpty()) {
+                    skipped++;
+                    continue;
+                }
+                groupsMap.computeIfAbsent(key, k -> new ArrayList<>()).add(model.getDataList().get(modelRow));
             }
-            final Color[] distinctColors = ColorMaps.glasbeyColorsAWT(uniqueLabelsMap.size());
-            for (List<Bookmark> bookmarkList : uniqueLabelsMap.values()) {
-                for (Bookmark bookmark : bookmarkList) bookmark.setColor(distinctColors[colorIdx]);
+
+            final Color[] distinctColors = ColorMaps.glasbeyColorsAWT(groupsMap.size());
+            for (final List<Bookmark> bookmarkList : groupsMap.values()) {
+                for (final Bookmark bookmark : bookmarkList) {
+                    bookmark.setColor(distinctColors[colorIdx]);
+                }
                 colorIdx++;
             }
-            model.fireTableRowsUpdated(modelRows[0], modelRows[modelRows.length - 1]);
+
+            // NB: fire a full refresh rather than a modelRows[0]..modelRows[last] range: modelRows is only
+            // guaranteed ascending in *view* order not in model-index order
+            if (!groupsMap.isEmpty()) model.fireTableDataChanged();
+
+            final String msg = groupsMap.isEmpty()
+                        ? "No groups could be formed (labels may be empty, or none share a common token)."
+                        : String.format("%d entries grouped into %d unique group(s)%s",
+                                modelRows.length - skipped, groupsMap.size(),
+                                (skipped > 0) ? String.format(", %d skipped (no usable label)", skipped) : ".");
+            guiUtils.centeredMsg(msg, "Group Tagging Complete");
         }
         if (highlightToggle != null && highlightToggle.isSelected()) showHighlights();
+    }
+
+    /**
+     * Extracts a grouping key from a bookmark label with no stemming: the label is used verbatim
+     * (trimmed, lower-cased). Suited for labels that are already duplicated as-is (e.g. an imported
+     * CSV with entries "M1", "M1", "M2", "M2"...), where stemming would incorrectly merge them.
+     *
+     * @param label the raw label; may be {@code null} or blank
+     * @return the trimmed, lower-cased label, or an empty string if blank
+     */
+    private static String exactGroupKey(final String label) {
+        return (label == null) ? "" : label.trim().toLowerCase();
+    }
+
+    /**
+     * Extracts a grouping key from a bookmark label by splitting it at common punctuation/whitespace
+     * delimiters and at letter-to-digit boundaries (e.g. "Soma 1", "Soma-2", "Soma3" all split into
+     * a leading token of "soma"; "Left Soma", "Right Soma" both split into a trailing token of "soma").
+     *
+     * @param label   the raw label; may be {@code null} or blank
+     * @param leading if true, the first non-empty token is used as the key (matches a common leading
+     *                seed, e.g. an enumerated prefix); if false, the last non-empty token is used
+     *                (matches a common trailing seed, e.g. a shared descriptive suffix)
+     * @return the extracted key (lower-case, trimmed), or an empty string if no usable token exists
+     */
+    private static String extractGroupKey(final String label, final boolean leading) {
+        if (label == null) return "";
+        final String cleanLabel = label.trim().toLowerCase();
+        if (cleanLabel.isEmpty()) return "";
+        // Splits text at punctuation/spaces OR at the boundary between letters and digits
+        final String[] parts = cleanLabel.split("[\\s,;:\\-()]+|(?<=[a-z])(?=\\d)");
+        if (leading) {
+            for (final String part : parts) {
+                final String trimmed = part.trim();
+                if (!trimmed.isEmpty()) return trimmed;
+            }
+        } else {
+            for (int i = parts.length - 1; i >= 0; i--) {
+                final String trimmed = parts[i].trim();
+                if (!trimmed.isEmpty()) return trimmed;
+            }
+        }
+        return "";
     }
 
     private int[] getSelectedModelRowsAllIfNone() {
