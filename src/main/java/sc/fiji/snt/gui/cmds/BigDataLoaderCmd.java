@@ -61,12 +61,12 @@ import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vGroupParsers;
 import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vParsers;
 
 /**
- * Convenience command for starting a standalone Bdv/Bvv instance.
+ * Convenience command for starting a standalone Bdv/Bvv instance, including SNT's Stream mode.
  *
  * @author Tiago Ferreira
  */
 @Plugin(type = Command.class, label = "Big Data/SNT Stream")
-public class BvvCmd extends ContextCommand {
+public class BigDataLoaderCmd extends ContextCommand {
 
     private static final String TOOLTIP =
             """

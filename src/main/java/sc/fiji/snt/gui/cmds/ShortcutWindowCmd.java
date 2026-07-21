@@ -84,7 +84,7 @@ public class ShortcutWindowCmd extends ContextCommand implements PlugIn {
 				"Initialize the complete SNT frontend.<br>" +
 						"For tracing on standard images start here."));
 		shortcuts.add(null);
-		shortcuts.add(new Shortcut("Big Data...", BvvCmd.class,
+		shortcuts.add(new Shortcut("Big Data...", BigDataLoaderCmd.class,
 				"Initialize SNT with support for big data pyramidal images.<br>" +
 						"For SNT Stream tracing start here."));
 		shortcuts.add(new Shortcut("Rec. Plotter...", PlotterCmd.class,

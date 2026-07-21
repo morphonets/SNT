@@ -236,7 +236,7 @@ public class SNTUI extends JDialog {
      *
      * @param plugin the {@link SNT} instance associated with this UI
      * @param bigDataMode whether the GUI should be set for 'big data', e.g., when datasource is not a standard image
-     *                    but an OME-Zarr/N5 (see {@link BvvCmd})
+     *                    but an OME-Zarr/N5 (see {@link BigDataLoaderCmd})
      */
     public SNTUI(final SNT plugin, final boolean bigDataMode) {
         this(plugin, null, null, bigDataMode);
