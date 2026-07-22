@@ -3915,13 +3915,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	protected synchronized void findSnappingPointInXView(final double x_in_pane,
-														 final double y_in_pane, final double[] point)
-	{
-
-		// if (width == 0 || height == 0 || depth == 0)
-		// throw new RuntimeException(
-		// "Can't call findSnappingPointInXYview() before width, height and
-		// depth are set...");
+														 final double y_in_pane, final double[] point) {
 
 		final int[] window_center = new int[3];
 		findPointInStack((int) Math.round(x_in_pane), (int) Math.round(y_in_pane),
@@ -3943,22 +3937,23 @@ public class SNT extends MultiDThreePanes implements
 		else if (stopz > depth) {
 			stopz = depth;
 		}
+		final boolean useSecondary = isTracingOnSecondaryImageActive();
+
 		@SuppressWarnings("unchecked")
-		final RandomAccess<? extends RealType<?>> access = this.ctSlice3d.randomAccess();
+		final RandomAccess <? extends RealType<?>> access = ((useSecondary) ? secondaryData : ctSlice3d).randomAccess();
+		final ImageStatistics accessStats = (useSecondary) ? statsSecondary : stats;
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		double currentMaximum = stats.min;
+		double currentMaximum = accessStats.min;
 		for (int x = startx; x < stopx; ++x) {
 			for (int y = starty; y < stopy; ++y) {
 				for (int z = startz; z < stopz; ++z) {
 					double v = access.setPositionAndGet(x, y, z).getRealDouble();
-					if (v == stats.min) {
+					if (v == accessStats.min) {
 						continue;
-					}
-					else if (v > currentMaximum) {
+					} else if (v > currentMaximum) {
 						pointsAtMaximum.add(new int[] { x, y, z });
 						currentMaximum = v;
-					}
-					else if (v == currentMaximum) {
+					} else if (v == currentMaximum) {
 						pointsAtMaximum.add(new int[] { x, y, z });
 					}
 				}
@@ -3985,13 +3980,16 @@ public class SNT extends MultiDThreePanes implements
 
 		SNTUtils.log("Looking for maxima at x=" + x_in_pane + " y=" + y_in_pane + " on pane " + plane);
 		final int[][] pointsToConsider = findAllPointsAlongLine(x_in_pane, y_in_pane, plane);
+		final boolean useSecondary = isTracingOnSecondaryImageActive();
+
 		@SuppressWarnings("unchecked")
-		final RandomAccess<? extends RealType<?>> access = this.ctSlice3d.randomAccess();
+		final RandomAccess <? extends RealType<?>> access = ((useSecondary) ? secondaryData : ctSlice3d).randomAccess();
+		final ImageStatistics accessStats = (useSecondary) ? statsSecondary : stats;
 		final ArrayList<int[]> pointsAtMaximum = new ArrayList<>();
-		double currentMaximum = stats.min;
+		double currentMaximum = accessStats.min;
 		for (int[] ints : pointsToConsider) {
 			double v = access.setPositionAndGet(ints[0], ints[1], ints[2]).getRealDouble();
-			if (v == stats.min) {
+			if (v == accessStats.min) {
 				continue;
 			} else if (v > currentMaximum) {
 				pointsAtMaximum.add(ints);
