@@ -61,6 +61,7 @@ import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.TreeUtils;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -393,8 +394,8 @@ public class SNTUI extends JDialog {
         c3.gridy++;
         InternalUtils.addSeparatorWithURL(tab3, "Big Data Viewer:", true, c3);
         ++c3.gridy;
-        final String msg5 = "Big Data Viewer (BDV) is Fiji's interactive re-slicing browser for " +
-                "images too large to fit into memory. Supports big data formats like N5, Zarr, IMS, etc.";
+        final String msg5 = "Big Data Viewer (BDV) is an interactive re-slicing browser for images too " +
+                "large to fit into memory and a functional tracing canvas. Supports big data formats like N5, Zarr, IMS, etc.";
         tab3.add(GuiUtils.longSmallMsg(msg5, "bdv-logo-dark.svg", tab3), c3);
         c3.gridy++;
         tab3.add(bdvPanel(viewerPanelBuilder), c3);
@@ -402,7 +403,7 @@ public class SNTUI extends JDialog {
 
         InternalUtils.addSeparatorWithURL(tab3, "Big Volume Viewer:", false, c3);
         ++c3.gridy;
-        final String msg4 = "Big Volume Viewer (BVV) is a functional tracing canvas and the 3D counterpart " +
+        final String msg4 = "Big Volume Viewer (BVV) is also a functional tracing canvas and the 3D counterpart " +
                 "of Big Data Viewer capable of GPU volume rendering. Discrete graphics card recommended.";
         tab3.add(GuiUtils.longSmallMsg(msg4, "bdv-logo-light.svg", tab3), c3);
         c3.gridy++;
@@ -422,7 +423,7 @@ public class SNTUI extends JDialog {
         ++c3.gridy;
         final String msg2 =
                 "The Legacy 3D Viewer is a functional tracing canvas but it depends on " +
-                        "stalled services that may not function reliably during complex tasks.";
+                        "outdated services that may not function reliably during complex tasks.";
         tab3.add(GuiUtils.longSmallMsg(msg2, tab3), c3);
         c3.gridy++;
         c3.insets.bottom = 0;
@@ -2748,7 +2749,7 @@ public class SNTUI extends JDialog {
                     return;
                 }
                 try {
-                    initializeBvvFromPrompt();
+                    initializeBigViewerFromPrompt(Bvv.class);
                 } catch (final Throwable exc) {
                     error(exc);
                     no3DCapabilitiesError("BVV");
@@ -2782,18 +2783,10 @@ public class SNTUI extends JDialog {
                     bdvSNT.getViewerFrame().toFront();
                     return;
                 }
-                final Bdv newBdv = new Bdv(plugin);
                 try {
-                    newBdv.show(plugin.getImagePlus());
-                    // Only promote to field once show() succeeded, so a failed show() doesn't leave
-                    // bdvSNT pointing at a half-initialized viewer (no bdvHandle/frame yet)
-                    bdvSNT = newBdv;
-                    // NB: WindowListener added by Bdv's own setBdv-triggered wiring (see
-                    // SNTUI#setBdvOnEDT), same as Bvv#attachControlPanel()
+                    initializeBigViewerFromPrompt(Bdv.class);
                 } catch (final Throwable exc) {
                     error(exc);
-                } finally {
-                    if (bdvSNT != null) bdvSNT.syncPathManagerList();
                 }
             }
         });
@@ -2811,7 +2804,7 @@ public class SNTUI extends JDialog {
         return viewerPanelBuilder.createViewerPanel(openBDV, syncBDV);
     }
 
-    private void initializeBvvFromPrompt() {
+    private <T extends AbstractBigViewer> void initializeBigViewerFromPrompt(final Class<T> viewerClass) {
         final String[] choices = new String[] { "Full image (all channels/frames)", "Only the channel/frame being traced", "Secondary layer"};
         final String defChoice = plugin.getPrefs().getTemp("bvvChoice", choices[0]);
         final String choice = guiUtils.getChoice("Render which kind of data?", "Render Which Image?", choices, defChoice);
@@ -2821,7 +2814,8 @@ public class SNTUI extends JDialog {
             noSecondaryDataAvailableError();
             return;
         }
-        final Bvv newBvv = new Bvv(plugin);
+        final boolean isBvv = viewerClass == Bvv.class;
+        AbstractBigViewer viewer = null;
         try {
             if (choices[0].equals(choice)) {
                 final ImagePlus imp = plugin.getImagePlus();
@@ -2829,23 +2823,35 @@ public class SNTUI extends JDialog {
                     noValidImageDataError();
                     return;
                 }
-                newBvv.show(imp);
-            } else if (choices[1].equals(choice)) {
-                newBvv.showLoadedData();
-            } else if (plugin.isSecondaryDataAvailable()) {
-                newBvv.showSecondaryData();
+                if (isBvv) {
+                    final Bvv bvv = new Bvv(plugin);
+                    bvv.show(imp);
+                    viewer = bvv;
+                } else {
+                    final Bdv bdv = new Bdv(plugin);
+                    bdv.show(imp);
+                    viewer = bdv;
+                }
             } else {
-                noSecondaryDataAvailableError();
-                return;
+                viewer = (isBvv) ? new Bvv(plugin) : new Bdv(plugin);
+                if (choices[1].equals(choice)) {
+                    viewer.showLoadedData();
+                } else if (plugin.isSecondaryDataAvailable()) {
+                    viewer.showSecondaryData();
+                } else {
+                    noSecondaryDataAvailableError();
+                    return;
+                }
             }
             // Only promote to field once show() succeeded
-            bvvSNT = newBvv;
+            bvvSNT = (isBvv) ? ((Bvv) viewer) : null;
+            bdvSNT = (isBvv) ? null : ((Bdv) viewer);
             // NB: WindowListener added in Bvv#attachControlPanel()
         } catch (final Throwable exc) {
             error(exc);
         } finally {
             plugin.getPrefs().setTemp("bvvChoice", choice);
-            if (bvvSNT != null) bvvSNT.syncPathManagerList();
+            if (viewer != null) viewer.syncPathManagerList();
         }
     }
 

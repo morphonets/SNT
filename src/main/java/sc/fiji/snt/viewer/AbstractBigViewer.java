@@ -242,6 +242,26 @@ public abstract class AbstractBigViewer {
      */
     public abstract void showViewerMessage(String msg);
 
+    /**
+     * Displays the main tracing data (the currently active channel/frame of the image
+     * being traced) from the associated SNT instance. Only available in SNT-tethered
+     * instances.
+     *
+     * @throws IllegalArgumentException if this is a standalone viewer, or no valid
+     *                                  image data is available
+     */
+    public abstract void showLoadedData();
+
+    /**
+     * Displays the secondary tracing data (the filtered/processed layer used for
+     * cost-function-based tracing) from the associated SNT instance. Only available
+     * in SNT-tethered instances.
+     *
+     * @throws IllegalArgumentException if this is a standalone viewer, or no
+     *                                  secondary data is available
+     */
+    public abstract void showSecondaryData();
+
     /** Resets the view to frame all loaded data. */
     public abstract void resetView();
 

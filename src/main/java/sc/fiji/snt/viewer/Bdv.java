@@ -271,6 +271,56 @@ public class Bdv extends AbstractBigViewer {
     }
 
     /**
+     * Displays the main tracing data from the associated SNT instance. This method is only available for BDV
+     * instances that are tethered to an SNT instance.
+     *
+     * @throws IllegalArgumentException if this is a standalone viewer or no valid image data is available
+     */
+    @Override
+    public void showLoadedData() {
+        displayData(false);
+    }
+
+    /**
+     * Displays the secondary tracing data from the associated SNT instance. This method is only available for BDV
+     * instances that are tethered to an SNT instance.
+     *
+     * @throws IllegalArgumentException if this is a standalone viewer or no valid image data is available
+     */
+    @Override
+    public void showSecondaryData() {
+        displayData(true);
+    }
+
+    /**
+     * Shared implementation of {@link #showLoadedData()} and {@link #showSecondaryData()}. Mirrors
+     * {@code Bvv#displayData(boolean)}: pulls the requested data straight from the tethered {@link SNT} instance,
+     * labels it consistently with BVV's equivalent, and lets BDV's own auto-brightness
+     * ({@link InitializeViewerState#initBrightness}) pick a sensible display range rather than replicating BVV's
+     * manual min/max-from-statistics approach BDV's other {@code show(...)} overloads already establish that convention
+     */
+    private void displayData(final boolean secondary) {
+        if (snt == null)
+            throw new IllegalArgumentException("This function is only available in snt-aware Bdv instances");
+        if (!snt.accessToValidImageData()) throw new IllegalArgumentException("No valid image data available");
+
+        final RandomAccessibleInterval<?> data = secondary ? snt.getSecondaryData() : snt.getLoadedData();
+        cal = new double[]{snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
+        dims = new long[]{data.dimension(0), data.dimension(1), data.dimension(2)};
+        calUnit = BoundingBox.sanitizedUnit(snt.getSpacingUnits());
+        final String label = String.format("Tracing Data (%s): C%d, T%d",
+                (secondary) ? "Secondary layer" : "Main image", snt.getChannel(), snt.getFrame());
+        final BdvOptions opts = (bdvHandle == null) ? baseOpts() : BdvOptions.options().addTo(bdvHandle);
+        final BdvStackSource<?> src = showCalibratedBdvSource(data, label, opts, 1);
+        if (bdvHandle == null) {
+            bdvHandle = src.getBdvHandle();
+            viewerPanel = bdvHandle.getViewerPanel();
+            initializeOverlays();
+        }
+        InitializeViewerState.initBrightness(0.001, 0.999, viewerPanel.state(), bdvHandle.getConverterSetups());
+    }
+
+    /**
      * Opens a SpimData dataset (HDF5/N5/Zarr/IMS/OME-TIFF via XML) in the BDV viewer.
      * Populates {@link #cal}, {@link #dims}, and {@link #calUnit} from the first setup's
      * metadata so that calibration is available for tree/marker rendering.

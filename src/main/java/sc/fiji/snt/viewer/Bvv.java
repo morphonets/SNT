@@ -2566,12 +2566,11 @@ public class Bvv extends AbstractBigViewer {
      * Displays the main tracing data from the associated SNT instance.
      * This method is only available for BVV instances that are tethered to an SNT instance.
      *
-     * @return the BvvSource representing the displayed tracing data
      * @throws IllegalArgumentException if this is a standalone viewer or no valid image data is available
      */
-    @SuppressWarnings("UnusedReturnValue")
-    public BvvSource showLoadedData() {
-        return displayData(false);
+    @Override
+    public void showLoadedData() {
+        displayData(false);
     }
 
 
@@ -2579,12 +2578,11 @@ public class Bvv extends AbstractBigViewer {
      * Displays the secondary tracing data from the associated SNT instance.
      * This method is only available for BVV instances that are tethered to an SNT instance.
      *
-     * @return the BvvSource representing the displayed secondary data
      * @throws IllegalArgumentException if this is a standalone viewer or no valid image data is available
      */
-    @SuppressWarnings("UnusedReturnValue")
-    public BvvSource showSecondaryData() {
-        return displayData(true);
+    @Override
+    public void showSecondaryData() {
+        displayData(true);
     }
 
     /**
