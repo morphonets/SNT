@@ -129,7 +129,14 @@ public class Bdv extends AbstractBigViewer {
     /** Creates a BDV viewer tethered to an SNT instance. */
     public Bdv(final SNT snt) {
         super(snt);
-        if (snt != null && snt.getUI() != null) snt.getUI().setBdv(this);
+        if (snt != null) {
+            if (snt.getUI() != null) snt.getUI().setBdv(this);
+            if (renderingOptions != null) {
+                // Mirrors Bvv(SNT)'s constructor: without this renderingOptions.displayCustomPathColors stalls
+                renderingOptions.selectedColor = SNTPrefs.selectedPathColor();
+                renderingOptions.displayCustomPathColors = snt.getPrefs().getDisplayCustomPathColors();
+            }
+        }
     }
 
     /**

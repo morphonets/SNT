@@ -727,6 +727,10 @@ public class SNTPrefs { // TODO: Adopt PrefService
 			snt.getUI().bvvSNT.getRenderingOptions().displayCustomPathColors = displayCustomPathColors;
 			snt.getUI().bvvSNT.syncPathManagerList();
 		}
+		if (snt.getUI() != null && snt.getUI().bdvSNT != null) {
+			snt.getUI().bdvSNT.getRenderingOptions().displayCustomPathColors = displayCustomPathColors;
+			snt.getUI().bdvSNT.syncPathManagerList();
+		}
 	}
 
 	public boolean getRequireShiftToFork() {
@@ -738,6 +742,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		if (snt.getUI() != null && snt.getUI().bvvSNT != null) {
 			snt.getUI().bvvSNT.getRenderingOptions().requireShiftToFork = requireShiftToFork;
 		}
+		if (snt.getUI() != null && snt.getUI().bdvSNT != null) {
+			snt.getUI().bdvSNT.getRenderingOptions().requireShiftToFork = requireShiftToFork;
+		}
 	}
 
 	public boolean getAutoSelectionOfFinishedPath() {
@@ -748,6 +755,9 @@ public class SNTPrefs { // TODO: Adopt PrefService
 		this.activateFinishedPath = activateFinishedPath;
 		if (snt.getUI() != null && snt.getUI().bvvSNT != null) {
 			snt.getUI().bvvSNT.getRenderingOptions().activateFinishedPath = activateFinishedPath;
+		}
+		if (snt.getUI() != null && snt.getUI().bdvSNT != null) {
+			snt.getUI().bdvSNT.getRenderingOptions().activateFinishedPath = activateFinishedPath;
 		}
 	}
 
