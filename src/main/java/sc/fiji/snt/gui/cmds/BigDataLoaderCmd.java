@@ -124,7 +124,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final boolean tracer = viewerChoice != null && viewerChoice.toLowerCase().contains("tracing");
 
         if (tracer && SNTUtils.getInstance() != null) {
-            error("SNT seems to be already running. Please close current instance and re-run.");
+            error("SNT seems to be already running. Please close the current instance and re-run.");
             return;
         }
 

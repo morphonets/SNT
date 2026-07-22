@@ -776,8 +776,17 @@ public class Bdv extends AbstractBigViewer {
             }
         });
         bar.add(markerButton);
+
         bar.addSeparator();
-        bar.add(optionsButton(actions));
+        bar.add(Box.createHorizontalGlue());
+        bar.addSeparator();
+
+        // sync/options
+        if (snt != null) {
+            bar.add(GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(), "Sync Path Manager changes"));
+        } else {
+            bar.add(optionsButton(actions));
+        }
 
         if (tracer != null) {
             final JPanel panel = new JPanel(new BorderLayout());
@@ -816,9 +825,6 @@ public class Bdv extends AbstractBigViewer {
 
     private JButton optionsButton(final BdvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        if (snt != null)
-            menu.add(new JMenuItem(actions.syncPathManagerAction()));
-        menu.addSeparator();
         menu.add(new JMenuItem(actions.importAction()));
         menu.addSeparator();
         menu.add(new JMenuItem(actions.clearAllPathsAction()));

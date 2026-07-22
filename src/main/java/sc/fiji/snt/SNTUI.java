@@ -1321,6 +1321,7 @@ public class SNTUI extends JDialog {
             disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
             applyBvvControlRestrictions();
+            quitMenuItem.setEnabled(true);
         }
 
         @Override
@@ -1652,10 +1653,10 @@ public class SNTUI extends JDialog {
 
         final CheckboxSpinner mipCS = new CheckboxSpinner(new JCheckBox("Overlay MIP(s) at "),
                 GuiUtils.integerSpinner(20, 10, 80, 1, true));
-        mipCS.setEnabled(!isStreamMode());
         registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
         mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
         mipCS.appendLabel(" % opacity");
+        mipCS.setEnabled(!isStreamMode());
         mipCS.getCheckBox().addActionListener(e -> {
             if (!accessToValidImagePlus()) {
                 noValidImageDataError();
@@ -3195,8 +3196,10 @@ public class SNTUI extends JDialog {
 
         // Choose Tracing Image
         final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
+        changeImpMenu.setEnabled(!isStreamMode());
         changeImpMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
         final JMenuItem fromList = GuiUtils.MenuItems.fromOpenImage();
+        fromList.setEnabled(!isStreamMode()); // can still be run from SNTCmdFInder if enabled
         fromList.addActionListener(e -> {
             if (plugin.isSecondaryDataAvailable()) {
                 flushSecondaryDataPrompt();
@@ -3221,6 +3224,7 @@ public class SNTUI extends JDialog {
         final JMenuItem loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
         loadLabelsMenuItem.setToolTipText("Load neuropil labels from an AmiraMesh file");
         loadLabelsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
+        loadLabelsMenuItem.setEnabled(!isStreamMode());
         loadLabelsMenuItem.addActionListener(e -> {
             final File openFile = openReconstructionFile("labels");
             if (openFile != null)
@@ -4746,6 +4750,12 @@ public class SNTUI extends JDialog {
     private void runAutotracingOnImage(final Class<? extends CommonDynamicCmd> clazz) {
         if (!plugin.accessToValidImageData()) {
             SwingUtilities.invokeLater( (clazz == GWDTTracerCmd.class || clazz == GWDTMultiSomaCmd.class) ? this::noValidImageDataErrorExtended : this::noValidImageDataError);
+            return;
+        }
+        if (isStreamMode() && (clazz == GWDTTracerCmd.class || clazz == GWDTMultiSomaCmd.class) && !guiUtils.getConfirmation(
+                "This scans the entire streamed image once to seed the distance transform. Depending on "
+                        + "dataset size and network/disk speed, this can take a long time. Continue?",
+                "Run on Streamed Image?")) {
             return;
         }
         // Singleton: if dialog is already open, bring it to front
@@ -6321,7 +6331,7 @@ public class SNTUI extends JDialog {
         }
 
         private void run() {
-            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && isStreamMode()) {
+            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && !isStreamMode()) {
                 guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
                 return;
             }
@@ -6505,6 +6515,8 @@ public class SNTUI extends JDialog {
         final JMenuItem jmi = (type == ImportAction.IMAGE) ? GuiUtils.MenuItems.fromFileImage()
                 : new JMenuItem(InternalUtils.getImportActionName(type));
         jmi.addActionListener(e -> new ImportAction(type, null).run());
+        if (List.of(ImportAction.IMAGE, ImportAction.DEMO, ImportAction.IMAGE_CLIPBOARD).contains(type))
+            jmi.setEnabled(!isStreamMode());
         return jmi;
     }
 

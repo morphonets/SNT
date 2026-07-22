@@ -1784,27 +1784,27 @@ public class Bvv extends AbstractBigViewer {
         toolbar.addSeparator();
 
         // group 4: options and settings: these buttons are made more discrete and not scaled
-        if (tracer != null) {
+        final JButton options = GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
+                "Set rendering options of annotations");
+        IconFactory.assignIcon(options, IconFactory.GLYPH.SLIDERS, IconFactory.GLYPH.SLIDERS, SCALING_FACTOR); // rescale icons to SCALING_FACTOR
+        toolbar.add(options);
+        if (snt != null) {
             final JButton sync = GuiUtils.Buttons.toolbarButton(actions.syncPathManagerAction(),
                     "Sync Path Manager changes");
             // for whatever reason the sync button seems too large: we'll reduce its size a tad bit
             IconFactory.assignIcon(sync, IconFactory.GLYPH.SYNC, IconFactory.GLYPH.SYNC, SCALING_FACTOR  * .9f);
             toolbar.add(sync);
+        } else {
+            toolbar.add(optionsButton(actions));
         }
-        final JButton options = GuiUtils.Buttons.toolbarButton(actions.PathRenderingOptionsAction(),
-                "Set rendering options of annotations");
-        toolbar.add(options);
-        IconFactory.assignIcon(options, IconFactory.GLYPH.SLIDERS, IconFactory.GLYPH.SLIDERS, SCALING_FACTOR); // rescale icons to SCALING_FACTOR
 
         if (tracer != null) {
             final JPanel panel = new JPanel(new BorderLayout());
             panel.add(toolbar, BorderLayout.NORTH);
             panel.add(tracingStatusRow(), BorderLayout.SOUTH);
             return panel;
-        } else {
-            toolbar.add(optionsButton(actions));
-            return toolbar;
         }
+        return toolbar;
     }
 
     private JToggleButton scaledToggleButton(final Action action, final IconFactory.GLYPH glyph, final String tooltipText) {
@@ -1845,9 +1845,6 @@ public class Bvv extends AbstractBigViewer {
 
     private JButton optionsButton(final BvvActions actions) {
         final JPopupMenu menu = new JPopupMenu();
-        if (snt != null)
-            menu.add(new JMenuItem(actions.syncPathManagerAction()));
-        menu.addSeparator();
         menu.add(new JMenuItem(actions.importAction()));
         menu.addSeparator();
         menu.add(new JMenuItem(actions.clearAllPathsAction()));
