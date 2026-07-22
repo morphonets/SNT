@@ -103,6 +103,8 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 		final Color deselectedColor = SNTPrefs.deselectedPathColor();
 
 		final boolean drawDiametersXY = plugin.getDrawDiameters();
+		// Placeholder canvases are always a single C1T1 image (SNT#rebuildDisplayCanvasesInternal()),
+		final boolean enforceActiveCTpos = plugin.showOnlyActiveCTposPaths && !plugin.isDisplayCanvas(imp);
 
 		if (pathAndFillManager != null) {
 			final Stroke stroke = g.getStroke();
@@ -124,7 +126,7 @@ public class TracerCanvas extends MultiDThreePanesCanvas {
 				// not the fitted copy, so test against p rather than drawPath
 				final boolean isSelected = pathAndFillManager.isSelected(p);
 				if (!isSelected && plugin.isOnlySelectedPathsVisible()) continue;
-				if (plugin.showOnlyActiveCTposPaths && (imp.getC() != drawPath
+				if (enforceActiveCTpos && (imp.getC() != drawPath
 					.getChannel() || imp.getT() != drawPath.getFrame()))
 				{
 					continue;

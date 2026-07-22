@@ -1276,10 +1276,8 @@ public class SNTUI extends JDialog {
     }
 
     /**
-     * Enables/disables the controls that are specific to the classic ImagePlus-canvas tracing
-     * workflow (not applicable while Bvv is the active tracing surface). Promoted out of {@link
-     * StreamState} so other transient states entered during a Bvv session (e.g. {@link
-     * FittingPathsState}) can restore the same restriction. See {@link #applyBvvControlRestrictions()}.
+     * Enables/disables the controls that are specific to the classic ImagePlus-canvas tracing workflow
+     * (not applicable while Bvv is the active tracing surface). See {@link #applyBvvControlRestrictions()}
      */
     private void setEnabledImagePlusCanvasControls(final boolean enable) {
         keepSegment.setEnabled(enable);
@@ -1288,7 +1286,7 @@ public class SNTUI extends JDialog {
         showPathsSelected.setEnabled(enable);
         partsNearbyCSpinner.setEnabled(enable);
         useSnapWindow.setEnabled(enable);
-        onlyActiveCTposition.setEnabled(enable);
+        onlyActiveCTposition.setEnabled(enable && !plugin.isDisplayCanvas(plugin.getImagePlus()));
         snapWindowXYsizeSpinner.setEnabled(enable);
         snapWindowZsizeSpinner.setEnabled(enable);
         assignDiameterSpinner.setEnabled(enable);
@@ -1727,25 +1725,37 @@ public class SNTUI extends JDialog {
                 return;
             }
 
-            String msg = "";
+            String msg;
             if (accessToValidImagePlus()) {
                 msg = "Replace current image with a display canvas and ";
-            } else if (plugin.getPrefs().getTemp(SNTPrefs.NO_IMAGE_ASSOCIATED_DATA, false)) {
-                msg = "You have loaded paths without loading an image.";
-            } else if (!plugin.getPathAndFillManager().allPathsShareSameSpatialCalibration())
+            } else if (!plugin.getPathAndFillManager().allPathsShareSameSpatialCalibration()) {
                 msg = "You seem to have loaded paths associated with images with conflicting spatial calibration.";
-            if (!msg.isEmpty()) {
-                if (!okToCreateCanvas(msg)) return;
+            } else {
+                // Catches paths loaded without ever loading an image, and an image that was loaded then closed.
+                // Either way there is no live image to inherit calibration from, so always ask
+                msg = "No image is currently associated with these paths.";
             }
+            if (!okToCreateCanvas(msg)) return;
             changeState(LOADING);
             showStatus("Resizing Canvas...", false);
-            if (plugin.isUnsavedChanges())
-                plugin.getPathAndFillManager().getBoundingBox(true);
-            plugin.closeAndResetAllPanes(); // flush cashed data as needed
-            updateSinglePaneFlag();
-            plugin.rebuildDisplayCanvases(); // will change UI state
-            arrangeCanvases(false);
-            showStatus("Canvas rebuilt...", true);
+            try {
+                if (plugin.isUnsavedChanges())
+                    plugin.getPathAndFillManager().getBoundingBox(true);
+                plugin.closeAndResetAllPanes(); // flush cashed data as needed
+                updateSinglePaneFlag();
+                plugin.rebuildDisplayCanvases(); // will change UI state
+                arrangeCanvases(false);
+                showStatus("Canvas rebuilt...", true);
+            } catch (final Throwable t) {
+                if (t instanceof OutOfMemoryError) {
+                    guiUtils.error("Out of Memory: There is not enough RAM to create a canvas this large.");
+                } else {
+                    error(t);
+                }
+                showStatus("Out of memory error...", true);
+            } finally {
+                resetState();
+            }
         });
         final JButton invertLutButton = new JButton(IconFactory.buttonIcon('\uf042', true, IconFactory.defaultColor()));
         invertLutButton.setToolTipText("Invert LUT of tracing views / Change background of Display Canvas");
@@ -1783,6 +1793,12 @@ public class SNTUI extends JDialog {
     }
 
     private boolean okToCreateCanvas(final String promptMsg) {
+        if (isStreamMode()) {
+            // The placeholder canvas here is just an editing convenience; its calibration must always mirror the live
+            // Bvv/Bdv source (see SNT#getPixelWidth()/getPixelHeight()/getPixelDepth(), which the tethered viewer's
+            // own calibration is built from). Resetting spacing would desync PathAndFillManager/Path calibration
+            return true;
+        }
         final boolean nag = plugin.getPrefs().getTemp("pathscaling-nag", true);
         boolean reset = plugin.getPrefs().getTemp("pathscaling", true);
         if (nag) {
@@ -4508,8 +4524,9 @@ public class SNTUI extends JDialog {
             public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
                 selPaths.setSelected(showPathsSelected.isSelected());
                 nearbyZ.setSelected(partsNearbyCSpinner.isSelected());
-                nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled());
+                nearbyZ.setEnabled(partsNearbyCSpinner.isEnabled() && currentState != SNT_PAUSED);
                 activeCT.setSelected(onlyActiveCTposition.isSelected());
+                activeCT.setEnabled(onlyActiveCTposition.isEnabled() && currentState != SNT_PAUSED);
                 diameters.setSelected(diametersCheckBox.isSelected());
                 snap.setSelected(useSnapWindow.isSelected());
                 secLayer.setSelected(secLayerActivateCheckbox.isSelected());
@@ -4517,7 +4534,7 @@ public class SNTUI extends JDialog {
                 pauseTracing.setSelected(currentState == TRACING_PAUSED);
                 stopSNT.setSelected(currentState == SNT_PAUSED);
                 // disable all but the pause SNT toggle
-                List.of(selPaths, nearbyZ, activeCT, diameters, snap, secLayer, pauseTracing).forEach( jCheckBoxMenuItem -> {
+                List.of(selPaths, diameters, snap, secLayer, pauseTracing).forEach( jCheckBoxMenuItem -> {
                     jCheckBoxMenuItem.setEnabled(currentState != SNT_PAUSED);
                 });
             }
@@ -5205,6 +5222,7 @@ public class SNTUI extends JDialog {
     protected void inputImageChanged() {
         partsNearbyCSpinner.setSpinnerMinMax(1, plugin.getDepth());
         partsNearbyCSpinner.setEnabled(!plugin.is2D());
+        onlyActiveCTposition.setEnabled(!plugin.isDisplayCanvas(plugin.getImagePlus()));
         plugin.justDisplayNearSlices(partsNearbyCSpinner.isSelected(), (int) partsNearbyCSpinner.getValue());
         ctPositionChanged();
         if (autoRbmi != null)
