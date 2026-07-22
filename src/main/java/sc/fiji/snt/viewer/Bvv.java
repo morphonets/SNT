@@ -1680,6 +1680,7 @@ public class Bvv extends AbstractBigViewer {
             @Override public void getViewerTransform(final AffineTransform3D t) { p.state().getViewerTransform(t); }
             @Override public void getGlobalMouseCoordinates(final RealPoint pos) { p.getGlobalMouseCoordinates(pos); }
             @Override public void requestRepaint() { p.requestRepaint(); }
+            @Override public int getCurrentTimepoint() { return p.state().getCurrentTimepoint(); }
         };
     }
 
@@ -2439,6 +2440,18 @@ public class Bvv extends AbstractBigViewer {
     @Override
     public Color getDefaultMarkerColor() {
         return renderingOptions.fallbackColor;
+    }
+
+    @Override
+    public int getCurrentTimepoint() {
+        final VolumeViewerPanel p = getViewerPanel();
+        return (p == null) ? 1 : p.state().getCurrentTimepoint() + 1;
+    }
+
+    @Override
+    public void setCurrentTimepoint(final int timepoint) {
+        final VolumeViewerPanel p = getViewerPanel();
+        if (p != null) p.state().setCurrentTimepoint(Math.max(0, timepoint - 1));
     }
 
     @Override
@@ -4275,6 +4288,11 @@ public class Bvv extends AbstractBigViewer {
         // Canvas dimensions cache
         private int canvasWidth, canvasHeight;
         private double centerX, centerY;
+        // Which paths a tree contributes to its cached screen data depends on the current timepoint and on
+        // snt.showOnlyActiveCTposPaths Neither  is reflected in a tree's structuralFingerprint, so track
+        // them separately here and invalidate the cache  whenever either one changes between frames
+        private int lastTimepoint = -1;
+        private boolean lastShowOnlyActiveCTposPaths = false;
 
         OverlayRenderer(final AbstractBigViewer viewer, final BigViewerPanel viewerPanel, final PathRenderingOptions renderingOptions) {
             this.viewer = viewer;
@@ -4404,6 +4422,17 @@ public class Bvv extends AbstractBigViewer {
                 cachedTransform.set(viewerTransform);
                 cacheValid = false;
             }
+
+            // Check if the active-CT-only filter or the current timepoint changed: either can change
+            // which paths a tree's cached screen data should include
+            final boolean showOnlyActiveCTposPaths = viewer.snt != null && viewer.snt.isShowOnlyActiveCTposPaths();
+            final int currentTimepoint = viewerPanel.getCurrentTimepoint();
+            if (showOnlyActiveCTposPaths != lastShowOnlyActiveCTposPaths
+                    || (showOnlyActiveCTposPaths && currentTimepoint != lastTimepoint)) {
+                cacheValid = false;
+            }
+            lastShowOnlyActiveCTposPaths = showOnlyActiveCTposPaths;
+            lastTimepoint = currentTimepoint;
 
             final Graphics2D g2d = setupGraphics(g);
 
@@ -4536,9 +4565,17 @@ public class Bvv extends AbstractBigViewer {
             // Extract scale from transform once
             final double avgScale = getAverageScale();
 
+            // Mirrors TracerCanvas's per-path CT check for the classic 2D canvas. Channel is deliberately
+            // not checked here: BDV/BVV composite channel sources simultaneously rather than exposing a
+            // single exclusively-displayed channel, so there is no live equivalent of imp.getC() to compare
+            // against; only the timepoint (which BDV/BVV do track live) is filtered
+            final boolean filterByCTpos = viewer.snt != null && viewer.snt.isShowOnlyActiveCTposPaths();
+            final int currentFrame = viewerPanel.getCurrentTimepoint() + 1; // Path#getFrame() is 1-based
+
             for (final Path path : tree.list()) {
                 final int n = path.size();
                 if (n < 1) continue;
+                if (filterByCTpos && path.getFrame() != currentFrame) continue;
 
                 final PathScreenData pathData = new PathScreenData(n);
                 final boolean customColor = renderingOptions.displayCustomPathColors && path.hasCustomColor();

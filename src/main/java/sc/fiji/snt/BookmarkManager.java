@@ -1286,6 +1286,8 @@ public class BookmarkManager {
         target.set(cY - ry, 1, 3);
         target.set(   - rz, 2, 3);
         viewer.setViewerTransform(target, 300);
+        // The camera move above only handles space; jump to the marker's own timepoint too
+        if (viewer.getCurrentTimepoint() != b.t) viewer.setCurrentTimepoint(b.t);
         viewer.showViewerMessage(String.format("Flying to %s", b.label));
     }
 
@@ -1321,7 +1323,9 @@ public class BookmarkManager {
             inheritedLabel = prev.replaceAll("(\\s*\\(\\d+\\))+$", "").replaceAll("\\s*\\d+$", "").strip();
         }
         final String label = model.getUniqueLabel(inheritedLabel.isBlank() ? "Marker" : inheritedLabel);
-        final Bookmark b = new Bookmark(label, x, y, z, 1, 1, color);
+        // Channel has no live equivalent in Bvv/Bdv (see OverlayRenderer's CT-filter): always 1, displayed as a dash
+        final int t = (viewer != null) ? viewer.getCurrentTimepoint() : 1;
+        final Bookmark b = new Bookmark(label, x, y, z, 1, t, color);
         b.size = size;
         model.getDataList().add(b);
         model.fireTableDataChanged();
@@ -1338,7 +1342,8 @@ public class BookmarkManager {
      */
     public void add(final double x, final double y, final double z, final Color color, final float size) {
         final String label = model.getUniqueLabel("Marker");
-        final Bookmark b = new Bookmark(label, x, y, z, 1, 1, color);
+        final int t = (viewer != null) ? viewer.getCurrentTimepoint() : 1;
+        final Bookmark b = new Bookmark(label, x, y, z, 1, t, color);
         b.size = size;
         model.getDataList().add(b);
         model.fireTableDataChanged();
@@ -1353,12 +1358,12 @@ public class BookmarkManager {
             exportTable.appendToLastRow("X", b.x);
             exportTable.appendToLastRow("Y", b.y);
             exportTable.appendToLastRow("Z", b.z);
-            if (viewer != null) {
-                exportTable.appendToLastRow("Size", b.size);
-            } else {
-                exportTable.appendToLastRow("C", b.c);
-                exportTable.appendToLastRow("T", b.t);
-            }
+            // C has no live equivalent in Bvv/Bdv (see OverlayRenderer's CT-path-filter): write a dash
+            // T and Size are always written, regardless of mode. Importing treats a missing/non-numeric value as
+            // "unset" (see populateFromFile()).
+            exportTable.appendToLastRow("C", (viewer != null) ? "-" : String.valueOf(b.c));
+            exportTable.appendToLastRow("T", b.t);
+            exportTable.appendToLastRow("Size", (viewer != null) ? b.size : "");
         }
         try {
             exportTable.save(file);
@@ -1724,9 +1729,9 @@ class Bookmark extends Path.PathNode {
             case 2 -> x;
             case 3 -> y;
             case 4 -> z;
-            case 5 -> c;  // SNT mode: channel; BVV mode: size (accessed via separate index)
-            case 6 -> t;
-            case 7 -> size; // BVV size column
+            case 5 -> c;  // channel (unused/always 1 in viewer mode; BookmarkModel shows a dash there)
+            case 6 -> t;  // frame/timepoint
+            case 7 -> size; // marker sphere radius (unused/blank in classic mode)
             default -> null;
         };
     }
@@ -1900,15 +1905,16 @@ class BookmarkTable extends JTable {
 
 class BookmarkModel extends AbstractTableModel {
 
-    private static final String[] SNT_HEADER = {"Tag", "Label", "X", "Y", "Z", "C", "T"};
-    private static final String[] BVV_HEADER = {"Tag", "Label", "X", "Y", "Z", "Size"};
-    private final String[] HEADER;
+    // Same columns in both modes (no more classic-SNT-vs-BVV/BDV header split): C is meaningless in
+    // viewer mode (no single "current channel" concept there, see OverlayRenderer's CT-path-filter) and
+    // is rendered as a dash; Size is meaningless in classic mode (no adjustable marker size there) and
+    // is rendered blank. Both are still stored on every Bookmark regardless of mode
+    private static final String[] HEADER = {"Tag", "Label", "X", "Y", "Z", "C", "T", "Size"};
     private final boolean bvvMode;
     private List<Bookmark> dataList = new ArrayList<>();
 
     BookmarkModel(final boolean bvvMode) {
         this.bvvMode = bvvMode;
-        this.HEADER = bvvMode ? BVV_HEADER : SNT_HEADER;
     }
 
     List<Bookmark> getDataList() {
@@ -1939,13 +1945,16 @@ class BookmarkModel extends AbstractTableModel {
     void populateFromFile(final File file) throws IOException {
         final SNTTable table = new SNTTable(file.getAbsolutePath());
         int tagIdx = table.findColumnIndex(HEADER[0]);
-        final int lIdx   = table.findColumnIndex(HEADER[1]);
-        final int xIdx   = table.findColumnIndex(HEADER[2]);
-        final int yIdx   = table.findColumnIndex(HEADER[3]);
-        final int zIdx   = table.findColumnIndex(HEADER[4]);
-        final int sizeIdx = bvvMode ? table.findColumnIndex("Size") : -1;
-        final int cIdx = bvvMode ? -1 : table.findColumnIndex(HEADER[5]);
-        final int tIdx = bvvMode ? -1 : table.findColumnIndex(HEADER[6]);
+        final int lIdx    = table.findColumnIndex(HEADER[1]);
+        final int xIdx    = table.findColumnIndex(HEADER[2]);
+        final int yIdx    = table.findColumnIndex(HEADER[3]);
+        final int zIdx    = table.findColumnIndex(HEADER[4]);
+        // Look up C/T/Size regardless of mode: older single-mode CSVs (classic: no Size; viewer: no C/T)
+        // simply won't have the missing column, and findColumnIndex() returning -1 for it is already
+        // handled below by defaulting the value, exactly as before this method stopped mode-gating the lookup
+        final int cIdx    = table.findColumnIndex(HEADER[5]);
+        final int tIdx    = table.findColumnIndex(HEADER[6]);
+        final int sizeIdx = table.findColumnIndex(HEADER[7]);
 
         if (xIdx == -1 || yIdx == -1 || zIdx == -1)
             throw new IOException("Unexpected column header(s) in CSV file.");
@@ -1962,10 +1971,12 @@ class BookmarkModel extends AbstractTableModel {
                 }
             }
             final String label = (lIdx != -1) ? ((String) table.get(lIdx, i)) : String.format("Marker%03d", i+1);
+            // C may be "-" (dash placeholder written for viewer-mode exports) rather than numeric,
+            // so only trust it when it is actually a Number, same as the existing Size handling below
             final Bookmark b = new Bookmark(label,
                     (double) table.get(xIdx, i), (double) table.get(yIdx, i), (double) table.get(zIdx, i),
-                    (cIdx == -1) ? 1 : (int) ((double) table.get(cIdx, i)),
-                    (tIdx == -1) ? 1 : (int) ((double) table.get(tIdx, i)),
+                    (cIdx != -1 && table.get(cIdx, i) instanceof Number cNum) ? cNum.intValue() : 1,
+                    (tIdx != -1 && table.get(tIdx, i) instanceof Number tNum) ? tNum.intValue() : 1,
                     category);
             if (sizeIdx != -1 && table.get(sizeIdx, i) instanceof Number n)
                 b.size = n.floatValue();
@@ -1997,14 +2008,17 @@ class BookmarkModel extends AbstractTableModel {
     @Override
     public Object getValueAt(final int row, final int col) {
         if (row >= dataList.size()) return null;
-        if (bvvMode && col == 5) return dataList.get(row).size; // Size column
+        // C: no live "current channel" concept in Bvv/Bdv (see OverlayRenderer's CT-path-filter), shown as a dash
+        if (col == 5 && bvvMode) return "-";
+        // Size: meaningless in classic mode (no adjustable marker size there), shown blank
+        if (col == 7) return bvvMode ? dataList.get(row).size : "";
         return dataList.get(row).get(col);
     }
 
     @Override
     public boolean isCellEditable(final int row, final int col) {
         if (row >= dataList.size()) return false;
-        if (bvvMode) return col == 0 || col == 1 || col == 5; // Tag, Label, Size
+        if (bvvMode) return col == 0 || col == 1 || col == 7; // Tag, Label, Size
         return col == 0 || col == 1; // Tag, Label
     }
 
@@ -2016,7 +2030,7 @@ class BookmarkModel extends AbstractTableModel {
         } else if (columnIndex == 1 && !Objects.equals(aValue, dataList.get(rowIndex).label)) {
             dataList.get(rowIndex).label = getUniqueLabel((String) aValue);
             fireTableCellUpdated(rowIndex, columnIndex);
-        } else if (bvvMode && columnIndex == 5) {
+        } else if (bvvMode && columnIndex == 7) {
             try {
                 dataList.get(rowIndex).size = Float.parseFloat(String.valueOf(aValue));
                 fireTableCellUpdated(rowIndex, columnIndex);
@@ -2030,10 +2044,11 @@ class BookmarkModel extends AbstractTableModel {
     public Class<?> getColumnClass(int column) {
         if (column == 0) return Color.class;
         if (column == 1) return String.class;
-        if (bvvMode && column == 5) return Float.class;
+        if (column == 5 && bvvMode) return String.class; // C: dash placeholder
+        if (column == 7) return bvvMode ? Float.class : String.class; // Size: viewer-only, blank otherwise
         return switch (column) {
             case 2, 3, 4 -> Double.class;
-            default -> Integer.class;
+            default -> Integer.class; // 5 (C, classic mode), 6 (T, both modes)
         };
     }
 

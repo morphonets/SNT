@@ -234,6 +234,25 @@ public class SpimDataUtils {
             return Views.hyperSlice(fullRai, timeDim, tClamped);
         }
 
+        /**
+         * Overridden for the same reason as {@link #getSource(int, int)}: BDV's actual on-screen
+         * rendering goes through {@code getInterpolatedSource(t, level, method)}, not {@code getSource()}
+         * directly. {@code RandomAccessibleIntervalSource}'s own implementation builds the interpolated/
+         * extended view once from the (fixed, single-timepoint) RAI passed to its constructor is always the t=0 slice.
+         * Without this override the time slider and status text update correctly (they're driven by
+         * {@code numTimepoints} alone) while the rendered image stays frozen on frame 0. Rebuilding the interpolation
+         * from our own time-aware {@link #getSource(int, int)} on every call fixes this
+         */
+        @Override
+        public net.imglib2.RealRandomAccessible<T> getInterpolatedSource(final int t, final int level,
+                                                                          final bdv.viewer.Interpolation method) {
+            if (timeDim < 0) return super.getInterpolatedSource(t, level, method);
+            final net.imglib2.RandomAccessible<T> extended = Views.extendZero(getSource(t, level));
+            return (method == bdv.viewer.Interpolation.NLINEAR)
+                    ? Views.interpolate(extended, new net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory<>())
+                    : Views.interpolate(extended, new net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory<>());
+        }
+
         @Override
         public VoxelDimensions getVoxelDimensions() {
             return voxelDimensions;

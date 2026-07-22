@@ -306,6 +306,20 @@ public abstract class AbstractBigViewer {
     public abstract Color getDefaultMarkerColor();
 
     /**
+     * Returns this viewer's current timepoint (1-based, matching {@link sc.fiji.snt.Path#getFrame()}'s
+     * convention), or 1 if no data is loaded / timepoint tracking is unavailable.
+     */
+    public abstract int getCurrentTimepoint();
+
+    /**
+     * Navigates this viewer to the specified timepoint (1-based, matching
+     * {@link sc.fiji.snt.Path#getFrame()}'s convention). Does nothing if no data is loaded.
+     *
+     * @param timepoint the 1-based timepoint to navigate to; values &lt; 1 are coerced to 1
+     */
+    public abstract void setCurrentTimepoint(int timepoint);
+
+    /**
      * Creates and returns a new {@link sc.fiji.snt.BookmarkManager} for this viewer.
      * Called exactly once (lazily) by {@link #getMarkerManager()}.
      */

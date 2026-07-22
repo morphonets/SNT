@@ -3623,6 +3623,14 @@ public class SNT extends MultiDThreePanes implements
 		}
 	}
 
+	/**
+	 * @return whether only paths matching the current channel/frame position are being displayed
+	 *         (classic canvas), or, for Bvv/Bdv, only paths matching the current timepoint
+	 */
+	public boolean isShowOnlyActiveCTposPaths() {
+		return showOnlyActiveCTposPaths;
+	}
+
 	public void setShowOnlySelectedPaths(final boolean showOnlySelectedPaths) {
 		setShowOnlySelectedPaths(showOnlySelectedPaths, true);
 	}

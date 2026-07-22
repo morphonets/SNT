@@ -1309,6 +1309,7 @@ public class SNTUI extends JDialog {
         aStarCheckBox.setEnabled(false);
         searchAlgoChoice.setEnabled(false);
         algorithmChoiceLabel.setEnabled(false);
+        if (isStreamMode()) onlyActiveCTposition.setEnabled(true); // controls frame-visibility in Bdv/Bvv
     }
 
     private class StreamState implements UIState {
@@ -3996,7 +3997,9 @@ public class SNTUI extends JDialog {
         partsNearbyCSpinner.getSpinner().addChangeListener(e -> plugin.justDisplayNearSlices(true, (int) partsNearbyCSpinner.getValue()));
 
         final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel("3. Only paths from active channel/frame", "3"), plugin.showOnlyActiveCTposPaths);
+        onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel(
+                isStreamMode() ? "Only paths from active frame" : "3. Only paths from active channel/frame",
+                "3"), plugin.showOnlyActiveCTposPaths);
         row3.add(onlyActiveCTposition);
         onlyActiveCTposition.addItemListener(listener);
 

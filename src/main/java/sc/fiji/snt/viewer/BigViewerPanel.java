@@ -62,4 +62,7 @@ interface BigViewerPanel {
 
     /** Requests a repaint of the display. */
     void requestRepaint();
+
+    /** The panel's current timepoint (0-based), i.e., the timepoint being displayed right now. */
+    int getCurrentTimepoint();
 }

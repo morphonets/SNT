@@ -163,7 +163,7 @@ public class Bdv extends AbstractBigViewer {
                         ? baseOpts()
                         : BdvOptions.options().addTo(bdvHandle);
                 final BdvStackSource<?> cs = showCalibratedBdvSource(
-                        ImpUtils.toImgPlus(ch), imp.getTitle() + " [C" + c + "]", chOpts);
+                        ImpUtils.toImgPlus(ch), imp.getTitle() + " [C" + c + "]", chOpts, imp.getNFrames());
                 if (firstSrc == null) {
                     firstSrc = cs;
                     if (bdvHandle == null) {
@@ -177,7 +177,7 @@ public class Bdv extends AbstractBigViewer {
             }
             src = firstSrc;
         } else {
-            src = showCalibratedBdvSource(ImpUtils.toImgPlus(imp), imp.getTitle(), baseOpts());
+            src = showCalibratedBdvSource(ImpUtils.toImgPlus(imp), imp.getTitle(), baseOpts(), imp.getNFrames());
             if (bdvHandle == null) {
                 bdvHandle = src.getBdvHandle();
                 viewerPanel = bdvHandle.getViewerPanel();
@@ -218,6 +218,13 @@ public class Bdv extends AbstractBigViewer {
         }
         final String title = img.getName() != null ? img.getName() : "Image";
         final int chDim = img.dimensionIndex(Axes.CHANNEL);
+        // Only trust the TIME axis if it is the *last* dimension: showCalibratedBdvSource (like BVV's
+        // showCalibratedSource) slices the last axis as time, matching the [X, Y, (Z), T] order ImpUtils/ImageJFunctions
+        // produce. An arbitrary caller-supplied ImgPlus with TIME elsewhere in the axis order falls back to treat the
+        // data as a static volume rather than risk slicing the wrong axis
+        final int timeIdx = img.dimensionIndex(Axes.TIME);
+        final int numTimepoints = (timeIdx >= 0 && timeIdx == img.numDimensions() - 1)
+                ? (int) img.dimension(timeIdx) : 1;
         BdvStackSource<?> src;
         if (chDim >= 0 && img.dimension(chDim) > 1) {
             // Multichannel: show each channel as a separate BDV source.
@@ -231,7 +238,7 @@ public class Bdv extends AbstractBigViewer {
                         ? baseOpts().sourceTransform(calToTransform())
                         : BdvOptions.options().addTo(bdvHandle).sourceTransform(calToTransform());
                 final BdvStackSource<?> cs = showCalibratedBdvSource(
-                        ch, title + " [C" + (c + 1) + "]", chOpts);
+                        ch, title + " [C" + (c + 1) + "]", chOpts, numTimepoints);
                 if (firstSrc == null) {
                     firstSrc = cs;
                     if (bdvHandle == null) {
@@ -244,7 +251,7 @@ public class Bdv extends AbstractBigViewer {
             src = firstSrc;
         } else {
             // Single-channel: wrap in CalibratedSource so unit propagates to scale bar
-            src = showCalibratedBdvSource(img, title, baseOpts());
+            src = showCalibratedBdvSource(img, title, baseOpts(), numTimepoints);
         }
         // Single-channel path init (multichannel handles this inside the loop above)
         if (bdvHandle == null) {
@@ -268,7 +275,7 @@ public class Bdv extends AbstractBigViewer {
                 ? new double[]{1, 1, 1} : calibration;
         dims = new long[]{rai.dimension(0), rai.dimension(1),
                           rai.numDimensions() > 2 ? rai.dimension(2) : 1};
-        final BdvStackSource<?> src = showCalibratedBdvSource(rai, "Image", baseOpts());
+        final BdvStackSource<?> src = showCalibratedBdvSource(rai, "Image", baseOpts(), 1);
         if (bdvHandle == null) {
             bdvHandle = src.getBdvHandle();
             viewerPanel = bdvHandle.getViewerPanel();
@@ -541,6 +548,16 @@ public class Bdv extends AbstractBigViewer {
     }
 
     @Override
+    public int getCurrentTimepoint() {
+        return (viewerPanel == null) ? 1 : viewerPanel.state().getCurrentTimepoint() + 1;
+    }
+
+    @Override
+    public void setCurrentTimepoint(final int timepoint) {
+        if (viewerPanel != null) viewerPanel.state().setCurrentTimepoint(Math.max(0, timepoint - 1));
+    }
+
+    @Override
     protected BookmarkManager createMarkerManager() {
         return new BookmarkManager(this);
     }
@@ -676,23 +693,43 @@ public class Bdv extends AbstractBigViewer {
      * the BDV scale bar reads the correct physical unit (not "pixel"). The calibration
      * is taken from the current {@link #cal} and {@link #calUnit} fields.
      * <p>
-     * This mirrors BVV's {@code showCalibratedSource()} pattern.
+     * When {@code numTimepoints > 1}, {@code rai}'s last dimension is treated as the time
+     * axis (matching how {@link sc.fiji.snt.util.ImpUtils#toImgPlus} and
+     * {@code ImageJFunctions.wrap} order a single-channel hyperstack: {@code [X, Y, (Z), T]}),
+     * so BDV correctly exposes a time-slider and slices per-timepoint instead of showing
+     * every frame baked into one static volume. See {@code showCalibratedSource(..., numTimepoints, ...)}
      * </p>
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private BdvStackSource<?> showCalibratedBdvSource(
             final RandomAccessibleInterval<?> rai,
             final String name,
-            final BdvOptions opts) {
-        // BDV's renderer always calls realMax(2); add a singleton Z for 2D inputs
-        final RandomAccessibleInterval<?> rai3d = (rai.numDimensions() < 3)
-                ? Views.addDimension(rai, 0, 0) : rai;
+            final BdvOptions opts,
+            final int numTimepoints) {
+        final boolean hasTime = numTimepoints > 1;
+        // BDV's renderer always calls realMax(2), so it needs at least 3 *spatial* dimensions
+        // (time doesn't count). A 2D timelapse (e.g. [X, Y, T]) already has numDimensions() == 3,
+        // so a naive "pad if < 3 total dims" check would never fire for it, and the singleton Z
+        // it actually needs would be missing once CalibratedSource hyperSlices T away at render
+        // time, leaving a bare 2D [X, Y] source that breaks BDV's realMax(2) assumption
+        final int spatialDims = hasTime ? rai.numDimensions() - 1 : rai.numDimensions();
+        RandomAccessibleInterval<?> rai3d = rai;
+        if (spatialDims < 3) {
+            final int timeAxisBeforePad = rai.numDimensions() - 1; // only meaningful when hasTime
+            rai3d = Views.addDimension(rai3d, 0, 0); // always appends the new Z axis at the end
+            if (hasTime) {
+                // Time must stay the last axis (see timeDim below): swap the newly appended Z
+                // into the slot time used to occupy, moving time back to the new last position
+                rai3d = Views.permute(rai3d, timeAxisBeforePad, rai3d.numDimensions() - 1);
+            }
+        }
+        final int timeDim = hasTime ? rai3d.numDimensions() - 1 : -1;
         final SpimDataUtils.CalibratedSource src =
                 new SpimDataUtils.CalibratedSource(
                         rai3d, (NumericType) rai3d.getType(), calToTransform(), name,
                         cal != null ? cal : new double[]{1, 1, 1},
-                        calUnit != null ? calUnit : "pixel");
-        return BdvFunctions.show(src, 1, opts);
+                        calUnit != null ? calUnit : "pixel", timeDim);
+        return BdvFunctions.show(src, Math.max(1, numTimepoints), opts);
     }
 
     /**
@@ -1041,6 +1078,7 @@ public class Bdv extends AbstractBigViewer {
             @Override public void getViewerTransform(final AffineTransform3D t) { p.state().getViewerTransform(t); }
             @Override public void getGlobalMouseCoordinates(final RealPoint pos) { p.getGlobalMouseCoordinates(pos); }
             @Override public void requestRepaint() { p.requestRepaint(); }
+            @Override public int getCurrentTimepoint() { return p.state().getCurrentTimepoint(); }
         };
     }
 }
