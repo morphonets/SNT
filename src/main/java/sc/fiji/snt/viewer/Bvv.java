@@ -4191,7 +4191,10 @@ public class Bvv extends AbstractBigViewer {
 
             private double[] getClipPosition() {
                 final double[] pos = new double[3];
-                final double[] peak = viewer.findClickRayMaxima();
+                // we need to guard against NPE: viewer is null when this AnnotationOverlay was built
+                // AnnotationOverlay(BigViewerPanel, PathRenderingOptions): findClickRayMaxima() is
+                // Bvv-only, so we eed to guard against it
+                final double[] peak = (viewer != null) ? viewer.findClickRayMaxima() : null;
                 if (peak != null) { pos[0] = peak[0]; pos[1] = peak[1]; pos[2] = peak[2]; }
                 else viewerPanel.getGlobalMouseCoordinates(RealPoint.wrap(pos)); // fallback to focal-plane intersection
                 return pos;

@@ -284,7 +284,10 @@ public class BookmarkManager {
                 public void mouseClicked(final java.awt.event.MouseEvent e) {
                     if (viewer.annotations() == null) return;
                     final int modelIdx = viewer.annotations().hitTest(e.getX(), e.getY());
-                    if (modelIdx < 0) return;
+                    // Bounds-check against the *model* row count before converting: hitTest() can return an index
+                    // that is momentarily stale relative to the table (e.g. the renderer's screenData snapshot
+                    // lagging a model change), and convertRowIndexToView throws IndexOutOfBoundsException
+                    if (modelIdx < 0 || modelIdx >= table.getModel().getRowCount()) return;
                     final int viewRow = table.convertRowIndexToView(modelIdx);
                     if (viewRow < 0 || viewRow >= table.getRowCount()) return;
                     table.setRowSelectionInterval(viewRow, viewRow);
