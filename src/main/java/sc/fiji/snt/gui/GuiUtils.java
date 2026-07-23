@@ -2429,7 +2429,12 @@ public class GuiUtils {
 	}
 
 	public static void errorPrompt(final String msg) {
-		new GuiUtils().error(msg, "SNT v" + SNTUtils.VERSION);
+		errorPrompt(msg, false);
+	}
+
+	public static void errorPrompt(final String msg, final boolean centeredOnScreen) {
+		final GuiUtils guiUtils = (centeredOnScreen) ? new GuiUtils(null) : new GuiUtils();
+		guiUtils.error(msg, "SNT v" + SNTUtils.VERSION);
 	}
 
 	public static String[] availableLookAndFeels() {

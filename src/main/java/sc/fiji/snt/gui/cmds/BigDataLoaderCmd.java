@@ -31,6 +31,7 @@ import mpicbg.spim.data.generic.AbstractSpimData;
 import org.janelia.saalfeldlab.n5.bdv.N5ViewerTreeCellRenderer;
 import org.janelia.saalfeldlab.n5.ij.N5Importer;
 import org.janelia.saalfeldlab.n5.ui.DatasetSelectorDialog;
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
@@ -65,7 +66,7 @@ import static org.janelia.saalfeldlab.n5.bdv.N5ViewerCreator.n5vParsers;
  *
  * @author Tiago Ferreira
  */
-@Plugin(type = Command.class, label = "Big Data/SNT Stream")
+@Plugin(type = Command.class, label = "Big Data/SNT Stream", initializer = "init")
 public class BigDataLoaderCmd extends ContextCommand {
 
     private static final String TOOLTIP =
@@ -90,19 +91,30 @@ public class BigDataLoaderCmd extends ContextCommand {
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction file(s) (optional)",
-            description = "Either a single file (TRACES, SWC, JSON), or a folder containing multiple reconstruction files")
+            description = "Either a single file (TRACES, SWC, JSON), or a folder containing reconstruction files.")
     File recFiles;
 
     @Parameter(required = false, label = "Markers file (optional)",
-            description = "A CSV file containing bookmarked locations")
+            description = "A CSV file containing bookmarked locations.")
     File markerFile;
 
-    @Parameter(label = "Viewer type", description = "The type of viewer", choices = {
+    @Parameter(label = "Viewer type", description = "The type of viewer.\nTracing capabilities are provided by SNT Stream.",
+            choices = {
             "Big Data Viewer (BDV): Interactive reslicing",
             "Big Data Viewer (BDV): Interactive reslicing w/ tracing capabilities",
             "Big Volume Viewer (BVV): 3D rendering",
             "Big Volume Viewer (BVV): 3D rendering w/ tracing capabilities"})
     String viewerChoice;
+
+    @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
+    String msg;
+
+
+    @SuppressWarnings("unused")
+    private void init() {
+        msg = (SNTUtils.getInstance() == null)
+                ? "" : "<HTML>NB: <i>SNT Stream</i> requires SNT to not already be running. Please close the active instance first.";
+    }
 
     @Override
     public void run() {
@@ -173,8 +185,12 @@ public class BigDataLoaderCmd extends ContextCommand {
                 try {
                     final SpimDataUtils.N5Sources n5Sources =
                             SpimDataUtils.resolveN5Selection(selection, new File(normalizedPath).getName());
-                    if (viewer instanceof Bvv bvv) bvv.show(n5Sources);
-                    else if (viewer instanceof Bdv bdv) bdv.show(n5Sources);
+                    // Same non-pyramidal-dataset risk as resolveBvvSources(), only relevant for BVV
+                    if (viewer instanceof Bvv bvv) {
+                        if (confirmPyramidOrAbort(n5Sources, n5ZarrDir)) bvv.show(n5Sources);
+                    } else if (viewer instanceof Bdv bdv) {
+                        bdv.show(n5Sources);
+                    }
                 } catch (final Exception e) {
                     GuiUtils.errorPrompt("Could not open '" + n5ZarrDir + "': " + e.getMessage());
                 } finally {
@@ -200,7 +216,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
-        if (resolved == null) return; // user chose Abort (oversized image)
+        if (resolved == null) return; // user chose Abort (oversized image or non-pyramidal dataset)
         final Bvv bvv = new Bvv();
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
@@ -222,7 +238,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
         final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
-        if (resolved == null) return; // user chose Abort (oversized image)
+        if (resolved == null) return; // user chose Abort (oversized image or non-pyramidal dataset)
         final SNT snt = startTracingSNT(img1File);
         final Bvv bvv = new Bvv(snt);
         addSourcesToBvv(bvv, resolved);
@@ -240,7 +256,8 @@ public class BigDataLoaderCmd extends ContextCommand {
      * deferredPaths} instead, to be resolved later via the interactive {@link #datasetDialog}.
      *
      * @return the resolved sources, or {@code null} if the user chose to Abort when prompted about
-     *         an oversized image (see {@link #handleOversizedImage})
+     *         an oversized image (see {@link #handleOversizedImage}) or a non-pyramidal N5/Zarr
+     *         source (see {@link #confirmPyramidOrAbort})
      */
     private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize) {
         final List<Object> sources = new ArrayList<>();
@@ -257,6 +274,9 @@ public class BigDataLoaderCmd extends ContextCommand {
                     continue;
                 }
                 throw e;
+            }
+            if (source instanceof SpimDataUtils.N5Sources n5 && !confirmPyramidOrAbort(n5, path)) {
+                return null; // user chose Abort
             }
             if (source instanceof ImgPlus<?> img && ImgUtils.exceedsDimension(img, maxTexSize)) {
                 final Object handled = handleOversizedImage(img, maxTexSize, path);
@@ -502,6 +522,36 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /**
+     * Warns before loading a non-pyramidal (single resolution level) N5/Zarr source into BVV. BVV's
+     * GPU brick-cache/raycasting renderer assumes a proper multi-resolution pyramid; a single-level
+     * dataset crashes BVV's {@code VolumeRenderer}!? (NB: BDV needs no pyramid)
+     *
+     * @param n5Sources the resolved N5/Zarr source(s)
+     * @param path      the original path, used only for the warning message
+     * @return true if there is a pyramid (nothing to warn about) or the user chose to continue anyway;
+     *         false if the user chose to abort
+     */
+    private static boolean confirmPyramidOrAbort(final SpimDataUtils.N5Sources n5Sources, final String path) {
+        if (n5Sources.sources.isEmpty()) return true; // nothing to check; downstream logic already handles this
+        final int nLevels = n5Sources.sources.getFirst().getSpimSource().getNumMipmapLevels();
+        if (nLevels > 1) return true;
+        final String message = String.format(
+                "'%s' has no multi-resolution pyramid (a single resolution level only). Big Volume "
+                        + "Viewer's 3D renderer relies on such a pyramid and has been known to fail or "
+                        + "become unresponsive without one. Continue loading it anyway?",
+                new File(path).getName());
+        // The loading splash screen (SNTUtils#setIsLoading(true), running since run() started) is an
+        // always-on-top window that can end up rendered above this confirmation
+        SNTUtils.setIsLoading(false);
+        try {
+            return new GuiUtils(null).getConfirmation(message, "Non-pyramidal N5/Zarr Dataset",
+                    "Continue Anyway", "Cancel");
+        } finally {
+            SNTUtils.setIsLoading(true);
+        }
+    }
+
+    /**
      * Handles an ImgPlus whose spatial dimensions exceed the GPU's 3D texture
      * limit. Prompts the user to choose between aborting, downsampling, or
      * opening a conversion script.
@@ -514,8 +564,16 @@ public class BigDataLoaderCmd extends ContextCommand {
         final String message = String.format("The image '%s' has spatial dimensions that exceed your " +
                         "GPU's 3D texture limit (%d texels). What would you like to do?",
                 img.getName(), maxTexSize);
-        final String choice = new GuiUtils(null).getChoice(message, "BVV: Volume Too Large",
-                new String[]{DOWNSAMPLE, CONVERT, ABORT}, DOWNSAMPLE);
+        // See confirmPyramidOrAbort(): the loading splash screen can end up rendered on top of this
+        // dialog, so hide it for the duration of the prompt and restore it afterward
+        SNTUtils.setIsLoading(false);
+        final String choice;
+        try {
+            choice = new GuiUtils(null).getChoice(message, "BVV: Volume Too Large",
+                    new String[]{DOWNSAMPLE, CONVERT, ABORT}, DOWNSAMPLE);
+        } finally {
+            SNTUtils.setIsLoading(true);
+        }
 
         if (choice == null || ABORT.equals(choice)) {
             cancel("");
@@ -580,7 +638,7 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     private void error(final String msg) {
-        GuiUtils.errorPrompt(msg);
+        GuiUtils.errorPrompt(msg, true);
         cancel("");
     }
 

@@ -1317,6 +1317,8 @@ public class SNTUI extends JDialog {
         @Override
         public void enter() {
             updateStatusText("Stream Mode (Experimental)");
+            final int size = statusText.getMaximumSize().height;
+            statusText.setIcon(new FlatSVGIcon("gui/SNTStreamLogo.svg", size, size));
             showStatus("In-core image not available...", false);
             disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel

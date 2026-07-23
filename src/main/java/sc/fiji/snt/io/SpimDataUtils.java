@@ -124,13 +124,49 @@ public class SpimDataUtils {
             }
         }
 
-        if (file.isDirectory() && (lower.endsWith(".zarr") || lower.endsWith(".n5"))) {
-            return resolveN5ToSources(file);
+        // Any existing directory is tried as an N5/Zarr discovery root first, regardless of the conventional .n5/.zarr
+        // naming suffix: N5/Zarr readers are filesystem-backed and address everything by relative subpath from whatever
+        // root they're given, and the discoverer already recurses looking for recognized metadata wherever it is.
+        // resolveN5ToSources() throws cleanly when nothing is found, so falling through to the conventional
+        // ImgPlus/Bio-Formats path below is safe for genuinely non-N5 directories.
+        // Error (OutOfMemoryError and the like) is deliberately not caught here and still propagates
+        if (file.isDirectory()) {
+            try {
+                return resolveN5ToSources(file);
+            } catch (final RuntimeException e) {
+                SNTUtils.log("No N5/Zarr metadata found at '" + file.getAbsolutePath() + "' (" + e.getMessage()
+                        + "); trying as a conventional image directory instead");
+            }
         }
 
-        if (file.getParent() != null && (lower.endsWith(".json") && file.getParent().endsWith(".n5")
-                        || lower.startsWith(".z") && file.getParent().endsWith(".zarr"))) {
-            return resolveN5ToSources(file.getParentFile());
+        // A user may point at a metadata file *inside* the container instead of the container's root
+        // folder. Recognized by filename alone (no naming requirement on the parent directory): covers
+        // both legacy N5 ("attributes.json"), Zarr v2 (dotfiles), and Zarr v3 ("zarr.json", no leading dot)
+        if (file.isFile() && isN5OrZarrMetadataFile(lower)) {
+            try {
+                return resolveN5ToSources(file.getParentFile());
+            } catch (final RuntimeException e) {
+                SNTUtils.log("Could not resolve '" + file.getParentFile() + "' as an N5/Zarr container ("
+                        + e.getMessage() + "); trying other strategies");
+            }
+        }
+
+        // The given path doesn't exist at all: most likely a typo  or doubled trailing path segment
+        // (e.g. the container's own name pasted twice, or a stray subpath appended to it). Walk up a
+        // few ancestor directories retrying N5/Zarr discovery at each, before giving up entirely.
+        if (!file.exists()) {
+            File ancestor = file.getParentFile();
+            for (int depth = 0; ancestor != null && depth < 4; depth++, ancestor = ancestor.getParentFile()) {
+                if (!ancestor.isDirectory()) continue;
+                try {
+                    final Object resolved = resolveN5ToSources(ancestor);
+                    SNTUtils.log("'" + filePathOrUrl + "' does not exist; resolved its nearest existing "
+                            + "ancestor instead: " + ancestor.getAbsolutePath());
+                    return resolved;
+                } catch (final RuntimeException ignored) {
+                    // keep climbing
+                }
+            }
         }
 
         // Fallback: open as ImgPlus (includes size check before reaching BVV)
@@ -138,6 +174,18 @@ public class SpimDataUtils {
         if (img == null)
             throw new IllegalArgumentException("Could not open file: " + filePathOrUrl);
         return img;
+    }
+
+    /**
+     * Whether {@code lowerCaseFileName} is a recognized N5/OME-Zarr metadata filename (root or
+     * group/dataset level), regardless of the container directory's own naming convention.
+     */
+    private static boolean isN5OrZarrMetadataFile(final String lowerCaseFileName) {
+        return switch (lowerCaseFileName) {
+            case "attributes.json" /* N5 */, "zarr.json" /* Zarr v3 */,
+                 ".zattrs", ".zgroup", ".zarray" /* Zarr v2 */ -> true;
+            default -> false;
+        };
     }
 
     // -- IMS XML patching --
