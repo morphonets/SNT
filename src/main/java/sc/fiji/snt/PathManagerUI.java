@@ -1006,6 +1006,9 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
     public void dispose() {
         closeTable();
         if (measureUI != null) measureUI.dispose();
+        for (final AbstractRefineHelper<?> helper : new AbstractRefineHelper[]{fittingHelper, multiSpectralRefineHelper, aStarRefineHelper}) {
+            if (helper != null) helper.cancel(false);
+        }
         if (tree != null) tree.removeAll();
         // plugin.dispose() called by SNTUI
         fittingHelper = null;
@@ -1362,15 +1365,24 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                         } catch (final InterruptedException e) {
                             Thread.currentThread().interrupt();
                             msg.dispose();
-                            guiUtils.error("An exception occurred. See Console for details.");
-                            e.printStackTrace();
+                            // isCancelled() is true here this interruption came from our own cancel()
+                            // (e.g. PathManagerUI#dispose() during shutdown)
+                            if (!isCancelled()) {
+                                guiUtils.error("An exception occurred. See Console for details.");
+                                e.printStackTrace();
+                            } else {
+                                SNTUtils.log(statusMessage(0, 0) + " cancelled");
+                            }
                         } catch (final ExecutionException | RuntimeException e) {
                             msg.dispose();
                             guiUtils.error("An exception occurred. See Console for details.");
                             e.printStackTrace();
                         } finally {
                             cleanup();
-                            try { es.shutdown(); } catch (final Exception ignored) {}
+                            // shutdownNow(), not shutdown(): the latter only stops new submissions and lets
+                            // already-running per-path tasks (AStarRefiner/PathFitter/MultiSpectralRefiner)
+                            // finish on their own time
+                            try { es.shutdownNow(); } catch (final Exception ignored) {}
                         }
                     }
                     return null;
