@@ -946,16 +946,22 @@ public class SNTUI extends JDialog {
     }
 
     protected void exitRequested() {
+        exitRequested(true);
+    }
+
+    private boolean exitRequested(final boolean requireExplicitConfirmation) {
         assert SwingUtilities.isEventDispatchThread();
-        String msg = "Quit SNT?";
+        String msg = null;
         if (plugin.isUnsavedChanges() && pmUI.measurementsUnsaved())
             msg = "There are unsaved paths and unsaved measurements. Do you really want to quit?";
         else if (plugin.isUnsavedChanges())
             msg = "There are unsaved paths. Do you really want to quit?";
         else if (pmUI.measurementsUnsaved())
             msg = "There are unsaved measurements. Do you really want to quit?";
-        if (!guiUtils.getConfirmation(msg, "Really Quit?"))
-            return;
+        else if (requireExplicitConfirmation)
+            msg = "Quit SNT?";
+        if (msg != null && !guiUtils.getConfirmation(msg, "Really Quit?"))
+            return false;
         abortCurrentOperation();
         getPrefs().setAutosaveFile(null); // forget last saved file
         commandFinder.dispose();
@@ -990,6 +996,7 @@ public class SNTUI extends JDialog {
         GuiUtils.closeAllPlots();
         GuiUtils.closeAllTables();
         GuiUtils.restoreLookAndFeel();
+        return true;
     }
 
     private void setEnableAutoTracingComponents(final boolean enable, final boolean enableAstar) {
@@ -1075,6 +1082,13 @@ public class SNTUI extends JDialog {
             bvv.getViewerFrame().addWindowListener(new WindowAdapter() {
 
                 @Override
+                public void windowOpened(final WindowEvent e) {
+                    if (isStreamMode()) { // see arrangeDialogsMenuItem in viewsMenu
+                        final DialogLayout layout = arrangeCoreDialogs(false);
+                        if (layout != null) arrangeStreamViewer(layout);
+                    }
+                }
+                @Override
                 public void windowClosing(final WindowEvent e) {
                     if (isStreamMode()) {
                         exitRequested();
@@ -1085,6 +1099,15 @@ public class SNTUI extends JDialog {
                     }
                 }
             });
+            // windowOpened above may already have fired (and been missed) by the time this listener
+            // was attached: BvvFunctions.show() makes the frame visible before attachControlPanel()
+            // re-invokes setBvv(). Arrange now too, as a fallback
+            if (isStreamMode()) {
+                SwingUtilities.invokeLater(() -> {
+                    final DialogLayout layout = arrangeCoreDialogs(false);
+                    if (layout != null) arrangeStreamViewer(layout);
+                });
+            }
         }
     }
 
@@ -1116,6 +1139,13 @@ public class SNTUI extends JDialog {
             bdv.getViewerFrame().addWindowListener(new WindowAdapter() {
 
                 @Override
+                public void windowOpened(final WindowEvent e) {
+                    if (isStreamMode()) { // see arrangeDialogsMenuItem in viewsMenu
+                        final DialogLayout layout = arrangeCoreDialogs(false);
+                        if (layout != null) arrangeStreamViewer(layout);
+                    }
+                }
+                @Override
                 public void windowClosing(final WindowEvent e) {
                     if (isStreamMode()) {
                         exitRequested();
@@ -1126,6 +1156,12 @@ public class SNTUI extends JDialog {
                     }
                 }
             });
+            if (isStreamMode()) { // see comment in setBvvOnEDT
+                SwingUtilities.invokeLater(() -> {
+                    final DialogLayout layout = arrangeCoreDialogs(false);
+                    if (layout != null) arrangeStreamViewer(layout);
+                });
+            }
         }
     }
 
@@ -1317,8 +1353,6 @@ public class SNTUI extends JDialog {
         @Override
         public void enter() {
             updateStatusText("Stream Mode (Experimental)");
-            final int size = statusText.getMaximumSize().height;
-            statusText.setIcon(new FlatSVGIcon("gui/SNTStreamLogo.svg", size, size));
             showStatus("In-core image not available...", false);
             disableImageDependentComponents(); // Bvv is not currently aware of these
             setEnableAutoTracingComponents(false, true); // A* controls are not in Bvv Panel
@@ -3272,6 +3306,7 @@ public class SNTUI extends JDialog {
         saveAndOpenNext.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
         saveAndOpenNext.addActionListener(e -> saveTracingsAndOpenSiblingImage(true));
+        saveAndOpenNext.setEnabled(!isStreamMode());
         fileMenu.add(saveAndOpenNext);
         final JMenuItem saveAndOpenPrev = new JMenuItem("Save Tracings & Open Previous Image",
                 IconFactory.menuIcon(IconFactory.GLYPH.PREVIOUS));
@@ -3279,6 +3314,7 @@ public class SNTUI extends JDialog {
         saveAndOpenPrev.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.ALT_DOWN_MASK));
         saveAndOpenPrev.addActionListener(e -> saveTracingsAndOpenSiblingImage(false));
+        saveAndOpenPrev.setEnabled(!isStreamMode());
         fileMenu.add(saveAndOpenPrev);
         final JMenuItem saveAsMenuItem = new JMenuItem("Save Tracings As...", IconFactory.menuIcon(GLYPH.EXPORT));
         saveAsMenuItem.addActionListener(e -> {
@@ -3343,15 +3379,22 @@ public class SNTUI extends JDialog {
                 IconFactory.menuIcon(IconFactory.GLYPH.RECYCLE));
         restartMenuItem.setToolTipText("Reset all preferences and restart SNT");
         restartMenuItem.addActionListener(e -> {
-            CommandService cmdService = plugin.getContext().getService(CommandService.class);
-            exitRequested();
-            if (SNTUtils.getInstance() == null) {
-                PrefsCmd.wipe();
-                SNTPrefs.setFirstRunAfterUpdate(false);
+            // NB: query plugin.getContext() before exitRequested() nulls out the plugin field
+            final CommandService cmdService = plugin.getContext().getService(CommandService.class);
+            final String[] modes = (isStreamMode())
+                    ? new String[]{"Standard Mode", "SNT Stream (current)"} : new String[]{"Standard Mode (current)", "SNT Stream"};
+            final String choice = guiUtils.getChoice("Restart in which mode?", "Reset and Restart",
+                    modes, isStreamMode() ? modes[1] : modes[0]);
+            if (choice == null) return; // user dismissed the dialog
+            // The choice above already doubles as the "are you sure?" gesture
+            // Any unsaved-changes warning is still shown regardless (see exitRequested(boolean))
+            if (!exitRequested(false)) return;
+            PrefsCmd.wipe();
+            SNTPrefs.setFirstRunAfterUpdate(false);
+            if (modes[1].equals(choice))
+                cmdService.run(BigDataLoaderCmd.class, true);
+            else
                 cmdService.run(SNTLoaderCmd.class, true);
-            } else {
-                cmdService = null;
-            }
         });
         fileMenu.add(restartMenuItem);
         fileMenu.addSeparator();
@@ -3671,38 +3714,17 @@ public class SNTUI extends JDialog {
                 IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS2));
         arrangeDialogsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
         arrangeDialogsMenuItem.addActionListener(e -> {
-            final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
-            final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
-            if (w == -1 || h == -1) {
-                error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
-                return;
-            }
-
-            // Get the screen where SNTUI is currently located
-            final GraphicsConfiguration gc = getGraphicsConfiguration();
-            final Rectangle screenBounds = gc.getBounds();
-            final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
-
-            // Calculate usable area (excluding taskbar, dock, etc.)
-            final int usableX = screenBounds.x + insets.left;
-            final int usableY = screenBounds.y + insets.top;
-            //final int usableWidth = screenBounds.width - insets.left - insets.right;
-            final int usableHeight = screenBounds.height - insets.top - insets.bottom;
-
-            // Position dialogs on the same screen
-            setBounds(usableX, usableY, w, h);
-            pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, usableY, w, h);
-            fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, usableY);
-            final Window console = GuiUtils.getConsole();
-            if (console != null) {
-                console.setBounds(usableX, usableY + usableHeight - h / 3, w * 2, h / 3);
-            }
+            final DialogLayout layout = arrangeCoreDialogs(true);
+            if (layout == null) return; // error already shown (corrupt prefs)
+            // Classic mode: unchanged behavior: nothing else to do. Arrange the BVV/BDV viewer frame:
+            if (isStreamMode()) arrangeStreamViewer(layout);
         });
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
         arrangeWindowsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
         arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
         arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
+        arrangeWindowsMenuItem.setEnabled(!isStreamMode());
         viewMenu.add(arrangeWindowsMenuItem);
         final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
         hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
@@ -3715,14 +3737,11 @@ public class SNTUI extends JDialog {
         final JCheckBoxMenuItem xzCanvasMenuItem = new JCheckBoxMenuItem("Hide XZ View");
         xzCanvasMenuItem.addActionListener(e -> toggleWindowVisibility(MultiDThreePanes.XZ_PLANE, xzCanvasMenuItem));
         hideViewsMenu.add(xzCanvasMenuItem);
-        final JCheckBoxMenuItem threeDViewerMenuItem = new JCheckBoxMenuItem("Hide Legacy 3D View");
-        threeDViewerMenuItem.addItemListener(e -> {
-            if (plugin.get3DUniverse() == null || !plugin.use3DViewer)
-                guiUtils.error("Legacy 3D Viewer is not active.");
-            else
-                plugin.get3DUniverse().getWindow().setVisible(e.getStateChange() == ItemEvent.DESELECTED);
-        });
-        hideViewsMenu.add(threeDViewerMenuItem);
+        hideViewsMenu.addSeparator();
+        hideViewsMenu.add(getTracerVisibilityMenuItem("BDV"));
+        hideViewsMenu.add(getTracerVisibilityMenuItem("BVV"));
+        hideViewsMenu.add(getTracerVisibilityMenuItem("Legacy 3D Viewer"));
+        hideViewsMenu.setEnabled(!isStreamMode());
         viewMenu.add(hideViewsMenu);
         final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
         showImpMenuItem.addActionListener(e -> {
@@ -4856,6 +4875,70 @@ public class SNTUI extends JDialog {
             fmUI.setLocation(loc);
     }
 
+    /**
+     * Geometry computed by {@link #arrangeCoreDialogs(boolean)}, needed by mode-specific continuations
+     * (currently just {@link #arrangeStreamViewer(DialogLayout)}).
+     *
+     * @param nextColumnX  x coordinate immediately to the right of PathManagerUI (where FillManagerUI,
+     *                     and, in Stream mode, the placeholder image window/viewer frame, are placed)
+     * @param usableY      top of the usable screen area (excludes taskbar/menu bar)
+     * @param usableRight  right edge of the usable screen area
+     * @param usableBottom bottom of the usable screen area (excludes taskbar/dock)
+     * @param w            preferred dialog width ({@code def-gui-width} pref)
+     * @param h            preferred dialog height ({@code def-gui-height} pref)
+     */
+    private record DialogLayout(int nextColumnX, int usableY, int usableRight, int usableBottom, int w, int h) {}
+
+    /**
+     * Positions SNTUI, PathManagerUI, FillManagerUI, and the Console, i.e., the part of "Arrange Dialogs"
+     * shared by classic and Stream mode.
+     *
+     * @return the geometry needed by those continuations, or {@code null} if prefs are corrupt (an
+     *         error has already been shown to the user in that case)
+     */
+    private DialogLayout arrangeCoreDialogs(final boolean warnOnError) {
+        final int w = Integer.parseInt(getPrefs().get("def-gui-width", "-1"));
+        final int h = Integer.parseInt(getPrefs().get("def-gui-height", "-1"));
+        if (w == -1 || h == -1) {
+            if (warnOnError) error("Preferences may be corrupt. Please reset them using File>Reset and Restart...");
+            return null;
+        }
+        final Rectangle usable = InternalUtils.usableScreenBounds(this);
+
+        // Position dialogs on the same screen
+        setBounds(usable.x, usable.y, w, h);
+        pmUI.setBounds(getLocation().x + w + InternalUtils.MARGIN, usable.y, w, h);
+        fmUI.setLocation(pmUI.getLocation().x + w + InternalUtils.MARGIN, usable.y);
+        final Window console = GuiUtils.getConsole();
+        if (console != null) {
+            console.setBounds(usable.x, usable.y + usable.height - h / 3, w * 2, h / 3);
+        }
+        final int nextColumnX = pmUI.getLocation().x + w + InternalUtils.MARGIN;
+        return new DialogLayout(nextColumnX, usable.y, usable.x + usable.width, usable.y + usable.height, w, h);
+    }
+
+    /**
+     * Stream-mode continuation of {@link #arrangeCoreDialogs(boolean)}.
+     */
+    private void arrangeStreamViewer(final DialogLayout layout) {
+        int viewerY = layout.usableY();
+        final ImagePlus imp = plugin.getImagePlus();
+        if (imp != null && imp.getWindow() != null) {
+            // it is possible to have a display canvas e.g., for editing during stream mode
+            final int placeholderHeight = layout.h() / 3;
+            imp.getWindow().setBounds(layout.nextColumnX(), layout.usableY(), layout.w(), placeholderHeight);
+            imp.getWindow().toFront();
+            viewerY += placeholderHeight + InternalUtils.MARGIN;
+        }
+        final AbstractBigViewer viewer = (bvvSNT != null) ? bvvSNT : bdvSNT;
+        if (viewer == null) return;
+        final JFrame viewerFrame = viewer.getViewerFrame();
+        if (viewerFrame == null) return;
+        viewerFrame.setBounds(layout.nextColumnX(), viewerY,
+                layout.usableRight() - layout.nextColumnX(), layout.usableBottom() - viewerY);
+        viewerFrame.toFront();
+    }
+
     private void arrangeCanvases(final boolean displayErrorOnFailure) {
 
         final ImageWindow xy_window = (plugin.getImagePlus()==null) ? null : plugin.getImagePlus().getWindow();
@@ -4920,6 +5003,41 @@ public class SNTUI extends JDialog {
         }
         // NB: WindowManager list won't be notified
         imp.getWindow().setVisible(!mItem.isSelected());
+    }
+
+    private JCheckBoxMenuItem getTracerVisibilityMenuItem(final String viewerDescription) {
+        final JCheckBoxMenuItem viewerMenuItem = new JCheckBoxMenuItem("Hide " + viewerDescription);
+        final boolean[] adjusting = {false};
+        return switch (viewerDescription) {
+            case "Legacy 3D Viewer" -> {
+                viewerMenuItem.addItemListener(e -> {
+                    if (adjusting[0]) return;
+                    if (plugin.get3DUniverse() == null || !plugin.use3DViewer) {
+                        guiUtils.error("Legacy 3D Viewer is not active.");
+                        adjusting[0] = true;
+                        viewerMenuItem.setSelected(false);
+                        adjusting[0] = false;
+                    } else
+                        plugin.get3DUniverse().getWindow().setVisible(e.getStateChange() == ItemEvent.DESELECTED);
+                });
+                yield viewerMenuItem;
+            }
+            case "BDV", "BVV" -> {
+                viewerMenuItem.addItemListener(e -> {
+                    if (adjusting[0]) return;
+                    final AbstractBigViewer viewer = (viewerDescription.contains("BVV")) ? bvvSNT : bdvSNT;
+                    if (viewer == null || viewer.getViewerFrame() == null) {
+                        guiUtils.error(viewerDescription + " is not active.");
+                        adjusting[0] = true;
+                        viewerMenuItem.setSelected(false);
+                        adjusting[0] = false;
+                    } else
+                        viewer.getViewerFrame().setVisible(e.getStateChange() == ItemEvent.DESELECTED);
+                });
+                yield viewerMenuItem;
+            }
+            default -> throw new IllegalArgumentException("Unrecognized option: " + viewerDescription);
+        };
     }
 
     private boolean noPathsShollError() {
@@ -5847,6 +5965,16 @@ public class SNTUI extends JDialog {
 
         static final int MARGIN = 4;
         static final int TEXT_MARGIN = (int) (GuiUtils.uiFontSize() / 2);
+
+        /** Usable screen bounds (i.e., excluding taskbar/dock/menu bar) for whatever screen {@code c} is on. */
+        static Rectangle usableScreenBounds(final Component c) {
+            final GraphicsConfiguration gc = c.getGraphicsConfiguration();
+            final Rectangle screenBounds = gc.getBounds();
+            final Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
+            return new Rectangle(screenBounds.x + insets.left, screenBounds.y + insets.top,
+                    screenBounds.width - insets.left - insets.right,
+                    screenBounds.height - insets.top - insets.bottom);
+        }
 
         static String getImportActionName(final int type) {
             return switch (type) {

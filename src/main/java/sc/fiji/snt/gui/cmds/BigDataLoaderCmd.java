@@ -150,10 +150,10 @@ public class BigDataLoaderCmd extends ContextCommand {
                 runBvv(filePaths);
             else
                 runBdv(filePaths);
-        } catch (final Exception e) {
-            error("An error occurred: " + e.getMessage());
-        } finally {
             SNTUtils.setIsLoading(false);
+        } catch (final Exception e) {
+            SNTUtils.setIsLoading(false); // hide splashscreen behind error dialog
+            error("An error occurred: " + e.getMessage());
         }
     }
 
