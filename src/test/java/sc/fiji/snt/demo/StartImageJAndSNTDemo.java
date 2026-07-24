@@ -43,9 +43,9 @@ public class StartImageJAndSNTDemo {
     public static void main(final String[] args) throws InterruptedException, InvocationTargetException {
 
         // 1. Start ImageJ and SNT
-        final SNT snt = SNTUtils.startApp();
-        // 2. Load a demo dataset (File> Load Demo Dataset...> Demo 03)
-        snt.getUI().runCommand("Load Demo Dataset...", "3");
+        final SNT snt = SNTUtils.startApp(false); // false: 'Regular' mode for traditional images; true: 'Stream' (big data) mode
+        // 2. Load a demo dataset (File> Load Demo Dataset...> Demo 04)
+        snt.getUI().runCommand("Load Demo Dataset...", "4");
    
 	}
 }

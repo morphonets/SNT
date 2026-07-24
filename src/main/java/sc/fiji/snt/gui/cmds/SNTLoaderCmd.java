@@ -108,7 +108,7 @@ public class SNTLoaderCmd extends DynamicCommand {
 	@Override
 	public void initialize() {
 		if (sntService != null && sntService.isActive() && sntService.getUI() != null) {
-			exit("SNT seems to be already running.");
+			exit("SNT seems to be already running. Please close the current instance and re-run.");
 			return;
 		}
 		// TODO: load defaults from prefService?
@@ -382,8 +382,10 @@ public class SNTLoaderCmd extends DynamicCommand {
 
 	private void exit(final String msg) {
 		SNTUtils.setIsLoading(false);
-		if (msg != null && !msg.isEmpty())
-			cancel(msg);
+		if (msg != null && !msg.isEmpty()) {
+			GuiUtils.errorPrompt(msg, true);
+		}
+		cancel("");
 	}
 
 	/*

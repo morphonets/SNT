@@ -31,6 +31,7 @@ import net.imagej.ops.OpService;
 import org.scijava.Context;
 import org.scijava.app.StatusService;
 import org.scijava.batch.BatchService;
+import org.scijava.command.CommandModule;
 import org.scijava.command.CommandService;
 import org.scijava.convert.ConvertService;
 import org.scijava.display.DisplayService;
@@ -52,6 +53,7 @@ import org.scijava.util.FileUtils;
 import org.scijava.util.VersionUtils;
 import sc.fiji.snt.analysis.sholl.ShollUtils;
 import sc.fiji.snt.gui.GuiUtils;
+import sc.fiji.snt.gui.cmds.BigDataLoaderCmd;
 import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.viewer.Viewer3D;
 
@@ -68,7 +70,10 @@ import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 import java.util.regex.Matcher;
@@ -715,25 +720,47 @@ public class SNTUtils {
 	}
 
 	/**
-	 * Convenience method to start up SNT's GUI.
-	 * 
+	 * Convenience method to start up SNT's GUI in 'standard' mode.
+	 *
 	 * @return a reference to the {@link SNT} instance just started.s
 	 */
 	public static SNT startApp() {
+		return startApp(false);
+	}
+
+	/**
+	 * Convenience method to start up SNT's GUI.
+	 * @param streamMode If {@code true} SNT is initialized in stream (big data) mode, otherwise in 'standard' mode.
+	 * @return a reference to the {@link SNT} instance just started.s
+	 */
+	public static SNT startApp(final boolean streamMode) {
 		GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
 		if (context == null && ij.IJ.getInstance() == null) {
-			new ImageJ().ui().showUI();
+			new ImageJ().ui().showUI(); // ImageJ ui needs to be displayed for proper display of scijava prompts
 		}
-		setIsLoading(true);
-		final PathAndFillManager pathAndFillManager = new PathAndFillManager();
-		final SNT snt = new SNT(getContext(), pathAndFillManager);
-		snt.initialize(null);
-		try {
-			javax.swing.SwingUtilities.invokeAndWait(snt::startUI);
-		} catch (final InvocationTargetException | InterruptedException e) {
-			e.printStackTrace();
+
+		if (streamMode) {
+			final Future<CommandModule> future = getContext().getService(CommandService.class).run(BigDataLoaderCmd.class,
+					true, (Map<String, Object>) null);
+			try {
+				future.get(30, TimeUnit.SECONDS);
+			} catch (final InterruptedException | ExecutionException | TimeoutException e) {
+				error("SNTUTils.startApp(true) failed", e);
+			}
+			return getInstance();
+
+        } else {
+			setIsLoading(true);
+			final PathAndFillManager pathAndFillManager = new PathAndFillManager();
+			final SNT snt = new SNT(getContext(), pathAndFillManager);
+			snt.initialize(null);
+			try {
+				javax.swing.SwingUtilities.invokeAndWait(snt::startUI);
+			} catch (final InvocationTargetException | InterruptedException e) {
+				e.printStackTrace();
+			}
+			return snt;
 		}
-		return snt;
 	}
 }
 

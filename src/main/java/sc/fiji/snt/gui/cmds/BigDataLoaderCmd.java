@@ -97,7 +97,8 @@ public class BigDataLoaderCmd extends ContextCommand {
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction(s)",
-            description = "Optional.\nEither a single file (TRACES, SWC, JSON), or a folder containing reconstruction files.")
+            description = "Optional.\nEither a single file (TRACES, SWC, JSON), or a\n" +
+                    "folder/.zip archive of several such files.")
     File recFiles;
 
     @Parameter(required = false, label = "Markers",
