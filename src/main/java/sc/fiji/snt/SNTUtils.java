@@ -579,6 +579,47 @@ public class SNTUtils {
 		return tempFile.toFile();
 	}
 
+	/**
+	 * Downloads a zip archive from the specified URL and extracts it to a fresh temporary directory.
+	 * Both the downloaded archive and the extracted contents are marked for deletion on JVM exit; the
+	 * archive itself is also deleted immediately once extraction succeeds, since it is not needed
+	 * afterward.
+	 *
+	 * @param zipUrl the URL of the zip archive to download and extract
+	 * @return the temporary directory holding the extracted contents
+	 * @throws IOException        if the archive could not be downloaded/read, or if it contains an
+	 *                             entry that would extract outside the target directory ("zip-slip")
+	 * @throws URISyntaxException if the URL is malformed
+	 */
+	public static File downloadAndExtractZip(final String zipUrl) throws IOException, URISyntaxException {
+		final File zipFile = downloadToTempFile(zipUrl);
+		final java.nio.file.Path targetDir = Files.createTempDirectory(null).normalize();
+		targetDir.toFile().deleteOnExit();
+		try (final java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(
+				new BufferedInputStream(Files.newInputStream(zipFile.toPath())))) {
+			java.util.zip.ZipEntry entry;
+			while ((entry = zis.getNextEntry()) != null) {
+				final java.nio.file.Path entryPath = targetDir.resolve(entry.getName()).normalize();
+				if (!entryPath.startsWith(targetDir)) {
+					throw new IOException("Zip entry '" + entry.getName()
+							+ "' would extract outside the target directory (zip-slip)");
+				}
+				if (entry.isDirectory()) {
+					Files.createDirectories(entryPath);
+				} else {
+					if (entryPath.getParent() != null) Files.createDirectories(entryPath.getParent());
+					Files.copy(zis, entryPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+					entryPath.toFile().deleteOnExit();
+				}
+				zis.closeEntry();
+			}
+		} finally {
+			//noinspection ResultOfMethodCallIgnored
+			zipFile.delete(); // extracted already; no longer needed
+		}
+		return targetDir.toFile();
+	}
+
 
 	/**
 	 * Convenience method to access the context of the running Fiji instance

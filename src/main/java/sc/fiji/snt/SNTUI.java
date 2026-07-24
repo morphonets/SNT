@@ -52,10 +52,7 @@ import sc.fiji.snt.gui.DemoRunner.Demo;
 import sc.fiji.snt.gui.IconFactory.GLYPH;
 import sc.fiji.snt.gui.cmds.*;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
-import sc.fiji.snt.io.FlyCircuitLoader;
-import sc.fiji.snt.io.NeuroMorphoLoader;
-import sc.fiji.snt.io.NeurolucidaImporter;
-import sc.fiji.snt.io.WekaModelLoader;
+import sc.fiji.snt.io.*;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.util.ImgUtils;
 import sc.fiji.snt.util.ImpUtils;
@@ -3456,7 +3453,10 @@ public class SNTUI extends JDialog {
         });
         ScriptRecorder.setRecordingCall(importNeuroMorpho, "snt.getUI().runCommand(\"NeuroMorpho...\")");
         importSubmenu.add(remoteSubmenu);
-
+        importSubmenu.addSeparator();
+        final JMenuItem urlItem = getImportActionMenuItem(ImportAction.URL);
+        urlItem.setIcon(IconFactory.menuIcon(GLYPH.GLOBE));
+        importSubmenu.add(urlItem);
         return fileMenu;
     }
 
@@ -5991,6 +5991,7 @@ public class SNTUI extends JDialog {
                 case ImportAction.NEUROLUCIDA -> "Neurolucida XML...";
                 case ImportAction.TRACES -> "TRACES...";
                 case ImportAction.IMAGE_CLIPBOARD -> "From System Clipboard";
+                case ImportAction.URL -> "Remote URL...";
                 default -> throw new IllegalArgumentException("Unknown type '" + type + "'");
             };
         }
@@ -6009,6 +6010,7 @@ public class SNTUI extends JDialog {
                 case "NDF..." -> ImportAction.NDF;
                 case "Neurolucida XML..." -> ImportAction.NEUROLUCIDA;
                 case "TRACES..." -> ImportAction.TRACES;
+                case "URL..." -> ImportAction.URL;
                 default -> -1;
             };
         }
@@ -6029,6 +6031,8 @@ public class SNTUI extends JDialog {
                 return ImportAction.NEUROLUCIDA;
             if (filename.endsWith(".tif") || filename.endsWith(".tiff"))
                 return ImportAction.IMAGE;
+            if (SpimDataUtils.isRemoteUrl(filename))
+                return ImportAction.URL;
             return -1;
         }
 
@@ -6478,6 +6482,7 @@ public class SNTUI extends JDialog {
         private static final int NDF = 9;
         private static final int IMAGE_CLIPBOARD = 10;
         private static final int NEUROLUCIDA = 11;
+        private static final int URL = 13;
 
         private final int type;
         private File file;
@@ -6602,6 +6607,30 @@ public class SNTUI extends JDialog {
                     if (!proceed()) return;
                     if (file != null) inputs.put("dir", file);
                     (new DynamicCmdRunner(MultiSWCImporterCmd.class, inputs, LOADING)).run();
+                }
+                case URL -> {
+                    if (!proceed()) return;
+                    final String url = guiUtils.getString(
+                            "URL of the reconstruction file to import (SWC, TRACES, JSON, NDF, Neurolucida; "
+                                    + "a .zip archive of several such files is also accepted):",
+                            "Import from URL...", "https://");
+                    if (url == null || url.isBlank()) return;
+                    changeState(LOADING);
+                    boolean succeed = false;
+                    try {
+                        // Tree.listFromFile() already handles remote URLs directly
+                        final Collection<Tree> importedTrees = Tree.listFromFile(url);
+                        importedTrees.forEach(tree -> pathAndFillManager.addTree(tree, tree.getLabel()));
+                        succeed = importedTrees.stream().anyMatch(tree -> tree != null && !tree.isEmpty());
+                        if (succeed && recorder != null)
+                            recorder.recordComment("Detected option: \"" + url + "\"");
+                        else if (!succeed)
+                            guiUtils.error("No internet connection or no valid reconstruction(s) found at the specified URL.");
+                    } catch (final IllegalArgumentException ex) {
+                        guiUtils.error("Could not load data from URL: " + ex.getMessage());
+                    }
+                    if (succeed) validateImgDimensions();
+                    changeState(priorState);
                 }
                 case TRACES, SWC, ANY_RECONSTRUCTION -> {
                     if (!proceed()) return;

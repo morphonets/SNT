@@ -77,11 +77,26 @@ public class SNTTable extends DefaultGenericTable {
 		});
 	}
 
+	/**
+	 * @param filePath the absolute path or URL to the CSV file to be imported
+	 * @throws IOException if the file/URL could not be imported
+	 * @see #fromFile(String)
+	 */
 	public SNTTable(final String filePath) throws IOException {
 		this(filePath, ',');
 	}
 
-	public SNTTable(final String filePath, final char columDelimiter) throws IOException {
+	/**
+	 * @param filePathOrURL the absolute path or URL (e.g., {@code https://.../data.csv}) to the tabular
+	 *                      file to be imported. Remote URLs are downloaded to a temporary local file
+	 *                      first (see {@link SNTUtils#downloadToTempFile(String)}); {@link #getTitle()}
+	 *                      is set from the URL's own filename in that case, since a temp file's name is
+	 *                      meaningless to the user
+	 * @param columDelimiter the column delimiter (comma, tab, etc.)
+	 * @throws IOException if the file/URL could not be imported
+	 * @see #fromFile(String, String)
+	 */
+	public SNTTable(final String filePathOrURL, final char columDelimiter) throws IOException {
 		super();
 		if (tableIO == null) {
 			try { // Failure if new Context(IOservice.class); !?
@@ -93,12 +108,22 @@ public class SNTTable extends DefaultGenericTable {
 		if (tableIO == null) {
 			throw new NoSuchServiceException("Failed to initialize IOService");
 		}
-		final FileLocation loc = new FileLocation(filePath);
+		String remoteName = null;
+		String localPath = filePathOrURL;
+		if (isRemoteURL(filePathOrURL)) {
+			try {
+				remoteName = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
+				localPath = SNTUtils.downloadToTempFile(filePathOrURL).getAbsolutePath();
+			} catch (final URISyntaxException e) {
+				throw new IOException("Could not resolve URL: " + e.getMessage(), e);
+			}
+		}
+		final FileLocation loc = new FileLocation(localPath);
 		final Table<?, ?> openedTable = loadTable(loc, tableIO, columDelimiter);
 		for (int col = 0; col < openedTable.getColumnCount(); ++col) {
 			add(openedTable.get(col));
 		}
-		title = loc.getName();
+		title = (remoteName != null) ? remoteName : loc.getName();
 		hasUnsavedData = false;
 	}
 
@@ -601,16 +626,12 @@ public class SNTTable extends DefaultGenericTable {
 	 */
 	public static SNTTable fromFile(final String filePathOrURL, final String delimiter) {
 		try {
-			if (isRemoteURL(filePathOrURL)) {
-				final String name = filePathOrURL.substring(filePathOrURL.lastIndexOf('/') + 1);
-				final File file = SNTUtils.downloadToTempFile(filePathOrURL);
-				final SNTTable table = new SNTTable(file.getAbsolutePath(), delimiter.charAt(0));
-				table.title = name;
-				return table;
-			} else {
-				return new SNTTable( new File(filePathOrURL).getAbsolutePath(), delimiter.charAt(0));
-			}
-		} catch (final IOException | URISyntaxException e) {
+			// The constructor itself now handles remote URLs (download-to-temp-file), so this is a
+			// thin, null-on-failure wrapper around it for scripting convenience.
+			return (isRemoteURL(filePathOrURL))
+					? new SNTTable(filePathOrURL, delimiter.charAt(0))
+					: new SNTTable(new File(filePathOrURL).getAbsolutePath(), delimiter.charAt(0));
+		} catch (final IOException e) {
 			SNTUtils.error(e.getMessage(), e);
 			return null;
 		}

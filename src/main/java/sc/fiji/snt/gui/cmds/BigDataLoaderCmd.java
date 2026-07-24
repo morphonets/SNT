@@ -36,11 +36,13 @@ import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.PathAndFillManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.Tree;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
@@ -52,6 +54,7 @@ import sc.fiji.snt.viewer.Bvv;
 import javax.swing.*;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -82,20 +85,23 @@ public class BigDataLoaderCmd extends ContextCommand {
     private static final String CONVERT = "Show me how to convert to multi-resolution pyramid image";
 
 
+    @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
+    String msgHeader= "<HTML>All files can be specified by either local paths or remote URLs. Only <i>Main volume</i> is a mandatory field.";
+
     @Parameter(label = "Main volume", style = FileWidget.FILE_AND_DIRECTORY_STYLE,
             description = "Primary image volume.\n"+ TOOLTIP)
     File img1File;
 
     @Parameter(required = false, style = FileWidget.FILE_AND_DIRECTORY_STYLE,
-            label = "Secondary volume (optional)", description = "Optional image volume.\n"+ TOOLTIP)
+            label = "Secondary volume", description = "Optional image volume (e.g., a second channel saved separately).\n"+ TOOLTIP)
     File img2File;
 
-    @Parameter(required = false, label = "Reconstruction file(s) (optional)",
-            description = "Either a single file (TRACES, SWC, JSON), or a folder containing reconstruction files.")
+    @Parameter(required = false, label = "Reconstruction(s)",
+            description = "Optional.\nEither a single file (TRACES, SWC, JSON), or a folder containing reconstruction files.")
     File recFiles;
 
-    @Parameter(required = false, label = "Markers file (optional)",
-            description = "A CSV file containing bookmarked locations.")
+    @Parameter(required = false, label = "Markers",
+            description = "Optional.\nA CSV file containing bookmarked locations.")
     File markerFile;
 
     @Parameter(label = "Viewer type", description = "The type of viewer.\nTracing capabilities are provided by SNT Stream.",
@@ -109,6 +115,18 @@ public class BigDataLoaderCmd extends ContextCommand {
     @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
     String msg;
 
+    @Parameter(label = "Load Remote Demo...", callback = "loadDemo", persist = false, required = false)
+    private Button demoButton;
+
+    @SuppressWarnings("unused")
+    private void loadDemo() {
+        // fine to declare URL as file even though File collapses "//" -> "/" -- restoreUrlScheme() already handles that
+        img1File = new File("https://ome-zarr-scivis.s3.us-east-1.amazonaws.com/v0.4/96x0/marmoset_neurons.ome.zarr");
+        img2File = null;
+        recFiles = null;
+        markerFile = null;
+        viewerChoice = "Big Data Viewer (BDV): Interactive reslicing w/ tracing capabilities";
+    }
 
     @SuppressWarnings("unused")
     private void init() {
@@ -125,7 +143,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
         final String[] filePaths = Stream.of(img1File, img2File)
                 .filter(Objects::nonNull)
-                .map(File::getAbsolutePath)
+                .map(BigDataLoaderCmd::toPathString)
                 .toArray(String[]::new);
         if (filePaths.length == 0) {
             error("No volume files specified.");
@@ -157,8 +175,27 @@ public class BigDataLoaderCmd extends ContextCommand {
         }
     }
 
-    /** True if path is an existing .n5 or .zarr directory. */
+    /**
+     * Converts an (possibly user-typed) {@link File} parameter back to the string form
+     * {@link SpimDataUtils#resolvePathToSource(String)} expects. {@code File#getAbsolutePath()} mangles
+     * remote URLs (e.g. {@code https://.../dataset.ome.zarr}) by prepending the current working
+     * directory, since a URL scheme isn't a recognized absolute-path prefix. Even {@code File#getPath()}
+     * isn't a clean escape hatch here: by the time the typed text becomes a {@code File} at all, its own
+     * constructor has already collapsed the URL's "://" down to ":/" (consecutive slashes are merged),
+     * so that has to be repaired too (see {@link SpimDataUtils#restoreUrlScheme(String)}).
+     */
+    private static String toPathString(final File f) {
+        return SpimDataUtils.isRemoteUrl(f.getPath())
+                ? SpimDataUtils.restoreUrlScheme(f.getPath())
+                : f.getAbsolutePath();
+    }
+
+    /** True if path is an existing .n5/.zarr directory, or a remote URL to one. */
     private static boolean isN5OrZarrDir(final String path) {
+        if (SpimDataUtils.isRemoteUrl(path)) {
+            final String lower = path.toLowerCase();
+            return lower.endsWith(".n5") || lower.endsWith(".n5/") || lower.endsWith(".zarr") || lower.endsWith(".zarr/");
+        }
         final File f = new File(path);
         final String lower = f.getName().toLowerCase();
         return f.isDirectory() && (lower.endsWith(".n5") || lower.endsWith(".zarr"));
@@ -237,17 +274,26 @@ public class BigDataLoaderCmd extends ContextCommand {
     private void runBvvWithTracing(final String[] filePaths) {
         final int maxTexSize = queryMaxTexture3DSize();
         SNTUtils.log("BVV: GL_MAX_3D_TEXTURE_SIZE = " + maxTexSize);
-        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize);
+        // Resolve the primary volume (img1File, i.e. filePaths[0]) exactly once: startTracingSNT() needs
+        // it for calibration/A* wiring, and the viewer needs the very same source. Doing this before
+        // resolveBvvSources() lets that primary resolution be reused there instead of re-running N5/Zarr
+        // discovery a second time for an unchanged path
+        final TracingSetup setup = startTracingSNT(img1File);
+        final ResolvedSources resolved = resolveBvvSources(filePaths, maxTexSize, setup.primarySource());
         if (resolved == null) return; // user chose Abort (oversized image or non-pyramidal dataset)
-        final SNT snt = startTracingSNT(img1File);
-        final Bvv bvv = new Bvv(snt);
+        final Bvv bvv = new Bvv(setup.snt());
         addSourcesToBvv(bvv, resolved);
         loadReconstructions(bvv);
         loadMarkers(bvv);
     }
 
-    /** Holds the outcome of {@link #resolveBvvSources(String[], int)}. */
+    /** Holds the outcome of {@link #resolveBvvSources(String[], int, Object)}. */
     private record ResolvedSources(List<Object> sources, List<String> deferredPaths) {}
+
+    /** {@link #resolveBvvSources(String[], int, Object)} for callers with no already-resolved primary source. */
+    private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize) {
+        return resolveBvvSources(filePaths, maxTexSize, null);
+    }
 
     /**
      * Resolves each path to a BVV-displayable source (an {@link ImgPlus}, {@link AbstractSpimData},
@@ -255,17 +301,23 @@ public class BigDataLoaderCmd extends ContextCommand {
      * N5/Zarr directories that can't be auto-discovered headlessly are collected into {@code
      * deferredPaths} instead, to be resolved later via the interactive {@link #datasetDialog}.
      *
+     * @param cachedPrimarySource {@code filePaths[0]}'s source, if already resolved elsewhere (see
+     *                            {@link #startTracingSNT}), to avoid resolving it a second time; or
+     *                            {@code null} to resolve every path here
      * @return the resolved sources, or {@code null} if the user chose to Abort when prompted about
      *         an oversized image (see {@link #handleOversizedImage}) or a non-pyramidal N5/Zarr
      *         source (see {@link #confirmPyramidOrAbort})
      */
-    private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize) {
+    private ResolvedSources resolveBvvSources(final String[] filePaths, final int maxTexSize,
+                                               final Object cachedPrimarySource) {
         final List<Object> sources = new ArrayList<>();
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
-        for (final String path : filePaths) {
+        for (int i = 0; i < filePaths.length; i++) {
+            final String path = filePaths[i];
             final Object source;
             try {
-                source = SpimDataUtils.resolvePathToSource(path);
+                source = (i == 0 && cachedPrimarySource != null) ? cachedPrimarySource
+                        : SpimDataUtils.resolvePathToSource(path);
             } catch (final IllegalArgumentException e) {
                 if (isN5OrZarrDir(path)) {
                     SNTUtils.log("BVV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
@@ -306,6 +358,16 @@ public class BigDataLoaderCmd extends ContextCommand {
     }
 
     /**
+     * Outcome of {@link #startTracingSNT(File)}: the SNT instance it started, plus whatever
+     * {@code primaryVolume} resolved to along the way (an {@link ImgPlus}, {@link AbstractSpimData},
+     * {@link SpimDataUtils.N5Sources}, or {@code null} if resolution failed). Callers that also need
+     * to display {@code primaryVolume} themselves (i.e. {@code filePaths[0]}) should reuse
+     * {@link #primarySource} rather than resolving the same path a second time -- for a remote
+     * (S3/HTTPS) container, N5/Zarr discovery is a real network round-trip, not a cheap local check.
+     */
+    private record TracingSetup(SNT snt, Object primarySource) {}
+
+    /**
      * Starts a full SNT instance (SNTUI window included) without displaying an ImagePlus window;
      * the BVV/BDV viewer being opened is the only display, and SNT exists here for its Path Manager
      * (and, when possible, A* search). Shared by {@link #runBvvWithTracing(String[])} and
@@ -338,22 +400,23 @@ public class BigDataLoaderCmd extends ContextCommand {
      * tracing and A* search work as usual; if it fails for any reason (unexpected loader
      * implementation, etc.), tracing falls back to manual-only.
      */
-    private SNT startTracingSNT(final File primaryVolume) {
+    private TracingSetup startTracingSNT(final File primaryVolume) {
         GuiUtils.setLookAndFeel(); // needs to be called here to set L&F of image's contextual menu!?
         if (getContext() == null && ij.IJ.getInstance() == null) {
             new net.imagej.ImageJ().ui().showUI();
         }
+        Object primarySource = null; // ImgPlus, AbstractSpimData, or SpimDataUtils.N5Sources; null if resolution failed
         ImgPlus<?> primaryImgPlus = null;
         Object primaryFallbackSource = null; // AbstractSpimData or SpimDataUtils.N5Sources, for calibration only
         if (primaryVolume != null) {
             try {
-                final Object source = SpimDataUtils.resolvePathToSource(primaryVolume.getAbsolutePath());
-                if (source instanceof ImgPlus<?> img) {
+                primarySource = SpimDataUtils.resolvePathToSource(toPathString(primaryVolume));
+                if (primarySource instanceof ImgPlus<?> img) {
                     primaryImgPlus = img;
                 } else {
-                    SNTUtils.log("SNT: primary volume resolves to " + source.getClass().getSimpleName()
+                    SNTUtils.log("SNT: primary volume resolves to " + primarySource.getClass().getSimpleName()
                             + " (not a plain ImgPlus); will attempt to wire dimensions/pixel data from it directly");
-                    primaryFallbackSource = source;
+                    primaryFallbackSource = primarySource;
                 }
             } catch (final Exception e) {
                 SNTUtils.log("SNT: could not resolve '" + primaryVolume.getName() + "' for SNT (" + e.getMessage()
@@ -376,7 +439,7 @@ public class BigDataLoaderCmd extends ContextCommand {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
-        return snt;
+        return new TracingSetup(snt, primarySource);
     }
 
     /**
@@ -463,13 +526,17 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     /** BDV counterpart to runBvvWithTracing(final String[] filePaths); */
     private void runBdvWithTracing(final String[] filePaths) {
-        final SNT snt = startTracingSNT(img1File);
-        final Bdv bdv = new Bdv(snt);
+        final TracingSetup setup = startTracingSNT(img1File);
+        final Bdv bdv = new Bdv(setup.snt());
         final List<String> deferredPaths = new ArrayList<>(); // need the interactive dialog
-        for (final String path : filePaths) {
+        for (int i = 0; i < filePaths.length; i++) {
+            final String path = filePaths[i];
             final Object source;
             try {
-                source = SpimDataUtils.resolvePathToSource(path);
+                // Reuse filePaths[0]'s already-resolved source (see startTracingSNT) instead of
+                // re-running N5/Zarr discovery a second time for the same container.
+                source = (i == 0 && setup.primarySource() != null) ? setup.primarySource()
+                        : SpimDataUtils.resolvePathToSource(path);
             } catch (final IllegalArgumentException e) {
                 if (isN5OrZarrDir(path)) {
                     SNTUtils.log("BDV: headless N5/Zarr discovery failed for '" + path + "' (" + e.getMessage()
@@ -496,6 +563,15 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     private void loadMarkers(final AbstractBigViewer viewer) {
         if (markerFile == null) return;
+        final String path = toPathString(markerFile);
+        if (SpimDataUtils.isRemoteUrl(path)) {
+            // fileAvailable() below only makes sense for local files: there is no cheap way to check
+            // a remote URL's existence without a network round-trip, so just attempt the load directly
+            // and let BookmarkManager#load(String) report a clear error if the URL turns out to be bad
+            viewer.getMarkerManager().showPanel();
+            viewer.getMarkerManager().load(path);
+            return;
+        }
         if (!SNTUtils.fileAvailable(markerFile)) {
             error(String.format("%s does not exist or is not available.", markerFile.getName()));
             return;
@@ -507,6 +583,24 @@ public class BigDataLoaderCmd extends ContextCommand {
     /** Loads reconstruction files into the viewer, if any were specified. */
     private void loadReconstructions(final AbstractBigViewer viewer) {
         if (recFiles == null) return;
+        final String path = toPathString(recFiles);
+        if (SpimDataUtils.isRemoteUrl(path)) {
+            // fileAvailable()/getReconstructionFiles() below are local-filesystem-only checks. Tree.listFromFile()
+            // already knows how to handle a remote URL directly (a single reconstruction file is streamed, a .zip is
+            // downloaded/extracted and treated as a irectory), so route straight through it instead for this case
+            try {
+                final Collection<Tree> trees = Tree.listFromFile(path);
+                if (trees.isEmpty()) {
+                    error(String.format("No reconstructions found at %s.", path));
+                    return;
+                }
+                SNTUtils.log(String.format("Loading %d reconstruction(s) from %s.", trees.size(), path));
+                viewer.add(trees);
+            } catch (final IllegalArgumentException e) {
+                error("Could not load reconstructions from " + path + ": " + e.getMessage());
+            }
+            return;
+        }
         if (!SNTUtils.fileAvailable(recFiles)) {
             error(String.format("%s does not exist or is not available.", recFiles.getName()));
             return;

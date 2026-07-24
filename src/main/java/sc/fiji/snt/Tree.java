@@ -24,6 +24,7 @@ package sc.fiji.snt;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -44,6 +45,7 @@ import sc.fiji.snt.analysis.graph.SparseDirectedWeightedGraph;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
 import sc.fiji.snt.io.MouseLightLoader;
 import sc.fiji.snt.io.SWCExportException;
+import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.*;
 import sc.fiji.snt.viewer.Viewer2D;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -1354,11 +1356,16 @@ public class Tree implements TreeProperties, Cloneable {
 	 *
 	 * @param tracesOrJsonFile the file containing the reconstructions (typically a
 	 *                         .traces or .json extension). A directory is also
-	 *                         supported.
+	 *                         supported, as is a remote URL: a single reconstruction file
+	 *                         (SWC/.traces/.json/.ndf/Neurolucida) is streamed directly, while a
+	 *                         {@code .zip} URL is downloaded, extracted, and treated as a directory.
 	 * @return the collection of imported {@link Tree}s. An empty list is retrieved
 	 *         if {@code tracesOrJsonFile} is not a valid, readable file.
 	 */
 	public static Collection<Tree> listFromFile(final String tracesOrJsonFile) throws IllegalArgumentException {
+		if (SpimDataUtils.isRemoteUrl(tracesOrJsonFile)) {
+			return listFromRemoteFile(tracesOrJsonFile);
+		}
 		File f = getFile(tracesOrJsonFile, true);
 		if (f.isDirectory()) {
 			return listFromDir(tracesOrJsonFile);
@@ -1384,6 +1391,35 @@ public class Tree implements TreeProperties, Cloneable {
         else
             trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
         return trees;
+	}
+
+	/**
+	 * Remote-URL branch of {@link #listFromFile(String)}. A {@code .zip} URL is downloaded and extracted
+	 * (see {@link SNTUtils#downloadAndExtractZip(String)}), then treated as a local directory via
+	 * {@link #listFromDir(String)}. Any other URL is assumed to be a single reconstruction file and streamed directly
+	 * via {@link PathAndFillManager#loadGuessingType(String)}, which auto-detects the format (SWC, (gzipped) .traces,
+	 * .ndf, Neurolucida, MouseLight JSON) from content.
+	 */
+	private static Collection<Tree> listFromRemoteFile(final String url) {
+		try {
+			if (url.toLowerCase().endsWith(".zip")) {
+				final File dir = SNTUtils.downloadAndExtractZip(url);
+				return listFromDir(dir.getAbsolutePath());
+			}
+			final PathAndFillManager pafm = new PathAndFillManager();
+			pafm.setHeadless(true);
+			pafm.loadGuessingType(url);
+			final Collection<Tree> trees = pafm.getTrees();
+			final String baseName = SNTUtils.stripExtension(url.substring(url.lastIndexOf('/') + 1));
+			if (trees.size() == 1)
+				trees.iterator().next().setLabel(baseName);
+			else
+				trees.forEach(t -> t.setLabel(baseName + " " + t.getLabel()));
+			return trees;
+		} catch (final IOException | URISyntaxException e) {
+			SNTUtils.error("Could not load '" + url + "'", e);
+			return new ArrayList<>();
+		}
 	}
 
 	/**

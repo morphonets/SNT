@@ -84,6 +84,25 @@ public class SpimDataUtils {
      * @throws IllegalArgumentException if the file cannot be opened
      */
     public static Object resolvePathToSource(final String filePathOrUrl) {
+        // Remote containers (e.g. https://.../dataset.ome.zarr, s3://bucket/key) have no meaningful
+        // java.io.File representation: File#getAbsolutePath() would mangle the URL by prepending the
+        // current working directory, since "https:" etc. isn't a recognized absolute-path prefix. Route
+        // these straight to the N5/Zarr reader (which already knows how to read directly from URLs, including
+        // public S3-hosted OME-Zarr datasets) before any File-based logic gets a chance to corrupt the string
+        if (isRemoteUrl(filePathOrUrl)) {
+            final String url = restoreUrlScheme(filePathOrUrl);
+            try {
+                return resolveN5ToSources(url, displayNameFromUrl(url));
+            } catch (final RuntimeException e) {
+                SNTUtils.log("Could not resolve remote URL '" + url + "' as an N5/Zarr container ("
+                        + e.getMessage() + "); trying as a conventional image URL instead");
+            }
+            final ImgPlus<?> remoteImg = ImgUtils.open(url);
+            if (remoteImg == null)
+                throw new IllegalArgumentException("Could not open URL: " + url);
+            return remoteImg;
+        }
+
         final File file = new File(filePathOrUrl);
         final String lower = file.getName().toLowerCase();
 
@@ -186,6 +205,35 @@ public class SpimDataUtils {
                  ".zattrs", ".zgroup", ".zarray" /* Zarr v2 */ -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Whether {@code path} is a remote URL (e.g. {@code https://.../dataset.ome.zarr},
+     * {@code s3://bucket/key}, {@code gs://bucket/key}) rather than a local filesystem path.
+     * Also recognizes the same URLs after their scheme separator has been collapsed from "://" to
+     * ":/" by {@link File}'s own path normalization (see {@link #restoreUrlScheme(String)}) -- this
+     * happens whenever a URL is round-tripped through a {@code File}-typed SciJava parameter, e.g. a
+     * user typing a URL into {@code BigDataLoaderCmd}'s "Main volume" field. Neither Windows drive
+     * letters ({@code C:\...}) nor UNC paths ({@code \\server\share}) match either form, so local
+     * paths are never misidentified
+     */
+    public static boolean isRemoteUrl(final String path) {
+        return path != null && path.matches("^[a-zA-Z][a-zA-Z0-9+.-]*:/{1,2}.*");
+    }
+
+    /**
+     * Restores a URL's "://" scheme separator if {@link File}'s path normalization collapsed it to a
+     * single slash (see {@link #isRemoteUrl(String)}). A no-op if the separator is already intact.
+     */
+    public static String restoreUrlScheme(final String url) {
+        return url.replaceFirst("^([a-zA-Z][a-zA-Z0-9+.-]*):/(?!/)", "$1://");
+    }
+
+    /** Derives a display name from a URL's last path segment (ignoring a trailing slash, if any). */
+    private static String displayNameFromUrl(final String url) {
+        final String trimmed = url.endsWith("/") ? url.substring(0, url.length() - 1) : url;
+        final int idx = trimmed.lastIndexOf('/');
+        return idx >= 0 ? trimmed.substring(idx + 1) : trimmed;
     }
 
     // -- IMS XML patching --
@@ -342,10 +390,24 @@ public class SpimDataUtils {
      *                                  recognized metadata is found
      */
     private static N5Sources resolveN5ToSources(final File dir) {
+        return resolveN5ToSources(dir.getAbsolutePath(), dir.getName());
+    }
+
+    /**
+     * Opens an N5 or OME-Zarr container directly via {@code n5-ij}/{@code n5-universe}/{@code n5-viewer_fiji}.
+     *
+     * @param rootPath local directory path, or remote URL (e.g. {@code https://}, {@code s3://}), of the
+     *                 {@code .n5} or {@code .zarr} container
+     * @param name     display name for the resulting {@link N5Sources}
+     * @return the resolved sources
+     * @throws IllegalArgumentException if the container cannot be opened or no
+     *                                  recognized metadata is found
+     */
+    private static N5Sources resolveN5ToSources(final String rootPath, final String name) {
         try {
-            final N5Reader n5 = new N5Importer.N5ViewerReaderFun().apply(dir.getAbsolutePath());
+            final N5Reader n5 = new N5Importer.N5ViewerReaderFun().apply(rootPath);
             if (n5 == null)
-                throw new IllegalArgumentException("Could not open N5/Zarr container: " + dir.getAbsolutePath());
+                throw new IllegalArgumentException("Could not open N5/Zarr container: " + rootPath);
 
             final N5TreeNode root = N5DatasetDiscoverer.discover(n5,
                     Arrays.asList(N5ViewerCreator.n5vParsers),
@@ -354,12 +416,12 @@ public class SpimDataUtils {
             collectMetadata(root, found);
             if (found.isEmpty())
                 throw new IllegalArgumentException(
-                        "No recognized N5/OME-NGFF metadata found at '" + dir.getAbsolutePath() + "'.");
+                        "No recognized N5/OME-NGFF metadata found at '" + rootPath + "'.");
 
             final List<N5Metadata> selected = N5Viewer.unwrapMultichannelSelections(new DataSelection(n5, found));
-            SNTUtils.log("BVV: opening N5/Zarr container via n5-viewer_fiji: " + dir.getAbsolutePath()
+            SNTUtils.log("BVV: opening N5/Zarr container via n5-viewer_fiji: " + rootPath
                     + " (" + found.size() + " dataset(s) found)");
-            return buildN5Sources(n5, selected, dir.getName());
+            return buildN5Sources(n5, selected, name);
         } catch (final IOException | RuntimeException e) {
             throw new IllegalArgumentException("Could not open N5/Zarr container: " + e.getMessage(), e);
         }

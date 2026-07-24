@@ -1300,6 +1300,15 @@ public class BookmarkManager {
         }
     }
 
+    private void loadBookmarksFromFile(final String filePathOrURL) {
+        try {
+            model.populateFromFile(filePathOrURL);
+        } catch (final Exception ex) {
+            guiUtils.error(ex.getMessage() + ".");
+            SNTUtils.error("loadBookmarksFromFile() failure", ex);
+        }
+    }
+
     /**
      * BVV mode: adds a marker at the specified world coordinates.
      * The marker is auto-labeled and immediately rendered in the BVV overlay.
@@ -1536,10 +1545,13 @@ public class BookmarkManager {
     }
 
     /**
-     * @see #load(File)
+     * @param filePathOrURL local path or remote URL (e.g. {@code https://.../markers.csv}) to a CSV
+     *                      file with the same layout expected by {@link #load(File)}.
+     * @return true if bookmarks were loaded successfully, false otherwise.
      */
-    public boolean load(final String filePath) {
-        return load(new File(filePath));
+    public boolean load(final String filePathOrURL) {
+        loadBookmarksFromFile(filePathOrURL);
+        return !model.getDataList().isEmpty();
     }
 
     /**
@@ -1943,7 +1955,19 @@ class BookmarkModel extends AbstractTableModel {
     }
 
     void populateFromFile(final File file) throws IOException {
-        final SNTTable table = new SNTTable(file.getAbsolutePath());
+        populateFromFile(file.getAbsolutePath());
+    }
+
+    /**
+     * @param filePathOrURL local path or remote URL (e.g. {@code https://.../markers.csv}) to a bookmarks CSV file.
+     *                      Remote URLs are handled directly by {@link SNTTable}'s own constructor
+     *                      (download-to-temp-file); callers with a {@link File} that  may actually be a URL
+     *                      round-tripped through it (e.g. a {@code File}-typed SciJava parameter) should pass the
+     *                      repaired string here rather than going  through {@link #populateFromFile(File)}, which
+     *                      always calls {@code getAbsolutePath()}
+     */
+    void populateFromFile(final String filePathOrURL) throws IOException {
+        final SNTTable table = new SNTTable(filePathOrURL);
         int tagIdx = table.findColumnIndex(HEADER[0]);
         final int lIdx    = table.findColumnIndex(HEADER[1]);
         final int xIdx    = table.findColumnIndex(HEADER[2]);
