@@ -36,6 +36,7 @@ import org.scijava.command.Command;
 import org.scijava.command.ContextCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.prefs.PrefService;
 import org.scijava.widget.Button;
 import org.scijava.widget.FileWidget;
 import sc.fiji.snt.PathAndFillManager;
@@ -88,22 +89,34 @@ public class BigDataLoaderCmd extends ContextCommand {
     @Parameter(required = false, visibility= ItemVisibility.MESSAGE, persist = false)
     String msgHeader= "<HTML>All files can be specified by either local paths or remote URLs. Only <i>Main volume</i> is a mandatory field.";
 
-    @Parameter(label = "Main volume", style = FileWidget.FILE_AND_DIRECTORY_STYLE,
+    // NB: persist = false on all four File parameters below: SciJava's own generic File-parameter persistence restores
+    // a value via `new File(persistedString)`, which mangles a remote URL (see toPathString()). Persistence is instead
+    // handled manually below via PrefService, storing/restoring the repaired string (toPathString()) so URLs work
+
+    @Parameter(label = "Main volume", style = FileWidget.FILE_AND_DIRECTORY_STYLE, persist = false,
             description = "Primary image volume.\n"+ TOOLTIP)
     File img1File;
 
-    @Parameter(required = false, style = FileWidget.FILE_AND_DIRECTORY_STYLE,
+    @Parameter(required = false, style = FileWidget.FILE_AND_DIRECTORY_STYLE, persist = false,
             label = "Secondary volume", description = "Optional image volume (e.g., a second channel saved separately).\n"+ TOOLTIP)
     File img2File;
 
-    @Parameter(required = false, label = "Reconstruction(s)",
+    @Parameter(required = false, label = "Reconstruction(s)", persist = false,
             description = "Optional.\nEither a single file (TRACES, SWC, JSON), or a\n" +
                     "folder/.zip archive of several such files.")
     File recFiles;
 
-    @Parameter(required = false, label = "Markers",
+    @Parameter(required = false, label = "Markers", persist = false,
             description = "Optional.\nA CSV file containing bookmarked locations.")
     File markerFile;
+
+    @Parameter
+    private PrefService prefService;
+
+    private static final String IMG1_KEY = "img1File";
+    private static final String IMG2_KEY = "img2File";
+    private static final String REC_KEY = "recFiles";
+    private static final String MARKER_KEY = "markerFile";
 
     @Parameter(label = "Viewer type", description = "The type of viewer.\nTracing capabilities are provided by SNT Stream.",
             choices = {
@@ -133,6 +146,32 @@ public class BigDataLoaderCmd extends ContextCommand {
     private void init() {
         msg = (SNTUtils.getInstance() == null)
                 ? "" : "<HTML>NB: <i>SNT Stream</i> requires SNT to not already be running. Please close the active instance first.";
+        populateLastUsed();
+    }
+
+    /** Restores the four File fields from PrefService, in place of SciJava's own (URL-mangling) persistence. */
+    private void populateLastUsed() {
+        final String lastImg1 = prefService.get(BigDataLoaderCmd.class, IMG1_KEY);
+        if (lastImg1 != null) img1File = new File(lastImg1);
+        final String lastImg2 = prefService.get(BigDataLoaderCmd.class, IMG2_KEY);
+        if (lastImg2 != null) img2File = new File(lastImg2);
+        final String lastRec = prefService.get(BigDataLoaderCmd.class, REC_KEY);
+        if (lastRec != null) recFiles = new File(lastRec);
+        final String lastMarker = prefService.get(BigDataLoaderCmd.class, MARKER_KEY);
+        if (lastMarker != null) markerFile = new File(lastMarker);
+    }
+
+    /** Persists the four File fields as their repaired (toPathString()) string form. */
+    private void saveLastUsed() {
+        putOrRemove(IMG1_KEY, img1File);
+        putOrRemove(IMG2_KEY, img2File);
+        putOrRemove(REC_KEY, recFiles);
+        putOrRemove(MARKER_KEY, markerFile);
+    }
+
+    private void putOrRemove(final String key, final File file) {
+        if (file == null) prefService.remove(BigDataLoaderCmd.class, key);
+        else prefService.put(BigDataLoaderCmd.class, key, toPathString(file));
     }
 
     @Override
@@ -142,6 +181,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             error("Main volume is required.");
             return;
         }
+        saveLastUsed();
         final String[] filePaths = Stream.of(img1File, img2File)
                 .filter(Objects::nonNull)
                 .map(BigDataLoaderCmd::toPathString)
