@@ -151,7 +151,7 @@
 		<flatlaf.version>3.7.2</flatlaf.version> <!-- upstream 3.5.1 -->
 		<rsyntaxtextarea.version>3.6.2</rsyntaxtextarea.version> <!-- upstream 3.5.1 -->
 		<annotations.version>26.1.0</annotations.version>
-		<fastutil.version>8.5.18</fastutil.version>
+		<fastutil.version>8.5.19</fastutil.version>
 		<flatlaf-jide-oss.version>3.7.2</flatlaf-jide-oss.version>
 		<font-awesome.version>6.7.2</font-awesome.version>
 		<jgrapht-core.version>1.5.2</jgrapht-core.version>
@@ -557,13 +557,13 @@
 			<!-- Change verbose logging of smile.stat.distribution.* -->
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.5.37</version>
+			<version>1.6.0</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-core</artifactId>
-			<version>1.5.37</version>
+			<version>1.6.0</version>
 			<scope>runtime</scope>
 		</dependency>
 		<dependency>
