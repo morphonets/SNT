@@ -26,15 +26,18 @@ import ij.ImagePlus;
 import ij.gui.Overlay;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
+import ij.plugin.frame.RoiManager;
 import net.imagej.ImgPlus;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.SNTColor;
@@ -120,18 +123,51 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         super.init(true);
         imp = snt.getImagePlus();
         img = snt.getLoadedDataAsImg(false);
-        if (imp == null || img == null) {
+        if (imp == null && img == null) {
             error("No valid image data available.");
         }
-        getInfo().setLabel(String.format("Detect Soma [C=%d;T=%d]...", snt.getChannel(), snt.getFrame()));
+        if (snt != null && snt.getUI() != null && snt.getUI().isStreamMode()) {
+            outputChoice = OUTPUT_PATH;
+            resolveInput("outputChoice");
+        }
+        getInfo().setLabel(String.format("Detect Soma [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix()));
+    }
+
+    private String zLabelSuffix() {
+        if (imp != null) {
+            return (imp.getNSlices() > 1) ? String.format(";Z=%d", imp.getZ()) : "";
+        }
+        if (img != null && img.numDimensions() > 2) {
+            return ";Z=auto";
+        }
+        return "";
     }
 
     @Override
     public void run() {
-        if (imp == null || img == null) {
+        if (imp == null && img == null) {
             return;
         }
-        final int zSlice = imp.getZ() - 1;  // Convert to 0-indexed
+        final int zSlice;
+        if (imp != null)
+            zSlice = imp.getZ() - 1;  // Convert to 0-indexed
+        else
+            // No ImagePlus in Stream mode, so there is no "currently displayed slice" to read: -1 defers
+            // to SomaUtils' own "automatic" fallback instead of guessing: middle slice for single-soma
+            // detection (detectSoma), max-intensity projection for multi-soma detection (detectAllSomas)
+            zSlice = -1;
+
+        // detectAllSomas() with zSlice < 0 on a 3D image computes a max-intensity projection across every
+        // Z-plane: on a lazily-loaded Stream-mode volume that means touching the entire dataset
+        if (SCOPE_ALL.equals(scopeChoice) && imp == null && img != null && img.numDimensions() > 2
+                && !new GuiUtils().getConfirmation(
+                        "Detecting all somata on a streamed volume requires computing a max-intensity "
+                                + "projection across the entire dataset. Depending on dataset size and "
+                                + "network/disk speed, this can take a long time. Continue?",
+                        "Run on Streamed Image?")) {
+            resetUI();
+            return;
+        }
         final double[] spacing = {snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
         if (SCOPE_ALL.equals(scopeChoice)) {
             runAllSomas(zSlice, spacing);
@@ -159,7 +195,13 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             if (roi == null) {
                 error("Could not create ROI. Soma detection failed.");
             } else {
-                imp.setRoi(roi);
+                if (imp != null) {
+                    imp.setRoi(roi);
+                } else {
+                    RoiManager rm = RoiManager.getInstance2();
+                    if (rm == null) rm = new RoiManager();
+                    rm.addRoi(roi);
+                }
                 status("Soma ROI created", true);
                 if (roi instanceof PointRoi && !OUTPUT_POINT_ROI.equals(outputChoice))
                     error(outputChoice + " could not be created. A point ROI was created instead.");
@@ -207,7 +249,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             }
             snt.getPathAndFillManager().addTrees(somas);
             status(results.size() + " soma(s) added to Manager", true);
-        } else {
+        } else if (imp != null) {
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
                 overlay = new Overlay();
@@ -225,6 +267,20 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
                 imp.updateAndDraw();
             }
             status(overlay.size() + " soma ROI(s) added to overlay", true);
+        } else {
+            // No ImagePlus (Stream mode): mirrors the equivalent fallback in runSingleSoma()
+            RoiManager rm = RoiManager.getInstance2();
+            if (rm == null) rm = new RoiManager();
+            int added = 0;
+            for (final SomaUtils.SomaResult result : results) {
+                final Roi roi = createOutputRoi(result);
+                if (roi != null) {
+                    roi.setStrokeColor(colors[idx++]);
+                    rm.addRoi(roi);
+                    added++;
+                }
+            }
+            status(added + " soma ROI(s) added to ROI Manager", true);
         }
         snt.setCanvasLabelAllPanes(null);
         SNTUtils.log("Detected " + results.size() + " soma(s)");
