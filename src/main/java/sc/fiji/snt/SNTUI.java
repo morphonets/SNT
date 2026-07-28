@@ -128,6 +128,7 @@ public class SNTUI extends JDialog {
 
     // UI controls for loading  on 'secondary layer'
     private JCheckBox secLayerActivateCheckbox;
+    private JButton secLayerActionButton;
     private CheckboxSpinner secLayerImgOverlayCSpinner;
 
     // UI controls promoted from Options tab for quick-toggle access
@@ -163,6 +164,14 @@ public class SNTUI extends JDialog {
     /* AbstractBigViewers */
     protected Bvv bvvSNT;
     protected Bdv bdvSNT;
+
+    /**
+     * Returns the {@link AbstractBigViewer} (BVV or BDV) currently tethered to this UI, in
+     * particular, Stream mode's own viewer or {@code null} if neither is open.
+     */
+    public AbstractBigViewer getActiveBigViewer() {
+        return (bvvSNT != null) ? bvvSNT : bdvSNT;
+    }
 
     private final GuiListener listener;
 
@@ -703,7 +712,10 @@ public class SNTUI extends JDialog {
         try {
             (new DynamicCmdRunner(cmd, inputs)).run();
         } catch (final RuntimeException ignored) {
-            new CmdRunner(cmd, inputs, getState()).run();
+            // .execute(), not .run(): CmdRunner extends ActiveWorker (a SwingWorker). Calling .run()
+            // directly, from what is typically the EDT here (this is reached from menu actions/scripts),
+            // self-deadlocks: See the identical fix and explanation at loadImageData()'s activeWorker.execute()
+            new CmdRunner(cmd, inputs, getState()).execute();
         }
     }
 
@@ -782,7 +794,10 @@ public class SNTUI extends JDialog {
     private void runSecondaryLayerWizard(final boolean autoCTwarning) {
         if (!okToReplaceSecLayer())
             return;
-        if (!accessToValidImagePlus()) { // wizard requires image to be open
+        // NB: accessToValidImageData(), not accessToValidImagePlus(): the latter requires a classic
+        // ImagePlus and would always reject Stream mode. ComputeSecondaryImg only needs
+        // plugin.getLoadedData() (works from either an ImagePlus or a streamed ImgPlus)
+        if (!plugin.accessToValidImageData()) {
             noValidImageDataError();
             return;
         }
@@ -2826,7 +2841,11 @@ public class SNTUI extends JDialog {
         openBDV.putClientProperty("cmdFinder-icon",
                 new FlatSVGIcon("gui/bdv-logo-dark.svg", IconFactory.defaultSize(), IconFactory.defaultSize()));
         openBDV.addActionListener(e -> {
-            if (!plugin.accessToValidImageData() || plugin.getImagePlus() == null) {
+            // NB: accessToValidImageData() alone (matching bvvPanel()'s "Open BVV" handler above),
+            // not also requiring plugin.getImagePlus() != null: the latter would always reject Stream
+            // mode, even though "Full image" is the only one of the three choices in
+            // initializeBigViewerFromPrompt() that actually needs an ImagePlus
+            if (!plugin.accessToValidImageData()) {
                 noValidImageDataError();
             } else {
                 if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
@@ -2987,7 +3006,7 @@ public class SNTUI extends JDialog {
         registerInCommandFinder(secLayerActivateCheckbox, "Toggle Secondary Layer", "Main Tab");
         // Options for externalImagePanel
         final JPopupMenu secLayerMenu = new JPopupMenu();
-        final JButton secLayerActionButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LAYERS, 1f, secLayerMenu);
+        secLayerActionButton = GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.LAYERS, 1f, secLayerMenu);
         GuiUtils.addTooltip(secLayerActionButton, "Actions for handling secondary layer imagery");
         final JMenuItem mi1 = new JMenuItem("Secondary Layer Creation Wizard...",
                 IconFactory.menuIcon(IconFactory.GLYPH.WIZARD));
@@ -3220,7 +3239,15 @@ public class SNTUI extends JDialog {
                 showStatus(null, false);
             }
         };
-        activeWorker.run();
+        // .execute(), not .run(): this is called from the EDT (a menu click). SwingWorker.run() is meant
+        // to be invoked by the worker's own background-thread machinery (which .execute() sets up), not
+        // called directly by application code. Doing so from the EDT makes SwingWorker's completion path
+        // (doneEDT()) detect it's already on the EDT and invoke done() synchronously, nested inside the
+        // same call stack that's still completing the task -- done()'s call to get() then blocks forever
+        // waiting for a completion state that can only be reached by returning from that very call stack.
+        // .execute() properly runs doInBackground() on a background thread and schedules done() via
+        // invokeLater() afterward, avoiding the self-deadlock entirely.
+        activeWorker.execute();
     }
 
     protected void updateSecLayerWidgets() {
@@ -4930,7 +4957,7 @@ public class SNTUI extends JDialog {
             imp.getWindow().toFront();
             viewerY += placeholderHeight + InternalUtils.MARGIN;
         }
-        final AbstractBigViewer viewer = (bvvSNT != null) ? bvvSNT : bdvSNT;
+        final AbstractBigViewer viewer = getActiveBigViewer();
         if (viewer == null) return;
         final JFrame viewerFrame = viewer.getViewerFrame();
         if (viewerFrame == null) return;
@@ -5512,6 +5539,22 @@ public class SNTUI extends JDialog {
         secLayerActivateCheckbox.setSelected(enable);
         updateSettingsString();
         showStatus("Tracing on secondary layer enabled", true);
+        updateSecLayerActionButtonIcon(enable);
+        if (isStreamMode()) {
+            final AbstractBigViewer viewer = getActiveBigViewer();
+            if (viewer != null) viewer.updateSecondaryLayerIndicator();
+        }
+    }
+
+    /**
+     * Recolors {@link #secLayerActionButton}'s icon to indicate whether tracing/filling is currently
+     * being computed on the secondary layer. Classic mode already gets this feedback from
+     * {@link #secLayerActivateCheckbox} becoming checked, but that's easy to overlook in Stream mode
+     */
+    private void updateSecLayerActionButtonIcon(final boolean active) {
+        if (secLayerActionButton == null) return;
+        secLayerActionButton.setIcon(IconFactory.dropdownMenuIcon(IconFactory.GLYPH.LAYERS, 1f,
+                (active) ? GuiUtils.getSelectionColor() : IconFactory.defaultColor()));
     }
 
     boolean noSecondaryDataAvailableError() {

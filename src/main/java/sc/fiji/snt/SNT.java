@@ -33,6 +33,7 @@ import ij.process.ImageStatistics;
 import ij.process.ShortProcessor;
 import ij3d.*;
 import io.scif.services.DatasetIOService;
+import mpicbg.spim.data.generic.AbstractSpimData;
 import net.imagej.Dataset;
 import net.imagej.DatasetService;
 import net.imagej.ImgPlus;
@@ -80,6 +81,7 @@ import sc.fiji.snt.filter.Lazy;
 import sc.fiji.snt.filter.Tubeness;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.hyperpanes.MultiDThreePanes;
+import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.plugin.ShollAnalysisTreeCmd;
 import sc.fiji.snt.seed.SeedOverlay;
 import sc.fiji.snt.seed.SeedOverlayCanvasHandler;
@@ -3363,9 +3365,82 @@ public class SNT extends MultiDThreePanes implements
 	 * @see #getSecondaryDataAsImp()
 	 */
 	public void loadSecondaryImage(final File file) throws IOException, IllegalArgumentException {
+		if (!SNTUtils.fileAvailable(file)) {
+			throw new IllegalArgumentException("File path of input data unknown");
+		}
+		// Big-data formats (N5, Zarr, BDV .xml/.h5, IMS, remote URLs) aren't openable via the classic
+		// SCIFIO/Bio-Formats path openCachedDataImage() relies on, e.g.m  a BDV .xml companion of a
+		// large .h5 dataset fails there with "Could not find H5 file location in XML" (Bio-Formats
+		// trying, and failing, to parse it as its own HDF5-companion XML dialect). Try SpimDataUtils'
+		// resolution first (the same one BigDataLoaderCmd's own volume fields use) and, on success,
+		// route through the RAI-based loadSecondaryImage() overload below, which also sidesteps
+		// openCachedDataImage()'s need for a classic tracing  canvas (xy) entirely.
+		// Falls back to the conventional path for anything it can't resolve
+		// (resolvePathToSource() itself ends in a conventional ImgPlus-open fallback too, but keeping
+		// our own fallback here avoids any behavior change for formats that already worked before).
+		RandomAccessibleInterval<?> data = null;
+		try {
+			data = extractSecondaryData(SpimDataUtils.resolvePathToSource(file.getAbsolutePath()));
+		} catch (final Exception e) {
+			SNTUtils.log("Secondary layer: '" + file.getName() + "' could not be resolved as a big-data "
+					+ "container (" + e.getMessage() + "); falling back to conventional image opening");
+		}
+		if (data != null) {
+			// computeStatistics=false: data here may be a lazily-backed (N5/Zarr/BDV) source, and eager
+			// min/max/mean/stdDev via generic OpService calls is 3 separate full-volume passes -- real
+			// disk I/O per chunk, done 3x over, with no caching between passes. That may work for the
+			// classic ImagePlus but not for lazy data.
+			//noinspection unchecked,rawtypes
+			loadSecondaryImage((RandomAccessibleInterval) data, true, false);
+			setSecondaryImage(isSecondaryDataAvailable() ? file : null);
+			return;
+		}
 		final ImagePlus imp = openCachedDataImage(file);
 		loadSecondaryImage(imp, true);
 		setSecondaryImage(isSecondaryDataAvailable() && isSecondaryImageFileLoaded() ? file : null);
+	}
+
+	/**
+	 * Extracts a {@link RandomAccessibleInterval} for the currently active channel/frame from a
+	 * resolved big-data source (see {@link SpimDataUtils#resolvePathToSource(String)}), or
+	 * {@code null} if {@code source} isn't one of the recognized types, or its XYZ dimensions don't
+	 * match the data currently being traced (see {@link #sameXYZDimensionsAsTracingData}).
+	 * <p>
+	 * For {@link AbstractSpimData} (BDV .xml/IMS) and {@link SpimDataUtils.N5Sources} (ambiguous
+	 * N5/Zarr layouts), only the first setup/source and timepoint 0 are used. This is the same
+	 * simplification {@code BigDataLoaderCmd#applyFallbackCalibration} already makes for the
+	 * <i>primary</i> volume in this same situation. A genuinely multichannel secondary layer of
+	 * either of these types would thus only expose its first channel.
+	 */
+	private RandomAccessibleInterval<?> extractSecondaryData(final Object source) {
+		final RandomAccessibleInterval<?> data;
+        switch (source) {
+            case ImgPlus<?> img ->
+                    data = ImgUtils.getCtSlice((Dataset) img, Math.max(0, channel - 1), Math.max(0, frame - 1));
+            case AbstractSpimData<?> spimData -> {
+                final var setups = spimData.getSequenceDescription().getViewSetupsOrdered();
+                if (setups.isEmpty()) return null;
+                final var setup = setups.getFirst();
+                try {
+                    data = spimData.getSequenceDescription().getImgLoader()
+                            .getSetupImgLoader(setup.getId()).getImage(0); // timepoint 0
+                } catch (final Exception e) {
+                    SNTUtils.log("Secondary layer: could not access pixel data from SpimData ImgLoader ("
+                            + e.getMessage() + ")");
+                    return null;
+                }
+            }
+            case SpimDataUtils.N5Sources n5 when !n5.sources.isEmpty() ->
+                    data = n5.sources.getFirst().getSpimSource().getSource(0, 0); // timepoint 0, full-resolution level 0
+            case null, default -> {
+                return null; // unresolved / unrecognized type
+            }
+        }
+		if (!sameXYZDimensionsAsTracingData(data)) {
+			SNTUtils.log("Secondary layer: dimensions do not match those of the data being traced");
+			return null;
+		}
+		return data;
 	}
 
 	public void loadSecondaryImage(final ImagePlus imp) throws IllegalArgumentException {
@@ -3396,7 +3471,10 @@ public class SNT extends MultiDThreePanes implements
 			return;
 		}
 		if (changeUIState) changeUIState(SNTUI.CACHING_DATA);
-		imp.setPosition( channel, xy.getSlice(), frame ); // important! sets the channel/frame to be imported. Does nothing if image is not a hyperstack
+		// important! sets the channel/frame to be imported. Does nothing if image is not a hyperstack.
+		// The 2ng arg Z position is irrelevant to ImgUtils#getCtSlice(ImagePlus) below, so any in-range
+		// value works. In stream mode xy is null so we fallback to 1 rather than dereferencing xy.getSlice()
+		imp.setPosition( channel, (xy != null) ? xy.getSlice() : 1, frame );
 		secondaryData = ImgUtils.getCtSlice(imp);
 		SNTUtils.log("Secondary data dimensions: " +
 				Arrays.toString(Intervals.dimensionsAsLongArray(secondaryData)));
@@ -3466,6 +3544,25 @@ public class SNT extends MultiDThreePanes implements
 				doSearchOnSecondaryData = false;
 			} else {
 				doSearchOnSecondaryData = true;
+				// In Stream mode there is no classic canvas/MIP-overlay to give visual feedback that a
+				// secondary layer was loaded (see SNTUI#secondaryDataPanel()'s load actions), so push it
+				// into the tethered viewer as an additional source instead. displayData(true)/showSecondaryData()
+				// on Bdv/Bvv will replace any previously-shown secondary layer.
+				// NB: enableSecondaryLayerTracing() is reached from several off-EDT callers but showSecondaryData()
+				// does BVV/BDV Swing/OpenGL setup that. Calling it directly from a worker thread is a silent EDT/GL
+				// threading violation (no exception, just a hang), hence the explicit invokeLater() below
+				if (getUI() != null && getUI().isStreamMode()) {
+					final var viewer = getUI().getActiveBigViewer();
+					if (viewer != null) {
+						SwingUtilities.invokeLater(() -> {
+							try {
+								viewer.showSecondaryData();
+							} catch (final Exception e) {
+								SNTUtils.log("Could not display secondary layer in Stream viewer: " + e.getMessage());
+							}
+						});
+					}
+				}
 			}
 		} else {
 			doSearchOnSecondaryData = false;
@@ -3489,11 +3586,27 @@ public class SNT extends MultiDThreePanes implements
 		setSecondaryImage(null);
 		if (getUI() != null) {
 			getUI().disableSecondaryLayerComponents();
+			// In Stream mode the secondary layer is also displayed as an extra source in the tethered
+			// Bdv/Bvv viewer (see enableSecondaryLayerTracing()'s showSecondaryData() hook); flushing it
+			// here should remove that source toot. Same invokeLater() rationale as that hook:
+			// hideSecondaryData() touches Swing/OpenGL state and may be reached from off-EDT callers.
+			if (getUI().isStreamMode()) {
+				final var viewer = getUI().getActiveBigViewer();
+				if (viewer != null) {
+					SwingUtilities.invokeLater(() -> {
+						try {
+							viewer.hideSecondaryData();
+						} catch (final Exception e) {
+							SNTUtils.log("Could not remove secondary layer from Stream viewer: " + e.getMessage());
+						}
+					});
+				}
+			}
 		}
 	}
 
 	private ImagePlus openCachedDataImage(final File file) throws IOException {
-		if (xy == null) throw new IllegalArgumentException(
+		if (!accessToValidImageData()) throw new IllegalArgumentException(
 				"Data can only be loaded after main tracing image is known");
 		if (!SNTUtils.fileAvailable(file)) {
 			throw new IllegalArgumentException("File path of input data unknown");
@@ -3505,13 +3618,53 @@ public class SNT extends MultiDThreePanes implements
 				throw new IllegalArgumentException("Image could not be loaded by IJ.");
 			imp = convertService.convert(ds, ImagePlus.class);
 		}
-		if (!ImpUtils.sameXYZDimensions(imp, xy)) {
+		if (!sameXYZDimensionsAsTracingData(imp)) {
 			// We are imposing only XYZ dimensions to e.g., allow for loading of single-channel
 			// p-maps. Hopefully, being lax about CT dimensions won't cause issues downstream
-			throw new IllegalArgumentException("Dimensions do not match those of  " + xy.getTitle()
+			final String refName = (xy != null) ? xy.getTitle() : "the image being traced";
+			throw new IllegalArgumentException("Dimensions do not match those of " + refName
 					+ ". If this is unexpected, check under 'Image>Properties...' that CZT axes are not swapped.");
 		}
 		return imp;
+	}
+
+	/**
+	 * Checks if {@code imp} shares the same XYZ voxel dimensions as the image currently being traced. Compares against
+	 * the classic tracing {@link ImagePlus} ({@link #xy}) when one exists; in Stream mode compares against the streamed
+	 * primary volume's own dimensions ({@link #getLoadedData()}) instead. Used to validate a candidate secondary layer
+	 * before loading it.
+	 *
+	 * @param imp the candidate image
+	 * @return true if dimensions match; false if they don't, or if no tracing data is loaded to compare against
+	 */
+	public boolean sameXYZDimensionsAsTracingData(final ImagePlus imp) {
+		if (xy != null) {
+			return ImpUtils.sameXYZDimensions(imp, xy);
+		}
+		final RandomAccessibleInterval<?> loadedData = getLoadedData();
+		if (loadedData == null) return false;
+		final long z = (loadedData.numDimensions() > 2) ? loadedData.dimension(2) : 1;
+		return loadedData.dimension(0) == imp.getWidth() && loadedData.dimension(1) == imp.getHeight()
+				&& z == imp.getNSlices();
+	}
+
+	/**
+	 * RAI-based overload of {@link #sameXYZDimensionsAsTracingData(ImagePlus)}, for candidate
+	 * sources that never go through an {@link ImagePlus} at all (e.g. a big-data secondary layer
+	 * resolved via {@link SpimDataUtils#resolvePathToSource(String)}). Compares XYZ dimensions
+	 * directly against {@link #getLoadedData()}, so unlike the {@link ImagePlus} overload this
+	 * works the same regardless of whether {@link #xy} exists.
+	 *
+	 * @param data the candidate image data
+	 * @return true if dimensions match; false if they don't, or if no tracing data is loaded to compare against
+	 */
+	public boolean sameXYZDimensionsAsTracingData(final RandomAccessibleInterval<?> data) {
+		final RandomAccessibleInterval<?> loadedData = getLoadedData();
+		if (loadedData == null || data == null) return false;
+		final long dataZ = (data.numDimensions() > 2) ? data.dimension(2) : 1;
+		final long refZ = (loadedData.numDimensions() > 2) ? loadedData.dimension(2) : 1;
+		return loadedData.dimension(0) == data.dimension(0) && loadedData.dimension(1) == data.dimension(1)
+				&& refZ == dataZ;
 	}
 
 	/**

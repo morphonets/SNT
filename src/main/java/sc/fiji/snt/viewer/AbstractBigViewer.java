@@ -262,6 +262,23 @@ public abstract class AbstractBigViewer {
      */
     public abstract void showSecondaryData();
 
+    /**
+     * Removes the secondary tracing data layer previously added by {@link #showSecondaryData()}
+     * from this viewer, if one is currently displayed. No-op otherwise (e.g., standalone
+     * viewers, untethered instances, or when no secondary layer has been shown yet).
+     *
+     * @see SNT#flushSecondaryData()
+     */
+    public abstract void hideSecondaryData();
+
+    /**
+     * Refreshes the persistent "secondary layer active" indicator shown in this viewer's
+     * SNT Controls card, reflecting {@link SNT#isTracingOnSecondaryImageActive()}. No-op if
+     * this is not a tethered, tracer-enabled instance (i.e., the indicator was never built).
+     * Safe to call from any thread.
+     */
+    public abstract void updateSecondaryLayerIndicator();
+
     /** Resets the view to frame all loaded data. */
     public abstract void resetView();
 
@@ -730,6 +747,26 @@ public abstract class AbstractBigViewer {
                     setPathRenderingEnabled(pathsWereVisible);
                     if (annotations() != null) annotations().setVisible(annotationsWereVisible);
                     hideActive = false;
+                }
+            };
+        }
+
+        /**
+         * Toggles {@link SNT#isTracingOnSecondaryImageActive()}, mirroring the 'L' hotkey and
+         * "Trace/Fill on Secondary Layer" checkbox in the classic (in-core image) UI. Unlike
+         * classic mode, where activating the secondary layer requires selecting it in SNTUI,
+         * here the layer is already displayed as a source in this viewer (see
+         * {@link #showSecondaryData()}), so this action just flips whether the tracer should
+         * search on it.
+         */
+        Action toggleSecondaryLayerTracingAction() {
+            return new AbstractAction("Trace/Fill on Secondary Layer") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (snt == null) return;
+                    snt.enableSecondaryLayerTracing(!snt.isTracingOnSecondaryImageActive());
+                    showViewerMessage("Secondary layer tracing "
+                            + ((snt.isTracingOnSecondaryImageActive()) ? "enabled" : "disabled"));
                 }
             };
         }

@@ -703,7 +703,8 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 	}
 
 	private String getImageName() {
-		final String basename = SNTUtils.stripExtension(sntService.getInstance().getImagePlus().getTitle());
+		final ImagePlus tracingImp = sntService.getInstance().getImagePlus();
+		final String basename = SNTUtils.stripExtension((tracingImp != null) ? tracingImp.getTitle() : "SNT_Data"); // stream mode safe
 		final String sfx;
 		if (NONE.equals(filter)) {
 			sfx = "DUP";

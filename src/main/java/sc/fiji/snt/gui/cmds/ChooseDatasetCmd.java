@@ -82,7 +82,7 @@ public class ChooseDatasetCmd extends CommonDynamicCmd {
 			return;
 		}
 		if (secondaryLayer) {
-			if (!ImpUtils.sameXYZDimensions(snt.getImagePlus(), chosenImp)) {
+			if (!snt.sameXYZDimensionsAsTracingData(chosenImp)) { // stream mode safe
 				error("Dimensions of chosen image differ from those of image being traced.");
 			} else {
 				snt.flushSecondaryData();

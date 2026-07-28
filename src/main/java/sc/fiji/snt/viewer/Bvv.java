@@ -105,6 +105,7 @@ public class Bvv extends AbstractBigViewer {
     private JProgressBar tracingStatusBar;
     private JButton tracingCancelButton;
     private JButton tracingUndoButton;
+    private JToggleButton secondaryLayerIndicator; // Persistent indicator of SNT#isTracingOnSecondaryImageActive()
     private JToggleButton slabAnnotationsToggle; // Slab Annotations toggle injected into BookmarkManager's toolbar
     private PathOverlay pathOverlay;
     private AnnotationOverlay annotationOverlay;
@@ -113,6 +114,9 @@ public class Bvv extends AbstractBigViewer {
     private BvvHandle bvvHandle;
     private Tracer tracer;
     private final List<BvvMultiSource> multiSources = new ArrayList<>(); // grouped multi-channel/multi-image sources
+    // Tracks the group last added by displayData(true) (i.e. showSecondaryData()), so a reload
+    // replaces it (in both the viewer and multiSources) instead of stacking a duplicate
+    private BvvMultiSource secondaryLayerSource;
     private JComponent sceneControlsCard; // Stored for card reordering in CardPanel
     private JComponent sntAnnotationsCard; // Stored for card reordering in CardPanel
     private final ChannelUnmixingCard unmixingCard = new ChannelUnmixingCard(this); // extracted unmixing UI
@@ -1049,6 +1053,16 @@ public class Bvv extends AbstractBigViewer {
             throw new IllegalArgumentException("This function is only available in snt-aware Bvv instances");
         if (!snt.accessToValidImageData()) throw new IllegalArgumentException("No valid image data available");
 
+        if (secondary && secondaryLayerSource != null) {
+            // Bvv.options().addTo() always adds a new source, it never replaces an existing one, so a
+            // reload (e.g., after the secondary layer is flushed and re-loaded) would otherwise stack
+            // a duplicate "Secondary layer" source on top of the stale one. Remove it first instead,
+            // from both the viewer and multiSources' own bookkeeping (dataset numbering, transform
+            // export, channel-unmixing cards all iterate that list)
+            secondaryLayerSource.removeFromBvv();
+            multiSources.remove(secondaryLayerSource);
+            secondaryLayerSource = null;
+        }
         RandomAccessibleInterval<T> data = (secondary) ? snt.getSecondaryData() : snt.getLoadedData();
         cal = new double[]{snt.getPixelWidth(), snt.getPixelHeight(), snt.getPixelDepth()};
         dims = new long[]{data.dimension(0), data.dimension(1), data.dimension(2)};
@@ -1077,7 +1091,9 @@ public class Bvv extends AbstractBigViewer {
         source.setDisplayRange(minMax[0], minMax[1]);
         if (bvvHandle == null) bvvHandle = source.getBvvHandle();
         attachControlPanel(source);
-        multiSources.add(new BvvMultiSource(source));
+        final BvvMultiSource multi = new BvvMultiSource(source);
+        multiSources.add(multi);
+        if (secondary) secondaryLayerSource = multi;
         return source;
     }
 
@@ -1377,6 +1393,8 @@ public class Bvv extends AbstractBigViewer {
                     "snt-hide-annotations-release");
             sntAMap.put("snt-hide-annotations-press", actions.hideAnnotationsPressAction());
             sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, 0), "snt-toggle-secondary-layer");
+            sntAMap.put("snt-toggle-secondary-layer", actions.toggleSecondaryLayerTracingAction());
             if (tracer != null) {
                 // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is itself a
                 // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so
@@ -1802,7 +1820,7 @@ public class Bvv extends AbstractBigViewer {
         if (tracer != null) {
             final JPanel panel = new JPanel(new BorderLayout());
             panel.add(toolbar, BorderLayout.NORTH);
-            panel.add(tracingStatusRow(), BorderLayout.SOUTH);
+            panel.add(tracingStatusRow(actions), BorderLayout.SOUTH);
             return panel;
         }
         return toolbar;
@@ -1822,7 +1840,7 @@ public class Bvv extends AbstractBigViewer {
      * search is ongoing). Driven by {@link Tracer#setTracingStatus(boolean, String)}, called from
      * {@code Tracer#traceSegmentAsync}.
      */
-    private JComponent tracingStatusRow() {
+    private JComponent tracingStatusRow(final BvvActions actions) {
         assert tracer != null;
         tracingStatusBar = new JProgressBar();
         tracingStatusBar.setStringPainted(true);
@@ -1836,11 +1854,20 @@ public class Bvv extends AbstractBigViewer {
         IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
         tracingUndoButton.setToolTipText("<HTML>Tracing:Undo last segment (or press Z)");
         tracer.updateUndoButtonState();
+        secondaryLayerIndicator = new JToggleButton();
+        secondaryLayerIndicator.setEnabled(snt != null);
+        secondaryLayerIndicator.setSelected(snt != null && snt.isTracingOnSecondaryImageActive());
+        IconFactory.assignIcon(secondaryLayerIndicator, IconFactory.GLYPH.LAYERS, IconFactory.GLYPH.LAYERS);
+        secondaryLayerIndicator.setToolTipText("Toggle tracing on secondary layer (or press 'L')");
+        secondaryLayerIndicator.addActionListener(actions.toggleSecondaryLayerTracingAction());
         final JToolBar row = new JToolBar();
         row.add(tracingUndoButton);
         row.addSeparator();
+        row.add(secondaryLayerIndicator);
+        row.addSeparator();
         row.add(tracingStatusBar);
         row.add(tracingCancelButton);
+        updateSecondaryLayerIndicator();
         return row;
     }
 
@@ -2596,6 +2623,26 @@ public class Bvv extends AbstractBigViewer {
     @Override
     public void showSecondaryData() {
         displayData(true);
+    }
+
+    @Override
+    public void hideSecondaryData() {
+        if (secondaryLayerSource != null) {
+            secondaryLayerSource.removeFromBvv();
+            multiSources.remove(secondaryLayerSource);
+            secondaryLayerSource = null;
+        }
+        updateSecondaryLayerIndicator();
+    }
+
+    @Override
+    public void updateSecondaryLayerIndicator() {
+        if (secondaryLayerIndicator == null) return;
+        final boolean active = snt != null && snt.isTracingOnSecondaryImageActive();
+        final Runnable update = () -> {
+            secondaryLayerIndicator.setSelected(active);
+        };
+        if (SwingUtilities.isEventDispatchThread()) update.run(); else SwingUtilities.invokeLater(update);
     }
 
     /**
@@ -3540,7 +3587,7 @@ public class Bvv extends AbstractBigViewer {
         }
 
         /**
-         * Updates the tracing status row (see {@link Bvv#tracingStatusRow()}). Safe to call from any thread:
+         * Updates the tracing status row (see {@link Bvv#tracingStatusRow(BvvActions)}). Safe to call from any thread:
          * dispatches to the EDT internally
          *
          * @param busy    {@code true} while a search is ongoing (animates the bar, enables Cancel);
