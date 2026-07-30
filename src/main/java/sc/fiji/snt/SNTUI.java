@@ -26,6 +26,7 @@ import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import ij.ImageListener;
 import ij.ImagePlus;
+import net.imglib2.RandomAccessibleInterval;
 import ij.gui.ImageCanvas;
 import ij.gui.ImageWindow;
 import ij.measure.Calibration;
@@ -5470,11 +5471,21 @@ public class SNTUI extends JDialog {
         changeState(plugin.tracingHalted ? TRACING_PAUSED : WAITING_TO_START_PATH);
     }
 
-    protected void launchSigmaPaletteAround(final int x, final int y) {
+    /**
+     * Crops a small region around the given point and launches the {@link SigmaPalette} preview
+     * grid, exactly as if the user had clicked at that position on the classic-mode tracing canvas
+     * (see {@code InteractiveTracerCanvas#startSigmaWizard}). Public (rather than the previous
+     * {@code protected}) so it can also be triggered from a Bdv/Bvv viewer action, since there is no
+     * classic canvas to click on in Stream mode (see {@code AbstractBigViewer.Actions#pickSigmaPointAction()}).
+     *
+     * @param x pixel X position (0-based)
+     * @param y pixel Y position (0-based)
+     * @param z 1-based Z-slice index, matching {@link ImagePlus#getZ()}'s convention
+     */
+    public void launchSigmaPaletteAround(final int x, final int y, final int z) {
 
         final int either_side_xy = 40;
         final int either_side_z = 15;
-        final int z = plugin.getImagePlus().getZ();
         int x_min = x - either_side_xy;
         int x_max = x + either_side_xy;
         int y_min = y - either_side_xy;
@@ -5482,9 +5493,14 @@ public class SNTUI extends JDialog {
         int z_min = z - either_side_z; // 1-based index
         int z_max = z + either_side_z; // 1-based index
 
-        final int originalWidth = plugin.getImagePlus().getWidth();
-        final int originalHeight = plugin.getImagePlus().getHeight();
-        final int originalDepth = plugin.getImagePlus().getNSlices();
+        // Bounds sourced from the RAI backing the data being traced (see SNT#getLoadedData()) rather
+        // than plugin.getImagePlus(), so this also works in Stream mode, where no ImagePlus/canvas
+        // exists. SigmaPalette itself is already mode-agnostic (its image comes from
+        // SNT#getLoadedDataAsImp(), a lazy wrap that works the same way regardless of mode)
+        final RandomAccessibleInterval<?> data = plugin.getLoadedData();
+        final int originalWidth = (int) data.dimension(0);
+        final int originalHeight = (int) data.dimension(1);
+        final int originalDepth = (data.numDimensions() > 2) ? (int) data.dimension(2) : 1;
 
         if (x_min < 0) x_min = 0;
         if (y_min < 0) y_min = 0;

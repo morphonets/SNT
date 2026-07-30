@@ -1295,7 +1295,8 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     private void startSigmaWizard(final int canvasX, final int canvasY) {
-        tracerPlugin.getUI().launchSigmaPaletteAround(myOffScreenX(canvasX), myOffScreenY(canvasY));
+        tracerPlugin.getUI().launchSigmaPaletteAround(myOffScreenX(canvasX), myOffScreenY(canvasY),
+                tracerPlugin.getImagePlus().getZ());
         restoreDefaultCursor();
     }
 

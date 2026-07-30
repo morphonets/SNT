@@ -1395,6 +1395,8 @@ public class Bvv extends AbstractBigViewer {
             sntAMap.put("snt-hide-annotations-release", actions.hideAnnotationsReleaseAction());
             sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_L, 0), "snt-toggle-secondary-layer");
             sntAMap.put("snt-toggle-secondary-layer", actions.toggleSecondaryLayerTracingAction());
+            sntIMap.put(KeyStroke.getKeyStroke(java.awt.event.KeyEvent.VK_P, 0), "snt-pick-sigma-point");
+            sntAMap.put("snt-pick-sigma-point", actions.pickSigmaPointAction());
             if (tracer != null) {
                 // Finish/discard the in-progress tracing path without a canvas click: a double click to finish is itself a
                 // click, and its first (clickCount==1) event is indistinguishable from an ordinary "extend path" click, so

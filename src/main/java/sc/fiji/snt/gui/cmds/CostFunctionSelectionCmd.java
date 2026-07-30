@@ -56,19 +56,16 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
         // The command relies entirely on side state (image / selection / path  manager); no @Parameter inputs.
         // There is no harvester dialog because the input map is empty
         if (isCanceled()) return;
-        if (snt != null && snt.getUI() != null && snt.getUI().isStreamMode()) {
-            error("This option requires the entire image to be loaded into memory (RAM).");
-            return;
-        }
-        if (snt == null || !snt.accessToValidImageData() || snt.getImagePlus() == null) {
+        if (snt == null || !snt.accessToValidImageData()) {
             error("This option requires valid image data to be loaded.");
             return;
         }
+        // In Stream mode there is no classic canvas/ImagePlus, so imp is null here and the PointRoi option is skipped
         final ImagePlus imp = snt.getImagePlus();
         final PathAndFillManager pafm = snt.getPathAndFillManager();
 
-        // 1. Extract a pair of points from PointRoi
-        final Roi roi = imp.getRoi();
+        // 1. Extract a pair of points from PointRoi (classic mode only; no ROI concept in Stream mode)
+        final Roi roi = (imp != null) ? imp.getRoi() : null;
         PointInImage a = null;
         PointInImage b = null;
         Path probePath = null;
@@ -93,12 +90,14 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
         }
 
         if (a == null || b == null) {
+            final boolean streamMode = snt.getUI() != null && snt.getUI().isStreamMode();
             error("No probe path found. The <i>Cost Function Selection Wizard</i> needs a "
                     + "representative neurite segment between two endpoints to run its A* comparison. "
                     + "You can either:</p>"
                     + "<ul>"
-                    + "<li>Pause tracing in SNT and create a multi-point ROI (2+ points) across a representative "
-                    + "neurite segment</li>"
+                    + ((streamMode) ? "" // no classic canvas/ROI concept in Stream mode
+                            : "<li>Pause tracing in SNT and create a multi-point ROI (2+ points) across a "
+                                    + "representative neurite segment</li>")
                     + "<li>Trace a short path over a relevant feature</li>"
                     + "<li>Select a path in the Path Manager</li>"
                     + "</ul>"

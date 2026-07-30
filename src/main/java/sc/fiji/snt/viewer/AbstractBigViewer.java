@@ -771,6 +771,33 @@ public abstract class AbstractBigViewer {
             };
         }
 
+        /**
+         * Reads the world position currently under the cursor and feeds it to {@link
+         * SNTUI#launchSigmaPaletteAround(int, int, int)}, mirroring {@code InteractiveTracerCanvas}'s
+         * classic-mode click handling for {@link SNTUI#WAITING_FOR_SIGMA_POINT_I}. Does nothing
+         * _unless_ the Sigma palette is actually waiting for a point (i.e., "Select visually..." was
+         * just pressed in the Compute Secondary Image dialog)
+         *
+         */
+        Action pickSigmaPointAction() {
+            return new AbstractAction("Pick Point for Sigma Preview") {
+                @Override
+                public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (snt == null || snt.getUI() == null
+                            || snt.getUI().getState() != SNTUI.WAITING_FOR_SIGMA_POINT_I) {
+                        return;
+                    }
+                    final RealPoint pos = new RealPoint(3);
+                    getGlobalMouseCoordinates(pos);
+                    final int x = (int) Math.round(pos.getDoublePosition(0) / snt.getPixelWidth());
+                    final int y = (int) Math.round(pos.getDoublePosition(1) / snt.getPixelHeight());
+                    // +1: launchSigmaPaletteAround expects a 1-based Z-slice index (see ImagePlus#getZ())
+                    final int z = (int) Math.round(pos.getDoublePosition(2) / snt.getPixelDepth()) + 1;
+                    snt.getUI().launchSigmaPaletteAround(x, y, z);
+                }
+            };
+        }
+
         Action toggleVisibilityAction(final JComponent... componentsToDisableWhenHidden) {
             return new AbstractAction("Show/hide All Annotations") {
                 @Override

@@ -222,6 +222,25 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			resolveInput("run");
 			snt.setCanvasLabelAllPanes("Running " + filter + "....");
 		}
+		if (ui != null && ui.isStreamMode()) {
+			// MEDIAN requires useLazy==false which is exactly what Stream mode. Prune it from the choices
+			final MutableModuleItem<String> filterItem = getInfo().getMutableInput("filter", String.class);
+			final List<String> choices = new ArrayList<>(filterItem.getChoices());
+			choices.remove(MEDIAN);
+			choices.remove(NONE);
+			filterItem.setChoices(choices);
+			if (MEDIAN.equals(filter) || MEDIAN_ALT.equals(filter) || NONE.equals(filter)) {
+				filter = TUBENESS;
+				filterItem.setValue(this, TUBENESS);
+			}
+			// "Preprocess" (LAZY_LOADING_FALSE) eagerly allocates a full-size in-RAM image and filters
+			// the *entire* streamed dataset
+			useLazyChoice = LAZY_LOADING_TRUE;
+			resolveInput("useLazyChoice");
+			show = false; // "Display image" only applies to the now-unavailable Preprocess strategy
+			resolveInput("show");
+			resolveInput("triggerThicknessCmd"); // Local Thickness is a traditional ImagePlus-only Fiji plugin
+		}
 		resolveInput("calledFromScript");
 		resolveInput("syncObject");
 		updatePrompt();
@@ -317,12 +336,22 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			paletteStatus = PALETTE_WAITING;
 			break;
 		case PALETTE_WAITING:
-			msg("Click on a representative structure (e.g., branch point or neurite) on the image being "
-					+ "traced. Once you have done so, a preview grid with several kernel sizes will be "
-					+ "displayed, allowing you to better select the size(s) for the filtering operation.<br><br>"
-					+ "If you have never used the preview grid before, you can press 'H' (<u>H</u>elp) "
-					+ "once it opens to access its built-in documentation.",//
-					"Click on a Representative Structure: How-To");
+			if (ui.isStreamMode()) {
+				msg("Activate BDV/BVV, navigate to a representative structure (e.g., branch point or neurite), "
+						+ "hover over it, then press 'P'. Once you have done so, a preview grid with several kernel "
+						+ "sizes will be displayed, allowing you to better select the size(s) for the "
+						+ "filtering operation.<br><br>"
+						+ "If you have never used the preview grid before, you can press 'H' (<u>H</u>elp) "
+						+ "once it opens to access its built-in documentation.",//
+						"Pick a Representative Structure: How-To");
+			} else {
+				msg("Click on a representative structure (e.g., branch point or neurite) on the image being "
+						+ "traced. Once you have done so, a preview grid with several kernel sizes will be "
+						+ "displayed, allowing you to better select the size(s) for the filtering operation.<br><br>"
+						+ "If you have never used the preview grid before, you can press 'H' (<u>H</u>elp) "
+						+ "once it opens to access its built-in documentation.",//
+						"Click on a Representative Structure: How-To");
+			}
 			return;
 		default:
 			break; // do nothing;
@@ -359,7 +388,10 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				//mmi.setDescription("Scale(s) are being chosen in palette");
 				break;
 			case PALETTE_WAITING:
-				mmi.setLabel("Now Click on a Representative Structure...");
+				if (ui != null && ui.isStreamMode())
+					mmi.setLabel("Press 'P' Over a  Representative Structure...");
+				else
+					mmi.setLabel("Now Click on a Representative Structure...");
 				//mmi.setDescription("Once you click on the image, a preview of clicked neighborhood will open");
 				break;
 			default:
