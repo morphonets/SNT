@@ -8,7 +8,7 @@
 """
 file:       Take_Snapshot_(Traces_Only).py
 author:     Tiago Ferreira
-version:    20201009
+version:    20260731
 info:       Displays a WYSIWYG image of a tracing canvas without displaying
             image data (see Take_Snapshot.py for details)
 """
@@ -16,11 +16,21 @@ info:       Displays a WYSIWYG image of a tracing canvas without displaying
 from sc.fiji.snt import Tree
 from org.scijava.util import ColorRGB
 
+snt.requireVersion("5.0.14") # SNT version required to run this script
+
 def run():
 
     # Exit if SNT is not running
     if not snt.isActive():
         ui.showDialog("SNT does not seem to be running. Exiting..", "Error")
+        return
+
+    # This script's snapshot mechanism is classic-canvas-based (XY/ZY/XZ panes), which don't
+    # exist in Stream mode. BVV has its own native snapshot capture (press Shift+S) instead
+    if snt.isStreamMode():
+        ui.showDialog("Snapshots of XY/ZY/XZ tracing canvases are not available in Stream "
+                      "mode. If tracing in BVV, use its own snapshot capture (Shift+S) instead.",
+                      "Not Available in Stream Mode")
         return
 
     # Refresh displays (just in case something needs to be updated)

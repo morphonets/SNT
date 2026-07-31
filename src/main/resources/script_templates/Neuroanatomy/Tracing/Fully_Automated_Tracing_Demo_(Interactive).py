@@ -5,7 +5,7 @@
 """
 file:       Fully_Automated_Tracing_Demo_(Interactive).py
 author:     Tiago Ferreira
-version:    20241115
+version:    20260731
 info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform automated (unsupervised) tracing
 """
@@ -15,11 +15,19 @@ from ij.gui import Roi
 
 def run():
 
+    # This demo re-initializes SNT with its own classic (in-core) demo image, which would
+    # replace/reconfigure an existing Stream ("SNT Stream") session, so it isn't supported there
+    if snt.isStreamMode():
+        ui.showDialog("This demo requires a classic (non-streamed) image and would replace the "
+                      "current Stream-mode session. Please close/restart SNT in Standard mode "
+                      "before running it.", "Not Available in Stream Mode")
+        return
+
     # We'll not proceed if SNT is currently open and busy with something else
     if snt.getUI() and not snt.getUI().isReady():
         ui.showDialog("Demo cannot run in current state: UI not ready", "Error")
         return
-    
+
     # We could also delete any existing paths, but there is really no need for that
     #snt.getUI().runCommand("Delete...")
 
@@ -30,7 +38,7 @@ def run():
 
     # In order to extract paths from the image we need to enhance it (or threshold
     # it). A quick way to do so is to run the 'Secondary layer' wizard in the GUI
-    # (see Batch> scripts for a more structured alternative to process images). The 
+    # (see Batch> scripts for a more structured alternative to process images). The
     # runSecondaryLayerWizard() method in SNTUI needs two arguments: 1) the name
     # of the filter, and 2) a list of 'scales', reflecting the radii of neurites
     # in the image. In this particular case, we know these very well (load the OP1

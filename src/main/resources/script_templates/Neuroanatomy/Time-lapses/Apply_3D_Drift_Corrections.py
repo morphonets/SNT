@@ -69,7 +69,7 @@ def translate_single_stack_using_imglib2(imp, dx, dy, dz):
   elif bd == 32:
     return(ImageJFunctions.wrapFloat(cropped,"imglib2"))
   else:
-    return None    
+    return None
 
 '''
 def translate_single_stack_using_imagescience(imp, dx, dy, dz):
@@ -96,24 +96,24 @@ def extract_frame(imp, frame, channel, z_min, z_max):
   stack = imp.getStack() # multi-time point virtual stack
   stack2 = ImageStack(imp.width, imp.height, None)
   for s in range(int(z_min), int(z_max)+1):
-    i = imp.getStackIndex(channel, s, frame)  
+    i = imp.getStackIndex(channel, s, frame)
     stack2.addSlice(str(s), stack.getProcessor(i))
   return stack2
 
 
 def extract_frame_process_roi(imp, frame, roi, options):
-  # extract frame and channel 
+  # extract frame and channel
   imp_frame = ImagePlus("", extract_frame(imp, frame, options['channel'], options['z_min'], options['z_max'])).duplicate()
   # check for roi and crop
   if roi != None:
     #print roi.getBounds()
     imp_frame.setRoi(roi)
     IJ.run(imp_frame, "Crop", "")
-  # subtract background  
+  # subtract background
   if options['background'] > 0:
     #log("Subtracting "+str(background));
     IJ.run(imp_frame, "Subtract...", "value="+str(options['background'])+" stack");
-  # enhance edges  
+  # enhance edges
   if options['process']:
     IJ.run(imp_frame, "Mean 3D...", "x=1 y=1 z=0");
     IJ.run(imp_frame, "Find Edges", "stack");
@@ -167,8 +167,8 @@ def set_Point3i(point, dimension, value):
 
 
 def shift_between_rois(roi2, roi1):
-  """ computes the relative xy shift between two rois 
-  """ 
+  """ computes the relative xy shift between two rois
+  """
   dr = Point3f(0,0,0)
   dr.x = roi2.getBounds().x - roi1.getBounds().x
   dr.y = roi2.getBounds().y - roi1.getBounds().y
@@ -181,7 +181,7 @@ def shift_roi(imp, roi, dr):
   if the shift would cause the roi to be outside the imp,
   it only shifts as much as possible maintaining the width and height
   of the input roi
-  """ 
+  """
   if roi == None:
     return roi
   else:
@@ -192,34 +192,34 @@ def shift_roi(imp, roi, dr):
     # x shift
     if (r.x + dr.x) < 0:
       sx = 0
-    elif (r.x + dr.x + r.width) > imp.width: 
+    elif (r.x + dr.x + r.width) > imp.width:
       sx = int(imp.width-r.width)
     else:
       sx = r.x + int(dr.x)
     # y shift
     if (r.y + dr.y) < 0:
       sy = 0
-    elif (r.y + dr.y + r.height) > imp.height: 
+    elif (r.y + dr.y + r.height) > imp.height:
       sy = int(imp.height-r.height)
     else:
       sy = r.y + int(dr.y)
     # return shifted roi
     shifted_roi = Roi(sx, sy, r.width, r.height)
-    return shifted_roi   
+    return shifted_roi
 
 
 def compute_and_update_frame_translations_dt(imp, dt, options, shifts = None):
   """ imp contains a hyper virtual stack, and we want to compute
   the X,Y,Z translation between every t and t+dt time points in it
-  using the given preferred channel. 
-  if shifts were already determined at other (lower) dt 
+  using the given preferred channel.
+  if shifts were already determined at other (lower) dt
   they will be used and updated.
   """
   nt = imp.getNFrames()
   # get roi (could be None)
   roi = imp.getRoi()
   #if roi:
-  #  print "ROI is at", roi.getBounds()   
+  #  print "ROI is at", roi.getBounds()
   # init shifts
   if shifts == None:
     shifts = []
@@ -231,7 +231,7 @@ def compute_and_update_frame_translations_dt(imp, dt, options, shifts = None):
   for t in range(dt, nt+dt, dt):
     if t > nt-1: # together with above range till nt+dt this ensures that the last data points are not missed out
       t = nt-1 # nt-1 is the last shift (0-based)
-    log("      between frames "+str(t-dt+1)+" and "+str(t+1))      
+    log("      between frames "+str(t-dt+1)+" and "+str(t+1))
     # get (cropped and processed) image at t-dt
     roi1 = shift_roi(imp, roi, shifts[t-dt])
     imp1 = extract_frame_process_roi(imp, t+1-dt, roi1, options)
@@ -239,8 +239,8 @@ def compute_and_update_frame_translations_dt(imp, dt, options, shifts = None):
     roi2 = shift_roi(imp, roi, shifts[t])
     imp2 = extract_frame_process_roi(imp, t+1, roi2, options)
     #if roi:
-    #  print "ROI at frame",t-dt+1,"is",roi1.getBounds()   
-    #  print "ROI at frame",t+1,"is",roi2.getBounds()   
+    #  print "ROI at frame",t-dt+1,"is",roi1.getBounds()
+    #  print "ROI at frame",t+1,"is",roi2.getBounds()
     # compute shift
     local_new_shift = compute_shift(imp2, imp1)
     limit_shifts_to_maximal_shifts(local_new_shift, max_shifts)
@@ -250,14 +250,14 @@ def compute_and_update_frame_translations_dt(imp, dt, options, shifts = None):
       local_new_shift = add_Point3f(local_new_shift, shift_between_rois(roi2, roi1))
     # determine the shift that we knew alrady
     local_shift = subtract_Point3f(shifts[t],shifts[t-dt])
-    # compute difference between new and old measurement (which come from different dt)   
+    # compute difference between new and old measurement (which come from different dt)
     add_shift = subtract_Point3f(local_new_shift,local_shift)
     #print "++ old shift between %s and %s: dx=%s, dy=%s, dz=%s" % (int(t-dt+1),int(t+1),local_shift.x,local_shift.y,local_shift.z)
     #print "++ add shift between %s and %s: dx=%s, dy=%s, dz=%s" % (int(t-dt+1),int(t+1),add_shift.x,add_shift.y,add_shift.z)
     # update shifts from t-dt to the end (assuming that the measured local shift will presist till the end)
     for i,tt in enumerate(range(t-dt,nt)):
       # for i>dt below expression basically is a linear drift predicition for the frames at tt>t
-      # this is only important for predicting the best shift of the ROI 
+      # this is only important for predicting the best shift of the ROI
       # the drifts for i>dt will be corrected by the next measurements
       shifts[tt].x += 1.0*i/dt * add_shift.x
       shifts[tt].y += 1.0*i/dt * add_shift.y
@@ -288,8 +288,8 @@ def limit_shifts_to_maximal_shifts(local_new_shift, max_shifts):
 
 def convert_shifts_to_integer(shifts):
   int_shifts = []
-  for shift in shifts: 
-    int_shifts.append(Point3i(int(round(shift.x)),int(round(shift.y)),int(round(shift.z)))) 
+  for shift in shifts:
+    int_shifts.append(Point3i(int(round(shift.x)),int(round(shift.y)),int(round(shift.z))))
   return int_shifts
 
 
@@ -309,7 +309,7 @@ def compute_min_max(shifts):
     minz = min(minz, shift.z)
     maxx = max(maxx, shift.x)
     maxy = max(maxy, shift.y)
-    maxz = max(maxz, shift.z)  
+    maxz = max(maxz, shift.z)
   return minx, miny, minz, maxx, maxy, maxz
 
 
@@ -433,7 +433,7 @@ def register_hyperstack(imp, shifts, target_folder, virtual):
   registeredstack_imp = ImagePlus("registered time points", registeredstack)
   registeredstack_imp.setCalibration(imp.getCalibration().copy())
   registeredstack_imp.setProperty("Info", imp.getProperty("Info"))
-  registeredstack_imp = HyperStackConverter.toHyperStack(registeredstack_imp, imp.getNChannels(), len(names) / (imp.getNChannels() * imp.getNFrames()), imp.getNFrames(), "xyczt", "Composite");    
+  registeredstack_imp = HyperStackConverter.toHyperStack(registeredstack_imp, imp.getNChannels(), len(names) / (imp.getNChannels() * imp.getNFrames()), imp.getNFrames(), "xyczt", "Composite");
   
   return registeredstack_imp
 
@@ -463,7 +463,7 @@ def register_hyperstack_subpixel(imp, channel, shifts, target_folder, virtual):
     
   # prepare stack for final results
   stack = imp.getStack()
-  if virtual is True: 
+  if virtual is True:
     names = []
   else:
     registeredstack = ImageStack(width, height, imp.getProcessor().getColorModel())
@@ -488,7 +488,7 @@ def register_hyperstack_subpixel(imp, channel, shifts, target_folder, virtual):
     log("    frame "+str(frame)+" correcting drift "+str(round(-shift.x-minx,2))+","+str(round(-shift.y-miny,2))+","+str(round(-shift.z-minz,2)))
 
     # loop across channels
-    for ch in range(1, imp.getNChannels()+1):      
+    for ch in range(1, imp.getNChannels()+1):
       
       tmpstack = ImageStack(width, height, imp.getProcessor().getColorModel())
 
@@ -511,7 +511,7 @@ def register_hyperstack_subpixel(imp, channel, shifts, target_folder, virtual):
       translated_stack = imp_translated.getStack()
       for s in range(1, translated_stack.getSize()+1):
         ss = "_z" + zero_pad(s, len(str(slices)))
-        ip = translated_stack.getProcessor(s).duplicate() # duplicate is important as otherwise it will only be a reference that can change its content  
+        ip = translated_stack.getProcessor(s).duplicate() # duplicate is important as otherwise it will only be a reference that can change its content
         if virtual is True:
           name = fr + ss + "_c" + zero_pad(ch, len(str(imp.getNChannels()))) +".tif"
           names.append(name)
@@ -520,7 +520,7 @@ def register_hyperstack_subpixel(imp, channel, shifts, target_folder, virtual):
           currentslice.setProperty("Info", imp.getProperty("Info"));
           FileSaver(currentslice).saveAsTiff(target_folder + "/" + name)
         else:
-          registeredstack.addSlice("", ip)    
+          registeredstack.addSlice("", ip)
 
   IJ.showProgress(1)
     
@@ -533,7 +533,7 @@ def register_hyperstack_subpixel(imp, channel, shifts, target_folder, virtual):
   registeredstack_imp = ImagePlus("registered time points", registeredstack)
   registeredstack_imp.setCalibration(imp.getCalibration().copy())
   registeredstack_imp.setProperty("Info", imp.getProperty("Info"))
-  registeredstack_imp = HyperStackConverter.toHyperStack(registeredstack_imp, imp.getNChannels(), slices, imp.getNFrames(), "xyzct", "Composite");    
+  registeredstack_imp = HyperStackConverter.toHyperStack(registeredstack_imp, imp.getNChannels(), slices, imp.getNFrames(), "xyzct", "Composite");
   
   return registeredstack_imp
   
@@ -602,7 +602,7 @@ def save_shifts(shifts, roi):
   txt.append("\nx_min\ty_min\tz_min\tx_max\ty_max\tz_max")
   txt.append("\n"+str(roi[0])+"\t"+str(roi[1])+"\t"+str(roi[2])+"\t"+str(roi[3])+"\t"+str(roi[4])+"\t"+str(roi[5]))
   txt.append("\nShifts")
-  txt.append("\ndx\tdy\tdz")  
+  txt.append("\ndx\tdy\tdz")
   for shift in shifts:
     txt.append("\n"+str(shift.x)+"\t"+str(shift.y)+"\t"+str(shift.z))
   f.writelines(txt)
@@ -640,14 +640,14 @@ def run():
     if not validate(target_folder):
       return
   else:
-    target_folder = None 
+    target_folder = None
 
   #
   # compute drift
   #
   log("  computing drift...");
 
-  log("    at frame shifts of 1"); 
+  log("    at frame shifts of 1");
   dt = 1; shifts = compute_and_update_frame_translations_dt(imp, dt, options)
   
   # multi-time-scale computation
@@ -656,12 +656,12 @@ def run():
     # computing drifts on exponentially increasing time scales 3^i up to 3^6
     # ..one could also do this with 2^i or 4^i
     # ..maybe make this a user choice? did not do this to keep it simple.
-    dts = [3,9,27,81,243,729,dt_max] 
+    dts = [3,9,27,81,243,729,dt_max]
     for dt in dts:
       if dt < dt_max:
-        log("    at frame shifts of "+str(dt)) 
+        log("    at frame shifts of "+str(dt))
         shifts = compute_and_update_frame_translations_dt(imp, dt, options, shifts)
-      else: 
+      else:
         log("    at frame shifts of "+str(dt_max));
         shifts = compute_and_update_frame_translations_dt(imp, dt_max, options, shifts)
         break
@@ -697,20 +697,20 @@ def run():
   
   else:
    
-    if imp.getRoi(): 
+    if imp.getRoi():
       xmin = imp.getRoi().getBounds().x
       ymin = imp.getRoi().getBounds().y
       zmin = 0
       xmax = xmin + imp.getRoi().getBounds().width - 1
       ymax = ymin + imp.getRoi().getBounds().height - 1
-      zmax = imp.getNSlices()-1  
+      zmax = imp.getNSlices()-1
     else:
       xmin = 0
       ymin = 0
       zmin = 0
       xmax = imp.getWidth() - 1
       ymax = imp.getHeight() - 1
-      zmax = imp.getNSlices() - 1  
+      zmax = imp.getNSlices() - 1
     
     save_shifts(shifts, [xmin, ymin, zmin, xmax, ymax, zmax])
     log("  saving shifts...")
@@ -731,7 +731,7 @@ def log(msg):
 #@UIService uiService
 #@LogService logService
 
-sntService.requireVersion("5.0.5") # SNT version required to run this script
+sntService.requireVersion("5.0.14") # SNT version required to run this script
 
 
 def log(msg):
@@ -781,7 +781,11 @@ def run_snt():
     return
   imp = snt.getImagePlus()
   if imp is None:
-    ui.error("No time-lapse is currently loaded.")
+    if sntService.isStreamMode():
+      ui.error("This script relies on a classic (in-core) time-lapse hyperstack, "
+               "which is not available in Stream mode.")
+    else:
+      ui.error("No time-lapse is currently loaded.")
     return
   if 1 == imp.getNFrames():
     ui.error("Image being traced is not a time-lapse. Please check Image > Properties....")
@@ -816,12 +820,12 @@ def run_snt():
     # computing drifts on exponentially increasing time scales 3^i up to 3^6
     # ..one could also do this with 2^i or 4^i
     # ..maybe make this a user choice? did not do this to keep it simple.
-    dts = [3,9,27,81,243,729,dt_max] 
+    dts = [3,9,27,81,243,729,dt_max]
     for dt in dts:
       if dt < dt_max:
-        log("    at frame shifts of "+str(dt)) 
+        log("    at frame shifts of "+str(dt))
         shifts = compute_and_update_frame_translations_dt(imp, dt, options, shifts)
-      else: 
+      else:
         log("    at frame shifts of "+str(dt_max));
         shifts = compute_and_update_frame_translations_dt(imp, dt_max, options, shifts)
         break

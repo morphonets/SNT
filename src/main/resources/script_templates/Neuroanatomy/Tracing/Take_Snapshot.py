@@ -9,18 +9,28 @@
 """
 file:       Take_Snapshot.py
 author:     Tiago Ferreira
-version:    20180614
+version:    20260731
 info:       Displays a WYSIWYG image of a tracing canvas. Exemplifies
             how to script SNT using SNTService
 """
 
 from sc.fiji.snt import Tree
 
+snt.requireVersion("5.0.14") # SNT version required to run this script
+
 def run():
 
     # Exit if SNT is not running
     if not snt.isActive():
         ui.showDialog("SNT does not seem to be running. Exiting..", "Error")
+        return
+
+    # This script's snapshot mechanism is classic-canvas-based (XY/ZY/XZ/3D panes), which don't
+    # exist in Stream mode. BVV has its own native snapshot capture (press Shift+S) instead
+    if snt.isStreamMode():
+        ui.showDialog("Snapshots of XY/ZY/XZ/3D tracing canvases are not available in Stream "
+                      "mode. If tracing in BVV, use its own snapshot capture (Shift+S) instead.",
+                      "Not Available in Stream Mode")
         return
 
     # Retrieve current Tree (collection of paths) from the plugin

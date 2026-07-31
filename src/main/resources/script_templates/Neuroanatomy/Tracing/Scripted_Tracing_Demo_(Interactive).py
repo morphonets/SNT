@@ -6,7 +6,7 @@
 """
 file:       Scripted_Tracing_Demo.py
 author:     Tiago Ferreira
-version:    20220924
+version:    20260731
 info:       Exemplifies how to programmatically interact with a running
             instance of SNT to perform auto-tracing tasks.
 """
@@ -18,6 +18,17 @@ from sc.fiji.snt.analysis import TreeStatistics
 from sc.fiji.snt.viewer import (Viewer2D, Viewer3D)
 
 def run():
+
+    snt.requireVersion("5.0.14") # SNT version required to run this script
+
+    # This demo relies on a classic (in-core) ImagePlus throughout (rebuildDisplayCanvases(),
+    # a placeholder demo image fallback, etc.), none of which is compatible with an existing
+    # Stream ("SNT Stream") session, so check for that first
+    if snt.isStreamMode():
+        ui.showDialog("This demo requires a classic (non-streamed) image and is not compatible "
+                      "with the current Stream-mode session. Please close/restart SNT in "
+                      "Standard mode before running it.", "Not Available in Stream Mode")
+        return
 
     # Let's start SNT's GUI if it is currently not running. If you are
     # running this script headless, the GUI won't be displayed, so

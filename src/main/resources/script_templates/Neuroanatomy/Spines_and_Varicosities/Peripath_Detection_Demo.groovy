@@ -1,7 +1,7 @@
 /**
  * file:    Peripath_Detection_Demo.groovy
  * author:  Tiago Ferreira
- * version: 2026.04.09
+ * version: 2026.07.31
  * info:    Demonstrates the PeripathDetector workflow: automated detection of
  *          intensity maxima (spines, varicosities, puncta) around traced paths.
  *
@@ -21,9 +21,18 @@
 #@ SNTService snt
 
 // Ensure SNT is up-to-date and is not busy with another operation
-snt.requireVersion("5.0.7")
-if (snt.isActive() && snt.getUI() && !snt.getUI().isReady()) {
+snt.requireVersion("5.0.14")
+if (snt.isActive() && snt.getUI() && !snt.isStreamMode() && !snt.getUI().isReady()) {
     print("Please complete current operation before running this script!")
+    return
+}
+
+// This demo re-initializes SNT with its own classic (in-core) demo image, which would
+// replace/reconfigure an existing Stream ("SNT Stream") session
+if (snt.isStreamMode()) {
+    snt.getUI().error("This demo requires re-initializing SNT with a classic (non-streamed) "
+            + "image, which would replace the current Stream-mode session. Please switch to "
+            + "Standard mode to run it.")
     return
 }
 

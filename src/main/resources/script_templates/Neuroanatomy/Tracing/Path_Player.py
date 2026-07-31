@@ -1,6 +1,6 @@
 #@SNTService snt # scijava parameter
 
-snt.requireVersion("5.0.5") # SNT version required to run this script
+snt.requireVersion("5.0.14") # SNT version required to run this script
 """
 This script 'plays' a walkthrough through selected paths in SNT, centering and zooming
 on each path node sequentially. The playback can be aborted by clicking on the image.
@@ -22,13 +22,13 @@ ZOOM_LEVEL = 4
 
 class AbortMouseListener(MouseAdapter):
     """Mouse listener that sets abort flag when clicked or pressed."""
-    
+
     def __init__(self):
         self.abort = False # Initialize with abort flag set to False.
-    
+
     def mouseClicked(self, event):
         self.abort = True
-    
+
     def mousePressed(self, event):
         self.abort = True
 
@@ -41,6 +41,15 @@ def get_selected_paths_and_image():
                is the ImagePlus instance, or (None, None) if invalid
     """
     try:
+        # This script drives a classic ImageCanvas/Zoom viewport, which has no Bdv/Bvv
+        # equivalent, so it isn't supported in Stream mode
+        if snt.isStreamMode():
+            snt.getUI().error(
+                "This script relies on a classic tracing canvas (ImageCanvas/Zoom) to "
+                "'fly through' path nodes, which is not available in Stream mode."
+            )
+            return None, None
+
         # Retrieve image and paths. Select all paths if none selected
         imp = snt.getInstance().getImagePlus()
         paths = snt.getSelectedPaths()
@@ -53,7 +62,7 @@ def get_selected_paths_and_image():
                 "OP' neuron from File > Load Demo Dataset... prompt and rerun."
             )
             return None, None
-            
+
         return paths, imp
     except Exception as e:
         snt.getUI().error("Error getting paths and image: {}".format(str(e)))
@@ -71,27 +80,27 @@ def play_path(path, imp, abort_listener):
     # Iterate through all path nodes
     n_nodes = path.size()
     for index in range(n_nodes):
-        
+
         # Check for user abortion
         if abort_listener.abort:
             snt.getInstance().setCanvasLabelAllPanes("Aborting...")
             break
-        
+
         # Report path name and node position
         path_name = path.getName()
         path_name = path_name if len(path_name) <= 13 else path_name[:10] + "..."
         snt.getInstance().setCanvasLabelAllPanes(
             "{} node {}/{}".format(path_name, index+1, n_nodes)
         )
-        
+
         # Get position of node in image coordinates
         x = path.getXUnscaled(index)
         y = path.getYUnscaled(index)
         z = path.getZUnscaled(index)
-        
+
         # Set the image position (channel, slice, frame)
         imp.setPosition(path.getChannel(), z, path.getFrame())
-        
+
         # Center image on current location with zoom
         Zoom.set(imp, ZOOM_LEVEL, x, y)
 
@@ -105,23 +114,23 @@ def play_selected_paths():
     paths, imp = get_selected_paths_and_image()
     if not paths or not imp:
         return
-    
+
     # Ensure SNT remains paused during playback
     snt.getUI().pauseTracing(True)
-    
+
     # Adjust viewing options (calls obtained from Script Recorder)
     snt.getUI().setVisibilityFilter("selected", True)
     snt.getUI().setVisibilityFilter("z-slices", True)
-    
+
     # Create abort mouse listener
     listener = AbortMouseListener()
-    
+
     # Add mouse listener to the image canvas
     imp.getCanvas().addMouseListener(listener)
-    
+
     # Bring image window to front for interaction
     imp.getWindow().toFront()
-    
+
     try:
         # Play through each selected path
         for path in paths:
@@ -130,10 +139,10 @@ def play_selected_paths():
             # Activate and play path
             snt.getUI().getPathManager().select(path)
             play_path(path, imp, listener)
-            
+
     except Exception as e:
         snt.getUI().error("Error during playback: {}".format(str(e)))
-        
+
     finally:
         # Restore SNT's state and some of the imposed options
         snt.getUI().pauseTracing(True)

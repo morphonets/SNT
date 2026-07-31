@@ -7,7 +7,7 @@
 #@SNTService snt
 #@UIService ui
 
-snt.requireVersion("5.0.5") // SNT version required to run this script
+snt.requireVersion("5.0.14") // SNT version required to run this script
 
 /**
  *  Exemplifies how to train a Weka model using traced paths. API Resources:
@@ -19,6 +19,16 @@ snt.requireVersion("5.0.5") // SNT version required to run this script
 // Exit if SNT is not running
 if (!snt.isActive() || !snt.getUI()) {
 	ui.showDialog("SNT does not appear to be running.", "Error")
+	return
+}
+
+// This script's "background" class depends on ROIs from the ROI Manager: There is no way to create
+// those in Stream mode. WekaSegmentation's classifier training/application is also not lazy, and
+// would eagerly process the entire streamed dataset
+if (snt.isStreamMode()) {
+	ui.showDialog("This script requires background ROIs (from the ROI Manager, associated with "
+			+ "specific Z-planes) and full in-RAM classifier training/application, neither of "
+			+ "which is available in Stream mode.", "Not Available in Stream Mode")
 	return
 }
 

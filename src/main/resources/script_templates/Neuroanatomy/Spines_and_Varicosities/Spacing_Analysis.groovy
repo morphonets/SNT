@@ -1,7 +1,7 @@
 /**
  * file:    Spacing_Analysis.groovy
  * author:  Tiago Ferreira
- * version: 2026.04.21
+ * version: 2026.07.31
  * info:    Demonstrates how to compute geodesic (along-the-path) distances
  *          between consecutive detections from PeripathDetector. The script
  *          detects intensity maxima (varicosities, synaptic puncta, etc.)
@@ -24,8 +24,8 @@
 #@ SNTService snt
 
 // Ensure SNT is up-to-date and is not busy with another operation
-snt.requireVersion("5.0.7")
-if (snt.isActive() && snt.getUI() && !snt.getUI().isReady()) {
+snt.requireVersion("5.0.14")
+if (snt.isActive() && snt.getUI() && !snt.isStreamMode() && !snt.getUI().isReady()) {
     print("Please complete current operation before running this script!")
     return
 }
@@ -39,6 +39,15 @@ def getImageAndPaths(fileImg, fileTree) {
         for (tree in Tree.listFromFile(fileTree.getAbsolutePath()))
             paths.addAll(tree.list())
     } else {
+        // The demo re-initializes SNT with its own classic (in-core) image, which would
+        // replace/reconfigure an existing Stream ("SNT Stream") session, which is unexpected
+        if (snt.isStreamMode()) {
+            snt.getUI().error("The demo image requires re-initializing SNT with a classic "
+                    + "(non-streamed) image, which would replace the current Stream-mode "
+                    + "session. Please supply your own image/reconstruction files above, or "
+                    + "switch to Standard mode to run the demo.")
+            return Tuple.tuple(null, null)
+        }
         // demo mode: CIL:810 hippocampal neuron (Ch1: N-cadherin; Ch2: V-glut; Ch3: NMDAR)
         // see Peripath_Detection_Demo.groovy template script
         imp = snt.demoImage("cil810")
@@ -54,6 +63,9 @@ def getImageAndPaths(fileImg, fileTree) {
 }
 
 (imp, paths) = getImageAndPaths(imageFile, tracesFile)
+if (imp == null || paths == null) {
+    return
+}
 
 // 2) Fit radii. PeripathDetector uses per-node radii to define the search
 // annulus. Without fitted radii, a fallback (2x voxel size) is used

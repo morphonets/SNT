@@ -1,4 +1,5 @@
 #@SNTService sntService
+#@UIService ui
 
 sntService.requireVersion("5.0.5") // SNT version required to run this script
 
@@ -14,6 +15,15 @@ import sc.fiji.snt.tracing.auto.BinaryTracer
  *       or contains no paths
  * rev:  20231219
  */
+
+// This demo re-initializes SNT with its own classic (in-core) demo image, which would
+// replace/reconfigure an existing Stream ("SNT Stream") session, so it isn't supported there
+if (sntService.isStreamMode()) {
+	ui.showDialog("This demo requires a classic (non-streamed) image and would replace the "
+			+ "current Stream-mode session. Please close/restart SNT in Standard mode "
+			+ "before running it.", "Not Available in Stream Mode")
+	return
+}
 
 // initialize the tracing interface. Typically one would use a path to a local
 // image, but here we will use "demo: binary timelapse" to signal the service

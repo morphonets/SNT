@@ -3,7 +3,7 @@
 #@SNTService snt
 #@UIService ui
 
-snt.requireVersion("5.0.5") // SNT version required to run this script
+snt.requireVersion("5.0.14") // SNT version required to run this script
 
 
 /**

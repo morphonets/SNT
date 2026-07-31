@@ -4,7 +4,7 @@
 """
 file:    Scripted_Tracing_Demo.py
 author:  Tiago Ferreira, Cameron Arshadi
-version: 20231214
+version: 20260731
 info:    Exemplifies how to programmatically perform A* tracing between two
          points without GUI interaction, which allows for automated tracing
          of relatively simple structures (e.g., neurospheres neurites,
@@ -16,7 +16,17 @@ info:    Exemplifies how to programmatically perform A* tracing between two
 import time
 from sc.fiji.snt import (Path, SNT, Tree)
 
+snt.requireVersion("5.0.14") # SNT version required to run this script
+
 def run():
+
+    # This demo re-initializes SNT with its own classic (in-core) demo image, which would
+    # replace/reconfigure an existing Stream ("SNT Stream") session, so it isn't supported there
+    if snt.isStreamMode():
+        ui.showDialog("This demo requires a classic (non-streamed) image and would replace the "
+                      "current Stream-mode session. Please close/restart SNT in Standard mode "
+                      "before running it.", "Not Available in Stream Mode")
+        return
 
     # Exit if SNT is already busy doing something
     if snt.isActive() and snt.getUI() and not snt.getUI().isReady():

@@ -130,6 +130,21 @@ public class SNTService extends AbstractService implements ImageJService {
 	}
 
 	/**
+	 * Gets whether SNT is currently running in Stream mode ("SNT Stream"), i.e., tethered to a
+	 * streamed dataset (N5/OME-Zarr/IMS/BDV-XML) via the Big Data Loader, with no in-core
+	 * {@code ImagePlus}/classic canvas available. Several script-facing APIs (ImagePlus-based
+	 * snapshots, ROI-based inputs, {@code SNT#rebuildDisplayCanvases()}, etc.) are not available
+	 * in this mode. Scripts can use this method to detect that and abort/adapt early.
+	 *
+	 * @return true if SNT is active and running in Stream mode; false otherwise (including when
+	 *         SNT is not running, or is running without a GUI)
+	 */
+	public boolean isStreamMode() {
+		final SNT instance = SNTUtils.getInstance();
+		return instance != null && instance.getUI() != null && instance.getUI().isStreamMode();
+	}
+
+	/**
 	 * Assigns pixel intensities at each Path node, storing them as Path values.
 	 * Assigned intensities are those of the channel and time point currently being
 	 * traced. Assumes SNT has been initialized with a valid image.

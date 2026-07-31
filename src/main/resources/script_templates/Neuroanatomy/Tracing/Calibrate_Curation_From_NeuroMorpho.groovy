@@ -1,14 +1,14 @@
 /**
  * file: Calibrate_Curation_From_NeuroMorpho.groovy
  * info: Generates a .curation preset file from NeuroMorpho.org reconstructions.
- *       Edit {@code cellIds} with the NeuroMorpho cell names for your cell type 
+ *       Edit {@code cellIds} with the NeuroMorpho cell names for your cell type
  *       of interest (e.g., from a NeuroMorpho.org search).
  *       The script will download each cell, compute plausibility thresholds from
  *       percentile statistics, and save the result as a .curation file that can
  *       be loaded in SNT's Curation Assistant panel.
- * rev:  20260419
+ * rev:  20260731
  */
- 
+
 #@ String (label="Preset name:", value="my-cell-type") presetName
 #@ String (label="NeuroMorpho.org cell ids:", value="cnic_002,cnic_003,cnic_004") cellIds
 #@ String (label="Comment:", value="Calibrated from Wearne_Hof cells") comment
@@ -16,6 +16,7 @@
 #@ Double (label="Lower percentile:", value=5.0, min=0, max=50, stepSize=1) lowerPctl
 #@ File (label="Workspace directory:", style="directory", required=false) workspaceDir
 
+snt.requireVersion("5.0.10") // SNT version required to run this script
 
 cellIds = cellIds.split(/\s*,\s*/)
 
