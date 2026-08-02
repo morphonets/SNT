@@ -676,13 +676,14 @@ public class Path implements Comparable<Path>, Cloneable {
 			return Double.NaN;
         double slope;
         if (size() == 2) {
+            // NB: parentheses are required here: without them this computes y2 - (y1/x2) - x1 _not_ (y2-y1)/(x2-x1)
             slope = switch (view) {
-                case MultiDThreePanes.XY_PLANE -> getNodeWithoutChecks(1).y - getNodeWithoutChecks(0).y
-                        / getNodeWithoutChecks(1).x - getNodeWithoutChecks(0).x;
-                case MultiDThreePanes.XZ_PLANE -> getNodeWithoutChecks(1).z - getNodeWithoutChecks(0).z
-                        / getNodeWithoutChecks(1).x - getNodeWithoutChecks(0).x;
-                case MultiDThreePanes.ZY_PLANE -> getNodeWithoutChecks(1).y - getNodeWithoutChecks(0).y
-                        / getNodeWithoutChecks(1).z - getNodeWithoutChecks(0).z;
+                case MultiDThreePanes.XY_PLANE -> (getNodeWithoutChecks(1).y - getNodeWithoutChecks(0).y)
+                        / (getNodeWithoutChecks(1).x - getNodeWithoutChecks(0).x);
+                case MultiDThreePanes.XZ_PLANE -> (getNodeWithoutChecks(1).z - getNodeWithoutChecks(0).z)
+                        / (getNodeWithoutChecks(1).x - getNodeWithoutChecks(0).x);
+                case MultiDThreePanes.ZY_PLANE -> (getNodeWithoutChecks(1).y - getNodeWithoutChecks(0).y)
+                        / (getNodeWithoutChecks(1).z - getNodeWithoutChecks(0).z);
                 default -> throw new IllegalArgumentException("Not a valid plane");
             };
         } else {
@@ -797,6 +798,7 @@ public class Path implements Comparable<Path>, Cloneable {
         if (size() == 2) {
             final Vector3d v = getNodeWithoutChecks(1).asVector();
             v.sub(getNodeWithoutChecks(0).asVector());
+            v.normalize(); // Convert to unit vector, matching the regression branch below.
             return v;
         }
 
