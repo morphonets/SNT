@@ -280,7 +280,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * it's considered redundant. Default: 0.4. Lower = more aggressive pruning.
      */
     public void setSphereOverlapThreshold(final double threshold) {
-        this.sphereOverlapThreshold = Math.max(0, Math.min(1, threshold));
+        this.sphereOverlapThreshold = Math.clamp(threshold, 0, 1);
     }
 
     /**
@@ -357,7 +357,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
      * @param type connectivity type (1, 2, or 3)
      */
     public void setConnectivityType(final int type) {
-        this.cnnType = Math.max(1, Math.min(3, type));
+        this.cnnType = Math.clamp(type, 1, 3);
     }
 
     /**
@@ -1729,7 +1729,7 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
 
             // Clamp to bounds
             for (int d = 0; d < dims.length; d++) {
-                pos[d] = Math.max(0, Math.min(dims[d] - 1, pos[d]));
+                pos[d] = Math.clamp(pos[d], 0, dims[d] - 1);
             }
 
             sumOldRadius += node.radius;
@@ -2165,10 +2165,24 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 leaves.add(v);
             }
         }
-        leaves.sort((a, b) -> Double.compare(
-                distFromRoot.getOrDefault(b, 0.0),
-                distFromRoot.getOrDefault(a, 0.0)
-        ));
+        // vertex insertion order in buildGraph(), which differs across StorageBackend implementations (e.g.,
+        // ArrayStorageBackend/ DiskBackedStorageBackend track ALIVE indices in a java.util.HashSet by default, while
+        // SparseStorageBackend falls back to iterating a fastutil Long2ByteOpenHashMap's keySet(), which is a
+        // different hash table with a different iteration order for the same keys). So we need to break by physical
+        // position makes the order an the pruning outcome independent of which backend (and which Set/Map implementation)
+        // produced the graph.
+        leaves.sort((a, b) -> {
+            final int cmp = Double.compare(
+                    distFromRoot.getOrDefault(b, 0.0),
+                    distFromRoot.getOrDefault(a, 0.0)
+            );
+            if (cmp != 0) return cmp;
+            int c = Double.compare(a.x, b.x);
+            if (c != 0) return c;
+            c = Double.compare(a.y, b.y);
+            if (c != 0) return c;
+            return Double.compare(a.z, b.z);
+        });
 
         log("Processing " + leaves.size() + " leaves (longest paths first)");
 
@@ -2460,13 +2474,17 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         while (changed) {
             changed = false;
 
-            // Collect branch points (nodes with >1 outgoing edge)
+            // Same issue with fastutil in hierarchicalPrune: SparseStorageBackend falls back to iterating
+            // a fastutil hash map with a different iteration order
             final List<SWCPoint> branchPoints = new ArrayList<>();
             for (final SWCPoint v : graph.vertexSet()) {
                 if (graph.outDegreeOf(v) > 1) {
                     branchPoints.add(v);
                 }
             }
+            branchPoints.sort(Comparator.comparingDouble((SWCPoint v) -> v.x)
+                    .thenComparingDouble(v -> v.y)
+                    .thenComparingDouble(v -> v.z));
 
             outer:
             for (final SWCPoint bp : branchPoints) {
@@ -2487,6 +2505,13 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 }
 
                 if (stems.size() < 2) continue;
+
+                // Same determinism concern as branchPoints: graph.outgoingEdgesOf(bp)'s order
+                // is also backend-dependent, so canonicalize stem order before the pairwise
+                // comparison below picks which pair to evaluate (and potentially prune) first
+                stems.sort(Comparator.<List<SWCPoint>>comparingDouble(s -> s.getFirst().x)
+                        .thenComparingDouble(s -> s.getFirst().y)
+                        .thenComparingDouble(s -> s.getFirst().z));
 
                 // Compare every pair of sibling stems
                 for (int i = 0; i < stems.size(); i++) {
