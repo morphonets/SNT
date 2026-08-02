@@ -1672,6 +1672,32 @@ public class BookmarkManager {
     }
 
     /**
+     * Returns the position of the most recently added bookmark/marker, in spatially calibrated
+     * ("world") coordinates.
+     * <p>
+     * In viewer mode (BVV/BDV), this is the last marker placed with the {@code M} key (or added
+     * programmatically). In SNT-UI mode, this is the last entry added to the Bookmark Manager pane.
+     * Since new entries are always appended, this reflects placement order in the common case; it
+     * can become stale relative to placement order after an explicit list-reordering operation
+     * (e.g. the table's "Sort by Distance..." menu, or a Merge/Colocalize operation, both of which
+     * re-write the backing list).
+     * </p>
+     *
+     * @return the position of the last bookmark, or {@code null} if none have been added
+     */
+    public SNTPoint getLastPosition() {
+        final List<Bookmark> data = model.getDataList();
+        if (data.isEmpty()) return null;
+        final Bookmark last = data.getLast();
+        if (viewer != null) {
+            return last; // viewer mode: already stored in world/calibrated coordinates
+        }
+        // SNT-UI mode: stored coordinates are in pixel space; convert to calibrated units
+        final ij.measure.Calibration cal = sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
+        return new PointInImage(cal.getX(last.getX()), cal.getY(last.getY()), cal.getZ(last.getZ()));
+    }
+
+    /**
      * Adds the bookmark ROIs to the specified overlay. If no bookmarks are selected, all bookmarks are added,
      * otherwise only the selected bookmarks are added.
      *
