@@ -402,7 +402,9 @@ public class GWDTStorageBackendTest {
 
     @Test
     public void testBackendConsistency() {
-        System.out.println("\n=== Testing Backend Consistency ===");
+
+
+        sc.fiji.snt.SNTUtils.setDebugMode(false); // TEMP DEBUG
 
         // Trace with all three backends using identical parameters
         final GWDTTracer<?> arrayTracer = new GWDTTracer<>(testImage);
@@ -417,24 +419,25 @@ public class GWDTStorageBackendTest {
             tracer.setMinBranchIntensityLength(5.0);
             tracer.setSrRatio(1.0 / 9.0);
             tracer.setSphereOverlapThreshold(0.1);
-            tracer.setLeafPruneEnabled(true);
-            tracer.setSmoothEnabled(true);
+            tracer.setLeafPruneOverlap(0.5);
             tracer.setSmoothWindowSize(5);
-            tracer.setResampleEnabled(true);
             tracer.setResampleStep(2.0);
             tracer.setConnectivityType(2);
-            tracer.setVerbose(false);
+            tracer.setVerbose(false); // TEMP DEBUG
         }
 
         // Trace
+        System.out.println("\n=== ARRAY ===");
         final long startArray = System.currentTimeMillis();
         final List<Tree> arrayTrees = arrayTracer.traceTrees();
         final long timeArray = System.currentTimeMillis() - startArray;
 
+        System.out.println("\n=== SPARSE ===");
         final long startSparse = System.currentTimeMillis();
         final List<Tree> sparseTrees = sparseTracer.traceTrees();
         final long timeSparse = System.currentTimeMillis() - startSparse;
 
+        System.out.println("\n=== DISK ===");
         final long startDisk = System.currentTimeMillis();
         final List<Tree> diskTrees = diskTracer.traceTrees();
         final long timeDisk = System.currentTimeMillis() - startDisk;
@@ -513,13 +516,12 @@ public class GWDTStorageBackendTest {
 
         // For OP1 (dense), sparse may use more due to overhead - this is expected
         // The test verifies sparse backend works, not that it's always more efficient
-        assertTrue("Sparse backend should produce valid results", !trees.isEmpty());
+        assertFalse("Sparse backend should produce valid results", trees.isEmpty());
         assertTrue("Sparse backend should produce nodes", getTotalNodes(trees) > 0);
     }
 
     @Test
     public void testStorageBackendDisposal() {
-        System.out.println("\n=== Testing Storage Backend Disposal ===");
 
         final AbstractGWDTTracer<?>[] tracers = {
                 new GWDTTracer<>(testImage),

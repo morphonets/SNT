@@ -58,7 +58,7 @@ public class BinaryTracerTest {
     public void testConverter() {
         final BinaryTracer converter = new BinaryTracer(imp, false);
         final List<Tree> skelTrees = converter.getTrees();
-        final Tree tree = skelTrees.get(0);
+        final Tree tree = skelTrees.getFirst();
         final TreeStatistics skelAnalyzer = new TreeStatistics(tree);
         final TreeStatistics demoAnalyzer = new TreeStatistics(demoTree);
         assertEquals("# Trees", 1, skelTrees.size());

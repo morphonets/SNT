@@ -48,7 +48,7 @@ public class PersistenceAnalyzerTest {
 
 	@Before
 	public void setUp() throws Exception {
-		tree = new SNTService().demoTrees().get(0);
+		tree = new SNTService().demoTrees().getFirst();
 		pAnalyzer = new PersistenceAnalyzer(tree);
 		tAnalyzer = new TreeStatistics(tree);
 		assumeNotNull(tree);
@@ -99,7 +99,7 @@ public class PersistenceAnalyzerTest {
 			assertEquals("Number of points in diagram", numTips, diagramNodes.size());
 			for (final List<SWCPoint> point : diagramNodes) {
 				assertTrue("Two SWCPoint objects per point in diagram",
-						point.size() == 2 && point.get(0) instanceof SWCPoint && point.get(1) instanceof SWCPoint);
+						point.size() == 2 && point.get(0) != null && point.get(1) != null);
 			}
 		}
 	}
@@ -110,11 +110,11 @@ public class PersistenceAnalyzerTest {
 			final double[] landscape = pAnalyzer.getLandscape(descriptor, 5, 100);
 			assertEquals("Landscape size", 500, landscape.length);
 			double minVal = 0;
-			for (int i = 0; i < landscape.length; i++) {
-				if (landscape[i] < minVal) {
-					minVal = landscape[i];
-				}
-			}
+            for (double v : landscape) {
+                if (v < minVal) {
+                    minVal = v;
+                }
+            }
 			assertTrue("Landscape: no negative values", minVal >= 0);
 		}
 	}

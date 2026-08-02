@@ -70,11 +70,10 @@ public class DirectedWeightedGraphTest {
 		final ParanoidGraph<SWCPoint, SWCWeightedEdge> pGraph = new ParanoidGraph<>(graph);
 		final SWCPoint v1 = new SWCPoint(0, 2, 1.0, 1.0, 1.0, 1.0, 0);
 		final SWCPoint v2 = new SWCPoint(0, 2, 1.0, 1.0, 1.0, 1.0, 0);
-		final SWCPoint v3 = v1;
-		pGraph.addVertex(v1);
+        pGraph.addVertex(v1);
 		boolean added = pGraph.addVertex(v2);
 		assertTrue(added);
-		added = pGraph.addVertex(v3);
+		added = pGraph.addVertex(v1);
 		assertFalse(added);
 	}
 
@@ -195,7 +194,7 @@ public class DirectedWeightedGraphTest {
 
 		// In the undirected case, it is possible for the dijkstra and SNT longest paths to be opposites of each other.
 		// This is not a bug, just need to check which case occurred.
-		if (longestPathDSPVertices.get(0).isSameLocation(longestPathSNT.getNode(0))) {
+		if (longestPathDSPVertices.getFirst().isSameLocation(longestPathSNT.getNode(0))) {
 			// PointInImage and SWCPoint are not directly comparable, so use node location as proxy
 			for (int i = 0; i < longestPathSNT.size(); i++) {
 				assertTrue(longestPathDSPVertices.get(i).isSameLocation(longestPathSNT.getNode(i)));
@@ -204,7 +203,7 @@ public class DirectedWeightedGraphTest {
 			for (final SWCPoint swcPoint : longestPathDSPVertices) {
 				assertEquals(swcPoint, longestPathSNTVerticesIterator.next());
 			}
-		} else if (longestPathDSPVertices.get(0).isSameLocation(
+		} else if (longestPathDSPVertices.getFirst().isSameLocation(
 				longestPathSNT.getNode(longestPathSNT.size() - 1))) {
 			// PointInImage and SWCPoint are not directly comparable, so use node location as proxy
 			for (int i = 0; i < longestPathSNT.size(); i++) {
@@ -322,10 +321,10 @@ public class DirectedWeightedGraphTest {
 		final Tree tree = new Tree(points, "");
 		final DirectedWeightedGraph graph = tree.getGraph();
 		final SWCPoint oldRoot = graph.getRoot();
-		final SWCPoint tip = graph.getTips().get(0);
-		final SWCPoint tipParent = Graphs.predecessorListOf(graph, tip).get(0);
+		final SWCPoint tip = graph.getTips().getFirst();
+		final SWCPoint tipParent = Graphs.predecessorListOf(graph, tip).getFirst();
 		graph.removeEdge(tipParent, tip);
-		final SWCPoint secondPoint = Graphs.successorListOf(graph, oldRoot).get(0);
+		final SWCPoint secondPoint = Graphs.successorListOf(graph, oldRoot).getFirst();
 		graph.addEdge(secondPoint, tip);
 		final SWCPoint newRoot = new SWCPoint(0, 2, 0.5, 0.5, 0.5, 1.0, 0);
 		graph.addVertex(newRoot);

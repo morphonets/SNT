@@ -22,7 +22,7 @@
 
 package sc.fiji.snt;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assume.assumeTrue;
 
 import org.junit.Before;
@@ -56,9 +56,9 @@ public class MLTreeTest {
 	}
 
 	void assertNumberOfNodes(final Tree tree, final int count) {
-		assertTrue("# nodes", tree.getNodes().size() == count);
-		assertTrue("# nodes", tree.getNodesAsSWCPoints().size() == count);
-		assertTrue("# vertices", tree.getGraph().vertexSet().size() == count);
+        assertEquals("# nodes", tree.getNodes().size(), count);
+        assertEquals("# nodes", tree.getNodesAsSWCPoints().size(), count);
+        assertEquals("# vertices", tree.getGraph().vertexSet().size(), count);
 
 	}
 }

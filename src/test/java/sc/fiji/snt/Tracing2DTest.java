@@ -86,40 +86,28 @@ public class Tracing2DTest {
                                                                 Cost cost,
                                                                 SNT.HeuristicType heuristicType)
     {
-        Heuristic heuristic;
-        switch (heuristicType) {
-            case EUCLIDEAN:
-                heuristic = new Euclidean(cal);
-                break;
-            case DIJKSTRA:
-                heuristic = new Dijkstra();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown heuristic type " + heuristicType);
-        }
-        switch (searchType) {
-            case ASTAR:
-                return new TracerThread(
-                        img, cal,
-                        startX, startY, 0,
-                        endX, endY, 0,
-                        -1, 100,
-                        imageClass,
-                        cost,
-                        heuristic);
-            case NBASTAR:
-                return new BiSearch(
-                        img, cal,
-                        startX, startY, 0,
-                        endX, endY, 0,
-                        -1, 100,
-                        imageClass,
-                        cost,
-                        heuristic);
-            default:
-                throw new IllegalArgumentException("Unknown search type " + searchType);
-
-        }
+        Heuristic heuristic = switch (heuristicType) {
+            case EUCLIDEAN -> new Euclidean(cal);
+            case DIJKSTRA -> new Dijkstra();
+        };
+        return switch (searchType) {
+            case ASTAR -> new TracerThread(
+                    img, cal,
+                    startX, startY, 0,
+                    endX, endY, 0,
+                    -1, 100,
+                    imageClass,
+                    cost,
+                    heuristic);
+            case NBASTAR -> new BiSearch(
+                    img, cal,
+                    startX, startY, 0,
+                    endX, endY, 0,
+                    -1, 100,
+                    imageClass,
+                    cost,
+                    heuristic);
+        };
     }
 
     private void searchTest(final AbstractSearch search, final double minLength, final double maxLength) {

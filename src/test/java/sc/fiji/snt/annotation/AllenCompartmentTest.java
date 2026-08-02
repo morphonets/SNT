@@ -124,10 +124,10 @@ public class AllenCompartmentTest {
         @Test
         public void testEquals() {
             assertEquals(rootCompartment, rootCompartment);
-            assertEquals(rootCompartment, new AllenCompartment(ROOT_STRUCTURE_ID));
-            assertEquals(rootCompartment, new AllenCompartment(ROOT_UUID));
-            assertEquals(rootCompartment, new AllenCompartment(ROOT_JSON_OBJECT, ROOT_UUID));
-            assertNotEquals(rootCompartment, new AllenCompartment(1024));
+            assertEquals(new AllenCompartment(ROOT_STRUCTURE_ID), rootCompartment);
+            assertEquals(new AllenCompartment(ROOT_UUID), rootCompartment);
+            assertEquals(new AllenCompartment(ROOT_JSON_OBJECT, ROOT_UUID), rootCompartment);
+            assertNotEquals(new AllenCompartment(1024), rootCompartment);
         }
 
         @Test
@@ -183,7 +183,7 @@ public class AllenCompartmentTest {
             final List<Integer> treePath = Arrays.asList(997, 8, 567, 688, 695, 315, 453, 322, 329, 480149202, 480149206);
             final List<AllenCompartment> compartmentList = treePath.stream()
                     .map(AllenCompartment::new)
-                    .collect(Collectors.toList());
+                    .toList();
             for (int i = 0; i < compartmentList.size() - 1; i++) {
                 final AllenCompartment parent = compartmentList.get(i);
                 for (final AllenCompartment child : compartmentList.subList(i + 1, compartmentList.size())) {
@@ -200,7 +200,7 @@ public class AllenCompartmentTest {
             final List<Integer> treePath = Arrays.asList(997, 8, 567, 688, 695, 315, 453, 322, 329, 480149202, 480149206);
             final List<AllenCompartment> compartmentList = treePath.stream()
                     .map(AllenCompartment::new)
-                    .collect(Collectors.toList());
+                    .toList();
             for (int i = 0; i < compartmentList.size() - 1; i++) {
                 final AllenCompartment parent = compartmentList.get(i);
                 for (final AllenCompartment child : compartmentList.subList(i + 1, compartmentList.size())) {

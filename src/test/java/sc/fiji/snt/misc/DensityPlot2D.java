@@ -25,7 +25,6 @@ import ij.IJ;
 import ij.ImagePlus;
 import net.imglib2.Cursor;
 import net.imglib2.FinalInterval;
-import net.imglib2.Interval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.img.array.ArrayImgs;
@@ -39,7 +38,6 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import sc.fiji.snt.Tree;
 import sc.fiji.snt.util.PointInImage;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,26 +47,23 @@ public class DensityPlot2D {
 	static { net.imagej.patcher.LegacyInjector.preinit(); } // required for _every_ class that imports ij. classes
 
 
-	static public void densityPlot(final String swcDirectory, final String outDirectory, final String resultPrefix)
-			throws IOException {
+	static public void densityPlot(final String swcDirectory, final String outDirectory, final String resultPrefix) {
 
 		final List<Tree> trees = Tree.listFromDir(swcDirectory);
-		System.out.println("Processing: " + swcDirectory);
 
-		final int[] maxDims = new int[] { 0, 0 };
+		final int[] maxDims = new int[]{0, 0};
 
 		final int numTreesToEstimateOutDimensions = trees.size();
 
 		// ----- Guess the output dims
 
-		final long[] outputDims = new long[] { 0, 0 };
+		final long[] outputDims = new long[]{0, 0};
 
-		final double[] outputPadding = new double[] { 3, 3 };
-		final double[] outputMin = new double[] { Double.MAX_VALUE, Double.MAX_VALUE };
-		final double[] outputMax = new double[] { Double.MIN_VALUE, Double.MIN_VALUE };
+		final double[] outputPadding = new double[]{3, 3};
+		final double[] outputMin = new double[]{Double.MAX_VALUE, Double.MAX_VALUE};
+		final double[] outputMax = new double[]{Double.MIN_VALUE, Double.MIN_VALUE};
 
 		for (final Tree tree : trees.subList(0, numTreesToEstimateOutDimensions)) {
-			System.out.println("Processing tree: " + tree);
 
 			final ImagePlus imp = tree.getSkeleton2D();
 
@@ -97,20 +92,16 @@ public class DensityPlot2D {
 		}
 
 		// ----- Done guessing output dims
-		System.out.println("maxDims: " + outputDims[0] + " " + outputDims[1]);
 
 		// make an image of the largest size
 		RandomAccessibleInterval<FloatType> sourceImg = ArrayImgs.floats(outputDims[0], outputDims[1]);
 		final RandomAccessibleInterval<FloatType> outImg = Views.translate(sourceImg, (long) outputMin[0],
 				(long) outputMin[1]);
-		System.out.println("outImg: " + outImg);
 
 		final List<PointInImage> origins = new ArrayList<>();
 
 		for (int k = 0; k < trees.size(); k++) {
 			final Tree tree = trees.get(k);
-
-			System.out.println("Processing tree: " + k + " " + tree);
 
 			final ImagePlus imp = tree.getSkeleton2D();
 
@@ -136,17 +127,13 @@ public class DensityPlot2D {
 
 			final Img<UnsignedByteType> im = ImageJFunctions.wrap(imp);
 
-			System.out.println("Plotting " + tree);
 			System.out.println("Root: " + r.x + " " + r.y);
-			System.out.println("Img size: " + im.dimension(0) + " " + im.dimension(1));
 
 			FinalInterval outInterval = new FinalInterval(
-					new long[] { (long) ((long) imMin[0] - outputPadding[0]),
-							(long) ((long) imMin[1] - outputPadding[1]) },
-					new long[] { (long) ((long) imMax[0] + outputPadding[0]),
-							(long) ((long) imMax[1] + outputPadding[1]) });
-
-			System.out.println("Out interval: " + outInterval);
+					new long[]{(long) ((long) imMin[0] - outputPadding[0]),
+							(long) ((long) imMin[1] - outputPadding[1])},
+					new long[]{(long) ((long) imMax[0] + outputPadding[0]),
+							(long) ((long) imMax[1] + outputPadding[1])});
 
 			final IntervalView<FloatType> outView = Views.interval(outImg, outInterval);
 
@@ -163,14 +150,13 @@ public class DensityPlot2D {
 				final RandomAccessibleInterval<FloatType> frameImg = Views.translate(sourceImg,
 						(long) (outputMin[0] + outputPadding[0]), (long) (outputMin[1] + outputPadding[1]));
 
-				outInterval = new FinalInterval(new long[] { (long) ((long) imMin[0]), (long) ((long) imMin[1]) },
-						new long[] { (long) ((long) imMin[0] + im.dimension(0) - 1),
-								(long) ((long) imMin[1] + im.dimension(1) - 1) });
+				outInterval = new FinalInterval(new long[]{(long) ((long) imMin[0]), (long) ((long) imMin[1])},
+						new long[]{(long) imMin[0] + im.dimension(0) - 1,
+								(long) imMin[1] + im.dimension(1) - 1});
 
 				final IntervalView<FloatType> frameView = Views.interval(frameImg, outInterval);
 				System.out.println("outInterval: " + outInterval);
-				System.out.println("frameView: " + frameView);
-				System.out.println((Interval) im);
+				System.out.println(im);
 
 				inCur = im.cursor();
 				final Cursor<FloatType> frameCur = frameView.cursor();
@@ -199,7 +185,7 @@ public class DensityPlot2D {
 
 	}
 
-	static public void main(final String[] args) throws IOException {
+	static public void main(final String[] args) {
 		final String parentDirectory = System.getProperty("user.home") + "/Data/SNT/GRN_RandomNeuriteDir";
 		final String resultDirectory = parentDirectory + "/output";
 		densityPlot(parentDirectory + "/grn1/", parentDirectory + "/grn1img/", resultDirectory + "/grn1_");

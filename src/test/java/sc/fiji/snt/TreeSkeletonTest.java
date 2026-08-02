@@ -57,7 +57,6 @@ public class TreeSkeletonTest {
 		assumeNotNull(trees);
 	}
 
-	@Ignore
 	@Test
 	public void testSkeletonizer() {
 		final HashSet<BoundingBox> boxes = new HashSet<>();
