@@ -3223,8 +3223,17 @@ public class PathAndFillManager extends DefaultHandler implements
     synchronized PointInImage nearestJoinPointOnSelectedPaths(final double x,
                                                               final double y, final double z)
     {
+        final NodeRef ref = nearestJoinNodeRefOnSelectedPaths(x, y, z);
+        return (ref == null) ? null : ref.path().getNodeWithoutChecks(ref.index());
+    }
 
-        PointInImage result = null;
+    /**
+     * As {@link #nearestJoinPointOnSelectedPaths(double, double, double)}, but also exposing
+     * which Path/node index the resolved point corresponds to.
+     */
+    synchronized NodeRef nearestJoinNodeRefOnSelectedPaths(final double x, final double y, final double z) {
+        Path resultPath = null;
+        int resultIndex = -1;
         double minimumDistanceSquared = Double.MAX_VALUE;
 
         for (final Path p : allPaths) {
@@ -3241,13 +3250,17 @@ public class PathAndFillManager extends DefaultHandler implements
                     x_spacing, y * y_spacing, z * z_spacing);
 
             if (distanceSquared < minimumDistanceSquared) {
-                result = nearestOnPath;
+                resultPath = p;
+                resultIndex = i;
                 minimumDistanceSquared = distanceSquared;
             }
         }
 
-        return result;
+        return (resultPath == null) ? null : new NodeRef(resultPath, resultIndex);
     }
+
+    /** Immutable reference to a specific node of a specific Path. */
+    record NodeRef(Path path, int index) {}
 
     /**
      * Returns the "main" paths managed by this PathAndFillManager. This is a

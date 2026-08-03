@@ -64,7 +64,6 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     private JCheckBoxMenuItem toggleEditModeMenuItem;
     private JCheckBoxMenuItem togglePaintModeMenuItem;
     private JMenuItem extendPathMenuItem;
-    private JMenuItem finishPathMenuItem;
     private JMenuItem undoSegmentMenuItem;
     private JCheckBoxMenuItem togglePauseTracingMenuItem;
     private JCheckBoxMenuItem togglePauseSNTMenuItem;
@@ -185,7 +184,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         pMenu.addSeparator();
         undoSegmentMenuItem = menuItem(AListener.UNDO_LAST_SEGMENT, listener, KeyEvent.VK_Z, IconFactory.GLYPH.UNDO);
         pMenu.add(undoSegmentMenuItem);
-        finishPathMenuItem = menuItem(AListener.FINISH_PATH, listener,
+        final JMenuItem finishPathMenuItem = menuItem(AListener.FINISH_PATH, listener,
                 KeyStroke.getKeyStroke(KeyEvent.VK_F, 0),
                 '\uf11e', true, IconFactory.defaultColor());
         pMenu.add(finishPathMenuItem);
@@ -393,7 +392,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
 
         try {
             // Auto-swap heuristics
-            boolean shouldSwap = false;
+            boolean shouldSwap;
             final int childMaxOrder = TreeUtils.getMaxOrder(childPath);
             final int parentMaxOrder = TreeUtils.getMaxOrder(parentPath);
             if (childMaxOrder != parentMaxOrder) {
@@ -813,26 +812,49 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         }
     }
 
+    // Tracks the single node (if any) highlighted by this canvas to indicate the resolved
+    // Sholl focal point. Kept narrowly scoped (only ever touches the one node it itself set)
+    // See https://forum.image.sc/t/121682
+    private Path shollHighlightPath;
+
     protected void startShollAnalysis() {
         PointInImage centerScaled = null;
+        Path centerPath = null;
+        int centerIndex = -1;
         if (pathAndFillManager.anySelected()) {
             final double[] p = new double[3];
             tracerPlugin.findPointInStackPrecise(last_x_in_pane_precise,
                     last_y_in_pane_precise, plane, p);
-            centerScaled = pathAndFillManager.nearestJoinPointOnSelectedPaths(p[0],
-                    p[1], p[2]);
+            final PathAndFillManager.NodeRef ref = pathAndFillManager
+                    .nearestJoinNodeRefOnSelectedPaths(p[0], p[1], p[2]);
+            if (ref != null) {
+                centerPath = ref.path();
+                centerIndex = ref.index();
+                centerScaled = centerPath.getNode(centerIndex);
+            }
         }
         else {
             final NearPoint np = getNearPointToMousePointer();
             if (np != null) {
                 centerScaled = np.getNode();
+                centerPath = np.getPath();
+                centerIndex = np.indexInPath;
             }
         }
         if (centerScaled == null) {
             canvasWarning("No selectable nodes in view");
             return;
         }
+        highlightShollCenterNode(centerPath, centerIndex);
+        // Repaint so the highlighted focal node is visible before/while the Sholl prompt opens
+        tracerPlugin.updateAllViewers();
         tracerPlugin.startSholl(centerScaled);
+    }
+
+    private void highlightShollCenterNode(final Path path, final int index) {
+        if (shollHighlightPath != null) shollHighlightPath.setEditableNode(-1);
+        shollHighlightPath = path;
+        if (path != null) path.setEditableNode(index);
     }
 
     /**
@@ -1106,8 +1128,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
         // In paint mode, Ctrl+scroll adjusts brush radius instead of node radius
         if (paintMode) {
             final int delta = (e.getWheelRotation() < 0) ? 1 : -1; // scroll up: larger
-            paintBrushRadius = Math.max(MIN_BRUSH_RADIUS,
-                    Math.min(MAX_BRUSH_RADIUS, paintBrushRadius + delta));
+            paintBrushRadius = Math.clamp(paintBrushRadius + delta, MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS);
             updatePaintModeLabel();
             // Show transient label below brush circle
             final Path ep = tracerPlugin.getEditingPath();

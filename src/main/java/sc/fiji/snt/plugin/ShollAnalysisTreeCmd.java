@@ -227,6 +227,8 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 	private PreviewOverlay previewOverlay;
 	private boolean multipleTreesExist;
 	private boolean noFocalPointSpecified;
+	// Tracks the single node (if any) highlighted to indicate the resolved Sholl focal point.
+	private Path centerHighlightPath;
 
 	/* Common summary table shared by all instances */
 	private static volatile ShollTable commonSummaryTable;
@@ -267,6 +269,11 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 	@Override
 	public void cancel() {
 		if (previewOverlay != null) previewOverlay.removeShellOverlay();
+		if (centerHighlightPath != null) {
+			centerHighlightPath.setEditableNode(-1);
+			centerHighlightPath = null;
+			if (snt != null) snt.updateAllViewers();
+		}
 	}
 
 	@SuppressWarnings("unused")
@@ -301,6 +308,7 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 						"Invalid Center");
 				return;
 			}
+			highlightCenterNode(filteredTree, center);
             if (dataModeChoice == null) {
                 cancelAndFreezeUI("Could not determine a suitable focal point... "
                                 + ((snt != null) ? " Perhaps you should try the 'Sholl Analysis at Nearest Node' command?"
@@ -354,6 +362,46 @@ public class ShollAnalysisTreeCmd extends CommonDynamicCmd {
 			return SNTPoint.average(startingNodes);
 		}
 		return paths.getRoot();
+	}
+
+	/**
+	 * Highlights (as an 'editable' node, cf. {@link Path#setEditableNode(int)}) the actual node
+	 * being used as the focal point of the analysis, so that it is obvious to the user which node
+	 * was resolved. See https://forum.image.sc/t/121682
+	 */
+	private void highlightCenterNode(final Tree filteredTree, final PointInImage center) {
+		if (snt == null || filteredTree == null || center == null) return;
+		// Clear only the node *we* previously highlighted, never sweep the whole tree:
+		// some other path in it could be concurrently tagged as 'editable' by Edit Mode
+		if (centerHighlightPath != null) {
+			centerHighlightPath.setEditableNode(-1);
+			centerHighlightPath = null;
+		}
+		Path bestPath = null;
+		int bestIndex = -1;
+		double bestDistSq = Double.MAX_VALUE;
+		for (final Path p : filteredTree.list()) {
+			if (p.size() == 0) continue;
+			final int idx = p.indexNearestTo(center.x, center.y, center.z, Double.MAX_VALUE);
+			if (idx < 0) continue;
+			final double distSq = p.getNode(idx).distanceSquaredTo(center.x, center.y, center.z);
+			if (distSq < bestDistSq) {
+				bestDistSq = distSq;
+				bestPath = p;
+				bestIndex = idx;
+			}
+		}
+		// Only highlight if center coincides with an actual node (as opposed to, e.g., a
+		// computed centroid averaged across multiple primary paths: see #guessCenter())
+		final double tolerance = 1e-6;
+		if (bestPath != null && bestDistSq <= tolerance * tolerance) {
+			bestPath.setEditableNode(bestIndex);
+			centerHighlightPath = bestPath;
+			logger.info("Center: node #" + bestIndex + " on " + bestPath);
+		} else {
+			logger.info("Center does not coincide with a single existing node (likely an averaged centroid)");
+		}
+		snt.updateAllViewers();
 	}
 
 	private NormalizedProfileStats getNormalizedProfileStats(final Profile profile, boolean threeD) {
