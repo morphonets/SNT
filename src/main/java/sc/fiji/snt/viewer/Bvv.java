@@ -3897,7 +3897,10 @@ public class Bvv extends AbstractBigViewer {
          */
         void recolor() {
             boolean changed = false;
-            for (final Tree tree : sntViewer.getRenderedTrees()) {
+            // Snapshot first: getRenderedTrees() is a live view over renderedTrees, and iterating it
+            // directly is vulnerable to a concurrent syncPathManagerList()/addTree() call mutating the
+            // underlying map mid-loop (see OverlayRenderer#updatePaths for the same fix)
+            for (final Tree tree : new ArrayList<>(sntViewer.getRenderedTrees())) {
                 if (overlayRenderer.recolor(tree)) changed = true;
             }
             if (changed) viewerPanel.requestRepaint();
@@ -4360,7 +4363,7 @@ public class Bvv extends AbstractBigViewer {
             // count differs from last time); an untouched tree keeps its cached screen data across
             // this sync, instead of every tree in the scene being recomputed on every single edit
             final Set<String> currentLabels = new HashSet<>();
-            for (final Tree tree : trees) {
+            for (final Tree tree : this.trees) { // iterate the snapshot just taken above
                 final String label = tree.getLabel();
                 currentLabels.add(label);
                 final long fp = structuralFingerprint(tree);
