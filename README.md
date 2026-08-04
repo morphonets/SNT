@@ -89,20 +89,23 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 <details>
   <summary><b>Detailed List</b></summary>
 
+### Big Data
+* Support for TB-size images through [SNT Stream](https://imagej.net/plugins/snt/snt-stream) and BigDataViewer/BigVolumeViewer.
+
 ### Tracing
 
 * Semi-automated Tracing:
   
   * Support for up to 5D multidimensional images, including multichannel, and timelapse sequences
-  * Support for both ImageJ1 and [ImgLib2](https://imagej.net/libs/imglib2/) data structures
   * Several bidirectional search algorithms (A\*, NBA\*, Fast marching) with adjustable cost functions allow for efficient computation of curvatures for a wide range of imagery, that are <u>up to 20x faster</u> relatively to the original _Simple Neurite Tracer_ plugin
   * Tracing in "secondary layers". This allows for paths to be computed on "enhanced" (pre-processed) images while interacting with the unfiltered, original image (or vice-versa). Toggling between the two data sources is immediate
   * Precise placement of nodes is aided by a local search that automatically snaps the cursor to neurites wihin a 3D neighborhood
 
 * Auto-tracing:
 
-  * Generation of traces directlry from grayscale (raw) and thresholded (filtered) images
+  * Generation of traces directly from grayscale (raw) and thresholded (filtered) images
   * Automated soma detection
+  * Automated detection of swellings and intensity maxima (spines, varicosities, synaptic puncta) along neurites
   * Machine learning: Built-in routines for training random forest classifiers on previously traced paths ([LabKit](https://github.com/juglab/labkit-ui)/[Trainable Weka segmentation](https://github.com/fiji/Trainable_Segmentation) bridges)
 
 * Curation Assistant: Real-time quality monitoring during tracing in which morphological plausibility of traced neurites is assessed. Thresholds can be auto-calibrated from existing reconstructions, or loaded from built-in presets for common cell types
@@ -117,7 +120,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 
 * Post-hoc refinement of node positioning and radii by 'fitting' traces to the fluorescent signal associated with a path
 
-* Support for brainbow-like images: Spectral unmixing and Multispectral refinement of traces
+* Support for brainbow-like images: Spectral unmixing and multispectral refinement of traces
 
 ### Analysis
 
@@ -146,8 +149,6 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
 * [Spine/Varicosity analysis](https://imagej.net/plugins/snt/spines-varicosities)
 
 * Image processing workflows: Reconstructions can be converted to masks and ROIs. Voxel intensities can be profiled around (or across) traced paths
-
-* Labkit and TWS integration ([Semantic Segmentation](https://imagej.net/plugins/snt/machine-learning))
   
 ### Visualization
 
@@ -184,7 +185,7 @@ For an overview of SNT capabilities have a look at the [showcase gallery](https:
   
 ### Compatibility
 
-* Support for multiple file formats including SWC, TRACES, JSON (MouseLight specification), and NDF (NeuronJ data file)
+* Support for multiple file formats including [SWC](https://swc-specification.readthedocs.io/en/latest/index.html), [TRACES](https://imagej.net/plugins/snt/extending#traces-file-format), JSON (MouseLight specification), NDF (NeuronJ data file), and Neurolucida XML (MBF Bioscience’s Neuromorphological File Specification).
 
 * Backwards compatibility: Special effort was put into backwards compatibility with  [Simple Neurite Tracer](https://github.com/fiji/SNT)  (including [TrakEM2](https://github.com/trakem2/TrakEM2) and [ITK](https://imagej.net/SNT:_Tubular_Geodesics) interaction)
   
