@@ -137,11 +137,11 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     @SuppressWarnings("unused")
     private void loadDemo() {
-        // fine to declare URL as file even though File collapses "//" -> "/" -- restoreUrlScheme() already handles that
+        // fine to declare URL as file even though File collapses "//" -> "/": restoreUrlScheme() already handles that
         img1File = new File("https://ome-zarr-scivis.s3.us-east-1.amazonaws.com/v0.4/96x0/marmoset_neurons.ome.zarr");
         img2File = null;
-        recFiles = null;
-        markerFile = null;
+        recFiles = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/autotracings.traces");;
+        markerFile = new File("https://raw.githubusercontent.com/morphonets/misc/680ac2a9b2cb1dfe85c0b64f17fed816e3da1647/dataset-demos/marmoset_neurons/soma_detections.csv");
         viewerChoice = "Big Data Viewer (BDV): Interactive reslicing w/ tracing capabilities";
     }
 
