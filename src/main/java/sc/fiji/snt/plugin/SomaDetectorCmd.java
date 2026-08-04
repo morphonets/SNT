@@ -34,6 +34,7 @@ import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.widget.ChoiceWidget;
+import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
@@ -41,6 +42,8 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.SNTColor;
+import sc.fiji.snt.viewer.AbstractBigViewer;
+import net.imglib2.realtransform.AffineTransform3D;
 
 import java.awt.*;
 import java.util.ArrayList;
@@ -58,22 +61,17 @@ import java.util.List;
 @Plugin(type = Command.class, label = "Detect Soma...", initializer = "init")
 public class SomaDetectorCmd extends CommonDynamicCmd {
 
+    /** Traditional-mode outputs */
     private static final String OUTPUT_POINT_ROI = "Point ROI";
     private static final String OUTPUT_AREA_ROI = "Area ROI";
     private static final String OUTPUT_CIRCLE_ROI = "Circular ROI";
+
+    /** outputs common to both traditional and stream modes */
     private static final String OUTPUT_PATH = "Single-node path";
+    private static final String OUTPUT_BOOKMARK = "Bookmark/marker";
 
     private static final String SCOPE_ALL = "All somata in image";
     private static final String SCOPE_BRIGHTEST = "Brightest/largest soma only";
-
-    @Parameter(label = "Output type", choices = {OUTPUT_PATH, OUTPUT_AREA_ROI, OUTPUT_CIRCLE_ROI, OUTPUT_POINT_ROI},
-            style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
-            description = "<HTML>Type of output:<br>" +
-                    "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>" +
-                    "<b>Point ROI</b>: Single point at soma center<br>" +
-                    "<b>Area ROI</b>: Contour from thresholding + wand selection<br>" +
-                    "<b>Circular ROI</b>: Circle w/ radius from distance transform")
-    private String outputChoice;
 
     @Parameter(label = "Scope", choices = {SCOPE_BRIGHTEST, SCOPE_ALL},
             style = ChoiceWidget.RADIO_BUTTON_VERTICAL_STYLE,
@@ -86,6 +84,43 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             description = "<HTML>Intensity threshold for soma detection.<br>" +
                     "-1 = auto (Otsu's method)")
     private double threshold = -1;
+
+    /** Depth choices. Stream-mode-only: classic mode always has {@code imp.getZ()} to fall back on. */
+    private static final String ZPOS_AUTO = "Auto-detect";
+    private static final String ZPOS_SPECIFIED = "Use depth specified below:";
+
+    @Parameter(label = "Depth", callback = "zPosChoiceChanged", required = false,
+            choices = { ZPOS_AUTO, ZPOS_SPECIFIED },
+            description = "<HTML>Z-depth (in <b>spatially calibrated</b> units) at which detection runs." +
+                    "<dl>" +
+                    "<dt><i>" + ZPOS_AUTO + "</i></dt>" +
+                    "<dd>Middle slice (<b>" + SCOPE_BRIGHTEST + "</b>), or a max-intensity projection<br>" +
+                    "across the whole volume (<b>" + SCOPE_ALL + "</b>) - can be slow for streamed data</dd>" +
+                    "<dt><i>" + ZPOS_SPECIFIED + "</i></dt>" +
+                    "<dd>Detection runs only at the depth specified below</dd>" +
+                    "</dl>")
+    private String zPosChoice = ZPOS_AUTO;
+
+    @Parameter(label = "<html>&nbsp;", callback = "zPosChanged", stepSize = "0.1", style = "format:#.00", required = false)
+    private double zPos = 0;
+
+    /**
+     * Becomes {@code true} the first time the user edits {@link #zPos} directly (see  {@link #zPosChanged()}).
+     * Distinct from {@link #zPos}'s own value because a world Z-coordinate has no value that can double as "unset"
+     * sentinel (negative depths are common and legitimate). This flag is what lets {@link #zPosChoiceChanged()} tell
+     * "never touched, needs a default" apart from "user specified a value, even a negative one".
+     */
+    private boolean zPosUserSet;
+
+    @Parameter(label = "Output type",
+            choices = { OUTPUT_BOOKMARK, OUTPUT_PATH, OUTPUT_AREA_ROI, OUTPUT_CIRCLE_ROI, OUTPUT_POINT_ROI },
+            description = "<HTML>Type of output:<br>" +
+                    "<b>Bookmark/marker</b>: Bookmarked position at soma center w/ size from distance transform<br>" +
+                    "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>" +
+                    "<b>Area ROI</b>: Contour from thresholding + wand selection<br>" +
+                    "<b>Circular ROI</b>: Circle w/ radius from distance transform<br>" +
+                    "<b>Point ROI</b>: Single point at soma center<br>")
+    private String outputChoice;
 
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER = "<HTML><b>Multi-soma Detection:";
@@ -127,8 +162,18 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             error("No valid image data available.");
         }
         if (snt != null && snt.getUI() != null && snt.getUI().isStreamMode()) {
-            outputChoice = OUTPUT_PATH;
-            resolveInput("outputChoice");
+            outputChoice = OUTPUT_BOOKMARK;
+            final MutableModuleItem<String> outputItem = getInfo().getMutableInput("outputChoice", String.class);
+            if (outputItem != null) {
+                outputItem.setChoices(List.of(OUTPUT_BOOKMARK, OUTPUT_PATH));
+                outputItem.setDescription("<HTML>Type of output:<br>" +
+                        "<b>Bookmark/marker</b>: Bookmarked position at soma center w/ size from distance transform<br>" +
+                        "<b>Single-node path</b>: Single node path at soma center w/ radius from distance transform<br>");
+            }
+        } else {
+            // Classic mode always has imp.getZ() to fall back on: the Depth override is moot there
+            resolveInput("zPosChoice");
+            resolveInput("zPos");
         }
         getInfo().setLabel(String.format("Detect Soma [C=%d;T=%d%s]...", snt.getChannel(), snt.getFrame(), zLabelSuffix()));
     }
@@ -143,23 +188,70 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         return "";
     }
 
+    @SuppressWarnings("unused")
+    /* Callback for zPosChoice */
+    private void zPosChoiceChanged() {
+        // zPos is simply unused while Auto-detect is active: no need to reset it. Only fill in a
+        // default the first time the user switches to "specified", so a value they already typed
+        // (including a negative one) survives toggling back and forth
+        if (ZPOS_SPECIFIED.equals(zPosChoice) && !zPosUserSet) {
+            zPos = defaultZPos();
+        }
+    }
+
+    @SuppressWarnings("unused")
+    /* Callback for zPos */
+    private void zPosChanged() {
+        zPosUserSet = true;
+        zPosChoice = ZPOS_SPECIFIED;
+    }
+
+    /**
+     * Sensible starting depth (world/calibrated Z) to pre-fill {@link #zPos} with when the user
+     * switches to {@value #ZPOS_SPECIFIED}: the center of the viewer's active slab if one is set
+     * (see {@link AbstractBigViewer.PathRenderingOptions#isSlabActive()}), otherwise the world Z
+     * currently in focus at the center of the viewer's camera (inverting
+     * {@link AbstractBigViewer#getViewerTransform()}). Returns 0 if there is no active Stream-mode
+     * viewer to query.
+     */
+    private double defaultZPos() {
+        final AbstractBigViewer viewer = (ui == null) ? null : ui.getActiveBigViewer();
+        if (viewer == null) return 0;
+        final AbstractBigViewer.PathRenderingOptions opts = viewer.getRenderingOptions();
+        if (opts.isSlabActive()) {
+            return (opts.getSlabZMin() + opts.getSlabZMax()) / 2.0;
+        }
+        final AffineTransform3D inverse = viewer.getViewerTransform().inverse();
+        final double[] world = new double[3];
+        inverse.apply(new double[]{viewer.getViewerWidth() / 2.0, viewer.getViewerHeight() / 2.0, 0}, world);
+        return world[2];
+    }
+
     @Override
     public void run() {
         if (imp == null && img == null) {
             return;
         }
         final int zSlice;
-        if (imp != null)
+        if (imp != null) {
             zSlice = imp.getZ() - 1;  // Convert to 0-indexed
-        else
-            // No ImagePlus in Stream mode, so there is no "currently displayed slice" to read: -1 defers
-            // to SomaUtils' own "automatic" fallback instead of guessing: middle slice for single-soma
-            // detection (detectSoma), max-intensity projection for multi-soma detection (detectAllSomas)
+        } else if (!ZPOS_SPECIFIED.equals(zPosChoice)) {
+            // No ImagePlus in Stream mode, so there is no "currently displayed slice" to read, and the
+            // user hasn't specified a depth either: -1 defers to SomaUtils' own "automatic" fallback
+            // instead of guessing: middle slice for single-soma detection (detectSoma), max-intensity
+            // projection for multi-soma detection (detectAllSomas)
             zSlice = -1;
+        } else {
+            // User-specified depth (calibrated units): convert to a pixel slice index, correcting for
+            // the world-origin offset the same way BookmarkManager#worldToPixel does
+            final double pixelDepth = (snt.getPixelDepth() > 0) ? snt.getPixelDepth() : 1;
+            zSlice = (int) Math.round((zPos - snt.getWorldOriginOffset()[2]) / pixelDepth);
+        }
 
         // detectAllSomas() with zSlice < 0 on a 3D image computes a max-intensity projection across every
-        // Z-plane: on a lazily-loaded Stream-mode volume that means touching the entire dataset
-        if (SCOPE_ALL.equals(scopeChoice) && imp == null && img != null && img.numDimensions() > 2
+        // Z-plane: on a lazily-loaded Stream-mode volume that means touching the entire dataset. A
+        // user-specified depth (zSlice >= 0) bypasses this, so the warning is only needed when none was given
+        if (SCOPE_ALL.equals(scopeChoice) && zSlice < 0 && img != null && img.numDimensions() > 2
                 && !new GuiUtils().getConfirmation(
                         "Detecting all somata on a streamed volume requires computing a max-intensity "
                                 + "projection across the entire dataset. Depending on dataset size and "
@@ -183,10 +275,18 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             error("Could not detect soma. Try adjusting the threshold.");
             return;
         }
+        outputSingleSomaResult(result, spacing);
+    }
+
+    private void outputSingleSomaResult(final SomaUtils.SomaResult result, final double[] spacing) {
         if (OUTPUT_PATH.equals(outputChoice)) {
             final Path path = result.toPath(spacing);
             snt.getPathAndFillManager().addPath(path);
             status("Soma added to Manager", true);
+        } else if (OUTPUT_BOOKMARK.equals(outputChoice) ) {
+            addSomaMarker(result, spacing, null);
+            status("Soma added as marker", true);
+            if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
         } else {
             Roi roi = createOutputRoi(result);
             if (roi == null && (OUTPUT_AREA_ROI.equals(outputChoice) || OUTPUT_CIRCLE_ROI.equals(outputChoice))) {
@@ -236,6 +336,11 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             results = SomaUtils.selectTopSomasByThickness(results, rai, nSomas);
             SNTUtils.log("Top-" + nSomas + " selection: " + results.size() + " soma(s) kept");
         }
+        outputMultipleSomaResults(results, spacing);
+        snt.setCanvasLabelAllPanes(null);
+    }
+
+    private void outputMultipleSomaResults(final List<SomaUtils.SomaResult> results, final double[] spacing) {
         final Color[] colors = SNTColor.getDistinctColorsAWT(results.size());
         int idx = 0;
         if (OUTPUT_PATH.equals(outputChoice)) {
@@ -249,6 +354,12 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             }
             snt.getPathAndFillManager().addTrees(somas);
             status(results.size() + " soma(s) added to Manager", true);
+        } else if (OUTPUT_BOOKMARK.equals(outputChoice) ) {
+            for (final SomaUtils.SomaResult result : results) {
+                addSomaMarker(result, spacing, colors[idx++]);
+            }
+            if (ui != null) ui.selectTab("Bookmarks"); // selects markers table in stream mode
+            status(results.size() + " soma(s) added as markers", true);
         } else if (imp != null) {
             Overlay overlay = imp.getOverlay();
             if (overlay == null) {
@@ -282,10 +393,47 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             }
             status(added + " soma ROI(s) added to ROI Manager", true);
         }
-        snt.setCanvasLabelAllPanes(null);
         SNTUtils.log("Detected " + results.size() + " soma(s)");
         for (final SomaUtils.SomaResult result : results) {
             SNTUtils.log("  " + result.toString());
+        }
+    }
+
+    /**
+     * Adds a marker for {@code result} to whichever {@link BookmarkManager} is relevant for the
+     * current session: the tethered viewer's marker manager (Stream mode) or {@code
+     * ui.getBookmarkManager()} (classic mode). Handles the coordinate-space difference between
+     * the two internally, so callers don't need to.
+     * <p>
+     * {@code result.toNode(spacing)} gives a physical/calibrated center (voxelIndex*spacing).
+     * In Stream mode, {@code BookmarkManager.add()} stores its arguments verbatim as world
+     * coordinates, so the world-origin offset (non-zero for the N5Sources fallback case - see
+     * {@code SNT#getWorldOriginOffset()}) must be added; this is the inverse of the subtraction
+     * {@code CommonDynamicCmd#getPixelPositionsOfBookmarks} applies when reading markers back, keeping the
+     * detect-as-marker/read-as-seed round trip correct. In classic mode, {@code
+     * ui.getBookmarkManager()} stores <em>pixel</em> coordinates instead (no world-origin concept
+     * applies there), so the physical center is divided back down by {@code spacing}.
+     *
+     * @param result  the detected soma
+     * @param spacing the image's [x, y, z] spacing, as passed to {@link SomaUtils.SomaResult#toNode}
+     * @param color   marker color, or {@code null} for the viewer/manager default
+     */
+    private void addSomaMarker(final SomaUtils.SomaResult result, final double[] spacing, final Color color) {
+        final boolean stream = snt.getUI() != null && snt.getUI().isStreamMode();
+        final BookmarkManager mManager = stream
+                ? snt.getUI().getActiveBigViewer().getMarkerManager() // should never be null in stream mode
+                : snt.getUI().getBookmarkManager();
+        final Path.PathNode centroid = result.toNode(spacing);
+        if (stream) {
+            final double[] offset = snt.getWorldOriginOffset(); // only set in stream mode
+            mManager.add("detected soma", centroid.x + offset[0], centroid.y + offset[1], centroid.z + offset[2],
+                    color, (float) centroid.radius);
+        } else {
+            final double xSpacing = (spacing.length > 0 && spacing[0] > 0) ? spacing[0] : 1;
+            final double ySpacing = (spacing.length > 1 && spacing[1] > 0) ? spacing[1] : 1;
+            final double zSpacing = (spacing.length > 2 && spacing[2] > 0) ? spacing[2] : 1;
+            mManager.add("detected soma", centroid.x / xSpacing, centroid.y / ySpacing, centroid.z / zSpacing,
+                    color, (float) centroid.radius);
         }
     }
 

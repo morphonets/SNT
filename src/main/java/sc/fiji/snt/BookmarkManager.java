@@ -1343,6 +1343,25 @@ public class BookmarkManager {
     /**
      * BVV mode: adds a marker at the specified world coordinates with a color and size.
      *
+     * @param label the marker's label (will be made unique if a repeated entry exists)
+     * @param x     world x-coordinate
+     * @param y     world y-coordinate
+     * @param z     world z-coordinate
+     * @param color the marker color, or {@code null} for the viewer default
+     * @param size  the sphere radius in world units; 0 uses the viewer default
+     */
+    public void add(final String label, final double x, final double y, final double z, final Color color, final float size) {
+        final String uniqueLabel = model.getUniqueLabel(label);
+        final int t = (viewer != null) ? viewer.getCurrentTimepoint() : 1;
+        final Bookmark b = new Bookmark(uniqueLabel, x, y, z, 1, t, color);
+        b.size = size;
+        model.getDataList().add(b);
+        model.fireTableDataChanged();
+    }
+
+    /**
+     * BVV mode: adds a marker at the specified world coordinates with a color and size, and default label.
+     *
      * @param x     world x-coordinate
      * @param y     world y-coordinate
      * @param z     world z-coordinate
@@ -1350,12 +1369,7 @@ public class BookmarkManager {
      * @param size  the sphere radius in world units; 0 uses the viewer default
      */
     public void add(final double x, final double y, final double z, final Color color, final float size) {
-        final String label = model.getUniqueLabel("Marker");
-        final int t = (viewer != null) ? viewer.getCurrentTimepoint() : 1;
-        final Bookmark b = new Bookmark(label, x, y, z, 1, t, color);
-        b.size = size;
-        model.getDataList().add(b);
-        model.fireTableDataChanged();
+        add("Marker", x, y, z, color, size);
     }
 
     private boolean saveBookMarksToFile(final File file) {
@@ -1633,42 +1647,80 @@ public class BookmarkManager {
     }
 
     /**
-     * Returns a list of points representing the bookmarks.
+     * Model-row indices to use for a {@code onlySelectedRows} query: the selected rows if any exist
+     * (and there is more than one bookmark total), otherwise every row. View indices are converted
+     * to model indices where relevant (a sorted table's selection is in view order). Shared by
+     * {@link #getPixelPositions(boolean)} and {@link #getPositions(boolean)} so both apply the exact
+     * same "which rows" logic and only differ in coordinate conversion.
+     */
+    private int[] rowsToUse(final boolean onlySelectedRows) {
+        final boolean restrict = onlySelectedRows && model.getRowCount() > 1;
+        int[] rows = (restrict) ? table.getSelectedRows() : IntStream.range(0, model.getRowCount()).toArray();
+        if (restrict && rows.length == 0) // no selection exists: assume all rows
+            rows = IntStream.range(0, model.getRowCount()).toArray();
+        if (restrict && table.getRowSorter() != null) {
+            for (int i = 0; i < rows.length; i++) rows[i] = table.convertRowIndexToModel(rows[i]);
+        }
+        return rows;
+    }
+
+    /**
+     * Converts a viewer-mode {@link Bookmark}'s stored world/calibrated position to pixel/voxel
+     * coordinates, using the tethered {@link SNT}'s current spacing and
+     * {@link SNT#getWorldOriginOffset() world-origin offset}. Falls back to returning the world
+     * position unchanged (spacing 1, offset 0) if no {@code SNT} is tethered to the viewer (a
+     * pure-viewing BVV/BDV session with no associated tracing session).
+     */
+    private PointInImage worldToPixel(final Bookmark b) {
+        final SNT snt = (viewer == null) ? null : viewer.getSNT();
+        if (snt == null) return new PointInImage(b.x, b.y, b.z);
+        final double[] offset = snt.getWorldOriginOffset();
+        final double xSpacing = (snt.getPixelWidth() > 0) ? snt.getPixelWidth() : 1;
+        final double ySpacing = (snt.getPixelHeight() > 0) ? snt.getPixelHeight() : 1;
+        final double zSpacing = (snt.getPixelDepth() > 0) ? snt.getPixelDepth() : 1;
+        return new PointInImage((b.x - offset[0]) / xSpacing, (b.y - offset[1]) / ySpacing, (b.z - offset[2]) / zSpacing);
+    }
+
+    /**
+     * Returns bookmark/marker positions in <b>pixel/voxel</b> coordinates
+     * <p>
+     * SNT-UI-mode bookmarks are already stored in pixel space, so those are returned as-is. Viewer-mode markers are
+     * stored in world/calibrated coordinates (see {@link #getPositions(boolean)}), so those are converted back to pixel
+     * space via {@link #worldToPixel(Bookmark)}.
      *
-     * @param onlySelectedRows if true, only selected rows are included; otherwise, all ROIs in the manager are included
-     * @return the list of Points representing the bookmarks
+     * @param onlySelectedRows if true, only selected rows are included; otherwise, all bookmarks in the manager are included
+     * @return the list of Points (fresh {@link PointInImage} copies) of the bookmarks, in pixel/voxel coordinates
      */
     public List<SNTPoint> getPixelPositions(final boolean onlySelectedRows) {
         final List<SNTPoint> points = new ArrayList<>();
-        int[] rows = (onlySelectedRows) ? table.getSelectedRows() : IntStream.range(0, model.getRowCount()).toArray();
-        if (onlySelectedRows && rows.length == 0) // no selection exists: assume all rows
-            rows = IntStream.range(0, model.getRowCount()).toArray();
-        for (final int row : rows) {
-            // Convert view index to model index (handles sorted table)
-            final int modelRow = (onlySelectedRows && table.getRowSorter() != null)
-                    ? table.convertRowIndexToModel(row) : row;
+        for (final int modelRow : rowsToUse(onlySelectedRows)) {
             final Bookmark b = model.getDataList().get(modelRow);
-            points.add(b);
+            points.add((viewer == null) ? new PointInImage(b.x, b.y, b.z) : worldToPixel(b));
         }
         return points;
     }
 
     /**
-     * Returns a list of points representing the bookmarks.
+     * Returns bookmark/marker positions in spatially calibrated (<b>"world"</b>) coordinates.
+     * <p>
+     * Viewer-mode markers are already stored in world coordinates (from BDV's
+     * {@code getGlobalMouseCoordinates}), so those are returned as-is. SNT-UI-mode bookmarks are
+     * stored in pixel space, so those are converted via the active image's {@link ij.measure.Calibration}.
      *
-     * @param onlySelectedRows if true, only selected rows are included; otherwise, all ROIs in the manager are included
-     * @return the list of Points representing the bookmarks
+     * @param onlySelectedRows if true, only selected rows are included; otherwise, all bookmarks in the manager are included
+     * @return the list of Points representing the bookmarks, in calibrated ("world") coordinates
      */
-    @SuppressWarnings("unchecked")
     public List<SNTPoint> getPositions(final boolean onlySelectedRows) {
-        final ij.measure.Calibration cal = sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
-        final List<Path.PathNode> pixelPoints = (List<Path.PathNode>) (List<?>) getPixelPositions(onlySelectedRows);
-        for (final Path.PathNode pxP : pixelPoints) {
-            pxP.x = cal.getX(pxP.getX());
-            pxP.y = cal.getY(pxP.getY());
-            pxP.z = cal.getZ(pxP.getZ());
+        final List<SNTPoint> points = new ArrayList<>();
+        final ij.measure.Calibration cal = (viewer != null) ? null
+                : sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
+        for (final int modelRow : rowsToUse(onlySelectedRows)) {
+            final Bookmark b = model.getDataList().get(modelRow);
+            points.add((viewer != null)
+                    ? new PointInImage(b.x, b.y, b.z)
+                    : new PointInImage(cal.getX(b.x), cal.getY(b.y), cal.getZ(b.z)));
         }
-        return (List<SNTPoint>) (List<?>) pixelPoints;  // spatially calibrated positions
+        return points;
     }
 
     /**

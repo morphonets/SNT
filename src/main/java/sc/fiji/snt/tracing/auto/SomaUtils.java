@@ -1897,6 +1897,16 @@ public class SomaUtils {
             return path;
         }
 
+        /**
+         * Creates a SNTPoint ({@link Path.PathNode} representing the node.
+         *
+         * @param spacing voxel spacing [x, y, z] for physical coordinates, or null for voxels
+         * @return the soma location in physical coordinates and physical radius
+         */
+        public Path.PathNode toNode(final double[] spacing) {
+            return toPath(spacing).getNode(0);
+        }
+
         /** Returns true if spacing units are defined. */
         public boolean hasSpacingUnits() {
             return spacingUnits != null && !spacingUnits.isEmpty();

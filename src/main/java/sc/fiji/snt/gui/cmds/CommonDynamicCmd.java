@@ -28,16 +28,21 @@ import org.scijava.command.DynamicCommand;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
+import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.util.SNTPoint;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Viewer3D;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Command class for GUI commands extending DynamicCommand
@@ -204,6 +209,34 @@ public class CommonDynamicCmd extends DynamicCommand {
 	}
 
 	private JDialog cachedPrompt;
+
+	/**
+	 * Returns marker/bookmark positions the user has placed for this session, converted to
+	 * pixel/voxel indices.
+	 *
+	 * @param selectedRowsOnly if true, only selected rows are included; otherwise, all
+	 *                         markers/bookmarks are considered
+	 * @return pixel/voxel-coordinate positions ({@code long[]{x, y, z}}, one per marker/bookmark), in
+	 *         table order; empty if there is no relevant manager available (e.g. Stream mode with
+	 *         no viewer open yet), or it has no entries
+	 */
+	protected List<long[]> getPixelPositionsOfBookmarks(final boolean selectedRowsOnly) {
+		if (ui == null) return new ArrayList<>();
+		final BookmarkManager manager;
+		if (ui.isStreamMode()) {
+			final AbstractBigViewer viewer = ui.getActiveBigViewer();
+			manager = (viewer == null) ? null : viewer.getMarkerManager();
+		} else {
+			manager = ui.getBookmarkManager();
+		}
+		if (manager == null) return new ArrayList<>();
+		final List<SNTPoint> pixelPositions = manager.getPixelPositions(selectedRowsOnly);
+		final List<long[]> seeds = new ArrayList<>(pixelPositions.size());
+		for (final SNTPoint p : pixelPositions) {
+			seeds.add(new long[]{Math.round(p.getX()), Math.round(p.getY()), Math.round(p.getZ())});
+		}
+		return seeds;
+	}
 
 	protected void notifyExternalDataLoaded() { //TODO: Implement listener
 		// If a display canvas is being used notify plugin

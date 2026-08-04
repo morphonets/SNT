@@ -22,12 +22,13 @@
 
 package sc.fiji.snt.plugin;
 
-import net.imagej.ImgPlus;
 import org.scijava.ItemVisibility;
+import org.scijava.module.MutableModuleItem;
 import org.scijava.plugin.Parameter;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
@@ -96,44 +97,98 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
     private int minPathsPerCell = 2;
 
     /**
-     * Initializes multi-soma commands by hiding the single-cell soma/ROI
-     * parameters inherited from the parent.
+     * Initializes multi-soma commands: hides {@code roiPlaneOnly} (no Roi concept applies to
+     * either strategy here) and narrows {@code somaStrategyChoice} (inherited from the parent,
+     * whose 5 Roi-based choices don't apply to multi-soma tracing) down to just
+     * {@code {SOMA_AUTO, SOMA_BOOKMARK}}.
+     * <p>
+     * Unlike the single-cell command, this is <em>not</em> Stream-mode-only
      */
     protected void initMultiSoma() {
-        resolveInput("HEADER2");
-        resolveInput("somaStrategyChoice");
+        final MutableModuleItem<String> strategyItem = getInfo().getMutableInput("somaStrategyChoice", String.class);
+        if (strategyItem != null) {
+            strategyItem.setLabel("Strategy");
+            strategyItem.setChoices(List.of(SOMA_AUTO, SOMA_BOOKMARK));
+            strategyItem.setDescription("<HTML>How to determine soma locations:<dl>" +
+                    "<dt><i>" + SOMA_AUTO + "</i></dt>" +
+                    "<dd>Auto-detect all somata (EDT×intensity). Ignores any bookmarks/markers</dd>" +
+                    "<dt><i>" + SOMA_BOOKMARK + "</i></dt>" +
+                    "<dd>Selected bookmark(s)/marker(s) define soma locations: one tree per entry. " +
+                    "If none are selected, all bookmarks/markers used</dd>" +
+                    "</dl>");
+            if (!SOMA_AUTO.equals(somaStrategyChoice) && !SOMA_BOOKMARK.equals(somaStrategyChoice)) {
+                somaStrategyChoice = SOMA_AUTO;
+            }
+        }
         resolveInput("roiPlaneOnly");
     }
 
-    @SuppressWarnings("unchecked")
     protected void runMultiSoma() {
         try {
             chosenImp = getImgFromImgChoice();
             if (chosenImp == null || abortRun) return;
 
             status("Running multi-soma GWDT tracing...", false);
-            final double[] spacing = ImgUtils.getSpacing(chosenImp);
 
-            // Step 1: Detect all somas
+            // Step 1: Get somas, either from bookmarks/markers or full auto-detection
             snt.setCanvasLabelAllPanes("Detecting somata...");
-            final double avgXYSpacing = (spacing[0] + spacing[1]) / 2.0;
-            final double minRadiusPx = (minSomaRadius > 0) ? minSomaRadius / avgXYSpacing : 0;
-            final double minDistancePx = (minSomaDistance > 0) ? minSomaDistance / avgXYSpacing : 0;
-
-            final int zSlice = (snt.getImagePlus() != null) ? snt.getImagePlus().getZ() - 1 : -1;
-            final List<SomaUtils.SomaResult> somas = SomaUtils.detectAllSomas(
-                    (ImgPlus) chosenImp, -1, zSlice, minRadiusPx, minDistancePx);
-            if (somas.isEmpty()) {
-                error("No somata detected. Try adjusting the min. soma radius.");
-                return;
+            final boolean seedFromMarkers = SOMA_BOOKMARK.equals(somaStrategyChoice);
+            final List<SomaUtils.SomaResult> somas;
+            if (seedFromMarkers) {
+                final List<long[]> seeds = getPixelPositionsOfBookmarks(true);
+                if (seeds.isEmpty()) {
+                    error((ui != null && ui.isStreamMode())
+                            ? "No markers found. Place one marker (\"M\" key) per cell in the viewer, then re-run."
+                            : "No bookmarks found. Add one bookmark per cell (Shift+B, or right-click on the "
+                                    + "image) in the Bookmarks pane, then re-run.");
+                    return;
+                }
+                // Use the ImgPlus overload (not the RAI one): it is Z-aware per-seed, whereas the RAI version is 2D
+                // only! and would silently discard each seed's Z
+                somas = SomaUtils.detectSomasAt(chosenImp, seeds);
+                if (somas.isEmpty()) {
+                    error("Could not detect a soma at any marker location. Try adjusting the threshold, " +
+                            "or check that markers sit over bright somata.");
+                    return;
+                }
+                SNTUtils.log("Detected " + somas.size() + " soma(s) at " + seeds.size() + " marker(s)");
+            } else {
+                final double[] spacing = ImgUtils.getSpacing(chosenImp);
+                final double avgXYSpacing = (spacing[0] + spacing[1]) / 2.0;
+                final double minRadiusPx = (minSomaRadius > 0) ? minSomaRadius / avgXYSpacing : 0;
+                final double minDistancePx = (minSomaDistance > 0) ? minSomaDistance / avgXYSpacing : 0;
+                final int zSlice = (snt.getImagePlus() != null) ? snt.getImagePlus().getZ() - 1 : -1;
+                // zSlice < 0 on a 3D image makes detectAllSomas() compute a max-intensity projection
+                // across every Z-plane: on a lazily-loaded Stream-mode volume that means touching the
+                // entire dataset. Only warn here, right before the scan actually happens - not blindly
+                // for every Stream-mode invocation of this command (see SNTUI#runAutotracingOnImage)
+                if (zSlice < 0 && chosenImp.numDimensions() > 2
+                        && !new GuiUtils().getConfirmation(
+                        "Detecting all somata on a streamed volume requires computing a max-intensity "
+                                + "projection across the entire dataset, which can take a long time "
+                                + "depending on dataset size and network/disk speed. Continue?",
+                        "Run on Streamed Image?")) {
+                    resetUI();
+                    return;
+                }
+                somas = SomaUtils.detectAllSomas(chosenImp, -1, zSlice, minRadiusPx, minDistancePx);
+                if (somas.isEmpty()) {
+                    error("No somata detected. Try adjusting the min. soma radius.");
+                    return;
+                }
+                SNTUtils.log("Detected " + somas.size() + " soma(s)");
             }
-            SNTUtils.log("Detected " + somas.size() + " soma(s)");
 
             // Step 2: Configure tracer (shared parameters from parent + multi-soma specific)
             final AbstractGWDTTracer<?> tracer = createAndConfigureTracer(chosenImp);
             if (tracer == null) return;
             tracer.setCaliperFraction(caliperFraction);
             tracer.setTracedRegionBuffer(exclusionBuffer);
+            if (seedFromMarkers) {
+                // Seeds are user-curated: skip the NMS/top-N reduction meant for blind auto-detection.
+                // See SomaUtils.detectSomasAt()
+                tracer.setAutoFilter(false);
+            }
 
             // Step 3: Trace all cells
             List<Tree> trees = tracer.traceMultiSoma(somas);
@@ -151,6 +206,7 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
                 return;
             }
 
+            applyWorldOriginOffsetIfAny(trees);
             handleTracedTrees(trees);
 
         } catch (final Throwable ex) {

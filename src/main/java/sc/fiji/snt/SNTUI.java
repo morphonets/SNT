@@ -635,6 +635,11 @@ public class SNTUI extends JDialog {
      * @param tabTitle The tab title (e.g., "Main", "3D");
      */
     public void selectTab(final String tabTitle) {
+        if (isStreamMode() && "bookmarks".equalsIgnoreCase(tabTitle.trim())) {
+            getActiveBigViewer().getMarkerManager().getViewerDialogPanel().setVisible(true);
+            getActiveBigViewer().getMarkerManager().getViewerDialogPanel().toFront();
+            return;
+        }
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
         final int idx = InternalUtils.getTabIndex(tp, tabTitle);
         if (idx != -1)
@@ -4824,13 +4829,8 @@ public class SNTUI extends JDialog {
 
     private void runAutotracingOnImage(final Class<? extends CommonDynamicCmd> clazz) {
         if (!plugin.accessToValidImageData()) {
-            SwingUtilities.invokeLater( (clazz == GWDTTracerCmd.class || clazz == GWDTMultiSomaCmd.class) ? this::noValidImageDataErrorExtended : this::noValidImageDataError);
-            return;
-        }
-        if (isStreamMode() && (clazz == GWDTTracerCmd.class || clazz == GWDTMultiSomaCmd.class) && !guiUtils.getConfirmation(
-                "This scans the entire streamed image once to seed the distance transform. Depending on "
-                        + "dataset size and network/disk speed, this can take a long time. Continue?",
-                "Run on Streamed Image?")) {
+            SwingUtilities.invokeLater( (clazz == GWDTTracerCmd.class || clazz == GWDTMultiSomaCmd.class || clazz == SomaDetectorCmd.class)
+                ? this::noValidImageDataErrorExtended : this::noValidImageDataError);
             return;
         }
         // Singleton: if dialog is already open, bring it to front

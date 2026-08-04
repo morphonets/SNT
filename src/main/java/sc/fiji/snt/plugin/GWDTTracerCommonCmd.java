@@ -64,12 +64,18 @@ import java.util.List;
  */
 public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
 
-    // ROI strategy constants
-    private static final String ROI_UNSET = "None. Use auto-detection";
-    private static final String ROI_AUTO_EDGE = "None. Auto-detect soma: One tree per primary neurite";
-    private static final String ROI_EDGE = "Area ROI around soma: One tree per primary neurite";
-    private static final String ROI_CENTROID = "Single tree rooted at ROI centroid";
-    private static final String ROI_CENTROID_WEIGHTED = "Single tree rooted at ROI weighted centroid";
+    protected static final String SOMA_AUTO = "None. Use auto-detection";
+    protected static final String SOMA_ROI_AUTO_EDGE = "None. Auto-detect soma: One tree per primary neurite";
+    private static final String SOMA_ROI_EDGE = "Area ROI around soma: One tree per primary neurite";
+    private static final String SOMA_ROI_CENTROID = "Single tree rooted at ROI centroid";
+    private static final String SOMA_ROI_CENTROID_WEIGHTED = "Single tree rooted at ROI weighted centroid";
+    /**
+     * Stream-mode-only strategy: seeds detection from BDV/BVV marker(s) ({@code M} key), since Stream mode
+     * has no Roi support. Only offered when {@code ui.isStreamMode()}; see {@link #initForImage()}
+     */
+    protected static final String SOMA_BOOKMARK = "Selected Bookmarks/markers define somata";
+
+
     // Image choice constants
     static final String IMG_TRACED_CHOICE = "Image being traced";
     // Score map strategy constants
@@ -100,20 +106,21 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     @Parameter(required = false, persist = false, visibility = ItemVisibility.MESSAGE)
     private String HEADER2 = "<HTML>&nbsp;<br><b>Soma/Root Detection";
 
-    @Parameter(required = false, label = "ROI strategy", choices = {ROI_UNSET, ROI_AUTO_EDGE, ROI_EDGE, ROI_CENTROID, ROI_CENTROID_WEIGHTED},
+    @Parameter(required = false, label = "ROI strategy",
+            choices = {SOMA_AUTO, SOMA_ROI_AUTO_EDGE, SOMA_ROI_EDGE, SOMA_ROI_CENTROID, SOMA_ROI_CENTROID_WEIGHTED},
             description = "<HTML>How to determine soma/root location:<dl>" +
-                    "<dt><i>" + ROI_UNSET + "</i></dt>" +
+                    "<dt><i>" + SOMA_AUTO + "</i></dt>" +
                     "<dd>Auto-detect soma. <b>Single tree</b> rooted at detected centroid. Ignores any ROIs</dd>" +
-                    "<dt><i>" + ROI_AUTO_EDGE + "</i></dt>" +
+                    "<dt><i>" + SOMA_ROI_AUTO_EDGE + "</i></dt>" +
                     "<dd>Auto-detect soma contour. <b>Separate trees</b> for each neurite exiting the detected soma. No ROI needed</dd>" +
-                    "<dt><i>" + ROI_EDGE + "</i></dt>" +
+                    "<dt><i>" + SOMA_ROI_EDGE + "</i></dt>" +
                     "<dd>Area ROI delineates soma. <b>Separate trees</b> created for each exiting neurite</dd>" +
-                    "<dt><i>" + ROI_CENTROID + "</i></dt>" +
+                    "<dt><i>" + SOMA_ROI_CENTROID + "</i></dt>" +
                     "<dd>ROI marks soma location. <b>Single tree</b> rooted at ROI centroid</dd>" +
-                    "<dt><i>" + ROI_CENTROID_WEIGHTED + "</i></dt>" +
+                    "<dt><i>" + SOMA_ROI_CENTROID_WEIGHTED + "</i></dt>" +
                     "<dd>As above but uses intensity-weighted centroid of traced soma nodes</dd>" +
                     "</dl>")
-    private String somaStrategyChoice;
+    protected String somaStrategyChoice;
 
     @Parameter(label = "Active plane only",
             description = "<HTML>If checked, ROI applies only to its Z-slice.<br>" +
@@ -296,6 +303,23 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         choices.add("Secondary image layer");
         imgChoiceItem.setChoices(choices);
         imgChoice = choices.getFirst();
+        // In Stream mode there is no ij.gui.Roi support (no canvas to draw one on)
+        if (ui != null && ui.isStreamMode()) {
+            final MutableModuleItem<String> strategyItem = getInfo().getMutableInput("somaStrategyChoice", String.class);
+            if (strategyItem != null) {
+                strategyItem.setLabel("Defined positions");
+                strategyItem.setChoices(List.of(SOMA_AUTO, SOMA_BOOKMARK));
+                strategyItem.setDescription("<HTML>How to determine soma/root location:<dl>" +
+                                "<dt><i>" + SOMA_AUTO + "</i></dt>" +
+                                "<dd>Auto-detect soma. <b>Single tree</b> rooted at detected centroid. Ignores any markers</dd>" +
+                                "<dt><i>" + SOMA_BOOKMARK + "</i></dt>" +
+                                "<dd>The <b>selected</b> entry in the markers table defines the soma location. <b>Single tree</b> rooted at the marker's position</dd>" +
+                                "</dl>");
+                if (!SOMA_AUTO.equals(somaStrategyChoice) && !SOMA_BOOKMARK.equals(somaStrategyChoice)) {
+                    somaStrategyChoice = SOMA_AUTO;
+                }
+            }
+        }
         debugMode = SNTUtils.isDebugMode();
     }
 
@@ -384,63 +408,47 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             final AbstractGWDTTracer<?> tracer = createAndConfigureTracer(chosenImp);
             if (tracer == null) return;
 
-            // Get ROI and configure strategy
-            final int seedStrategy = parseRoiStrategy();
+            // Get ROI/marker and configure strategy
             final double[] seedPhysical;
             final String errorMsg;
             detectedSoma = null;
-            if (seedStrategy == GWDTTracer.ROI_UNSET) {
-                // Auto-detect soma using full SomaUtils pipeline (EDT×intensity)
-                snt.setCanvasLabelAllPanes("Detecting soma...");
-                detectedSoma = detectSoma(chosenImp);
-                if (detectedSoma != null) {
-                    // Use the detected contour as a soma ROI for rooting.
-                    // ROI_AUTO_EDGE: one tree per neurite; ROI_UNSET: single tree at centroid
-                    if (detectedSoma.hasContour()) {
-                        final int autoRoiStrategy = ROI_AUTO_EDGE.equals(somaStrategyChoice)
-                                ? GWDTTracer.ROI_EDGE : GWDTTracer.ROI_CENTROID;
-                        final Roi somaRoi = detectedSoma.createContourRoi();
-                        if (detectedSoma.zSlice() >= 0) somaRoi.setPosition(detectedSoma.zSlice() + 1);
-                        tracer.setSomaRoi(somaRoi, autoRoiStrategy);
-                        tracer.setSomaRoiZPosition(detectedSoma.zSlice());
-                    }
-                    // Convert center to physical coordinates for seed
-                    final double[] spacing = ImgUtils.getSpacing(chosenImp);
-                    seedPhysical = new double[spacing.length];
-                    final long[] center = detectedSoma.center();
-                    for (int d = 0; d < Math.min(center.length, spacing.length); d++) {
-                        seedPhysical[d] = center[d] * spacing[d];
-                    }
-                    // Handle Z for 3D images where center is 2D (from a slice)
-                    if (spacing.length > 2 && center.length <= 2 && detectedSoma.zSlice() >= 0) {
-                        seedPhysical[2] = detectedSoma.zSlice() * spacing[2];
-                    }
-                    errorMsg = null;
-                } else {
-                    seedPhysical = null;
+            if (SOMA_BOOKMARK.equals(somaStrategyChoice)) {
+                // Stream-mode-only: seed from the viewer's marker manager instead of a Roi
+                snt.setCanvasLabelAllPanes("Detecting soma at marker...");
+                detectedSoma = detectSomaAtMarker(chosenImp);
+                seedPhysical = seedPhysicalFromDetectedSoma(tracer, detectedSoma);
+                errorMsg = "Could not detect a soma at the marker location. Place exactly one marker " +
+                        "(\"M\" key) over a bright soma in the viewer, or re-run with a different strategy.";
+            } else {
+                final int seedStrategy = parseRoiStrategy();
+                if (seedStrategy == GWDTTracer.ROI_UNSET) {
+                    // Auto-detect soma using full SomaUtils pipeline (EDT×intensity)
+                    snt.setCanvasLabelAllPanes("Detecting soma...");
+                    detectedSoma = detectSoma(chosenImp);
+                    seedPhysical = seedPhysicalFromDetectedSoma(tracer, detectedSoma);
                     errorMsg = "Automated detection of soma failed. Please Pause SNT, draw a " +
                             "ROI around the soma, and re-run with a ROI-based strategy.";
-                }
-            } else {
-                final Roi roi = getRoiFromSNT();
-                if (seedStrategy == GWDTTracer.ROI_EDGE && (roi == null || !roi.isArea())) {
-                    errorMsg = "The chosen ROI strategy requires an area ROI but none exists.";
-                    seedPhysical = null;
                 } else {
-                    if (roi != null) {
-                        tracer.setSomaRoi(roi, seedStrategy);
-                        if (roiPlaneOnly) {
-                            // Constrain ROI to the active Z-plane (or the ROI's own Z if set)
-                            final int activeZ = getActiveZPosFromSNT();
-                            tracer.setSomaRoiZPosition(
-                                    (roi.getZPosition() > 0) ? roi.getZPosition() - 1 : Math.max(activeZ, 0));
-                        } else {
-                            tracer.setSomaRoiZPosition(-1); // apply to all Z-slices
+                    final Roi roi = getRoiFromSNT();
+                    if (seedStrategy == GWDTTracer.ROI_EDGE && (roi == null || !roi.isArea())) {
+                        errorMsg = "The chosen ROI strategy requires an area ROI but none exists.";
+                        seedPhysical = null;
+                    } else {
+                        if (roi != null) {
+                            tracer.setSomaRoi(roi, seedStrategy);
+                            if (roiPlaneOnly) {
+                                // Constrain ROI to the active Z-plane (or the ROI's own Z if set)
+                                final int activeZ = getActiveZPosFromSNT();
+                                tracer.setSomaRoiZPosition(
+                                        (roi.getZPosition() > 0) ? roi.getZPosition() - 1 : Math.max(activeZ, 0));
+                            } else {
+                                tracer.setSomaRoiZPosition(-1); // apply to all Z-slices
+                            }
                         }
+                        seedPhysical = getRoiCentroid(roi, chosenImp, getActiveZPosFromSNT());
+                        errorMsg = "Could not infer soma from ROI. Please provide a valid soma contour, " +
+                                "or re-run with an automated detection strategy.";
                     }
-                    seedPhysical = getRoiCentroid(roi, chosenImp, getActiveZPosFromSNT());
-                    errorMsg = "Could not infer soma from ROI. Please provide a valid soma contour, " +
-                            "or re-run with an automated detection strategy.";
                 }
             }
             if (seedPhysical == null) {
@@ -457,6 +465,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 return;
             }
 
+            applyWorldOriginOffsetIfAny(trees);
             handleTracedTrees(trees);
 
         } catch (final Throwable ex) {
@@ -468,10 +477,32 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     }
 
     /**
-     * Called after tracing completes with valid trees. The default implementation
-     * loads trees into PathAndFillManager and optionally triggers proofreading.
-     * Subclasses (e.g., {@link GWDTTracerFileCmd}) may override to export trees
-     * to disk instead.
+     * Shifts each tree by {@code snt}'s current {@link SNT#getWorldOriginOffset() world origin
+     * offset}, if any (a no-op when that offset is all-zero, which is the common case). Called
+     * once, right after tracing produces valid trees and before {@link #handleTracedTrees}, so
+     * that every subclass/override of {@code handleTracedTrees} (whether it loads trees into
+     * {@code PathAndFillManager}, exports them to disk, or both - see {@link GWDTTracerFileCmd})
+     * sees already-corrected coordinates.
+     * <p>
+     * The offset is only non-zero when {@code chosenImp}'s pixel data was wired in from a source
+     * whose own coordinate frame is not anchored at world (0,0,0) (see
+     * {@code BigDataLoaderCmd#applyFallbackCalibration}); leaving it uncorrected would produce
+     * shape-correct but uniformly mispositioned trees.
+     *
+     * @param trees the traced trees to correct in place
+     */
+    protected void applyWorldOriginOffsetIfAny(final List<Tree> trees) {
+        final double[] originOffset = snt.getWorldOriginOffset();
+        if (originOffset[0] != 0 || originOffset[1] != 0 || originOffset[2] != 0) {
+            trees.forEach(tree -> tree.translate(originOffset[0], originOffset[1], originOffset[2]));
+        }
+    }
+
+    /**
+     * Called after tracing completes with valid trees (already corrected for any world origin
+     * offset - see {@link #applyWorldOriginOffsetIfAny}). The default implementation loads trees
+     * into PathAndFillManager and optionally triggers proofreading. Subclasses (e.g.,
+     * {@link GWDTTracerFileCmd}) may override to export trees to disk instead.
      *
      * @param trees the traced trees (guaranteed non-empty)
      */
@@ -570,9 +601,9 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private int parseRoiStrategy() {
         if (somaStrategyChoice == null) return GWDTTracer.ROI_UNSET;
         return switch (somaStrategyChoice) {
-            case ROI_EDGE -> GWDTTracer.ROI_EDGE;
-            case ROI_CENTROID -> GWDTTracer.ROI_CENTROID;
-            case ROI_CENTROID_WEIGHTED -> GWDTTracer.ROI_CENTROID_WEIGHTED;
+            case SOMA_ROI_EDGE -> GWDTTracer.ROI_EDGE;
+            case SOMA_ROI_CENTROID -> GWDTTracer.ROI_CENTROID;
+            case SOMA_ROI_CENTROID_WEIGHTED -> GWDTTracer.ROI_CENTROID_WEIGHTED;
             // Both ROI_UNSET and ROI_AUTO_EDGE trigger auto-detection; they differ
             // in which rooting strategy is applied to the detected contour
             default -> GWDTTracer.ROI_UNSET;
@@ -612,6 +643,60 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
      */
     private SomaUtils.SomaResult detectSoma(final ImgPlus<?> img) {
         return SomaUtils.detectSoma(img);
+    }
+
+    /**
+     * Characterizes the soma at the single marker placed in the tethered BVV/BDV viewer (see
+     * {@link #getPixelPositionsOfBookmarks(boolean)}). Requires exactly one marker; returns {@code null}
+     * (rather than guessing, e.g. "use the first one") if zero or more than one are present, so
+     * the caller's generic "could not detect a soma" error message stays accurate.
+     *
+     * @param img the image being traced
+     * @return the detected soma, or {@code null} if there isn't exactly one marker, or
+     *         detection at that marker's location failed (e.g. it sits in the background)
+     */
+    private SomaUtils.SomaResult detectSomaAtMarker(final ImgPlus<?> img) {
+        final List<long[]> seeds = getPixelPositionsOfBookmarks(true);
+        if (seeds.size() != 1) return null;
+        final long[] seed = seeds.getFirst();
+        final int zSlice = (seed.length > 2 && seed[2] >= 0) ? (int) seed[2] : -1;
+        return SomaUtils.detectSomaAt(img, seed[0], seed[1], -1, zSlice);
+    }
+
+    /**
+     * Common tail shared by the auto-detection and marker-seeded strategies: given a
+     * (possibly-null) detected soma, configures {@code tracer}'s soma Roi/contour (when a contour
+     * was found) and converts the soma's pixel center to a physical seed point.
+     *
+     * @param tracer   the tracer being configured
+     * @param detected the detected soma, or {@code null} if detection failed
+     * @return the physical seed point, or {@code null} if {@code detected} is {@code null}
+     */
+    private double[] seedPhysicalFromDetectedSoma(final AbstractGWDTTracer<?> tracer,
+                                                    final SomaUtils.SomaResult detected) {
+        if (detected == null) return null;
+        // Use the detected contour as a soma ROI for rooting.
+        // ROI_AUTO_EDGE/ROI_MARKER: one tree per neurite; ROI_UNSET: single tree at centroid
+        if (detected.hasContour()) {
+            final int autoRoiStrategy = (SOMA_ROI_AUTO_EDGE.equals(somaStrategyChoice) || SOMA_BOOKMARK.equals(somaStrategyChoice))
+                    ? GWDTTracer.ROI_EDGE : GWDTTracer.ROI_CENTROID;
+            final Roi somaRoi = detected.createContourRoi();
+            if (detected.zSlice() >= 0) somaRoi.setPosition(detected.zSlice() + 1);
+            tracer.setSomaRoi(somaRoi, autoRoiStrategy);
+            tracer.setSomaRoiZPosition(detected.zSlice());
+        }
+        // Convert center to physical coordinates for seed
+        final double[] spacing = ImgUtils.getSpacing(chosenImp);
+        final double[] seedPhysical = new double[spacing.length];
+        final long[] center = detected.center();
+        for (int d = 0; d < Math.min(center.length, spacing.length); d++) {
+            seedPhysical[d] = center[d] * spacing[d];
+        }
+        // Handle Z for 3D images where center is 2D (from a slice)
+        if (spacing.length > 2 && center.length <= 2 && detected.zSlice() >= 0) {
+            seedPhysical[2] = detected.zSlice() * spacing[2];
+        }
+        return seedPhysical;
     }
 
     private int parseConnectivity(final String choice) {
