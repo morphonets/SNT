@@ -579,7 +579,8 @@ public class SNTUI extends JDialog {
      */
     public boolean isReady() {
         final int state = getState();
-        return isVisible() && (state == SNTUI.READY || state == SNTUI.TRACING_PAUSED || state == SNTUI.SNT_PAUSED);
+        return isVisible() && (state == SNTUI.READY || state == SNTUI.TRACING_PAUSED || state == SNTUI.SNT_PAUSED
+                || state == SNTUI.STREAMING);
     }
 
     /**
@@ -635,7 +636,7 @@ public class SNTUI extends JDialog {
      * @param tabTitle The tab title (e.g., "Main", "3D");
      */
     public void selectTab(final String tabTitle) {
-        if (isStreamMode() && "bookmarks".equalsIgnoreCase(tabTitle.trim())) {
+        if (isStreamMode() && List.of("bookmarks", "markers").contains(tabTitle.trim().toLowerCase())) {
             getActiveBigViewer().getMarkerManager().getViewerDialogPanel().setVisible(true);
             getActiveBigViewer().getMarkerManager().getViewerDialogPanel().toFront();
             return;
@@ -5086,8 +5087,7 @@ public class SNTUI extends JDialog {
 
     private boolean notReadyToSaveError() {
         final boolean notReady = !isReady();
-        if (notReady)
-            plugin.discreteMsg("Please finish current task before saving...");
+        if (notReady) error("Please finish current task before saving.");
         return notReady;
     }
 
@@ -6734,7 +6734,7 @@ public class SNTUI extends JDialog {
     }
 
     private boolean loadSWCFile(final File file) {
-        final SWCImportDialog importDialog = new SWCImportDialog(this, file);
+        final SWCImportDialog importDialog = new SWCImportDialog(this, file, plugin.getWorldOriginOffset());
         if (importDialog.succeeded()) {
             final File f = importDialog.getFile();
             final double[] offsets = importDialog.getOffsets();

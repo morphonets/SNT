@@ -48,6 +48,7 @@ import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.ScriptInstaller;
 import sc.fiji.snt.io.SpimDataUtils;
 import sc.fiji.snt.util.ImgUtils;
+import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Bdv;
 import sc.fiji.snt.viewer.Bvv;
@@ -102,8 +103,10 @@ public class BigDataLoaderCmd extends ContextCommand {
     File img2File;
 
     @Parameter(required = false, label = "Reconstruction(s)", persist = false,
-            description = "Optional.\nEither a single file (TRACES, SWC, JSON), or a\n" +
-                    "folder/.zip archive of several such files.")
+            description = "Optional.\nEither a single file (TRACES, SWC, JSON, Neurolucida XML), or a\n" +
+                    "folder/.zip archive of several such files. Coordinates are assumed\n" +
+                    "to be properly scaled. If you need to apply an offset/scaling factor,\n" +
+                    "use the \"Import\" menu commands instead once tracing starts.")
     File recFiles;
 
     @Parameter(required = false, label = "Markers", persist = false,
@@ -657,39 +660,68 @@ public class BigDataLoaderCmd extends ContextCommand {
         viewer.getMarkerManager().load(markerFile); // error if invalid file
     }
 
-    /** Loads reconstruction files into the viewer, if any were specified. */
+    /**
+     * Loads reconstruction files, if any were specified: rendered in the viewer's overlay (same as before) and also
+     * registered with {@link PathAndFillManager} so they show up as regular, editable Paths in the Path Manager
+     * <p>
+     * Coordinates are taken at face value, with no {@link SNT#getWorldOriginOffset() world-origin offset} correction
+     * applied: unlike a freshly-traced {@link Tree} (which is known to be in the fallback-loaded source's own raw
+     * pixel*spacing frame, see {@code GWDTTracerCommonCmd#applyWorldOriginOffsetIfAny}), an externally-supplied
+     * SWC/reconstruction file carries no standardized way to say whether it needs that same correction or not.
+     * Users who do need to correct for the offset should use the interactive "Import > SWC..." command instead
+     * (once tracing has started), which supports specifying one manually (see {@code SWCImportDialog})
+     */
     private void loadReconstructions(final AbstractBigViewer viewer) {
         if (recFiles == null) return;
         final String path = toPathString(recFiles);
+        final Collection<Tree> trees = new ArrayList<>();
         if (SpimDataUtils.isRemoteUrl(path)) {
             // fileAvailable()/getReconstructionFiles() below are local-filesystem-only checks. Tree.listFromFile()
             // already knows how to handle a remote URL directly (a single reconstruction file is streamed, a .zip is
             // downloaded/extracted and treated as a irectory), so route straight through it instead for this case
             try {
-                final Collection<Tree> trees = Tree.listFromFile(path);
-                if (trees.isEmpty()) {
-                    error(String.format("No reconstructions found at %s.", path));
-                    return;
-                }
-                SNTUtils.log(String.format("Loading %d reconstruction(s) from %s.", trees.size(), path));
-                viewer.add(trees);
+                trees.addAll(Tree.listFromFile(path));
             } catch (final IllegalArgumentException e) {
                 error("Could not load reconstructions from " + path + ": " + e.getMessage());
+                return;
             }
-            return;
+            if (trees.isEmpty()) {
+                error(String.format("No reconstructions found at %s.", path));
+                return;
+            }
+            SNTUtils.log(String.format("Loading %d reconstruction(s) from %s.", trees.size(), path));
+        } else {
+            if (!SNTUtils.fileAvailable(recFiles)) {
+                error(String.format("%s does not exist or is not available.", recFiles.getName()));
+                return;
+            }
+            final File[] files = SNTUtils.getReconstructionFiles(recFiles, null);
+            final int fileCount = (files == null) ? 0 : files.length;
+            SNTUtils.log(String.format("Loading %d reconstruction file(s) from %s.", fileCount, recFiles.getAbsolutePath()));
+            if (fileCount == 0) {
+                error(String.format("No reconstruction files found in %s.", recFiles.getName()));
+                return;
+            }
+            for (final File f : files) {
+                try {
+                    trees.addAll(Tree.listFromFile(f.getAbsolutePath()));
+                } catch (final Exception ex) {
+                    SNTUtils.log("Could not load " + f.getName() + ": " + ex.getMessage());
+                }
+            }
+            if (trees.isEmpty()) {
+                error(String.format("No reconstructions found in %s.", recFiles.getName()));
+                return;
+            }
         }
-        if (!SNTUtils.fileAvailable(recFiles)) {
-            error(String.format("%s does not exist or is not available.", recFiles.getName()));
-            return;
+        final org.scijava.util.ColorRGB[] colors = SNTColor.getDistinctColors(trees.size());
+        int i = 0;
+        for (final Tree tree : trees) tree.setColor(colors[i++]);
+        viewer.add(trees); // renders in the viewer's overlay
+        if (viewer.getSNT() != null) { // tracing capabilities present
+            final PathAndFillManager pafm = viewer.getSNT().getPathAndFillManager();
+            trees.forEach(tree -> pafm.addTree(tree, tree.getLabel())); // registers as editable Paths
         }
-        final File[] files = SNTUtils.getReconstructionFiles(recFiles, null);
-        final int fileCount = (files == null) ? 0 : files.length;
-        SNTUtils.log(String.format("Loading %d reconstruction file(s) from %s.", fileCount, recFiles.getAbsolutePath()));
-        if (fileCount == 0) {
-            error(String.format("No reconstruction files found in %s.", recFiles.getName()));
-            return;
-        }
-        viewer.add(files);
     }
 
     /**

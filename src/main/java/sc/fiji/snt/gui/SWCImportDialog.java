@@ -55,17 +55,31 @@ public class SWCImportDialog extends JDialog {
 	private boolean assumePixelCoordinates;
 	private boolean replaceExistingPaths;
 	private File lastPreviewedFile;
+	private final boolean usingSessionOffset;
 
 	public SWCImportDialog(final SNTUI ui, final File suggestedFile) {
+		this(ui, suggestedFile, null);
+	}
+
+	/**
+	 * @param ui                the parent UI
+	 * @param suggestedFile     the file to pre-select in the file picker, or {@code null}
+	 * @param worldOriginOffset the current session's {@code SNT#getWorldOriginOffset() world-origin offset}, or
+	 *                          {@code null}/all-zero if none. When non-zero, the "Apply offset" fields are pre-filled
+	 *                          with it (and the panel is expanded by default)
+	 */
+	public SWCImportDialog(final SNTUI ui, final File suggestedFile, final double[] worldOriginOffset) {
 
 		super(ui, "Import SWC...", true);
+		usingSessionOffset = worldOriginOffset != null
+				&& (worldOriginOffset[0] != 0 || worldOriginOffset[1] != 0 || worldOriginOffset[2] != 0);
 		loadFieldPrefs(ui.getPrefs());
 		replaceExistingPathsCheckbox = new JCheckBox("Replace existing paths?", replaceExistingPaths);
 		replaceExistingPathsCheckbox
 				.addItemListener(e -> replaceExistingPaths = replaceExistingPathsCheckbox.isSelected());
 		offsetPanel = new BoxPanel("X axis ", "Y axis", "Z axis");
 		scalingPanel = new BoxPanel("X axis", "Y axis", "Z axis", "Radius");
-		loadBoxPanelPrefs(ui.getPrefs());
+		loadBoxPanelPrefs(ui.getPrefs(), worldOriginOffset);
 		previewArea = new PreviewArea();
 		filePicker = new FilePicker(FilePicker.OPEN_DIALOG,
 				(suggestedFile == null) ? getLastLoadedFile(ui.getPrefs()) : suggestedFile, "swc", "eswc");
@@ -118,7 +132,8 @@ public class SWCImportDialog extends JDialog {
 		c.gridy++;
 		c.weightx = 0;
 		c.weighty = 0;
-		add(new CollapsiblePanel("Apply offset", offsetPanel, true), c);
+		add(new CollapsiblePanel("Apply offset" + (usingSessionOffset ? " (pre-filled from current session)" : ""),
+				offsetPanel, !usingSessionOffset), c);
 		c.gridy++;
 		add(new CollapsiblePanel("Apply scaling factor", scalingPanel, true), c);
 		c.gridy++;
@@ -127,11 +142,17 @@ public class SWCImportDialog extends JDialog {
 		add(buttonsPanel, c);
 	}
 
-	private void loadBoxPanelPrefs(final SNTPrefs prefs) {
+	private void loadBoxPanelPrefs(final SNTPrefs prefs, final double[] worldOriginOffset) {
 		final JFormattedTextField[] offsetFields = offsetPanel.fields;
-		offsetFields[0].setText(prefs.get("swci.xoff", "0"));
-		offsetFields[1].setText(prefs.get("swci.yoff", "0"));
-		offsetFields[2].setText(prefs.get("swci.zoff", "0"));
+		if (usingSessionOffset) {
+			offsetFields[0].setText(String.valueOf(worldOriginOffset[0]));
+			offsetFields[1].setText(String.valueOf(worldOriginOffset[1]));
+			offsetFields[2].setText(String.valueOf(worldOriginOffset[2]));
+		} else {
+			offsetFields[0].setText(prefs.get("swci.xoff", "0"));
+			offsetFields[1].setText(prefs.get("swci.yoff", "0"));
+			offsetFields[2].setText(prefs.get("swci.zoff", "0"));
+		}
 		final JFormattedTextField[] scalingFields = scalingPanel.fields;
 		scalingFields[0].setText(prefs.get("swci.xscl", "1"));
 		scalingFields[1].setText(prefs.get("swci.yscl", "1"));
