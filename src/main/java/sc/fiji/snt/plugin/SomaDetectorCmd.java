@@ -160,7 +160,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         if (imp == null && img == null) {
             error("No valid image data available.");
         }
-        if (snt != null && snt.getUI() != null && snt.getUI().isStreamMode()) {
+        if (snt != null && snt.isStreamMode()) {
             outputChoice = OUTPUT_BOOKMARK;
             final MutableModuleItem<String> outputItem = getInfo().getMutableInput("outputChoice", String.class);
             if (outputItem != null) {
@@ -418,7 +418,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
      * @param color   marker color, or {@code null} for the viewer/manager default
      */
     private void addSomaMarker(final SomaUtils.SomaResult result, final double[] spacing, final Color color) {
-        final boolean stream = snt.getUI() != null && snt.getUI().isStreamMode();
+        final boolean stream = snt.isStreamMode();
         final BookmarkManager mManager = stream
                 ? snt.getUI().getActiveBigViewer().getMarkerManager() // should never be null in stream mode
                 : snt.getUI().getBookmarkManager();

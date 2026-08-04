@@ -339,7 +339,7 @@ public class BookmarkManager {
 
     private void noImageOpenError() {
         assert sntui != null;
-        sntui.guiUtils.error((sntui.isStreamMode())
+        sntui.guiUtils.error(sntui.plugin.isStreamMode()
                 ? "No image is currently open. This table can be better accessed from BDV/BVV's <i>Markers</i> pane."
                 : "No image is currently open.");
     }

@@ -101,7 +101,7 @@ public class CommonDynamicCmd extends DynamicCommand {
 	 */
 	protected void setStatus(final String msg) {
 		if (snt != null) snt.setCanvasLabelAllPanes(msg);
-		if (ui != null && ui.isStreamMode()) {
+		if (snt != null && snt.isStreamMode() && ui != null) {
 			final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
 			if (viewer != null) {
 				viewer.updateStatus(msg, 0, (msg == null || msg.isEmpty()) ? 0 : -1);
@@ -273,7 +273,7 @@ public class CommonDynamicCmd extends DynamicCommand {
 	protected List<long[]> getPixelPositionsOfBookmarks(final boolean selectedRowsOnly) {
 		if (ui == null) return new ArrayList<>();
 		final BookmarkManager manager;
-		if (ui.isStreamMode()) {
+		if (snt.isStreamMode()) {
 			final AbstractBigViewer viewer = ui.getActiveBigViewer();
 			manager = (viewer == null) ? null : viewer.getMarkerManager();
 		} else {

@@ -141,7 +141,7 @@ public class SNTService extends AbstractService implements ImageJService {
 	 */
 	public boolean isStreamMode() {
 		final SNT instance = SNTUtils.getInstance();
-		return instance != null && instance.getUI() != null && instance.getUI().isStreamMode();
+		return instance != null && instance.isStreamMode();
 	}
 
 	/**

@@ -116,7 +116,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
         getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
 
         this.plugin = plugin;
-        final boolean streamMode = ui != null && ui.isStreamMode();
+        final boolean streamMode = plugin.isStreamMode();
         pathAndFillManager = plugin.getPathAndFillManager();
         pathAndFillManager.addPathAndFillListener(this);
         listModel = new DefaultListModel<>();
@@ -850,7 +850,7 @@ public class FillManagerUI extends JDialog implements PathAndFillListener,
                 try {
                     action.execute();
                 } catch (final UnsupportedOperationException ex) {
-                    final String msg = (plugin.getUI() != null && plugin.getUI().isStreamMode())
+                    final String msg = (plugin.isStreamMode())
                             ? "An error occurred: This operation likely requires the entire image to be loaded into memory (RAM)."
                             : "An error occurred.";
                     gUtils.error(msg + " See Console for details.");

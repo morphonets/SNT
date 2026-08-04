@@ -222,7 +222,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			resolveInput("run");
 			snt.setCanvasLabelAllPanes("Running " + filter + "....");
 		}
-		if (ui != null && ui.isStreamMode()) {
+		if (snt.isStreamMode()) {
 			// MEDIAN requires useLazy==false which is exactly what Stream mode. Prune it from the choices
 			final MutableModuleItem<String> filterItem = getInfo().getMutableInput("filter", String.class);
 			final List<String> choices = new ArrayList<>(filterItem.getChoices());
@@ -336,7 +336,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 			paletteStatus = PALETTE_WAITING;
 			break;
 		case PALETTE_WAITING:
-			if (ui.isStreamMode()) {
+			if (snt.isStreamMode()) {
 				msg("Activate BDV/BVV, navigate to a representative structure (e.g., branch point or neurite), "
 						+ "hover over it, then press 'P'. Once you have done so, a preview grid with several kernel "
 						+ "sizes will be displayed, allowing you to better select the size(s) for the "
@@ -388,7 +388,7 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 				//mmi.setDescription("Scale(s) are being chosen in palette");
 				break;
 			case PALETTE_WAITING:
-				if (ui != null && ui.isStreamMode())
+				if (snt.isStreamMode())
 					mmi.setLabel("Press 'P' Over a  Representative Structure...");
 				else
 					mmi.setLabel("Now Click on a Representative Structure...");

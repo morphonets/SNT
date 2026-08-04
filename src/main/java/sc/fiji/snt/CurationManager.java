@@ -1064,7 +1064,7 @@ public class CurationManager implements PlausibilityMonitor.WarningListener {
         final JPopupMenu popup = new JPopupMenu();
         GuiUtils.addSeparator(popup, "Navigation:");
         final JMenu zMenu = visitingZoom.zoomControls("Visiting Zoom Level", "issues");
-        zMenu.setEnabled(sntui != null && !sntui.isStreamMode());
+        zMenu.setEnabled(sntui != null && !sntui.plugin.isStreamMode());
         popup.add(zMenu);
         GuiUtils.addSeparator(popup, "Path Tagging:");
         final JMenuItem colorMenuItem = new JMenuItem("Color Affected Paths by Issue Severity");

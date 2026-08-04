@@ -90,7 +90,7 @@ public class CostFunctionSelectionCmd extends CommonDynamicCmd {
         }
 
         if (a == null || b == null) {
-            final boolean streamMode = snt.getUI() != null && snt.getUI().isStreamMode();
+            final boolean streamMode = snt.isStreamMode();
             error("No probe path found. The <i>Cost Function Selection Wizard</i> needs a "
                     + "representative neurite segment between two endpoints to run its A* comparison. "
                     + "You can either:</p>"

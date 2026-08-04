@@ -221,8 +221,6 @@ public class SNTUI extends JDialog {
      */
     public static final int STREAMING = 18;
 
-    private final boolean bigDataMode;
-
     // TODO: Internal preferences: should be migrated to SNTPrefs
     protected boolean confirmTemporarySegments = false; // the new default in v5
     protected boolean finishOnDoubleConfimation = true;
@@ -258,7 +256,7 @@ public class SNTUI extends JDialog {
         getRootPane().putClientProperty("JRootPane.menuBarEmbedded", false);
         guiUtils = new GuiUtils(this);
         this.plugin = plugin;
-        this.bigDataMode = bigDataMode;
+        plugin.setBigDataMode(bigDataMode);
 
         new ClarifyingKeyListener(plugin).addKeyAndContainerListenerRecursively(this);
         listener = new GuiListener();
@@ -533,14 +531,6 @@ public class SNTUI extends JDialog {
 
     }
 
-    /**
-     * @return true if SNT is running in stream mode ("SNT Stream"), i.e., without access to a full in-core
-     * materialized image.
-     */
-    public boolean isStreamMode() {
-        return bigDataMode;
-    }
-
     private JTabbedPane initTabbedPane() {
         final JTabbedPane tabbedPane = GuiUtils.getTabbedPane();
         tabbedPane.addChangeListener(e -> {
@@ -638,7 +628,7 @@ public class SNTUI extends JDialog {
      * @param tabTitle The tab title (e.g., "Main", "3D");
      */
     public void selectTab(final String tabTitle) {
-        if (isStreamMode() && List.of("bookmarks", "markers").contains(tabTitle.trim().toLowerCase())) {
+        if (plugin.isStreamMode() && List.of("bookmarks", "markers").contains(tabTitle.trim().toLowerCase())) {
             getActiveBigViewer().getMarkerManager().getViewerDialogPanel().setVisible(true);
             getActiveBigViewer().getMarkerManager().getViewerDialogPanel().toFront();
             return;
@@ -928,7 +918,7 @@ public class SNTUI extends JDialog {
         final StringBuilder sb = new StringBuilder();
         sb.append("Data source: ");
         sb.append("\n");
-        if (isStreamMode()) {
+        if (plugin.isStreamMode()) {
             sb.append("    Streamed image");
         } else {
             sb.append("    Channel: ").append(plugin.getChannel()).append("; Frame: ").append(plugin.getFrame());
@@ -1092,7 +1082,7 @@ public class SNTUI extends JDialog {
     private void setBvvOnEDT(final Bvv bvv) {
         this.bvvSNT = bvv;
         if (bvv != null && bvv.getViewerFrame() != null) {
-            if (isStreamMode()) bvv.getViewerFrame().setTitle("SNT Stream (BVV)");
+            if (plugin.isStreamMode()) bvv.getViewerFrame().setTitle("SNT Stream (BVV)");
             bvv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
             // VolumeViewerFrame's own constructor already registers a WindowListener that unconditionally
             // calls viewer.stop() (halting the render/tile-streaming thread) the instant windowClosing
@@ -1104,14 +1094,14 @@ public class SNTUI extends JDialog {
 
                 @Override
                 public void windowOpened(final WindowEvent e) {
-                    if (isStreamMode()) { // see arrangeDialogsMenuItem in viewsMenu
+                    if (plugin.isStreamMode()) { // see arrangeDialogsMenuItem in viewsMenu
                         final DialogLayout layout = arrangeCoreDialogs(false);
                         if (layout != null) arrangeStreamViewer(layout);
                     }
                 }
                 @Override
                 public void windowClosing(final WindowEvent e) {
-                    if (isStreamMode()) {
+                    if (plugin.isStreamMode()) {
                         exitRequested();
                     } else if (bvvSNT != null && bvvSNT.getViewerFrame() != null) {
                         bvvSNT.getViewerFrame().getViewerPanel().stop();
@@ -1123,7 +1113,7 @@ public class SNTUI extends JDialog {
             // windowOpened above may already have fired (and been missed) by the time this listener
             // was attached: BvvFunctions.show() makes the frame visible before attachControlPanel()
             // re-invokes setBvv(). Arrange now too, as a fallback
-            if (isStreamMode()) {
+            if (plugin.isStreamMode()) {
                 SwingUtilities.invokeLater(() -> {
                     final DialogLayout layout = arrangeCoreDialogs(false);
                     if (layout != null) arrangeStreamViewer(layout);
@@ -1152,7 +1142,7 @@ public class SNTUI extends JDialog {
     private void setBdvOnEDT(final Bdv bdv) {
         this.bdvSNT = bdv;
         if (bdv != null && bdv.getViewerFrame() != null) {
-            if (isStreamMode()) bdv.getViewerFrame().setTitle("SNT Stream (BDV)");
+            if (plugin.isStreamMode()) bdv.getViewerFrame().setTitle("SNT Stream (BDV)");
             bdv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
             for (final WindowListener wl : bdv.getViewerFrame().getWindowListeners()) {
                 bdv.getViewerFrame().removeWindowListener(wl); // see setBdvOnEDT
@@ -1161,14 +1151,14 @@ public class SNTUI extends JDialog {
 
                 @Override
                 public void windowOpened(final WindowEvent e) {
-                    if (isStreamMode()) { // see arrangeDialogsMenuItem in viewsMenu
+                    if (plugin.isStreamMode()) { // see arrangeDialogsMenuItem in viewsMenu
                         final DialogLayout layout = arrangeCoreDialogs(false);
                         if (layout != null) arrangeStreamViewer(layout);
                     }
                 }
                 @Override
                 public void windowClosing(final WindowEvent e) {
-                    if (isStreamMode()) {
+                    if (plugin.isStreamMode()) {
                         exitRequested();
                     } else if (bdvSNT != null && bdvSNT.getViewerFrame() != null) {
                         bdvSNT.getViewerFrame().getViewerPanel().stop();
@@ -1177,7 +1167,7 @@ public class SNTUI extends JDialog {
                     }
                 }
             });
-            if (isStreamMode()) { // see comment in setBvvOnEDT
+            if (plugin.isStreamMode()) { // see comment in setBvvOnEDT
                 SwingUtilities.invokeLater(() -> {
                     final DialogLayout layout = arrangeCoreDialogs(false);
                     if (layout != null) arrangeStreamViewer(layout);
@@ -1230,7 +1220,7 @@ public class SNTUI extends JDialog {
 
         // Special case: If we are using a BVV as main tracing canvas without accessing any in RAM image, then the
         // default READY state is BVV_TRACING state .
-        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED) && isStreamMode())
+        final int deFactoState = ((newState == READY || newState == TRACING_PAUSED) && plugin.isStreamMode())
                         ? STREAMING : newState;
 
         // Call exit() on current state
@@ -1366,7 +1356,7 @@ public class SNTUI extends JDialog {
         aStarCheckBox.setEnabled(false);
         searchAlgoChoice.setEnabled(false);
         algorithmChoiceLabel.setEnabled(false);
-        if (isStreamMode()) onlyActiveCTposition.setEnabled(true); // controls frame-visibility in Bdv/Bvv
+        if (plugin.isStreamMode()) onlyActiveCTposition.setEnabled(true); // controls frame-visibility in Bdv/Bvv
     }
 
     private class StreamState implements UIState {
@@ -1435,7 +1425,7 @@ public class SNTUI extends JDialog {
         @Override
         public void enter() {
             updateStatusText("Fitting volumes around selected paths...");
-            if (isStreamMode()) applyBvvControlRestrictions();
+            if (plugin.isStreamMode()) applyBvvControlRestrictions();
         }
 
         @Override
@@ -1700,7 +1690,7 @@ public class SNTUI extends JDialog {
 
         final JCheckBox zoomAllPanesCheckBox = new JCheckBox("Apply zoom changes to all views",
                 !plugin.isZoomAllPanesDisabled());
-        zoomAllPanesCheckBox.setEnabled(!isStreamMode());
+        zoomAllPanesCheckBox.setEnabled(!plugin.isStreamMode());
         registerInCommandFinder(zoomAllPanesCheckBox, "Toggle Apply Zoom Changes to All Views",
                 "Options Tab");
         zoomAllPanesCheckBox
@@ -1713,7 +1703,7 @@ public class SNTUI extends JDialog {
         registerInCommandFinder(mipCS.getCheckBox(), "Toggle Overlay MIP(s)", "Options Tab");
         mipCS.getSpinner().addChangeListener(e -> mipCS.setSelected(false));
         mipCS.appendLabel(" % opacity");
-        mipCS.setEnabled(!isStreamMode());
+        mipCS.setEnabled(!plugin.isStreamMode());
         mipCS.getCheckBox().addActionListener(e -> {
             if (!accessToValidImagePlus()) {
                 noValidImageDataError();
@@ -1732,7 +1722,7 @@ public class SNTUI extends JDialog {
 
         final String bLabel = (plugin.getSinglePane()) ? "Display" : "Rebuild";
         final JButton refreshPanesButton = new JButton(bLabel + " ZY/XZ Views");
-        refreshPanesButton.setEnabled(!isStreamMode());
+        refreshPanesButton.setEnabled(!plugin.isStreamMode());
         registerInCommandFinder(refreshPanesButton, "Display/Rebuild ZY/XZ Views", "Options Tab");
         refreshPanesButton.addActionListener(e -> {
             final boolean noImageData = !plugin.accessToValidImageData();
@@ -1821,7 +1811,7 @@ public class SNTUI extends JDialog {
         invertLutButton.addActionListener(e -> {
             final ImagePlus imp = plugin.getImagePlus();
             if (imp == null) {
-                guiUtils.error((isStreamMode()) ? "No canvas exists." : "No image available.", "No Image Exists");
+                guiUtils.error((plugin.isStreamMode()) ? "No canvas exists." : "No image available.", "No Image Exists");
             } else if (plugin.isDisplayCanvas(imp) && imp.getNDimensions() == 2 && imp.getBitDepth() == 8) {
                 switch(imp.getProcessor().get(0, 0)) {
                     case 0 -> imp.getProcessor().set(128);
@@ -1851,7 +1841,7 @@ public class SNTUI extends JDialog {
     }
 
     private boolean okToCreateCanvas(final String promptMsg) {
-        if (isStreamMode()) {
+        if (plugin.isStreamMode()) {
             // The placeholder canvas here is just an editing convenience; its calibration must always mirror the live
             // Bvv/Bdv source (see SNT#getPixelWidth()/getPixelHeight()/getPixelDepth(), which the tethered viewer's
             // own calibration is built from). Resetting spacing would desync PathAndFillManager/Path calibration
@@ -2010,7 +2000,7 @@ public class SNTUI extends JDialog {
         intPanel.add(transparencyOutOfBoundsPanel(), gdb);
         ++gdb.gridy;
         intPanel.add(nodePanel(), gdb);
-        GuiUtils.enableComponents(intPanel, !isStreamMode());
+        GuiUtils.enableComponents(intPanel, !plugin.isStreamMode());
         return intPanel;
     }
 
@@ -2226,7 +2216,7 @@ public class SNTUI extends JDialog {
         final GridBagConstraints gbcButton2 = new GridBagConstraints();
         gbcButton2.gridx = 3;
         p.add(reset, gbcButton2);
-        GuiUtils.enableComponents(p, !isStreamMode());
+        GuiUtils.enableComponents(p, !plugin.isStreamMode());
         return p;
     }
 
@@ -2268,7 +2258,7 @@ public class SNTUI extends JDialog {
         // auto-grab focus of image window
         final JCheckBox canvasCheckBox = new JCheckBox("Activate image on mouse hovering",
                 plugin.getPrefs().isCanvasAutoActivationEnabled());
-        canvasCheckBox.setEnabled(!isStreamMode());
+        canvasCheckBox.setEnabled(!plugin.isStreamMode());
         registerInCommandFinder(canvasCheckBox, "Toggle Activate Canvas on Mouse Hovering",
                 "Options Tab");
         GuiUtils.addTooltip(canvasCheckBox, """
@@ -3288,10 +3278,10 @@ public class SNTUI extends JDialog {
 
         // Choose Tracing Image
         final JMenu changeImpMenu = new JMenu("Choose Tracing Image");
-        changeImpMenu.setEnabled(!isStreamMode());
+        changeImpMenu.setEnabled(!plugin.isStreamMode());
         changeImpMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.IMAGE));
         final JMenuItem fromList = GuiUtils.MenuItems.fromOpenImage();
-        fromList.setEnabled(!isStreamMode()); // can still be run from SNTCmdFInder if enabled
+        fromList.setEnabled(!plugin.isStreamMode()); // can still be run from SNTCmdFInder if enabled
         fromList.addActionListener(e -> {
             if (plugin.isSecondaryDataAvailable()) {
                 flushSecondaryDataPrompt();
@@ -3316,7 +3306,7 @@ public class SNTUI extends JDialog {
         final JMenuItem loadLabelsMenuItem = new JMenuItem("Load Labels (AmiraMesh)...");
         loadLabelsMenuItem.setToolTipText("Load neuropil labels from an AmiraMesh file");
         loadLabelsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.TAG));
-        loadLabelsMenuItem.setEnabled(!isStreamMode());
+        loadLabelsMenuItem.setEnabled(!plugin.isStreamMode());
         loadLabelsMenuItem.addActionListener(e -> {
             final File openFile = openReconstructionFile("labels");
             if (openFile != null)
@@ -3339,7 +3329,7 @@ public class SNTUI extends JDialog {
         saveAndOpenNext.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.SHIFT_DOWN_MASK));
         saveAndOpenNext.addActionListener(e -> saveTracingsAndOpenSiblingImage(true));
-        saveAndOpenNext.setEnabled(!isStreamMode());
+        saveAndOpenNext.setEnabled(!plugin.isStreamMode());
         fileMenu.add(saveAndOpenNext);
         final JMenuItem saveAndOpenPrev = new JMenuItem("Save Tracings & Open Previous Image",
                 IconFactory.menuIcon(IconFactory.GLYPH.PREVIOUS));
@@ -3347,7 +3337,7 @@ public class SNTUI extends JDialog {
         saveAndOpenPrev.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O,
                 java.awt.Toolkit.getDefaultToolkit().getMenuShortcutKeyMask() | KeyEvent.ALT_DOWN_MASK));
         saveAndOpenPrev.addActionListener(e -> saveTracingsAndOpenSiblingImage(false));
-        saveAndOpenPrev.setEnabled(!isStreamMode());
+        saveAndOpenPrev.setEnabled(!plugin.isStreamMode());
         fileMenu.add(saveAndOpenPrev);
         final JMenuItem saveAsMenuItem = new JMenuItem("Save Tracings As...", IconFactory.menuIcon(GLYPH.EXPORT));
         saveAsMenuItem.addActionListener(e -> {
@@ -3414,10 +3404,10 @@ public class SNTUI extends JDialog {
         restartMenuItem.addActionListener(e -> {
             // NB: query plugin.getContext() before exitRequested() nulls out the plugin field
             final CommandService cmdService = plugin.getContext().getService(CommandService.class);
-            final String[] modes = (isStreamMode())
+            final String[] modes = (plugin.isStreamMode())
                     ? new String[]{"Standard Mode", "SNT Stream (current)"} : new String[]{"Standard Mode (current)", "SNT Stream"};
             final String choice = guiUtils.getChoice("Restart in which mode?", "Reset and Restart",
-                    modes, isStreamMode() ? modes[1] : modes[0]);
+                    modes, plugin.isStreamMode() ? modes[1] : modes[0]);
             if (choice == null) return; // user dismissed the dialog
             // The choice above already doubles as the "are you sure?" gesture
             // Any unsaved-changes warning is still shown regardless (see exitRequested(boolean))
@@ -3753,14 +3743,14 @@ public class SNTUI extends JDialog {
             final DialogLayout layout = arrangeCoreDialogs(true);
             if (layout == null) return; // error already shown (corrupt prefs)
             // Classic mode: unchanged behavior: nothing else to do. Arrange the BVV/BDV viewer frame:
-            if (isStreamMode()) arrangeStreamViewer(layout);
+            if (plugin.isStreamMode()) arrangeStreamViewer(layout);
         });
         viewMenu.add(arrangeDialogsMenuItem);
         final JMenuItem arrangeWindowsMenuItem = new JMenuItem("Arrange Tracing Views");
         arrangeWindowsMenuItem.putClientProperty("cmdFinder-keywords", "tidy,clean,clutter");
         arrangeWindowsMenuItem.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.WINDOWS));
         arrangeWindowsMenuItem.addActionListener(e -> arrangeCanvases(true));
-        arrangeWindowsMenuItem.setEnabled(!isStreamMode());
+        arrangeWindowsMenuItem.setEnabled(!plugin.isStreamMode());
         viewMenu.add(arrangeWindowsMenuItem);
         final JMenu hideViewsMenu = new JMenu("Hide Tracing Canvas");
         hideViewsMenu.setIcon(IconFactory.menuIcon(IconFactory.GLYPH.EYE_SLASH));
@@ -3777,7 +3767,7 @@ public class SNTUI extends JDialog {
         hideViewsMenu.add(getTracerVisibilityMenuItem("BDV"));
         hideViewsMenu.add(getTracerVisibilityMenuItem("BVV"));
         hideViewsMenu.add(getTracerVisibilityMenuItem("Legacy 3D Viewer"));
-        hideViewsMenu.setEnabled(!isStreamMode());
+        hideViewsMenu.setEnabled(!plugin.isStreamMode());
         viewMenu.add(hideViewsMenu);
         final JMenuItem showImpMenuItem = new JMenuItem("Display Secondary Image", IconFactory.menuIcon(GLYPH.LAYERS));
         showImpMenuItem.addActionListener(e -> {
@@ -4055,7 +4045,7 @@ public class SNTUI extends JDialog {
 
         final JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         onlyActiveCTposition = new JCheckBox(InternalUtils.hotKeyLabel(
-                isStreamMode() ? "Only paths from active frame" : "3. Only paths from active channel/frame",
+                plugin.isStreamMode() ? "Only paths from active frame" : "3. Only paths from active channel/frame",
                 "3"), plugin.showOnlyActiveCTposPaths);
         row3.add(onlyActiveCTposition);
         onlyActiveCTposition.addItemListener(listener);
@@ -4221,7 +4211,7 @@ public class SNTUI extends JDialog {
         final JPanel checkboxPanel = new JPanel(new FlowLayout(FlowLayout.LEADING, 0, 0));
         checkboxPanel.add(aStarCheckBox);
         checkboxPanel.add(searchAlgoChoice);
-        algorithmChoiceLabel = GuiUtils.leftAlignedLabel(" algorithm", !isStreamMode());
+        algorithmChoiceLabel = GuiUtils.leftAlignedLabel(" algorithm", !plugin.isStreamMode());
         checkboxPanel.add(algorithmChoiceLabel);
 
         final JPopupMenu optionsMenu = new JPopupMenu();
@@ -4307,7 +4297,7 @@ public class SNTUI extends JDialog {
             // Streamed sources (N5/Zarr/IMS) have no size ceiling the way an in-RAM image does: this iterates
             // every voxel once, which can take a long time (and hit disk/network hard) depending on dataset
             // size. Warn instead of hard-disabling: it can work fine for smaller streamed datasets
-            if (isStreamMode() && !guiUtils.getConfirmation(
+            if (plugin.isStreamMode() && !guiUtils.getConfirmation(
                     "This scans the entire streamed image once to compute statistics. Depending on "
                             + "dataset size and network/disk speed, this can take a long time. Continue?",
                     "Compute Statistics for Whole Image?")) {
@@ -4380,9 +4370,9 @@ public class SNTUI extends JDialog {
             updateSettingsString();
             showStatus("Tracing mode: Standard", true);
         });
-        rubberBandTracingRbmi.setEnabled(!isStreamMode());
+        rubberBandTracingRbmi.setEnabled(!plugin.isStreamMode());
         rubberBandTracingRbmi.addActionListener(e -> {
-            if (isStreamMode()) {
+            if (plugin.isStreamMode()) {
                 error("Live Preview (Rubber Band) tracing is not available for out-of-core tracing");
                 return;
             }
@@ -4468,7 +4458,7 @@ public class SNTUI extends JDialog {
 
         // Quick Toggles dropdown
         final JButton quickToggles = GuiUtils.Buttons.OptionsButton(GLYPH.BOLT, 1f, quickTogglesMenu() );
-        quickToggles.setEnabled(!isStreamMode());
+        quickToggles.setEnabled(!plugin.isStreamMode());
         quickToggles.setToolTipText("Quick Toggles for common actions");
         toolbar.add(quickToggles);
 
@@ -4677,7 +4667,7 @@ public class SNTUI extends JDialog {
             }
 
             final String defaultText;
-            if (isStreamMode()) {
+            if (plugin.isStreamMode()) {
                 defaultText = "In-core image not available...";
             } else if (!accessToValidImagePlus()) {
                 defaultText = "Image data unavailable...";
@@ -4775,7 +4765,7 @@ public class SNTUI extends JDialog {
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
         List.of("Bookmarks", "3D").forEach(tabTitle -> {
             final int idx = InternalUtils.getTabIndex(tp, tabTitle);
-            if (idx != -1) tp.setEnabledAt(idx, !isStreamMode());
+            if (idx != -1) tp.setEnabledAt(idx, !plugin.isStreamMode());
         });
     }
 
@@ -5585,7 +5575,7 @@ public class SNTUI extends JDialog {
         updateSettingsString();
         showStatus("Tracing on secondary layer enabled", true);
         updateSecLayerActionButtonIcon(enable);
-        if (isStreamMode()) {
+        if (plugin.isStreamMode()) {
             final AbstractBigViewer viewer = getActiveBigViewer();
             if (viewer != null) viewer.updateSecondaryLayerIndicator();
         }
@@ -5652,13 +5642,13 @@ public class SNTUI extends JDialog {
     }
 
     protected void noValidImageDataError() {
-        guiUtils.error((isStreamMode())
+        guiUtils.error((plugin.isStreamMode())
                 ? "This option requires the entire image to be loaded into memory (RAM)."
                 : "This option requires valid image data to be loaded.");
     }
 
     private void noValidImageDataErrorExtended() {
-        guiUtils.error((isStreamMode())
+        guiUtils.error((plugin.isStreamMode())
                 ? "This option requires the entire image to be loaded into memory (RAM)."
                 : "This option requires valid image data to be loaded. " +
                   "The image should have bright foreground structures on a dark background.");
@@ -6581,7 +6571,7 @@ public class SNTUI extends JDialog {
         }
 
         private void run() {
-            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && !isStreamMode()) {
+            if (getState() != -1 && getState() != READY && getState() != TRACING_PAUSED && !plugin.isStreamMode()) {
                 guiUtils.blinkingError(statusText, "Please exit current state before importing data.");
                 return;
             }
@@ -6790,7 +6780,7 @@ public class SNTUI extends JDialog {
                 : new JMenuItem(InternalUtils.getImportActionName(type));
         jmi.addActionListener(e -> new ImportAction(type, null).run());
         if (List.of(ImportAction.IMAGE, ImportAction.DEMO, ImportAction.IMAGE_CLIPBOARD).contains(type))
-            jmi.setEnabled(!isStreamMode());
+            jmi.setEnabled(!plugin.isStreamMode());
         return jmi;
     }
 

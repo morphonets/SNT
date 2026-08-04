@@ -5894,7 +5894,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     });
             menu.addSeparator();
             final JMenu zMenu = visitingZoom.zoomControls("Zoom to Node", "nodes");
-            zMenu.setEnabled(plugin.getUI() != null && !plugin.getUI().isStreamMode());
+            zMenu.setEnabled(!plugin.isStreamMode());
             zMenu.setText("Visiting Zoom Level");
             zMenu.setToolTipText("The magnification to be used when zooming into a node");
             menu.add(zMenu);

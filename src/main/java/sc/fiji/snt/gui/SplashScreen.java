@@ -52,7 +52,7 @@ class SplashScreen extends JWindow {
 	static Icon getIcon() {
 		try {
 			final Dimension dim = getScaledIconDimensions(512, 528);
-			final String iconPath = (SNTUtils.getInstance() != null && SNTUtils.getInstance().getUI() != null && SNTUtils.getInstance().getUI().isStreamMode())
+			final String iconPath = (SNTUtils.getInstance() != null && SNTUtils.getInstance().isStreamMode())
 					? "gui/SNTStreamLogo.svg" : "gui/SNTLogo.svg";
 			return new FlatSVGIcon(iconPath, dim.width, dim.height);
 		} catch (final Exception ignored) {

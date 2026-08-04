@@ -350,6 +350,9 @@ public class SNT extends MultiDThreePanes implements
 
 	/* GUI */
 	protected SNTUI ui;
+	// Whether this session is running in stream mode ("SNT Stream"), i.e., without access to a full
+	// in-core materialized image (see BigDataLoaderCmd)
+	private boolean bigDataMode;
 	protected volatile boolean tracingHalted = false; // Tracing functions paused?
 	protected volatile boolean rubberBandTracing = false; // Rubber band (live preview) tracing mode
 
@@ -981,6 +984,7 @@ public class SNT extends MultiDThreePanes implements
 	}
 
 	private void startUIOnEDT(final boolean bigDataMode) {
+		setBigDataMode(bigDataMode);
 		GuiUtils.setLookAndFeel();
 		final SNT thisPlugin = this;
 		ui = new SNTUI(thisPlugin, bigDataMode);
@@ -3559,7 +3563,7 @@ public class SNT extends MultiDThreePanes implements
 				// NB: enableSecondaryLayerTracing() is reached from several off-EDT callers but showSecondaryData()
 				// does BVV/BDV Swing/OpenGL setup that. Calling it directly from a worker thread is a silent EDT/GL
 				// threading violation (no exception, just a hang), hence the explicit invokeLater() below
-				if (getUI() != null && getUI().isStreamMode()) {
+				if (isStreamMode() && getUI() != null) {
 					final var viewer = getUI().getActiveBigViewer();
 					if (viewer != null) {
 						SwingUtilities.invokeLater(() -> {
@@ -3598,7 +3602,7 @@ public class SNT extends MultiDThreePanes implements
 			// Bdv/Bvv viewer (see enableSecondaryLayerTracing()'s showSecondaryData() hook); flushing it
 			// here should remove that source toot. Same invokeLater() rationale as that hook:
 			// hideSecondaryData() touches Swing/OpenGL state and may be reached from off-EDT callers.
-			if (getUI().isStreamMode()) {
+			if (isStreamMode()) {
 				final var viewer = getUI().getActiveBigViewer();
 				if (viewer != null) {
 					SwingUtilities.invokeLater(() -> {
@@ -4441,7 +4445,7 @@ public class SNT extends MultiDThreePanes implements
 		// Dispose xz/zy images unless the user stored some annotations (ROIs)
 		// on the image overlay or modified them somehow.
 		removeMIPOverlayAllPanes();
-		final boolean bvvMode = getUI() != null && getUI().isStreamMode();
+		final boolean bvvMode = isStreamMode();
 		if (!single_pane) {
 			final ImagePlus[] impPanes = { xz, zy };
 			for (final ImagePlus imp : impPanes) {
@@ -4514,6 +4518,29 @@ public class SNT extends MultiDThreePanes implements
 	 */
 	public SNTUI getUI() {
 		return ui;
+	}
+
+	/**
+	 * Returns whether this session is running in stream mode ("SNT Stream"), i.e., without access to
+	 * a full in-core materialized image but rather a lazily-loaded BDV/BVV-backed source (typically
+	 * an OME-Zarr/N5 dataset; see {@link sc.fiji.snt.gui.cmds.BigDataLoaderCmd}).
+	 *
+	 * @return true if in stream mode
+	 */
+	public boolean isStreamMode() {
+		return bigDataMode;
+	}
+
+	/**
+	 * Sets the stream-mode flag returned by {@link #isStreamMode()}. Package-private: the only
+	 * legitimate callers are {@link #startUIOnEDT(boolean)} (before constructing {@link SNTUI}) and
+	 * {@link SNTUI}'s own constructor (covering direct {@code new SNTUI(plugin, bigDataMode)}
+	 * construction that bypasses {@link #startUI(boolean)}).
+	 *
+	 * @param bigDataMode the new stream-mode flag
+	 */
+	void setBigDataMode(final boolean bigDataMode) {
+		this.bigDataMode = bigDataMode;
 	}
 
 	/* (non-Javadoc)

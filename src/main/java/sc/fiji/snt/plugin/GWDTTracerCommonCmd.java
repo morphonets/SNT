@@ -71,7 +71,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     private static final String SOMA_ROI_CENTROID_WEIGHTED = "Single tree rooted at ROI weighted centroid";
     /**
      * Stream-mode-only strategy: seeds detection from BDV/BVV marker(s) ({@code M} key), since Stream mode
-     * has no Roi support. Only offered when {@code ui.isStreamMode()}; see {@link #initForImage()}
+     * has no Roi support. Only offered when {@code snt.isStreamMode()}; see {@link #initForImage()}
      */
     protected static final String SOMA_BOOKMARK = "Selected Bookmarks/markers define somata";
 
@@ -304,7 +304,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         imgChoiceItem.setChoices(choices);
         imgChoice = choices.getFirst();
         // In Stream mode there is no ij.gui.Roi support (no canvas to draw one on)
-        if (ui != null && ui.isStreamMode()) {
+        if (snt.isStreamMode()) {
             final MutableModuleItem<String> strategyItem = getInfo().getMutableInput("somaStrategyChoice", String.class);
             if (strategyItem != null) {
                 strategyItem.setLabel("Defined positions");

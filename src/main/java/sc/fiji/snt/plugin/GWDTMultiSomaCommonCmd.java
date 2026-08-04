@@ -136,7 +136,7 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
             if (seedFromMarkers) {
                 final List<long[]> seeds = getPixelPositionsOfBookmarks(true);
                 if (seeds.isEmpty()) {
-                    error((ui != null && ui.isStreamMode())
+                    error((snt.isStreamMode())
                             ? "No markers found. Place one marker (\"M\" key) per cell in the viewer, then re-run."
                             : "No bookmarks found. Add one bookmark per cell (Shift+B, or right-click on the "
                                     + "image) in the Bookmarks pane, then re-run.");
