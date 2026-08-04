@@ -117,6 +117,13 @@ public class PrefsCmd extends OptionsPlugin {
     @Parameter(label="Remember window locations", description="Whether position of dialogs should be preserved across restarts")
     private boolean persistentWinLoc;
 
+	@Parameter(label="Use native file dialogs", description="""
+                Whether Open/Save dialogs should use the operating system's native file dialogs
+                instead of SNT's own file chooser. Native dialogsnlook and feel like the rest of
+                your OS, but lack SNT's toolbar (hidden files, filter by pattern, recent locations,
+                etc.). Both support drag-and-drop.""")
+	private boolean nativeFileChooser;
+
     @Parameter(label = "Look and feel (L&F)", required = false, persist = false,
             description = "How should SNT look? NB: This may also affect other Swing-based dialogs in Fiji.",
             initializer = "initLookAndFeel")
@@ -148,6 +155,7 @@ public class PrefsCmd extends OptionsPlugin {
         snt.getPrefs().setSomaDisplayTriangle(somaDisplayOption==PathNodeCanvas.SOMA_RENDER_TRIANGLE);
 		applyWorkspaceChange();
 		snt.getPrefs().setSaveWinLocations(persistentWinLoc);
+		SNTPrefs.setUseNativeFileChooser(nativeFileChooser);
 		snt.getPrefs().setSaveCompressedTraces(compressTraces);
 		snt.getPrefs().set2DDisplayCanvas(force2DDisplayCanvas);
 		SNTPrefs.setThreads(Math.max(0, nThreads));
@@ -203,6 +211,7 @@ public class PrefsCmd extends OptionsPlugin {
 		try {
 			snt = sntService.getInstance();
 			persistentWinLoc = snt.getPrefs().isSaveWinLocations();
+			nativeFileChooser = SNTPrefs.getUseNativeFileChooser();
 			force2DDisplayCanvas = snt.getPrefs().is2DDisplayCanvas();
 			compressTraces = snt.getPrefs().isSaveCompressedTraces();
 			nThreads = SNTPrefs.getThreads();

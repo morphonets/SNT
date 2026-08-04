@@ -25,6 +25,7 @@ package sc.fiji.snt.gui;
 import com.formdev.flatlaf.*;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.icons.FlatClearIcon;
+import com.formdev.flatlaf.util.SystemFileChooser;
 import com.formdev.flatlaf.util.UIScale;
 import com.jidesoft.plaf.LookAndFeelFactory;
 import com.jidesoft.popup.JidePopup;
@@ -1264,12 +1265,10 @@ public class GuiUtils {
 	}
 
 	public File getOpenFile(final String title, final File file, final String... allowedExtensions) {
-		final JFileChooser chooser = fileChooser(title, file, JFileChooser.OPEN_DIALOG, JFileChooser.FILES_ONLY);
-		if (allowedExtensions != null && allowedExtensions.length > 0) {
-			chooser.addChoosableFileFilter(new FileNameExtensionFilter(
-					"Reconstruction files (" + String.join(",", allowedExtensions) + ")", allowedExtensions));
-		}
-		return (File) getOpenFileChooserResult(chooser);
+		final FileNameExtensionFilter filter = (allowedExtensions == null || allowedExtensions.length == 0) ? null
+				: new FileNameExtensionFilter(
+						"Reconstruction files (" + String.join(",", allowedExtensions) + ")", allowedExtensions);
+		return (File) showOpenDialog(title, JFileChooser.FILES_ONLY, false, file, false, filter);
 	}
 
 	public File getSaveFile(final String title, final File file, final String... allowedExtensions) {
@@ -1300,76 +1299,135 @@ public class GuiUtils {
 	}
 
 	public File[] getReconstructionFiles(final File selectedFile) {
-		final JFileChooser fileChooser = getReconstructionFileChooser(null);
-		if (selectedFile != null) fileChooser.setSelectedFile(selectedFile);
-		return (File[])getOpenFileChooserResult(fileChooser);
+		final FileNameExtensionFilter filter = new FileNameExtensionFilter(
+				"Reconstruction files (.traces, .swc, .json, .ndf, .xml)", "traces", "swc", "json", "ndf", "xml");
+		return (File[]) showOpenDialog("Choose Reconstruction File(s)", JFileChooser.FILES_ONLY, true,
+				selectedFile, false, filter);
 	}
 
 	public File getFile(final File file, final String extensionWithoutPeriod) {
-		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
-		fileChooser.setDialogTitle("/".equals(extensionWithoutPeriod) ? "Choose Directory" : "Choose " + extensionWithoutPeriod.toUpperCase() + " File");
-		fileChooser.setFileSelectionMode("/".equals(extensionWithoutPeriod) ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY);
-		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
-		fileChooser.setMultiSelectionEnabled(false);
-		fileChooser.addChoosableFileFilter(
-				new FileNameExtensionFilter(extensionWithoutPeriod.toUpperCase(), extensionWithoutPeriod));
-		if (file != null) {
-			if ("/".equals(extensionWithoutPeriod)) {
-				fileChooser.setCurrentDirectory(file);
-			} else {
-				fileChooser.setSelectedFile(file);
-			}
-		}
-		fileChooser.setMultiSelectionEnabled(false);
-		return (File) getOpenFileChooserResult(fileChooser);
+		final boolean dir = "/".equals(extensionWithoutPeriod);
+		final String title = dir ? "Choose Directory" : "Choose " + extensionWithoutPeriod.toUpperCase() + " File";
+		final int selectionMode = dir ? JFileChooser.DIRECTORIES_ONLY : JFileChooser.FILES_ONLY;
+		// NB: a "/"-named extension filter is meaningless in DIRECTORIES_ONLY mode (both classic
+		// and native choosers only ever list directories there), so it is only added for files
+		final FileNameExtensionFilter filter = dir ? null
+				: new FileNameExtensionFilter(extensionWithoutPeriod.toUpperCase(), extensionWithoutPeriod);
+		return (File) showOpenDialog(title, selectionMode, false, file, dir, filter);
 	}
 
 	public File getImageFile(final File file) {
-		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
-		fileChooser.setDialogTitle("Choose Image File");
-		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
-		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
-		fileChooser.addChoosableFileFilter(
-				new FileNameExtensionFilter("IJ 'native' formats (.tif, .png, .raw, .zip, etc.)", "tif", "tiff", "dcm",
-						"avi", "fits", "pgm", "jpg", "gif", "bmp", "zip", "png", "raw"));
-		fileChooser.setMultiSelectionEnabled(false);
-		if (file != null)
-			fileChooser.setSelectedFile(file);
-		fileChooser.setMultiSelectionEnabled(false);
-		return (File) getOpenFileChooserResult(fileChooser);
+		final FileNameExtensionFilter filter = new FileNameExtensionFilter(
+				"IJ 'native' formats (.tif, .png, .raw, .zip, etc.)", "tif", "tiff", "dcm",
+				"avi", "fits", "pgm", "jpg", "gif", "bmp", "zip", "png", "raw");
+		return (File) showOpenDialog("Choose Image File", JFileChooser.FILES_ONLY, false, file, false, filter);
 	}
 
 	public File getReconstructionFile(final File file, final String extension) {
-		FileNameExtensionFilter filter = switch (extension) {
+		final FileNameExtensionFilter filter = switch (extension) {
 			case "swc" -> new FileNameExtensionFilter("SWC files (.swc)", "swc");
 			case "traces" -> new FileNameExtensionFilter("SNT TRACES files (.traces)", "traces");
 			case "json" -> new FileNameExtensionFilter("JSON files (.json)", "json");
 			case "ndf" -> new FileNameExtensionFilter("NeuronJ NDF files (.ndf)", "ndf");
 			case "xml" -> new FileNameExtensionFilter("Neurolucida XML files (.xml)", "xml");
 			case "labels" -> new FileNameExtensionFilter("AmiraMesh labels (.labels)", "labels");
-			case null, default -> null;
+			case null, default -> new FileNameExtensionFilter(
+					"Reconstruction files (.traces, .swc, .json, .ndf, .xml)", "traces", "swc", "json", "ndf", "xml");
 		};
-		final JFileChooser fileChooser = getReconstructionFileChooser(filter);
-		fileChooser.setSelectedFile(file);
-		if (extension == null)
-			fileChooser.setDialogTitle("Choose Reconstruction File");
-		else if ("labels".equals(extension))
-			fileChooser.setDialogTitle("Choose LABELS File");
-		else
-			fileChooser.setDialogTitle("Choose Reconstruction (" + extension.toUpperCase() + ") File");
-		fileChooser.setMultiSelectionEnabled(false);
-		return (File)getOpenFileChooserResult(fileChooser);
+		final String title;
+		if (extension == null) title = "Choose Reconstruction File";
+		else if ("labels".equals(extension)) title = "Choose LABELS File";
+		else title = "Choose Reconstruction (" + extension.toUpperCase() + ") File";
+		return (File) showOpenDialog(title, JFileChooser.FILES_ONLY, false, file, false, filter);
 	}
 
-	private JFileChooser getReconstructionFileChooser(final FileNameExtensionFilter filter) {
+	/**
+	 * Shows an "Open" dialog, honoring {@link SNTPrefs#getUseNativeFileChooser()}: either SNT's
+	 * classic {@link FileChooser} (with its accessory toolbar and drag-and-drop support) or
+	 * FlatLaf's {@link SystemFileChooser} (native OS dialog). Only intended for the simple,
+	 * extension-filter-based dialogs built by the {@code getXxxFile(s)} methods above - dialogs that
+	 * need custom {@code FileFilter}s, {@code FILES_AND_DIRECTORIES} selection, or drag-and-drop
+	 * (e.g. {@link #getSaveFile}, {@link #fileChooser}, {@link #getDnDFileChooser()} and their
+	 * callers) always use the classic chooser and are not affected by this method or the preference.
+	 *
+	 * @param title          the dialog title
+	 * @param selectionMode  {@code JFileChooser.FILES_ONLY} or {@code JFileChooser.DIRECTORIES_ONLY}
+	 * @param multiSelection whether multiple files may be selected
+	 * @param preset         a file/directory to pre-select or pre-navigate to, or {@code null}
+	 * @param presetIsDirectory whether {@code preset} should be treated as a directory to navigate
+	 *                          to ({@code setCurrentDirectory}) rather than a file to pre-select
+	 *                          ({@code setSelectedFile})
+	 * @param filter         the (single) choosable extension filter to add, or {@code null} for none
+	 * @return a {@code File} (single-selection) or {@code File[]} (multi-selection), or {@code null}
+	 *         if the dialog was cancelled
+	 */
+	private Object showOpenDialog(final String title, final int selectionMode, final boolean multiSelection,
+			final File preset, final boolean presetIsDirectory, final FileNameExtensionFilter filter) {
+		if (SNTPrefs.getUseNativeFileChooser()) {
+			return showNativeOpenDialog(title, selectionMode, multiSelection, preset, presetIsDirectory, filter);
+		}
 		final JFileChooser fileChooser = GuiUtils.getDnDFileChooser();
-		fileChooser.setDialogTitle("Choose Reconstruction File(s)");
-		fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+		fileChooser.setDialogTitle(title);
+		fileChooser.setFileSelectionMode(selectionMode);
 		fileChooser.setDialogType(JFileChooser.OPEN_DIALOG);
-		fileChooser.addChoosableFileFilter(Objects.requireNonNullElseGet(filter, () -> new FileNameExtensionFilter(
-				"Reconstruction files (.traces, .swc, .json, .ndf, .xml)", "traces", "swc", "json", "ndf", "xml")));
-		fileChooser.setMultiSelectionEnabled(true);
-		return fileChooser;
+		fileChooser.setMultiSelectionEnabled(multiSelection);
+		if (filter != null) fileChooser.addChoosableFileFilter(filter);
+		if (preset != null) {
+			if (presetIsDirectory) fileChooser.setCurrentDirectory(preset);
+			else fileChooser.setSelectedFile(preset);
+		}
+		return getOpenFileChooserResult(fileChooser);
+	}
+
+	private Object showNativeOpenDialog(final String title, final int selectionMode, final boolean multiSelection,
+			final File preset, final boolean presetIsDirectory, final FileNameExtensionFilter filter) {
+		// Unlike JFileChooser.showOpenDialog(), SystemFileChooser.showOpenDialog() throws
+		// IllegalStateException if not called on the EDT
+		if (!SwingUtilities.isEventDispatchThread()) {
+			final Object[] result = new Object[1];
+			try {
+				SwingUtilities.invokeAndWait(() -> result[0] = showNativeOpenDialogOnEDT(
+						title, selectionMode, multiSelection, preset, presetIsDirectory, filter));
+			} catch (final InterruptedException e) {
+				Thread.currentThread().interrupt();
+				return null;
+			} catch (final java.lang.reflect.InvocationTargetException e) {
+				SNTUtils.error("Native file dialog failed", e.getCause());
+				return null;
+			}
+			return result[0];
+		}
+		return showNativeOpenDialogOnEDT(title, selectionMode, multiSelection, preset, presetIsDirectory, filter);
+	}
+
+	private Object showNativeOpenDialogOnEDT(final String title, final int selectionMode,
+			final boolean multiSelection, final File preset, final boolean presetIsDirectory,
+			final FileNameExtensionFilter filter) {
+		final SystemFileChooser fileChooser = new SystemFileChooser();
+		fileChooser.setDialogTitle(title);
+		fileChooser.setFileSelectionMode(selectionMode == JFileChooser.DIRECTORIES_ONLY
+				? SystemFileChooser.DIRECTORIES_ONLY : SystemFileChooser.FILES_ONLY);
+		fileChooser.setMultiSelectionEnabled(multiSelection);
+		if (filter != null) {
+			fileChooser.addChoosableFileFilter(
+					new SystemFileChooser.FileNameExtensionFilter(filter.getDescription(), filter.getExtensions()));
+		}
+		if (preset != null) {
+			if (presetIsDirectory) fileChooser.setCurrentDirectory(preset);
+			else fileChooser.setSelectedFile(preset);
+		}
+		// HACK: On macOS this seems to help to ensure prompt is displayed as frontmost
+		final boolean focused = parent instanceof Window && parent.hasFocus();
+		if (focused) ((Window) parent).toBack();
+		if (fileChooser.showOpenDialog(parent) == SystemFileChooser.APPROVE_OPTION) {
+			// NB: unlike JFileChooser, getSelectedFiles() returns the selection in single-selection
+			// mode too - see FlatLaf's SystemFileChooser docs
+			final File[] result = fileChooser.getSelectedFiles();
+			if (result.length > 0) SNTPrefs.setLastKnownDir(result[0]);
+			return multiSelection ? result : (result.length > 0 ? result[0] : null);
+		}
+		if (focused) ((Window) parent).toFront();
+		return null;
 	}
 
 	private Object getOpenFileChooserResult(final JFileChooser fileChooser) {

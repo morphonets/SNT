@@ -488,6 +488,26 @@ public class SNTPrefs { // TODO: Adopt PrefService
 	}
 
 	/**
+	 * Gets whether SNT's open/save dialogs should use the OS native file dialogs (FlatLaf's {@code SystemFileChooser})
+	 * instead of SNT's own {@code FileChooser}.
+	 *
+	 * @return true if native OS file dialogs should be used when possible
+	 */
+	public static boolean getUseNativeFileChooser() {
+		return Prefs.get("snt.nativeFileChooser", false);
+	}
+
+	/**
+	 * Sets whether SNT's simple open/save dialogs should use native OS file dialogs.
+	 *
+	 * @param useNative the new preference
+	 * @see #getUseNativeFileChooser()
+	 */
+	public static void setUseNativeFileChooser(final boolean useNative) {
+		Prefs.set("snt.nativeFileChooser", useNative);
+	}
+
+	/**
 	 * Gets the current number of threads setting.
 	 *
 	 * @return the number of threads
