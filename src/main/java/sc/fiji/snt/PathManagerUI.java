@@ -43,6 +43,7 @@ import sc.fiji.snt.io.SWCExportException;
 import sc.fiji.snt.plugin.*;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.*;
+import sc.fiji.snt.viewer.AbstractBigViewer;
 
 import javax.swing.Timer;
 import javax.swing.*;
@@ -5893,6 +5894,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                     });
             menu.addSeparator();
             final JMenu zMenu = visitingZoom.zoomControls("Zoom to Node", "nodes");
+            zMenu.setEnabled(plugin.getUI() != null && !plugin.getUI().isStreamMode());
             zMenu.setText("Visiting Zoom Level");
             zMenu.setToolTipText("The magnification to be used when zooming into a node");
             menu.add(zMenu);
@@ -6075,7 +6077,7 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 guiUtils.error("No path(s) selected.");
                 return false;
             }
-            if (plugin.getImagePlus() == null) {
+            if (plugin.getImagePlus() == null && (plugin.getUI() == null || plugin.getUI().getActiveBigViewer() == null)) {
                 guiUtils.error("Image is not available.");
                 return false;
             }
@@ -6102,10 +6104,13 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
 
         private void zoomToBoundingBox(final Collection<Path> paths) {
             if (!canExecuteZoomOperation(paths)) return;
-            final double prevMag = plugin.getImagePlus().getCanvas().getMagnification();
-            final double zoom = ImpUtils.zoomTo(plugin.getImagePlus(), paths);
-            plugin.setCanvasLabelAllPanes((zoom == prevMag) ? "Selected paths already in view" :
-                    String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
+            double zoom = GuiUtils.VisitingZoom.DEFAULT_PERCENT / 100d;
+            if (plugin.getImagePlus() != null) {
+                final double prevMag = plugin.getImagePlus().getCanvas().getMagnification();
+                zoom = ImpUtils.zoomTo(plugin.getImagePlus(), paths);
+                plugin.setCanvasLabelAllPanes((zoom == prevMag) ? "Selected paths already in view" :
+                        String.format("Zoomed to selected paths: (%.0f%%)", zoom * 100));
+            }
             zoomOtherPanesAsNeeded(paths, zoom);
             final Timer timer = new Timer(600, ae -> plugin.setCanvasLabelAllPanes(null));
             timer.setRepeats(false);
@@ -6121,6 +6126,20 @@ public class PathManagerUI extends JDialog implements PathAndFillListener,
                 final ImagePlus xzImp = plugin.getImagePlus(SNT.XZ_PLANE);
                 if (xzImp != null)
                     ImpUtils.zoomTo(xzImp, magnification, paths, RoiConverter.XZ_PLANE);
+            }
+            flyActiveBigViewerToBoundingBoxAsNeeded(paths);
+        }
+
+        /**
+         * Flies the active Bdv/Bvv viewer (if any) to the bounding box of {@code paths}, via
+         * {@link AbstractBigViewer#flyTo(sc.fiji.snt.util.BoundingBox)}
+         *
+         * @param paths the paths whose bounding box the viewer should frame
+         */
+        private void flyActiveBigViewerToBoundingBoxAsNeeded(final Collection<Path> paths) {
+            final AbstractBigViewer viewer = plugin.getUI().getActiveBigViewer();
+            if (viewer != null) {
+                viewer.flyTo(new Tree(new ArrayList<>(paths)).getBoundingBox());
             }
         }
 

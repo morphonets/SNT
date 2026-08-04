@@ -31,6 +31,7 @@ import sc.fiji.snt.*;
 import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.IconFactory;
 import sc.fiji.snt.tracing.SearchInterface;
+import sc.fiji.snt.util.BoundingBox;
 import sc.fiji.snt.util.PointInImage;
 import sc.fiji.snt.util.SNTColor;
 import sc.fiji.snt.util.SNTPoint;
@@ -376,6 +377,50 @@ public abstract class AbstractBigViewer {
     public abstract void setCurrentTimepoint(int timepoint);
 
     /**
+     * Animates the camera to frame the given world-coordinate bounding box: an isotropic scale is
+     * computed so the box's width/height fit the viewport, and the transform is translated to
+     * center the box's centroid on screen. Any existing rotation is dropped.
+     * <p>
+     * A degenerate box (zero width/height - e.g. a single-node selection, whose origin and
+     * originOpposite are the same point) cannot be "fit" (there is nothing to scale to), so this
+     * recenters on the centroid at the viewer's <em>current</em> zoom level instead.
+     *
+     * @param box the world-coordinate bounding box to frame; a no-op if {@code null}, its corners
+     *            are not real (e.g. an empty/uncomputed box), or the viewport has not yet been realized
+     * @return {@code true} if the transform was computed and applied; {@code false} otherwise
+     */
+    public boolean flyTo(final BoundingBox box) {
+        if (box == null || !box.origin().isReal() || !box.originOpposite().isReal()) return false;
+        final int cw = getViewerWidth(), ch = getViewerHeight();
+        if (cw <= 0 || ch <= 0) return false;
+        final double physW = box.width(), physH = box.height();
+        final double scale;
+        if (physW > 0 && physH > 0) {
+            scale = Math.min(cw / physW, ch / physH);
+        } else {
+            // Degenerate (point-like) box: can't compute a fit scale, so keep the current zoom
+            // and just recenter. Column norm rather than a raw matrix entry so this is correct
+            // even if the current transform happens to carry rotation.
+            final AffineTransform3D current = getViewerTransform();
+            final double currentScale = Math.sqrt(
+                    current.get(0, 0) * current.get(0, 0) +
+                    current.get(1, 0) * current.get(1, 0) +
+                    current.get(2, 0) * current.get(2, 0));
+            scale = (currentScale > 0 && Double.isFinite(currentScale)) ? currentScale : 1;
+        }
+        final SNTPoint centroid = box.getCentroid();
+        final AffineTransform3D target = new AffineTransform3D();
+        target.set(scale, 0, 0);
+        target.set(scale, 1, 1);
+        target.set(scale, 2, 2);
+        target.set(cw / 2.0 - scale * centroid.getX(), 0, 3);
+        target.set(ch / 2.0 - scale * centroid.getY(), 1, 3);
+        target.set(-scale * centroid.getZ(), 2, 3);
+        setViewerTransform(target, 300);
+        return true;
+    }
+
+    /**
      * Creates and returns a new {@link sc.fiji.snt.BookmarkManager} for this viewer.
      * Called exactly once (lazily) by {@link #getMarkerManager()}.
      */
@@ -668,8 +713,6 @@ public abstract class AbstractBigViewer {
                         showViewerMessage("No source selected");
                         return;
                     }
-                    final int cw = getViewerWidth(), ch = getViewerHeight();
-                    if (cw <= 0 || ch <= 0) return;
                     final AffineTransform3D srcToWorld = new AffineTransform3D();
                     src.getSpimSource().getSourceTransform(0, 0, srcToWorld);
                     final net.imglib2.RandomAccessibleInterval<?> rai = src.getSpimSource().getSource(0, 0);
@@ -695,17 +738,10 @@ public abstract class AbstractBigViewer {
                         minZ = Math.min(minZ, world[2]);
                         maxZ = Math.max(maxZ, world[2]);
                     }
-                    final double physW = maxX - minX, physH = maxY - minY, physZ = maxZ - minZ;
-                    if (physW <= 0 || physH <= 0) return;
-                    final double scale = Math.min(cw / physW, ch / physH);
-                    final AffineTransform3D target = new AffineTransform3D();
-                    target.set(scale, 0, 0);
-                    target.set(scale, 1, 1);
-                    target.set(scale, 2, 2);
-                    target.set(cw / 2.0 - scale * (minX + physW / 2.0), 0, 3);
-                    target.set(ch / 2.0 - scale * (minY + physH / 2.0), 1, 3);
-                    target.set(-scale * (minZ + physZ / 2.0), 2, 3);
-                    setViewerTransform(target, 300);
+                    final BoundingBox box = new BoundingBox();
+                    box.setOrigin(new PointInImage(minX, minY, minZ));
+                    box.setOriginOpposite(new PointInImage(maxX, maxY, maxZ));
+                    flyTo(box); // silently no-ops if the viewport isn't realized yet or the box is degenerate
                 }
             };
         }
