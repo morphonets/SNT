@@ -129,10 +129,12 @@ public class DiskBackedStorageBackend implements StorageBackend {
         gwdtImage = new DiskCachedCellImgFactory<>(new DoubleType(), options).create(dims);
         final Img<ByteType> gwdtState = new DiskCachedCellImgFactory<>(new ByteType(), options).create(dims);
 
-        // Priority queue: (index, distance)
-        final PriorityQueue<long[]> heap = new PriorityQueue<>(
-                Comparator.comparingDouble(a -> Double.longBitsToDouble(a[1]))
-        );
+        // Fast Marching frontier. Uses a bucket queue rather than a general-purpose heap: edge weights here are bounded
+        // by maxIntensity, so the frontier's memory stays proportional to its current width rather than to the
+        // total number of relaxation events over the whole run (which, for a java.util.PriorityQueue under this
+        // algorithm's lazy-deletion update pattern, can reach a large multiple of the voxel count and exhaust the heap
+        // on big volumes)
+        final BucketPriorityQueue heap = new BucketPriorityQueue(maxIntensity);
 
         @SuppressWarnings("unchecked")
         final RandomAccessibleInterval<? extends RealType<?>> typedSource =
@@ -188,8 +190,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
         long lastLogTime = System.currentTimeMillis();
 
         while (!heap.isEmpty()) {
-            final long[] entry = heap.poll();
-            final long currentIdx = entry[0];
+            final long currentIdx = heap.pop();
             indexToPos(currentIdx, currentPos);
 
             gwdtStateRA.setPosition(currentPos);
@@ -230,7 +231,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
      */
     private void addGWDTNeighborsToHeap(final long[] pos,
                                         final RandomAccess<ByteType> stateRA,
-                                        final PriorityQueue<long[]> heap,
+                                        final BucketPriorityQueue heap,
                                         final RandomAccess<? extends RealType<?>> srcRA,
                                         final RandomAccess<DoubleType> gwdtRA,
                                         final double threshold,
@@ -263,7 +264,7 @@ public class DiskBackedStorageBackend implements StorageBackend {
                 gwdtRA.get().set(newDist);
                 stateRA.setPosition(neighborPos);
                 stateRA.get().set(AbstractGWDTTracer.TRIAL);
-                heap.offer(new long[]{neighborIdx, Double.doubleToLongBits(newDist)});
+                heap.push(neighborIdx, newDist);
             }
         });
     }

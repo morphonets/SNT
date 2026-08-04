@@ -23,6 +23,7 @@
 package sc.fiji.snt.tracing.auto;
 
 import ij.ImagePlus;
+import net.imagej.ImgPlus;
 import net.imagej.ops.special.computer.UnaryComputerOp;
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccess;
@@ -3529,6 +3530,28 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
     }
 
     /**
+     * Reduces {@link #source} to a 2D image suitable for
+     * {@link SomaUtils#selectTopSomasByThickness} / {@link SomaUtils#filterSomasByThickness},
+     * both of which expect a 2D source
+     * <p>
+     * If {@link #source} is already 2D, it is returned unchanged. If it is an {@link ImgPlus},
+     * a max-intensity projection is computed (mirroring {@link SomaUtils#detectAllSomas}). Otherwise
+     * (e.g., a raw {@link RandomAccessibleInterval} without axis metadata, as can occur for some
+     * big-data sources), a mid-stack Z-slice is used as an approximation.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private RandomAccessibleInterval<T> reduceTo2DForThicknessFiltering() {
+        if (source.numDimensions() <= 2) return source;
+        if (source instanceof ImgPlus) {
+            return (RandomAccessibleInterval<T>) ImgUtils.maxIntensityProjection((ImgPlus) source);
+        }
+        final long midZ = source.dimension(2) / 2;
+        SNTUtils.log("reduceTo2DForThicknessFiltering: source has no axis metadata (not an ImgPlus); "
+                + "using mid-stack Z-slice " + midZ + " instead of a max-intensity projection");
+        return Views.hyperSlice(source, 2, midZ);
+    }
+
+    /**
      * Traces multiple somas in a single image using a NeuTube-style recovery
      * pass strategy. The expensive GWDT is computed once; Fast Marching is then
      * run once per soma, with previously-traced regions (dilated by
@@ -3589,16 +3612,20 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
                 + ", autoFilter=" + autoFilterSomas);
 
         if (autoFilterSomas) {
+            // selectTopSomasByThickness()/filterSomasByThickness() expect a 2D image: they allocate a mask/EDT sized to
+            // dimension(0) x dimension(1), then iterate the source in full. Reduce to a 2D projection first,
+            // mirroring the same reduction SomaUtils.detectAllSomas() already performs.
+            final RandomAccessibleInterval<T> thicknessSource = reduceTo2DForThicknessFiltering();
+
             if (effectiveNSomas > 0 && somas.size() > effectiveNSomas) {
                 // Experimental: keep top-N by EDT thickness. See selectTopSomasByThickness
                 // javadoc for known limitations with global binarization thresholds.
-                workingSomas = SomaUtils.selectTopSomasByThickness(somas, source, effectiveNSomas);
+                workingSomas = SomaUtils.selectTopSomasByThickness(somas, thicknessSource, effectiveNSomas);
             }
 
             if (effectiveMinSomaDist <= 0 && effectiveNSomas <= 0 && somas.size() > 2) {
-                // Experimental auto-estimation: thickness filter → gap analysis.
-                final List<SomaUtils.SomaResult> thickSomas =
-                        SomaUtils.filterSomasByThickness(somas, source);
+                // Experimental auto-estimation: thickness filter -> gap analysis
+                final List<SomaUtils.SomaResult> thickSomas = SomaUtils.filterSomasByThickness(somas, thicknessSource);
                 if (thickSomas.size() < somas.size()) {
                     SNTUtils.log("Thickness filter: " + somas.size() + " → " + thickSomas.size());
                     workingSomas = thickSomas;
