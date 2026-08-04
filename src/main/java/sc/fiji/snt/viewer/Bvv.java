@@ -1975,38 +1975,9 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Docks a component at the bottom of a {@link bdv.ui.CardPanel}, below all
-     * cards, without a card header.  Uses MigLayout's {@code "dock south"}
-     * constraint.  If the CardPanel's container layout ever changes away from
-     * MigLayout this will degrade gracefully: the component simply won't appear
-     * (no crash, no viewport flicker).
+     * @see AbstractBigViewer#updateStatus(String, int, int)
      */
-    private static void addToCardPanelBottom(final bdv.ui.CardPanel cardPanel, final JComponent comp) {
-        final JComponent container = cardPanel.getComponent();
-        try {
-            container.add(comp, "growx, dock south");
-        } catch (final Exception ignored) {
-            // Layout manager does not support MigLayout constraints: fall back
-            // to default add so the component is at least in the hierarchy
-            SNTUtils.log("CardPanel layout is not MigLayout; progress bar may not render correctly");
-            container.add(comp);
-        }
-        container.revalidate();
-    }
-
-    /**
-     * Updates the progress bar at the bottom of the BVV frame.
-     * <ul>
-     *   <li>{@code nSteps = 0}: hides the bar</li>
-     *   <li>{@code nSteps < 0}: indeterminate mode (animated, no percentage)</li>
-     *   <li>{@code nSteps > 0}: determinate mode showing {@code step/nSteps}</li>
-     * </ul>
-     * Safe to call from any thread.
-     *
-     * @param message  short status message displayed inside the bar
-     * @param step     current step (0-based; ignored in indeterminate mode)
-     * @param nSteps   total steps (0 = hide, negative = indeterminate)
-     */
+    @Override
     public void updateStatus(final String message, final int step, final int nSteps) {
         SwingUtilities.invokeLater(() -> {
             if (progressBar == null) return;

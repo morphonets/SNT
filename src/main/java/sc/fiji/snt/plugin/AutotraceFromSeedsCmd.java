@@ -226,7 +226,7 @@ public class AutotraceFromSeedsCmd extends GWDTTracerCommonCmd {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");
         } finally {
-            snt.setCanvasLabelAllPanes(null);
+            setStatus(null);
         }
     }
 

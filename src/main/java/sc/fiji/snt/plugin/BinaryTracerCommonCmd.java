@@ -413,17 +413,17 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             SNTUtils.log("ROI: " + roi);
 
             // Skeletonize all images again, just to ensure we are indeed dealing with skeletons
-            snt.setCanvasLabelAllPanes("Skeletonizing..");
+            setStatus("Skeletonizing..");
             BinaryTracer.skeletonize(chosenMaskImp, chosenMaskImp.getNSlices() == 1);
 
             // Now we can finally run the conversion!
-            snt.setCanvasLabelAllPanes("Autotracer running...");
+            setStatus("Autotracer running...");
             status("Creating Trees from Skeleton...", false);
             final BinaryTracer converter = createAndConfigureConverter(chosenMaskImp, chosenOrigImp);
 
             if (autoDetectSoma) {
                 // Auto-detect soma from the segmented image using EDT×intensity scoring
-                snt.setCanvasLabelAllPanes("Detecting soma...");
+                setStatus("Detecting soma...");
                 final SomaUtils.SomaResult somaResult = SomaUtils.detectSoma(
                         ImpUtils.toImgPlus(chosenMaskImp), -1d, -1);
                 if (somaResult != null && somaResult.hasContour()) {
@@ -493,7 +493,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");
         } finally {
-            snt.setCanvasLabelAllPanes(null);
+            setStatus(null);
         }
     }
 
@@ -833,7 +833,7 @@ public abstract class BinaryTracerCommonCmd extends CommonDynamicCmd {
     @Override
     public void cancel(final String reason) {
         super.cancel(reason);
-        snt.setCanvasLabelAllPanes(null);
+        setStatus(null);
         abortRun = true;
     }
 

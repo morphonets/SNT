@@ -345,7 +345,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     protected AbstractGWDTTracer<?> createAndConfigureTracer(final ImgPlus<?> img) {
         final boolean scoreMapEnabled = !SCORE_MAP_NONE.equals(scoreMapFilter);
         final AbstractGWDTTracer<?> tracer = GWDTTracerFactory.create(img);
-        tracer.setStatusListener(snt::setCanvasLabelAllPanes);
+        tracer.setStatusListener(this::setStatus);
         tracer.setVerbose(debugMode);
         tracer.setBackgroundThreshold(backgroundThreshold);
         tracer.setMinBranchIntensityLength(lengthThreshold);
@@ -414,7 +414,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             detectedSoma = null;
             if (SOMA_BOOKMARK.equals(somaStrategyChoice)) {
                 // Stream-mode-only: seed from the viewer's marker manager instead of a Roi
-                snt.setCanvasLabelAllPanes("Detecting soma at marker...");
+                setStatus("Detecting soma at marker...");
                 detectedSoma = detectSomaAtMarker(chosenImp);
                 seedPhysical = seedPhysicalFromDetectedSoma(tracer, detectedSoma);
                 errorMsg = "Could not detect a soma at the marker location. Place exactly one marker " +
@@ -423,7 +423,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
                 final int seedStrategy = parseRoiStrategy();
                 if (seedStrategy == GWDTTracer.ROI_UNSET) {
                     // Auto-detect soma using full SomaUtils pipeline (EDT×intensity)
-                    snt.setCanvasLabelAllPanes("Detecting soma...");
+                    setStatus("Detecting soma...");
                     detectedSoma = detectSoma(chosenImp);
                     seedPhysical = seedPhysicalFromDetectedSoma(tracer, detectedSoma);
                     errorMsg = "Automated detection of soma failed. Please Pause SNT, draw a " +
@@ -476,7 +476,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");
         } finally {
-            snt.setCanvasLabelAllPanes(null);
+            setStatus(null);
         }
     }
 
@@ -714,7 +714,7 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
     @Override
     public void cancel(final String reason) {
         super.cancel(reason);
-        snt.setCanvasLabelAllPanes(null);
+        setStatus(null);
         abortRun = true;
     }
 
@@ -723,6 +723,6 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
         getInputs().keySet().forEach(this::resolveInput);
         abortRun = true;
         super.error(msg);
-        snt.setCanvasLabelAllPanes(null);
+        setStatus(null);
     }
 }

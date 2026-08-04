@@ -122,6 +122,7 @@ public class Bdv extends AbstractBigViewer {
     private JButton tracingCancelButton;
     private JButton tracingUndoButton;
     private JToggleButton secondaryLayerIndicator; // Persistent indicator of SNT#isTracingOnSecondaryImageActive(), docked in tracingStatusRow()
+    private JProgressBar progressBar; // Docked at CardPanel bottom; see updateStatus()
 
 
 
@@ -555,6 +556,32 @@ public class Bdv extends AbstractBigViewer {
         if (viewerPanel != null) viewerPanel.requestRepaint();
     }
 
+    /**
+     * @see AbstractBigViewer#updateStatus(String, int, int)
+     */
+    @Override
+    public void updateStatus(final String message, final int step, final int nSteps) {
+        SwingUtilities.invokeLater(() -> {
+            if (progressBar == null) return;
+            if (nSteps == 0) {
+                progressBar.setIndeterminate(false);
+                progressBar.setVisible(false);
+                progressBar.setValue(0);
+                progressBar.setString("");
+            } else if (nSteps < 0) {
+                progressBar.setIndeterminate(true);
+                progressBar.setString(message == null ? "" : message);
+                progressBar.setVisible(true);
+            } else {
+                progressBar.setIndeterminate(false);
+                progressBar.setMaximum(nSteps);
+                progressBar.setValue(step);
+                progressBar.setString(message == null ? "" : message);
+                progressBar.setVisible(true);
+            }
+        });
+    }
+
     @Override
     public void syncOverlays() {
         if (pathOverlay != null) pathOverlay.updatePaths();
@@ -799,6 +826,13 @@ public class Bdv extends AbstractBigViewer {
                 cp.setCardExpanded("SNT Controls", true);
             });
             resizeCardPanelsAsNeeded(cp.getComponent());
+            // Progress bar: docked at the bottom of the card panel, below all cards, without a card
+            // header - see Bvv's identical placement for why (avoids viewport flicker vs. BorderLayout.SOUTH)
+            progressBar = new JProgressBar(0, 100);
+            progressBar.setStringPainted(true);
+            progressBar.setString("");
+            progressBar.setVisible(false);
+            addToCardPanelBottom(cp, progressBar);
         }
 
         // M and H keys via BDV's keybindings system so the trigger layer sees them
@@ -990,7 +1024,7 @@ public class Bdv extends AbstractBigViewer {
      * BDV's tracing state machine: supplies its two genuinely viewer-specific bits (direct click-to-world resolution;
      * no active channel/frame recentering) without any ray-casting. BDV's slice cursor already sits exactly on the
      * clicked position, so {@link #getGlobalMouseCoordinates(RealPoint)} is all that's needed. Wired to BDV's own
-     * toolbar (see {@link #sntAnnotationsCard(BdvActions)}), status row (see {@link #tracingStatusRow()}), and
+     * toolbar (see {@link #sntAnnotationsCard(BdvActions)}), status row, and
      * Enter/Esc/Z keybindings (see {@link #initializeCardPanel()}), mirroring  Bvv's counterpart
      */
     private class Tracer extends AbstractTracer {

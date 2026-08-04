@@ -28,7 +28,6 @@ import org.scijava.plugin.Parameter;
 import org.scijava.widget.NumberWidget;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.ImgUtils;
@@ -131,7 +130,7 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
             status("Running multi-soma GWDT tracing...", false);
 
             // Step 1: Get somas, either from bookmarks/markers or full auto-detection
-            snt.setCanvasLabelAllPanes("Detecting somata...");
+            setStatus("Detecting somata...");
             final boolean seedFromMarkers = SOMA_BOOKMARK.equals(somaStrategyChoice);
             final List<SomaUtils.SomaResult> somas;
             if (seedFromMarkers) {
@@ -163,7 +162,7 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
                 // entire dataset. Only warn here, right before the scan actually happens - not blindly
                 // for every Stream-mode invocation of this command (see SNTUI#runAutotracingOnImage)
                 if (zSlice < 0 && chosenImp.numDimensions() > 2
-                        && !new GuiUtils().getConfirmation(
+                        && !getConfirmationEdtSafe(
                         "Detecting all somata on a streamed volume requires computing a max-intensity "
                                 + "projection across the entire dataset, which can take a long time "
                                 + "depending on dataset size and network/disk speed. Continue?",
@@ -217,7 +216,7 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");
         } finally {
-            snt.setCanvasLabelAllPanes(null);
+            setStatus(null);
         }
     }
 }

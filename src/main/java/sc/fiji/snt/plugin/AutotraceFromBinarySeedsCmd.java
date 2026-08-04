@@ -176,7 +176,7 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
 
             // Skeletonize once before the per-seed loop so each per-seed. BinaryTracer reads from the same
             // pre-skeletonized image
-            snt.setCanvasLabelAllPanes("Skeletonizing...");
+            setStatus("Skeletonizing...");
             BinaryTracer.skeletonize(maskImp, maskImp.getNSlices() == 1);
 
             // Per-seed iteration. Each seed yields one or more trees (the skeleton component connected to that seed);
@@ -238,7 +238,7 @@ public class AutotraceFromBinarySeedsCmd extends BinaryTracerCommonCmd {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");
         } finally {
-            snt.setCanvasLabelAllPanes(null);
+            setStatus(null);
         }
     }
 

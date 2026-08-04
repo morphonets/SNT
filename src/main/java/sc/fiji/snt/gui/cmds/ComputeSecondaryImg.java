@@ -797,7 +797,9 @@ public class ComputeSecondaryImg<T extends RealType<T> & NativeType<T>, U extend
 		// even be a Swing dialog but there is no other way to access the prompt itself!?
 		if (prompt == null) {
 			for (final Window w : JDialog.getWindows()) {
-				if (w instanceof JDialog && PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
+				// isVisible() matters: Window.getWindows() also returns already-dispose()d windows
+				// see CommonDynamicCmd#getPromptWithCloseHandler
+				if (w instanceof JDialog && w.isVisible() && PROMPT_TITLE.equals(((JDialog) w).getTitle())) {
 					prompt = ((JDialog) w);
 					triggerSigmaPaletteAsSwingButton = getFirstComponent(prompt, AbstractButton.class);
 					sizeOfStructuresStringAsSwingField = getFirstComponent(prompt, JTextField.class);

@@ -38,7 +38,6 @@ import sc.fiji.snt.BookmarkManager;
 import sc.fiji.snt.Path;
 import sc.fiji.snt.SNTUtils;
 import sc.fiji.snt.Tree;
-import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.gui.cmds.CommonDynamicCmd;
 import sc.fiji.snt.tracing.auto.SomaUtils;
 import sc.fiji.snt.util.SNTColor;
@@ -252,7 +251,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
         // Z-plane: on a lazily-loaded Stream-mode volume that means touching the entire dataset. A
         // user-specified depth (zSlice >= 0) bypasses this, so the warning is only needed when none was given
         if (SCOPE_ALL.equals(scopeChoice) && zSlice < 0 && img != null && img.numDimensions() > 2
-                && !new GuiUtils().getConfirmation(
+                && !getConfirmationEdtSafe(
                         "Detecting all somata on a streamed volume requires computing a max-intensity "
                                 + "projection across the entire dataset. Depending on dataset size and "
                                 + "network/disk speed, this can take a long time. Continue?",
@@ -312,14 +311,14 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private void runAllSomas(final int zSlice, final double[] spacing) {
-        snt.setCanvasLabelAllPanes("Detecting somata....");
+        setStatus("Detecting somata....");
         // Convert calibrated distances to pixel units for detection
         final double avgXYSpacing = (spacing[0] + spacing[1]) / 2.0;
         final double minRadiusPx = (minRadius > 0) ? minRadius / avgXYSpacing : 0;
         final double minSomaDistancePx = (minSomaDistance > 0) ? minSomaDistance / avgXYSpacing : 0;
         List<SomaUtils.SomaResult> results = SomaUtils.detectAllSomas(img, threshold, zSlice, minRadiusPx, minSomaDistancePx);
         if (results.isEmpty()) {
-            snt.setCanvasLabelAllPanes(null);
+            setStatus(null);
             error("No somata detected. Try adjusting the threshold and/or min. radius.");
             return;
         }
@@ -337,7 +336,7 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
             SNTUtils.log("Top-" + nSomas + " selection: " + results.size() + " soma(s) kept");
         }
         outputMultipleSomaResults(results, spacing);
-        snt.setCanvasLabelAllPanes(null);
+        setStatus(null);
     }
 
     private void outputMultipleSomaResults(final List<SomaUtils.SomaResult> results, final double[] spacing) {

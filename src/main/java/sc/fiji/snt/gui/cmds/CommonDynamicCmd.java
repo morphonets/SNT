@@ -33,6 +33,8 @@ import sc.fiji.snt.SNT;
 import sc.fiji.snt.SNTPrefs;
 import sc.fiji.snt.SNTService;
 import sc.fiji.snt.SNTUI;
+import sc.fiji.snt.SNTUtils;
+import sc.fiji.snt.gui.GuiUtils;
 import sc.fiji.snt.util.SNTPoint;
 import sc.fiji.snt.viewer.AbstractBigViewer;
 import sc.fiji.snt.viewer.Viewer3D;
@@ -41,6 +43,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -88,6 +91,24 @@ public class CommonDynamicCmd extends DynamicCommand {
 		}
 	}
 
+	/**
+	 * Reports a transient progress message for the current operation. Unlike {@link #status(String, boolean)}, this is
+	 * meant for progress narration of a single long-running command, not general SNTUI status text. Always forwards to
+	 * {@code snt.setCanvasLabelAllPanes(msg)} (classic-mode canvases; or, when running in Stream mode, the active
+	 * Bdv/Bvv viewer's persistent progress bar via {@link sc.fiji.snt.viewer.AbstractBigViewer#updateStatus(String, int, int)}
+	 *
+	 * @param msg the progress message, or {@code null}/empty to clear it
+	 */
+	protected void setStatus(final String msg) {
+		if (snt != null) snt.setCanvasLabelAllPanes(msg);
+		if (ui != null && ui.isStreamMode()) {
+			final sc.fiji.snt.viewer.AbstractBigViewer viewer = ui.getActiveBigViewer();
+			if (viewer != null) {
+				viewer.updateStatus(msg, 0, (msg == null || msg.isEmpty()) ? 0 : -1);
+			}
+		}
+	}
+
 	@Override
 	public boolean isCanceled() {
 		return super.isCanceled() || (ui != null && SNTUI.READY == ui.getState());
@@ -114,6 +135,33 @@ public class CommonDynamicCmd extends DynamicCommand {
 			cancel("<HTML>"+msg);
 			cancel();
 		}
+	}
+
+	/**
+	 * EDT-safe wrapper around {@link GuiUtils#getConfirmation(String, String)}. The dialog it shows calls
+	 * {@code JDialog#setVisible(true)} directly, with no internal thread dispatch - safe only when already on the EDT.
+	 * Commands whose heavy work runs on a background thread (e.g. a {@code SwingWorker}, as in {@code
+	 * GWDTMultiSomaCmd#runTrace}/{@code GWDTTracerCmd#runTrace}) or that SciJava itself may invoke off the EDT must
+	 * route any such confirmation through this method rather than calling {@link GuiUtils} directly, to avoid undefined
+	 * Swing behavior.
+	 *
+	 * @param msg   the confirmation message
+	 * @param title the dialog title
+	 * @return the user's choice; {@code false} if the EDT could not be reached (e.g. interrupted while waiting)
+	 */
+	protected boolean getConfirmationEdtSafe(final String msg, final String title) {
+		if (SwingUtilities.isEventDispatchThread()) {
+			return new GuiUtils().getConfirmation(msg, title);
+		}
+		final boolean[] result = { false };
+		try {
+			SwingUtilities.invokeAndWait(() -> result[0] = new GuiUtils().getConfirmation(msg, title));
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+		} catch (final InvocationTargetException e) {
+			SNTUtils.log("getConfirmationEdtSafe failed: " + e.getCause());
+		}
+		return result[0];
 	}
 
 	protected void msg(final String msg, final String title) {
@@ -192,7 +240,9 @@ public class CommonDynamicCmd extends DynamicCommand {
 	protected JDialog getPromptWithCloseHandler(final String title, final Runnable extraOnClose) {
 		if (cachedPrompt == null) {
 			for (final Window w : JDialog.getWindows()) {
-				if (w instanceof JDialog && title.equals(((JDialog) w).getTitle())) {
+				// NB: Window.getWindows() returns every Window instance created during this JVM session that hasn't
+				// been GC'd yet, including ones already dispose()d so we need to explicitly check for visible dialogs
+				if (w instanceof JDialog && w.isVisible() && title.equals(((JDialog) w).getTitle())) {
 					cachedPrompt = (JDialog) w;
 					cachedPrompt.addWindowListener(new WindowAdapter() {
 						@Override
