@@ -89,12 +89,24 @@ public class GWDTMultiSomaCmd extends GWDTMultiSomaCommonCmd implements Interact
     private void runTrace() {
         final JDialog prompt = getPrompt();
         if (prompt != null) prompt.dispose();
-        new SwingWorker<Void, Void>() {
+        final SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
                 runMultiSoma();
                 return null;
             }
-        }.execute();
+
+            @Override
+            protected void done() {
+                // Unregister regardless of outcome (normal completion, error, or cancellation) so
+                // a stale reference is never cancelled by a later, unrelated abort/exit request
+                if (ui != null) ui.registerActiveCmdWorker(null);
+            }
+        };
+        // Registered so SNTUI#abortCurrentOperation()/exitRequested() can cooperatively cancel this
+        // worker (Thread.interrupt()) even though the dialog above has already closed and
+        // currentState has reverted - see SNTUI#registerActiveCmdWorker()
+        if (ui != null) ui.registerActiveCmdWorker(worker);
+        worker.execute();
     }
 }

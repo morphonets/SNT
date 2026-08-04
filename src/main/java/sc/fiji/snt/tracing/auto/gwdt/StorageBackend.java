@@ -24,8 +24,10 @@ package sc.fiji.snt.tracing.auto.gwdt;
 
 import net.imglib2.RandomAccessibleInterval;
 import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
+import sc.fiji.snt.tracing.auto.AbstractGWDTTracer;
 
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 
 /**
  * Storage backend for GWDT tracing data structures.
@@ -248,4 +250,19 @@ public interface StorageBackend {
      * </p>
      */
     void dispose();
+
+    /**
+     * Cooperative cancellation check for the hot loops of {@link #computeGWDT} and {@link AbstractGWDTTracer}'s Fast
+     * Marching loop, all of which can run for minutes on large volumes. Call periodically from inside those loops.
+     * <p>
+     * Deliberately does <em>not</em> clear the interrupted flag (unlike {@link Thread#interrupted()}): the loop is
+     * expected to unwind out of the tracer entirely via the thrown exception, not resume.
+     *
+     * @throws CancellationException if {@link Thread#isInterrupted()} is {@code true}
+     */
+    static void checkCancelled() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new CancellationException("Autotracing was cancelled");
+        }
+    }
 }

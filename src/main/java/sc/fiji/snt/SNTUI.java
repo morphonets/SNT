@@ -137,6 +137,8 @@ public class SNTUI extends JDialog {
 
     private final SNTCommandFinder commandFinder;
     private ActiveWorker activeWorker;
+    // Worker registered by long-running CommonDynamicCmd subclasses, see registerActiveCmdWorker()
+    private SwingWorker<?, ?> activeCmdWorker;
     private volatile int currentState = -1;
 
     private final PlausibilityMonitor plausibilityMonitor;
@@ -5395,9 +5397,28 @@ public class SNTUI extends JDialog {
         listener.tracingImageID = (plugin.getImagePlus() == null) ? 0 : plugin.getImagePlus().getID();
     }
 
+    /**
+     * Registers (or clears, if {@code worker} is {@code null}) the {@link SwingWorker} currently executing a
+     * long-running {@code CommonDynamicCmd}. Unlike commands launched via {@code DynamicCmdRunner}, these keep
+     * running on their own background thread long after the initiating dialog has closed and {@link #currentState}
+     * has reverted to whatever it was before the dialog opened, so they cannot rely on the switch inside
+     * {@link #abortCurrentOperation()}. Cancellation is not forcible: the running code must itself poll
+     * {@link Thread#isInterrupted()} (see {@code AbstractGWDTTracer}'s hot loops) for this to have any effect.
+     *
+     * @param worker the worker to register, or {@code null} to clear the registration (callers
+     *               should always clear it once the command finishes, successfully or not)
+     */
+    public void registerActiveCmdWorker(final SwingWorker<?, ?> worker) {
+        this.activeCmdWorker = worker;
+    }
+
     protected void abortCurrentOperation() {// FIXME: MOVE TO SNT?
         if (commandFinder != null)
             commandFinder.setVisible(false);
+        if (activeCmdWorker != null && !activeCmdWorker.isDone()) {
+            activeCmdWorker.cancel(true);
+            activeCmdWorker = null;
+        }
         switch (currentState) {
             case (SEARCHING) -> {
                 updateStatusText("Cancelling path search...", true);

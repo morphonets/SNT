@@ -190,6 +190,10 @@ public class DiskBackedStorageBackend implements StorageBackend {
         long lastLogTime = System.currentTimeMillis();
 
         while (!heap.isEmpty()) {
+            // Cheap cancellation check: this loop can run for minutes on large volumes,
+            // so it must not ignore SNTUI's abort/exit requests
+            StorageBackend.checkCancelled();
+
             final long currentIdx = heap.pop();
             indexToPos(currentIdx, currentPos);
 

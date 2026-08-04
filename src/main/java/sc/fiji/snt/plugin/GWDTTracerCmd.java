@@ -116,14 +116,26 @@ public class GWDTTracerCmd extends GWDTTracerCommonCmd implements Interactive {
         if (prompt != null) prompt.dispose();
         // Button callbacks in Interactive commands run on the EDT,
         // so we must offload the heavy tracing work to a background
-        // thread; otherwise setCanvasLabelAllPanes() can never repaint.
-        new SwingWorker<Void, Void>() {
+        // thread; otherwise setStatus()/setCanvasLabelAllPanes() can never repaint.
+        final SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
                 runCommand();
                 return null;
             }
-        }.execute();
+
+            @Override
+            protected void done() {
+                // Unregister regardless of outcome (normal completion, error, or cancellation) so
+                // a stale reference is never cancelled by a later, unrelated abort/exit request
+                if (ui != null) ui.registerActiveCmdWorker(null);
+            }
+        };
+        // Registered so SNTUI#abortCurrentOperation()/exitRequested() can cooperatively cancel this
+        // worker (Thread.interrupt()) even though the dialog above has already closed and
+        // currentState has reverted - see SNTUI#registerActiveCmdWorker()
+        if (ui != null) ui.registerActiveCmdWorker(worker);
+        worker.execute();
     }
 
     @SuppressWarnings("unused")

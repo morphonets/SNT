@@ -118,6 +118,7 @@ public class ArrayStorageBackend implements StorageBackend {
         // Fast Marching main loop
         final long[] currentPos = new long[nDims];
         while (!heap.isEmpty()) {
+            StorageBackend.checkCancelled();
             final long[] entry = heap.poll();
             final long currentIdx = entry[0];
             indexToPos(currentIdx, currentPos);

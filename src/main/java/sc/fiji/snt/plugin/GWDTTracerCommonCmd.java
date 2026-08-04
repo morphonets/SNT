@@ -468,6 +468,10 @@ public abstract class GWDTTracerCommonCmd extends CommonDynamicCmd {
             applyWorldOriginOffsetIfAny(trees);
             handleTracedTrees(trees);
 
+        } catch (final java.util.concurrent.CancellationException ce) {
+            // Expected outcome of user-requested cancellation (SNTUI abort/exit); not an error
+            SNTUtils.log("GWDT tracing cancelled: " + ce.getMessage());
+            resetUI();
         } catch (final Throwable ex) {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");

@@ -209,6 +209,10 @@ public abstract class GWDTMultiSomaCommonCmd extends GWDTTracerCommonCmd {
             applyWorldOriginOffsetIfAny(trees);
             handleTracedTrees(trees);
 
+        } catch (final java.util.concurrent.CancellationException ce) {
+            // Expected outcome of user-requested cancellation (SNTUI abort/exit); not an error
+            SNTUtils.log("Multi-soma GWDT tracing cancelled: " + ce.getMessage());
+            resetUI();
         } catch (final Throwable ex) {
             ex.printStackTrace();
             error("An exception occurred. See Console for details.");

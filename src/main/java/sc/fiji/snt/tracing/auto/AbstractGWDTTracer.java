@@ -1134,6 +1134,9 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
         gapBridgeCount = 0;
 
         while (!heap.isEmpty()) {
+            // on large volumes this loop can run for minutes, so it must not ignore SNTUI's abort/exit requests
+            StorageBackend.checkCancelled();
+
             final long[] entry = heap.poll();
             final long currentIdx = entry[0];
             indexToPos(currentIdx, currentPos);
@@ -3694,6 +3697,10 @@ public abstract class AbstractGWDTTracer<T extends RealType<T>> extends Abstract
             }
 
             for (int i = 0; i < consolidated.size(); i++) {
+                // Each pass can itself take a while (Fast Marching + graph building), and with
+                // dozens of somas the loop as a whole can run for minutes: check once per pass
+                StorageBackend.checkCancelled();
+
                 final SomaUtils.SomaResult soma = consolidated.get(i);
                 SNTUtils.log(String.format("--- Pass %d/%d: center=%s, radius=%.1f ---",
                         i + 1, consolidated.size(), Arrays.toString(soma.center()), soma.radius()));
