@@ -495,10 +495,13 @@ public class BigDataLoaderCmd extends ContextCommand {
      * unexpected {@code ImgLoader} implementation), tracing falls back to manual-only.
      * <p>
      * Caveat: this reads timepoint 0 (single-timepoint use case) directly from the loader/{@code
-     * Source}, in the volume's own pixel grid. Any registration transform beyond plain
-     * size/calibration (e.g. a non-identity {@code ViewRegistration}, or BVV's own manual-transform
-     * mode) is <em>not</em> applied, so traced world coordinates could diverge from what's rendered
-     * if such a transform is present.
+     * Source}, in the volume's own pixel grid. For the {@link AbstractSpimData} branch, any
+     * registration transform beyond plain size/calibration (e.g. a non-identity {@code
+     * ViewRegistration}, or BVV's own manual-transform mode) is <em>not</em> applied, so traced
+     * world coordinates could diverge from what's rendered if such a transform is present. The
+     * {@link SpimDataUtils.N5Sources} branch does compensate for its own {@code Source}'s
+     * translation (see {@link #applyWorldOriginOffset}), since that is the fallback path actually
+     * exercised for typical headless N5/Zarr loading.
      */
     private static void applyFallbackCalibration(final SNT snt, final Object source) {
         try {
@@ -527,9 +530,42 @@ public class BigDataLoaderCmd extends ContextCommand {
                         (vd == null) ? 0 : vd.dimension(0), (vd == null) ? 0 : vd.dimension(1),
                         (vd == null) ? 0 : vd.dimension(2), (vd == null) ? null : vd.unit());
                 snt.setImageData(itvl); // same lazily-loaded interval backing BVV's own rendering
+                applyWorldOriginOffset(snt, spimSource);
             }
         } catch (final Exception e) {
             SNTUtils.log("SNT: could not extract calibration for tracing (" + e.getMessage() + ")");
+        }
+    }
+
+    /**
+     * Reads {@code spimSource}'s own {@code sourceTransform} (timepoint 0, full-resolution level 0)
+     * and, if it carries a translation, records it on {@code snt} via {@link SNT#setWorldOriginOffset}
+     * so that {@code GWDTTracerCommonCmd#applyWorldOriginOffsetIfAny} can shift traced {@link Tree}s
+     * to compensate.
+     * <p>
+     * {@link #applyFallbackCalibration} above wires {@code snt}'s dimensions/spacing/pixel data
+     * directly from {@code spimSource.getSource(0, 0)}/{@code getVoxelDimensions()}, i.e. in that
+     * Source's own raw voxel grid, with no notion of where that grid sits in world space. A
+     * {@code sourceTransform} translation (common for N5/Zarr multiscale or BDV-registered
+     * datasets - the same transform {@code Bvv} reads to render/align this Source correctly) would
+     * otherwise be silently dropped, producing traced coordinates that are internally consistent
+     * (correct shape/scale) but uniformly shifted relative to the volume's true position.
+     * <p>
+     * Only the translation component is applied (a rigid shift); a non-identity rotation/shear in
+     * {@code sourceTransform} is not handled here and would require transforming the traced
+     * geometry itself, not just its origin.
+     */
+    private static void applyWorldOriginOffset(final SNT snt, final bdv.viewer.Source<?> spimSource) {
+        final net.imglib2.realtransform.AffineTransform3D t = new net.imglib2.realtransform.AffineTransform3D();
+        spimSource.getSourceTransform(0, 0, t);
+        final double dx = t.get(0, 3);
+        final double dy = t.get(1, 3);
+        final double dz = t.get(2, 3);
+        if (dx != 0 || dy != 0 || dz != 0) {
+            snt.setWorldOriginOffset(dx, dy, dz);
+            SNTUtils.log("SNT: N5Sources sourceTransform carries a translation of (" + dx + ", " + dy + ", " + dz
+                    + ") in calibrated units; will be applied to traced Trees to correct for it. "
+                    + "(Any rotation/shear in the same transform is NOT compensated for.)");
         }
     }
 

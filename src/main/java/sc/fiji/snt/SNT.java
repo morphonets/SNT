@@ -269,6 +269,14 @@ public class SNT extends MultiDThreePanes implements
 	protected String spacing_units = SNTUtils.getSanitizedUnit(null);
 	protected int channel;
 	protected int frame;
+	/*
+	 * World-space origin offset (calibrated units), applied on top of voxelIndex * spacing.
+	 * Non-zero only when the loaded image's own coordinate frame is not anchored at world
+	 * (0,0,0) - e.g. a BigDataViewer/N5 Source whose sourceTransform carries a translation
+	 * that plain size/calibration wiring (see BigDataLoaderCmd#applyFallbackCalibration)
+	 * does not otherwise capture. See getWorldOriginOffset()/setWorldOriginOffset().
+	 */
+	private double originOffsetX, originOffsetY, originOffsetZ;
 
 	/* all tracing and filling-related functions are performed on the Imgs */
 	@SuppressWarnings("rawtypes")
@@ -4624,6 +4632,39 @@ public class SNT extends MultiDThreePanes implements
 		if (ySpacing > 0) this.y_spacing = ySpacing;
 		if (zSpacing > 0) this.z_spacing = zSpacing;
 		if (units != null && !units.isBlank()) this.spacing_units = SNTUtils.getSanitizedUnit(units);
+	}
+
+	/**
+	 * Sets a rigid world-space origin offset (in calibrated units) to be applied on top of the
+	 * usual {@code voxelIndex * spacing} coordinate mapping. Not needed for a normally-loaded
+	 * {@link ImgPlus} (its calibration/origin is assumed anchored at world (0,0,0)), but required
+	 * when pixel data was wired in via {@link #setImageData}/{@link #setImageMetadata} from a
+	 * source whose own coordinate frame is <em>not</em> anchored at (0,0,0) - e.g. a
+	 * BigDataViewer/N5 {@code Source} whose {@code sourceTransform} carries a translation (see
+	 * {@code BigDataLoaderCmd#applyFallbackCalibration}).
+	 * <p>
+	 * This offset is not applied automatically to coordinates read elsewhere in this class (e.g.
+	 * manual tracing, A* search); callers that produce {@link Tree}/{@link Path} results from such
+	 * a source are responsible for applying it themselves, e.g. via {@link Tree#translate}.
+	 *
+	 * @param xOffset x offset, in calibrated units
+	 * @param yOffset y offset, in calibrated units
+	 * @param zOffset z offset, in calibrated units
+	 * @see #getWorldOriginOffset()
+	 */
+	public void setWorldOriginOffset(final double xOffset, final double yOffset, final double zOffset) {
+		this.originOffsetX = xOffset;
+		this.originOffsetY = yOffset;
+		this.originOffsetZ = zOffset;
+	}
+
+	/**
+	 * @return the world-space origin offset (calibrated units) previously set via
+	 *         {@link #setWorldOriginOffset}, as {@code {xOffset, yOffset, zOffset}}. All-zero
+	 *         (the default) unless explicitly set.
+	 */
+	public double[] getWorldOriginOffset() {
+		return new double[] { originOffsetX, originOffsetY, originOffsetZ };
 	}
 
 	/**
