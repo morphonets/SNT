@@ -451,6 +451,10 @@ class QueueJumpingKeyListener implements KeyListener {
 	private class BookmarkCommand implements KeyCommand {
 		@Override
 		public boolean canHandle(KeyEvent e, KeyContext context) {
+			// In Stream mode, bookmarks/markers are created exclusively via the 'M' key
+			// in the Bvv/Bdv viewer; the display canvas is navigation-only, avoiding two
+			// independent bookmark-creation entry points with different coordinate spaces
+			if (tracerPlugin.isStreamMode()) return false;
 			return context.shiftDown && (context.keyChar == 'b' || context.keyChar == 'B');
 		}
 

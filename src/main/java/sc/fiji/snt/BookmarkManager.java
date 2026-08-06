@@ -112,6 +112,51 @@ public class BookmarkManager {
         model.addTableModelListener(e -> syncViewerOverlay());
     }
 
+    /**
+     * Returns the tethered {@link SNT} instance to use for pixel world conversions, in
+     * either mode: SNT mode uses {@code sntui.plugin} directly; viewer mode uses
+     * {@code viewer.getSNT()} (may be {@code null} for a pure-viewing BVV/BDV session with no
+     * associated tracing session)
+     */
+    private SNT snt() {
+        return (viewer != null) ? viewer.getSNT() : sntui.plugin;
+    }
+
+    /**
+     * Whether this panel is destined to live inside {@link SNTUI} "Bookmarks" tab, as opposed
+     * to a standalone floating dialog: true whenever an SNTUI is present.
+     */
+    private boolean insideSNTUI() {
+        return sntui != null || (viewer != null && snt() != null && snt().getUI() != null);
+    }
+
+    /**
+     * Converts pixel coordinates to this manager's canonical world/calibrated storage:
+     * {@code world = pixel * spacing + offset}, accounting for both pixel spacing <b>and</b>
+     * {@link SNT#getWorldOriginOffset() the world origin offset} -- not just spacing, unlike
+     * {@link ij.measure.Calibration#getX(double)} and friends, which know nothing of SNT's offset.
+     * This matters whenever the tethered image/source was loaded from a coordinate frame that is
+     * not anchored at world (0,0,0) (see {@code BigDataLoaderCmd#applyWorldOriginOffset}), which is
+     * the common case for Stream-mode BVV/BDV sources (N5/Zarr/BDV-XML with a translated
+     * {@code sourceTransform}). Falls back to spacing 1 / offset 0 (i.e. pixel == world) if no
+     * {@link SNT} is available.
+     * <p>
+     * <b>Do not substitute {@code ij.measure.Calibration}'s own {@code xOrigin/yOrigin/zOrigin}
+     * fields for {@code SNT.getWorldOriginOffset()} here</b> (or vice versa, see
+     * {@link SNT#setWorldOriginOffset}.
+     *
+     * @see #worldToPixel(Bookmark) the inverse conversion
+     */
+    private PointInImage pixelToWorld(final double px, final double py, final double pz) {
+        final SNT snt = snt();
+        if (snt == null) return new PointInImage(px, py, pz);
+        final double[] offset = snt.getWorldOriginOffset();
+        final double xSpacing = (snt.getPixelWidth() > 0) ? snt.getPixelWidth() : 1;
+        final double ySpacing = (snt.getPixelHeight() > 0) ? snt.getPixelHeight() : 1;
+        final double zSpacing = (snt.getPixelDepth() > 0) ? snt.getPixelDepth() : 1;
+        return new PointInImage(px * xSpacing + offset[0], py * ySpacing + offset[1], pz * zSpacing + offset[2]);
+    }
+
     /** In viewer mode: pushes all markers to the annotation overlay. */
     private void syncViewerOverlay() {
         if (viewer == null || viewer.annotations() == null) return;
@@ -177,30 +222,21 @@ public class BookmarkManager {
 
     protected JPanel getPanel() {
         if (panel != null) return panel;
-        panel = (sntui != null)
+        // Assemble as a proper SNTUI tab (matching the SNT-mode constructor's own look: initTab()'s
+        // margin border plus the "Bookmarks:" separator header) whenever this panel is going to be
+        // shown inside an SNTUI tab, regardless of which BookmarkManager instance built it. Only a
+        // true standalone viewer (no SNTUI at all) gets the plain floating-dialog styling
+        final boolean insideSNTUI = insideSNTUI();
+        panel = insideSNTUI
                 ? SNTUI.InternalUtils.initTab() : new JPanel(new GridBagLayout());
         final GridBagConstraints gbc = GuiUtils.defaultGbc();
         gbc.fill = GridBagConstraints.BOTH;
-        if (sntui != null) {
+        if (insideSNTUI) {
             SNTUI.InternalUtils.addSeparatorWithURL(panel, "Bookmarks:", true, gbc);
             gbc.gridy++;
         }
-        final String msg = (viewer != null)
-                ? "Place markers with the M key. Double-click a row to fly to that location. " +
-                "Color and size are applied to the viewer's overlay in real time. Hold H to temporarily " +
-                "hide markers."
-                : """
-                This pane stores image locations that you can quickly (re)visit while \
-                tracing. Bookmarks can be saved to the workspace directory using the \
-                toolbar button or via File>Save Session.
-
-                To create a bookmark: Right-click on the image and choose "Bookmark Cursor \
-                Location" from the contextual menu (or press Shift+B). To bookmark crossovers \
-                and other positions along paths use the menu in the navigation toolbar of the \
-                Path Manager.
-                """;
         gbc.weighty = 0.0;
-        panel.add(GuiUtils.longSmallMsg(msg, panel), gbc);
+        panel.add(GuiUtils.longSmallMsg(introText(insideSNTUI), panel), gbc);
         gbc.gridy++;
         panel.add(assembleHighlightToolbar(), gbc);
         gbc.gridy++;
@@ -216,6 +252,36 @@ public class BookmarkManager {
         // Initialize column widths after layout is complete
         SwingUtilities.invokeLater(() -> resetOrResizeColumns(false, true));
         return panel;
+    }
+
+    private String introText(final boolean insideSNTUI) {
+        if (viewer != null && !insideSNTUI) {
+            // standalone viewer without tracing capabilities
+            return """
+                    To create a marker: press M in the viewer. Color and size are applied to the viewer's overlay in \
+                    real time. Hold H to temporarily hide bookmarked markers.
+                    """;
+        } else if (viewer != null) {
+            // stream mode or viewer initialized from SNTUI. Tracing capabilities available
+            return """
+                    This pane stores image locations that you can quickly (re)visit while tracing. \
+                    Bookmarks can be saved to the workspace directory using the toolbar button or via File>Save \
+                    Session.
+                    
+                    To create a bookmark: press M in the viewer. To bookmark other positions along paths use the menu \
+                    in the navigation toolbar of the Path Manager. Hold H to temporarily hide bookmarked markers.
+                    """;
+        }
+        // traditional (ImagePlus) mode
+        return """
+                This pane stores image locations that you can quickly (re)visit while tracing. \
+                Bookmarks can be saved to the workspace directory using the toolbar button or via File>Save \
+                Session.
+                
+                To create a bookmark: Right-click on the image and choose "Bookmark Cursor Location" from \
+                the contextual menu (or press Shift+B). To bookmark other positions along paths use the menu \
+                in the navigation toolbar of the Path Manager.
+                """;
     }
 
     /**
@@ -340,7 +406,7 @@ public class BookmarkManager {
     private void noImageOpenError() {
         assert sntui != null;
         sntui.guiUtils.error(sntui.plugin.isStreamMode()
-                ? "No image is currently open. This table can be better accessed from BDV/BVV's <i>Markers</i> pane."
+                ? "No image is currently open. Place markers in the BDV/BVV viewer instead (M key)."
                 : "No image is currently open.");
     }
 
@@ -351,14 +417,14 @@ public class BookmarkManager {
     }
 
     /**
-     * Preferred width fractions for the bookmark table: SNT mode shows
-     * {@code {Tag, Label, X, Y, Z, C, T}} (7 columns) and BVV mode shows
-     * {@code {Tag, Label, X, Y, Z, Size}} (6 columns).
+     * Preferred width fractions for the bookmark table. Both modes show all columns
+     * ({@code Tag, Label, X, Y, Z, C, T, Size}); the column meaningless for the current mode
+     * (C in viewer mode, Size in classic mode) just renders a dash and gets a narrower share of the width
      */
     private float[] columnWidthFractions() {
         return (viewer != null)
-                ? new float[]{0.05f, 0.50f, 0.12f, 0.12f, 0.12f, 0.09f}
-                : new float[]{0.05f, 0.58f, 0.09f, 0.09f, 0.09f, 0.05f, 0.05f};
+                ? new float[]{0.05f, 0.422f, 0.112f, 0.112f, 0.112f, 0.04f,  0.04f,  0.112f}
+                : new float[]{0.05f, 0.422f, 0.112f, 0.112f, 0.112f, 0.076f, 0.076f, 0.04f};
     }
 
     private JPopupMenu assembleTablePopupMenu(final BookmarkTable table) {
@@ -604,7 +670,7 @@ public class BookmarkManager {
             return;
         }
         final Double threshold = guiUtils.getDouble(
-                "<HTML>Max. distance between colocalized bookmarks:",
+                "<HTML>Max. distance between colocalized bookmarks (physical units):",
                 "Colocalize Bookmarks", 5.0);
         if (threshold == null || threshold <= 0) return;
         // Group by channel; match across channels
@@ -630,7 +696,7 @@ public class BookmarkManager {
             return;
         }
         final Double threshold = guiUtils.getDouble(
-                "<HTML>Max. distance between "+ obj + " to be merged:",
+                "<HTML>Max. distance between "+ obj + " to be merged (physical units):",
                 "Merge Locations", 5.0);
         if (threshold == null || threshold <= 0) return;
         final double thresholdSq = threshold * threshold;
@@ -698,7 +764,7 @@ public class BookmarkManager {
         item.addActionListener(e -> {
             if (noBookmarksError()) return;
             final SNTPoint input = SNTPoint.average(getSelectedBookmarks());
-            final SNTPoint ref = guiUtils.getCoordinates("", "Reference Point (Calibrated Distances)",
+            final SNTPoint ref = guiUtils.getCoordinates("", "Reference Point (Physical Distances)",
                     input, 2, null);
             if (ref != null) sortByPosition(new Bookmark("reference", ref.getX(), ref.getY(), ref.getZ(), 1, 1));
         });
@@ -809,29 +875,9 @@ public class BookmarkManager {
         sntui.getRecorder(false).recordComment(comment);
     }
 
-    Action loadBookmarksAction(final AbstractBigViewer viewer) {
-        return new AbstractAction("From Bookmarks", IconFactory.menuIcon(IconFactory.GLYPH.BOOKMARK)) {
-            @Override
-            public void actionPerformed(final java.awt.event.ActionEvent e) {
-                try {
-                    final java.util.List<SNTPoint> pos = viewer.getSNT().getUI().getBookmarkManager().getPositions(false);
-                    if (pos.isEmpty()) {
-                        new GuiUtils(viewer.getMarkerManager().getViewerDialogPanel()).error("The Bookmarks table is empty.");
-                    } else {
-                        viewer.getMarkerManager().add("BM", pos, 1, 1, SNTColor.colorToString(viewer.getRenderingOptions().fallbackColor));
-                        viewer.showViewerMessage(String.format("Imported %d bookmarks", pos.size()));
-                    }
-                } catch (final NullPointerException ex) {
-                    viewer.showViewerMessage("Bookmark Manager unavailable");
-                }
-            }
-        };
-    }
-
     private JPopupMenu importMenu() {
         final JPopupMenu menu = new JPopupMenu();
         GuiUtils.addSeparator(menu, "Import:");
-        if (viewer != null) menu.add(new JMenuItem(loadBookmarksAction(viewer)));
         JMenuItem jmi  = new JMenuItem("From CSV File...", IconFactory.menuIcon(IconFactory.GLYPH.TABLE));
         menu.add(jmi);
         jmi.addActionListener(e -> {
@@ -1006,7 +1052,7 @@ public class BookmarkManager {
         int idx = 0;
         for (final int modelRow : modelRows) {
             final Bookmark b = model.getDataList().get(modelRow);
-            final PointRoi roi = b.toRoi();
+            final PointRoi roi = b.toRoi(worldToPixel(b));
             roi.setName(HIGHLIGHT_PREFIX + idx++);
             roi.setPointType(PointRoi.DOT);
             roi.setSize(PointRoi.getDefaultSize()); // See PrefsCmd. mid size is 3: 0=tiny, 6=XXXL
@@ -1155,8 +1201,11 @@ public class BookmarkManager {
                     noImageOpenError();
                     return;
                 }
-                final String pos = guiUtils.getString("Location XYZ coordinates (comma/space separated): ",
-                        "Go To Location...", GuiUtils.getClipboardText());
+                final String clipText = GuiUtils.getClipboardText();
+                final String pos = guiUtils.getString(
+                        "Location XYZ coordinates, in physical units (comma/space separated): ",
+                        "Go To Location...",
+                        (clipText != null && clipText.chars().anyMatch(Character::isDigit)) ? clipText.trim() : null);
                 if (pos == null) return;
                 try {
                     final PointInImage pim = SNTPoint.fromString(pos);
@@ -1225,20 +1274,29 @@ public class BookmarkManager {
     private void goTo(final Bookmark b, final ImagePlus imp, final int plane) {
         assert imp != null;
 
+        // Bookmark coordinates are always world/calibrated; convert to pixel space, which is
+        // what ImagePlus/ImageCanvas navigation (setPosition, ImpUtils.zoomTo) expects. Uses
+        // worldToPixel() (spacing + world-origin offset), not imp.getCalibration() alone, since
+        // the latter has no notion of SNT's world-origin offset (see #worldToPixel)
+        final PointInImage pixelPos = worldToPixel(b);
+        final double px = pixelPos.x;
+        final double py = pixelPos.y;
+        final double pz = pixelPos.z;
+
         // Transform coordinates based on plane
         final double viewX, viewY;
         viewY = switch (plane) {
             case SNT.ZY_PLANE -> {
-                viewX = b.z;
-                yield b.y;
+                viewX = pz;
+                yield py;
             }
             case SNT.XZ_PLANE -> {
-                viewX = b.x;
-                yield b.z;
+                viewX = px;
+                yield pz;
             }
             default -> {
-                viewX = b.x;
-                yield b.y;
+                viewX = px;
+                yield py;
             }
         };
 
@@ -1250,7 +1308,8 @@ public class BookmarkManager {
             return;
         }
         if (plane == SNT.XY_PLANE) {
-            imp.setPosition(b.c, (int) b.z, b.t);
+            // NB: ImagePlus#setPosition uses 1-based slice indices; pz is 0-based (see worldToPixel)
+            imp.setPosition(b.c, (int) pz + 1, b.t);
         }
         // Side views don't need setPosition - they show all Z by definition
         ImpUtils.zoomTo(imp, visitingZoom.fraction(), (int) viewX, (int) viewY);
@@ -1336,8 +1395,7 @@ public class BookmarkManager {
         final int t = (viewer != null) ? viewer.getCurrentTimepoint() : 1;
         final Bookmark b = new Bookmark(label, x, y, z, 1, t, color);
         b.size = size;
-        model.getDataList().add(b);
-        model.fireTableDataChanged();
+        addOne(b);
     }
 
     /**
@@ -1355,8 +1413,7 @@ public class BookmarkManager {
         final int t = (viewer != null) ? viewer.getCurrentTimepoint() : 1;
         final Bookmark b = new Bookmark(uniqueLabel, x, y, z, 1, t, color);
         b.size = size;
-        model.getDataList().add(b);
-        model.fireTableDataChanged();
+        addOne(b);
     }
 
     /**
@@ -1372,6 +1429,12 @@ public class BookmarkManager {
         add("Marker", x, y, z, color, size);
     }
 
+    /**
+     * Exports bookmarks to a CSV file. X/Y/Z are written in world/calibrated units (as of the
+     * world-coordinate storage unification; CSVs saved by earlier SNT versions store X/Y/Z in
+     * pixel/voxel units for SNT-UI-mode bookmarks -- see the bundled bookmark-CSV migration
+     * script to convert old files).
+     */
     private boolean saveBookMarksToFile(final File file) {
         final SNTTable exportTable = new SNTTable();
         for (final Bookmark b : model.getDataList()) {
@@ -1381,12 +1444,13 @@ public class BookmarkManager {
             exportTable.appendToLastRow("X", b.x);
             exportTable.appendToLastRow("Y", b.y);
             exportTable.appendToLastRow("Z", b.z);
-            // C has no live equivalent in Bvv/Bdv (see OverlayRenderer's CT-path-filter): write a dash
-            // T and Size are always written, regardless of mode. Importing treats a missing/non-numeric value as
-            // "unset" (see populateFromFile()).
+            // C has no live equivalent in Bvv/Bdv (see OverlayRenderer's CT-path-filter), and Size has
+            // no live equivalent in classic mode (no adjustable marker size there): both write a dash
+            // when meaningless for the current mode. T is always written, regardless of mode. Importing
+            // treats a missing/non-numeric value as "unset" (see populateFromFile())
             exportTable.appendToLastRow("C", (viewer != null) ? "-" : String.valueOf(b.c));
             exportTable.appendToLastRow("T", b.t);
-            exportTable.appendToLastRow("Size", (viewer != null) ? b.size : "");
+            exportTable.appendToLastRow("Size", (viewer != null) ? b.size : "-");
         }
         try {
             exportTable.save(file);
@@ -1397,20 +1461,25 @@ public class BookmarkManager {
         return false;
     }
 
+    /** @param x, y, z pixel/voxel coordinates (as sourced from a mouse click on {@code imp}) */
     protected void add(final int x, final int y, final int z, final ImagePlus imp) {
-        add(x, y, z, imp.getC(), imp.getT());
+        final PointInImage world = pixelToWorld(x, y, z);
+        add(world.x, world.y, world.z, imp.getC(), imp.getT());
         recordCmd("add(" + x + ", " + y + ", " + z  + ", " + imp.getC() + ", " + imp.getT() +")");
     }
 
+    /**
+     * Adds a bookmark at the (world/calibrated) position of the specified path node.
+     *
+     * @param path      the path
+     * @param nodeIndex the node index
+     */
     public void add(final Path path, final int nodeIndex) {
-        final PointInCanvas node = path.getPointInCanvas(nodeIndex);
+        final PointInImage node = path.getNode(nodeIndex); // world/calibrated coordinates
         final Color tag = path.hasNodeColors() ? path.getNodeColor(nodeIndex) : path.getColor();
         final String label = model.getUniqueLabel(path.getName() + " #" + nodeIndex);
-        model.getDataList().add(new Bookmark(label,
-                (int) node.getX(), (int) node.getY(), (int) node.getZ(),
-                path.getChannel(), path.getFrame(), tag));
         recordCmd(String.format("add(\"%s\", %d)", path.getName(), nodeIndex));
-        model.fireTableDataChanged();
+        addOne(new Bookmark(label, node.getX(), node.getY(), node.getZ(), path.getChannel(), path.getFrame(), tag));
     }
 
     public void remove(final Path path, final int nodeIndex) {
@@ -1422,16 +1491,51 @@ public class BookmarkManager {
     }
 
     /**
-     * Adds a bookmark at the specified coordinates and time/channel positions.
+     * Adds a bookmark at the specified pixel/voxel coordinates and time/channel positions.
+     * Coordinates are converted to (and stored as) world/calibrated units using the active
+     * image's calibration.
      *
-     * @param x the x-coordinate of the bookmark
-     * @param y the y-coordinate of the bookmark
-     * @param z the z-coordinate of the bookmark
+     * @param x the x-coordinate of the bookmark, in pixels
+     * @param y the y-coordinate of the bookmark, in pixels
+     * @param z the z-coordinate of the bookmark, in pixels (slice index, 0-based)
      * @param c the channel position of the bookmark
      * @param t the time position of the bookmark
      */
     public void add(final int x, final int y, final int z, final int c, final int t) {
-        model.getDataList().add(new Bookmark(model.getUniqueLabel(""), x, y, z, c, t));
+        add((double) x, (double) y, (double) z, c, t, true);
+    }
+
+    /**
+     * Adds a bookmark at the specified world/calibrated coordinates and time/channel positions.
+     *
+     * @param x the x-coordinate of the bookmark, in calibrated units
+     * @param y the y-coordinate of the bookmark, in calibrated units
+     * @param z the z-coordinate of the bookmark, in calibrated units
+     * @param c the channel position of the bookmark
+     * @param t the time position of the bookmark
+     */
+    public void add(final double x, final double y, final double z, final int c, final int t) {
+        add(x, y, z, c, t, false);
+    }
+
+    private void add(final double x, final double y, final double z, final int c, final int t,
+                      final boolean pixelInput) {
+        final PointInImage world = pixelInput ? pixelToWorld(x, y, z) : new PointInImage(x, y, z);
+        addOne(new Bookmark(model.getUniqueLabel(""), world.x, world.y, world.z, c, t));
+    }
+
+    /** Sole entry point for adding a single bookmark/marker: appends it and refreshes the table. */
+    private void addOne(final Bookmark b) {
+        model.getDataList().add(b);
+        model.fireTableDataChanged();
+    }
+
+    /**
+     * Sole entry point for finishing a batch add: resizes columns (new content, e.g. a populated
+     * Size column, may need more room than the placeholder dashes) then refreshes the table.
+     */
+    private void addBatchFinish() {
+        resetOrResizeColumns(false, true);
         model.fireTableDataChanged();
     }
 
@@ -1439,7 +1543,7 @@ public class BookmarkManager {
      * Adds multiple bookmarks with the specified label and locations.
      *
      * @param label     the label for the bookmarks
-     * @param locations the list of SNTPoint locations for the bookmarks
+     * @param locations the list of SNTPoint (world/calibrated) locations for the bookmarks
      * @param channel   the channel position for the bookmarks
      * @param frame     the time position for the bookmarks
      * @param color     the color (category) for the bookmarks
@@ -1447,9 +1551,8 @@ public class BookmarkManager {
     public void add(final String label, final List<SNTPoint> locations, final int channel, final int frame, final String color) {
         final Color c = (color == null) ? null : SNTColor.fromString(color);
         locations.forEach(loc -> model.getDataList().add(new Bookmark(model.getUniqueLabel(label), //
-                (int) loc.getX(), (int) loc.getY(), (int) loc.getZ(), channel, frame, c)));
-        resetOrResizeColumns(false, true);
-        model.fireTableDataChanged();
+                loc.getX(), loc.getY(), loc.getZ(), channel, frame, c)));
+        addBatchFinish();
     }
 
     /**
@@ -1468,26 +1571,30 @@ public class BookmarkManager {
      * Adds multiple bookmarks with the specified label and locations.
      *
      * @param label     the label for the bookmarks
-     * @param xyzctLocations the list of XYZCT locations
+     * @param xyzctLocations the list of XYZCT locations, in pixel/voxel coordinates (see
+     *                       {@link sc.fiji.snt.analysis.detection.Detection#xyzct()})
      */
     public void add(final String label, final List<double[]> xyzctLocations) {
         add(label, xyzctLocations, null);
     }
 
     /**
-     * Adds multiple bookmarks with the specified label, locations, and color tag.
+     * Adds multiple bookmarks with the specified label, locations, and color tag. Coordinates are
+     * converted to (and stored as) world/calibrated units using the active image's calibration.
      *
      * @param label          the label prefix for the bookmarks
-     * @param xyzctLocations the list of XYZCT locations
+     * @param xyzctLocations the list of XYZCT locations, in pixel/voxel coordinates (see
+     *                       {@link sc.fiji.snt.analysis.detection.Detection#xyzct()})
      * @param color          the color tag for the bookmarks, or {@code null} for no tag
      */
     public void add(final String label, final List<double[]> xyzctLocations, final Color color) {
-        AtomicInteger ai = new AtomicInteger(1);
-        xyzctLocations.forEach(loc -> model.getDataList().add( //
-                new Bookmark(model.getUniqueLabel(label + ai.getAndIncrement()), //
-                        (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4], color)));
-        resetOrResizeColumns(false, true);
-        model.fireTableDataChanged();
+        final AtomicInteger ai = new AtomicInteger(1);
+        xyzctLocations.forEach(loc -> {
+            final PointInImage world = pixelToWorld(loc[0], loc[1], loc[2]);
+            model.getDataList().add(new Bookmark(model.getUniqueLabel(label + ai.getAndIncrement()), //
+                    world.x, world.y, world.z, (int) loc[3], (int) loc[4], color));
+        });
+        addBatchFinish();
     }
 
     /**
@@ -1507,16 +1614,16 @@ public class BookmarkManager {
             final boolean hasNodeColors = path.hasNodeColors();
             int counter = 1;
             for (final int nodeIndex : set) {
-                final PointInCanvas node = path.getPointInCanvas(nodeIndex);
+                final PointInImage node = path.getNode(nodeIndex); // world/calibrated coordinates
                 final String l = (set.size()==1) ? label : label + "#" + counter++;
                 final Color tag = (hasNodeColors) ? path.getNodeColor(nodeIndex) : defaultTag;
                 model.getDataList().add(new Bookmark(model.getUniqueLabel(l),
-                        (int) node.getX(), (int) node.getY(), (int) node.getZ(), c, t, tag));
+                        node.getX(), node.getY(), node.getZ(), c, t, tag));
             }
         });
-        resetOrResizeColumns(false, true);
-        model.fireTableDataChanged();
-        sntui.showStatus(model.getDataList().size() - currentN + " bookmarks added", true);
+        addBatchFinish();
+        final int added = model.getDataList().size() - currentN;
+        if (sntui != null) sntui.showStatus(added + " bookmarks added", true);
     }
 
     /**
@@ -1575,18 +1682,27 @@ public class BookmarkManager {
      * @param rois the list of ROIs to load bookmarks from
      */
     public void load(final List<Roi> rois) {
+        // Roi coordinates are always pixel-space (IJ1 convention); convert to this manager's
+        // canonical world/calibrated storage.
         for (final Roi roi : rois) {
+            // NB: Roi#getZPosition() is 1-based, with 0 meaning "not associated with a specific
+            // slice" (see RoiConverter#getZPositions javadoc); pixelToWorld() expects 0-based.
+            final double zPixel = (roi.getZPosition() > 0) ? roi.getZPosition() - 1 : 0;
             if (roi instanceof PointRoi) {
                 final FloatPolygon fp = roi.getFloatPolygon();
                 for (int i = 0; i < fp.npoints; i++) {
-                    final Bookmark b = new Bookmark(roi.getName(), fp.xpoints[i], fp.ypoints[i],
-                            roi.getZPosition(), roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
+                    final PointInImage world = pixelToWorld(fp.xpoints[i], fp.ypoints[i], zPixel);
+                    final Bookmark b = new Bookmark(roi.getName(),
+                            world.x, world.y, world.z,
+                            roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
                     model.getDataList().add(b);
                 }
             } else {
                 final double[] centroid = RoiConverter.get2dCentroid(roi);
-                final Bookmark b = new Bookmark(roi.getName(), centroid[0], centroid[1],
-                        roi.getZPosition(), roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
+                final PointInImage world = pixelToWorld(centroid[0], centroid[1], zPixel);
+                final Bookmark b = new Bookmark(roi.getName(),
+                        world.x, world.y, world.z,
+                        roi.getCPosition(), roi.getTPosition(), roi.getStrokeColor());
                 model.getDataList().add(b);
             }
         }
@@ -1633,15 +1749,9 @@ public class BookmarkManager {
      */
     public List<Roi> getROIs(final boolean onlySelectedRows) {
         final List<Roi> rois = new ArrayList<>();
-        int[] rows = (onlySelectedRows) ? table.getSelectedRows() : IntStream.range(0, model.getRowCount()).toArray();
-        if (onlySelectedRows && rows.length == 0) // no selection exists: assume all rows
-            rows = IntStream.range(0, model.getRowCount()).toArray();
-        for (final int row : rows) {
-            // Convert view index to model index (handles sorted table)
-            final int modelRow = (onlySelectedRows && table.getRowSorter() != null)
-                    ? table.convertRowIndexToModel(row) : row;
+        for (final int modelRow : rowsToUse(onlySelectedRows)) {
             final Bookmark b = model.getDataList().get(modelRow);
-            rois.add(b.toRoi());
+            rois.add(b.toRoi(worldToPixel(b)));
         }
         return rois;
     }
@@ -1649,9 +1759,7 @@ public class BookmarkManager {
     /**
      * Model-row indices to use for a {@code onlySelectedRows} query: the selected rows if any exist
      * (and there is more than one bookmark total), otherwise every row. View indices are converted
-     * to model indices where relevant (a sorted table's selection is in view order). Shared by
-     * {@link #getPixelPositions(boolean)} and {@link #getPositions(boolean)} so both apply the exact
-     * same "which rows" logic and only differ in coordinate conversion.
+     * to model indices where relevant (a sorted table's selection is in view order).
      */
     private int[] rowsToUse(final boolean onlySelectedRows) {
         final boolean restrict = onlySelectedRows && model.getRowCount() > 1;
@@ -1665,14 +1773,17 @@ public class BookmarkManager {
     }
 
     /**
-     * Converts a viewer-mode {@link Bookmark}'s stored world/calibrated position to pixel/voxel
-     * coordinates, using the tethered {@link SNT}'s current spacing and
-     * {@link SNT#getWorldOriginOffset() world-origin offset}. Falls back to returning the world
-     * position unchanged (spacing 1, offset 0) if no {@code SNT} is tethered to the viewer (a
+     * Converts a {@link Bookmark}'s stored world/calibrated position to pixel/voxel coordinates:
+     * {@code pixel = (world - offset) / spacing}, the inverse of {@link #pixelToWorld}, accounting
+     * for both pixel spacing <b>and</b> {@link SNT#getWorldOriginOffset() the world origin offset}
+     * (see {@link #pixelToWorld} for why this offset matters, and why it cannot be handled via
+     * {@link ij.measure.Calibration} alone -- {@code Calibration}'s own origin fields use a
+     * different, non-interchangeable convention). Falls back to returning the world position
+     * unchanged (spacing 1, offset 0) if no {@link SNT} is available via {@link #snt()} (e.g. a
      * pure-viewing BVV/BDV session with no associated tracing session).
      */
     private PointInImage worldToPixel(final Bookmark b) {
-        final SNT snt = (viewer == null) ? null : viewer.getSNT();
+        final SNT snt = snt();
         if (snt == null) return new PointInImage(b.x, b.y, b.z);
         final double[] offset = snt.getWorldOriginOffset();
         final double xSpacing = (snt.getPixelWidth() > 0) ? snt.getPixelWidth() : 1;
@@ -1682,11 +1793,8 @@ public class BookmarkManager {
     }
 
     /**
-     * Returns bookmark/marker positions in <b>pixel/voxel</b> coordinates
-     * <p>
-     * SNT-UI-mode bookmarks are already stored in pixel space, so those are returned as-is. Viewer-mode markers are
-     * stored in world/calibrated coordinates (see {@link #getPositions(boolean)}), so those are converted back to pixel
-     * space via {@link #worldToPixel(Bookmark)}.
+     * Returns bookmark/marker positions in <b>pixel/voxel</b> coordinates, converted from this
+     * manager's canonical world/calibrated storage via {@link #worldToPixel(Bookmark)}.
      *
      * @param onlySelectedRows if true, only selected rows are included; otherwise, all bookmarks in the manager are included
      * @return the list of Points (fresh {@link PointInImage} copies) of the bookmarks, in pixel/voxel coordinates
@@ -1694,38 +1802,30 @@ public class BookmarkManager {
     public List<SNTPoint> getPixelPositions(final boolean onlySelectedRows) {
         final List<SNTPoint> points = new ArrayList<>();
         for (final int modelRow : rowsToUse(onlySelectedRows)) {
-            final Bookmark b = model.getDataList().get(modelRow);
-            points.add((viewer == null) ? new PointInImage(b.x, b.y, b.z) : worldToPixel(b));
+            points.add(worldToPixel(model.getDataList().get(modelRow)));
         }
         return points;
     }
 
     /**
-     * Returns bookmark/marker positions in spatially calibrated (<b>"world"</b>) coordinates.
-     * <p>
-     * Viewer-mode markers are already stored in world coordinates (from BDV's
-     * {@code getGlobalMouseCoordinates}), so those are returned as-is. SNT-UI-mode bookmarks are
-     * stored in pixel space, so those are converted via the active image's {@link ij.measure.Calibration}.
+     * Returns bookmark/marker positions in spatially calibrated (<b>"world"</b>) coordinates, i.e.,
+     * this manager's canonical storage format, returned as-is (fresh copies) in both modes.
      *
      * @param onlySelectedRows if true, only selected rows are included; otherwise, all bookmarks in the manager are included
      * @return the list of Points representing the bookmarks, in calibrated ("world") coordinates
      */
     public List<SNTPoint> getPositions(final boolean onlySelectedRows) {
         final List<SNTPoint> points = new ArrayList<>();
-        final ij.measure.Calibration cal = (viewer != null) ? null
-                : sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
         for (final int modelRow : rowsToUse(onlySelectedRows)) {
             final Bookmark b = model.getDataList().get(modelRow);
-            points.add((viewer != null)
-                    ? new PointInImage(b.x, b.y, b.z)
-                    : new PointInImage(cal.getX(b.x), cal.getY(b.y), cal.getZ(b.z)));
+            points.add(new PointInImage(b.x, b.y, b.z));
         }
         return points;
     }
 
     /**
      * Returns the position of the most recently added bookmark/marker, in spatially calibrated
-     * ("world") coordinates.
+     * ("world") coordinates (canonical storage format).
      * <p>
      * In viewer mode (BVV/BDV), this is the last marker placed with the {@code M} key (or added
      * programmatically). In SNT-UI mode, this is the last entry added to the Bookmark Manager pane.
@@ -1741,12 +1841,7 @@ public class BookmarkManager {
         final List<Bookmark> data = model.getDataList();
         if (data.isEmpty()) return null;
         final Bookmark last = data.getLast();
-        if (viewer != null) {
-            return last; // viewer mode: already stored in world/calibrated coordinates
-        }
-        // SNT-UI mode: stored coordinates are in pixel space; convert to calibrated units
-        final ij.measure.Calibration cal = sntui.plugin.getPathAndFillManager().getBoundingBox(false).getCalibration();
-        return new PointInImage(cal.getX(last.getX()), cal.getY(last.getY()), cal.getZ(last.getZ()));
+        return new PointInImage(last.getX(), last.getY(), last.getZ());
     }
 
     /**
@@ -1787,23 +1882,38 @@ public class BookmarkManager {
     public static List<PointRoi> getRois(final String commonLabel, final List<double[]> xyzctLocations, final Color color) {
         final List<PointRoi> rois = new ArrayList<>(xyzctLocations.size());
         final AtomicInteger ai = new AtomicInteger(1);
+        // Bookmark's canonical storage is world/calibrated, but this static helper is documented as
+        // pixel-in/pixel-out with no SNTUI/viewer context available to convert through: pass the
+        // pixel values straight through unconverted to toRoi(), so the ROI ends up at the same
+        // pixel position as before this class started storing world coordinates natively.
         xyzctLocations.forEach(loc -> rois.add( //
                 new Bookmark(commonLabel + ai.getAndIncrement(), //
-                        (int) loc[0], (int) loc[1], (int) loc[2], (int) loc[3], (int) loc[4], color).toRoi()));
+                        loc[0], loc[1], loc[2], (int) loc[3], (int) loc[4], color)
+                        .toRoi(new PointInImage(loc[0], loc[1], loc[2]))));
         return rois;
     }
 }
 
+/**
+ * A bookmark/marker entry. Coordinates ({@code x}, {@code y}, {@code z}, inherited from
+ * {@link PointInImage} via {@link Path.PathNode}) are <b>always</b> in spatially calibrated
+ * ("world") units, regardless of whether this entry originated in SNT-UI (classic) mode or
+ * viewer (BVV/BDV) mode. {@code c} (channel) and {@code t} (frame/timepoint) remain plain
+ * 1-based hyperstack indices in both modes: they have no calibrated/"world" analogue that any
+ * consumer (ImagePlus#setPosition, AbstractBigViewer#setCurrentTimepoint, etc.) actually uses.
+ */
 class Bookmark extends Path.PathNode {
     String label;
     final int c;
     int t;
     float size; // sphere radius in world units; 0 means "use viewer default"
 
+    /** @param x, y, z world/calibrated coordinates */
     Bookmark(final String label, double x, double y, double z, int c, int t) {
         this(label, x, y, z, c, t, null);
     }
 
+    /** @param x, y, z world/calibrated coordinates */
     Bookmark(final String label, double x, double y, double z, int c, int t, final Color category) {
         super(x, y, z);
         this.label = label;
@@ -1826,11 +1936,18 @@ class Bookmark extends Path.PathNode {
         };
     }
 
-    PointRoi toRoi() {
-        final PointRoi roi = new PointRoi(x, y);
+    /**
+     * Builds a {@link PointRoi} for this bookmark. ROIs are always pixel-space (IJ1 convention);
+     * callers must supply this bookmark's world coordinates already converted to pixels (see
+     * {@code BookmarkManager#worldToPixel}, which -- unlike a plain {@link ij.measure.Calibration}
+     * conversion -- correctly accounts for any world-origin offset).
+     */
+    PointRoi toRoi(final PointInImage pixelPos) {
+        final PointRoi roi = new PointRoi(pixelPos.x, pixelPos.y);
         if (getColor() != null)
             roi.setStrokeColor(getColor());
-        roi.setPosition(c, (int) z, t);
+        // NB: ROI CZT positions use 1-based indices (see ShollOverlay#toRoi); pixelPos.z is 0-based.
+        roi.setPosition(c, (int) pixelPos.z + 1, t);
         roi.setName(label);
         return roi;
     }
@@ -1998,7 +2115,7 @@ class BookmarkModel extends AbstractTableModel {
     // Same columns in both modes (no more classic-SNT-vs-BVV/BDV header split): C is meaningless in
     // viewer mode (no single "current channel" concept there, see OverlayRenderer's CT-path-filter) and
     // is rendered as a dash; Size is meaningless in classic mode (no adjustable marker size there) and
-    // is rendered blank. Both are still stored on every Bookmark regardless of mode
+    // is likewise rendered as a dash. Both are still stored on every Bookmark regardless of mode
     private static final String[] HEADER = {"Tag", "Label", "X", "Y", "Z", "C", "T", "Size"};
     private final boolean bvvMode;
     private List<Bookmark> dataList = new ArrayList<>();
@@ -2042,7 +2159,13 @@ class BookmarkModel extends AbstractTableModel {
      *                      (download-to-temp-file); callers with a {@link File} that  may actually be a URL
      *                      round-tripped through it (e.g. a {@code File}-typed SciJava parameter) should pass the
      *                      repaired string here rather than going  through {@link #populateFromFile(File)}, which
-     *                      always calls {@code getAbsolutePath()}
+     *                      always calls {@code getAbsolutePath()}.
+     *                      <p>
+     *                      X/Y/Z are read at face value and stored as world/calibrated coordinates. CSVs
+     *                      exported by SNT versions prior to the world-coordinate storage unification store
+     *                      X/Y/Z in pixel/voxel units for SNT-UI-mode bookmarks; run the bundled bookmark-CSV
+     *                      migration script on such files before loading them, or positions will be
+     *                      misinterpreted as world coordinates.
      */
     void populateFromFile(final String filePathOrURL) throws IOException {
         final SNTTable table = new SNTTable(filePathOrURL);
@@ -2112,8 +2235,8 @@ class BookmarkModel extends AbstractTableModel {
         if (row >= dataList.size()) return null;
         // C: no live "current channel" concept in Bvv/Bdv (see OverlayRenderer's CT-path-filter), shown as a dash
         if (col == 5 && bvvMode) return "-";
-        // Size: meaningless in classic mode (no adjustable marker size there), shown blank
-        if (col == 7) return bvvMode ? dataList.get(row).size : "";
+        // Size: meaningless in classic mode (no adjustable marker size there), shown as a dash
+        if (col == 7) return bvvMode ? dataList.get(row).size : "-";
         return dataList.get(row).get(col);
     }
 
@@ -2147,7 +2270,7 @@ class BookmarkModel extends AbstractTableModel {
         if (column == 0) return Color.class;
         if (column == 1) return String.class;
         if (column == 5 && bvvMode) return String.class; // C: dash placeholder
-        if (column == 7) return bvvMode ? Float.class : String.class; // Size: viewer-only, blank otherwise
+        if (column == 7) return bvvMode ? Float.class : String.class; // Size: dash placeholder in classic mode
         return switch (column) {
             case 2, 3, 4 -> Double.class;
             default -> Integer.class; // 5 (C, classic mode), 6 (T, both modes)

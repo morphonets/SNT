@@ -1802,8 +1802,8 @@ public class GuiUtils {
 		return shortSmallMsg(msg, true);
 	}
 
-	public static JTextArea longSmallMsg(final String msg, final String svgIconPath, final Component parent) {
-		final JTextArea ta = (svgIconPath== null) ? new JTextArea() : new SvgBackgroundJTextArea(svgIconPath);
+	public static JTextArea longSmallMsg(final String msg, final String svgIconPath, final boolean enabled, final Component parent) {
+		final JTextArea ta = (svgIconPath== null) ? new JTextArea() : new SvgBackgroundJTextArea(svgIconPath, enabled);
 		ta.setBackground(parent.getBackground());
 		ta.setEditable(false);
 		ta.setMargin(null);
@@ -1818,17 +1818,19 @@ public class GuiUtils {
 	}
 
 	public static JTextArea longSmallMsg(final String msg, final Component parent) {
-		return longSmallMsg(msg, null, parent);
+		return longSmallMsg(msg, null, false, parent);
 	}
 
 	private static class SvgBackgroundJTextArea extends JTextArea {
 		private final FlatSVGIcon svgIcon;
+		private final boolean enabled;
 		private FlatSVGIcon derivedIcon = null;
 		private int derivedIconWidth = 0;
 		private float osScale = 1f;
 
-		SvgBackgroundJTextArea(final String svgFileName) {
+		SvgBackgroundJTextArea(final String svgFileName, boolean enabled) {
 			this.svgIcon = new FlatSVGIcon("gui/" + svgFileName);
+			this.enabled = enabled;
 			// Non-opaque so super.paintComponent does not re-fill the background,
 			// allowing the SVG we paint first to remain visible under the text.
 			setOpaque(false);
@@ -1870,8 +1872,12 @@ public class GuiUtils {
 				g2.setColor(getBackground());
 				g2.fillRect(0, 0, getWidth(), getHeight());
 				// Paint the pre-computed icon, then let super draw text on top
-				if (derivedIcon != null)
-					derivedIcon.paintIcon(this, g2, 0, 0);
+				if (derivedIcon != null) {
+					if (enabled)
+						derivedIcon.paintIcon(this, g2, 0, 0);
+					else
+						derivedIcon.getDisabledIcon().paintIcon(this, g2, 0, 0);
+				}
 				super.paintComponent(g2);
 			} finally {
 				g2.dispose();

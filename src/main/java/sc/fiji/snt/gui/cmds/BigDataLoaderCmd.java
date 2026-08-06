@@ -643,12 +643,14 @@ public class BigDataLoaderCmd extends ContextCommand {
 
     private void loadMarkers(final AbstractBigViewer viewer) {
         if (markerFile == null) return;
+        // Only pop open the standalone floating "Markers" dialog when this viewer has no SNT/SNTUI at all
+        final boolean standalone = viewer.getSNT() == null || viewer.getSNT().getUI() == null;
         final String path = toPathString(markerFile);
         if (SpimDataUtils.isRemoteUrl(path)) {
             // fileAvailable() below only makes sense for local files: there is no cheap way to check
             // a remote URL's existence without a network round-trip, so just attempt the load directly
             // and let BookmarkManager#load(String) report a clear error if the URL turns out to be bad
-            viewer.getMarkerManager().showPanel();
+            if (standalone) viewer.getMarkerManager().showPanel();
             viewer.getMarkerManager().load(path);
             return;
         }
@@ -656,7 +658,7 @@ public class BigDataLoaderCmd extends ContextCommand {
             error(String.format("%s does not exist or is not available.", markerFile.getName()));
             return;
         }
-        viewer.getMarkerManager().showPanel();
+        if (standalone) viewer.getMarkerManager().showPanel();
         viewer.getMarkerManager().load(markerFile); // error if invalid file
     }
 

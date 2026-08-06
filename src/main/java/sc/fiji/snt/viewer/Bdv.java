@@ -117,11 +117,6 @@ public class Bdv extends AbstractBigViewer {
 
     // Tracing state machine; null if this viewer isn't tethered to an SNT instance
     private Tracer tracer;
-    // SNT Controls card's 2nd row: tracks the A* search started by Tracer#traceSegmentAsync, if any
-    private JProgressBar tracingStatusBar;
-    private JButton tracingCancelButton;
-    private JButton tracingUndoButton;
-    private JToggleButton secondaryLayerIndicator; // Persistent indicator of SNT#isTracingOnSecondaryImageActive(), docked in tracingStatusRow()
     private JProgressBar progressBar; // Docked at CardPanel bottom; see updateStatus()
 
 
@@ -843,6 +838,7 @@ public class Bdv extends AbstractBigViewer {
             sntAMap.put("snt-add-marker", new AbstractAction() {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
+                    if (blockMarkerPlacement()) return;
                     final RealPoint pos = new RealPoint(3);
                     getGlobalMouseCoordinates(pos);
                     final double x = pos.getDoublePosition(0);
@@ -876,7 +872,7 @@ public class Bdv extends AbstractBigViewer {
     }
 
     private JComponent sntAnnotationsCard(final BdvActions actions) {
-        final JToolBar bar = new JToolBar();
+        final JToolBar bar = createToolbar(); // shared with Bvv's own SNT Annotations toolbar
         bar.setFloatable(false);
 
         // group 1: tracing controls (auto/manual). Unlike Bvv, there is no "Center on Click" strategy
@@ -920,27 +916,31 @@ public class Bdv extends AbstractBigViewer {
         bar.add(Box.createHorizontalGlue());
         bar.addSeparator();
 
-        final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
-                actions.showMarkerManagerAction(),
-                "<html>Show/hide the Markers table.<br>"
-                        + "Press M in the viewer to place a marker at the cursor position.",
-                IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
-        // Sync button state with panel visibility
-        getMarkerManager().getViewerDialogPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override
-            public void componentShown(final java.awt.event.ComponentEvent e) {
-                markerButton.setSelected(true);
-            }
-            @Override
-            public void componentHidden(final java.awt.event.ComponentEvent e) {
-                markerButton.setSelected(false);
-            }
-        });
-        bar.add(markerButton);
+        // Only shown for a true standalone viewer (no SNT/SNTUI at all). Whenever an SNTUI is present,
+        // showMarkerManagerAction() redirects to the Bookmarks tab instead of opening this viewer's own floating dialog
+        if (getSNT() == null || getSNT().getUI() == null) {
+            final JToggleButton markerButton = GuiUtils.Buttons.toolbarToggleButton(
+                    actions.showMarkerManagerAction(),
+                    "<html>Show/hide the Markers table.<br>"
+                            + "Press M in the viewer to place a marker at the cursor position.",
+                    IconFactory.GLYPH.MARKER, IconFactory.GLYPH.MARKER);
+            // Sync button state with panel visibility
+            getMarkerManager().getViewerDialogPanel().addComponentListener(new java.awt.event.ComponentAdapter() {
+                @Override
+                public void componentShown(final java.awt.event.ComponentEvent e) {
+                    markerButton.setSelected(true);
+                }
+                @Override
+                public void componentHidden(final java.awt.event.ComponentEvent e) {
+                    markerButton.setSelected(false);
+                }
+            });
+            bar.add(markerButton);
 
-        bar.addSeparator();
-        bar.add(Box.createHorizontalGlue());
-        bar.addSeparator();
+            bar.addSeparator();
+            bar.add(Box.createHorizontalGlue());
+            bar.addSeparator();
+        }
 
         // sync/options
         if (snt != null) {
@@ -952,53 +952,11 @@ public class Bdv extends AbstractBigViewer {
         if (tracer != null) {
             final JPanel panel = new JPanel(new BorderLayout());
             panel.add(bar, BorderLayout.NORTH);
-            panel.add(tracingStatusRow(actions), BorderLayout.SOUTH);
+            // tracingStatusRow()/optionsButton(): inherited from AbstractBigViewer (shared with Bvv)
+            panel.add(tracingStatusRow(actions, tracer), BorderLayout.SOUTH);
             return panel;
         }
         return bar;
-    }
-
-    /**
-     * Builds the second row below the SNT Annotations toolbar: See notes/comments on Bvv's counterpart.
-     */
-    private JComponent tracingStatusRow(final BdvActions actions) {
-        assert tracer != null;
-        tracingStatusBar = new JProgressBar();
-        tracingStatusBar.setStringPainted(true);
-        tracingStatusBar.setString("");
-        tracingCancelButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CIRCLE_XMARK, IconFactory.defaultColor(), 1f);
-        tracingCancelButton.setToolTipText("<HTML>Interactive tracing:<br>Cancel the current search");
-        tracingCancelButton.setEnabled(false);
-        tracingCancelButton.addActionListener(e -> tracer.cancelCurrentSearch());
-        tracingUndoButton = new JButton(tracer.getUndoSegmentAction());
-        tracingUndoButton.setText(null);
-        IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
-        tracingUndoButton.setToolTipText("<HTML>Tracing: Undo last segment (or press Z)");
-        tracer.updateUndoButtonState();
-        secondaryLayerIndicator = new JToggleButton();
-        secondaryLayerIndicator.setEnabled(snt != null);
-        secondaryLayerIndicator.setSelected(snt != null && snt.isTracingOnSecondaryImageActive());
-        IconFactory.assignIcon(secondaryLayerIndicator, IconFactory.GLYPH.LAYERS, IconFactory.GLYPH.LAYERS);
-        secondaryLayerIndicator.setToolTipText("Toggle tracing on secondary layer (or press 'L')");
-        secondaryLayerIndicator.addActionListener(actions.toggleSecondaryLayerTracingAction());
-        final JToolBar row = new JToolBar();
-        row.setFloatable(false);
-        row.add(tracingUndoButton);
-        row.addSeparator();
-        row.add(secondaryLayerIndicator);
-        row.addSeparator();
-        row.add(tracingStatusBar);
-        row.add(tracingCancelButton);
-        updateSecondaryLayerIndicator();
-        return row;
-    }
-
-    private JButton optionsButton(final BdvActions actions) {
-        final JPopupMenu menu = new JPopupMenu();
-        menu.add(new JMenuItem(actions.importAction()));
-        menu.addSeparator();
-        menu.add(new JMenuItem(actions.clearAllPathsAction()));
-        return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
     }
 
     private JToolBar buildSceneControlToolbar() {

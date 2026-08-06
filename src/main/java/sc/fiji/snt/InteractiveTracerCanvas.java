@@ -314,6 +314,12 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
             else if (cmd.equals(AListener.CLICK_AT_MAX)) {
                 mItem.setEnabled(tracingActive && !tracerPlugin.is2D());
             }
+            // Stream mode: bookmarks are created exclusively via 'M' in the Bvv/Bdv
+            // viewer; disable the display canvas's own entry point to avoid two
+            // independent bookmark-creation paths with different coordinate spaces
+            else if (cmd.equals(AListener.BOOKMARK_CURSOR)) {
+                mItem.setEnabled(!tracerPlugin.isStreamMode());
+            }
             // Edit mode node commands
             else if (cmd.equals(AListener.APPEND_NEAREST) || cmd.equals(AListener.SELECT_BY_ROI)) {
                 mItem.setEnabled(!editMode); // In edit mode, only one path selected at any given time
@@ -330,7 +336,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
                 mItem.setEnabled(be && editMode);
             }
             // Everything else always enabled (SELECT_NEAREST, APPEND_NEAREST,
-            // HIDE_ALL, SHOW_ARROWS, BOOKMARK_CURSOR, START_SHOLL, pan, etc.)
+            // HIDE_ALL, SHOW_ARROWS, START_SHOLL, pan, etc.)
             else {
                 mItem.setEnabled(true);
             }
@@ -1707,6 +1713,7 @@ class InteractiveTracerCanvas extends TracerCanvas implements MouseWheelListener
     }
 
     protected void bookmarkCursorLocation() {
+        if (tracerPlugin.isStreamMode()) return; // see QueueJumpingKeyListener.BookmarkCommand
         final int[] p = new int[3];
         tracerPlugin.findPointInStack((int) Math.round(last_x_in_pane_precise), (int) Math.round(last_y_in_pane_precise), plane, p);
         tracerPlugin.getUI().getBookmarkManager().add(p[0], p[1], p[2], getImage());

@@ -4673,6 +4673,25 @@ public class SNT extends MultiDThreePanes implements
 	 * This offset is not applied automatically to coordinates read elsewhere in this class (e.g.
 	 * manual tracing, A* search); callers that produce {@link Tree}/{@link Path} results from such
 	 * a source are responsible for applying it themselves, e.g. via {@link Tree#translate}.
+	 * <p>
+	 * <b>Not the same thing as {@code ij.measure.Calibration#xOrigin/yOrigin/zOrigin}</b> (nor a
+	 * drop-in replacement for it), despite the similar name/purpose. The two use different
+	 * conventions and are not numerically interchangeable:
+	 * <ul>
+	 * <li>This offset is applied in <b>world</b> space, after scaling:
+	 * {@code world = voxelIndex * spacing + offset}.</li>
+	 * <li>{@code Calibration}'s origin is applied in <b>pixel</b> space, before scaling
+	 * (see {@code Calibration#getRawX/Y/Z}, and {@code ShollPoint#rawZ} for the equivalent
+	 * hand-written formula): {@code world = (voxelIndex - origin) * spacing}, i.e.
+	 * {@code voxelIndex = world / spacing + origin}.</li>
+	 * </ul>
+	 * Converting between the two requires the spacing too ({@code offset = -origin * spacing}); they
+	 * are not the same number and must not be assigned to/read from each other directly.
+	 * {@link #getCalibration()} always returns spacing-only calibration objects with
+	 * {@code xOrigin/yOrigin/zOrigin} left at their default of 0, regardless of this offset; callers
+	 * needing pixel&lt;-&gt;world conversions that account for this offset must use
+	 * {@link #getWorldOriginOffset()} directly (see {@code BookmarkManager#pixelToWorld}/
+	 * {@code #worldToPixel} for a worked example), not {@code getCalibration()} alone.
 	 *
 	 * @param xOffset x offset, in calibrated units
 	 * @param yOffset y offset, in calibrated units
@@ -4688,7 +4707,8 @@ public class SNT extends MultiDThreePanes implements
 	/**
 	 * @return the world-space origin offset (calibrated units) previously set via
 	 *         {@link #setWorldOriginOffset}, as {@code {xOffset, yOffset, zOffset}}. All-zero
-	 *         (the default) unless explicitly set.
+	 *         (the default) unless explicitly set. See {@link #setWorldOriginOffset} for why this is
+	 *         distinct from {@code ij.measure.Calibration}'s own {@code xOrigin/yOrigin/zOrigin} fields.
 	 */
 	public double[] getWorldOriginOffset() {
 		return new double[] { originOffsetX, originOffsetY, originOffsetZ };

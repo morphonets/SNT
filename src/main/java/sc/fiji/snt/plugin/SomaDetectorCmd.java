@@ -419,20 +419,14 @@ public class SomaDetectorCmd extends CommonDynamicCmd {
      */
     private void addSomaMarker(final SomaUtils.SomaResult result, final double[] spacing, final Color color) {
         final boolean stream = snt.isStreamMode();
-        final BookmarkManager mManager = stream
-                ? snt.getUI().getActiveBigViewer().getMarkerManager() // should never be null in stream mode
-                : snt.getUI().getBookmarkManager();
+        final BookmarkManager mManager = snt.getUI().getBookmarkManager();
         final Path.PathNode centroid = result.toNode(spacing);
         if (stream) {
             final double[] offset = snt.getWorldOriginOffset(); // only set in stream mode
             mManager.add("detected soma", centroid.x + offset[0], centroid.y + offset[1], centroid.z + offset[2],
                     color, (float) centroid.radius);
         } else {
-            final double xSpacing = (spacing.length > 0 && spacing[0] > 0) ? spacing[0] : 1;
-            final double ySpacing = (spacing.length > 1 && spacing[1] > 0) ? spacing[1] : 1;
-            final double zSpacing = (spacing.length > 2 && spacing[2] > 0) ? spacing[2] : 1;
-            mManager.add("detected soma", centroid.x / xSpacing, centroid.y / ySpacing, centroid.z / zSpacing,
-                    color, (float) centroid.radius);
+            mManager.add("detected soma", centroid.x, centroid.y, centroid.z, color, (float) centroid.radius);
         }
     }
 

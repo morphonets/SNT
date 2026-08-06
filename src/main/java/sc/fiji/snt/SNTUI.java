@@ -176,6 +176,26 @@ public class SNTUI extends JDialog {
         return (bvvSNT != null) ? bvvSNT : bdvSNT;
     }
 
+    /**
+     * Swaps the "Bookmarks" tab's content between this UI's own {@link BookmarkManager} panel
+     * (Standard mode, or Stream mode with no active viewer) and the active {@link AbstractBigViewer}'s
+     * own marker-manager panel (Stream mode, once a viewer has attached). Called whenever the active
+     * viewer changes (see {@link #setBvvOnEDT}/{@link #setBdvOnEDT}), so the tab always reflects
+     * whichever {@link BookmarkManager} instance is currently relevant.
+     */
+    private void syncBookmarksTabContent() {
+        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
+        final int idx = InternalUtils.getTabIndex(tp, "Bookmarks");
+        if (idx == -1) return;
+        final AbstractBigViewer activeViewer = getActiveBigViewer();
+        final JPanel content = (plugin.isStreamMode() && activeViewer != null)
+                ? activeViewer.getMarkerManager().getPanel()
+                : bookmarkManager.getPanel();
+        if (tp.getComponentAt(idx) != content) {
+            tp.setComponentAt(idx, content);
+        }
+    }
+
     private final GuiListener listener;
 
     /* These are the states that the UI can be in: */
@@ -394,7 +414,7 @@ public class SNTUI extends JDialog {
         c3.gridy++;
         final String msg = "A dedicated 3D visualization tool specialized in Neuroanatomy, " +
                 "supporting reconstructions, meshes, morphometric annotations, and multi-species atlases.";
-        tab3.add(GuiUtils.longSmallMsg(msg, "morphonets-logo-icon.svg", tab3), c3);
+        tab3.add(GuiUtils.longSmallMsg(msg, "morphonets-logo-icon.svg", true, tab3), c3);
         c3.gridy++;
         tab3.add(reconstructionViewerPanel(viewerPanelBuilder), c3);
 
@@ -403,7 +423,7 @@ public class SNTUI extends JDialog {
         ++c3.gridy;
         final String msg5 = "Big Data Viewer (BDV) is an interactive re-slicing browser for images too " +
                 "large to fit into memory and a functional tracing canvas. Supports big data formats like N5, Zarr, IMS, etc.";
-        tab3.add(GuiUtils.longSmallMsg(msg5, "bdv-logo-dark.svg", tab3), c3);
+        tab3.add(GuiUtils.longSmallMsg(msg5, "bdv-logo-dark.svg", !plugin.isStreamMode(), tab3), c3);
         c3.gridy++;
         tab3.add(bdvPanel(viewerPanelBuilder), c3);
         c3.gridy++;
@@ -412,7 +432,7 @@ public class SNTUI extends JDialog {
         ++c3.gridy;
         final String msg4 = "Big Volume Viewer (BVV) is also a functional tracing canvas and the 3D counterpart " +
                 "of Big Data Viewer capable of GPU volume rendering. Discrete graphics card recommended.";
-        tab3.add(GuiUtils.longSmallMsg(msg4, "bdv-logo-light.svg", tab3), c3);
+        tab3.add(GuiUtils.longSmallMsg(msg4, "bdv-logo-light.svg", !plugin.isStreamMode(), tab3), c3);
         c3.gridy++;
         tab3.add(bvvPanel(viewerPanelBuilder), c3);
 
@@ -421,7 +441,7 @@ public class SNTUI extends JDialog {
         ++c3.gridy;
         final String msg3 = "3D visualization framework supporting image volumes, meshes, virtual " +
                 "reality, and Cx3D neurodevelopmental simulations. Discrete graphics card recommended.";
-        tab3.add(GuiUtils.longSmallMsg(msg3, "sciview-logo-icon.svg", tab3), c3);
+        tab3.add(GuiUtils.longSmallMsg(msg3, "sciview-logo-icon.svg", true, tab3), c3);
         c3.gridy++;
         tab3.add(sciViewerPanel(viewerPanelBuilder), c3);
 
@@ -628,13 +648,10 @@ public class SNTUI extends JDialog {
      * @param tabTitle The tab title (e.g., "Main", "3D");
      */
     public void selectTab(final String tabTitle) {
-        if (plugin.isStreamMode() && List.of("bookmarks", "markers").contains(tabTitle.trim().toLowerCase())) {
-            getActiveBigViewer().getMarkerManager().getViewerDialogPanel().setVisible(true);
-            getActiveBigViewer().getMarkerManager().getViewerDialogPanel().toFront();
-            return;
-        }
+        // "Markers" is accepted as an alias for the "Bookmarks" tab in Stream mode,
+        final String resolvedTitle = "markers".equalsIgnoreCase(tabTitle.trim()) ? "Bookmarks" : tabTitle;
         final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
-        final int idx = InternalUtils.getTabIndex(tp, tabTitle);
+        final int idx = InternalUtils.getTabIndex(tp, resolvedTitle);
         if (idx != -1)
             SwingUtilities.invokeLater(() -> tp.setSelectedIndex(idx));
         else
@@ -744,7 +761,8 @@ public class SNTUI extends JDialog {
      * @return the {@link BookmarkManager} associated with this UI
      */
     public BookmarkManager getBookmarkManager() {
-        return bookmarkManager;
+        final AbstractBigViewer activeViewer = getActiveBigViewer();
+        return (plugin.isStreamMode() && activeViewer != null) ? activeViewer.getMarkerManager() : bookmarkManager;
     }
 
 
@@ -1081,6 +1099,7 @@ public class SNTUI extends JDialog {
 
     private void setBvvOnEDT(final Bvv bvv) {
         this.bvvSNT = bvv;
+        syncBookmarksTabContent();
         if (bvv != null && bvv.getViewerFrame() != null) {
             if (plugin.isStreamMode()) bvv.getViewerFrame().setTitle("SNT Stream (BVV)");
             bvv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -1107,6 +1126,7 @@ public class SNTUI extends JDialog {
                         bvvSNT.getViewerFrame().getViewerPanel().stop();
                         bvvSNT.getViewerFrame().dispose();
                         bvvSNT = null;
+                        syncBookmarksTabContent();
                     }
                 }
             });
@@ -1141,6 +1161,7 @@ public class SNTUI extends JDialog {
 
     private void setBdvOnEDT(final Bdv bdv) {
         this.bdvSNT = bdv;
+        syncBookmarksTabContent();
         if (bdv != null && bdv.getViewerFrame() != null) {
             if (plugin.isStreamMode()) bdv.getViewerFrame().setTitle("SNT Stream (BDV)");
             bdv.getViewerFrame().setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -1164,6 +1185,7 @@ public class SNTUI extends JDialog {
                         bdvSNT.getViewerFrame().getViewerPanel().stop();
                         bdvSNT.getViewerFrame().dispose();
                         bdvSNT = null;
+                        syncBookmarksTabContent();
                     }
                 }
             });
@@ -2635,6 +2657,7 @@ public class SNTUI extends JDialog {
                 a Log window instead.""");
         registerInCommandFinder(jcbx, "Toggle Quiet Mode", "3D Tab", "Legacy 3D Viewer");
         p.add(jcbx, c);
+        GuiUtils.enableComponents(p, !plugin.isStreamMode());
         return p;
     }
 
@@ -2831,7 +2854,9 @@ public class SNTUI extends JDialog {
                 showStatus(msg, true);
             }
         });
-        return viewerPanelBuilder.createViewerPanel(openBVV, syncBVV);
+        final JPanel panel = viewerPanelBuilder.createViewerPanel(openBVV, syncBVV);
+        GuiUtils.enableComponents(panel, !plugin.isStreamMode());
+        return panel;
     }
 
     private JPanel bdvPanel(final ViewerPanelBuilder viewerPanelBuilder) {
@@ -2869,7 +2894,9 @@ public class SNTUI extends JDialog {
                 showStatus(msg, true);
             }
         });
-        return viewerPanelBuilder.createViewerPanel(openBDV, syncBDV);
+        final JPanel panel = viewerPanelBuilder.createViewerPanel(openBDV, syncBDV);
+        GuiUtils.enableComponents(panel, !plugin.isStreamMode());
+        return panel;
     }
 
     private <T extends AbstractBigViewer> void initializeBigViewerFromPrompt(final Class<T> viewerClass) {
@@ -4760,19 +4787,10 @@ public class SNTUI extends JDialog {
         return plugin.getPrefs().getWorkspaceDir();
     }
 
-    private void adjustGuiForBigDataMode() {
-        // Disable components not yet tested in big-data mode
-        final JTabbedPane tp = getJTabbedPaneAddedToContentPane();
-        List.of("Bookmarks", "3D").forEach(tabTitle -> {
-            final int idx = InternalUtils.getTabIndex(tp, tabTitle);
-            if (idx != -1) tp.setEnabledAt(idx, !plugin.isStreamMode());
-        });
-    }
-
     protected void displayOnStarting() {
         if (plugin.getPrefs().isSomaDisplayTriangle())
             PathNodeCanvas.setSomaRenderMode(PathNodeCanvas.SOMA_RENDER_TRIANGLE);
-        adjustGuiForBigDataMode();
+        syncBookmarksTabContent();
         SwingUtilities.invokeLater(() -> {
             if (plugin.getPrefs().isSaveWinLocations())
                 arrangeDialogs();

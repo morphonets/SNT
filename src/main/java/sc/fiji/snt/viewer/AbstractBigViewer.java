@@ -120,6 +120,13 @@ public abstract class AbstractBigViewer {
     /** Lazily initialized bookmark/marker manager panel. */
     protected sc.fiji.snt.BookmarkManager markerManager;
 
+    // Backing components for tracingStatusRow(), shared by Bvv/Bdv (both build an identical row);
+    // kept as fields (rather than local variables) so each subclass's own Tracer inner class can
+    // keep them in sync (progress, undo-availability, etc.) from outside tracingStatusRow() itself.
+    protected JProgressBar tracingStatusBar;
+    protected JButton tracingCancelButton;
+    protected JButton tracingUndoButton;
+    protected JToggleButton secondaryLayerIndicator; // Persistent indicator of SNT#isTracingOnSecondaryImageActive()
 
     protected AbstractBigViewer() {
         this(null);
@@ -457,33 +464,6 @@ public abstract class AbstractBigViewer {
     protected abstract Action getViewerAction(String name);
 
     /**
-     * Registers an M-key binding on {@code component} that places a marker at the
-     * current cursor position whenever the viewer is focused.
-     *
-     * <p>The action is stored under the key {@code "snt-add-marker"} in the component's
-     * action map so it participates in the standard Swing keybinding chain.
-     *
-     * @param component the component to register the binding on (typically the viewer panel)
-     */
-    protected final void registerMarkerKeyBinding(final JComponent component) {
-        final InputMap  im = component.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
-        final ActionMap am = component.getActionMap();
-        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0), "snt-add-marker");
-        am.put("snt-add-marker", new AbstractAction() {
-            @Override
-            public void actionPerformed(final ActionEvent e) {
-                final RealPoint pos = new RealPoint(3);
-                getGlobalMouseCoordinates(pos);
-                final double x = pos.getDoublePosition(0);
-                final double y = pos.getDoublePosition(1);
-                final double z = pos.getDoublePosition(2);
-                getMarkerManager().add(x, y, z);
-                showViewerMessage(String.format("Marker placed at (%.1f, %.1f, %.1f)", x, y, z));
-            }
-        });
-    }
-
-    /**
      * Adds a Tree to the viewer overlay, assigning it a unique display label.
      *
      * @param tree the Tree to render; must not be null or empty
@@ -669,6 +649,74 @@ public abstract class AbstractBigViewer {
     /** Returns the rendering options shared across this viewer's overlays. */
     public PathRenderingOptions getRenderingOptions() { return renderingOptions; }
 
+    /**
+     * Whether {@code M}-key marker placement should be blocked in the current mode, showing a
+     * viewer message if so. True whenever SNTUI is present in "classic-mode-tracing", since the image canvas
+     * already has a fully working Bookmarks tab (Shift+B, right-click, etc.).
+     * Shared by Bvv/Bdv's own {@code M}-key bindings.
+     *
+     * @return true if placement was blocked (and a message shown); callers should return
+     * immediately without placing a marker
+     */
+    protected boolean blockMarkerPlacement() {
+        if (snt != null && snt.getUI() != null && !snt.isStreamMode()) {
+            showViewerMessage("Use Shift+B directly on the image");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Builds the "Options" button (Import Reconstructions.../Remove All Annotations...) shared by
+     * Bvv/Bdv's own SNT Annotations toolbar.
+     */
+    protected JButton optionsButton(final Actions actions) {
+        final JPopupMenu menu = new JPopupMenu();
+        menu.add(new JMenuItem(actions.importAction()));
+        menu.addSeparator();
+        menu.add(new JMenuItem(actions.clearAllPathsAction()));
+        return GuiUtils.Buttons.OptionsButton(IconFactory.GLYPH.TOOL, 1f, menu);
+    }
+
+    /**
+     * Builds the second row shown below the SNT Annotations toolbar whenever this viewer has an
+     * active {@link AbstractTracer} (undo/cancel controls, secondary-layer toggle, progress bar).
+     * Shared by Bvv/Bdv, which both keep the returned components (see {@link #tracingStatusBar},
+     * {@link #tracingCancelButton}, {@link #tracingUndoButton}, {@link #secondaryLayerIndicator})
+     * in sync from their own {@link AbstractTracer} subclass.
+     */
+    protected JComponent tracingStatusRow(final Actions actions, final AbstractTracer tracer) {
+        assert tracer != null;
+        tracingStatusBar = new JProgressBar();
+        tracingStatusBar.setStringPainted(true);
+        tracingStatusBar.setString("");
+        tracingCancelButton = GuiUtils.Buttons.toolbarButton(IconFactory.GLYPH.CIRCLE_XMARK, IconFactory.defaultColor(), 1f);
+        tracingCancelButton.setToolTipText("<HTML>Interactive tracing:<br>Cancel the current search");
+        tracingCancelButton.setEnabled(false);
+        tracingCancelButton.addActionListener(e -> tracer.cancelCurrentSearch());
+        tracingUndoButton = new JButton(tracer.getUndoSegmentAction());
+        tracingUndoButton.setText(null);
+        IconFactory.assignIcon(tracingUndoButton, IconFactory.GLYPH.UNDO, (Color) null, .9f);
+        tracingUndoButton.setToolTipText("<HTML>Tracing: Undo last segment (or press Z)");
+        tracer.updateUndoButtonState();
+        secondaryLayerIndicator = new JToggleButton();
+        secondaryLayerIndicator.setEnabled(snt != null);
+        secondaryLayerIndicator.setSelected(snt != null && snt.isTracingOnSecondaryImageActive());
+        IconFactory.assignIcon(secondaryLayerIndicator, IconFactory.GLYPH.LAYERS, IconFactory.GLYPH.LAYERS);
+        secondaryLayerIndicator.setToolTipText("Toggle tracing on secondary layer (or press 'L')");
+        secondaryLayerIndicator.addActionListener(actions.toggleSecondaryLayerTracingAction());
+        final JToolBar row = new JToolBar();
+        row.setFloatable(false);
+        row.add(tracingUndoButton);
+        row.addSeparator();
+        row.add(secondaryLayerIndicator);
+        row.addSeparator();
+        row.add(tracingStatusBar);
+        row.add(tracingCancelButton);
+        updateSecondaryLayerIndicator();
+        return row;
+    }
+
     protected class Actions {
         private GuiUtils guiUtils;
         // State for hide-annotations (H key) press/release tracking
@@ -776,7 +824,19 @@ public abstract class AbstractBigViewer {
             return new AbstractAction("Marker Manager", IconFactory.menuIcon(IconFactory.GLYPH.MARKER)) {
                 @Override
                 public void actionPerformed(final java.awt.event.ActionEvent e) {
-                    getMarkerManager().toggleViewerPanel();
+                    // Whenever an SNTUI is present, redirect to its "Bookmarks" tab instead of
+                    // opening this viewer's own floating dialog. In Stream mode, SNTUI swaps that
+                    // tab's content to show this viewer's own marker panel (see
+                    // SNTUI#syncBookmarksTabContent). In classic mode (e.g. a Bvv/Bdv opened via the
+                    // "Open BVV/BDV" buttons), this viewer has no marker entry point at all (the M
+                    // key is disabled -- see #blockMarkerPlacement(), called from Bvv/Bdv's own
+                    // "snt-add-marker" bindings), so the tab shown is just SNTUI's regular,
+                    // already-populated Bookmarks tab.
+                    if (snt != null && snt.getUI() != null) {
+                        snt.getUI().selectTab("Bookmarks");
+                    } else {
+                        getMarkerManager().toggleViewerPanel();
+                    }
                 }
             };
         }

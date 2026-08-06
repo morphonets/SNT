@@ -272,14 +272,9 @@ public class CommonDynamicCmd extends DynamicCommand {
 	 */
 	protected List<long[]> getPixelPositionsOfBookmarks(final boolean selectedRowsOnly) {
 		if (ui == null) return new ArrayList<>();
-		final BookmarkManager manager;
-		if (snt.isStreamMode()) {
-			final AbstractBigViewer viewer = ui.getActiveBigViewer();
-			manager = (viewer == null) ? null : viewer.getMarkerManager();
-		} else {
-			manager = ui.getBookmarkManager();
-		}
-		if (manager == null) return new ArrayList<>();
+		// getBookmarkManager() already resolves to whichever manager is currently relevant (this
+		// UI's own, or the active viewer's marker manager in Stream mode).
+		final BookmarkManager manager = ui.getBookmarkManager();
 		final List<SNTPoint> pixelPositions = manager.getPixelPositions(selectedRowsOnly);
 		final List<long[]> seeds = new ArrayList<>(pixelPositions.size());
 		for (final SNTPoint p : pixelPositions) {
