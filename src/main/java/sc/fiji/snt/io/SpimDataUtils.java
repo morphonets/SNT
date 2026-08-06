@@ -218,7 +218,9 @@ public class SpimDataUtils {
      * paths are never misidentified
      */
     public static boolean isRemoteUrl(final String path) {
-        return path != null && path.matches("^[a-zA-Z][a-zA-Z0-9+.-]*:/{1,2}.*");
+        if (path == null) return false;
+        if (path.matches("^[a-zA-Z][a-zA-Z0-9+.-]*:/{1,2}.*")) return true; // intact, or Unix-mangled
+        return path.matches("^[a-zA-Z][a-zA-Z0-9+.-]+:\\\\.*"); // Windows-mangled (backslash throughout)
     }
 
     /**
@@ -226,6 +228,12 @@ public class SpimDataUtils {
      * single slash (see {@link #isRemoteUrl(String)}). A no-op if the separator is already intact.
      */
     public static String restoreUrlScheme(final String url) {
+        if (url == null) return null;
+        if (url.matches("^[a-zA-Z][a-zA-Z0-9+.-]+:\\\\.*")) {
+            // Windows: restore the scheme separator first, then convert the remaining path
+            // separators (which File also rewrote to "\") back to "/"
+            return url.replaceFirst("^([a-zA-Z][a-zA-Z0-9+.-]+):\\\\", "$1://").replace('\\', '/');
+        }
         return url.replaceFirst("^([a-zA-Z][a-zA-Z0-9+.-]*):/(?!/)", "$1://");
     }
 
