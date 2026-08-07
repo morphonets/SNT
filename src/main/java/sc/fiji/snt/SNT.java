@@ -4659,6 +4659,9 @@ public class SNT extends MultiDThreePanes implements
 		if (ySpacing > 0) this.y_spacing = ySpacing;
 		if (zSpacing > 0) this.z_spacing = zSpacing;
 		if (units != null && !units.isBlank()) this.spacing_units = SNTUtils.getSanitizedUnit(units);
+		// Propagate the (possibly corrected) dimensions/spacing to pathAndFillManager's own copy/BoundingBox,
+		// otherwise anything reading spacing through that route stays stuck at whatever was set at construction time.
+		pathAndFillManager.syncSpatialSettingsWithPlugin();
 	}
 
 	/**

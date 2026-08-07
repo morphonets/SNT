@@ -121,7 +121,7 @@ class QueueJumpingKeyListener implements KeyListener {
 			waiveKeyPress(e);
 			return;
 		}
-		if (e.getKeyCode() == KeyEvent.VK_ALT) {
+		if (e.getKeyCode() == KeyEvent.VK_ALT && canvas != null) {
 			canvas.onAltKeyDown();
 			return;
 		}

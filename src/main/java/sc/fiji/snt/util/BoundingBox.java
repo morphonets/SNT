@@ -460,11 +460,10 @@ public class BoundingBox implements Cloneable {
 		if (this == obj) {
 			return true;
 		}
-		if (!(obj instanceof BoundingBox)) {
+		if (!(obj instanceof BoundingBox other)) {
 			return false;
 		}
-		final BoundingBox other = (BoundingBox) obj;
-		return Double.doubleToLongBits(xSpacing) == Double.doubleToLongBits(other.xSpacing)
+        return Double.doubleToLongBits(xSpacing) == Double.doubleToLongBits(other.xSpacing)
 				&& Double.doubleToLongBits(ySpacing) == Double.doubleToLongBits(other.ySpacing)
 				&& Double.doubleToLongBits(zSpacing) == Double.doubleToLongBits(other.zSpacing)
 				&& Objects.equals(spacingUnit, other.spacingUnit) && Objects.equals(origin, other.origin)

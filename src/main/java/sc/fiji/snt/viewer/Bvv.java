@@ -2500,24 +2500,23 @@ public class Bvv extends AbstractBigViewer {
     }
 
     /**
-     * Offsets all paths being rendered.
-     * This allows for 'dislodging' paths from their underlying signal without altering their coordinates.
+     * Offsets all paths being rendered. This allows for 'dislodging' paths from their underlying signal without
+     * altering their coordinates.
+     * <p>
+     * Rendering-only: stored purely in {@code renderingOptions.pathOffset} and read directly by
+     * {@code OverlayRenderer#computeScreenData}. Does NOT touch {@code Path}/{@code Tree} state
      *
      * @param offsetX X offset (calibrated distance)
      * @param offsetY Y offset (calibrated distance)
      * @param offsetZ Z offset (calibrated distance)
      */
     @Override
-    public void setCanvasOffset(final double offsetX, final double offsetY, final double offsetZ) {
-        for (final Tree tree : renderedTrees.values()) {
-            tree.applyCanvasOffset(offsetX, offsetY, offsetZ);
-        }
-        // Offset mutates node positions in place without changing path/node count or identity, so it
-        // is invisible to the screen-data cache's fingerprint (see OverlayRenderer#updatePaths);
-        // force a full recompute like in setDisplayRadii()
+    public void setPathOverlayOffset(final double offsetX, final double offsetY, final double offsetZ) {
+        renderingOptions.pathOffset = (offsetX == 0 && offsetY == 0d && offsetZ == 0d) ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
+        // Offset is read fresh from renderingOptions on every computeScreenData() call, but the screen-data cache is
+        // keyed off a structural fingerprint that doesn't change here; force a full recompute like in setDisplayRadii()
         if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
         syncOverlays();
-        renderingOptions.canvasOffset = (offsetX == 0 && offsetY == 0d && offsetZ == 0d) ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
     }
 
     @Override
@@ -4550,6 +4549,16 @@ public class Bvv extends AbstractBigViewer {
             final boolean filterByCTpos = viewer.snt != null && viewer.snt.isShowOnlyActiveCTposPaths();
             final int currentFrame = viewerPanel.getCurrentTimepoint() + 1; // Path#getFrame() is 1-based
 
+            // Rendering-only "dislodge from signal" nudge (renderingOptions.pathOffset, set via the
+            // viewer's own "Annotations Offset..." toggle (AbstractBigViewer#setCanvasOffsetAction)).
+            // Deliberately a single value shared by the whole scene, read here rather than per-Path:
+            // Applies to neurite/Path geometry only, not to point annotations/markers (AnnRenderer#computeScreenData):
+            // a marker denotes a location, it is not meant to be "peeked" alongside the signal the way a Path is
+            final SNTPoint pathOffset = renderingOptions.pathOffset;
+            final double offX = pathOffset != null ? pathOffset.getX() : 0;
+            final double offY = pathOffset != null ? pathOffset.getY() : 0;
+            final double offZ = pathOffset != null ? pathOffset.getZ() : 0;
+
             for (final Path path : tree.list()) {
                 final int n = path.size();
                 if (n < 1) continue;
@@ -4562,12 +4571,6 @@ public class Bvv extends AbstractBigViewer {
                 if (selected && !customColor) color = renderingOptions.selectedColor;
                 else if (customColor) color = path.getColor(); // never null when hasCustomColor() true
                 final boolean hasNodeColors = path.hasNodeColors();
-
-                // Hoist offset outside inner loop: same value for all nodes (#1)
-                final sc.fiji.snt.util.PointInCanvas offset = path.getCanvasOffset();
-                final double offX = offset != null ? offset.x : 0;
-                final double offY = offset != null ? offset.y : 0;
-                final double offZ = offset != null ? offset.z : 0;
 
                 // Hoist renderingOptions getters: avoid repeated virtual calls per node
                 final double minR = renderingOptions.getMinThickness() / 2.0;
@@ -4624,9 +4627,11 @@ public class Bvv extends AbstractBigViewer {
                 // node" for the 2D canvas (InteractiveTracerCanvas).
                 final PointInImage branchPoint = path.getBranchPoint();
                 if (branchPoint != null) {
-                    worldCoords[0] = branchPoint.x;
-                    worldCoords[1] = branchPoint.y;
-                    worldCoords[2] = branchPoint.z;
+                    // Must use the same scene offset as the path's own nodes above, or the connector
+                    // stays behind while the rest of the (offset) path moves, visibly detaching forks
+                    worldCoords[0] = branchPoint.x + offX;
+                    worldCoords[1] = branchPoint.y + offY;
+                    worldCoords[2] = branchPoint.z + offZ;
                     viewerTransform.apply(worldCoords, viewerCoords);
                     final double bpf = dCam / (dCam + viewerCoords[2]);
                     final double bx = centerX + (viewerCoords[0] - centerX) * bpf;

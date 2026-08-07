@@ -638,16 +638,16 @@ public class Bdv extends AbstractBigViewer {
     }
 
     /**
-     * Shifts all rendered trees by (offsetX, offsetY, offsetZ) in world coordinates
-     * and records the offset in the rendering options so it survives a syncOverlays() call.
-     */
+     * Shifts all rendered trees by (offsetX, offsetY, offsetZ) in world coordinates, for rendering
+     * purposes only.*/
     @Override
-    public void setCanvasOffset(final double offsetX, final double offsetY, final double offsetZ) {
-        for (final Tree tree : renderedTrees.values())
-            tree.applyCanvasOffset(offsetX, offsetY, offsetZ);
-        syncOverlays();
-        renderingOptions.canvasOffset = (offsetX == 0 && offsetY == 0 && offsetZ == 0)
+    public void setPathOverlayOffset(final double offsetX, final double offsetY, final double offsetZ) {
+        renderingOptions.pathOffset = (offsetX == 0 && offsetY == 0 && offsetZ == 0)
                 ? null : SNTPoint.of(offsetX, offsetY, offsetZ);
+        // Offset is read fresh from renderingOptions on every computeScreenData() call, but the screen-data
+        // cache is keyed off a structural fingerprint that doesn't change here; force a full recompute
+        if (pathOverlay != null) pathOverlay.overlayRenderer.invalidateCache();
+        syncOverlays();
     }
 
     @Override

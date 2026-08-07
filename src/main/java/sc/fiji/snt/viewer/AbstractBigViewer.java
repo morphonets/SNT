@@ -40,7 +40,6 @@ import sc.fiji.snt.analysis.graph.DirectedWeightedGraph;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -644,7 +643,7 @@ public abstract class AbstractBigViewer {
      * @param offsetY y offset in calibrated units
      * @param offsetZ z offset in calibrated units
      */
-    public abstract void setCanvasOffset(double offsetX, double offsetY, double offsetZ);
+    public abstract void setPathOverlayOffset(double offsetX, double offsetY, double offsetZ);
 
     /** Returns the rendering options shared across this viewer's overlays. */
     public PathRenderingOptions getRenderingOptions() { return renderingOptions; }
@@ -994,15 +993,15 @@ public abstract class AbstractBigViewer {
                     if (!(e.getSource() instanceof AbstractButton toggleButton)) return;
 
                     final SNTPoint offset = getGuiUtils().getCoordinates(
-                            "Offsets (" + calUnit + "): ", "Annotations Offset (Calibrated Distances)",
-                            renderingOptions.canvasOffset, 2, SNTPoint.of(0, 0, 0));
+                            "Offsets (" + calUnit + "): ", "Paths Offset (Calibrated Distances)",
+                            renderingOptions.pathOffset, 2, SNTPoint.of(0, 0, 0));
                     if (offset == null) {
                         toggleButton.setSelected(false);
                         return;
                     }
-                    setCanvasOffset(offset.getX(), offset.getY(), offset.getZ());
-                    showViewerMessage((renderingOptions.canvasOffset==null) ? "Offset removed" : "Offset applied");
-                    toggleButton.setSelected(renderingOptions.canvasOffset != null);
+                    setPathOverlayOffset(offset.getX(), offset.getY(), offset.getZ());
+                    showViewerMessage((renderingOptions.pathOffset==null) ? "Offset removed" : "Offset applied");
+                    toggleButton.setSelected(renderingOptions.pathOffset != null);
                 }
             };
         }
@@ -1208,7 +1207,7 @@ public abstract class AbstractBigViewer {
         private boolean usePathRadius = true;
         private float minThickness = 1.0f;
         private float maxThickness = 100.0f;
-        SNTPoint canvasOffset;
+        SNTPoint pathOffset; // the viewer's "Annotations Offset..." toggle
         public Color fallbackColor = SNTPrefs.deselectedPathColor();
         public Color selectedColor = SNTPrefs.selectedPathColor();
         public boolean displayCustomPathColors;

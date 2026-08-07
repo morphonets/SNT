@@ -199,8 +199,7 @@ public class PathAndFillManager extends DefaultHandler implements
         z_spacing = plugin.z_spacing;
         spacing_units = plugin.spacing_units;
         boundingBox.setOrigin(new PointInImage(0, 0, 0));
-        boundingBox.setSpacing(x_spacing, y_spacing, z_spacing,
-                spacing_units);
+        boundingBox.setSpacing(x_spacing, y_spacing, z_spacing, spacing_units);
         boundingBox.setDimensions(plugin.width, plugin.height, plugin.depth);
     }
 

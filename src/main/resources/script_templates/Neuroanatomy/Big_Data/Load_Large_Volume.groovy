@@ -93,7 +93,7 @@ try {
 
 // Viewport offset (shift overlays without moving data)
 
-//bvv.setCanvasOffset(0, 0, 5.0)   // offset in calibrated units
+//bvv.setPathOverlayOffset(0, 0, 5.0)   // offset in calibrated units
 
 // #Screenshots
 //imp = bvv.snapshot() // current scene
